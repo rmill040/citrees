@@ -79,7 +79,7 @@ def binarize(y_true, y_hat):
     return lb.transform(y_true), lb.transform(y_hat)
 
 
-def cross_validate(X, y, model, params, k, random_state=None, cols=None):
+def cross_validate(X, y, model, params, k, cv, cols=None):
     """ADD
     
     Parameters
@@ -91,13 +91,8 @@ def cross_validate(X, y, model, params, k, random_state=None, cols=None):
     # Subset columns in specified
     if cols: X = X[:, cols]
 
-    # Number of classes
-    n_classes = len(set(y))
-
-    skf    = StratifiedKFold(n_splits=k, shuffle=True, random_state=random_state)
-    scores = np.zeros(k)
-    fold   = 0
-    for train_idx, test_idx in skf.split(X, y):
+    n_classes, scores, fold = len(set(y)), np.zeros(k), 0
+    for train_idx, test_idx in cv.split(X, y):
 
         # Split into train and test data
         X_train, X_test = X[train_idx], X[test_idx]
@@ -133,10 +128,10 @@ def cross_validate(X, y, model, params, k, random_state=None, cols=None):
                 pass
 
         # Next fold
-        print("[CV] Fold %d AUC = %.4f" % (fold+1, scores[fold]))
+        print("[CV] Fold %d: AUC = %.4f" % (fold+1, scores[fold]))
         fold += 1
 
-    print("[CV] Overall AUC %.4f +/- %.4f\n" % (scores.mean(), scores.std()))
+    print("[CV] Overall: AUC = %.4f +/- %.4f\n" % (scores.mean(), scores.std()))
     return scores
 
 
@@ -145,17 +140,20 @@ def run():
 
     # Create hyperparameter grid
     grid = {
-        'alpha': [.05, .25, .50, .75, 1.0],
-        'n_permutations': [20, 50, 100, 500, 1000],
-        'selector': ['pearson', 'distance'],
+        'alpha': [.01, .05, .25, .50, 1.0],
+        'n_permutations': [50, 100, 250, 500],
+        'selector': ['pearson', 'distance', 'hybrid'],
         'early_stopping': [True, False],
     }
     grid = list(ParameterGrid(grid))
     print("[CV] Testing %d hyperparameter combinations\n" % len(grid))
 
+    # Define cross-validator
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1718)
+
     # Iterate over each data set
     results, start = [], time.time()
-    for name in DATA_SETS:
+    for name in DATA_SETS[::-1]:
 
         # Load data
         X, y = load_data(name)
@@ -163,26 +161,48 @@ def run():
         print("[DATA] Shape: %s" % (X.shape,))
         print("[DATA] Labels: %s\n" % np.unique(y))
 
+        n, p = X.shape
+
         # Test each hyperparameter grid using cross-validation
         for params in grid:
-            scores = cross_validate(X, 
-                                    y, 
-                                    model=CITreeClassifier, 
-                                    params=params, 
-                                    k=5, 
-                                    random_state=1718)
-            
-            # Summary metrics, update results, and continue
-            mean_score, std_score, min_score, max_score = \
-                scores.mean(), scores.std(), scores.min(), scores.max()
-            
-            iteration = params.copy()
-            iteration['name']       = name
-            iteration['mean_score'] = mean_score
-            iteration['std_score']  = std_score
-            iteration['min_score']  = min_score
-            iteration['max_score']  = max_score
-            results.append(iteration)
+
+            # Skip computationally intense conditions and infeasible conditons
+            if p > 250 and \
+               params['early_stopping'] == False and \
+               params['selector'] in ['hybrid', 'distance']: 
+               continue
+
+            if params['alpha'] == .01 and params['n_permutations'] == 50:
+                continue
+
+            print("[CV] Hyperparameters:\n%s" % params)
+            try:
+                scores = cross_validate(X, 
+                                        y, 
+                                        model=CITreeClassifier, 
+                                        params=params, 
+                                        k=5,
+                                        cv=skf)
+                
+                # Summary metrics, update results, and continue
+                mean_score, std_score, min_score, max_score = \
+                    scores.mean(), scores.std(), scores.min(), scores.max()
+                
+                iteration = params.copy()
+                iteration['name']       = name
+                iteration['mean_score'] = mean_score
+                iteration['std_score']  = std_score
+                iteration['min_score']  = min_score
+                iteration['max_score']  = max_score
+                results.append(iteration)
+            except:
+                iteration = params.copy()
+                iteration['name']       = name
+                iteration['mean_score'] = 0.0
+                iteration['std_score']  = 0.0
+                iteration['min_score']  = 0.0
+                iteration['max_score']  = 0.0
+                continue
 
     # To pandas dataframe and write to disk
     results = pd.DataFrame(results)

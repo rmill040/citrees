@@ -31,7 +31,7 @@ def permutation_test_pcor(x, y, agg, B=100):
 
 
 @autojit(cache=True, nogil=True, nopython=True)
-def permutation_test_dcor(x, y, agg, n, s, B=100):
+def permutation_test_dcor(x, y, agg, n, B=100):
     """ADD
 
     NOTE: The jitted Python function is called here
@@ -43,19 +43,19 @@ def permutation_test_dcor(x, y, agg, n, s, B=100):
     -------
     """
     # Estimate correlation from original data
-    theta = np.fabs(py_dcor(x, y, n, s))
+    theta = np.fabs(py_dcor(x, y, n))
 
     # Permutations
     theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
     for i in xrange(B):
         np.random.shuffle(agg)
-        theta_p[i] = py_dcor(agg[:n_x], agg[n_y:], n, s)
+        theta_p[i] = py_dcor(agg[:n_x], agg[n_y:], n)
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)
 
 
-def _permutation(agg, n_x, n_y, n, s, func=None):
+def _permutation(agg, n_x, n_y, n, func=None):
     """ADD
     
     Parameters
@@ -65,10 +65,10 @@ def _permutation(agg, n_x, n_y, n, s, func=None):
     -------
     """
     np.random.shuffle(agg)
-    return func(agg[:n_x], agg[n_y:], n, s)
+    return func(agg[:n_x], agg[n_y:], n)
 
 
-def permutation_test_dcor_parallel(x, y, agg, n, s, B=100, n_jobs=-1):
+def permutation_test_dcor_parallel(x, y, agg, n, B=100, n_jobs=-1):
     """ADD
     
     Parameters
@@ -81,13 +81,13 @@ def permutation_test_dcor_parallel(x, y, agg, n, s, B=100, n_jobs=-1):
     func = py_dcor if n < 500 else c_dcor
 
     # Estimate correlation from original data
-    theta = np.fabs(func(x, y, n, s))
+    theta = np.fabs(func(x, y, n))
 
     # Permutations
     n_x, n_y = len(x), len(y)
     theta_p = [
         Parallel(n_jobs=n_jobs, backend='threading')(
-                delayed(_permutation)(agg, n_x, n_y, n, s, func) for i in xrange(B)
+                delayed(_permutation)(agg, n_x, n_y, n, func) for i in xrange(B)
             )
         ]
 
@@ -96,23 +96,22 @@ def permutation_test_dcor_parallel(x, y, agg, n, s, B=100, n_jobs=-1):
 
 
 if __name__ == '__main__':
-    n=500
-    s=int(n*(n-1)/2.)
+    n=1500
     x=np.random.normal(0, 1, n)
 
     import time
     start=time.time()
-    permutation_test_dcor_parallel(x, x, np.concatenate([x, x]), n, s)
+    permutation_test_dcor_parallel(x, x, np.concatenate([x, x]), n)
     print(time.time()-start)
 
     start=time.time()
-    permutation_test_dcor(x, x, np.concatenate([x, x]), n, s, B=100)
+    permutation_test_dcor(x, x, np.concatenate([x, x]), n, B=100)
     print(time.time()-start)
 
     start=time.time()
-    permutation_test_dcor_parallel(x, x, np.concatenate([x, x]), n, s)
+    permutation_test_dcor_parallel(x, x, np.concatenate([x, x]), n)
     print(time.time()-start)
 
     start=time.time()
-    permutation_test_dcor(x, x, np.concatenate([x, x]), n, s, B=100)
+    permutation_test_dcor(x, x, np.concatenate([x, x]), n, B=100)
     print(time.time()-start)

@@ -17,10 +17,9 @@ class TestScorers(unittest.TestCase):
     def setUp(self):
         """Generate toy data and calculate Pearson correlation for comparison"""
         
-        self.n       = 1000
-        self.s       = int((self.n*(self.n-1))/2.)
-        self.x       = np.random.normal(0, 1, 1000)
-        self.y       = .2*self.x + np.random.normal(0, 1, 1000)
+        self.n       = 5000
+        self.x       = np.random.normal(0, 1, self.n)
+        self.y       = .2*self.x + np.random.normal(0, 1, self.n)
         self.weights = np.ones(self.n)/float(self.n)
 
         # Calculate pearson correlation and use as ground truth
@@ -31,7 +30,7 @@ class TestScorers(unittest.TestCase):
         """Test for py_dcor"""
 
         # Compare against Pearson correlation
-        dcor = py_dcor(self.x, self.y, self.n, self.s)
+        dcor = py_dcor(self.x, self.y, self.n)
         diff = self.pearson_r - dcor
         msg  = "Python: Difference (%.4f) between Pearson correlation (%.4f) " \
                "and distance correlation (%.4f) too large" % \
@@ -43,7 +42,7 @@ class TestScorers(unittest.TestCase):
         """Test for py_wdcor"""
 
         # Compare against Pearson correlation
-        wdcor = py_wdcor(self.x, self.y, self.n, self.s, self.weights)
+        wdcor = py_wdcor(self.x, self.y, self.n, self.weights)
         diff  = self.pearson_r - wdcor
         msg   = "Python: Difference (%.4f) between Pearson correlation (%.4f) " \
                 "and weighted distance correlation (%.4f) too large" % \
@@ -55,7 +54,7 @@ class TestScorers(unittest.TestCase):
         """Test for approx_dcor"""
 
         # Compare against Pearson correlation
-        wdcor = approx_wdcor(self.x, self.y, self.n, self.s)
+        wdcor = approx_wdcor(self.x, self.y, self.n)
         diff  = self.pearson_r - wdcor
         msg   = "Difference (%.4f) between Pearson correlation (%.4f) " \
                 "and approximate weighted distance correlation (%.4f) too " \
@@ -67,7 +66,7 @@ class TestScorers(unittest.TestCase):
         """Test for c_dcor"""
 
         # Compare against Pearson correlation
-        dcor = c_dcor(self.x, self.y, self.n, self.s)
+        dcor = c_dcor(self.x, self.y, self.n)
         diff = self.pearson_r - dcor
         msg  = "C: Difference (%.4f) between Pearson correlation (%.4f) " \
                "and distance correlation (%.4f) too large" % \
@@ -79,7 +78,7 @@ class TestScorers(unittest.TestCase):
         """Test for c_wdcor"""
 
         # Compare against Pearson correlation
-        wdcor = c_wdcor(self.x, self.y, self.n, self.s, self.weights)
+        wdcor = c_wdcor(self.x, self.y, self.n, self.weights)
         diff  = self.pearson_r - wdcor
         msg   = "C: Difference (%.4f) between Pearson correlation (%.4f) " \
                 "and weighted distance correlation (%.4f) too large" % \

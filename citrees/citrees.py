@@ -172,7 +172,7 @@ class CITreeBase(object):
         return best_col, best_pval
 
 
-    def _selector_dcor(self, X, y, n, s, col_idx):
+    def _selector_dcor(self, X, y, n, col_idx):
         """ADD
         
         Parameters
@@ -190,7 +190,6 @@ class CITreeBase(object):
                                              y=y, 
                                              agg=np.concatenate([X[:, col], y]), 
                                              n=n,
-                                             s=s,
                                              B=self.n_permutations)
                 if pval < best_pval: 
                     best_col, best_pval = col, pval
@@ -208,7 +207,6 @@ class CITreeBase(object):
                                              y=y, 
                                              agg=np.concatenate([X[:, col], y]), 
                                              n=n,
-                                             s=s,
                                              n_jobs=self.n_jobs,
                                              B=self.n_permutations)
                 if pval < best_pval: 
@@ -222,7 +220,7 @@ class CITreeBase(object):
         return best_col, best_pval
 
 
-    def _selector_cor_hybrid(self, X, y, n, s, col_idx):
+    def _selector_cor_hybrid(self, X, y, n, col_idx):
         """ADD
         
         Parameters
@@ -238,8 +236,8 @@ class CITreeBase(object):
 
             # First calculate correlation to determine which one is larger
             pearson  = abs(pcor(X[:, col], y))
-            distance = py_dcor(X[:, col], y, n, s) if n < 500 else \
-                       c_dcor(X[:, col], y, n, s)
+            distance = py_dcor(X[:, col], y, n) if n < 500 else \
+                       c_dcor(X[:, col], y, n)
             
             # Calculate permutation test based on correlation values
             if pearson >= distance:
@@ -262,7 +260,6 @@ class CITreeBase(object):
                                                  y=y, 
                                                  agg=np.concatenate([X[:, col], y]), 
                                                  n=n,
-                                                 s=s,
                                                  B=self.n_permutations)
                     if pval < best_pval: 
                         best_col, best_pval = col, pval
@@ -279,7 +276,6 @@ class CITreeBase(object):
                                                  y=y, 
                                                  agg=np.concatenate([X[:, col], y]), 
                                                  n=n,
-                                                 s=s,
                                                  n_jobs=self.n_jobs,
                                                  B=self.n_permutations)
                     if pval < best_pval: 
@@ -329,13 +325,12 @@ class CITreeBase(object):
 
         # Distance correlation 
         elif self.selector == 'distance':
-            s = int(n*(n-1)/2.)
-            return self._selector_dcor(X, y, n, s, col_idx)
+            return self._selector_dcor(X, y, n, col_idx)
 
         # Hybrid correlation
         else:
             s = int(n*(n-1)/2.)
-            return self._selector_cor_hybrid(X, y, n, s, col_idx)
+            return self._selector_cor_hybrid(X, y, n, col_idx)
 
 
     def _splitter(self, *args, **kwargs):
@@ -757,9 +752,9 @@ class CIForestBase(object):
     Returns
     -------
     """
-    def __init__(self, min_samples_split=2, alpha=.10, max_depth=-1,
-                 n_estimators=100, max_feats='sqrt', n_permutations=50, 
-                 selector='pearson', early_stopping=True, verbose=2, 
+    def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
+                 n_estimators=100, max_feats='sqrt', n_permutations=250, 
+                 selector='pearson', early_stopping=True, verbose=0, 
                  bootstrap=True, n_jobs=-1, random_state=None):
 
         # Error checking
@@ -884,10 +879,10 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
                  max_depth=-1,
                  n_estimators=100, 
                  max_feats='sqrt', 
-                 n_permutations=50, 
+                 n_permutations=250, 
                  selector='pearson', 
                  early_stopping=False, 
-                 verbose=2, 
+                 verbose=0, 
                  bootstrap=True, 
                  n_jobs=-1, 
                  random_state=None):

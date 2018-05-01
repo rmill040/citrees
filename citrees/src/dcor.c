@@ -7,7 +7,7 @@ Compiling example:
     gcc -Ofast -march=native -ffast-math -fPIC -shared -o dcor.so dcor.c
 */
 
-double wdcor(double* x, double* y, int n, int s, double* w) {
+double wdcor(double* x, double* y, int n, double* w) {
     /* Distance correlation allowing weights
 
     Parameters
@@ -21,9 +21,6 @@ double wdcor(double* x, double* y, int n, int s, double* w) {
     n : int
         Number of samples
 
-    s : int
-        Defined as int(n*(n-1)/2)
-
     w : 1d double array pointer
         Pointer to array of weights that sum to 1
 
@@ -32,8 +29,9 @@ double wdcor(double* x, double* y, int n, int s, double* w) {
     wdcor : float
         Weighted distance correlation
     */
-    // Initialize integers and doubles
+   // Initialize integers and doubles
     int i, j, k;
+    int s      = n*(n-1)/2;
     double S1  = 0;
     double S2  = 0;
     double S3  = 0;
@@ -46,9 +44,30 @@ double wdcor(double* x, double* y, int n, int s, double* w) {
     double S3X = 0;
     double S3Y = 0;
 
-    // Allocate arrays
-    double DMY[s], DMX[s], F[s], Edx[n], Edy[n];
-    for (i=0; i<s; i++) DMY[i] = DMX[i] = F[i] = 0;
+    // Allocate memory for arrays  
+    double *DMY = calloc(s, sizeof(double));
+    if (DMY == NULL)
+    {
+        printf("Error allocating memory for DMY. \n");
+        exit(1);
+    }
+
+    double *DMX = calloc(s, sizeof(double));
+    if (DMX == NULL)
+    {
+        printf("Error allocating memory for DMX. \n");
+        exit(1);
+    }
+
+    double *F = calloc(s, sizeof(double));
+    if (F == NULL)
+    {
+        printf("Error allocating memory for F. \n");
+        exit(1);
+    }
+
+    // Allocate other data structures
+    double Edx[n], Edy[n];
     for (i=0; i<n; i++) Edx[i] = Edy[i] = 0;
 
     // Begin calculations
@@ -98,7 +117,7 @@ double wdcor(double* x, double* y, int n, int s, double* w) {
 }
 
 
-double dcor(double* x, double* y, int n, int s) {
+double dcor(double* x, double* y, int n) {
     /* Distance correlation
 
     Parameters
@@ -112,9 +131,6 @@ double dcor(double* x, double* y, int n, int s) {
     n : int
         Number of samples
 
-    s : int
-        Defined as int(n*(n-1)/2)
-
     Returns
     -------
     dcor : float
@@ -122,6 +138,7 @@ double dcor(double* x, double* y, int n, int s) {
     */
     // Initialize integers and doubles
     int i, j, k;
+    int s      = n*(n-1)/2;
     long n2    = n*n;   // These numbers can blow up quick so keep as long type
     long n3    = n2*n;
     long n4    = n3*n;
@@ -137,9 +154,30 @@ double dcor(double* x, double* y, int n, int s) {
     double S3X = 0;
     double S3Y = 0;
 
-    // Allocate arrays
-    double DMY[s], DMX[s], Edx[n], Edy[n];
-    for (i=0; i<s; i++) DMY[i] = DMX[i] = 0;
+    // Allocate memory for arrays  
+    double *DMY = calloc(s, sizeof(double));
+    if (DMY == NULL)
+    {
+        printf("Error allocating memory for DMY. \n");
+        exit(1);
+    }
+
+    double *DMX = calloc(s, sizeof(double));
+    if (DMX == NULL)
+    {
+        printf("Error allocating memory for DMX. \n");
+        exit(1);
+    }
+
+    double *F = calloc(s, sizeof(double));
+    if (F == NULL)
+    {
+        printf("Error allocating memory for F. \n");
+        exit(1);
+    }
+
+    // Allocate other data structures
+    double Edx[n], Edy[n];
     for (i=0; i<n; i++) Edx[i] = Edy[i] = 0;
 
     // Begin calculations

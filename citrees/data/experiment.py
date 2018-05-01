@@ -140,11 +140,14 @@ def run():
 
     # Create hyperparameter grid
     grid = {
-        'alpha': [.01, .05, .25, .50, 1.0],
-        'n_permutations': [50, 100, 250, 500],
+        'alpha': [.01, .05, 1.0],
+        'n_permutations': [100],
+        'n_estimators': [100, 200],
         'selector': ['pearson', 'distance', 'hybrid'],
         'early_stopping': [True, False],
+        'bootstrap': [True, False]
     }
+    
     grid = list(ParameterGrid(grid))
     print("[CV] Testing %d hyperparameter combinations\n" % len(grid))
 
@@ -166,20 +169,11 @@ def run():
         # Test each hyperparameter grid using cross-validation
         for params in grid:
 
-            # Skip computationally intense conditions and infeasible conditons
-            if p > 250 and \
-               params['early_stopping'] == False and \
-               params['selector'] in ['hybrid', 'distance']: 
-               continue
-
-            if params['alpha'] == .01 and params['n_permutations'] == 50:
-                continue
-
             print("[CV] Hyperparameters:\n%s" % params)
             try:
                 scores = cross_validate(X, 
                                         y, 
-                                        model=CITreeClassifier, 
+                                        model=CIForestClassifier, 
                                         params=params, 
                                         k=5,
                                         cv=skf)
@@ -206,7 +200,7 @@ def run():
 
     # To pandas dataframe and write to disk
     results = pd.DataFrame(results)
-    results.to_csv("experiment_results.csv", index=False)
+    results.to_csv("forest_experiment_results.csv", index=False)
 
     overall_time = (time.time() - start)/60.
     print("\nScript finished in %.2f minutes" % overall_time)

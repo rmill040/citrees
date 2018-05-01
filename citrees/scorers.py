@@ -19,8 +19,7 @@ CFUNC_DCORS_DLL                = ctypes.CDLL(CFUNC_DCORS_PATH)
 CFUNC_DCORS_DLL.wdcor.argtypes = (
         ctypes.POINTER(ctypes.c_double), # x
         ctypes.POINTER(ctypes.c_double), # y
-        ctypes.c_int,                    # n
-        ctypes.c_int,                    # s      
+        ctypes.c_int,                    # n   
         ctypes.POINTER(ctypes.c_double)  # w              
         )
 CFUNC_DCORS_DLL.wdcor.restype  = ctypes.c_double
@@ -29,8 +28,7 @@ CFUNC_DCORS_DLL.wdcor.restype  = ctypes.c_double
 CFUNC_DCORS_DLL.dcor.argtypes = (
         ctypes.POINTER(ctypes.c_double), # x
         ctypes.POINTER(ctypes.c_double), # y
-        ctypes.c_int,                    # n
-        ctypes.c_int                     # s                    
+        ctypes.c_int,                    # n                 
         )
 CFUNC_DCORS_DLL.dcor.restype  = ctypes.c_double
 
@@ -83,7 +81,7 @@ def pcor(x, y):
 
 
 @autojit(cache=True, nopython=True, nogil=True)
-def py_wdcor(x, y, n, s, weights):
+def py_wdcor(x, y, n, weights):
     """Python port of C function for distance correlation
 
     Note: Version is optimized for use with Numba
@@ -99,9 +97,6 @@ def py_wdcor(x, y, n, s, weights):
     n : int
         Sample size
 
-    s : int
-        Defined as int(n*(n-1)/2.)
-
     weights : 1d array-like
         Weight vector that sums to 1
 
@@ -111,6 +106,7 @@ def py_wdcor(x, y, n, s, weights):
         Distance correlation
     """
     # Define initial variables
+    s   = int(n*(n-1)/2.)
     Edx = np.zeros(n)
     Edy = np.zeros(n)
     DMY = np.zeros(s)
@@ -166,8 +162,9 @@ def py_wdcor(x, y, n, s, weights):
     else:
         return np.sqrt( (S1+S2-2*S3) / np.sqrt( (S1X+S2X-2*S3X)*(S1Y+S2Y-2*S3Y) ))
 
+
 @autojit(cache=True, nopython=True, nogil=True)
-def py_dcor(x, y, n, s):
+def py_dcor(x, y, n):
     """Python port of C function for distance correlation
 
     Note: Version is optimized for use with Numba
@@ -183,14 +180,12 @@ def py_dcor(x, y, n, s):
     n : int
         Sample size
 
-    s : int
-        Defined as int(n*(n-1)/2.)
-
     Returns
     -------
     cor : float
         Distance correlation
     """
+    s   = int(n*(n-1)/2.)
     n2  = n*n
     n3  = n2*n
     n4  = n3*n
@@ -251,7 +246,7 @@ def py_dcor(x, y, n, s):
         return np.sqrt( (S1+S2-2*S3) / np.sqrt( (S1X+S2X-2*S3X)*(S1Y+S2Y-2*S3Y) ))
 
 
-def approx_wdcor(x, y, n, s):
+def approx_wdcor(x, y, n):
     """ADD DESCRIPTION HERE
 
     NOTE: Code ported from R function approx.dcor at: 
@@ -267,9 +262,6 @@ def approx_wdcor(x, y, n, s):
 
     n : int
         Sample size
-
-    s : int
-        Defined as int(n*(n-1)/2.)
     
     Returns
     -------
@@ -299,12 +291,12 @@ def approx_wdcor(x, y, n, s):
 
     # Call either the Python or C version based on array length
     if len(w) > 5000:
-        return c_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, s, w)
+        return c_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, w)
     else:
-        return py_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, s, w)
+        return py_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, w)
 
 
-def c_wdcor(x, y, n, s, weights):
+def c_wdcor(x, y, n, weights):
     """Wrapper for C version of weighted distance correlation
 
     Parameters
@@ -318,9 +310,6 @@ def c_wdcor(x, y, n, s, weights):
     n : int
         Sample size
 
-    s : int
-        Defined as int(n*(n-1)/2.)
-
     weights : 1d array-like
         Weight vector that sums to 1
 
@@ -333,10 +322,9 @@ def c_wdcor(x, y, n, s, weights):
     return CFUNC_DCORS_DLL.wdcor(array_type(*x),
                                  array_type(*y),
                                  ctypes.c_int(n),
-                                 ctypes.c_int(s),
                                  array_type(*weights))
 
-def c_dcor(x, y, n, s):
+def c_dcor(x, y, n):
     """Wrapper for C version of distance correlation
 
     Parameters
@@ -350,9 +338,6 @@ def c_dcor(x, y, n, s):
     n : int
         Sample size
 
-    s : int
-        Defined as int(n*(n-1)/2.)
-
     Returns
     -------
     cor : float
@@ -361,8 +346,7 @@ def c_dcor(x, y, n, s):
     array_type = ctypes.c_double*n
     return CFUNC_DCORS_DLL.dcor(array_type(*x),
                                 array_type(*y),
-                                ctypes.c_int(n),
-                                ctypes.c_int(s))
+                                ctypes.c_int(n))
 
 #####################
 """Split selectors"""
@@ -394,28 +378,27 @@ def gini_index(y, labels):
 
 
 if __name__ == '__main__':
-    n = 500
+    n = 10000
     s = int(n*(n-1)/2.)
-    x=np.random.normal(0, 1, 500)
+    x=np.random.normal(0, 1, n)
+    w=np.ones(n)/float(n)
 
     import time
-    start=time.time()
-    py_wdcor(x, x, n, s, np.ones(500)/500.)
-    print("PYTHON", time.time()-start)
-    #print(py_dcor(x, x, n, s))
 
-    start=time.time()
-    approx_wdcor(x, x, n, s)
-    print("PANDAS", time.time()-start)
+    for i in xrange(10):
+        start=time.time()
+        py_wdcor(x, x, n, w)
+        print("\nPYTHON", time.time()-start)
 
-    start=time.time()
-    py_wdcor(x, x, n, s, np.ones(500)/500.)
-    print("PYTHON", time.time()-start)
-    #print(py_dcor(x, x, n, s))
+        start=time.time()
+        approx_wdcor(x, x, n)
+        print("PANDAS", time.time()-start)
 
-    start=time.time()
-    approx_wdcor(x, x, n, s)
-    print("PANDAS", time.time()-start)
+        start=time.time()
+        c_wdcor(x, x, n, w)
+        print("C", time.time()-start)
+
+        time.sleep(2)
 
 # def get_variance(target_value_statistics_list):
 #     """

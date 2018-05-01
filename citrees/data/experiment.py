@@ -143,7 +143,7 @@ def run():
         'alpha': [.01, .05, 1.0],
         'n_permutations': [100],
         'n_estimators': [100, 200],
-        'selector': ['pearson', 'distance', 'hybrid'],
+        'selector': ['distance', 'pearson', 'hybrid'],
         'early_stopping': [True, False],
         'bootstrap': [True, False]
     }

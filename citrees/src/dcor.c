@@ -90,6 +90,11 @@ double wdcor(double* x, double* y, int n, double* w) {
         }
     }
 
+    // Free dynamically allocated memory
+    free(DMY);
+    free(DMX);
+    free(F);
+
     // Means
     for (i=0; i<n; i++) {
         S3  += Edx[i]*Edy[i]*w[i];
@@ -198,6 +203,11 @@ double dcor(double* x, double* y, int n) {
             k++;
         }
     }
+
+    // Free dynamically allocated memory
+    free(DMY);
+    free(DMX);
+    free(F);
 
     // Means
     for (i=0; i<n; i++) {

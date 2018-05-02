@@ -429,8 +429,9 @@ class CITreeBase(object):
             self.max_feats = int(self.max_feats)
         
         # Begin recursive build
-        self.root = self._build_tree(X, y)
-        sum_fi    = np.sum(self.feature_importances_)
+        self.feature_importances_ = np.zeros(X.shape[1])
+        self.root                 = self._build_tree(X, y)
+        sum_fi                    = np.sum(self.feature_importances_)
         if sum_fi > 0: self.feature_importances_ /= sum_fi
         
         return self
@@ -469,6 +470,7 @@ class CITreeBase(object):
 
     def predict(self, *args, **kwargs):
         """Predicts labels on test data"""
+
         raise NotImplementedError("predict method not callable from base class")
 
 
@@ -603,7 +605,7 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         return np.array([np.mean(y == label) for label in self.labels_])
 
 
-    def fit(self, X, y):
+    def fit(self, X, y, labels=None):
         """ADD
         
         Parameters
@@ -612,10 +614,9 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         Returns
         -------
         """
-        self.feature_importances_ = np.zeros(X.shape[1])
-        self.labels_              = np.unique(y)
-        self.n_classes_           = len(self.labels_)
-        self.node_estimate        = self._estimate_proba
+        self.labels_       = labels if labels is not None else np.unique(y)
+        self.n_classes_    = len(self.labels_)
+        self.node_estimate = self._estimate_proba
         super(CITreeClassifier, self).fit(X, y)
         return self
 
@@ -645,7 +646,7 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         -------
         """
         y_proba = self.predict_proba(X)
-        return np.argmax(y_proba, axis=1) + self.labels_.min()
+        return np.argmax(y_proba, axis=1)
 
 
 #####################
@@ -704,10 +705,24 @@ def unsampled_idx(random_state, n_samples):
 def _parallel_fit(tree, X, y, n, tree_idx, n_estimators, bootstrap,
                   verbose, random_state):
     """This is a utility function for joblib's Parallel. It can't go locally in
-    class, because joblib complains that it cannot pickle it when placed there.
+    class, because joblib complains that it cannot pickle it when placed there
     
     Parameters
     ----------
+    X : ADD
+        ADD
+
+    y : ADD
+        ADD
+
+    n : ADD
+        ADD
+
+    tree_idx : ADD
+        ADD
+
+    n_estimators : ADD
+        ADD
     
     Returns
     -------
@@ -721,7 +736,12 @@ def _parallel_fit(tree, X, y, n, tree_idx, n_estimators, bootstrap,
     # Bootstrap sample if specified
     if bootstrap:
         idx = sampled_idx(random_state*(tree_idx+1), n)
-        tree.fit(X[idx], y[idx])
+
+        # Note: We need to pass the classes in the case of the bootstrap
+        # because not all classes may be sampled and when it comes to prediction,
+        # the tree models learns a different number of classes across different
+        # bootstrap samples
+        tree.fit(X[idx], y[idx], np.unique(y)) 
     else:
         tree.fit(X, y)
 
@@ -823,10 +843,6 @@ class CIForestBase(object):
             logger("tree", "Training ensemble with %d trees on %d samples" % \
                     (self.n_estimators, X.shape[0]))
 
-        # Class information
-        self.labels_    = np.unique(y)
-        self.n_classes_ = len(self.labels_)
-
         # Instantiate base tree models
         self.estimators_ = \
             [self.Tree(**self.params) for _ in range(self.n_estimators)]
@@ -913,6 +929,10 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
         """
         # Alias to tree model used in parent class
         self.Tree = CITreeClassifier
+
+        # Class information
+        self.labels_    = np.unique(y)
+        self.n_classes_ = len(self.labels_)
         super(CIForestClassifier, self).fit(X, y)
         return self
 
@@ -954,16 +974,5 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
         -------
         """
         y_proba = self.predict_proba(X)
-        return np.argmax(y_proba, axis=1) + self.labels_.min()
+        return np.argmax(y_proba, axis=1)
 
-
-if __name__ == '__main__':
-    X   = np.random.normal(0, 1, (1000, 15))
-    # y   = 1/(1+np.exp(-.9*X[:, 0]))
-    # y   = np.random.binomial(1, y, 1000)
-    y = np.zeros(1000)
-    y[X[:,0]>0] = 1
-    import pdb; pdb.set_trace()
-    clf = CIForestClassifier()
-    clf.fit(X, y)
-    print(np.mean(clf.predict(X) == y))

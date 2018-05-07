@@ -17,9 +17,9 @@ if PATH not in sys.path: sys.path.append(PATH)
 from citrees import CITreeClassifier, CIForestClassifier
 
 
-DATA_SETS = ['ALLAML', 'CLL_SUB_111', 'ORL', 'orlraws10P',
-             'pixraw10P', 'TOX_171', 'warpAR10P', 'warpPIE10P',
-             'Yale', 'glass', 'wine', 'vowel-context']
+DATA_SETS = ['orlraws10P', 'warpPIE10P', 'warpAR10P', 'pixraw10P', 'ALLAML', 
+             'CLL_SUB_111', 'ORL', 'TOX_171', 'Yale', 'glass', 'wine', 
+             'vowel-context']
 
 def load_data(name):
     """ADD
@@ -100,7 +100,7 @@ def cross_validate(X, y, model, params, k, cv, cols=None):
 
         # Train model and make predictions
         clf = model(**params).fit(X_train, y_train)
-        
+
         if n_classes == 2:
             y_probs = clf.predict_proba(X_test)
             y_hat   = clf.predict(X_test)
@@ -141,11 +141,11 @@ def run():
     # Create hyperparameter grid
     grid = {
         'alpha': [.01, .05, 1.0],
-        'n_permutations': [100],
-        'n_estimators': [100, 200],
         'selector': ['distance', 'pearson', 'hybrid'],
         'early_stopping': [True, False],
-        'bootstrap': [True, False]
+        'bootstrap': [True, False],
+        'class_weight': [None, 'balanced', 'stratify'],
+        'n_jobs': [-1]
     }
     
     grid = list(ParameterGrid(grid))
@@ -156,7 +156,7 @@ def run():
 
     # Iterate over each data set
     results, start = [], time.time()
-    for name in DATA_SETS[::-1]:
+    for name in DATA_SETS:
 
         # Load data
         X, y = load_data(name)
@@ -189,7 +189,8 @@ def run():
                 iteration['min_score']  = min_score
                 iteration['max_score']  = max_score
                 results.append(iteration)
-            except:
+            except Exception as e:
+                print(e)
                 iteration = params.copy()
                 iteration['name']       = name
                 iteration['mean_score'] = 0.0

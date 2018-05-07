@@ -114,8 +114,8 @@ class CITreeBase(object):
                  early_stopping=False, verbose=0, n_jobs=-1):
 
         # Error checking
-        if alpha < 0 or alpha > 1:
-            raise ValueError("Alpha (%.2f) should be between (0, 1)" % alpha)
+        if alpha <= 0 or alpha > 1:
+            raise ValueError("Alpha (%.2f) should be in (0, 1]" % alpha)
         if n_permutations < 0:
             raise ValueError("n_permutations (%d) should be > 0" % \
                              n_permutations)
@@ -360,7 +360,7 @@ class CITreeBase(object):
         n_samples, n_features = X.shape
 
         # Check for stopping criteria
-        if n_samples >= self.min_samples_split and depth < self.max_depth:
+        if n_samples > self.min_samples_split and depth < self.max_depth:
 
             # Find column with strongest association with outcome
             col_idx       = np.random.choice(np.arange(n_features, dtype=int),
@@ -456,8 +456,6 @@ class CITreeBase(object):
         # If we have a value => return value as the prediction
         if tree is None: tree = self.root
         if tree.value is not None: return tree.value
-
-        # Choose the feature that we will test
 
         # Determine if we will follow left or right branch
         feature_value = X[tree.col]
@@ -673,7 +671,75 @@ def check_random_state(seed):
                      ' instance' % seed)
 
 
-def sampled_idx(random_state, n_samples):
+def stratify_sampled_idx(random_state, y):
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+    idx = []
+    for label in np.unique(y):
+        tmp = np.where(y == label)[0]
+        idx.append(np.random.choice(tmp, size=len(tmp), replace=True))
+    return idx
+
+
+def stratify_unsampled_idx(random_state, y):
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+    sampled = stratify_sampled_idx(random_state, y)
+    idx     = []
+    for i, label in enumerate(np.unique(y)):
+        idx.append(np.setdiff1d(np.where(y==label)[0], sampled[i]))
+    return idx
+
+
+def balanced_sampled_idx(random_state, y, min_class_p):
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+    idx, n = [], int(np.floor(min_class_p*len(y)))
+    for i, label in enumerate(np.unique(y)):
+        tmp = np.where(y==label)[0]
+        idx.append(np.random.choice(tmp, size=n, replace=True))
+    return idx
+
+
+def balanced_unsampled_idx(random_state, y, min_class_p):
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+    sampled = balanced_sampled_idx(random_state, y, min_class_p)
+    idx     = []
+    for i, label in enumerate(np.unique(y)):
+        idx.append(np.setdiff1d(np.where(y==label)[0], sampled[i]))
+    return idx
+
+
+def normal_sampled_idx(random_state, n_samples):
     """ADD
     
     Parameters
@@ -686,7 +752,7 @@ def sampled_idx(random_state, n_samples):
     return random_instance.randint(0, n_samples, n_samples)
 
 
-def unsampled_idx(random_state, n_samples):
+def normal_unsampled_idx(random_state, n_samples):
     """ADD
     
     Parameters
@@ -695,15 +761,15 @@ def unsampled_idx(random_state, n_samples):
     Returns
     -------
     """
-    sample_idx     = sampled_idx(random_state, n_samples)
+    sample_idx     = normal_sampled_idx(random_state, n_samples)
     sample_counts  = np.bincount(sample_idx, minlength=n_samples)
     unsampled_mask = sample_counts == 0
     idx_range      = np.arange(n_samples, dtype=int)
     return idx_range[unsampled_mask]
 
 
-def _parallel_fit(tree, X, y, n, tree_idx, n_estimators, bootstrap,
-                  verbose, random_state):
+def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
+                  verbose, random_state, class_weight=None, min_dist_p=None):
     """This is a utility function for joblib's Parallel. It can't go locally in
     class, because joblib complains that it cannot pickle it when placed there
     
@@ -735,7 +801,13 @@ def _parallel_fit(tree, X, y, n, tree_idx, n_estimators, bootstrap,
 
     # Bootstrap sample if specified
     if bootstrap:
-        idx = sampled_idx(random_state*(tree_idx+1), n)
+        random_state = random_state*(tree_idx+1)
+        if class_weight == 'balanced':
+            idx = balanced_sampled_idx(random_state, y, min_dist_p)
+        elif class_weight == 'stratify':
+            idx = stratify_sampled_idx(random_state, y)
+        else:
+            idx = normal_sampled_idx(random_state, n)
 
         # Note: We need to pass the classes in the case of the bootstrap
         # because not all classes may be sampled and when it comes to prediction,
@@ -744,6 +816,18 @@ def _parallel_fit(tree, X, y, n, tree_idx, n_estimators, bootstrap,
         tree.fit(X[idx], y[idx], np.unique(y)) 
     else:
         tree.fit(X, y)
+
+
+def _parallel_fit_regressor():
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    pass
 
 
 def _accumulate_prediction(predict, X, out, lock):
@@ -775,11 +859,12 @@ class CIForestBase(object):
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
                  n_estimators=100, max_feats='sqrt', n_permutations=250, 
                  selector='pearson', early_stopping=True, verbose=0, 
-                 bootstrap=True, n_jobs=-1, random_state=None):
+                 bootstrap=True, class_weight=None, n_jobs=-1, 
+                 random_state=None):
 
         # Error checking
-        if alpha < 0 or alpha > 1:
-            raise ValueError("Alpha (%.2f) should be between (0, 1)" % alpha)
+        if alpha <= 0 or alpha > 1:
+            raise ValueError("Alpha (%.2f) should be in (0, 1]" % alpha)
         if n_permutations < 0:
             raise ValueError("n_permutations (%s) should be > 0" % \
                              str(n_permutations))
@@ -792,6 +877,14 @@ class CIForestBase(object):
         if n_estimators < 0:
             raise ValueError("n_estimators (%s) must be > 0" % \
                              str(n_estimators))
+
+        # Only for classifier model
+        if class_weight not in [None, 'balanced', 'stratify']:
+            raise ValueError("%s not a valid argument for class_weight" % \
+                             str(class_weight))
+        
+        # Placeholder variable for regression model (not applicable)
+        if class_weight is None: self.min_class_p = None
 
         # Define attributes
         self.alpha             = float(alpha)
@@ -809,7 +902,7 @@ class CIForestBase(object):
         self.early_stopping = early_stopping
         self.n_jobs         = n_jobs
         self.verbose        = verbose
-
+        self.class_weight   = class_weight
 
         if random_state is None:
             self.random_state = np.random.randint(1, 9999)
@@ -847,13 +940,18 @@ class CIForestBase(object):
         self.estimators_ = \
             [self.Tree(**self.params) for _ in range(self.n_estimators)]
 
+        # Define class distribution
+        self.class_dist_p = np.array([
+                np.mean(y==label) for label in np.unique(y)
+            ])
+
         # Train models
         n = X.shape[0]
         Parallel(n_jobs=self.n_jobs, backend='threading')(
-            delayed(_parallel_fit)(
+            delayed(self._parallel_fit)(
                 self.estimators_[i], X, y, n, i, self.n_estimators, 
-                self.bootstrap, self.verbose, self.random_state
-                ) for i in range(self.n_estimators)
+                self.bootstrap, self.verbose, self.random_state, self.class_weight,
+                np.min(self.class_dist_p)) for i in range(self.n_estimators)
             )
 
         # Accumulate feature importances
@@ -899,7 +997,8 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
                  selector='pearson', 
                  early_stopping=False, 
                  verbose=0, 
-                 bootstrap=True, 
+                 bootstrap=True,
+                 class_weight='balanced',
                  n_jobs=-1, 
                  random_state=None):
 
@@ -914,6 +1013,7 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
             early_stopping=early_stopping, 
             verbose=verbose, 
             bootstrap=bootstrap, 
+            class_weight=class_weight,
             n_jobs=n_jobs, 
             random_state=random_state)
 
@@ -927,8 +1027,9 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
         Returns
         -------
         """
-        # Alias to tree model used in parent class
-        self.Tree = CITreeClassifier
+        # Alias to tree model and parallel training function
+        self.Tree          = CITreeClassifier
+        self._parallel_fit = _parallel_fit_classifier
 
         # Class information
         self.labels_    = np.unique(y)
@@ -975,4 +1076,16 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
         """
         y_proba = self.predict_proba(X)
         return np.argmax(y_proba, axis=1)
+
+
+if __name__ == '__main__':
+    y = np.array([0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2])
+    print(stratify_sampled_idx(len(y), y))
+    print(stratify_sampled_idx(len(y), y))
+    print(stratify_unsampled_idx(len(y), y))
+    print(stratify_unsampled_idx(len(y), y))
+    print(balanced_sampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
+    print(balanced_sampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
+    print(balanced_unsampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
+    print(balanced_unsampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
 

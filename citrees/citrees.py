@@ -1,7 +1,6 @@
 from __future__ import division, print_function
 
 from joblib import delayed, Parallel
-import numbers
 import numpy as np
 from scipy.stats import mode
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -67,8 +66,6 @@ class Node(object):
 
 class CITreeBase(object):
     """Base class for conditional inference tree
-
-    NOTE: Classification and regression trees are derived from this parent class
     
     Parameters
     ----------
@@ -104,6 +101,9 @@ class CITreeBase(object):
 
     n_jobs : int
         Number of jobs for permutation testing
+
+    random_state : int
+        Sets seed for random number generator
     
     Returns
     -------
@@ -111,7 +111,7 @@ class CITreeBase(object):
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
                  max_feats=-1, n_permutations=500, selector='pearson', 
-                 early_stopping=False, verbose=0, n_jobs=-1):
+                 early_stopping=False, verbose=0, n_jobs=-1, random_state=None):
 
         # Error checking
         if alpha <= 0 or alpha > 1:
@@ -136,11 +136,18 @@ class CITreeBase(object):
         self.verbose           = verbose
         self.n_jobs            = n_jobs
         self.root              = None
+        self.splitter_counter_ = 0
 
         if max_depth == -1: 
             self.max_depth = np.inf
         else:
             self.max_depth = int(max(1, max_depth))
+
+        if random_state is None:
+            self.random_state = np.random.randint(1, 9999)
+        else:
+            # TODO: ADD CHECK FOR CRAZY LARGE INTEGER?
+            self.random_state = int(random_state)
 
 
     def _selector_pcor(self, X, y, col_idx):
@@ -160,7 +167,8 @@ class CITreeBase(object):
             pval = permutation_test_pcor(x=X[:, col], 
                                          y=y, 
                                          agg=np.concatenate([X[:, col], y]), 
-                                         B=self.n_permutations)
+                                         B=self.n_permutations,
+                                         random_state=self.random_state)
             if pval < best_pval: 
                 best_col, best_pval = col, pval
                 
@@ -173,7 +181,8 @@ class CITreeBase(object):
 
 
     def _selector_dcor(self, X, y, n, col_idx):
-        """ADD
+        """Selects feature most correlated with y using permutation tests with
+        a distance correlation
         
         Parameters
         ----------
@@ -190,7 +199,8 @@ class CITreeBase(object):
                                              y=y, 
                                              agg=np.concatenate([X[:, col], y]), 
                                              n=n,
-                                             B=self.n_permutations)
+                                             B=self.n_permutations,
+                                             random_state=self.random_state)
                 if pval < best_pval: 
                     best_col, best_pval = col, pval
 
@@ -208,7 +218,8 @@ class CITreeBase(object):
                                              agg=np.concatenate([X[:, col], y]), 
                                              n=n,
                                              n_jobs=self.n_jobs,
-                                             B=self.n_permutations)
+                                             B=self.n_permutations,
+                                             random_state=self.random_state)
                 if pval < best_pval: 
                     best_col, best_pval = col, pval
 
@@ -221,7 +232,8 @@ class CITreeBase(object):
 
 
     def _selector_cor_hybrid(self, X, y, n, col_idx):
-        """ADD
+        """Selects feature most correlated with y using permutation tests with
+        a Pearson or a distance correlation, whichever is larger
         
         Parameters
         ----------
@@ -244,7 +256,8 @@ class CITreeBase(object):
                 pval = permutation_test_pcor(x=X[:, col], 
                                              y=y, 
                                              agg=np.concatenate([X[:, col], y]), 
-                                             B=self.n_permutations)
+                                             B=self.n_permutations,
+                                             random_state=self.random_state)
                 if pval < best_pval: 
                     best_col, best_pval = col, pval
                     
@@ -260,7 +273,8 @@ class CITreeBase(object):
                                                  y=y, 
                                                  agg=np.concatenate([X[:, col], y]), 
                                                  n=n,
-                                                 B=self.n_permutations)
+                                                 B=self.n_permutations,
+                                                 random_state=self.random_state)
                     if pval < best_pval: 
                         best_col, best_pval = col, pval
 
@@ -277,7 +291,8 @@ class CITreeBase(object):
                                                  agg=np.concatenate([X[:, col], y]), 
                                                  n=n,
                                                  n_jobs=self.n_jobs,
-                                                 B=self.n_permutations)
+                                                 B=self.n_permutations,
+                                                 random_state=self.random_state)
                     if pval < best_pval: 
                         best_col, best_pval = col, pval
 
@@ -357,19 +372,23 @@ class CITreeBase(object):
         Node : object
             Child node or terminal node in recursive splitting
         """
-        n_samples, n_features = X.shape
+        n, p = X.shape
 
         # Check for stopping criteria
-        if n_samples > self.min_samples_split and depth < self.max_depth:
+        if n > self.min_samples_split and depth < self.max_depth:
+
+            # Controls randomness of column sampling (makes analysis reproducible)
+            self.splitter_counter_ += 1
+            np.random.seed(self.random_state*self.splitter_counter_)
 
             # Find column with strongest association with outcome
-            col_idx       = np.random.choice(np.arange(n_features, dtype=int),
+            col_idx       = np.random.choice(np.arange(p, dtype=int),
                                              size=self.max_feats, replace=False)
-            col, col_pval = self._selector(X, y, n_samples, col_idx)
+            col, col_pval = self._selector(X, y, n, col_idx)
             if col_pval < self.alpha:
 
                 # Find best split among selected variable
-                impurity, threshold, left, right = self._splitter(X, y, n_samples, col)
+                impurity, threshold, left, right = self._splitter(X, y, n, col)
                 if left and right and len(left[0]) > 0 and len(right[0]) > 0:
 
                     # Build subtrees for the right and left branches
@@ -468,7 +487,6 @@ class CITreeBase(object):
 
     def predict(self, *args, **kwargs):
         """Predicts labels on test data"""
-
         raise NotImplementedError("predict method not callable from base class")
 
 
@@ -521,6 +539,14 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
     alpha : float
         ADD
 
+    max_depth : int
+
+    max_feats : ADD HERE
+        ADD
+
+    random_state : int
+        Sets seed for random number generator
+
     Returns
     -------
     """
@@ -533,7 +559,8 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                  selector='pearson', 
                  early_stopping=False, 
                  verbose=0, 
-                 n_jobs=-1):
+                 n_jobs=-1,
+                 random_state=None):
 
         super(CITreeClassifier, self).__init__(
                     min_samples_split=min_samples_split, 
@@ -544,7 +571,8 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                     selector=selector, 
                     early_stopping=early_stopping, 
                     verbose=verbose, 
-                    n_jobs=n_jobs)
+                    n_jobs=n_jobs,
+                    random_state=random_state)
 
 
     def _splitter(self, X, y, n, col):
@@ -586,7 +614,7 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                 best_threshold = threshold
                 left, right    = (X_left, y_left), (X_right, y_right)
 
-        # Update feature importance
+        # Update feature importance (mean decrease impurity)
         self.feature_importances_[col] += best_impurity
         return best_impurity, best_threshold, left, right
 
@@ -651,27 +679,8 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 """ENSEMBLE MODELS"""
 #####################
 
-def check_random_state(seed):
-    """Turn seed into a np.random.RandomState instance
 
-    Parameters
-    ----------
-    seed : None | int | instance of RandomState
-        If seed is None, return the RandomState singleton used by np.random.
-        If seed is an int, return a new RandomState instance seeded with seed.
-        If seed is already a RandomState instance, return it.
-    """
-    if seed is None or seed is np.random:
-        return np.random.mtrand._rand
-    if isinstance(seed, (numbers.Integral, np.integer)):
-        return np.random.RandomState(seed)
-    if isinstance(seed, np.random.RandomState):
-        return seed
-    raise ValueError('%r cannot be used to seed a numpy.random.RandomState'
-                     ' instance' % seed)
-
-
-def stratify_sampled_idx(random_state, y):
+def stratify_sampled_idx(random_state, y, bayes):
     """ADD
     
     Parameters
@@ -683,12 +692,23 @@ def stratify_sampled_idx(random_state, y):
     np.random.seed(random_state)
     idx = []
     for label in np.unique(y):
+
+        # Grab indices for class
         tmp = np.where(y == label)[0]
-        idx.append(np.random.choice(tmp, size=len(tmp), replace=True))
+
+        # Bayesian bootstrapping
+        if bayes:
+            p = np.random.exponential(scale=1.0, size=len(tmp))
+            p /= p.sum()
+        else:
+            p = None
+
+        idx.append(np.random.choice(tmp, size=len(tmp), replace=True, p=p))
+
     return idx
 
 
-def stratify_unsampled_idx(random_state, y):
+def stratify_unsampled_idx(random_state, y, bayes):
     """ADD
     
     Parameters
@@ -698,14 +718,14 @@ def stratify_unsampled_idx(random_state, y):
     -------
     """
     np.random.seed(random_state)
-    sampled = stratify_sampled_idx(random_state, y)
+    sampled = stratify_sampled_idx(random_state, y, bayes)
     idx     = []
     for i, label in enumerate(np.unique(y)):
         idx.append(np.setdiff1d(np.where(y==label)[0], sampled[i]))
     return idx
 
 
-def balanced_sampled_idx(random_state, y, min_class_p):
+def balanced_sampled_idx(random_state, y, bayes, min_class_p):
     """ADD
     
     Parameters
@@ -716,13 +736,24 @@ def balanced_sampled_idx(random_state, y, min_class_p):
     """
     np.random.seed(random_state)
     idx, n = [], int(np.floor(min_class_p*len(y)))
-    for i, label in enumerate(np.unique(y)):
-        tmp = np.where(y==label)[0]
-        idx.append(np.random.choice(tmp, size=n, replace=True))
+    for i, label in enumerate(np.unique(y)):        
+        
+        # Grab indices for class
+        tmp = np.where(y == label)[0]
+
+        # Bayesian bootstrapping
+        if bayes:
+            p = np.random.exponential(scale=1.0, size=len(tmp))
+            p /= p.sum()
+        else:
+            p = None
+
+        idx.append(np.random.choice(tmp, size=n, replace=True, p=p))
+
     return idx
 
 
-def balanced_unsampled_idx(random_state, y, min_class_p):
+def balanced_unsampled_idx(random_state, y, bayes, min_class_p):
     """ADD
     
     Parameters
@@ -732,14 +763,14 @@ def balanced_unsampled_idx(random_state, y, min_class_p):
     -------
     """
     np.random.seed(random_state)
-    sampled = balanced_sampled_idx(random_state, y, min_class_p)
+    sampled = balanced_sampled_idx(random_state, y, bayes, min_class_p)
     idx     = []
     for i, label in enumerate(np.unique(y)):
         idx.append(np.setdiff1d(np.where(y==label)[0], sampled[i]))
     return idx
 
 
-def normal_sampled_idx(random_state, n_samples):
+def normal_sampled_idx(random_state, n, bayes):
     """ADD
     
     Parameters
@@ -748,11 +779,19 @@ def normal_sampled_idx(random_state, n_samples):
     Returns
     -------
     """
-    random_instance = check_random_state(random_state)
-    return random_instance.randint(0, n_samples, n_samples)
+    np.random.seed(random_state)
+
+    # Bayesian bootstrapping
+    if bayes:
+        p  = np.random.exponential(scale=1.0, size=n)
+        p /= p.sum()
+    else:
+        p = None
+
+    return np.random.choice(np.arange(n, dtype=int), size=n, replace=True, p=p)
 
 
-def normal_unsampled_idx(random_state, n_samples):
+def normal_unsampled_idx(random_state, n, bayes):
     """ADD
     
     Parameters
@@ -761,15 +800,14 @@ def normal_unsampled_idx(random_state, n_samples):
     Returns
     -------
     """
-    sample_idx     = normal_sampled_idx(random_state, n_samples)
-    sample_counts  = np.bincount(sample_idx, minlength=n_samples)
-    unsampled_mask = sample_counts == 0
-    idx_range      = np.arange(n_samples, dtype=int)
-    return idx_range[unsampled_mask]
+    sampled = normal_sampled_idx(random_state, n, bayes)
+    counts  = np.bincount(sampled, minlength=n)
+    return np.arange(n, dtype=int)[counts==0]
 
 
 def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
-                  verbose, random_state, class_weight=None, min_dist_p=None):
+                             bayes, verbose, random_state, class_weight=None,
+                             min_dist_p=None): 
     """This is a utility function for joblib's Parallel. It can't go locally in
     class, because joblib complains that it cannot pickle it when placed there
     
@@ -803,11 +841,14 @@ def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
     if bootstrap:
         random_state = random_state*(tree_idx+1)
         if class_weight == 'balanced':
-            idx = balanced_sampled_idx(random_state, y, min_dist_p)
+            idx = balanced_sampled_idx(random_state, y, bayes, min_dist_p)
         elif class_weight == 'stratify':
-            idx = stratify_sampled_idx(random_state, y)
+            idx = stratify_sampled_idx(random_state, y, bayes)
         else:
-            idx = normal_sampled_idx(random_state, n)
+            idx = normal_sampled_idx(random_state, n, bayes)
+
+        # Concatenate and turn into numpy array
+        idx = np.concatenate(idx)
 
         # Note: We need to pass the classes in the case of the bootstrap
         # because not all classes may be sampled and when it comes to prediction,
@@ -827,7 +868,7 @@ def _parallel_fit_regressor():
     Returns
     -------
     """
-    pass
+    raise NotImplementedError("Function not implemented currently")
 
 
 def _accumulate_prediction(predict, X, out, lock):
@@ -852,6 +893,9 @@ class CIForestBase(object):
     
     Parameters
     ----------
+
+    random_state : int
+        Sets seed for random number generator
     
     Returns
     -------
@@ -859,7 +903,7 @@ class CIForestBase(object):
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
                  n_estimators=100, max_feats='sqrt', n_permutations=250, 
                  selector='pearson', early_stopping=True, verbose=0, 
-                 bootstrap=True, class_weight=None, n_jobs=-1, 
+                 bootstrap=True, bayes=True, class_weight=None, n_jobs=-1, 
                  random_state=None):
 
         # Error checking
@@ -894,7 +938,6 @@ class CIForestBase(object):
             self.max_depth = max_depth
         else:
             self.max_depth = int(max(1, max_depth))
-
         self.n_estimators   = int(max(1, n_estimators))
         self.selector       = selector
         self.max_feats      = max_feats
@@ -903,6 +946,7 @@ class CIForestBase(object):
         self.n_jobs         = n_jobs
         self.verbose        = verbose
         self.class_weight   = class_weight
+        self.bayes          = bayes
 
         if random_state is None:
             self.random_state = np.random.randint(1, 9999)
@@ -919,7 +963,8 @@ class CIForestBase(object):
             'max_feats': self.max_feats,
             'early_stopping': self.early_stopping,
             'verbose': 0,
-            'n_jobs': 1
+            'n_jobs': 1,
+            'random_state': None,
             }
 
 
@@ -937,8 +982,10 @@ class CIForestBase(object):
                     (self.n_estimators, X.shape[0]))
 
         # Instantiate base tree models
-        self.estimators_ = \
-            [self.Tree(**self.params) for _ in range(self.n_estimators)]
+        self.estimators_ = []
+        for i in range(self.n_estimators):
+            self.params['random_state'] = self.random_state*(i+1)
+            self.estimators_.append(self.Tree(**self.params))
 
         # Define class distribution
         self.class_dist_p = np.array([
@@ -950,11 +997,13 @@ class CIForestBase(object):
         Parallel(n_jobs=self.n_jobs, backend='threading')(
             delayed(self._parallel_fit)(
                 self.estimators_[i], X, y, n, i, self.n_estimators, 
-                self.bootstrap, self.verbose, self.random_state, self.class_weight,
-                np.min(self.class_dist_p)) for i in range(self.n_estimators)
+                self.bootstrap, self.bayes, self.verbose, self.random_state,
+                self.class_weight, np.min(self.class_dist_p)
+                ) 
+            for i in range(self.n_estimators)
             )
 
-        # Accumulate feature importances
+        # Accumulate feature importances (mean decrease impurity)
         self.feature_importances_ = np.sum([
                 tree.feature_importances_ for tree in self.estimators_],
                 axis=0
@@ -983,6 +1032,8 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
     
     Parameters
     ----------
+    random_state : int
+        Sets seed for random number generator
     
     Returns
     -------
@@ -998,6 +1049,7 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
                  early_stopping=False, 
                  verbose=0, 
                  bootstrap=True,
+                 bayes=True,
                  class_weight='balanced',
                  n_jobs=-1, 
                  random_state=None):
@@ -1013,6 +1065,7 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
             early_stopping=early_stopping, 
             verbose=verbose, 
             bootstrap=bootstrap, 
+            bayes=bayes,
             class_weight=class_weight,
             n_jobs=n_jobs, 
             random_state=random_state)
@@ -1079,13 +1132,29 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
 
 
 if __name__ == '__main__':
-    y = np.array([0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2])
-    print(stratify_sampled_idx(len(y), y))
-    print(stratify_sampled_idx(len(y), y))
-    print(stratify_unsampled_idx(len(y), y))
-    print(stratify_unsampled_idx(len(y), y))
-    print(balanced_sampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
-    print(balanced_sampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
-    print(balanced_unsampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
-    print(balanced_unsampled_idx(len(y), y, np.bincount(y)[1]/float(len(y))))
+    # ADD TO UNIT TESTS
+    y     = np.array([0, 0, 0, 0, 0, 0, 
+                      1, 1, 1, 
+                      2, 2, 2, 2, 2, 2, 2, 2, 2, 2])
+    n     = len(y)
+    min_p = np.min(np.bincount(y)/float(n))
 
+    print(stratify_sampled_idx(random_state=1718, y=y, bayes=True))
+    print(stratify_sampled_idx(random_state=1718, y=y, bayes=True))
+    
+    print(stratify_unsampled_idx(random_state=1718, y=y, bayes=True))
+    print(stratify_unsampled_idx(random_state=1718, y=y, bayes=True))
+
+
+    print(balanced_sampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
+    print(balanced_sampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
+
+    print(balanced_unsampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
+    print(balanced_unsampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
+
+
+    print(normal_sampled_idx(random_state=1718, n=n, bayes=True))
+    print(normal_sampled_idx(random_state=1718, n=n, bayes=True))
+
+    print(normal_unsampled_idx(random_state=1718, n=n, bayes=True))
+    print(normal_unsampled_idx(random_state=1718, n=n, bayes=True))

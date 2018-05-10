@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 
+import json
 import numpy as np
 from os.path import abspath, dirname
 import pandas as pd
@@ -15,7 +16,6 @@ PATH = dirname(dirname(abspath(__file__)))
 if PATH not in sys.path: sys.path.append(PATH)
 
 from citrees import CITreeClassifier, CIForestClassifier
-
 
 DATA_SETS = ['orlraws10P', 'warpPIE10P', 'warpAR10P', 'pixraw10P', 'ALLAML', 
              'CLL_SUB_111', 'ORL', 'TOX_171', 'Yale', 'glass', 'wine', 
@@ -52,18 +52,6 @@ def load_data(name):
     classes     = np.unique(y)
     new_classes = dict(zip(classes, np.arange(len(classes), dtype=int))) 
     return X, np.array([new_classes[_] for _ in y.ravel()])
-
-
-def calculate_fi_ranks():
-    """ADD
-    
-    Parameters
-    ----------
-    
-    Returns
-    -------
-    """
-    pass
 
 
 def binarize(y_true, y_hat):
@@ -144,6 +132,7 @@ def run():
         'selector': ['distance', 'pearson', 'hybrid'],
         'early_stopping': [True, False],
         'bootstrap': [True, False],
+        'bayes': [True],
         'class_weight': [None, 'balanced', 'stratify'],
         'n_jobs': [-1]
     }
@@ -182,7 +171,7 @@ def run():
                 mean_score, std_score, min_score, max_score = \
                     scores.mean(), scores.std(), scores.min(), scores.max()
                 
-                iteration = params.copy()
+                iteration               = params.copy()
                 iteration['name']       = name
                 iteration['mean_score'] = mean_score
                 iteration['std_score']  = std_score
@@ -191,7 +180,7 @@ def run():
                 results.append(iteration)
             except Exception as e:
                 print(e)
-                iteration = params.copy()
+                iteration               = params.copy()
                 iteration['name']       = name
                 iteration['mean_score'] = 0.0
                 iteration['std_score']  = 0.0
@@ -206,5 +195,64 @@ def run():
     overall_time = (time.time() - start)/60.
     print("\nScript finished in %.2f minutes" % overall_time)
 
+
+def calculate_fi():
+    """ADD DESCRIPTION"""
+
+    # Create hyperparameter grid
+    grid = {
+        'alpha': [.01, .05, 1.0],
+        'selector': ['distance', 'pearson', 'hybrid'],
+        'early_stopping': [True, False],
+        'bootstrap': [True],
+        'bayes': [True, False],
+        'n_jobs': [-1],
+        'verbose': [1],
+        'random_state': [1718]
+    }
+    
+    grid = list(ParameterGrid(grid))
+    print("[FI] Testing %d hyperparameter combinations\n" % len(grid))
+
+    # Iterate over each data set
+    results, start = [], time.time()
+    for name in DATA_SETS[::-1]:
+
+        # Load data
+        X, y = load_data(name)
+        print("[DATA] Name: %s" % name)
+        print("[DATA] Shape: %s" % (X.shape,))
+        print("[DATA] Labels: %s\n" % np.unique(y))
+
+        n, p = X.shape
+
+        # Test each hyperparameter grid using cross-validation
+        for params in grid:
+
+            print("[FI] Hyperparameters:\n%s" % params)
+            try:
+                # Train model to calculate feature importances
+                clf = CIForestClassifier(**params).fit(X, y)
+
+                # Save results
+                iteration         = params.copy()
+                iteration['name'] = name
+                iteration['fi']   = clf.feature_importances_.tolist()
+                results.append(iteration)
+            except Exception as e:
+                print("Error calculating fi for %s because %s" % (name, str(e)))
+                iteration         = params.copy()
+                iteration['name'] = name
+                iteration['fi']   = np.zeros(X.shape[1]).tolist()
+                continue
+
+    # To json and write to disk
+    with open('forest_experiment_fi_results.json', 'w') as f:
+        json.dump(results, f)
+    
+    overall_time = (time.time() - start)/60.
+    print("\nScript finished in %.2f minutes" % overall_time)
+
+
 if __name__ == "__main__":
-    run()
+    calculate_fi()

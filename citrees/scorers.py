@@ -67,8 +67,8 @@ def pcor(x, y):
     
     # Covariances
     for i in xrange(n):
-        e_x     = x[i] - mu_x
-        e_y     = y[i] - mu_y
+        e_x     = x[i]-mu_x
+        e_y     = y[i]-mu_y
         cov_xy += e_x*e_y
         var_x  += e_x*e_x
         var_y  += e_y*e_y

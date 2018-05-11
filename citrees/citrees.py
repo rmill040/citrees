@@ -156,9 +156,23 @@ class CITreeBase(object):
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        col_idx : list
+            Columns of X to examine for feature selection
         
         Returns
         -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is 
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
         """
         best_col, best_pval = None, np.inf
 
@@ -186,9 +200,26 @@ class CITreeBase(object):
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        n : int
+            Number of samples
+
+        col_idx : list
+            Columns of X to examine for feature selection
         
         Returns
         -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is 
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
         """
         best_col, best_pval = None, np.inf
 
@@ -237,9 +268,26 @@ class CITreeBase(object):
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        n : int
+            Number of samples
+
+        col_idx : list
+            Columns of X to examine for feature selection
         
         Returns
         -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is 
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
         """
         best_col, best_pval = None, np.inf
 
@@ -329,7 +377,7 @@ class CITreeBase(object):
             enabled then this may not be the absolute best column
 
         best_pval : float
-            Best p-value corresponding to best column from feature selection
+            Probability value from permutation test
         """        
         if self.verbose > 1: 
             logger("selector", "Testing %d features" % len(col_idx))
@@ -531,24 +579,11 @@ class CITreeBase(object):
 class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
     """Conditional inference tree classifier
 
-    Parameters
-    ----------
-    min_samples_split : int
-        ADD
-
-    alpha : float
-        ADD
-
-    max_depth : int
-
-    max_feats : ADD HERE
-        ADD
-
-    random_state : int
-        Sets seed for random number generator
+    Derived from CITreeBase class; see constructor for parameter definitions
 
     Returns
     -------
+    None
     """
     def __init__(self,
                  min_samples_split=2, 
@@ -576,13 +611,36 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
 
     def _splitter(self, X, y, n, col):
-        """ADD
+        """Splits data set into two child nodes based on optimized weighted
+        gini index
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        n : int
+            Number of samples
+
+        col : list
+            Column of X to search for best split
         
         Returns
         -------
+        best_impurity : float
+            Gini index associated with best split
+
+        best_threshold : float
+            X value associated with splitting of data set into two child nodes
+
+        left : tuple
+            Left child node data consisting of two elements: (features, labels)
+
+        right : tuple
+            Right child node data consisting of two elements: (features labels)
         """
         if self.verbose > 1: 
             logger("splitter", "Testing splits on feature %d" % col)
@@ -620,25 +678,39 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
 
     def _estimate_proba(self, y):
-        """ADD
+        """Estimates class distribution in node
         
         Parameters
         ----------
+        y : 1d array-like
+            Array of labels
         
         Returns
         -------
+        class_probs : 1d array-like
+            Array of class probabilities
         """
         return np.array([np.mean(y == label) for label in self.labels_])
 
 
     def fit(self, X, y, labels=None):
-        """ADD
+        """Trains conditional inference tree classifier
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        labels : 1d array-like
+            Array of unique class labels
         
         Returns
         -------
+        self : CITreeClassifier
+            Instance of CITreeClassifier class
         """
         self.labels_       = labels if labels is not None else np.unique(y)
         self.n_classes_    = len(self.labels_)
@@ -648,13 +720,17 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
 
     def predict_proba(self, X):
-        """ADD
+        """Predicts class probabilities for feature vectors X
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features  
         
         Returns
         -------
+        class_probs : 2d array-like
+            Array of predicted class probabilities
         """
         if self.verbose: 
             logger("test", "Predicting labels for %d samples" % X.shape[0])
@@ -663,13 +739,17 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
 
     def predict(self, X):
-        """ADD
+        """Predicts class labels for feature vectors X
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features  
         
         Returns
         -------
+        y : 1d array-like
+            Array of predicted classes
         """
         y_proba = self.predict_proba(X)
         return np.argmax(y_proba, axis=1)
@@ -681,20 +761,30 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
 
 def stratify_sampled_idx(random_state, y, bayes):
-    """ADD
+    """Indices for stratified bootstrap sampling in classification
     
     Parameters
     ----------
+    random_state : int
+        Sets seed for random number generator
+
+    y : 1d array-like
+        Array of labels
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
     
     Returns
     -------
+    idx : list
+        Stratified sampled indices for each class
     """
     np.random.seed(random_state)
     idx = []
     for label in np.unique(y):
 
         # Grab indices for class
-        tmp = np.where(y == label)[0]
+        tmp = np.where(y==label)[0]
 
         # Bayesian bootstrapping
         if bayes:
@@ -709,13 +799,23 @@ def stratify_sampled_idx(random_state, y, bayes):
 
 
 def stratify_unsampled_idx(random_state, y, bayes):
-    """ADD
+    """Unsampled indices for stratified bootstrap sampling in classification
     
     Parameters
     ----------
+    random_state : int
+        Sets seed for random number generator
+
+    y : 1d array-like
+        Array of labels
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
     
     Returns
     -------
+    idx : list
+        Stratified unsampled indices for each class
     """
     np.random.seed(random_state)
     sampled = stratify_sampled_idx(random_state, y, bayes)
@@ -726,20 +826,33 @@ def stratify_unsampled_idx(random_state, y, bayes):
 
 
 def balanced_sampled_idx(random_state, y, bayes, min_class_p):
-    """ADD
+    """Indices for balanced bootstrap sampling in classification
     
     Parameters
     ----------
+    random_state : int
+        Sets seed for random number generator
+
+    y : 1d array-like
+        Array of labels
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    min_class_p : float
+        Minimum proportion of class labels
     
     Returns
     -------
+    idx : list
+        Balanced sampled indices for each class
     """
     np.random.seed(random_state)
     idx, n = [], int(np.floor(min_class_p*len(y)))
     for i, label in enumerate(np.unique(y)):        
         
         # Grab indices for class
-        tmp = np.where(y == label)[0]
+        tmp = np.where(y==label)[0]
 
         # Bayesian bootstrapping
         if bayes:
@@ -754,13 +867,26 @@ def balanced_sampled_idx(random_state, y, bayes, min_class_p):
 
 
 def balanced_unsampled_idx(random_state, y, bayes, min_class_p):
-    """ADD
+    """Unsampled indices for balanced bootstrap sampling in classification
     
     Parameters
     ----------
+    random_state : int
+        Sets seed for random number generator
+
+    y : 1d array-like
+        Array of labels
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    min_class_p : float
+        Minimum proportion of class labels
     
     Returns
     -------
+    idx : list
+        Balanced unsampled indices for each class
     """
     np.random.seed(random_state)
     sampled = balanced_sampled_idx(random_state, y, bayes, min_class_p)
@@ -771,13 +897,23 @@ def balanced_unsampled_idx(random_state, y, bayes, min_class_p):
 
 
 def normal_sampled_idx(random_state, n, bayes):
-    """ADD
+    """Indices for bootstrap sampling in classification
     
     Parameters
     ----------
+    random_state : int
+        Sets seed for random number generator
+
+    y : 1d array-like
+        Array of labels
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
     
     Returns
     -------
+    idx : list
+        Sampled indices
     """
     np.random.seed(random_state)
 
@@ -792,13 +928,23 @@ def normal_sampled_idx(random_state, n, bayes):
 
 
 def normal_unsampled_idx(random_state, n, bayes):
-    """ADD
+    """Unsampled indices for bootstrap sampling in classification
     
     Parameters
     ----------
+    random_state : int
+        Sets seed for random number generator
+
+    y : 1d array-like
+        Array of labels
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
     
     Returns
     -------
+    idx : list
+        Unsampled indices
     """
     sampled = normal_sampled_idx(random_state, n, bayes)
     counts  = np.bincount(sampled, minlength=n)
@@ -808,28 +954,54 @@ def normal_unsampled_idx(random_state, n, bayes):
 def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
                              bayes, verbose, random_state, class_weight=None,
                              min_dist_p=None): 
-    """This is a utility function for joblib's Parallel. It can't go locally in
-    class, because joblib complains that it cannot pickle it when placed there
+    """Utility function for building trees in parallel
+    
+    Note: This function can't go locally in a class, because joblib complains 
+          that it cannot pickle it when placed there
     
     Parameters
     ----------
-    X : ADD
-        ADD
+    tree : CITreeClassifier
+        Instantiated conditional inference tree
 
-    y : ADD
-        ADD
+    X : 2d array-like
+        Array of features
 
-    n : ADD
-        ADD
+    y : 1d array-like
+        Array of labels
 
-    tree_idx : ADD
-        ADD
+    n : int
+        Number of samples
 
-    n_estimators : ADD
-        ADD
-    
+    tree_idx : int
+        Index of tree in forest
+
+    n_estimators : int
+        Number of total estimators
+
+    bootstrap : bool
+        Whether to perform bootstrap sampling
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    verbose : bool or int
+        Controls verbosity of training process
+
+    random_state : int
+        Sets seed for random number generator
+
+    class_weight : str
+        Type of sampling during bootstrap, None for regular bootstrapping, 
+        'balanced' for balanced bootstrap sampling, and 'stratify' for 
+        stratified bootstrap sampling
+
+    min_class_p : float
+        Minimum proportion of class labels
+  
     Returns
     -------
+    None
     """
     # Print status if conditions met
     if verbose and n_estimators >= 10:
@@ -860,7 +1032,7 @@ def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
 
 
 def _parallel_fit_regressor():
-    """ADD
+    """Not implemented
     
     Parameters
     ----------
@@ -872,13 +1044,26 @@ def _parallel_fit_regressor():
 
 
 def _accumulate_prediction(predict, X, out, lock):
-    """ADD
+    """Utility function to aggregate predictions in parallel
     
     Parameters
     ----------
+    predict : function handle
+        Alias to prediction method of class
+
+    X : 2d array-like
+        Array of features
+
+    out : 1d or 2d array-like
+        Array of labels
+
+    lock : threading Lock
+        A lock that controls worker access to data structures for aggregating
+        predictions
     
     Returns
     -------
+    None
     """
     prediction = predict(X)
     with lock:
@@ -889,16 +1074,60 @@ def _accumulate_prediction(predict, X, out, lock):
 
 
 class CIForestBase(object):
-    """ADD
+    """Base class for conditional inference forests
     
     Parameters
     ----------
+    min_samples_split : int
+        Minimum samples required for a split
+
+    alpha : float
+        Threshold value for selecting feature with permutation tests. Smaller 
+        values correspond to shallower trees
+
+    max_depth : int
+        Maximum depth to grow tree
+
+    max_feats : str or int
+        Maximum feats to select at each split. String arguments include 'sqrt',
+        'log', and 'all'
+
+    n_permutations : int
+        Number of permutations during feature selection
+
+    selector : str
+        Type of correlation for feature selection, 'pearson' for Pearson
+        correlation, 'distance' for distance correlation, or 'hybrid' for
+        a dynamic selection of Pearson/distance correlations
+
+    early_stopping : bool
+        Whether to implement early stopping during feature selection. If True,
+        then as soon as the first permutation test returns a p-value less than
+        alpha, this feature will be chosen as the splitting variable
+
+    verbose : bool or int
+        Controls verbosity of training and testing
+
+    bootstrap : bool
+        Whether to perform bootstrap sampling for each tree
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    class_weight : str
+        Type of sampling during bootstrap, None for regular bootstrapping, 
+        'balanced' for balanced bootstrap sampling, and 'stratify' for 
+        stratified bootstrap sampling
+
+    n_jobs : int
+        Number of jobs for permutation testing
 
     random_state : int
         Sets seed for random number generator
     
     Returns
     -------
+    None
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
                  n_estimators=100, max_feats='sqrt', n_permutations=250, 
@@ -969,13 +1198,20 @@ class CIForestBase(object):
 
 
     def fit(self, X, y):
-        """ADD
+        """Fit conditional inference forest
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
         
         Returns
         -------
+        self : CIForestBase
+            Instance of CIForestBase
         """
         if self.verbose:
             logger("tree", "Training ensemble with %d trees on %d samples" % \
@@ -1015,16 +1251,9 @@ class CIForestBase(object):
         return self
 
 
-    def predict(self, X):
-        """ADD
-        
-        Parameters
-        ----------
-        
-        Returns
-        -------
-        """
-        raise NotImplementedError("ADD")
+    def predict(self, *args, **kwargs):
+        """Predicts labels on test data"""
+        raise NotImplementedError("predict method not callable from base class")
 
 
 class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
@@ -1072,13 +1301,20 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
 
 
     def fit(self, X, y):
-        """ADD
+        """Fit conditional inference forest classifier
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
         
         Returns
         -------
+        self : CIForestClassifier
+            Instance of CIForestClassifier
         """
         # Alias to tree model and parallel training function
         self.Tree          = CITreeClassifier
@@ -1092,13 +1328,17 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
 
 
     def predict_proba(self, X):
-        """ADD
+        """Predicts class probabilities for feature vectors X
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features  
         
         Returns
         -------
+        class_probs : 2d array-like
+            Array of predicted class probabilities
         """
         if self.verbose: 
             logger("test", "Predicting labels for %d samples" % X.shape[0])
@@ -1119,42 +1359,17 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
 
 
     def predict(self, X):
-        """ADD
+        """Predicts class labels for feature vectors X
         
         Parameters
         ----------
+        X : 2d array-like
+            Array of features  
         
         Returns
         -------
+        y : 1d array-like
+            Array of predicted classes
         """
         y_proba = self.predict_proba(X)
         return np.argmax(y_proba, axis=1)
-
-
-if __name__ == '__main__':
-    # ADD TO UNIT TESTS
-    y     = np.array([0, 0, 0, 0, 0, 0, 
-                      1, 1, 1, 
-                      2, 2, 2, 2, 2, 2, 2, 2, 2, 2])
-    n     = len(y)
-    min_p = np.min(np.bincount(y)/float(n))
-
-    print(stratify_sampled_idx(random_state=1718, y=y, bayes=True))
-    print(stratify_sampled_idx(random_state=1718, y=y, bayes=True))
-    
-    print(stratify_unsampled_idx(random_state=1718, y=y, bayes=True))
-    print(stratify_unsampled_idx(random_state=1718, y=y, bayes=True))
-
-
-    print(balanced_sampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
-    print(balanced_sampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
-
-    print(balanced_unsampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
-    print(balanced_unsampled_idx(random_state=1718, y=y, bayes=True, min_class_p=min_p))
-
-
-    print(normal_sampled_idx(random_state=1718, n=n, bayes=True))
-    print(normal_sampled_idx(random_state=1718, n=n, bayes=True))
-
-    print(normal_unsampled_idx(random_state=1718, n=n, bayes=True))
-    print(normal_unsampled_idx(random_state=1718, n=n, bayes=True))

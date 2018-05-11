@@ -97,7 +97,7 @@ class TestScorers(unittest.TestCase):
         msg = "Gini index (%.4f) should be 0.0" % est_gini_best
         self.assertAlmostEqual(est_gini_best, 0.0, delta=0.0, msg=msg)
 
-        msg = "Gini index (%.4f) should be 1.0" % est_gini_worst
+        msg = "Gini index (%.4f) should be 0.5" % est_gini_worst
         self.assertAlmostEqual(est_gini_worst, 0.5, delta=0.0, msg=msg)
 
 

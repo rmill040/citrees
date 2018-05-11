@@ -1,2 +1,2 @@
 # citrees
-Conditional inference trees
+Bayesian conditional inference trees and forests in Python

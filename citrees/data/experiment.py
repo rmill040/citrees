@@ -17,8 +17,8 @@ if PATH not in sys.path: sys.path.append(PATH)
 
 from citrees import CITreeClassifier, CIForestClassifier
 
-DATA_SETS = ['orlraws10P', 'warpPIE10P', 'warpAR10P', 'pixraw10P', 'ALLAML', 
-             'CLL_SUB_111', 'ORL', 'TOX_171', 'Yale', 'glass', 'wine', 
+DATA_SETS = ['wine', 'orlraws10P', 'glass', 'warpPIE10P', 'warpAR10P', 'pixraw10P', 
+             'ALLAML', 'CLL_SUB_111', 'ORL', 'TOX_171', 'Yale', 
              'vowel-context']
 
 def load_data(name):
@@ -201,7 +201,7 @@ def calculate_fi():
 
     # Create hyperparameter grid
     grid = {
-        'alpha': [.01, .05, 1.0],
+        'alpha': [.01, .05, .50, .75, 1.0],
         'selector': ['distance', 'pearson', 'hybrid'],
         'early_stopping': [True, False],
         'bootstrap': [True],
@@ -254,5 +254,77 @@ def calculate_fi():
     print("\nScript finished in %.2f minutes" % overall_time)
 
 
+def examine_hp():
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    # Create hyperparameter grid
+    grid = {
+        'alpha': [.01] + [i/20. for i in range(1, 21)],
+        'selector': ['pearson'],
+        'early_stopping': [True],
+        'bootstrap': [True],
+        'bayes': [True],
+        'n_jobs': [-1],
+        'verbose': [0],
+        'random_state': [1718]
+    }
+    
+    grid = list(ParameterGrid(grid))
+    print("[HP] Testing %d hyperparameter combinations\n" % len(grid))
+
+    # Define cross-validator
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1718)
+
+    # Iterate over each data set
+    results, start = [], time.time()
+    for name in DATA_SETS:
+
+        # Load data
+        X, y = load_data(name)
+        print("[DATA] Name: %s" % name)
+        print("[DATA] Shape: %s" % (X.shape,))
+        print("[DATA] Labels: %s\n" % np.unique(y))
+
+        n, p = X.shape
+
+        # Test each hyperparameter grid using cross-validation
+        for params in grid:
+
+            print("[HP] Hyperparameters:\n%s" % params)
+
+            try:
+                # Cross-validate
+                clf = CIForestClassifier
+                scores = cross_validate(X=X, 
+                                        y=y, 
+                                        model=CIForestClassifier, 
+                                        params=params, 
+                                        k=5, 
+                                        cv=skf)
+
+                print("[HP] AUC = %.4f +/- %.4f" % \
+                        (scores.mean(), scores.std()))
+
+                # Save results
+                results.append([params['alpha'], params['early_stopping'], scores.mean()])
+
+            except Exception as e:
+                results.append([params['alpha'], 0.0])
+                continue
+
+        # Plot results
+        import pdb; pdb.set_trace()
+
+    overall_time = (time.time() - start)/60.
+    print("\nScript finished in %.2f minutes" % overall_time)
+
+
 if __name__ == "__main__":
-    calculate_fi()
+    #calculate_fi()
+    examine_hp()

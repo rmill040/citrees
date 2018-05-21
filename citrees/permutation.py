@@ -9,13 +9,29 @@ from scorers import c_dcor, pcor, py_dcor
 
 @autojit(cache=True, nogil=True, nopython=True)
 def permutation_test_pcor(x, y, agg, B=100, random_state=None):
-    """ADD
+    """Permutation test for Pearson correlation
     
     Parameters
     ----------
+    x : 1d array-like
+        ADD
+
+    y : 1d array-like
+        ADD
+
+    agg : 1d array-like
+        ADD
+
+    B : int
+        ADD
+
+    random_state : int
+        ADD
     
     Returns
     -------
+    p : float
+        Achieved significance level
     """
     np.random.seed(random_state)
 
@@ -43,6 +59,8 @@ def permutation_test_dcor(x, y, agg, n, B=100, random_state=None):
     
     Returns
     -------
+    p : float
+        Achieved significance level
     """
     np.random.seed(random_state)
 
@@ -81,6 +99,8 @@ def permutation_test_dcor_parallel(x, y, agg, n, B=100, n_jobs=-1,
     
     Returns
     -------
+    p : float
+        Achieved significance level
     """
     np.random.seed(random_state)
 
@@ -103,13 +123,14 @@ def permutation_test_dcor_parallel(x, y, agg, n, B=100, n_jobs=-1,
 
 
 if __name__ == '__main__':
-    n=1500
-    np.random.seed(1718)
+    n=75
     x=np.random.normal(0, 1, n)
     y=np.random.normal(0, 1, n)
 
-    print(permutation_test_dcor_parallel(x, y, np.concatenate([x, y]), n, random_state=1718))
-    print(permutation_test_dcor_parallel(x, y, np.concatenate([x, y]), n, random_state=1718))
+    p = np.zeros(500)
+    for i in xrange(500):
+        p[i] = permutation_test_pcor(x, y, np.concatenate([x, y]), n, np.random.randint(1, 1000000))
+    import pdb; pdb.set_trace()
 
     # permutation_test_dcor(x, y, np.concatenate([x, y]), n)
     # permutation_test_dcor(x, y, np.concatenate([x, y]), n)

@@ -43,7 +43,7 @@ MEAN = lambda z: sum(z)/float(len(z))
 
 @autojit(cache=True, nopython=True, nogil=True)
 def pcor(x, y):
-    """
+    """ADD HERE
     
     Parameters
     ----------

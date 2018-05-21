@@ -10,7 +10,7 @@ PATH = dirname(dirname(abspath(__file__)))
 if PATH not in sys.path: sys.path.append(PATH)
 
 from externals.six.moves import zip
-from utils import auc_score
+from utils import auc_score, estimate_margin
 
 
 class TestScorers(unittest.TestCase):
@@ -26,6 +26,7 @@ class TestScorers(unittest.TestCase):
         self.y_probs = [y_probs1, y_probs75, y_probs50, y_probs25, y_probs0]
         self.y_true  = np.array([0, 0, 1, 1])
 
+
     def test_auc_score(self):
         """Test for auc_score"""
 
@@ -38,6 +39,28 @@ class TestScorers(unittest.TestCase):
                       (diff, auc, auc_est)
 
         self.assertEqual(auc, auc_est, msg=msg)
+
+
+    def test_estimate_margin(self):
+        """Test for estimate_margin"""
+
+        # Sample data
+        y_true = np.array([2, 0, 1, 1])
+
+        y_probs = np.array([
+                [.10, .20, .70], # True = 2, margin = .70-.20 =  .50
+                [.90, .05, .05], # True = 0, margin = .90-.05 =  .85
+                [.80, .10, .10], # True = 1, margin = .10-.80 = -.70
+                [.35, .60, .05]  # True = 1, margin = .60-.35 =  .25
+            ])
+
+        # Calculate margins
+        est_margin  = estimate_margin(y_probs, y_true)
+        true_margin = np.array([.50, .85, -.70, .25])
+        diff        = np.mean((est_margin-true_margin)**2)
+
+        self.assertAlmostEqual(diff, 0.0, delta=1e-12)
+
 
 if __name__ == '__main__':
     unittest.main()

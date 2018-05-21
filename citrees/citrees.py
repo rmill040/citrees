@@ -9,10 +9,11 @@ import warnings
 warnings.simplefilter('ignore')
 
 # Package imports
+from externals.six.moves import range
 from permutation import (permutation_test_dcor, permutation_test_pcor, 
                          permutation_test_dcor_parallel)
 from scorers import c_dcor, gini_index, pcor, py_dcor
-from utils import logger
+from utils import bayes_boot_probs, logger
 
 
 ###################
@@ -786,12 +787,8 @@ def stratify_sampled_idx(random_state, y, bayes):
         # Grab indices for class
         tmp = np.where(y==label)[0]
 
-        # Bayesian bootstrapping
-        if bayes:
-            p = np.random.exponential(scale=1.0, size=len(tmp))
-            p /= p.sum()
-        else:
-            p = None
+        # Bayesian bootstrapping if specified
+        p = bayes_boot_probs(n=len(tmp)) if bayes else None
 
         idx.append(np.random.choice(tmp, size=len(tmp), replace=True, p=p))
 
@@ -854,12 +851,8 @@ def balanced_sampled_idx(random_state, y, bayes, min_class_p):
         # Grab indices for class
         tmp = np.where(y==label)[0]
 
-        # Bayesian bootstrapping
-        if bayes:
-            p = np.random.exponential(scale=1.0, size=len(tmp))
-            p /= p.sum()
-        else:
-            p = None
+        # Bayesian bootstrapping if specified
+        p = bayes_boot_probs(n=len(tmp)) if bayes else None
 
         idx.append(np.random.choice(tmp, size=n, replace=True, p=p))
 
@@ -917,12 +910,8 @@ def normal_sampled_idx(random_state, n, bayes):
     """
     np.random.seed(random_state)
 
-    # Bayesian bootstrapping
-    if bayes:
-        p  = np.random.exponential(scale=1.0, size=n)
-        p /= p.sum()
-    else:
-        p = None
+    # Bayesian bootstrapping if specified
+    p = bayes_boot_probs(n=n) if bayes else None
 
     return np.random.choice(np.arange(n, dtype=int), size=n, replace=True, p=p)
 
@@ -1130,7 +1119,7 @@ class CIForestBase(object):
     None
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
-                 n_estimators=100, max_feats='sqrt', n_permutations=250, 
+                 n_estimators=100, max_feats='sqrt', n_permutations=200, 
                  selector='pearson', early_stopping=True, verbose=0, 
                  bootstrap=True, bayes=True, class_weight=None, n_jobs=-1, 
                  random_state=None):
@@ -1273,7 +1262,7 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
                  max_depth=-1,
                  n_estimators=100, 
                  max_feats='sqrt', 
-                 n_permutations=250, 
+                 n_permutations=200, 
                  selector='pearson', 
                  early_stopping=False, 
                  verbose=0, 
@@ -1373,3 +1362,4 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
         """
         y_proba = self.predict_proba(X)
         return np.argmax(y_proba, axis=1)
+

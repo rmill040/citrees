@@ -250,9 +250,11 @@ def prepare_ciforest_results():
         alpha    = data['alpha']
         et       = data['early_stopping']
         selector = data['selector'] 
+        bayes    = data['bayes']
 
         # Update dictionary
-        key = 'a_' + str(alpha) + '_es_' + str(int(et)) + '_' + selector
+        key = 'a_' + str(alpha) + '_es_' + str(int(et)) + '_' + selector + \
+              '_bayes_' + str(int(bayes))
         fi[data['name']][key] = data['fi']
 
     return fi
@@ -366,19 +368,16 @@ def rank_results():
     from scipy.stats import rankdata
 
     results = json.load(open('svm_fi_results.json', 'r'))
-    ranks   = {}
 
     # Iterate over data sets
     for name, data in results.iteritems():
-        ranks[name] = {method:0 for method in data.keys()}
-        
-        tmp   = [value[1] for value in data.itervalues()]
+        tmp   = [value[0] for value in data.itervalues()]
         tmp   = np.column_stack(tmp)
-        tmp   = np.column_stack([rankdata(tmp[:,j], 'dense') for j in xrange(24)])
-        avg   = tmp.mean(axis=0)
-        names = np.array(data.keys())
+        tmp   = np.row_stack([rankdata(-1*tmp[i,:], 'dense') for i in xrange(tmp.shape[0])])
+        avg   = np.mean(tmp, axis=0)
+        feats = np.array(data.keys())
         idx   = np.argsort(avg) 
-        tmp = zip(names[idx], avg[idx])
+        tmp   = zip(feats[idx], avg[idx])
 
         print("\n\n---- DATA: %s ----\n" % name.upper())
         for t in tmp: print(t) 
@@ -406,4 +405,4 @@ def plot_results():
 if __name__ == '__main__':
     #compare_methods()
     #plot_results()
-    rank_results()
+    #rank_results()

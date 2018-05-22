@@ -37,19 +37,22 @@ CFUNC_DCORS_DLL.dcor.restype  = ctypes.c_double
 """Feature selectors"""
 #######################
 
-# Lambda function used in approx_wdcor function
-MEAN = lambda z: sum(z)/float(len(z))
-
-
 @autojit(cache=True, nopython=True, nogil=True)
 def pcor(x, y):
-    """ADD HERE
+    """Pearson correlation
     
     Parameters
     ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
     
     Returns
     -------
+    cor : float
+        Pearson correlation
     """
     if x.ndim > 1: x = x.ravel()
     if y.ndim > 1: y = y.ravel()
@@ -58,7 +61,7 @@ def pcor(x, y):
     n, mu_x, mu_y, cov_xy, var_x, var_y = len(x), 0.0, 0.0, 0.0, 0.0, 0.0
 
     # Means
-    for i in xrange(n):
+    for i in range(n):
         mu_x += x[i]
         mu_y += y[i]
 
@@ -89,10 +92,10 @@ def py_wdcor(x, y, n, weights):
     Parameters
     ----------
     x : 1d array-like
-        Array of length n
+        Array of n elements
 
     y : 1d array-like
-        Array of length n
+        Array of n elements
 
     n : int
         Sample size
@@ -102,7 +105,7 @@ def py_wdcor(x, y, n, weights):
 
     Returns
     -------
-    cor : float
+    dcor : float
         Distance correlation
     """
     # Define initial variables
@@ -172,17 +175,17 @@ def py_dcor(x, y, n):
     Parameters
     ----------
     x : 1d array-like
-        Array of length n
+        Array of n elements
 
     y : 1d array-like
-        Array of length n
+        Array of n elements
 
     n : int
         Sample size
 
     Returns
     -------
-    cor : float
+    dcor : float
         Distance correlation
     """
     s   = int(n*(n-1)/2.)
@@ -246,8 +249,11 @@ def py_dcor(x, y, n):
         return np.sqrt( (S1+S2-2*S3) / np.sqrt( (S1X+S2X-2*S3X)*(S1Y+S2Y-2*S3Y) ))
 
 
+# Lambda function used in approx_wdcor function
+MEAN = lambda z: sum(z)/float(len(z))
+
 def approx_wdcor(x, y, n):
-    """ADD DESCRIPTION HERE
+    """Approximate distance correlation by binning arrays
 
     NOTE: Code ported from R function approx.dcor at: 
         https://rdrr.io/cran/extracat/src/R/wdcor.R
@@ -255,10 +261,10 @@ def approx_wdcor(x, y, n):
     Parameters
     ----------
     x : 1d array-like
-        Array of length n
+        Array of n elements
 
     y : 1d array-like
-        Array of length n
+        Array of n elements
 
     n : int
         Sample size
@@ -266,7 +272,7 @@ def approx_wdcor(x, y, n):
     Returns
     -------
     dcor : float
-        ADD
+        Distance correlation
     """
     # Equal cuts and then create dataframe
     cx = pd.cut(x, n, include_lowest=True)
@@ -285,12 +291,11 @@ def approx_wdcor(x, y, n):
     # Normalize weights and calculate weighted distance correlation
     w = f.values/float(f.values.sum())
 
-    # Recompute n and s
+    # Recompute n
     n = len(w)
-    s = int(n*(n-1)/2.)
 
     # Call either the Python or C version based on array length
-    if len(w) > 5000:
+    if n > 5000:
         return c_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, w)
     else:
         return py_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, w)
@@ -302,10 +307,10 @@ def c_wdcor(x, y, n, weights):
     Parameters
     ----------
     x : 1d array-like
-        Array of length n
+        Array of n elements
 
     y : 1d array-like
-        Array of length n
+        Array of n elements
 
     n : int
         Sample size
@@ -315,7 +320,7 @@ def c_wdcor(x, y, n, weights):
 
     Returns
     -------
-    cor : float
+    dcor : float
         Distance correlation
     """
     array_type = ctypes.c_double*n
@@ -330,17 +335,17 @@ def c_dcor(x, y, n):
     Parameters
     ----------
     x : 1d array-like
-        Array of length n
+        Array of n elements
 
     y : 1d array-like
-        Array of length n
+        Array of n elements
 
     n : int
         Sample size
 
     Returns
     -------
-    cor : float
+    dcor : float
         Distance correlation
     """
     array_type = ctypes.c_double*n
@@ -355,13 +360,20 @@ def c_dcor(x, y, n):
 
 @autojit(cache=True, nopython=True, nogil=True)
 def gini_index(y, labels):
-    """ADD
+    """Weighted gini index for classification
     
     Parameters
     ----------
+    y : 1d array-like
+        Array of labels
+
+    labels : 1d array-like
+        Unique labels
     
     Returns
     -------
+    gini : float
+        Weighted gini index
     """
     # Gini index for each label
     n, gini = len(y), 0.0
@@ -374,7 +386,7 @@ def gini_index(y, labels):
         if p > 0: gini += p*p
 
     # Weighted by class node size
-    return 1-gini
+    return 1 - gini
 
 
 if __name__ == '__main__':

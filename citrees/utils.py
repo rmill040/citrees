@@ -93,4 +93,4 @@ def estimate_margin(y_probs, y_true):
         other_probs[i]  = y_probs[i, other_idx]
     
     # Margin is P(y == j) - max(P(y != j))
-    return true_probs-other_probs
+    return true_probs - other_probs

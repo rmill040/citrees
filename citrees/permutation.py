@@ -14,19 +14,19 @@ def permutation_test_pcor(x, y, agg, B=100, random_state=None):
     Parameters
     ----------
     x : 1d array-like
-        ADD
+        Array of n elements
 
     y : 1d array-like
-        ADD
+        Array of n elements
 
     agg : 1d array-like
-        ADD
+        Array of x, y concatenated
 
     B : int
-        ADD
+        Number of permutations
 
     random_state : int
-        ADD
+        Sets seed for random number generator
     
     Returns
     -------

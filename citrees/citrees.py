@@ -393,7 +393,6 @@ class CITreeBase(object):
 
         # Hybrid correlation
         else:
-            s = int(n*(n-1)/2.)
             return self._selector_cor_hybrid(X, y, n, col_idx)
 
 

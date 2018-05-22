@@ -5,6 +5,7 @@ import numpy as np
 from os.path import abspath, dirname
 import pandas as pd
 from scipy.io import loadmat
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import ParameterGrid, StratifiedKFold
 from sklearn.preprocessing import LabelBinarizer, StandardScaler
@@ -18,8 +19,10 @@ if PATH not in sys.path: sys.path.append(PATH)
 from citrees import CITreeClassifier, CIForestClassifier
 
 DATA_SETS = ['wine', 'orlraws10P', 'glass', 'warpPIE10P', 'warpAR10P', 'pixraw10P', 
-             'ALLAML', 'CLL_SUB_111', 'ORL', 'TOX_171', 'Yale', 
-             'vowel-context']
+             'ALLAML', 'CLL_SUB_111', 'ORL', 'TOX_171', 'Yale', 'musk',
+             'vowel-context', 'gamma', 'isolet', 'letter', 'madelon',
+             'page-blocks', 'pendigits', 'spam']
+
 
 def load_data(name):
     """ADD
@@ -33,17 +36,41 @@ def load_data(name):
     if name in ['ALLAML', 'CLL_SUB_111', 'ORL', 'orlraws10P',
                 'pixraw10P', 'TOX_171', 'warpAR10P', 'warpPIE10P',
                 'Yale']:
+
+        # Load data
         df   = loadmat(name + '.mat')
         X, y = df.values()[1], df.values()[0]
 
-    elif name in ['glass', 'wine', 'vowel-context']:
+    elif name in ['glass', 'wine', 'vowel-context', 'gamma', 'isolet', 'letter',
+                  'madelon', 'musk', 'page-blocks', 'pendigits', 'spam']:
+        
+        # Load data
         df = pd.read_table(name + '.data', delimiter=',', header=None)
+
         if name == 'vowel-context':
             X, y = df.iloc[:, 3:-1].values, df.iloc[:, -1].values
+        
         elif name == 'wine':
             X, y = df.iloc[:, 1:].values, df.iloc[:, 0].values
+        
+        elif name == 'gamma':
+            mapper = {'g': 0, 'h': 1}
+            X, y   = df.iloc[:, 1:-1].values, df.iloc[:, -1].values
+            y      = np.array([mapper[value] for value in y])
+        
+        elif name == 'isolet':
+            X, y = df.iloc[1:, 1:-1].values, df.iloc[1:, -1].values
+        
+        elif name == 'letter':
+            from string import ascii_uppercase
+            mapper = {ch: i for i, ch in enumerate(ascii_uppercase)} 
+            X, y   = df.iloc[:, 1:].values, df.iloc[:, 0].values
+        
+        elif name == 'musk':
+            X, y = df.iloc[1:, 2:-1].values, df.iloc[1:, -1].values
+        
         else:
-            X, y = df.iloc[:, 1:-1].values, df.iloc[:, -1].values
+            X, y = df.iloc[:, :-1].values, df.iloc[:, -1].values
 
     else:
         raise ValueError("%s not a recognized data set name" % name)
@@ -123,20 +150,83 @@ def cross_validate(X, y, model, params, k, cv, cols=None):
     return scores
 
 
-def run():
-    """ADD DESCRIPTION"""
+def metrics_other(model, params, model_name):
+    """Calculate metrics for other tree models
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    # Define cross-validator
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1718)
+
+    # Iterate over each data set
+    results, start = [], time.time()
+    for name in DATA_SETS:
+
+        # Load data
+        X, y = load_data(name)
+        print("[DATA] Name: %s" % name)
+        print("[DATA] Shape: %s" % (X.shape,))
+        print("[DATA] Labels: %s\n" % np.unique(y))
+
+        n, p = X.shape
+
+        try:
+            scores = cross_validate(X, 
+                                    y, 
+                                    model=model, 
+                                    params=params, 
+                                    k=5,
+                                    cv=skf)
+            
+            # Summary metrics, update results, and continue
+            mean_score, std_score, min_score, max_score = \
+                scores.mean(), scores.std(), scores.min(), scores.max()
+            
+            iteration               = params.copy()
+            iteration['name']       = name
+            iteration['mean_score'] = mean_score
+            iteration['std_score']  = std_score
+            iteration['min_score']  = min_score
+            iteration['max_score']  = max_score
+            results.append(iteration)
+        except Exception as e:
+            print(e)
+            iteration               = params.copy()
+            iteration['name']       = name
+            iteration['mean_score'] = 0.0
+            iteration['std_score']  = 0.0
+            iteration['min_score']  = 0.0
+            iteration['max_score']  = 0.0
+            continue
+
+    # To pandas dataframe and write to disk
+    results = pd.DataFrame(results)
+    results.to_csv("metrics_%s.csv" % model_name, index=False)
+
+    overall_time = (time.time() - start)/60.
+    print("\nScript finished in %.2f minutes" % overall_time)
+
+
+def metrics_citrees():
+    """Calculate metrics for conditional inference tree models"""
 
     # Create hyperparameter grid
     grid = {
-        'alpha': [.01, .05, 1.0],
-        'selector': ['distance', 'pearson', 'hybrid'],
+        'alpha': [.01, .05, .25, .50, .75, 1.0],
+        'selector': ['pearson', 'distance', 'hybrid'],
+        'n_estimators': [200],
         'early_stopping': [True, False],
-        'bootstrap': [True, False],
-        'bayes': [True],
-        'class_weight': [None, 'balanced', 'stratify'],
-        'n_jobs': [-1]
+        'bootstrap': [True],
+        'bayes': [True, False],
+        'class_weight': ['balanced'],
+        'n_jobs': [-1],
+        'random_state': [1718]
     }
-    
+
     grid = list(ParameterGrid(grid))
     print("[CV] Testing %d hyperparameter combinations\n" % len(grid))
 
@@ -204,6 +294,7 @@ def calculate_fi():
         'alpha': [.01, .05, .50, .75, 1.0],
         'selector': ['distance', 'pearson', 'hybrid'],
         'early_stopping': [True, False],
+        'n_estimators': [200],
         'bootstrap': [True],
         'bayes': [True, False],
         'n_jobs': [-1],
@@ -254,77 +345,16 @@ def calculate_fi():
     print("\nScript finished in %.2f minutes" % overall_time)
 
 
-def examine_hp():
-    """ADD
-    
-    Parameters
-    ----------
-    
-    Returns
-    -------
-    """
-    # Create hyperparameter grid
-    grid = {
-        'alpha': [.01] + [i/20. for i in range(1, 21)],
-        'selector': ['pearson'],
-        'early_stopping': [True],
-        'bootstrap': [True],
-        'bayes': [True],
-        'n_jobs': [-1],
-        'verbose': [0],
-        'random_state': [1718]
-    }
-    
-    grid = list(ParameterGrid(grid))
-    print("[HP] Testing %d hyperparameter combinations\n" % len(grid))
-
-    # Define cross-validator
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1718)
-
-    # Iterate over each data set
-    results, start = [], time.time()
-    for name in DATA_SETS:
-
-        # Load data
-        X, y = load_data(name)
-        print("[DATA] Name: %s" % name)
-        print("[DATA] Shape: %s" % (X.shape,))
-        print("[DATA] Labels: %s\n" % np.unique(y))
-
-        n, p = X.shape
-
-        # Test each hyperparameter grid using cross-validation
-        for params in grid:
-
-            print("[HP] Hyperparameters:\n%s" % params)
-
-            try:
-                # Cross-validate
-                clf = CIForestClassifier
-                scores = cross_validate(X=X, 
-                                        y=y, 
-                                        model=CIForestClassifier, 
-                                        params=params, 
-                                        k=5, 
-                                        cv=skf)
-
-                print("[HP] AUC = %.4f +/- %.4f" % \
-                        (scores.mean(), scores.std()))
-
-                # Save results
-                results.append([params['alpha'], params['early_stopping'], scores.mean()])
-
-            except Exception as e:
-                results.append([params['alpha'], 0.0])
-                continue
-
-        # Plot results
-        import pdb; pdb.set_trace()
-
-    overall_time = (time.time() - start)/60.
-    print("\nScript finished in %.2f minutes" % overall_time)
-
 
 if __name__ == "__main__":
     #calculate_fi()
-    examine_hp()
+    # examine_hp()
+    # metrics_other(model=RandomForestClassifier, 
+    #               params={'n_estimators': 200, 'n_jobs': -1,
+    #                       'class_weight': 'balanced', 'random_state': 1718},
+    #               model_name='rf')
+    # metrics_other(model=ExtraTreesClassifier, 
+    #               params={'n_estimators': 200, 'n_jobs': -1,
+    #                       'class_weight': 'balanced', 'random_state': 1718},
+    #               model_name='et')
+    metrics_citrees()

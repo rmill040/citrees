@@ -4,6 +4,7 @@ from joblib import delayed, Parallel
 import numpy as np
 from scipy.stats import mode
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.tree import DecisionTreeClassifier
 import threading
 import warnings
 warnings.simplefilter('ignore')
@@ -14,7 +15,7 @@ from permutation import (permutation_test_dcor, permutation_test_pcor,
                          permutation_test_dcor_parallel)
 from scorers import c_dcor, gini_index, pcor, py_dcor
 from utils import bayes_boot_probs, logger
-
+import time
 
 ###################
 """SINGLE MODELS"""
@@ -645,36 +646,31 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         if self.verbose > 1: 
             logger("splitter", "Testing splits on feature %d" % col)
         
-        best_impurity, best_threshold = 0.0, None
-        left, right                   = None, None
-        node_impurity                 = gini_index(y, self.labels_)
-        for threshold in np.unique(X[:, col]):
+        # Call sklearn's optimized implementation of decision tree classifiers
+        # to make split using Gini index
+        threshold = DecisionTreeClassifier(
+                max_depth=1, min_samples_split=self.min_samples_split
+            ).fit(X[:, col].reshape(-1, 1), y).tree_.threshold[0]
 
-            # Make split
-            idx              = np.where(X[:, col] <= threshold, 1, 0)
-            X_left, y_left   = X[idx==1], y[idx==1]
-            X_right, y_right = X[idx==0], y[idx==0]
-            n_left, n_right  = len(y_left), len(y_right)
+        # Make split
+        idx              = np.where(X[:, col] <= threshold, 1, 0)
+        X_left, y_left   = X[idx==1], y[idx==1]
+        X_right, y_right = X[idx==0], y[idx==0]
+        left, right      = (X_left, y_left), (X_right, y_right)
+        n_left, n_right  = len(y_left), len(y_right)
 
-            # Skip small splits
-            if n_left < self.min_samples_split or n_right < self.min_samples_split:
-                continue
+        # Parent and children impurity
+        node_impurity  = gini_index(y, self.labels_)
+        left_impurity  = gini_index(y_left, self.labels_)*(n_left/float(n))
+        right_impurity = gini_index(y_right, self.labels_)*(n_right/float(n))
 
-            # Children impurity
-            left_impurity  = gini_index(y_left, self.labels_)*(n_left/float(n))
-            right_impurity = gini_index(y_right, self.labels_)*(n_right/float(n))
-
-            # Impurity score and evaluate
-            impurity = node_impurity - (left_impurity + right_impurity)
-
-            if impurity > best_impurity:
-                best_impurity  = impurity
-                best_threshold = threshold
-                left, right    = (X_left, y_left), (X_right, y_right)
+        # Impurity score
+        impurity = node_impurity - (left_impurity + right_impurity)
 
         # Update feature importance (mean decrease impurity)
-        self.feature_importances_[col] += best_impurity
-        return best_impurity, best_threshold, left, right
+        self.feature_importances_[col] += impurity
+
+        return impurity, threshold, left, right
 
 
     def _estimate_proba(self, y):

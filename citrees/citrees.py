@@ -15,7 +15,6 @@ from permutation import (permutation_test_dcor, permutation_test_pcor,
                          permutation_test_dcor_parallel)
 from scorers import c_dcor, gini_index, pcor, py_dcor
 from utils import bayes_boot_probs, logger
-import time
 
 ###################
 """SINGLE MODELS"""
@@ -652,19 +651,19 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                 max_depth=1, min_samples_split=self.min_samples_split
             ).fit(X[:, col].reshape(-1, 1), y).tree_.threshold[0]
 
-        # Make split
+        # Make split based on best threshold
         idx              = np.where(X[:, col] <= threshold, 1, 0)
         X_left, y_left   = X[idx==1], y[idx==1]
         X_right, y_right = X[idx==0], y[idx==0]
         left, right      = (X_left, y_left), (X_right, y_right)
         n_left, n_right  = len(y_left), len(y_right)
 
-        # Parent and children impurity
+        # Calculate parent and weighted children impurities
         node_impurity  = gini_index(y, self.labels_)
         left_impurity  = gini_index(y_left, self.labels_)*(n_left/float(n))
         right_impurity = gini_index(y_right, self.labels_)*(n_right/float(n))
 
-        # Impurity score
+        # Impurity decrease
         impurity = node_impurity - (left_impurity + right_impurity)
 
         # Update feature importance (mean decrease impurity)

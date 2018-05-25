@@ -645,6 +645,10 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         if self.verbose > 1: 
             logger("splitter", "Testing splits on feature %d" % col)
         
+        # Initialize variables for splitting
+        impurity, threshold = 0.0, None
+        left, right         = None, None
+
         # Call sklearn's optimized implementation of decision tree classifiers
         # to make split using Gini index
         threshold = DecisionTreeClassifier(
@@ -655,16 +659,20 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         idx              = np.where(X[:, col] <= threshold, 1, 0)
         X_left, y_left   = X[idx==1], y[idx==1]
         X_right, y_right = X[idx==0], y[idx==0]
-        left, right      = (X_left, y_left), (X_right, y_right)
         n_left, n_right  = len(y_left), len(y_right)
+        
+        # Skip small splits
+        if n_left < self.min_samples_split or n_right < self.min_samples_split:
+            return impurity, threshold, left, right
 
         # Calculate parent and weighted children impurities
         node_impurity  = gini_index(y, self.labels_)
         left_impurity  = gini_index(y_left, self.labels_)*(n_left/float(n))
         right_impurity = gini_index(y_right, self.labels_)*(n_right/float(n))
 
-        # Impurity decrease
-        impurity = node_impurity - (left_impurity + right_impurity)
+        # Define groups and calculate impurity decrease
+        left, right = (X_left, y_left), (X_right, y_right)
+        impurity    = node_impurity - (left_impurity + right_impurity)
 
         # Update feature importance (mean decrease impurity)
         self.feature_importances_[col] += impurity

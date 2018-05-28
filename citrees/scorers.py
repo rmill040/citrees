@@ -329,6 +329,7 @@ def c_wdcor(x, y, n, weights):
                                  ctypes.c_int(n),
                                  array_type(*weights))
 
+
 def c_dcor(x, y, n):
     """Wrapper for C version of distance correlation
 
@@ -349,9 +350,28 @@ def c_dcor(x, y, n):
         Distance correlation
     """
     array_type = ctypes.c_double*n
-    return CFUNC_DCORS_DLL.dcor(array_type(*x),
-                                array_type(*y),
-                                ctypes.c_int(n))
+
+    if n < 5000:
+        return CFUNC_DCORS_DLL.dcor(array_type(*x),
+                                    array_type(*y),
+                                    ctypes.c_int(n))
+    else:
+        # Initialize data structures for subsampling
+        dcor = np.zeros(10)
+        idx  = range(n)
+
+        # C data types
+        c_n  = ctypes.c_int(1000)
+
+        # Subsample
+        for i in range(10):
+            idx     = np.random.choice(idx, size=1000, replace=False)
+            dcor[i] = CFUNC_DCORS_DLL.dcor(array_type(*x[idx]),
+                                           array_type(*y[idx]),
+                                           c_n)
+        
+        return dcor.mean()
+
 
 #####################
 """Split selectors"""
@@ -388,29 +408,6 @@ def gini_index(y, labels):
     # Weighted by class node size
     return 1 - gini
 
-
-if __name__ == '__main__':
-    n = 10000
-    s = int(n*(n-1)/2.)
-    x=np.random.normal(0, 1, n)
-    w=np.ones(n)/float(n)
-
-    import time
-
-    for i in xrange(10):
-        start=time.time()
-        py_wdcor(x, x, n, w)
-        print("\nPYTHON", time.time()-start)
-
-        start=time.time()
-        approx_wdcor(x, x, n)
-        print("PANDAS", time.time()-start)
-
-        start=time.time()
-        c_wdcor(x, x, n, w)
-        print("C", time.time()-start)
-
-        time.sleep(2)
 
 # def get_variance(target_value_statistics_list):
 #     """

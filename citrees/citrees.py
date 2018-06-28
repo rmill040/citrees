@@ -11,10 +11,19 @@ warnings.simplefilter('ignore')
 
 # Package imports
 from externals.six.moves import range
-from permutation import (permutation_test_dcor, permutation_test_pcor, 
-                         permutation_test_dcor_parallel)
+from selectors import (permutation_test_dcor, permutation_test_pcor, 
+                       permutation_test_dcor_parallel, permutation_test_rdc)
 from scorers import c_dcor, gini_index, pcor, py_dcor
 from utils import bayes_boot_probs, logger
+
+# TODO:
+#   1. Add asymptotic p-values for dependence measures
+#       - Pearson correlation (very easy)
+#       - Distance correlation (paper here: https://ac.els-cdn.com/S0047259X13000262/1-s2.0-S0047259X13000262-main.pdf?_tid=e66fb745-c5be-4f8b-8b69-f6da04c8fbdf&acdnat=1530161335_215e43fd757aa551d37b6ce4e8cd549a)
+#       - Randomized dependence coefficient (already coded, but clean up code)
+#   2. Add nlogn algorithm for distance correlation
+#       - Optimize using Cython/Numba
+#   3. Change hybrid implementation to use rdc instead of dcor
 
 ###################
 """SINGLE MODELS"""
@@ -120,9 +129,9 @@ class CITreeBase(object):
         if n_permutations < 0:
             raise ValueError("n_permutations (%d) should be > 0" % \
                              n_permutations)
-        if selector not in ['distance', 'pearson', 'hybrid']:
-            raise ValueError("selector (%s) should be distance, pearson, or " \
-                             "hybrid" % selector)
+        if selector not in ['distance', 'pearson', 'hybrid', 'rdc']:
+            raise ValueError("selector (%s) should be distance, pearson, " \
+                             "hybrid, or rdc" % selector)
         if max_feats not in ['sqrt', 'log', 'all', -1]:
             raise ValueError("%s not a valid argument for max_feats" % \
                              str(max_feats))
@@ -195,6 +204,50 @@ class CITreeBase(object):
         return best_col, best_pval
 
 
+    def _selector_rdc(self, X, y, col_idx):
+        """Selects feature most correlated with y using permutation tests with
+        a randomized dependence coefficient
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        col_idx : list
+            Columns of X to examine for feature selection
+        
+        Returns
+        -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is 
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
+        """
+        best_col, best_pval = None, np.inf
+
+        # Iterate over columns
+        for col in col_idx:
+            pval = permutation_test_rdc(x=X[:, col], 
+                                        y=y, 
+                                        agg=np.concatenate([X[:, col], y]), 
+                                        B=self.n_permutations,
+                                        random_state=self.random_state)
+            if pval < best_pval: 
+                best_col, best_pval = col, pval
+                
+                # If early stopping
+                if self.early_stopping and best_pval < self.alpha:
+                    if self.verbose: logger("tree", "Early stopping")
+                    return best_col, best_pval
+
+        return best_col, best_pval
+
+
     def _selector_dcor(self, X, y, n, col_idx):
         """Selects feature most correlated with y using permutation tests with
         a distance correlation
@@ -230,7 +283,6 @@ class CITreeBase(object):
                 pval = permutation_test_dcor(x=X[:, col], 
                                              y=y, 
                                              agg=np.concatenate([X[:, col], y]), 
-                                             n=n,
                                              B=self.n_permutations,
                                              random_state=self.random_state)
                 if pval < best_pval: 
@@ -248,7 +300,6 @@ class CITreeBase(object):
                                              x=X[:, col], 
                                              y=y, 
                                              agg=np.concatenate([X[:, col], y]), 
-                                             n=n,
                                              n_jobs=self.n_jobs,
                                              B=self.n_permutations,
                                              random_state=self.random_state)
@@ -297,8 +348,8 @@ class CITreeBase(object):
 
             # First calculate correlation to determine which one is larger
             pearson  = abs(pcor(X[:, col], y))
-            distance = py_dcor(X[:, col], y, n) if n < 500 else \
-                       c_dcor(X[:, col], y, n)
+            distance = py_dcor(X[:, col], y) if n < 500 else \
+                       c_dcor(X[:, col], y)
             
             # Calculate permutation test based on correlation values
             if pearson >= distance:
@@ -321,7 +372,6 @@ class CITreeBase(object):
                     pval = permutation_test_dcor(x=X[:, col], 
                                                  y=y, 
                                                  agg=np.concatenate([X[:, col], y]), 
-                                                 n=n,
                                                  B=self.n_permutations,
                                                  random_state=self.random_state)
                     if pval < best_pval: 
@@ -338,7 +388,6 @@ class CITreeBase(object):
                                                  x=X[:, col], 
                                                  y=y, 
                                                  agg=np.concatenate([X[:, col], y]), 
-                                                 n=n,
                                                  n_jobs=self.n_jobs,
                                                  B=self.n_permutations,
                                                  random_state=self.random_state)
@@ -388,7 +437,10 @@ class CITreeBase(object):
             return self._selector_pcor(X, y, col_idx)
 
         # Distance correlation 
-        elif self.selector == 'distance':
+        elif self.selector == 'rdc':
+            return self._selector_rdc(X, y, col_idx)
+
+        elif self.selector ==  'distance':
             return self._selector_dcor(X, y, n, col_idx)
 
         # Hybrid correlation
@@ -1132,9 +1184,9 @@ class CIForestBase(object):
         if n_permutations < 0:
             raise ValueError("n_permutations (%s) should be > 0" % \
                              str(n_permutations))
-        if selector not in ['distance', 'pearson', 'hybrid']:
-            raise ValueError("selector (%s) should be distance, pearson, or " \
-                             "hybrid" % selector)
+        if selector not in ['distance', 'pearson', 'hybrid', 'rdc']:
+            raise ValueError("selector (%s) should be distance, pearson, " \
+                             "hybrid, or rdc" % selector)
         if max_feats not in ['sqrt', 'log', 'all', -1]:
             raise ValueError("%s not a valid argument for max_feats" % \
                              str(max_feats))

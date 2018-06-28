@@ -30,7 +30,7 @@ class TestScorers(unittest.TestCase):
         """Test for py_dcor"""
 
         # Compare against Pearson correlation
-        dcor = py_dcor(self.x, self.y, self.n)
+        dcor = py_dcor(self.x, self.y)
         diff = self.pearson_r - dcor
         msg  = "Python: Difference (%.4f) between Pearson correlation (%.4f) " \
                "and distance correlation (%.4f) too large" % \
@@ -42,7 +42,7 @@ class TestScorers(unittest.TestCase):
         """Test for py_wdcor"""
 
         # Compare against Pearson correlation
-        wdcor = py_wdcor(self.x, self.y, self.n, self.weights)
+        wdcor = py_wdcor(self.x, self.y, self.weights)
         diff  = self.pearson_r - wdcor
         msg   = "Python: Difference (%.4f) between Pearson correlation (%.4f) " \
                 "and weighted distance correlation (%.4f) too large" % \
@@ -54,7 +54,7 @@ class TestScorers(unittest.TestCase):
         """Test for approx_dcor"""
 
         # Compare against Pearson correlation
-        wdcor = approx_wdcor(self.x, self.y, self.n)
+        wdcor = approx_wdcor(self.x, self.y)
         diff  = self.pearson_r - wdcor
         msg   = "Difference (%.4f) between Pearson correlation (%.4f) " \
                 "and approximate weighted distance correlation (%.4f) too " \
@@ -66,7 +66,7 @@ class TestScorers(unittest.TestCase):
         """Test for c_dcor"""
 
         # Compare against Pearson correlation
-        dcor = c_dcor(self.x, self.y, self.n)
+        dcor = c_dcor(self.x, self.y)
         diff = self.pearson_r - dcor
         msg  = "C: Difference (%.4f) between Pearson correlation (%.4f) " \
                "and distance correlation (%.4f) too large" % \
@@ -78,12 +78,24 @@ class TestScorers(unittest.TestCase):
         """Test for c_wdcor"""
 
         # Compare against Pearson correlation
-        wdcor = c_wdcor(self.x, self.y, self.n, self.weights)
+        wdcor = c_wdcor(self.x, self.y, self.weights)
         diff  = self.pearson_r - wdcor
         msg   = "C: Difference (%.4f) between Pearson correlation (%.4f) " \
                 "and weighted distance correlation (%.4f) too large" % \
                 (diff, self.pearson_r, wdcor)
         self.assertAlmostEqual(wdcor, self.pearson_r, delta=.05, msg=msg)
+
+
+    def test_rdc(self):
+        """Test for rdc"""
+
+        # Compare against Pearson correlation
+        cor  = rdc(self.x, self.y)
+        diff = self.pearson_r - cor
+        msg  = "Difference (%.4f) between Pearson correlation (%.4f) " \
+               "and randomized dependence coefficient(%.4f) too large" % \
+               (diff, self.pearson_r, cor)
+        self.assertAlmostEqual(cor, self.pearson_r, delta=.05, msg=msg)
 
 
     def test_gini_index(self):

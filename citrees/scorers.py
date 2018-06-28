@@ -1,14 +1,18 @@
 from __future__ import division, print_function
 
 import ctypes
-from numba import autojit
+from numba import njit
 import numpy as np
 from os.path import dirname, join
 import pandas as pd
+from scipy.stats import rankdata as rank
 
 from externals.six.moves import range
 
-# __all__ = [""]
+
+#######################
+"""Create C wrappers"""
+#######################
 
 # Define constants for wrapping C functions
 SHARED_OBJECT_DIR = join(dirname(__file__), 'bin')
@@ -37,7 +41,7 @@ CFUNC_DCORS_DLL.dcor.restype  = ctypes.c_double
 """Feature selectors"""
 #######################
 
-@autojit(cache=True, nopython=True, nogil=True)
+@njit(cache=True, nogil=True)
 def pcor(x, y):
     """Pearson correlation
     
@@ -58,33 +62,239 @@ def pcor(x, y):
     if y.ndim > 1: y = y.ravel()
 
     # Define variables for looping
-    n, mu_x, mu_y, cov_xy, var_x, var_y = len(x), 0.0, 0.0, 0.0, 0.0, 0.0
+    n, sx, sy, sx2, sy2, sxy = len(x), 0.0, 0.0, 0.0, 0.0, 0.0
 
-    # Means
+    # Loop to calculate statistics
     for i in range(n):
-        mu_x += x[i]
-        mu_y += y[i]
+        xi   = x[i]
+        yi   = y[i]
+        sx  += xi
+        sx2 += xi*xi
+        sy  += yi
+        sy2 += yi*yi
+        sxy += xi*yi
 
-    mu_x /= float(n)
-    mu_y /= float(n)
-    
-    # Covariances
-    for i in xrange(n):
-        e_x     = x[i]-mu_x
-        e_y     = y[i]-mu_y
-        cov_xy += e_x*e_y
-        var_x  += e_x*e_x
-        var_y  += e_y*e_y
+    # Covariance terms
+    cov = n*sxy - sx*sy
+    ssx = n*sx2 - sx*sx
+    ssy = n*sy2 - sy*sy
 
     # Catch division by zero errors
-    if var_x == 0 or var_y == 0:
+    if ssx == 0.0 or ssy == 0:
         return 0.0
     else:
-        return cov_xy/np.sqrt(var_x*var_y)
+        return cov/np.sqrt(ssx*ssy)
 
 
-@autojit(cache=True, nopython=True, nogil=True)
-def py_wdcor(x, y, n, weights):
+def cca(X, Y):
+    """Largest canonical correlation
+    
+    Parameters
+    ----------
+    X : 2d array-like
+        Array of n elements
+
+    Y : 2d array-like
+        Array of n elements
+    
+    Returns
+    -------
+    cor : float
+        Largest canonical correlation between X and Y
+    """    
+    # Columns for X and Y
+    Xp = X.shape[1]
+    Yp = Y.shape[1]
+
+    # Center X and Y and then QR decomposition
+    X      = X-X.mean(axis=0)
+    Y      = Y-Y.mean(axis=0)
+    Qx, Rx = np.linalg.qr(X)
+    Qy, Ry = np.linalg.qr(Y)
+
+    # Check rank for X
+    rankX = np.linalg.matrix_rank(Rx)
+    if rankX == 0:
+        return [0.0]
+    elif rankX < Xp:
+        Qx = Qx[:, 0:rankX]  
+        Rx = Rx[0:rankX, 0:rankX]
+
+    # Check rank for Y
+    rankY = np.linalg.matrix_rank(Ry)
+    if rankY == 0:
+        return [0.0]
+    elif rankY < Yp:
+        Qy = Qy[:, 0:rankY]
+        Ry = Ry[0:rankY, 0:rankY]
+
+    # SVD then clip top eigenvalue
+    QxQy    = np.dot(Qx.T, Qy)
+    _, cor, _ = np.linalg.svd(QxQy)
+
+    return np.clip(cor[0], 0, 1)
+
+
+def rdc(X, Y, k=10, s=1.0/6.0, f=np.sin):
+    """Randomized dependence coefficient
+    
+    Parameters
+    ----------
+    X : 2d array-like
+        Array of n elements
+
+    Y : 2d array-like
+        Array of n elements
+
+    k : int
+        Number of random vectors
+
+    s : float
+        ADD
+
+    f : function
+        ADD
+    
+    Returns
+    -------
+    cor : float
+        Randomized dependence coefficient between X and Y
+    """
+    if X.ndim < 2: X = X.reshape(-1, 1)
+    if Y.ndim < 2: Y = Y.reshape(-1, 1)
+
+    # Shape of random vectors
+    Xn, Xp = X.shape
+    Yn, Yp = Y.shape
+
+    # X data
+    X_ones = np.ones((Xn, 1))
+    X_     = np.array([rank(X[:, j])/float(Xn) for j in range(Xp)]).reshape(Xn, Xp)
+    X_     = (s/Xp)*np.column_stack([X_, X_ones])
+    X_     = X_.dot(np.random.randn(Xp+1, k))
+
+    # Y data
+    Y_ones = np.ones((Yn, 1))
+    Y_     = np.array([rank(Y[:, j])/float(Yn) for j in range(Yp)]).reshape(Yn, Yp)
+    Y_     = (s/Yp)*np.column_stack([Y_, Y_ones])
+    Y_     = Y_.dot(np.random.randn(Yp+1, k))
+
+    # Apply canonical correlation
+    X_ = np.column_stack([f(X_), X_ones])
+    Y_ = np.column_stack([f(Y_), Y_ones])
+    
+    return cca(X_, Y_)
+
+
+@njit(cache=True, nogil=True)
+def cca_fast(X, Y):
+    """Largest canonical correlation
+    
+    Parameters
+    ----------
+    X : 2d array-like
+        Array of n elements
+
+    Y : 2d array-like
+        Array of n elements
+    
+    Returns
+    -------
+    cor : float
+        Largest correlation between X and Y
+    """    
+    # Columns for X and Y
+    Xp = X.shape[1]
+    Yp = Y.shape[1]
+
+    # Center X and Y and then QR decomposition
+    mu_x   = np.array([np.mean(X[:, j]) for j in range(Xp)])
+    mu_y   = np.array([np.mean(Y[:, j]) for j in range(Yp)])
+    X      = X-mu_x
+    Y      = Y-mu_y
+    Qx, Rx = np.linalg.qr(X)
+    Qy, Ry = np.linalg.qr(Y)
+
+    # Check rank for X
+    rankX = np.linalg.matrix_rank(Rx)
+    if rankX == 0:
+        return np.array([0.0])
+    elif rankX < Xp:
+        Qx = Qx[:, 0:rankX]  
+        Rx = Rx[0:rankX, 0:rankX]
+
+    # Check rank for Y
+    rankY = np.linalg.matrix_rank(Ry)
+    if rankY == 0:
+        return np.array([0.0])
+    elif rankY < Yp:
+        Qy = Qy[:, 0:rankY]
+        Ry = Ry[0:rankY, 0:rankY]
+
+    # SVD then clip top eigenvalue
+    QxQy    = np.dot(Qx.T, Qy)
+    _, cor, _ = np.linalg.svd(QxQy)
+    return cor
+
+
+
+@njit(cache=True, nogil=True)
+def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
+    """Randomized dependence coefficient
+    
+    Parameters
+    ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    k : int
+        ADD
+
+    s : float
+        ADD
+
+    f : function
+        ADD
+    
+    Returns
+    -------
+    cor : float
+        Randomized dependence coefficient between x and y
+    """
+    # Shape of random vectors
+    xn = x.shape[0]
+    yn = y.shape[0]
+
+    # X data
+    x_ones = np.ones((xn, 1))
+    X_     = np.argsort(x)/float(xn)
+    X_     = s*np.column_stack((X_, x_ones))
+    X_     = np.dot(X_, np.random.randn(2, k))
+
+    # Y data
+    y_ones = np.ones((yn, 1))
+    Y_     = np.argsort(y)/float(yn)
+    Y_     = s*np.column_stack((Y_, y_ones))
+    Y_     = np.dot(Y_, np.random.randn(2, k))
+
+    # Apply canonical correlation
+    X_ = np.column_stack((f(X_), x_ones))
+    Y_ = np.column_stack((f(Y_), y_ones))
+    
+    cor = cca_fast(X_, Y_)[0]
+    if cor < 0.0:
+        return 0.0
+    elif cor > 1.0:
+        return 1.0
+    else:
+        return cor
+
+
+@njit(cache=True, nogil=True)
+def py_wdcor(x, y, weights):
     """Python port of C function for distance correlation
 
     Note: Version is optimized for use with Numba
@@ -97,9 +307,6 @@ def py_wdcor(x, y, n, weights):
     y : 1d array-like
         Array of n elements
 
-    n : int
-        Sample size
-
     weights : 1d array-like
         Weight vector that sums to 1
 
@@ -109,6 +316,7 @@ def py_wdcor(x, y, n, weights):
         Distance correlation
     """
     # Define initial variables
+    n   = x.shape[0]
     s   = int(n*(n-1)/2.)
     Edx = np.zeros(n)
     Edy = np.zeros(n)
@@ -166,8 +374,8 @@ def py_wdcor(x, y, n, weights):
         return np.sqrt( (S1+S2-2*S3) / np.sqrt( (S1X+S2X-2*S3X)*(S1Y+S2Y-2*S3Y) ))
 
 
-@autojit(cache=True, nopython=True, nogil=True)
-def py_dcor(x, y, n):
+@njit(cache=True, nogil=True)
+def py_dcor(x, y):
     """Python port of C function for distance correlation
 
     Note: Version is optimized for use with Numba
@@ -180,14 +388,12 @@ def py_dcor(x, y, n):
     y : 1d array-like
         Array of n elements
 
-    n : int
-        Sample size
-
     Returns
     -------
     dcor : float
         Distance correlation
     """
+    n   = x.shape[0]
     s   = int(n*(n-1)/2.)
     n2  = n*n
     n3  = n2*n
@@ -252,7 +458,7 @@ def py_dcor(x, y, n):
 # Lambda function used in approx_wdcor function
 MEAN = lambda z: sum(z)/float(len(z))
 
-def approx_wdcor(x, y, n):
+def approx_wdcor(x, y):
     """Approximate distance correlation by binning arrays
 
     NOTE: Code ported from R function approx.dcor at: 
@@ -266,15 +472,13 @@ def approx_wdcor(x, y, n):
     y : 1d array-like
         Array of n elements
 
-    n : int
-        Sample size
-    
     Returns
     -------
     dcor : float
         Distance correlation
     """
     # Equal cuts and then create dataframe
+    n  = x.shape[0]
     cx = pd.cut(x, n, include_lowest=True)
     cy = pd.cut(y, n, include_lowest=True)
     df = pd.DataFrame(
@@ -296,12 +500,12 @@ def approx_wdcor(x, y, n):
 
     # Call either the Python or C version based on array length
     if n > 5000:
-        return c_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, w)
+        return c_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], w)
     else:
-        return py_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], n, w)
+        return py_wdcor(vx[f.index.labels[0]], vy[f.index.labels[1]], w)
 
 
-def c_wdcor(x, y, n, weights):
+def c_wdcor(x, y, weights):
     """Wrapper for C version of weighted distance correlation
 
     Parameters
@@ -312,9 +516,6 @@ def c_wdcor(x, y, n, weights):
     y : 1d array-like
         Array of n elements
 
-    n : int
-        Sample size
-
     weights : 1d array-like
         Weight vector that sums to 1
 
@@ -323,6 +524,7 @@ def c_wdcor(x, y, n, weights):
     dcor : float
         Distance correlation
     """
+    n = x.shape[0]
     array_type = ctypes.c_double*n
     return CFUNC_DCORS_DLL.wdcor(array_type(*x),
                                  array_type(*y),
@@ -330,7 +532,7 @@ def c_wdcor(x, y, n, weights):
                                  array_type(*weights))
 
 
-def c_dcor(x, y, n):
+def c_dcor(x, y):
     """Wrapper for C version of distance correlation
 
     Parameters
@@ -341,36 +543,16 @@ def c_dcor(x, y, n):
     y : 1d array-like
         Array of n elements
 
-    n : int
-        Sample size
-
     Returns
     -------
     dcor : float
         Distance correlation
     """
+    n          = x.shape[0]
     array_type = ctypes.c_double*n
-
-    if n < 5000:
-        return CFUNC_DCORS_DLL.dcor(array_type(*x),
-                                    array_type(*y),
-                                    ctypes.c_int(n))
-    else:
-        # Initialize data structures for subsampling
-        dcor = np.zeros(10)
-        idx  = range(n)
-
-        # C data types
-        c_n  = ctypes.c_int(1000)
-
-        # Subsample
-        for i in range(10):
-            idx     = np.random.choice(idx, size=1000, replace=False)
-            dcor[i] = CFUNC_DCORS_DLL.dcor(array_type(*x[idx]),
-                                           array_type(*y[idx]),
-                                           c_n)
-        
-        return dcor.mean()
+    return CFUNC_DCORS_DLL.dcor(array_type(*x),
+                                array_type(*y),
+                                ctypes.c_int(n))
 
 
 #####################
@@ -378,9 +560,15 @@ def c_dcor(x, y, n):
 #####################
 
 
-@autojit(cache=True, nopython=True, nogil=True)
+@njit(cache=True, nogil=True)
 def gini_index(y, labels):
     """Weighted gini index for classification
+
+    Note: Despite being jitted, this function is still slow and a bottleneck
+          in the actual training phase. Sklearn's Cython version is used to
+          find the best split and this function is then called on the parent node
+          and two child nodes to calculate feature importances using the mean
+          decrease impurity formula
     
     Parameters
     ----------
@@ -407,31 +595,3 @@ def gini_index(y, labels):
 
     # Weighted by class node size
     return 1 - gini
-
-
-# def get_variance(target_value_statistics_list):
-#     """
-#     :param target_value_statistics_list: a list of number
-#     :return: variance
-#     Example:
-#     >>> get_variance([1, 1])
-#     0.0
-#     >>> get_variance([])
-#     0.0
-#     >>> get_variance([1,2])
-#     0.5
-#     """
-
-#     count = len(target_value_statistics_list)
-#     if count == 0:
-#         return 0.0
-#     average = 0
-#     for val in target_value_statistics_list:
-#         average += val * 1.0 / count
-
-#     s_diff = 0
-#     for val in target_value_statistics_list:
-#         s_diff += (val - average) ** 2
-
-#     return s_diff
-

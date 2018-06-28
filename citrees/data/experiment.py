@@ -216,14 +216,16 @@ def metrics_citrees():
 
     # Create hyperparameter grid
     grid = {
-        'alpha': [.01, .05, .25, .50, .75, 1.0],
-        'selector': ['pearson', 'distance', 'hybrid'],
+        'alpha': [.01],
+        'selector': ['rdc'],
         'n_estimators': [200],
+        'n_permutations': [100],
         'early_stopping': [True, False],
         'bootstrap': [True],
-        'bayes': [True, False],
+        'bayes': [True],
         'class_weight': ['balanced'],
         'n_jobs': [-1],
+        'verbose': [2],
         'random_state': [1718]
     }
 

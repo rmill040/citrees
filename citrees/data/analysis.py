@@ -119,6 +119,43 @@ def rank_tree(X, y, tree_model='rf'):
     return fi, np.argsort(fi)[::-1]
 
 
+def recursive_search(tree, splits):
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    if tree.value is None:
+        splits.append(tree.col)
+        recursive_search(tree.left_child, splits)
+        recursive_search(tree.right_child, splits)
+
+ 
+def collect_splits(tree, sklearn=False):
+    """ADD
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    splits = []
+    for estimator in tree.estimators_:
+        if sklearn:
+            tmp = estimator.tree_.feature
+            splits.append(tmp[tmp != -2])
+        else:
+            tmp = []
+            recursive_search(estimator.root, tmp) 
+            splits.append(tmp)
+
+    return np.concatenate(splits)
+
+
 def all_cross_validate_svm(X, y, model, k, cv, fi_ranks):
     """ADD
     

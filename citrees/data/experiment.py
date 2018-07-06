@@ -260,7 +260,7 @@ def metrics_citrees():
                                         params=params, 
                                         k=5,
                                         cv=skf)
-                
+
                 # Summary metrics, update results, and continue
                 mean_score, std_score, min_score, max_score = \
                     scores.mean(), scores.std(), scores.min(), scores.max()

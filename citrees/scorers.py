@@ -11,7 +11,7 @@ from externals.six.moves import range
 
 
 #######################
-"""Create C wrappers"""
+"""CREATE C WRAPPERS"""
 #######################
 
 # Define constants for wrapping C functions
@@ -37,11 +37,11 @@ CFUNC_DCORS_DLL.dcor.argtypes = (
 CFUNC_DCORS_DLL.dcor.restype  = ctypes.c_double
 
 
-#######################
-"""Feature selectors"""
-#######################
+###################################
+"""FEATURE SELECTORS: CONTINUOUS"""
+###################################
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def pcor(x, y):
     """Pearson correlation
     
@@ -80,7 +80,7 @@ def pcor(x, y):
     ssy = n*sy2 - sy*sy
 
     # Catch division by zero errors
-    if ssx == 0.0 or ssy == 0:
+    if ssx == 0.0 or ssy == 0.0:
         return 0.0
     else:
         return cov/np.sqrt(ssx*ssy)
@@ -147,13 +147,13 @@ def rdc(X, Y, k=10, s=1.0/6.0, f=np.sin):
         Array of n elements
 
     k : int
-        Number of random vectors
+        Number of random projections
 
     s : float
-        ADD
+        Variance of Gaussian random variables
 
     f : function
-        ADD
+        Non-linear function
     
     Returns
     -------
@@ -170,14 +170,14 @@ def rdc(X, Y, k=10, s=1.0/6.0, f=np.sin):
     # X data
     X_ones = np.ones((Xn, 1))
     X_     = np.array([rank(X[:, j])/float(Xn) for j in range(Xp)]).reshape(Xn, Xp)
-    X_     = (s/Xp)*np.column_stack([X_, X_ones])
-    X_     = X_.dot(np.random.randn(Xp+1, k))
+    X_     = (s/X_.shape[1])*np.column_stack([X_, X_ones])
+    X_     = X_.dot(np.random.randn(X_.shape[1], k))
 
     # Y data
     Y_ones = np.ones((Yn, 1))
     Y_     = np.array([rank(Y[:, j])/float(Yn) for j in range(Yp)]).reshape(Yn, Yp)
-    Y_     = (s/Yp)*np.column_stack([Y_, Y_ones])
-    Y_     = Y_.dot(np.random.randn(Yp+1, k))
+    Y_     = (s/Y_.shape[1])*np.column_stack([Y_, Y_ones])
+    Y_     = Y_.dot(np.random.randn(Y_.shape[1], k))
 
     # Apply canonical correlation
     X_ = np.column_stack([f(X_), X_ones])
@@ -186,7 +186,7 @@ def rdc(X, Y, k=10, s=1.0/6.0, f=np.sin):
     return cca(X_, Y_)
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def cca_fast(X, Y):
     """Largest canonical correlation
     
@@ -238,7 +238,7 @@ def cca_fast(X, Y):
 
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
     """Randomized dependence coefficient
     
@@ -251,13 +251,13 @@ def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
         Array of n elements
 
     k : int
-        ADD
+        Number of random projections
 
     s : float
-        ADD
+        Variance of Gaussian random variables
 
     f : function
-        ADD
+        Non-linear function
     
     Returns
     -------
@@ -271,13 +271,13 @@ def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
     # X data
     x_ones = np.ones((xn, 1))
     X_     = np.argsort(x)/float(xn)
-    X_     = s*np.column_stack((X_, x_ones))
+    X_     = 0.5*s*np.column_stack((X_, x_ones))
     X_     = np.dot(X_, np.random.randn(2, k))
 
     # Y data
     y_ones = np.ones((yn, 1))
     Y_     = np.argsort(y)/float(yn)
-    Y_     = s*np.column_stack((Y_, y_ones))
+    Y_     = 0.5*s*np.column_stack((Y_, y_ones))
     Y_     = np.dot(Y_, np.random.randn(2, k))
 
     # Apply canonical correlation
@@ -293,7 +293,7 @@ def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
         return cor
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def py_wdcor(x, y, weights):
     """Python port of C function for distance correlation
 
@@ -374,7 +374,7 @@ def py_wdcor(x, y, weights):
         return np.sqrt( (S1+S2-2*S3) / np.sqrt( (S1X+S2X-2*S3X)*(S1Y+S2Y-2*S3Y) ))
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def py_dcor(x, y):
     """Python port of C function for distance correlation
 
@@ -555,12 +555,55 @@ def c_dcor(x, y):
                                 ctypes.c_int(n))
 
 
-#####################
-"""Split selectors"""
-#####################
+#################################
+"""FEATURE SELECTORS: DISCRETE"""
+#################################
+
+@njit(cache=True, nogil=True, fastmath=True)
+def mc_fast(x, y, n_classes):
+    """Multiple correlation
+    
+    Parameters
+    ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    n_classes : int
+        Number of classes
+
+    Returns
+    -------
+    cor : float
+        Multiple correlation coefficient between x and y
+    """
+    ssb, mu = 0.0, x.mean()
+
+    # Sum of squares total
+    sst     = np.sum((x-mu)*(x-mu))  
+    if sst == 0.0: return 0.0
+
+    for j in range(n_classes):
+
+        # Grab data for current class and if empty skip
+        group = x[y==j]
+        if group.shape[0] == 0: continue
+
+        # Sum of squares between
+        mu_j  = group.mean()
+        n_j   = group.shape[0]
+        ssb  += n_j*(mu_j-mu)*(mu_j-mu)
+
+    return np.sqrt(ssb/sst)
 
 
-@njit(cache=True, nogil=True)
+###############################
+"""SPLIT SELECTORS: DISCRETE"""
+###############################
+
+@njit(cache=True, nogil=True, fastmath=True)
 def gini_index(y, labels):
     """Weighted gini index for classification
 

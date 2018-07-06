@@ -2,7 +2,6 @@ from __future__ import division, print_function
 
 from joblib import delayed, Parallel
 import numpy as np
-from scipy.stats import mode
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.tree import DecisionTreeClassifier
 import threading
@@ -11,19 +10,10 @@ warnings.simplefilter('ignore')
 
 # Package imports
 from externals.six.moves import range
-from selectors import (permutation_test_dcor, permutation_test_pcor, 
-                       permutation_test_dcor_parallel, permutation_test_rdc)
-from scorers import c_dcor, gini_index, pcor, py_dcor
+from selectors import permutation_test_mc
+from scorers import gini_index
 from utils import bayes_boot_probs, logger
 
-# TODO:
-#   1. Add asymptotic p-values for dependence measures
-#       - Pearson correlation (very easy)
-#       - Distance correlation (paper here: https://ac.els-cdn.com/S0047259X13000262/1-s2.0-S0047259X13000262-main.pdf?_tid=e66fb745-c5be-4f8b-8b69-f6da04c8fbdf&acdnat=1530161335_215e43fd757aa551d37b6ce4e8cd549a)
-#       - Randomized dependence coefficient (already coded, but clean up code)
-#   2. Add nlogn algorithm for distance correlation
-#       - Optimize using Cython/Numba
-#   3. Change hybrid implementation to use rdc instead of dcor
 
 ###################
 """SINGLE MODELS"""
@@ -96,15 +86,13 @@ class CITreeBase(object):
     n_permutations : int
         Number of permutations during feature selection
 
-    selector : str
-        Type of correlation for feature selection, 'pearson' for Pearson
-        correlation, 'distance' for distance correlation, or 'hybrid' for
-        a dynamic selection of Pearson/distance correlations
-
     early_stopping : bool
         Whether to implement early stopping during feature selection. If True,
         then as soon as the first permutation test returns a p-value less than
         alpha, this feature will be chosen as the splitting variable
+
+    muting : bool
+        Whether to perform variable muting
 
     verbose : bool or int
         Controls verbosity of training and testing
@@ -120,8 +108,8 @@ class CITreeBase(object):
     None
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
-                 max_feats=-1, n_permutations=500, selector='pearson', 
-                 early_stopping=False, verbose=0, n_jobs=-1, random_state=None):
+                 max_feats=-1, n_permutations=500, early_stopping=False, 
+                 muting=True, verbose=0, n_jobs=-1, random_state=None):
 
         # Error checking
         if alpha <= 0 or alpha > 1:
@@ -129,9 +117,6 @@ class CITreeBase(object):
         if n_permutations < 0:
             raise ValueError("n_permutations (%d) should be > 0" % \
                              n_permutations)
-        if selector not in ['distance', 'pearson', 'hybrid', 'rdc']:
-            raise ValueError("selector (%s) should be distance, pearson, " \
-                             "hybrid, or rdc" % selector)
         if max_feats not in ['sqrt', 'log', 'all', -1]:
             raise ValueError("%s not a valid argument for max_feats" % \
                              str(max_feats))
@@ -140,9 +125,9 @@ class CITreeBase(object):
         self.alpha             = float(alpha)
         self.min_samples_split = max(1, int(min_samples_split))
         self.n_permutations    = int(n_permutations)
-        self.selector          = selector
         self.max_feats         = max_feats
         self.early_stopping    = early_stopping
+        self.muting            = muting
         self.verbose           = verbose
         self.n_jobs            = n_jobs
         self.root              = None
@@ -160,9 +145,34 @@ class CITreeBase(object):
             self.random_state = int(random_state)
 
 
-    def _selector_pcor(self, X, y, col_idx):
+    def _mute_feature(self, col_to_mute):
+        """ADD
+        
+        Parameters
+        ----------
+        
+        Returns
+        -------
+        """
+        # Remove feature from protected features array
+        idx                      = np.where(self.protected_features_ == col_to_mute)[0]
+        self.protected_features_ = np.delete(self.protected_features_, idx)
+
+        # Calculate actual number for max_feats before fitting
+        p = self.protected_features_.shape[0]
+        if self.max_feats == 'sqrt':
+            self.max_feats = int(np.sqrt(p))
+        elif self.max_feats == 'log':
+            self.max_feats = int(np.log(p+1))
+        elif self.max_feats in ['all', -1]:
+            self.max_feats = p
+        else:
+            self.max_feats = int(self.max_feats)
+
+
+    def _selector(self, X, y, col_idx):
         """Selects feature most correlated with y using permutation tests with
-        a Pearson correlation
+        a multiple correlation
         
         Parameters
         ----------
@@ -184,15 +194,24 @@ class CITreeBase(object):
         best_pval : float
             Probability value from permutation test
         """
-        best_col, best_pval = None, np.inf
+        # Select random column from start and update 
+        best_col, best_pval = np.random.choice(col_idx), np.inf
 
         # Iterate over columns
         for col in col_idx:
-            pval = permutation_test_pcor(x=X[:, col], 
-                                         y=y, 
-                                         agg=np.concatenate([X[:, col], y]), 
-                                         B=self.n_permutations,
-                                         random_state=self.random_state)
+            pval = permutation_test_mc(x=X[:, col], 
+                                       y=y, 
+                                       n_classes=self.n_classes_, 
+                                       B=self.n_permutations,
+                                       random_state=self.random_state)
+
+            # If variable muting
+            if self.muting and \
+               pval == 1.0 and \
+               self.protected_features_.shape[0] > 1:
+                self._mute_feature(col)
+                if self.verbose: logger("tree", "Muting feature %d" % col)
+
             if pval < best_pval: 
                 best_col, best_pval = col, pval
                 
@@ -202,250 +221,6 @@ class CITreeBase(object):
                     return best_col, best_pval
 
         return best_col, best_pval
-
-
-    def _selector_rdc(self, X, y, col_idx):
-        """Selects feature most correlated with y using permutation tests with
-        a randomized dependence coefficient
-        
-        Parameters
-        ----------
-        X : 2d array-like
-            Array of features
-
-        y : 1d array-like
-            Array of labels
-
-        col_idx : list
-            Columns of X to examine for feature selection
-        
-        Returns
-        -------
-        best_col : int
-            Best column from feature selection. Note, if early_stopping is 
-            enabled then this may not be the absolute best column
-
-        best_pval : float
-            Probability value from permutation test
-        """
-        best_col, best_pval = None, np.inf
-
-        # Iterate over columns
-        for col in col_idx:
-            pval = permutation_test_rdc(x=X[:, col], 
-                                        y=y, 
-                                        agg=np.concatenate([X[:, col], y]), 
-                                        B=self.n_permutations,
-                                        random_state=self.random_state)
-            if pval < best_pval: 
-                best_col, best_pval = col, pval
-                
-                # If early stopping
-                if self.early_stopping and best_pval < self.alpha:
-                    if self.verbose: logger("tree", "Early stopping")
-                    return best_col, best_pval
-
-        return best_col, best_pval
-
-
-    def _selector_dcor(self, X, y, n, col_idx):
-        """Selects feature most correlated with y using permutation tests with
-        a distance correlation
-        
-        Parameters
-        ----------
-        X : 2d array-like
-            Array of features
-
-        y : 1d array-like
-            Array of labels
-
-        n : int
-            Number of samples
-
-        col_idx : list
-            Columns of X to examine for feature selection
-        
-        Returns
-        -------
-        best_col : int
-            Best column from feature selection. Note, if early_stopping is 
-            enabled then this may not be the absolute best column
-
-        best_pval : float
-            Probability value from permutation test
-        """
-        best_col, best_pval = None, np.inf
-
-        # Use Numba serial version for 'smaller' samples
-        if n < 500:
-            for col in col_idx:
-                pval = permutation_test_dcor(x=X[:, col], 
-                                             y=y, 
-                                             agg=np.concatenate([X[:, col], y]), 
-                                             B=self.n_permutations,
-                                             random_state=self.random_state)
-                if pval < best_pval: 
-                    best_col, best_pval = col, pval
-
-                    # If early stopping
-                    if self.early_stopping and best_pval < self.alpha:
-                        if self.verbose: logger("tree", "Early stopping")
-                        return best_col, best_pval
-
-        else:
-            # Use parallel C version for 'larger' samples
-            for col in col_idx:
-                pval = permutation_test_dcor_parallel(
-                                             x=X[:, col], 
-                                             y=y, 
-                                             agg=np.concatenate([X[:, col], y]), 
-                                             n_jobs=self.n_jobs,
-                                             B=self.n_permutations,
-                                             random_state=self.random_state)
-                if pval < best_pval: 
-                    best_col, best_pval = col, pval
-
-                    # If early stopping
-                    if self.early_stopping and best_pval < self.alpha:
-                        if self.verbose: logger("tree", "Early stopping")
-                        return best_col, best_pval
-
-        return best_col, best_pval
-
-
-    def _selector_cor_hybrid(self, X, y, n, col_idx):
-        """Selects feature most correlated with y using permutation tests with
-        a Pearson or a distance correlation, whichever is larger
-        
-        Parameters
-        ----------
-        X : 2d array-like
-            Array of features
-
-        y : 1d array-like
-            Array of labels
-
-        n : int
-            Number of samples
-
-        col_idx : list
-            Columns of X to examine for feature selection
-        
-        Returns
-        -------
-        best_col : int
-            Best column from feature selection. Note, if early_stopping is 
-            enabled then this may not be the absolute best column
-
-        best_pval : float
-            Probability value from permutation test
-        """
-        best_col, best_pval = None, np.inf
-
-        # Iterate over columns
-        for col in col_idx:
-
-            # First calculate correlation to determine which one is larger
-            pearson  = abs(pcor(X[:, col], y))
-            distance = py_dcor(X[:, col], y) if n < 500 else \
-                       c_dcor(X[:, col], y)
-            
-            # Calculate permutation test based on correlation values
-            if pearson >= distance:
-                pval = permutation_test_pcor(x=X[:, col], 
-                                             y=y, 
-                                             agg=np.concatenate([X[:, col], y]), 
-                                             B=self.n_permutations,
-                                             random_state=self.random_state)
-                if pval < best_pval: 
-                    best_col, best_pval = col, pval
-                    
-                    # If early stopping
-                    if self.early_stopping and best_pval < self.alpha:
-                        if self.verbose: logger("tree", "Early stopping")
-                        return best_col, best_pval
-
-            else:
-                # Use Numba serial version for 'smaller' samples
-                if n < 500:
-                    pval = permutation_test_dcor(x=X[:, col], 
-                                                 y=y, 
-                                                 agg=np.concatenate([X[:, col], y]), 
-                                                 B=self.n_permutations,
-                                                 random_state=self.random_state)
-                    if pval < best_pval: 
-                        best_col, best_pval = col, pval
-
-                        # If early stopping
-                        if self.early_stopping and best_pval < self.alpha:
-                            if self.verbose: logger("tree", "Early stopping")
-                            return best_col, best_pval
-
-                else:
-                    # Use parallel C version for 'larger' samples
-                    pval = permutation_test_dcor_parallel(
-                                                 x=X[:, col], 
-                                                 y=y, 
-                                                 agg=np.concatenate([X[:, col], y]), 
-                                                 n_jobs=self.n_jobs,
-                                                 B=self.n_permutations,
-                                                 random_state=self.random_state)
-                    if pval < best_pval: 
-                        best_col, best_pval = col, pval
-
-                        # If early stopping
-                        if self.early_stopping and best_pval < self.alpha:
-                            if self.verbose: logger("tree", "Early stopping")
-                            return best_col, best_pval
-
-        return best_col, best_pval
-
-
-    def _selector(self, X, y, n, col_idx):
-        """Selects feature most correlated with y using permutation tests with
-        a correlation function
-        
-        Parameters
-        ----------
-        X : 2d array-like
-            Array of features
-
-        y : 1d array-like
-            Array of labels
-
-        n : int
-            Number of samples
-
-        col_idx : list
-            Columns of X to examine for feature selection
-        
-        Returns
-        -------
-        best_col : int
-            Best column from feature selection. Note, if early_stopping is 
-            enabled then this may not be the absolute best column
-
-        best_pval : float
-            Probability value from permutation test
-        """        
-        if self.verbose > 1: 
-            logger("selector", "Testing %d features" % len(col_idx))
-
-        # Pearson correlation
-        if self.selector == 'pearson':
-            return self._selector_pcor(X, y, col_idx)
-
-        # Distance correlation 
-        elif self.selector == 'rdc':
-            return self._selector_rdc(X, y, col_idx)
-
-        elif self.selector ==  'distance':
-            return self._selector_dcor(X, y, n, col_idx)
-
-        # Hybrid correlation
-        else:
-            return self._selector_cor_hybrid(X, y, n, col_idx)
 
 
     def _splitter(self, *args, **kwargs):
@@ -475,16 +250,18 @@ class CITreeBase(object):
         n, p = X.shape
 
         # Check for stopping criteria
-        if n > self.min_samples_split and depth < self.max_depth:
+        if n > self.min_samples_split and \
+           depth < self.max_depth and \
+           not np.all(y == y[0]):
 
-            # Controls randomness of column sampling (makes analysis reproducible)
+            # Controls randomness of column sampling
             self.splitter_counter_ += 1
             np.random.seed(self.random_state*self.splitter_counter_)
 
             # Find column with strongest association with outcome
-            col_idx       = np.random.choice(np.arange(p, dtype=int),
+            col_idx       = np.random.choice(self.protected_features_,
                                              size=self.max_feats, replace=False)
-            col, col_pval = self._selector(X, y, n, col_idx)
+            col, col_pval = self._selector(X, y, col_idx)
             if col_pval < self.alpha:
 
                 # Find best split among selected variable
@@ -548,7 +325,8 @@ class CITreeBase(object):
             self.max_feats = int(self.max_feats)
         
         # Begin recursive build
-        self.feature_importances_ = np.zeros(X.shape[1])
+        self.protected_features_  = np.arange(p, dtype=int)
+        self.feature_importances_ = np.zeros(p)
         self.root                 = self._build_tree(X, y)
         sum_fi                    = np.sum(self.feature_importances_)
         if sum_fi > 0: self.feature_importances_ /= sum_fi
@@ -643,8 +421,8 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                  max_depth=-1,
                  max_feats=-1, 
                  n_permutations=100, 
-                 selector='pearson', 
                  early_stopping=False, 
+                 muting=True,
                  verbose=0, 
                  n_jobs=-1,
                  random_state=None):
@@ -655,8 +433,8 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                     max_depth=max_depth,
                     max_feats=max_feats, 
                     n_permutations=n_permutations, 
-                    selector=selector, 
                     early_stopping=early_stopping, 
+                    muting=muting,
                     verbose=verbose, 
                     n_jobs=n_jobs,
                     random_state=random_state)
@@ -1138,15 +916,13 @@ class CIForestBase(object):
     n_permutations : int
         Number of permutations during feature selection
 
-    selector : str
-        Type of correlation for feature selection, 'pearson' for Pearson
-        correlation, 'distance' for distance correlation, or 'hybrid' for
-        a dynamic selection of Pearson/distance correlations
-
     early_stopping : bool
         Whether to implement early stopping during feature selection. If True,
         then as soon as the first permutation test returns a p-value less than
         alpha, this feature will be chosen as the splitting variable
+
+    muting : bool
+        Whether to perform variable muting
 
     verbose : bool or int
         Controls verbosity of training and testing
@@ -1174,9 +950,8 @@ class CIForestBase(object):
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
                  n_estimators=100, max_feats='sqrt', n_permutations=200, 
-                 selector='pearson', early_stopping=True, verbose=0, 
-                 bootstrap=True, bayes=True, class_weight=None, n_jobs=-1, 
-                 random_state=None):
+                 early_stopping=True, muting=True, verbose=0, bootstrap=True, 
+                 bayes=True, class_weight=None, n_jobs=-1, random_state=None):
 
         # Error checking
         if alpha <= 0 or alpha > 1:
@@ -1184,9 +959,6 @@ class CIForestBase(object):
         if n_permutations < 0:
             raise ValueError("n_permutations (%s) should be > 0" % \
                              str(n_permutations))
-        if selector not in ['distance', 'pearson', 'hybrid', 'rdc']:
-            raise ValueError("selector (%s) should be distance, pearson, " \
-                             "hybrid, or rdc" % selector)
         if max_feats not in ['sqrt', 'log', 'all', -1]:
             raise ValueError("%s not a valid argument for max_feats" % \
                              str(max_feats))
@@ -1211,10 +983,10 @@ class CIForestBase(object):
         else:
             self.max_depth = int(max(1, max_depth))
         self.n_estimators   = int(max(1, n_estimators))
-        self.selector       = selector
         self.max_feats      = max_feats
         self.bootstrap      = bootstrap
         self.early_stopping = early_stopping
+        self.muting         = muting
         self.n_jobs         = n_jobs
         self.verbose        = verbose
         self.class_weight   = class_weight
@@ -1231,9 +1003,9 @@ class CIForestBase(object):
             'alpha': self.alpha, 
             'min_samples_split': self.min_samples_split,
             'n_permutations': self.n_permutations,
-            'selector': self.selector,
             'max_feats': self.max_feats,
             'early_stopping': self.early_stopping,
+            'muting': muting,
             'verbose': 0,
             'n_jobs': 1,
             'random_state': None,
@@ -1317,8 +1089,8 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
                  n_estimators=100, 
                  max_feats='sqrt', 
                  n_permutations=200, 
-                 selector='pearson', 
                  early_stopping=False, 
+                 muting=True,
                  verbose=0, 
                  bootstrap=True,
                  bayes=True,
@@ -1333,8 +1105,8 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
             n_estimators=n_estimators, 
             max_feats=max_feats, 
             n_permutations=n_permutations, 
-            selector=selector, 
             early_stopping=early_stopping, 
+            muting=muting,
             verbose=verbose, 
             bootstrap=bootstrap, 
             bayes=bayes,

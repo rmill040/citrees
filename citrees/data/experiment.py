@@ -18,7 +18,7 @@ if PATH not in sys.path: sys.path.append(PATH)
 
 from citrees import CITreeClassifier, CIForestClassifier
 
-DATA_SETS = ['wine', 'orlraws10P', 'glass', 'warpPIE10P', 'warpAR10P', 'pixraw10P', 
+DATA_SETS = ['wine', 'glass', 'warpPIE10P', 'warpAR10P', 'pixraw10P', 
              'ALLAML', 'CLL_SUB_111', 'ORL', 'TOX_171', 'Yale', 'musk',
              'vowel-context', 'gamma', 'isolet', 'letter', 'madelon',
              'page-blocks', 'pendigits', 'spam']
@@ -216,16 +216,15 @@ def metrics_citrees():
 
     # Create hyperparameter grid
     grid = {
-        'alpha': [.01],
-        'selector': ['rdc'],
+        'alpha': [.01, .05, .20, .50, .80, .95, .99, 1.0],
         'n_estimators': [200],
         'n_permutations': [100],
+        'muting': [True, False],
         'early_stopping': [True, False],
-        'bootstrap': [True],
-        'bayes': [True],
+        'bootstrap': [True, False],
+        'bayes': [True, False],
         'class_weight': ['balanced'],
         'n_jobs': [-1],
-        'verbose': [2],
         'random_state': [1718]
     }
 
@@ -249,6 +248,9 @@ def metrics_citrees():
 
         # Test each hyperparameter grid using cross-validation
         for params in grid:
+
+            # Skip combination since Bayes has no affect when bootstrap is False
+            if params['bootstrap'] and params['bayes']: continue
 
             print("[CV] Hyperparameters:\n%s" % params)
             try:

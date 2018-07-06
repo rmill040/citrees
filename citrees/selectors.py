@@ -3,10 +3,13 @@ from __future__ import division, print_function
 from joblib import delayed, Parallel
 from numba import njit
 import numpy as np
-from scipy.stats import chi2
 
-from scorers import c_dcor, pcor, py_dcor, rdc, rdc_fast
+from scorers import c_dcor, mc_fast, pcor, py_dcor, rdc, rdc_fast
 
+
+##########################
+"""CONTINUOUS SELECTORS"""
+##########################
 
 @njit(cache=True, nogil=True)
 def permutation_test_pcor(x, y, agg, B=100, random_state=None):
@@ -63,27 +66,6 @@ def _permutation(agg, n_x, n_y, func=None, **kwargs):
         return func(agg[:n_x], agg[n_y:], **kwargs)
     except:
         return 0.0
-
-
-def test_rdc(x, y, agg, B=100, n_jobs=-1, k=10, random_state=None):
-    """ADD
-    
-    Parameters
-    ----------
-    
-    Returns
-    -------
-    p : float
-        Achieved significance level
-    """
-    np.random.seed(random_state)
-    n = x.shape[0]
-    if True:
-        return permutation_test_rdc_parallel(x, y, agg, B, n_jobs, random_state)
-    else:
-        rho   = rdc(x, y, k=k)
-        chisq = (2.5 - n)*np.log(1-rho*rho)
-        return 1-chi2.cdf(chisq, 1)
 
 
 @njit(cache=True, nogil=True)
@@ -220,6 +202,52 @@ def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
                 delayed(_permutation)(agg, n_x, n_y, func) for i in range(B)
             )
         ]
+
+    # Achieved significance level
+    return np.mean(np.fabs(theta_p) >= theta)
+
+
+########################
+"""DISCRETE SELECTORS"""
+########################
+
+@njit(cache=True, nogil=True, fastmath=True)
+def permutation_test_mc(x, y, B=100, n_classes=None, random_state=None):
+    """Permutation test for multiple correlation
+    
+    Parameters
+    ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    n_classes : int
+        Number of classes
+
+    B : int
+        Number of permutations
+
+    random_state : int
+        Sets seed for random number generator
+    
+    Returns
+    -------
+    p : float
+        Achieved significance level
+    """
+    x_ = x.copy()
+    np.random.seed(random_state)
+
+    # Estimate correlation from original data
+    theta = np.fabs(mc_fast(x_, y, n_classes))
+
+    # Permutations
+    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
+    for i in range(B):
+        np.random.shuffle(x_)
+        theta_p[i] = mc_fast(x_, y, n_classes) # Call jitted function directly
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)

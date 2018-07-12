@@ -582,7 +582,7 @@ def mc_fast(x, y, n_classes):
     ssb, mu = 0.0, x.mean()
 
     # Sum of squares total
-    sst     = np.sum((x-mu)*(x-mu))  
+    sst = np.sum((x-mu)*(x-mu))  
     if sst == 0.0: return 0.0
 
     for j in range(n_classes):

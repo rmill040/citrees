@@ -158,7 +158,7 @@ class CITreeBase(object):
         idx                      = np.where(self.protected_features_ == col_to_mute)[0]
         self.protected_features_ = np.delete(self.protected_features_, idx)
 
-        # Calculate actual number for max_feats before fitting
+        # Recalculate actual number for max_feats before fitting
         p = self.protected_features_.shape[0]
         if self.max_feats == 'sqrt':
             self.max_feats = int(np.sqrt(p))
@@ -168,6 +168,11 @@ class CITreeBase(object):
             self.max_feats = p
         else:
             self.max_feats = int(self.max_feats)
+
+        # Check to make sure max_feats is not larger than the number of remaining 
+        # features
+        if self.max_feats > len(self.protected_features_):
+            self.max_feats = len(self.protected_features_)
 
 
     def _selector(self, X, y, col_idx):
@@ -259,8 +264,13 @@ class CITreeBase(object):
             np.random.seed(self.random_state*self.splitter_counter_)
 
             # Find column with strongest association with outcome
-            col_idx       = np.random.choice(self.protected_features_,
-                                             size=self.max_feats, replace=False)
+            try:
+                col_idx = np.random.choice(self.protected_features_,
+                                           size=self.max_feats, replace=False)
+            except:
+                col_idx = np.random.choice(self.protected_features_,
+                                           size=len(self.protected_features_), 
+                                           replace=False)
             col, col_pval = self._selector(X, y, col_idx)
             if col_pval < self.alpha:
 
@@ -1072,15 +1082,58 @@ class CIForestBase(object):
 
 
 class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
-    """ADD
+    """Conditional inference forest classifier
     
     Parameters
     ----------
+    min_samples_split : int
+        Minimum samples required for a split
+
+    alpha : float
+        Threshold value for selecting feature with permutation tests. Smaller 
+        values correspond to shallower trees
+
+    max_depth : int
+        Maximum depth to grow tree
+
+    max_feats : str or int
+        Maximum feats to select at each split. String arguments include 'sqrt',
+        'log', and 'all'
+
+    n_permutations : int
+        Number of permutations during feature selection
+
+    early_stopping : bool
+        Whether to implement early stopping during feature selection. If True,
+        then as soon as the first permutation test returns a p-value less than
+        alpha, this feature will be chosen as the splitting variable
+
+    muting : bool
+        Whether to perform variable muting
+
+    verbose : bool or int
+        Controls verbosity of training and testing
+
+    bootstrap : bool
+        Whether to perform bootstrap sampling for each tree
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    class_weight : str
+        Type of sampling during bootstrap, None for regular bootstrapping, 
+        'balanced' for balanced bootstrap sampling, and 'stratify' for 
+        stratified bootstrap sampling
+
+    n_jobs : int
+        Number of jobs for permutation testing
+
     random_state : int
         Sets seed for random number generator
     
     Returns
     -------
+    None
     """
     def __init__(self, 
                  min_samples_split=2, 
@@ -1188,4 +1241,3 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
         """
         y_proba = self.predict_proba(X)
         return np.argmax(y_proba, axis=1)
-

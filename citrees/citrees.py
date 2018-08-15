@@ -2,16 +2,16 @@ from __future__ import division, print_function
 
 from joblib import delayed, Parallel
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import threading
 import warnings
 warnings.simplefilter('ignore')
 
 # Package imports
 from externals.six.moves import range
-from selectors import permutation_test_mc
-from scorers import gini_index
+from selectors import permutation_test_mc, permutation_test_pcor
+from scorers import gini_index, mse
 from utils import bayes_boot_probs, logger
 
 
@@ -48,10 +48,6 @@ class Node(object):
     right_child : tuple
         For right child node, two element tuple with first element a 2d array of 
         features and second element a 1d array of labels
-
-    Returns
-    -------
-    None
     """
     def __init__(self, col=None, col_pval=None, threshold=None, impurity=None, 
                  value=None, left_child=None, right_child=None):
@@ -102,10 +98,6 @@ class CITreeBase(object):
 
     random_state : int
         Sets seed for random number generator
-    
-    Returns
-    -------
-    None
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
                  max_feats=-1, n_permutations=500, early_stopping=False, 
@@ -146,19 +138,18 @@ class CITreeBase(object):
 
 
     def _mute_feature(self, col_to_mute):
-        """ADD
+        """Removes variable from being selected
         
         Parameters
         ----------
-        
-        Returns
-        -------
+        col_to_mute : int
+            Integer index of column to remove
         """
         # Remove feature from protected features array
         idx                      = np.where(self.protected_features_ == col_to_mute)[0]
         self.protected_features_ = np.delete(self.protected_features_, idx)
 
-        # Calculate actual number for max_feats before fitting
+        # Recalculate actual number for max_feats before fitting
         p = self.protected_features_.shape[0]
         if self.max_feats == 'sqrt':
             self.max_feats = int(np.sqrt(p))
@@ -169,58 +160,15 @@ class CITreeBase(object):
         else:
             self.max_feats = int(self.max_feats)
 
+        # Check to make sure max_feats is not larger than the number of remaining 
+        # features
+        if self.max_feats > len(self.protected_features_):
+            self.max_feats = len(self.protected_features_)
+
 
     def _selector(self, X, y, col_idx):
-        """Selects feature most correlated with y using permutation tests with
-        a multiple correlation
-        
-        Parameters
-        ----------
-        X : 2d array-like
-            Array of features
-
-        y : 1d array-like
-            Array of labels
-
-        col_idx : list
-            Columns of X to examine for feature selection
-        
-        Returns
-        -------
-        best_col : int
-            Best column from feature selection. Note, if early_stopping is 
-            enabled then this may not be the absolute best column
-
-        best_pval : float
-            Probability value from permutation test
-        """
-        # Select random column from start and update 
-        best_col, best_pval = np.random.choice(col_idx), np.inf
-
-        # Iterate over columns
-        for col in col_idx:
-            pval = permutation_test_mc(x=X[:, col], 
-                                       y=y, 
-                                       n_classes=self.n_classes_, 
-                                       B=self.n_permutations,
-                                       random_state=self.random_state)
-
-            # If variable muting
-            if self.muting and \
-               pval == 1.0 and \
-               self.protected_features_.shape[0] > 1:
-                self._mute_feature(col)
-                if self.verbose: logger("tree", "Muting feature %d" % col)
-
-            if pval < best_pval: 
-                best_col, best_pval = col, pval
-                
-                # If early stopping
-                if self.early_stopping and best_pval < self.alpha:
-                    if self.verbose: logger("tree", "Early stopping")
-                    return best_col, best_pval
-
-        return best_col, best_pval
+        """Find feature most correlated with label"""
+        raise NotImplementedError("_splitter method not callable from base class")
 
 
     def _splitter(self, *args, **kwargs):
@@ -259,8 +207,13 @@ class CITreeBase(object):
             np.random.seed(self.random_state*self.splitter_counter_)
 
             # Find column with strongest association with outcome
-            col_idx       = np.random.choice(self.protected_features_,
-                                             size=self.max_feats, replace=False)
+            try:
+                col_idx = np.random.choice(self.protected_features_,
+                                           size=self.max_feats, replace=False)
+            except:
+                col_idx = np.random.choice(self.protected_features_,
+                                           size=len(self.protected_features_), 
+                                           replace=False)
             col, col_pval = self._selector(X, y, col_idx)
             if col_pval < self.alpha:
 
@@ -381,10 +334,6 @@ class CITreeBase(object):
 
         child : Node
             Left or right child node
-        
-        Returns
-        -------
-        None
         """
         # If we're at leaf => print the label
         if not tree: tree = self.root
@@ -411,9 +360,6 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
     Derived from CITreeBase class; see constructor for parameter definitions
 
-    Returns
-    -------
-    None
     """
     def __init__(self,
                  min_samples_split=2, 
@@ -481,24 +427,30 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
         # Call sklearn's optimized implementation of decision tree classifiers
         # to make split using Gini index
-        threshold = DecisionTreeClassifier(
+        base = DecisionTreeClassifier(
                 max_depth=1, min_samples_split=self.min_samples_split
-            ).fit(X[:, col].reshape(-1, 1), y).tree_.threshold[0]
+            ).fit(X[:, col].reshape(-1, 1), y).tree_
 
         # Make split based on best threshold
+        threshold        = base.threshold[0]
         idx              = np.where(X[:, col] <= threshold, 1, 0)
         X_left, y_left   = X[idx==1], y[idx==1]
         X_right, y_right = X[idx==0], y[idx==0]
-        n_left, n_right  = len(y_left), len(y_right)
+        n_left, n_right  = X_left.shape[0], X_right.shape[0]
         
         # Skip small splits
         if n_left < self.min_samples_split or n_right < self.min_samples_split:
             return impurity, threshold, left, right
 
         # Calculate parent and weighted children impurities
-        node_impurity  = gini_index(y, self.labels_)
-        left_impurity  = gini_index(y_left, self.labels_)*(n_left/float(n))
-        right_impurity = gini_index(y_right, self.labels_)*(n_right/float(n))
+        if len(base.impurity) == 3:
+            node_impurity  = base.impurity[0]
+            left_impurity  = base.impurity[1]*(n_left/float(n))
+            right_impurity = base.impurity[2]*(n_right/float(n))
+        else:
+            node_impurity  = gini_index(y, self.labels_)
+            left_impurity  = gini_index(y_left, self.labels_)*(n_left/float(n))
+            right_impurity = gini_index(y_right, self.labels_)*(n_right/float(n)) 
 
         # Define groups and calculate impurity decrease
         left, right = (X_left, y_left), (X_right, y_right)
@@ -508,6 +460,59 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         self.feature_importances_[col] += impurity
 
         return impurity, threshold, left, right
+
+
+    def _mc_selector(self, X, y, col_idx):
+        """Selects feature most correlated with y using permutation tests with
+        a multiple correlation
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        col_idx : list
+            Columns of X to examine for feature selection
+        
+        Returns
+        -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is 
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
+        """
+        # Select random column from start and update 
+        best_col, best_pval = np.random.choice(col_idx), np.inf
+
+        # Iterate over columns
+        for col in col_idx:
+            pval = permutation_test_mc(x=X[:, col], 
+                                       y=y, 
+                                       n_classes=self.n_classes_, 
+                                       B=self.n_permutations,
+                                       random_state=self.random_state)
+
+            # If variable muting
+            if self.muting and \
+               pval == 1.0 and \
+               self.protected_features_.shape[0] > 1:
+                self._mute_feature(col)
+                if self.verbose: logger("tree", "Muting feature %d" % col)
+
+            if pval < best_pval: 
+                best_col, best_pval = col, pval
+                
+                # If early stopping
+                if self.early_stopping and best_pval < self.alpha:
+                    if self.verbose: logger("tree", "Early stopping")
+                    return best_col, best_pval
+
+        return best_col, best_pval
 
 
     def _estimate_proba(self, y):
@@ -548,6 +553,7 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         self.labels_       = labels if labels is not None else np.unique(y)
         self.n_classes_    = len(self.labels_)
         self.node_estimate = self._estimate_proba
+        self._selector     = self._mc_selector
         super(CITreeClassifier, self).fit(X, y)
         return self
 
@@ -586,6 +592,237 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         """
         y_proba = self.predict_proba(X)
         return np.argmax(y_proba, axis=1)
+
+
+class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
+    """Conditional inference tree regressor
+    
+    Parameters
+    ----------
+    selector : str
+        Variable selector for finding strongest association between a feature
+        and the label
+
+    Derived from CITreeBase class; see constructor for rest of parameter definitions
+
+    """
+    def __init__(self,
+                 min_samples_split=2, 
+                 alpha=.05, 
+                 selector='pearson',
+                 max_depth=-1,
+                 max_feats=-1, 
+                 n_permutations=100, 
+                 early_stopping=False, 
+                 muting=True,
+                 verbose=0, 
+                 n_jobs=-1,
+                 random_state=None):
+
+        # Define selector
+        if selector not in ['pearson', 'distance', 'rdc']:
+            raise ValueError("%s not a valid selector, valid selectors are " \
+                             "pearson, distance, and rdc")
+        self.selector = selector
+
+        super(CITreeRegressor, self).__init__(
+                    min_samples_split=min_samples_split, 
+                    alpha=alpha, 
+                    max_depth=max_depth,
+                    max_feats=max_feats, 
+                    n_permutations=n_permutations, 
+                    early_stopping=early_stopping, 
+                    muting=muting,
+                    verbose=verbose, 
+                    n_jobs=n_jobs,
+                    random_state=random_state)
+
+
+    def _pc_selector(self, X, y, col_idx):
+        """Selects feature most correlated with y using permutation tests with
+        a multiple correlation
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        col_idx : list
+            Columns of X to examine for feature selection
+        
+        Returns
+        -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is 
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
+        """
+        # Select random column from start and update 
+        best_col, best_pval = np.random.choice(col_idx), np.inf
+
+        # Iterate over columns
+        for col in col_idx:
+            pval = permutation_test_pcor(x=X[:, col], 
+                                         y=y, 
+                                         agg=np.concatenate([X[:, col], y]),
+                                         B=self.n_permutations,
+                                         random_state=self.random_state)
+
+            # If variable muting
+            if self.muting and \
+               pval == 1.0 and \
+               self.protected_features_.shape[0] > 1:
+                self._mute_feature(col)
+                if self.verbose: logger("tree", "Muting feature %d" % col)
+
+            if pval < best_pval: 
+                best_col, best_pval = col, pval
+                
+                # If early stopping
+                if self.early_stopping and best_pval < self.alpha:
+                    if self.verbose: logger("tree", "Early stopping")
+                    return best_col, best_pval
+
+        return best_col, best_pval
+
+
+    def _splitter(self, X, y, n, col):
+        """Splits data set into two child nodes based on optimized weighted
+        mean squared error
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        n : int
+            Number of samples
+
+        col : list
+            Column of X to search for best split
+        
+        Returns
+        -------
+        best_impurity : float
+            Mean squared error associated with best split
+
+        best_threshold : float
+            X value associated with splitting of data set into two child nodes
+
+        left : tuple
+            Left child node data consisting of two elements: (features, labels)
+
+        right : tuple
+            Right child node data consisting of two elements: (features labels)
+        """
+        if self.verbose > 1: 
+            logger("splitter", "Testing splits on feature %d" % col)
+        
+        # Initialize variables for splitting
+        impurity, threshold = 0.0, None
+        left, right         = None, None
+
+        # Call sklearn's optimized implementation of decision tree regressors
+        # to make split using mean squared error
+        base = DecisionTreeRegressor(
+                max_depth=1, min_samples_split=self.min_samples_split
+            ).fit(X[:, col].reshape(-1, 1), y).tree_
+
+        # Make split based on best threshold
+        threshold        = base.threshold[0]
+        idx              = np.where(X[:, col] <= threshold, 1, 0)
+        X_left, y_left   = X[idx==1], y[idx==1]
+        X_right, y_right = X[idx==0], y[idx==0]
+        n_left, n_right  = X_left.shape[0], X_right.shape[0]
+        
+        # Skip small splits
+        if n_left < self.min_samples_split or n_right < self.min_samples_split:
+            return impurity, threshold, left, right
+
+        # Calculate parent and weighted children impurities
+        if len(base.impurity) == 3:
+            node_impurity  = base.impurity[0]
+            left_impurity  = base.impurity[1]*(n_left/float(n))
+            right_impurity = base.impurity[2]*(n_right/float(n))
+        else:
+            node_impurity  = mse(y)
+            left_impurity  = mse(y_left)*(n_left/float(n))
+            right_impurity = mse(y_right)*(n_right/float(n)) 
+
+
+        # Define groups and calculate impurity decrease
+        left, right = (X_left, y_left), (X_right, y_right)
+        impurity    = node_impurity - (left_impurity + right_impurity)
+
+        # Update feature importance (mean decrease impurity)
+        self.feature_importances_[col] += impurity
+
+        return impurity, threshold, left, right
+
+
+    def _estimate_mean(self, y):
+        """Estimates mean in node
+        
+        Parameters
+        ----------
+        y : 1d array-like
+            Array of labels
+        
+        Returns
+        -------
+        mu : float
+            Node mean estimate
+        """
+        return np.mean(y)
+
+
+    def fit(self, X, y):
+        """Trains conditional inference tree regressor
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        Returns
+        -------
+        self : CITreeRegressor
+            Instance of CITreeRegressor class
+        """
+        self._selector     = self._pc_selector
+        self.node_estimate = self._estimate_mean
+        super(CITreeRegressor, self).fit(X, y)
+        return self
+
+
+    def predict(self, X):
+        """Predicts labels for feature vectors in X
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features  
+        
+        Returns
+        -------
+        y_hat : 1d array-like
+            Array of predicted labels
+        """
+        if self.verbose: 
+            logger("test", "Predicting labels for %d samples" % X.shape[0])
+
+        return np.array([self.predict_label(sample) for sample in X])
 
 
 #####################
@@ -722,15 +959,15 @@ def balanced_unsampled_idx(random_state, y, bayes, min_class_p):
 
 
 def normal_sampled_idx(random_state, n, bayes):
-    """Indices for bootstrap sampling in classification
+    """Indices for bootstrap sampling
     
     Parameters
     ----------
     random_state : int
         Sets seed for random number generator
 
-    y : 1d array-like
-        Array of labels
+    n : int
+        Sample size
 
     bayes : bool
         If True, performs Bayesian bootstrap sampling
@@ -749,7 +986,7 @@ def normal_sampled_idx(random_state, n, bayes):
 
 
 def normal_unsampled_idx(random_state, n, bayes):
-    """Unsampled indices for bootstrap sampling in classification
+    """Unsampled indices for bootstrap sampling
     
     Parameters
     ----------
@@ -758,6 +995,9 @@ def normal_unsampled_idx(random_state, n, bayes):
 
     y : 1d array-like
         Array of labels
+
+    n : int
+        Sample size
 
     bayes : bool
         If True, performs Bayesian bootstrap sampling
@@ -819,10 +1059,6 @@ def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
 
     min_class_p : float
         Minimum proportion of class labels
-  
-    Returns
-    -------
-    None
     """
     # Print status if conditions met
     if verbose and n_estimators >= 10:
@@ -852,16 +1088,60 @@ def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
         tree.fit(X, y)
 
 
-def _parallel_fit_regressor():
-    """Not implemented
+def _parallel_fit_regressor(tree, X, y, n, tree_idx, n_estimators, bootstrap,
+                            bayes, verbose, random_state):
+    """Utility function for building trees in parallel
+    
+    Note: This function can't go locally in a class, because joblib complains 
+          that it cannot pickle it when placed there
     
     Parameters
     ----------
-    
-    Returns
-    -------
+    tree : CITreeRegressor
+        Instantiated conditional inference tree
+
+    X : 2d array-like
+        Array of features
+
+    y : 1d array-like
+        Array of labels
+
+    n : int
+        Number of samples
+
+    tree_idx : int
+        Index of tree in forest
+
+    n_estimators : int
+        Number of total estimators
+
+    bootstrap : bool
+        Whether to perform bootstrap sampling
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    verbose : bool or int
+        Controls verbosity of training process
+
+    random_state : int
+        Sets seed for random number generator
     """
-    raise NotImplementedError("Function not implemented currently")
+    # Print status if conditions met
+    if verbose and n_estimators >= 10:
+        denom = n_estimators if verbose > 1 else 10
+        if (tree_idx+1) % int(n_estimators/denom) == 0:
+            logger("tree", "Building tree %d/%d" % (tree_idx+1, n_estimators))
+
+    # Bootstrap sample if specified
+    if bootstrap:
+        random_state = random_state*(tree_idx+1)
+        idx          = normal_sampled_idx(random_state, n, bayes)
+
+        # Train
+        tree.fit(X[idx], y[idx]) 
+    else:
+        tree.fit(X, y)
 
 
 def _accumulate_prediction(predict, X, out, lock):
@@ -881,10 +1161,6 @@ def _accumulate_prediction(predict, X, out, lock):
     lock : threading Lock
         A lock that controls worker access to data structures for aggregating
         predictions
-    
-    Returns
-    -------
-    None
     """
     prediction = predict(X)
     with lock:
@@ -894,8 +1170,8 @@ def _accumulate_prediction(predict, X, out, lock):
             for i in range(len(out)): out[i] += prediction[i]
 
 
-class CIForestBase(object):
-    """Base class for conditional inference forests
+class CIForestClassifier(BaseEstimator, ClassifierMixin):
+    """Conditional forest classifier
     
     Parameters
     ----------
@@ -943,10 +1219,6 @@ class CIForestBase(object):
 
     random_state : int
         Sets seed for random number generator
-    
-    Returns
-    -------
-    None
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
                  n_estimators=100, max_feats='sqrt', n_permutations=200, 
@@ -998,7 +1270,7 @@ class CIForestBase(object):
             # TODO: ADD CHECK FOR CRAZY LARGE INTEGER?
             self.random_state = int(random_state)
 
-        # Package params for calling CITree{Classifier/Regressor}
+        # Package params for calling CITreeClassifier
         self.params = {
             'alpha': self.alpha, 
             'min_samples_split': self.min_samples_split,
@@ -1013,7 +1285,7 @@ class CIForestBase(object):
 
 
     def fit(self, X, y):
-        """Fit conditional inference forest
+        """Fit conditional forest classifier
         
         Parameters
         ----------
@@ -1025,9 +1297,12 @@ class CIForestBase(object):
         
         Returns
         -------
-        self : CIForestBase
-            Instance of CIForestBase
+        self : CIForestClassifier
+            Instance of CIForestClassifier
         """
+        self.labels_    = np.unique(y)
+        self.n_classes_ = len(self.labels_)
+
         if self.verbose:
             logger("tree", "Training ensemble with %d trees on %d samples" % \
                     (self.n_estimators, X.shape[0]))
@@ -1036,7 +1311,7 @@ class CIForestBase(object):
         self.estimators_ = []
         for i in range(self.n_estimators):
             self.params['random_state'] = self.random_state*(i+1)
-            self.estimators_.append(self.Tree(**self.params))
+            self.estimators_.append(CITreeClassifier(**self.params))
 
         # Define class distribution
         self.class_dist_p = np.array([
@@ -1046,7 +1321,7 @@ class CIForestBase(object):
         # Train models
         n = X.shape[0]
         Parallel(n_jobs=self.n_jobs, backend='threading')(
-            delayed(self._parallel_fit)(
+            delayed(self._parallel_fit_classifier)(
                 self.estimators_[i], X, y, n, i, self.n_estimators, 
                 self.bootstrap, self.bayes, self.verbose, self.random_state,
                 self.class_weight, np.min(self.class_dist_p)
@@ -1063,82 +1338,6 @@ class CIForestBase(object):
         if sum_fi > 0:
             self.feature_importances_ /= sum_fi
 
-        return self
-
-
-    def predict(self, *args, **kwargs):
-        """Predicts labels on test data"""
-        raise NotImplementedError("predict method not callable from base class")
-
-
-class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
-    """ADD
-    
-    Parameters
-    ----------
-    random_state : int
-        Sets seed for random number generator
-    
-    Returns
-    -------
-    """
-    def __init__(self, 
-                 min_samples_split=2, 
-                 alpha=.05, 
-                 max_depth=-1,
-                 n_estimators=100, 
-                 max_feats='sqrt', 
-                 n_permutations=200, 
-                 early_stopping=False, 
-                 muting=True,
-                 verbose=0, 
-                 bootstrap=True,
-                 bayes=True,
-                 class_weight='balanced',
-                 n_jobs=-1, 
-                 random_state=None):
-
-        super(CIForestClassifier, self).__init__(
-            min_samples_split=min_samples_split, 
-            alpha=alpha, 
-            max_depth=max_depth,
-            n_estimators=n_estimators, 
-            max_feats=max_feats, 
-            n_permutations=n_permutations, 
-            early_stopping=early_stopping, 
-            muting=muting,
-            verbose=verbose, 
-            bootstrap=bootstrap, 
-            bayes=bayes,
-            class_weight=class_weight,
-            n_jobs=n_jobs, 
-            random_state=random_state)
-
-
-    def fit(self, X, y):
-        """Fit conditional inference forest classifier
-        
-        Parameters
-        ----------
-        X : 2d array-like
-            Array of features
-
-        y : 1d array-like
-            Array of labels
-        
-        Returns
-        -------
-        self : CIForestClassifier
-            Instance of CIForestClassifier
-        """
-        # Alias to tree model and parallel training function
-        self.Tree          = CITreeClassifier
-        self._parallel_fit = _parallel_fit_classifier
-
-        # Class information
-        self.labels_    = np.unique(y)
-        self.n_classes_ = len(self.labels_)
-        super(CIForestClassifier, self).fit(X, y)
         return self
 
 
@@ -1166,7 +1365,7 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
             for e in self.estimators_)
 
         # Normalize probabilities
-        for proba in all_proba: proba /= len(self.estimators_)
+        all_proba /= len(self.estimators_)
         if len(all_proba) == 1:
             return all_proba[0]
         else:
@@ -1189,3 +1388,192 @@ class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
         y_proba = self.predict_proba(X)
         return np.argmax(y_proba, axis=1)
 
+
+class CIForestRegressor(BaseEstimator, RegressorMixin):
+    """Conditional forest regressor
+    
+    Parameters
+    ----------
+    min_samples_split : int
+        Minimum samples required for a split
+
+    alpha : float
+        Threshold value for selecting feature with permutation tests. Smaller 
+        values correspond to shallower trees
+
+    selector : str
+        Variable selector for finding strongest association between a feature
+        and the label
+
+    max_depth : int
+        Maximum depth to grow tree
+
+    max_feats : str or int
+        Maximum feats to select at each split. String arguments include 'sqrt',
+        'log', and 'all'
+
+    n_permutations : int
+        Number of permutations during feature selection
+
+    early_stopping : bool
+        Whether to implement early stopping during feature selection. If True,
+        then as soon as the first permutation test returns a p-value less than
+        alpha, this feature will be chosen as the splitting variable
+
+    muting : bool
+        Whether to perform variable muting
+
+    verbose : bool or int
+        Controls verbosity of training and testing
+
+    bootstrap : bool
+        Whether to perform bootstrap sampling for each tree
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    n_jobs : int
+        Number of jobs for permutation testing
+
+    random_state : int
+        Sets seed for random number generator
+    """
+    def __init__(self, min_samples_split=2, alpha=.05, selector='pearson', max_depth=-1,
+                 n_estimators=100, max_feats='sqrt', n_permutations=200, 
+                 early_stopping=True, muting=True, verbose=0, bootstrap=True, 
+                 bayes=True, n_jobs=-1, random_state=None):
+
+        # Error checking
+        if alpha <= 0 or alpha > 1:
+            raise ValueError("Alpha (%.2f) should be in (0, 1]" % alpha)
+
+        if selector not in ['pearson', 'distance', 'rdc']:
+            raise ValueError("%s not a valid selector, valid selectors are " \
+                             "pearson, distance, and rdc")
+
+        if n_permutations < 0:
+            raise ValueError("n_permutations (%s) should be > 0" % \
+                             str(n_permutations))
+        if max_feats not in ['sqrt', 'log', 'all', -1]:
+            raise ValueError("%s not a valid argument for max_feats" % \
+                             str(max_feats))
+        if n_estimators < 0:
+            raise ValueError("n_estimators (%s) must be > 0" % \
+                             str(n_estimators))
+
+        # Define attributes
+        self.alpha             = float(alpha)
+        self.selector          = selector
+        self.min_samples_split = max(1, min_samples_split)
+        self.n_permutations    = int(n_permutations)
+        if max_depth == -1: 
+            self.max_depth = max_depth
+        else:
+            self.max_depth = int(max(1, max_depth))
+        self.n_estimators   = int(max(1, n_estimators))
+        self.max_feats      = max_feats
+        self.bootstrap      = bootstrap
+        self.early_stopping = early_stopping
+        self.muting         = muting
+        self.n_jobs         = n_jobs
+        self.verbose        = verbose
+        self.bayes          = bayes
+
+        if random_state is None:
+            self.random_state = np.random.randint(1, 9999)
+        else:
+            # TODO: ADD CHECK FOR CRAZY LARGE INTEGER?
+            self.random_state = int(random_state)
+
+        # Package params for calling CITreeRegressor
+        self.params = {
+            'alpha': self.alpha, 
+            'selector': self.selector,
+            'min_samples_split': self.min_samples_split,
+            'n_permutations': self.n_permutations,
+            'max_feats': self.max_feats,
+            'early_stopping': self.early_stopping,
+            'muting': muting,
+            'verbose': 0,
+            'n_jobs': 1,
+            'random_state': None,
+            }
+
+
+    def fit(self, X, y):
+        """Fit conditional forest regressor
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+        
+        Returns
+        -------
+        self : CIForestRegressor
+            Instance of CIForestRegressor
+        """
+        if self.verbose:
+            logger("tree", "Training ensemble with %d trees on %d samples" % \
+                    (self.n_estimators, X.shape[0]))
+
+        # Instantiate base tree models
+        self.estimators_ = []
+        for i in range(self.n_estimators):
+            self.params['random_state'] = self.random_state*(i+1)
+            self.estimators_.append(CITreeRegressor(**self.params))
+
+        # Train models
+        n = X.shape[0]
+        Parallel(n_jobs=self.n_jobs, backend='threading')(
+            delayed(_parallel_fit_regressor)(
+                self.estimators_[i], X, y, n, i, self.n_estimators, 
+                self.bootstrap, self.bayes, self.verbose, self.random_state
+                ) 
+            for i in range(self.n_estimators)
+            )
+
+        # Accumulate feature importances (mean decrease impurity)
+        self.feature_importances_ = np.sum([
+                tree.feature_importances_ for tree in self.estimators_],
+                axis=0
+            )
+        sum_fi = np.sum(self.feature_importances_)
+        if sum_fi > 0:
+            self.feature_importances_ /= sum_fi
+
+        return self
+
+
+    def predict(self, X):
+        """Predicts labels for feature vectors X
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features  
+        
+        Returns
+        -------
+        labels : 1d array-like
+            Array of predicted labels
+        """
+        if self.verbose: 
+            logger("test", "Predicting labels for %d samples" % X.shape[0])
+
+        # Parallel prediction
+        results   = np.zeros(X.shape[0], dtype=np.float64)
+        lock      = threading.Lock()
+        Parallel(n_jobs=self.n_jobs, backend="threading")(
+            delayed(_accumulate_prediction)(e.predict, X, results, lock)
+            for e in self.estimators_)
+
+        # Normalize predictions
+        results /= len(self.estimators_)
+        if len(results) == 1:
+            return results[0]
+        else:
+            return results

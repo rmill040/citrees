@@ -53,13 +53,23 @@ def permutation_test_pcor(x, y, agg, B=100, random_state=None):
 
 
 def _permutation(agg, n_x, n_y, func=None, **kwargs):
-    """ADD
+    """Helper function to perform arbitrary permutation test
     
     Parameters
     ----------
+    n_x : int
+        Size of sample in left node
+
+    n_y : int
+        Size of sample in right node
+
+    func : function handle
+        Function to perform on permuted data
     
     Returns
     -------
+    value : float
+        Return value of function handle
     """
     np.random.shuffle(agg)
     try:
@@ -110,10 +120,31 @@ def permutation_test_rdc(x, y, agg, B=100, random_state=None):
 
 
 def permutation_test_rdc_parallel(x, y, agg, B=100, n_jobs=-1, k=10, random_state=None):
-    """ADD
+    """Parallel implementation of permutation test for randomized dependence 
+    coefficient
     
     Parameters
     ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    agg : 1d array-like
+        Array of x, y concatenated
+
+    B : int
+        Number of permutations
+
+    n_jobs : int
+        Number of cpus to use for processing
+
+    k : int
+        Number of random projections for cca
+
+    random_state : int
+        Sets seed for random number generator
     
     Returns
     -------
@@ -147,12 +178,24 @@ def permutation_test_rdc_parallel(x, y, agg, B=100, n_jobs=-1, k=10, random_stat
 
 @njit(cache=True, nogil=True)
 def permutation_test_dcor(x, y, agg, B=100, random_state=None):
-    """ADD
+    """Permutation test for distance correlation
 
-    NOTE: The jitted Python function is called here
-    
     Parameters
     ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    agg : 1d array-like
+        Array of x, y concatenated
+
+    B : int
+        Number of permutations
+
+    random_state : int
+        Sets seed for random number generator
     
     Returns
     -------
@@ -168,7 +211,7 @@ def permutation_test_dcor(x, y, agg, B=100, random_state=None):
     theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
     for i in range(B):
         np.random.shuffle(agg)
-        theta_p[i] = py_dcor(agg[:n_x], agg[n_y:])
+        theta_p[i] = py_dcor(agg[:n_x], agg[n_y:]) # Call jitted function directly
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)
@@ -176,10 +219,27 @@ def permutation_test_dcor(x, y, agg, B=100, random_state=None):
 
 def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
                                    random_state=None):
-    """ADD
+    """Parallel implementation of permutation test for distance correlation
     
     Parameters
     ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    agg : 1d array-like
+        Array of x, y concatenated
+
+    B : int
+        Number of permutations
+
+    n_jobs : int
+        Number of cpus to use for processing
+
+    random_state : int
+        Sets seed for random number generator
     
     Returns
     -------

@@ -6,6 +6,7 @@ import numpy as np
 from os.path import dirname, join
 import pandas as pd
 from scipy.stats import rankdata as rank
+from sklearn.metrics import mean_squared_error
 
 from externals.six.moves import range
 
@@ -582,7 +583,7 @@ def mc_fast(x, y, n_classes):
     ssb, mu = 0.0, x.mean()
 
     # Sum of squares total
-    sst     = np.sum((x-mu)*(x-mu))  
+    sst = np.sum((x-mu)*(x-mu))  
     if sst == 0.0: return 0.0
 
     for j in range(n_classes):
@@ -605,7 +606,7 @@ def mc_fast(x, y, n_classes):
 
 @njit(cache=True, nogil=True, fastmath=True)
 def gini_index(y, labels):
-    """Weighted gini index for classification
+    """Gini index for classification
 
     Note: Despite being jitted, this function is still slow and a bottleneck
           in the actual training phase. Sklearn's Cython version is used to
@@ -624,7 +625,7 @@ def gini_index(y, labels):
     Returns
     -------
     gini : float
-        Weighted gini index
+        Gini index
     """
     # Gini index for each label
     n, gini = len(y), 0.0
@@ -636,5 +637,27 @@ def gini_index(y, labels):
         # Only square if greater than 0
         if p > 0: gini += p*p
 
-    # Weighted by class node size
+    # Gini index
     return 1 - gini
+
+
+#################################
+"""SPLIT SELECTORS: CONTINUOUS"""
+#################################
+
+@njit(cache=True, nogil=True, fastmath=True)
+def mse(y):
+    """Mean squared error for node in tree
+    
+    Parameters
+    ----------
+    y : 1d array-like
+        Array of labels
+    
+    Returns
+    -------
+    error : float
+        Mean squared error
+    """
+    mu = y.mean()
+    return np.mean((y-mu)*(y-mu))

@@ -165,7 +165,6 @@ class CITreeBase(object):
         if self.max_feats > len(self.protected_features_):
             self.max_feats = len(self.protected_features_)
 
-
     def _selector(self, X, y, col_idx):
         """Find feature most correlated with label"""
         raise NotImplementedError("_splitter method not callable from base class")
@@ -1341,6 +1340,125 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         return self
 
 
+    def predict(self, *args, **kwargs):
+        """Predicts labels on test data"""
+        raise NotImplementedError("predict method not callable from base class")
+
+
+class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
+    """Conditional inference forest classifier
+    
+    Parameters
+    ----------
+    min_samples_split : int
+        Minimum samples required for a split
+
+    alpha : float
+        Threshold value for selecting feature with permutation tests. Smaller 
+        values correspond to shallower trees
+
+    max_depth : int
+        Maximum depth to grow tree
+
+    max_feats : str or int
+        Maximum feats to select at each split. String arguments include 'sqrt',
+        'log', and 'all'
+
+    n_permutations : int
+        Number of permutations during feature selection
+
+    early_stopping : bool
+        Whether to implement early stopping during feature selection. If True,
+        then as soon as the first permutation test returns a p-value less than
+        alpha, this feature will be chosen as the splitting variable
+
+    muting : bool
+        Whether to perform variable muting
+
+    verbose : bool or int
+        Controls verbosity of training and testing
+
+    bootstrap : bool
+        Whether to perform bootstrap sampling for each tree
+
+    bayes : bool
+        If True, performs Bayesian bootstrap sampling
+
+    class_weight : str
+        Type of sampling during bootstrap, None for regular bootstrapping, 
+        'balanced' for balanced bootstrap sampling, and 'stratify' for 
+        stratified bootstrap sampling
+
+    n_jobs : int
+        Number of jobs for permutation testing
+
+    random_state : int
+        Sets seed for random number generator
+    
+    Returns
+    -------
+    None
+    """
+    def __init__(self, 
+                 min_samples_split=2, 
+                 alpha=.05, 
+                 max_depth=-1,
+                 n_estimators=100, 
+                 max_feats='sqrt', 
+                 n_permutations=200, 
+                 early_stopping=False, 
+                 muting=True,
+                 verbose=0, 
+                 bootstrap=True,
+                 bayes=True,
+                 class_weight='balanced',
+                 n_jobs=-1, 
+                 random_state=None):
+
+        super(CIForestClassifier, self).__init__(
+            min_samples_split=min_samples_split, 
+            alpha=alpha, 
+            max_depth=max_depth,
+            n_estimators=n_estimators, 
+            max_feats=max_feats, 
+            n_permutations=n_permutations, 
+            early_stopping=early_stopping, 
+            muting=muting,
+            verbose=verbose, 
+            bootstrap=bootstrap, 
+            bayes=bayes,
+            class_weight=class_weight,
+            n_jobs=n_jobs, 
+            random_state=random_state)
+
+
+    def fit(self, X, y):
+        """Fit conditional inference forest classifier
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+        
+        Returns
+        -------
+        self : CIForestClassifier
+            Instance of CIForestClassifier
+        """
+        # Alias to tree model and parallel training function
+        self.Tree          = CITreeClassifier
+        self._parallel_fit = _parallel_fit_classifier
+
+        # Class information
+        self.labels_    = np.unique(y)
+        self.n_classes_ = len(self.labels_)
+        super(CIForestClassifier, self).fit(X, y)
+        return self
+
+
     def predict_proba(self, X):
         """Predicts class probabilities for feature vectors X
         
@@ -1577,3 +1695,5 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
             return results[0]
         else:
             return results
+
+        return np.argmax(y_proba, axis=1)

@@ -216,7 +216,7 @@ def metrics_citrees():
 
     # Create hyperparameter grid
     grid = {
-        'alpha': [.01, .05, .20, .50, .80, .95, .99, 1.0],
+        'alpha': [.01, .05, .95, 1.0],
         'n_estimators': [200],
         'n_permutations': [100],
         'muting': [True, False],
@@ -236,7 +236,7 @@ def metrics_citrees():
 
     # Iterate over each data set
     results, start = [], time.time()
-    for name in DATA_SETS:
+    for name in DATA_SETS[::-1]:
 
         # Load data
         X, y = load_data(name)

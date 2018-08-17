@@ -10,7 +10,9 @@ warnings.simplefilter('ignore')
 
 # Package imports
 from externals.six.moves import range
-from selectors import permutation_test_mc, permutation_test_pcor
+from selectors import (permutation_test_mc, permutation_test_dcor, 
+                       permutation_test_pcor, permutation_test_rdc)
+from selectors import pcor, py_dcor
 from scorers import gini_index, mse
 from utils import bayes_boot_probs, logger
 
@@ -100,7 +102,7 @@ class CITreeBase(object):
         Sets seed for random number generator
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
-                 max_feats=-1, n_permutations=500, early_stopping=False, 
+                 max_feats=-1, n_permutations=100, early_stopping=False, 
                  muting=True, verbose=0, n_jobs=-1, random_state=None):
 
         # Error checking
@@ -214,7 +216,7 @@ class CITreeBase(object):
                                            size=len(self.protected_features_), 
                                            replace=False)
             col, col_pval = self._selector(X, y, col_idx)
-            if col_pval < self.alpha:
+            if col_pval <= self.alpha:
 
                 # Find best split among selected variable
                 impurity, threshold, left, right = self._splitter(X, y, n, col)
@@ -372,6 +374,10 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                  n_jobs=-1,
                  random_state=None):
 
+        # Define node estimate and selector
+        self.node_estimate = self._estimate_proba
+        self._selector     = self._mc_selector
+
         super(CITreeClassifier, self).__init__(
                     min_samples_split=min_samples_split, 
                     alpha=alpha, 
@@ -490,6 +496,14 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
         # Iterate over columns
         for col in col_idx:
+
+            # Mute feature and continue since constant
+            if np.all(X[:, col] == X[0, col]): 
+                self._mute_feature(col)
+                if self.verbose: logger("tree", "Constant values, muting feature %d" \
+                                        % col)
+                continue 
+
             pval = permutation_test_mc(x=X[:, col], 
                                        y=y, 
                                        n_classes=self.n_classes_, 
@@ -551,8 +565,6 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         """
         self.labels_       = labels if labels is not None else np.unique(y)
         self.n_classes_    = len(self.labels_)
-        self.node_estimate = self._estimate_proba
-        self._selector     = self._mc_selector
         super(CITreeClassifier, self).fit(X, y)
         return self
 
@@ -618,11 +630,30 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
                  n_jobs=-1,
                  random_state=None):
 
+        # Define node estimate
+        self.node_estimate = self._estimate_mean
+
         # Define selector
-        if selector not in ['pearson', 'distance', 'rdc']:
+        if selector not in ['pearson', 'distance', 'rdc', 'hybrid']:
             raise ValueError("%s not a valid selector, valid selectors are " \
-                             "pearson, distance, and rdc")
+                             "pearson, distance, rdc, and hybrid")
         self.selector = selector
+
+        if self.selector != 'hybrid':
+            # Wrapper correlation selector
+            self._selector = self._cor_selector
+
+            # Permutation test based on correlation measure
+            if self.selector == 'pearson':
+                self._perm_test = permutation_test_pcor
+            elif self.selector == 'distance':
+                self._perm_test = permutation_test_dcor
+            else: 
+                self._perm_test = permutation_test_rdc
+        
+        else:
+            self._perm_test = None
+            self._selector  = self._hybrid_selector            
 
         super(CITreeRegressor, self).__init__(
                     min_samples_split=min_samples_split, 
@@ -637,9 +668,9 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
                     random_state=random_state)
 
 
-    def _pc_selector(self, X, y, col_idx):
+    def _hybrid_selector(self, X, y, col_idx):
         """Selects feature most correlated with y using permutation tests with
-        a multiple correlation
+        a hybrid of pearson and distance correlation measures
         
         Parameters
         ----------
@@ -666,11 +697,81 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
 
         # Iterate over columns
         for col in col_idx:
-            pval = permutation_test_pcor(x=X[:, col], 
-                                         y=y, 
-                                         agg=np.concatenate([X[:, col], y]),
-                                         B=self.n_permutations,
-                                         random_state=self.random_state)
+
+            if abs(pcor(X[:, col], y)) >= abs(py_dcor(X[:, col], y)):
+                pval = permutation_test_pcor(x=X[:, col], 
+                                             y=y, 
+                                             agg=np.concatenate([X[:, col], y]),
+                                             B=self.n_permutations,
+                                             random_state=self.random_state)
+            else:
+                pval = permutation_test_dcor(x=X[:, col], 
+                                             y=y, 
+                                             agg=np.concatenate([X[:, col], y]),
+                                             B=self.n_permutations,
+                                             random_state=self.random_state)         
+
+            # If variable muting
+            if self.muting and \
+               pval == 1.0 and \
+               self.protected_features_.shape[0] > 1:
+                self._mute_feature(col)
+                if self.verbose: logger("tree", "Muting feature %d" % col)
+
+            if pval < best_pval: 
+                best_col, best_pval = col, pval
+                
+                # If early stopping
+                if self.early_stopping and best_pval < self.alpha:
+                    if self.verbose: logger("tree", "Early stopping")
+                    return best_col, best_pval
+
+        return best_col, best_pval
+
+
+
+    def _cor_selector(self, X, y, col_idx):
+        """Selects feature most correlated with y using permutation tests with
+        a correlation measure
+        
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        col_idx : list
+            Columns of X to examine for feature selection
+        
+        Returns
+        -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is 
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
+        """
+        # Select random column from start and update 
+        best_col, best_pval = np.random.choice(col_idx), np.inf
+
+        # Iterate over columns
+        for col in col_idx:
+
+            # Mute feature and continue since constant
+            if np.all(X[:, col] == X[0, col]): 
+                self._mute_feature(col)
+                if self.verbose: logger("tree", "Constant values, muting feature %d" \
+                                        % col)
+                continue 
+
+            pval = self._perm_test(x=X[:, col], 
+                                   y=y, 
+                                   agg=np.concatenate([X[:, col], y]),
+                                   B=self.n_permutations,
+                                   random_state=self.random_state)
 
             # If variable muting
             if self.muting and \
@@ -799,8 +900,6 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
         self : CITreeRegressor
             Instance of CITreeRegressor class
         """
-        self._selector     = self._pc_selector
-        self.node_estimate = self._estimate_mean
         super(CITreeRegressor, self).fit(X, y)
         return self
 
@@ -1069,14 +1168,15 @@ def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
     if bootstrap:
         random_state = random_state*(tree_idx+1)
         if class_weight == 'balanced':
-            idx = balanced_sampled_idx(random_state, y, bayes, min_dist_p)
+            idx = np.concatenate(
+                balanced_sampled_idx(random_state, y, bayes, min_dist_p)
+                )
         elif class_weight == 'stratify':
-            idx = stratify_sampled_idx(random_state, y, bayes)
+            idx = np.concatenate(
+                stratify_sampled_idx(random_state, y, bayes)
+                )
         else:
             idx = normal_sampled_idx(random_state, n, bayes)
-
-        # Concatenate and turn into numpy array
-        idx = np.concatenate(idx)
 
         # Note: We need to pass the classes in the case of the bootstrap
         # because not all classes may be sampled and when it comes to prediction,
@@ -1220,9 +1320,9 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         Sets seed for random number generator
     """
     def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
-                 n_estimators=100, max_feats='sqrt', n_permutations=200, 
+                 n_estimators=100, max_feats='sqrt', n_permutations=100, 
                  early_stopping=True, muting=True, verbose=0, bootstrap=True, 
-                 bayes=True, class_weight=None, n_jobs=-1, random_state=None):
+                 bayes=True, class_weight='balanced', n_jobs=-1, random_state=None):
 
         # Error checking
         if alpha <= 0 or alpha > 1:
@@ -1253,6 +1353,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
             self.max_depth = max_depth
         else:
             self.max_depth = int(max(1, max_depth))
+
         self.n_estimators   = int(max(1, n_estimators))
         self.max_feats      = max_feats
         self.bootstrap      = bootstrap
@@ -1276,7 +1377,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
             'n_permutations': self.n_permutations,
             'max_feats': self.max_feats,
             'early_stopping': self.early_stopping,
-            'muting': muting,
+            'muting': self.muting,
             'verbose': 0,
             'n_jobs': 1,
             'random_state': None,
@@ -1320,7 +1421,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         # Train models
         n = X.shape[0]
         Parallel(n_jobs=self.n_jobs, backend='threading')(
-            delayed(self._parallel_fit_classifier)(
+            delayed(_parallel_fit_classifier)(
                 self.estimators_[i], X, y, n, i, self.n_estimators, 
                 self.bootstrap, self.bayes, self.verbose, self.random_state,
                 self.class_weight, np.min(self.class_dist_p)
@@ -1334,128 +1435,8 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
                 axis=0
             )
         sum_fi = np.sum(self.feature_importances_)
-        if sum_fi > 0:
-            self.feature_importances_ /= sum_fi
+        if sum_fi > 0: self.feature_importances_ /= sum_fi
 
-        return self
-
-
-    def predict(self, *args, **kwargs):
-        """Predicts labels on test data"""
-        raise NotImplementedError("predict method not callable from base class")
-
-
-class CIForestClassifier(CIForestBase, BaseEstimator, ClassifierMixin):
-    """Conditional inference forest classifier
-    
-    Parameters
-    ----------
-    min_samples_split : int
-        Minimum samples required for a split
-
-    alpha : float
-        Threshold value for selecting feature with permutation tests. Smaller 
-        values correspond to shallower trees
-
-    max_depth : int
-        Maximum depth to grow tree
-
-    max_feats : str or int
-        Maximum feats to select at each split. String arguments include 'sqrt',
-        'log', and 'all'
-
-    n_permutations : int
-        Number of permutations during feature selection
-
-    early_stopping : bool
-        Whether to implement early stopping during feature selection. If True,
-        then as soon as the first permutation test returns a p-value less than
-        alpha, this feature will be chosen as the splitting variable
-
-    muting : bool
-        Whether to perform variable muting
-
-    verbose : bool or int
-        Controls verbosity of training and testing
-
-    bootstrap : bool
-        Whether to perform bootstrap sampling for each tree
-
-    bayes : bool
-        If True, performs Bayesian bootstrap sampling
-
-    class_weight : str
-        Type of sampling during bootstrap, None for regular bootstrapping, 
-        'balanced' for balanced bootstrap sampling, and 'stratify' for 
-        stratified bootstrap sampling
-
-    n_jobs : int
-        Number of jobs for permutation testing
-
-    random_state : int
-        Sets seed for random number generator
-    
-    Returns
-    -------
-    None
-    """
-    def __init__(self, 
-                 min_samples_split=2, 
-                 alpha=.05, 
-                 max_depth=-1,
-                 n_estimators=100, 
-                 max_feats='sqrt', 
-                 n_permutations=200, 
-                 early_stopping=False, 
-                 muting=True,
-                 verbose=0, 
-                 bootstrap=True,
-                 bayes=True,
-                 class_weight='balanced',
-                 n_jobs=-1, 
-                 random_state=None):
-
-        super(CIForestClassifier, self).__init__(
-            min_samples_split=min_samples_split, 
-            alpha=alpha, 
-            max_depth=max_depth,
-            n_estimators=n_estimators, 
-            max_feats=max_feats, 
-            n_permutations=n_permutations, 
-            early_stopping=early_stopping, 
-            muting=muting,
-            verbose=verbose, 
-            bootstrap=bootstrap, 
-            bayes=bayes,
-            class_weight=class_weight,
-            n_jobs=n_jobs, 
-            random_state=random_state)
-
-
-    def fit(self, X, y):
-        """Fit conditional inference forest classifier
-        
-        Parameters
-        ----------
-        X : 2d array-like
-            Array of features
-
-        y : 1d array-like
-            Array of labels
-        
-        Returns
-        -------
-        self : CIForestClassifier
-            Instance of CIForestClassifier
-        """
-        # Alias to tree model and parallel training function
-        self.Tree          = CITreeClassifier
-        self._parallel_fit = _parallel_fit_classifier
-
-        # Class information
-        self.labels_    = np.unique(y)
-        self.n_classes_ = len(self.labels_)
-        super(CIForestClassifier, self).fit(X, y)
         return self
 
 
@@ -1557,7 +1538,7 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
         Sets seed for random number generator
     """
     def __init__(self, min_samples_split=2, alpha=.05, selector='pearson', max_depth=-1,
-                 n_estimators=100, max_feats='sqrt', n_permutations=200, 
+                 n_estimators=100, max_feats='sqrt', n_permutations=100, 
                  early_stopping=True, muting=True, verbose=0, bootstrap=True, 
                  bayes=True, n_jobs=-1, random_state=None):
 
@@ -1565,9 +1546,9 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
         if alpha <= 0 or alpha > 1:
             raise ValueError("Alpha (%.2f) should be in (0, 1]" % alpha)
 
-        if selector not in ['pearson', 'distance', 'rdc']:
+        if selector not in ['pearson', 'distance', 'rdc', 'hybrid']:
             raise ValueError("%s not a valid selector, valid selectors are " \
-                             "pearson, distance, and rdc")
+                             "pearson, distance, rdc, hybrid")
 
         if n_permutations < 0:
             raise ValueError("n_permutations (%s) should be > 0" % \
@@ -1660,8 +1641,7 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
                 axis=0
             )
         sum_fi = np.sum(self.feature_importances_)
-        if sum_fi > 0:
-            self.feature_importances_ /= sum_fi
+        if sum_fi > 0: self.feature_importances_ /= sum_fi
 
         return self
 
@@ -1683,8 +1663,8 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
             logger("test", "Predicting labels for %d samples" % X.shape[0])
 
         # Parallel prediction
-        results   = np.zeros(X.shape[0], dtype=np.float64)
-        lock      = threading.Lock()
+        results = np.zeros(X.shape[0], dtype=np.float64)
+        lock    = threading.Lock()
         Parallel(n_jobs=self.n_jobs, backend="threading")(
             delayed(_accumulate_prediction)(e.predict, X, results, lock)
             for e in self.estimators_)
@@ -1697,3 +1677,4 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
             return results
 
         return np.argmax(y_proba, axis=1)
+

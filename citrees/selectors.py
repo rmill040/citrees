@@ -52,30 +52,45 @@ def permutation_test_pcor(x, y, agg, B=100, random_state=None):
     return np.mean(np.fabs(theta_p) >= theta)
 
 
-def _permutation(agg, n_x, n_y, func=None, **kwargs):
-    """Helper function to perform arbitrary permutation test
-    
+@njit(cache=True, nogil=True)
+def permutation_test_dcor(x, y, agg, B=100, random_state=None):
+    """Permutation test for distance correlation
+
     Parameters
     ----------
-    n_x : int
-        Size of sample in left node
+    x : 1d array-like
+        Array of n elements
 
-    n_y : int
-        Size of sample in right node
+    y : 1d array-like
+        Array of n elements
 
-    func : function handle
-        Function to perform on permuted data
+    agg : 1d array-like
+        Array of x, y concatenated
+
+    B : int
+        Number of permutations
+
+    random_state : int
+        Sets seed for random number generator
     
     Returns
     -------
-    value : float
-        Return value of function handle
+    p : float
+        Achieved significance level
     """
-    np.random.shuffle(agg)
-    try:
-        return func(agg[:n_x], agg[n_y:], **kwargs)
-    except:
-        return 0.0
+    np.random.seed(random_state)
+
+    # Estimate correlation from original data
+    theta = np.fabs(py_dcor(x, y))
+
+    # Permutations
+    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
+    for i in range(B):
+        np.random.shuffle(agg)
+        theta_p[i] = py_dcor(agg[:n_x], agg[n_y:]) # Call jitted function directly
+
+    # Achieved significance level
+    return np.mean(np.fabs(theta_p) >= theta)
 
 
 @njit(cache=True, nogil=True)
@@ -114,6 +129,82 @@ def permutation_test_rdc(x, y, agg, B=100, random_state=None):
     for i in range(B):
         np.random.shuffle(agg)
         theta_p[i] = rdc_fast(agg[:n_x], agg[n_y:]) # Call jitted function directly
+
+    # Achieved significance level
+    return np.mean(np.fabs(theta_p) >= theta)
+
+
+def _permutation(agg, n_x, n_y, func=None, **kwargs):
+    """Helper function to perform arbitrary permutation test
+    
+    Parameters
+    ----------
+    n_x : int
+        Size of sample in left node
+
+    n_y : int
+        Size of sample in right node
+
+    func : function handle
+        Function to perform on permuted data
+    
+    Returns
+    -------
+    value : float
+        Return value of function handle
+    """
+    np.random.shuffle(agg)
+    try:
+        return func(agg[:n_x], agg[n_y:], **kwargs)
+    except:
+        return 0.0
+
+
+def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
+                                   random_state=None):
+    """Parallel implementation of permutation test for distance correlation
+    
+    Parameters
+    ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    agg : 1d array-like
+        Array of x, y concatenated
+
+    B : int
+        Number of permutations
+
+    n_jobs : int
+        Number of cpus to use for processing
+
+    random_state : int
+        Sets seed for random number generator
+    
+    Returns
+    -------
+    p : float
+        Achieved significance level
+    """
+    n = x.shape[0]
+    np.random.seed(random_state)
+
+    # Define function handle
+    func = py_dcor if n < 500 else c_dcor
+
+    # Estimate correlation from original data
+    theta = np.fabs(func(x, y))
+
+    # Permutations
+    n_x, n_y = len(x), len(y)
+    theta_p = [
+        Parallel(n_jobs=n_jobs, backend='threading')(
+                delayed(_permutation)(agg, n_x, n_y, func) for i in range(B)
+            )
+        ]
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)
@@ -171,97 +262,6 @@ def permutation_test_rdc_parallel(x, y, agg, B=100, n_jobs=-1, k=10, random_stat
                     for i in range(B)
                 )
             ]
-
-    # Achieved significance level
-    return np.mean(np.fabs(theta_p) >= theta)
-
-
-@njit(cache=True, nogil=True)
-def permutation_test_dcor(x, y, agg, B=100, random_state=None):
-    """Permutation test for distance correlation
-
-    Parameters
-    ----------
-    x : 1d array-like
-        Array of n elements
-
-    y : 1d array-like
-        Array of n elements
-
-    agg : 1d array-like
-        Array of x, y concatenated
-
-    B : int
-        Number of permutations
-
-    random_state : int
-        Sets seed for random number generator
-    
-    Returns
-    -------
-    p : float
-        Achieved significance level
-    """
-    np.random.seed(random_state)
-
-    # Estimate correlation from original data
-    theta = np.fabs(py_dcor(x, y))
-
-    # Permutations
-    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
-    for i in range(B):
-        np.random.shuffle(agg)
-        theta_p[i] = py_dcor(agg[:n_x], agg[n_y:]) # Call jitted function directly
-
-    # Achieved significance level
-    return np.mean(np.fabs(theta_p) >= theta)
-
-
-def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
-                                   random_state=None):
-    """Parallel implementation of permutation test for distance correlation
-    
-    Parameters
-    ----------
-    x : 1d array-like
-        Array of n elements
-
-    y : 1d array-like
-        Array of n elements
-
-    agg : 1d array-like
-        Array of x, y concatenated
-
-    B : int
-        Number of permutations
-
-    n_jobs : int
-        Number of cpus to use for processing
-
-    random_state : int
-        Sets seed for random number generator
-    
-    Returns
-    -------
-    p : float
-        Achieved significance level
-    """
-    n = x.shape[0]
-    np.random.seed(random_state)
-
-    # Define function handle
-    func = py_dcor if n < 500 else c_dcor
-
-    # Estimate correlation from original data
-    theta = np.fabs(func(x, y))
-
-    # Permutations
-    n_x, n_y = len(x), len(y)
-    theta_p = [
-        Parallel(n_jobs=n_jobs, backend='threading')(
-                delayed(_permutation)(agg, n_x, n_y, func) for i in range(B)
-            )
-        ]
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)

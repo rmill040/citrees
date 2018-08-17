@@ -6,7 +6,6 @@ import numpy as np
 from os.path import dirname, join
 import pandas as pd
 from scipy.stats import rankdata as rank
-from sklearn.metrics import mean_squared_error
 
 from externals.six.moves import range
 
@@ -525,7 +524,7 @@ def c_wdcor(x, y, weights):
     dcor : float
         Distance correlation
     """
-    n = x.shape[0]
+    n          = x.shape[0]
     array_type = ctypes.c_double*n
     return CFUNC_DCORS_DLL.wdcor(array_type(*x),
                                  array_type(*y),
@@ -606,7 +605,7 @@ def mc_fast(x, y, n_classes):
 
 @njit(cache=True, nogil=True, fastmath=True)
 def gini_index(y, labels):
-    """Gini index for classification
+    """Gini index for node in tree
 
     Note: Despite being jitted, this function is still slow and a bottleneck
           in the actual training phase. Sklearn's Cython version is used to

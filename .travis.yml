@@ -6,7 +6,13 @@ python:
   - 3.6
 
 install:
-- pip install sklearn scipy numpy numba pandas joblib
+  - pip install sklearn scipy numpy numba pandas joblib
 
 script:
-- python -m unittest discover
+  - make clean
+  - make
+  - python -m unittest discover
+
+branches:
+  only:
+    - master

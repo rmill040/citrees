@@ -6,7 +6,7 @@ python:
   - 3.6
 
 install:
-- pip install -r requirements.txt
+- pip install sklearn numpy numba pandas joblib
 
 script:
 - python -m unittest discover

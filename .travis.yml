@@ -13,8 +13,6 @@ script:
   - python citrees/tests/test_scorers.py
   - python citrees/tests/test_utils.py
 
-
-
 branches:
   only:
     - master

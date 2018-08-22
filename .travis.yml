@@ -9,8 +9,8 @@ install:
   - pip install sklearn scipy numpy numba pandas joblib
 
 script:
-  - make clean
-  - make
+  - make clean -C citrees
+  - make -C citrees/
   - python -m unittest discover
 
 branches:

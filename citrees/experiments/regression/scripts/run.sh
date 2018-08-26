@@ -5,15 +5,14 @@
 ##
 
 # Start mongodb on default port 27017
-mongod --fork \
-       --dbpath /Users/R2/Documents/Research/citrees/citrees/experiments/regression/data/db \
-       --logpath /Users/R2/Documents/Research/citrees/citrees/experiments/regression/data/db/mongodb.log
+pkill mongod
+echo "Starting mongodb on localhost port 27017"
+mongod --fork --dbpath ~/db --logpath ~/db/mongodb.log 
 
 # Run python script to generate results
-echo "ELLO"
-
-# Run python script to analyze results
-echo "ELLO"
+echo "Running regression experiment"
+python regression_experiment.py
 
 # Kill mongodb process
-#pkill mongod
+echo "Script finished, killing monogodb process"
+pkill mongod

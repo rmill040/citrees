@@ -321,6 +321,7 @@ def calculate_fi(X, y, name, collection=None):
                     params = {
                         'n_permutations': 200,
                         'selector': s,
+                        'max_feats': -1,
                         'early_stopping': e,
                         'muting': m,
                         'alpha': a,

@@ -148,24 +148,30 @@ class CITreeBase(object):
             Integer index of column to remove
         """
         # Remove feature from protected features array
-        idx                      = np.where(self.protected_features_ == col_to_mute)[0]
-        self.protected_features_ = np.delete(self.protected_features_, idx)
+        idx = np.where(self.available_features_ == col_to_mute)[0]
 
-        # Recalculate actual number for max_feats before fitting
-        p = self.protected_features_.shape[0]
-        if self.max_feats == 'sqrt':
-            self.max_feats = int(np.sqrt(p))
-        elif self.max_feats == 'log':
-            self.max_feats = int(np.log(p+1))
-        elif self.max_feats in ['all', -1]:
-            self.max_feats = p
+        # Mute feature if not in protected set
+        if idx in self.protected_features_:
+            return
         else:
-            self.max_feats = int(self.max_feats)
+            self.available_features_ = np.delete(self.available_features_, idx)
 
-        # Check to make sure max_feats is not larger than the number of remaining 
-        # features
-        if self.max_feats > len(self.protected_features_):
-            self.max_feats = len(self.protected_features_)
+            # Recalculate actual number for max_feats before fitting
+            p = self.available_features_.shape[0]
+            if self.max_feats == 'sqrt':
+                self.max_feats = int(np.sqrt(p))
+            elif self.max_feats == 'log':
+                self.max_feats = int(np.log(p+1))
+            elif self.max_feats in ['all', -1]:
+                self.max_feats = p
+            else:
+                self.max_feats = int(self.max_feats)
+
+            # Check to make sure max_feats is not larger than the number of remaining 
+            # features
+            if self.max_feats > len(self.available_features_):
+                self.max_feats = len(self.available_features_)
+
 
     def _selector(self, X, y, col_idx):
         """Find feature most correlated with label"""
@@ -209,13 +215,21 @@ class CITreeBase(object):
 
             # Find column with strongest association with outcome
             try:
-                col_idx = np.random.choice(self.protected_features_,
+                col_idx = np.random.choice(self.available_features_,
                                            size=self.max_feats, replace=False)
             except:
-                col_idx = np.random.choice(self.protected_features_,
-                                           size=len(self.protected_features_), 
+                col_idx = np.random.choice(self.available_features_,
+                                           size=len(self.available_features_), 
                                            replace=False)
             col, col_pval = self._selector(X, y, col_idx)
+
+            # Add selected feature to protected features
+            if col not in self.protected_features_: 
+                self.protected_features_.append(col)
+                if self.verbose > 1:
+                    logger("tree", "Added feature %d to protected set, size "
+                           "= %d" % (col, len(self.protected_features_)))
+
             if col_pval <= self.alpha:
 
                 # Find best split among selected variable
@@ -279,7 +293,8 @@ class CITreeBase(object):
             self.max_feats = int(self.max_feats)
         
         # Begin recursive build
-        self.protected_features_  = np.arange(p, dtype=int)
+        self.protected_features_  = []
+        self.available_features_  = np.arange(p, dtype=int)
         self.feature_importances_ = np.zeros(p)
         self.root                 = self._build_tree(X, y)
         sum_fi                    = np.sum(self.feature_importances_)
@@ -498,7 +513,7 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         for col in col_idx:
 
             # Mute feature and continue since constant
-            if np.all(X[:, col] == X[0, col]): 
+            if np.all(X[:, col] == X[0, col]) and len(self.available_features_) > 1: 
                 self._mute_feature(col)
                 if self.verbose: logger("tree", "Constant values, muting feature %d" \
                                         % col)
@@ -513,9 +528,9 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
             # If variable muting
             if self.muting and \
                pval == 1.0 and \
-               self.protected_features_.shape[0] > 1:
+               self.available_features_.shape[0] > 1:
                 self._mute_feature(col)
-                if self.verbose: logger("tree", "Muting feature %d" % col)
+                if self.verbose: logger("tree", "ASL = 1.0, muting feature %d" % col)
 
             if pval < best_pval: 
                 best_col, best_pval = col, pval
@@ -563,8 +578,8 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         self : CITreeClassifier
             Instance of CITreeClassifier class
         """
-        self.labels_       = labels if labels is not None else np.unique(y)
-        self.n_classes_    = len(self.labels_)
+        self.labels_    = labels if labels is not None else np.unique(y)
+        self.n_classes_ = len(self.labels_)
         super(CITreeClassifier, self).fit(X, y)
         return self
 
@@ -714,9 +729,9 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
             # If variable muting
             if self.muting and \
                pval == 1.0 and \
-               self.protected_features_.shape[0] > 1:
+               self.available_features_.shape[0] > 1:
                 self._mute_feature(col)
-                if self.verbose: logger("tree", "Muting feature %d" % col)
+                if self.verbose: logger("tree", "ASL = 1.0, muting feature %d" % col)
 
             if pval < best_pval: 
                 best_col, best_pval = col, pval
@@ -727,7 +742,6 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
                     return best_col, best_pval
 
         return best_col, best_pval
-
 
 
     def _cor_selector(self, X, y, col_idx):
@@ -761,7 +775,7 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
         for col in col_idx:
 
             # Mute feature and continue since constant
-            if np.all(X[:, col] == X[0, col]): 
+            if np.all(X[:, col] == X[0, col]) and len(self.available_features_) > 1: 
                 self._mute_feature(col)
                 if self.verbose: logger("tree", "Constant values, muting feature %d" \
                                         % col)
@@ -776,9 +790,9 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
             # If variable muting
             if self.muting and \
                pval == 1.0 and \
-               self.protected_features_.shape[0] > 1:
+               self.available_features_.shape[0] > 1:
                 self._mute_feature(col)
-                if self.verbose: logger("tree", "Muting feature %d" % col)
+                if self.verbose: logger("tree", "ASL = 1.0, muting feature %d" % col)
 
             if pval < best_pval: 
                 best_col, best_pval = col, pval
@@ -1537,7 +1551,7 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
     random_state : int
         Sets seed for random number generator
     """
-    def __init__(self, min_samples_split=2, alpha=.05, selector='pearson', max_depth=-1,
+    def __init__(self, min_samples_split=2, alpha=.01, selector='pearson', max_depth=-1,
                  n_estimators=100, max_feats='sqrt', n_permutations=100, 
                  early_stopping=True, muting=True, verbose=0, bootstrap=True, 
                  bayes=True, n_jobs=-1, random_state=None):
@@ -1677,4 +1691,3 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
             return results
 
         return np.argmax(y_proba, axis=1)
-

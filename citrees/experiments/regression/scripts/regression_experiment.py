@@ -23,20 +23,27 @@ from scorers import pcor, py_dcor
 # Constants
 DATA_DIR     = abspath(__file__).split('scripts')[0]
 DATA_DIR     = join(DATA_DIR, 'data')
-DATA_SETS    = ['coepra2', 'parkinsons', 'coepra3', 'residential', 'skill_craft', 
+DATA_SETS    = ['coepra2', 'coepra3', 'residential', 'skill_craft', 
                 'comm_violence', 'community_crime', 'facebook', 'imports-85', 
                 'coepra1']
 RANDOM_STATE = 1718
 
 
 def load_data(name):
-    """ADD
+    """Loads data, preprocesses, and splits into features and labels
     
     Parameters
     ----------
+    name : str
+        Name of data set
     
     Returns
     -------
+    X : 2d array-like
+        Array of features
+
+    y : 1d array-like
+        Array of labels
     """
     df = pd.read_csv(join(DATA_DIR, name + '.data')).replace('?', 0)
 
@@ -67,12 +74,15 @@ def load_data(name):
             except:
                 X[col] = LabelEncoder().fit_transform(X[col])
 
-    return X.astype(float).values, y.values
+    # Cast to float before returning
+    return X.astype(float).values, y.astype(float).values
 
 
+# Keep track of errors during experiment
 n_errors = 0
+
 def calculate_fi(X, y, name, collection=None):
-    """ADD DESCRIPTION"""
+    """Calculate feature importances for different methods"""
 
     # Access global errors variable
     global n_errors
@@ -311,11 +321,11 @@ def calculate_fi(X, y, name, collection=None):
         pass
 
     # Grid search for conditional tree models
-    n_combos, counter = 60, 1
+    n_combos, counter = 3*2*2*3, 1
     for s in ['pearson', 'distance', 'hybrid']:
         for e in [True, False]:
             for m in [True, False]:
-                for a in [.01, .05, .95, .99, 1.0]:
+                for a in [.01, .05, .95]:
 
                     # Define hyperparameters
                     params = {
@@ -347,7 +357,7 @@ def calculate_fi(X, y, name, collection=None):
                         })  
                     except Exception as e:
                         n_errors += 1
-                        print("[ERROR] Conditional tree %d/%d failed because" % \
+                        print("[ERROR] Conditional tree %d/%d failed because %s" % \
                                     (counter, n_combos, e))
                         pass
 
@@ -372,7 +382,7 @@ def calculate_fi(X, y, name, collection=None):
                         })  
                     except Exception as e:
                         n_errors += 1
-                        print("[ERROR] Conditional forest %d/%d failed because" % \
+                        print("[ERROR] Conditional forest %d/%d failed because %s" % \
                                     (counter, n_combos, e))
                         pass
 

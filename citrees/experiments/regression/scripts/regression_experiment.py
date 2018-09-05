@@ -23,20 +23,19 @@ from scorers import pcor, py_dcor
 # Constants
 DATA_DIR     = abspath(__file__).split('scripts')[0]
 DATA_DIR     = join(DATA_DIR, 'data')
-DATA_SETS    = ['coepra2', 'coepra3', 'residential', 'skill_craft', 
-                'comm_violence', 'community_crime', 'facebook', 'imports-85', 
-                'coepra1']
+DATA_SETS    = ['coepra1', 'coepra2', 'coepra3', 'residential', 'comm_violence',
+                'community_crime', 'facebook', 'imports-85']
 RANDOM_STATE = 1718
 
 
 def load_data(name):
     """Loads data, preprocesses, and splits into features and labels
-    
+
     Parameters
     ----------
     name : str
         Name of data set
-    
+
     Returns
     -------
     X : 2d array-like
@@ -49,16 +48,16 @@ def load_data(name):
 
     if name in ['comm_violence', 'community_crime', 'facebook', 'imports-85']:
         X, y = df.iloc[:, :-1], df.iloc[:, -1]
-    
+
     elif name in ['coepra1', 'coepra2', 'coepra3']:
         X, y = df.iloc[:, df.columns != 'Prop_001'], df['Prop_001']
-    
+
     elif name in ['parkinsons']:
         X, y = df.loc[:, df.columns != 'total_UPDRS'], df['total_UPDRS']
-    
+
     elif name in ['residential']:
         X, y = df.drop(['V-9', 'V-10'], axis=1), df['V-9']
-    
+
     elif name in ['skill_craft']:
         df   = df.replace('?', 0).astype(float)
         X, y = df.loc[:, df.columns != 'APM'], df['APM']
@@ -129,8 +128,8 @@ def calculate_fi(X, y, name, collection=None):
         fi = []
         for j in range(X.shape[1]):
             pearson  = np.fabs(pcor(X[:, j], y))
-            distance = py_dcor(X[:, j], y) 
-            if pearson > distance: 
+            distance = py_dcor(X[:, j], y)
+            if pearson > distance:
                 fi.append(pearson)
             else:
                 fi.append(distance)
@@ -314,7 +313,7 @@ def calculate_fi(X, y, name, collection=None):
                 'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
-        })  
+        })
     except Exception as e:
         n_errors += 1
         print("[ERROR] Decision tree failed because %s" % e)
@@ -354,7 +353,7 @@ def calculate_fi(X, y, name, collection=None):
                                 'fi': fi.tolist(),
                                 'ranks': ranks.tolist()
                             }
-                        })  
+                        })
                     except Exception as e:
                         n_errors += 1
                         print("[ERROR] Conditional tree %d/%d failed because %s" % \
@@ -379,7 +378,7 @@ def calculate_fi(X, y, name, collection=None):
                                 'fi': fi.tolist(),
                                 'ranks': ranks.tolist()
                             }
-                        })  
+                        })
                     except Exception as e:
                         n_errors += 1
                         print("[ERROR] Conditional forest %d/%d failed because %s" % \
@@ -397,7 +396,7 @@ def main():
 
     # Connect to mongodb
     try:
-        client = pymongo.MongoClient("mongodb://localhost:27017/")  
+        client = pymongo.MongoClient("mongodb://localhost:27017/")
     except:
         raise IOError("Mongo client not detected. Start MongoDB on localhost " \
                       "using port 27017 and try again")
@@ -410,7 +409,8 @@ def main():
     # Begin experiments
     for name in DATA_SETS:
         X, y = load_data(name)
-        print("\n\n[DATA] Name = %s, Features = %s" % (name, X.shape[1]))
+        print("\n\n[DATA] Name = %s, Samples = %s, Features = %s" % \
+              (name, X.shape[0], X.shape[1]))
 
         # Calculate feature importances for each method
         X_ = StandardScaler().fit_transform(X) # Standardize features first

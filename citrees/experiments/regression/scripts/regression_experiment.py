@@ -52,15 +52,8 @@ def load_data(name):
     elif name in ['coepra1', 'coepra2', 'coepra3']:
         X, y = df.iloc[:, df.columns != 'Prop_001'], df['Prop_001']
 
-    elif name in ['parkinsons']:
-        X, y = df.loc[:, df.columns != 'total_UPDRS'], df['total_UPDRS']
-
     elif name in ['residential']:
         X, y = df.drop(['V-9', 'V-10'], axis=1), df['V-9']
-
-    elif name in ['skill_craft']:
-        df   = df.replace('?', 0).astype(float)
-        X, y = df.loc[:, df.columns != 'APM'], df['APM']
 
     else:
         raise ValueError("%s not a valid data set" % name)

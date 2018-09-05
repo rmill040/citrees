@@ -7,7 +7,7 @@
 # Start mongodb on default port 27017
 pkill mongod
 echo "Starting mongodb on localhost port 27017"
-mongod --fork --dbpath ~/db --logpath ~/db/mongodb.log 
+mongod --fork --dbpath ~/db --logpath ~/db/mongodb.log
 
 # Run python script to generate results
 echo "Running regression experiment"

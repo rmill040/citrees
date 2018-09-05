@@ -143,7 +143,7 @@ def calculate_fi(X, y, name, collection=None):
     # 4. Random Forest
     print("[FI] Random forest")
     try:
-        fi    = RandomForestRegressor(n_estimators=200, random_state=RANDOM_STATE, n_jobs=-1) \
+        fi    = RandomForestRegressor(n_estimators=200, max_features='sqrt', random_state=RANDOM_STATE, n_jobs=-1) \
                   .fit(X, y) \
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
@@ -151,7 +151,7 @@ def calculate_fi(X, y, name, collection=None):
             "data": name,
             "results": {
                 'method': 'rf',
-                'params': {'n_estimators': 200},
+                'params': {'n_estimators': 200, 'max_features': 'sqrt'},
                 'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
@@ -164,7 +164,7 @@ def calculate_fi(X, y, name, collection=None):
     # 5. Extra Trees
     print("[FI] Extra trees")
     try:
-        fi    = ExtraTreesRegressor(n_estimators=200,  random_state=RANDOM_STATE, n_jobs=-1) \
+        fi    = ExtraTreesRegressor(n_estimators=200,  max_features='sqrt', random_state=RANDOM_STATE, n_jobs=-1) \
                   .fit(X, y) \
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
@@ -172,7 +172,7 @@ def calculate_fi(X, y, name, collection=None):
             "data": name,
             "results": {
                 'method': 'et',
-                'params': {'n_estimators': 200},
+                'params': {'n_estimators': 200, 'max_features': 'sqrt'},
                 'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
@@ -295,7 +295,7 @@ def calculate_fi(X, y, name, collection=None):
     # 8. Decision tree
     print("[FI] Decision tree")
     try:
-        fi    = DecisionTreeRegressor(random_state=RANDOM_STATE) \
+        fi    = DecisionTreeRegressor(random_state=RANDOM_STATE, max_features='sqrt') \
                   .fit(X, y) \
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
@@ -321,13 +321,14 @@ def calculate_fi(X, y, name, collection=None):
 
                     # Define hyperparameters
                     params = {
-                        'n_permutations': 200,
+                        'n_permutations': 150,
                         'selector': s,
-                        'max_feats': -1,
+                        'max_feats': 'sqrt',
                         'early_stopping': e,
                         'muting': m,
                         'alpha': a,
                         'n_jobs': -1,
+                        'verbose': 1,
                         'random_state': RANDOM_STATE
                     }
 

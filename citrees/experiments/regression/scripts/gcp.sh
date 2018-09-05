@@ -18,6 +18,10 @@ echo "deb http://repo.mongodb.org/apt/debian stretch/mongodb-org/4.0 main" | sud
 sudo apt-get update
 sudo apt-get install -y --allow-unauthenticated mongodb-org
 
+# Install tmux
+echo "Installing tmux"
+sudo apt-get -y install tmux
+
 # Install Git
 echo "Installing Git"
 sudo apt-get -y install git
@@ -47,11 +51,15 @@ sudo apt-get -y install make
 make clean -C citrees/citrees
 make -C citrees/citrees
 
-# Create database directory, start MongoDB, and run experiment script
+# Create database directory, start MongoDB, and launch tmux session
 echo "Beginning experiment"
 mkdir ~/db
 touch ~/db/mongodb.log
 mongod --fork --dbpath ~/db --logpath ~/db/mongodb.log
+tmux new -s reg-exp
+
+# Start mongodb and run python script
+echo "Beginning experiment"
 anaconda2/bin/python citrees/citrees/experiments/regression/scripts/regression_experiment.py
 
 # Saves results from MongoDB to .json file
@@ -66,6 +74,7 @@ pkill mongod
 echo "Saving results to GCP storage"
 gsutil cp *.json gs://experiment-results
 
-# Stop instance
+# Detach from tmux session and stop instance
+tmux detach
 echo "Script finished, stopping current instance"
-gcloud compute instances delete instance-1 -q --zone us-east1-b
+gcloud compute instances stop instance-1 -q --zone us-east1-b

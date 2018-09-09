@@ -6,11 +6,11 @@
 
 # Run python script
 echo "Beginning experiment"
-anaconda2/bin/python citrees/citrees/experiments/regression/scripts/regression_experiment.py
+anaconda2/bin/python citrees/citrees/experiments/classifier/scripts/classifier_experiment.py
 
 # Saves results from MongoDB to .json file
 echo "Creating .json file of experiment results"
-mongoexport --db fi --collection regression --out regression.json
+mongoexport --db fi --collection classifier --out classifier.json
 
 # Kill mongod application
 echo "Stopping MongoDB process"

@@ -6,9 +6,9 @@ import numpy as np
 from os.path import dirname, join
 import pandas as pd
 from scipy.stats import rankdata as rank
+from sklearn.feature_selection import mutual_info_classif
 
 from externals.six.moves import range
-
 
 #######################
 """CREATE C WRAPPERS"""
@@ -23,8 +23,8 @@ CFUNC_DCORS_DLL                = ctypes.CDLL(CFUNC_DCORS_PATH)
 CFUNC_DCORS_DLL.wdcor.argtypes = (
         ctypes.POINTER(ctypes.c_double), # x
         ctypes.POINTER(ctypes.c_double), # y
-        ctypes.c_int,                    # n   
-        ctypes.POINTER(ctypes.c_double)  # w              
+        ctypes.c_int,                    # n
+        ctypes.POINTER(ctypes.c_double)  # w
         )
 CFUNC_DCORS_DLL.wdcor.restype  = ctypes.c_double
 
@@ -32,7 +32,7 @@ CFUNC_DCORS_DLL.wdcor.restype  = ctypes.c_double
 CFUNC_DCORS_DLL.dcor.argtypes = (
         ctypes.POINTER(ctypes.c_double), # x
         ctypes.POINTER(ctypes.c_double), # y
-        ctypes.c_int,                    # n                 
+        ctypes.c_int,                    # n
         )
 CFUNC_DCORS_DLL.dcor.restype  = ctypes.c_double
 
@@ -44,7 +44,7 @@ CFUNC_DCORS_DLL.dcor.restype  = ctypes.c_double
 @njit(cache=True, nogil=True, fastmath=True)
 def pcor(x, y):
     """Pearson correlation
-    
+
     Parameters
     ----------
     x : 1d array-like
@@ -52,7 +52,7 @@ def pcor(x, y):
 
     y : 1d array-like
         Array of n elements
-    
+
     Returns
     -------
     cor : float
@@ -88,7 +88,7 @@ def pcor(x, y):
 
 def cca(X, Y):
     """Largest canonical correlation
-    
+
     Parameters
     ----------
     X : 2d array-like
@@ -96,12 +96,12 @@ def cca(X, Y):
 
     Y : 2d array-like
         Array of n elements
-    
+
     Returns
     -------
     cor : float
         Largest canonical correlation between X and Y
-    """    
+    """
     # Columns for X and Y
     Xp = X.shape[1]
     Yp = Y.shape[1]
@@ -117,7 +117,7 @@ def cca(X, Y):
     if rankX == 0:
         return [0.0]
     elif rankX < Xp:
-        Qx = Qx[:, 0:rankX]  
+        Qx = Qx[:, 0:rankX]
         Rx = Rx[0:rankX, 0:rankX]
 
     # Check rank for Y
@@ -137,7 +137,7 @@ def cca(X, Y):
 
 def rdc(X, Y, k=10, s=1.0/6.0, f=np.sin):
     """Randomized dependence coefficient
-    
+
     Parameters
     ----------
     X : 2d array-like
@@ -154,7 +154,7 @@ def rdc(X, Y, k=10, s=1.0/6.0, f=np.sin):
 
     f : function
         Non-linear function
-    
+
     Returns
     -------
     cor : float
@@ -182,14 +182,14 @@ def rdc(X, Y, k=10, s=1.0/6.0, f=np.sin):
     # Apply canonical correlation
     X_ = np.column_stack([f(X_), X_ones])
     Y_ = np.column_stack([f(Y_), Y_ones])
-    
+
     return cca(X_, Y_)
 
 
 @njit(cache=True, nogil=True, fastmath=True)
 def cca_fast(X, Y):
     """Largest canonical correlation
-    
+
     Parameters
     ----------
     X : 2d array-like
@@ -197,12 +197,12 @@ def cca_fast(X, Y):
 
     Y : 2d array-like
         Array of n elements
-    
+
     Returns
     -------
     cor : float
         Largest correlation between X and Y
-    """    
+    """
     # Columns for X and Y
     Xp = X.shape[1]
     Yp = Y.shape[1]
@@ -220,7 +220,7 @@ def cca_fast(X, Y):
     if rankX == 0:
         return np.array([0.0])
     elif rankX < Xp:
-        Qx = Qx[:, 0:rankX]  
+        Qx = Qx[:, 0:rankX]
         Rx = Rx[0:rankX, 0:rankX]
 
     # Check rank for Y
@@ -241,7 +241,7 @@ def cca_fast(X, Y):
 @njit(cache=True, nogil=True, fastmath=True)
 def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
     """Randomized dependence coefficient
-    
+
     Parameters
     ----------
     x : 1d array-like
@@ -258,7 +258,7 @@ def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
 
     f : function
         Non-linear function
-    
+
     Returns
     -------
     cor : float
@@ -283,7 +283,7 @@ def rdc_fast(x, y, k=10, s=1.0/6.0, f=np.sin):
     # Apply canonical correlation
     X_ = np.column_stack((f(X_), x_ones))
     Y_ = np.column_stack((f(Y_), y_ones))
-    
+
     cor = cca_fast(X_, Y_)[0]
     if cor < 0.0:
         return 0.0
@@ -351,11 +351,11 @@ def py_wdcor(x, y, weights):
             Edx[j] += DMX[k]*weights[i]
             Edy[i] += DMY[k]*weights[j]
             k      += 1
-    
+
     # Means
     for i in range(n):
         S3  += Edx[i]*Edy[i]*weights[i]
-        S2a += Edy[i]*weights[i] 
+        S2a += Edy[i]*weights[i]
         S2b += Edx[i]*weights[i]
         S3X += Edx[i]*Edx[i]*weights[i]
         S3Y += Edy[i]*Edy[i]*weights[i]
@@ -429,11 +429,11 @@ def py_dcor(x, y):
             Edx[j] += DMX[k]
             Edy[i] += DMY[k]
             k      += 1
-    
+
     # Means
     for i in range(n):
         S3  += Edx[i]*Edy[i]
-        S2a += Edy[i] 
+        S2a += Edy[i]
         S2b += Edx[i]
         S3X += Edx[i]*Edx[i]
         S3Y += Edy[i]*Edy[i]
@@ -461,9 +461,9 @@ MEAN = lambda z: sum(z)/float(len(z))
 def approx_wdcor(x, y):
     """Approximate distance correlation by binning arrays
 
-    NOTE: Code ported from R function approx.dcor at: 
+    NOTE: Code ported from R function approx.dcor at:
         https://rdrr.io/cran/extracat/src/R/wdcor.R
-    
+
     Parameters
     ----------
     x : 1d array-like
@@ -562,7 +562,7 @@ def c_dcor(x, y):
 @njit(cache=True, nogil=True, fastmath=True)
 def mc_fast(x, y, n_classes):
     """Multiple correlation
-    
+
     Parameters
     ----------
     x : 1d array-like
@@ -582,7 +582,7 @@ def mc_fast(x, y, n_classes):
     ssb, mu = 0.0, x.mean()
 
     # Sum of squares total
-    sst = np.sum((x-mu)*(x-mu))  
+    sst = np.sum((x-mu)*(x-mu))
     if sst == 0.0: return 0.0
 
     for j in range(n_classes):
@@ -599,6 +599,26 @@ def mc_fast(x, y, n_classes):
     return np.sqrt(ssb/sst)
 
 
+def mi(x, y):
+    """Mutual information
+
+    Parameters
+    ----------
+    x : 1d array-like
+        Array of n elements
+
+    y : 1d array-like
+        Array of n elements
+
+    Returns
+    -------
+    info : float
+        Mutual information between x and y
+    """
+    if x.ndim == 1: x = x.reshape(-1, 1)
+    return mutual_info_classif(x, y)[0]
+
+
 ###############################
 """SPLIT SELECTORS: DISCRETE"""
 ###############################
@@ -612,7 +632,7 @@ def gini_index(y, labels):
           find the best split and this function is then called on the parent node
           and two child nodes to calculate feature importances using the mean
           decrease impurity formula
-    
+
     Parameters
     ----------
     y : 1d array-like
@@ -620,7 +640,7 @@ def gini_index(y, labels):
 
     labels : 1d array-like
         Unique labels
-    
+
     Returns
     -------
     gini : float
@@ -639,7 +659,6 @@ def gini_index(y, labels):
     # Gini index
     return 1 - gini
 
-
 #################################
 """SPLIT SELECTORS: CONTINUOUS"""
 #################################
@@ -647,12 +666,12 @@ def gini_index(y, labels):
 @njit(cache=True, nogil=True, fastmath=True)
 def mse(y):
     """Mean squared error for node in tree
-    
+
     Parameters
     ----------
     y : 1d array-like
         Array of labels
-    
+
     Returns
     -------
     error : float

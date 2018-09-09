@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 ##############################################
-# Script to run regression experiment on GCP #
+# Script to run classifier experiment on GCP #
 ##############################################
 
-# gcloud compute scp --zone us-east1-b ~/Documents/Research/citrees/citrees/experiments/regression/scripts/gcp.sh instance-1:~/
+# gcloud compute scp --zone us-east1-b ~/Documents/Research/citrees/citrees/experiments/classifier/scripts/gcp.sh instance-1:~/
 # gcloud compute ssh --zone us-east1-b instance-1
 
 # Update settings
@@ -59,4 +59,4 @@ mongod --fork --dbpath ~/db --logpath ~/db/mongodb.log
 
 # Start new tmux session and run main shell script to generate results
 chmod 755 run.sh
-tmux new-session -d -s reg-exp "./run.sh"
+tmux new-session -d -s clf-exp "./run.sh"

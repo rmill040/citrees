@@ -10,9 +10,10 @@ warnings.simplefilter('ignore')
 
 # Package imports
 from externals.six.moves import range
-from selectors import (permutation_test_mc, permutation_test_dcor,
-                       permutation_test_pcor, permutation_test_rdc)
-from selectors import pcor, py_dcor
+from selectors import (permutation_test_mc, permutation_test_mi,
+                       permutation_test_dcor, permutation_test_pcor,
+                       permutation_test_rdc)
+from selectors import mc_fast, mi, pcor, py_dcor
 from scorers import gini_index, mse
 from utils import bayes_boot_probs, logger
 
@@ -374,12 +375,19 @@ class CITreeBase(object):
 class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
     """Conditional inference tree classifier
 
+    Parameters
+    ----------
+    selector : str
+        Variable selector for finding strongest association between a feature
+        and the label
+
     Derived from CITreeBase class; see constructor for parameter definitions
 
     """
     def __init__(self,
                  min_samples_split=2,
                  alpha=.05,
+                 selector='mc',
                  max_depth=-1,
                  max_feats=-1,
                  n_permutations=100,
@@ -389,9 +397,28 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                  n_jobs=-1,
                  random_state=None):
 
-        # Define node estimate and selector
+        # Define node estimate
         self.node_estimate = self._estimate_proba
-        self._selector     = self._mc_selector
+
+        # Define selector
+        if selector not in ['mc', 'mi', 'hybrid']:
+            raise ValueError("%s not a valid selector, valid selectors are " \
+                             "mc, mi, and hybrid")
+        self.selector = selector
+
+        if self.selector != 'hybrid':
+            # Wrapper correlation selector
+            self._selector = self._cor_selector
+
+            # Permutation test based on correlation measure
+            if self.selector == 'mc':
+                self._perm_test = permutation_test_mc
+            else:
+                self._perm_test = permutation_test_mi
+
+        else:
+            self._perm_test = None
+            self._selector  = self._hybrid_selector
 
         super(CITreeClassifier, self).__init__(
                     min_samples_split=min_samples_split,
@@ -404,6 +431,67 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                     verbose=verbose,
                     n_jobs=n_jobs,
                     random_state=random_state)
+
+
+    def _hybrid_selector(self, X, y, col_idx):
+        """Selects feature most correlated with y using permutation tests with
+        a hybrid of multiple correlation and mutual information measures
+
+        Parameters
+        ----------
+        X : 2d array-like
+            Array of features
+
+        y : 1d array-like
+            Array of labels
+
+        col_idx : list
+            Columns of X to examine for feature selection
+
+        Returns
+        -------
+        best_col : int
+            Best column from feature selection. Note, if early_stopping is
+            enabled then this may not be the absolute best column
+
+        best_pval : float
+            Probability value from permutation test
+        """
+        # Select random column from start and update
+        best_col, best_pval = np.random.choice(col_idx), np.inf
+
+        # Iterate over columns
+        for col in col_idx:
+            if mc_fast(X[:, col], y) >= mi(X[:, col], y):
+                pval = permutation_test_mc(x=X[:, col],
+                                           y=y,
+                                           n_classes=self.n_classes_,
+                                           agg=np.concatenate([X[:, col], y]),
+                                           B=self.n_permutations,
+                                           random_state=self.random_state)
+            else:
+                pval = permutation_test_mi(x=X[:, col],
+                                           y=y,
+                                           agg=np.concatenate([X[:, col], y]),
+                                           B=self.n_permutations,
+                                           random_state=self.random_state)
+
+            # If variable muting
+            if self.muting and \
+               pval == 1.0 and \
+               self.available_features_.shape[0] > 1:
+                self._mute_feature(col)
+                if self.verbose: logger("tree", "ASL = 1.0, muting feature %d" % col)
+
+            if pval < best_pval:
+                best_col, best_pval = col, pval
+
+                # If early stopping
+                if self.early_stopping and best_pval < self.alpha:
+                    if self.verbose: logger("tree", "Early stopping")
+                    return best_col, best_pval
+
+        return best_col, best_pval
 
 
     def _splitter(self, X, y, n, col):
@@ -482,9 +570,9 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
         return impurity, threshold, left, right
 
 
-    def _mc_selector(self, X, y, col_idx):
+    def _cor_selector(self, X, y, col_idx):
         """Selects feature most correlated with y using permutation tests with
-        a multiple correlation
+        a correlation measure
 
         Parameters
         ----------
@@ -519,11 +607,11 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
                                         % col)
                 continue
 
-            pval = permutation_test_mc(x=X[:, col],
-                                       y=y,
-                                       n_classes=self.n_classes_,
-                                       B=self.n_permutations,
-                                       random_state=self.random_state)
+            pval = self._perm_test(x=X[:, col],
+                                   y=y,
+                                   n_classes=self.n_classes_,
+                                   B=self.n_permutations,
+                                   random_state=self.random_state)
 
             # If variable muting
             if self.muting and \
@@ -1295,6 +1383,10 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         Threshold value for selecting feature with permutation tests. Smaller
         values correspond to shallower trees
 
+    selector : str
+        Variable selector for finding strongest association between a feature
+        and the label
+
     max_depth : int
         Maximum depth to grow tree
 
@@ -1333,7 +1425,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
     random_state : int
         Sets seed for random number generator
     """
-    def __init__(self, min_samples_split=2, alpha=.05, max_depth=-1,
+    def __init__(self, min_samples_split=2, alpha=.05, selector='mc', max_depth=-1,
                  n_estimators=100, max_feats='sqrt', n_permutations=100,
                  early_stopping=True, muting=True, verbose=0, bootstrap=True,
                  bayes=True, class_weight='balanced', n_jobs=-1, random_state=None):
@@ -1341,6 +1433,9 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         # Error checking
         if alpha <= 0 or alpha > 1:
             raise ValueError("Alpha (%.2f) should be in (0, 1]" % alpha)
+        if selector not in ['mc', 'mi', 'hybrid']:
+            raise ValueError("%s not a valid selector, valid selectors are " \
+                             "mc, mi, and hybrid")
         if n_permutations < 0:
             raise ValueError("n_permutations (%s) should be > 0" % \
                              str(n_permutations))
@@ -1361,6 +1456,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
 
         # Define attributes
         self.alpha             = float(alpha)
+        self.selector          = selector
         self.min_samples_split = max(1, min_samples_split)
         self.n_permutations    = int(n_permutations)
         if max_depth == -1:
@@ -1387,6 +1483,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         # Package params for calling CITreeClassifier
         self.params = {
             'alpha': self.alpha,
+            'selector': self.selector,
             'min_samples_split': self.min_samples_split,
             'n_permutations': self.n_permutations,
             'max_feats': self.max_feats,

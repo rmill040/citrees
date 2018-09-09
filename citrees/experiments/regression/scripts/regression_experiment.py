@@ -1,6 +1,5 @@
 from __future__ import division, print_function
 
-import json
 import numpy as np
 from os.path import abspath, dirname, join
 import pandas as pd
@@ -79,7 +78,7 @@ def calculate_fi(X, y, name, collection=None):
     # Access global errors variable
     global n_errors
 
-    # 1. Pearson correlationv
+    # 1. Pearson correlation
     print("[FI] Pearson correlation")
     try:
         fi    = np.fabs([pcor(X[:, j], y) for j in range(X.shape[1])])
@@ -384,7 +383,7 @@ def calculate_fi(X, y, name, collection=None):
 
 
 def main():
-    """ADD DESCRIPTION"""
+    """Run experiment and save results"""
 
     start = time.time()
 

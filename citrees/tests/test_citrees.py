@@ -14,7 +14,6 @@ from citrees import (balanced_sampled_idx, balanced_unsampled_idx,
                      stratify_sampled_idx, stratify_unsampled_idx, 
                      CIForestClassifier, CITreeClassifier)
 
-
 class TestClassificationTrees(unittest.TestCase):
 
     def setUp(self):

@@ -1,4 +1,4 @@
-from __future__ import division, print_function
+from __future__ import absolute_import, division, print_function
 
 from joblib import delayed, Parallel
 from numba import njit
@@ -12,7 +12,7 @@ from scorers import c_dcor, mc_fast, mi, pcor, py_dcor, rdc, rdc_fast
 ##########################
 
 @njit(cache=True, nogil=True)
-def permutation_test_pcor(x, y, agg, B=100, random_state=None):
+def permutation_test_pcor(x, y, B=100, random_state=None):
     """Permutation test for Pearson correlation
 
     Parameters
@@ -22,9 +22,6 @@ def permutation_test_pcor(x, y, agg, B=100, random_state=None):
 
     y : 1d array-like
         Array of n elements
-
-    agg : 1d array-like
-        Array of x, y concatenated
 
     B : int
         Number of permutations
@@ -43,17 +40,18 @@ def permutation_test_pcor(x, y, agg, B=100, random_state=None):
     theta = np.fabs(pcor(x, y))
 
     # Permutations
-    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
+    y_      = y.copy()
+    theta_p = np.zeros(B)
     for i in range(B):
-        np.random.shuffle(agg)
-        theta_p[i] = pcor(agg[:n_x], agg[n_y:]) # Call jitted function directly
+        np.random.shuffle(y_)
+        theta_p[i] = pcor(x, y_) # Call jitted function directly
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)
 
 
 @njit(cache=True, nogil=True)
-def permutation_test_dcor(x, y, agg, B=100, random_state=None):
+def permutation_test_dcor(x, y, B=100, random_state=None):
     """Permutation test for distance correlation
 
     Parameters
@@ -63,9 +61,6 @@ def permutation_test_dcor(x, y, agg, B=100, random_state=None):
 
     y : 1d array-like
         Array of n elements
-
-    agg : 1d array-like
-        Array of x, y concatenated
 
     B : int
         Number of permutations
@@ -84,17 +79,18 @@ def permutation_test_dcor(x, y, agg, B=100, random_state=None):
     theta = np.fabs(py_dcor(x, y))
 
     # Permutations
-    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
+    y_      = y.copy()
+    theta_p = np.zeros(B)
     for i in range(B):
-        np.random.shuffle(agg)
-        theta_p[i] = py_dcor(agg[:n_x], agg[n_y:]) # Call jitted function directly
+        np.random.shuffle(y_)
+        theta_p[i] = py_dcor(x, y_) # Call jitted function directly
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)
 
 
 @njit(cache=True, nogil=True)
-def permutation_test_rdc(x, y, agg, B=100, random_state=None):
+def permutation_test_rdc(x, y, B=100, random_state=None):
     """Permutation test for randomized dependence coefficient
 
     Parameters
@@ -104,9 +100,6 @@ def permutation_test_rdc(x, y, agg, B=100, random_state=None):
 
     y : 1d array-like
         Array of n elements
-
-    agg : 1d array-like
-        Array of x, y concatenated
 
     B : int
         Number of permutations
@@ -125,25 +118,26 @@ def permutation_test_rdc(x, y, agg, B=100, random_state=None):
     theta = np.fabs(rdc_fast(x, y))
 
     # Permutations
-    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
+    y_      = y.copy()
+    theta_p = np.zeros(B)
     for i in range(B):
-        np.random.shuffle(agg)
-        theta_p[i] = rdc_fast(agg[:n_x], agg[n_y:]) # Call jitted function directly
+        np.random.shuffle(y_)
+        theta_p[i] = rdc_fast(x, y_) # Call jitted function directly
 
     # Achieved significance level
     return np.mean(np.fabs(theta_p) >= theta)
 
 
-def _permutation(agg, n_x, n_y, func=None, **kwargs):
+def _permutation(x, y, func=None, **kwargs):
     """Helper function to perform arbitrary permutation test
 
     Parameters
     ----------
-    n_x : int
-        Size of sample in left node
+    x : 1d array-like
+        Array of n elements
 
-    n_y : int
-        Size of sample in right node
+    y : 1d array-like
+        Array of n elements
 
     func : function handle
         Function to perform on permuted data
@@ -153,14 +147,14 @@ def _permutation(agg, n_x, n_y, func=None, **kwargs):
     value : float
         Return value of function handle
     """
-    np.random.shuffle(agg)
+    np.random.shuffle(y)
     try:
-        return func(agg[:n_x], agg[n_y:], **kwargs)
+        return func(x, y, **kwargs)
     except:
         return 0.0
 
 
-def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
+def permutation_test_dcor_parallel(x, y, B=100, n_jobs=-1,
                                    random_state=None):
     """Parallel implementation of permutation test for distance correlation
 
@@ -171,9 +165,6 @@ def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
 
     y : 1d array-like
         Array of n elements
-
-    agg : 1d array-like
-        Array of x, y concatenated
 
     B : int
         Number of permutations
@@ -199,10 +190,10 @@ def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
     theta = np.fabs(func(x, y))
 
     # Permutations
-    n_x, n_y = len(x), len(y)
+    y_ = y.copy()
     theta_p = [
         Parallel(n_jobs=n_jobs, backend='threading')(
-                delayed(_permutation)(agg, n_x, n_y, func) for i in range(B)
+                delayed(_permutation)(x, y_, func) for i in range(B)
             )
         ]
 
@@ -210,7 +201,7 @@ def permutation_test_dcor_parallel(x, y, agg, B=100, n_jobs=-1,
     return np.mean(np.fabs(theta_p) >= theta)
 
 
-def permutation_test_rdc_parallel(x, y, agg, B=100, n_jobs=-1, k=10, random_state=None):
+def permutation_test_rdc_parallel(x, y, B=100, n_jobs=-1, k=10, random_state=None):
     """Parallel implementation of permutation test for randomized dependence
     coefficient
 
@@ -221,9 +212,6 @@ def permutation_test_rdc_parallel(x, y, agg, B=100, n_jobs=-1, k=10, random_stat
 
     y : 1d array-like
         Array of n elements
-
-    agg : 1d array-like
-        Array of x, y concatenated
 
     B : int
         Number of permutations
@@ -250,15 +238,15 @@ def permutation_test_rdc_parallel(x, y, agg, B=100, n_jobs=-1, k=10, random_stat
     theta = np.fabs(rdc(x, y, **kwargs))
 
     # Permutations
-    n_x, n_y = len(x), len(y)
+    y_ = y.copy()
     if n_jobs == 1:
         theta_p = np.zeros(B)
         for i in range(B):
-            theta_p[i] = _permutation(agg, n_x, n_y, func, **kwargs)
+            theta_p[i] = _permutation(x, y_, func, **kwargs)
     else:
         theta_p = [
             Parallel(n_jobs=n_jobs, backend='threading')(
-                    delayed(_permutation)(agg, n_x, n_y, func, **kwargs)
+                    delayed(_permutation)(x, y_, func, **kwargs)
                     for i in range(B)
                 )
             ]
@@ -297,17 +285,17 @@ def permutation_test_mc(x, y, B=100, n_classes=None, random_state=None):
     p : float
         Achieved significance level
     """
-    x_ = x.copy()
     np.random.seed(random_state)
 
     # Estimate correlation from original data
-    theta = mc_fast(x_, y, n_classes)
+    theta = mc_fast(x, y, n_classes)
 
     # Permutations
-    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
+    y_      = y.copy()
+    theta_p = np.zeros(B)
     for i in range(B):
-        np.random.shuffle(x_)
-        theta_p[i] = mc_fast(x_, y, n_classes) # Call jitted function directly
+        np.random.shuffle(y_)
+        theta_p[i] = mc_fast(x, y_, n_classes) # Call jitted function directly
 
     # Achieved significance level
     return np.mean(theta_p >= theta)
@@ -344,10 +332,11 @@ def permutation_test_mi(x, y, B=100, random_state=None, **kwargs):
     theta = mi(x, y)
 
     # Permutations
-    theta_p, n_x, n_y = np.zeros(B), len(x), len(y)
+    y_      = y.copy()
+    theta_p = np.zeros(B)
     for i in range(B):
-        np.random.shuffle(x)
-        theta_p[i] = mi(x, y)
+        np.random.shuffle(y_)
+        theta_p[i] = mi(x, y_)
 
     # Achieved significance level
     return np.mean(theta_p >= theta)

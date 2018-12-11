@@ -1,4 +1,4 @@
-from __future__ import division, print_function
+from __future__ import absolute_import, division, print_function
 
 from joblib import delayed, Parallel
 import numpy as np
@@ -10,10 +10,10 @@ warnings.simplefilter('ignore')
 
 # Package imports
 from externals.six.moves import range
-from selectors import (permutation_test_mc, permutation_test_mi,
-                       permutation_test_dcor, permutation_test_pcor,
-                       permutation_test_rdc)
-from selectors import mc_fast, mi, pcor, py_dcor
+from feature_selectors import (permutation_test_mc, permutation_test_mi,
+                               permutation_test_dcor, permutation_test_pcor,
+                               permutation_test_rdc)
+from feature_selectors import mc_fast, mi, pcor, py_dcor
 from scorers import gini_index, mse
 from utils import bayes_boot_probs, logger
 
@@ -462,17 +462,15 @@ class CITreeClassifier(CITreeBase, BaseEstimator, ClassifierMixin):
 
         # Iterate over columns
         for col in col_idx:
-            if mc_fast(X[:, col], y) >= mi(X[:, col], y):
+            if mc_fast(X[:, col], y, self.n_classes_) >= mi(X[:, col], y):
                 pval = permutation_test_mc(x=X[:, col],
                                            y=y,
                                            n_classes=self.n_classes_,
-                                           agg=np.concatenate([X[:, col], y]),
                                            B=self.n_permutations,
                                            random_state=self.random_state)
             else:
                 pval = permutation_test_mi(x=X[:, col],
                                            y=y,
-                                           agg=np.concatenate([X[:, col], y]),
                                            B=self.n_permutations,
                                            random_state=self.random_state)
 
@@ -804,13 +802,11 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
             if abs(pcor(X[:, col], y)) >= abs(py_dcor(X[:, col], y)):
                 pval = permutation_test_pcor(x=X[:, col],
                                              y=y,
-                                             agg=np.concatenate([X[:, col], y]),
                                              B=self.n_permutations,
                                              random_state=self.random_state)
             else:
                 pval = permutation_test_dcor(x=X[:, col],
                                              y=y,
-                                             agg=np.concatenate([X[:, col], y]),
                                              B=self.n_permutations,
                                              random_state=self.random_state)
 
@@ -871,7 +867,6 @@ class CITreeRegressor(CITreeBase, BaseEstimator, RegressorMixin):
 
             pval = self._perm_test(x=X[:, col],
                                    y=y,
-                                   agg=np.concatenate([X[:, col], y]),
                                    B=self.n_permutations,
                                    random_state=self.random_state)
 

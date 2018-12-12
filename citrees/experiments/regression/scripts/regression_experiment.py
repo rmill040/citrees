@@ -87,7 +87,6 @@ def calculate_fi(X, y, name, collection=None):
             "data": name,
             "results": {
                 'method': 'pearson',
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -105,7 +104,6 @@ def calculate_fi(X, y, name, collection=None):
             "data": name,
             "results": {
                 'method': 'distance',
-                'fi': fi,
                 'ranks': ranks.tolist()
             }
         })
@@ -130,7 +128,6 @@ def calculate_fi(X, y, name, collection=None):
             "data": name,
             "results": {
                 'method': 'hybrid',
-                'fi': fi,
                 'ranks': ranks.tolist()
             }
         })
@@ -151,7 +148,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'rf',
                 'params': {'n_estimators': 200, 'max_features': 'sqrt'},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -172,7 +168,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'et',
                 'params': {'n_estimators': 200, 'max_features': 'sqrt'},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -191,7 +186,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'lasso',
                 'params': {'alpha': .25},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -209,7 +203,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'lasso',
                 'params': {'alpha': .15},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -227,7 +220,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'lasso',
                 'params': {'alpha': .05},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -246,7 +238,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'ridge',
                 'params': {'alpha': .25},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -264,7 +255,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'ridge',
                 'params': {'alpha': .15},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -282,7 +272,6 @@ def calculate_fi(X, y, name, collection=None):
             "results": {
                 'method': 'ridge',
                 'params': {'alpha': .05},
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -302,7 +291,6 @@ def calculate_fi(X, y, name, collection=None):
             "data": name,
             "results": {
                 'method': 'dt',
-                'fi': fi.tolist(),
                 'ranks': ranks.tolist()
             }
         })
@@ -343,7 +331,6 @@ def calculate_fi(X, y, name, collection=None):
                             "results": {
                                 'method': 'ct',
                                 'params': params,
-                                'fi': fi.tolist(),
                                 'ranks': ranks.tolist()
                             }
                         })
@@ -368,7 +355,6 @@ def calculate_fi(X, y, name, collection=None):
                             "results": {
                                 'method': 'cf',
                                 'params': params,
-                                'fi': fi.tolist(),
                                 'ranks': ranks.tolist()
                             }
                         })

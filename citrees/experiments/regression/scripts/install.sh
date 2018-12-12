@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 
-##############################################
-# Script to run classifier experiment on GCP #
-##############################################
-
-# gcloud compute scp --zone us-east1-b ~/Documents/Research/citrees/citrees/experiments/classifier/scripts/gcp.sh instance-1:~/
-# gcloud compute ssh --zone us-east1-b instance-1
+#####################################
+# Script to install software on GCP #
+#####################################
 
 # Update settings
 echo "Updating settings"
@@ -51,12 +48,5 @@ sudo apt-get -y install make
 make clean -C citrees/citrees
 make -C citrees/citrees
 
-# Create database directory and start MongoDB
-echo "Beginning experiment"
-mkdir ~/db
-touch ~/db/mongodb.log
-mongod --fork --dbpath ~/db --logpath ~/db/mongodb.log
-
-# Start new tmux session and run main shell script to generate results
+# Change permissions on run.sh script
 chmod 755 run.sh
-tmux new-session -d -s clf-exp "./run.sh"

@@ -222,7 +222,7 @@ def calculate_fi(X, y, name, collection=None):
         pass
 
     # Grid search for conditional tree models
-    n_combos, counter = 3*2*2*3, 1
+    n_combos, counter = 3*2*2, 1
     for e in [True, False]:
         for m in [True, False]:
             for a in [.01, .05, .95]:

@@ -202,111 +202,7 @@ def calculate_fi(X, y, name, collection=None):
         print("[ERROR] Extra trees failed because %s" % e)
         pass
 
-    # 6. Lasso regression (different regularization parameters)
-    print("[FI] LASSO 1/3")
-    try:
-        fi    = LogisticRegression(penalty='l1', C=.25, random_state=RANDOM_STATE).fit(X, y).coef_
-        ranks = np.argsort(np.fabs(fi))[::-1]
-        collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'lasso',
-                'params': {'C': .25},
-                'ranks': ranks.tolist()
-            }
-        })
-    except Exception as e:
-        n_errors += 1
-        print("[ERROR] LASSO 1/3 failed because %s" % e)
-        pass
-
-    print("[FI] LASSO 2/3")
-    try:
-        fi    = LogisticRegression(penalty='l1', C=.15, random_state=RANDOM_STATE).fit(X, y).coef_
-        ranks = np.argsort(np.fabs(fi))[::-1]
-        collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'lasso',
-                'params': {'C': .15},
-                'ranks': ranks.tolist()
-            }
-        })
-    except Exception as e:
-        n_errors += 1
-        print("[ERROR] LASSO 2/3 failed because %s" % e)
-        pass
-
-    print("[FI] LASSO 3/3")
-    try:
-        fi    = LogisticRegression(penalty='l1', C=.05, random_state=RANDOM_STATE).fit(X, y).coef_
-        ranks = np.argsort(np.fabs(fi))[::-1]
-        collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'lasso',
-                'params': {'C': .05},
-                'ranks': ranks.tolist()
-            }
-        })
-    except Exception as e:
-        n_errors += 1
-        print("[ERROR] LASSO 3/3 failed because %s" % e)
-        pass
-
-    # 7. Ridge regression
-    print("[FI] Ridge 1/3")
-    try:
-        fi    = LogisticRegression(penalty='l2', C=.25, random_state=RANDOM_STATE).fit(X, y).coef_
-        ranks = np.argsort(np.fabs(fi))[::-1]
-        collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'ridge',
-                'params': {'C': .25},
-                'ranks': ranks.tolist()
-            }
-        })
-    except Exception as e:
-        n_errors += 1
-        print("[ERROR] Ridge 1/3 failed because %s" % e)
-        pass
-
-    print("[FI] Ridge 2/3")
-    try:
-        fi    = LogisticRegression(penalty='l2', C=.15, random_state=RANDOM_STATE).fit(X, y).coef_
-        ranks = np.argsort(np.fabs(fi))[::-1]
-        collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'ridge',
-                'params': {'C': .15},
-                'ranks': ranks.tolist()
-            }
-        })
-    except Exception as e:
-        n_errors += 1
-        print("[ERROR] Ridge 2/3 failed because %s" % e)
-        pass
-
-    print("[FI] Ridge 3/3")
-    try:
-        fi    = LogisticRegression(penalty='l2', C=.05, random_state=RANDOM_STATE).fit(X, y).coef_
-        ranks = np.argsort(np.fabs(fi))[::-1]
-        collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'ridge',
-                'params': {'C': .05},
-                'ranks': ranks.tolist()
-            }
-        })
-    except Exception as e:
-        n_errors += 1
-        print("[ERROR] Ridge 3/3 failed because %s" % e)
-        pass
-
-    # 8. Decision tree
+    # 6. Decision tree
     print("[FI] Decision tree")
     try:
         fi    = DecisionTreeClassifier(random_state=RANDOM_STATE, max_features='sqrt') \
@@ -327,71 +223,70 @@ def calculate_fi(X, y, name, collection=None):
 
     # Grid search for conditional tree models
     n_combos, counter = 3*2*2*3, 1
-    for s in ['mc', 'mi', 'hybrid']:
-        for e in [True, False]:
-            for m in [True, False]:
-                for a in [.01, .05, .95]:
+    for e in [True, False]:
+        for m in [True, False]:
+            for a in [.01, .05, .95]:
 
-                    # Define hyperparameters
-                    params = {
-                        'n_permutations': 150,
-                        'selector': s,
-                        'max_feats': 'sqrt',
-                        'early_stopping': e,
-                        'muting': m,
-                        'alpha': a,
-                        'n_jobs': -1,
-                        'verbose': 1,
-                        'random_state': RANDOM_STATE
-                    }
+                # Define hyperparameters
+                params = {
+                    'n_permutations': 150,
+                    'selector': 'mc',
+                    'max_feats': 'sqrt',
+                    'early_stopping': e,
+                    'muting': m,
+                    'alpha': a,
+                    'n_jobs': -1,
+                    'verbose': 1,
+                    'random_state': RANDOM_STATE
+                }
 
-                    # 9. Conditional inference tree
-                    print("[FI] Conditional tree %d/%d" % (counter, n_combos))
-                    try:
-                        fi    = CITreeClassifier(**params) \
-                                  .fit(X, y) \
-                                  .feature_importances_
-                        ranks = np.argsort(fi)[::-1]
-                        collection.insert_one({
-                            "data": name,
-                            "results": {
-                                'method': 'ct',
-                                'params': params,
-                                'ranks': ranks.tolist()
-                            }
-                        })
-                    except Exception as e:
-                        n_errors += 1
-                        print("[ERROR] Conditional tree %d/%d failed because %s" % \
-                                    (counter, n_combos, e))
-                        pass
+                # 7. Conditional inference tree
+                print("[FI] Conditional tree %d/%d" % (counter, n_combos))
+                try:
+                    fi    = CITreeClassifier(**params) \
+                                .fit(X, y) \
+                                .feature_importances_
+                    ranks = np.argsort(fi)[::-1]
+                    collection.insert_one({
+                        "data": name,
+                        "results": {
+                            'method': 'ct',
+                            'params': params,
+                            'ranks': ranks.tolist()
+                        }
+                    })
+                except Exception as e:
+                    n_errors += 1
+                    print("[ERROR] Conditional tree %d/%d failed because %s" % \
+                                (counter, n_combos, e))
+                    pass
 
-                    # Add in number of trees for the forest
-                    params['n_estimators'] = 200
+                # Add in number of trees for the forest
+                params['n_estimators'] = 200
 
-                    # 10. Conditional inference forest
-                    print("[FI] Conditional forest %d/%d" % (counter, n_combos))
-                    try:
-                        fi    = CIForestClassifier(**params) \
-                                  .fit(X, y) \
-                                  .feature_importances_
-                        ranks = np.argsort(fi)[::-1]
-                        collection.insert_one({
-                            "data": name,
-                            "results": {
-                                'method': 'cf',
-                                'params': params,
-                                'ranks': ranks.tolist()
-                            }
-                        })
-                    except Exception as e:
-                        n_errors += 1
-                        print("[ERROR] Conditional forest %d/%d failed because %s" % \
-                                    (counter, n_combos, e))
-                        pass
+                # 8. Conditional inference forest
+                print("[FI] Conditional forest %d/%d" % (counter, n_combos))
+                try:
+                    fi    = CIForestClassifier(**params) \
+                                .fit(X, y) \
+                                .feature_importances_
+                    ranks = np.argsort(fi)[::-1]
+                    collection.insert_one({
+                        "data": name,
+                        "results": {
+                            'method': 'cf',
+                            'params': params,
+                            'ranks': ranks.tolist()
+                        }
+                    })
+                except Exception as e:
+                    n_errors += 1
+                    print("[ERROR] Conditional forest %d/%d failed because %s" % \
+                                (counter, n_combos, e))
+                    pass
 
-                    # Increase counter
-                    counter += 1
+                # Increase counter
+                counter += 1
 
 
 def main():

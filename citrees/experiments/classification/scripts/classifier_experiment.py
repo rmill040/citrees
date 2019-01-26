@@ -31,7 +31,7 @@ RANDOM_STATE = 1718
 
 
 def load_data(name):
-    """Load baseline data
+    """Loads data, preprocesses, and splits into features and labels.
 
     Parameters
     ----------
@@ -52,7 +52,7 @@ def load_data(name):
 
         # Load data
         df   = loadmat(join(DATA_DIR, name + '.mat'))
-        X, y = df.values()[1], df.values()[0]
+        X, y = df['X'], df['Y']
 
     elif name in ['glass', 'wine', 'vowel-context', 'gamma', 'isolet', 'letter',
                   'madelon', 'musk', 'page-blocks', 'pendigits', 'spam']:
@@ -75,8 +75,6 @@ def load_data(name):
             X, y = df.iloc[1:, 1:-1].values, df.iloc[1:, -1].values
 
         elif name == 'letter':
-            from string import ascii_uppercase
-            mapper = {ch: i for i, ch in enumerate(ascii_uppercase)}
             X, y   = df.iloc[:, 1:].values, df.iloc[:, 0].values
 
         elif name == 'musk':
@@ -91,7 +89,7 @@ def load_data(name):
     # Fix labels for y so that minimum is 0
     classes     = np.unique(y)
     new_classes = dict(zip(classes, np.arange(len(classes), dtype=int)))
-    return X, np.array([new_classes[_] for _ in y.ravel()])
+    return X.astype(float), np.array([new_classes[_] for _ in y.ravel()])
 
 
 # Keep track of errors during experiment
@@ -110,10 +108,10 @@ def calculate_fi(X, y, name, collection=None):
         fi        = [mc_fast(X[:, j], y, n_classes) for j in range(X.shape[1])]
         ranks     = np.argsort(np.nan_to_num(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'mc',
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'mc',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -127,10 +125,10 @@ def calculate_fi(X, y, name, collection=None):
         fi    = [mi(X[:, j], y) for j in range(X.shape[1])]
         ranks = np.argsort(np.nan_to_num(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'mi',
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'mi',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -151,10 +149,10 @@ def calculate_fi(X, y, name, collection=None):
                 fi.append(mutual)
         ranks = np.argsort(np.nan_to_num(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'hybrid',
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'hybrid',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -165,16 +163,17 @@ def calculate_fi(X, y, name, collection=None):
     # 4. Random Forest
     print("[FI] Random forest")
     try:
-        fi    = RandomForestClassifier(n_estimators=200, max_features='sqrt', random_state=RANDOM_STATE, n_jobs=-1) \
+        fi    = RandomForestClassifier(n_estimators=200, max_features='sqrt', 
+                                       random_state=RANDOM_STATE, n_jobs=-1) \
                   .fit(X, y) \
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'rf',
-                'params': {'n_estimators': 200, 'max_features': 'sqrt'},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'rf',
+                'params' : {'n_estimators': 200, 'max_features': 'sqrt'},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -185,16 +184,17 @@ def calculate_fi(X, y, name, collection=None):
     # 5. Extra Trees
     print("[FI] Extra trees")
     try:
-        fi    = ExtraTreesClassifier(n_estimators=200,  max_features='sqrt', random_state=RANDOM_STATE, n_jobs=-1) \
+        fi    = ExtraTreesClassifier(n_estimators=200,  max_features='sqrt', 
+                                     random_state=RANDOM_STATE, n_jobs=-1) \
                   .fit(X, y) \
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'et',
-                'params': {'n_estimators': 200, 'max_features': 'sqrt'},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'et',
+                'params' : {'n_estimators': 200, 'max_features': 'sqrt'},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -210,10 +210,10 @@ def calculate_fi(X, y, name, collection=None):
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
         collection.insert_one({
-            "data": name,
+            "data"   : name,
             "results": {
-                'method': 'dt',
-                'ranks': ranks.tolist()
+                'method' : 'dt',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -229,15 +229,15 @@ def calculate_fi(X, y, name, collection=None):
 
                 # Define hyperparameters
                 params = {
-                    'n_permutations': 150,
-                    'selector': 'mc',
-                    'max_feats': 'sqrt',
-                    'early_stopping': e,
-                    'muting': m,
-                    'alpha': a,
-                    'n_jobs': -1,
-                    'verbose': 1,
-                    'random_state': RANDOM_STATE
+                    'n_permutations' : 150,
+                    'selector'       : 'mc',
+                    'max_feats'      : 'sqrt',
+                    'early_stopping' : e,
+                    'muting'         : m,
+                    'alpha'          : a,
+                    'n_jobs'         : -1,
+                    'verbose'        : 1,
+                    'random_state'   : RANDOM_STATE
                 }
 
                 # 7. Conditional inference tree
@@ -250,9 +250,9 @@ def calculate_fi(X, y, name, collection=None):
                     collection.insert_one({
                         "data": name,
                         "results": {
-                            'method': 'ct',
-                            'params': params,
-                            'ranks': ranks.tolist()
+                            'method' : 'ct',
+                            'params' : params,
+                            'ranks'  : ranks.tolist()
                         }
                     })
                 except Exception as e:
@@ -272,11 +272,11 @@ def calculate_fi(X, y, name, collection=None):
                                 .feature_importances_
                     ranks = np.argsort(fi)[::-1]
                     collection.insert_one({
-                        "data": name,
-                        "results": {
-                            'method': 'cf',
-                            'params': params,
-                            'ranks': ranks.tolist()
+                        "data"    : name,
+                        "results" : {
+                            'method' : 'cf',
+                            'params' : params,
+                            'ranks'  : ranks.tolist()
                         }
                     })
                 except Exception as e:
@@ -290,7 +290,7 @@ def calculate_fi(X, y, name, collection=None):
 
 
 def main():
-    """Run experiment and save results"""
+    """Main function to run classifier experiment"""
 
     start = time.time()
 
@@ -319,7 +319,7 @@ def main():
 
     # Script finished
     global n_errors
-    minutes = (time.time()-start)/60.0
+    minutes = (time.time() - start) / 60.0
     print("[FINISHED] Script finished in %.2f minutes with %d errors" % \
                 (minutes, n_errors))
 

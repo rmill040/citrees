@@ -28,7 +28,7 @@ RANDOM_STATE = 1718
 
 
 def load_data(name):
-    """Loads data, preprocesses, and splits into features and labels
+    """Loads data, preprocesses, and splits into features and labels.
 
     Parameters
     ----------
@@ -43,16 +43,21 @@ def load_data(name):
     y : 1d array-like
         Array of labels
     """
-    df = pd.read_csv(join(DATA_DIR, name + '.data')).replace('?', 0)
-
-    if name in ['comm_violence', 'community_crime', 'facebook', 'imports-85']:
+    if name in ['comm_violence', 'community_crime', 'facebook']:
+        df   = pd.read_csv(join(DATA_DIR, name + '.data')).replace('?', 0)
         X, y = df.iloc[:, :-1], df.iloc[:, -1]
 
     elif name in ['coepra1', 'coepra2', 'coepra3']:
+        df   = pd.read_csv(join(DATA_DIR, name + '.data')).replace('?', 0)
         X, y = df.iloc[:, df.columns != 'Prop_001'], df['Prop_001']
 
     elif name in ['residential']:
+        df   = pd.read_csv(join(DATA_DIR, name + '.data')).replace('?', 0)
         X, y = df.drop(['V-9', 'V-10'], axis=1), df['V-9']
+
+    elif name == 'imports-85':
+        df   = pd.read_csv(join(DATA_DIR, name + '.data'), header=None).replace('?', 0)
+        X, y = df.iloc[:, :-1], df.iloc[:, -1]
 
     else:
         raise ValueError("%s not a valid data set" % name)
@@ -63,7 +68,7 @@ def load_data(name):
             try:
                 X[col] = X[col].astype(float)
             except:
-                X[col] = LabelEncoder().fit_transform(X[col])
+                X[col] = LabelEncoder().fit_transform(X[col].astype(str))
 
     # Cast to float before returning
     return X.astype(float).values, y.astype(float).values
@@ -84,10 +89,10 @@ def calculate_fi(X, y, name, collection=None):
         fi    = np.fabs([pcor(X[:, j], y) for j in range(X.shape[1])])
         ranks = np.argsort(np.nan_to_num(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'pearson',
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'pearson',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -101,10 +106,10 @@ def calculate_fi(X, y, name, collection=None):
         fi    = [py_dcor(X[:, j], y) for j in range(X.shape[1])]
         ranks = np.argsort(np.nan_to_num(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'distance',
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'distance',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -125,10 +130,10 @@ def calculate_fi(X, y, name, collection=None):
                 fi.append(distance)
         ranks = np.argsort(np.nan_to_num(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'hybrid',
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'hybrid',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -144,11 +149,11 @@ def calculate_fi(X, y, name, collection=None):
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'rf',
-                'params': {'n_estimators': 200, 'max_features': 'sqrt'},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'rf',
+                'params' : {'n_estimators': 200, 'max_features': 'sqrt'},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -164,11 +169,11 @@ def calculate_fi(X, y, name, collection=None):
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'et',
-                'params': {'n_estimators': 200, 'max_features': 'sqrt'},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'et',
+                'params' : {'n_estimators': 200, 'max_features': 'sqrt'},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -182,11 +187,11 @@ def calculate_fi(X, y, name, collection=None):
         fi    = Lasso(alpha=.25, random_state=RANDOM_STATE).fit(X, y).coef_
         ranks = np.argsort(np.fabs(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'lasso',
-                'params': {'alpha': .25},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'lasso',
+                'params' : {'alpha': .25},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -199,11 +204,11 @@ def calculate_fi(X, y, name, collection=None):
         fi    = Lasso(alpha=.15, random_state=RANDOM_STATE).fit(X, y).coef_
         ranks = np.argsort(np.fabs(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'lasso',
-                'params': {'alpha': .15},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'lasso',
+                'params' : {'alpha': .15},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -216,11 +221,11 @@ def calculate_fi(X, y, name, collection=None):
         fi    = Lasso(alpha=.05, random_state=RANDOM_STATE).fit(X, y).coef_
         ranks = np.argsort(np.fabs(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'lasso',
-                'params': {'alpha': .05},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'lasso',
+                'params' : {'alpha': .05},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -234,11 +239,11 @@ def calculate_fi(X, y, name, collection=None):
         fi    = Ridge(alpha=.25, random_state=RANDOM_STATE).fit(X, y).coef_
         ranks = np.argsort(np.fabs(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'ridge',
-                'params': {'alpha': .25},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'ridge',
+                'params' : {'alpha': .25},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -251,11 +256,11 @@ def calculate_fi(X, y, name, collection=None):
         fi    = Ridge(alpha=.15, random_state=RANDOM_STATE).fit(X, y).coef_
         ranks = np.argsort(np.fabs(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'ridge',
-                'params': {'alpha': .15},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'ridge',
+                'params' : {'alpha': .15},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -268,11 +273,11 @@ def calculate_fi(X, y, name, collection=None):
         fi    = Ridge(alpha=.05, random_state=RANDOM_STATE).fit(X, y).coef_
         ranks = np.argsort(np.fabs(fi))[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'ridge',
-                'params': {'alpha': .05},
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'ridge',
+                'params' : {'alpha': .05},
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -288,10 +293,10 @@ def calculate_fi(X, y, name, collection=None):
                   .feature_importances_
         ranks = np.argsort(fi)[::-1]
         collection.insert_one({
-            "data": name,
-            "results": {
-                'method': 'dt',
-                'ranks': ranks.tolist()
+            "data"    : name,
+            "results" : {
+                'method' : 'dt',
+                'ranks'  : ranks.tolist()
             }
         })
     except Exception as e:
@@ -308,15 +313,15 @@ def calculate_fi(X, y, name, collection=None):
 
                     # Define hyperparameters
                     params = {
-                        'n_permutations': 150,
-                        'selector': s,
-                        'max_feats': 'sqrt',
-                        'early_stopping': e,
-                        'muting': m,
-                        'alpha': a,
-                        'n_jobs': -1,
-                        'verbose': 1,
-                        'random_state': RANDOM_STATE
+                        'n_permutations' : 150,
+                        'selector'       : s,
+                        'max_feats'      : 'sqrt',
+                        'early_stopping' : e,
+                        'muting'         : m,
+                        'alpha'          : a,
+                        'n_jobs'         : -1,
+                        'verbose'        : 1,
+                        'random_state'   : RANDOM_STATE
                     }
 
                     # 9. Conditional inference tree
@@ -327,11 +332,11 @@ def calculate_fi(X, y, name, collection=None):
                                   .feature_importances_
                         ranks = np.argsort(fi)[::-1]
                         collection.insert_one({
-                            "data": name,
-                            "results": {
-                                'method': 'ct',
-                                'params': params,
-                                'ranks': ranks.tolist()
+                            "data"    : name,
+                            "results" : {
+                                'method' : 'ct',
+                                'params' : params,
+                                'ranks'  : ranks.tolist()
                             }
                         })
                     except Exception as e:
@@ -351,11 +356,11 @@ def calculate_fi(X, y, name, collection=None):
                                   .feature_importances_
                         ranks = np.argsort(fi)[::-1]
                         collection.insert_one({
-                            "data": name,
-                            "results": {
-                                'method': 'cf',
-                                'params': params,
-                                'ranks': ranks.tolist()
+                            "data"    : name,
+                            "results" : {
+                                'method' : 'cf',
+                                'params' : params,
+                                'ranks'  : ranks.tolist()
                             }
                         })
                     except Exception as e:
@@ -397,7 +402,7 @@ def main():
 
     # Script finished
     global n_errors
-    minutes = (time.time()-start)/60.0
+    minutes = (time.time() - start) / 60.0
     print("[FINISHED] Script finished in %.2f minutes with %d errors" % \
                 (minutes, n_errors))
 

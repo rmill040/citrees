@@ -4,7 +4,7 @@ from joblib import delayed, Parallel
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-import threading
+import multiprocessing
 import warnings
 warnings.simplefilter('ignore')
 
@@ -112,7 +112,7 @@ class CITreeBase(object):
         if n_permutations < 0:
             raise ValueError("n_permutations (%d) should be > 0" % \
                              n_permutations)
-        if max_feats not in ['sqrt', 'log', 'all', -1]:
+        if not isinstance(max_feats, int) and max_feats not in ['sqrt', 'log', 'all', -1]:
             raise ValueError("%s not a valid argument for max_feats" % \
                              str(max_feats))
 
@@ -1282,6 +1282,8 @@ def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
         tree.fit(X[idx], y[idx], np.unique(y))
     else:
         tree.fit(X, y)
+    
+    return tree
 
 
 def _parallel_fit_regressor(tree, X, y, n, tree_idx, n_estimators, bootstrap,
@@ -1338,6 +1340,8 @@ def _parallel_fit_regressor(tree, X, y, n, tree_idx, n_estimators, bootstrap,
         tree.fit(X[idx], y[idx])
     else:
         tree.fit(X, y)
+    
+    return tree
 
 
 def _accumulate_prediction(predict, X, out, lock):
@@ -1354,7 +1358,7 @@ def _accumulate_prediction(predict, X, out, lock):
     out : 1d or 2d array-like
         Array of labels
 
-    lock : threading Lock
+    lock : multiprocessing Lock
         A lock that controls worker access to data structures for aggregating
         predictions
     """
@@ -1434,7 +1438,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         if n_permutations < 0:
             raise ValueError("n_permutations (%s) should be > 0" % \
                              str(n_permutations))
-        if max_feats not in ['sqrt', 'log', 'all', -1]:
+        if not isinstance(max_feats, int) and max_feats not in ['sqrt', 'log', 'all', -1]:
             raise ValueError("%s not a valid argument for max_feats" % \
                              str(max_feats))
         if n_estimators < 0:
@@ -1477,16 +1481,16 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
 
         # Package params for calling CITreeClassifier
         self.params = {
-            'alpha': self.alpha,
-            'selector': self.selector,
-            'min_samples_split': self.min_samples_split,
-            'n_permutations': self.n_permutations,
-            'max_feats': self.max_feats,
-            'early_stopping': self.early_stopping,
-            'muting': self.muting,
-            'verbose': 0,
-            'n_jobs': 1,
-            'random_state': None,
+            'alpha'             : self.alpha,
+            'selector'          : self.selector,
+            'min_samples_split' : self.min_samples_split,
+            'n_permutations'    : self.n_permutations,
+            'max_feats'         : self.max_feats,
+            'early_stopping'    : self.early_stopping,
+            'muting'            : self.muting,
+            'verbose'           : 0,
+            'n_jobs'            : 1,
+            'random_state'      : None,
             }
 
 
@@ -1526,7 +1530,8 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
 
         # Train models
         n = X.shape[0]
-        Parallel(n_jobs=self.n_jobs, backend='threading')(
+        self.estimators_ = \
+            Parallel(n_jobs=self.n_jobs, backend='multiprocessing')(
             delayed(_parallel_fit_classifier)(
                 self.estimators_[i], X, y, n, i, self.n_estimators,
                 self.bootstrap, self.bayes, self.verbose, self.random_state,
@@ -1564,8 +1569,8 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
 
         # Parallel prediction
         all_proba = np.zeros((X.shape[0], self.n_classes_), dtype=np.float64)
-        lock      = threading.Lock()
-        Parallel(n_jobs=self.n_jobs, backend="threading")(
+        lock      = multiprocessing.Lock()
+        Parallel(n_jobs=self.n_jobs, prefer="threads")(
             delayed(_accumulate_prediction)(e.predict_proba, X, all_proba, lock)
             for e in self.estimators_)
 
@@ -1659,7 +1664,7 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
         if n_permutations < 0:
             raise ValueError("n_permutations (%s) should be > 0" % \
                              str(n_permutations))
-        if max_feats not in ['sqrt', 'log', 'all', -1]:
+        if not isinstance(max_feats, int) and max_feats not in ['sqrt', 'log', 'all', -1]:
             raise ValueError("%s not a valid argument for max_feats" % \
                              str(max_feats))
         if n_estimators < 0:
@@ -1692,16 +1697,16 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
 
         # Package params for calling CITreeRegressor
         self.params = {
-            'alpha': self.alpha,
-            'selector': self.selector,
-            'min_samples_split': self.min_samples_split,
-            'n_permutations': self.n_permutations,
-            'max_feats': self.max_feats,
-            'early_stopping': self.early_stopping,
-            'muting': muting,
-            'verbose': 0,
-            'n_jobs': 1,
-            'random_state': None,
+            'alpha'             : self.alpha,
+            'selector'          : self.selector,
+            'min_samples_split' : self.min_samples_split,
+            'n_permutations'    : self.n_permutations,
+            'max_feats'         : self.max_feats,
+            'early_stopping'    : self.early_stopping,
+            'muting'            : muting,
+            'verbose'           : 0,
+            'n_jobs'            : 1,
+            'random_state'      : None,
             }
 
 
@@ -1733,7 +1738,8 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
 
         # Train models
         n = X.shape[0]
-        Parallel(n_jobs=self.n_jobs, backend='threading')(
+        self.estimators_ = \
+            Parallel(n_jobs=self.n_jobs, backend='multiprocessing')(
             delayed(_parallel_fit_regressor)(
                 self.estimators_[i], X, y, n, i, self.n_estimators,
                 self.bootstrap, self.bayes, self.verbose, self.random_state
@@ -1770,8 +1776,8 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
 
         # Parallel prediction
         results = np.zeros(X.shape[0], dtype=np.float64)
-        lock    = threading.Lock()
-        Parallel(n_jobs=self.n_jobs, backend="threading")(
+        lock    = multiprocessing.Lock()
+        Parallel(n_jobs=self.n_jobs, prefer="threads")(
             delayed(_accumulate_prediction)(e.predict, X, results, lock)
             for e in self.estimators_)
 
@@ -1781,5 +1787,3 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
             return results[0]
         else:
             return results
-
-        return np.argmax(y_proba, axis=1)

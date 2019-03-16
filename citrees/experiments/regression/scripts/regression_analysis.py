@@ -337,8 +337,8 @@ def main():
 
     # Aggregate metrics and calculate different statistics for tables
     metrics = pd.concat([metrics, r_metrics], axis=0)
-    aggregate_metrics(metrics, 'mse')
     aggregate_metrics(metrics, 'r2')
+    aggregate_metrics(metrics, 'mse')
 
     # Script finished
     minutes = (time.time() - start)/60

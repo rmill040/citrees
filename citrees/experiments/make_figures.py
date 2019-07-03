@@ -48,8 +48,68 @@ def ensemble_splits(ensemble, sklearn=False):
     return np.concatenate(splits)
 
 
+def parse_method(name, model_type):
+    """ADD HERE
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    string = r""
+    if name.split('es_')[1][0] == '1':
+        string += r'ES'
+    if name.split('vm_')[1][0] == '1':
+        if len(string) > 0: 
+            string += r', VM'
+        else:
+            string += r'VM'
+    alpha = name.split('alpha_')[1].split('_')[0]
+    if len(string) > 0: 
+        string += r', $\alpha=%s$' % alpha
+    else:
+        string += r'$\alpha=%s$' % alpha
+    return string
+
+
 def main():
     """ADD HERE"""
+
+    # Load data to make plots of hyperparameters
+
+    # Classification
+    df_clf = pd.read_csv('classification/data/classifier_cv_metrics.csv')
+    mask   = (df_clf['data'] == 'CLL_SUB_111') & (df_clf['method'].str.startswith('cf'))
+    df_clf = df_clf[mask].reset_index(drop=True)
+    x      = np.arange(5, 105, 5)
+    colors = [
+        'grey',
+        'tomato',
+        'slateblue',
+        'darkseagreen',
+        'darkslategrey',
+        'mediumpurple',
+        'royalblue',
+        'lightsalmon',
+        'plum',
+        'indianred',
+        'darkolivegreen',
+        'rosybrown'
+    ]
+    for i, method in enumerate(df_clf['method'].unique()):
+        label = parse_method(method, model_type='classification')
+        plt.plot(x, df_clf[df_clf['method'] == method]['auc'], label=label, color=colors[i])
+        plt.xticks(x)
+    plt.legend()
+    plt.xlabel("Number of Features")
+    plt.ylabel("AUC")
+    plt.xlim([4, 101])
+    plt.show()
+    # import pdb; pdb.set_trace()
+
+
+    quit(0)
 
     # Parameters for data size
     data_params = {

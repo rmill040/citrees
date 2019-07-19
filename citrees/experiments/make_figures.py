@@ -1,9 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_friedman1
+import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.datasets import make_friedman1
 import sys
+import time
 
 sys.path.append('../')
 plt.style.use('ggplot')
@@ -73,11 +75,8 @@ def parse_method(name, model_type):
     return string
 
 
-def main():
+def plot_single_df():
     """ADD HERE"""
-
-    # Load data to make plots of hyperparameters
-
     # Classification
     df_clf = pd.read_csv('classification/data/classifier_cv_metrics.csv')
     mask   = (df_clf['data'] == 'CLL_SUB_111') & (df_clf['method'].str.startswith('cf'))
@@ -106,11 +105,10 @@ def main():
     plt.ylabel("AUC")
     plt.xlim([4, 101])
     plt.show()
-    # import pdb; pdb.set_trace()
 
 
-    quit(0)
-
+def plot_split_selection():
+    """ADD HERE"""
     # Parameters for data size
     data_params = {
         'n_samples'    : 200,
@@ -129,7 +127,7 @@ def main():
         'muting'         : True,
         'alpha'          : .01,
         'n_jobs'         : -1,
-        'verbose'        : 2,
+        'verbose'        : False,
         'random_state'   : None
     }
 
@@ -138,7 +136,7 @@ def main():
         'n_estimators' : 200,
         'max_features' : 'sqrt',
         'n_jobs'       : -1,
-        'verbose'      : 2,
+        'verbose'      : False,
         'random_state' : None
     }
 
@@ -149,6 +147,8 @@ def main():
     rf_clf_results = []
     for i in range(1, 11):
 
+        print("[info] running iteration %d/10" % i)
+        
         # Update random states and generate data
         cf_params['random_state']   = i
         rf_params['random_state']   = i
@@ -217,7 +217,132 @@ def main():
                     size='large', ha='right', va='center')
     fig.tight_layout()
     plt.show()
-  
+
+
+def compare_hps():
+    """ADD HERE"""
+    # Create figures showing interactions between hyperparameters for 
+    # conditional inference models
+    df    = pd.read_csv('classification/data/classifier_cv_metrics.csv')
+    names = df.groupby('data')['n_feats'].min() == 5
+    names = names[names == True].index.tolist()
+    df_cf = df[(df['method'].str.startswith('cf')) & (df['data'].isin(names))]
+    
+    # Get all data sets with high number of features
+    # Parse parameters
+    method            = df_cf['method'].apply(lambda x: x.split('_'))
+    df_cf['es']       = method.apply(lambda x: x[2])
+    df_cf['vm']       = method.apply(lambda x: x[4])
+    df_cf['alpha']    = method.apply(lambda x: x[6])
+    df_cf['selector'] = method.apply(lambda x: x[8])
+    df_gb             = df_cf.groupby(['n_feats', 'es', 'vm', 'alpha'])['auc']\
+                            .mean()\
+                            .reset_index()
+
+    # 2 x 2 -- early stopping by variable muting
+    # x-axis = # features
+    # y-axis = AUC score
+    # hue    = alpha or selector
+    grid = sns.FacetGrid(df_gb, row="es", col="vm", hue="alpha", palette="tab20c")
+
+    # ADD HERE
+    grid.map(plt.plot, "n_feats", "auc")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def test_timings():
+    # Parameters for data size
+    data_params = {
+        'n_samples'    : 200,
+        'n_features'   : None,
+        'noise'        : 5.0,
+        'random_state' : 1718
+    }
+
+    # Parameters for conditional forests
+    cf_params = {
+        'n_estimators'   : 200,
+        'max_feats'      : 'sqrt',
+        'n_permutations' : 150,
+        'early_stopping' : None, 
+        'muting'         : None,
+        'alpha'          : None,
+        'selector'       : None,
+        'n_jobs'         : -1,
+        'verbose'        : False,
+        'random_state'   : 1718
+    }
+
+    df = {
+        'type'       : [],
+        'es'         : [],
+        'vm'         : [],
+        'alpha'      : [],
+        'time'       : [],
+        'iteration'  : [],
+        'n_features' : []
+     }
+
+    for n_features in range(100, 10_100, 200):
+        print("n features = %d" % n_features)
+        # Generate data
+        data_params['n_features'] = n_features
+        X, y                      = make_friedman1(**data_params)
+        y_bin                     = np.where(y > np.median(y), 1, 0)
+
+        for es in [True, False]:
+            print("early stopping = %s" % es)
+            cf_params['early_stopping'] = es
+
+            for vm in [True, False]:
+                print("variable muting = %s" % vm)
+                cf_params['muting'] = vm
+
+                for alpha in [.01, .05, .95]:
+                    print("alpha = %s" % alpha)
+                    cf_params['alpha'] = alpha
+                    
+                    for i in range(1, 11):
+                        print("[info] running iteration %d/10" % i)
+
+                        # Regression: conditional inference forest
+                        cf_params['selector'] = 'pearson'
+                        start                 = time.time()
+                        reg                   = CIForestRegressor(**cf_params).fit(X, y)
+                        stop                  = time.time() - start
+
+                        # Update reg data
+                        df['type'].append('reg')
+                        df['es'].append(es)
+                        df['vm'].append(vm)
+                        df['alpha'].append(alpha)
+                        df['time'].append(stop)
+                        df['iteration'].append(i)
+                        df['n_features'].append(n_features)
+
+                        # Classification: conditional inference forest
+                        cf_params['selector'] = 'mc'
+                        start                 = time.time()
+                        clf                   = CIForestClassifier(**cf_params).fit(X, y_bin)
+                        stop                  = time.time() - start
+
+                        # Update clf data
+                        df['type'].append('clf')
+                        df['es'].append(es)
+                        df['vm'].append(vm)
+                        df['alpha'].append(alpha)
+                        df['time'].append(stop)
+                        df['iteration'].append(i)
+                        df['n_features'].append(n_features)
+
+    pd.DataFrame(df).to_csv('timing_results.csv', index=False)
+
+
+def main():
+    """ADD HERE"""
+    test_timings()
 
 if __name__ == "__main__":
     main()

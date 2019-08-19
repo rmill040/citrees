@@ -2,8 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.datasets import make_friedman1
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from statsmodels.formula.api import ols
 import sys
 import time
 
@@ -14,13 +15,19 @@ from citrees import CIForestClassifier, CIForestRegressor
 
 
 def tree_splits(tree, splits):
-    """ADD
+    """Recursively get feature splits from conditional inference model.
     
     Parameters
     ----------
+    tree : fitted estimator
+        Fitted tree model
+
+    splits : list
+        Index of features used for splitting
     
     Returns
     -------
+    None
     """
     if tree.value is None:
         splits.append(tree.col)
@@ -29,13 +36,20 @@ def tree_splits(tree, splits):
 
  
 def ensemble_splits(ensemble, sklearn=False):
-    """ADD
+    """Gather feature splits from fitted ensemble tree model.
     
     Parameters
     ----------
+    ensemble : fitted estimator
+        Fitted ensemble tree model
+
+    sklearn : bool
+        Whether fitted estimator is a sklearn estimator
     
     Returns
     -------
+    splits : 1d array-like
+        Array of split points
     """
     splits = []
     for estimator in ensemble.estimators_:
@@ -50,14 +64,18 @@ def ensemble_splits(ensemble, sklearn=False):
     return np.concatenate(splits)
 
 
-def parse_method(name, model_type):
-    """ADD HERE
+def parse_method(name):
+    """Parse hyperparameters from string name to make legend label.
 
     Parameters
     ----------
+    name : str
+        Name of method
 
     Returns
     -------
+    string : str
+        Formatted string
     """
     string = r""
     if name.split('es_')[1][0] == '1':
@@ -76,7 +94,8 @@ def parse_method(name, model_type):
 
 
 def plot_single_df():
-    """ADD HERE"""
+    """Plots single dataframe results for classification model.
+    """
     # Classification
     df_clf = pd.read_csv('classification/data/classifier_cv_metrics.csv')
     mask   = (df_clf['data'] == 'CLL_SUB_111') & (df_clf['method'].str.startswith('cf'))
@@ -97,7 +116,7 @@ def plot_single_df():
         'rosybrown'
     ]
     for i, method in enumerate(df_clf['method'].unique()):
-        label = parse_method(method, model_type='classification')
+        label = parse_method(method)
         plt.plot(x, df_clf[df_clf['method'] == method]['auc'], label=label, color=colors[i])
         plt.xticks(x)
     plt.legend()
@@ -108,7 +127,9 @@ def plot_single_df():
 
 
 def plot_split_selection():
-    """ADD HERE"""
+    """Plots split selection for conditional inference models and random 
+    forest models.
+    """
     # Parameters for data size
     data_params = {
         'n_samples'    : 200,
@@ -220,39 +241,152 @@ def plot_split_selection():
 
 
 def compare_hps():
-    """ADD HERE"""
-    # Create figures showing interactions between hyperparameters for 
-    # conditional inference models
+    """Compares hyperparameters via plots and ANOVAs for classification and regression
+    conditional inferernce models.
+    """
+    # Interactions between hyperparameters in conditional inference clf models
     df    = pd.read_csv('classification/data/classifier_cv_metrics.csv')
     names = df.groupby('data')['n_feats'].min() == 5
     names = names[names == True].index.tolist()
     df_cf = df[(df['method'].str.startswith('cf')) & (df['data'].isin(names))]
-    
+
     # Get all data sets with high number of features
-    # Parse parameters
-    method            = df_cf['method'].apply(lambda x: x.split('_'))
-    df_cf['es']       = method.apply(lambda x: x[2])
-    df_cf['vm']       = method.apply(lambda x: x[4])
-    df_cf['alpha']    = method.apply(lambda x: x[6])
-    df_cf['selector'] = method.apply(lambda x: x[8])
-    df_gb             = df_cf.groupby(['n_feats', 'es', 'vm', 'alpha'])['auc']\
-                            .mean()\
-                            .reset_index()
+    mapper                   = {'0': 'False', '1': 'True'}
+    method                   = df_cf['method'].apply(lambda x: x.split('_'))
+    df_cf['Early Stopping']  = method.apply(lambda x: x[2]).map(mapper)
+    df_cf['Variable Muting'] = method.apply(lambda x: x[4]).map(mapper)
+    df_cf['Alpha']           = method.apply(lambda x: x[6])
 
-    # 2 x 2 -- early stopping by variable muting
-    # x-axis = # features
-    # y-axis = AUC score
-    # hue    = alpha or selector
-    grid = sns.FacetGrid(df_gb, row="es", col="vm", hue="alpha", palette="tab20c")
+    df_cf = df_cf.rename(
+        {'n_feats': 'N Features', 'auc': 'AUC'},
+        axis='columns'
+        )
 
-    # ADD HERE
-    grid.map(plt.plot, "n_feats", "auc")
+    # Average over data to get average auc metrics
+    keys  = ['N Features', 'Early Stopping', 'Variable Muting', 'Alpha']
+    df_gb = df_cf.groupby(keys)['AUC']\
+                .mean()\
+                .reset_index()
+
+    # Make facet grid plot
+    grid = sns.FacetGrid(
+        df_gb, 
+        row="Early Stopping", 
+        col="Variable Muting", 
+        hue="Alpha", 
+        )
+    grid.map(plt.plot, "N Features", "AUC")
+
+    labels = [r'$\alpha=0.01$', r'$\alpha=0.05$', r'$\alpha=0.95$']
+    plt.legend(labels=labels)
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+
+    # Run analysis of variance model
+    df_cf.columns = [c.replace(' ', '') for c in df_cf.columns]
+    model_str     = 'AUC ~ C(EarlyStopping) + ' \
+                          'C(VariableMuting) + ' \
+                          'C(Alpha) + ' \
+                          'C(EarlyStopping)*C(VariableMuting) + ' \
+                          'C(EarlyStopping)*C(Alpha) + ' \
+                          'C(VariableMuting)*C(Alpha) + ' \
+                          'C(VariableMuting)*C(Alpha)*C(EarlyStopping)'
+      
+    print(
+        "[info] ANOVA - full model classification", 
+        ols(model_str, data=df_cf).fit().summary()
+    )
+
+    # Interactions between hyperparameters in conditional inference reg models
+    df    = pd.read_csv('regression/data/regression_cv_metrics.csv')
+    names = df.groupby('data')['n_feats'].min() == 5
+    names = names[names == True].index.tolist()
+    df_cf = df[(df['method'].str.startswith('cf')) & (df['data'].isin(names))]
+
+    # Get all data sets with high number of features
+    method                     = df_cf['method'].apply(lambda x: x.split('_'))
+    df_cf['Early Stopping']    = method.apply(lambda x: x[2]).map(mapper)
+    df_cf['Variable Muting']   = method.apply(lambda x: x[4]).map(mapper)
+    df_cf['Alpha']             = method.apply(lambda x: x[6])
+    df_cf['Variable Selector'] = method.apply(lambda x: x[8])
+
+    df_cf = df_cf.rename(
+        {'n_feats': 'N Features', 'r2': r'$R^2$'},
+        axis='columns'
+        )
+
+    # Average over data to get average auc metrics
+    keys  = ['N Features', 'Early Stopping', 'Variable Muting', 'Alpha']
+    df_gb = df_cf.groupby(keys)[r'$R^2$']\
+                .mean()\
+                .reset_index()
+
+    # Make facet grid plot
+    grid = sns.FacetGrid(
+        df_gb, 
+        row="Early Stopping", 
+        col="Variable Muting", 
+        hue="Alpha", 
+        )
+    grid.map(plt.plot, "N Features", r'$R^2$')
+    plt.legend(labels=labels)
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+
+    # Average over data to get average auc metrics
+    keys  = ['N Features', 'Early Stopping', 'Variable Muting', 'Variable Selector']
+    df_gb = df_cf.groupby(keys)[r'$R^2$']\
+                .mean()\
+                .reset_index()
+
+    # Make facet grid plot
+    grid = sns.FacetGrid(
+        df_gb, 
+        row="Early Stopping", 
+        col="Variable Muting", 
+        hue="Variable Selector", 
+        )
+    grid.map(plt.plot, "N Features", r'$R^2$')
     plt.legend()
     plt.tight_layout()
     plt.show()
+    plt.close()
+
+    # Run analysis of variance model
+    df_cf.columns = [c.replace(' ', '') for c in df_cf.columns]
+    df_cf         = df_cf.rename({r'$R^2$': 'r2'}, axis='columns')
+    model_str     = 'r2 ~ C(EarlyStopping) + ' \
+                          'C(VariableMuting) + ' \
+                          'C(Alpha) + ' \
+                          'C(EarlyStopping)*C(VariableMuting) + ' \
+                          'C(EarlyStopping)*C(Alpha) + ' \
+                          'C(VariableMuting)*C(Alpha) + ' \
+                          'C(VariableMuting)*C(Alpha)*C(EarlyStopping)'
+      
+    print(
+        "[info] ANOVA - full model regression: alpha", 
+        ols(model_str, data=df_cf).fit().summary()
+    )
+
+    model_str = 'r2 ~ C(EarlyStopping) + ' \
+                'C(VariableMuting) + ' \
+                'C(VariableSelector) + ' \
+                'C(EarlyStopping)*C(VariableMuting) + ' \
+                'C(EarlyStopping)*C(VariableSelector) + ' \
+                'C(VariableMuting)*C(VariableSelector) + ' \
+                'C(VariableMuting)*C(VariableSelector)*C(EarlyStopping)'
+      
+    print(
+        "[info] ANOVA - full model regression: var selector", 
+        ols(model_str, data=df_cf).fit().summary()
+    )
 
 
 def test_timings():
+    """Test timings for different hp configurations in conditional inference models.
+    """
     # Parameters for data size
     data_params = {
         'n_samples'    : 200,
@@ -272,7 +406,6 @@ def test_timings():
         'selector'       : None,
         'n_jobs'         : -1,
         'verbose'        : False,
-        'random_state'   : 1718
     }
 
     df = {
@@ -285,9 +418,8 @@ def test_timings():
         'n_features' : []
      }
 
-    for n_features in range(100, 10_100, 200):
+    for n_features in range(100, 1050, 50):
         print("n features = %d" % n_features)
-        # Generate data
         data_params['n_features'] = n_features
         X, y                      = make_friedman1(**data_params)
         y_bin                     = np.where(y > np.median(y), 1, 0)
@@ -304,8 +436,8 @@ def test_timings():
                     print("alpha = %s" % alpha)
                     cf_params['alpha'] = alpha
                     
-                    for i in range(1, 11):
-                        print("[info] running iteration %d/10" % i)
+                    for i in range(1, 6):
+                        print("[info] running iteration %d/5" % i)
 
                         # Regression: conditional inference forest
                         cf_params['selector'] = 'pearson'
@@ -337,12 +469,85 @@ def test_timings():
                         df['iteration'].append(i)
                         df['n_features'].append(n_features)
 
+    # Write results to disk
     pd.DataFrame(df).to_csv('timing_results.csv', index=False)
 
 
+def plot_timings():
+    """Plot timing results.
+    """
+    df = pd.read_csv('timing_results.csv')
+
+    for t in ['clf', 'reg']:
+        df_sub = df[df['type'] == t]
+        keys   = ['n_features', 'es', 'vm', 'alpha']
+        df_gb  = df_sub.groupby(keys)['time']\
+                    .apply(lambda x: np.median(x))\
+                    .reset_index()
+
+        # Make facet grid plot
+        df_gb = df_gb.rename(
+            {
+            'n_features' : 'N Features',
+            'time'       : 'Runtime (seconds)',
+            'es'         : 'Early Stopping',
+            'vm'         : 'Variable Muting',
+            'alpha'      : 'Alpha'
+            },
+            axis='columns'
+        )
+        grid = sns.FacetGrid(
+            df_gb, 
+            row="Early Stopping", 
+            col="Variable Muting", 
+            hue="Alpha", 
+            )
+        grid.map(plt.plot, "N Features", 'Runtime (seconds)')
+        labels = [r'$\alpha=0.01$', r'$\alpha=0.05$', r'$\alpha=0.95$']
+        plt.legend(labels=labels)
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+        # Plot times increase in executime time
+        df_inc = df_sub.groupby(['es', 'n_features', 'alpha'])['time']\
+                    .apply(lambda x: np.median(x))\
+                    .reset_index()
+        es_true  = df_inc[df_inc['es'] == True] 
+        es_false = df_inc[df_inc['es'] == False]
+        ratio_01 = es_false[es_false['alpha'] == 0.01]['time'].values / \
+                   es_true[es_true['alpha'] == 0.01]['time'].values
+        ratio_05 = es_false[es_false['alpha'] == 0.05]['time'].values / \
+                   es_true[es_true['alpha'] == 0.05]['time'].values
+        ratio_95 = es_false[es_false['alpha'] == 0.95]['time'].values / \
+                   es_true[es_true['alpha'] == 0.95]['time'].values
+        n_feats = df_inc['n_features'].unique()
+        
+        plt.plot(n_feats, ratio_01, label=r'$\alpha = .01$')
+        plt.plot(n_feats, ratio_05, label=r'$\alpha = .05$')
+        plt.plot(n_feats, ratio_95, label=r'$\alpha = .95$')
+        plt.xlabel('N Features')
+        plt.ylabel('Speedup Factor in Runtime')
+        plt.legend(labels=labels)
+        plt.tight_layout()
+        plt.show()
+
+
 def main():
-    """ADD HERE"""
+    """Main program.
+    """
+    # Compare results for hyperparameters
+    compare_hps()
+
+    # Plot results of conditional inference model for one dataframe
+    plot_single_df()
+    
+    # Run timing experiments and view results
     test_timings()
+    plot_timings()
+
+    # Compare split selection with conditional inference model against random forests
+    plot_split_selection()
 
 if __name__ == "__main__":
     main()

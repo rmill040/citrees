@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import multiprocessing
+import threading
 import warnings
 warnings.simplefilter('ignore')
 
@@ -1254,6 +1255,11 @@ def _parallel_fit_classifier(tree, X, y, n, tree_idx, n_estimators, bootstrap,
 
     min_class_p : float
         Minimum proportion of class labels
+
+    Returns
+    -------
+    tree : CITreeClassifier
+        Fitted conditional inference tree
     """
     # Print status if conditions met
     if verbose and n_estimators >= 10:
@@ -1324,6 +1330,11 @@ def _parallel_fit_regressor(tree, X, y, n, tree_idx, n_estimators, bootstrap,
 
     random_state : int
         Sets seed for random number generator
+
+    Returns
+    -------
+    tree : CITreeRegressor
+        Fitted conditional inference tree
     """
     # Print status if conditions met
     if verbose and n_estimators >= 10:
@@ -1358,9 +1369,13 @@ def _accumulate_prediction(predict, X, out, lock):
     out : 1d or 2d array-like
         Array of labels
 
-    lock : multiprocessing Lock
+    lock : threading lock
         A lock that controls worker access to data structures for aggregating
         predictions
+
+    Returns
+    -------
+    None
     """
     prediction = predict(X)
     with lock:
@@ -1531,7 +1546,7 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
         # Train models
         n = X.shape[0]
         self.estimators_ = \
-            Parallel(n_jobs=self.n_jobs, backend='multiprocessing')(
+            Parallel(n_jobs=self.n_jobs, backend='loky')(
             delayed(_parallel_fit_classifier)(
                 self.estimators_[i], X, y, n, i, self.n_estimators,
                 self.bootstrap, self.bayes, self.verbose, self.random_state,
@@ -1569,8 +1584,8 @@ class CIForestClassifier(BaseEstimator, ClassifierMixin):
 
         # Parallel prediction
         all_proba = np.zeros((X.shape[0], self.n_classes_), dtype=np.float64)
-        lock      = multiprocessing.Lock()
-        Parallel(n_jobs=self.n_jobs, prefer="threads")(
+        lock      = threading.Lock()
+        Parallel(n_jobs=self.n_jobs, backend="threading")(
             delayed(_accumulate_prediction)(e.predict_proba, X, all_proba, lock)
             for e in self.estimators_)
 
@@ -1739,7 +1754,7 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
         # Train models
         n = X.shape[0]
         self.estimators_ = \
-            Parallel(n_jobs=self.n_jobs, backend='multiprocessing')(
+            Parallel(n_jobs=self.n_jobs, backend='loky')(
             delayed(_parallel_fit_regressor)(
                 self.estimators_[i], X, y, n, i, self.n_estimators,
                 self.bootstrap, self.bayes, self.verbose, self.random_state
@@ -1776,8 +1791,8 @@ class CIForestRegressor(BaseEstimator, RegressorMixin):
 
         # Parallel prediction
         results = np.zeros(X.shape[0], dtype=np.float64)
-        lock    = multiprocessing.Lock()
-        Parallel(n_jobs=self.n_jobs, prefer="threads")(
+        lock    = threading.Lock()
+        Parallel(n_jobs=self.n_jobs, backend="threading")(
             delayed(_accumulate_prediction)(e.predict, X, results, lock)
             for e in self.estimators_)
 

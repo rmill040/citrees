@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "citrees"
+version = "0.1.0"
+description = "Bayesian conditional inference trees and forests in Python"
+authors = ["robby milletich <rmill040@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+loguru = "^0.6.0"
+numpy = "^1.22.4"
+numba = "^0.55.2"
+
+[tool.poetry.dev-dependencies]
+pre-commit = "^2.19.0"
+black = "^22.6.0"
+flake8 = "^4.0.1"
+mypy = "^0.961"
+pytest = "^7.1.2"
+tox = "^3.25.1"
+isort = "^5.10.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310']
+
+[tool.isort]
+profile = 'black'
+line_length = 120
+force_alphabetical_sort_within_sections = true
+
+[tool.mypy]
+disallow_untyped_defs = true
+disallow_untyped_decorators = true
+disallow_incomplete_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+strict_optional = true
+show_error_codes = true
+
+[tool.pytest]
+testpaths = 'tests'

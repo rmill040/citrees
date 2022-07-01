@@ -9,6 +9,7 @@ python = ">=3.8,<3.11"
 loguru = "^0.6.0"
 numpy = "^1.22.4"
 numba = "^0.55.2"
+pydantic = "^1.9.1"
 
 [tool.poetry.dev-dependencies]
 pre-commit = "^2.19.0"
@@ -36,7 +37,7 @@ force_alphabetical_sort_within_sections = true
 disallow_untyped_defs = true
 disallow_untyped_decorators = true
 disallow_incomplete_defs = true
-disallow_any_unimported = true
+disallow_any_unimported = false
 no_implicit_optional = true
 check_untyped_defs = true
 warn_return_any = true

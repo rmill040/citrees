@@ -1,14 +1,17 @@
-class BaseSplitter:
-    pass
+# from citrees._regitry import Splitters
 
 
-class BestSplitter:
-    pass
+# class BaseSplitter:
+#     pass
 
 
-class RandomSplitter:
-    pass
+# class BestSplitter:
+#     pass
 
 
-class HistogramSplitter:
-    pass
+# class RandomSplitter:
+#     pass
+
+
+# class HistogramSplitter:
+#     pass

@@ -14,6 +14,10 @@ selector
     - permutation
     - exact
 n_permutations
+split_points
+    - local
+    - global
+    - all
 
 class_weight
 max_depth

@@ -1,32 +1,54 @@
 repos:
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v3.4.0
-  hooks:
-    - id: check-yaml
-    - id: end-of-file-fixer
-    - id: trailing-whitespace
-    - id: check-case-conflict
-    - id: mixed-line-ending
-      args: ["--fix=lf"]
-- repo: https://github.com/pycqa/isort
-  rev: 5.10.1
-  hooks:
-    - id: isort
-      name: isort (python)
-      files: citrees/
-- repo: https://github.com/psf/black
-  rev: 22.3.0
-  hooks:
-    - id: black
-      files: citrees/
-- repo: https://gitlab.com/pycqa/flake8
-  rev: 3.9.2
-  hooks:
-    - id: flake8
-      types: [file, python]
-      files: citrees/
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v0.961
-  hooks:
-    - id: mypy
-      files: citrees/
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.3.0
+    hooks:
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-yaml
+      - id: debug-statements
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+        args:
+          - --fix=lf
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.2
+    hooks:
+      - id: codespell
+        exclude: poetry.lock
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: "v3.0.0-alpha.4"
+    hooks:
+      - id: prettier
+        files: .*\.(ya?ml|json|md)$
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/ambv/black
+    rev: "22.10.0"
+    hooks:
+      - id: black
+
+  - repo: https://github.com/pycqa/flake8
+    rev: "5.0.4"
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          - flake8-docstrings
+        args:
+          - --docstring-convention=numpy
+          - --max-line-length=120
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: "v0.991"
+    hooks:
+      - id: mypy
+        args:
+          - --config-file=pyproject.toml
+          - --install-types
+          - --non-interactive
+        exclude: ^tests/

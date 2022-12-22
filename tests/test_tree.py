@@ -1,42 +1,19 @@
-from citrees import _Node
-import numpy as np
+"""Tests related to citrees._tree.py file."""
+import pytest
+from sklearn import datasets
+
+from citrees._tree import ConditionalInferenceTreeClassifier
 
 
-def test_non_terminal_node():
-    """Test a non-terminal or leaf node."""
-    kwargs = {
-        "index": 0,
-        "p_value": 0.5,
-        "threshold": 2.5,
-        "impurity": 1.0,
-        "left_child": (
-            np.ones(6).reshape(3, 2), np.zeros(6)
-        ),
-        "right_child": (
-            np.ones(6).reshape(3, 2), np.zeros(6)
-        )
-    }
+class TestConditionalInferenceTreeClassifier:
+    """Test ConditionalInferenceTreeClassifier functionality."""
 
-    import pdb; pdb.set_trace()
-    node = _Node(**kwargs)
-
-    for key, value in node.dict().items():
-        if key not in kwargs:
-            assert value is None
-        else:
-            assert value == kwargs[key]
-
-
-def test_terminal_node():
-    """Test a terminal or leaf node."""
-    kwargs = {
-        "estimate": 0.5,
-    }
-
-    node = _Node(**kwargs)
-
-    for key, value in node.dict().items():
-        if key not in kwargs:
-            assert value is None
-        else:
-            assert value == kwargs[key]
+    @pytest.fixture(autouse=True)
+    def setup(self) -> None:
+        """Initialize tests."""
+        self.X, self.y = datasets.load_breast_cancer(return_X_y=True, as_frame=False)
+        
+        
+    def test_fit(self) -> None:
+        """Test fit method."""
+        clf = ConditionalInferenceTreeClassifier().fit(self.X.tolist(), self.y.tolist())

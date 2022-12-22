@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "citrees"
 version = "0.1.0"
-description = "Bayesian conditional inference trees and forests in Python"
+description = "Bayesian conditional inference trees and forests"
 authors = ["robby milletich <rmill040@gmail.com>"]
 
 [tool.poetry.dependencies]
@@ -10,8 +10,9 @@ loguru = "^0.6.0"
 numpy = "^1.22.4"
 numba = "^0.55.2"
 pydantic = "^1.9.1"
+scikit-learn = "^1.2.0"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pre-commit = "^2.19.0"
 black = "^22.6.0"
 flake8 = "^4.0.1"
@@ -19,6 +20,8 @@ mypy = "^0.961"
 pytest = "^7.1.2"
 tox = "^3.25.1"
 isort = "^5.10.1"
+flake8-docstrings = "^1.6.0"
+pytest-cov = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -29,21 +32,40 @@ line-length = 120
 target-version = ['py38', 'py39', 'py310']
 
 [tool.isort]
+py_version = 39
 profile = 'black'
 line_length = 120
 force_alphabetical_sort_within_sections = true
 
 [tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
 disallow_untyped_defs = true
-disallow_untyped_decorators = true
 disallow_incomplete_defs = true
-disallow_any_unimported = false
 no_implicit_optional = true
 check_untyped_defs = true
-warn_return_any = true
 warn_unused_ignores = true
 strict_optional = true
 show_error_codes = true
+show_error_context = true
+pretty = true
 
-[tool.pytest]
-testpaths = 'tests'
+[tool.pytest.ini_options]
+addopts = "--strict-markers -vv -x --cov --cov-report=html --cov-append"
+testpaths = [
+    "tests"
+]
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "*.vscode*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+sort = "Cover"
+
+[tool.coverage.html]
+title = "citrees Python Coverage Report"

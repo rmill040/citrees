@@ -1,14 +1,17 @@
-class BaseSelector:
-    pass
+# from citrees._registry import Selectors
 
 
-class AutoSelector:
-    pass
+# class BaseSelector:
+#     pass
 
 
-class PermutationSelector:
-    pass
+# class AutoSelector:
+#     pass
 
 
-class ExactSelector:
-    pass
+# class PermutationSelector:
+#     pass
+
+
+# class ExactSelector:
+#     pass

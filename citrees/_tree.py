@@ -14,6 +14,7 @@ class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeP
     selector : str
         Feature selection method.
     """
+
     criterion: Literal["gini", "entropy"] = "gini"
     selector: Literal["mc", "mi", "hybrid"] = "mc"
 
@@ -25,6 +26,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     ----------
     ADD HERE.
     """
+
     model: ClassVar = ConditionalInferenceTreeClassifierParameters
 
     def __init__(
@@ -49,7 +51,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         n_jobs=1,
         random_state=None,
         verbose=0,
-    ) -> None:        
+    ) -> None:
         hps = self.__class__.model(
             criterion=criterion,
             selector=selector,

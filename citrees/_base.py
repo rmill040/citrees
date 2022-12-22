@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from decimal import Decimal
 from multiprocessing import cpu_count
 from typing import Any, Dict, Optional, Literal, Tuple, TypedDict, Union
 
@@ -122,10 +123,11 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
         """Validate n_permutations_selector."""
         if field.name == "n_permutations_selector":
             alpha = values.get("alpha_feature")
+        else:
+            alpha = values.get("alpha_split")
         if v == "auto":
-            import pdb
-
-            pdb.set_trace()
+            exponent = abs(Decimal(str(alpha)).as_tuple().exponent)
+            v = 10 ** exponent
 
         return v
 
@@ -157,8 +159,8 @@ class BaseConditionalInferenceTree(ABC):
         criterion: str,
         selector: str,
         splitter: str,
-        feature_alpha: float,
-        split_alpha: float,
+        alpha_feature: float,
+        alpha_split: float,
         n_bins: int,
         early_stopping: bool,
         feature_scanning: bool,
@@ -178,8 +180,8 @@ class BaseConditionalInferenceTree(ABC):
         self.criterion = criterion
         self.selector = selector
         self.splitter = splitter
-        self.feature_alpha = feature_alpha
-        self.split_alpha = split_alpha
+        self.alpha_feature = alpha_feature
+        self.alpha_split = alpha_split
         self.n_bins = n_bins
         self.early_stopping = early_stopping
         self.feature_scanning = feature_scanning
@@ -195,9 +197,11 @@ class BaseConditionalInferenceTree(ABC):
         self.random_state = random_state
         self.verbose = verbose
 
-        # Aliases
+        # Private attributes and methods
         self._node_split = _node_split
         self._label_encoder = LabelEncoder()
+        if self.max_depth is None:
+            self._max_depth = np.inf
 
     @abstractmethod
     def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
@@ -222,19 +226,77 @@ class BaseConditionalInferenceTree(ABC):
         pass
 
     @abstractmethod
-    def _node_value(self, y: np.ndarray) -> Union[np.ndarray, float]:
-        """Calculate value in terminal node."""
+    def _node_value(self, y: np.ndarray) -> float:
+        """Calculate value in terminal node.
+        
+        Parameters
+        ----------
+        y : np.ndarray
+            Node labels.
+
+        Returns
+        -------
+        float
+            Node value estimate.            
+        """
         pass
 
     @abstractmethod
     def _splitter(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
-        """Find optimal threshold for binary split in node."""
+        """Find optimal threshold for binary split in node.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            ADD HERE.
+        
+        y : np.ndarray
+            ADD HERE.
+        
+        Returns
+        -------
+        Tuple[float, float]
+            Threshold and threshold probability value with order (threshold, threshold_pval).
+        """
         pass
 
     @abstractmethod
     def _selector(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, float]:
-        """Find most correlated feature with label."""
+        """Find most correlated feature with label.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            ADD HERE.
+        
+        y : np.ndarray
+            ADD HERE.
+        
+        Returns
+        -------
+        Tuple[int, float]
+            Feature index and probability value with order (feature, feature_pval).
+        """
         pass
+
+    def _calculate_max_features(self) -> None:
+        """Calculate maximum features available."""
+        p = sum(self._available_features)
+
+        if self.max_features is None:
+            self._max_features = p
+        elif self.max_features == "sqrt":
+            self._max_features = int(np.ceil(np.sqrt(p)))
+        elif self.max_features == "log":
+            self._max_features = int(np.ceil(np.log(p)))
+        elif type(self.max_features) is float:
+            self._max_features = int(np.ceil(self.max_features * p))
+        elif type(self.max_features) is int:
+            self._max_features = self.max_features
+
+        # Catch cases where out of bounds values
+        if self._max_features > p:
+            self._max_features = p
 
     def _mute_feature(self, feature: int) -> None:
         """Mute feature from being selected during tree building.
@@ -245,30 +307,14 @@ class BaseConditionalInferenceTree(ABC):
             Index of feature to mute.
         """
         p = sum(self._available_features)
-        
+
         # Handle edge case here
         if p == 1:
-            logger.warning("ADD HERE")
-        
-        # Mask feature and recalculate max_features
-        self._available_features[feature] = False
-        
-        
-        
-        # if self.max_features == 'sqrt':
-        #     self.max_features = int(np.sqrt(p))
-        # elif self.max_features == 'log':
-        #     self.max_features = int(np.log(p+1))
-        # elif self.max_features in ['all', -1]:
-        #     self.max_features = p
-        # else:
-        #     self.max_features = int(self.max_features)
-
-        # # Check to make sure max_features is not larger than the number of remaining
-        # # features
-        # if self.max_features > len(self.available_features_):
-        #     self.max_features = len(self.available_features_)
-        
+            logger.warning("Unable to mute feature, (1) feature remains for feature selection")
+        else:
+            # Mask feature and recalculate max_features
+            self._available_features[feature] = False
+            self._calculate_max_features()
 
     def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int = 0) -> Node:
         """Recursively builds tree.
@@ -291,27 +337,24 @@ class BaseConditionalInferenceTree(ABC):
         """
         n, p = X.shape
         feature_pval = np.inf
-        split_pval = np.inf
+        threshold_pval = np.inf
         logger.debug(f"Building tree at depth ({depth}) with ({n}) samples")
 
         # Check for stopping criteria at node level
-        if n >= self.min_samples_split and depth <= self.max_depth and np.all(y != y[0]):
-            logger.debug("Running feature selection")
+        if n >= self.min_samples_split and depth <= self._max_depth and np.all(y != y[0]):
+            logger.debug(f"Running feature selection with ({self._max_features}) features")
             feature, feature_pval = self._selector(X, y)
 
         # Check for stopping critera at feature selection level
         if feature_pval < self.alpha_feature:
             logger.debug(f"Feature ({feature}) selected, p-value ({feature_pval}) < ({self.alpha_feature})")
             # Split selection
-            logger.debug(f"Running split selection with feature ({feature})")
+            logger.debug("Running split selection")
             threshold, threshold_pval = self._splitter(X[:, feature], y)
 
         # Check for stopping criteria at split selection level
         if threshold_pval < self.alpha_split:
             logger.debug(f"Split probability value ({threshold_pval}) < ({self.alpha_split})")
-            if feature not in self._protected_features:
-                self._protected_features.add(feature)
-                logger.debug(f"Added feature ({feature}) to protected set, size={len(self._protected_features)}")
 
             # Node split
             X_left, y_left, X_right, y_right = self._node_split(X, y, feature, threshold)
@@ -328,8 +371,8 @@ class BaseConditionalInferenceTree(ABC):
             return Node(
                 feature=feature,
                 feature_pval=feature_pval,
-                split_pval=split_pval,
                 threshold=threshold,
+                threshold_pval=threshold_pval,
                 impurity=impurity,
                 left_child=left_child,
                 right_child=right_child,
@@ -406,7 +449,7 @@ class BaseConditionalInferenceTree(ABC):
             except ValueError as e:
                 logger.error(e)
                 raise
-        
+
         y = self._label_encoder.fit_transform(y)
 
         # Compare X and y
@@ -419,10 +462,11 @@ class BaseConditionalInferenceTree(ABC):
 
         # Define attributes for building trees
         self._available_features = np.array([True] * X.shape[1])
-        
+        self._calculate_max_features()
+
         # Fitted attributes
         self.classes_ = np.unique(y)
-        self.n_classes_ = len(self.n_classes_)
+        self.n_classes_ = len(self.classes_)
         self.feature_importances_ = np.zeros(X.shape[1], dtype=float)
         self.n_features_in_ = X.shape[1]
         self.tree_ = self._build_tree(X, y)

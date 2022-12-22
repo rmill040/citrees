@@ -35,8 +35,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         criterion="gini",
         selector="mc",
         splitter="best",
-        alpha_selector=0.05,
-        alpha_splitter=0.05,
+        alpha_feature=0.05,
+        alpha_split=0.05,
         n_bins=256,
         early_stopping=True,
         feature_scanning=True,
@@ -56,8 +56,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             criterion=criterion,
             selector=selector,
             splitter=splitter,
-            alpha_selector=alpha_selector,
-            alpha_splitter=alpha_splitter,
+            alpha_feature=alpha_feature,
+            alpha_split=alpha_split,
             n_bins=n_bins,
             early_stopping=early_stopping,
             feature_scanning=feature_scanning,
@@ -74,8 +74,14 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             verbose=verbose,
         )
 
-        super(BaseConditionalInferenceTree, self).__init__(**hps.dict())
+        super().__init__(**hps.dict())
 
+    def _node_impurity(self):
+        pass
+    
+    def _node_value(self):
+        pass
+    
     def _splitter(self):
         pass
 

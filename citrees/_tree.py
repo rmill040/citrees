@@ -12,14 +12,14 @@ class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeP
 
     Parameters
     ----------
-    criterion : {"gini", "entropy"}, optional (default="gini")
-        Criterion for splitting.
+    splitter : {"gini", "entropy", "chisquare"}, optional (default="gini")
+        Method for split selection.
 
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
     """
 
-    criterion: Literal["gini", "entropy"] = "gini"
+    splitter: Literal["gini", "entropy", "chisquare"] = "gini"
     selector: Literal["mc", "mi", "hybrid"] = "mc"
 
 
@@ -28,13 +28,13 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
 
     Parameters
     ----------
-    criterion : {"gini", "entropy"}, optional (default="gini")
-        Criterion for splitting.
+    splitter : {"gini", "entropy", "chisquare"}, optional (default="gini")
+        Method for split selection.
 
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
 
-    splitter : {"best", "random", "hist-local", "hist-global"}
+    splitter : {"random", "hist-local", "hist-global"}
         Method for split selection.
 
     alpha_feature : float, optional (default=0.05)
@@ -42,6 +42,9 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
 
     alpha_split : float, optional (default=0.05)
         Alpha for split selection.
+
+    threshold_method : {ADD HERE}
+        ADD HERE.
 
     n_bins : int, optional (default=256)
         Number of bins to use when using histogram splitters.
@@ -51,9 +54,6 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
 
     early_stopping_splitter : bool, optional (default=True)
         Use early stopping during split selection.
-
-    feature_scanning : bool, optional (default=True)
-        ADD HERE.
     ...
 
     Attributes
@@ -73,18 +73,20 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     tree_ : Node
         ADD HERE.
     """
+
     def __init__(
         self,
         *,
-        criterion="gini",
+        splitter="gini",
         selector="mc",
-        splitter="best",
         alpha_feature=0.05,
         alpha_split=0.05,
+        adjust_alpha_feature=False,
+        adjust_alpha_split=False,
+        threshold_method="best",
         n_bins=256,
         early_stopping_selector=True,
         early_stopping_splitter=True,
-        feature_scanning=True,
         feature_muting=True,
         n_permutations_selector="auto",
         n_permutations_splitter="auto",
@@ -97,16 +99,17 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         random_state=None,
         verbose=0,
     ) -> None:
-        hps = self._model(
-            criterion=criterion,
+        super().__init__(
             selector=selector,
             splitter=splitter,
             alpha_feature=alpha_feature,
             alpha_split=alpha_split,
+            adjust_alpha_feature=adjust_alpha_feature,
+            adjust_alpha_split=adjust_alpha_split,
+            threshold_method=threshold_method,
             n_bins=n_bins,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
-            feature_scanning=feature_scanning,
             feature_muting=feature_muting,
             n_permutations_selector=n_permutations_selector,
             n_permutations_splitter=n_permutations_splitter,
@@ -120,11 +123,9 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             verbose=verbose,
         )
 
-        super().__init__(**hps.dict())
-
     @property
-    def _model(self) -> ModelMetaclass:
-        """Model for estimator's hyperparameters."""
+    def _validator(self) -> ModelMetaclass:
+        """Validation model for estimator's hyperparameters."""
         return ConditionalInferenceTreeClassifierParameters
 
     def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:

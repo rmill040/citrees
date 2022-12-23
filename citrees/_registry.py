@@ -4,7 +4,7 @@ T = TypeVar("T")
 
 
 class Registry:
-    """Used to register classes so that a universal object builder can be enabled.
+    """Used to register callables so that a universal object builder can be enabled.
 
     Parameters
     ----------
@@ -60,35 +60,38 @@ class Registry:
         """
         entry = self._registry.get(key, None)
         if not entry:
-            raise KeyError(f"{key} not found in {self._name} registry")
+            raise KeyError(f"({key}) not found in registry ({self._name})")
 
         return entry
 
-    def register_class(self, alias: str) -> Any:
-        """Register class.
+    def register(self, alias: str) -> Any:
+        """Register callable.
 
         Parameters
         ----------
         alias : str
-            Alias for class.
+            Alias for callable.
 
         Returns
         -------
         T
-            Class to be registered.
+            Callable to be registered.
         """
 
-        def wrapper(cls: T) -> T:
+        def wrapper(f: T) -> T:
             # Alias must be unique
             if alias in self._registry:
-                raise KeyError(f"alias ({alias}) already exists in {self._name} registry")
+                raise KeyError(f"alias ({alias}) already exists in registry ({self._name})")
 
-            # Add class to registry and return
-            self._registry[alias] = cls
-            return cls
+            # Add callable to registry and return
+            self._registry[alias] = f
+            return f
 
         return wrapper
 
 
-Splitters = Registry("Splitters")
-Selectors = Registry("Selectors")
+clf_splitters = Registry("clf-splitters")
+clf_selectors = Registry("clf-selectors")
+
+reg_splitters = Registry("reg-splitters")
+reg_selectors = Registry("reg-selectors")

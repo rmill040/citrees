@@ -95,14 +95,20 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
     Parameters
     ----------
-    splitter : {"best", "random", "hist-local", "hist-global"}
-        Method for split selection.
+    threshold_method : {"best", "random", "hist-local", "hist-global"}
+        Method for calculating threshold values for candidate split points.
 
     alpha_feature : float, optional (default=0.05)
         Alpha for feature selection.
 
     alpha_split : float, optional (default=0.05)
         Alpha for split selection.
+
+    adjust_alpha_feature : bool, optional (default=False)
+        Use Bonferroni adjusted p-values for feature selection.
+
+    adjust_alpha_split : bool, optional (default=False)
+        Use Bonferonni adjusted p-values for split selection.
 
     n_bins : int, optional (default=256)
         Number of bins to use when using histogram splitters.
@@ -112,19 +118,17 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
     early_stopping_splitter : bool, optional (default=True)
         Use early stopping during split selection.
-
-    feature_scanning : bool, optional (default=True)
-        ADD HERE.
     ...
     """
 
-    splitter: Literal["best", "random", "hist-local", "hist-global"]
     alpha_feature: ConstrainedFloat(gt=0.0, le=1.0) = 0.05
     alpha_split: ConstrainedFloat(gt=0.0, le=1.0) = 0.05
+    adjust_alpha_feature: bool = False
+    adjust_alpha_split: bool = False
+    threshold_method: Literal["best", "random", "hist-local", "hist-global"]
     n_bins: PositiveInt = 256
     early_stopping_selector: bool = True
     early_stopping_splitter: bool = True
-    feature_scanning: bool = True
     feature_muting: bool = True
     n_permutations_selector: Union[Literal["auto"], NonNegativeInt] = "auto"
     n_permutations_splitter: Union[Literal["auto"], NonNegativeInt] = "auto"
@@ -172,19 +176,21 @@ class BaseConditionalInferenceTree(ABC):
 
     Warning: This class should not be used directly. Use derived classes instead.
     """
+
     @abstractmethod
     def __init__(
         self,
         *,
-        criterion: str,
         selector: str,
         splitter: str,
         alpha_feature: float,
         alpha_split: float,
+        adjust_alpha_feature: bool,
+        adjust_alpha_split: bool,
+        threshold_method: str,
         n_bins: int,
         early_stopping_selector: bool,
         early_stopping_splitter: bool,
-        feature_scanning: bool,
         feature_muting: bool,
         n_permutations_selector: int,
         n_permutations_splitter: int,
@@ -197,36 +203,61 @@ class BaseConditionalInferenceTree(ABC):
         random_state: Optional[int],
         verbose: int,
     ) -> None:
-        self.criterion = criterion
-        self.selector = selector
-        self.splitter = splitter
-        self.alpha_feature = alpha_feature
-        self.alpha_split = alpha_split
-        self.n_bins = n_bins
-        self.early_stopping_selector = early_stopping_selector
-        self.early_stopping_splitter = early_stopping_splitter
-        self.feature_scanning = feature_scanning
-        self.feature_muting = feature_muting
-        self.n_permutations_selector = n_permutations_selector
-        self.n_permutations_splitter = n_permutations_splitter
-        self.max_depth = max_depth
-        self.max_features = max_features
-        self.min_samples_split = min_samples_split
-        self.min_samples_leaf = min_samples_leaf
-        self.min_impurity_decrease = min_impurity_decrease
-        self.n_jobs = n_jobs
-        self.random_state = random_state
-        self.verbose = verbose
+        hps = self._validator(
+            selector=selector,
+            splitter=splitter,
+            alpha_feature=alpha_feature,
+            alpha_split=alpha_split,
+            adjust_alpha_feature=adjust_alpha_feature,
+            adjust_alpha_split=adjust_alpha_split,
+            threshold_method=threshold_method,
+            n_bins=n_bins,
+            early_stopping_selector=early_stopping_selector,
+            early_stopping_splitter=early_stopping_splitter,
+            feature_muting=feature_muting,
+            n_permutations_selector=n_permutations_selector,
+            n_permutations_splitter=n_permutations_splitter,
+            max_depth=max_depth,
+            max_features=max_features,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            min_impurity_decrease=min_impurity_decrease,
+            n_jobs=n_jobs,
+            random_state=random_state,
+            verbose=verbose,
+        )
+
+        self.selector = hps.selector
+        self.splitter = hps.splitter
+        self.alpha_feature = hps.alpha_feature
+        self.alpha_split = hps.alpha_split
+        self.adjust_alpha_feature = hps.adjust_alpha_feature
+        self.adjust_alpha_split = hps.adjust_alpha_split
+        self.threshold_method = hps.threshold_method
+        self.n_bins = hps.n_bins
+        self.early_stopping_selector = hps.early_stopping_selector
+        self.early_stopping_splitter = hps.early_stopping_splitter
+        self.feature_muting = hps.feature_muting
+        self.n_permutations_selector = hps.n_permutations_selector
+        self.n_permutations_splitter = hps.n_permutations_splitter
+        self.max_depth = hps.max_depth
+        self.max_features = hps.max_features
+        self.min_samples_split = hps.min_samples_split
+        self.min_samples_leaf = hps.min_samples_leaf
+        self.min_impurity_decrease = hps.min_impurity_decrease
+        self.n_jobs = hps.n_jobs
+        self.random_state = hps.random_state
+        self.verbose = hps.verbose
 
         # Private attributes and methods
         self._node_split = _node_split
         self._label_encoder = LabelEncoder()
-        if self.max_depth is None:
-            self._max_depth = np.inf
+        self._max_depth = np.inf if self.max_depth is None else self.max_depth
+        self._random_state = int(np.random.randint(1, 100_000)) if self.random_state is None else self.random_state
 
     @abstractproperty
-    def _model(self) -> ModelMetaclass:
-        """Model for estimator's hyperparameters."""
+    def _validator(self) -> ModelMetaclass:
+        """Validation model for estimator's hyperparameters."""
         pass
 
     @abstractmethod
@@ -240,18 +271,18 @@ class BaseConditionalInferenceTree(ABC):
         pass
 
     @abstractmethod
-    def _splitter(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
+    def _splitter(self, X: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> Tuple[float, float]:
         """Find optimal threshold for binary split in node."""
         pass
 
     @abstractmethod
-    def _selector(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, float]:
+    def _selector(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> Tuple[int, float]:
         """Find most correlated feature with label."""
         pass
 
     def _calculate_max_features(self) -> None:
         """Calculate maximum features available."""
-        p = sum(self._available_features)
+        p = len(self._available_features)
 
         if self.max_features is None:
             self._max_features = p
@@ -268,7 +299,7 @@ class BaseConditionalInferenceTree(ABC):
         if self._max_features > p:
             self._max_features = p
 
-    def _mute_feature(self, feature: int) -> None:
+    def _feature_muting(self, feature: int) -> None:
         """Mute feature from being selected during tree building.
 
         Parameters
@@ -276,14 +307,15 @@ class BaseConditionalInferenceTree(ABC):
         feature : int
             Index of feature to mute.
         """
-        p = sum(self._available_features)
+        p = len(self._available_features)
 
-        # Handle edge case here
+        # Handle edge case
         if p == 1:
-            logger.warning("Unable to mute feature, (1) feature remains for feature selection")
+            logger.warning(f"Unable to mute feature ({feature}), only (1) feature available for feature selection")
         else:
             # Mask feature and recalculate max_features
-            self._available_features[feature] = False
+            idx = self._available_features == feature
+            self._available_features = self._available_features[~idx]
             self._calculate_max_features()
 
     def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int = 0) -> Node:
@@ -305,26 +337,26 @@ class BaseConditionalInferenceTree(ABC):
         Node
             Node in decision tree.
         """
+        np.random.seed(self._random_state + depth)
         n, p = X.shape
         feature_pval = np.inf
         threshold_pval = np.inf
-        logger.debug(f"Building tree at depth ({depth}) with ({n}) samples")
+        logger.debug(f"Building tree at depth ({depth}) with ({n}) samples and ({self._max_features}) features")
 
         # Check for stopping criteria at node level
-        if n >= self.min_samples_split and depth <= self._max_depth and np.all(y != y[0]):
-            logger.debug(f"Running feature selection with ({self._max_features}) features")
-            feature, feature_pval = self._selector(X, y)
+        if n >= self.min_samples_split and depth <= self._max_depth and not np.all(y == y[0]):
+            # Feature selection
+            features = np.random.choice(self._available_features, size=self._max_features, replace=False)
+            feature, feature_pval = self._selector(X, y, features)
 
         # Check for stopping critera at feature selection level
         if feature_pval < self.alpha_feature:
-            logger.debug(f"Feature ({feature}) selected, p-value ({feature_pval}) < ({self.alpha_feature})")
             # Split selection
-            logger.debug("Running split selection")
-            threshold, threshold_pval = self._splitter(X[:, feature], y)
+            thresholds = np.random.choice(np.unique(X[:, feature]), size=self.n_bins)
+            threshold, threshold_pval = self._splitter(X[:, feature], y, thresholds)
 
         # Check for stopping criteria at split selection level
         if threshold_pval < self.alpha_split:
-            logger.debug(f"Split probability value ({threshold_pval}) < ({self.alpha_split})")
 
             # Node split
             X_left, y_left, X_right, y_right = self._node_split(X, y, feature, threshold)
@@ -431,7 +463,7 @@ class BaseConditionalInferenceTree(ABC):
                 raise
 
         # Private attributes for tree fitting
-        self._available_features = np.array([True] * X.shape[1])
+        self._available_features = np.arange(X.shape[1], dtype=int)
         self._calculate_max_features()
 
         # Fitted attributes

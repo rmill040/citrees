@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 from decimal import Decimal
 from multiprocessing import cpu_count
 from typing import Any, Dict, Optional, Literal, Tuple, TypedDict, Union
@@ -70,10 +70,10 @@ def _node_split(
     Parameters
     ----------
     X : np.ndarray
-        Features in node.
+        Features for node.
 
-    y : np.ndarray
-        Labels in node.
+    y : np.ndarray:
+        Labels for node.
 
     feature : int
         Index of feature to use for splitting node.
@@ -95,14 +95,35 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
     Parameters
     ----------
-    ADD HERE.
+    splitter : {"best", "random", "hist-local", "hist-global"}
+        Method for split selection.
+
+    alpha_feature : float, optional (default=0.05)
+        Alpha for feature selection.
+
+    alpha_split : float, optional (default=0.05)
+        Alpha for split selection.
+
+    n_bins : int, optional (default=256)
+        Number of bins to use when using histogram splitters.
+
+    early_stopping_selector : bool, optional (default=True)
+        Use early stopping during feature selection.
+
+    early_stopping_splitter : bool, optional (default=True)
+        Use early stopping during split selection.
+
+    feature_scanning : bool, optional (default=True)
+        ADD HERE.
+    ...
     """
 
     splitter: Literal["best", "random", "hist-local", "hist-global"]
     alpha_feature: ConstrainedFloat(gt=0.0, le=1.0) = 0.05
     alpha_split: ConstrainedFloat(gt=0.0, le=1.0) = 0.05
     n_bins: PositiveInt = 256
-    early_stopping: bool = True
+    early_stopping_selector: bool = True
+    early_stopping_splitter: bool = True
     feature_scanning: bool = True
     feature_muting: bool = True
     n_permutations_selector: Union[Literal["auto"], NonNegativeInt] = "auto"
@@ -127,7 +148,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             alpha = values.get("alpha_split")
         if v == "auto":
             exponent = abs(Decimal(str(alpha)).as_tuple().exponent)
-            v = 10 ** exponent
+            v = 10**exponent
 
         return v
 
@@ -149,9 +170,8 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 class BaseConditionalInferenceTree(ABC):
     """Base class for conditional inference trees.
 
-    Warning: This class should not be used directly, use derived classes instead.
+    Warning: This class should not be used directly. Use derived classes instead.
     """
-
     @abstractmethod
     def __init__(
         self,
@@ -162,7 +182,8 @@ class BaseConditionalInferenceTree(ABC):
         alpha_feature: float,
         alpha_split: float,
         n_bins: int,
-        early_stopping: bool,
+        early_stopping_selector: bool,
+        early_stopping_splitter: bool,
         feature_scanning: bool,
         feature_muting: bool,
         n_permutations_selector: int,
@@ -176,14 +197,14 @@ class BaseConditionalInferenceTree(ABC):
         random_state: Optional[int],
         verbose: int,
     ) -> None:
-
         self.criterion = criterion
         self.selector = selector
         self.splitter = splitter
         self.alpha_feature = alpha_feature
         self.alpha_split = alpha_split
         self.n_bins = n_bins
-        self.early_stopping = early_stopping
+        self.early_stopping_selector = early_stopping_selector
+        self.early_stopping_splitter = early_stopping_splitter
         self.feature_scanning = feature_scanning
         self.feature_muting = feature_muting
         self.n_permutations_selector = n_permutations_selector
@@ -203,80 +224,29 @@ class BaseConditionalInferenceTree(ABC):
         if self.max_depth is None:
             self._max_depth = np.inf
 
+    @abstractproperty
+    def _model(self) -> ModelMetaclass:
+        """Model for estimator's hyperparameters."""
+        pass
+
     @abstractmethod
     def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
-        """Calculate node impurity.
-
-        Parameters
-        ----------
-        y : np.ndarray
-            Parent node labels.
-
-        y_left : np.ndarray
-            Left child node labels.
-
-        y_right : np.ndarray
-            Right child node labels
-
-        Returns
-        -------
-        float
-            Node impurity measure.
-        """
+        """Calculate node impurity."""
         pass
 
     @abstractmethod
     def _node_value(self, y: np.ndarray) -> float:
-        """Calculate value in terminal node.
-        
-        Parameters
-        ----------
-        y : np.ndarray
-            Node labels.
-
-        Returns
-        -------
-        float
-            Node value estimate.            
-        """
+        """Calculate value in terminal node."""
         pass
 
     @abstractmethod
     def _splitter(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
-        """Find optimal threshold for binary split in node.
-        
-        Parameters
-        ----------
-        X : np.ndarray
-            ADD HERE.
-        
-        y : np.ndarray
-            ADD HERE.
-        
-        Returns
-        -------
-        Tuple[float, float]
-            Threshold and threshold probability value with order (threshold, threshold_pval).
-        """
+        """Find optimal threshold for binary split in node."""
         pass
 
     @abstractmethod
     def _selector(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, float]:
-        """Find most correlated feature with label.
-        
-        Parameters
-        ----------
-        X : np.ndarray
-            ADD HERE.
-        
-        y : np.ndarray
-            ADD HERE.
-        
-        Returns
-        -------
-        Tuple[int, float]
-            Feature index and probability value with order (feature, feature_pval).
-        """
+        """Find most correlated feature with label."""
         pass
 
     def _calculate_max_features(self) -> None:
@@ -317,18 +287,18 @@ class BaseConditionalInferenceTree(ABC):
             self._calculate_max_features()
 
     def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int = 0) -> Node:
-        """Recursively builds tree.
+        """Recursively build tree.
 
         Parameters
         ----------
         X : np.ndarray
-            2d array of features.
+            Training features.
 
         y : np.ndarray
-            1d array of labels.
+            Training labels.
 
         depth : int, optional (default=0)
-            Depth of current recursive call.
+            Depth of tree.
 
         Returns
         -------
@@ -385,23 +355,23 @@ class BaseConditionalInferenceTree(ABC):
         return Node(value=value, n_samples=n)
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseConditionalInferenceTree":
-        """Train decision tree.
+        """Train conditional inference tree.
 
         Parameters
         ----------
         X : np.ndarray
-            Array of features.
+            Training features.
 
         y : np.ndarray:
-            Array of labels.
+            Training labels.
 
         Returns
         -------
         self
-            Instance of BaseConditionalInferenceTree.
+            Fitted estimator.
         """
         self.feature_names_in_ = None
-        
+
         # Check X
         if not isinstance(X, np.ndarray):
             if isinstance(X, (list, tuple)):
@@ -460,7 +430,7 @@ class BaseConditionalInferenceTree(ABC):
                 logger.error(e)
                 raise
 
-        # Define attributes for building trees
+        # Private attributes for tree fitting
         self._available_features = np.array([True] * X.shape[1])
         self._calculate_max_features()
 

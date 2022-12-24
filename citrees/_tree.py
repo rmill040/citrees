@@ -83,7 +83,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         alpha_split=0.05,
         adjust_alpha_feature=False,
         adjust_alpha_split=False,
-        threshold_method="best",
+        threshold_method="exact",
         n_bins=256,
         early_stopping_selector=True,
         early_stopping_splitter=True,

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod, abstractproperty
-from decimal import Decimal
+from math import ceil
 from multiprocessing import cpu_count
 from typing import Any, Dict, Optional, Literal, Tuple, TypedDict, Union
 
@@ -9,12 +9,16 @@ import numpy as np
 from pydantic import BaseModel, confloat, conint, NonNegativeFloat, NonNegativeInt, PositiveInt, validator
 from pydantic.fields import ModelField
 from pydantic.main import ModelMetaclass
+from scipy.stats import norm
 from sklearn.preprocessing import LabelEncoder
-
 
 # Pydantic aliases to keep consistency in names
 ConstrainedFloat = confloat
 ConstrainedInt = conint
+
+_MIN_ALPHA = 0.001
+_MAX_PERMUTATIONS = 2_000
+_PVAL_PRECISION = 0.05
 
 
 class Node(TypedDict, total=False):
@@ -95,43 +99,19 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
     Parameters
     ----------
-    threshold_method : {"best", "random", "hist-local", "hist-global"}
-        Method for calculating threshold values for candidate split points.
-
-    alpha_feature : float, optional (default=0.05)
-        Alpha for feature selection.
-
-    alpha_split : float, optional (default=0.05)
-        Alpha for split selection.
-
-    adjust_alpha_feature : bool, optional (default=False)
-        Use Bonferroni adjusted p-values for feature selection.
-
-    adjust_alpha_split : bool, optional (default=False)
-        Use Bonferonni adjusted p-values for split selection.
-
-    n_bins : int, optional (default=256)
-        Number of bins to use when using histogram splitters.
-
-    early_stopping_selector : bool, optional (default=True)
-        Use early stopping during feature selection.
-
-    early_stopping_splitter : bool, optional (default=True)
-        Use early stopping during split selection.
-    ...
     """
 
-    alpha_feature: ConstrainedFloat(gt=0.0, le=1.0) = 0.05
-    alpha_split: ConstrainedFloat(gt=0.0, le=1.0) = 0.05
-    adjust_alpha_feature: bool = False
-    adjust_alpha_split: bool = False
-    threshold_method: Literal["best", "random", "hist-local", "hist-global"]
-    n_bins: PositiveInt = 256
+    alpha_feature: ConstrainedFloat(ge=_MIN_ALPHA, le=1.0) = 0.05
+    alpha_split: ConstrainedFloat(ge=_MIN_ALPHA, le=1.0) = 0.05
+    bonferroni_correction_feature: bool = True
+    bonferroni_correction_split: bool = True
     early_stopping_selector: bool = True
     early_stopping_splitter: bool = True
+    n_permutations_selector: Union[Literal["auto"], ConstrainedInt(gt=0, lt=_MAX_PERMUTATIONS)] = "auto"
+    n_permutations_splitter: Union[Literal["auto"], ConstrainedInt(gt=0, lt=_MAX_PERMUTATIONS)] = "auto"
     feature_muting: bool = True
-    n_permutations_selector: Union[Literal["auto"], NonNegativeInt] = "auto"
-    n_permutations_splitter: Union[Literal["auto"], NonNegativeInt] = "auto"
+    threshold_method: Literal["exact", "random", "hist-local", "hist-global"]
+    max_thresholds: PositiveInt = 64
     max_depth: Optional[PositiveInt] = None
     max_features: Optional[Union[PositiveInt, ConstrainedFloat(gt=0.0, le=1.0), Literal["sqrt", "log2"]]] = None
     min_samples_split: ConstrainedInt(ge=2) = 2
@@ -141,23 +121,38 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     random_state: Optional[NonNegativeInt] = None
     verbose: NonNegativeInt = 1
 
-    @validator("n_permutations_selector", "n_permutations_splitter")
+    @validator("n_permutations_selector", "n_permutations_splitter", always=True)
     def validate_n_permutations(
         cls: ModelMetaclass, v: Union[Literal["auto"], PositiveInt], field: ModelField, values: Dict[str, Any]
-    ) -> int:
+    ) -> Union[Literal["auto"], PositiveInt]:
         """Validate n_permutations_selector."""
         if field.name == "n_permutations_selector":
             alpha = values.get("alpha_feature")
         else:
             alpha = values.get("alpha_split")
-        if v == "auto":
-            exponent = abs(Decimal(str(alpha)).as_tuple().exponent)
-            v = 10**exponent
 
+        ll = ceil(1 / alpha)
+        if v == "auto":
+            # Approximate upper limit
+            z = norm.ppf(1 - alpha)
+            ul = ceil(z * z * (alpha * (1 - alpha)) / (_PVAL_PRECISION * _PVAL_PRECISION))
+            v = max(ll, ul)
+        else:
+            # Need at least 1 / alpha number of permutations
+            if v < ll:
+                v = ll
+
+        setattr(cls, f"_{field.name}", min(v, _MAX_PERMUTATIONS))
+        return v
+
+    @validator("max_depth", always=True)
+    def validate_max_depth(cls: ModelMetaclass, v: Optional[PositiveInt], field: ModelField) -> Optional[PositiveInt]:
+        """Validate max_depth."""
+        setattr(cls, f"_{field.name}", np.inf if v is None else v)
         return v
 
     @validator("n_jobs", always=True)
-    def validate_n_jobs(cls: ModelMetaclass, v: int) -> int:
+    def validate_n_jobs(cls: ModelMetaclass, v: int, field: ModelField) -> int:
         """Validate n_jobs."""
         max_cpus = cpu_count()
         v = min(v, max_cpus)
@@ -168,7 +163,16 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             else:
                 v = cpus[v]
 
-        return max(1, v)
+        setattr(cls, f"_{field.name}", max(1, v))
+        return v
+
+    @validator("random_state", always=True)
+    def validate_random_state(
+        cls: ModelMetaclass, v: Optional[NonNegativeInt], field: ModelField
+    ) -> Optional[NonNegativeInt]:
+        """Validate random_state."""
+        setattr(cls, f"_{field.name}", int(np.random.randint(1, 100_000)) if v is None else v)
+        return v
 
 
 class BaseConditionalInferenceTree(ABC):
@@ -252,8 +256,11 @@ class BaseConditionalInferenceTree(ABC):
         # Private attributes and methods
         self._node_split = _node_split
         self._label_encoder = LabelEncoder()
-        self._max_depth = np.inf if self.max_depth is None else self.max_depth
-        self._random_state = int(np.random.randint(1, 100_000)) if self.random_state is None else self.random_state
+        self._n_permutations_selector = hps._n_permutations_selector
+        self._n_permutations_splitter = hps._n_permutations_splitter
+        self._max_depth = hps._max_depth
+        self._n_jobs = hps._n_jobs
+        self._random_state = hps._random_state
 
     @abstractproperty
     def _validator(self) -> ModelMetaclass:
@@ -287,11 +294,11 @@ class BaseConditionalInferenceTree(ABC):
         if self.max_features is None:
             self._max_features = p
         elif self.max_features == "sqrt":
-            self._max_features = int(np.ceil(np.sqrt(p)))
+            self._max_features = ceil(np.sqrt(p))
         elif self.max_features == "log":
-            self._max_features = int(np.ceil(np.log(p)))
+            self._max_features = ceil(np.log(p))
         elif type(self.max_features) is float:
-            self._max_features = int(np.ceil(self.max_features * p))
+            self._max_features = ceil(self.max_features * p)
         elif type(self.max_features) is int:
             self._max_features = self.max_features
 

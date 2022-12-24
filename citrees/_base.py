@@ -268,13 +268,8 @@ class BaseConditionalInferenceTree(ABC):
         pass
 
     @abstractmethod
-    def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
-        """Calculate node impurity."""
-        pass
-
-    @abstractmethod
-    def _node_value(self, y: np.ndarray) -> float:
-        """Calculate value in terminal node."""
+    def _selector(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> Tuple[int, float]:
+        """Find most correlated feature with label."""
         pass
 
     @abstractmethod
@@ -283,8 +278,13 @@ class BaseConditionalInferenceTree(ABC):
         pass
 
     @abstractmethod
-    def _selector(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> Tuple[int, float]:
-        """Find most correlated feature with label."""
+    def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
+        """Calculate node impurity."""
+        pass
+
+    @abstractmethod
+    def _node_value(self, y: np.ndarray) -> float:
+        """Calculate value in terminal node."""
         pass
 
     def _calculate_max_features(self) -> None:

@@ -128,6 +128,42 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         """Validation model for estimator's hyperparameters."""
         return ConditionalInferenceTreeClassifierParameters
 
+    def _selector(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, float]:
+        """Find most correlated feature with label.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Features for node.
+
+        y : np.ndarray
+            Labels for node.
+
+        Returns
+        -------
+        Tuple[int, float]
+            Feature index and probability value with order (feature, feature_pval).
+        """
+        pass
+
+    def _splitter(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
+        """Find optimal threshold for binary split in node.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Features for node.
+
+        y : np.ndarray
+            Labels for node.
+
+        Returns
+        -------
+        Tuple[float, float]
+            Threshold and threshold probability value with order (threshold, threshold_pval).
+        """
+        pass
+
     def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
         """Calculate node impurity.
 
@@ -163,59 +199,3 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             Node value estimate.
         """
         pass
-
-    def _splitter(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
-        """Find optimal threshold for binary split in node.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Features for node.
-
-        y : np.ndarray
-            Labels for node.
-
-        Returns
-        -------
-        Tuple[float, float]
-            Threshold and threshold probability value with order (threshold, threshold_pval).
-        """
-        pass
-
-    def _selector(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, float]:
-        """Find most correlated feature with label.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Features for node.
-
-        y : np.ndarray
-            Labels for node.
-
-        Returns
-        -------
-        Tuple[int, float]
-            Feature index and probability value with order (feature, feature_pval).
-        """
-        pass
-
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "ConditionalInferenceTreeClassifier":
-        """Train conditional inference tree.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Training features.
-
-        y : np.ndarray:
-            Training labels.
-
-        Returns
-        -------
-        self
-            Fitted estimator.
-        """
-        super().fit(X, y)
-
-        return self

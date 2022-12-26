@@ -1,6 +1,6 @@
-from citrees._selector import clf_selectors, mc
+from citrees._selector import selectors, multiple_correlation
 
 
 
-def test_mc():
+def test_multiple_correlation():
     import pdb; pdb.set_trace()

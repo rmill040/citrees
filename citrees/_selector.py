@@ -2,10 +2,10 @@ from numba import njit
 import numpy as np
 from sklearn.feature_selection import mutual_info_classif
 
-from ._registry import clf_selectors, reg_selectors
+from ._registry import selectors
 
 
-@clf_selectors.register("mc")
+@selectors.register("mc")
 @njit(nogil=True, fastmath=True)
 def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> float:
     """Calculate multiple correlation.
@@ -19,7 +19,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> f
         Array of labels.
 
     classes : np.ndarray
-        TODO: ADD HERE.
+        Array of unique class labels.
 
     Returns
     -------
@@ -66,7 +66,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> f
     return np.sqrt(ssb / sst)
 
 
-@clf_selectors.register("mi")
+@selectors.register("mi")
 def mutual_information(x: np.ndarray, y: np.ndarray) -> float:
     """Calculate mutual information.
 
@@ -89,7 +89,7 @@ def mutual_information(x: np.ndarray, y: np.ndarray) -> float:
     return mutual_info_classif(x, y)[0]
 
 
-@reg_selectors.register("pc")
+@selectors.register("pc")
 @njit(nogil=True, fastmath=True)
 def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) -> float:
     """Calculate Pearson correlation.
@@ -147,7 +147,7 @@ def _covariance(x: np.ndarray, y: np.ndarray) -> float:
         sy += yi
         sxy += xi * yi
 
-    return n * sxy - sx * sy
+    return (sxy - (sx * sy / n)) / n
 
 
 @njit(nogil=True, fastmath=True)
@@ -187,8 +187,4 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     ssx = n * sx2 - sx * sx
     ssy = n * sy2 - sy * sy
 
-    # Catch division by zero errors
-    if ssx == 0.0 or ssy == 0.0:
-        return 0.0
-    else:
-        return cov / np.sqrt(ssx * ssy)
+    return 0.0 if ssx == 0.0 or ssy == 0.0 else cov / np.sqrt(ssx * ssy)

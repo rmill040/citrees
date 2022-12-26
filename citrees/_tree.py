@@ -12,14 +12,14 @@ class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeP
 
     Parameters
     ----------
-    splitter : {"gini", "entropy", "chisquare"}, optional (default="gini")
+    splitter : {"gini", "chisquare"}, optional (default="gini")
         Method for split selection.
 
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
     """
 
-    splitter: Literal["gini", "entropy", "chisquare"] = "gini"
+    splitter: Literal["gini", "chisquare"] = "gini"
     selector: Literal["mc", "mi", "hybrid"] = "mc"
 
 
@@ -28,7 +28,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
 
     Parameters
     ----------
-    splitter : {"gini", "entropy", "chisquare"}, optional (default="gini")
+    splitter : {"gini", "chisquare"}, optional (default="gini")
         Method for split selection.
 
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
@@ -46,7 +46,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     threshold_method : {ADD HERE}
         ADD HERE.
 
-    n_bins : int, optional (default=256)
+    max_thresholds : int, optional (default=256)
         Number of bins to use when using histogram splitters.
 
     early_stopping_selector : bool, optional (default=True)
@@ -84,7 +84,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         adjust_alpha_feature=False,
         adjust_alpha_split=False,
         threshold_method="exact",
-        n_bins=256,
+        max_thresholds=None,
         early_stopping_selector=True,
         early_stopping_splitter=True,
         feature_muting=True,
@@ -107,7 +107,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             adjust_alpha_feature=adjust_alpha_feature,
             adjust_alpha_split=adjust_alpha_split,
             threshold_method=threshold_method,
-            n_bins=n_bins,
+            max_thresholds=max_thresholds,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,

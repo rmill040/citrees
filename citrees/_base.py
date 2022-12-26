@@ -103,17 +103,17 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
     alpha_feature: ConstrainedFloat(ge=_MIN_ALPHA, le=1.0) = 0.05
     alpha_split: ConstrainedFloat(ge=_MIN_ALPHA, le=1.0) = 0.05
-    bonferroni_correction_feature: bool = True
-    bonferroni_correction_split: bool = True
+    adjust_alpha_feature: bool = True
+    adjust_alpha_split: bool = True
     early_stopping_selector: bool = True
     early_stopping_splitter: bool = True
     n_permutations_selector: Union[Literal["auto"], ConstrainedInt(gt=0, lt=_MAX_PERMUTATIONS)] = "auto"
     n_permutations_splitter: Union[Literal["auto"], ConstrainedInt(gt=0, lt=_MAX_PERMUTATIONS)] = "auto"
     feature_muting: bool = True
-    threshold_method: Literal["exact", "random", "hist-local", "hist-global"]
-    max_thresholds: PositiveInt = 64
-    max_depth: Optional[PositiveInt] = None
+    threshold_method: Literal["exact", "random", "histogram", "percentile"]
+    max_thresholds: Optional[Union[ConstrainedFloat(gt=0.0, le=1.0), PositiveInt]] = None
     max_features: Optional[Union[PositiveInt, ConstrainedFloat(gt=0.0, le=1.0), Literal["sqrt", "log2"]]] = None
+    max_depth: Optional[PositiveInt] = None
     min_samples_split: ConstrainedInt(ge=2) = 2
     min_samples_leaf: PositiveInt = 1
     min_impurity_decrease: NonNegativeFloat = 0.0
@@ -121,16 +121,33 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     random_state: Optional[NonNegativeInt] = None
     verbose: NonNegativeInt = 1
 
+    @validator("max_thresholds", always=True)
+    def validate_max_thresholds(
+        cls: ModelMetaclass,
+        v: Optional[Union[ConstrainedFloat(gt=0.0, le=1.0), PositiveInt]],
+        field: ModelField,
+        values: Dict[str, Any],
+    ) -> Optional[Union[ConstrainedFloat(gt=0.0, le=1.0), PositiveInt]]:
+        """Validate max_thresholds."""
+        if values["threshold_method"] == "exact":
+            _v = None
+        elif values["threshold_method"] == "random":
+            _v = 0.25
+        elif values["threshold_method"] == "histogram":
+            _v = 64
+        elif values["threshold_method"] == "percentile":
+            _v = 20
+
+        setattr(cls, f"_{field.name}", _v)
+
+        return v
+
     @validator("n_permutations_selector", "n_permutations_splitter", always=True)
     def validate_n_permutations(
         cls: ModelMetaclass, v: Union[Literal["auto"], PositiveInt], field: ModelField, values: Dict[str, Any]
     ) -> Union[Literal["auto"], PositiveInt]:
         """Validate n_permutations_selector."""
-        if field.name == "n_permutations_selector":
-            alpha = values.get("alpha_feature")
-        else:
-            alpha = values.get("alpha_split")
-
+        alpha = values.get("alpha_feature") if field.name == "n_permutations_selector" else values.get("alpha_split")
         ll = ceil(1 / alpha)
         if v == "auto":
             # Approximate upper limit
@@ -192,14 +209,14 @@ class BaseConditionalInferenceTree(ABC):
         adjust_alpha_feature: bool,
         adjust_alpha_split: bool,
         threshold_method: str,
-        n_bins: int,
+        max_thresholds: Optional[Union[str, float, int]],
         early_stopping_selector: bool,
         early_stopping_splitter: bool,
         feature_muting: bool,
-        n_permutations_selector: int,
-        n_permutations_splitter: int,
+        n_permutations_selector: Union[str, int],
+        n_permutations_splitter: Union[str, int],
         max_depth: Optional[int],
-        max_features: Optional[int],
+        max_features: Optional[Union[str, float, int]],
         min_samples_split: int,
         min_samples_leaf: int,
         min_impurity_decrease: float,
@@ -215,7 +232,7 @@ class BaseConditionalInferenceTree(ABC):
             adjust_alpha_feature=adjust_alpha_feature,
             adjust_alpha_split=adjust_alpha_split,
             threshold_method=threshold_method,
-            n_bins=n_bins,
+            max_thresholds=max_thresholds,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,
@@ -238,7 +255,7 @@ class BaseConditionalInferenceTree(ABC):
         self.adjust_alpha_feature = hps.adjust_alpha_feature
         self.adjust_alpha_split = hps.adjust_alpha_split
         self.threshold_method = hps.threshold_method
-        self.n_bins = hps.n_bins
+        self.max_thresholds = hps.max_thresholds
         self.early_stopping_selector = hps.early_stopping_selector
         self.early_stopping_splitter = hps.early_stopping_splitter
         self.feature_muting = hps.feature_muting
@@ -256,15 +273,24 @@ class BaseConditionalInferenceTree(ABC):
         # Private attributes and methods
         self._node_split = _node_split
         self._label_encoder = LabelEncoder()
-        self._n_permutations_selector = hps._n_permutations_selector
-        self._n_permutations_splitter = hps._n_permutations_splitter
-        self._max_depth = hps._max_depth
-        self._n_jobs = hps._n_jobs
-        self._random_state = hps._random_state
+        for param in self.get_params().keys():
+            name = f"_{param}"
+            if hasattr(hps, name):
+                setattr(self, name, getattr(hps, name))
+
+    def __str__(self) -> str:
+        """Class as string."""
+        return self.__repr__()
+
+    def __repr__(self) -> str:
+        """Class as string."""
+        params = self.get_params()
+        class_name = self.__class__.__name__
+        return class_name + str(params).replace(": ", "=").replace("'", "").replace("{", "(").replace("}", ")")
 
     @abstractproperty
     def _validator(self) -> ModelMetaclass:
-        """Validation model for estimator's hyperparameters."""
+        """Model to validate estimator's hyperparameters."""
         pass
 
     @abstractmethod
@@ -301,10 +327,6 @@ class BaseConditionalInferenceTree(ABC):
             self._max_features = ceil(self.max_features * p)
         elif type(self.max_features) is int:
             self._max_features = self.max_features
-
-        # Catch cases where out of bounds values
-        if self._max_features > p:
-            self._max_features = p
 
     def _feature_muting(self, feature: int) -> None:
         """Mute feature from being selected during tree building.
@@ -359,7 +381,7 @@ class BaseConditionalInferenceTree(ABC):
         # Check for stopping critera at feature selection level
         if feature_pval < self.alpha_feature:
             # Split selection
-            thresholds = np.random.choice(np.unique(X[:, feature]), size=self.n_bins)
+            thresholds = np.random.choice(np.unique(X[:, feature]), size=self.max_thresholds)
             threshold, threshold_pval = self._splitter(X[:, feature], y, thresholds)
 
         # Check for stopping criteria at split selection level

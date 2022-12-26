@@ -2,4 +2,4 @@
 
 # citrees
 
-Bayesian conditional inference trees and forests in Python
+Conditional inference trees and forests in Python

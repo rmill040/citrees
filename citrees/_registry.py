@@ -90,8 +90,5 @@ class Registry:
         return wrapper
 
 
-clf_splitters = Registry("clf-splitters")
-clf_selectors = Registry("clf-selectors")
-
-reg_splitters = Registry("reg-splitters")
-reg_selectors = Registry("reg-selectors")
+splitters = Registry("splitters")
+selectors = Registry("selectors")

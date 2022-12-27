@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod, abstractproperty
 from math import ceil
 from multiprocessing import cpu_count
-from typing import Any, Dict, Optional, Literal, Tuple, TypedDict, Union
+from typing import Any, Dict, Literal, Optional, Tuple, TypedDict, Union
 
+import numpy as np
 from loguru import logger
 from numba import njit
-import numpy as np
 from pydantic import BaseModel, confloat, conint, NonNegativeFloat, NonNegativeInt, PositiveInt, validator
 from pydantic.fields import ModelField
 from pydantic.main import ModelMetaclass
@@ -26,43 +26,43 @@ class Node(TypedDict, total=False):
 
     Parameters
     ----------
-    feature : int, optional (default=None)
+    feature : int, optional
         Column index of feature.
 
-    feature_pval : float, optional (default=None)
+    feature_pval : float, optional
         Probability value from feature selection.
 
-    threshold : float, optional (default=None)
+    threshold : float, optional
         Best split point found in feature.
 
-    threshold_pval : float, optional (default=None)
+    threshold_pval : float, optional
         Probability value from split selection.
 
-    impurity : float, optional (default=None)
+    impurity : float, optional
         Impurity measuring quality of split.
 
-    value : Union[np.ndarray, float], optional (default=None)
+    value : Union[np.ndarray, float], optional
         Estimate of class probabilities for classification trees and estimate of central tendency for regression trees.
 
-    left_child : Node
+    left_child : Node, optional
         Left child node where feature value met the threshold.
 
-    right_child : Node
+    right_child : Node, optional
         Left child node where feature value did not meet the threshold.
 
-    n_samples : int, optional (default=None)
+    n_samples : int, optional
         Number of samples at the node.
     """
 
-    feature: Optional[int] = None
-    feature_pval: Optional[float] = None
-    threshold: Optional[float] = None
-    threshold_pval: Optional[float] = None
-    impurity: Optional[float] = None
-    value: Optional[Union[np.ndarray, float]] = None
-    left_child: Optional["Node"] = None
-    right_child: Optional["Node"] = None
-    n_samples: Optional[int] = None
+    feature: Optional[int]
+    feature_pval: Optional[float]
+    threshold: Optional[float]
+    threshold_pval: Optional[float]
+    impurity: Optional[float]
+    value: Optional[Union[np.ndarray, float]]
+    left_child: Optional["Node"]
+    right_child: Optional["Node"]
+    n_samples: Optional[int]
 
 
 @njit(fastmath=True, nogil=True, parallel=True)
@@ -378,7 +378,7 @@ class BaseConditionalInferenceTree(ABC):
             features = np.random.choice(self._available_features, size=self._max_features, replace=False)
             feature, feature_pval = self._selector(X, y, features)
 
-        # Check for stopping critera at feature selection level
+        # Check for stopping criteria at feature selection level
         if feature_pval < self.alpha_feature:
             # Split selection
             thresholds = np.random.choice(np.unique(X[:, feature]), size=self.max_thresholds)

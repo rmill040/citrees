@@ -1,6 +1,7 @@
-from citrees._selector import selectors, multiple_correlation
-
+from citrees._selector import multiple_correlation, selectors
 
 
 def test_multiple_correlation():
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()

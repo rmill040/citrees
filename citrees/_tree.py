@@ -144,7 +144,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         Tuple[int, float]
             Feature index and probability value with order (feature, feature_pval).
         """
-        pass
+        return (1, 0.0)
 
     def _splitter(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
         """Find optimal threshold for binary split in node.
@@ -162,7 +162,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         Tuple[float, float]
             Threshold and threshold probability value with order (threshold, threshold_pval).
         """
-        pass
+        return (0.0, 0.0)
 
     def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
         """Calculate node impurity.
@@ -183,7 +183,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         float
             Node impurity measure.
         """
-        pass
+        return 0.0
 
     def _node_value(self, y: np.ndarray) -> float:
         """Calculate value in terminal node.
@@ -198,4 +198,4 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         float
             Node value estimate.
         """
-        pass
+        return 0.0

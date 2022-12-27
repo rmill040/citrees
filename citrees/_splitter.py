@@ -1,6 +1,5 @@
-from numba import njit
 import numpy as np
-
+from numba import njit
 
 from ._registry import splitters
 
@@ -9,10 +8,10 @@ from ._registry import splitters
 @njit(cache=True, fastmath=True, nogil=True)
 def gini_index(y: np.ndarray) -> float:
     """ADD HERE.
-    
+
     Parameters
     ----------
-    
+
     Returns
     -------
     """

@@ -1,17 +1,24 @@
-# from citrees._regitry import Splitters
+from numba import njit
+import numpy as np
 
 
-# class BaseSplitter:
-#     pass
+from ._registry import splitters
 
 
-# class BestSplitter:
-#     pass
+@splitters.register("gini")
+@njit(cache=True, fastmath=True, nogil=True)
+def gini_index(y: np.ndarray) -> float:
+    """ADD HERE.
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    if y.ndim > 1:
+        y = y.ravel()
 
-
-# class RandomSplitter:
-#     pass
-
-
-# class HistogramSplitter:
-#     pass
+    n = len(y)
+    p = np.bincount(y) / n
+    return 1 - np.sum(p * p)

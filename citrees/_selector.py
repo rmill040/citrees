@@ -1,3 +1,5 @@
+from dcor import distance_correlation as _d_correlation
+from dcor import distance_covariance as _d_covariance
 import numpy as np
 from numba import njit
 from sklearn.feature_selection import mutual_info_classif
@@ -188,3 +190,21 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     ssy = n * sy2 - sy * sy
 
     return 0.0 if ssx == 0.0 or ssy == 0.0 else cov / np.sqrt(ssx * ssy)
+
+
+@selectors.register("dc")
+def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) -> float:
+    """ADD HERE.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    if x.ndim > 1:
+        x = x.ravel()
+    if y.ndim > 1:
+        y = y.ravel()
+
+    return _d_correlation(x, y) if standardize else _d_covariance(x, y)

@@ -160,6 +160,27 @@ tomli = {version = "*", optional = true, markers = "python_full_version <= \"3.1
 toml = ["tomli"]
 
 [[package]]
+name = "dcor"
+version = "0.6"
+description = "dcor: distance correlation and energy statistics in Python."
+category = "main"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "dcor-0.6-py3-none-any.whl", hash = "sha256:de306fc666668188749730fc803fc1d4d804d9886c92b622ba57b434fed395a2"},
+    {file = "dcor-0.6.tar.gz", hash = "sha256:f5d39776101db4787348e6be6cd9369341efeb40b070509a30d5c57185558431"},
+]
+
+[package.dependencies]
+joblib = "*"
+numba = ">=0.51"
+numpy = "*"
+scipy = "*"
+
+[package.extras]
+test = ["numba (>=0.56)", "numpy (>=1.22)", "pytest", "pytest-cov", "pytest-subtests"]
+
+[[package]]
 name = "distlib"
 version = "0.3.6"
 description = "Distribution utilities"
@@ -1018,4 +1039,4 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.11"
-content-hash = "3d5565f3792077c745a0e4a9f0ca57a53603fb2315216a0b17326704fc1c2fa5"
+content-hash = "ff2a041b9b823e11b69fbc202a0b1070fa09c784ca3d69c3a5e85d90d45b7c00"

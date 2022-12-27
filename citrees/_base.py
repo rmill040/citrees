@@ -65,7 +65,7 @@ class Node(TypedDict, total=False):
     n_samples: Optional[int]
 
 
-@njit(fastmath=True, nogil=True, parallel=True)
+@njit(fastmath=True, nogil=True)
 def _node_split(
     X: np.ndarray, y: np.ndarray, feature: int, threshold: float
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:

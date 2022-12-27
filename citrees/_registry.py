@@ -90,5 +90,6 @@ class Registry:
         return wrapper
 
 
-splitters = Registry("splitters")
 selectors = Registry("selectors")
+splitters = Registry("splitters")
+thresholds = Registry("thresholds")

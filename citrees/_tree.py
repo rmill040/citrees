@@ -1,10 +1,13 @@
-from typing import Literal, Tuple
+from typing import Any, Dict, Literal, Tuple
 
 import numpy as np
+from pydantic import validator
+from pydantic.fields import ModelField
 from pydantic.main import ModelMetaclass
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 from ._base import BaseConditionalInferenceTree, BaseConditionalInferenceTreeParameters
+from ._selector import ClassifierSelectors
 
 
 class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeParameters):
@@ -21,6 +24,13 @@ class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeP
 
     splitter: Literal["gini", "chisquare"] = "gini"
     selector: Literal["mc", "mi", "hybrid"] = "mc"
+    
+    @validator("selector")
+    def validate_selector(cls: ModelMetaclass, v: str, values: Dict[str, Any], field: ModelField) -> str:
+        """ADD HERE."""
+        
+        setattr(cls, f"_{field.name}", _v)
+
 
 
 class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstimator, ClassifierMixin):
@@ -34,17 +44,22 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
 
-    splitter : {"random", "hist-local", "hist-global"}
-        Method for split selection.
-
-    alpha_feature : float, optional (default=0.05)
+    alpha_selector : float, optional (default=0.05)
         Alpha for feature selection.
 
-    alpha_split : float, optional (default=0.05)
+    alpha_splitter : float, optional (default=0.05)
         Alpha for split selection.
 
-    threshold_method : {ADD HERE}
+    adjust_alpha_selector : bool, optional (default=True)
         ADD HERE.
+
+    adjust_alpha_splitter : bool, optional (default=True)
+        ADD HERE.
+
+    ...
+
+    threshold_method : {"exact", "random", "histogram", "percentile"}, optional (default="exact")
+        Method to calculate thresholds for a feature used during split selection.
 
     max_thresholds : int, optional (default=256)
         Number of bins to use when using histogram splitters.
@@ -59,16 +74,16 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     Attributes
     ----------
     classes_ : np.ndarray
-        ADD HERE.
+        Unique class labels.
 
     n_classes_ : int
-        ADD HERE.
+        Number of classes.
 
     feature_importances_ : np.ndarray
-        ADD HERE.
+        Feature importances estimated during training.
 
     n_features_in_ : int
-        ADD HERE.
+        Number of
 
     tree_ : Node
         ADD HERE.
@@ -79,17 +94,17 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         *,
         splitter="gini",
         selector="mc",
-        alpha_feature=0.05,
-        alpha_split=0.05,
-        adjust_alpha_feature=False,
-        adjust_alpha_split=False,
+        alpha_selector=0.05,
+        alpha_splitter=0.05,
+        adjust_alpha_selector=False,
+        adjust_alpha_splitter=False,
         threshold_method="exact",
         max_thresholds=None,
         early_stopping_selector=True,
         early_stopping_splitter=True,
         feature_muting=True,
-        n_permutations_selector="auto",
-        n_permutations_splitter="auto",
+        n_resamples_selector="auto",
+        n_resamples_splitter="auto",
         max_depth=None,
         max_features=None,
         min_samples_split=2,
@@ -102,17 +117,17 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         super().__init__(
             selector=selector,
             splitter=splitter,
-            alpha_feature=alpha_feature,
-            alpha_split=alpha_split,
-            adjust_alpha_feature=adjust_alpha_feature,
-            adjust_alpha_split=adjust_alpha_split,
+            alpha_selector=alpha_selector,
+            alpha_splitter=alpha_splitter,
+            adjust_alpha_selector=adjust_alpha_selector,
+            adjust_alpha_splitter=adjust_alpha_splitter,
             threshold_method=threshold_method,
             max_thresholds=max_thresholds,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,
-            n_permutations_selector=n_permutations_selector,
-            n_permutations_splitter=n_permutations_splitter,
+            n_resamples_selector=n_resamples_selector,
+            n_resamples_splitter=n_resamples_splitter,
             max_depth=max_depth,
             max_features=max_features,
             min_samples_split=min_samples_split,
@@ -127,42 +142,6 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     def _validator(self) -> ModelMetaclass:
         """Validation model for estimator's hyperparameters."""
         return ConditionalInferenceTreeClassifierParameters
-
-    def _selector(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, float]:
-        """Find most correlated feature with label.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Features for node.
-
-        y : np.ndarray
-            Labels for node.
-
-        Returns
-        -------
-        Tuple[int, float]
-            Feature index and probability value with order (feature, feature_pval).
-        """
-        return (1, 0.0)
-
-    def _splitter(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
-        """Find optimal threshold for binary split in node.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Features for node.
-
-        y : np.ndarray
-            Labels for node.
-
-        Returns
-        -------
-        Tuple[float, float]
-            Threshold and threshold probability value with order (threshold, threshold_pval).
-        """
-        return (0.0, 0.0)
 
     def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
         """Calculate node impurity.

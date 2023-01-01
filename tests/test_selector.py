@@ -1,4 +1,4 @@
-from citrees._selector import multiple_correlation, selectors
+from citrees._selector import multiple_correlation
 
 
 def test_multiple_correlation():

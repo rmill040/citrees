@@ -1,27 +1,73 @@
+from math import ceil
+from typing import Any, Optional
+
 from dcor import distance_correlation as _d_correlation
 from dcor import distance_covariance as _d_covariance
 import numpy as np
 from numba import njit
 from sklearn.feature_selection import mutual_info_classif
 
-from ._registry import selectors
+from ._registry import ClassifierSelectors, RegressorSelectors
 
 
-@selectors.register("mc")
+def _permutation_test(
+    func: Any,
+    func_arg: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
+    """Perform a permutation test."""
+    np.random.seed(random_state)
+
+    theta = func(x, y, func_arg)
+    y_ = y.copy()
+    theta_p = np.empty(n_resamples)
+
+    if early_stopping:
+        asl = None
+        # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
+        min_resamples = ceil(1 / alpha)
+        if n_resamples < min_resamples:
+            n_resamples = min_resamples + 1
+        for i in range(n_resamples):
+            np.random.shuffle(y_)
+            theta_p[i] = func(x, y_, func_arg)
+            if i >= min_resamples:
+                asl = np.mean(theta_p[: i + 1] >= theta)
+                if asl < alpha:
+                    break
+
+    else:
+        for i in range(n_resamples):
+            np.random.shuffle(y_)
+            theta_p[i] = func(x, y_, func_arg)
+        asl = np.mean(theta_p >= theta)
+
+    return asl
+
+
+# Compiled version of permutation test
+_permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
+
+
 @njit(nogil=True, fastmath=True)
 def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> float:
-    """Calculate multiple correlation.
+    """Calculate the multiple correlation coefficient.
 
     Parameters
     ----------
     x : np.ndarray
-        Array of features.
+        Feature values.
 
     y : np.ndarray
-        Array of labels.
+        Label values.
 
     classes : np.ndarray
-        Array of unique class labels.
+        Unique class labels.
 
     Returns
     -------
@@ -68,17 +114,19 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> f
     return np.sqrt(ssb / sst)
 
 
-@selectors.register("mi")
-def mutual_information(x: np.ndarray, y: np.ndarray) -> float:
-    """Calculate mutual information.
+def mutual_information(x: np.ndarray, y: np.ndarray, classes: Optional[np.ndarray] = None) -> float:
+    """Calculate the mutual information.
 
     Parameters
     ----------
     x : np.ndarray
-        Array of features.
+        Feature values.
 
     y : np.ndarray
-        Array of labels.
+        Label values.
+
+    classes : np.ndarray
+        Unique class labels.
 
     Returns
     -------
@@ -91,21 +139,20 @@ def mutual_information(x: np.ndarray, y: np.ndarray) -> float:
     return mutual_info_classif(x, y)[0]
 
 
-@selectors.register("pc")
 @njit(nogil=True, fastmath=True)
 def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) -> float:
-    """Calculate Pearson correlation.
+    """Calculate the Pearson correlation coefficient.
 
     Parameters
     ----------
     x : np.ndarray
-        Array of features.
+        Feature values.
 
     y : np.ndarray
-        Array of labels.
+        Label values.
 
-    standardize : bool, optional (default=True)
-        Whether to standardize the return value, if True, Pearson correlation returned, if False covariance returned.
+    standardize : np.ndarray, optional (default=True)
+        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
     Returns
     -------
@@ -122,15 +169,15 @@ def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) 
 
 @njit(nogil=True, fastmath=True)
 def _covariance(x: np.ndarray, y: np.ndarray) -> float:
-    """Calculate covariance.
+    """Calculate the covariance.
 
     Parameters
     ----------
     x : np.ndarray
-        Array of features.
+        Feature values.
 
     y : np.ndarray
-        Array of labels.
+        Label values.
 
     Returns
     -------
@@ -154,15 +201,15 @@ def _covariance(x: np.ndarray, y: np.ndarray) -> float:
 
 @njit(nogil=True, fastmath=True)
 def _correlation(x: np.ndarray, y: np.ndarray) -> float:
-    """Calculate Pearson correlation.
+    """Calculate the Pearson correlation coefficient.
 
     Parameters
     ----------
     x : np.ndarray
-        Array of features.
+        Feature values.
 
     y : np.ndarray
-        Array of labels.
+        Label values.
 
     Returns
     -------
@@ -192,15 +239,24 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     return 0.0 if ssx == 0.0 or ssy == 0.0 else cov / np.sqrt(ssx * ssy)
 
 
-@selectors.register("dc")
 def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) -> float:
-    """ADD HERE.
+    """Calculate the distance correlation.
 
     Parameters
     ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Label values.
+
+    standardize : np.ndarray, optional (default=True)
+        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
     Returns
     -------
+    float
+        Estimated distance correlation.
     """
     if x.ndim > 1:
         x = x.ravel()
@@ -208,3 +264,287 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True)
         y = y.ravel()
 
     return _d_correlation(x, y) if standardize else _d_covariance(x, y)
+
+
+@ClassifierSelectors.register("mc")
+def permutation_test_multiple_correlation(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    classes: np.ndarray,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
+    """Perform a permutation test using the multiple correlation coefficient.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Label values.
+
+    classes : np.ndarray
+        Unique class labels.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    return _permutation_test_compiled(
+        func=multiple_correlation,
+        func_arg=classes,
+        x=x,
+        y=y,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )
+
+
+@ClassifierSelectors.register("mi")
+def permutation_test_mutual_information(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    classes: np.ndarray,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int = 0,
+) -> float:
+    """Perform a permutation test using the mutual information.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Label values.
+
+    classes : np.ndarray
+        Unique class labels.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int, optional (default=0)
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    return _permutation_test(
+        func=mutual_information,
+        func_arg=classes,
+        x=x,
+        y=y,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )
+
+
+@ClassifierSelectors.register("hybrid")
+def permutation_test_hybrid_classifier(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    classes: np.ndarray,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int = 0,
+) -> float:
+    """Perform a permutation test using either the multiple correlation coefficient or mutual information, whichever is
+    larger on the original data.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Label values.
+
+    classes : np.ndarray
+        Unique class labels.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int, optional (default=0)
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    mc = multiple_correlation(x, y, classes)
+    mi = mutual_information(x, y, classes)
+
+    if mc >= mi:
+        return permutation_test_multiple_correlation(
+            x=x,
+            y=y,
+            classes=classes,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+        )
+    else:
+        return permutation_test_mutual_information(
+            x=x,
+            y=y,
+            classes=classes,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+        )
+
+
+@RegressorSelectors.register("pc")
+def permutation_test_pearson_correlation(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    standardize: bool,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int = 0,
+) -> float:
+    """Perform a permutation test using the Pearson correlation coefficient.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Label values.
+
+    standardize : np.ndarray
+        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int, optional (default=0)
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    return _permutation_test_compiled(
+        func=pearson_correlation,
+        func_arg=standardize,
+        x=x,
+        y=y,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )
+
+
+@RegressorSelectors.register("dc")
+def permutation_test_distance_correlation(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    standardize: bool,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int = 0,
+) -> float:
+    """Perform a permutation test using the distsance correlation coefficient.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Label values.
+
+    standardize : np.ndarray
+        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int, optional (default=0)
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    return _permutation_test(
+        func=distance_correlation,
+        func_arg=standardize,
+        x=x,
+        y=y,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )

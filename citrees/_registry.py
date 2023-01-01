@@ -4,7 +4,7 @@ T = TypeVar("T")
 
 
 class Registry:
-    """Used to register callables so that a universal object builder can be enabled.
+    """Register callables to create a universal object builder.
 
     Parameters
     ----------
@@ -90,6 +90,9 @@ class Registry:
         return wrapper
 
 
-selectors = Registry("selectors")
-splitters = Registry("splitters")
-thresholds = Registry("thresholds")
+# Define registries
+ClassifierSelectors = Registry("ClassifierSelectors")
+RegressorSelectors = Registry("RegressorSelectors")
+ClassifierSplitters = Registry("ClassifierSplitters")
+RegressorSplitters = Registry("RegressorSplitters")
+ThresholdMethods = Registry("ThresholdMethods")

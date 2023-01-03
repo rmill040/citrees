@@ -8,6 +8,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 
 from ._base import BaseConditionalInferenceTree, BaseConditionalInferenceTreeParameters
 from ._selector import ClassifierSelectors
+from ._splitter import ClassifierSplitters
 
 
 class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeParameters):
@@ -15,22 +16,20 @@ class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeP
 
     Parameters
     ----------
-    splitter : {"gini", "chisquare"}, optional (default="gini")
-        Method for split selection.
-
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
+
+    splitter : {"gini", "chisquare"}, optional (default="gini")
+        Method for split selection.
     """
 
-    splitter: Literal["gini", "chisquare"] = "gini"
     selector: Literal["mc", "mi", "hybrid"] = "mc"
-    
-    @validator("selector")
-    def validate_selector(cls: ModelMetaclass, v: str, values: Dict[str, Any], field: ModelField) -> str:
-        """ADD HERE."""
-        
-        setattr(cls, f"_{field.name}", _v)
+    splitter: Literal["gini", "chisquare"] = "gini"
 
+    @validator("selector")
+    def f(cls, v):
+        setattr(cls, "_selector", ClassifierSelectors[v])
+        return v
 
 
 class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstimator, ClassifierMixin):
@@ -38,11 +37,11 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
 
     Parameters
     ----------
-    splitter : {"gini", "chisquare"}, optional (default="gini")
-        Method for split selection.
-
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
+
+    splitter : {"gini", "chisquare"}, optional (default="gini")
+        Method for split selection.
 
     alpha_selector : float, optional (default=0.05)
         Alpha for feature selection.
@@ -92,12 +91,12 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     def __init__(
         self,
         *,
-        splitter="gini",
         selector="mc",
+        splitter="gini",
         alpha_selector=0.05,
         alpha_splitter=0.05,
-        adjust_alpha_selector=False,
-        adjust_alpha_splitter=False,
+        adjust_alpha_selector=True,
+        adjust_alpha_splitter=True,
         threshold_method="exact",
         max_thresholds=None,
         early_stopping_selector=True,

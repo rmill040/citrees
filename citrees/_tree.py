@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Tuple
+from typing import Literal
 
 import numpy as np
 from pydantic import validator
@@ -7,8 +7,8 @@ from pydantic.main import ModelMetaclass
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 from ._base import BaseConditionalInferenceTree, BaseConditionalInferenceTreeParameters
-from ._selector import ClassifierSelectors
-from ._splitter import ClassifierSplitters
+from ._selector import ClassifierSelectors, ClassifierSelectorTests
+from ._splitter import ClassifierSplitters, ClassifierSplitterTests
 
 
 class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeParameters):
@@ -19,16 +19,25 @@ class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeP
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
 
-    splitter : {"gini", "chisquare"}, optional (default="gini")
+    splitter : {"gini", "entropy"}, optional (default="gini")
         Method for split selection.
     """
 
     selector: Literal["mc", "mi", "hybrid"] = "mc"
-    splitter: Literal["gini", "chisquare"] = "gini"
+    splitter: Literal["gini", "entropy"] = "gini"
 
     @validator("selector")
-    def f(cls, v):
-        setattr(cls, "_selector", ClassifierSelectors[v])
+    def validate_selector(cls: ModelMetaclass, v: str, field: ModelField) -> str:
+        """Validate selector."""
+        setattr(cls, f"_{field.name}", ClassifierSelectors[v])
+        setattr(cls, f"_{field.name}_test", ClassifierSelectorTests[v])
+        return v
+
+    @validator("splitter")
+    def validate_splitter(cls, v: str, field: ModelField) -> str:
+        """Validate splitter."""
+        setattr(cls, f"_{field.name}", ClassifierSplitters[v])
+        setattr(cls, f"_{field.name}_test", ClassifierSplitterTests[v])
         return v
 
 
@@ -40,7 +49,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     selector : {"mc", "mi", "hybrid"}, optional (default="mc")
         Method for feature selection.
 
-    splitter : {"gini", "chisquare"}, optional (default="gini")
+    splitter : {"gini", "entropy"}, optional (default="gini")
         Method for split selection.
 
     alpha_selector : float, optional (default=0.05)
@@ -141,27 +150,6 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     def _validator(self) -> ModelMetaclass:
         """Validation model for estimator's hyperparameters."""
         return ConditionalInferenceTreeClassifierParameters
-
-    def _node_impurity(self, y: np.ndarray, y_left: np.ndarray, y_right: np.ndarray) -> float:
-        """Calculate node impurity.
-
-        Parameters
-        ----------
-        y : np.ndarray
-            Labels for parent node.
-
-        y_left : np.ndarray
-            Labels for left child node.
-
-        y_right : np.ndarray
-            Labels for right child node.
-
-        Returns
-        -------
-        float
-            Node impurity measure.
-        """
-        return 0.0
 
     def _node_value(self, y: np.ndarray) -> float:
         """Calculate value in terminal node.

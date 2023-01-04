@@ -92,7 +92,11 @@ class Registry:
 
 # Define registries
 ClassifierSelectors = Registry("ClassifierSelectors")
+ClassifierSelectorTests = Registry("ClassifierSelectorTests")
 RegressorSelectors = Registry("RegressorSelectors")
+RegressorSelectorTests = Registry("RegressorSelectorTests")
 ClassifierSplitters = Registry("ClassifierSplitters")
+ClassifierSplitterTests = Registry("ClassifierSplitterTests")
 RegressorSplitters = Registry("RegressorSplitters")
+RegressorSplitterTests = Registry("RegressorSplitterTests")
 ThresholdMethods = Registry("ThresholdMethods")

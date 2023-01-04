@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit
 from sklearn.feature_selection import mutual_info_classif
 
-from ._registry import ClassifierSelectors, RegressorSelectors
+from ._registry import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
 
 
 def _permutation_test(
@@ -32,7 +32,7 @@ def _permutation_test(
         # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
         min_resamples = ceil(1 / alpha)
         if n_resamples < min_resamples:
-            n_resamples = min_resamples + 1
+            n_resamples = min_resamples
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg)
@@ -54,6 +54,7 @@ def _permutation_test(
 _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 
 
+@ClassifierSelectors.register("mc")
 @njit(nogil=True, fastmath=True)
 def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> float:
     """Calculate the multiple correlation coefficient.
@@ -114,6 +115,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> f
     return np.sqrt(ssb / sst)
 
 
+@ClassifierSelectors.register("mi")
 def mutual_information(x: np.ndarray, y: np.ndarray, classes: Optional[np.ndarray] = None) -> float:
     """Calculate the mutual information.
 
@@ -139,6 +141,7 @@ def mutual_information(x: np.ndarray, y: np.ndarray, classes: Optional[np.ndarra
     return mutual_info_classif(x, y)[0]
 
 
+@RegressorSelectors.register("pc")
 @njit(nogil=True, fastmath=True)
 def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) -> float:
     """Calculate the Pearson correlation coefficient.
@@ -239,6 +242,7 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     return 0.0 if ssx == 0.0 or ssy == 0.0 else cov / np.sqrt(ssx * ssy)
 
 
+@RegressorSelectors.register("dc")
 def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) -> float:
     """Calculate the distance correlation.
 
@@ -266,7 +270,7 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True)
     return _d_correlation(x, y) if standardize else _d_covariance(x, y)
 
 
-@ClassifierSelectors.register("mc")
+@ClassifierSelectorTests.register("mc")
 def permutation_test_multiple_correlation(
     *,
     x: np.ndarray,
@@ -320,7 +324,7 @@ def permutation_test_multiple_correlation(
     )
 
 
-@ClassifierSelectors.register("mi")
+@ClassifierSelectorTests.register("mi")
 def permutation_test_mutual_information(
     *,
     x: np.ndarray,
@@ -374,7 +378,7 @@ def permutation_test_mutual_information(
     )
 
 
-@ClassifierSelectors.register("hybrid")
+@ClassifierSelectorTests.register("hybrid")
 def permutation_test_hybrid_classifier(
     *,
     x: np.ndarray,
@@ -442,7 +446,7 @@ def permutation_test_hybrid_classifier(
         )
 
 
-@RegressorSelectors.register("pc")
+@RegressorSelectorTests.register("pc")
 def permutation_test_pearson_correlation(
     *,
     x: np.ndarray,
@@ -496,7 +500,7 @@ def permutation_test_pearson_correlation(
     )
 
 
-@RegressorSelectors.register("dc")
+@RegressorSelectorTests.register("dc")
 def permutation_test_distance_correlation(
     *,
     x: np.ndarray,

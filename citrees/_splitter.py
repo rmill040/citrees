@@ -1,15 +1,17 @@
-from typing import Optional
+from math import ceil
+from typing import Any, Optional
 
 import numpy as np
 from numba import njit
 
-from ._registry import ClassifierSplitters, ThresholdMethods
+from ._registry import ClassifierSplitters, ClassifierSplitterTests, ThresholdMethods
 
 
 def _permutation_test(
     func: Any,
-    func_arg: Any,
+    x: np.ndarray,
     y: np.ndarray,
+    threshold: float,
     n_resamples: int,
     early_stopping: bool,
     alpha: float,
@@ -18,7 +20,8 @@ def _permutation_test(
     """Perform a permutation test."""
     np.random.seed(random_state)
 
-    theta = func(y, func_arg)
+    idx = x <= threshold
+    theta = func(y[idx]) + func(y[~idx])
     y_ = y.copy()
     theta_p = np.empty(n_resamples)
 
@@ -27,20 +30,20 @@ def _permutation_test(
         # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
         min_resamples = ceil(1 / alpha)
         if n_resamples < min_resamples:
-            n_resamples = min_resamples + 1
+            n_resamples = min_resamples
         for i in range(n_resamples):
             np.random.shuffle(y_)
-            theta_p[i] = func(y_, func_arg)
+            theta_p[i] = func(y_[idx]) + func(y_[~idx])
             if i >= min_resamples:
-                asl = np.mean(theta_p[: i + 1] >= theta)
+                asl = np.mean(theta_p[: i + 1] <= theta)
                 if asl < alpha:
                     break
 
     else:
         for i in range(n_resamples):
             np.random.shuffle(y_)
-            theta_p[i] = func(x, y_, func_arg)
-        asl = np.mean(theta_p >= theta)
+            theta_p[i] = func(y_[idx]) + func(y_[~idx])
+        asl = np.mean(theta_p <= theta)
 
     return asl
 
@@ -49,6 +52,53 @@ def _permutation_test(
 _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 
 
+@ClassifierSplitters.register("gini")
+@njit(cache=True, fastmath=True, nogil=True)
+def gini_index(y: np.ndarray) -> float:
+    """ADD HERE.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    if y.ndim > 1:
+        y = y.ravel()
+
+    n = len(y)
+    p = np.bincount(y) / n
+    return 1 - np.sum(p * p)
+
+
+@ClassifierSplitterTests.register("gini")
+def permutation_test_gini(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
+    """ADD HERE.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    return _permutation_test_compiled(
+        func=gini_index,
+        x=x,
+        y=y,
+        threshold=threshold,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )
 
 
 @ThresholdMethods.register("exact")
@@ -117,28 +167,3 @@ def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
         x = x.ravel()
 
     return np.histogram_bin_edges(x, bins=max_thresholds)
-
-
-@njit(cache=True, fastmath=True, nogil=True)
-def gini_index(y: np.ndarray) -> float:
-    """ADD HERE.
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    """
-    if y.ndim > 1:
-        y = y.ravel()
-
-    n = len(y)
-    p = np.bincount(y) / n
-    return 1 - np.sum(p * p)
-
-
-# @ClassifierSplitters.register("gini")
-# def permutation_test_gini(
-#     y: np.ndarray,
-
-# )

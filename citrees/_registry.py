@@ -1,4 +1,4 @@
-from typing import Any, List, TypeVar
+from typing import Any, Dict, List, TypeVar
 
 T = TypeVar("T")
 
@@ -14,7 +14,7 @@ class Registry:
 
     def __init__(self, name: str) -> None:
         self._name = name
-        self._registry = dict()
+        self._registry: Dict[str, Any] = dict()
 
     @property
     def name(self) -> str:
@@ -45,7 +45,7 @@ class Registry:
         """
         return list(self._registry.keys())
 
-    def __getitem__(self, key: str) -> T:
+    def __getitem__(self, key: str) -> T:  # type: ignore
         """Get item in registry.
 
         Parameters

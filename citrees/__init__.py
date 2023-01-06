@@ -1,1 +1,1 @@
-from citrees._base import Node  # noqa
+from citrees._tree import ConditionalInferenceTreeClassifier  # noqa

@@ -1,9 +1,9 @@
 from math import ceil
 from typing import Any, Optional
 
+import numpy as np
 from dcor import distance_correlation as _d_correlation
 from dcor import distance_covariance as _d_covariance
-import numpy as np
 from numba import njit
 from sklearn.feature_selection import mutual_info_classif
 
@@ -28,7 +28,6 @@ def _permutation_test(
     theta_p = np.empty(n_resamples)
 
     if early_stopping:
-        asl = None
         # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
         min_resamples = ceil(1 / alpha)
         if n_resamples < min_resamples:
@@ -389,7 +388,7 @@ def permutation_test_hybrid_classifier(
     alpha: float,
     random_state: int = 0,
 ) -> float:
-    """Perform a permutation test using either the multiple correlation coefficient or mutual information, whichever is
+    """Perform a permutation test using either the multiple correlation coefficient or mutual information whichever is
     larger on the original data.
 
     Parameters

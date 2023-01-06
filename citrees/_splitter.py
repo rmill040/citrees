@@ -1,16 +1,10 @@
 from math import ceil
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from numba import njit
 
-from ._registry import (
-    ClassifierSplitters,
-    ClassifierSplitterTests,
-    RegressorSplitters,
-    RegressorSplitterTests,
-    ThresholdMethods,
-)
+from ._registry import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
 
 
 def _permutation_test(
@@ -32,7 +26,6 @@ def _permutation_test(
     theta_p = np.empty(n_resamples)
 
     if early_stopping:
-        asl = None
         # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
         min_resamples = ceil(1 / alpha)
         if n_resamples < min_resamples:
@@ -107,9 +100,49 @@ def permutation_test_gini(
     )
 
 
-@ThresholdMethods.register("exact")
+@RegressorSplitters.register("mse")
 @njit(fastmath=True, nogil=True)
-def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
+def mean_squared_error(y: np.ndarray) -> float:
+    """Mean squared error.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    if y.ndim > 1:
+        y = y.ravel()
+
+    return np.mean(np.power(y - y.mean(), 2))
+
+
+@RegressorSplitters.register("mae")
+def mean_absolute_error(y: np.ndarray) -> float:
+    """Mean absolute error.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    if y.ndim > 1:
+        y = y.ravel()
+
+    return np.mean(np.abs(y - y.mean()), 2)
+
+
+@RegressorSplitterTests.register("mse")
+def permutation_test_mse(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
     """ADD HERE.
 
     Parameters
@@ -118,15 +151,28 @@ def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
     Returns
     -------
     """
-    if x.ndim > 1:
-        x = x.ravel()
+    return _permutation_test_compiled(
+        func=mean_squared_error,
+        x=x,
+        y=y,
+        threshold=threshold,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )
 
-    return np.unique(x)
 
-
-@ThresholdMethods.register("random")
-@njit(fastmath=True, nogil=True)
-def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
+@RegressorSplitterTests.register("mae")
+def permutation_test_mae(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
     """ADD HERE.
 
     Parameters
@@ -135,41 +181,13 @@ def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     Returns
     -------
     """
-    if x.ndim > 1:
-        x = x.ravel()
-
-    return np.random.choice(x, size=max_thresholds, replace=False)
-
-
-@ThresholdMethods.register("percentile")
-@njit(fastmath=True, nogil=True)
-def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """ADD HERE.
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    """
-    if x.ndim > 1:
-        x = x.ravel()
-
-    return np.percentile(x, q=q)
-
-
-@ThresholdMethods.register("histogram")
-@njit(fastmath=True, nogil=True)
-def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """ADD HERE.
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    """
-    if x.ndim > 1:
-        x = x.ravel()
-
-    return np.histogram_bin_edges(x, bins=max_thresholds)
+    return _permutation_test_compiled(
+        func=mean_absolute_error,
+        x=x,
+        y=y,
+        threshold=threshold,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )

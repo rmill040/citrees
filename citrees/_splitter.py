@@ -4,7 +4,13 @@ from typing import Any, Optional
 import numpy as np
 from numba import njit
 
-from ._registry import ClassifierSplitters, ClassifierSplitterTests, ThresholdMethods
+from ._registry import (
+    ClassifierSplitters,
+    ClassifierSplitterTests,
+    RegressorSplitters,
+    RegressorSplitterTests,
+    ThresholdMethods,
+)
 
 
 def _permutation_test(

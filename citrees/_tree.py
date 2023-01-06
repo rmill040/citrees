@@ -1,44 +1,24 @@
-from typing import Literal
+from typing import Union
 
+from numba import njit
 import numpy as np
-from pydantic import validator
-from pydantic.fields import ModelField
-from pydantic.main import ModelMetaclass
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.preprocessing import LabelEncoder
 
-from ._base import BaseConditionalInferenceTree, BaseConditionalInferenceTreeParameters
-from ._selector import ClassifierSelectors, ClassifierSelectorTests
-from ._splitter import ClassifierSplitters, ClassifierSplitterTests
+from ._base import BaseConditionalInferenceTree
 
 
-class ConditionalInferenceTreeClassifierParameters(BaseConditionalInferenceTreeParameters):
-    """Model for BaseConditionalInferenceTree parameters.
-
+@njit(cache=True, fastmath=True, nogil=True)
+def _estimate_proba(*, y: np.ndarray, classes: np.ndarray) -> np.ndarray:
+    """ADD HERE.
+    
     Parameters
     ----------
-    selector : {"mc", "mi", "hybrid"}, optional (default="mc")
-        Method for feature selection.
-
-    splitter : {"gini", "entropy"}, optional (default="gini")
-        Method for split selection.
+    
+    Returns
+    -------
     """
-
-    selector: Literal["mc", "mi", "hybrid"] = "mc"
-    splitter: Literal["gini", "entropy"] = "gini"
-
-    @validator("selector")
-    def validate_selector(cls: ModelMetaclass, v: str, field: ModelField) -> str:
-        """Validate selector."""
-        setattr(cls, f"_{field.name}", ClassifierSelectors[v])
-        setattr(cls, f"_{field.name}_test", ClassifierSelectorTests[v])
-        return v
-
-    @validator("splitter")
-    def validate_splitter(cls, v: str, field: ModelField) -> str:
-        """Validate splitter."""
-        setattr(cls, f"_{field.name}", ClassifierSplitters[v])
-        setattr(cls, f"_{field.name}_test", ClassifierSplitterTests[v])
-        return v
+    return np.array([np.mean(y == j) for j in classes])
 
 
 class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstimator, ClassifierMixin):
@@ -96,7 +76,6 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
     tree_ : Node
         ADD HERE.
     """
-
     def __init__(
         self,
         *,
@@ -146,22 +125,33 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             verbose=verbose,
         )
 
-    @property
-    def _validator(self) -> ModelMetaclass:
-        """Validation model for estimator's hyperparameters."""
-        return ConditionalInferenceTreeClassifierParameters
-
-    def _node_value(self, y: np.ndarray) -> float:
-        """Calculate value in terminal node.
+    def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
+        """Calculate class probabilities in terminal node.
 
         Parameters
         ----------
         y : np.ndarray
-            Labels for node.
+            Class labels for node.
 
         Returns
         -------
-        float
-            Node value estimate.
+        np.ndarray
+            Class probabilities.
         """
-        return 0.0
+        return _estimate_proba(y=y, classes=self.classes_)
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "ConditionalInferenceTreeClassifier":
+        """ADD HERE.
+        
+        Parameters
+        ----------
+        
+        Returns
+        -------
+        """
+        X = X.astype(float)
+        self._label_encoder = LabelEncoder()
+        y = self._label_encoder.fit_transform(y)
+        super().fit(X=X, y=y)
+
+        return self

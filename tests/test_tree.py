@@ -15,4 +15,5 @@ class TestConditionalInferenceTreeClassifier:
 
     def test_fit(self) -> None:
         """Test fit method."""
-        clf = ConditionalInferenceTreeClassifier().fit(self.X.tolist(), self.y.tolist())
+        # TODO:
+        _ = ConditionalInferenceTreeClassifier().fit(self.X, self.y)

@@ -6,7 +6,23 @@ from numba import njit
 
 
 @njit(fastmath=True, nogil=True)
-def random_sample(x: np.ndarray, size: int, replace: bool = False) -> np.ndarray:
+def bayesian_boostrap_proba(n: int, random_state: int):
+    """ADD HERE.
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+
+    p = np.random.exponential(scale=1.0, size=n)
+    return p / p.sum()
+
+
+@njit(fastmath=True, nogil=True)
+def random_sample(*, x: np.ndarray, size: int, replace: bool = False) -> np.ndarray:
     """ADD HERE.
 
     Parameters
@@ -19,7 +35,7 @@ def random_sample(x: np.ndarray, size: int, replace: bool = False) -> np.ndarray
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def estimate_proba(*, y: np.ndarray, classes: np.ndarray) -> np.ndarray:
+def estimate_proba(*, y: np.ndarray, n_classes: np.ndarray) -> np.ndarray:
     """ADD HERE.
 
     Parameters
@@ -28,11 +44,11 @@ def estimate_proba(*, y: np.ndarray, classes: np.ndarray) -> np.ndarray:
     Returns
     -------
     """
-    return np.array([np.mean(y == j) for j in classes])
+    return np.array([np.mean(y == j) for j in range(n_classes)])
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def estimate_mean(*, y: np.ndarray) -> np.ndarray:
+def estimate_mean(y: np.ndarray) -> np.ndarray:
     """ADD HERE.
 
     Parameters
@@ -67,6 +83,7 @@ def calculate_max_value(*, n_values: int, desired_max: Union[str, float, int]) -
 
 @njit(fastmath=True, nogil=True)
 def split_data(
+    *,
     X: np.ndarray, y: np.ndarray, feature: int, threshold: float
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Split data based on feature and threshold.

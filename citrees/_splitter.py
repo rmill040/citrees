@@ -114,7 +114,10 @@ def mean_squared_error(y: np.ndarray) -> float:
     if y.ndim > 1:
         y = y.ravel()
 
-    return np.mean(np.power(y - y.mean(), 2))
+    dev = y - y.mean()
+    dev *= dev
+
+    return np.mean(dev)
 
 
 @RegressorSplitters.register("mae")

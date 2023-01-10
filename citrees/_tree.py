@@ -1,10 +1,11 @@
 import warnings
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, abstractproperty
 from math import ceil
-from multiprocessing import cpu_count
-from typing import Any, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, Optional, Literal, Tuple, TypedDict, Union
 
 import numpy as np
+from pydantic import BaseModel, confloat, conint, NonNegativeFloat, NonNegativeInt, validator
+from pydantic.main import ModelField, ModelMetaclass
 from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder
@@ -14,8 +15,14 @@ from ._splitter import ClassifierSplitters, ClassifierSplitterTests, RegressorSp
 from ._threshold_method import ThresholdMethods
 from ._utils import calculate_max_value, estimate_mean, estimate_proba, random_sample, split_data
 
-_MIN_ALPHA = 0.001
-_MAX_resamples = 5 * ceil(1 / _MIN_ALPHA)
+
+# Type aliases
+ConstrainedInt = conint
+ConstrainedFloat = confloat
+ProbabilityFloat = ConstrainedFloat(gt=0.0, le=1.0)
+NResamplesOption = Union[Literal["minimum", "auto"], NonNegativeInt]
+MaxValuesOption = Optional[Union[Literal["sqrt", "log"], ProbabilityFloat, NonNegativeInt]]
+
 _PVAL_PRECISION = 0.05
 
 
@@ -63,12 +70,145 @@ class Node(TypedDict, total=False):
     n_samples: Optional[int]
 
 
-class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
+class BaseConditionalInferenceTreeParameters(BaseModel):
+    """ADD HERE."""
+    estimator_type: Literal["classifier", "regressor"]
+    selector: str
+    splitter: str
+    alpha_selector: ProbabilityFloat
+    alpha_splitter: ProbabilityFloat
+    adjust_alpha_selector: bool
+    adjust_alpha_splitter: bool
+    n_resamples_selector: NResamplesOption
+    n_resamples_splitter: NResamplesOption
+    early_stopping_selector: bool
+    early_stopping_splitter: bool
+    feature_muting: bool
+    threshold_method: Literal[tuple(ThresholdMethods.keys())]
+    max_thresholds: MaxValuesOption
+    max_features: MaxValuesOption
+    max_depth: Optional[ConstrainedInt(ge=1)]
+    min_samples_split: ConstrainedInt(ge=2)
+    min_samples_leaf: ConstrainedInt(ge=1)
+    min_impurity_decrease: NonNegativeFloat
+    random_state: Optional[NonNegativeInt]
+    verbose: NonNegativeInt
+    
+    @validator("selector", "splitter", always=True)
+    def validate_selector_splitter(cls: ModelMetaclass, v: str, field: ModelField, values) -> str:
+        """Validate {selector,splitter}"""
+        if field.name == "selector":
+            registry = ClassifierSelectors if values["estimator_type"] == "classifier" else RegressorSelectors
+        else:
+            registry = ClassifierSplitters if values["estimator_type"] == "classifier" else RegressorSplitters
+        supported = registry.keys()
+        if v not in supported:
+            raise ValueError(
+                f"{field.name} ({v}) not supported for ({values['estimator_type']}) estimator, expected one of: "
+                f"{supported}"
+            )
+
+        return v
+    
+    @validator("n_resamples_selector", "n_resamples_splitter", always=True)
+    def validate_n_resamples(cls: ModelMetaclass, v: NResamplesOption, field: ModelField, values) -> NResamplesOption:
+        """Validate n_resamples_{selector,splitter}."""
+        if type(v) == int:
+            alpha = values["alpha_selector"] if "selector" in field.name else values["alpha_splitter"]            
+            min_samples = ceil(1 / alpha)
+            if v < min_samples:
+                raise ValueError(
+                    f"{field.name} ({v}) should be > {min_samples} with alpha={alpha}"
+                )
+        
+        return v
+
+
+class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
+    """ADD HERE."""
+    @abstractproperty
+    def _parameter_validator(self) -> ModelMetaclass:
+        pass
+    
+    def __str__(self) -> str:
+        """Class as string.
+        Returns
+        -------
+        str
+            Class as string.
+        """
+        return self.__repr__()
+
+    def __repr__(self) -> str:
+        """Class as string.
+        Returns
+        -------
+        str
+            Class as string.
+        """
+        params = self.get_params()
+        class_name = self.__class__.__name__
+        return class_name + str(params).replace(": ", "=").replace("'", "").replace("{", "(").replace("}", ")")
+
+    def _validate_data(self, X: np.ndarray, y: np.ndarray, estimator_type: str) -> None:
+        """Validate data.
+        
+        Parameters
+        ----------
+        TODO:
+        """
+        if not isinstance(X, np.ndarray):
+            if isinstance(X, (list, tuple)):
+                X = np.array(X)
+            elif hasattr(X, "values"):
+                X = X.values
+            else:
+                raise ValueError(
+                    f"Unsupported type for X ({type(X)}), expected np.ndarray, list, tuple, or pandas data "
+                    "structure"
+                )
+
+        if X.ndim == 1:
+            X = X[:, None]
+        elif X.ndim > 2:
+            raise ValueError(
+                f"Arrays with more than 2 dimensions are not supported for X, detected ({X.ndim}) dimensions"
+            )
+
+        if not isinstance(y, np.ndarray):
+            if isinstance(y, (list, tuple)):
+                y = np.array(y)
+            elif hasattr(y, "values"):
+                y = y.values
+            else:
+                raise ValueError(
+                    f"Unsupported type for y ({type(y)}), expected np.ndarray, list, tuple, or pandas data "
+                    "structure"
+                )
+
+        if y.ndim == 2:
+            y = y.ravel()
+        elif y.ndim > 2:
+            raise ValueError(f"Multi-output labels are not supported for y, detected ({y.ndim - 1}) outputs")
+
+        if len(X) != len(y):
+            raise ValueError(f"Different number of samples between X ({len(X)}) and y ({len(y)})")
+
+        X = X.astype(float)
+        y = y.astype(int) if estimator_type == "classifier" else y.astype(float)
+
+        return X, y
+
+    def _validate_params(self, params: Dict[str, Any]) -> None:
+        """ADD HERE."""
+        self._parameter_validator(**params)
+
+
+class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metaclass=ABCMeta):
     """Base class for conditional inference trees.
 
     Warning: This class should not be used directly. Use derived classes instead.
     """
-
     @abstractmethod
     def __init__(
         self,
@@ -91,7 +231,6 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
         min_samples_split: int,
         min_samples_leaf: int,
         min_impurity_decrease: float,
-        n_jobs: int,
         random_state: Optional[int],
         verbose: int,
     ) -> None:
@@ -113,36 +252,20 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.min_impurity_decrease = min_impurity_decrease
-        self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
+        
+        self._validate_params({**self.get_params(), "estimator_type": self._estimator_type})
 
     @abstractmethod
     def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
         """Calculate value in terminal node."""
         pass
-
-    def __str__(self) -> str:
-        """Class as string.
-
-        Returns
-        -------
-        str
-            Class as string.
-        """
-        return self.__repr__()
-
-    def __repr__(self) -> str:
-        """Class as string.
-
-        Returns
-        -------
-        str
-            Class as string.
-        """
-        params = self.get_params()
-        class_name = self.__class__.__name__
-        return class_name + str(params).replace(": ", "=").replace("'", "").replace("{", "(").replace("}", ")")
+    
+    @property
+    def _parameter_validator(self) -> ModelMetaclass:
+        """ADD HERE."""
+        return BaseConditionalInferenceTreeParameters
 
     def _select_best_feature(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> Tuple[int, float, bool]:
         """TODO:
@@ -254,7 +377,7 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
             idx = self._available_features == feature
             self._available_features: np.ndarray = self._available_features[~idx]
             p = len(self._available_features)
-            if self.max_features is not None:
+            if self.max_features:
                 self._max_features = calculate_max_value(
                     n_values=p,
                     desired_max=self.max_features,
@@ -310,7 +433,7 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
         # Check for stopping criteria at node level
         if n >= self._min_samples_split and depth <= self._max_depth and not np.all(y == y[0]):
             # Feature selection
-            features = random_sample(self._available_features, size=self._max_features, replace=False)
+            features = random_sample(x=self._available_features, size=self._max_features, replace=False)
             best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)
 
         # Split selection
@@ -324,12 +447,12 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
             idx = x <= best_threshold
             n_left = idx.sum()
             n_right = n - n_left
-            if n_left >= self.min_samples_leaf and n_right >= self.min_samples_leaf:
+            if n_left >= self._min_samples_leaf and n_right >= self._min_samples_leaf:
                 impurity, impurity_decrease = self._node_impurity(  # type: ignore
                     y=y, idx=idx, n=n, n_left=n_left, n_right=n_right
                 )
 
-        if impurity_decrease >= self.min_impurity_decrease:
+        if impurity_decrease >= self._min_impurity_decrease:
             X_left, y_left, X_right, y_right = split_data(
                 X=X,
                 y=y,
@@ -352,7 +475,7 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
 
         value = self._node_value(y)
         return Node(value=value, n_samples=n)
-
+  
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseConditionalInferenceTree":
         """Train estimator.
 
@@ -369,56 +492,18 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
         self
             Fitted estimator.
         """
-        # Define types for mypy
-        self._splitter_test: Any
-        self._selector_test: Any
-        self._n_jobs: int
-        self._min_samples_leaf: int
-
-        # Validate hyperparameters
-        if self._estimator_type == "classifier":
-            selector_registry = ClassifierSelectors
-            splitter_registry = ClassifierSplitters
-        else:
-            selector_registry = RegressorSelectors
-            splitter_registry = RegressorSplitters
-
-        for attribute, registry in zip(
-            ["selector", "splitter", "threshold_method"], [selector_registry, splitter_registry, ThresholdMethods]
-        ):
-            value = getattr(self, attribute)
-            if value not in registry.keys():
-                raise ValueError(
-                    f"{attribute} ({value}) not supported for ({self._estimator_type}) estimators, expected one of: "
-                    f"{registry.keys()}"
-                )
-            setattr(self, f"_{attribute}", registry[value])
-
-        for attribute in ["alpha_selector", "alpha_splitter"]:
-            value = getattr(self, attribute)
-            if not _MIN_ALPHA <= value <= 1.0:
-                raise ValueError(f"{attribute} ({value}) should be in range [{_MIN_ALPHA}, 1.0]")
-            setattr(self, f"_{attribute}", value)
-
-        for attribute in [
-            "adjust_alpha_selector",
-            "adjust_alpha_splitter",
-            "early_stopping_selector",
-            "early_stopping_splitter",
-            "feature_muting",
-        ]:
-            value = getattr(self, attribute)
-            if type(value) != bool:
-                raise TypeError(f"{attribute} type ({value}) should be bool")
-            setattr(self, f"_{attribute}", value)
-
-        for attribute in ["n_resamples_selector", "n_resamples_splitter"]:
-            value = getattr(self, attribute)
+        X, y = self._validate_data(X, y, self._estimator_type)
+        n, p = X.shape
+        
+        # Create private attributes for all parameters 
+        self._available_features = np.arange(p, dtype=int)
+        self._max_depth = self.max_depth if self.max_depth else np.inf
+        self._random_state = int(np.random.randint(1, 100_000)) if self.random_state is None else self.random_state
+        self._verbose = min(self.verbose, 3)
+        for param in ["n_resamples_selector", "n_resamples_splitter"]:
+            value = getattr(self, param)
             if type(value) == str:
-                supported = ["minimum", "auto"]
-                if value not in supported:
-                    raise ValueError(f"{attribute} ({value}) not supported, expected one of: {supported}")
-                alpha = getattr(self, "alpha_selector") if "selector" in attribute else getattr(self, "alpha_splitter")
+                alpha = getattr(self, "alpha_selector") if "selector" in param else getattr(self, "alpha_splitter")
                 lower_limit = ceil(1 / alpha)
                 if value == "minimum":
                     value = lower_limit
@@ -427,127 +512,23 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
                     z = norm.ppf(1 - alpha)
                     upper_limit = ceil(z * z * (alpha * (1 - alpha)) / (_PVAL_PRECISION * _PVAL_PRECISION))
                     value = max(lower_limit, upper_limit)
-            else:
-                value = max(2, int(value))
-            setattr(self, f"_{attribute}", value)
+            setattr(self, f"_{param}", value)
+            
+        for param in ["alpha_selector", "alpha_splitter", "early_stopping_selector", "early_stopping_splitter"]:
+            setattr(self, f"_{param}", getattr(self, param))
 
-        n, p = X.shape
-        for attribute in ["max_features", "max_thresholds"]:
-            value = getattr(self, attribute)
-            if type(value) == str:
-                supported = ["sqrt", "log"]
-                if value not in supported:
-                    raise ValueError(f"{attribute} ({value}) not supported, expected one of: {supported}")
-            elif type(value) == float:
-                if not 0 < value <= 1.0:
-                    raise ValueError(f"{attribute} ({value}) should be in range (0, 1.0]")
-            elif type(value) == int:
-                if value < 1:
-                    raise ValueError(f"{attribute} ({value}) should be >= 1")
-            if attribute == "max_features":
-                value = calculate_max_value(n_values=p, desired_max=value) if value is not None else p
-            setattr(self, f"_{attribute}", value)
-
-        for attribute, dtype, lower_limit in zip(  # type: ignore
-            ["min_samples_split", "min_samples_leaf", "min_impurity_decrease"],
-            [int, int, float],
-            [2, 1, 0.0],
-        ):
-            value = getattr(self, attribute)
-            if type(value) != dtype:
-                warnings.warn(f"{attribute} data type ({type(value)}) should be {dtype}, attempting to cast data type")
-                value = dtype(value)
-            if value < lower_limit:
-                raise ValueError(f"{attribute} ({value}) should be >= {lower_limit}")
-            setattr(self, f"_{attribute}", value)
-
-        if self._min_samples_leaf >= self._min_samples_split:
-            warnings.warn(
-                f"min_samples_leaf ({self._min_samples_leaf}) should be < min_samples_split "
-                f"({self._min_samples_split}), setting min_samples_leaf = min_samples_split - 1"
-            )
-            self._min_samples_leaf = self._min_samples_split - 1
-
-        value = self.max_depth
-        if type(value) in (int, float):
-            if value < 1:
-                raise ValueError(f"max_depth ({value}) should be > 1")
-        elif value is None:
-            value = np.inf
-        setattr(self, "_max_depth", value)
-
-        if self.n_jobs is None:
-            self._n_jobs = 1
-        else:
-            max_cpus = cpu_count()
-            value = min(self.n_jobs, max_cpus)
-            if value < 0:
-                cpus = np.arange(1, max_cpus + 1)
-                if abs(value) > max_cpus:
-                    value = max_cpus
-                else:
-                    value = cpus[value]
-            self._n_jobs = value
-
-        self._random_state = int(np.random.randint(1, 100_000)) if self.random_state is None else self.random_state
-        self._verbose = min(abs(int(self.verbose)), 3)
-
-        # Validate data
-        X = X.astype(float)
         if self._estimator_type == "classifier":
-            self._label_encoder = LabelEncoder()
-            y = self._label_encoder.fit_transform(y)
-        self.feature_names_in_ = None
-        if not isinstance(X, np.ndarray):
-            if isinstance(X, (list, tuple)):
-                X = np.array(X)
-            elif hasattr(X, "values"):
-                self.feature_names_in_ = X.columns.tolist()
-                X = X.values
-            else:
-                raise ValueError(
-                    f"Unsupported type for X, got ({type(X)}) but expected np.ndarray, list, tuple, or pandas data "
-                    "structure"
-                )
-
-        if X.ndim == 1:
-            X = X[:, None]
-
-        if self.feature_names_in_ is None:
-            self.feature_names_in_ = [f"f{j}" for j in range(X.shape[1])]
-
-        if not isinstance(y, np.ndarray):
-            if isinstance(y, (list, tuple)):
-                y = np.array(y)
-            elif hasattr(y, "values"):
-                y = y.values
-            else:
-                raise ValueError(
-                    f"Unsupported type for y, got ({type(y)}) but expected np.ndarray, list, tuple, or pandas data "
-                    "structure"
-                )
-
-        if y.ndim == 2:
-            y = y.ravel()
-        elif y.ndim > 2:
-            raise ValueError(f"Multi-output labels are not supported for y, detected ({y.ndim - 1}) outputs")
-
-        if len(X) != len(y):
-            raise ValueError(f"Different number of samples between X ({len(X)}) and y ({len(y)})")
-
-        # Private and fitted estimator attributes
-        self._available_features = np.arange(X.shape[1], dtype=int)
-        if self._estimator_type == "classifier":
-            self.classes_ = np.unique(y)
-            self.n_classes_ = len(self.classes_)
+            n_classes = len(np.unique(y))
+            self._selector = ClassifierSelectors[self.selector]
             self._selector_test = ClassifierSelectorTests[self.selector]
             self._selector_kwargs = {
-                "classes": self.classes_,
+                "n_classes": n_classes,
                 "n_resamples": self._n_resamples_selector,
                 "early_stopping": self._early_stopping_selector,
                 "alpha": self._alpha_selector,
                 "random_state": self._random_state,
             }
+            self._splitter = ClassifierSplitters[self.splitter]
             self._splitter_test = ClassifierSplitterTests[self.splitter]
             self._splitter_kwargs = {
                 "n_resamples": self._n_resamples_splitter,
@@ -555,19 +536,38 @@ class BaseConditionalInferenceTree(BaseEstimator, metaclass=ABCMeta):
                 "alpha": self._alpha_splitter,
                 "random_state": self._random_state,
             }
+            self._label_encoder = LabelEncoder()
+            y = self._label_encoder.fit_transform(y)
         else:
-            # TODO:
+            self._selector = RegressorSelectors[self.selector]
             self._selector_test = RegressorSelectorTests[self.selector]
             self._selector_kwargs = {}
+            self._splitter = RegressorSplitters[self.splitter]
             self._splitter_test = RegressorSplitterTests[self.splitter]
             self._splitter_kwargs = {}
 
-        self.feature_importances_ = np.zeros(X.shape[1], dtype=float)
-        self.n_features_in_ = X.shape[1]
+        self._threshold_method = ThresholdMethods[self.threshold_method]
 
-        # Start recursion
+        if self.max_features:
+            self._max_features = calculate_max_value(n_values=p, desired_max=self.max_features)
+        else:
+            self._max_features = p
+
+        # Set rest of parameters as private attributes
+        for param, value in self.get_params().items():
+            p_param = f"_{param}"
+            if not hasattr(self, p_param):
+                setattr(self, p_param, getattr(self, param))
+
+        # Fitted attributes
+        if self._estimator_type == "classifier":
+            self.classes_ = np.unique(y)
+            self.n_classes_ = n_classes
+
+        self.feature_importances_ = np.zeros(p, dtype=float)
+        self.n_features_in_ = p
         self.tree_ = self._build_tree(X, y)
-
+        
         return self
 
 
@@ -647,8 +647,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         max_features: Optional[Union[str, float, int]] = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
-        min_impurity_decrease: float,
-        n_jobs: int = 1,
+        min_impurity_decrease: float = 0.0,
         random_state: Optional[int] = None,
         verbose: int = 1,
     ) -> None:
@@ -671,7 +670,6 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             min_impurity_decrease=min_impurity_decrease,
-            n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose,
         )
@@ -689,7 +687,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         np.ndarray
             Class probabilities.
         """
-        return estimate_proba(y=y, classes=self.classes_)
+        return estimate_proba(y=y, n_classes=self.n_classes_)
 
 
 class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstimator, RegressorMixin):
@@ -768,8 +766,7 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstima
         max_features: Optional[Union[str, float, int]] = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
-        min_impurity_decrease: float,
-        n_jobs: int = 1,
+        min_impurity_decrease: float = 0.0,
         random_state: Optional[int] = None,
         verbose: int = 1,
     ) -> None:
@@ -792,7 +789,6 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstima
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             min_impurity_decrease=min_impurity_decrease,
-            n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose,
         )
@@ -810,4 +806,4 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstima
         float
             Mean of target values in node.
         """
-        return estimate_mean(y=y)
+        return estimate_mean(y)

@@ -55,7 +55,7 @@ _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 
 @ClassifierSelectors.register("mc")
 @njit(nogil=True, fastmath=True)
-def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> float:
+def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int) -> float:
     """Calculate the multiple correlation coefficient.
 
     Parameters
@@ -66,8 +66,8 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> f
     y : np.ndarray
         Label values.
 
-    classes : np.ndarray
-        Unique class labels.
+    n_classes : int
+        Number of classes.
 
     Returns
     -------
@@ -95,7 +95,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> f
 
     # Sum of squares between (SSB)
     ssb = 0.0
-    for j in classes:
+    for j in range(n_classes):
         x_j = x[y == j]
         n_j = len(x_j)
 
@@ -115,7 +115,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, classes: np.ndarray) -> f
 
 
 @ClassifierSelectors.register("mi")
-def mutual_information(x: np.ndarray, y: np.ndarray, classes: Optional[np.ndarray] = None) -> float:
+def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: Optional[np.ndarray] = None) -> float:
     """Calculate the mutual information.
 
     Parameters
@@ -126,8 +126,8 @@ def mutual_information(x: np.ndarray, y: np.ndarray, classes: Optional[np.ndarra
     y : np.ndarray
         Label values.
 
-    classes : np.ndarray
-        Unique class labels.
+    n_classes : int
+        Number of classes.
 
     Returns
     -------
@@ -274,7 +274,7 @@ def permutation_test_multiple_correlation(
     *,
     x: np.ndarray,
     y: np.ndarray,
-    classes: np.ndarray,
+    n_classes: int,
     n_resamples: int,
     early_stopping: bool,
     alpha: float,
@@ -290,8 +290,8 @@ def permutation_test_multiple_correlation(
     y : np.ndarray
         Label values.
 
-    classes : np.ndarray
-        Unique class labels.
+    n_classes : int
+        Number of classes.
 
     n_resamples : int
         Number of permutations to perform.
@@ -313,7 +313,7 @@ def permutation_test_multiple_correlation(
     """
     return _permutation_test_compiled(
         func=multiple_correlation,
-        func_arg=classes,
+        func_arg=n_classes,
         x=x,
         y=y,
         n_resamples=n_resamples,
@@ -328,7 +328,7 @@ def permutation_test_mutual_information(
     *,
     x: np.ndarray,
     y: np.ndarray,
-    classes: np.ndarray,
+    n_classes: int,
     n_resamples: int,
     early_stopping: bool,
     alpha: float,
@@ -344,8 +344,8 @@ def permutation_test_mutual_information(
     y : np.ndarray
         Label values.
 
-    classes : np.ndarray
-        Unique class labels.
+    n_classes : int
+        Number of classes.
 
     n_resamples : int
         Number of permutations to perform.
@@ -367,7 +367,7 @@ def permutation_test_mutual_information(
     """
     return _permutation_test(
         func=mutual_information,
-        func_arg=classes,
+        func_arg=n_classes,
         x=x,
         y=y,
         n_resamples=n_resamples,
@@ -382,7 +382,7 @@ def permutation_test_hybrid_classifier(
     *,
     x: np.ndarray,
     y: np.ndarray,
-    classes: np.ndarray,
+    n_classes: int,
     n_resamples: int,
     early_stopping: bool,
     alpha: float,
@@ -399,8 +399,8 @@ def permutation_test_hybrid_classifier(
     y : np.ndarray
         Label values.
 
-    classes : np.ndarray
-        Unique class labels.
+    n_classes : int
+        Number of classes.
 
     n_resamples : int
         Number of permutations to perform.
@@ -420,14 +420,14 @@ def permutation_test_hybrid_classifier(
     float
         Estimated achieved significance level.
     """
-    mc = multiple_correlation(x, y, classes)
-    mi = mutual_information(x, y, classes)
+    mc = multiple_correlation(x, y, n_classes)
+    mi = mutual_information(x, y, n_classes)
 
     if mc >= mi:
         return permutation_test_multiple_correlation(
             x=x,
             y=y,
-            classes=classes,
+            n_classes=n_classes,
             n_resamples=n_resamples,
             early_stopping=early_stopping,
             alpha=alpha,
@@ -437,7 +437,7 @@ def permutation_test_hybrid_classifier(
         return permutation_test_mutual_information(
             x=x,
             y=y,
-            classes=classes,
+            n_classes=n_classes,
             n_resamples=n_resamples,
             early_stopping=early_stopping,
             alpha=alpha,
@@ -551,3 +551,72 @@ def permutation_test_distance_correlation(
         alpha=alpha,
         random_state=random_state,
     )
+
+
+@RegressorSelectorTests.register("hybrid")
+def permutation_test_hybrid_regressor(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    standardize: bool,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int = 0,
+) -> float:
+    """Perform a permutation test using either the Pearson correlation or distance correlation whichever is larger on 
+    the original data.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Label values.
+
+    standardize : np.ndarray
+        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int, optional (default=0)
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    
+    # pc = pearson_correlation(x, y, n_classes)
+    # dc = mutual_information(x, y, n_classes)
+
+    # if mc >= mi:
+    #     return permutation_test_multiple_correlation(
+    #         x=x,
+    #         y=y,
+    #         n_classes=n_classes,
+    #         n_resamples=n_resamples,
+    #         early_stopping=early_stopping,
+    #         alpha=alpha,
+    #         random_state=random_state,
+    #     )
+    # else:
+    #     return permutation_test_mutual_information(
+    #         x=x,
+    #         y=y,
+    #         n_classes=n_classes,
+    #         n_resamples=n_resamples,
+    #         early_stopping=early_stopping,
+    #         alpha=alpha,
+    #         random_state=random_state,
+    #     )

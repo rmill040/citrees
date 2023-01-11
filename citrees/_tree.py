@@ -302,10 +302,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         ----------
         X : np.ndarray
             Training features.
-        
+
         y : np.ndarray
             Training target.
-            
+
         features : np.ndarray
             Feature indices.
 
@@ -313,10 +313,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         best_feature : int
             Index of best feature.
-        
+
         best_pval_feature : float
             Pvalue of best feature selection test.
-            
+
         reject_H0_feature : bool
             Whether to reject the null hypothesis of no significant association between features and targets.
         """
@@ -361,10 +361,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         ----------
         x : np.ndarray
             Training features.
-            
+
         y : np.ndarray
             Training target.
-            
+
         thresholds : np.ndarray
             Thresholds to use for testing binary splits.
 
@@ -372,10 +372,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         best_threshold : float
             Value of best threshold.
-        
+
         best_pval_threshold : float
             Pvalue of best split selection test.
-            
+
         reject_H0_threshold : bool
             Whether to reject the null hypothesis of significant binary split on data.
         """
@@ -450,16 +450,16 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         ----------
         y : np.ndarray
             ADD HERE.
-            
+
         idx : np.ndarray
             ADD HERE.
-        
+
         n : int
             ADD HERE.
-            
+
         n_left : int
             ADD HERE.
-            
+
         n_right : int
             ADD HERE.
 
@@ -639,30 +639,30 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         return self
 
-    def _predict(self, X: np.ndarray, tree: Optional[Node] = None) -> np.ndarray:
+    def _predict_value(self, x: np.ndarray, tree: Optional[Node] = None) -> np.ndarray:
         """ADD HERE.
-        
+
         Parameters
         ----------
-        
+
         Returns
         -------
         """
         # If we have a value => return value as the prediction
         if tree is None:
             tree = self.tree_
-        
-        if tree.get("value") is not None:
+
+        if "value" in tree:
             return tree["value"]
 
         # Determine if we will follow left or right branch
-        feature_value = X[tree["feature"]]
+        feature_value = x[tree["feature"]]
         branch = tree["left_child"] if feature_value <= tree["threshold"] else tree["right_child"]
 
-        # Test subtree
-        return self._predict(X, branch)
+        # Recurse subtree
+        return self._predict_value(x, branch)
 
-    # @abstractmethod
+    @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Predict target value."""
         pass
@@ -785,6 +785,37 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             Class probabilities.
         """
         return estimate_proba(y=y, n_classes=self.n_classes_)
+    
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Predict class probabilities.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            Features.
+            
+        Returns
+        -------
+        np.ndarray
+            Predicted class probabilities.
+        """
+        return np.array([self._predict_value(x) for x in X])
+    
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict target values.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            Features.
+
+        Returns
+        -------
+        np.ndarray
+            Predicted class labels.
+        """
+        y_proba = self.predict_proba(X)
+        return np.argmax(y_proba, axis=1)
 
 
 class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstimator, RegressorMixin):

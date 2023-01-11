@@ -1,7 +1,7 @@
 import warnings
 from abc import ABCMeta, abstractmethod, abstractproperty
 from math import ceil
-from typing import Any, Dict, Optional, Literal, Tuple, TypedDict, Union
+from typing import Any, Dict, Literal, Optional, Tuple, TypedDict, Union
 
 import numpy as np
 from pydantic import BaseModel, confloat, conint, NonNegativeFloat, NonNegativeInt, validator
@@ -15,13 +15,12 @@ from ._splitter import ClassifierSplitters, ClassifierSplitterTests, RegressorSp
 from ._threshold_method import ThresholdMethods
 from ._utils import calculate_max_value, estimate_mean, estimate_proba, random_sample, split_data
 
-
 # Type aliases
 ConstrainedInt = conint
 ConstrainedFloat = confloat
 ProbabilityFloat = ConstrainedFloat(gt=0.0, le=1.0)
 NResamplesOption = Union[Literal["minimum", "auto"], NonNegativeInt]
-MaxValuesOption = Optional[Union[Literal["sqrt", "log"], ProbabilityFloat, NonNegativeInt]]
+MaxValuesOption = Optional[Union[Literal["sqrt", "log2"], ProbabilityFloat, NonNegativeInt]]
 
 _PVAL_PRECISION = 0.05
 
@@ -71,7 +70,8 @@ class Node(TypedDict, total=False):
 
 
 class BaseConditionalInferenceTreeParameters(BaseModel):
-    """ADD HERE."""
+    """Model for BaseConditionalInferenceTree parameters."""
+
     estimator_type: Literal["classifier", "regressor"]
     selector: str
     splitter: str
@@ -93,7 +93,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     min_impurity_decrease: NonNegativeFloat
     random_state: Optional[NonNegativeInt]
     verbose: NonNegativeInt
-    
+
     @validator("selector", "splitter", always=True)
     def validate_selector_splitter(cls: ModelMetaclass, v: str, field: ModelField, values) -> str:
         """Validate {selector,splitter}"""
@@ -109,29 +109,53 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             )
 
         return v
-    
+
     @validator("n_resamples_selector", "n_resamples_splitter", always=True)
     def validate_n_resamples(cls: ModelMetaclass, v: NResamplesOption, field: ModelField, values) -> NResamplesOption:
         """Validate n_resamples_{selector,splitter}."""
         if type(v) == int:
-            alpha = values["alpha_selector"] if "selector" in field.name else values["alpha_splitter"]            
+            alpha = values["alpha_selector"] if "selector" in field.name else values["alpha_splitter"]
             min_samples = ceil(1 / alpha)
             if v < min_samples:
-                raise ValueError(
-                    f"{field.name} ({v}) should be > {min_samples} with alpha={alpha}"
-                )
-        
+                raise ValueError(f"{field.name} ({v}) should be > {min_samples} with alpha={alpha}")
+
         return v
 
 
 class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
-    """ADD HERE."""
+    """Base conditional inference tree estimator."""
+
     @abstractproperty
     def _parameter_validator(self) -> ModelMetaclass:
+        """Model for validating hyperparameters."""
         pass
-    
+
+    def __repr__(self) -> str:
+        """Class as string.
+
+        Returns
+        -------
+        str
+            Class as string.
+        """
+        string = self.__class__.__name__ + "("
+        params = self.get_params()
+        n_params = len(params)
+        for j, (param, value) in enumerate(params.items()):
+            if type(value) == str:
+                string += f"{param}='{value}'"
+            else:
+                string += f"{param}={value}"
+            if j < n_params - 1:
+                string += ", "
+
+        string += ")"
+
+        return string
+
     def __str__(self) -> str:
         """Class as string.
+
         Returns
         -------
         str
@@ -139,33 +163,31 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         """
         return self.__repr__()
 
-    def __repr__(self) -> str:
-        """Class as string.
-        Returns
-        -------
-        str
-            Class as string.
-        """
-        params = self.get_params()
-        class_name = self.__class__.__name__
-        return class_name + str(params).replace(": ", "=").replace("'", "").replace("{", "(").replace("}", ")")
+    def _validate_data(self, X: Any, y: Any, estimator_type: str) -> Tuple[np.ndarray, np.ndarray]:
+        """Validate data by checking types and casting.
 
-    def _validate_data(self, X: np.ndarray, y: np.ndarray, estimator_type: str) -> None:
-        """Validate data.
-        
         Parameters
         ----------
-        TODO:
+        X : array-like of shape (n_samples, n_features)
+            Training features.
+
+        y : array-like of shape (n_samples,)
+            Training target.
+
+        estimator_type : str
+            Type of estimator.
         """
+        self.feature_names_in_ = None
         if not isinstance(X, np.ndarray):
             if isinstance(X, (list, tuple)):
                 X = np.array(X)
             elif hasattr(X, "values"):
+                if hasattr(X, "columns"):
+                    self.feature_names_in_ = X.columns.tolist()
                 X = X.values
             else:
                 raise ValueError(
-                    f"Unsupported type for X ({type(X)}), expected np.ndarray, list, tuple, or pandas data "
-                    "structure"
+                    f"Unsupported type for X ({type(X)}), expected np.ndarray, list, tuple, or pandas data " "structure"
                 )
 
         if X.ndim == 1:
@@ -182,8 +204,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
                 y = y.values
             else:
                 raise ValueError(
-                    f"Unsupported type for y ({type(y)}), expected np.ndarray, list, tuple, or pandas data "
-                    "structure"
+                    f"Unsupported type for y ({type(y)}), expected np.ndarray, list, tuple, or pandas data " "structure"
                 )
 
         if y.ndim == 2:
@@ -200,7 +221,13 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         return X, y
 
     def _validate_params(self, params: Dict[str, Any]) -> None:
-        """ADD HERE."""
+        """Validate hyperparameters using pydantic model.
+
+        Parameters
+        ----------
+        params : Dict[str, Any]
+            Hyperparameters.
+        """
         self._parameter_validator(**params)
 
 
@@ -209,6 +236,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
     Warning: This class should not be used directly. Use derived classes instead.
     """
+
     @abstractmethod
     def __init__(
         self,
@@ -254,29 +282,43 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.min_impurity_decrease = min_impurity_decrease
         self.random_state = random_state
         self.verbose = verbose
-        
+
         self._validate_params({**self.get_params(), "estimator_type": self._estimator_type})
 
     @abstractmethod
     def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
         """Calculate value in terminal node."""
         pass
-    
+
     @property
     def _parameter_validator(self) -> ModelMetaclass:
-        """ADD HERE."""
+        """Model for hyperparameter validation."""
         return BaseConditionalInferenceTreeParameters
 
     def _select_best_feature(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> Tuple[int, float, bool]:
-        """TODO:
+        """Select best feature associated with the target.
 
         Parameters
         ----------
-        TODO:
+        X : np.ndarray
+            Training features.
+        
+        y : np.ndarray
+            Training target.
+            
+        features : np.ndarray
+            Feature indices.
 
         Returns
         -------
-        TODO:
+        best_feature : int
+            Index of best feature.
+        
+        best_pval_feature : float
+            Pvalue of best feature selection test.
+            
+        reject_H0_feature : bool
+            Whether to reject the null hypothesis of no significant association between features and targets.
         """
         best_feature = features[0]
         best_pval_feature = np.inf
@@ -313,15 +355,29 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         return best_feature, best_pval_feature, reject_H0_feature
 
     def _select_best_split(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> Tuple[float, float, bool]:
-        """TODO:
+        """Select best binary split.
 
         Parameters
         ----------
-        TODO:
+        x : np.ndarray
+            Training features.
+            
+        y : np.ndarray
+            Training target.
+            
+        thresholds : np.ndarray
+            Thresholds to use for testing binary splits.
 
         Returns
         -------
-        TODO:
+        best_threshold : float
+            Value of best threshold.
+        
+        best_pval_threshold : float
+            Pvalue of best split selection test.
+            
+        reject_H0_threshold : bool
+            Whether to reject the null hypothesis of significant binary split on data.
         """
         best_threshold = thresholds[0]
         best_pval_threshold = np.inf
@@ -392,7 +448,20 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         Parameters
         ----------
-        TODO:
+        y : np.ndarray
+            ADD HERE.
+            
+        idx : np.ndarray
+            ADD HERE.
+        
+        n : int
+            ADD HERE.
+            
+        n_left : int
+            ADD HERE.
+            
+        n_right : int
+            ADD HERE.
 
         Returns
         -------
@@ -412,7 +481,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             Training features.
 
         y : np.ndarray
-            Training labels.
+            Training target.
 
         depth : int, optional (default=0)
             Depth of tree.
@@ -475,16 +544,16 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         value = self._node_value(y)
         return Node(value=value, n_samples=n)
-  
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseConditionalInferenceTree":
+
+    def fit(self, X: Any, y: Any) -> "BaseConditionalInferenceTree":
         """Train estimator.
 
         Parameters
         ----------
-        X : np.ndarray
+        X : array-like of shape (n_samples, n_features)
             Training features.
 
-        y : np.ndarray:
+        y : array-like of shape (n_samples,)
             Training target.
 
         Returns
@@ -494,8 +563,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         X, y = self._validate_data(X, y, self._estimator_type)
         n, p = X.shape
-        
-        # Create private attributes for all parameters 
+
+        # Private attributes for all parameters - for consistency to reference across other classes and methods
         self._available_features = np.arange(p, dtype=int)
         self._max_depth = self.max_depth if self.max_depth else np.inf
         self._random_state = int(np.random.randint(1, 100_000)) if self.random_state is None else self.random_state
@@ -513,7 +582,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     upper_limit = ceil(z * z * (alpha * (1 - alpha)) / (_PVAL_PRECISION * _PVAL_PRECISION))
                     value = max(lower_limit, upper_limit)
             setattr(self, f"_{param}", value)
-            
+
         for param in ["alpha_selector", "alpha_splitter", "early_stopping_selector", "early_stopping_splitter"]:
             setattr(self, f"_{param}", getattr(self, param))
 
@@ -557,7 +626,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         for param, value in self.get_params().items():
             p_param = f"_{param}"
             if not hasattr(self, p_param):
-                setattr(self, p_param, getattr(self, param))
+                setattr(self, p_param, value)
 
         # Fitted attributes
         if self._estimator_type == "classifier":
@@ -567,8 +636,36 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.feature_importances_ = np.zeros(p, dtype=float)
         self.n_features_in_ = p
         self.tree_ = self._build_tree(X, y)
-        
+
         return self
+
+    def _predict(self, X: np.ndarray, tree: Optional[Node] = None) -> np.ndarray:
+        """ADD HERE.
+        
+        Parameters
+        ----------
+        
+        Returns
+        -------
+        """
+        # If we have a value => return value as the prediction
+        if tree is None:
+            tree = self.tree_
+        
+        if tree.get("value") is not None:
+            return tree["value"]
+
+        # Determine if we will follow left or right branch
+        feature_value = X[tree["feature"]]
+        branch = tree["left_child"] if feature_value <= tree["threshold"] else tree["right_child"]
+
+        # Test subtree
+        return self._predict(X, branch)
+
+    # @abstractmethod
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict target value."""
+        pass
 
 
 class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstimator, ClassifierMixin):
@@ -618,13 +715,13 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         Number of classes.
 
     feature_importances_ : np.ndarray
-        Feature importances estimated during training.
+        Feature importances for each feature.
 
     n_features_in_ : int
-        Number of
+        Number of features seen during fit.
 
     tree_ : Node
-        ADD HERE.
+        The underlying decision tree.
     """
 
     def __init__(
@@ -680,7 +777,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         Parameters
         ----------
         y : np.ndarray
-            Class labels for node.
+            Training target.
 
         Returns
         -------
@@ -799,7 +896,7 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstima
         Parameters
         ----------
         y : np.ndarray
-            Target values.
+            Training target.
 
         Returns
         -------

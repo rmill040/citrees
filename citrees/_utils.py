@@ -6,12 +6,12 @@ from numba import njit
 
 
 @njit(fastmath=True, nogil=True)
-def bayesian_boostrap_proba(n: int, random_state: int):
+def bayesian_boostrap_proba(n: int, random_state: int) -> np.ndarray:
     """ADD HERE.
-    
+
     Parameters
     ----------
-    
+
     Returns
     -------
     """
@@ -72,8 +72,8 @@ def calculate_max_value(*, n_values: int, desired_max: Union[str, float, int]) -
     """
     if desired_max == "sqrt":
         total = ceil(np.sqrt(n_values))
-    elif desired_max == "log":
-        total = ceil(np.log(n_values))
+    elif desired_max == "log2":
+        total = ceil(np.log2(n_values))
     elif type(desired_max) is float:
         total = ceil(n_values * desired_max)
     elif type(desired_max) is int:
@@ -83,8 +83,7 @@ def calculate_max_value(*, n_values: int, desired_max: Union[str, float, int]) -
 
 @njit(fastmath=True, nogil=True)
 def split_data(
-    *,
-    X: np.ndarray, y: np.ndarray, feature: int, threshold: float
+    *, X: np.ndarray, y: np.ndarray, feature: int, threshold: float
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Split data based on feature and threshold.
 

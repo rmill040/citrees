@@ -1,8 +1,8 @@
+import warnings
 from abc import ABCMeta, abstractmethod
 from math import ceil
 from multiprocessing import cpu_count
 from typing import Optional, Union
-import warnings
 
 import numpy as np
 from scipy.stats import norm
@@ -83,7 +83,7 @@ class BaseConditionalInferenceForest(BaseEstimator, metaclass=ABCMeta):
 
         Parameters
         ----------
-        
+
         Returns
         -------
         """
@@ -228,7 +228,7 @@ class BaseConditionalInferenceForest(BaseEstimator, metaclass=ABCMeta):
         for attribute in ["max_features", "max_thresholds"]:
             value = getattr(self, attribute)
             if type(value) == str:
-                supported = ["sqrt", "log"]
+                supported = ["sqrt", "log2"]
                 if value not in supported:
                     raise ValueError(f"{attribute} ({value}) not supported, expected one of: {supported}")
             elif type(value) == float:
@@ -238,7 +238,11 @@ class BaseConditionalInferenceForest(BaseEstimator, metaclass=ABCMeta):
                 if value < 1:
                     raise ValueError(f"{attribute} ({value}) should be >= 1")
             if attribute == "max_features":
-                value = calculate_max_value(n_values=self.n_features_in_, desired_max=value) if value is not None else self.n_features_in_
+                value = (
+                    calculate_max_value(n_values=self.n_features_in_, desired_max=value)
+                    if value is not None
+                    else self.n_features_in_
+                )
             setattr(self, f"_{attribute}", value)
 
         # Private and fitted estimator attributes
@@ -275,7 +279,6 @@ class BaseConditionalInferenceForest(BaseEstimator, metaclass=ABCMeta):
 
         return self
 
-
         # if self.n_estimators < 1:
         #     raise ValueError(
         #         f"n_estimators ({self.n_estimators}) should be > 1"
@@ -297,10 +300,10 @@ class BaseConditionalInferenceForest(BaseEstimator, metaclass=ABCMeta):
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """ADD HERE.
-        
+
         Parameters
         ----------
-        
+
         Returns
         -------
         """

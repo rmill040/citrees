@@ -424,7 +424,7 @@ def permutation_test_hybrid_classifier(
     mi = mutual_information(x, y, n_classes)
 
     if mc >= mi:
-        return permutation_test_multiple_correlation(
+        asl = permutation_test_multiple_correlation(
             x=x,
             y=y,
             n_classes=n_classes,
@@ -434,7 +434,7 @@ def permutation_test_hybrid_classifier(
             random_state=random_state,
         )
     else:
-        return permutation_test_mutual_information(
+        asl = permutation_test_mutual_information(
             x=x,
             y=y,
             n_classes=n_classes,
@@ -443,6 +443,7 @@ def permutation_test_hybrid_classifier(
             alpha=alpha,
             random_state=random_state,
         )
+    return asl
 
 
 @RegressorSelectorTests.register("pc")
@@ -564,7 +565,7 @@ def permutation_test_hybrid_regressor(
     alpha: float,
     random_state: int = 0,
 ) -> float:
-    """Perform a permutation test using either the Pearson correlation or distance correlation whichever is larger on 
+    """Perform a permutation test using either the Pearson correlation or distance correlation whichever is larger on
     the original data.
 
     Parameters
@@ -596,27 +597,28 @@ def permutation_test_hybrid_regressor(
     float
         Estimated achieved significance level.
     """
-    
-    # pc = pearson_correlation(x, y, n_classes)
-    # dc = mutual_information(x, y, n_classes)
+    pc = abs(pearson_correlation(x, y, standardize=True))
+    dc = distance_correlation(x, y, standardize=True)
 
-    # if mc >= mi:
-    #     return permutation_test_multiple_correlation(
-    #         x=x,
-    #         y=y,
-    #         n_classes=n_classes,
-    #         n_resamples=n_resamples,
-    #         early_stopping=early_stopping,
-    #         alpha=alpha,
-    #         random_state=random_state,
-    #     )
-    # else:
-    #     return permutation_test_mutual_information(
-    #         x=x,
-    #         y=y,
-    #         n_classes=n_classes,
-    #         n_resamples=n_resamples,
-    #         early_stopping=early_stopping,
-    #         alpha=alpha,
-    #         random_state=random_state,
-    #     )
+    if pc >= dc:
+        asl = permutation_test_pearson_correlation(
+            x=x,
+            y=y,
+            standardize=standardize,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+        )
+    else:
+        asl = permutation_test_distance_correlation(
+            x=x,
+            y=y,
+            standardize=standardize,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+        )
+
+    return asl

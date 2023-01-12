@@ -20,7 +20,7 @@ def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.unique(x)
+    return np.random.permutation(np.unique(x))
 
 
 @ThresholdMethods.register("random")
@@ -54,7 +54,7 @@ def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.percentile(x, q=max_thresholds)
+    return np.random.permutation(np.percentile(x, q=max_thresholds))
 
 
 @ThresholdMethods.register("histogram")
@@ -71,4 +71,4 @@ def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.histogram_bin_edges(x, bins=max_thresholds)
+    return np.random.permutation(np.histogram_bin_edges(x, bins=max_thresholds))

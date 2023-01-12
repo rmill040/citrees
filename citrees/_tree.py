@@ -22,8 +22,6 @@ ProbabilityFloat = ConstrainedFloat(gt=0.0, le=1.0)
 NResamplesOption = Union[Literal["minimum", "auto"], NonNegativeInt]
 MaxValuesOption = Optional[Union[Literal["sqrt", "log2"], ProbabilityFloat, NonNegativeInt]]
 
-_PVAL_PRECISION = 0.05
-
 
 class Node(TypedDict, total=False):
     """Node in decision tree.
@@ -84,6 +82,8 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     early_stopping_selector: bool
     early_stopping_splitter: bool
     feature_muting: bool
+    feature_scanning: bool
+    threshold_scanning: bool
     threshold_method: Literal[tuple(ThresholdMethods.keys())]
     max_thresholds: MaxValuesOption
     max_features: MaxValuesOption
@@ -221,7 +221,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         return X, y
 
     def _validate_params(self, params: Dict[str, Any]) -> None:
-        """Validate hyperparameters using pydantic model.
+        """Validate hyperparameters.
 
         Parameters
         ----------
@@ -252,6 +252,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         early_stopping_selector: bool,
         early_stopping_splitter: bool,
         feature_muting: bool,
+        feature_scanning: bool,
+        threshold_scanning: bool,
         threshold_method: str,
         max_thresholds: Optional[Union[str, float, int]],
         max_depth: Optional[int],
@@ -273,6 +275,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.early_stopping_selector = early_stopping_selector
         self.early_stopping_splitter = early_stopping_splitter
         self.feature_muting = feature_muting
+        self.feature_scanning = feature_scanning
+        self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.max_thresholds = max_thresholds
         self.max_depth = max_depth
@@ -324,23 +328,15 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         best_pval_feature = np.inf
 
         for feature in features:
-            if self._adjust_alpha_selector:
-                # TODO: Implement this
-                pass
             x = X[:, feature]
 
             # Check for constant feature and mute if necessary
             if np.all(x == x[0]):
-                if self._feature_muting and len(self._available_features) > 1:
+                if self._feature_muting and self._max_features > 1:
                     self._mute_feature(feature)
                 continue
 
-            pval_feature = self._selector_test(x=x, y=y, **self._selector_kwargs)
-
-            # Check for feature muting
-            if self._feature_muting and pval_feature >= 1 - self._alpha_selector and len(self._available_features) > 1:
-                self._mute_feature(feature)
-                continue
+            pval_feature = self._selector_test(x=x, y=y, **self._selector_test_kwargs)
 
             # Update best feature
             if pval_feature < best_pval_feature:
@@ -351,6 +347,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 # Check for early stopping
                 if pval_feature == 0 or self._early_stopping_selector and reject_H0_feature:
                     break
+
+            # Check for feature muting
+            if (
+                self._feature_muting
+                and pval_feature >= max(self._alpha_selector, 1 - self._alpha_selector)
+                and self._max_features > 1
+            ):
+                self._mute_feature(feature)
 
         return best_feature, best_pval_feature, reject_H0_feature
 
@@ -382,15 +386,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         best_threshold = thresholds[0]
         best_pval_threshold = np.inf
 
-        for threshold in thresholds:
-            if self._adjust_alpha_splitter:
-                # TODO: Implement this
-                pass
+        if self._adjust_alpha_splitter:
+            self._bonferroni_correction(adjust="splitter", n_tests=len(thresholds))
 
+        for threshold in thresholds:
             # Check for constant split and mute if necessary
             if np.all(x == threshold):
                 continue
-            pval_threshold = self._splitter_test(x=x, y=y, threshold=threshold, **self._splitter_kwargs)
+            pval_threshold = self._splitter_test(x=x, y=y, threshold=threshold, **self._splitter_test_kwargs)
 
             # Update best threshold
             if pval_threshold < best_pval_threshold:
@@ -404,19 +407,38 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         return best_threshold, best_pval_threshold, reject_H0_threshold
 
-    def _bonferonni_correction(self, adjust: str) -> None:
+    def _bonferroni_correction(self, *, adjust: str, n_tests: int) -> None:
         """TODO:
 
         Parameters
         ----------
         TODO:
         """
-        import pdb
+        if n_tests > 1:
+            alpha = getattr(self, f"alpha_{adjust}")
+            n_resamples = getattr(self, f"n_resamples_{adjust}")
+            _alpha = alpha / n_tests
+            if type(n_resamples) == str:
+                lower_limit = ceil(1 / _alpha)
+                if n_resamples == "minimum":
+                    _n_resamples = lower_limit
+                else:
+                    z = norm.ppf(1 - _alpha)
+                    upper_limit = ceil(z * z * (1 - _alpha) / _alpha)
+                    _n_resamples = max(lower_limit, upper_limit)
+            else:
+                _n_resamples = n_resamples * n_tests
 
-        pdb.set_trace()
+            setattr(self, f"_alpha_{adjust}", _alpha)
+            setattr(self, f"_n_resamples_{adjust}", _n_resamples)
 
     def _mute_feature(self, feature: int) -> None:
         """Mute feature from being selected during tree building.
+        
+        When feature muting is performed, a single feature gets removed from the set of available features during 
+        feature selection. Given the reduced number of features, the self._max_features attribute must be recalculated 
+        and if alpha adjustment is enabled, then the self._alpha_selector must also be recalculated to reflect the 
+        change in feature space.
 
         Parameters
         ----------
@@ -431,7 +453,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         else:
             # Mask feature and recalculate max_features
             idx = self._available_features == feature
-            self._available_features: np.ndarray = self._available_features[~idx]
+            self._available_features: np.ndarray = self._available_features[~idx]  # make mypy happy with type
             p = len(self._available_features)
             if self.max_features:
                 self._max_features = calculate_max_value(
@@ -440,6 +462,39 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 )
             else:
                 self._max_features = p
+
+            # Update alpha if needed
+            if self._adjust_alpha_selector:
+                self._bonferroni_correction(adjust="selector", n_tests=self._max_features)
+
+    def _scan_features(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> np.ndarray:
+        """ADD HERE.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        """
+        scores = np.array([self._selector(X[:, feature], y, **self._selector_kwargs) for feature in features])
+        ranks = np.argsort(scores)[::-1]
+        return features[ranks]
+
+    def _scan_thresholds(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> np.ndarray:
+        """ADD HERE.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        """
+        scores = []
+        for threshold in thresholds:
+            idx = x <= threshold
+            scores.append(self._splitter(y[idx]) + self._splitter(y[~idx]))
+        ranks = np.argsort(scores)
+        return thresholds[ranks]
 
     def _node_impurity(
         self, *, y: np.ndarray, idx: np.ndarray, n: int, n_left: int, n_right: int
@@ -502,13 +557,28 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # Check for stopping criteria at node level
         if n >= self._min_samples_split and depth <= self._max_depth and not np.all(y == y[0]):
             # Feature selection
+
+            # self._max_features is automatically updated whenever a feature is muted so no need to recalculate during
+            # each iteration as we do below for self._max_thresholds
             features = random_sample(x=self._available_features, size=self._max_features, replace=False)
+            if self._feature_scanning and self._early_stopping_selector:
+                features = self._scan_features(X, y, features)
             best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)
 
-        # Split selection
         if reject_H0_feature:
+            # Split selection
             x = X[:, best_feature]
+
+            # Always recalculate self._max_thresholds given the sample size may change at each recursive call
+            n_unique = len(np.unique(x))
+            if self.max_thresholds:
+                self._max_thresholds = calculate_max_value(n_values=n_unique, desired_max=self.max_thresholds)
+            else:
+                self._max_thresholds = n_unique
+
             thresholds = self._threshold_method(x, max_thresholds=self._max_thresholds)
+            if self._threshold_scanning and self._early_stopping_splitter:
+                thresholds = self._scan_thresholds(x, y, thresholds)
             best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(x, y, thresholds)
 
         # Calculate impurity decrease
@@ -522,6 +592,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 )
 
         if impurity_decrease >= self._min_impurity_decrease:
+            self.feature_importances_[best_feature] += impurity_decrease
             X_left, y_left, X_right, y_right = split_data(
                 X=X,
                 y=y,
@@ -579,18 +650,23 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 else:
                     # Approximate upper limit
                     z = norm.ppf(1 - alpha)
-                    upper_limit = ceil(z * z * (alpha * (1 - alpha)) / (_PVAL_PRECISION * _PVAL_PRECISION))
+                    upper_limit = ceil(z * z * (1 - alpha) / alpha)
                     value = max(lower_limit, upper_limit)
             setattr(self, f"_{param}", value)
 
+        # No need to adjust alphas yet if flags are enabled. The alpha adjustments happen during each call to 
+        # self._selector_test and self._splitter_test
         for param in ["alpha_selector", "alpha_splitter", "early_stopping_selector", "early_stopping_splitter"]:
             setattr(self, f"_{param}", getattr(self, param))
 
         if self._estimator_type == "classifier":
             n_classes = len(np.unique(y))
             self._selector = ClassifierSelectors[self.selector]
-            self._selector_test = ClassifierSelectorTests[self.selector]
             self._selector_kwargs = {
+                "n_classes": n_classes,
+            }
+            self._selector_test = ClassifierSelectorTests[self.selector]
+            self._selector_test_kwargs = {
                 "n_classes": n_classes,
                 "n_resamples": self._n_resamples_selector,
                 "early_stopping": self._early_stopping_selector,
@@ -599,7 +675,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             }
             self._splitter = ClassifierSplitters[self.splitter]
             self._splitter_test = ClassifierSplitterTests[self.splitter]
-            self._splitter_kwargs = {
+            self._splitter_test_kwargs = {
                 "n_resamples": self._n_resamples_splitter,
                 "early_stopping": self._early_stopping_splitter,
                 "alpha": self._alpha_splitter,
@@ -609,11 +685,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             y = self._label_encoder.fit_transform(y)
         else:
             self._selector = RegressorSelectors[self.selector]
+            self._selector_kwargs = {
+                "standardize": False,
+            }
             self._selector_test = RegressorSelectorTests[self.selector]
-            self._selector_kwargs = {}
+            self._selector_test_kwargs = {}
             self._splitter = RegressorSplitters[self.splitter]
             self._splitter_test = RegressorSplitterTests[self.splitter]
-            self._splitter_kwargs = {}
+            self._splitter_test_kwargs = {}
 
         self._threshold_method = ThresholdMethods[self.threshold_method]
 
@@ -636,6 +715,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.feature_importances_ = np.zeros(p, dtype=float)
         self.n_features_in_ = p
         self.tree_ = self._build_tree(X, y)
+
+        # Normalize feature importances
+        self.feature_importances_ /= self.feature_importances_.sum()
 
         return self
 
@@ -738,6 +820,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         n_resamples_selector: Union[str, int] = "auto",
         n_resamples_splitter: Union[str, int] = "auto",
         feature_muting: bool = True,
+        feature_scanning: bool = True,
+        threshold_scanning: bool = True,
         threshold_method: str = "exact",
         max_thresholds: Optional[Union[str, float, int]] = None,
         max_depth: Optional[int] = None,
@@ -760,6 +844,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,
+            feature_scanning=feature_scanning,
+            threshold_scanning=threshold_scanning,
             n_resamples_selector=n_resamples_selector,
             n_resamples_splitter=n_resamples_splitter,
             max_depth=max_depth,
@@ -785,25 +871,25 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
             Class probabilities.
         """
         return estimate_proba(y=y, n_classes=self.n_classes_)
-    
+
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Predict class probabilities.
-        
+
         Parameters
         ----------
         X : np.ndarray
             Features.
-            
+
         Returns
         -------
         np.ndarray
             Predicted class probabilities.
         """
         return np.array([self._predict_value(x) for x in X])
-    
+
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Predict target values.
-        
+
         Parameters
         ----------
         X : np.ndarray
@@ -888,6 +974,8 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstima
         n_resamples_selector: Union[str, int] = "auto",
         n_resamples_splitter: Union[str, int] = "auto",
         feature_muting: bool = True,
+        feature_scanning: bool = True,
+        threshold_scanning: bool = True,
         threshold_method: str = "exact",
         max_thresholds: Optional[Union[str, float, int]] = None,
         max_depth: Optional[int] = None,
@@ -910,6 +998,8 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstima
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,
+            feature_scanning=feature_scanning,
+            threshold_scanning=threshold_scanning,
             n_resamples_selector=n_resamples_selector,
             n_resamples_splitter=n_resamples_splitter,
             max_depth=max_depth,
@@ -935,3 +1025,18 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstima
             Mean of target values in node.
         """
         return estimate_mean(y)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict target values.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Features.
+
+        Returns
+        -------
+        np.ndarray
+            Predicted target values.
+        """
+        return np.array([self._predict_value(x) for x in X])

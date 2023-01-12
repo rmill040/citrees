@@ -43,9 +43,9 @@ class TestConditionalInferenceTreeClassifier:
     def test_fit(self) -> None:
         """Test fit method."""
         # TODO:
+        import pdb; pdb.set_trace()
         _ = ConditionalInferenceTreeClassifier(adjust_alpha_selector=True, adjust_alpha_splitter=True).fit(self.X, self.y)
         assert 0
-        import pdb; pdb.set_trace()
 
 
 class TestConditionalInferenceTreeRegressor:

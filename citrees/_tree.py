@@ -4,7 +4,7 @@ from math import ceil
 from typing import Any, Dict, Literal, Optional, Tuple, TypedDict, Union
 
 import numpy as np
-from pydantic import BaseModel, confloat, conint, NonNegativeFloat, NonNegativeInt, validator
+from pydantic import BaseModel, confloat, conint, NonNegativeFloat, NonNegativeInt, PositiveInt, validator
 from pydantic.main import ModelField, ModelMetaclass
 from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
@@ -87,9 +87,9 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     threshold_method: Literal[tuple(ThresholdMethods.keys())]
     max_thresholds: MaxValuesOption
     max_features: MaxValuesOption
-    max_depth: Optional[ConstrainedInt(ge=1)]
+    max_depth: Optional[PositiveInt]
     min_samples_split: ConstrainedInt(ge=2)
-    min_samples_leaf: ConstrainedInt(ge=1)
+    min_samples_leaf: PositiveInt
     min_impurity_decrease: NonNegativeFloat
     random_state: Optional[NonNegativeInt]
     verbose: NonNegativeInt
@@ -434,10 +434,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
     def _mute_feature(self, feature: int) -> None:
         """Mute feature from being selected during tree building.
-        
-        When feature muting is performed, a single feature gets removed from the set of available features during 
-        feature selection. Given the reduced number of features, the self._max_features attribute must be recalculated 
-        and if alpha adjustment is enabled, then the self._alpha_selector must also be recalculated to reflect the 
+
+        When feature muting is performed, a single feature gets removed from the set of available features during
+        feature selection. Given the reduced number of features, the self._max_features attribute must be recalculated
+        and if alpha adjustment is enabled, then the self._alpha_selector must also be recalculated to reflect the
         change in feature space.
 
         Parameters
@@ -654,7 +654,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     value = max(lower_limit, upper_limit)
             setattr(self, f"_{param}", value)
 
-        # No need to adjust alphas yet if flags are enabled. The alpha adjustments happen during each call to 
+        # No need to adjust alphas yet if flags are enabled. The alpha adjustments happen during each call to
         # self._selector_test and self._splitter_test
         for param in ["alpha_selector", "alpha_splitter", "early_stopping_selector", "early_stopping_splitter"]:
             setattr(self, f"_{param}", getattr(self, param))

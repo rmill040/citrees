@@ -1,12 +1,12 @@
 from math import ceil
-from typing import Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from numba import njit
 
 
 @njit(fastmath=True, nogil=True)
-def bayesian_boostrap_proba(n: int, random_state: int) -> np.ndarray:
+def bayesian_bootstrap_proba(n: int) -> np.ndarray:
     """ADD HERE.
 
     Parameters
@@ -15,8 +15,6 @@ def bayesian_boostrap_proba(n: int, random_state: int) -> np.ndarray:
     Returns
     -------
     """
-    np.random.seed(random_state)
-
     p = np.random.exponential(scale=1.0, size=n)
     return p / p.sum()
 
@@ -60,8 +58,7 @@ def estimate_mean(y: np.ndarray) -> np.ndarray:
     return np.mean(y)
 
 
-@njit(cache=True, fastmath=True, nogil=True)
-def calculate_max_value(*, n_values: int, desired_max: Union[str, float, int]) -> int:
+def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float, int]] = None) -> int:
     """ADD HERE.
 
     Parameters
@@ -70,14 +67,14 @@ def calculate_max_value(*, n_values: int, desired_max: Union[str, float, int]) -
     Returns
     -------
     """
-    if desired_max == "sqrt":
+    if type(desired_max) is int or desired_max is None:
+        total = min(desired_max, n_values)
+    elif desired_max == "sqrt":
         total = ceil(np.sqrt(n_values))
     elif desired_max == "log2":
         total = ceil(np.log2(n_values))
     elif type(desired_max) is float:
         total = ceil(n_values * desired_max)
-    elif type(desired_max) is int:
-        total = min(desired_max, n_values)
     return total
 
 
@@ -108,3 +105,121 @@ def split_data(
     """
     idx = X[:, feature] <= threshold
     return X[idx], y[idx], X[~idx], y[~idx]
+
+
+def stratify_bootstrap_sample(
+    *, idx_classes: List[np.ndarray], bayesian_bootstrap: bool, random_state: int
+) -> List[np.ndarray]:
+    """Indices for stratified bootstrap sampling in classification.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+
+    idx = []
+    for idx_class in idx_classes:
+        n_class = len(idx_class)
+        p = bayesian_bootstrap_proba(n_class) if bayesian_bootstrap else None
+        idx.append(np.random.choice(idx_class, size=n_class, p=p, replace=True))
+
+    return idx
+
+
+def stratify_bootstrap_unsampled_idx(
+    *, idx_classes: List[np.ndarray], bayesian_bootstrap: bool, random_state: int
+) -> List[np.ndarray]:
+    """Unsampled indices for stratified bootstrap sampling in classification.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+    idx_sampled = stratify_bootstrap_sample(
+        idx_classes=idx_classes, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+    )
+    idx_unsampled = [np.setdiff1d(idx_class, idx_sampled[j]) for j, idx_class in enumerate(idx_classes)]
+
+    return idx_unsampled
+
+
+def balanced_bootstrap_sample(
+    *, idx_classes: List[np.ndarray], n: int, bayesian_bootstrap: bool, random_state: int
+) -> List[np.ndarray]:
+    """Indices for balanced bootstrap sampling in classification.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+
+    idx = []
+    for idx_class in idx_classes:
+        n_class = len(idx_class)
+        p = bayesian_bootstrap_proba(n_class) if bayesian_bootstrap else None
+        idx.append(np.random.choice(idx_class, size=n, p=p, replace=True))
+
+    return idx
+
+
+def balanced_bootstrap_unsampled_idx(
+    *, idx_classes: List[np.ndarray], n: int, bayesian_bootstrap: bool, random_state: int
+) -> List[np.ndarray]:
+    """Unsampled indices for balanced bootstrap sampling in classification.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+    idx_sampled = balanced_bootstrap_sample(
+        idx_classes=idx_classes, n=n, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+    )
+    idx_unsampled = [np.setdiff1d(idx_class, idx_sampled[j]) for j, idx_class in enumerate(idx_classes)]
+
+    return idx_unsampled
+
+
+def classic_bootstrap_sample(*, idx: np.ndarray, bayesian_bootstrap: bool, random_state: int) -> np.ndarray:
+    """Indices for classic bootstrapping.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+
+    n = len(idx)
+    p = bayesian_bootstrap_proba(n) if bayesian_bootstrap else None
+
+    return np.random.choice(idx, size=n, p=p, replace=True)
+
+
+def classic_bootstrap_unsampled_idx(*, idx: np.ndarray, bayesian_bootstrap: bool, random_state: int) -> np.ndarray:
+    """Unsampled indices for classic bootstrapping.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    np.random.seed(random_state)
+
+    idx_sampled = classic_bootstrap_sample(idx=idx, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state)
+    idx_unsampled = np.setdiff1d(idx, idx_sampled)
+
+    return idx_unsampled

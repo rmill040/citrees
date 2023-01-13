@@ -28,31 +28,31 @@ class Node(TypedDict, total=False):
 
     Parameters
     ----------
-    feature : int, optional
+    feature : int
         Column index of feature.
 
-    pval_feature : float, optional
+    pval_feature : float
         Probability value from feature selection.
 
-    threshold : float, optional
+    threshold : float
         Best split point found in feature.
 
-    pval_threshold : float, optional
+    pval_threshold : float
         Probability value from split selection.
 
-    impurity : float, optional
+    impurity : float
         Impurity measuring quality of split.
 
-    value : Union[np.ndarray, float], optional
+    value : Union[np.ndarray, float]
         Estimate of class probabilities for classification trees and estimate of central tendency for regression trees.
 
-    left_child : Node, optional
+    left_child : Node
         Left child node where feature value met the threshold.
 
-    right_child : Node, optional
+    right_child : Node
         Left child node where feature value did not meet the threshold.
 
-    n_samples : int, optional
+    n_samples : int
         Number of samples at the node.
     """
 
@@ -527,7 +527,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         impurity_decrease = impurity - children_impurity
         return impurity, impurity_decrease
 
-    def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int = 0) -> Node:
+    def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int) -> Node:
         """Recursively build tree.
 
         Parameters
@@ -538,7 +538,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         y : np.ndarray
             Training target.
 
-        depth : int, optional (default=0)
+        depth : int
             Depth of tree.
 
         Returns
@@ -552,7 +552,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         impurity_decrease = -1
         n, p = X.shape
         if self.verbose > 2:
-            print(f"Building tree at depth ({depth}) with ({n}) samples and ({self._max_features}) features")
+            print(f"Building tree at depth ({depth}) with ({n}) samples")
 
         # Check for stopping criteria at node level
         if n >= self._min_samples_split and depth <= self._max_depth and not np.all(y == y[0]):
@@ -660,7 +660,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             setattr(self, f"_{param}", getattr(self, param))
 
         if self._estimator_type == "classifier":
-            n_classes = len(np.unique(y))
+            n_classes = getattr(self, "n_classes_", len(np.unique(y)))
             self._selector = ClassifierSelectors[self.selector]
             self._selector_kwargs = {
                 "n_classes": n_classes,
@@ -710,11 +710,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # Fitted attributes
         if self._estimator_type == "classifier":
             self.classes_ = np.unique(y)
-            self.n_classes_ = n_classes
+            if not hasattr(self, "n_classes_"):
+                self.n_classes_ = n_classes
 
         self.feature_importances_ = np.zeros(p, dtype=float)
         self.n_features_in_ = p
-        self.tree_ = self._build_tree(X, y)
+        self.tree_ = self._build_tree(X, y, depth=1)
 
         # Normalize feature importances
         self.feature_importances_ /= self.feature_importances_.sum()
@@ -750,43 +751,66 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         pass
 
 
-class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstimator, ClassifierMixin):
+class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, ClassifierMixin):
     """Conditional inference tree classifier.
 
     Parameters
     ----------
-    selector : {"mc", "mi", "hybrid"}, optional (default="mc")
+    selector : {"mc", "mi", "hybrid"}, default="mc"
         Method for feature selection.
 
-    splitter : {"gini", "entropy"}, optional (default="gini")
+    splitter : {"gini", "entropy"}, default="gini"
         Method for split selection.
 
-    alpha_selector : float, optional (default=0.05)
+    alpha_selector : float, default=0.05
         Alpha for feature selection.
 
-    alpha_splitter : float, optional (default=0.05)
+    alpha_splitter : float, default=0.05
         Alpha for split selection.
 
-    adjust_alpha_selector : bool, optional (default=True)
-        ADD HERE.
+    adjust_alpha_selector : bool, default=True
+        Whether to perform a Bonferroni correction during feature selection.
 
-    adjust_alpha_splitter : bool, optional (default=True)
-        ADD HERE.
+    adjust_alpha_splitter : bool, default=True
+        Whether to perform a Berferonni correction during split selection.
 
-    ...
+    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for feature selection.
 
-    threshold_method : {"exact", "random", "histogram", "percentile"}, optional (default="exact")
-        Method to calculate thresholds for a feature used during split selection.
+    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for split selection.
 
-    max_thresholds : int, optional (default=256)
-        Number of bins to use when using histogram splitters.
-
-    early_stopping_selector : bool, optional (default=True)
+    early_stopping_selector : bool, default=True
         Use early stopping during feature selection.
 
-    early_stopping_splitter : bool, optional (default=True)
+    early_stopping_splitter : bool, default=True
         Use early stopping during split selection.
-    ...
+
+    feature_muting: bool
+    
+    feature_scanning: bool
+    
+    threshold_scanning: bool
+
+    threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
+        Method to calculate thresholds for a feature used during split selection.
+
+    max_thresholds : int, default=None
+        Number of bins to use when using histogram splitters.
+
+    max_features: MaxValuesOption
+    
+    max_depth: Optional[PositiveInt]
+    
+    min_samples_split: ConstrainedInt(ge=2)
+    
+    min_samples_leaf: PositiveInt
+    
+    min_impurity_decrease: NonNegativeFloat
+    
+    random_state: Optional[NonNegativeInt]
+    
+    verbose: NonNegativeInt
 
     Attributes
     ----------
@@ -904,7 +928,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, BaseEstim
         return np.argmax(y_proba, axis=1)
 
 
-class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, BaseEstimator, RegressorMixin):
+class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorMixin):
     """Conditional inference tree regressor.
 
     Parameters

@@ -1,9 +1,9 @@
 from abc import ABCMeta, abstractmethod
 from multiprocessing import cpu_count
-from typing import Optional, Literal, Union
+from typing import Literal, Optional, Union
 
-from joblib import delayed, Parallel
 import numpy as np
+from joblib import delayed, Parallel
 from pydantic import PositiveInt
 from pydantic.main import ModelMetaclass
 from sklearn.base import ClassifierMixin, clone, RegressorMixin
@@ -24,15 +24,17 @@ def _parallel_fit_classifier(
     tree: ConditionalInferenceTreeClassifier,
     X: np.ndarray,
     y: np.ndarray,
-    n_classes: int,
+    idx: Optional[np.ndarray],
+    n: Optional[int],
     tree_idx: int,
     n_estimators: int,
     bootstrap_method: Optional[str],
+    bayesian_bootstrap: bool,
     sampling_method: Optional[str],
     verbose: int,
     random_state: int,
 ) -> ConditionalInferenceTreeClassifier:
-    """Utility function for building trees in parallel.
+    """Build classification trees in parallel.
 
     Note: This function can't go locally in a class, because joblib complains that it cannot pickle it when placed there
 
@@ -54,99 +56,67 @@ def _parallel_fit_classifier(
 
     # Bootstrap sample if specified
     if bootstrap_method:
-        kwargs = {"bayesian_bootstrap": bootstrap_method == "bayesian", "random_state": tree.random_state}
+        kwargs = {"bayesian_bootstrap": bayesian_bootstrap, "random_state": tree.random_state}
         if sampling_method in ["balanced", "stratify"]:
-            idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
-            if sampling_method == "balanced":
-                n = np.bincount(y).min()
-                idx = balanced_bootstrap_sample(idx_classes=idx_classes, n=n, **kwargs)
-            else:
-                idx = stratify_bootstrap_sample(idx_classes=idx_classes, **kwargs)
-            idx = np.concatenate(idx)
+            boot_idx = (
+                balanced_bootstrap_sample(idx_classes=idx, n=n, **kwargs)  # type: ignore
+                if sampling_method == "balanced"
+                else stratify_bootstrap_sample(idx_classes=idx, **kwargs)  # type: ignore
+            )
+            boot_idx = np.concatenate(idx)
         else:
-            idx = classic_bootstrap_sample(n=len(y), **kwargs)
-        tree.fit(X[idx], y[idx])
+            boot_idx = classic_bootstrap_sample(idx=idx, n=n, **kwargs)  # type: ignore
+        tree.fit(X[boot_idx], y[boot_idx])
     else:
         tree.fit(X, y)
 
     return tree
 
 
-# def _parallel_fit_regressor(tree, X, y, n, tree_idx, n_estimators, bootstrap,
-#                             bayes, verbose, random_state):
-#     """Utility function for building trees in parallel
-#     Note: This function can't go locally in a class, because joblib complains
-#           that it cannot pickle it when placed there
-#     Parameters
-#     ----------
-#     tree : CITreeRegressor
-#         Instantiated conditional inference tree
-#     X : 2d array-like
-#         Array of features
-#     y : 1d array-like
-#         Array of labels
-#     n : int
-#         Number of samples
-#     tree_idx : int
-#         Index of tree in forest
-#     n_estimators : int
-#         Number of total estimators
-#     bootstrap : bool
-#         Whether to perform bootstrap sampling
-#     bayes : bool
-#         If True, performs Bayesian bootstrap sampling
-#     verbose : bool or int
-#         Controls verbosity of training process
-#     random_state : int
-#         Sets seed for random number generator
-#     Returns
-#     -------
-#     tree : CITreeRegressor
-#         Fitted conditional inference tree
-#     """
-#     # Print status if conditions met
-#     if verbose and n_estimators >= 10:
-#         denom = n_estimators if verbose > 1 else 10
-#         if (tree_idx+1) % int(n_estimators/denom) == 0:
-#             logger("tree", "Building tree %d/%d" % (tree_idx+1, n_estimators))
+def _parallel_fit_regressor(
+    *,
+    tree: ConditionalInferenceTreeRegressor,
+    X: np.ndarray,
+    y: np.ndarray,
+    idx: np.ndarray,
+    n: int,
+    tree_idx: int,
+    n_estimators: int,
+    bootstrap_method: Optional[str],
+    bayesian_bootstrap: bool,
+    verbose: int,
+    random_state: int,
+) -> ConditionalInferenceTreeRegressor:
+    """Build regression trees in parallel.
 
-#     # Bootstrap sample if specified
-#     if bootstrap:
-#         random_state = random_state*(tree_idx+1)
-#         idx          = normal_sampled_idx(random_state, n, bayes)
-
-#         # Train
-#         tree.fit(X[idx], y[idx])
-#     else:
-#         tree.fit(X, y)
-
-#     return tree
-
-
-def _accumulate_prediction(predict, X, out, lock) -> None:
-    """Utility function to aggregate predictions in parallel.
+    Note: This function can't go locally in a class, because joblib complains that it cannot pickle it when placed there
 
     Parameters
     ----------
-    predict : function handle
-        Alias to prediction method of class
 
-    X : 2d array-like
-        Array of features
-
-    out : 1d or 2d array-like
-        Array of labels
-
-    lock : threading lock
-        A lock that controls worker access to data structures for aggregating predictions.
+    Returns
+    -------
     """
-    prediction = predict(X)
-    with lock:
-        if len(out) == 1:
-            out[0] += prediction
+    if verbose:
+        if verbose == 1:
+            denom = 20
+        elif verbose == 2:
+            denom = 10
         else:
-            for i in range(len(out)):
-                out[i] += prediction[i]
+            denom = 1
+        if tree_idx % denom == 0:
+            print(f"Building tree {tree_idx}/{n_estimators}")
+
+    # Bootstrap sample if specified
+    if bootstrap_method:
+        boot_idx = classic_bootstrap_sample(
+            idx=idx, n=n, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+        )
+        tree.fit(X[boot_idx], y[boot_idx])
+    else:
+        tree.fit(X, y)
+
+    return tree
 
 
 class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParameters):
@@ -197,7 +167,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         min_impurity_decrease: float,
         bootstrap_method: Optional[str],
         max_samples: Optional[Union[int, float]],
-        n_jobs: int,
+        n_jobs: Optional[int],
         random_state: Optional[int],
         verbose: int,
     ) -> None:
@@ -232,7 +202,13 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
     @property
     def _parameter_validator(self) -> ModelMetaclass:
-        """Model for hyperparameter validation."""
+        """Model for hyperparameter validation.
+
+        Returns
+        -------
+        ModelMetaclass
+            Model to validate hyperparameters.
+        """
         return BaseConditionalInferenceForestParameters
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseConditionalInferenceForest":
@@ -298,38 +274,68 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.estimators_ = []
         for j in range(self._n_estimators):
             base_estimator = clone(base_estimator)
-            base_estimator.random_state += j
+            base_estimator._random_state += j
             self.estimators_.append(base_estimator)
 
         # Train estimators
+        bayesian_bootstrap = self._bootstrap_method == "bayesian"
         if self._estimator_type == "classifier":
+            n = None
+            if self._sampling_method in ["balanced", "stratify"]:
+                idx = [np.where(y == j)[0] for j in range(self.n_classes_)]
+                if self._sampling_method == "balanced":
+                    n = np.bincount(y).min()
+            else:
+                n = len(y)
+                idx = np.arange(n, dtype=int)
+
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_classifier)(
                     tree=tree,
                     X=X,
                     y=y,
-                    n_classes=self.n_classes_,
+                    idx=idx,
+                    n=n,
                     tree_idx=tree_idx,
                     n_estimators=self._n_estimators,
                     bootstrap_method=self._bootstrap_method,
+                    bayesian_bootstrap=bayesian_bootstrap,
                     sampling_method=self._sampling_method,
                     verbose=self._verbose,
                     random_state=tree.random_state,
                 )
-                for tree_idx, tree in enumerate(self.estimators_)
+                for tree_idx, tree in enumerate(self.estimators_, 1)
             )
         else:
-            pass
-            # _parallel_fit_regressor
+            n = len(y)
+            idx = np.arange(n, dtype=int)
+            self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
+                delayed(_parallel_fit_regressor)(
+                    tree=tree,
+                    X=X,
+                    y=y,
+                    idx=idx,
+                    n=n,
+                    tree_idx=tree_idx,
+                    n_estimators=self._n_estimators,
+                    bootstrap_method=self._bootstrap_method,
+                    bayesian_bootstrap=bayesian_bootstrap,
+                    verbose=self._verbose,
+                    random_state=tree.random_state,
+                )
+                for tree_idx, tree in enumerate(self.estimators, 1)
+            )
 
-        # Normalize feature importances
-        # self.feature_importances_ /= self.feature_importances_.sum()
+        # Aggregate feature importances
+        for estimator in self.estimators_:
+            self.feature_importances_ += estimator.feature_importances_
+        self.feature_importances_ /= self.feature_importances_.sum()
 
         return self
 
     @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """ADD HERE."""
+        """Predict target values."""
         pass
 
 
@@ -355,15 +361,15 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         threshold_scanning: bool = True,
         threshold_method: str = "exact",
         max_thresholds: Optional[Union[str, float, int]] = None,
-        max_depth: Optional[int] = None,
         max_features: Optional[Union[str, float, int]] = "sqrt",
+        max_depth: Optional[int] = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
         bootstrap_method: Optional[str] = "bayesian",
         sampling_method: Optional[str] = "stratify",
         max_samples: Optional[Union[int, float]] = None,
-        n_jobs: int = None,
+        n_jobs: Optional[int] = None,
         random_state: Optional[int] = None,
         verbose: int = 1,
     ) -> None:
@@ -383,8 +389,8 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.max_thresholds = max_thresholds
-        self.max_depth = max_depth
         self.max_features = max_features
+        self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.min_impurity_decrease = min_impurity_decrease
@@ -399,8 +405,138 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
 
     @property
     def _parameter_validator(self) -> ModelMetaclass:
-        """ADD HERE."""
+        """Model for hyperparameter validation.
+
+        Returns
+        -------
+        ModelMetaclass
+            Model to validate hyperparameters.
+        """
         return ConditionalInferenceForestClassifierParameters
 
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Predict class probabilities.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Features.
+
+        Returns
+        -------
+        np.ndarray
+            Predicted class probabilities.
+        """
+        X = self._validate_data_predict(X)
+
+        y_hat = np.zeros((X.shape[0], self.n_classes_))
+        for estimator in self.estimators_:
+            y_hat += estimator.predict_proba(X)  # type: ignore
+
+        # Average probabilities
+        y_hat /= self._n_estimators
+        return y_hat
+
     def predict(self, X: np.ndarray) -> np.ndarray:
-        pass
+        """Predict target values.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Features.
+
+        Returns
+        -------
+        np.ndarray
+            Predicted class labels.
+        """
+        X = self._validate_data_predict(X)
+
+        y_hat = self.predict_proba(X)
+        return np.argmax(y_hat, axis=1)
+
+
+class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, RegressorMixin):
+    """Conditional inference forest regressor."""
+
+    def __init__(
+        self,
+        *,
+        n_estimators: int = 100,
+        selector: str = "pc",
+        splitter: str = "mse",
+        alpha_selector: float = 0.05,
+        alpha_splitter: float = 0.05,
+        adjust_alpha_selector: bool = True,
+        adjust_alpha_splitter: bool = True,
+        n_resamples_selector: Union[str, int] = "auto",
+        n_resamples_splitter: Union[str, int] = "auto",
+        early_stopping_selector: bool = True,
+        early_stopping_splitter: bool = True,
+        feature_muting: bool = True,
+        feature_scanning: bool = True,
+        threshold_scanning: bool = True,
+        threshold_method: str = "exact",
+        max_thresholds: Optional[Union[str, float, int]] = None,
+        max_features: Optional[Union[str, float, int]] = "sqrt",
+        max_depth: Optional[int] = None,
+        min_samples_split: int = 2,
+        min_samples_leaf: int = 1,
+        min_impurity_decrease: float = 0.0,
+        bootstrap_method: Optional[str] = "bayesian",
+        max_samples: Optional[Union[int, float]] = None,
+        n_jobs: Optional[int] = None,
+        random_state: Optional[int] = None,
+        verbose: int = 1,
+    ) -> None:
+        super().__init__(
+            n_estimators=n_estimators,
+            selector=selector,
+            splitter=splitter,
+            alpha_selector=alpha_selector,
+            alpha_splitter=alpha_splitter,
+            adjust_alpha_selector=adjust_alpha_selector,
+            adjust_alpha_splitter=adjust_alpha_splitter,
+            n_resamples_selector=n_resamples_selector,
+            n_resamples_splitter=n_resamples_splitter,
+            threshold_method=threshold_method,
+            max_thresholds=max_thresholds,
+            early_stopping_selector=early_stopping_selector,
+            early_stopping_splitter=early_stopping_splitter,
+            feature_muting=feature_muting,
+            feature_scanning=feature_scanning,
+            threshold_scanning=threshold_scanning,
+            max_features=max_features,
+            max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            min_impurity_decrease=min_impurity_decrease,
+            bootstrap_method=bootstrap_method,
+            max_samples=max_samples,
+            n_jobs=n_jobs,
+            random_state=random_state,
+            verbose=verbose,
+        )
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict target values.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Features.
+
+        Returns
+        -------
+        np.ndarray
+            Predicted class labels.
+        """
+        X = self._validate_data_predict(X)
+
+        y_hat = np.zeros(X.shape[0])
+        for estimator in self.estimators_:
+            y_hat += estimator.predict(X)  # type: ignore
+
+        y_hat /= self._n_estimators_
+
+        return y_hat

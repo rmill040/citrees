@@ -20,5 +20,5 @@ class TestConditionalInferenceForestClassifier:
         """Test fit method."""
         # TODO:
         _ = ConditionalInferenceForestClassifier(verbose=3, n_jobs=-1).fit(self.X, self.y)
-        import pdb; pdb.set_trace()
         assert 0
+        _.predict_proba(self.X)

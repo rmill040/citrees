@@ -67,7 +67,7 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
     Returns
     -------
     """
-    if type(desired_max) is int or desired_max is None:
+    if type(desired_max) is int:
         total = min(desired_max, n_values)
     elif desired_max == "sqrt":
         total = ceil(np.sqrt(n_values))
@@ -75,6 +75,8 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
         total = ceil(np.log2(n_values))
     elif type(desired_max) is float:
         total = ceil(n_values * desired_max)
+    else:
+        total = n_values
     return total
 
 
@@ -191,7 +193,7 @@ def balanced_bootstrap_unsampled_idx(
     return idx_unsampled
 
 
-def classic_bootstrap_sample(*, idx: np.ndarray, bayesian_bootstrap: bool, random_state: int) -> np.ndarray:
+def classic_bootstrap_sample(*, idx: np.ndarray, n: int, bayesian_bootstrap: bool, random_state: int) -> np.ndarray:
     """Indices for classic bootstrapping.
 
     Parameters
@@ -202,13 +204,14 @@ def classic_bootstrap_sample(*, idx: np.ndarray, bayesian_bootstrap: bool, rando
     """
     np.random.seed(random_state)
 
-    n = len(idx)
     p = bayesian_bootstrap_proba(n) if bayesian_bootstrap else None
 
     return np.random.choice(idx, size=n, p=p, replace=True)
 
 
-def classic_bootstrap_unsampled_idx(*, idx: np.ndarray, bayesian_bootstrap: bool, random_state: int) -> np.ndarray:
+def classic_bootstrap_unsampled_idx(
+    *, idx: np.ndarray, n: int, bayesian_bootstrap: bool, random_state: int
+) -> np.ndarray:
     """Unsampled indices for classic bootstrapping.
 
     Parameters
@@ -219,7 +222,9 @@ def classic_bootstrap_unsampled_idx(*, idx: np.ndarray, bayesian_bootstrap: bool
     """
     np.random.seed(random_state)
 
-    idx_sampled = classic_bootstrap_sample(idx=idx, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state)
+    idx_sampled = classic_bootstrap_sample(
+        idx=idx, n=n, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+    )
     idx_unsampled = np.setdiff1d(idx, idx_sampled)
 
     return idx_unsampled

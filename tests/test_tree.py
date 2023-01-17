@@ -43,7 +43,9 @@ class TestConditionalInferenceTreeClassifier:
     def test_fit(self) -> None:
         """Test fit method."""
         # TODO:
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         _ = ConditionalInferenceTreeClassifier().fit(self.X, self.y)
         assert 0
 

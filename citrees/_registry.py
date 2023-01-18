@@ -20,10 +20,6 @@ class Registry:
     def name(self) -> str:
         """Get registry name.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         str
@@ -34,13 +30,9 @@ class Registry:
     def keys(self) -> List[Any]:
         """Return keys in registry.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
-        list
+        List[Any]
             List of keys.
         """
         return list(self._registry.keys())

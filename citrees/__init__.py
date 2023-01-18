@@ -1,1 +1,3 @@
-from citrees._tree import ConditionalInferenceTreeClassifier  # noqa
+# flake8: noqa
+from ._forest import ConditionalInferenceForestClassifier, ConditionalInferenceForestRegressor
+from ._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor

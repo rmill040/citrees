@@ -6,54 +6,63 @@ from numba import njit
 
 
 @njit(fastmath=True, nogil=True)
-def bayesian_bootstrap_proba(n: int) -> np.ndarray:
-    """ADD HERE.
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    """
-    p = np.random.exponential(scale=1.0, size=n)
-    return p / p.sum()
-
-
-@njit(fastmath=True, nogil=True)
 def random_sample(*, x: np.ndarray, size: int, replace: bool = False) -> np.ndarray:
-    """ADD HERE.
+    """Generate a random sample.
 
     Parameters
     ----------
+    x : np.ndarray
+        Input data.
+
+    size : int
+        Size of random sample.
+
+    replace : bool, default=False
+        Whether to sample with replacement.
 
     Returns
     -------
+    np.ndarray
+        Random sample.
     """
     return np.random.choice(x, size=size, replace=replace)
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def estimate_proba(*, y: np.ndarray, n_classes: np.ndarray) -> np.ndarray:
-    """ADD HERE.
+def estimate_proba(*, y: np.ndarray, n_classes: int) -> np.ndarray:
+    """Estimate class probabilities.
+
+    Note: This function assumes that for K classes, the labels are 0, 1, ..., K-1.
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
+
+    n_classes : int
+        Number of classes.
 
     Returns
     -------
+    np.ndarray
+        Estimated probabilities for each class.
     """
     return np.array([np.mean(y == j) for j in range(n_classes)])
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def estimate_mean(y: np.ndarray) -> np.ndarray:
-    """ADD HERE.
+def estimate_mean(y: np.ndarray) -> float:
+    """Estimate the mean.
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
 
     Returns
     -------
+    float
+        Estimate mean.
     """
     return np.mean(y)
 
@@ -107,6 +116,24 @@ def split_data(
     """
     idx = X[:, feature] <= threshold
     return X[idx], y[idx], X[~idx], y[~idx]
+
+
+@njit(fastmath=True, nogil=True)
+def bayesian_bootstrap_proba(n: int) -> np.ndarray:
+    """Generate Bayesian bootstrap probabilities for a sample of size n.
+
+    Parameters
+    ----------
+    n : int
+        Number of samples.
+
+    Returns
+    -------
+    np.ndarray
+        Bootstrap probabilities associated with each sample.
+    """
+    p = np.random.exponential(scale=1.0, size=n)
+    return p / p.sum()
 
 
 def stratify_bootstrap_sample(

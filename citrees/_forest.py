@@ -335,7 +335,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
     @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict target values."""
+        """Predict target."""
         pass
 
 
@@ -438,7 +438,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         return y_hat
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict target values.
+        """Predict target.
 
         Parameters
         ----------
@@ -519,7 +519,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         )
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict target values.
+        """Predict target.
 
         Parameters
         ----------

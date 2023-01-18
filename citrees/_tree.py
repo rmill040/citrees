@@ -56,15 +56,15 @@ class Node(TypedDict, total=False):
         Number of samples at the node.
     """
 
-    feature: Optional[int]
-    pval_feature: Optional[float]
-    threshold: Optional[float]
-    pval_threshold: Optional[float]
-    impurity: Optional[float]
-    value: Optional[Union[np.ndarray, float]]
-    left_child: Optional["Node"]
-    right_child: Optional["Node"]
-    n_samples: Optional[int]
+    feature: int
+    pval_feature: float
+    threshold: float
+    pval_threshold: float
+    impurity: float
+    value: Union[np.ndarray, float]
+    left_child: "Node"
+    right_child: "Node"
+    n_samples: int
 
 
 class BaseConditionalInferenceTreeParameters(BaseModel):
@@ -389,7 +389,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             Pvalue of best feature selection test.
 
         reject_H0_feature : bool
-            Whether to reject the null hypothesis of no significant association between features and targets.
+            Whether to reject the null hypothesis of no significant association between features and target.
         """
         best_feature = features[0]
         best_pval_feature = np.inf
@@ -820,7 +820,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
     @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict target value."""
+        """Predict target."""
         pass
 
 
@@ -987,7 +987,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         return np.array([self._predict_value(x) for x in X])
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict target values.
+        """Predict target.
 
         Parameters
         ----------
@@ -1123,12 +1123,12 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         Returns
         -------
         float
-            Mean of target values in node.
+            Mean of target in node.
         """
         return estimate_mean(y)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict target values.
+        """Predict target.
 
         Parameters
         ----------
@@ -1138,7 +1138,7 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         Returns
         -------
         np.ndarray
-            Predicted target values.
+            Predicted target.
         """
         X = self._validate_data_predict(X)
 

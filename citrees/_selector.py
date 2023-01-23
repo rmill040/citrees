@@ -20,12 +20,12 @@ def _permutation_test(
     alpha: float,
     random_state: int,
 ) -> float:
-    """Perform a permutation test.
+    """Perform a permutation test for feature selection.
 
     Parameters
     ----------
     func : Any
-        Function to use in permutation testing.
+        Feature selection function to use in permutation testing.
 
     func_arg : Any
         Single function argument.
@@ -94,10 +94,10 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int) -> float:
     Parameters
     ----------
     x : np.ndarray
-        Feature values.
+        Feature.
 
     y : np.ndarray
-        Label values.
+        Target.
 
     n_classes : int
         Number of classes.
@@ -154,10 +154,10 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: Optional[np.ndar
     Parameters
     ----------
     x : np.ndarray
-        Feature values.
+        Feature.
 
     y : np.ndarray
-        Label values.
+        Target.
 
     n_classes : int
         Number of classes.

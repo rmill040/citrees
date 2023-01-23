@@ -17,7 +17,39 @@ def _permutation_test(
     alpha: float,
     random_state: int,
 ) -> float:
-    """Perform a permutation test."""
+    """Perform a permutation test for split selection.
+
+    Parameters
+    ----------
+    func : Any
+        Split selection function to use in permutation testing.
+
+    x : np.ndarray
+        Input data, usually the feature in the (x, y) pair.
+
+    y : np.ndarray
+        Input data, usually the target in the (x, y) pair.
+
+    threshold : float
+        Threshold used to create binary split on x.
+
+    n_resamples : int
+        Number of resamples.
+
+    early_stopping : bool
+        Whether to early stop permutation testing if null hypothesis can be rejected.
+
+    alpha : float
+        Alpha level for significance testing.
+
+    random_state : int
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
     np.random.seed(random_state)
 
     idx = x <= threshold
@@ -30,10 +62,11 @@ def _permutation_test(
         min_resamples = ceil(1 / alpha)
         if n_resamples < min_resamples:
             n_resamples = min_resamples
+            theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p[i] = func(y_[idx]) + func(y_[~idx])
-            if i >= min_resamples:
+            if i >= min_resamples - 1:
                 asl = np.mean(theta_p[: i + 1] <= theta)
                 if asl < alpha:
                     break
@@ -54,10 +87,12 @@ _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 @ClassifierSplitters.register("gini")
 @njit(cache=True, fastmath=True, nogil=True)
 def gini_index(y: np.ndarray) -> float:
-    """ADD HERE.
+    """Calculate gini index.
 
     Parameters
     ----------
+    y : np.ndarray
+        Training target.
 
     Returns
     -------

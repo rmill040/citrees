@@ -46,7 +46,9 @@ class TestConditionalInferenceTreeClassifier:
         import pdb
 
         pdb.set_trace()
-        _ = ConditionalInferenceTreeClassifier().fit(self.X, self.y)
+        _ = ConditionalInferenceTreeClassifier(n_resamples_selector="auto", n_resamples_splitter="auto").fit(
+            self.X, self.y
+        )
         assert 0
 
 

@@ -151,8 +151,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         alpha_splitter: float,
         adjust_alpha_selector: bool,
         adjust_alpha_splitter: bool,
-        n_resamples_selector: Union[str, int],
-        n_resamples_splitter: Union[str, int],
+        n_resamples_selector: Optional[Union[str, int]],
+        n_resamples_splitter: Optional[Union[str, int]],
         early_stopping_selector: bool,
         early_stopping_splitter: bool,
         feature_muting: bool,
@@ -227,7 +227,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self
             Fitted estimator.
         """
-        X, y = self._validate_data(X, y, self._estimator_type)
+        X, y = self._validate_data_fit(X=X, y=y, estimator_type=self._estimator_type)
         n, p = X.shape
 
         # Private attributes for all parameters - for consistency to reference across other classes and methods
@@ -271,7 +271,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.estimators_ = []
         for j in range(self._n_estimators):
             base_estimator = clone(base_estimator)
-            base_estimator._random_state += j
+            base_estimator.random_state = self._random_state + j
             self.estimators_.append(base_estimator)
 
         # Train estimators
@@ -349,8 +349,8 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         alpha_splitter: float = 0.05,
         adjust_alpha_selector: bool = True,
         adjust_alpha_splitter: bool = True,
-        n_resamples_selector: Union[str, int] = "auto",
-        n_resamples_splitter: Union[str, int] = "auto",
+        n_resamples_selector: Optional[Union[str, int]] = "auto",
+        n_resamples_splitter: Optional[Union[str, int]] = "auto",
         early_stopping_selector: bool = True,
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
@@ -466,8 +466,8 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         alpha_splitter: float = 0.05,
         adjust_alpha_selector: bool = True,
         adjust_alpha_splitter: bool = True,
-        n_resamples_selector: Union[str, int] = "auto",
-        n_resamples_splitter: Union[str, int] = "auto",
+        n_resamples_selector: Optional[Union[str, int]] = "auto",
+        n_resamples_splitter: Optional[Union[str, int]] = "auto",
         early_stopping_selector: bool = True,
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,

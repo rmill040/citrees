@@ -239,10 +239,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
 
-        if self.max_samples:
-            self._max_samples = calculate_max_value(n_values=n, desired_max=self.max_values)
-        else:
-            self._max_samples = n
+        self._max_samples = calculate_max_value(n_values=n, desired_max=self.max_values) if self.max_samples else n
 
         max_cpus = cpu_count()
         value = 1 if self.n_jobs is None else self.n_jobs

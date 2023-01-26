@@ -68,13 +68,20 @@ def estimate_mean(y: np.ndarray) -> float:
 
 
 def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float, int]] = None) -> int:
-    """ADD HERE.
+    """Calculate the maximum desired value based on a fixed input size.
 
     Parameters
     ----------
+    n_values : int
+        Total number of values.
+
+    desired_max : Union[str, float, int], default=None
+        Desired number of values.
 
     Returns
     -------
+    int
+        Maximum value.
     """
     if type(desired_max) is int:
         total = min(desired_max, n_values)
@@ -86,7 +93,8 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
         total = ceil(n_values * desired_max)
     else:
         total = n_values
-    return total
+
+    return min(n_values, total)
 
 
 @njit(fastmath=True, nogil=True)

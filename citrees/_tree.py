@@ -522,13 +522,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             idx = self._available_features == feature
             self._available_features: np.ndarray = self._available_features[~idx]  # make mypy happy with type
             p = len(self._available_features)
-            if self.max_features:
-                self._max_features = calculate_max_value(
-                    n_values=p,
-                    desired_max=self.max_features,
-                )
-            else:
-                self._max_features = p
+            self._max_features = (
+                calculate_max_value(n_values=p, desired_max=self.max_features) if self.max_features else p
+            )
 
             # Update alpha if needed
             if self._adjust_alpha_selector:
@@ -638,10 +634,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # Always recalculate self._max_thresholds given the sample size may change at each recursive call
             n_unique = len(np.unique(x))
-            if self.max_thresholds:
-                self._max_thresholds = calculate_max_value(n_values=n_unique, desired_max=self.max_thresholds)
-            else:
-                self._max_thresholds = n_unique
+            self._max_thresholds = (
+                calculate_max_value(n_values=n_unique, desired_max=self.max_thresholds)
+                if self.max_thresholds
+                else n_unique
+            )
 
             thresholds = self._threshold_method(x, max_thresholds=self._max_thresholds)
             if self._threshold_scanning and self._early_stopping_splitter:
@@ -768,11 +765,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         }
 
         self._threshold_method: Any = ThresholdMethods[self.threshold_method]
-
-        if self.max_features:
-            self._max_features = calculate_max_value(n_values=p, desired_max=self.max_features)
-        else:
-            self._max_features = p
+        self._max_features = calculate_max_value(n_values=p, desired_max=self.max_features) if self.max_features else p
 
         # Set rest of parameters as private attributes
         for param, value in self.get_params().items():

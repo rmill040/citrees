@@ -15,7 +15,7 @@ def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
     ----------
     x : np.ndarray
         Input data.
-    
+
     max_thresholds : int, default=None
         Maximum number of thresholds to generate. Kept here for API compatibility with other threshold methods.
 
@@ -39,7 +39,7 @@ def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     ----------
     x : np.ndarray
         Input data.
-        
+
     max_thresholds : int
         Maximum number of thresholds to generate.
 

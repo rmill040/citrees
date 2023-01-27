@@ -3,9 +3,8 @@ from typing import Any, Dict
 
 import numpy as np
 import pytest
-from sklearn import datasets
 
-from citrees._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor, Node
+from citrees._tree import Node
 
 
 @pytest.mark.parametrize(
@@ -30,40 +29,3 @@ def test_node(kwargs: Dict[str, Any]) -> None:
 
     for key, value in node.items():
         assert value == kwargs[key]
-
-
-class TestConditionalInferenceTreeClassifier:
-    """Test ConditionalInferenceTreeClassifier functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self) -> None:
-        """Initialize tests."""
-        self.X, self.y = datasets.load_breast_cancer(return_X_y=True, as_frame=False)
-
-    def test_fit(self) -> None:
-        """Test fit method."""
-        # TODO:
-        import pdb
-
-        pdb.set_trace()
-        _ = ConditionalInferenceTreeClassifier(n_resamples_selector="auto", n_resamples_splitter="auto").fit(
-            self.X, self.y
-        )
-        assert 0
-
-
-class TestConditionalInferenceTreeRegressor:
-    """Test ConditionalInferenceTreeRegressor functionality."""
-
-    # @pytest.fixture(autouse=True)
-    # def setup(self) -> None:
-    #     """Initialize tests."""
-    #     self.X, self.y = datasets.load_breast_cancer(return_X_y=True, as_frame=False)
-
-    # def test_fit(self) -> None:
-    #     """Test fit method."""
-    #     # TODO:
-    #     _ = ConditionalInferenceTreeRegressor().fit(self.X, self.y)
-    #     import pdb
-
-    #     pdb.set_trace()

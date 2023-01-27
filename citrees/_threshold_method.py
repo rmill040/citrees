@@ -9,7 +9,7 @@ from ._registry import ThresholdMethods
 @ThresholdMethods.register("exact")
 @njit(fastmath=True, nogil=True)
 def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
-    """Random permutation of all unique values of x.
+    """Random permutation of unique midpoints in array.
 
     Parameters
     ----------
@@ -22,18 +22,21 @@ def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Random permutation of unique values of x.
+        Thresholds in array.
     """
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.random.permutation(np.unique(x))
+    values = np.unique(x)
+    midpoints = (values[:-1] + values[1:]) / 2
+
+    return np.random.permutation(midpoints)
 
 
 @ThresholdMethods.register("random")
 @njit(fastmath=True, nogil=True)
 def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """Random permutation of a random sample of unique values.
+    """Random permutation of a random sample of unique midpoints in array.
 
     Parameters
     ----------
@@ -46,24 +49,34 @@ def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Random permutation of unique values of x.
+        Thresholds in array.
     """
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.random.choice(np.unique(x), size=max_thresholds, replace=False)
+    values = np.unique(x)
+    midpoints = (values[:-1] + values[1:]) / 2
+
+    return np.random.choice(midpoints, size=max_thresholds, replace=False)
 
 
 @ThresholdMethods.register("percentile")
 @njit(fastmath=True, nogil=True)
 def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """Random permutation of percentiles
+    """Random permutation of percentiles of array.
 
     Parameters
     ----------
+    x : np.ndarray
+        Input data.
+
+    max_thresholds : int
+        Maximum number of thresholds to generate.
 
     Returns
     -------
+    np.ndarray
+        Thresholds in array.
     """
     if x.ndim > 1:
         x = x.ravel()
@@ -74,13 +87,20 @@ def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
 @ThresholdMethods.register("histogram")
 @njit(fastmath=True, nogil=True)
 def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """ADD HERE.
+    """Random permutation of histogram bin edges of array.
 
     Parameters
     ----------
+    x : np.ndarray
+        Input data.
+
+    max_thresholds : int
+        Maximum number of thresholds to generate.
 
     Returns
     -------
+    np.ndarray
+        Thresholds in array.
     """
     if x.ndim > 1:
         x = x.ravel()

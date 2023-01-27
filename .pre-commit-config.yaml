@@ -51,4 +51,4 @@ repos:
           - --config-file=pyproject.toml
           - --install-types
           - --non-interactive
-        exclude: ^tests/
+        exclude: ^tests/|^paper/

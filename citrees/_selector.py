@@ -11,6 +11,7 @@ from ._registry import ClassifierSelectors, ClassifierSelectorTests, RegressorSe
 
 
 def _permutation_test(
+    *,
     func: Any,
     func_arg: Any,
     x: np.ndarray,
@@ -184,7 +185,7 @@ def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True) 
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     standardize : np.ndarray, optional (default=True)
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
@@ -212,7 +213,7 @@ def _covariance(x: np.ndarray, y: np.ndarray) -> float:
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     Returns
     -------
@@ -244,7 +245,7 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     Returns
     -------
@@ -284,7 +285,7 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool = True)
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     standardize : np.ndarray, optional (default=True)
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
@@ -321,7 +322,7 @@ def permutation_test_multiple_correlation(
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     n_classes : int
         Number of classes.
@@ -375,7 +376,7 @@ def permutation_test_mutual_information(
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     n_classes : int
         Number of classes.
@@ -430,7 +431,7 @@ def permutation_test_hybrid_classifier(
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     n_classes : int
         Number of classes.
@@ -498,7 +499,7 @@ def permutation_test_pearson_correlation(
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     standardize : np.ndarray
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
@@ -552,7 +553,7 @@ def permutation_test_distance_correlation(
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     standardize : np.ndarray
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
@@ -607,7 +608,7 @@ def permutation_test_hybrid_regressor(
         Feature values.
 
     y : np.ndarray
-        Label values.
+        Target values.
 
     standardize : np.ndarray
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.

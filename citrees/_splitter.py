@@ -8,6 +8,7 @@ from ._registry import ClassifierSplitters, ClassifierSplitterTests, RegressorSp
 
 
 def _permutation_test(
+    *,
     func: Any,
     x: np.ndarray,
     y: np.ndarray,
@@ -106,7 +107,7 @@ def gini_index(y: np.ndarray) -> float:
 
 
 @ClassifierSplitterTests.register("gini")
-def permutation_test_gini(
+def permutation_test_gini_index(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,

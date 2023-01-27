@@ -19,20 +19,26 @@ from ._tree import (
 from ._utils import balanced_bootstrap_sample, calculate_max_value, classic_bootstrap_sample, stratify_bootstrap_sample
 
 
+# Defines how often to print status during parallel tree training
+_PRINT_FACTOR = {
+    1: 20,
+    2: 10,
+    3: 1,
+}
+
+
 def _parallel_fit_classifier(
     *,
-    tree: ConditionalInferenceTreeClassifier,
+    estimator: ConditionalInferenceTreeClassifier,
     X: np.ndarray,
     y: np.ndarray,
     idx: Optional[np.ndarray],
     n: Optional[int],
-    tree_idx: int,
+    estimator_idx: int,
     n_estimators: int,
     bootstrap_method: Optional[str],
-    bayesian_bootstrap: bool,
     sampling_method: Optional[str],
     verbose: int,
-    random_state: int,
 ) -> ConditionalInferenceTreeClassifier:
     """Build classification trees in parallel.
 
@@ -40,23 +46,48 @@ def _parallel_fit_classifier(
 
     Parameters
     ----------
+    estimator : ConditionalInferenceTreeClassifier
+        Instantiated estimator.
+
+    X : np.ndarray
+        Features.
+
+    y : np.ndarray
+        Target.
+
+    idx : np.ndarray
+        Indices for bootstrap sampling.
+
+    n : int
+        Sample size.
+
+    estimator_idx : int
+        Tree index in ensemble.
+
+    n_estimators : int
+        Number of parallel trees to grow.
+
+    bootstrap_method : str
+        Type of bootstrap to use.
+
+    sampling_method : str
+        Type of sampling to use during bootstrap.
+
+    verbose : int
+        Controls verbosity of fitting.
 
     Returns
     -------
+    ConditionalInferenceTreeClassifier
+        Fitted estimator.
     """
     if verbose:
-        if verbose == 1:
-            denom = 20
-        elif verbose == 2:
-            denom = 10
-        else:
-            denom = 1
-        if tree_idx % denom == 0:
-            print(f"Building tree {tree_idx}/{n_estimators}")
+        if estimator_idx % _PRINT_FACTOR[verbose] == 0:
+            print(f"Building tree {estimator_idx}/{n_estimators}")
 
     # Bootstrap sample if specified
     if bootstrap_method:
-        kwargs = {"bayesian_bootstrap": bayesian_bootstrap, "random_state": tree.random_state}
+        kwargs = {"bayesian_bootstrap": bootstrap_method == "bayesian", "random_state": estimator.random_state}
         if sampling_method in ["balanced", "stratify"]:
             boot_idx = (
                 balanced_bootstrap_sample(idx_classes=idx, n=n, **kwargs)  # type: ignore
@@ -66,26 +97,24 @@ def _parallel_fit_classifier(
             boot_idx = np.concatenate(idx)
         else:
             boot_idx = classic_bootstrap_sample(idx=idx, n=n, **kwargs)  # type: ignore
-        tree.fit(X[boot_idx], y[boot_idx])
+        estimator.fit(X[boot_idx], y[boot_idx])
     else:
-        tree.fit(X, y)
+        estimator.fit(X, y)
 
-    return tree
+    return estimator
 
 
 def _parallel_fit_regressor(
     *,
-    tree: ConditionalInferenceTreeRegressor,
+    estimator: ConditionalInferenceTreeRegressor,
     X: np.ndarray,
     y: np.ndarray,
     idx: np.ndarray,
     n: int,
-    tree_idx: int,
+    estimator_idx: int,
     n_estimators: int,
     bootstrap_method: Optional[str],
-    bayesian_bootstrap: bool,
     verbose: int,
-    random_state: int,
 ) -> ConditionalInferenceTreeRegressor:
     """Build regression trees in parallel.
 
@@ -93,30 +122,58 @@ def _parallel_fit_regressor(
 
     Parameters
     ----------
+    estimator : ConditionalInferenceTreeRegressor
+        Instantiated estimator.
+
+    X : np.ndarray
+        Features.
+
+    y : np.ndarray
+        Target.
+
+    idx : np.ndarray
+        Indices for bootstrap sampling.
+
+    n : int
+        Sample size.
+
+    estimator_idx : int
+        Tree index in ensemble.
+
+    n_estimators : int
+        Number of parallel trees to grow.
+
+    bootstrap_method : str
+        Type of bootstrap to use.
+
+    sampling_method : str
+        Type of sampling to use during bootstrap.
+
+    verbose : int
+        Controls verbosity of fitting.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    ConditionalInferenceTreeRegressor
+        Fitted estimator.
     """
     if verbose:
-        if verbose == 1:
-            denom = 20
-        elif verbose == 2:
-            denom = 10
-        else:
-            denom = 1
-        if tree_idx % denom == 0:
-            print(f"Building tree {tree_idx}/{n_estimators}")
+        if estimator_idx % _PRINT_FACTOR[verbose] == 0:
+            print(f"Building tree {estimator_idx}/{n_estimators}")
 
     # Bootstrap sample if specified
     if bootstrap_method:
         boot_idx = classic_bootstrap_sample(
-            idx=idx, n=n, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+            idx=idx, n=n, bayesian_bootstrap=bootstrap_method == "bayesian", random_state=estimator.random_state
         )
-        tree.fit(X[boot_idx], y[boot_idx])
+        estimator.fit(X[boot_idx], y[boot_idx])
     else:
-        tree.fit(X, y)
+        estimator.fit(X, y)
 
-    return tree
+    return estimator
 
 
 class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParameters):
@@ -268,9 +325,13 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         base_estimator = base_estimator(
             **{param: getattr(self, f"_{param}") for param in base_estimator._get_param_names()}
         )
+        # Turn off logging for tree estimator
+        base_estimator.verbose = 0
+
         self.estimators_ = []
         for j in range(self._n_estimators):
             base_estimator = clone(base_estimator)
+            # Update random state to unique value for each tree estimator
             base_estimator.random_state = self._random_state + j
             self.estimators_.append(base_estimator)
 
@@ -288,39 +349,37 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_classifier)(
-                    tree=tree,
+                    estimator=estimator,
                     X=X,
                     y=y,
                     idx=idx,
                     n=n,
-                    tree_idx=tree_idx,
+                    estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
                     bootstrap_method=self._bootstrap_method,
                     bayesian_bootstrap=bayesian_bootstrap,
                     sampling_method=self._sampling_method,
                     verbose=self._verbose,
-                    random_state=tree.random_state,
                 )
-                for tree_idx, tree in enumerate(self.estimators_, 1)
+                for estimator_idx, estimator in enumerate(self.estimators_, 1)
             )
         else:
             n = len(y)
             idx = np.arange(n, dtype=int)
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_regressor)(
-                    tree=tree,
+                    estimator=estimator,
                     X=X,
                     y=y,
                     idx=idx,
                     n=n,
-                    tree_idx=tree_idx,
+                    estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
                     bootstrap_method=self._bootstrap_method,
                     bayesian_bootstrap=bayesian_bootstrap,
                     verbose=self._verbose,
-                    random_state=tree.random_state,
                 )
-                for tree_idx, tree in enumerate(self.estimators, 1)
+                for estimator_idx, estimator in enumerate(self.estimators, 1)
             )
 
         # Aggregate feature importances
@@ -526,7 +585,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         Returns
         -------
         np.ndarray
-            Predicted class labels.
+            Predicted target values.
         """
         X = self._validate_data_predict(X)
 

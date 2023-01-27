@@ -116,10 +116,11 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     ) -> NResamplesOption:
         """Validate n_resamples_{selector,splitter}."""
         if type(v) == int:
-            alpha = values["alpha_selector"] if "selector" in field.name else values["alpha_splitter"]
+            attribute = "selector" if "selector" in field.name else "splitter"
+            alpha = values[f"alpha_{attribute}"]
             min_samples = ceil(1 / alpha)
             if v < min_samples:
-                raise ValueError(f"{field.name} ({v}) should be >= {min_samples} with alpha={alpha}")
+                raise ValueError(f"{field.name} ({v}) should be >= {min_samples} with alpha_{attribute}={alpha}")
 
         return v
 
@@ -490,8 +491,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # Split selection without permutation testing
             else:
-                idx = x <= threshold
-                metric = self._splitter(y[idx]) + self._splitter(y[~idx])
+                metric = self._split_impurity(x=x, y=y, threshold=threshold)
                 if metric < best_metric:
                     best_threshold = threshold
                     best_metric = metric
@@ -499,11 +499,19 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         return best_threshold, best_pval, reject_H0
 
     def _bonferroni_correction(self, *, adjust: str, n_tests: int) -> None:
-        """TODO:
+        """Implement Bonferroni correction to account for multiple hypothesis tests.
+
+        During training, when Bonferonni correction is enabled, alpha will be adjusted based on the number of hypothesis
+        tests, assuming permutation tests are used. Likewise, the number of resamples for a permutation test will be
+        updated to enough resamples are run to compare the achieved significance level against alpha.
 
         Parameters
         ----------
-        TODO:
+        adjust : {"splitter", "selector"}
+            Which attributes to use for Bonferroni correction.
+
+        n_tests : int
+            Number of hypothesis tests to perform.
         """
         if n_tests > 1:
             alpha = getattr(self, f"alpha_{adjust}")
@@ -555,26 +563,46 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 self._bonferroni_correction(adjust="selector", n_tests=self._max_features)
 
     def _scan_features(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> np.ndarray:
-        """ADD HERE.
+        """Perform feature scanning to return the feature indices that are most associated with the target.
 
         Parameters
         ----------
+        X : np.ndarray
+            Features.
+
+        y : np.ndarray
+            Target.
+
+        features : np.ndarray
+            Feature indices
 
         Returns
         -------
+        np.ndarray
+            Feature indices sorted in descending order based on strength of association with target.
         """
         scores = np.array([self._selector(X[:, feature], y, **self._selector_kwargs) for feature in features])
         ranks = np.argsort(scores)[::-1]
         return features[ranks]
 
     def _scan_thresholds(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> np.ndarray:
-        """ADD HERE.
+        """Perform threshold scanning to return the threshold that result in the best binary split.
 
         Parameters
         ----------
+        x : np.ndarray
+            Feature.
+
+        y : np.ndarray
+            Target.
+
+        thresholds : np.ndarray
+            Thresholds.
 
         Returns
         -------
+        np.ndarray
+            Thresholds sorted in ascending order based on the impurity in children nodes resulting from binary split.
         """
         scores = []
         for threshold in thresholds:
@@ -582,6 +610,32 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             scores.append(self._splitter(y[idx]) + self._splitter(y[~idx]))
         ranks = np.argsort(scores)
         return thresholds[ranks]
+
+    def _split_impurity(self, *, x: np.ndarray, y: np.ndarray, threshold: float) -> float:
+        """Perform binary split and calculate split impurity as weighted sum of children node impurities.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Feature.
+
+        y : np.ndarray
+            Target.
+
+        threshold : float
+            Threshold value to create binary split on feature.
+
+        Returns
+        -------
+        float
+            Weighted impurity metric.
+        """
+        idx = x <= threshold
+        n = len(idx)
+        n_left = sum(idx)
+        n_right = n - n_left
+
+        return (n_left / n) * self._splitter(y[idx]) + (n_right / n) * self._splitter(y[~idx])
 
     def _node_impurity(
         self, *, y: np.ndarray, idx: np.ndarray, n: int, n_left: int, n_right: int
@@ -591,28 +645,32 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Parameters
         ----------
         y : np.ndarray
-            ADD HERE.
+            Target.
 
         idx : np.ndarray
-            ADD HERE.
+            Array of bool values used to create binary split.
 
         n : int
-            ADD HERE.
+            Total number of samples in parent node.
 
         n_left : int
-            ADD HERE.
+            Total number of samples in left child node.
 
         n_right : int
-            ADD HERE.
+            Total number of samples in right child node.
 
         Returns
         -------
-        TODO:
+        parent_impurity : float
+            Parent node impurity
+
+        impurity_decrease : float
+            Node impurity decrease after binary split on threshold.
         """
-        impurity = self._splitter(y)
+        parent_impurity = self._splitter(y)
         children_impurity = (n_left / n) * self._splitter(y[idx]) + (n_right / n) * self._splitter(y[~idx])
-        impurity_decrease = impurity - children_impurity
-        return impurity, impurity_decrease
+        impurity_decrease = parent_impurity - children_impurity
+        return parent_impurity, impurity_decrease
 
     def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int) -> Node:
         """Recursively build tree.
@@ -813,14 +871,21 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         return self
 
-    def _predict_value(self, x: np.ndarray, tree: Optional[Node] = None) -> np.ndarray:
-        """ADD HERE.
+    def _predict_value(self, x: np.ndarray, tree: Optional[Node] = None) -> Union[float, np.ndarray]:
+        """Predict target for single sample.
 
         Parameters
         ----------
+        x : np.ndarray
+            Feature.
+
+        tree : Node, default=None
+            Fitted decision tree.
 
         Returns
         -------
+        Union[float, np.ndarray]
+            Predicted value for sample.
         """
         # If we have a value => return value as the prediction
         if tree is None:
@@ -877,31 +942,41 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
     early_stopping_splitter : bool, default=True
         Use early stopping during split selection.
 
-    feature_muting: bool
+    feature_muting : bool, default=True
+        Whether to perform feature muting.
 
-    feature_scanning: bool
+    feature_scanning : bool, default=True
+        Whether to perform feature scanning.
 
-    threshold_scanning: bool
+    max_features : {"sqrt", "log2"}, int, or float, default=None
+        Maximum number of features to use for feature selection.
 
     threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
-        Method to calculate thresholds for a feature used during split selection.
+        Method to calculate thresholds on a feature used during split selection.
 
-    max_thresholds : int, default=None
-        Number of bins to use when using histogram splitters.
+    threshold_scanning : bool, default=True
+        Whether to perform threshold scanning.
 
-    max_features: MaxValuesOption
+    max_thresholds : {"sqrt", "log2"}, int, or float, default=None
+        Maximum number of thresholds to use for split selection.
 
-    max_depth: Optional[PositiveInt]
+    max_depth : int, default=None
+        Maximum depth to grow tree.
 
-    min_samples_split: ConstrainedInt(ge=2)
+    min_samples_split : int, default=2
+        Minimim samples required for a valid binary split.
 
-    min_samples_leaf: PositiveInt
+    min_samples_leaf : int, default=1
+        Minimum number of samples in a leaf node.
 
-    min_impurity_decrease: NonNegativeFloat
+    min_impurity_decrease : float, default=0.0
+        Minimum impurity decrease required for a valid binary split.
 
-    random_state: Optional[NonNegativeInt]
+    random_state : int, default=None
+        Random seed.
 
-    verbose: NonNegativeInt
+    verbose : int, default=1
+        Controls verbosity when fitting and predicting.
 
     Attributes
     ----------
@@ -918,7 +993,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         Number of features seen during fit.
 
     tree_ : Node
-        The underlying decision tree.
+        Underlying decision tree object.
     """
 
     def __init__(
@@ -936,10 +1011,10 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        threshold_scanning: bool = True,
-        threshold_method: str = "exact",
-        max_thresholds: Optional[Union[str, float, int]] = None,
         max_features: Optional[Union[str, float, int]] = None,
+        threshold_method: str = "exact",
+        threshold_scanning: bool = True,
+        max_thresholds: Optional[Union[str, float, int]] = None,
         max_depth: Optional[int] = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
@@ -960,10 +1035,10 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
-            threshold_scanning=threshold_scanning,
-            threshold_method=threshold_method,
-            max_thresholds=max_thresholds,
             max_features=max_features,
+            threshold_method=threshold_method,
+            threshold_scanning=threshold_scanning,
+            max_thresholds=max_thresholds,
             max_depth=max_depth,
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
@@ -1028,38 +1103,71 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
 
     Parameters
     ----------
-    selector : {"pc", "dc", "hybrid"}, optional (default="pc")
+    selector : {"mc", "mi", "hybrid"}, default="pc"
         Method for feature selection.
 
-    splitter : {"mse", "mae"}, optional (default="mse")
+    splitter : {"gini", "entropy"}, default="mse"
         Method for split selection.
 
-    alpha_selector : float, optional (default=0.05)
+    alpha_selector : float, default=0.05
         Alpha for feature selection.
 
-    alpha_splitter : float, optional (default=0.05)
+    alpha_splitter : float, default=0.05
         Alpha for split selection.
 
-    adjust_alpha_selector : bool, optional (default=True)
-        ADD HERE.
+    adjust_alpha_selector : bool, default=True
+        Whether to perform a Bonferroni correction during feature selection.
 
-    adjust_alpha_splitter : bool, optional (default=True)
-        ADD HERE.
+    adjust_alpha_splitter : bool, default=True
+        Whether to perform a Berferonni correction during split selection.
 
-    ...
+    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for feature selection.
 
-    threshold_method : {"exact", "random", "histogram", "percentile"}, optional (default="exact")
-        Method to calculate thresholds for a feature used during split selection.
+    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for split selection.
 
-    max_thresholds : int, optional (default=256)
-        Number of bins to use when using histogram splitters.
-
-    early_stopping_selector : bool, optional (default=True)
+    early_stopping_selector : bool, default=True
         Use early stopping during feature selection.
 
-    early_stopping_splitter : bool, optional (default=True)
+    early_stopping_splitter : bool, default=True
         Use early stopping during split selection.
-    ...
+
+    feature_muting : bool, default=True
+        Whether to perform feature muting.
+
+    feature_scanning : bool, default=True
+        Whether to perform feature scanning.
+
+    max_features : {"sqrt", "log2"}, int, or float, default=None
+        Maximum number of features to use for feature selection.
+
+    threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
+        Method to calculate thresholds on a feature used during split selection.
+
+    threshold_scanning : bool, default=True
+        Whether to perform threshold scanning.
+
+    max_thresholds : {"sqrt", "log2"}, int, or float, default=None
+        Maximum number of thresholds to use for split selection.
+
+    max_depth : int, default=None
+        Maximum depth to grow tree.
+
+    min_samples_split : int, default=2
+        Minimim samples required for a valid binary split.
+
+    min_samples_leaf : int, default=1
+        Minimum number of samples in a leaf node.
+
+    min_impurity_decrease : float, default=0.0
+        Minimum impurity decrease required for a valid binary split.
+
+    random_state : int, default=None
+        Random seed.
+
+    verbose : int, default=1
+        Controls verbosity when fitting and predicting.
 
     Attributes
     ----------
@@ -1070,13 +1178,13 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         Number of classes.
 
     feature_importances_ : np.ndarray
-        Feature importances estimated during training.
+        Feature importances for each feature.
 
     n_features_in_ : int
-        Number of
+        Number of features seen during fit.
 
     tree_ : Node
-        ADD HERE.
+        Underlying decision tree object.
     """
 
     def __init__(
@@ -1094,10 +1202,10 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        threshold_scanning: bool = True,
-        threshold_method: str = "exact",
-        max_thresholds: Optional[Union[str, float, int]] = None,
         max_features: Optional[Union[str, float, int]] = None,
+        threshold_method: str = "exact",
+        threshold_scanning: bool = True,
+        max_thresholds: Optional[Union[str, float, int]] = None,
         max_depth: Optional[int] = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
@@ -1118,10 +1226,10 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
-            threshold_scanning=threshold_scanning,
-            threshold_method=threshold_method,
-            max_thresholds=max_thresholds,
             max_features=max_features,
+            threshold_method=threshold_method,
+            threshold_scanning=threshold_scanning,
+            max_thresholds=max_thresholds,
             max_depth=max_depth,
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,

@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from math import ceil
 from multiprocessing import cpu_count
 from typing import Literal, Optional, Union
 
@@ -151,9 +152,6 @@ def _parallel_fit_regressor(
 
     verbose : int
         Controls verbosity of fitting.
-
-    random_state : int
-        Random seed.
 
     Returns
     -------
@@ -336,7 +334,6 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self.estimators_.append(base_estimator)
 
         # Train estimators
-        bayesian_bootstrap = self._bootstrap_method == "bayesian"
         if self._estimator_type == "classifier":
             n = None
             if self._sampling_method in ["balanced", "stratify"]:
@@ -346,6 +343,19 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             else:
                 n = len(y)
                 idx = np.arange(n, dtype=int)
+
+            # Subsample if needed
+            if self._max_samples < n:
+                if type(idx) == list:
+                    if self._sampling_method == "balanced":
+                        n_per_class = ceil(n / self.n_classes_)
+                    else:
+                        n_per_class = ceil(min([len(i) for i in idx]) / self.n_classes_)
+                    for j in range(self.n_classes_):
+                        idx[j] = np.random.choice(idx[j], size=n_per_class, replace=False)
+                    idx = np.concatenate(idx)
+                else:
+                    idx = np.random.choice(idx, size=self._max_samples, replace=False)
 
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_classifier)(
@@ -357,7 +367,6 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
                     bootstrap_method=self._bootstrap_method,
-                    bayesian_bootstrap=bayesian_bootstrap,
                     sampling_method=self._sampling_method,
                     verbose=self._verbose,
                 )
@@ -366,6 +375,11 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         else:
             n = len(y)
             idx = np.arange(n, dtype=int)
+
+            # Subsample if needed
+            if self._max_samples < n:
+                idx = np.random.choice(idx, size=self._max_samples, replace=False)
+
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_regressor)(
                     estimator=estimator,
@@ -376,7 +390,6 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
                     bootstrap_method=self._bootstrap_method,
-                    bayesian_bootstrap=bayesian_bootstrap,
                     verbose=self._verbose,
                 )
                 for estimator_idx, estimator in enumerate(self.estimators, 1)
@@ -396,7 +409,111 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
 
 class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, ClassifierMixin):
-    """Conditional inference forest classifier."""
+    """Conditional inference forest classifier.
+
+    Parameters
+    ----------
+    n_estimator : n, default=100
+        Number of estimators.
+
+    selector : {"mc", "mi", "hybrid"}, default="mc"
+        Method for feature selection.
+
+    splitter : {"gini", "entropy"}, default="gini"
+        Method for split selection.
+
+    alpha_selector : float, default=0.05
+        Alpha for feature selection.
+
+    alpha_splitter : float, default=0.05
+        Alpha for split selection.
+
+    adjust_alpha_selector : bool, default=True
+        Whether to perform a Bonferroni correction during feature selection.
+
+    adjust_alpha_splitter : bool, default=True
+        Whether to perform a Berferonni correction during split selection.
+
+    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for feature selection.
+
+    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for split selection.
+
+    early_stopping_selector : bool, default=True
+        Use early stopping during feature selection.
+
+    early_stopping_splitter : bool, default=True
+        Use early stopping during split selection.
+
+    feature_muting : bool, default=True
+        Whether to perform feature muting.
+
+    feature_scanning : bool, default=True
+        Whether to perform feature scanning.
+
+    max_features : {"sqrt", "log2"}, int, or float, default="sqrt"
+        Maximum number of features to use for feature selection.
+
+    threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
+        Method to calculate thresholds on a feature used during split selection.
+
+    threshold_scanning : bool, default=True
+        Whether to perform threshold scanning.
+
+    max_thresholds : {"sqrt", "log2"}, int, or float, default=None
+        Maximum number of thresholds to use for split selection.
+
+    max_depth : int, default=None
+        Maximum depth to grow tree.
+
+    min_samples_split : int, default=2
+        Minimim samples required for a valid binary split.
+
+    min_samples_leaf : int, default=1
+        Minimum number of samples in a leaf node.
+
+    min_impurity_decrease : float, default=0.0
+        Minimum impurity decrease required for a valid binary split.
+
+    bootstrap_method : {"bayesian", "classic"}, default="bayesian"
+        Type of bootstrap to use.
+
+    sampling_method : {"stratify", "balanced"}, default="stratify"
+        Type of sampling to use during bootstrap.
+
+    max_samples : int or float, default=None
+        Number of samples to draw for each boostrap sample.
+
+    n_jobs : int, default=None
+        Number of jobs to run in parallel.
+
+    random_state : int, default=None
+        Random seed.
+
+    verbose : int, default=1
+        Controls verbosity when fitting and predicting.
+
+    Attributes
+    ----------
+    classes_ : np.ndarray
+        Unique class labels.
+
+    n_classes_ : int
+        Number of classes.
+
+    feature_importances_ : np.ndarray
+        Feature importances for each feature.
+
+    n_features_in_ : int
+        Number of features seen during fit.
+
+    feature_names_in_ : List[str]
+        List of feature names seen during fit.
+
+    estimators_ : List[ConditionalInferenceTreeClassifier]
+        List of fitted estimators.
+    """
 
     def __init__(
         self,
@@ -414,10 +531,10 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        threshold_scanning: bool = True,
-        threshold_method: str = "exact",
-        max_thresholds: Optional[Union[str, float, int]] = None,
         max_features: Optional[Union[str, float, int]] = "sqrt",
+        threshold_method: str = "exact",
+        threshold_scanning: bool = True,
+        max_thresholds: Optional[Union[str, float, int]] = None,
         max_depth: Optional[int] = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
@@ -513,7 +630,102 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
 
 
 class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, RegressorMixin):
-    """Conditional inference forest regressor."""
+    """Conditional inference forest regressor.
+
+    Parameters
+    ----------
+    n_estimator : n, default=100
+        Number of estimators.
+
+    selector : {"pc", "dc", "hybrid"}, default="pc"
+        Method for feature selection.
+
+    splitter : {"mse", "mae"}, default="mse"
+        Method for split selection.
+
+    alpha_selector : float, default=0.05
+        Alpha for feature selection.
+
+    alpha_splitter : float, default=0.05
+        Alpha for split selection.
+
+    adjust_alpha_selector : bool, default=True
+        Whether to perform a Bonferroni correction during feature selection.
+
+    adjust_alpha_splitter : bool, default=True
+        Whether to perform a Berferonni correction during split selection.
+
+    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for feature selection.
+
+    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+        Number of resamples to use in permutation test for split selection.
+
+    early_stopping_selector : bool, default=True
+        Use early stopping during feature selection.
+
+    early_stopping_splitter : bool, default=True
+        Use early stopping during split selection.
+
+    feature_muting : bool, default=True
+        Whether to perform feature muting.
+
+    feature_scanning : bool, default=True
+        Whether to perform feature scanning.
+
+    max_features : {"sqrt", "log2"}, int, or float, default="sqrt"
+        Maximum number of features to use for feature selection.
+
+    threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
+        Method to calculate thresholds on a feature used during split selection.
+
+    threshold_scanning : bool, default=True
+        Whether to perform threshold scanning.
+
+    max_thresholds : {"sqrt", "log2"}, int, or float, default=None
+        Maximum number of thresholds to use for split selection.
+
+    max_depth : int, default=None
+        Maximum depth to grow tree.
+
+    min_samples_split : int, default=2
+        Minimim samples required for a valid binary split.
+
+    min_samples_leaf : int, default=1
+        Minimum number of samples in a leaf node.
+
+    min_impurity_decrease : float, default=0.0
+        Minimum impurity decrease required for a valid binary split.
+
+    bootstrap_method : {"bayesian", "classic"}, default="bayesian"
+        Type of bootstrap to use.
+
+    max_samples : int or float, default=None
+        Number of samples to draw for each boostrap sample.
+
+    n_jobs : int, default=None
+        Number of jobs to run in parallel.
+
+    random_state : int, default=None
+        Random seed.
+
+    verbose : int, default=1
+        Controls verbosity when fitting and predicting.
+
+    Attributes
+    ----------
+    feature_importances_ : np.ndarray
+        Feature importances for each feature.
+
+    n_features_in_ : int
+        Number of features seen during fit.
+
+    feature_names_in_ : List[str]
+        List of feature names seen during fit.
+
+    estimators_ : List[ConditionalInferenceTreeRegressor]
+        List of fitted estimators.
+    """
 
     def __init__(
         self,
@@ -531,10 +743,10 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        threshold_scanning: bool = True,
-        threshold_method: str = "exact",
-        max_thresholds: Optional[Union[str, float, int]] = None,
         max_features: Optional[Union[str, float, int]] = "sqrt",
+        threshold_method: str = "exact",
+        threshold_scanning: bool = True,
+        max_thresholds: Optional[Union[str, float, int]] = None,
         max_depth: Optional[int] = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
@@ -555,14 +767,14 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
             adjust_alpha_splitter=adjust_alpha_splitter,
             n_resamples_selector=n_resamples_selector,
             n_resamples_splitter=n_resamples_splitter,
-            threshold_method=threshold_method,
-            max_thresholds=max_thresholds,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
-            threshold_scanning=threshold_scanning,
             max_features=max_features,
+            threshold_method=threshold_method,
+            threshold_scanning=threshold_scanning,
+            max_thresholds=max_thresholds,
             max_depth=max_depth,
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,

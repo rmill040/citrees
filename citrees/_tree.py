@@ -394,8 +394,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         best_feature = features[0]
         best_pval = np.inf
-        reject_H0 = self._n_resamples_selector is None
-        best_metric = 0.0
+        reject_H0 = self._n_resamples_selector is None  # Hack to force True when permutation testing is disabled
+        best_metric = -np.inf
 
         for feature in features:
             x = X[:, feature]
@@ -464,14 +464,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         best_threshold = thresholds[0]
         best_pval = np.inf
-        reject_H0 = self._n_resamples_splitter is None
+        reject_H0 = self._n_resamples_splitter is None  # Hack to force True when permutation testing is disabled
         best_metric = np.inf
 
         if self._adjust_alpha_splitter and self._n_resamples_splitter is not None:
             self._bonferroni_correction(adjust="splitter", n_tests=len(thresholds))
 
         for threshold in thresholds:
-            # Check for constant split and mute if necessary
+            # Check for constant split
             if np.all(x == threshold):
                 continue
 
@@ -715,7 +715,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             # Split selection
             x = X[:, best_feature]
 
-            # Always recalculate self._max_thresholds given the sample size may change at each recursive call
+            # Always recalculate self._max_thresholds given the sample size will change at each recursive call
             n_unique = len(np.unique(x))
             self._max_thresholds = (
                 calculate_max_value(n_values=n_unique, desired_max=self.max_thresholds)
@@ -992,6 +992,9 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
     n_features_in_ : int
         Number of features seen during fit.
 
+    feature_names_in_ : List[str]
+        List of feature names seen during fit.
+
     tree_ : Node
         Underlying decision tree object.
     """
@@ -1103,10 +1106,10 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
 
     Parameters
     ----------
-    selector : {"mc", "mi", "hybrid"}, default="pc"
+    selector : {"pc", "dc", "hybrid"}, default="pc"
         Method for feature selection.
 
-    splitter : {"gini", "entropy"}, default="mse"
+    splitter : {"mse", "mae"}, default="mse"
         Method for split selection.
 
     alpha_selector : float, default=0.05

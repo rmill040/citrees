@@ -53,6 +53,13 @@ pretty = true
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers -vv -x --cov --cov-report=html --cov-append"
+markers = [
+    "tree: Tree model tests",
+    "forest: Forest model tests",
+    "splitter: Splitter method tests",
+    "selector: Selector method tests",
+    "threshold_method: Threshold method tests",
+]
 testpaths = [
     "tests"
 ]

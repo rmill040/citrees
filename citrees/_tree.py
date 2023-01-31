@@ -558,8 +558,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 calculate_max_value(n_values=p, desired_max=self.max_features) if self.max_features else p
             )
 
+            if self.verbose > 2:
+                print(
+                    f"Muted feature ({self.feature_names_in_[feature]}) because it is constant, ({p}) features "
+                    "available"
+                )
+
             # Update alpha if needed
-            if self._adjust_alpha_selector:
+            if self._adjust_alpha_selector and self._n_resamples_selector is not None:
                 self._bonferroni_correction(adjust="selector", n_tests=self._max_features)
 
     def _scan_features(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> np.ndarray:
@@ -691,7 +697,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Node
             Node in decision tree.
         """
-        np.random.seed(self._random_state + depth)
         reject_H0_feature = False
         reject_H0_threshold = False
         impurity_decrease = -1
@@ -702,11 +707,19 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             if self.verbose > 2:
                 print(f"Building tree at depth ({depth}) with ({n}) samples")
 
+            # Check for constant features and mute if constant
+            for feature in self._available_features:
+                x = X[:, feature]
+                if np.all(x == x[0]):
+                    self._mute_feature(feature)
+
             # Feature selection
 
             # self._max_features is automatically updated whenever a feature is muted so no need to recalculate during
             # each iteration as we do below for self._max_thresholds
-            features = random_sample(x=self._available_features, size=self._max_features, replace=False)
+            features = random_sample(
+                x=self._available_features, size=self._max_features, random_state=self._random_state, replace=False
+            )
             if self._feature_scanning and self._early_stopping_selector:
                 features = self._scan_features(X, y, features)
             best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)

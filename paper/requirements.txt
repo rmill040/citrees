@@ -1,4 +1,4 @@
-Boruta
 catboost
+loguru
 pyarrow
 xgboost

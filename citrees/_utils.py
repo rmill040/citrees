@@ -6,7 +6,7 @@ from numba import njit
 
 
 @njit(fastmath=True, nogil=True)
-def random_sample(*, x: np.ndarray, size: int, replace: bool = False) -> np.ndarray:
+def random_sample(*, x: np.ndarray, size: int, random_state: int, replace: bool = False) -> np.ndarray:
     """Generate a random sample.
 
     Parameters
@@ -17,6 +17,9 @@ def random_sample(*, x: np.ndarray, size: int, replace: bool = False) -> np.ndar
     size : int
         Size of random sample.
 
+    random_state : int
+        Random seed.
+
     replace : bool, default=False
         Whether to sample with replacement.
 
@@ -25,6 +28,8 @@ def random_sample(*, x: np.ndarray, size: int, replace: bool = False) -> np.ndar
     np.ndarray
         Random sample.
     """
+    np.random.seed(random_state)
+
     return np.random.choice(x, size=size, replace=replace)
 
 
@@ -127,7 +132,7 @@ def split_data(
 
 
 @njit(fastmath=True, nogil=True)
-def bayesian_bootstrap_proba(n: int) -> np.ndarray:
+def bayesian_bootstrap_proba(*, n: int, random_state: int) -> np.ndarray:
     """Generate Bayesian bootstrap probabilities for a sample of size n.
 
     Parameters
@@ -135,11 +140,16 @@ def bayesian_bootstrap_proba(n: int) -> np.ndarray:
     n : int
         Number of samples.
 
+    random_state : int
+        Random seed.
+
     Returns
     -------
     np.ndarray
         Bootstrap probabilities associated with each sample.
     """
+    np.random.seed(random_state)
+
     p = np.random.exponential(scale=1.0, size=n)
     return p / p.sum()
 
@@ -155,13 +165,13 @@ def stratify_bootstrap_sample(
     Returns
     -------
     """
-    np.random.seed(random_state)
+    rng = np.random.RandomState(random_state)
 
     idx = []
     for idx_class in idx_classes:
         n_class = len(idx_class)
-        p = bayesian_bootstrap_proba(n_class) if bayesian_bootstrap else None
-        idx.append(np.random.choice(idx_class, size=n_class, p=p, replace=True))
+        p = bayesian_bootstrap_proba(n=n_class, random_state=random_state) if bayesian_bootstrap else None
+        idx.append(rng.choice(idx_class, size=n_class, p=p, replace=True))
 
     return idx
 
@@ -177,7 +187,6 @@ def stratify_bootstrap_unsampled_idx(
     Returns
     -------
     """
-    np.random.seed(random_state)
     idx_sampled = stratify_bootstrap_sample(
         idx_classes=idx_classes, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
     )
@@ -197,13 +206,13 @@ def balanced_bootstrap_sample(
     Returns
     -------
     """
-    np.random.seed(random_state)
+    rng = np.random.RandomState(random_state)
 
     idx = []
     for idx_class in idx_classes:
         n_class = len(idx_class)
-        p = bayesian_bootstrap_proba(n_class) if bayesian_bootstrap else None
-        idx.append(np.random.choice(idx_class, size=n, p=p, replace=True))
+        p = bayesian_bootstrap_proba(n=n_class, random_state=random_state) if bayesian_bootstrap else None
+        idx.append(rng.choice(idx_class, size=n, p=p, replace=True))
 
     return idx
 
@@ -219,7 +228,6 @@ def balanced_bootstrap_unsampled_idx(
     Returns
     -------
     """
-    np.random.seed(random_state)
     idx_sampled = balanced_bootstrap_sample(
         idx_classes=idx_classes, n=n, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
     )
@@ -237,11 +245,11 @@ def classic_bootstrap_sample(*, idx: np.ndarray, n: int, bayesian_bootstrap: boo
     Returns
     -------
     """
-    np.random.seed(random_state)
+    rng = np.random.RandomState(random_state)
 
-    p = bayesian_bootstrap_proba(n) if bayesian_bootstrap else None
+    p = bayesian_bootstrap_proba(n=n, random_state=random_state) if bayesian_bootstrap else None
 
-    return np.random.choice(idx, size=n, p=p, replace=True)
+    return rng.choice(idx, size=n, p=p, replace=True)
 
 
 def classic_bootstrap_unsampled_idx(
@@ -255,8 +263,6 @@ def classic_bootstrap_unsampled_idx(
     Returns
     -------
     """
-    np.random.seed(random_state)
-
     idx_sampled = classic_bootstrap_sample(
         idx=idx, n=n, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
     )

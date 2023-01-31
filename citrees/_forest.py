@@ -17,7 +17,7 @@ from ._tree import (
     ConditionalInferenceTreeRegressor,
     ProbabilityFloat,
 )
-from ._utils import balanced_bootstrap_sample, calculate_max_value, classic_bootstrap_sample, stratify_bootstrap_sample
+from ._utils import balanced_bootstrap_sample, calculate_max_value, classic_bootstrap_sample, random_sample, stratify_bootstrap_sample
 
 
 # Defines how often to print status during parallel tree training
@@ -294,7 +294,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
 
-        self._max_samples = calculate_max_value(n_values=n, desired_max=self.max_values) if self.max_samples else n
+        self._max_samples = calculate_max_value(n_values=n, desired_max=self.max_samples) if self.max_samples else n
 
         max_cpus = cpu_count()
         value = 1 if self.n_jobs is None else self.n_jobs
@@ -334,28 +334,31 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self.estimators_.append(base_estimator)
 
         # Train estimators
+        n = len(y)
         if self._estimator_type == "classifier":
-            n = None
             if self._sampling_method in ["balanced", "stratify"]:
                 idx = [np.where(y == j)[0] for j in range(self.n_classes_)]
                 if self._sampling_method == "balanced":
                     n = np.bincount(y).min()
             else:
-                n = len(y)
                 idx = np.arange(n, dtype=int)
 
             # Subsample if needed
             if self._max_samples < n:
                 if type(idx) == list:
                     if self._sampling_method == "balanced":
-                        n_per_class = ceil(n / self.n_classes_)
-                    else:
-                        n_per_class = ceil(min([len(i) for i in idx]) / self.n_classes_)
-                    for j in range(self.n_classes_):
-                        idx[j] = np.random.choice(idx[j], size=n_per_class, replace=False)
+                        for j in range(self.n_classes_):
+                            idx[j] = random_sample(idx[j], size=)
+                    # n_per_class = ceil(
+                    #     self._max_samples / self.n_classes_
+                    #     if self._sampling_method == "balanced"
+                    #     else min([len(i) for i in idx]) / self.n_classes_
+                    # )
+                    # for j in range(self.n_classes_):
+                    #     idx[j] = random_sample(idx[j], size=n_per_class, replace=False)
                     idx = np.concatenate(idx)
                 else:
-                    idx = np.random.choice(idx, size=self._max_samples, replace=False)
+                    idx = random_sample(idx, size=self._max_samples, replace=False)
 
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_classifier)(
@@ -373,12 +376,11 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                 for estimator_idx, estimator in enumerate(self.estimators_, 1)
             )
         else:
-            n = len(y)
             idx = np.arange(n, dtype=int)
 
             # Subsample if needed
             if self._max_samples < n:
-                idx = np.random.choice(idx, size=self._max_samples, replace=False)
+                idx = random_state.choice(idx, size=self._max_samples, replace=False)
 
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_regressor)(

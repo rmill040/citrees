@@ -2,9 +2,10 @@
 import os
 from pathlib import Path
 
-# import pandas as pd
+from loguru import logger
+import pandas as pd
 
-# from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
+from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 
 
 HERE = Path(__file__).resolve()
@@ -15,7 +16,11 @@ DATASETS = [f for f in os.listdir(DATA_DIR) if f.startswith("clf_")]
 def main() -> None:
     """Main script to run experiments for classifiers."""
     for dataset in DATASETS:
-        print(dataset)
+        X = pd.read_parquet(os.path.join(DATA_DIR, dataset))
+        y = X.pop("y").astype(int)
+        X = X.astype(float)
+        print(dataset, X.shape)
+        ConditionalInferenceForestClassifier(n_jobs=1, verbose=3, max_samples=0.5).fit(X, y)
 
 
 if __name__ == "__main__":

@@ -127,6 +127,10 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int) -> float:
     for value in dev:
         sst += value
 
+    # Early stop here if denominator will be a divide by 0 error
+    if sst == 0.0:
+        return 0.0
+
     # Sum of squares between (SSB)
     ssb = 0.0
     for j in range(n_classes):

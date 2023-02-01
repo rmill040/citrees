@@ -1,4 +1,6 @@
+Boruta
 catboost
+lightgbm
 loguru
 pandas
 pyarrow

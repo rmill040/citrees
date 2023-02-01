@@ -831,6 +831,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._selector = ClassifierSelectors[self.selector]
             self._selector_kwargs = {
                 "n_classes": n_classes,
+                "random_state": self._random_state,
             }
             self._selector_test = ClassifierSelectorTests[self.selector]
             self._selector_test_kwargs = {
@@ -848,10 +849,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._selector = RegressorSelectors[self.selector]
             self._selector_kwargs = {
                 "standardize": False,
+                "random_state": self._random_state,
             }
             self._selector_test = RegressorSelectorTests[self.selector]
             self._selector_test_kwargs = {
                 "standardize": False,
+                "random_state": self._random_state,
             }
             self._splitter = RegressorSplitters[self.splitter]
             self._splitter_test = RegressorSplitterTests[self.splitter]

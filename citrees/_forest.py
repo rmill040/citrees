@@ -24,7 +24,6 @@ from ._utils import (
     stratified_bootstrap_sample,
 )
 
-
 # Defines how often to print status during parallel tree training
 _PRINT_FACTOR = {
     1: 20,

@@ -17,7 +17,13 @@ from ._tree import (
     ConditionalInferenceTreeRegressor,
     ProbabilityFloat,
 )
-from ._utils import balanced_bootstrap_sample, calculate_max_value, classic_bootstrap_sample, random_sample, stratify_bootstrap_sample
+from ._utils import (
+    balanced_bootstrap_sample,
+    calculate_max_value,
+    classic_bootstrap_sample,
+    random_sample,
+    stratified_bootstrap_sample,
+)
 
 
 # Defines how often to print status during parallel tree training
@@ -33,8 +39,7 @@ def _parallel_fit_classifier(
     estimator: ConditionalInferenceTreeClassifier,
     X: np.ndarray,
     y: np.ndarray,
-    idx: Optional[np.ndarray],
-    n: Optional[int],
+    max_samples: int,
     estimator_idx: int,
     n_estimators: int,
     bootstrap_method: Optional[str],
@@ -56,11 +61,8 @@ def _parallel_fit_classifier(
     y : np.ndarray
         Target.
 
-    idx : np.ndarray
-        Indices for bootstrap sampling.
-
-    n : int
-        Sample size.
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
 
     estimator_idx : int
         Tree index in ensemble.
@@ -88,16 +90,19 @@ def _parallel_fit_classifier(
 
     # Bootstrap sample if specified
     if bootstrap_method:
-        kwargs = {"bayesian_bootstrap": bootstrap_method == "bayesian", "random_state": estimator.random_state}
-        if sampling_method in ["balanced", "stratify"]:
+        kwargs = {
+            "max_samples": max_samples,
+            "bayesian_bootstrap": bootstrap_method == "bayesian",
+            "random_state": estimator.random_state,
+        }
+        if sampling_method in ["balanced", "stratified"]:
             boot_idx = (
-                balanced_bootstrap_sample(idx_classes=idx, n=n, **kwargs)  # type: ignore
+                balanced_bootstrap_sample(y=y, **kwargs)
                 if sampling_method == "balanced"
-                else stratify_bootstrap_sample(idx_classes=idx, **kwargs)  # type: ignore
+                else stratified_bootstrap_sample(y=y, **kwargs)
             )
-            boot_idx = np.concatenate(idx)
         else:
-            boot_idx = classic_bootstrap_sample(idx=idx, n=n, **kwargs)  # type: ignore
+            boot_idx = classic_bootstrap_sample(y=y, **kwargs)
         estimator.fit(X[boot_idx], y[boot_idx])
     else:
         estimator.fit(X, y)
@@ -110,8 +115,7 @@ def _parallel_fit_regressor(
     estimator: ConditionalInferenceTreeRegressor,
     X: np.ndarray,
     y: np.ndarray,
-    idx: np.ndarray,
-    n: int,
+    max_samples: int,
     estimator_idx: int,
     n_estimators: int,
     bootstrap_method: Optional[str],
@@ -132,11 +136,8 @@ def _parallel_fit_regressor(
     y : np.ndarray
         Target.
 
-    idx : np.ndarray
-        Indices for bootstrap sampling.
-
-    n : int
-        Sample size.
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
 
     estimator_idx : int
         Tree index in ensemble.
@@ -165,7 +166,10 @@ def _parallel_fit_regressor(
     # Bootstrap sample if specified
     if bootstrap_method:
         boot_idx = classic_bootstrap_sample(
-            idx=idx, n=n, bayesian_bootstrap=bootstrap_method == "bayesian", random_state=estimator.random_state
+            y=y,
+            max_samples=max_samples,
+            bayesian_bootstrap=bootstrap_method == "bayesian",
+            random_state=estimator.random_state,
         )
         estimator.fit(X[boot_idx], y[boot_idx])
     else:
@@ -186,7 +190,7 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
 class ConditionalInferenceForestClassifierParameters(BaseConditionalInferenceForestParameters):
     """Model for ConditionalInferenceForestClassifier parameters."""
 
-    sampling_method: Optional[Literal["balanced", "stratify"]]
+    sampling_method: Optional[Literal["balanced", "stratified"]]
 
 
 class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, metaclass=ABCMeta):
@@ -334,39 +338,13 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self.estimators_.append(base_estimator)
 
         # Train estimators
-        n = len(y)
         if self._estimator_type == "classifier":
-            if self._sampling_method in ["balanced", "stratify"]:
-                idx = [np.where(y == j)[0] for j in range(self.n_classes_)]
-                if self._sampling_method == "balanced":
-                    n = np.bincount(y).min()
-            else:
-                idx = np.arange(n, dtype=int)
-
-            # Subsample if needed
-            if self._max_samples < n:
-                if type(idx) == list:
-                    if self._sampling_method == "balanced":
-                        for j in range(self.n_classes_):
-                            idx[j] = random_sample(idx[j], size=)
-                    # n_per_class = ceil(
-                    #     self._max_samples / self.n_classes_
-                    #     if self._sampling_method == "balanced"
-                    #     else min([len(i) for i in idx]) / self.n_classes_
-                    # )
-                    # for j in range(self.n_classes_):
-                    #     idx[j] = random_sample(idx[j], size=n_per_class, replace=False)
-                    idx = np.concatenate(idx)
-                else:
-                    idx = random_sample(idx, size=self._max_samples, replace=False)
-
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_classifier)(
                     estimator=estimator,
                     X=X,
                     y=y,
-                    idx=idx,
-                    n=n,
+                    max_samples=self._max_samples,
                     estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
                     bootstrap_method=self._bootstrap_method,
@@ -380,15 +358,14 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
             # Subsample if needed
             if self._max_samples < n:
-                idx = random_state.choice(idx, size=self._max_samples, replace=False)
+                idx = random_sample(idx, size=self._max_samples, random_state=self._random_state, replace=False)
 
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_regressor)(
                     estimator=estimator,
                     X=X,
                     y=y,
-                    idx=idx,
-                    n=n,
+                    max_samples=self._max_samples,
                     estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
                     bootstrap_method=self._bootstrap_method,
@@ -481,7 +458,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
     bootstrap_method : {"bayesian", "classic"}, default="bayesian"
         Type of bootstrap to use.
 
-    sampling_method : {"stratify", "balanced"}, default="stratify"
+    sampling_method : {"stratified", "balanced"}, default="stratified"
         Type of sampling to use during bootstrap.
 
     max_samples : int or float, default=None
@@ -542,7 +519,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
         bootstrap_method: Optional[str] = "bayesian",
-        sampling_method: Optional[str] = "stratify",
+        sampling_method: Optional[str] = "stratified",
         max_samples: Optional[Union[int, float]] = None,
         n_jobs: Optional[int] = None,
         random_state: Optional[int] = None,

@@ -548,9 +548,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         # Handle edge case
         if p == 1:
-            warnings.warn(f"Unable to mute feature ({feature}), only (1) feature available for feature selection")
+            warnings.warn(
+                f"Unable to mute feature ({self.feature_names_in_[feature]}) because only 1 feature available for "
+                "feature selection"
+            )
         else:
-            # Mask feature and recalculate max_features
+            # Drop feature and recalculate maximum features available
             idx = self._available_features == feature
             self._available_features: np.ndarray = self._available_features[~idx]  # make mypy happy with type
             p = len(self._available_features)
@@ -710,7 +713,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             # Check for constant features and mute if constant
             for feature in self._available_features:
                 x = X[:, feature]
-                if np.all(x == x[0]):
+                if np.all(x == x[0]) and len(self._available_features) > 1:
                     self._mute_feature(feature)
 
             # Feature selection

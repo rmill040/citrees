@@ -81,7 +81,9 @@ def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.random.permutation(np.percentile(x, q=max_thresholds))
+    values = np.unique(np.percentile(x, q=max_thresholds))
+
+    return np.random.permutation(values)
 
 
 @ThresholdMethods.register("histogram")
@@ -105,4 +107,6 @@ def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.random.permutation(np.histogram_bin_edges(x, bins=max_thresholds))
+    values = np.unique(np.histogram_bin_edges(x, bins=max_thresholds))
+
+    return np.random.permutation(values)

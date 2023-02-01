@@ -29,3 +29,8 @@ def test_node(kwargs: Dict[str, Any]) -> None:
 
     for key, value in node.items():
         assert value == kwargs[key]
+
+
+def test_base_conditional_inference_tree_parameters():
+    """Test BaseConditionalInferenceTreeParameters functionality."""
+    return True

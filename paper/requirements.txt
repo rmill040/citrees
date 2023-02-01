@@ -1,4 +1,5 @@
 catboost
 loguru
+pandas
 pyarrow
 xgboost

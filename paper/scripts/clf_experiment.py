@@ -20,7 +20,8 @@ def main() -> None:
         y = X.pop("y").astype(int)
         X = X.astype(float)
         print(dataset, X.shape)
-        ConditionalInferenceForestClassifier(n_jobs=1, verbose=3, max_samples=0.5).fit(X, y)
+        import pdb; pdb.set_trace()
+        clf = ConditionalInferenceForestClassifier(n_jobs=-1, verbose=3, max_samples=0.5).fit(X, y)
 
 
 if __name__ == "__main__":

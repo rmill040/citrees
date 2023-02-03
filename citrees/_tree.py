@@ -19,7 +19,7 @@ from ._utils import calculate_max_value, estimate_mean, estimate_proba, random_s
 ConstrainedInt = conint
 ConstrainedFloat = confloat
 ProbabilityFloat = ConstrainedFloat(gt=0.0, le=1.0)
-NResamplesOption = Optional[Union[Literal["minimum", "auto"], NonNegativeInt]]
+NResamplesOption = Optional[Union[Literal["minimum", "maximum", "auto"], NonNegativeInt]]
 MaxValuesOption = Optional[Union[Literal["sqrt", "log2"], ProbabilityFloat, NonNegativeInt]]  # type: ignore
 
 
@@ -401,9 +401,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             x = X[:, feature]
 
             # Check for constant feature and mute if necessary
-            if np.all(x == x[0]):
-                if self._feature_muting and self._max_features > 1:
-                    self._mute_feature(feature)
+            if np.all(x == x[0]) and self._max_features > 1:
+                self._mute_feature(feature)
                 continue
 
             # Feature selection with permutation testing
@@ -521,6 +520,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 lower_limit = ceil(1 / _alpha)
                 if n_resamples == "minimum":
                     _n_resamples = lower_limit
+                elif n_resamples == "maximum":
+                    _n_resamples = ceil(1 / (4 * alpha * alpha))
                 else:
                     z = norm.ppf(1 - _alpha)
                     upper_limit = ceil(z * z * (1 - _alpha) / _alpha)
@@ -810,6 +811,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 lower_limit = ceil(1 / alpha)
                 if value == "minimum":
                     value = lower_limit
+                elif value == "maximum":
+                    value = ceil(1 / (4 * alpha * alpha))
                 else:
                     # Approximate upper limit
                     z = norm.ppf(1 - alpha)
@@ -886,7 +889,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.tree_ = self._build_tree(X, y, depth=1)
 
         # Normalize feature importances
-        self.feature_importances_ /= self.feature_importances_.sum()
+        fi_sum = self.feature_importances_.sum()
+        if fi_sum:
+            self.feature_importances_ /= fi_sum
 
         return self
 
@@ -949,10 +954,10 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
     adjust_alpha_splitter : bool, default=True
         Whether to perform a Berferonni correction during split selection.
 
-    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+    n_resamples_selector : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for feature selection.
 
-    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+    n_resamples_splitter : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for split selection.
 
     early_stopping_selector : bool, default=True
@@ -1143,10 +1148,10 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
     adjust_alpha_splitter : bool, default=True
         Whether to perform a Berferonni correction during split selection.
 
-    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+    n_resamples_selector : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for feature selection.
 
-    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+    n_resamples_splitter : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for split selection.
 
     early_stopping_selector : bool, default=True

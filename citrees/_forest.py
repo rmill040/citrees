@@ -375,7 +375,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         # Aggregate feature importances
         for estimator in self.estimators_:
             self.feature_importances_ += estimator.feature_importances_
-        self.feature_importances_ /= self.feature_importances_.sum()
+        fi_sum = self.feature_importances_.sum()
+        if fi_sum:
+            self.feature_importances_ /= fi_sum
 
         return self
 
@@ -411,10 +413,10 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
     adjust_alpha_splitter : bool, default=True
         Whether to perform a Berferonni correction during split selection.
 
-    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+    n_resamples_selector : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for feature selection.
 
-    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+    n_resamples_splitter : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for split selection.
 
     early_stopping_selector : bool, default=True
@@ -632,10 +634,10 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
     adjust_alpha_splitter : bool, default=True
         Whether to perform a Berferonni correction during split selection.
 
-    n_resamples_selector : {"auto", "minimum"} or int, default="auto"
+    n_resamples_selector : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for feature selection.
 
-    n_resamples_splitter : {"auto", "minimum"} or int, default="auto"
+    n_resamples_splitter : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for split selection.
 
     early_stopping_selector : bool, default=True

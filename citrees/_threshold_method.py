@@ -56,6 +56,7 @@ def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
 
     values = np.unique(x)
     midpoints = (values[:-1] + values[1:]) / 2
+    max_thresholds = min(len(midpoints), max_thresholds)
 
     return np.random.choice(midpoints, size=max_thresholds, replace=False)
 
@@ -81,7 +82,8 @@ def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    values = np.unique(np.percentile(x, q=max_thresholds))
+    q = np.linspace(0, 100, max_thresholds)
+    values = np.unique(np.percentile(x, q=q))
 
     return np.random.permutation(values)
 
@@ -107,6 +109,6 @@ def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    values = np.unique(np.histogram_bin_edges(x, bins=max_thresholds))
+    values = np.unique(np.histogram(x, bins=max_thresholds)[1])
 
     return np.random.permutation(values)

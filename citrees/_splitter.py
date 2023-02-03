@@ -88,7 +88,7 @@ _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 @ClassifierSplitters.register("gini")
 @njit(cache=True, fastmath=True, nogil=True)
 def gini_index(y: np.ndarray) -> float:
-    """Calculate gini index.
+    """Gini index of node.
 
     Parameters
     ----------
@@ -97,6 +97,8 @@ def gini_index(y: np.ndarray) -> float:
 
     Returns
     -------
+    float
+        Gini index impurity.
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -104,6 +106,30 @@ def gini_index(y: np.ndarray) -> float:
     n = len(y)
     p = np.bincount(y) / n
     return 1 - np.sum(p * p)
+
+
+@ClassifierSplitters.register("entropy")
+@njit(cache=True, fastmath=True, nogil=True)
+def entropy(y: np.ndarray) -> float:
+    """Entropy of node.
+    
+    Parameters
+    ----------
+    y : np.ndarray
+        Training target.
+
+    Returns
+    -------
+    float
+        Entropy impurity.
+    """
+    if y.ndim > 1:
+        y = y.ravel()
+
+    n = len(y)
+    p = np.bincount(y) / n
+    p = p[p != 0]
+    return -np.sum(np.log2(p) * p)
 
 
 @ClassifierSplitterTests.register("gini")
@@ -134,6 +160,37 @@ def permutation_test_gini_index(
         alpha=alpha,
         random_state=random_state,
     )
+
+
+@ClassifierSplitterTests.register("entrop")
+def permutation_test_entropy(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
+    """ADD HERE.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    return _permutation_test_compiled(
+        func=entropy,
+        x=x,
+        y=y,
+        threshold=threshold,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )
+
 
 
 @RegressorSplitters.register("mse")

@@ -21,7 +21,7 @@ def _permutation_test(
     alpha: float,
     random_state: int,
 ) -> float:
-    """Perform a permutation test for feature selection.
+    """Calculate the achieved significance level using a permutation test.
 
     Parameters
     ----------
@@ -90,7 +90,7 @@ _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 @ClassifierSelectors.register("mc")
 @njit(nogil=True, fastmath=True)
 def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
-    """Calculate the multiple correlation coefficient.
+    """Calculate the multiple correlation coefficient between x and y.
 
     Parameters
     ----------
@@ -157,7 +157,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_st
 
 @ClassifierSelectors.register("mi")
 def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
-    """Calculate the mutual information.
+    """Calculate the mutual information between x and y.
 
     Parameters
     ----------
@@ -184,10 +184,26 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_stat
     return mutual_info_classif(x, y, random_state=random_state)[0]
 
 
+@ClassifierSelectors.register("hybrid")
+def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
+    """ADD HERE.
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    mc = multiple_correlation(x=x, y=y, n_classes=n_classes, random_state=random_state)
+    mi = mutual_information(x=x, y=y, n_classes=n_classes, random_state=random_state)
+
+    return max(mc, mi)
+
+
 @RegressorSelectors.register("pc")
 @njit(nogil=True, fastmath=True)
 def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int) -> float:
-    """Calculate the Pearson correlation coefficient.
+    """Calculate the Pearson correlation coefficient between x and y.
 
     Parameters
     ----------
@@ -470,8 +486,8 @@ def permutation_test_hybrid_classifier(
     float
         Estimated achieved significance level.
     """
-    mc = multiple_correlation(x, y, n_classes)
-    mi = mutual_information(x, y, n_classes)
+    mc = multiple_correlation(x, y, n_classes, random_state)
+    mi = mutual_information(x, y, n_classes, random_state)
 
     if mc >= mi:
         asl = permutation_test_multiple_correlation(

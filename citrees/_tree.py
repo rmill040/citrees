@@ -672,7 +672,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Returns
         -------
         parent_impurity : float
-            Parent node impurity
+            Parent node impurity.
 
         impurity_decrease : float
             Node impurity decrease after binary split on threshold.
@@ -719,7 +719,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # Feature selection
 
-            # self._max_features is automatically updated whenever a feature is muted so no need to recalculate during
+            # self._max_features is automatically updated only when a feature is muted so no need to recalculate during
             # each iteration as we do below for self._max_thresholds
             features = random_sample(
                 x=self._available_features, size=self._max_features, random_state=self._random_state, replace=False

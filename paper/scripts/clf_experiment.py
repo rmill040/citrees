@@ -17,7 +17,7 @@ from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
 from loguru import logger
 from scipy.stats import norm
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
@@ -247,7 +247,6 @@ def ptest_hybrid(
 
 def _embedding_method(
     *,
-    n_jobs: int,
     estimator: Any,
     method: str,
     params: Dict[str, Any],
@@ -273,7 +272,7 @@ def _embedding_method(
         return sort_features(scores=scores, higher_is_better=False)
 
     n_params = len(params)
-    results = Parallel(n_jobs=n_jobs, verbose=0, backend="loky")(
+    results = Parallel(n_jobs=min(len(params), cpu_count()), verbose=0, backend="loky")(
         delayed(f)(X=X, y=y, estimator=estimator, hyperparameters=hyperparameters, n_params=n_params, i=i)
         for i, hyperparameters in enumerate(params, 1)
     )
@@ -299,17 +298,16 @@ def lr(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
     params = []
     for class_weight in [None, "balanced"]:
         params.append(
-            {
-                "penalty": None,
-                "random_state": RANDOM_STATE,
-                "class_weight": class_weight,
-                "solver": "lbfgs",
-            }
+            dict(
+                class_weight=class_weight,
+                penality=None,
+                solver="lbfgs",
+                random_state=RANDOM_STATE,
+            )
         )
 
     _embedding_method(
         estimator=LogisticRegression,
-        n_jobs=min(len(params), cpu_count()),
         method=method,
         params=params,
         dataset=dataset,
@@ -329,18 +327,17 @@ def lr_l1(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: n
     for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
         for class_weight in [None, "balanced"]:
             params.append(
-                {
-                    "C": C,
-                    "penalty": "l1",
-                    "random_state": RANDOM_STATE,
-                    "class_weight": class_weight,
-                    "solver": "liblinear",
-                }
+                dict(
+                    C=C,
+                    class_weight=class_weight,
+                    penality="l1",
+                    solver="liblinear",
+                    random_state=RANDOM_STATE,
+                )
             )
 
     _embedding_method(
         estimator=LogisticRegression,
-        n_jobs=min(len(params), cpu_count()),
         method=method,
         params=params,
         dataset=dataset,
@@ -360,18 +357,17 @@ def lr_l2(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: n
     for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
         for class_weight in [None, "balanced"]:
             params.append(
-                {
-                    "C": C,
-                    "penalty": "l2",
-                    "random_state": RANDOM_STATE,
-                    "class_weight": class_weight,
-                    "solver": "liblinear",
-                }
+                dict(
+                    C=C,
+                    class_weight=class_weight,
+                    penality="l2",
+                    solver="liblinear",
+                    random_state=RANDOM_STATE,
+                )
             )
 
     _embedding_method(
         estimator=LogisticRegression,
-        n_jobs=min(len(params), cpu_count()),
         method=method,
         params=params,
         dataset=dataset,
@@ -389,29 +385,30 @@ def xgb(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_depth in [1, 3, 5]:
-        for learning_rate in [0.01, 0.1]:
-            for subsample in [0.8, 1.0]:
-                for colsample_bytree in [0.8, 1.0]:
-                    for reg_alpha in [0.01, None]:
-                        for reg_lambda in [0.01, None]:
-                            params.append(
-                                {
-                                    "max_depth": max_depth,
-                                    "learning_rate": learning_rate,
-                                    "subsample": subsample,
-                                    "colsample_bytree": colsample_bytree,
-                                    "reg_alpha": reg_alpha,
-                                    "reg_lambda": reg_lambda,
-                                    "n_jobs": 1,
-                                    "random_state": RANDOM_STATE,
-                                    "importance_type": "gain",
-                                }
-                            )
+    for max_depth in [1, 2, 3, 4, 5, 6]:
+        for learning_rate in [0.001, 0.01, 0.1]:
+            for subsample in [0.8, 0.9, 1.0]:
+                for colsample_bytree in [0.8, 0.9, 1.0]:
+                    for reg_alpha in [0.001, 0.01, None]:
+                        for reg_lambda in [0.001, 0.01, None]:
+                            for importance_type in ["gain", "weight", "cover", "total_gain", "total_cover"]:
+                                params.append(
+                                    dict(
+                                        max_depth=max_depth,
+                                        learning_rate=learning_rate,
+                                        subsample=subsample,
+                                        colsample_bytree=colsample_bytree,
+                                        reg_alpha=reg_alpha,
+                                        reg_lambda=reg_lambda,
+                                        importance_type=importance_type,
+                                        n_estimators=100,
+                                        n_jobs=1,
+                                        random_state=RANDOM_STATE,
+                                    )
+                                )
 
     _embedding_method(
         estimator=XGBClassifier,
-        n_jobs=-1,
         method=method,
         params=params,
         dataset=dataset,
@@ -428,6 +425,43 @@ def lightgbm(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
     """LightGBM classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
 
+    params = []
+    for max_depth in [1, 2, 3, 4, 5, 6]:
+        for learning_rate in [0.001, 0.01, 0.1]:
+            for subsample in [0.8, 0.9, 1.0]:
+                for colsample_bytree in [0.8, 0.9, 1.0]:
+                    for reg_alpha in [0.001, 0.01, None]:
+                        for reg_lambda in [0.001, 0.01, None]:
+                            for importance_type in ["split", "gain"]:
+                                for class_weight in [None, "balanced"]:
+                                    params.append(
+                                        dict(
+                                            max_depth=max_depth,
+                                            learning_rate=learning_rate,
+                                            subsample=subsample,
+                                            colsample_bytree=colsample_bytree,
+                                            reg_alpha=reg_alpha,
+                                            reg_lambda=reg_lambda,
+                                            importance_type=importance_type,
+                                            class_weight=class_weight,
+                                            n_estimators=100,
+                                            n_jobs=1,
+                                            random_state=RANDOM_STATE,
+                                        )
+                                    )
+
+    _embedding_method(
+        estimator=LGBMClassifier,
+        method=method,
+        params=params,
+        dataset=dataset,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        X=X,
+        y=y,
+    )
+
 
 @METHODS.register("catboost")
 def catboost(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
@@ -439,6 +473,28 @@ def catboost(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
 def dt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Decision tree classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
+    
+    params = []
+    for class_weight in [None, "balanced"]:
+        params.append(
+            dict(
+                class_weight=class_weight,
+                splitter="best",
+                random_state=RANDOM_STATE,
+            )
+        )
+
+    _embedding_method(
+        estimator=DecisionTreeClassifier,
+        method=method,
+        params=params,
+        dataset=dataset,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        X=X,
+        y=y,
+    )
 
 
 @METHODS.register("rt")
@@ -446,17 +502,131 @@ def rt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
     """Random decision tree classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
 
+    params = []
+    for class_weight in [None, "balanced"]:
+        params.append(
+            dict(
+                class_weight=class_weight,
+                splitter="random",
+                random_state=RANDOM_STATE,
+            )
+        )
+
+    _embedding_method(
+        estimator=DecisionTreeClassifier,
+        method=method,
+        params=params,
+        dataset=dataset,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        X=X,
+        y=y,
+    )
+
 
 @METHODS.register("rf")
 def rf(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Random forest classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
+    
+    params = []
+    for max_samples in [None, 0.8]:
+        for class_weight in [None, "balanced"]:
+            params.append(
+                dict(
+                    max_samples=max_samples,
+                    class_weight=class_weight,
+                    n_estimators=100,
+                    n_jobs=1,
+                    random_state=RANDOM_STATE,
+                )
+            )
+
+    _embedding_method(
+        estimator=RandomForestClassifier,
+        method=method,
+        params=params,
+        dataset=dataset,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        X=X,
+        y=y,
+    )
 
 
 @METHODS.register("et")
 def et(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Extra trees classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
+
+    params = []
+    for max_samples in [None, 0.8]:
+        for class_weight in [None, "balanced"]:
+            params.append(
+                dict(
+                    max_samples=max_samples,
+                    class_weight=class_weight,
+                    n_estimators=100,
+                    n_jobs=1,
+                    random_state=RANDOM_STATE,
+                )
+            )
+
+    _embedding_method(
+        estimator=ExtraTreesClassifier,
+        method=method,
+        params=params,
+        dataset=dataset,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        X=X,
+        y=y,
+    )
+
+
+def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter out hyperparameters with conflicting settings."""
+    # SELECTOR constraints
+
+    # 1. No permutation tests (value == None) =>
+    # - No alpha adjustment
+    # - No feature muting
+    # - No early stopping
+    params = list(
+        filter(
+            lambda p: not (
+                p["n_resamples_selector"] is None
+                and (p["adjust_alpha_selector"] or p["feature_muting"] or p["early_stopping_selector"])
+            ),
+            params,
+        )
+    )
+
+    # 2. No early stopping (value == False) =>
+    # - No feature scanning
+    params = list(filter(lambda p: not (not p["early_stopping_selector"] and p["feature_scanning"]), params))
+
+    # SPLITTER constraints
+    # 1. No permutation test (value == None) =>
+    # - No alpha adjustment
+    # - No early stopping
+    params = list(
+        filter(
+            lambda p: not (
+                p["n_resamples_splitter"] is None and (p["adjust_alpha_splitter"] or p["early_stopping_splitter"])
+            ),
+            params,
+        )
+    )
+
+    # 2. No early stopping (value == False) =>
+    # - No threshold scanning
+    params = list(filter(lambda p: not (not p["early_stopping_splitter"] and p["threshold_scanning"]), params))
+
+    return params
 
 
 @METHODS.register("cit")
@@ -465,43 +635,60 @@ def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for adjust_alpha_selector in [True, False]:
-        for adjust_alpha_splitter in [True, False]:
-            for n_resamples_selector in ["minimum", "maximum", "auto"]:
-                for n_resamples_splitter in ["minimum", "maximum", "auto"]:
-                    for threshold_method in ["exact", "random", "percentile", "histogram"]:
-                        hyperparameters = {
-                            "adjust_alpha_selector": adjust_alpha_selector,
-                            "adjust_alpha_splitter": adjust_alpha_splitter,
-                            "n_resamples_selector": n_resamples_selector,
-                            "n_resamples_splitter": n_resamples_splitter,
-                            "threshold_method": threshold_method,
-                            "random_state": RANDOM_STATE,
-                        }
-                        if threshold_method == "exact":
-                            for max_thresholds in [None]:
-                                hyperparameters = deepcopy(hyperparameters)
-                                hyperparameters["max_thresholds"] = max_thresholds
-                                params.append(hyperparameters)
-                        elif threshold_method == "random":
-                            for max_thresholds in [0.8]:
-                                hyperparameters = deepcopy(hyperparameters)
-                                hyperparameters["max_thresholds"] = max_thresholds
-                                params.append(hyperparameters)
-                        elif threshold_method == "percentile":
-                            for max_thresholds in [0.8]:
-                                hyperparameters = deepcopy(hyperparameters)
-                                hyperparameters["max_thresholds"] = max_thresholds
-                                params.append(hyperparameters)
-                        else:
-                            for max_thresholds in [0.8]:
-                                hyperparameters = deepcopy(hyperparameters)
-                                hyperparameters["max_thresholds"] = max_thresholds
-                                params.append(hyperparameters)
+    for n_resamples_selector in ["minimum", "maximum", "auto", None]:
+        for n_resamples_splitter in ["minimum", "maximum", "auto", None]:
+            for early_stopping_selector in [True, False]:
+                for early_stopping_splitter in [True, False]:
+                    for adjust_alpha_selector in [True, False]:
+                        for adjust_alpha_splitter in [True, False]:
+                            for feature_muting in [True, False]:
+                                for feature_scanning in [True, False]:
+                                    for threshold_scanning in [True, False]:
+                                        for threshold_method in [
+                                            "exact",
+                                            "random",
+                                            "percentile",
+                                            "histogram",
+                                        ]:
+                                            hyperparameters = dict(
+                                                n_resamples_selector=n_resamples_selector,
+                                                n_resamples_splitter=n_resamples_splitter,
+                                                early_stopping_selector=early_stopping_selector,
+                                                early_stopping_splitter=early_stopping_splitter,
+                                                adjust_alpha_selector=adjust_alpha_selector,
+                                                adjust_alpha_splitter=adjust_alpha_splitter,
+                                                feature_muting=feature_muting,
+                                                feature_scanning=feature_scanning,
+                                                threshold_scanning=threshold_scanning,
+                                                random_state=RANDOM_STATE,
+                                            )
+
+                                            if threshold_method == "exact":
+                                                for max_thresholds in [None]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
+                                            elif threshold_method == "random":
+                                                for max_thresholds in [0.5, 0.8]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
+                                            elif threshold_method == "percentile":
+                                                for max_thresholds in [0.5, 0.8]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
+                                            else:
+                                                for max_thresholds in [0.5, 0.8]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
+
+    # Filter out bad combinations of parameters
+    params = _filter_param_conflicts(params)
 
     _embedding_method(
         estimator=ConditionalInferenceTreeClassifier,
-        n_jobs=-1,
         method=method,
         params=params,
         dataset=dataset,
@@ -517,6 +704,79 @@ def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
 def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Conditional inference forest classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
+
+    params = []
+    for n_resamples_selector in ["minimum", "maximum", "auto", None]:
+        for n_resamples_splitter in ["minimum", "maximum", "auto", None]:
+            for early_stopping_selector in [True, False]:
+                for early_stopping_splitter in [True, False]:
+                    for adjust_alpha_selector in [True, False]:
+                        for adjust_alpha_splitter in [True, False]:
+                            for feature_muting in [True, False]:
+                                for feature_scanning in [True, False]:
+                                    for threshold_scanning in [True, False]:
+                                        for max_samples in [None, 0.8]:
+                                            for bootstrap_method in ["bayesian", "classic"]:
+                                                for sampling_method in ["balanced", "stratified"]:
+                                                    for threshold_method in [
+                                                        "exact",
+                                                        "random",
+                                                        "percentile",
+                                                        "histogram",
+                                                    ]:
+                                                        hyperparameters = dict(
+                                                            n_resamples_selector=n_resamples_selector,
+                                                            n_resamples_splitter=n_resamples_splitter,
+                                                            early_stopping_selector=early_stopping_selector,
+                                                            early_stopping_splitter=early_stopping_splitter,
+                                                            adjust_alpha_selector=adjust_alpha_selector,
+                                                            adjust_alpha_splitter=adjust_alpha_splitter,
+                                                            feature_muting=feature_muting,
+                                                            feature_scanning=feature_scanning,
+                                                            threshold_scanning=threshold_scanning,
+                                                            max_samples=max_samples,
+                                                            bootstrap_method=bootstrap_method,
+                                                            sampling_method=sampling_method,
+                                                            n_estimators=100,
+                                                            n_jobs=1,
+                                                            random_state=RANDOM_STATE,
+                                                        )
+
+                                                        if threshold_method == "exact":
+                                                            for max_thresholds in [None]:
+                                                                hyperparameters = deepcopy(hyperparameters)
+                                                                hyperparameters["max_thresholds"] = max_thresholds
+                                                                params.append(hyperparameters)
+                                                        elif threshold_method == "random":
+                                                            for max_thresholds in [0.5, 0.8]:
+                                                                hyperparameters = deepcopy(hyperparameters)
+                                                                hyperparameters["max_thresholds"] = max_thresholds
+                                                                params.append(hyperparameters)
+                                                        elif threshold_method == "percentile":
+                                                            for max_thresholds in [0.5, 0.8]:
+                                                                hyperparameters = deepcopy(hyperparameters)
+                                                                hyperparameters["max_thresholds"] = max_thresholds
+                                                                params.append(hyperparameters)
+                                                        else:
+                                                            for max_thresholds in [0.5, 0.8]:
+                                                                hyperparameters = deepcopy(hyperparameters)
+                                                                hyperparameters["max_thresholds"] = max_thresholds
+                                                                params.append(hyperparameters)
+
+    # Filter out bad combinations of parameters
+    params = _filter_param_conflicts(params)
+
+    _embedding_method(
+        estimator=ConditionalInferenceForestClassifier,
+        method=method,
+        params=params,
+        dataset=dataset,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        X=X,
+        y=y,
+    )
 
 
 def main() -> None:

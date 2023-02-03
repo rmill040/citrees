@@ -2,7 +2,7 @@
 name = "citrees"
 version = "0.1.0"
 description = "Bayesian conditional inference trees and forests"
-authors = ["robby milletich <rmill040@gmail.com>"]
+authors = ["robert milletich <rmill040@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"

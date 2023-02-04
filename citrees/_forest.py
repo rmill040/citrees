@@ -1,3 +1,4 @@
+import warnings
 from abc import ABCMeta, abstractmethod
 from multiprocessing import cpu_count
 from typing import Literal, Optional, Union
@@ -227,6 +228,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         n_jobs: Optional[int],
         random_state: Optional[int],
         verbose: int,
+        check_for_unused_parameters: bool,
     ) -> None:
         self.n_estimators = n_estimators
         self.selector = selector
@@ -254,11 +256,35 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
+        self.check_for_unused_parameters = check_for_unused_parameters
 
-        self._validate_params({**self.get_params(), "estimator_type": self._estimator_type})
+        self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
+        if self.check_for_unused_parameters():
+            self._check_for_unused_parameters()
+
+    def _check_for_unused_parameters(self) -> None:
+        """Runtime check to determine if any hyperparameters are unused due to constraints.
+
+        Bootstrap constraints:
+        1. If bootstrap_method is None =>
+            - sampling_method = None
+            - max_samples = None
+        """
+        super()._check_for_unused_parameters()
+
+        params = self.get_params()
+
+        flags = []
+        if params["bootstrap_method"] is None:
+            flags = [key for key in ["sampling_method", "max_samples"] if params[key]]
+        if flags:
+            warnings.warn(
+                "Unused hyperparameter(s) detected: When bootstrap_method=None, hyperparameter(s) "
+                f"({', '.join(flags)}) should be None"
+            )
 
     @property
-    def _parameter_validator(self) -> ModelMetaclass:
+    def _parameter_model(self) -> ModelMetaclass:
         """Model for hyperparameter validation.
 
         Returns
@@ -473,6 +499,9 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
     verbose : int, default=1
         Controls verbosity when fitting and predicting.
 
+    check_for_unused_parameters : bool, default=False
+        Check for unused hyperparameters. Useful for debugging.
+
     Attributes
     ----------
     classes_ : np.ndarray
@@ -553,10 +582,10 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         self.random_state = random_state
         self.verbose = verbose
 
-        self._validate_params({**self.get_params(), "estimator_type": self._estimator_type})
+        self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
 
     @property
-    def _parameter_validator(self) -> ModelMetaclass:
+    def _parameter_model(self) -> ModelMetaclass:
         """Model for hyperparameter validation.
 
         Returns
@@ -690,6 +719,9 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
 
     verbose : int, default=1
         Controls verbosity when fitting and predicting.
+
+    check_for_unused_parameters : bool, default=False
+        Check for unused hyperparameters. Useful for debugging.
 
     Attributes
     ----------

@@ -102,7 +102,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_st
 
     n_classes : int
         Number of classes.
-        
+
     random_state : int
         Random seed. Kept for API compatibility.
 
@@ -166,7 +166,7 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_stat
 
     y : np.ndarray
         Target.
-        
+
     n_classes : int
         Number of classes. Kept for API compatibility.
 
@@ -187,10 +187,10 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_stat
 @ClassifierSelectors.register("hybrid")
 def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
     """ADD HERE.
-    
+
     Parameters
     ----------
-    
+
     Returns
     -------
     """
@@ -215,7 +215,7 @@ def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_
 
     standardize : np.ndarray
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
-        
+
     random_state : int
         Random seed. Kept for API compatibility.
 
@@ -318,7 +318,7 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random
 
     standardize : np.ndarray
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
-        
+
     random_state : int
         Random seed. Kept for API compatibility.
 

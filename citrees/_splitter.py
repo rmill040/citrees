@@ -112,7 +112,7 @@ def gini_index(y: np.ndarray) -> float:
 @njit(cache=True, fastmath=True, nogil=True)
 def entropy(y: np.ndarray) -> float:
     """Entropy of node.
-    
+
     Parameters
     ----------
     y : np.ndarray
@@ -190,7 +190,6 @@ def permutation_test_entropy(
         alpha=alpha,
         random_state=random_state,
     )
-
 
 
 @RegressorSplitters.register("mse")

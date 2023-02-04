@@ -473,7 +473,7 @@ def catboost(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
 def dt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Decision tree classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
-    
+
     params = []
     for class_weight in [None, "balanced"]:
         params.append(
@@ -529,7 +529,7 @@ def rt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
 def rf(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Random forest classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
-    
+
     params = []
     for max_samples in [None, 0.8]:
         for class_weight in [None, "balanced"]:

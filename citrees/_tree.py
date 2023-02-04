@@ -93,6 +93,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     min_impurity_decrease: NonNegativeFloat
     random_state: Optional[NonNegativeInt]
     verbose: NonNegativeInt
+    check_for_unused_parameters: bool
 
     @validator("selector", "splitter", always=True)
     def validate_selector_splitter(cls: ModelMetaclass, v: str, field: ModelField, values: Dict[str, Any]) -> str:
@@ -129,7 +130,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
     """Base conditional inference tree estimator."""
 
     @abstractproperty
-    def _parameter_validator(self) -> ModelMetaclass:
+    def _parameter_model(self) -> ModelMetaclass:
         """Model for validating hyperparameters."""
         pass
 
@@ -282,7 +283,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         X = X.astype(float)
         return X
 
-    def _validate_params(self, params: Dict[str, Any]) -> None:
+    def _validate_parameters(self, params: Dict[str, Any]) -> None:
         """Validate hyperparameters.
 
         Parameters
@@ -290,7 +291,61 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         params : Dict[str, Any]
             Hyperparameters.
         """
-        self._parameter_validator(**params)
+        self._parameter_model(**params)
+
+    def _check_for_unused_parameters(self) -> None:
+        """Runtime check to determine if any hyperparameters are unused due to constraints.
+
+        Selector constraints:
+        1. n_resamples_selector is None =>
+            - adjust_alpha_selector = False
+            - feature_muting = False
+            - early_stopping_selector = False
+
+        2. early_stopping_selector == False =>
+            - feature_scanning == False
+
+        Splitter constraints:
+        1. n_resamples_splitter is None =>
+            - adjust_alpha_splitter = False
+            - early_stopping_splitter = False
+
+        2. early_stopping_splitter = False =>
+            - threshold_scanning = False
+        """
+        params = self.get_params()
+
+        flags = []
+        if params["n_resamples_selector"] is None:
+            flags = [
+                key for key in ["adjust_alpha_selector", "feature_muting", "early_stopping_selector"] if params[key]
+            ]
+        if flags:
+            warnings.warn(
+                "Unused hyperparameter(s) detected: When n_resamples_selector=None, hyperparameter(s) "
+                f"({', '.join(flags)}) should be False"
+            )
+
+        if not params["early_stopping_selector"] and params["feature_scanning"]:
+            warnings.warn(
+                "Unused hyperparameter detected: When early_stopping_selector=False, hyperparameter "
+                "('feature_scanning') should be False"
+            )
+
+        flags = []
+        if params["n_resamples_splitter"] is None:
+            flags = [key for key in ["adjust_alpha_splitter", "early_stopping_splitter"] if params[key]]
+        if flags:
+            warnings.warn(
+                "Unused hyperparameter(s) detected: When n_resamples_splitter=None, hyperparameter(s) "
+                f"({', '.join(flags)}) should be False"
+            )
+
+        if not params["early_stopping_splitter"] and params["threshold_scanning"]:
+            warnings.warn(
+                "Unused hyperparameters detected: When early_stopping_splitter=False, hyperparameter "
+                "('feature_scanning') should be False"
+            )
 
 
 class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metaclass=ABCMeta):
@@ -325,6 +380,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         min_impurity_decrease: float,
         random_state: Optional[int],
         verbose: int,
+        check_for_unused_parameters: bool,
     ) -> None:
         self.selector = selector
         self.splitter = splitter
@@ -348,8 +404,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.min_impurity_decrease = min_impurity_decrease
         self.random_state = random_state
         self.verbose = verbose
+        self.check_for_unused_parameters = check_for_unused_parameters
 
-        self._validate_params({**self.get_params(), "estimator_type": self._estimator_type})
+        self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
+        if self.check_for_unused_parameters():
+            self._check_for_unused_parameters()
 
     @abstractmethod
     def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
@@ -357,7 +416,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         pass
 
     @property
-    def _parameter_validator(self) -> ModelMetaclass:
+    def _parameter_model(self) -> ModelMetaclass:
         """Model for hyperparameter validation.
 
         Returns
@@ -1002,6 +1061,9 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
     verbose : int, default=1
         Controls verbosity when fitting and predicting.
 
+    check_for_unused_parameters : bool, default=False
+        Check for unused hyperparameters. Useful for debugging.
+
     Attributes
     ----------
     classes_ : np.ndarray
@@ -1048,6 +1110,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         min_impurity_decrease: float = 0.0,
         random_state: Optional[int] = None,
         verbose: int = 1,
+        check_for_unused_parameters: bool = False,
     ) -> None:
         super().__init__(
             selector=selector,
@@ -1072,6 +1135,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
             min_impurity_decrease=min_impurity_decrease,
             random_state=random_state,
             verbose=verbose,
+            check_for_unused_parameters=check_for_unused_parameters,
         )
 
     def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
@@ -1196,6 +1260,9 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
     verbose : int, default=1
         Controls verbosity when fitting and predicting.
 
+    check_for_unused_parameters : bool, default=False
+        Check for unused hyperparameters. Useful for debugging.
+
     Attributes
     ----------
     classes_ : np.ndarray
@@ -1239,6 +1306,7 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         min_impurity_decrease: float = 0.0,
         random_state: Optional[int] = None,
         verbose: int = 1,
+        check_for_unused_parameters: bool = False,
     ) -> None:
         super().__init__(
             selector=selector,
@@ -1263,6 +1331,7 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
             min_impurity_decrease=min_impurity_decrease,
             random_state=random_state,
             verbose=verbose,
+            check_for_unused_parameters=check_for_unused_parameters,
         )
 
     def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:

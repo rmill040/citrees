@@ -13,7 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from ._selector import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
 from ._splitter import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
 from ._threshold_method import ThresholdMethods
-from ._utils import calculate_max_value, estimate_mean, estimate_proba, random_sample, split_data
+from ._utils import calculate_max_value, estimate_mean, estimate_proba, split_data
 
 # Type aliases
 ConstrainedInt = conint
@@ -460,8 +460,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             x = X[:, feature]
 
             # Check for constant feature and mute if necessary
-            if np.all(x == x[0]) and self._max_features > 1:
-                self._mute_feature(feature)
+            if np.all(x == x[0]):
+                if len(self._available_features) > 1:
+                    self._mute_feature(feature)
                 continue
 
             # Feature selection with permutation testing
@@ -475,14 +476,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     reject_H0 = best_pval < self._alpha_selector
 
                     # Check for early stopping
-                    if pval_feature == 0 or self._early_stopping_selector and reject_H0:
+                    if pval_feature == 0 or (self._early_stopping_selector and reject_H0):
                         break
 
                 # Check for feature muting
                 if (
                     self._feature_muting
                     and pval_feature >= max(self._alpha_selector, 1 - self._alpha_selector)
-                    and self._max_features > 1
+                    and len(self._available_features) > 1
                 ):
                     self._mute_feature(feature)
 
@@ -544,7 +545,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     reject_H0 = best_pval < self._alpha_splitter
 
                     # Check for early stopping
-                    if pval_threshold == 0 or self._early_stopping_splitter and reject_H0:
+                    if pval_threshold == 0 or (self._early_stopping_splitter and reject_H0):
                         break
 
             # Split selection without permutation testing
@@ -760,6 +761,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Node
             Node in decision tree.
         """
+        prng = np.random.RandomState(self._random_state)
         reject_H0_feature = False
         reject_H0_threshold = False
         impurity_decrease = -1
@@ -778,12 +780,13 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # Feature selection
 
-            # self._max_features is automatically updated only when a feature is muted so no need to recalculate during
-            # each iteration as we do below for self._max_thresholds
-            features = random_sample(
-                x=self._available_features, size=self._max_features, random_state=self._random_state, replace=False
-            )
-            if self._feature_scanning and self._early_stopping_selector:
+            # Note: self._max_features is automatically updated only when a feature is muted so no need to recalculate
+            # during each iteration as we do below for self._max_thresholds
+
+            # If early stopping, we scan features and sort based on most promising features but no need to also
+            # randomly permute since a random sample is already taken from the feature set
+            features = prng.choice(x, size=self._max_features, replace=False)
+            if self._early_stopping_selector and self._scan_features:
                 features = self._scan_features(X, y, features)
             best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)
 
@@ -799,9 +802,15 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 else n_unique
             )
 
-            thresholds = self._threshold_method(x, max_thresholds=self._max_thresholds)
-            if self._threshold_scanning and self._early_stopping_splitter:
-                thresholds = self._scan_thresholds(x, y, thresholds)
+            # If early stopping, we either scan thresholds and sort based on most promising thresholds or create a
+            # random permutation of the values to help randomize chance of finding best split and early stopping
+            thresholds = self._threshold_method(x, max_thresholds=self._max_thresholds, random_state=self._random_state)
+            if self._early_stopping_splitter:
+                thresholds = (
+                    self._scan_thresholds(x, y, thresholds)
+                    if self._threshold_scanning
+                    else prng.permutation(thresholds)
+                )
             best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(x, y, thresholds)
 
         # Calculate impurity decrease

@@ -385,7 +385,7 @@ def xgb(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_depth in [1, 2, 3, 4, 5, 6]:
+    for max_depth in range(1, 13):
         for learning_rate in [0.001, 0.01, 0.1]:
             for subsample in [0.8, 0.9, 1.0]:
                 for colsample_bytree in [0.8, 0.9, 1.0]:
@@ -426,7 +426,7 @@ def lightgbm(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_depth in [1, 2, 3, 4, 5, 6]:
+    for max_depth in range(1, 13):
         for learning_rate in [0.001, 0.01, 0.1]:
             for subsample in [0.8, 0.9, 1.0]:
                 for colsample_bytree in [0.8, 0.9, 1.0]:
@@ -467,6 +467,37 @@ def lightgbm(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
 def catboost(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """CatBoost classifier as feature selector."""
     method = inspect.currentframe().f_code.co_name
+
+    params = []
+    for depth in range(1, 13):
+        for learning_rate in [0.001, 0.01, 0.1]:
+            for l2_leaf_reg in [1, 3, 5, 7, 9]:
+                for subsample in [0.8, 0.9, 1.0]:
+                    for colsample_bylevel in [0.8, 0.9, 1.0]:
+                        for auto_class_weight in [None, "Balanced"]:
+                            params.append(dict(
+                                depth=depth,
+                                learning_rate=learning_rate,
+                                l2_leaf_reg=l2_leaf_reg,
+                                subsample=subsample,
+                                colsample_bylevel=colsample_bylevel,
+                                auto_class_weight=auto_class_weight,
+                                thread_count=1,
+                                n_estimators=100,
+                                random_state=RANDOM_STATE,
+                            ))
+
+    _embedding_method(
+        estimator=CatBoostClassifier,
+        method=method,
+        params=params,
+        dataset=dataset,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        X=X,
+        y=y,
+    )
 
 
 @METHODS.register("dt")
@@ -674,12 +705,13 @@ def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                     hyperparameters["max_thresholds"] = max_thresholds
                                                     params.append(hyperparameters)
                                             elif threshold_method == "percentile":
-                                                for max_thresholds in [0.5, 0.8]:
+                                                for max_thresholds in [10, 20, 50, 100, 0.5, 0.8]:
                                                     hyperparameters = deepcopy(hyperparameters)
                                                     hyperparameters["max_thresholds"] = max_thresholds
                                                     params.append(hyperparameters)
                                             else:
-                                                for max_thresholds in [0.5, 0.8]:
+                                                # Histogram method
+                                                for max_thresholds in [64, 128, 256, 0.5, 0.8]:
                                                     hyperparameters = deepcopy(hyperparameters)
                                                     hyperparameters["max_thresholds"] = max_thresholds
                                                     params.append(hyperparameters)
@@ -753,12 +785,13 @@ def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                                 hyperparameters["max_thresholds"] = max_thresholds
                                                                 params.append(hyperparameters)
                                                         elif threshold_method == "percentile":
-                                                            for max_thresholds in [0.5, 0.8]:
+                                                            for max_thresholds in [10, 20, 50, 100, 0.5, 0.8]:
                                                                 hyperparameters = deepcopy(hyperparameters)
                                                                 hyperparameters["max_thresholds"] = max_thresholds
                                                                 params.append(hyperparameters)
                                                         else:
-                                                            for max_thresholds in [0.5, 0.8]:
+                                                            # Histogram method
+                                                            for max_thresholds in [64, 128, 256, 0.5, 0.8]:
                                                                 hyperparameters = deepcopy(hyperparameters)
                                                                 hyperparameters["max_thresholds"] = max_thresholds
                                                                 params.append(hyperparameters)

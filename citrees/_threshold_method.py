@@ -8,8 +8,8 @@ from ._registry import ThresholdMethods
 
 @ThresholdMethods.register("exact")
 @njit(fastmath=True, nogil=True)
-def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
-    """Random permutation of unique midpoints in array.
+def exact(x: np.ndarray, max_thresholds: Optional[int] = None, random_state: Optional[int] = None) -> np.ndarray:
+    """Unique midpoints in array.
 
     Parameters
     ----------
@@ -19,6 +19,9 @@ def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
     max_thresholds : int, default=None
         Maximum number of thresholds to generate. Kept here for API compatibility with other threshold methods.
 
+    random_state : int, default=None
+        Random seed. Kept here for API compatibility with other threshold methods.
+
     Returns
     -------
     np.ndarray
@@ -30,13 +33,13 @@ def exact(x: np.ndarray, max_thresholds: Optional[int] = None) -> np.ndarray:
     values = np.unique(x)
     midpoints = (values[:-1] + values[1:]) / 2
 
-    return np.random.permutation(midpoints)
+    return midpoints
 
 
 @ThresholdMethods.register("random")
 @njit(fastmath=True, nogil=True)
-def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """Random permutation of a random sample of unique midpoints in array.
+def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:
+    """Random sample of unique midpoints in array.
 
     Parameters
     ----------
@@ -46,11 +49,16 @@ def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     max_thresholds : int
         Maximum number of thresholds to generate.
 
+    random_state : int
+        Random seed.
+
     Returns
     -------
     np.ndarray
         Thresholds in array.
     """
+    prng = np.random.RandomState(random_state)
+
     if x.ndim > 1:
         x = x.ravel()
 
@@ -58,13 +66,13 @@ def random(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     midpoints = (values[:-1] + values[1:]) / 2
     max_thresholds = min(len(midpoints), max_thresholds)
 
-    return np.random.choice(midpoints, size=max_thresholds, replace=False)
+    return prng.choice(midpoints, size=max_thresholds, replace=False)
 
 
 @ThresholdMethods.register("percentile")
 @njit(fastmath=True, nogil=True)
-def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """Random permutation of percentiles of array.
+def percentile(x: np.ndarray, max_thresholds: int, random_state: Optional[int] = None) -> np.ndarray:
+    """Percentiles of array.
 
     Parameters
     ----------
@@ -73,6 +81,9 @@ def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
 
     max_thresholds : int
         Maximum number of thresholds to generate.
+
+    random_state : int, default=None
+        Random seed. Kept here for API compatibility with other threshold methods.
 
     Returns
     -------
@@ -83,15 +94,13 @@ def percentile(x: np.ndarray, max_thresholds: int) -> np.ndarray:
         x = x.ravel()
 
     q = np.linspace(0, 100, max_thresholds)
-    values = np.unique(np.percentile(x, q=q))
-
-    return np.random.permutation(values)
+    return np.unique(np.percentile(x, q=q))
 
 
 @ThresholdMethods.register("histogram")
 @njit(fastmath=True, nogil=True)
-def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
-    """Random permutation of histogram bin edges of array.
+def histogram(x: np.ndarray, max_thresholds: int, random_state: Optional[int] = None) -> np.ndarray:
+    """Histogram bin edges of array.
 
     Parameters
     ----------
@@ -101,6 +110,9 @@ def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     max_thresholds : int
         Maximum number of thresholds to generate.
 
+    random_state : int, default=None
+        Random seed. Kept here for API compatibility with other threshold methods.
+
     Returns
     -------
     np.ndarray
@@ -109,6 +121,4 @@ def histogram(x: np.ndarray, max_thresholds: int) -> np.ndarray:
     if x.ndim > 1:
         x = x.ravel()
 
-    values = np.unique(np.histogram(x, bins=max_thresholds)[1])
-
-    return np.random.permutation(values)
+    return np.unique(np.histogram(x, bins=max_thresholds)[1])

@@ -4,34 +4,6 @@ import numpy as np
 from numba import njit
 
 
-@njit(fastmath=True, nogil=True)
-def random_sample(*, x: np.ndarray, size: int, random_state: int, replace: bool = False) -> np.ndarray:
-    """Generate a random sample.
-
-    Parameters
-    ----------
-    x : np.ndarray
-        Input data.
-
-    size : int
-        Size of random sample.
-
-    random_state : int
-        Random seed.
-
-    replace : bool, default=False
-        Whether to sample with replacement.
-
-    Returns
-    -------
-    np.ndarray
-        Random sample.
-    """
-    np.random.seed(random_state)
-
-    return np.random.choice(x, size=size, replace=replace)
-
-
 @njit(cache=True, fastmath=True, nogil=True)
 def estimate_proba(*, y: np.ndarray, n_classes: int) -> np.ndarray:
     """Estimate class probabilities.
@@ -173,7 +145,7 @@ def stratified_bootstrap_sample(
     Returns
     -------
     """
-    rng = np.random.RandomState(random_state)
+    prng = np.random.RandomState(random_state)
 
     n = len(y)
     n_classes = len(np.unique(y))
@@ -182,14 +154,14 @@ def stratified_bootstrap_sample(
     for idx_class in idx_classes:
         n_class = len(idx_class)
         p = bayesian_bootstrap_proba(n=n_class, random_state=random_state) if bayesian_bootstrap else None
-        idx.append(rng.choice(idx_class, size=n_class, p=p, replace=True))
+        idx.append(prng.choice(idx_class, size=n_class, p=p, replace=True))
 
     # Subsample if needed
     if max_samples < n:
         for j in range(n_classes):
             n_class = len(idx[j])
             ratio = n_class / n
-            idx[j] = rng.choice(idx[j], size=round(ratio * max_samples), replace=False)
+            idx[j] = prng.choice(idx[j], size=round(ratio * max_samples), replace=False)
 
     return np.concatenate(idx)
 
@@ -225,7 +197,7 @@ def balanced_bootstrap_sample(
     Returns
     -------
     """
-    rng = np.random.RandomState(random_state)
+    prng = np.random.RandomState(random_state)
 
     n = len(y)
     n_classes = len(np.unique(y))
@@ -234,13 +206,13 @@ def balanced_bootstrap_sample(
     n_per_class = np.bincount(y).min()
     for idx_class in idx_classes:
         p = bayesian_bootstrap_proba(n=n_per_class, random_state=random_state) if bayesian_bootstrap else None
-        idx.append(rng.choice(idx_class, size=n_per_class, p=p, replace=True))
+        idx.append(prng.choice(idx_class, size=n_per_class, p=p, replace=True))
 
     # Subsample if needed
     if max_samples < n:
         ratio = n_per_class / n
         for j in range(n_classes):
-            idx[j] = rng.choice(idx[j], size=round(ratio * max_samples), replace=False)
+            idx[j] = prng.choice(idx[j], size=round(ratio * max_samples), replace=False)
 
     return np.concatenate(idx)
 
@@ -276,14 +248,14 @@ def classic_bootstrap_sample(
     Returns
     -------
     """
-    rng = np.random.RandomState(random_state)
+    prng = np.random.RandomState(random_state)
 
     n = len(idx)
     p = bayesian_bootstrap_proba(n=n, random_state=random_state) if bayesian_bootstrap else None
-    idx = rng.choice(idx, size=n, p=p, replace=True)
+    idx = prng.choice(idx, size=n, p=p, replace=True)
 
     if max_samples < n:
-        idx = rng.choice(idx, size=max_samples, replace=False)
+        idx = prng.choice(idx, size=max_samples, replace=False)
     return idx
 
 

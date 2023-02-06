@@ -21,7 +21,6 @@ from ._utils import (
     balanced_bootstrap_sample,
     calculate_max_value,
     classic_bootstrap_sample,
-    random_sample,
     stratified_bootstrap_sample,
 )
 
@@ -382,7 +381,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
             # Subsample if needed
             if self._max_samples < n:
-                idx = random_sample(idx, size=self._max_samples, random_state=self._random_state, replace=False)
+                prng = np.random.RandomState(self._random_state)
+                idx = prng.choice(idx, size=self._max_samples, replace=False)
 
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_regressor)(

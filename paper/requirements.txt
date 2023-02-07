@@ -1,6 +1,0 @@
-catboost
-lightgbm
-loguru
-pandas
-pyarrow
-xgboost

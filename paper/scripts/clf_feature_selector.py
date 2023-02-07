@@ -835,6 +835,8 @@ def main() -> None:
         logger.info("=" * 100)
 
         for key in METHODS.keys():
+            if "cit" not in key:
+                continue
             logger.info(f"Running feature selection method ({key})")
 
             tic = time.time()

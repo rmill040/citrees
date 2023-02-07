@@ -407,7 +407,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.check_for_unused_parameters = check_for_unused_parameters
 
         self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
-        if self.check_for_unused_parameters():
+        if self.check_for_unused_parameters:
             self._check_for_unused_parameters()
 
     @abstractmethod
@@ -785,7 +785,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # If early stopping, we scan features and sort based on most promising features but no need to also
             # randomly permute since a random sample is already taken from the feature set
-            features = prng.choice(x, size=self._max_features, replace=False)
+            features = prng.choice(self._available_features, size=self._max_features, replace=False)
             if self._early_stopping_selector and self._scan_features:
                 features = self._scan_features(X, y, features)
             best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)
@@ -870,7 +870,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # Private attributes for all parameters - for consistency to reference across other classes and methods
         self._available_features = np.arange(p, dtype=int)
         self._max_depth = self.max_depth if self.max_depth else np.inf
-        self._random_state = int(np.random.randint(1, 100_000)) if self.random_state is None else self.random_state
+        self._random_state = int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
         self._verbose = min(self.verbose, 3)
         for param in ["n_resamples_selector", "n_resamples_splitter"]:
             value = getattr(self, param)
@@ -938,6 +938,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         }
 
         self._threshold_method: Any = ThresholdMethods[self.threshold_method]
+        if self.threshold_method != "exact" and self.max_thresholds is None:
+            warnings.warn(
+                f"Using threshold_method='{self.threshold_method}' with max_thresholds=None is not recommended, "
+                "consider reducing max_thresholds to speed up split selection."
+            )
         self._max_features = calculate_max_value(n_values=p, desired_max=self.max_features) if self.max_features else p
 
         # Set rest of parameters as private attributes

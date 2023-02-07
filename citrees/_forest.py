@@ -258,7 +258,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.check_for_unused_parameters = check_for_unused_parameters
 
         self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
-        if self.check_for_unused_parameters():
+        if self.check_for_unused_parameters:
             self._check_for_unused_parameters()
 
     def _check_for_unused_parameters(self) -> None:
@@ -313,7 +313,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         n, p = X.shape
 
         # Private attributes for all parameters - for consistency to reference across other classes and methods
-        self._random_state = int(np.random.randint(1, 100_000)) if self.random_state is None else self.random_state
+        self._random_state = int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
         self._verbose = min(self.verbose, 3)
 
         if self._estimator_type == "classifier":
@@ -350,8 +350,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         base_estimator = base_estimator(
             **{param: getattr(self, f"_{param}") for param in base_estimator._get_param_names()}
         )
-        # Turn off logging for tree estimator
+        # Set default parameters for base estimator
         base_estimator.verbose = 0
+        base_estimator.check_for_unused_parameters = False
 
         self.estimators_ = []
         for j in range(self._n_estimators):

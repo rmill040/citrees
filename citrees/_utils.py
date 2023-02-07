@@ -205,7 +205,7 @@ def balanced_bootstrap_sample(
     idx = []
     n_per_class = np.bincount(y).min()
     for idx_class in idx_classes:
-        p = bayesian_bootstrap_proba(n=n_per_class, random_state=random_state) if bayesian_bootstrap else None
+        p = bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state) if bayesian_bootstrap else None
         idx.append(prng.choice(idx_class, size=n_per_class, p=p, replace=True))
 
     # Subsample if needed

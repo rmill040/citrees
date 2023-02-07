@@ -259,9 +259,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
         self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
         if self.check_for_unused_parameters:
-            self._check_for_unused_parameters()
+            self._validate_parameter_combinations()
 
-    def _check_for_unused_parameters(self) -> None:
+    def _validate_parameter_combinations(self) -> None:
         """Runtime check to determine if any hyperparameters are unused due to constraints.
 
         Bootstrap constraints:
@@ -269,7 +269,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             - sampling_method = None
             - max_samples = None
         """
-        super()._check_for_unused_parameters()
+        super()._validate_parameter_combinations()
 
         params = self.get_params()
 
@@ -554,6 +554,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         n_jobs: Optional[int] = None,
         random_state: Optional[int] = None,
         verbose: int = 1,
+        check_for_unused_parameters: bool = False,
     ) -> None:
         self.n_estimators = n_estimators
         self.selector = selector
@@ -582,8 +583,11 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
+        self.check_for_unused_parameters = check_for_unused_parameters
 
         self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
+        if self.check_for_unused_parameters:
+            self._validate_parameter_combinations()
 
     @property
     def _parameter_model(self) -> ModelMetaclass:
@@ -768,6 +772,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         n_jobs: Optional[int] = None,
         random_state: Optional[int] = None,
         verbose: int = 1,
+        check_for_unused_parameters: bool = False,
     ) -> None:
         super().__init__(
             n_estimators=n_estimators,
@@ -796,6 +801,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
             n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose,
+            check_for_unused_parameters=check_for_unused_parameters,
         )
 
     def predict(self, X: np.ndarray) -> np.ndarray:

@@ -293,7 +293,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         """
         self._parameter_model(**params)
 
-    def _check_for_unused_parameters(self) -> None:
+    def _validate_parameter_combinations(self) -> None:
         """Runtime check to determine if any hyperparameters are unused due to constraints.
 
         Selector constraints:
@@ -408,7 +408,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         self._validate_parameters({**self.get_params(), "estimator_type": self._estimator_type})
         if self.check_for_unused_parameters:
-            self._check_for_unused_parameters()
+            self._validate_parameter_combinations()
 
     @abstractmethod
     def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:

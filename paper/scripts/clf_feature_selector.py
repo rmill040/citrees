@@ -74,6 +74,8 @@ def _filter_method_selector(
     y: np.ndarray,
 ) -> None:
     """Filter method as feature selector."""
+    RESULTS.clear()
+    
     scores = np.zeros(n_features)
     for j in range(n_features):
         scores[j] = ClassifierSelectors[key](x=X[:, j], y=y, n_classes=n_classes, random_state=RANDOM_STATE)
@@ -91,6 +93,9 @@ def _filter_method_selector(
             feature_ranks=feature_ranks,
         ).dict()
     )
+    
+    with open(f"clf-fs-{dataset}-{method}.json", "w") as f:
+        json.dump(RESULTS, f)
 
 
 def _filter_permutation_method_selector(
@@ -106,6 +111,7 @@ def _filter_permutation_method_selector(
     y: np.ndarray,
 ) -> None:
     """Filter permutation method feature selector."""
+    RESULTS.clear()
 
     def f(*, x: np.ndarray, y: np.ndarray, hyperparameters: Dict[str, Any]) -> float:
         """Calculate achieved significance level."""
@@ -127,7 +133,7 @@ def _filter_permutation_method_selector(
                     z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"]
                 )
 
-            logger.info(f"Evaluating hyperparameter combination {i}/{n_params}:\n{_hyperparameters}")
+            logger.info(f"Evaluating hyperparameter combination for method ({method}): {i}/{n_params}")
             scores = parallel(delayed(f)(x=X[:, j], y=y, hyperparameters=_hyperparameters) for j in range(n_features))
             feature_ranks = sort_features(scores=scores, higher_is_better=False)
 
@@ -140,8 +146,11 @@ def _filter_permutation_method_selector(
                     n_features=n_features,
                     n_classes=n_classes,
                     feature_ranks=feature_ranks,
-                )
+                ).dict()
             )
+
+    with open(f"clf-fs-{dataset}-{method}.json", "w") as f:
+        json.dump(RESULTS, f)
 
 
 @METHODS.register("mi")
@@ -292,12 +301,14 @@ def _embedding_method(
     y: np.ndarray,
 ) -> None:
     """Embedding method as feature selector."""
+    
+    RESULTS.clear()
 
     def f(
         *, X: np.ndarray, y: np.ndarray, estimator: Any, hyperparameters: Dict[str, Any], n_params: int, i: int
     ) -> List[int]:
         """Rank features using estimator."""
-        logger.info(f"Evaluating hyperparameter combination {i}/{n_params}:\n{hyperparameters}")
+        logger.info(f"Evaluating hyperparameter combination for method ({method}): {i}/{n_params}")
         clf = estimator(**hyperparameters).fit(X, y)
         if hasattr(clf, "feature_importances_"):
             scores = clf.feature_importances_
@@ -321,8 +332,11 @@ def _embedding_method(
                 n_features=n_features,
                 n_classes=n_classes,
                 feature_ranks=feature_ranks,
-            )
+            ).dict()
         )
+
+    with open(f"clf-fs-{dataset}-{method}.json", "w") as f:
+        json.dump(RESULTS, f)
 
 
 @METHODS.register("lr")
@@ -334,7 +348,7 @@ def lr(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
         params.append(
             dict(
                 class_weight=class_weight,
-                penality=None,
+                penalty=None,
                 solver="lbfgs",
                 random_state=RANDOM_STATE,
             )
@@ -364,7 +378,7 @@ def lr_l1(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: n
                 dict(
                     C=C,
                     class_weight=class_weight,
-                    penality="l1",
+                    penalty="l1",
                     solver="liblinear",
                     random_state=RANDOM_STATE,
                 )
@@ -394,7 +408,7 @@ def lr_l2(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: n
                 dict(
                     C=C,
                     class_weight=class_weight,
-                    penality="l2",
+                    penalty="l2",
                     solver="liblinear",
                     random_state=RANDOM_STATE,
                 )
@@ -419,7 +433,7 @@ def xgb(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_depth in range(1, 13):
+    for max_depth in [1, 2, 3, 4]:
         for learning_rate in [0.001, 0.01, 0.1]:
             for subsample in [0.8, 0.9, 1.0]:
                 for colsample_bytree in [0.8, 0.9, 1.0]:
@@ -460,7 +474,7 @@ def lightgbm(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_depth in range(1, 13):
+    for max_depth in [1, 2, 4, 6, 8]:
         for learning_rate in [0.001, 0.01, 0.1]:
             for subsample in [0.8, 0.9, 1.0]:
                 for colsample_bytree in [0.8, 0.9, 1.0]:
@@ -503,22 +517,23 @@ def catboost(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for depth in range(1, 13):
+    for depth in [1, 2, 3, 4]:
         for learning_rate in [0.001, 0.01, 0.1]:
             for l2_leaf_reg in [1, 3, 5, 7, 9]:
                 for subsample in [0.8, 0.9, 1.0]:
                     for colsample_bylevel in [0.8, 0.9, 1.0]:
-                        for auto_class_weight in [None, "Balanced"]:
+                        for auto_class_weights in [None, "Balanced"]:
                             params.append(dict(
                                 depth=depth,
                                 learning_rate=learning_rate,
                                 l2_leaf_reg=l2_leaf_reg,
                                 subsample=subsample,
                                 colsample_bylevel=colsample_bylevel,
-                                auto_class_weight=auto_class_weight,
+                                auto_class_weights=auto_class_weights,
                                 thread_count=1,
                                 n_estimators=100,
                                 random_state=RANDOM_STATE,
+                                verbose=0,
                             ))
 
     _embedding_method(
@@ -627,17 +642,15 @@ def et(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_samples in [None, 0.8]:
-        for class_weight in [None, "balanced"]:
-            params.append(
-                dict(
-                    max_samples=max_samples,
-                    class_weight=class_weight,
-                    n_estimators=100,
-                    n_jobs=1,
-                    random_state=RANDOM_STATE,
-                )
+    for class_weight in [None, "balanced"]:
+        params.append(
+            dict(
+                class_weight=class_weight,
+                n_estimators=100,
+                n_jobs=1,
+                random_state=RANDOM_STATE,
             )
+        )
 
     _embedding_method(
         estimator=ExtraTreesClassifier,
@@ -726,6 +739,7 @@ def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                 feature_scanning=feature_scanning,
                                                 threshold_scanning=threshold_scanning,
                                                 random_state=RANDOM_STATE,
+                                                verbose=0,
                                             )
 
                                             if threshold_method == "exact":
@@ -739,13 +753,13 @@ def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                     hyperparameters["max_thresholds"] = max_thresholds
                                                     params.append(hyperparameters)
                                             elif threshold_method == "percentile":
-                                                for max_thresholds in [10, 20, 50, 100, 0.5, 0.8]:
+                                                for max_thresholds in [10, 20, 50]:
                                                     hyperparameters = deepcopy(hyperparameters)
                                                     hyperparameters["max_thresholds"] = max_thresholds
                                                     params.append(hyperparameters)
                                             else:
                                                 # Histogram method
-                                                for max_thresholds in [64, 128, 256, 0.5, 0.8]:
+                                                for max_thresholds in [64, 128, 256]:
                                                     hyperparameters = deepcopy(hyperparameters)
                                                     hyperparameters["max_thresholds"] = max_thresholds
                                                     params.append(hyperparameters)
@@ -806,6 +820,7 @@ def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                             n_estimators=100,
                                                             n_jobs=1,
                                                             random_state=RANDOM_STATE,
+                                                            verbose=0,
                                                         )
 
                                                         if threshold_method == "exact":
@@ -819,13 +834,13 @@ def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                                 hyperparameters["max_thresholds"] = max_thresholds
                                                                 params.append(hyperparameters)
                                                         elif threshold_method == "percentile":
-                                                            for max_thresholds in [10, 20, 50, 100, 0.5, 0.8]:
+                                                            for max_thresholds in [10, 20, 50]:
                                                                 hyperparameters = deepcopy(hyperparameters)
                                                                 hyperparameters["max_thresholds"] = max_thresholds
                                                                 params.append(hyperparameters)
                                                         else:
                                                             # Histogram method
-                                                            for max_thresholds in [64, 128, 256, 0.5, 0.8]:
+                                                            for max_thresholds in [64, 128, 256]:
                                                                 hyperparameters = deepcopy(hyperparameters)
                                                                 hyperparameters["max_thresholds"] = max_thresholds
                                                                 params.append(hyperparameters)
@@ -856,7 +871,7 @@ def main() -> None:
         X = X.astype(float).values
 
         # Standardize features
-        X = StandardScaler().fit_transform(X)
+        X = StandardScaler().fit_transform(X)[:, :10]
 
         dataset = f.replace("clf_", "").replace(".snappy.parquet", "")
         n_samples, n_features = X.shape

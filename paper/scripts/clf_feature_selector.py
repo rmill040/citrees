@@ -50,11 +50,11 @@ class Result(BaseModel):
 
 
 def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
-    """Sort features based on score."""
+    """Sort features based on score and return up to top 100 features."""
     ranks = np.argsort(scores).tolist()
     if higher_is_better:
         ranks = ranks[::-1]
-    return ranks
+    return ranks[:100]
 
 
 ##################
@@ -814,6 +814,7 @@ def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
 
 def main() -> None:
     """Classifier experiments."""
+    start = time.time()
     n_files = len(FILES)
     for j, f in enumerate(FILES, 1):
         X = pd.read_parquet(os.path.join(DATA_DIR, f))
@@ -835,8 +836,6 @@ def main() -> None:
         logger.info("=" * 100)
 
         for key in METHODS.keys():
-            if "cit" not in key:
-                continue
             logger.info(f"Running feature selection method ({key})")
 
             tic = time.time()
@@ -845,6 +844,19 @@ def main() -> None:
 
             total = round((time.time() - tic) / 60, 2)
             logger.info(f"Finished feature selection method in ({total}) minutes")
+
+    # Add metadata to JSON file
+    global RESULTS, RANDOM_SEED
+    metadata = {
+        "experiment": "Classifier feature selection",
+        "random_seed": RANDOM_SEED,
+        "total_time": round((time.time() - start) / 60, 2),
+        "n_datasets": n_files,
+        "n_methods": len(METHODS.keys()),
+    }
+    RESULTS = [metadata] + RESULTS
+    with open("clf_feature_selector.json", "w") as f:
+        json.dump(RESULTS, f)
 
 
 if __name__ == "__main__":

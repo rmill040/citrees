@@ -13,6 +13,9 @@ scipy = "^1.9.3"
 dcor = "^0.6"
 pydantic = "^1.10.4"
 
+[tool.poetry.group.dev]
+optional = true
+
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^2.19.0"
 black = "^22.6.0"
@@ -24,8 +27,16 @@ isort = "^5.10.1"
 flake8-docstrings = "^1.6.0"
 pytest-cov = "^4.0.0"
 
-[tool.poetry.extras]
-experiments = ["catboost", "lightgbm", "loguru", "pandas", "pyarrow", "xgboost"]
+[tool.poetry.group.experiments]
+optional = true
+
+[tool.poetry.group.experiments.dependencies]
+catboost = "^1.1.1"
+lightgbm = "^3.3.5"
+loguru = "^0.6.0"
+pandas = "^1.5.3"
+pyarrow = "^11.0.0"
+xgboost = "^1.7.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

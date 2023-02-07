@@ -97,6 +97,7 @@ def _filter_permutation_method_selector(
     *,
     method: str,
     key: str,
+    params: Dict[str, Any],
     dataset: str,
     n_samples: int,
     n_features: int,
@@ -109,21 +110,6 @@ def _filter_permutation_method_selector(
     def f(*, x: np.ndarray, y: np.ndarray, hyperparameters: Dict[str, Any]) -> float:
         """Calculate achieved significance level."""
         return ClassifierSelectorTests[key](x=x, y=y, **hyperparameters)
-
-    # Generate parameter combinations
-    params = []
-    for alpha in [0.10, 0.05, 0.01]:
-        for n_resamples in ["minimum", "maximum", "auto"]:
-            for early_stopping in [True, False]:
-                params.append(
-                    {
-                        "n_classes": n_classes,
-                        "alpha": alpha,
-                        "n_resamples": n_resamples,
-                        "early_stopping": early_stopping,
-                        "random_state": RANDOM_STATE,
-                    }
-                )
 
     # Evaluate parameter combinations
     n_params = len(params)
@@ -194,9 +180,25 @@ def mc(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
 def ptest_mi(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Permutation testing with mutual information as feature selector."""
     method = inspect.currentframe().f_code.co_name
+
+    params = []
+    for alpha in [0.10, 0.05]:
+        for n_resamples in ["minimum", "maximum", "auto"]:
+            for early_stopping in [True, False]:
+                params.append(
+                    {
+                        "n_classes": n_classes,
+                        "alpha": alpha,
+                        "n_resamples": n_resamples,
+                        "early_stopping": early_stopping,
+                        "random_state": RANDOM_STATE,
+                    }
+                )
+
     _filter_permutation_method_selector(
         method=method,
         key="mi",
+        params=params,
         dataset=dataset,
         n_samples=n_samples,
         n_features=n_features,
@@ -210,9 +212,25 @@ def ptest_mi(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
 def ptest_mc(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
     """Permutation testing with multiple correlation as feature selector."""
     method = inspect.currentframe().f_code.co_name
+
+    params = []
+    for alpha in [0.10, 0.05, 0.01]:
+        for n_resamples in ["minimum", "maximum", "auto"]:
+            for early_stopping in [True, False]:
+                params.append(
+                    {
+                        "n_classes": n_classes,
+                        "alpha": alpha,
+                        "n_resamples": n_resamples,
+                        "early_stopping": early_stopping,
+                        "random_state": RANDOM_STATE,
+                    }
+                )
+
     _filter_permutation_method_selector(
         method=method,
         key="mc",
+        params=params,
         dataset=dataset,
         n_samples=n_samples,
         n_features=n_features,
@@ -228,9 +246,25 @@ def ptest_hybrid(
 ) -> None:
     """Permutation testing with multiple correlation or mutual information as feature selector."""
     method = inspect.currentframe().f_code.co_name
+
+    params = []
+    for alpha in [0.10, 0.05]:
+        for n_resamples in ["minimum", "maximum", "auto"]:
+            for early_stopping in [True, False]:
+                params.append(
+                    {
+                        "n_classes": n_classes,
+                        "alpha": alpha,
+                        "n_resamples": n_resamples,
+                        "early_stopping": early_stopping,
+                        "random_state": RANDOM_STATE,
+                    }
+                )
+
     _filter_permutation_method_selector(
         method=method,
         key="hybrid",
+        params=params,
         dataset=dataset,
         n_samples=n_samples,
         n_features=n_features,

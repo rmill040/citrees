@@ -18,4 +18,4 @@ sudo rm -f /opt/Python-3.9.16.tgz
 cd $here
 curl -sSL https://install.python-poetry.org | python3.9 -
 cd ../..
-poetry install -E experiments
+poetry install --with experiments, dev

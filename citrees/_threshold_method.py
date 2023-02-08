@@ -57,7 +57,7 @@ def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:
     np.ndarray
         Thresholds in array.
     """
-    prng = np.random.RandomState(random_state)
+    np.random.seed(random_state)
 
     if x.ndim > 1:
         x = x.ravel()
@@ -66,7 +66,7 @@ def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:
     midpoints = (values[:-1] + values[1:]) / 2
     max_thresholds = min(len(midpoints), max_thresholds)
 
-    return prng.choice(midpoints, size=max_thresholds, replace=False)
+    return np.random.choice(midpoints, size=max_thresholds, replace=False)
 
 
 @ThresholdMethods.register("percentile")

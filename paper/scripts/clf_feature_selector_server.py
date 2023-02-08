@@ -1,31 +1,20 @@
-"""Classifier experiments."""
+"""Classifier experiments - SERVER."""
 import inspect
-import json
 import os
-import time
+from collections import defaultdict
 from copy import deepcopy
-from math import ceil
-from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Any, Dict, List
 
-from joblib import delayed, Parallel
+from fastapi import FastAPI, Request
+from loguru import logger
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
-from catboost import CatBoostClassifier
-from lightgbm import LGBMClassifier
-from loguru import logger
-from scipy.stats import norm
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
 
-from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 from citrees._registry import Registry
-from citrees._selector import ClassifierSelectors, ClassifierSelectorTests
+
+
+app = FastAPI()
 
 
 HERE = Path(__file__).resolve()
@@ -33,161 +22,44 @@ DATA_DIR = HERE.parents[1] / "data"
 FILES = [f for f in os.listdir(DATA_DIR) if f.startswith("clf_")]
 
 METHODS = Registry("Methods")
-RESULTS = []
 RANDOM_STATE = 1718
-
-
-class Result(BaseModel):
-    """Data structure to hold single experiment result."""
-
-    method: str
-    hyperparameters: Dict[str, Any] = {}
-    feature_ranks: List[int]
-    dataset: str
-    n_samples: int
-    n_features: int
-    n_classes: int
-
-
-def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
-    """Sort features based on score and return up to top 100 features."""
-    ranks = np.argsort(scores).tolist()
-    if higher_is_better:
-        ranks = ranks[::-1]
-    return ranks[:100]
-
-
-##################
-# FILTER METHODS #
-##################
-
-
-def _filter_method_selector(
-    *,
-    method: str,
-    key: str,
-    dataset: str,
-    n_samples: int,
-    n_features: int,
-    n_classes: int,
-    X: np.ndarray,
-    y: np.ndarray,
-) -> None:
-    """Filter method as feature selector."""
-    RESULTS.clear()
-    
-    scores = np.zeros(n_features)
-    for j in range(n_features):
-        scores[j] = ClassifierSelectors[key](x=X[:, j], y=y, n_classes=n_classes, random_state=RANDOM_STATE)
-
-    feature_ranks = sort_features(scores=scores, higher_is_better=True)
-
-    RESULTS.append(
-        Result(
-            method=method,
-            hyperparameters={},
-            dataset=dataset,
-            n_samples=n_samples,
-            n_features=n_features,
-            n_classes=n_classes,
-            feature_ranks=feature_ranks,
-        ).dict()
-    )
-    
-    with open(f"clf-fs-{dataset}-{method}.json", "w") as f:
-        json.dump(RESULTS, f)
-
-
-def _filter_permutation_method_selector(
-    *,
-    method: str,
-    key: str,
-    params: Dict[str, Any],
-    dataset: str,
-    n_samples: int,
-    n_features: int,
-    n_classes: int,
-    X: np.ndarray,
-    y: np.ndarray,
-) -> None:
-    """Filter permutation method feature selector."""
-    RESULTS.clear()
-
-    def f(*, x: np.ndarray, y: np.ndarray, hyperparameters: Dict[str, Any]) -> float:
-        """Calculate achieved significance level."""
-        return ClassifierSelectorTests[key](x=x, y=y, **hyperparameters)
-
-    # Evaluate parameter combinations
-    n_params = len(params)
-    with Parallel(n_jobs=min(X.shape[1], cpu_count()), verbose=0, backend="loky") as parallel:
-        for i, hyperparameters in enumerate(params, 1):
-            # Convert string n_resamples into an integer, but make sure to use the string value for results
-            _hyperparameters = deepcopy(hyperparameters)
-            if hyperparameters["n_resamples"] == "minimum":
-                _hyperparameters["n_resamples"] = ceil(1 / hyperparameters["alpha"])
-            elif hyperparameters["n_resamples"] == "maximum":
-                _hyperparameters["n_resamples"] = ceil(1 / (4 * hyperparameters["alpha"] * hyperparameters["alpha"]))
-            else:
-                z = norm.ppf(1 - hyperparameters["alpha"])
-                _hyperparameters["n_resamples"] = ceil(
-                    z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"]
-                )
-
-            logger.info(f"Evaluating hyperparameter combination for method ({method}): {i}/{n_params}")
-            scores = parallel(delayed(f)(x=X[:, j], y=y, hyperparameters=_hyperparameters) for j in range(n_features))
-            feature_ranks = sort_features(scores=scores, higher_is_better=False)
-
-            RESULTS.append(
-                Result(
-                    method=method,
-                    hyperparameters=hyperparameters,
-                    dataset=dataset,
-                    n_samples=n_samples,
-                    n_features=n_features,
-                    n_classes=n_classes,
-                    feature_ranks=feature_ranks,
-                ).dict()
-            )
-
-    with open(f"clf-fs-{dataset}-{method}.json", "w") as f:
-        json.dump(RESULTS, f)
+HOSTS = defaultdict(lambda: 0)
+CONFIGS = []
 
 
 @METHODS.register("mi")
-def mi(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Mutual information as feature selector."""
+def mi() -> List[Dict[str, Any]]:
+    """Mutual information hyperparameters."""
     method = inspect.currentframe().f_code.co_name
-    _filter_method_selector(
-        method=method,
-        key="mi",
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+
+    params = [{"random_state": RANDOM_STATE, "method": method}]
+
+    return params
 
 
 @METHODS.register("mc")
-def mc(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Multiple correlation as feature selector."""
+def mc() -> List[Dict[str, Any]]:
+    """Multiple correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
-    _filter_method_selector(
-        method=method,
-        key="mc",
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+
+    params = [{"random_state": RANDOM_STATE, "method": method}]
+
+    return params
+
+
+@METHODS.register("hybrid")
+def hybrid() -> List[Dict[str, Any]]:
+    """Hybrid selector hyperparameters."""
+    method = inspect.currentframe().f_code.co_name
+
+    params = [{"random_state": RANDOM_STATE, "method": method}]
+
+    return params
 
 
 @METHODS.register("ptest_mi")
-def ptest_mi(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Permutation testing with mutual information as feature selector."""
+def ptest_mi() -> List[Dict[str, Any]]:
+    """Permutation testing with mutual information hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -195,31 +67,21 @@ def ptest_mi(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
         for n_resamples in ["minimum", "maximum", "auto"]:
             for early_stopping in [True, False]:
                 params.append(
-                    {
-                        "n_classes": n_classes,
-                        "alpha": alpha,
-                        "n_resamples": n_resamples,
-                        "early_stopping": early_stopping,
-                        "random_state": RANDOM_STATE,
-                    }
+                    dict(
+                        alpha=alpha,
+                        n_resamples=n_resamples,
+                        early_stopping=early_stopping,
+                        random_state=RANDOM_STATE,
+                        method=method,
+                    )
                 )
 
-    _filter_permutation_method_selector(
-        method=method,
-        key="mi",
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("ptest_mc")
-def ptest_mc(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Permutation testing with multiple correlation as feature selector."""
+def ptest_mc() -> List[Dict[str, Any]]:
+    """Permutation testing with multiple correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -227,33 +89,21 @@ def ptest_mc(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
         for n_resamples in ["minimum", "maximum", "auto"]:
             for early_stopping in [True, False]:
                 params.append(
-                    {
-                        "n_classes": n_classes,
-                        "alpha": alpha,
-                        "n_resamples": n_resamples,
-                        "early_stopping": early_stopping,
-                        "random_state": RANDOM_STATE,
-                    }
+                    dict(
+                        alpha=alpha,
+                        n_resamples=n_resamples,
+                        early_stopping=early_stopping,
+                        random_state=RANDOM_STATE,
+                        method=method,
+                    )
                 )
 
-    _filter_permutation_method_selector(
-        method=method,
-        key="mc",
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("ptest_hybrid")
-def ptest_hybrid(
-    *, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray
-) -> None:
-    """Permutation testing with multiple correlation or mutual information as feature selector."""
+def ptest_hybrid() -> List[Dict[str, Any]]:
+    """Permutation testing with multiple correlation or mutual information hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -261,26 +111,16 @@ def ptest_hybrid(
         for n_resamples in ["minimum", "maximum", "auto"]:
             for early_stopping in [True, False]:
                 params.append(
-                    {
-                        "n_classes": n_classes,
-                        "alpha": alpha,
-                        "n_resamples": n_resamples,
-                        "early_stopping": early_stopping,
-                        "random_state": RANDOM_STATE,
-                    }
+                    dict(
+                        alpha=alpha,
+                        n_resamples=n_resamples,
+                        early_stopping=early_stopping,
+                        random_state=RANDOM_STATE,
+                        method=method,
+                    )
                 )
 
-    _filter_permutation_method_selector(
-        method=method,
-        key="hybrid",
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 ####################
@@ -288,60 +128,9 @@ def ptest_hybrid(
 ####################
 
 
-def _embedding_method(
-    *,
-    estimator: Any,
-    method: str,
-    params: Dict[str, Any],
-    dataset: str,
-    n_samples: int,
-    n_features: int,
-    n_classes: int,
-    X: np.ndarray,
-    y: np.ndarray,
-) -> None:
-    """Embedding method as feature selector."""
-    
-    RESULTS.clear()
-
-    def f(
-        *, X: np.ndarray, y: np.ndarray, estimator: Any, hyperparameters: Dict[str, Any], n_params: int, i: int
-    ) -> List[int]:
-        """Rank features using estimator."""
-        logger.info(f"Evaluating hyperparameter combination for method ({method}): {i}/{n_params}")
-        clf = estimator(**hyperparameters).fit(X, y)
-        if hasattr(clf, "feature_importances_"):
-            scores = clf.feature_importances_
-        else:
-            scores = abs(clf.coef_.ravel())
-        return sort_features(scores=scores, higher_is_better=False)
-
-    n_params = len(params)
-    results = Parallel(n_jobs=min(len(params), cpu_count()), verbose=0, backend="loky")(
-        delayed(f)(X=X, y=y, estimator=estimator, hyperparameters=hyperparameters, n_params=n_params, i=i)
-        for i, hyperparameters in enumerate(params, 1)
-    )
-
-    for feature_ranks, hyperparameters in zip(results, params):
-        RESULTS.append(
-            Result(
-                method=method,
-                hyperparameters=hyperparameters,
-                dataset=dataset,
-                n_samples=n_samples,
-                n_features=n_features,
-                n_classes=n_classes,
-                feature_ranks=feature_ranks,
-            ).dict()
-        )
-
-    with open(f"clf-fs-{dataset}-{method}.json", "w") as f:
-        json.dump(RESULTS, f)
-
-
 @METHODS.register("lr")
-def lr(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Logistic regression for feature selection."""
+def lr() -> List[Dict[str, Any]]:
+    """Logistic regression hyperparameters."""
     method = inspect.currentframe().f_code.co_name
     params = []
     for class_weight in [None, "balanced"]:
@@ -351,25 +140,16 @@ def lr(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
                 penalty=None,
                 solver="lbfgs",
                 random_state=RANDOM_STATE,
+                method=method,
             )
         )
 
-    _embedding_method(
-        estimator=LogisticRegression,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("lr_l1")
-def lr_l1(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Logistic regression with L1 norm as feature selector."""
+def lr_l1() -> List[Dict[str, Any]]:
+    """Logistic regression with L1 norm hyperparameters."""
     method = inspect.currentframe().f_code.co_name
     params = []
     for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
@@ -381,25 +161,16 @@ def lr_l1(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: n
                     penalty="l1",
                     solver="liblinear",
                     random_state=RANDOM_STATE,
+                    method=method,
                 )
             )
 
-    _embedding_method(
-        estimator=LogisticRegression,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("lr_l2")
-def lr_l2(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Logistic regression with L2 norm as feature selector."""
+def lr_l2() -> List[Dict[str, Any]]:
+    """Logistic regression with L2 norm hyperparameters."""
     method = inspect.currentframe().f_code.co_name
     params = []
     for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
@@ -411,25 +182,16 @@ def lr_l2(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: n
                     penalty="l2",
                     solver="liblinear",
                     random_state=RANDOM_STATE,
+                    method=method,
                 )
             )
 
-    _embedding_method(
-        estimator=LogisticRegression,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("xgb")
-def xgb(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """XGBOOST classifier as feature selector."""
+def xgb() -> List[Dict[str, Any]]:
+    """XGBOOST classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -452,25 +214,16 @@ def xgb(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                         n_estimators=100,
                                         n_jobs=1,
                                         random_state=RANDOM_STATE,
+                                        method=method,
                                     )
                                 )
 
-    _embedding_method(
-        estimator=XGBClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("lightgbm")
-def lightgbm(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """LightGBM classifier as feature selector."""
+def lightgbm() -> List[Dict[str, Any]]:
+    """LightGBM classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -495,25 +248,16 @@ def lightgbm(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
                                             n_estimators=100,
                                             n_jobs=1,
                                             random_state=RANDOM_STATE,
+                                            method=method,
                                         )
                                     )
 
-    _embedding_method(
-        estimator=LGBMClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("catboost")
-def catboost(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """CatBoost classifier as feature selector."""
+def catboost() -> List[Dict[str, Any]]:
+    """CatBoost classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -523,35 +267,28 @@ def catboost(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X
                 for subsample in [0.8, 0.9, 1.0]:
                     for colsample_bylevel in [0.8, 0.9, 1.0]:
                         for auto_class_weights in [None, "Balanced"]:
-                            params.append(dict(
-                                depth=depth,
-                                learning_rate=learning_rate,
-                                l2_leaf_reg=l2_leaf_reg,
-                                subsample=subsample,
-                                colsample_bylevel=colsample_bylevel,
-                                auto_class_weights=auto_class_weights,
-                                thread_count=1,
-                                n_estimators=100,
-                                random_state=RANDOM_STATE,
-                                verbose=0,
-                            ))
+                            params.append(
+                                dict(
+                                    depth=depth,
+                                    learning_rate=learning_rate,
+                                    l2_leaf_reg=l2_leaf_reg,
+                                    subsample=subsample,
+                                    colsample_bylevel=colsample_bylevel,
+                                    auto_class_weights=auto_class_weights,
+                                    thread_count=1,
+                                    n_estimators=100,
+                                    random_state=RANDOM_STATE,
+                                    verbose=0,
+                                    method=method,
+                                )
+                            )
 
-    _embedding_method(
-        estimator=CatBoostClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("dt")
-def dt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Decision tree classifier as feature selector."""
+def dt() -> List[Dict[str, Any]]:
+    """Decision tree classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -561,25 +298,16 @@ def dt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
                 class_weight=class_weight,
                 splitter="best",
                 random_state=RANDOM_STATE,
+                method=method,
             )
         )
 
-    _embedding_method(
-        estimator=DecisionTreeClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("rt")
-def rt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Random decision tree classifier as feature selector."""
+def rt() -> List[Dict[str, Any]]:
+    """Random decision tree classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -589,25 +317,16 @@ def rt(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
                 class_weight=class_weight,
                 splitter="random",
                 random_state=RANDOM_STATE,
+                method=method,
             )
         )
 
-    _embedding_method(
-        estimator=DecisionTreeClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("rf")
-def rf(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Random forest classifier as feature selector."""
+def rf() -> List[Dict[str, Any]]:
+    """Random forest classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -620,25 +339,16 @@ def rf(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
                     n_estimators=100,
                     n_jobs=1,
                     random_state=RANDOM_STATE,
+                    method=method,
                 )
             )
 
-    _embedding_method(
-        estimator=RandomForestClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("et")
-def et(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Extra trees classifier as feature selector."""
+def et() -> List[Dict[str, Any]]:
+    """Extra trees classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -649,20 +359,11 @@ def et(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.n
                 n_estimators=100,
                 n_jobs=1,
                 random_state=RANDOM_STATE,
+                method=method,
             )
         )
 
-    _embedding_method(
-        estimator=ExtraTreesClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -708,8 +409,8 @@ def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @METHODS.register("cit")
-def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Conditional inference tree classifier as feature selector."""
+def cit() -> List[Dict[str, Any]]:
+    """Conditional inference tree classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -738,13 +439,14 @@ def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                 feature_muting=feature_muting,
                                                 feature_scanning=feature_scanning,
                                                 threshold_scanning=threshold_scanning,
+                                                threshold_method=threshold_method,
                                                 random_state=RANDOM_STATE,
                                                 verbose=0,
+                                                method=method,
                                             )
 
                                             if threshold_method == "exact":
                                                 for max_thresholds in [None]:
-                                                    hyperparameters = deepcopy(hyperparameters)
                                                     hyperparameters["max_thresholds"] = max_thresholds
                                                     params.append(hyperparameters)
                                             elif threshold_method == "random":
@@ -767,22 +469,12 @@ def cit(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
     # Filter out bad combinations of parameters
     params = _filter_param_conflicts(params)
 
-    _embedding_method(
-        estimator=ConditionalInferenceTreeClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
 @METHODS.register("cif")
-def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.ndarray, y: np.ndarray) -> None:
-    """Conditional inference forest classifier as feature selector."""
+def cif() -> List[Dict[str, Any]]:
+    """Conditional inference forest classifier hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -817,10 +509,12 @@ def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
                                                             max_samples=max_samples,
                                                             bootstrap_method=bootstrap_method,
                                                             sampling_method=sampling_method,
+                                                            threshold_method=threshold_method,
                                                             n_estimators=100,
                                                             n_jobs=1,
                                                             random_state=RANDOM_STATE,
                                                             verbose=0,
+                                                            method=method,
                                                         )
 
                                                         if threshold_method == "exact":
@@ -848,65 +542,66 @@ def cif(*, dataset: str, n_samples: int, n_features: int, n_classes: int, X: np.
     # Filter out bad combinations of parameters
     params = _filter_param_conflicts(params)
 
-    _embedding_method(
-        estimator=ConditionalInferenceForestClassifier,
-        method=method,
-        params=params,
-        dataset=dataset,
-        n_samples=n_samples,
-        n_features=n_features,
-        n_classes=n_classes,
-        X=X,
-        y=y,
-    )
+    return params
 
 
-def main() -> None:
-    """Classifier experiments."""
-    start = time.time()
-    n_files = len(FILES)
-    for j, f in enumerate(FILES, 1):
-        X = pd.read_parquet(os.path.join(DATA_DIR, f))
-        y = X.pop("y").astype(int).values
-        X = X.astype(float).values
+#############
+# REST API #
+#############
 
-        # Standardize features
-        X = StandardScaler().fit_transform(X)[:, :10]
 
+@app.on_event("startup")
+def create_configurations() -> None:
+    """Generate configurations for feature selection."""
+    global CONFIGS
+
+    ds_configs = {}
+    for f in FILES:
+        df = pd.read_parquet(os.path.join(DATA_DIR, f))
         dataset = f.replace("clf_", "").replace(".snappy.parquet", "")
-        n_samples, n_features = X.shape
-        n_classes = len(np.unique(y))
-
-        logger.info("=" * 100)
-        logger.info(
-            f"Processing dataset {dataset} ({j}/{n_files}): # Samples = {n_samples} | # Features = {n_features} | "
-            f"# Classes = {n_classes}"
+        n_samples = df.shape[0]
+        n_features = df.shape[1] - 1
+        n_classes = len(df["y"].unique())
+        ds_configs[f] = dict(
+            dataset=dataset,
+            n_samples=n_samples,
+            n_features=n_features,
+            n_classes=n_classes,
         )
-        logger.info("=" * 100)
+        del df
 
-        for key in METHODS.keys():
-            logger.info(f"Running feature selection method ({key})")
+    config_idx = 0
+    hp_configs = {method: METHODS[method]() for method in METHODS.keys()}
+    for method in hp_configs.keys():
+        for config in hp_configs[method]:
+            for name in ds_configs.keys():
+                CONFIGS.append(
+                    {**config, **ds_configs[name], **dict(config_idx=config_idx)}
+                )
+                config_idx += 1
 
-            tic = time.time()
+    assert config_idx == len(CONFIGS)
+    logger.info(f"Server ready with ({len(CONFIGS)}) configurations for feature selection")
 
-            METHODS[key](dataset=dataset, n_samples=n_samples, n_features=n_features, n_classes=n_classes, X=X, y=y)
-
-            total = round((time.time() - tic) / 60, 2)
-            logger.info(f"Finished feature selection method in ({total}) minutes")
-
-    # Add metadata to JSON file
-    global RESULTS, RANDOM_SEED
-    metadata = {
-        "experiment": "Classifier feature selection",
-        "random_seed": RANDOM_SEED,
-        "total_time": round((time.time() - start) / 60, 2),
-        "n_datasets": n_files,
-        "n_methods": len(METHODS.keys()),
-    }
-    RESULTS = [metadata] + RESULTS
-    with open("clf_feature_selector.json", "w") as f:
-        json.dump(RESULTS, f)
+    # Random permutation
+    prng = np.random.RandomState(RANDOM_STATE)
+    CONFIGS = prng.permutation(CONFIGS).tolist()
 
 
-if __name__ == "__main__":
-    main()
+@app.get("/")
+async def get_config(request: Request) -> Dict[str, Any]:
+    """Get configuration for feature selection."""
+    if len(CONFIGS):
+        HOSTS[request.client.host] += 1
+        return CONFIGS.pop()
+    else:
+        return {}
+
+
+@app.get("/status")
+async def get_status() -> Dict[str, Any]:
+    """Get status of feature selection."""
+    return dict(
+        n_configs_remaining=len(CONFIGS),
+        hosts=HOSTS
+    )

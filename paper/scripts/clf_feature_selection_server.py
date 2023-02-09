@@ -280,6 +280,7 @@ def catboost() -> List[Dict[str, Any]]:
                                 random_state=RANDOM_STATE,
                                 verbose=0,
                                 method=method,
+                                allow_writing_files=False,
                             )
                         )
 

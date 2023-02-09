@@ -614,3 +614,9 @@ async def get_status() -> Dict[str, Any]:
         n_configs_remaining=len(CONFIGS),
         hosts=HOSTS
     )
+
+
+@app.get("/refresh")
+async def refresh_configs() -> None:
+    """Refresh configurations to see what is left to process."""
+    create_configurations()

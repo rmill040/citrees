@@ -6,6 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List
 
+import boto3
 from fastapi import FastAPI, Request
 from loguru import logger
 import numpy as np
@@ -17,6 +18,7 @@ from citrees._registry import Registry
 app = FastAPI()
 
 
+DDB_PAGINATOR = boto3.client("dynamodb").get_paginator("scan")
 HERE = Path(__file__).resolve()
 DATA_DIR = HERE.parents[1] / "data"
 FILES = [f for f in os.listdir(DATA_DIR) if f.startswith("clf_")]
@@ -581,6 +583,20 @@ def create_configurations() -> None:
                 config_idx += 1
 
     assert config_idx == len(CONFIGS)
+
+    # Pull all items from DynamoDB and see what has already been processed
+    processed = set()
+    for page in DDB_PAGINATOR.paginate(TableName=os.environ["TABLE_NAME"]):
+        for config in page["Items"]:
+            if not config["message"]["S"]:
+                processed.add(int(config["config_idx"]["N"]))
+
+    if processed:
+        logger.info(f"Already processed ({len(processed)}) configurations, removing from list")
+        CONFIGS = list(
+            filter(lambda config: config["config_idx"] not in processed, CONFIGS)
+        )
+
     logger.info(f"Server ready with ({len(CONFIGS)}) configurations for feature selection")
 
     # Random permutation

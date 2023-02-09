@@ -69,7 +69,7 @@ def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
     return ranks[:100]
 
 
-def run() -> None:
+def run() -> bool:
     """Run configuration for feature selection."""
     ddb_table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
     response = requests.get(URL)
@@ -128,7 +128,7 @@ def run() -> None:
             feature_ranks=feature_ranks,
             message=message,
         )
-        
+
         item = json.loads(json.dumps(item), parse_float=Decimal)
         ddb_table.put_item(Item=item)
 
@@ -143,7 +143,7 @@ def _filter_method_selector(
     n_classes: int,
     X: np.ndarray,
     y: np.ndarray,
-) -> None:
+) -> np.ndarray:
     """Filter method feature selector."""
     scores = np.zeros(n_features)
     for j in range(n_features):
@@ -160,7 +160,7 @@ def _filter_permutation_method_selector(
     n_classes: int,
     X: np.ndarray,
     y: np.ndarray,
-) -> None:
+) -> np.ndarray:
     """Filter permutation method feature selector."""
     _hyperparameters = deepcopy(hyperparameters)
     if hyperparameters["n_resamples"] == "minimum":
@@ -186,7 +186,7 @@ def _embedding_method_selector(
     n_classes: int,
     X: np.ndarray,
     y: np.ndarray,
-) -> None:
+) -> np.ndarray:
     """Embedding method feature selector."""
     estimator = ESTIMATORS[method]
     clf = estimator(**hyperparameters).fit(X, y)

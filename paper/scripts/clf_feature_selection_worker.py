@@ -5,7 +5,6 @@ import requests
 from copy import deepcopy
 from decimal import Decimal
 from math import ceil
-from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -27,11 +26,7 @@ from xgboost import XGBClassifier
 from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 from citrees._selector import ClassifierSelectors, ClassifierSelectorTests
 
-N_CPUS = cpu_count()
-URL = os.environ["URL"]
-HERE = Path(__file__).resolve()
-DATA_DIR = HERE.parents[1] / "data"
-FILES = [f for f in os.listdir(DATA_DIR) if f.startswith("clf_")]
+
 DATASETS = {}
 ESTIMATORS = {
     "lr": LogisticRegression,
@@ -69,11 +64,10 @@ def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
     return ranks[:100]
 
 
-def run() -> bool:
+def run(url: str, skip: List[str]) -> None:
     """Run configuration for feature selection."""
     ddb_table = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"])
-    response = requests.get(URL)
-    status = False
+    response = requests.get(url)
     if response.ok:
         config = json.loads(response.text)
         config_idx = config.pop("config_idx")
@@ -82,6 +76,12 @@ def run() -> bool:
         n_features = config.pop("n_features")
         n_classes = config.pop("n_classes")
         method = config.pop("method")
+        if method in skip:
+            logger.warning(
+                f"Skipping Config Index: {config_idx} | Dataset: {dataset} | # Samples: {n_samples} | # Features: "
+                f"{n_features} | # Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config}"
+            )
+            return
 
         X, y = DATASETS[dataset]
         if method in ["mc", "mi", "hybrid"]:
@@ -107,7 +107,6 @@ def run() -> bool:
                 X=X,
                 y=y,
             )
-            status = True
         except Exception as e:
             message = str(e)
             logger.error(
@@ -131,8 +130,6 @@ def run() -> bool:
 
         item = json.loads(json.dumps(item), parse_float=Decimal)
         ddb_table.put_item(Item=item)
-
-    return status
 
 
 def _filter_method_selector(
@@ -200,12 +197,21 @@ def _embedding_method_selector(
 
 
 if __name__ == "__main__":
+    skip = os.environ.get("SKIP", [])
+    if skip:
+        skip = skip.lower().strip().split(",")
+    url = os.environ["URL"]
+
+    here = Path(__file__).resolve()
+    data_dir = here.parents[1] / "data"
+    files = [f for f in os.listdir(data_dir) if f.startswith("clf_")]
+
     # Populate datasets
-    n_files = len(FILES)
-    for j, f in enumerate(FILES, 1):
+    n_files = len(files)
+    for j, f in enumerate(files, 1):
         dataset = f.replace("clf_", "").replace(".snappy.parquet", "")
         logger.info(f"Loading dataset {dataset} ({j}/{n_files})")
-        X = pd.read_parquet(os.path.join(DATA_DIR, f))
+        X = pd.read_parquet(os.path.join(data_dir, f))
         y = X.pop("y").astype(int).values
         X = X.astype(float).values
 
@@ -214,17 +220,10 @@ if __name__ == "__main__":
         DATASETS[dataset] = (X, y)
 
     # Parallel loop
-    n_processed = 0
     with Parallel(n_jobs=-1, backend="multiprocessing", verbose=0) as parallel:
-        while True:
-            logger.info(f"Processed ({n_processed}) configurations")
-            response = requests.get(f"{URL}/status/")
-            if response.ok:
-                payload = json.loads(response.text)
-                batch_size = int(payload["n_configs_remaining"])
-                if not batch_size:
-                    break
-                results = parallel(delayed(run)() for _ in range(batch_size))
-                n_processed += sum(results)
-            else:
-                break
+        response = requests.get(f"{url}/status/")
+        if response.ok:
+            payload = json.loads(response.text)
+            n_configs_remaining = int(payload["n_configs_remaining"])
+            if n_configs_remaining:
+                _ = parallel(delayed(run)(url=url, skip=skip) for _ in range(n_configs_remaining))

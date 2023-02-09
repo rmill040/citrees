@@ -18,7 +18,7 @@ from citrees._registry import Registry
 app = FastAPI()
 
 
-DDB_PAGINATOR = boto3.client("dynamodb").get_paginator("scan")
+DDB_PAGINATOR = boto3.client("dynamodb", region_name="us-east-1").get_paginator("scan")
 HERE = Path(__file__).resolve()
 DATA_DIR = HERE.parents[1] / "data"
 FILES = [f for f in os.listdir(DATA_DIR) if f.startswith("clf_")]
@@ -266,24 +266,22 @@ def catboost() -> List[Dict[str, Any]]:
     for depth in [1, 2, 3, 4]:
         for learning_rate in [0.001, 0.01, 0.1]:
             for l2_leaf_reg in [1, 3, 5, 7, 9]:
-                for subsample in [0.8, 0.9, 1.0]:
-                    for colsample_bylevel in [0.8, 0.9, 1.0]:
-                        for auto_class_weights in [None, "Balanced"]:
-                            params.append(
-                                dict(
-                                    depth=depth,
-                                    learning_rate=learning_rate,
-                                    l2_leaf_reg=l2_leaf_reg,
-                                    subsample=subsample,
-                                    colsample_bylevel=colsample_bylevel,
-                                    auto_class_weights=auto_class_weights,
-                                    thread_count=1,
-                                    n_estimators=100,
-                                    random_state=RANDOM_STATE,
-                                    verbose=0,
-                                    method=method,
-                                )
+                for colsample_bylevel in [0.8, 0.9, 1.0]:
+                    for auto_class_weights in [None, "Balanced"]:
+                        params.append(
+                            dict(
+                                depth=depth,
+                                learning_rate=learning_rate,
+                                l2_leaf_reg=l2_leaf_reg,
+                                colsample_bylevel=colsample_bylevel,
+                                auto_class_weights=auto_class_weights,
+                                thread_count=1,
+                                n_estimators=100,
+                                random_state=RANDOM_STATE,
+                                verbose=0,
+                                method=method,
                             )
+                        )
 
     return params
 
@@ -418,55 +416,52 @@ def cit() -> List[Dict[str, Any]]:
     params = []
     for n_resamples_selector in ["minimum", "maximum", "auto", None]:
         for n_resamples_splitter in ["minimum", "maximum", "auto", None]:
-            for early_stopping_selector in [True, False]:
-                for early_stopping_splitter in [True, False]:
-                    for adjust_alpha_selector in [True, False]:
-                        for adjust_alpha_splitter in [True, False]:
-                            for feature_muting in [True, False]:
-                                for feature_scanning in [True, False]:
-                                    for threshold_scanning in [True, False]:
-                                        for threshold_method in [
-                                            "exact",
-                                            "random",
-                                            "percentile",
-                                            "histogram",
-                                        ]:
-                                            hyperparameters = dict(
-                                                n_resamples_selector=n_resamples_selector,
-                                                n_resamples_splitter=n_resamples_splitter,
-                                                early_stopping_selector=early_stopping_selector,
-                                                early_stopping_splitter=early_stopping_splitter,
-                                                adjust_alpha_selector=adjust_alpha_selector,
-                                                adjust_alpha_splitter=adjust_alpha_splitter,
-                                                feature_muting=feature_muting,
-                                                feature_scanning=feature_scanning,
-                                                threshold_scanning=threshold_scanning,
-                                                threshold_method=threshold_method,
-                                                random_state=RANDOM_STATE,
-                                                verbose=0,
-                                                method=method,
-                                            )
+            for adjust_alpha_selector in [True, False]:
+                for adjust_alpha_splitter in [True, False]:
+                    for feature_scanning in [True, False]:
+                        for threshold_scanning in [True, False]:
+                            for threshold_method in [
+                                "exact",
+                                "random",
+                                "percentile",
+                                "histogram",
+                            ]:
+                                hyperparameters = dict(
+                                    n_resamples_selector=n_resamples_selector,
+                                    n_resamples_splitter=n_resamples_splitter,
+                                    adjust_alpha_selector=adjust_alpha_selector,
+                                    adjust_alpha_splitter=adjust_alpha_splitter,
+                                    feature_scanning=feature_scanning,
+                                    threshold_scanning=threshold_scanning,
+                                    threshold_method=threshold_method,
+                                    early_stopping_selector=True,
+                                    early_stopping_splitter=True,
+                                    feature_muting=True,
+                                    random_state=RANDOM_STATE,
+                                    verbose=0,
+                                    method=method,
+                                )
 
-                                            if threshold_method == "exact":
-                                                for max_thresholds in [None]:
-                                                    hyperparameters["max_thresholds"] = max_thresholds
-                                                    params.append(hyperparameters)
-                                            elif threshold_method == "random":
-                                                for max_thresholds in [0.5, 0.8]:
-                                                    hyperparameters = deepcopy(hyperparameters)
-                                                    hyperparameters["max_thresholds"] = max_thresholds
-                                                    params.append(hyperparameters)
-                                            elif threshold_method == "percentile":
-                                                for max_thresholds in [10, 20, 50]:
-                                                    hyperparameters = deepcopy(hyperparameters)
-                                                    hyperparameters["max_thresholds"] = max_thresholds
-                                                    params.append(hyperparameters)
-                                            else:
-                                                # Histogram method
-                                                for max_thresholds in [64, 128, 256]:
-                                                    hyperparameters = deepcopy(hyperparameters)
-                                                    hyperparameters["max_thresholds"] = max_thresholds
-                                                    params.append(hyperparameters)
+                                if threshold_method == "exact":
+                                    for max_thresholds in [None]:
+                                        hyperparameters["max_thresholds"] = max_thresholds
+                                        params.append(hyperparameters)
+                                elif threshold_method == "random":
+                                    for max_thresholds in [0.5, 0.8]:
+                                        hyperparameters = deepcopy(hyperparameters)
+                                        hyperparameters["max_thresholds"] = max_thresholds
+                                        params.append(hyperparameters)
+                                elif threshold_method == "percentile":
+                                    for max_thresholds in [10, 50]:
+                                        hyperparameters = deepcopy(hyperparameters)
+                                        hyperparameters["max_thresholds"] = max_thresholds
+                                        params.append(hyperparameters)
+                                else:
+                                    # Histogram method
+                                    for max_thresholds in [128, 256]:
+                                        hyperparameters = deepcopy(hyperparameters)
+                                        hyperparameters["max_thresholds"] = max_thresholds
+                                        params.append(hyperparameters)
 
     # Filter out bad combinations of parameters
     params = _filter_param_conflicts(params)
@@ -482,64 +477,61 @@ def cif() -> List[Dict[str, Any]]:
     params = []
     for n_resamples_selector in ["minimum", "maximum", "auto", None]:
         for n_resamples_splitter in ["minimum", "maximum", "auto", None]:
-            for early_stopping_selector in [True, False]:
-                for early_stopping_splitter in [True, False]:
-                    for adjust_alpha_selector in [True, False]:
-                        for adjust_alpha_splitter in [True, False]:
-                            for feature_muting in [True, False]:
-                                for feature_scanning in [True, False]:
-                                    for threshold_scanning in [True, False]:
-                                        for max_samples in [None, 0.8]:
-                                            for bootstrap_method in ["bayesian", "classic"]:
-                                                for sampling_method in ["balanced", "stratified"]:
-                                                    for threshold_method in [
-                                                        "exact",
-                                                        "random",
-                                                        "percentile",
-                                                        "histogram",
-                                                    ]:
-                                                        hyperparameters = dict(
-                                                            n_resamples_selector=n_resamples_selector,
-                                                            n_resamples_splitter=n_resamples_splitter,
-                                                            early_stopping_selector=early_stopping_selector,
-                                                            early_stopping_splitter=early_stopping_splitter,
-                                                            adjust_alpha_selector=adjust_alpha_selector,
-                                                            adjust_alpha_splitter=adjust_alpha_splitter,
-                                                            feature_muting=feature_muting,
-                                                            feature_scanning=feature_scanning,
-                                                            threshold_scanning=threshold_scanning,
-                                                            max_samples=max_samples,
-                                                            bootstrap_method=bootstrap_method,
-                                                            sampling_method=sampling_method,
-                                                            threshold_method=threshold_method,
-                                                            n_estimators=100,
-                                                            n_jobs=1,
-                                                            random_state=RANDOM_STATE,
-                                                            verbose=0,
-                                                            method=method,
-                                                        )
+            for adjust_alpha_selector in [True, False]:
+                for adjust_alpha_splitter in [True, False]:
+                    for feature_scanning in [True, False]:
+                        for threshold_scanning in [True, False]:
+                            for max_samples in [None, 0.8]:
+                                for bootstrap_method in ["bayesian", "classic"]:
+                                    for sampling_method in ["balanced", "stratified"]:
+                                        for threshold_method in [
+                                            "exact",
+                                            "random",
+                                            "percentile",
+                                            "histogram",
+                                        ]:
+                                            hyperparameters = dict(
+                                                n_resamples_selector=n_resamples_selector,
+                                                n_resamples_splitter=n_resamples_splitter,
+                                                adjust_alpha_selector=adjust_alpha_selector,
+                                                adjust_alpha_splitter=adjust_alpha_splitter,
+                                                feature_scanning=feature_scanning,
+                                                threshold_scanning=threshold_scanning,
+                                                max_samples=max_samples,
+                                                bootstrap_method=bootstrap_method,
+                                                sampling_method=sampling_method,
+                                                threshold_method=threshold_method,
+                                                feature_muting=True,
+                                                early_stopping_selector=True,
+                                                early_stopping_splitter=True,
+                                                n_estimators=100,
+                                                n_jobs=1,
+                                                random_state=RANDOM_STATE,
+                                                verbose=0,
+                                                method=method,
+                                            )
 
-                                                        if threshold_method == "exact":
-                                                            for max_thresholds in [None]:
-                                                                hyperparameters = deepcopy(hyperparameters)
-                                                                hyperparameters["max_thresholds"] = max_thresholds
-                                                                params.append(hyperparameters)
-                                                        elif threshold_method == "random":
-                                                            for max_thresholds in [0.5, 0.8]:
-                                                                hyperparameters = deepcopy(hyperparameters)
-                                                                hyperparameters["max_thresholds"] = max_thresholds
-                                                                params.append(hyperparameters)
-                                                        elif threshold_method == "percentile":
-                                                            for max_thresholds in [10, 20, 50]:
-                                                                hyperparameters = deepcopy(hyperparameters)
-                                                                hyperparameters["max_thresholds"] = max_thresholds
-                                                                params.append(hyperparameters)
-                                                        else:
-                                                            # Histogram method
-                                                            for max_thresholds in [64, 128, 256]:
-                                                                hyperparameters = deepcopy(hyperparameters)
-                                                                hyperparameters["max_thresholds"] = max_thresholds
-                                                                params.append(hyperparameters)
+                                            if threshold_method == "exact":
+                                                for max_thresholds in [None]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
+                                            elif threshold_method == "random":
+                                                for max_thresholds in [0.5, 0.8]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
+                                            elif threshold_method == "percentile":
+                                                for max_thresholds in [10, 50]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
+                                            else:
+                                                # Histogram method
+                                                for max_thresholds in [128, 256]:
+                                                    hyperparameters = deepcopy(hyperparameters)
+                                                    hyperparameters["max_thresholds"] = max_thresholds
+                                                    params.append(hyperparameters)
 
     # Filter out bad combinations of parameters
     params = _filter_param_conflicts(params)

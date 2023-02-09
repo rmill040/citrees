@@ -18,4 +18,4 @@ rm -f /opt/Python-3.9.16.tgz
 cd $here
 curl -sSL https://install.python-poetry.org | python3.9 -
 cd ../..
-poetry install --with dev,experiments
+/root/.local/bin/poetry install --with dev,experiments

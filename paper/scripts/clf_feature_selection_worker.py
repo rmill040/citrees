@@ -71,7 +71,7 @@ def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
 
 def run() -> bool:
     """Run configuration for feature selection."""
-    ddb_table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
+    ddb_table = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"])
     response = requests.get(URL)
     status = False
     if response.ok:

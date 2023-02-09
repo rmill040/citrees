@@ -171,9 +171,10 @@ def _filter_permutation_method_selector(
         z = norm.ppf(1 - hyperparameters["alpha"])
         _hyperparameters["n_resamples"] = ceil(z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"])
 
+    key = method.split("_")[-1]
     scores = np.zeros(n_features)
     for j in range(n_features):
-        scores[j] = ClassifierSelectorTests[method](x=X[:, j], y=y, n_classes=n_classes, **_hyperparameters)
+        scores[j] = ClassifierSelectorTests[key](x=X[:, j], y=y, n_classes=n_classes, **_hyperparameters)
 
     return sort_features(scores=scores, higher_is_better=False)
 

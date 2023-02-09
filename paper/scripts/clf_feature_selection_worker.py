@@ -215,7 +215,7 @@ if __name__ == "__main__":
 
     # Parallel loop
     n_processed = 0
-    with Parallel(n_jobs=-1, backend="loky", verbose=2) as parallel:
+    with Parallel(n_jobs=-1, backend="multiprocessing", verbose=0) as parallel:
         while True:
             logger.info(f"Processed ({n_processed}) configurations")
             response = requests.get(f"{URL}/status/")

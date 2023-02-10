@@ -3,7 +3,7 @@
 # Install dependencies
 here=$(pwd)
 yum update -y
-yum install gcc openssl-devel bzip2-devel libffi-devel tmux -y 
+yum install gcc sqlite-devel openssl-devel bzip2-devel libffi-devel tmux -y 
 
 # Build Python 3.9 from source
 cd /opt

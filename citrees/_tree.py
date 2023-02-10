@@ -459,12 +459,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         for feature in features:
             x = X[:, feature]
 
-            # Check for constant feature and mute if necessary
-            if np.all(x == x[0]):
-                if len(self._available_features) > 1:
-                    self._mute_feature(feature)
-                continue
-
             # Feature selection with permutation testing
             if self._n_resamples_selector:
                 pval_feature = self._selector_test(x=x, y=y, **self._selector_test_kwargs)
@@ -480,12 +474,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                         break
 
                 # Check for feature muting
-                if (
-                    self._feature_muting
-                    and pval_feature >= max(self._alpha_selector, 1 - self._alpha_selector)
-                    and len(self._available_features) > 1
-                ):
-                    self._mute_feature(feature)
+                alpha = max(self._alpha_selector, 1 - self._alpha_selector)
+                if self._feature_muting and pval_feature >= alpha and len(self._available_features) > 1:
+                    self._mute_feature(feature=feature, reason=f"FEATURE PVAL ({pval_feature}) >= ALPHA ({alpha})")
 
             # Feature selection without permutation testing
             else:
@@ -592,7 +583,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             setattr(self, f"_alpha_{adjust}", _alpha)
             setattr(self, f"_n_resamples_{adjust}", _n_resamples)
 
-    def _mute_feature(self, feature: int) -> None:
+    def _mute_feature(self, *, feature: int, reason: str) -> None:
         """Mute feature from being selected during tree building.
 
         When feature muting is performed, a single feature gets removed from the set of available features during
@@ -604,6 +595,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         ----------
         feature : int
             Index of feature to mute.
+            
+        reason : str
+            Reason for muting feature.
         """
         p = len(self._available_features)
 
@@ -624,7 +618,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             if self.verbose > 2:
                 print(
-                    f"Muted feature ({self.feature_names_in_[feature]}) because it is constant, ({p}) features "
+                    f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features "
                     "available"
                 )
 
@@ -776,7 +770,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             for feature in self._available_features:
                 x = X[:, feature]
                 if np.all(x == x[0]) and len(self._available_features) > 1:
-                    self._mute_feature(feature)
+                    self._mute_feature(feature=feature, reason="FEATURE IS CONSTANT")
 
             # Feature selection
 

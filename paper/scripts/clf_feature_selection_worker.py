@@ -2,6 +2,7 @@
 import json
 import os
 import requests
+import sys
 from copy import deepcopy
 from decimal import Decimal
 from math import ceil
@@ -25,6 +26,9 @@ from xgboost import XGBClassifier
 
 from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 from citrees._selector import ClassifierSelectors, ClassifierSelectorTests
+
+# Prevent recursion errors with cif
+sys.setrecursionlimit(100_000)
 
 
 DATASETS = {}

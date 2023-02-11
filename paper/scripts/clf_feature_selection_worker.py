@@ -82,6 +82,9 @@ def run(url: str, skip: List[str]) -> None:
                 f"{n_features} | # Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config}"
             )
             return
+        
+        if method == "cif":
+            config["n_jobs"] = 100
 
         X, y = DATASETS[dataset]
         if method in ["mc", "mi", "hybrid"]:

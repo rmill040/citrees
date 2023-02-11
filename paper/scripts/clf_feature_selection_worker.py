@@ -2,7 +2,6 @@
 import json
 import os
 import requests
-import sys
 from copy import deepcopy
 from decimal import Decimal
 from math import ceil
@@ -26,9 +25,6 @@ from xgboost import XGBClassifier
 
 from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 from citrees._selector import ClassifierSelectors, ClassifierSelectorTests
-
-# Prevent recursion errors with cif
-sys.setrecursionlimit(100_000)
 
 
 DATASETS = {}
@@ -224,7 +220,7 @@ if __name__ == "__main__":
         DATASETS[dataset] = (X, y)
 
     # Parallel loop
-    with Parallel(n_jobs=-1, backend="multiprocessing", verbose=0) as parallel:
+    with Parallel(n_jobs=1, backend="multiprocessing", verbose=0) as parallel:
         response = requests.get(f"{url}/status/")
         if response.ok:
             payload = json.loads(response.text)

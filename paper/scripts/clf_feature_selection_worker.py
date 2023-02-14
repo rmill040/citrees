@@ -225,7 +225,7 @@ if __name__ == "__main__":
         DATASETS[dataset] = (X, y)
 
     # Parallel loop
-    with Parallel(n_jobs=1, backend="multiprocessing", verbose=0) as parallel:
+    with Parallel(n_jobs=-1, backend="multiprocessing", verbose=0) as parallel:
         response = requests.get(f"{url}/status/")
         if response.ok:
             payload = json.loads(response.text)

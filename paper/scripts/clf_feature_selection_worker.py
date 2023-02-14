@@ -100,8 +100,6 @@ def run(url: str, skip: List[str]) -> None:
             f"# Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config}"
         )
 
-        feature_ranks = []
-        message = ""
         try:
             feature_ranks = func(
                 method=method,
@@ -111,6 +109,25 @@ def run(url: str, skip: List[str]) -> None:
                 X=X,
                 y=y,
             )
+
+            # Transform into comma delimited string to store easier in DDB
+            feature_ranks = ",".join(feature_ranks.astype(str))
+
+            # Write to DynamoDB
+            item = dict(
+                config_idx=config_idx,
+                method=method,
+                hyperparameters=config,
+                dataset=dataset,
+                n_samples=n_samples,
+                n_features=n_features,
+                n_classes=n_classes,
+                feature_ranks=feature_ranks,
+            )
+
+            item = json.loads(json.dumps(item), parse_float=Decimal)
+            ddb_table.put_item(Item=item)
+
         except Exception as e:
             message = str(e)
             logger.error(
@@ -118,22 +135,6 @@ def run(url: str, skip: List[str]) -> None:
                 f"# Features: {n_features} | # Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config} | "
                 f"Error: {message}"
             )
-
-        # Write to DynamoDB
-        item = dict(
-            config_idx=config_idx,
-            method=method,
-            hyperparameters=config,
-            dataset=dataset,
-            n_samples=n_samples,
-            n_features=n_features,
-            n_classes=n_classes,
-            feature_ranks=feature_ranks,
-            message=message,
-        )
-
-        item = json.loads(json.dumps(item), parse_float=Decimal)
-        ddb_table.put_item(Item=item)
 
 
 def _filter_method_selector(

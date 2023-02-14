@@ -111,7 +111,7 @@ def run(url: str, skip: List[str]) -> None:
             )
 
             # Transform into comma delimited string to store easier in DDB
-            feature_ranks = ",".join(feature_ranks.astype(str))
+            feature_ranks = ",".join(list(map(str, feature_ranks)))
 
             # Write to DynamoDB
             item = dict(

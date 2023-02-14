@@ -581,8 +581,7 @@ def create_configurations() -> None:
     processed = set()
     for page in DDB_PAGINATOR.paginate(TableName=os.environ["TABLE_NAME"]):
         for config in page["Items"]:
-            if not config["message"]["S"]:
-                processed.add(int(config["config_idx"]["N"]))
+            processed.add(int(config["config_idx"]["N"]))
 
     if processed:
         logger.info(f"Already processed ({len(processed)}) configurations, removing from list")

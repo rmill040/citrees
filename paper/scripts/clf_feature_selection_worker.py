@@ -83,6 +83,10 @@ def run(url: str, skip: List[str]) -> None:
             )
             return
 
+        # Handle infinite recursion errors
+        if method == "cif" and dataset == "isolet":
+            config["max_depth"] = 1_000
+
         X, y = DATASETS[dataset]
         if method in ["mc", "mi", "hybrid"]:
             func = _filter_method_selector

@@ -188,7 +188,6 @@ if __name__ == "__main__":
             logger.info(f"Page {j} of DDB data: {len(configs)} configs loaded")
         for config in page["Items"]:
             # Format and update config
-            config_idx += 1
             config = {k: deserializer.deserialize(v) for k, v in config.items()}
             config = json.loads(json.dumps(config, cls=DecimalEncoder))
 
@@ -200,6 +199,7 @@ if __name__ == "__main__":
             feature_ranks = list(map(int, config["feature_ranks"].split(",")))
             for n_features in n_features_to_keep:
                 new_config = deepcopy(config)
+                config_idx += 1
                 new_config["config_idx"] = config_idx
                 new_config["feature_ranks"] = feature_ranks[:n_features]
                 new_config["n_features_used"] = n_features

@@ -595,7 +595,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         ----------
         feature : int
             Index of feature to mute.
-            
+
         reason : str
             Reason for muting feature.
         """
@@ -618,8 +618,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             if self.verbose > 2:
                 print(
-                    f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features "
-                    "available"
+                    f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features " "available"
                 )
 
             # Update alpha if needed

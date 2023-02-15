@@ -570,9 +570,7 @@ def create_configurations() -> None:
     for method in hp_configs.keys():
         for config in hp_configs[method]:
             for name in ds_configs.keys():
-                CONFIGS.append(
-                    {**config, **ds_configs[name], **dict(config_idx=config_idx)}
-                )
+                CONFIGS.append({**config, **ds_configs[name], **dict(config_idx=config_idx)})
                 config_idx += 1
 
     assert config_idx == len(CONFIGS)
@@ -585,9 +583,7 @@ def create_configurations() -> None:
 
     if processed:
         logger.info(f"Already processed ({len(processed)}) configurations, removing from list")
-        CONFIGS = list(
-            filter(lambda config: config["config_idx"] not in processed, CONFIGS)
-        )
+        CONFIGS = list(filter(lambda config: config["config_idx"] not in processed, CONFIGS))
 
     logger.info(f"Server ready with ({len(CONFIGS)}) configurations for feature selection")
 
@@ -609,7 +605,4 @@ async def get_config(request: Request) -> Dict[str, Any]:
 @app.get("/status")
 async def get_status() -> Dict[str, Any]:
     """Get status of feature selection."""
-    return dict(
-        n_configs_remaining=len(CONFIGS),
-        hosts=HOSTS
-    )
+    return dict(n_configs_remaining=len(CONFIGS), hosts=HOSTS)

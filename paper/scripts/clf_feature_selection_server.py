@@ -7,13 +7,12 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import boto3
-from fastapi import FastAPI, Request
-from loguru import logger
 import numpy as np
 import pandas as pd
+from fastapi import FastAPI, Request
+from loguru import logger
 
 from citrees._registry import Registry
-
 
 app = FastAPI()
 

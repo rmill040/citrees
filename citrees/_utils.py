@@ -96,7 +96,7 @@ def split_data(
     Returns
     -------
     X_left : np.ndarray
-        Fetaures in left child node.
+        Features in left child node.
 
     y_left : np.ndarray
         Target in left child node.

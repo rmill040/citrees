@@ -489,7 +489,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         Type of sampling to use during bootstrap.
 
     max_samples : int or float, default=None
-        Number of samples to draw for each boostrap sample.
+        Number of samples to draw for each bootstrap sample.
 
     n_jobs : int, default=None
         Number of jobs to run in parallel.
@@ -714,7 +714,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         Type of bootstrap to use.
 
     max_samples : int or float, default=None
-        Number of samples to draw for each boostrap sample.
+        Number of samples to draw for each bootstrap sample.
 
     n_jobs : int, default=None
         Number of jobs to run in parallel.

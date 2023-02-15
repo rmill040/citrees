@@ -1,7 +1,6 @@
 """Classifier experiments - WORKER."""
 import json
 import os
-import requests
 from copy import deepcopy
 from decimal import Decimal
 from math import ceil
@@ -9,13 +8,14 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import boto3
-from joblib import delayed, Parallel
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
+import requests
 from catboost import CatBoostClassifier
+from joblib import delayed, Parallel
 from lightgbm import LGBMClassifier
 from loguru import logger
+from pydantic import BaseModel
 from scipy.stats import norm
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -25,7 +25,6 @@ from xgboost import XGBClassifier
 
 from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 from citrees._selector import ClassifierSelectors, ClassifierSelectorTests
-
 
 DATASETS = {}
 ESTIMATORS = {

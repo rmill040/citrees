@@ -83,9 +83,9 @@ def run(url: str, skip: List[str]) -> None:
             )
             return
 
-        # Handle infinite recursion errors
+        # Handle oom errors
         if method == "cif" and dataset == "isolet":
-            config["max_depth"] = 1_000
+            config["max_depth"] = 50
 
         X, y = DATASETS[dataset]
         if method in ["mc", "mi", "hybrid"]:
@@ -147,7 +147,8 @@ def _filter_method_selector(
     y: np.ndarray,
 ) -> np.ndarray:
     """Filter method feature selector."""
-    scores = Parallel(n_jobs=hyperparameters["n_jobs"], backend="loky")(
+    n_jobs = hyperparameters.pop("n_jobs")
+    scores = Parallel(n_jobs=n_jobs, backend="loky")(
         delayed(ClassifierSelectors[method])(x=X[:, j], y=y, n_classes=n_classes, **hyperparameters)
         for j in range(n_features)
     )
@@ -175,7 +176,8 @@ def _filter_permutation_method_selector(
         _hyperparameters["n_resamples"] = ceil(z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"])
 
     key = method.split("_")[-1]
-    scores = Parallel(n_jobs=hyperparameters["n_jobs"], backend="loky")(
+    n_jobs = hyperparameters.pop("n_jobs")
+    scores = Parallel(n_jobs=n_jobs, backend="loky")(
         delayed(ClassifierSelectorTests[key])(x=X[:, j], y=y, n_classes=n_classes, **_hyperparameters)
         for j in range(n_features)
     )

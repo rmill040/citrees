@@ -176,7 +176,7 @@ def _filter_permutation_method_selector(
         _hyperparameters["n_resamples"] = ceil(z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"])
 
     key = method.split("_")[-1]
-    n_jobs = hyperparameters.pop("n_jobs")
+    n_jobs = _hyperparameters.pop("n_jobs")
     scores = Parallel(n_jobs=n_jobs, backend="loky")(
         delayed(ClassifierSelectorTests[key])(x=X[:, j], y=y, n_classes=n_classes, **_hyperparameters)
         for j in range(n_features)

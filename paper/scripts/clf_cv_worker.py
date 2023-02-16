@@ -1,6 +1,6 @@
-"""Classifier experiments - METRICS."""
+"""Classifier metrics - WORKER."""
 import boto3
-from boto3.dynamodb.types import TypeDeserializer
+import requests
 from copy import deepcopy
 from decimal import Decimal
 from joblib import delayed, Parallel
@@ -18,11 +18,10 @@ from sklearn.preprocessing import label_binarize, StandardScaler
 from typing import Any, Dict
 
 
-CACHE = {}
 DATASETS = {}
 RANDOM_STATE = 1718
 N_SPLITS = 5
-ITERATIONS = 10
+ITERATIONS = 5
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -92,76 +91,70 @@ def cv_scores(*, X: np.ndarray, y: np.ndarray, n_classes: int) -> Dict[str, Any]
     }
 
 
-def calculate_metrics(*, config: Dict[str, Any], n_configs: int) -> None:
+def run(url: str) -> None:
     """Calculate classifier metrics."""
-    global DATASETS, CACHE, RESULTS
+    global DATASETS
 
     ddb_table = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "Metrics")
+    response = requests.get(url)
+    if response.ok:
+        config = json.loads(response.text)
 
-    # Get dataset and relevant metadata
-    X, y = DATASETS[config["dataset"]]
-    n_classes = int(config["n_classes"])
-    feature_ranks = config["feature_ranks"]
-    n_features_used = int(config["n_features_used"])
+        # Get dataset and relevant metadata
+        X, y = DATASETS[config["dataset"]]
+        n_classes = int(config["n_classes"])
+        feature_ranks = list(map(int, config["feature_ranks"].split(",")))
+        n_features_used = int(config["n_features_used"])
 
-    # Check if cache already processed this configuration
-    key = config["dataset"] + "," + ",".join(map(str, config["feature_ranks"]))
-    if key in CACHE:
         logger.info(
-            f"CACHE HIT - Configuration: {config['config_idx']}/{n_configs} | # Features: {n_features_used} | "
-            f"Dataset: {config['dataset']}"
-        )
-        metrics = CACHE[key]
-    else:
-        logger.info(
-            f"Configuration: {config['config_idx']}/{n_configs} | # Features: {n_features_used} | Dataset: "
-            f"{config['dataset']}"
+            f"Configuration: {config['config_idx']} | # Features: {n_features_used} | Dataset: {config['dataset']}"
         )
         X_ = X[:, feature_ranks].reshape(-1, n_features_used)
         assert X_.shape[1] == n_features_used, "Number of subsetted features is incorrect"
 
-        # Calculate CV scores and add to cache
+        # Calculate CV scores
         metrics = cv_scores(X=X_, y=y, n_classes=n_classes)
-        CACHE[key] = metrics
 
-    # Update config with results
-    new_config = deepcopy(config)
-    new_config.update(metrics)
-    
-    # Cast data and write to DynamoDB
-    new_config["feature_ranks"] = ",".join(map(str, feature_ranks))
-    for key, value in new_config.items():
-        if type(value) is dict:
-            for k, v in value.items():
+        # Update config with results
+        new_config = deepcopy(config)
+        new_config.update(metrics)
+
+        # Cast data and write to DynamoDB
+        new_config["feature_ranks"] = ",".join(map(str, feature_ranks))
+        for key, value in new_config.items():
+            if type(value) is dict:
+                for k, v in value.items():
+                    try:
+                        v = float(v)
+                        if v.is_integer():
+                            v = int(v)
+                        new_config[key][k] = v
+                    except:  # noqa
+                        pass
+            else:
                 try:
-                    v = float(v)
-                    if v.is_integer():
-                        v = int(v)
-                    new_config[key][k] = v
+                    value = float(value)
+                    if value.is_integer():
+                        value = int(value)
+                    new_config[key] = value
                 except:  # noqa
                     pass
-        else:
-            try:
-                value = float(value)
-                if value.is_integer():
-                    value = int(value)
-                new_config[key] = value
-            except:  # noqa
-                pass
 
-    # Write to DynamoDB
-    try:
-        item = json.loads(json.dumps(new_config), parse_float=Decimal)
-        ddb_table.put_item(Item=item)
-    except Exception as e:
-        message = str(e)
-        logger.error(
-            f"Configuration: {config['config_idx']}/{n_configs} | # Features: {n_features_used} | Dataset: "
-            f"{config['dataset']} | Error: {message}"
-        )
+        # Write to DynamoDB
+        try:
+            item = json.loads(json.dumps(new_config), parse_float=Decimal)
+            ddb_table.put_item(Item=item)
+        except Exception as e:
+            message = str(e)
+            logger.error(
+                f"Configuration: {config['config_idx']} | # Features: {n_features_used} | Dataset: "
+                f"{config['dataset']} | Error: {message}"
+            )
 
 
 if __name__ == "__main__":
+    url = os.environ["URL"]
+
     here = Path(__file__).resolve()
     data_dir = here.parents[1] / "data"
     files = [f for f in os.listdir(data_dir) if f.startswith("clf_")]
@@ -178,35 +171,11 @@ if __name__ == "__main__":
         # Store dataset in memory
         DATASETS[dataset] = (X, y)
 
-    # Populate configs
-    deserializer = TypeDeserializer()
-    ddb_paginator = boto3.client("dynamodb", region_name="us-east-1").get_paginator("scan")
-    config_idx = 0
-    configs = []
-    for j, page in enumerate(ddb_paginator.paginate(TableName=os.environ["TABLE_NAME"]), 1):
-        if len(configs):
-            logger.info(f"Page {j} of DDB data: {len(configs)} configs loaded")
-        for config in page["Items"]:
-            # Format and update config
-            config = {k: deserializer.deserialize(v) for k, v in config.items()}
-            config = json.loads(json.dumps(config, cls=DecimalEncoder))
-
-            if int(config["n_features"]) >= 100:
-                n_features_to_keep = np.arange(5, 105, 5)
-            else:
-                n_features_to_keep = np.arange(1, int(config["n_features"]) + 1)
-
-            feature_ranks = list(map(int, config["feature_ranks"].split(",")))
-            for n_features in n_features_to_keep:
-                new_config = deepcopy(config)
-                config_idx += 1
-                new_config["config_idx"] = config_idx
-                new_config["feature_ranks"] = feature_ranks[:n_features]
-                new_config["n_features_used"] = n_features
-                configs.append(new_config)
-
-    # Cross-validation
-    n_configs = len(configs)
-    _ = Parallel(n_jobs=-1, backend="multiprocessing", verbose=2)(
-        delayed(calculate_metrics)(config=config, n_configs=n_configs) for config in configs
-    )
+    # Parallel loop
+    with Parallel(n_jobs=-1, backend="loky", verbose=0) as parallel:
+        response = requests.get(f"{url}/status/")
+        if response.ok:
+            payload = json.loads(response.text)
+            n_configs_remaining = int(payload["n_configs_remaining"])
+            if n_configs_remaining:
+                _ = parallel(delayed(run)(url=url) for _ in range(n_configs_remaining))

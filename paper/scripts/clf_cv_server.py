@@ -48,8 +48,6 @@ def create_configurations() -> None:
     config_idx = 0
     configs = []
     for j, page in enumerate(ddb_paginator.paginate(TableName=os.environ["TABLE_NAME"]), 1):
-        if j > 1:
-            break
         if len(configs):
             logger.info(f"Page {j} of DDB data: {len(configs)} configs loaded")
         for config in page["Items"]:

@@ -85,6 +85,9 @@ def run(url: str, skip: List[str]) -> None:
         # Handle oom errors
         if method == "cif" and dataset == "isolet":
             config["max_depth"] = 50
+            
+        if method == "cif":
+            config["n_jobs"] = -1
 
         X, y = DATASETS[dataset]
         if method in ["mc", "mi", "hybrid"]:
@@ -146,7 +149,7 @@ def _filter_method_selector(
     y: np.ndarray,
 ) -> np.ndarray:
     """Filter method feature selector."""
-    scores = Parallel(n_jobs=1, backend="loky")(
+    scores = Parallel(n_jobs=-1, backend="loky")(
         delayed(ClassifierSelectors[method])(x=X[:, j], y=y, n_classes=n_classes, **hyperparameters)
         for j in range(n_features)
     )
@@ -174,7 +177,7 @@ def _filter_permutation_method_selector(
         _hyperparameters["n_resamples"] = ceil(z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"])
 
     key = method.split("_")[-1]
-    scores = Parallel(n_jobs=1, backend="loky")(
+    scores = Parallel(n_jobs=-1, backend="loky")(
         delayed(ClassifierSelectorTests[key])(x=X[:, j], y=y, n_classes=n_classes, **_hyperparameters)
         for j in range(n_features)
     )
@@ -229,7 +232,7 @@ if __name__ == "__main__":
         DATASETS[dataset] = (X, y)
 
     # Parallel loop
-    with Parallel(n_jobs=-1, backend="loky", verbose=0) as parallel:
+    with Parallel(n_jobs=1, backend="loky", verbose=0) as parallel:
         response = requests.get(f"{url}/status/")
         if response.ok:
             payload = json.loads(response.text)

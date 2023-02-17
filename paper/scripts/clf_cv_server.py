@@ -103,7 +103,7 @@ def create_configurations() -> None:
 
     # Populate configs
     deserializer = TypeDeserializer()
-    dynamodb = boto3.client("dynamodb")
+    dynamodb = boto3.client("dynamodb", region_name="us-east-1")
     config_idx = 0
     for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]):
         if len(CONFIGS) % 100_000 == 0:

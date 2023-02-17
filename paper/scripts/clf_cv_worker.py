@@ -1,22 +1,22 @@
 """Classifier metrics - WORKER."""
-import boto3
-import requests
+import json
+import os
 from copy import deepcopy
 from decimal import Decimal
-from joblib import delayed, Parallel
-import json
-from loguru import logger
-import numpy as np
-import os
-import pandas as pd
 from pathlib import Path
+from typing import Any, Dict
+
+import boto3
+import numpy as np
+import pandas as pd
+import requests
+from joblib import delayed, Parallel
+from loguru import logger
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import label_binarize, StandardScaler
-from typing import Any, Dict
-
 
 DATASETS = {}
 RANDOM_STATE = 1718

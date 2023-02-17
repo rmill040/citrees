@@ -1,19 +1,19 @@
 """Classifier metrics - SERVER."""
-import boto3
-from boto3.dynamodb.types import TypeDeserializer
-from collections import defaultdict
 import concurrent.futures
-from multiprocessing import cpu_count
-from copy import deepcopy
-from decimal import Decimal
-from fastapi import FastAPI, Request
 import itertools
 import json
-from loguru import logger
 import os
-import numpy as np
+from collections import defaultdict
+from copy import deepcopy
+from decimal import Decimal
+from multiprocessing import cpu_count
 from typing import Any, Dict
 
+import boto3
+import numpy as np
+from boto3.dynamodb.types import TypeDeserializer
+from fastapi import FastAPI, Request
+from loguru import logger
 
 app = FastAPI()
 
@@ -21,7 +21,6 @@ app = FastAPI()
 CONFIGS = []
 HOSTS = defaultdict(lambda: 0)
 RANDOM_STATE = 1718
-CACHE_HITS = 0
 
 
 def parallel_scan_table(dynamo_client: Any, *, TableName: str, **kwargs: Dict[str, Any]) -> None:

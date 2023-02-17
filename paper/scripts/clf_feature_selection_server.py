@@ -5,7 +5,6 @@ import itertools
 import os
 from collections import defaultdict
 from copy import deepcopy
-from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -35,11 +34,11 @@ def parallel_scan_table(dynamo_client: Any, *, TableName: str, **kwargs: Dict[st
     # How many segments to divide the table into?  As long as this is >= to the
     # number of threads used by the ThreadPoolExecutor, the exact number doesn't
     # seem to matter.
-    total_segments = cpu_count() * 2
+    total_segments = 25
 
     # How many scans to run in parallel?  If you set this really high you could
     # overwhelm the table read capacity, but otherwise I don't change this much.
-    max_scans_in_parallel = cpu_count()
+    max_scans_in_parallel = 5
 
     # Schedule an initial scan for each segment of the table.  We read each
     # segment in a separate thread, then look to see if there are more rows to

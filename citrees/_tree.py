@@ -97,7 +97,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
     @validator("selector", "splitter", always=True)
     def validate_selector_splitter(cls: ModelMetaclass, v: str, field: ModelField, values: Dict[str, Any]) -> str:
-        """Validate {selector,splitter}"""
+        """Validate {selector,splitter}."""
         if field.name == "selector":
             registry = ClassifierSelectors if values["estimator_type"] == "classifier" else RegressorSelectors
         else:
@@ -868,7 +868,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         for param in ["n_resamples_selector", "n_resamples_splitter"]:
             value = getattr(self, param)
             if type(value) == str:
-                alpha = getattr(self, "alpha_selector") if "selector" in param else getattr(self, "alpha_splitter")
+                alpha = self.alpha_selector if "selector" in param else self.alpha_splitter
                 lower_limit = ceil(1 / alpha)
                 if value == "minimum":
                     value = lower_limit

@@ -250,9 +250,9 @@ def classic_bootstrap_sample(
     """
     prng = np.random.RandomState(random_state)
 
-    n = len(idx)
+    n = len(y)
     p = bayesian_bootstrap_proba(n=n, random_state=random_state) if bayesian_bootstrap else None
-    idx = prng.choice(idx, size=n, p=p, replace=True)
+    idx = prng.choice(range(n), size=n, p=p, replace=True)
 
     if max_samples < n:
         idx = prng.choice(idx, size=max_samples, replace=False)

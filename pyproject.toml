@@ -26,6 +26,7 @@ tox = "^3.25.1"
 isort = "^5.10.1"
 flake8-docstrings = "^1.6.0"
 pytest-cov = "^4.0.0"
+ruff = "^0.0.247"
 
 [tool.poetry.group.experiments]
 optional = true
@@ -49,6 +50,38 @@ build-backend = "poetry.core.masonry.api"
 [tool.black]
 line-length = 120
 target-version = ['py38', 'py39', 'py310']
+
+[tool.ruff]
+select = ["A", "B", "C", "D", "E", "F"]
+ignore = []
+fixable = ["A", "B", "C", "D", "E", "F"]
+unfixable = []
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+per-file-ignores = {}
+line-length = 120
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+target-version = "py39"
 
 [tool.isort]
 py_version = 39

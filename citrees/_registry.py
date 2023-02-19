@@ -14,7 +14,7 @@ class Registry:
 
     def __init__(self, name: str) -> None:
         self._name = name
-        self._registry: Dict[str, Any] = dict()
+        self._registry: Dict[str, Any] = {}
 
     @property
     def name(self) -> str:

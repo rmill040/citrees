@@ -131,13 +131,13 @@ def ptest_mi() -> List[Dict[str, Any]]:
         for n_resamples in ["minimum", "maximum", "auto"]:
             for early_stopping in [True, False]:
                 params.append(
-                    dict(
-                        alpha=alpha,
-                        n_resamples=n_resamples,
-                        early_stopping=early_stopping,
-                        random_state=RANDOM_STATE,
-                        method=method,
-                    )
+                    {
+                        "alpha": alpha,
+                        "n_resamples": n_resamples,
+                        "early_stopping": early_stopping,
+                        "random_state": RANDOM_STATE,
+                        "method": method,
+                    }
                 )
 
     return params
@@ -153,13 +153,13 @@ def ptest_mc() -> List[Dict[str, Any]]:
         for n_resamples in ["minimum", "maximum", "auto"]:
             for early_stopping in [True, False]:
                 params.append(
-                    dict(
-                        alpha=alpha,
-                        n_resamples=n_resamples,
-                        early_stopping=early_stopping,
-                        random_state=RANDOM_STATE,
-                        method=method,
-                    )
+                    {
+                        "alpha": alpha,
+                        "n_resamples": n_resamples,
+                        "early_stopping": early_stopping,
+                        "random_state": RANDOM_STATE,
+                        "method": method,
+                    }
                 )
 
     return params
@@ -175,13 +175,13 @@ def ptest_hybrid() -> List[Dict[str, Any]]:
         for n_resamples in ["minimum", "maximum", "auto"]:
             for early_stopping in [True, False]:
                 params.append(
-                    dict(
-                        alpha=alpha,
-                        n_resamples=n_resamples,
-                        early_stopping=early_stopping,
-                        random_state=RANDOM_STATE,
-                        method=method,
-                    )
+                    {
+                        "alpha": alpha,
+                        "n_resamples": n_resamples,
+                        "early_stopping": early_stopping,
+                        "random_state": RANDOM_STATE,
+                        "method": method,
+                    }
                 )
 
     return params
@@ -199,13 +199,13 @@ def lr() -> List[Dict[str, Any]]:
     params = []
     for class_weight in [None, "balanced"]:
         params.append(
-            dict(
-                class_weight=class_weight,
-                penalty=None,
-                solver="lbfgs",
-                random_state=RANDOM_STATE,
-                method=method,
-            )
+            {
+                "class_weight": class_weight,
+                "penalty": None,
+                "solver": "lbfgs",
+                "random_state": RANDOM_STATE,
+                "method": method,
+            }
         )
 
     return params
@@ -219,14 +219,14 @@ def lr_l1() -> List[Dict[str, Any]]:
     for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
         for class_weight in [None, "balanced"]:
             params.append(
-                dict(
-                    C=C,
-                    class_weight=class_weight,
-                    penalty="l1",
-                    solver="liblinear",
-                    random_state=RANDOM_STATE,
-                    method=method,
-                )
+                {
+                    "C": C,
+                    "class_weight": class_weight,
+                    "penalty": "l1",
+                    "solver": "liblinear",
+                    "random_state": RANDOM_STATE,
+                    "method": method,
+                }
             )
 
     return params
@@ -240,14 +240,14 @@ def lr_l2() -> List[Dict[str, Any]]:
     for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
         for class_weight in [None, "balanced"]:
             params.append(
-                dict(
-                    C=C,
-                    class_weight=class_weight,
-                    penalty="l2",
-                    solver="liblinear",
-                    random_state=RANDOM_STATE,
-                    method=method,
-                )
+                {
+                    "C": C,
+                    "class_weight": class_weight,
+                    "penalty": "l2",
+                    "solver": "liblinear",
+                    "random_state": RANDOM_STATE,
+                    "method": method,
+                }
             )
 
     return params
@@ -267,19 +267,19 @@ def xgb() -> List[Dict[str, Any]]:
                         for reg_lambda in [0.001, 0.01, None]:
                             for importance_type in ["gain", "weight", "cover", "total_gain", "total_cover"]:
                                 params.append(
-                                    dict(
-                                        max_depth=max_depth,
-                                        learning_rate=learning_rate,
-                                        subsample=subsample,
-                                        colsample_bytree=colsample_bytree,
-                                        reg_alpha=reg_alpha,
-                                        reg_lambda=reg_lambda,
-                                        importance_type=importance_type,
-                                        n_estimators=100,
-                                        n_jobs=1,
-                                        random_state=RANDOM_STATE,
-                                        method=method,
-                                    )
+                                    {
+                                        "max_depth": max_depth,
+                                        "learning_rate": learning_rate,
+                                        "subsample": subsample,
+                                        "colsample_bytree": colsample_bytree,
+                                        "reg_alpha": reg_alpha,
+                                        "reg_lambda": reg_lambda,
+                                        "importance_type": importance_type,
+                                        "n_estimators": 100,
+                                        "n_jobs": 1,
+                                        "random_state": RANDOM_STATE,
+                                        "method": method,
+                                    }
                                 )
 
     return params
@@ -300,20 +300,20 @@ def lightgbm() -> List[Dict[str, Any]]:
                             for importance_type in ["split", "gain"]:
                                 for class_weight in [None, "balanced"]:
                                     params.append(
-                                        dict(
-                                            max_depth=max_depth,
-                                            learning_rate=learning_rate,
-                                            subsample=subsample,
-                                            colsample_bytree=colsample_bytree,
-                                            reg_alpha=reg_alpha,
-                                            reg_lambda=reg_lambda,
-                                            importance_type=importance_type,
-                                            class_weight=class_weight,
-                                            n_estimators=100,
-                                            n_jobs=1,
-                                            random_state=RANDOM_STATE,
-                                            method=method,
-                                        )
+                                        {
+                                            "max_depth": max_depth,
+                                            "learning_rate": learning_rate,
+                                            "subsample": subsample,
+                                            "colsample_bytree": colsample_bytree,
+                                            "reg_alpha": reg_alpha,
+                                            "reg_lambda": reg_lambda,
+                                            "importance_type": importance_type,
+                                            "class_weight": class_weight,
+                                            "n_estimators": 100,
+                                            "n_jobs": 1,
+                                            "random_state": RANDOM_STATE,
+                                            "method": method,
+                                        }
                                     )
 
     return params
@@ -331,19 +331,19 @@ def catboost() -> List[Dict[str, Any]]:
                 for colsample_bylevel in [0.8, 0.9, 1.0]:
                     for auto_class_weights in [None, "Balanced"]:
                         params.append(
-                            dict(
-                                depth=depth,
-                                learning_rate=learning_rate,
-                                l2_leaf_reg=l2_leaf_reg,
-                                colsample_bylevel=colsample_bylevel,
-                                auto_class_weights=auto_class_weights,
-                                thread_count=1,
-                                n_estimators=100,
-                                random_state=RANDOM_STATE,
-                                verbose=0,
-                                method=method,
-                                allow_writing_files=False,
-                            )
+                            {
+                                "depth": depth,
+                                "learning_rate": learning_rate,
+                                "l2_leaf_reg": l2_leaf_reg,
+                                "colsample_bylevel": colsample_bylevel,
+                                "auto_class_weights": auto_class_weights,
+                                "thread_count": 1,
+                                "n_estimators": 100,
+                                "random_state": RANDOM_STATE,
+                                "verbose": 0,
+                                "method": method,
+                                "allow_writing_files": False,
+                            }
                         )
 
     return params
@@ -357,12 +357,12 @@ def dt() -> List[Dict[str, Any]]:
     params = []
     for class_weight in [None, "balanced"]:
         params.append(
-            dict(
-                class_weight=class_weight,
-                splitter="best",
-                random_state=RANDOM_STATE,
-                method=method,
-            )
+            {
+                "class_weight": class_weight,
+                "splitter": "best",
+                "random_state": RANDOM_STATE,
+                "method": method,
+            }
         )
 
     return params
@@ -376,12 +376,12 @@ def rt() -> List[Dict[str, Any]]:
     params = []
     for class_weight in [None, "balanced"]:
         params.append(
-            dict(
-                class_weight=class_weight,
-                splitter="random",
-                random_state=RANDOM_STATE,
-                method=method,
-            )
+            {
+                "class_weight": class_weight,
+                "splitter": "random",
+                "random_state": RANDOM_STATE,
+                "method": method,
+            }
         )
 
     return params
@@ -396,14 +396,14 @@ def rf() -> List[Dict[str, Any]]:
     for max_samples in [None, 0.8]:
         for class_weight in [None, "balanced"]:
             params.append(
-                dict(
-                    max_samples=max_samples,
-                    class_weight=class_weight,
-                    n_estimators=100,
-                    n_jobs=1,
-                    random_state=RANDOM_STATE,
-                    method=method,
-                )
+                {
+                    "max_samples": max_samples,
+                    "class_weight": class_weight,
+                    "n_estimators": 100,
+                    "n_jobs": 1,
+                    "random_state": RANDOM_STATE,
+                    "method": method,
+                }
             )
 
     return params
@@ -417,13 +417,13 @@ def et() -> List[Dict[str, Any]]:
     params = []
     for class_weight in [None, "balanced"]:
         params.append(
-            dict(
-                class_weight=class_weight,
-                n_estimators=100,
-                n_jobs=1,
-                random_state=RANDOM_STATE,
-                method=method,
-            )
+            {
+                "class_weight": class_weight,
+                "n_estimators": 100,
+                "n_jobs": 1,
+                "random_state": RANDOM_STATE,
+                "method": method,
+            }
         )
 
     return params
@@ -489,21 +489,21 @@ def cit() -> List[Dict[str, Any]]:
                                 "percentile",
                                 "histogram",
                             ]:
-                                hyperparameters = dict(
-                                    n_resamples_selector=n_resamples_selector,
-                                    n_resamples_splitter=n_resamples_splitter,
-                                    adjust_alpha_selector=adjust_alpha_selector,
-                                    adjust_alpha_splitter=adjust_alpha_splitter,
-                                    feature_scanning=feature_scanning,
-                                    threshold_scanning=threshold_scanning,
-                                    threshold_method=threshold_method,
-                                    early_stopping_selector=True,
-                                    early_stopping_splitter=True,
-                                    feature_muting=True,
-                                    random_state=RANDOM_STATE,
-                                    verbose=0,
-                                    method=method,
-                                )
+                                hyperparameters = {
+                                    "n_resamples_selector": n_resamples_selector,
+                                    "n_resamples_splitter": n_resamples_splitter,
+                                    "adjust_alpha_selector": adjust_alpha_selector,
+                                    "adjust_alpha_splitter": adjust_alpha_splitter,
+                                    "feature_scanning": feature_scanning,
+                                    "threshold_scanning": threshold_scanning,
+                                    "threshold_method": threshold_method,
+                                    "early_stopping_selector": True,
+                                    "early_stopping_splitter": True,
+                                    "feature_muting": True,
+                                    "random_state": RANDOM_STATE,
+                                    "verbose": 0,
+                                    "method": method,
+                                }
 
                                 if threshold_method == "exact":
                                     for max_thresholds in [None]:
@@ -553,26 +553,26 @@ def cif() -> List[Dict[str, Any]]:
                                             "percentile",
                                             "histogram",
                                         ]:
-                                            hyperparameters = dict(
-                                                n_resamples_selector=n_resamples_selector,
-                                                n_resamples_splitter=n_resamples_splitter,
-                                                adjust_alpha_selector=adjust_alpha_selector,
-                                                adjust_alpha_splitter=adjust_alpha_splitter,
-                                                feature_scanning=feature_scanning,
-                                                threshold_scanning=threshold_scanning,
-                                                max_samples=max_samples,
-                                                bootstrap_method=bootstrap_method,
-                                                sampling_method=sampling_method,
-                                                threshold_method=threshold_method,
-                                                feature_muting=True,
-                                                early_stopping_selector=True,
-                                                early_stopping_splitter=True,
-                                                n_estimators=100,
-                                                n_jobs=1,
-                                                random_state=RANDOM_STATE,
-                                                verbose=0,
-                                                method=method,
-                                            )
+                                            hyperparameters = {
+                                                "n_resamples_selector": n_resamples_selector,
+                                                "n_resamples_splitter": n_resamples_splitter,
+                                                "adjust_alpha_selector": adjust_alpha_selector,
+                                                "adjust_alpha_splitter": adjust_alpha_splitter,
+                                                "feature_scanning": feature_scanning,
+                                                "threshold_scanning": threshold_scanning,
+                                                "max_samples": max_samples,
+                                                "bootstrap_method": bootstrap_method,
+                                                "sampling_method": sampling_method,
+                                                "threshold_method": threshold_method,
+                                                "feature_muting": True,
+                                                "early_stopping_selector": True,
+                                                "early_stopping_splitter": True,
+                                                "n_estimators": 100,
+                                                "n_jobs": 1,
+                                                "random_state": RANDOM_STATE,
+                                                "verbose": 0,
+                                                "method": method,
+                                            }
 
                                             if threshold_method == "exact":
                                                 for max_thresholds in [None]:
@@ -619,12 +619,12 @@ def create_configurations() -> None:
         n_samples = df.shape[0]
         n_features = df.shape[1] - 1
         n_classes = len(df["y"].unique())
-        ds_configs[f] = dict(
-            dataset=dataset,
-            n_samples=n_samples,
-            n_features=n_features,
-            n_classes=n_classes,
-        )
+        ds_configs[f] = {
+            "dataset": dataset,
+            "n_samples": n_samples,
+            "n_features": n_features,
+            "n_classes": n_classes,
+        }
         del df
 
     config_idx = 0
@@ -632,7 +632,7 @@ def create_configurations() -> None:
     for method in hp_configs.keys():
         for config in hp_configs[method]:
             for name in ds_configs.keys():
-                CONFIGS.append({**config, **ds_configs[name], **dict(config_idx=config_idx)})
+                CONFIGS.append({**config, **ds_configs[name], **{"config_idx": config_idx}})
                 config_idx += 1
 
     assert config_idx == len(CONFIGS)
@@ -667,4 +667,4 @@ async def get_config(request: Request) -> Dict[str, Any]:
 @app.get("/status")
 async def get_status() -> Dict[str, Any]:
     """Get status of feature selection."""
-    return dict(n_configs_remaining=len(CONFIGS), hosts=HOSTS)
+    return {"n_configs_remaining": len(CONFIGS), "hosts": HOSTS}

@@ -85,7 +85,7 @@ def run(url: str, skip: List[str]) -> None:
         # Handle oom errors
         if method == "cif" and dataset == "isolet":
             config["max_depth"] = 50
-            
+
         if method == "cif":
             config["n_jobs"] = -1
 
@@ -116,16 +116,16 @@ def run(url: str, skip: List[str]) -> None:
             feature_ranks = ",".join(list(map(str, feature_ranks)))
 
             # Write to DynamoDB
-            item = dict(
-                config_idx=config_idx,
-                method=method,
-                hyperparameters=config,
-                dataset=dataset,
-                n_samples=n_samples,
-                n_features=n_features,
-                n_classes=n_classes,
-                feature_ranks=feature_ranks,
-            )
+            item = {
+                "config_idx": config_idx,
+                "method": method,
+                "hyperparameters": config,
+                "dataset": dataset,
+                "n_samples": n_samples,
+                "n_features": n_features,
+                "n_classes": n_classes,
+                "feature_ranks": feature_ranks,
+            }
 
             item = json.loads(json.dumps(item), parse_float=Decimal)
             ddb_table.put_item(Item=item)

@@ -103,9 +103,9 @@ def create_configurations() -> None:
     deserializer = TypeDeserializer()
     dynamodb = boto3.client("dynamodb", region_name="us-east-1")
     config_idx = 0
-    for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]):
-        if len(CONFIGS) % 100_000 == 0:
-            logger.info(f"{len(CONFIGS)} configs generated for testing feature selection")
+    for j, config in enumerate(parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]), 1):
+        if j % 100_000 == 0:
+            logger.info(f"{j} configs processed for testing feature selection")
         config = {k: deserializer.deserialize(v) for k, v in config.items()}
         config = json.loads(json.dumps(config, cls=DecimalEncoder))
 
@@ -154,4 +154,4 @@ async def get_config(request: Request) -> Dict[str, Any]:
 @app.get("/status")
 async def get_status() -> Dict[str, Any]:
     """Get status of feature selection."""
-    return dict(n_configs_remaining=len(CONFIGS), hosts=HOSTS)
+    return {"n_configs_remaining": len(CONFIGS), "hosts": HOSTS}

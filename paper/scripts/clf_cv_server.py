@@ -16,7 +16,6 @@ from loguru import logger
 
 app = FastAPI()
 
-
 CONFIGS = []
 HOSTS = defaultdict(lambda: 0)
 RANDOM_STATE = 1718

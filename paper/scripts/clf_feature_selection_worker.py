@@ -65,7 +65,9 @@ def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
 
 def run(url: str, skip: List[str]) -> None:
     """Run configuration for feature selection."""
-    ddb_table = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"])
+    ddb_table_s = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"])
+    ddb_table_f = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "Fail")
+
     response = requests.get(url)
     if response.ok:
         config = json.loads(response.text)
@@ -86,7 +88,7 @@ def run(url: str, skip: List[str]) -> None:
         if method == "cif" and dataset == "isolet":
             config["max_depth"] = 50
 
-        if method == "cif":
+        if int(os.environ["N_JOBS_INNER"]) == -1 and config.get("n_jobs", 1) == -1:
             config["n_jobs"] = -1
 
         X, y = DATASETS[dataset]
@@ -128,7 +130,7 @@ def run(url: str, skip: List[str]) -> None:
             }
 
             item = json.loads(json.dumps(item), parse_float=Decimal)
-            ddb_table.put_item(Item=item)
+            ddb_table_s.put_item(Item=item)
 
         except Exception as e:
             message = str(e)
@@ -137,6 +139,20 @@ def run(url: str, skip: List[str]) -> None:
                 f"# Features: {n_features} | # Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config} | "
                 f"Error: {message}"
             )
+
+            # Write to DynamoDB
+            item = {
+                "config_idx": config_idx,
+                "method": method,
+                "hyperparameters": config,
+                "dataset": dataset,
+                "n_samples": n_samples,
+                "n_features": n_features,
+                "n_classes": n_classes,
+            }
+
+            item = json.loads(json.dumps(item), parse_float=Decimal)
+            ddb_table_f.put_item(Item=item)
 
 
 def _filter_method_selector(
@@ -149,7 +165,7 @@ def _filter_method_selector(
     y: np.ndarray,
 ) -> np.ndarray:
     """Filter method feature selector."""
-    scores = Parallel(n_jobs=-1, backend="loky")(
+    scores = Parallel(n_jobs=int(os.environ["N_JOBS_INNER"]), backend="loky")(
         delayed(ClassifierSelectors[method])(x=X[:, j], y=y, n_classes=n_classes, **hyperparameters)
         for j in range(n_features)
     )
@@ -177,7 +193,7 @@ def _filter_permutation_method_selector(
         _hyperparameters["n_resamples"] = ceil(z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"])
 
     key = method.split("_")[-1]
-    scores = Parallel(n_jobs=-1, backend="loky")(
+    scores = Parallel(n_jobs=int(os.environ["N_JOBS_INNER"]), backend="loky")(
         delayed(ClassifierSelectorTests[key])(x=X[:, j], y=y, n_classes=n_classes, **_hyperparameters)
         for j in range(n_features)
     )
@@ -232,7 +248,7 @@ if __name__ == "__main__":
         DATASETS[dataset] = (X, y)
 
     # Parallel loop
-    with Parallel(n_jobs=1, backend="loky", verbose=0) as parallel:
+    with Parallel(n_jobs=int(os.environ["N_JOBS_OUTER"]), backend="loky", verbose=0) as parallel:
         response = requests.get(f"{url}/status/")
         if response.ok:
             payload = json.loads(response.text)

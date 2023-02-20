@@ -154,11 +154,9 @@ def run(url: str) -> None:
 
 if __name__ == "__main__":
     url = os.environ["URL"]
-
     here = Path(__file__).resolve()
     data_dir = here.parents[1] / "data"
     files = [f for f in os.listdir(data_dir) if f.startswith("clf_")]
-
     # Populate datasets
     n_files = len(files)
     for j, f in enumerate(files, 1):

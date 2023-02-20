@@ -149,6 +149,7 @@ def run(url: str, skip: List[str]) -> None:
                 "n_samples": n_samples,
                 "n_features": n_features,
                 "n_classes": n_classes,
+                "message": message,
             }
 
             item = json.loads(json.dumps(item), parse_float=Decimal)

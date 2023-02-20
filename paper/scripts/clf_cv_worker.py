@@ -95,7 +95,9 @@ def run(url: str) -> None:
     """Calculate classifier metrics."""
     global DATASETS
 
-    ddb_table = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "Metrics")
+    ddb_table_s = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "Metrics")
+    ddb_table_f = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "MetricsFail")
+
     response = requests.get(url)
     if response.ok:
         config = json.loads(response.text)
@@ -113,43 +115,54 @@ def run(url: str) -> None:
         assert X_.shape[1] == n_features_used, "Number of subsetted features is incorrect"
 
         # Calculate CV scores
-        metrics = cv_scores(X=X_, y=y, n_classes=n_classes)
+        try:
+            metrics = cv_scores(X=X_, y=y, n_classes=n_classes)
 
-        # Update config with results
-        new_config = deepcopy(config)
-        new_config.update(metrics)
+            # Update config with results
+            new_config = deepcopy(config)
+            new_config.update(metrics)
 
-        # Cast data and write to DynamoDB
-        new_config["feature_ranks"] = ",".join(map(str, feature_ranks))
-        for key, value in new_config.items():
-            if type(value) is dict:
-                for k, v in value.items():
+            # Cast data and write to DynamoDB
+            new_config["feature_ranks"] = ",".join(map(str, feature_ranks))
+            for key, value in new_config.items():
+                if type(value) is dict:
+                    for k, v in value.items():
+                        try:
+                            v = float(v)
+                            if v.is_integer():
+                                v = int(v)
+                            new_config[key][k] = v
+                        except:  # noqa
+                            pass
+                else:
                     try:
-                        v = float(v)
-                        if v.is_integer():
-                            v = int(v)
-                        new_config[key][k] = v
+                        value = float(value)
+                        if value.is_integer():
+                            value = int(value)
+                        new_config[key] = value
                     except:  # noqa
                         pass
-            else:
-                try:
-                    value = float(value)
-                    if value.is_integer():
-                        value = int(value)
-                    new_config[key] = value
-                except:  # noqa
-                    pass
 
-        # Write to DynamoDB
-        try:
             item = json.loads(json.dumps(new_config), parse_float=Decimal)
-            ddb_table.put_item(Item=item)
+            ddb_table_s.put_item(Item=item)
         except Exception as e:
             message = str(e)
             logger.error(
                 f"Configuration: {config['config_idx']} | # Features: {n_features_used} | Dataset: "
                 f"{config['dataset']} | Error: {message}"
             )
+            item = {
+                "config_idx": config["config_idx"],
+                "method": config["method"],
+                "hyperparameters": config["config"],
+                "dataset": config["dataset"],
+                "n_samples": config["n_samples"],
+                "n_features": config["n_features"],
+                "n_classes": config["n_classes"],
+                "message": message,
+            }
+            item = json.loads(json.dumps(item), parse_float=Decimal)
+            ddb_table_f.put_item(Item=item)
 
 
 if __name__ == "__main__":

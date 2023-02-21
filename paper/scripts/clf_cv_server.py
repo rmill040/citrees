@@ -101,31 +101,17 @@ def create_configurations() -> None:
     # Populate configs
     deserializer = TypeDeserializer()
     dynamodb = boto3.client("dynamodb", region_name="us-east-1")
-    config_idx = 0
     for j, config in enumerate(parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]), 1):
-        if j % 100_000 == 0:
+        if j % 10_000 == 0:
             logger.info(f"{j} configs processed for testing feature selection")
         config = {k: deserializer.deserialize(v) for k, v in config.items()}
         config = json.loads(json.dumps(config, cls=DecimalEncoder))
-
-        if int(config["n_features"]) >= 100:
-            n_features_to_keep = np.arange(5, 105, 5)
-        else:
-            n_features_to_keep = np.arange(1, int(config["n_features"]) + 1)
-
-        feature_ranks = config["feature_ranks"].split(",")
-        for n_features in n_features_to_keep:
-            new_config = deepcopy(config)
-            config_idx += 1
-            new_config["config_idx"] = config_idx
-            new_config["feature_ranks"] = ",".join(feature_ranks[:n_features])
-            new_config["n_features_used"] = int(n_features)
-            CONFIGS.append(new_config)
+        CONFIGS.append(config)
 
     # Pull all items from DynamoDB and see what has already been processed
     processed = set()
     for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"] + "Metrics"):
-        if len(processed) % 100_000 == 0:
+        if len(processed) % 10_000 == 0:
             logger.info(f"{len(processed)} configs already processed from feature selection metrics table")
         processed.add(int(config["config_idx"]["N"]))
 

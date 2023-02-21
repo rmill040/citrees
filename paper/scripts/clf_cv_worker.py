@@ -1,7 +1,6 @@
 """Classifier metrics - WORKER."""
 import json
 import os
-from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict
@@ -21,7 +20,7 @@ from sklearn.preprocessing import label_binarize, StandardScaler
 DATASETS = {}
 RANDOM_STATE = 1718
 N_SPLITS = 5
-ITERATIONS = 5
+ITERATIONS = 3
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -75,7 +74,7 @@ def cv_scores(*, X: np.ndarray, y: np.ndarray, n_classes: int) -> Dict[str, Any]
             y_df = pipeline.decision_function(X_test)
             tmp_aucs[fold] = roc_auc_score(y_test, y_df)
 
-        # Update results
+        # Average results
         accs[i] = tmp_accs.mean()
         aucs[i] = tmp_aucs.mean()
         f1s[i] = tmp_f1s.mean()
@@ -106,51 +105,51 @@ def run(url: str) -> None:
         X, y = DATASETS[config["dataset"]]
         n_classes = int(config["n_classes"])
         feature_ranks = list(map(int, config["feature_ranks"].split(",")))
-        n_features_used = int(config["n_features_used"])
 
-        logger.info(
-            f"Configuration: {config['config_idx']} | # Features: {n_features_used} | Dataset: {config['dataset']}"
-        )
-        X_ = X[:, feature_ranks].reshape(-1, n_features_used)
-        assert X_.shape[1] == n_features_used, "Number of subsetted features is incorrect"
+        if int(config["n_features"]) >= 100:
+            n_features_to_keep = np.arange(5, 105, 5)
+        else:
+            n_features_to_keep = np.arange(1, int(config["n_features"]) + 1)
 
-        # Calculate CV scores
+        feature_ranks = config["feature_ranks"].split(",")
+        config["metrics"] = {
+            "feature_ranks": [],
+            "n_features_used": [],
+            "accuracy_mean": [],
+            "accuracy_std": [],
+            "f1_mean": [],
+            "f1_std": [],
+            "auc_mean": [],
+            "auc_std": [],
+        }
+
         try:
-            metrics = cv_scores(X=X_, y=y, n_classes=n_classes)
+            for j, n_features in enumerate(n_features_to_keep, 1):
 
-            # Update config with results
-            new_config = deepcopy(config)
-            new_config.update(metrics)
+                logger.info(
+                    f"Configuration: {config['config_idx']} | # Features - {n_features}: {j}/{len(n_features_to_keep)} "
+                    f"| Dataset: {config['dataset']}"
+                )
 
-            # Cast data and write to DynamoDB
-            new_config["feature_ranks"] = ",".join(map(str, feature_ranks))
-            for key, value in new_config.items():
-                if type(value) is dict:
-                    for k, v in value.items():
-                        try:
-                            v = float(v)
-                            if v.is_integer():
-                                v = int(v)
-                            new_config[key][k] = v
-                        except:  # noqa
-                            pass
-                else:
-                    try:
-                        value = float(value)
-                        if value.is_integer():
-                            value = int(value)
-                        new_config[key] = value
-                    except:  # noqa
-                        pass
+                X_ = X[:, feature_ranks[:n_features]].reshape(-1, n_features)
+                metrics = cv_scores(X=X_, y=y, n_classes=n_classes)
 
-            item = json.loads(json.dumps(new_config), parse_float=Decimal)
+                # Update metadata
+                config["metrics"]["feature_ranks"].append(",".join(map(str, feature_ranks[:n_features])))
+                config["metrics"]["n_features_used"].append(int(n_features))
+                for key, value in metrics.items():
+                    config["metrics"][key].append(value)
+
+            # Write to DynamoDB
+            item = json.loads(json.dumps(config), parse_float=Decimal)
             ddb_table_s.put_item(Item=item)
         except Exception as e:
             message = str(e)
             logger.error(
-                f"Configuration: {config['config_idx']} | # Features: {n_features_used} | Dataset: "
-                f"{config['dataset']} | Error: {message}"
+                f"Configuration: {config['config_idx']} | Dataset: {config['dataset']} | Error: {message}"
             )
+
+            # Write to DynamoDB
             item = {
                 "config_idx": config["config_idx"],
                 "method": config["method"],
@@ -161,6 +160,7 @@ def run(url: str) -> None:
                 "n_classes": config["n_classes"],
                 "message": message,
             }
+
             item = json.loads(json.dumps(item), parse_float=Decimal)
             ddb_table_f.put_item(Item=item)
 

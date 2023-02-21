@@ -98,6 +98,7 @@ def run(url: str) -> None:
     response = requests.get(url)
     if response.ok:
         config = json.loads(response.text)
+        config["config_idx"] = int(config["config_idx"])  # cast to int
 
         # Get dataset and relevant metadata
         X, y = DATASETS[config["dataset"]]

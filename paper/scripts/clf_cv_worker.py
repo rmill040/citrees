@@ -11,11 +11,11 @@ import pandas as pd
 import requests
 from joblib import delayed, Parallel
 from loguru import logger
-from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import label_binarize, StandardScaler
+from sklearn.svm import SVC
 
 DATASETS = {}
 RANDOM_STATE = 1718
@@ -42,8 +42,6 @@ def cv_scores(*, X: np.ndarray, y: np.ndarray, n_classes: int) -> Dict[str, Any]
     for i in range(ITERATIONS):
         # SGD parameters
         hyperparameters = {
-            "penalty": None,
-            "random_state": RANDOM_STATE + i,
             "class_weight": "balanced",
         }
 
@@ -60,7 +58,7 @@ def cv_scores(*, X: np.ndarray, y: np.ndarray, n_classes: int) -> Dict[str, Any]
             X_test, y_test = X[test_idx], y[test_idx]
 
             # Define pipeline
-            pipeline = Pipeline([("ss", StandardScaler()), ("clf", SGDClassifier(**hyperparameters))])
+            pipeline = Pipeline([("ss", StandardScaler()), ("clf", SVC(**hyperparameters))])
 
             # Fit pipeline and calculate metrics
             pipeline.fit(X_train, y_train)

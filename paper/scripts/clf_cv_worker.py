@@ -49,7 +49,7 @@ def cv_scores(*, X: np.ndarray, y: np.ndarray, n_classes: int) -> Dict[str, Any]
         tmp_accs = np.zeros(N_SPLITS)
         tmp_aucs = np.zeros(N_SPLITS)
         tmp_f1s = np.zeros(N_SPLITS)
-        cv = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=hyperparameters["random_state"])
+        cv = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
 
         # Run CV
         for fold, (train_idx, test_idx) in enumerate(cv.split(X, y)):

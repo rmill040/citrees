@@ -105,6 +105,7 @@ def create_configurations() -> None:
             logger.info(f"{j} configs processed for testing feature selection")
         config = {k: deserializer.deserialize(v) for k, v in config.items()}
         config = json.loads(json.dumps(config, cls=DecimalEncoder))
+        config["config_idx"] = int(config["config_idx"])
         CONFIGS.append(config)
 
     # Pull all items from DynamoDB and see what has already been processed

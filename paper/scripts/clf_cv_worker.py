@@ -109,7 +109,6 @@ def run(url: str) -> None:
         else:
             n_features_to_keep = np.arange(1, int(config["n_features"]) + 1)
 
-        feature_ranks = config["feature_ranks"].split(",")
         config["metrics"] = {
             "feature_ranks": [],
             "n_features_used": [],
@@ -151,7 +150,7 @@ def run(url: str) -> None:
             item = {
                 "config_idx": config["config_idx"],
                 "method": config["method"],
-                "hyperparameters": config["config"],
+                "hyperparameters": config["hyperparameters"],
                 "dataset": config["dataset"],
                 "n_samples": config["n_samples"],
                 "n_features": config["n_features"],

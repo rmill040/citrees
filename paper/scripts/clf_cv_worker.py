@@ -143,9 +143,7 @@ def run(url: str) -> None:
             ddb_table_s.put_item(Item=item)
         except Exception as e:
             message = str(e)
-            logger.error(
-                f"Configuration: {config['config_idx']} | Dataset: {config['dataset']} | Error: {message}"
-            )
+            logger.error(f"Configuration: {config['config_idx']} | Dataset: {config['dataset']} | Error: {message}")
 
             # Write to DynamoDB
             item = {

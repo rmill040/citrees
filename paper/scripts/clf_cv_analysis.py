@@ -1,57 +1,63 @@
 """Classifier metrics - ANALYSIS."""
-import os
 import json
+import os
 from collections import defaultdict
-from typing import Any, Dict
+from decimal import Decimal
+from pathlib import Path
+from typing import Any
 
-from joblib import delayed, Parallel
 import pandas as pd
+from boto3.dynamodb.types import TypeDeserializer
+from loguru import logger
 
 
-def cast_ddb_dtypes(node: Dict[str, Any]) -> Dict[str, Any]:
-    """Recursively cast data types for DDB data."""
-    if type(node) is dict:
-        for key in node.keys():
-            if "N" in node[key]:
-                value = float(node[key]["N"])
-                if value.is_integer():
-                    value = int(value)
-                node[key] = value
-            elif "S" in node[key]:
-                node[key] = str(node[key]["S"])
-            elif "NULL" in node[key]:
-                node[key] = bool(node[key]["NULL"])
-            elif "M" in node[key]:
-                node[key] = node[key]["M"]
-                cast_ddb_dtypes(node[key])
-            else:
-                pass
-    
-    return node
+DATA_DIR = Path(os.environ["DATA_DIR"]).resolve()
 
 
-data = defaultdict(list)
+class DecimalEncoder(json.JSONEncoder):
+    """Handle decimal data."""
+
+    def default(self, obj: Any) -> str:
+        """Cast decimal types."""
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super(DecimalEncoder, self).default(obj)
 
 
-def read(f):
-    tmp = defaultdict(list)
-    for line in open(f):
-        item = cast_ddb_dtypes(json.loads(line)["Item"])
-        tmp[item["method"] + "_" + item["dataset"]].append(item)
-    return tmp
-        
+def format_raw_data() -> None:
+    """Format raw data dump from DynamoDB and save as CSV files."""
+    deserde = TypeDeserializer()
+    results = defaultdict(list)
+    files = [f for f in os.listdir(DATA_DIR) if f.endswith(".json")]
+    for file in files:
+        logger.info(f"Processing file ({file})")
+        for j, line in enumerate(open(DATA_DIR / file), 1):
+            if j % 25_000 == 0:
+                logger.info(f"Processing row ({j})")
+            row = json.loads(line)["Item"]
+            row.pop("feature_ranks")
+            for key, value in row.items():
+                row[key] = deserde.deserialize(value)
+            row = json.loads(json.dumps(row, cls=DecimalEncoder))
+            for key, value in row["metrics"].items():
+                if key == "feature_ranks":
+                    continue
+                dtype = int if key == "n_features_used" else float
+                row["metrics"][key] = list(map(dtype, value))
+            results[row["method"]].append(row)
 
-files = [f for f in os.listdir(".") if f.endswith(".json")]
-results = Parallel(n_jobs=16, verbose=50, backend="loky")(delayed(read)(f) for f in files)
+    total = sum([len(results[key]) for key in results.keys()])
+    logger.info(f"{total} total configurations processed for feature selection")
 
-for result in results:
-    for k, v in result.items():
-        data[k].extend(v)
+    keys = list(results.keys())
+    for key in keys:
+        logger.info(f"Writing dataset ({key}) to disk")
+        df = pd.json_normalize(results.pop(key)).fillna("None")
+        df.to_csv(DATA_DIR / (key + ".csv"), index=False)
 
 
-for j, key in enumerate(data.keys(), 1):
-    path = "csv/" + key + ".csv"
-    df = pd.json_normalize(data[key])
-    df = df.fillna(value="None")
-    df.to_csv(path, index=False)
-    del df
+if __name__ == "__main__":
+    if bool(os.environ.get("GET_DATA")):
+        format_raw_data()
+
+    # TODO: Add other stuff here

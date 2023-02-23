@@ -72,7 +72,7 @@ def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:
 @ThresholdMethods.register("percentile")
 @njit(fastmath=True, nogil=True)
 def percentile(x: np.ndarray, max_thresholds: int, random_state: Optional[int] = None) -> np.ndarray:
-    """Percentiles of array.
+    """Percentiles of midpoints in array.
 
     Parameters
     ----------
@@ -93,14 +93,18 @@ def percentile(x: np.ndarray, max_thresholds: int, random_state: Optional[int] =
     if x.ndim > 1:
         x = x.ravel()
 
+    values = np.unique(x)
+    midpoints = (values[:-1] + values[1:]) / 2
+    max_thresholds = min(len(midpoints), max_thresholds)
     q = np.linspace(0, 100, max_thresholds)
-    return np.unique(np.percentile(x, q=q))
+
+    return np.unique(np.percentile(midpoints, q=q))
 
 
 @ThresholdMethods.register("histogram")
 @njit(fastmath=True, nogil=True)
 def histogram(x: np.ndarray, max_thresholds: int, random_state: Optional[int] = None) -> np.ndarray:
-    """Histogram bin edges of array.
+    """Histogram bin edges of midpoints in array.
 
     Parameters
     ----------
@@ -121,4 +125,8 @@ def histogram(x: np.ndarray, max_thresholds: int, random_state: Optional[int] = 
     if x.ndim > 1:
         x = x.ravel()
 
-    return np.unique(np.histogram(x, bins=max_thresholds)[1])
+    values = np.unique(x)
+    midpoints = (values[:-1] + values[1:]) / 2
+    max_thresholds = min(len(midpoints), max_thresholds)
+
+    return np.unique(np.histogram(midpoints, bins=max_thresholds)[1])

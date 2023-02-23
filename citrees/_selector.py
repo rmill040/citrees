@@ -130,10 +130,6 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_st
     for value in dev:
         sst += value
 
-    # Early stop here if denominator will be a divide by 0 error
-    if sst == 0.0:
-        return 0.0
-
     # Sum of squares between (SSB)
     ssb = 0.0
     for j in range(n_classes):
@@ -152,7 +148,10 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_st
         dev_j *= dev_j
         ssb += n_j * dev_j
 
-    return np.sqrt(ssb / sst)
+    try:
+        return np.sqrt(ssb / sst)
+    except Exception:
+        return 0.0
 
 
 @ClassifierSelectors.register("mi")
@@ -301,7 +300,10 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     ssx = n * sx2 - sx * sx
     ssy = n * sy2 - sy * sy
 
-    return 0.0 if ssx == 0.0 or ssy == 0.0 else cov / np.sqrt(ssx * ssy)
+    try:
+        return cov / np.sqrt(ssx * ssy)
+    except Exception:
+        return 0.0
 
 
 @RegressorSelectors.register("dc")

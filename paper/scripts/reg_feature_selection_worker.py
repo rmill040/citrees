@@ -1,4 +1,4 @@
-"""Classifier experiments - WORKER."""
+"""Regressor experiments - WORKER."""
 import json
 import os
 from copy import deepcopy
@@ -11,35 +11,35 @@ import boto3
 import numpy as np
 import pandas as pd
 import requests
-from catboost import CatBoostClassifier
+from catboost import CatBoostRegressor
 from joblib import delayed, Parallel
-from lightgbm import LGBMClassifier
+from lightgbm import LGBMRegressor
 from loguru import logger
 from pydantic import BaseModel
 from scipy.stats import norm
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
+from sklearn.linear_model import Lasso, LinearRegression, Ridge
 from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
+from sklearn.tree import DecisionTreeRegressor
+from xgboost import XGBRegressor
 
-from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
-from citrees._selector import ClassifierSelectors, ClassifierSelectorTests
+from citrees import ConditionalInferenceForestRegressor, ConditionalInferenceTreeRegressor
+from citrees._selector import RegressorSelectors, RegressorSelectorTests
 
 DATASETS = {}
 ESTIMATORS = {
-    "lr": LogisticRegression,
-    "lr_l1": LogisticRegression,
-    "lr_l2": LogisticRegression,
-    "xgb": XGBClassifier,
-    "lightgbm": LGBMClassifier,
-    "catboost": CatBoostClassifier,
-    "dt": DecisionTreeClassifier,
-    "rt": DecisionTreeClassifier,
-    "et": ExtraTreesClassifier,
-    "rf": RandomForestClassifier,
-    "cit": ConditionalInferenceTreeClassifier,
-    "cif": ConditionalInferenceForestClassifier,
+    "lr": LinearRegression,
+    "lr_l1": Lasso,
+    "lr_l2": Ridge,
+    "xgb": XGBRegressor,
+    "lightgbm": LGBMRegressor,
+    "catboost": CatBoostRegressor,
+    "dt": DecisionTreeRegressor,
+    "rt": DecisionTreeRegressor,
+    "et": ExtraTreesRegressor,
+    "rf": RandomForestRegressor,
+    "cit": ConditionalInferenceTreeRegressor,
+    "cif": ConditionalInferenceForestRegressor,
 }
 
 
@@ -52,7 +52,6 @@ class Result(BaseModel):
     dataset: str
     n_samples: int
     n_features: int
-    n_classes: int
 
 
 def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
@@ -75,24 +74,19 @@ def run(url: str, skip: List[str]) -> None:
         dataset = config.pop("dataset")
         n_samples = config.pop("n_samples")
         n_features = config.pop("n_features")
-        n_classes = config.pop("n_classes")
         method = config.pop("method")
         if method in skip:
             logger.warning(
                 f"Skipping Config Index: {config_idx} | Dataset: {dataset} | # Samples: {n_samples} | # Features: "
-                f"{n_features} | # Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config}"
+                f"{n_features} | Method: {method} | Hyperparameters:\n{config}"
             )
             return
-
-        # Handle oom errors
-        if method == "cif" and dataset == "isolet":
-            config["max_depth"] = 50
 
         if int(os.environ["N_JOBS_INNER"]) == -1 and config.get("n_jobs") == 1:
             config["n_jobs"] = -1
 
         X, y = DATASETS[dataset]
-        if method in ["mc", "mi", "hybrid"]:
+        if method in ["pc", "dc", "hybrid"]:
             func = _filter_method_selector
         elif method.startswith("ptest_"):
             func = _filter_permutation_method_selector
@@ -101,7 +95,7 @@ def run(url: str, skip: List[str]) -> None:
 
         logger.info(
             f"Config Index: {config_idx} | Dataset: {dataset} | # Samples: {n_samples} | # Features: {n_features} | "
-            f"# Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config}"
+            f"Method: {method} | Hyperparameters:\n{config}"
         )
 
         try:
@@ -109,7 +103,6 @@ def run(url: str, skip: List[str]) -> None:
                 method=method,
                 hyperparameters=config,
                 n_features=n_features,
-                n_classes=n_classes,
                 X=X,
                 y=y,
             )
@@ -125,7 +118,6 @@ def run(url: str, skip: List[str]) -> None:
                 "dataset": dataset,
                 "n_samples": n_samples,
                 "n_features": n_features,
-                "n_classes": n_classes,
                 "feature_ranks": feature_ranks,
             }
 
@@ -136,7 +128,7 @@ def run(url: str, skip: List[str]) -> None:
             message = str(e)
             logger.error(
                 f"Config Index: {config_idx} | Dataset: {dataset} | # Samples: {n_samples} | "
-                f"# Features: {n_features} | # Classes: {n_classes} | Method: {method} | Hyperparameters:\n{config} | "
+                f"# Features: {n_features} | Method: {method} | Hyperparameters:\n{config} | "
                 f"Error: {message}"
             )
 
@@ -148,12 +140,11 @@ def run(url: str, skip: List[str]) -> None:
                 "dataset": dataset,
                 "n_samples": n_samples,
                 "n_features": n_features,
-                "n_classes": n_classes,
                 "message": message,
             }
 
             item = json.loads(json.dumps(item), parse_float=Decimal)
-            ddb_table_f.put_item(Item=item)
+        ddb_table_f.put_item(Item=item)
 
 
 def _filter_method_selector(
@@ -161,14 +152,12 @@ def _filter_method_selector(
     method: str,
     hyperparameters: Dict[str, Any],
     n_features: int,
-    n_classes: int,
     X: np.ndarray,
     y: np.ndarray,
 ) -> np.ndarray:
     """Filter method feature selector."""
     scores = Parallel(n_jobs=int(os.environ["N_JOBS_INNER"]), backend="loky")(
-        delayed(ClassifierSelectors[method])(x=X[:, j], y=y, n_classes=n_classes, **hyperparameters)
-        for j in range(n_features)
+        delayed(RegressorSelectors[method])(x=X[:, j], y=y, **hyperparameters) for j in range(n_features)
     )
 
     return sort_features(scores=scores, higher_is_better=True)
@@ -179,7 +168,6 @@ def _filter_permutation_method_selector(
     method: str,
     hyperparameters: Dict[str, Any],
     n_features: int,
-    n_classes: int,
     X: np.ndarray,
     y: np.ndarray,
 ) -> np.ndarray:
@@ -195,8 +183,7 @@ def _filter_permutation_method_selector(
 
     key = method.split("_")[-1]
     scores = Parallel(n_jobs=int(os.environ["N_JOBS_INNER"]), backend="loky")(
-        delayed(ClassifierSelectorTests[key])(x=X[:, j], y=y, n_classes=n_classes, **_hyperparameters)
-        for j in range(n_features)
+        delayed(RegressorSelectorTests[key])(x=X[:, j], y=y, **_hyperparameters) for j in range(n_features)
     )
 
     return sort_features(scores=scores, higher_is_better=False)
@@ -207,17 +194,16 @@ def _embedding_method_selector(
     method: str,
     hyperparameters: Dict[str, Any],
     n_features: int,
-    n_classes: int,
     X: np.ndarray,
     y: np.ndarray,
 ) -> np.ndarray:
     """Embedding method feature selector."""
     estimator = ESTIMATORS[method]
-    clf = estimator(**hyperparameters).fit(X, y)
-    if hasattr(clf, "feature_importances_"):
-        scores = clf.feature_importances_
+    reg = estimator(**hyperparameters).fit(X, y)
+    if hasattr(reg, "feature_importances_"):
+        scores = reg.feature_importances_
     else:
-        scores = np.abs(clf.coef_)
+        scores = np.abs(reg.coef_)
         if scores.shape[0] > 1:
             scores = scores.sum(axis=0)
         scores = scores.ravel()
@@ -233,12 +219,12 @@ if __name__ == "__main__":
 
     here = Path(__file__).resolve()
     data_dir = here.parents[1] / "data"
-    files = [f for f in os.listdir(data_dir) if f.startswith("clf_")]
+    files = [f for f in os.listdir(data_dir) if f.startswith("reg_")]
 
     # Populate datasets
     n_files = len(files)
     for j, f in enumerate(files, 1):
-        dataset = f.replace("clf_", "").replace(".snappy.parquet", "")
+        dataset = f.replace("reg_", "").replace(".snappy.parquet", "")
         logger.info(f"Loading dataset {dataset} ({j}/{n_files})")
         X = pd.read_parquet(os.path.join(data_dir, f))
         y = X.pop("y").astype(int).values

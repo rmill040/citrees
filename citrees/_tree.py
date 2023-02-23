@@ -599,31 +599,24 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         reason : str
             Reason for muting feature.
         """
-        p = len(self._available_features)
+        # Drop feature and recalculate maximum features available
+        idx = self._available_features == feature
+        self._available_features: np.ndarray = self._available_features[~idx]  # make mypy happy with type
 
-        # Handle edge case
-        if p == 1:
-            warnings.warn(
-                f"Unable to mute feature ({self.feature_names_in_[feature]}) because only 1 feature available for "
-                "feature selection"
-            )
-        else:
-            # Drop feature and recalculate maximum features available
-            idx = self._available_features == feature
-            self._available_features: np.ndarray = self._available_features[~idx]  # make mypy happy with type
-            p = len(self._available_features)
+        p = len(self._available_features)
+        if self.verbose > 2:
+            print(f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features " "available")
+
+        if p > 0:
             self._max_features = (
                 calculate_max_value(n_values=p, desired_max=self.max_features) if self.max_features else p
             )
 
-            if self.verbose > 2:
-                print(
-                    f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features " "available"
-                )
-
             # Update alpha if needed
             if self._adjust_alpha_selector and self._n_resamples_selector is not None:
                 self._bonferroni_correction(adjust="selector", n_tests=self._max_features)
+        else:
+            self._max_features = 0
 
     def _scan_features(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> np.ndarray:
         """Perform feature scanning to return the feature indices that are most associated with the target.
@@ -642,10 +635,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Returns
         -------
         np.ndarray
-            Feature indices sorted in descending order based on strength of association with target.
+            Feature indices sorted in descending order based on strength of association with the target.
         """
         scores = np.array([self._selector(X[:, feature], y, **self._selector_kwargs) for feature in features])
         ranks = np.argsort(scores)[::-1]
+
         return features[ranks]
 
     def _scan_thresholds(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> np.ndarray:
@@ -665,13 +659,15 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Returns
         -------
         np.ndarray
-            Thresholds sorted in ascending order based on the impurity in children nodes resulting from binary split.
+            Thresholds sorted in ascending order based on the impurity in children nodes resulting from the binary
+            split.
         """
         scores = []
         for threshold in thresholds:
             idx = x <= threshold
             scores.append(self._splitter(y[idx]) + self._splitter(y[~idx]))
         ranks = np.argsort(scores)
+
         return thresholds[ranks]
 
     def _split_impurity(self, *, x: np.ndarray, y: np.ndarray, threshold: float) -> float:
@@ -733,6 +729,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         parent_impurity = self._splitter(y)
         children_impurity = (n_left / n) * self._splitter(y[idx]) + (n_right / n) * self._splitter(y[~idx])
         impurity_decrease = parent_impurity - children_impurity
+
         return parent_impurity, impurity_decrease
 
     def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int) -> Node:
@@ -768,7 +765,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             # Check for constant features and mute if constant
             for feature in self._available_features:
                 x = X[:, feature]
-                if np.all(x == x[0]) and len(self._available_features) > 1:
+                if np.all(x == x[0]):
                     self._mute_feature(feature=feature, reason="FEATURE IS CONSTANT")
 
             # Feature selection
@@ -778,10 +775,15 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # If early stopping, we scan features and sort based on most promising features but no need to also
             # randomly permute since a random sample is already taken from the feature set
-            features = prng.choice(self._available_features, size=self._max_features, replace=False)
-            if self._early_stopping_selector and self._scan_features:
-                features = self._scan_features(X, y, features)
-            best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)
+            if len(self._available_features):
+                features = (
+                    prng.choice(self._available_features, size=self._max_features, replace=False)
+                    if len(self._available_features) > 1
+                    else self._available_features
+                )
+                if self._early_stopping_selector and self._scan_features and len(features) > 1:
+                    features = self._scan_features(X, y, features)
+                best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)
 
         if reject_H0_feature:
             # Split selection
@@ -796,12 +798,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             )
 
             # If early stopping, we either scan thresholds and sort based on most promising thresholds or create a
-            # random permutation of the values to help randomize chance of finding best split and early stopping
+            # random permutation of the values to help randomize chance of finding a good split and early stopping
             thresholds = self._threshold_method(x, max_thresholds=self._max_thresholds, random_state=self._random_state)
             if self._early_stopping_splitter:
                 thresholds = (
                     self._scan_thresholds(x, y, thresholds)
-                    if self._threshold_scanning
+                    if self._threshold_scanning and len(thresholds) > 1
                     else prng.permutation(thresholds)
                 )
             best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(x, y, thresholds)
@@ -885,7 +887,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # self._selector_test and self._splitter_test
         for param in ["alpha_selector", "alpha_splitter", "early_stopping_selector", "early_stopping_splitter"]:
             setattr(self, f"_{param}", getattr(self, param))
-        
+
         common_selector_kwargs = {
             "random_state": self._random_state,
         }
@@ -900,7 +902,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._selector_test = ClassifierSelectorTests[self.selector]
             self._splitter = ClassifierSplitters[self.splitter]
             self._splitter_test = ClassifierSplitterTests[self.splitter]
-            
+
             n_classes = getattr(self, "n_classes_", len(np.unique(y)))
             self._selector_kwargs = {
                 **common_selector_kwargs,
@@ -910,7 +912,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 **common_selector_test_kwargs,
                 **{"n_classes": n_classes},
             }
-            
+
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
         else:
@@ -918,7 +920,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._selector_test = RegressorSelectorTests[self.selector]
             self._splitter = RegressorSplitters[self.splitter]
             self._splitter_test = RegressorSplitterTests[self.splitter]
-            
+
             self._selector_kwargs = {
                 **common_selector_kwargs,
                 **{"standardize": True},

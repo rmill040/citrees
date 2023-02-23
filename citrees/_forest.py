@@ -396,7 +396,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     bootstrap_method=self._bootstrap_method,
                     verbose=self._verbose,
                 )
-                for estimator_idx, estimator in enumerate(self.estimators, 1)
+                for estimator_idx, estimator in enumerate(self.estimators_, 1)
             )
 
         # Aggregate feature importances
@@ -823,6 +823,6 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         for estimator in self.estimators_:
             y_hat += estimator.predict(X)  # type: ignore
 
-        y_hat /= self._n_estimators_
+        y_hat /= self._n_estimators
 
         return y_hat

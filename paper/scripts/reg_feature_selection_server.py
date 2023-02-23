@@ -1,4 +1,4 @@
-"""Classifier experiments - SERVER."""
+"""Regression experiments - SERVER."""
 import concurrent.futures
 import inspect
 import itertools
@@ -21,7 +21,7 @@ app = FastAPI()
 
 HERE = Path(__file__).resolve()
 DATA_DIR = HERE.parents[1] / "data"
-FILES = [f for f in os.listdir(DATA_DIR) if f.startswith("clf_")]
+FILES = [f for f in os.listdir(DATA_DIR) if f.startswith("reg_")]
 
 METHODS = Registry("Methods")
 RANDOM_STATE = 1718
@@ -91,22 +91,22 @@ def parallel_scan_table(dynamo_client: Any, *, TableName: str, **kwargs: Dict[st
                 futures[executor.submit(dynamo_client.scan, **scan_params)] = scan_params
 
 
-@METHODS.register("mi")
-def mi() -> List[Dict[str, Any]]:
-    """Mutual information hyperparameters."""
+@METHODS.register("dc")
+def dc() -> List[Dict[str, Any]]:
+    """Distance correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
-    params = [{"random_state": RANDOM_STATE, "method": method}]
+    params = [{"standardize": True, "random_state": RANDOM_STATE, "method": method}]
 
     return params
 
 
-@METHODS.register("mc")
-def mc() -> List[Dict[str, Any]]:
-    """Multiple correlation hyperparameters."""
+@METHODS.register("pc")
+def pc() -> List[Dict[str, Any]]:
+    """Pearson correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
-    params = [{"random_state": RANDOM_STATE, "method": method}]
+    params = [{"standardize": True, "random_state": RANDOM_STATE, "method": method}]
 
     return params
 
@@ -116,14 +116,14 @@ def hybrid() -> List[Dict[str, Any]]:
     """Hybrid selector hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
-    params = [{"random_state": RANDOM_STATE, "method": method}]
+    params = [{"standardize": True, "random_state": RANDOM_STATE, "method": method}]
 
     return params
 
 
-@METHODS.register("ptest_mi")
-def ptest_mi() -> List[Dict[str, Any]]:
-    """Permutation testing with mutual information hyperparameters."""
+@METHODS.register("ptest_dc")
+def ptest_dc() -> List[Dict[str, Any]]:
+    """Permutation testing with distance correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -132,6 +132,7 @@ def ptest_mi() -> List[Dict[str, Any]]:
             for early_stopping in [True, False]:
                 params.append(
                     {
+                        "standardize": True,
                         "alpha": alpha,
                         "n_resamples": n_resamples,
                         "early_stopping": early_stopping,
@@ -143,9 +144,9 @@ def ptest_mi() -> List[Dict[str, Any]]:
     return params
 
 
-@METHODS.register("ptest_mc")
-def ptest_mc() -> List[Dict[str, Any]]:
-    """Permutation testing with multiple correlation hyperparameters."""
+@METHODS.register("ptest_pc")
+def ptest_pc() -> List[Dict[str, Any]]:
+    """Permutation testing with Pearson correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -154,6 +155,7 @@ def ptest_mc() -> List[Dict[str, Any]]:
             for early_stopping in [True, False]:
                 params.append(
                     {
+                        "standardize": True,
                         "alpha": alpha,
                         "n_resamples": n_resamples,
                         "early_stopping": early_stopping,
@@ -167,7 +169,7 @@ def ptest_mc() -> List[Dict[str, Any]]:
 
 @METHODS.register("ptest_hybrid")
 def ptest_hybrid() -> List[Dict[str, Any]]:
-    """Permutation testing with multiple correlation or mutual information hyperparameters."""
+    """Permutation testing with Pearson correlation or distance correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -176,6 +178,7 @@ def ptest_hybrid() -> List[Dict[str, Any]]:
             for early_stopping in [True, False]:
                 params.append(
                     {
+                        "standardize": True,
                         "alpha": alpha,
                         "n_resamples": n_resamples,
                         "early_stopping": early_stopping,
@@ -194,15 +197,24 @@ def ptest_hybrid() -> List[Dict[str, Any]]:
 
 @METHODS.register("lr")
 def lr() -> List[Dict[str, Any]]:
-    """Logistic regression hyperparameters."""
+    """Linear regression hyperparameters."""
     method = inspect.currentframe().f_code.co_name
+
+    params = [{"method": method}]
+
+    return params
+
+
+@METHODS.register("lr_l1")
+def lr_l1() -> List[Dict[str, Any]]:
+    """Linear regression with L1 norm hyperparameters."""
+    method = inspect.currentframe().f_code.co_name
+
     params = []
-    for class_weight in [None, "balanced"]:
+    for alpha in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
         params.append(
             {
-                "class_weight": class_weight,
-                "penalty": None,
-                "solver": "lbfgs",
+                "alpha": alpha,
                 "random_state": RANDOM_STATE,
                 "method": method,
             }
@@ -211,55 +223,31 @@ def lr() -> List[Dict[str, Any]]:
     return params
 
 
-@METHODS.register("lr_l1")
-def lr_l1() -> List[Dict[str, Any]]:
-    """Logistic regression with L1 norm hyperparameters."""
-    method = inspect.currentframe().f_code.co_name
-    params = []
-    for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
-        for class_weight in [None, "balanced"]:
-            params.append(
-                {
-                    "C": C,
-                    "class_weight": class_weight,
-                    "penalty": "l1",
-                    "solver": "liblinear",
-                    "random_state": RANDOM_STATE,
-                    "method": method,
-                }
-            )
-
-    return params
-
-
 @METHODS.register("lr_l2")
 def lr_l2() -> List[Dict[str, Any]]:
-    """Logistic regression with L2 norm hyperparameters."""
+    """Linear regression with L2 norm hyperparameters."""
     method = inspect.currentframe().f_code.co_name
+
     params = []
-    for C in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
-        for class_weight in [None, "balanced"]:
-            params.append(
-                {
-                    "C": C,
-                    "class_weight": class_weight,
-                    "penalty": "l2",
-                    "solver": "liblinear",
-                    "random_state": RANDOM_STATE,
-                    "method": method,
-                }
-            )
+    for alpha in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
+        params.append(
+            {
+                "alpha": alpha,
+                "random_state": RANDOM_STATE,
+                "method": method,
+            }
+        )
 
     return params
 
 
 @METHODS.register("xgb")
 def xgb() -> List[Dict[str, Any]]:
-    """XGBOOST classifier hyperparameters."""
+    """XGBOOST regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_depth in [1, 2, 3, 4, 6, 8]:
+    for max_depth in [1, 2, 4, 6, 8]:
         for learning_rate in [0.001, 0.01, 0.1]:
             for subsample in [0.8, 0.9, 1.0]:
                 for colsample_bytree in [0.8, 0.9, 1.0]:
@@ -287,144 +275,129 @@ def xgb() -> List[Dict[str, Any]]:
 
 @METHODS.register("lightgbm")
 def lightgbm() -> List[Dict[str, Any]]:
-    """LightGBM classifier hyperparameters."""
+    """LightGBM regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for max_depth in [1, 2, 3, 4, 6, 8]:
+    for max_depth in [1, 2, 4, 6, 8]:
         for learning_rate in [0.001, 0.01, 0.1]:
             for subsample in [0.8, 0.9, 1.0]:
                 for colsample_bytree in [0.8, 0.9, 1.0]:
                     for reg_alpha in [0.001, 0.01, None]:
                         for reg_lambda in [0.001, 0.01, None]:
                             for importance_type in ["split", "gain"]:
-                                for class_weight in [None, "balanced"]:
-                                    params.append(
-                                        {
-                                            "max_depth": max_depth,
-                                            "learning_rate": learning_rate,
-                                            "subsample": subsample,
-                                            "colsample_bytree": colsample_bytree,
-                                            "reg_alpha": reg_alpha,
-                                            "reg_lambda": reg_lambda,
-                                            "importance_type": importance_type,
-                                            "class_weight": class_weight,
-                                            "n_estimators": 100,
-                                            "n_jobs": 1,
-                                            "random_state": RANDOM_STATE,
-                                            "method": method,
-                                        }
-                                    )
+                                params.append(
+                                    {
+                                        "max_depth": max_depth,
+                                        "learning_rate": learning_rate,
+                                        "subsample": subsample,
+                                        "colsample_bytree": colsample_bytree,
+                                        "reg_alpha": reg_alpha,
+                                        "reg_lambda": reg_lambda,
+                                        "importance_type": importance_type,
+                                        "n_estimators": 100,
+                                        "n_jobs": 1,
+                                        "random_state": RANDOM_STATE,
+                                        "method": method,
+                                    }
+                                )
 
     return params
 
 
 @METHODS.register("catboost")
 def catboost() -> List[Dict[str, Any]]:
-    """CatBoost classifier hyperparameters."""
+    """CatBoost regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
-    for depth in [1, 2, 3, 4, 6, 8]:
+    for depth in [1, 2, 4, 6, 8]:
         for learning_rate in [0.001, 0.01, 0.1]:
             for l2_leaf_reg in [1, 3, 5, 7, 9]:
                 for colsample_bylevel in [0.8, 0.9, 1.0]:
-                    for auto_class_weights in [None, "Balanced"]:
-                        params.append(
-                            {
-                                "depth": depth,
-                                "learning_rate": learning_rate,
-                                "l2_leaf_reg": l2_leaf_reg,
-                                "colsample_bylevel": colsample_bylevel,
-                                "auto_class_weights": auto_class_weights,
-                                "thread_count": 1,
-                                "n_estimators": 100,
-                                "random_state": RANDOM_STATE,
-                                "verbose": 0,
-                                "method": method,
-                                "allow_writing_files": False,
-                            }
-                        )
+                    params.append(
+                        {
+                            "depth": depth,
+                            "learning_rate": learning_rate,
+                            "l2_leaf_reg": l2_leaf_reg,
+                            "colsample_bylevel": colsample_bylevel,
+                            "thread_count": 1,
+                            "n_estimators": 100,
+                            "random_state": RANDOM_STATE,
+                            "verbose": 0,
+                            "method": method,
+                            "allow_writing_files": False,
+                        }
+                    )
 
     return params
 
 
 @METHODS.register("dt")
 def dt() -> List[Dict[str, Any]]:
-    """Decision tree classifier hyperparameters."""
+    """Decision tree regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
-    params = []
-    for class_weight in [None, "balanced"]:
-        params.append(
-            {
-                "class_weight": class_weight,
-                "splitter": "best",
-                "random_state": RANDOM_STATE,
-                "method": method,
-            }
-        )
+    params = [
+        {
+            "splitter": "best",
+            "random_state": RANDOM_STATE,
+            "method": method,
+        }
+    ]
 
     return params
 
 
 @METHODS.register("rt")
 def rt() -> List[Dict[str, Any]]:
-    """Random decision tree classifier hyperparameters."""
+    """Random decision tree regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
-    params = []
-    for class_weight in [None, "balanced"]:
-        params.append(
-            {
-                "class_weight": class_weight,
-                "splitter": "random",
-                "random_state": RANDOM_STATE,
-                "method": method,
-            }
-        )
+    params = [
+        {
+            "splitter": "random",
+            "random_state": RANDOM_STATE,
+            "method": method,
+        }
+    ]
 
     return params
 
 
 @METHODS.register("rf")
 def rf() -> List[Dict[str, Any]]:
-    """Random forest classifier hyperparameters."""
+    """Random forest regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
     for max_samples in [None, 0.8]:
-        for class_weight in [None, "balanced"]:
-            params.append(
-                {
-                    "max_samples": max_samples,
-                    "class_weight": class_weight,
-                    "n_estimators": 100,
-                    "n_jobs": 1,
-                    "random_state": RANDOM_STATE,
-                    "method": method,
-                }
-            )
-
-    return params
-
-
-@METHODS.register("et")
-def et() -> List[Dict[str, Any]]:
-    """Extra trees classifier hyperparameters."""
-    method = inspect.currentframe().f_code.co_name
-
-    params = []
-    for class_weight in [None, "balanced"]:
         params.append(
             {
-                "class_weight": class_weight,
+                "max_samples": max_samples,
                 "n_estimators": 100,
                 "n_jobs": 1,
                 "random_state": RANDOM_STATE,
                 "method": method,
             }
         )
+
+    return params
+
+
+@METHODS.register("et")
+def et() -> List[Dict[str, Any]]:
+    """Extra trees regressor hyperparameters."""
+    method = inspect.currentframe().f_code.co_name
+
+    params = [
+        {
+            "n_estimators": 100,
+            "n_jobs": 1,
+            "random_state": RANDOM_STATE,
+            "method": method,
+        }
+    ]
 
     return params
 
@@ -473,7 +446,7 @@ def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
 
 @METHODS.register("cit")
 def cit() -> List[Dict[str, Any]]:
-    """Conditional inference tree classifier hyperparameters."""
+    """Conditional inference tree regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -534,7 +507,7 @@ def cit() -> List[Dict[str, Any]]:
 
 @METHODS.register("cif")
 def cif() -> List[Dict[str, Any]]:
-    """Conditional inference forest classifier hyperparameters."""
+    """Conditional inference forest regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
     params = []
@@ -615,46 +588,35 @@ def create_configurations() -> None:
     ds_configs = {}
     for f in FILES:
         df = pd.read_parquet(os.path.join(DATA_DIR, f))
-        dataset = f.replace("clf_", "").replace(".snappy.parquet", "")
+        dataset = f.replace("reg_", "").replace(".snappy.parquet", "")
         n_samples = df.shape[0]
         n_features = df.shape[1] - 1
-        n_classes = len(df["y"].unique())
         ds_configs[f] = {
             "dataset": dataset,
             "n_samples": n_samples,
             "n_features": n_features,
-            "n_classes": n_classes,
         }
         del df
 
-    config_idx = 461_688
-    hp_configs = {method: METHODS[method]() for method in METHODS.keys() if method in ["xgb", "lightgbm", "catboost"]}
+    config_idx = 0
+    hp_configs = {method: METHODS[method]() for method in METHODS.keys()}
     for method in hp_configs.keys():
         for config in hp_configs[method]:
-            if method == "catboost":
-                if config["depth"] not in [6, 8]:
-                    continue
-            elif method == "xgb":
-                if config["max_depth"] not in [6, 8]:
-                    continue
-            else:
-                if config["max_depth"] not in [3]:
-                    continue
             for name in ds_configs.keys():
                 CONFIGS.append({**config, **ds_configs[name], **{"config_idx": config_idx}})
                 config_idx += 1
 
-    # assert config_idx == len(CONFIGS)
+    assert config_idx == len(CONFIGS)
 
     # Pull all items from DynamoDB and see what has already been processed
-    # processed = set()
-    # dynamodb = boto3.client("dynamodb", region_name="us-east-1")
-    # for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]):
-    #     processed.add(int(config["config_idx"]["N"]))
+    processed = set()
+    dynamodb = boto3.client("dynamodb", region_name="us-east-1")
+    for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]):
+        processed.add(int(config["config_idx"]["N"]))
 
-    # if processed:
-    #     logger.info(f"Already processed ({len(processed)}) configurations, removing from list")
-    #     CONFIGS = list(filter(lambda config: config["config_idx"] not in processed, CONFIGS))
+    if processed:
+        logger.info(f"Already processed ({len(processed)}) configurations, removing from list")
+        CONFIGS = list(filter(lambda config: config["config_idx"] not in processed, CONFIGS))
 
     logger.info(f"Server ready with ({len(CONFIGS)}) configurations for feature selection")
 

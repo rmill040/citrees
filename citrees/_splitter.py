@@ -225,7 +225,9 @@ def mean_absolute_error(y: np.ndarray) -> float:
     if y.ndim > 1:
         y = y.ravel()
 
-    return np.mean(np.abs(y - y.mean()), 2)
+    dev = np.abs(y - y.mean())
+
+    return np.mean(dev)
 
 
 @RegressorSplitterTests.register("mse")

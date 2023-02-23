@@ -217,7 +217,7 @@ def _embedding_method_selector(
     if hasattr(clf, "feature_importances_"):
         scores = clf.feature_importances_
     else:
-        scores = abs(clf.coef_)
+        scores = np.abs(clf.coef_)
         if scores.shape[0] > 1:
             scores = scores.sum(axis=0)
         scores = scores.ravel()

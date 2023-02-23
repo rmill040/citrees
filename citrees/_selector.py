@@ -56,7 +56,7 @@ def _permutation_test(
     """
     np.random.seed(random_state)
 
-    theta = func(x, y, func_arg, random_state=random_state)
+    theta = np.abs(func(x, y, func_arg, random_state=random_state))
     y_ = y.copy()
     theta_p = np.empty(n_resamples)
 
@@ -70,7 +70,7 @@ def _permutation_test(
             np.random.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg, random_state=random_state)
             if i >= min_resamples - 1:
-                asl = np.mean(theta_p[: i + 1] >= theta)
+                asl = np.mean(np.abs(theta_p[: i + 1]) >= theta)
                 if asl < alpha:
                     break
 
@@ -78,7 +78,7 @@ def _permutation_test(
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg, random_state=random_state)
-        asl = np.mean(theta_p >= theta)
+        asl = np.mean(np.abs(theta_p) >= theta)
 
     return asl
 
@@ -333,6 +333,22 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random
         y = y.ravel()
 
     return _d_correlation(x, y) if standardize else _d_covariance(x, y)
+
+
+@RegressorSelectors.register("hybrid")
+def hybrid_regressor(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int) -> float:
+    """ADD HERE.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    pc = pearson_correlation(x=x, y=y, standardize=standardize, random_state=random_state)
+    dc = distance_correlation(x=x, y=y, standardize=standardize, random_state=random_state)
+
+    return max(pc, dc)
 
 
 @ClassifierSelectorTests.register("mc")
@@ -663,8 +679,8 @@ def permutation_test_hybrid_regressor(
     float
         Estimated achieved significance level.
     """
-    pc = abs(pearson_correlation(x, y, standardize=True))
-    dc = distance_correlation(x, y, standardize=True)
+    pc = np.abs(pearson_correlation(x, y, standardize=True, random_state=random_state))
+    dc = distance_correlation(x, y, standardize=True, random_state=random_state)
 
     if pc >= dc:
         asl = permutation_test_pearson_correlation(

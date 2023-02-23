@@ -885,43 +885,48 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # self._selector_test and self._splitter_test
         for param in ["alpha_selector", "alpha_splitter", "early_stopping_selector", "early_stopping_splitter"]:
             setattr(self, f"_{param}", getattr(self, param))
-
-        self._selector: Any
-        self._selector_test: Any
-        self._splitter: Any
-        self._splitter_test: Any
+        
+        common_selector_kwargs = {
+            "random_state": self._random_state,
+        }
+        common_selector_test_kwargs = {
+            "n_resamples": self._n_resamples_selector,
+            "early_stopping": self._early_stopping_selector,
+            "alpha": self._alpha_selector,
+            "random_state": self._random_state,
+        }
         if self._estimator_type == "classifier":
-            n_classes = getattr(self, "n_classes_", len(np.unique(y)))
             self._selector = ClassifierSelectors[self.selector]
-            self._selector_kwargs = {
-                "n_classes": n_classes,
-                "random_state": self._random_state,
-            }
             self._selector_test = ClassifierSelectorTests[self.selector]
-            self._selector_test_kwargs = {
-                "n_classes": n_classes,
-                "n_resamples": self._n_resamples_selector,
-                "early_stopping": self._early_stopping_selector,
-                "alpha": self._alpha_selector,
-                "random_state": self._random_state,
-            }
             self._splitter = ClassifierSplitters[self.splitter]
             self._splitter_test = ClassifierSplitterTests[self.splitter]
+            
+            n_classes = getattr(self, "n_classes_", len(np.unique(y)))
+            self._selector_kwargs = {
+                **common_selector_kwargs,
+                **{"n_classes": n_classes},
+            }
+            self._selector_test_kwargs = {
+                **common_selector_test_kwargs,
+                **{"n_classes": n_classes},
+            }
+            
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
         else:
             self._selector = RegressorSelectors[self.selector]
-            self._selector_kwargs = {
-                "standardize": False,
-                "random_state": self._random_state,
-            }
             self._selector_test = RegressorSelectorTests[self.selector]
-            self._selector_test_kwargs = {
-                "standardize": False,
-                "random_state": self._random_state,
-            }
             self._splitter = RegressorSplitters[self.splitter]
             self._splitter_test = RegressorSplitterTests[self.splitter]
+            
+            self._selector_kwargs = {
+                **common_selector_kwargs,
+                **{"standardize": True},
+            }
+            self._selector_test_kwargs = {
+                **common_selector_test_kwargs,
+                **{"standardize": True},
+            }
 
         self._splitter_test_kwargs = {
             "n_resamples": self._n_resamples_splitter,

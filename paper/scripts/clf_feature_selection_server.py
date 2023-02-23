@@ -627,34 +627,25 @@ def create_configurations() -> None:
         }
         del df
 
-    config_idx = 461_688
-    hp_configs = {method: METHODS[method]() for method in METHODS.keys() if method in ["xgb", "lightgbm", "catboost"]}
+    config_idx = 0
+    hp_configs = {method: METHODS[method]() for method in METHODS.keys()}
     for method in hp_configs.keys():
         for config in hp_configs[method]:
-            if method == "catboost":
-                if config["depth"] not in [6, 8]:
-                    continue
-            elif method == "xgb":
-                if config["max_depth"] not in [6, 8]:
-                    continue
-            else:
-                if config["max_depth"] not in [3]:
-                    continue
             for name in ds_configs.keys():
                 CONFIGS.append({**config, **ds_configs[name], **{"config_idx": config_idx}})
                 config_idx += 1
 
-    # assert config_idx == len(CONFIGS)
+    assert config_idx == len(CONFIGS)
 
     # Pull all items from DynamoDB and see what has already been processed
-    # processed = set()
-    # dynamodb = boto3.client("dynamodb", region_name="us-east-1")
-    # for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]):
-    #     processed.add(int(config["config_idx"]["N"]))
+    processed = set()
+    dynamodb = boto3.client("dynamodb", region_name="us-east-1")
+    for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]):
+        processed.add(int(config["config_idx"]["N"]))
 
-    # if processed:
-    #     logger.info(f"Already processed ({len(processed)}) configurations, removing from list")
-    #     CONFIGS = list(filter(lambda config: config["config_idx"] not in processed, CONFIGS))
+    if processed:
+        logger.info(f"Already processed ({len(processed)}) configurations, removing from list")
+        CONFIGS = list(filter(lambda config: config["config_idx"] not in processed, CONFIGS))
 
     logger.info(f"Server ready with ({len(CONFIGS)}) configurations for feature selection")
 

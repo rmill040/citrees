@@ -521,10 +521,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._bonferroni_correction(adjust="splitter", n_tests=len(thresholds))
 
         for threshold in thresholds:
-            # Check for constant split
-            if np.all(x == threshold):
-                continue
-
             # Split selection with permutation testing
             if self._n_resamples_splitter:
                 pval_threshold = self._splitter_test(x=x, y=y, threshold=threshold, **self._splitter_test_kwargs)
@@ -805,8 +801,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     x, max_thresholds=self._max_thresholds, random_state=self._random_state
                 )
             else:
-                self._max_thresholds = n_unique
-                thresholds = x_unique
+                # With smaller samples, just use all midpoints as potential split points
+                thresholds = (x_unique[:-1] + x_unique[1:]) / 2
+                self._max_thresholds = len(thresholds)
 
             if self._early_stopping_splitter:
                 thresholds = (

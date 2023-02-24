@@ -1,5 +1,5 @@
 from typing import Optional, Tuple, Union
-
+from math import ceil
 import numpy as np
 from numba import njit
 
@@ -62,11 +62,11 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
     if type(desired_max) is int:
         total = min(desired_max, n_values)
     elif desired_max == "sqrt":
-        total = round(np.sqrt(n_values))
+        total = ceil(np.sqrt(n_values))
     elif desired_max == "log2":
-        total = round(np.log2(n_values))
+        total = ceil(np.log2(n_values))
     elif type(desired_max) is float:
-        total = round(n_values * desired_max)
+        total = ceil(n_values * desired_max)
     else:
         total = n_values
 

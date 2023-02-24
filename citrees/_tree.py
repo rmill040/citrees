@@ -790,16 +790,24 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             x = X[:, best_feature]
 
             # Always recalculate self._max_thresholds given the sample size will change at each recursive call
-            n_unique = len(np.unique(x))
-            self._max_thresholds = (
-                calculate_max_value(n_values=n_unique, desired_max=self.max_thresholds)
-                if self.max_thresholds
-                else n_unique
-            )
+            x_unique = np.unique(x)
+            n_unique = len(x_unique)
+            if n_unique > 4:
+                self._max_thresholds = (
+                    calculate_max_value(n_values=n_unique, desired_max=self.max_thresholds)
+                    if self.max_thresholds
+                    else n_unique
+                )
 
-            # If early stopping, we either scan thresholds and sort based on most promising thresholds or create a
-            # random permutation of the values to help randomize chance of finding a good split and early stopping
-            thresholds = self._threshold_method(x, max_thresholds=self._max_thresholds, random_state=self._random_state)
+                # If early stopping, we either scan thresholds and sort based on most promising thresholds or create a
+                # random permutation of the values to help randomize chance of finding a good split and early stopping
+                thresholds = self._threshold_method(
+                    x, max_thresholds=self._max_thresholds, random_state=self._random_state
+                )
+            else:
+                self._max_thresholds = n_unique
+                thresholds = x_unique
+
             if self._early_stopping_splitter:
                 thresholds = (
                     self._scan_thresholds(x, y, thresholds)

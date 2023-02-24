@@ -103,7 +103,7 @@ def run(url: str) -> None:
         # Get dataset and relevant metadata
         X, y = DATASETS[config["dataset"]]
         n_classes = int(config["n_classes"])
-        feature_ranks = list(map(int, config["feature_ranks"].split(",")))
+        feature_ranks = list(map(int, config.pop("feature_ranks").split(",")))
 
         if int(config["n_features"]) >= 100:
             n_features_to_keep = np.arange(5, 105, 5)

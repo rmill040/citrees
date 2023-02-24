@@ -1,4 +1,4 @@
-"""Regressor experiments - WORKER."""
+"""Regression experiments - WORKER."""
 import json
 import os
 from copy import deepcopy

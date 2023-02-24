@@ -1,4 +1,4 @@
-"""Classifier metrics - WORKER."""
+"""Regression metrics - WORKER."""
 import json
 import os
 from decimal import Decimal
@@ -11,11 +11,11 @@ import pandas as pd
 import requests
 from joblib import delayed, Parallel
 from loguru import logger
-from sklearn.metrics import f1_score, roc_auc_score
-from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import KFold
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import label_binarize, StandardScaler
-from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
 
 DATASETS = {}
 RANDOM_STATE = 1718
@@ -33,62 +33,55 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(obj)
 
 
-def cv_scores(*, X: np.ndarray, y: np.ndarray, n_classes: int) -> Dict[str, Any]:
+def cv_scores(*, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
     """Run multiple iterations of cross-validation."""
-    accs = np.zeros(ITERATIONS)
-    aucs = np.zeros(ITERATIONS)
-    f1s = np.zeros(ITERATIONS)
+    r2s = np.zeros(ITERATIONS)
+    mses = np.zeros(ITERATIONS)
+    maes = np.zeros(ITERATIONS)
 
     for i in range(ITERATIONS):
-        hyperparameters = {
-            "class_weight": "balanced",
-        }
 
         # Variables for CV
-        tmp_accs = np.zeros(N_SPLITS)
-        tmp_aucs = np.zeros(N_SPLITS)
-        tmp_f1s = np.zeros(N_SPLITS)
-        cv = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
+        tmp_r2s = np.zeros(N_SPLITS)
+        tmp_mses = np.zeros(N_SPLITS)
+        tmp_maes = np.zeros(N_SPLITS)
+        cv = KFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
 
         # Run CV
-        for fold, (train_idx, test_idx) in enumerate(cv.split(X, y)):
+        for fold, (train_idx, test_idx) in enumerate(cv.split(X)):
             # Split data
             X_train, y_train = X[train_idx], y[train_idx]
             X_test, y_test = X[test_idx], y[test_idx]
 
             # Define pipeline
-            pipeline = Pipeline([("ss", StandardScaler()), ("clf", SVC(**hyperparameters))])
+            pipeline = Pipeline([("ss", StandardScaler()), ("reg", SVR())])
 
             # Fit pipeline and calculate metrics
             pipeline.fit(X_train, y_train)
+            
             y_hat = pipeline.predict(X_test)
-            tmp_accs[fold] = np.mean(y_test == y_hat)
-            tmp_f1s[fold] = f1_score(y_test, y_hat, average="micro")
-
-            # Calculate AUC
-            if n_classes > 2:
-                y_test = label_binarize(y_test, classes=list(np.unique(y)))
-            y_df = pipeline.decision_function(X_test)
-            tmp_aucs[fold] = roc_auc_score(y_test, y_df)
+            tmp_r2s[fold] = r2_score(y_test, y_hat)
+            tmp_mses[fold] = mean_squared_error(y_test, y_hat)
+            tmp_maes[fold] = mean_absolute_error(y_test, y_hat)
 
         # Average results
-        accs[i] = tmp_accs.mean()
-        aucs[i] = tmp_aucs.mean()
-        f1s[i] = tmp_f1s.mean()
+        r2s[i] = tmp_r2s.mean()
+        mses[i] = tmp_mses.mean()
+        maes[i] = tmp_maes.mean()
 
     # Return averaged results
     return {
-        "accuracy_mean": float(accs.mean()),
-        "accuracy_std": float(accs.std()),
-        "f1_mean": float(f1s.mean()),
-        "f1_std": float(f1s.std()),
-        "auc_mean": float(aucs.mean()),
-        "auc_std": float(aucs.std()),
+        "r2_mean": float(r2s.mean()),
+        "r2_std": float(r2s.std()),
+        "mse_mean": float(mses.mean()),
+        "mse_std": float(mses.std()),
+        "mae_mean": float(maes.mean()),
+        "mae_std": float(maes.std()),
     }
 
 
 def run(url: str) -> None:
-    """Calculate classifier metrics."""
+    """Calculate regression metrics."""
     global DATASETS
 
     ddb_table_s = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "Metrics")
@@ -101,7 +94,6 @@ def run(url: str) -> None:
 
         # Get dataset and relevant metadata
         X, y = DATASETS[config["dataset"]]
-        n_classes = int(config["n_classes"])
         feature_ranks = list(map(int, config.pop("feature_ranks").split(",")))
 
         if int(config["n_features"]) >= 100:
@@ -112,12 +104,12 @@ def run(url: str) -> None:
         config["metrics"] = {
             "feature_ranks": [],
             "n_features_used": [],
-            "accuracy_mean": [],
-            "accuracy_std": [],
-            "f1_mean": [],
-            "f1_std": [],
-            "auc_mean": [],
-            "auc_std": [],
+            "r2_mean": [],
+            "r2_std": [],
+            "mse_mean": [],
+            "mse_std": [],
+            "mae_mean": [],
+            "mae_std": [],
         }
 
         try:
@@ -129,7 +121,7 @@ def run(url: str) -> None:
                 )
 
                 X_ = X[:, feature_ranks[:n_features]].reshape(-1, n_features)
-                metrics = cv_scores(X=X_, y=y, n_classes=n_classes)
+                metrics = cv_scores(X=X_, y=y)
 
                 # Update metadata
                 config["metrics"]["feature_ranks"].append(",".join(map(str, feature_ranks[:n_features])))
@@ -152,7 +144,6 @@ def run(url: str) -> None:
                 "dataset": config["dataset"],
                 "n_samples": config["n_samples"],
                 "n_features": config["n_features"],
-                "n_classes": config["n_classes"],
                 "message": message,
             }
 
@@ -164,11 +155,11 @@ if __name__ == "__main__":
     url = os.environ["URL"]
     here = Path(__file__).resolve()
     data_dir = here.parents[1] / "data"
-    files = [f for f in os.listdir(data_dir) if f.startswith("clf_")]
+    files = [f for f in os.listdir(data_dir) if f.startswith("reg_")]
     # Populate datasets
     n_files = len(files)
     for j, f in enumerate(files, 1):
-        dataset = f.replace("clf_", "").replace(".snappy.parquet", "")
+        dataset = f.replace("reg_", "").replace(".snappy.parquet", "")
         logger.info(f"Loading dataset {dataset} ({j}/{n_files})")
         X = pd.read_parquet(os.path.join(data_dir, f))
         y = X.pop("y").astype(int).values

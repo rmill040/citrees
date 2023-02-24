@@ -144,7 +144,7 @@ def run(url: str, skip: List[str]) -> None:
             }
 
             item = json.loads(json.dumps(item), parse_float=Decimal)
-        ddb_table_f.put_item(Item=item)
+            ddb_table_f.put_item(Item=item)
 
 
 def _filter_method_selector(

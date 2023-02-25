@@ -58,7 +58,7 @@ def cv_scores(*, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
 
             # Fit pipeline and calculate metrics
             pipeline.fit(X_train, y_train)
-            
+
             y_hat = pipeline.predict(X_test)
             tmp_r2s[fold] = r2_score(y_test, y_hat)
             tmp_mses[fold] = mean_squared_error(y_test, y_hat)

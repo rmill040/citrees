@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "citrees"
 version = "0.1.0"
-description = "Bayesian conditional inference trees and forests"
+description = "Conditional inference trees and forests"
 authors = ["robert milletich <rmill040@gmail.com>"]
 
 [tool.poetry.dependencies]
@@ -18,15 +18,9 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^2.19.0"
-black = "^22.6.0"
-flake8 = "^4.0.1"
-mypy = "^0.961"
 pytest = "^7.1.2"
 tox = "^3.25.1"
-isort = "^5.10.1"
-flake8-docstrings = "^1.6.0"
 pytest-cov = "^4.0.0"
-ruff = "^0.0.247"
 
 [tool.poetry.group.experiments]
 optional = true
@@ -52,9 +46,9 @@ line-length = 120
 target-version = ['py38', 'py39', 'py310']
 
 [tool.ruff]
-select = ["A", "B", "C", "D", "E", "F"]
+select = ["A", "B", "D", "E", "F"]
 ignore = []
-fixable = ["A", "B", "C", "D", "E", "F"]
+fixable = ["A", "B", "D", "E", "F"]
 unfixable = []
 exclude = [
     ".bzr",

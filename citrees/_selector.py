@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from dcor import distance_correlation as _d_correlation
@@ -89,7 +89,7 @@ _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 
 @ClassifierSelectors.register("mc")
 @njit(nogil=True, fastmath=True)
-def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
+def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: Optional[int] = None) -> float:
     """Calculate the multiple correlation coefficient between x and y.
 
     Parameters
@@ -103,7 +103,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_st
     n_classes : int
         Number of classes.
 
-    random_state : int
+    random_state : int, default=None
         Random seed. Kept for API compatibility.
 
     Returns
@@ -201,7 +201,7 @@ def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state
 
 @RegressorSelectors.register("pc")
 @njit(nogil=True, fastmath=True)
-def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int) -> float:
+def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None) -> float:
     """Calculate the Pearson correlation coefficient between x and y.
 
     Parameters
@@ -215,7 +215,7 @@ def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_
     standardize : np.ndarray
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
-    random_state : int
+    random_state : int, default=None
         Random seed. Kept for API compatibility.
 
     Returns
@@ -307,7 +307,7 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
 
 
 @RegressorSelectors.register("dc")
-def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int) -> float:
+def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None) -> float:
     """Calculate the distance correlation.
 
     Parameters
@@ -321,7 +321,7 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random
     standardize : np.ndarray
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
-    random_state : int
+    random_state : int, default=None
         Random seed. Kept for API compatibility.
 
     Returns

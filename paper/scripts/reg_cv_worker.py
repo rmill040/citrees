@@ -11,11 +11,13 @@ import pandas as pd
 import requests
 from joblib import delayed, Parallel
 from loguru import logger
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.model_selection import KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
+
+from citrees._selector import _correlation
 
 DATASETS = {}
 RANDOM_STATE = 1718
@@ -60,7 +62,8 @@ def cv_scores(*, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
             pipeline.fit(X_train, y_train)
 
             y_hat = pipeline.predict(X_test)
-            tmp_r2s[fold] = r2_score(y_test, y_hat)
+            r = _correlation(y_test, y_hat)
+            tmp_r2s[fold] = r * r
             tmp_mses[fold] = mean_squared_error(y_test, y_hat)
             tmp_maes[fold] = mean_absolute_error(y_test, y_hat)
 

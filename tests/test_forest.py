@@ -1,1 +1,1 @@
-"""Tests related to citrees._forest.py file."""
+"""Tests for citrees._forest.py."""

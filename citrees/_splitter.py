@@ -172,13 +172,35 @@ def permutation_test_entropy(
     alpha: float,
     random_state: int,
 ) -> float:
-    """ADD HERE.
+    """_summary_.
 
     Parameters
     ----------
+    x : np.ndarray
+        _description_
+
+    y : np.ndarray
+        _description_
+
+    threshold : float
+        _description_
+
+    n_resamples : int
+        _description_
+
+    early_stopping : bool
+        _description_
+
+    alpha : float
+        _description_
+
+    random_state : int
+        _description_
 
     Returns
     -------
+    float
+        _description_
     """
     return _permutation_test_compiled(
         func=entropy,
@@ -195,13 +217,17 @@ def permutation_test_entropy(
 @RegressorSplitters.register("mse")
 @njit(fastmath=True, nogil=True)
 def mean_squared_error(y: np.ndarray) -> float:
-    """Mean squared error.
+    """_summary_.
 
     Parameters
     ----------
+    y : np.ndarray
+        _description_
 
     Returns
     -------
+    float
+        _description_
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -214,13 +240,17 @@ def mean_squared_error(y: np.ndarray) -> float:
 
 @RegressorSplitters.register("mae")
 def mean_absolute_error(y: np.ndarray) -> float:
-    """Mean absolute error.
+    """_summary_.
 
     Parameters
     ----------
+    y : np.ndarray
+        _description_
 
     Returns
     -------
+    float
+        _description_
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -240,13 +270,35 @@ def permutation_test_mse(
     alpha: float,
     random_state: int,
 ) -> float:
-    """ADD HERE.
+    """_summary_.
 
     Parameters
     ----------
+    x : np.ndarray
+        _description_
+
+    y : np.ndarray
+        _description_
+
+    threshold : float
+        _description_
+
+    n_resamples : int
+        _description_
+
+    early_stopping : bool
+        _description_
+
+    alpha : float
+        _description_
+
+    random_state : int
+        _description_
 
     Returns
     -------
+    float
+        _description_
     """
     return _permutation_test_compiled(
         func=mean_squared_error,
@@ -270,13 +322,35 @@ def permutation_test_mae(
     alpha: float,
     random_state: int,
 ) -> float:
-    """ADD HERE.
+    """_summary_.
 
     Parameters
     ----------
+    x : np.ndarray
+        _description_
+
+    y : np.ndarray
+        _description_
+
+    threshold : float
+        _description_
+
+    n_resamples : int
+        _description_
+
+    early_stopping : bool
+        _description_
+
+    alpha : float
+        _description_
+
+    random_state : int
+        _description_
 
     Returns
     -------
+    float
+        _description_
     """
     return _permutation_test_compiled(
         func=mean_absolute_error,

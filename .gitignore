@@ -1,3 +1,6 @@
+# Local files
+metrics/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -7,6 +10,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+*.ipynb
 .Python
 env/
 build/

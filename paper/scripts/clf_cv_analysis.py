@@ -10,7 +10,6 @@ import pandas as pd
 from boto3.dynamodb.types import TypeDeserializer
 from loguru import logger
 
-
 DATA_DIR = Path(os.environ["DATA_DIR"]).resolve()
 
 

@@ -90,7 +90,7 @@ _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
 @ClassifierSelectors.register("mc")
 @njit(nogil=True, fastmath=True)
 def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: Optional[int] = None) -> float:
-    """Calculate the multiple correlation coefficient between x and y.
+    """Calculate the multiple correlation coefficient.
 
     Parameters
     ----------
@@ -156,7 +156,7 @@ def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_st
 
 @ClassifierSelectors.register("mi")
 def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
-    """Calculate the mutual information between x and y.
+    """Calculate the mutual information.
 
     Parameters
     ----------
@@ -185,13 +185,26 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_stat
 
 @ClassifierSelectors.register("hybrid")
 def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
-    """ADD HERE.
+    """Calculate the multiple correlation and mutual information and return the higher metric.
 
     Parameters
     ----------
+    x : np.ndarray
+        Feature.
+
+    y : np.ndarray
+        Target.
+
+    n_classes : int
+        Number of classes.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    float
+        Estimated metric.
     """
     mc = multiple_correlation(x=x, y=y, n_classes=n_classes, random_state=random_state)
     mi = mutual_information(x=x, y=y, n_classes=n_classes, random_state=random_state)
@@ -202,7 +215,7 @@ def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state
 @RegressorSelectors.register("pc")
 @njit(nogil=True, fastmath=True)
 def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None) -> float:
-    """Calculate the Pearson correlation coefficient between x and y.
+    """Calculate the Pearson correlation coefficient.
 
     Parameters
     ----------
@@ -212,7 +225,7 @@ def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_
     y : np.ndarray
         Target values.
 
-    standardize : np.ndarray
+    standardize : bool
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
     random_state : int, default=None
@@ -318,7 +331,7 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random
     y : np.ndarray
         Target values.
 
-    standardize : np.ndarray
+    standardize : bool
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
     random_state : int, default=None
@@ -339,15 +352,28 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random
 
 @RegressorSelectors.register("hybrid")
 def hybrid_regressor(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int) -> float:
-    """ADD HERE.
+    """Calculate the Pearson correlation and distance correlation and return the higher metric.
 
     Parameters
     ----------
+    x : np.ndarray
+        Feature.
+
+    y : np.ndarray
+        Target.
+
+    standardize : bool
+        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    float
+        Estimated metric.
     """
-    pc = pearson_correlation(x=x, y=y, standardize=standardize, random_state=random_state)
+    pc = np.abs(pearson_correlation(x=x, y=y, standardize=standardize, random_state=random_state))
     dc = distance_correlation(x=x, y=y, standardize=standardize, random_state=random_state)
 
     return max(pc, dc)
@@ -472,8 +498,7 @@ def permutation_test_hybrid_classifier(
     alpha: float,
     random_state: int,
 ) -> float:
-    """Perform a permutation test using either the multiple correlation coefficient or mutual information whichever is
-    larger on the original data.
+    """Perform a permutation test using the larger of the multiple correlation or mutual information.
 
     Parameters
     ----------
@@ -551,7 +576,7 @@ def permutation_test_pearson_correlation(
     y : np.ndarray
         Target values.
 
-    standardize : np.ndarray
+    standardize : bool
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
     n_resamples : int
@@ -605,7 +630,7 @@ def permutation_test_distance_correlation(
     y : np.ndarray
         Target values.
 
-    standardize : np.ndarray
+    standardize : bool
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
     n_resamples : int
@@ -649,8 +674,7 @@ def permutation_test_hybrid_regressor(
     alpha: float,
     random_state: int,
 ) -> float:
-    """Perform a permutation test using either the Pearson correlation or distance correlation whichever is larger on
-    the original data.
+    """Perform a permutation test using the larger of the Pearson correlation and distance correlation.
 
     Parameters
     ----------
@@ -660,7 +684,7 @@ def permutation_test_hybrid_regressor(
     y : np.ndarray
         Target values.
 
-    standardize : np.ndarray
+    standardize : bool
         Whether to standardize the result. If True, return the correlation, if False, return the covariance.
 
     n_resamples : int

@@ -753,6 +753,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         impurity_decrease = -1
         n, p = X.shape
 
+        # Keep track of current tree depth
+        self.depth_ = depth
+
         # Check for stopping criteria at node level
         if n >= self._min_samples_split and depth <= self._max_depth and not np.all(y == y[0]):
             if self.verbose > 2:

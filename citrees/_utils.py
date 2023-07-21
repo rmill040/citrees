@@ -1,5 +1,6 @@
-from typing import Optional, Tuple, Union
 from math import ceil
+from typing import Optional, Tuple, Union
+
 import numpy as np
 from numba import njit
 
@@ -141,9 +142,22 @@ def stratified_bootstrap_sample(
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
+
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
+
+    bayesian_bootstrap : bool
+        Whether to use Bayesian bootstrap.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    np.ndarray
+        Indices for bootstrap sample.
     """
     prng = np.random.RandomState(random_state)
 
@@ -173,9 +187,22 @@ def stratified_bootstrap_unsampled_idx(
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
+
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
+
+    bayesian_bootstrap : bool
+        Whether to use Bayesian bootstrap.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    np.ndarray
+        Indices for bootstrap sample.
     """
     idx_sampled = stratified_bootstrap_sample(
         y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
@@ -193,9 +220,22 @@ def balanced_bootstrap_sample(
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
+
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
+
+    bayesian_bootstrap : bool
+        Whether to use Bayesian bootstrap.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    np.ndarray
+        Indices for bootstrap sample.
     """
     prng = np.random.RandomState(random_state)
 
@@ -224,9 +264,22 @@ def balanced_bootstrap_unsampled_idx(
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
+
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
+
+    bayesian_bootstrap : bool
+        Whether to use Bayesian bootstrap.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    np.ndarray
+        Indices for bootstrap sample.
     """
     idx_sampled = balanced_bootstrap_sample(
         y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
@@ -244,9 +297,22 @@ def classic_bootstrap_sample(
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
+
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
+
+    bayesian_bootstrap : bool
+        Whether to use Bayesian bootstrap.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    np.ndarray
+        Indices for bootstrap sample.
     """
     prng = np.random.RandomState(random_state)
 
@@ -266,9 +332,22 @@ def classic_bootstrap_unsampled_idx(
 
     Parameters
     ----------
+    y : np.ndarray
+        Input data.
+
+    max_samples : int
+        Maximum number of samples in a bootstrap sample.
+
+    bayesian_bootstrap : bool
+        Whether to use Bayesian bootstrap.
+
+    random_state : int
+        Random seed.
 
     Returns
     -------
+    np.ndarray
+        Indices for bootstrap sample.
     """
     idx_sampled = classic_bootstrap_sample(
         y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state

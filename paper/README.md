@@ -9,22 +9,29 @@ paper/
 ├── data/                    # Datasets (parquet format)
 │   ├── clf_*.parquet       # Classification datasets (24)
 │   └── reg_*.parquet       # Regression datasets (8)
-├── scripts/                 # Experiment scripts
+├── scripts/
+│   ├── configs.py          # Experiment config dataclasses
+│   ├── synthetic_experiments.py  # Synthetic data experiments
+│   ├── analysis.py         # Statistical tests and visualizations
+│   ├── generate_figures.py # Paper figure generation
 │   ├── clf_*               # Classification experiments
-│   ├── reg_*               # Regression experiments
-│   ├── synthetic_*.py      # Synthetic data experiments
-│   └── timing.py           # Performance benchmarks
-└── results/                 # Output directory (created by scripts)
+│   └── reg_*               # Regression experiments
+└── results/
+    ├── analysis/           # Tables and figures from analysis.py
+    └── *.parquet           # Experiment outputs
 ```
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-./scripts/install_dependencies.sh
+# Install paper dependencies
+uv sync --group paper
 
-# Run synthetic experiments locally
-uv run python scripts/synthetic_experiments.py
+# Run synthetic experiments
+uv run python paper/scripts/synthetic_experiments.py
+
+# Run analysis (after experiments complete)
+uv run python paper/scripts/analysis.py
 ```
 
 ## Experiment Overview
@@ -75,8 +82,10 @@ uv run python clf_feature_selection_worker.py
 Controlled experiments with known ground truth to evaluate feature selection quality.
 
 ```bash
-uv run python scripts/synthetic_experiments.py
+uv run python paper/scripts/synthetic_experiments.py
 ```
+
+**Methods compared:** citree, ciforest, rf, et, dt, xgb, lgbm
 
 **Varies:**
 - Total features: 50, 100, 500, 1000
@@ -88,7 +97,23 @@ uv run python scripts/synthetic_experiments.py
 - Precision@k / Recall@k for true feature recovery
 - Downstream classification accuracy
 
-### 3. Timing Experiments
+### 3. Analysis
+
+Statistical tests and visualizations for comparing methods.
+
+```bash
+uv run python paper/scripts/analysis.py
+```
+
+**Outputs:**
+- `results/analysis/tables/` - Friedman tests, rankings, summary stats (CSV + LaTeX)
+- `results/analysis/figures/` - CD diagrams, box plots, heatmaps
+
+**Statistical tests:**
+- Friedman test for overall method comparison
+- Nemenyi post-hoc test with critical difference
+
+### 4. Timing Experiments
 
 Benchmark different citrees configurations.
 

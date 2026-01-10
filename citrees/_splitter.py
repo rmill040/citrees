@@ -450,17 +450,20 @@ def permutation_test_entropy(
 @RegressorSplitters.register("mse")
 @njit(cache=True, fastmath=True, nogil=True)
 def mean_squared_error(y: np.ndarray) -> float:
-    """_summary_.
+    """Mean squared error impurity of a node.
+
+    Computes the variance of target values in a node, used as the
+    impurity criterion for regression tree splits.
 
     Parameters
     ----------
     y : np.ndarray
-        _description_
+        Target values in the node.
 
     Returns
     -------
     float
-        _description_
+        Mean squared error (variance) of the target values.
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -474,17 +477,20 @@ def mean_squared_error(y: np.ndarray) -> float:
 @RegressorSplitters.register("mae")
 @njit(cache=True, fastmath=True, nogil=True)
 def mean_absolute_error(y: np.ndarray) -> float:
-    """_summary_.
+    """Mean absolute error impurity of a node.
+
+    Computes the mean absolute deviation from the mean for target values
+    in a node, used as a robust impurity criterion for regression tree splits.
 
     Parameters
     ----------
     y : np.ndarray
-        _description_
+        Target values in the node.
 
     Returns
     -------
     float
-        _description_
+        Mean absolute error of the target values.
     """
     if y.ndim > 1:
         y = y.ravel()

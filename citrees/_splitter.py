@@ -170,6 +170,112 @@ def _permutation_test_mse_parallel(
     return np.mean(theta_p <= theta)
 
 
+# Parallel permutation test for Entropy (classifier)
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _permutation_test_entropy_parallel(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    random_state: int,
+) -> float:
+    """Parallel permutation test for entropy."""
+    idx = x <= threshold
+    y_left = y[idx]
+    y_right = y[~idx]
+
+    # Compute observed statistic
+    n_left = len(y_left)
+    n_right = len(y_right)
+    if n_left == 0 or n_right == 0:
+        return 1.0
+
+    # Entropy left
+    p_left = np.bincount(y_left) / n_left
+    entropy_left = 0.0
+    for p in p_left:
+        if p > 0:
+            entropy_left -= p * np.log2(p)
+
+    # Entropy right
+    p_right = np.bincount(y_right) / n_right
+    entropy_right = 0.0
+    for p in p_right:
+        if p > 0:
+            entropy_right -= p * np.log2(p)
+
+    theta = entropy_left + entropy_right
+
+    # Parallel permutation
+    theta_p = np.empty(n_resamples)
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)
+        y_perm = y.copy()
+        np.random.shuffle(y_perm)
+
+        y_left_perm = y_perm[idx]
+        y_right_perm = y_perm[~idx]
+
+        # Entropy left perm
+        p_left_perm = np.bincount(y_left_perm) / n_left
+        entropy_left_perm = 0.0
+        for p in p_left_perm:
+            if p > 0:
+                entropy_left_perm -= p * np.log2(p)
+
+        # Entropy right perm
+        p_right_perm = np.bincount(y_right_perm) / n_right
+        entropy_right_perm = 0.0
+        for p in p_right_perm:
+            if p > 0:
+                entropy_right_perm -= p * np.log2(p)
+
+        theta_p[i] = entropy_left_perm + entropy_right_perm
+
+    return np.mean(theta_p <= theta)
+
+
+# Parallel permutation test for MAE (regressor)
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _permutation_test_mae_parallel(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    random_state: int,
+) -> float:
+    """Parallel permutation test for MAE."""
+    idx = x <= threshold
+    y_left = y[idx]
+    y_right = y[~idx]
+
+    n_left = len(y_left)
+    n_right = len(y_right)
+    if n_left == 0 or n_right == 0:
+        return 1.0
+
+    # Compute observed statistic
+    dev_left = np.abs(y_left - y_left.mean())
+    dev_right = np.abs(y_right - y_right.mean())
+    theta = np.mean(dev_left) + np.mean(dev_right)
+
+    # Parallel permutation
+    theta_p = np.empty(n_resamples)
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)
+        y_perm = y.copy()
+        np.random.shuffle(y_perm)
+
+        y_left_perm = y_perm[idx]
+        y_right_perm = y_perm[~idx]
+
+        dev_left_perm = np.abs(y_left_perm - y_left_perm.mean())
+        dev_right_perm = np.abs(y_right_perm - y_right_perm.mean())
+        theta_p[i] = np.mean(dev_left_perm) + np.mean(dev_right_perm)
+
+    return np.mean(theta_p <= theta)
+
+
 @ClassifierSplitters.register("gini")
 @njit(cache=True, fastmath=True, nogil=True)
 def gini_index(y: np.ndarray) -> float:
@@ -289,36 +395,46 @@ def permutation_test_entropy(
     alpha: float,
     random_state: int,
 ) -> float:
-    """_summary_.
+    """Permutation test for entropy split selection.
 
     Parameters
     ----------
     x : np.ndarray
-        _description_
+        Feature values used for splitting.
 
     y : np.ndarray
-        _description_
+        Target values (class labels).
 
     threshold : float
-        _description_
+        Threshold value for creating binary split.
 
     n_resamples : int
-        _description_
+        Number of permutation resamples.
 
     early_stopping : bool
-        _description_
+        Whether to early stop if null hypothesis can be rejected.
 
     alpha : float
-        _description_
+        Significance level.
 
     random_state : int
-        _description_
+        Random seed.
 
     Returns
     -------
     float
-        _description_
+        Achieved significance level (p-value).
     """
+    # Use parallel version when early stopping is disabled and enough resamples
+    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+        return _permutation_test_entropy_parallel(
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            random_state=random_state,
+        )
+
     return _permutation_test_compiled(
         func=entropy,
         x=x,
@@ -450,36 +566,46 @@ def permutation_test_mae(
     alpha: float,
     random_state: int,
 ) -> float:
-    """_summary_.
+    """Permutation test for MAE split selection.
 
     Parameters
     ----------
     x : np.ndarray
-        _description_
+        Feature values used for splitting.
 
     y : np.ndarray
-        _description_
+        Target values (continuous).
 
     threshold : float
-        _description_
+        Threshold value for creating binary split.
 
     n_resamples : int
-        _description_
+        Number of permutation resamples.
 
     early_stopping : bool
-        _description_
+        Whether to early stop if null hypothesis can be rejected.
 
     alpha : float
-        _description_
+        Significance level.
 
     random_state : int
-        _description_
+        Random seed.
 
     Returns
     -------
     float
-        _description_
+        Achieved significance level (p-value).
     """
+    # Use parallel version when early stopping is disabled and enough resamples
+    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+        return _permutation_test_mae_parallel(
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            random_state=random_state,
+        )
+
     return _permutation_test_compiled(
         func=mean_absolute_error,
         x=x,

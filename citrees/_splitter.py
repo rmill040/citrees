@@ -162,7 +162,7 @@ def permutation_test_gini_index(
     )
 
 
-@ClassifierSplitterTests.register("entrop")
+@ClassifierSplitterTests.register("entropy")
 def permutation_test_entropy(
     x: np.ndarray,
     y: np.ndarray,
@@ -239,6 +239,7 @@ def mean_squared_error(y: np.ndarray) -> float:
 
 
 @RegressorSplitters.register("mae")
+@njit(fastmath=True, nogil=True)
 def mean_absolute_error(y: np.ndarray) -> float:
     """_summary_.
 

@@ -649,7 +649,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         idx = x <= threshold
         n = len(idx)
-        n_left = sum(idx)
+        n_left = idx.sum()
         n_right = n - n_left
 
         return (n_left / n) * self._splitter(y[idx]) + (n_right / n) * self._splitter(y[~idx])
@@ -1084,96 +1084,9 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
 
 
 class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorMixin):
-    """Conditional inference tree regressor.
+    """Conditional inference tree regressor."""
 
-    Parameters
-    ----------
-    selector : {"pc", "dc", "hybrid"}, default="pc"
-        Method for feature selection.
-
-    splitter : {"mse", "mae"}, default="mse"
-        Method for split selection.
-
-    alpha_selector : float, default=0.05
-        Alpha for feature selection.
-
-    alpha_splitter : float, default=0.05
-        Alpha for split selection.
-
-    adjust_alpha_selector : bool, default=True
-        Whether to perform a Bonferroni correction during feature selection.
-
-    adjust_alpha_splitter : bool, default=True
-        Whether to perform a Berferonni correction during split selection.
-
-    n_resamples_selector : {"auto", "minimum", "maximum"} or int, default="auto"
-        Number of resamples to use in permutation test for feature selection.
-
-    n_resamples_splitter : {"auto", "minimum", "maximum"} or int, default="auto"
-        Number of resamples to use in permutation test for split selection.
-
-    early_stopping_selector : bool, default=True
-        Use early stopping during feature selection.
-
-    early_stopping_splitter : bool, default=True
-        Use early stopping during split selection.
-
-    feature_muting : bool, default=True
-        Whether to perform feature muting.
-
-    feature_scanning : bool, default=True
-        Whether to perform feature scanning.
-
-    max_features : {"sqrt", "log2"}, int, or float, default=None
-        Maximum number of features to use for feature selection.
-
-    threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
-        Method to calculate thresholds on a feature used during split selection.
-
-    threshold_scanning : bool, default=True
-        Whether to perform threshold scanning.
-
-    max_thresholds : {"sqrt", "log2"}, int, or float, default=None
-        Maximum number of thresholds to use for split selection.
-
-    max_depth : int, default=None
-        Maximum depth to grow tree.
-
-    min_samples_split : int, default=2
-        Minimim samples required for a valid binary split.
-
-    min_samples_leaf : int, default=1
-        Minimum number of samples in a leaf node.
-
-    min_impurity_decrease : float, default=0.0
-        Minimum impurity decrease required for a valid binary split.
-
-    random_state : int, default=None
-        Random seed.
-
-    verbose : int, default=1
-        Controls verbosity when fitting and predicting.
-
-    check_for_unused_parameters : bool, default=False
-        Check for unused hyperparameters. Useful for debugging.
-
-    Attributes
-    ----------
-    classes_ : np.ndarray
-        Unique class labels.
-
-    n_classes_ : int
-        Number of classes.
-
-    feature_importances_ : np.ndarray
-        Feature importances for each feature.
-
-    n_features_in_ : int
-        Number of features seen during fit.
-
-    tree_ : Node
-        Underlying decision tree object.
-    """
+    _estimator_type = "regressor"
 
     def __init__(
         self,

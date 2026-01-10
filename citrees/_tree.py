@@ -537,7 +537,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 if n_resamples == "minimum":
                     _n_resamples = lower_limit
                 elif n_resamples == "maximum":
-                    _n_resamples = ceil(1 / (4 * alpha * alpha))
+                    _n_resamples = ceil(1 / (4 * _alpha * _alpha))
                 else:
                     z = norm.ppf(1 - _alpha)
                     upper_limit = ceil(z * z * (1 - _alpha) / _alpha)

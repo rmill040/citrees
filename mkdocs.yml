@@ -1,0 +1,86 @@
+site_name: citrees
+site_description: Conditional Inference Trees and Forests for Python
+site_author: Robert J. Milletich
+
+repo_name: rmill040/citrees
+repo_url: https://github.com/rmill040/citrees
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            heading_level: 2
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+  - admonition
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: index.md#installation
+    - Quick Start: index.md#quick-start
+  - User Guide:
+    - Algorithm: algorithm.md
+    - Selectors: selectors.md
+    - Splitters: splitters.md
+    - Permutation Tests: permutation-tests.md
+  - Advanced:
+    - Honest Estimation: honest-estimation.md
+    - Conformal Prediction: conformal-prediction.md
+    - SHAP Integration: shap.md
+  - Reference:
+    - Parameters: parameters.md
+    - API: api.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/rmill040/citrees

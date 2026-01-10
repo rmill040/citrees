@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import requests
 from joblib import delayed, Parallel
+from lightgbm import LGBMClassifier
 from loguru import logger
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, roc_auc_score
@@ -26,6 +27,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, label_binarize
 from sklearn.svm import SVC
+from xgboost import XGBClassifier
 
 DATASETS = {}
 RANDOM_STATE = 1718
@@ -37,6 +39,8 @@ DOWNSTREAM_MODELS = {
     "svm": lambda: SVC(class_weight="balanced", probability=True),
     "lr": lambda: LogisticRegression(class_weight="balanced", max_iter=1000, solver="lbfgs"),
     "knn": lambda: KNeighborsClassifier(n_neighbors=5, weights="distance"),
+    "xgb": lambda: XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=RANDOM_STATE, verbosity=0, n_jobs=1),
+    "lgbm": lambda: LGBMClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=RANDOM_STATE, verbose=-1, n_jobs=1),
 }
 
 

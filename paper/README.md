@@ -14,112 +14,336 @@ paper/
 │   ├── synthetic_experiments.py  # Synthetic data experiments
 │   ├── analysis.py         # Statistical tests and visualizations
 │   ├── generate_figures.py # Paper figure generation
+│   ├── ec2_launch.py       # EC2 server/worker launcher
 │   ├── clf_*               # Classification experiments
 │   └── reg_*               # Regression experiments
 └── results/
     ├── analysis/           # Tables and figures from analysis.py
+    │   ├── figures/        # PNG visualizations
+    │   └── tables/         # CSV and LaTeX tables
     └── *.parquet           # Experiment outputs
 ```
 
-## Quick Start
+## Quick Start (Local)
 
 ```bash
 # Install paper dependencies
 uv sync --group paper
 
-# Run synthetic experiments
+# Run synthetic experiments (self-contained, no AWS needed)
 uv run python paper/scripts/synthetic_experiments.py
 
 # Run analysis (after experiments complete)
 uv run python paper/scripts/analysis.py
 ```
 
+---
+
 ## Experiment Overview
 
-### 1. Feature Selection Experiments
+### 1. Synthetic Experiments (Local)
 
-Compare citrees feature ranking against baselines (RF, XGBoost, LightGBM, etc.) on real datasets.
-
-**Architecture**: Distributed server-worker pattern using FastAPI + DynamoDB
-
-**Classification:**
-
-| Script | Description |
-|--------|-------------|
-| `clf_feature_selection_server.py` | FastAPI server that serves experiment configurations |
-| `clf_feature_selection_worker.py` | Worker that runs feature selection methods |
-| `clf_cv_server.py` | Serves configurations for downstream evaluation |
-| `clf_cv_worker.py` | Multi-model downstream evaluation (SVM, LR, kNN) |
-| `clf_cv_analysis.py` | Analyze results and generate rankings |
-
-**Regression:**
-
-| Script | Description |
-|--------|-------------|
-| `reg_feature_selection_server.py` | FastAPI server for regression configs |
-| `reg_feature_selection_worker.py` | Worker for regression feature selection |
-| `reg_cv_server.py` | Serves configs for downstream evaluation |
-| `reg_cv_worker.py` | Multi-model downstream evaluation (SVR, Ridge, kNN) |
-| `reg_cv_analysis.py` | Analyze results and generate rankings |
-
-**Running distributed experiments:**
-
-```bash
-# Terminal 1: Start server
-export TABLE_NAME=ClfFeatureSelection
-uvicorn clf_feature_selection_server:app --host 0.0.0.0 --port 8000
-
-# Terminal 2+: Start workers
-export URL=http://localhost:8000
-export TABLE_NAME=ClfFeatureSelection
-export N_JOBS_OUTER=1
-export N_JOBS_INNER=-1
-uv run python clf_feature_selection_worker.py
-```
-
-### 2. Synthetic Experiments
-
-Controlled experiments with known ground truth to evaluate feature selection quality.
+Controlled experiments with known ground truth to evaluate feature selection quality. **No AWS required.**
 
 ```bash
 uv run python paper/scripts/synthetic_experiments.py
 ```
 
-**Methods compared:** citree, ciforest, rf, et, dt, xgb, lgbm
+**Methods compared:**
+| Method | Description |
+|--------|-------------|
+| `citree` | Conditional Inference Tree |
+| `ciforest` | Conditional Inference Forest |
+| `rf` | Random Forest |
+| `et` | Extra Trees |
+| `dt` | Decision Tree |
+| `xgb` | XGBoost |
+| `lgbm` | LightGBM |
 
-**Varies:**
+**Experimental grid:**
 - Total features: 50, 100, 500, 1000
 - Informative features: 5, 10, 20
 - Sample sizes: 200, 500, 1000
-- Signal strength: 0.5, 1.0, 2.0
+- Signal strength (class_sep): 0.5, 1.0, 2.0
+- 5 random seeds per configuration
 
 **Metrics:**
 - Precision@k / Recall@k for true feature recovery
-- Downstream classification accuracy
+- Downstream classification accuracy with selected features
 
-### 3. Analysis
+**Output:** `results/synthetic_experiments.parquet`
 
-Statistical tests and visualizations for comparing methods.
+---
+
+### 2. Feature Selection Experiments (Distributed)
+
+Compare citrees feature ranking against baselines on real datasets.
+
+**Architecture:** Distributed server-worker pattern using FastAPI + DynamoDB
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     DISTRIBUTED ARCHITECTURE                          │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│   ┌─────────────────┐         ┌─────────────────────────────────┐   │
+│   │   FastAPI       │  HTTP   │         EC2 Fleet               │   │
+│   │   Server        │◄────────│   ┌─────────┐  ┌─────────┐     │   │
+│   │   (configs)     │         │   │ Worker  │  │ Worker  │ ... │   │
+│   └────────┬────────┘         │   │   1     │  │   2     │     │   │
+│            │                  │   └────┬────┘  └────┬────┘     │   │
+│            │                  │        │            │           │   │
+│            ▼                  └────────┼────────────┼───────────┘   │
+│   ┌─────────────────┐                  │            │               │
+│   │   DynamoDB      │◄─────────────────┴────────────┘               │
+│   │   (results)     │              Results stored                   │
+│   └─────────────────┘                                               │
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Scripts:**
+
+| Script | Type | Description |
+|--------|------|-------------|
+| `clf_feature_selection_server.py` | Server | Serves experiment configurations |
+| `clf_feature_selection_worker.py` | Worker | Runs feature selection methods |
+| `clf_cv_server.py` | Server | Serves downstream evaluation configs |
+| `clf_cv_worker.py` | Worker | Multi-model evaluation (SVM, LR, kNN, XGB, LGBM) |
+| `clf_cv_analysis.py` | Analysis | Generate rankings and figures |
+| `reg_*` | Same | Regression equivalents |
+
+---
+
+## Distributed Computing Setup
+
+### Prerequisites
+
+1. **AWS Account** with permissions for:
+   - DynamoDB (create tables, read/write)
+   - EC2 (launch instances)
+   - IAM (create roles)
+
+2. **DynamoDB Tables** (create these first):
+   ```
+   ClfFeatureSelection        # Stores feature selection results
+   ClfFeatureSelectionFail    # Stores failed experiments
+   ClfFeatureSelectionMetrics # Stores CV evaluation results
+   ClfFeatureSelectionMetricsFail
+
+   # Same for regression:
+   RegFeatureSelection
+   RegFeatureSelectionFail
+   RegFeatureSelectionMetrics
+   RegFeatureSelectionMetricsFail
+   ```
+
+3. **IAM Role** for EC2 instances with DynamoDB access:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": [
+         "dynamodb:PutItem",
+         "dynamodb:GetItem",
+         "dynamodb:Scan",
+         "dynamodb:Query"
+       ],
+       "Resource": "arn:aws:dynamodb:us-east-1:*:table/*"
+     }]
+   }
+   ```
+
+### Running the Server
+
+The server generates experiment configurations and serves them to workers.
+
+```bash
+# Classification feature selection
+export TABLE_NAME=ClfFeatureSelection
+export AWS_DEFAULT_REGION=us-east-1
+uvicorn clf_feature_selection_server:app --host 0.0.0.0 --port 8000
+
+# Monitor status
+curl http://localhost:8000/status
+# {"n_configs_remaining": 234567, "hosts": {"10.0.0.5": 100, ...}}
+```
+
+### Running Workers (EC2 Fleet)
+
+Launch EC2 instances with the IAM role and run workers:
+
+```bash
+# Environment setup
+export URL=http://<server-ip>:8000
+export TABLE_NAME=ClfFeatureSelection
+export AWS_DEFAULT_REGION=us-east-1
+export N_JOBS_OUTER=1       # Number of parallel requests to server
+export N_JOBS_INNER=-1      # Parallelism within each experiment
+export SKIP=""              # Optional: comma-separated methods to skip
+
+# Install dependencies
+pip install -e ".[bench]"  # or use uv
+
+# Run worker (runs until no configs remaining)
+python paper/scripts/clf_feature_selection_worker.py
+```
+
+### Worker Scaling
+
+Scale horizontally by launching more EC2 instances. General guidelines:
+
+- **Instance type**: Use compute-optimized instances (c5, c6i, c7i families) for CPU-bound workloads
+- **N_JOBS_OUTER**: Set to 1-2 per 4 vCPUs to avoid overwhelming the server
+- **N_JOBS_INNER**: Set to `-1` to use all cores for each experiment
+- **Fleet size**: More instances = faster completion; each worker is stateless
+
+The server tracks progress via DynamoDB, so workers can be added/removed at any time without losing work.
+
+### Automated EC2 Deployment
+
+Use the provided launch scripts for automated deployment:
+
+```bash
+# Launch server instance
+python paper/scripts/ec2_launch.py server \
+    --table-name ClfFeatureSelection \
+    --instance-type c5.xlarge \
+    --key-name your-key-pair \
+    --iam-role citrees-worker-role \
+    --security-group sg-xxx
+
+# Launch worker fleet
+python paper/scripts/ec2_launch.py worker \
+    --server-url http://<server-private-ip>:8000 \
+    --table-name ClfFeatureSelection \
+    --instance-type c5.xlarge \
+    --count 10 \
+    --key-name your-key-pair \
+    --iam-role citrees-worker-role \
+    --security-group sg-xxx
+```
+
+See `paper/scripts/ec2_launch.py --help` for all options.
+
+### Running CV Evaluation (Phase 2)
+
+After feature selection completes, run downstream model evaluation:
+
+```bash
+# Server (serves configs from DynamoDB feature selection results)
+export TABLE_NAME=ClfFeatureSelection
+uvicorn clf_cv_server:app --host 0.0.0.0 --port 8000
+
+# Workers
+export URL=http://<server-ip>:8000
+export TABLE_NAME=ClfFeatureSelection
+python paper/scripts/clf_cv_worker.py
+```
+
+---
+
+## Analysis and Figures
+
+### Running Analysis
 
 ```bash
 uv run python paper/scripts/analysis.py
 ```
 
-**Outputs:**
-- `results/analysis/tables/` - Friedman tests, rankings, summary stats (CSV + LaTeX)
-- `results/analysis/figures/` - CD diagrams, box plots, heatmaps
+### Generated Figures
 
-**Statistical tests:**
-- Friedman test for overall method comparison
-- Nemenyi post-hoc test with critical difference
+| Figure | File | Description |
+|--------|------|-------------|
+| **Critical Difference Diagram** | `cd_precision@10.png` | Nemenyi post-hoc test visualization |
+| **Critical Difference Diagram** | `cd_downstream_acc_mean.png` | For downstream accuracy |
+| **Box Plots** | `boxplot_precision@10.png` | Method comparison distributions |
+| **Box Plots** | `boxplot_downstream_acc_mean.png` | Accuracy distributions |
+| **Heatmaps** | `heatmap_precision@10_*.png` | Performance by experimental factors |
 
-### 4. Timing Experiments
+### Generated Tables
 
-Benchmark different citrees configurations.
+| Table | File | Description |
+|-------|------|-------------|
+| **Friedman Test** | `friedman_synthetic.csv/.tex` | Overall significance test |
+| **Rankings** | `ranks_precision@10.csv/.tex` | Method rankings with CD |
+| **Rankings** | `ranks_downstream_acc_mean.csv/.tex` | Accuracy rankings |
+| **Summary Stats** | `summary_synthetic.csv` | Mean ± std for all metrics |
 
-```bash
-uv run python scripts/timing.py
+### Critical Difference Diagrams
+
+These diagrams show:
+- **Horizontal axis**: Average rank across datasets (lower = better)
+- **Black bars**: Connect methods not significantly different (Nemenyi test)
+- **CD bar**: Critical difference threshold
+
+Example interpretation:
 ```
+    1    2    3    4    5    6    7
+    |----ciforest
+    |----citree
+         |----rf
+              |----et
+                   |----xgb
+                        |----lgbm
+                             |----dt
+
+    CD = 1.23
+
+Methods connected by bars are NOT significantly different.
+```
+
+---
+
+## Methods Compared
+
+### Feature Selection Methods
+
+**Filter methods (score-based):**
+| Method | Task | Description |
+|--------|------|-------------|
+| `mc` | Classification | Multiple correlation (ANOVA-based) |
+| `mi` | Classification | Mutual information |
+| `rdc` | Both | Randomized dependence coefficient |
+| `pc` | Regression | Pearson correlation |
+| `dc` | Regression | Distance correlation |
+
+**Embedded methods (model-based):**
+| Method | Description | Importance Type |
+|--------|-------------|-----------------|
+| `cit` | Conditional Inference Tree | Impurity decrease |
+| `cif` | Conditional Inference Forest | Averaged impurity decrease |
+| `rf` | Random Forest | Impurity decrease |
+| `et` | Extra Trees | Impurity decrease |
+| `dt` | Decision Tree | Impurity decrease |
+| `xgb` | XGBoost | Gain / Weight / Cover |
+| `lightgbm` | LightGBM | Gain / Split |
+| `catboost` | CatBoost | Permutation importance |
+| `lr_l1` | Lasso | Coefficient magnitude |
+| `lr_l2` | Ridge | Coefficient magnitude |
+
+### Downstream Models (for CV evaluation)
+
+**Classification:**
+| Model | Description |
+|-------|-------------|
+| `svm` | Support Vector Machine (balanced) |
+| `lr` | Logistic Regression (balanced) |
+| `knn` | k-Nearest Neighbors (k=5, distance-weighted) |
+| `xgb` | XGBoost Classifier |
+| `lgbm` | LightGBM Classifier |
+
+**Regression:**
+| Model | Description |
+|-------|-------------|
+| `svr` | Support Vector Regression |
+| `ridge` | Ridge Regression (α=1.0) |
+| `knn` | k-Nearest Neighbors Regressor |
+| `xgb` | XGBoost Regressor |
+| `lgbm` | LightGBM Regressor |
+
+---
 
 ## Datasets
 
@@ -146,71 +370,51 @@ uv run python scripts/timing.py
 | community_crime | varies | varies | Social |
 | ... | | | |
 
-## Environment Variables
+---
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `TABLE_NAME` | DynamoDB table prefix | `ClfFeatureSelection` |
-| `URL` | FastAPI server URL | `http://localhost:8000` |
-| `N_JOBS_OUTER` | Parallel workers | `1` |
-| `N_JOBS_INNER` | Parallelism within worker | `-1` |
-| `DATA_DIR` | Data directory (for analysis) | `/path/to/data` |
-| `SKIP` | Methods to skip (comma-separated) | `xgb,lightgbm` |
+## Environment Variables Reference
 
-## Methods Compared
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `TABLE_NAME` | DynamoDB table prefix | Required | `ClfFeatureSelection` |
+| `URL` | FastAPI server URL | Required | `http://10.0.0.1:8000` |
+| `AWS_DEFAULT_REGION` | AWS region | `us-east-1` | `us-east-1` |
+| `N_JOBS_OUTER` | Parallel server requests | `1` | `4` |
+| `N_JOBS_INNER` | Parallelism within experiment | `-1` | `-1` (all cores) |
+| `SKIP` | Methods to skip | None | `xgb,lightgbm,catboost` |
+| `DATA_DIR` | Data directory (analysis) | None | `/path/to/data` |
+| `GET_DATA` | Export from DynamoDB | `0` | `1` |
 
-### Feature Selection Methods
+---
 
-**Filter methods:**
-- `mc` - Multiple correlation (classification)
-- `mi` - Mutual information (classification)
-- `pc` - Pearson correlation (regression)
-- `dc` - Distance correlation (regression)
-- `ptest_*` - Permutation test variants
+## Troubleshooting
 
-**Embedded methods:**
-- `cit` - Conditional Inference Tree
-- `cif` - Conditional Inference Forest
-- `rf` - Random Forest
-- `et` - Extra Trees
-- `dt` - Decision Tree
-- `xgb` - XGBoost
-- `lightgbm` - LightGBM
-- `catboost` - CatBoost
-- `lr` / `lr_l1` / `lr_l2` - Logistic/Linear Regression
+### Common Issues
 
-### Downstream Models (for evaluation)
+**Server shows 0 configs remaining:**
+- Configs already processed are stored in DynamoDB
+- Clear tables or use different `TABLE_NAME` for fresh run
 
-**Classification:**
-- SVM (Support Vector Machine)
-- LR (Logistic Regression)
-- kNN (k-Nearest Neighbors)
+**Worker connection refused:**
+- Check server is running and accessible
+- Verify security groups allow port 8000
 
-**Regression:**
-- SVR (Support Vector Regression)
-- Ridge (L2 regularized linear regression)
-- kNN (k-Nearest Neighbors Regressor)
+**Out of memory on large datasets:**
+- Reduce `N_JOBS_INNER` to `1`
+- Use larger instance type
+- Add `max_depth` limit for trees
 
-## Reproducing Results
+**DynamoDB throughput exceeded:**
+- Increase provisioned capacity or use on-demand
+- Reduce `N_JOBS_OUTER` on workers
 
-1. **Setup AWS resources** (for distributed runs):
-   - Create DynamoDB tables: `{TABLE_NAME}`, `{TABLE_NAME}Fail`, `{TABLE_NAME}Metrics`
-   - Launch EC2 instances with IAM role for DynamoDB access
+### Logging
 
-2. **Run feature selection**:
-   ```bash
-   # Generate configurations and run
-   ./scripts/run.sh scripts/clf_feature_selection_worker.py
-   ```
+Workers use `loguru` for structured logging:
 
-3. **Run downstream evaluation**:
-   ```bash
-   ./scripts/run.sh scripts/clf_cv_worker.py
-   ```
+```python
+from loguru import logger
+logger.info("Processing config {config_idx}")
+```
 
-4. **Analyze results**:
-   ```bash
-   export DATA_DIR=/path/to/exported/data
-   export GET_DATA=1
-   uv run python scripts/clf_cv_analysis.py
-   ```
+Check logs for experiment progress and errors.

@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import requests
 from joblib import delayed, Parallel
+from lightgbm import LGBMRegressor
 from loguru import logger
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -26,6 +27,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
+from xgboost import XGBRegressor
 
 DATASETS = {}
 RANDOM_STATE = 1718
@@ -37,6 +39,8 @@ DOWNSTREAM_MODELS = {
     "svr": lambda: SVR(),
     "ridge": lambda: Ridge(alpha=1.0),
     "knn": lambda: KNeighborsRegressor(n_neighbors=5, weights="distance"),
+    "xgb": lambda: XGBRegressor(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=RANDOM_STATE, verbosity=0, n_jobs=1),
+    "lgbm": lambda: LGBMRegressor(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=RANDOM_STATE, verbose=-1, n_jobs=1),
 }
 
 

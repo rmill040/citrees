@@ -1,6 +1,6 @@
 # flake8: noqa
-from ._forest import ConditionalInferenceForestClassifier, ConditionalInferenceForestRegressor
-from ._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor
+from citrees._forest import ConditionalInferenceForestClassifier, ConditionalInferenceForestRegressor
+from citrees._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor
 
 # Try to update recursion limit
 try:

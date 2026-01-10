@@ -1,23 +1,23 @@
 import warnings
 from abc import ABCMeta, abstractmethod
 from multiprocessing import cpu_count
-from typing import Literal, Optional, Union
+from typing import Literal
 
 import numpy as np
-from joblib import delayed, Parallel
-from pydantic import PositiveInt
-from pydantic.main import ModelMetaclass
-from sklearn.base import ClassifierMixin, clone, RegressorMixin
+from joblib import Parallel, delayed
+from pydantic import BaseModel
+from sklearn.base import ClassifierMixin, RegressorMixin, clone
 from sklearn.preprocessing import LabelEncoder
 
-from ._tree import (
+from citrees._tree import (
     BaseConditionalInferenceTreeEstimator,
     BaseConditionalInferenceTreeParameters,
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
+    PositiveInt,
     ProbabilityFloat,
 )
-from ._utils import (
+from citrees._utils import (
     balanced_bootstrap_sample,
     calculate_max_value,
     classic_bootstrap_sample,
@@ -40,8 +40,8 @@ def _parallel_fit_classifier(
     max_samples: int,
     estimator_idx: int,
     n_estimators: int,
-    bootstrap_method: Optional[str],
-    sampling_method: Optional[str],
+    bootstrap_method: str | None,
+    sampling_method: str | None,
     verbose: int,
 ) -> ConditionalInferenceTreeClassifier:
     """Build classification trees in parallel.
@@ -116,7 +116,7 @@ def _parallel_fit_regressor(
     max_samples: int,
     estimator_idx: int,
     n_estimators: int,
-    bootstrap_method: Optional[str],
+    bootstrap_method: str | None,
     verbose: int,
 ) -> ConditionalInferenceTreeRegressor:
     """Build regression trees in parallel.
@@ -180,15 +180,15 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
     """Model for BaseConditionalInferenceForest parameters."""
 
     n_estimators: PositiveInt
-    bootstrap_method: Optional[Literal["bayesian", "classic"]]
-    max_samples: Optional[Union[PositiveInt, ProbabilityFloat]]
-    n_jobs: Optional[int]
+    bootstrap_method: Literal["bayesian", "classic"] | None
+    max_samples: PositiveInt | ProbabilityFloat | None
+    n_jobs: int | None
 
 
 class ConditionalInferenceForestClassifierParameters(BaseConditionalInferenceForestParameters):
     """Model for ConditionalInferenceForestClassifier parameters."""
 
-    sampling_method: Optional[Literal["balanced", "stratified"]]
+    sampling_method: Literal["balanced", "stratified"] | None
 
 
 class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, metaclass=ABCMeta):
@@ -208,24 +208,24 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         alpha_splitter: float,
         adjust_alpha_selector: bool,
         adjust_alpha_splitter: bool,
-        n_resamples_selector: Optional[Union[str, int]],
-        n_resamples_splitter: Optional[Union[str, int]],
+        n_resamples_selector: str | int | None,
+        n_resamples_splitter: str | int | None,
         early_stopping_selector: bool,
         early_stopping_splitter: bool,
         feature_muting: bool,
         feature_scanning: bool,
         threshold_scanning: bool,
         threshold_method: str,
-        max_thresholds: Optional[Union[str, float, int]],
-        max_depth: Optional[int],
-        max_features: Optional[Union[str, float, int]],
+        max_thresholds: str | float | int | None,
+        max_depth: int | None,
+        max_features: str | float | int | None,
         min_samples_split: int,
         min_samples_leaf: int,
         min_impurity_decrease: float,
-        bootstrap_method: Optional[str],
-        max_samples: Optional[Union[int, float]],
-        n_jobs: Optional[int],
-        random_state: Optional[int],
+        bootstrap_method: str | None,
+        max_samples: int | float | None,
+        n_jobs: int | None,
+        random_state: int | None,
         verbose: int,
         check_for_unused_parameters: bool,
     ) -> None:
@@ -283,12 +283,12 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             )
 
     @property
-    def _parameter_model(self) -> ModelMetaclass:
+    def _parameter_model(self) -> type[BaseModel]:
         """Model for hyperparameter validation.
 
         Returns
         -------
-        ModelMetaclass
+        type[BaseModel]
             Model to validate hyperparameters.
         """
         return BaseConditionalInferenceForestParameters
@@ -534,25 +534,25 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         alpha_splitter: float = 0.05,
         adjust_alpha_selector: bool = True,
         adjust_alpha_splitter: bool = True,
-        n_resamples_selector: Optional[Union[str, int]] = "auto",
-        n_resamples_splitter: Optional[Union[str, int]] = "auto",
+        n_resamples_selector: str | int | None = "auto",
+        n_resamples_splitter: str | int | None = "auto",
         early_stopping_selector: bool = True,
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        max_features: Optional[Union[str, float, int]] = "sqrt",
+        max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
-        max_thresholds: Optional[Union[str, float, int]] = None,
-        max_depth: Optional[int] = None,
+        max_thresholds: str | float | int | None = None,
+        max_depth: int | None = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
-        bootstrap_method: Optional[str] = "bayesian",
-        sampling_method: Optional[str] = "stratified",
-        max_samples: Optional[Union[int, float]] = None,
-        n_jobs: Optional[int] = None,
-        random_state: Optional[int] = None,
+        bootstrap_method: str | None = "bayesian",
+        sampling_method: str | None = "stratified",
+        max_samples: int | float | None = None,
+        n_jobs: int | None = None,
+        random_state: int | None = None,
         verbose: int = 1,
         check_for_unused_parameters: bool = False,
     ) -> None:
@@ -590,12 +590,12 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
             self._validate_parameter_combinations()
 
     @property
-    def _parameter_model(self) -> ModelMetaclass:
+    def _parameter_model(self) -> type[BaseModel]:
         """Model for hyperparameter validation.
 
         Returns
         -------
-        ModelMetaclass
+        type[BaseModel]
             Model to validate hyperparameters.
         """
         return ConditionalInferenceForestClassifierParameters
@@ -753,24 +753,24 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         alpha_splitter: float = 0.05,
         adjust_alpha_selector: bool = True,
         adjust_alpha_splitter: bool = True,
-        n_resamples_selector: Optional[Union[str, int]] = "auto",
-        n_resamples_splitter: Optional[Union[str, int]] = "auto",
+        n_resamples_selector: str | int | None = "auto",
+        n_resamples_splitter: str | int | None = "auto",
         early_stopping_selector: bool = True,
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        max_features: Optional[Union[str, float, int]] = "sqrt",
+        max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
-        max_thresholds: Optional[Union[str, float, int]] = None,
-        max_depth: Optional[int] = None,
+        max_thresholds: str | float | int | None = None,
+        max_depth: int | None = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
-        bootstrap_method: Optional[str] = "bayesian",
-        max_samples: Optional[Union[int, float]] = None,
-        n_jobs: Optional[int] = None,
-        random_state: Optional[int] = None,
+        bootstrap_method: str | None = "bayesian",
+        max_samples: int | float | None = None,
+        n_jobs: int | None = None,
+        random_state: int | None = None,
         verbose: int = 1,
         check_for_unused_parameters: bool = False,
     ) -> None:

@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 from numba import njit
 
-from ._registry import ThresholdMethods
+from citrees._registry import ThresholdMethods
 
 
 @ThresholdMethods.register("exact")

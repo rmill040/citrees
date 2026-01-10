@@ -7,7 +7,7 @@ from dcor import distance_covariance as _d_covariance
 from numba import njit
 from sklearn.feature_selection import mutual_info_classif
 
-from ._registry import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
+from citrees._registry import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
 
 
 def _permutation_test(

@@ -1,80 +1,48 @@
 import warnings
-from abc import ABCMeta, abstractmethod, abstractproperty
+from abc import ABCMeta, abstractmethod
 from math import ceil
-from typing import Any, Dict, Literal, Optional, Tuple, TypedDict, Union
+from typing import Annotated, Any, Literal, TypedDict
 
 import numpy as np
-from pydantic import BaseModel, confloat, conint, NonNegativeFloat, NonNegativeInt, PositiveInt, validator
-from pydantic.main import ModelField, ModelMetaclass
+from pydantic import BaseModel, Field, field_validator, model_validator
 from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder
 
-from ._selector import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
-from ._splitter import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
-from ._threshold_method import ThresholdMethods
-from ._utils import calculate_max_value, estimate_mean, estimate_proba, split_data
+from citrees._selector import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
+from citrees._splitter import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
+from citrees._threshold_method import ThresholdMethods
+from citrees._utils import calculate_max_value, estimate_mean, estimate_proba, split_data
 
 # Type aliases
-ConstrainedInt = conint
-ConstrainedFloat = confloat
-ProbabilityFloat = ConstrainedFloat(gt=0.0, le=1.0)
-NResamplesOption = Optional[Union[Literal["minimum", "maximum", "auto"], NonNegativeInt]]
-MaxValuesOption = Optional[Union[Literal["sqrt", "log2"], ProbabilityFloat, NonNegativeInt]]  # type: ignore
+ProbabilityFloat = Annotated[float, Field(gt=0.0, le=1.0)]
+PositiveInt = Annotated[int, Field(gt=0)]
+NonNegativeInt = Annotated[int, Field(ge=0)]
+NonNegativeFloat = Annotated[float, Field(ge=0.0)]
+NResamplesOption = Literal["minimum", "maximum", "auto"] | NonNegativeInt | None
+MaxValuesOption = Literal["sqrt", "log2"] | float | int | None
 
 
 class Node(TypedDict, total=False):
-    """Node in decision tree.
-
-    Parameters
-    ----------
-    feature : int
-        Column index of feature.
-
-    pval_feature : float
-        Probability value from feature selection.
-
-    threshold : float
-        Best split point found in feature.
-
-    pval_threshold : float
-        Probability value from split selection.
-
-    impurity : float
-        Impurity measuring quality of split.
-
-    value : Union[np.ndarray, float]
-        Estimate of class probabilities for classification trees and estimate of central tendency for regression trees.
-
-    left_child : Node
-        Left child node where feature value met the threshold.
-
-    right_child : Node
-        Left child node where feature value did not meet the threshold.
-
-    n_samples : int
-        Number of samples at the node.
-    """
-
     feature: int
     pval_feature: float
     threshold: float
     pval_threshold: float
     impurity: float
-    value: Union[np.ndarray, float]
+    value: np.ndarray | float
     left_child: "Node"
     right_child: "Node"
     n_samples: int
 
 
 class BaseConditionalInferenceTreeParameters(BaseModel):
-    """Model for BaseConditionalInferenceTree parameters."""
+    model_config = {"arbitrary_types_allowed": True}
 
     estimator_type: Literal["classifier", "regressor"]
     selector: str
     splitter: str
-    alpha_selector: ProbabilityFloat  # type: ignore
-    alpha_splitter: ProbabilityFloat  # type: ignore
+    alpha_selector: ProbabilityFloat
+    alpha_splitter: ProbabilityFloat
     adjust_alpha_selector: bool
     adjust_alpha_splitter: bool
     n_resamples_selector: NResamplesOption
@@ -87,51 +55,45 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     threshold_method: Literal["exact", "random", "percentile", "histogram"]
     max_thresholds: MaxValuesOption
     max_features: MaxValuesOption
-    max_depth: Optional[PositiveInt]
-    min_samples_split: ConstrainedInt(ge=2)  # type: ignore
+    max_depth: PositiveInt | None = None
+    min_samples_split: Annotated[int, Field(ge=2)]
     min_samples_leaf: PositiveInt
     min_impurity_decrease: NonNegativeFloat
-    random_state: Optional[NonNegativeInt]
+    random_state: NonNegativeInt | None = None
     verbose: NonNegativeInt
     check_for_unused_parameters: bool
 
-    @validator("selector", "splitter", always=True)
-    def validate_selector_splitter(cls: ModelMetaclass, v: str, field: ModelField, values: Dict[str, Any]) -> str:
-        """Validate {selector,splitter}."""
-        if field.name == "selector":
-            registry = ClassifierSelectors if values["estimator_type"] == "classifier" else RegressorSelectors
+    @model_validator(mode="after")
+    def validate_selector_splitter(self) -> "BaseConditionalInferenceTreeParameters":
+        if self.estimator_type == "classifier":
+            sel_registry = ClassifierSelectors
+            spl_registry = ClassifierSplitters
         else:
-            registry = ClassifierSplitters if values["estimator_type"] == "classifier" else RegressorSplitters
-        supported = registry.keys()
-        if v not in supported:
-            raise ValueError(
-                f"{field.name} ({v}) not supported for ({values['estimator_type']}) estimator, expected one of: "
-                f"{supported}"
-            )
+            sel_registry = RegressorSelectors
+            spl_registry = RegressorSplitters
 
-        return v
+        if self.selector not in sel_registry.keys():
+            raise ValueError(f"selector '{self.selector}' not in {sel_registry.keys()}")
+        if self.splitter not in spl_registry.keys():
+            raise ValueError(f"splitter '{self.splitter}' not in {spl_registry.keys()}")
 
-    @validator("n_resamples_selector", "n_resamples_splitter", always=True)
-    def validate_n_resamples(
-        cls: ModelMetaclass, v: NResamplesOption, field: ModelField, values: Dict[str, Any]
-    ) -> NResamplesOption:
-        """Validate n_resamples_{selector,splitter}."""
-        if type(v) == int:
-            attribute = "selector" if "selector" in field.name else "splitter"
-            alpha = values[f"alpha_{attribute}"]
-            min_samples = ceil(1 / alpha)
-            if v < min_samples:
-                raise ValueError(f"{field.name} ({v}) should be >= {min_samples} with alpha_{attribute}={alpha}")
+        for attr in ["n_resamples_selector", "n_resamples_splitter"]:
+            v = getattr(self, attr)
+            if isinstance(v, int):
+                alpha_attr = "alpha_selector" if "selector" in attr else "alpha_splitter"
+                alpha = getattr(self, alpha_attr)
+                min_samples = ceil(1 / alpha)
+                if v < min_samples:
+                    raise ValueError(f"{attr} ({v}) should be >= {min_samples}")
 
-        return v
+        return self
 
 
 class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
-    """Base conditional inference tree estimator."""
 
-    @abstractproperty
-    def _parameter_model(self) -> ModelMetaclass:
-        """Model for validating hyperparameters."""
+    @property
+    @abstractmethod
+    def _parameter_model(self) -> type[BaseModel]:
         pass
 
     def __repr__(self) -> str:
@@ -167,7 +129,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         """
         return self.__repr__()
 
-    def _validate_data_fit(self, *, X: Any, y: Any, estimator_type: str) -> Tuple[np.ndarray, np.ndarray]:
+    def _validate_data_fit(self, *, X: Any, y: Any, estimator_type: str) -> tuple[np.ndarray, np.ndarray]:
         """Validate data for training by checking types and casting.
 
         Parameters
@@ -283,12 +245,12 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         X = X.astype(float)
         return X
 
-    def _validate_parameters(self, params: Dict[str, Any]) -> None:
+    def _validate_parameters(self, params: dict[str, Any]) -> None:
         """Validate hyperparameters.
 
         Parameters
         ----------
-        params : Dict[str, Any]
+        params : dict[str, Any]
             Hyperparameters.
         """
         self._parameter_model(**params)
@@ -364,21 +326,21 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         alpha_splitter: float,
         adjust_alpha_selector: bool,
         adjust_alpha_splitter: bool,
-        n_resamples_selector: Optional[Union[str, int]],
-        n_resamples_splitter: Optional[Union[str, int]],
+        n_resamples_selector: str | int | None,
+        n_resamples_splitter: str | int | None,
         early_stopping_selector: bool,
         early_stopping_splitter: bool,
         feature_muting: bool,
         feature_scanning: bool,
         threshold_scanning: bool,
         threshold_method: str,
-        max_thresholds: Optional[Union[str, float, int]],
-        max_depth: Optional[int],
-        max_features: Optional[Union[str, float, int]],
+        max_thresholds: str | float | int | None,
+        max_depth: int | None,
+        max_features: str | float | int | None,
         min_samples_split: int,
         min_samples_leaf: int,
         min_impurity_decrease: float,
-        random_state: Optional[int],
+        random_state: int | None,
         verbose: int,
         check_for_unused_parameters: bool,
     ) -> None:
@@ -411,22 +373,22 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._validate_parameter_combinations()
 
     @abstractmethod
-    def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
+    def _node_value(self, y: np.ndarray) -> float | np.ndarray:
         """Calculate value in terminal node."""
         pass
 
     @property
-    def _parameter_model(self) -> ModelMetaclass:
+    def _parameter_model(self) -> type[BaseModel]:
         """Model for hyperparameter validation.
 
         Returns
         -------
-        ModelMetaclass
+        type[BaseModel]
             Model to validate hyperparameters.
         """
         return BaseConditionalInferenceTreeParameters
 
-    def _select_best_feature(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> Tuple[int, float, bool]:
+    def _select_best_feature(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> tuple[int, float, bool]:
         """Select best feature associated with the target.
 
         Parameters
@@ -487,7 +449,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         return best_feature, best_pval, reject_H0
 
-    def _select_best_split(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> Tuple[float, float, bool]:
+    def _select_best_split(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> tuple[float, float, bool]:
         """Select best binary split.
 
         Parameters
@@ -694,7 +656,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
     def _node_impurity(
         self, *, y: np.ndarray, idx: np.ndarray, n: int, n_left: int, n_right: int
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """Calculate node impurity.
 
         Parameters
@@ -976,7 +938,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         return self
 
-    def _predict_value(self, x: np.ndarray, tree: Optional[Node] = None) -> Union[float, np.ndarray]:
+    def _predict_value(self, x: np.ndarray, tree: Node | None = None) -> float | np.ndarray:
         """Predict target for single sample.
 
         Parameters
@@ -989,7 +951,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         Returns
         -------
-        Union[float, np.ndarray]
+        float | np.ndarray
             Predicted value for sample.
         """
         # If we have a value => return value as the prediction
@@ -1116,21 +1078,21 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         alpha_splitter: float = 0.05,
         adjust_alpha_selector: bool = True,
         adjust_alpha_splitter: bool = True,
-        n_resamples_selector: Optional[Union[str, int]] = "auto",
-        n_resamples_splitter: Optional[Union[str, int]] = "auto",
+        n_resamples_selector: str | int | None = "auto",
+        n_resamples_splitter: str | int | None = "auto",
         early_stopping_selector: bool = True,
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        max_features: Optional[Union[str, float, int]] = None,
+        max_features: str | float | int | None = None,
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
-        max_thresholds: Optional[Union[str, float, int]] = None,
-        max_depth: Optional[int] = None,
+        max_thresholds: str | float | int | None = None,
+        max_depth: int | None = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         verbose: int = 1,
         check_for_unused_parameters: bool = False,
     ) -> None:
@@ -1160,7 +1122,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
             check_for_unused_parameters=check_for_unused_parameters,
         )
 
-    def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
+    def _node_value(self, y: np.ndarray) -> float | np.ndarray:
         """Calculate value in terminal node.
 
         Parameters
@@ -1312,21 +1274,21 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         alpha_splitter: float = 0.05,
         adjust_alpha_selector: bool = True,
         adjust_alpha_splitter: bool = True,
-        n_resamples_selector: Optional[Union[str, int]] = "auto",
-        n_resamples_splitter: Optional[Union[str, int]] = "auto",
+        n_resamples_selector: str | int | None = "auto",
+        n_resamples_splitter: str | int | None = "auto",
         early_stopping_selector: bool = True,
         early_stopping_splitter: bool = True,
         feature_muting: bool = True,
         feature_scanning: bool = True,
-        max_features: Optional[Union[str, float, int]] = None,
+        max_features: str | float | int | None = None,
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
-        max_thresholds: Optional[Union[str, float, int]] = None,
-        max_depth: Optional[int] = None,
+        max_thresholds: str | float | int | None = None,
+        max_depth: int | None = None,
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         verbose: int = 1,
         check_for_unused_parameters: bool = False,
     ) -> None:
@@ -1356,7 +1318,7 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
             check_for_unused_parameters=check_for_unused_parameters,
         )
 
-    def _node_value(self, y: np.ndarray) -> Union[float, np.ndarray]:
+    def _node_value(self, y: np.ndarray) -> float | np.ndarray:
         """Calculate value in terminal node.
 
         Parameters

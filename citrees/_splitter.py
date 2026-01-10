@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from numba import njit
 
-from ._registry import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
+from citrees._registry import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
 
 
 def _permutation_test(

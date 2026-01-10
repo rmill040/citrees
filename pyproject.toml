@@ -1,125 +1,68 @@
-[tool.poetry]
+[project]
 name = "citrees"
 version = "0.1.0"
 description = "Conditional inference trees and forests"
-authors = ["robert milletich <rmill040@gmail.com>"]
+authors = [{ name = "Robert Milletich", email = "rmill040@gmail.com" }]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.24",
+    "numba>=0.58",
+    "scikit-learn>=1.4",
+    "scipy>=1.12",
+    "dcor>=0.6",
+    "pydantic>=2.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.8,<3.11"
-numpy = "^1.22.4"
-numba = "^0.56.4"
-scikit-learn = "^1.2.0"
-scipy = "^1.9.3"
-dcor = "^0.6"
-pydantic = "^1.10.4"
-
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^2.19.0"
-pytest = "^7.1.2"
-tox = "^3.25.1"
-pytest-cov = "^4.0.0"
-
-[tool.poetry.group.experiments]
-optional = true
-
-[tool.poetry.group.experiments.dependencies]
-catboost = "^1.1.1"
-lightgbm = "^3.3.5"
-loguru = "^0.6.0"
-pandas = "^1.5.3"
-pyarrow = "^11.0.0"
-xgboost = "^1.7.3"
-fastapi = "^0.90.0"
-uvicorn = {extras = ["standard"], version = "^0.20.0"}
-boto3 = "^1.26.66"
-requests = "^2.28.2"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "pre-commit>=3.0",
+]
+bench = [
+    "xgboost>=2.0",
+    "lightgbm>=4.0",
+    "catboost>=1.2",
+    "shap>=0.45",
+    "openml>=0.14",
+    "pandas>=2.0",
+    "pyarrow>=15.0",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.black]
-line-length = 120
-target-version = ['py38', 'py39', 'py310']
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
 
 [tool.ruff]
-select = ["A", "B", "D", "E", "F"]
-ignore = []
-fixable = ["A", "B", "D", "E", "F"]
-unfixable = []
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-]
-per-file-ignores = {}
-line-length = 120
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-target-version = "py39"
+line-length = 100
+target-version = "py312"
 
-[tool.isort]
-py_version = 39
-profile = "black"
-line_length = 120
-force_alphabetical_sort_within_sections = true
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
 
-[tool.mypy]
-python_version = "3.9"
-ignore_missing_imports = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-no_implicit_optional = true
-check_untyped_defs = true
-warn_unused_ignores = true
-strict_optional = true
-show_error_codes = true
-show_error_context = true
-pretty = true
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers -vv -x --cov --cov-report=html --cov-append"
+addopts = "-v --tb=short"
+testpaths = ["tests"]
 markers = [
-    "tree: Tree model tests",
-    "forest: Forest model tests",
-    "splitter: Splitter method tests",
-    "selector: Selector method tests",
-    "threshold_method: Threshold method tests",
-    "other: Other misc tests",
-]
-testpaths = [
-    "tests"
+    "slow: marks tests as slow",
 ]
 
 [tool.coverage.run]
-omit = [
-    "tests/*",
-    "*.vscode*",
-]
-
-[tool.coverage.report]
-show_missing = true
-skip_empty = true
-sort = "Cover"
-
-[tool.coverage.html]
-title = "citrees Python Coverage Report"
+source = ["citrees"]
+omit = ["tests/*"]

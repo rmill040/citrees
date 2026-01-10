@@ -1,0 +1,80 @@
+[project]
+name = "citrees"
+version = "0.1.0"
+description = "Conditional inference trees and forests"
+authors = [{ name = "Robert Milletich", email = "rmill040@gmail.com" }]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.24",
+    "numba>=0.58",
+    "scikit-learn>=1.4",
+    "scipy>=1.12",
+    "dcor>=0.6",
+    "pydantic>=2.0",
+    "pyarrow>=22.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "pre-commit>=3.0",
+]
+bench = [
+    "xgboost>=2.0",
+    "lightgbm>=4.0",
+    "catboost>=1.2",
+    "shap>=0.45",
+    "openml>=0.14",
+    "pandas>=2.0",
+    "pyarrow>=15.0",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "matplotlib>=3.10.8",
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+addopts = "-v --tb=short"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow",
+    "tree: tests for tree classes",
+    "forest: tests for forest classes",
+    "other: other tests",
+]
+
+[tool.coverage.run]
+source = ["citrees"]
+omit = ["tests/*"]
+
+[dependency-groups]
+paper = [
+    "lightgbm>=4.6.0",
+    "loguru>=0.7.3",
+    "xgboost>=3.1.3",
+]

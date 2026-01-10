@@ -332,7 +332,7 @@ def permutation_test_entropy(
 
 
 @RegressorSplitters.register("mse")
-@njit(fastmath=True, nogil=True)
+@njit(cache=True, fastmath=True, nogil=True)
 def mean_squared_error(y: np.ndarray) -> float:
     """_summary_.
 
@@ -356,7 +356,7 @@ def mean_squared_error(y: np.ndarray) -> float:
 
 
 @RegressorSplitters.register("mae")
-@njit(fastmath=True, nogil=True)
+@njit(cache=True, fastmath=True, nogil=True)
 def mean_absolute_error(y: np.ndarray) -> float:
     """_summary_.
 

@@ -87,7 +87,7 @@ def _permutation_test(
 
 
 # Compiled version of permutation test
-_permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
+_permutation_test_compiled = njit(cache=True, fastmath=True, nogil=True)(_permutation_test)
 
 
 # Parallel permutation test for multiple correlation (classifier)

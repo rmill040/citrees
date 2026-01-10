@@ -7,6 +7,7 @@ import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
 from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 from citrees._selector import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
@@ -59,6 +60,8 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     min_samples_split: Annotated[int, Field(ge=2)]
     min_samples_leaf: PositiveInt
     min_impurity_decrease: NonNegativeFloat
+    honesty: bool
+    honesty_fraction: Annotated[float, Field(gt=0.0, lt=1.0)]
     random_state: NonNegativeInt | None = None
     verbose: NonNegativeInt
     check_for_unused_parameters: bool
@@ -340,6 +343,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         min_samples_split: int,
         min_samples_leaf: int,
         min_impurity_decrease: float,
+        honesty: bool,
+        honesty_fraction: float,
         random_state: int | None,
         verbose: int,
         check_for_unused_parameters: bool,
@@ -364,6 +369,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.min_impurity_decrease = min_impurity_decrease
+        self.honesty = honesty
+        self.honesty_fraction = honesty_fraction
         self.random_state = random_state
         self.verbose = verbose
         self.check_for_unused_parameters = check_for_unused_parameters
@@ -929,7 +936,22 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         self.feature_importances_ = np.zeros(p, dtype=float)
         self.n_features_in_ = p
-        self.tree_ = self._build_tree(X, y, depth=1)
+
+        # Honest estimation: split data into splitting and estimation samples
+        if self.honesty:
+            stratify = y if self._estimator_type == "classifier" else None
+            X_split, X_est, y_split, y_est = train_test_split(
+                X, y,
+                test_size=self.honesty_fraction,
+                random_state=self._random_state,
+                stratify=stratify,
+            )
+            # Build tree structure using splitting sample
+            self.tree_ = self._build_tree(X_split, y_split, depth=1)
+            # Re-estimate leaf values using estimation sample
+            self._reestimate_leaf_values(X_est, y_est)
+        else:
+            self.tree_ = self._build_tree(X, y, depth=1)
 
         # Normalize feature importances
         fi_sum = self.feature_importances_.sum()
@@ -937,6 +959,94 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self.feature_importances_ /= fi_sum
 
         return self
+
+    def _get_leaf_path(self, x: np.ndarray, tree: Node | None = None, path: tuple = ()) -> tuple:
+        """Get the path to the leaf node for a sample.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Feature vector for single sample.
+
+        tree : Node, default=None
+            Fitted decision tree.
+
+        path : tuple
+            Current path (sequence of 'L' or 'R' directions).
+
+        Returns
+        -------
+        tuple
+            Path from root to leaf (e.g., ('L', 'R', 'L')).
+        """
+        if tree is None:
+            tree = self.tree_
+
+        if "value" in tree:
+            return path
+
+        feature_value = x[tree["feature"]]
+        if feature_value <= tree["threshold"]:
+            return self._get_leaf_path(x, tree["left_child"], path + ("L",))
+        else:
+            return self._get_leaf_path(x, tree["right_child"], path + ("R",))
+
+    def _reestimate_leaf_values(self, X: np.ndarray, y: np.ndarray) -> None:
+        """Re-estimate leaf values using estimation sample (honest estimation).
+
+        Uses path-based leaf identification for robustness to serialization.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Estimation sample features.
+
+        y : np.ndarray
+            Estimation sample targets.
+        """
+        # Group samples by leaf path (serialization-safe)
+        leaf_samples: dict[tuple, list[int]] = {}
+        for i in range(len(X)):
+            path = self._get_leaf_path(X[i])
+            if path not in leaf_samples:
+                leaf_samples[path] = []
+            leaf_samples[path].append(i)
+
+        # Re-estimate each leaf using its estimation samples
+        self._reestimate_tree_by_path(self.tree_, y, leaf_samples, path=())
+
+    def _reestimate_tree_by_path(
+        self, tree: Node, y: np.ndarray, leaf_samples: dict[tuple, list[int]], path: tuple
+    ) -> None:
+        """Recursively re-estimate leaf values in tree using path-based identification.
+
+        Parameters
+        ----------
+        tree : Node
+            Tree node to process.
+
+        y : np.ndarray
+            Estimation sample targets.
+
+        leaf_samples : dict
+            Mapping from path to sample indices.
+
+        path : tuple
+            Current path from root.
+        """
+        if "value" in tree:
+            # This is a leaf node
+            if path in leaf_samples and len(leaf_samples[path]) > 0:
+                indices = leaf_samples[path]
+                y_leaf = y[indices]
+                tree["value"] = self._node_value(y_leaf)
+                tree["n_samples"] = len(indices)
+            # If no estimation samples fall into this leaf, keep the original value
+            # Note: This is a known trade-off. Empty leaves retain splitting-sample estimates.
+        else:
+            # Recurse into children
+            self._reestimate_tree_by_path(tree["left_child"], y, leaf_samples, path + ("L",))
+            self._reestimate_tree_by_path(tree["right_child"], y, leaf_samples, path + ("R",))
 
     def _predict_value(self, x: np.ndarray, tree: Node | None = None) -> float | np.ndarray:
         """Predict target for single sample.
@@ -1002,6 +1112,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
+        honesty: bool = False,
+        honesty_fraction: float = 0.5,
         random_state: int | None = None,
         verbose: int = 1,
         check_for_unused_parameters: bool = False,
@@ -1027,6 +1139,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             min_impurity_decrease=min_impurity_decrease,
+            honesty=honesty,
+            honesty_fraction=honesty_fraction,
             random_state=random_state,
             verbose=verbose,
             check_for_unused_parameters=check_for_unused_parameters,
@@ -1111,6 +1225,8 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
+        honesty: bool = False,
+        honesty_fraction: float = 0.5,
         random_state: int | None = None,
         verbose: int = 1,
         check_for_unused_parameters: bool = False,
@@ -1136,6 +1252,8 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             min_impurity_decrease=min_impurity_decrease,
+            honesty=honesty,
+            honesty_fraction=honesty_fraction,
             random_state=random_state,
             verbose=verbose,
             check_for_unused_parameters=check_for_unused_parameters,

@@ -222,6 +222,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         min_samples_split: int,
         min_samples_leaf: int,
         min_impurity_decrease: float,
+        honesty: bool,
+        honesty_fraction: float,
         bootstrap_method: str | None,
         max_samples: int | float | None,
         n_jobs: int | None,
@@ -250,6 +252,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.min_impurity_decrease = min_impurity_decrease
+        self.honesty = honesty
+        self.honesty_fraction = honesty_fraction
         self.bootstrap_method = bootstrap_method
         self.max_samples = max_samples
         self.n_jobs = n_jobs
@@ -443,6 +447,8 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
+        honesty: bool = False,
+        honesty_fraction: float = 0.5,
         bootstrap_method: str | None = "bayesian",
         sampling_method: str | None = "stratified",
         max_samples: int | float | None = None,
@@ -472,6 +478,8 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.min_impurity_decrease = min_impurity_decrease
+        self.honesty = honesty
+        self.honesty_fraction = honesty_fraction
         self.bootstrap_method = bootstrap_method
         self.sampling_method = sampling_method
         self.max_samples = max_samples
@@ -664,6 +672,8 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         min_samples_split: int = 2,
         min_samples_leaf: int = 1,
         min_impurity_decrease: float = 0.0,
+        honesty: bool = False,
+        honesty_fraction: float = 0.5,
         bootstrap_method: str | None = "bayesian",
         max_samples: int | float | None = None,
         n_jobs: int | None = None,
@@ -693,6 +703,8 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             min_impurity_decrease=min_impurity_decrease,
+            honesty=honesty,
+            honesty_fraction=honesty_fraction,
             bootstrap_method=bootstrap_method,
             max_samples=max_samples,
             n_jobs=n_jobs,

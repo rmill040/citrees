@@ -14,6 +14,7 @@ paper/
 │   ├── synthetic_experiments.py  # Synthetic data experiments
 │   ├── analysis.py         # Statistical tests and visualizations
 │   ├── generate_figures.py # Paper figure generation
+│   ├── ec2_launch.py       # EC2 server/worker launcher
 │   ├── clf_*               # Classification experiments
 │   └── reg_*               # Regression experiments
 └── results/
@@ -189,16 +190,42 @@ pip install -e ".[bench]"  # or use uv
 python paper/scripts/clf_feature_selection_worker.py
 ```
 
-### Worker Scaling Recommendations
+### Worker Scaling
 
-| Instance Type | vCPUs | Recommended N_JOBS_OUTER | Configs/Hour |
-|---------------|-------|--------------------------|--------------|
-| t3.medium | 2 | 1 | ~20 |
-| c5.xlarge | 4 | 2 | ~80 |
-| c5.4xlarge | 16 | 4 | ~300 |
-| c5.9xlarge | 36 | 8 | ~600 |
+Scale horizontally by launching more EC2 instances. General guidelines:
 
-For ~250,000 configurations, a fleet of 10x c5.4xlarge instances completes in ~1 day.
+- **Instance type**: Use compute-optimized instances (c5, c6i, c7i families) for CPU-bound workloads
+- **N_JOBS_OUTER**: Set to 1-2 per 4 vCPUs to avoid overwhelming the server
+- **N_JOBS_INNER**: Set to `-1` to use all cores for each experiment
+- **Fleet size**: More instances = faster completion; each worker is stateless
+
+The server tracks progress via DynamoDB, so workers can be added/removed at any time without losing work.
+
+### Automated EC2 Deployment
+
+Use the provided launch scripts for automated deployment:
+
+```bash
+# Launch server instance
+python paper/scripts/ec2_launch.py server \
+    --table-name ClfFeatureSelection \
+    --instance-type c5.xlarge \
+    --key-name your-key-pair \
+    --iam-role citrees-worker-role \
+    --security-group sg-xxx
+
+# Launch worker fleet
+python paper/scripts/ec2_launch.py worker \
+    --server-url http://<server-private-ip>:8000 \
+    --table-name ClfFeatureSelection \
+    --instance-type c5.xlarge \
+    --count 10 \
+    --key-name your-key-pair \
+    --iam-role citrees-worker-role \
+    --security-group sg-xxx
+```
+
+See `paper/scripts/ec2_launch.py --help` for all options.
 
 ### Running CV Evaluation (Phase 2)
 

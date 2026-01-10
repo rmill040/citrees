@@ -42,7 +42,14 @@ citrees/
 │   └── unit/               # Unit tests
 └── paper/                  # Research paper experiments
     ├── data/               # Experiment datasets
-    └── scripts/            # Experiment runners (FastAPI workers)
+    ├── results/            # Experiment outputs (parquet, figures, tables)
+    └── scripts/
+        ├── configs.py              # Experiment config dataclasses
+        ├── synthetic_experiments.py # Synthetic data feature selection
+        ├── analysis.py             # Statistical tests and visualizations
+        ├── clf_feature_selection_server.py  # Classification experiments
+        ├── reg_feature_selection_server.py  # Regression experiments
+        └── generate_figures.py     # Paper figure generation
 ```
 
 ## Core Classes

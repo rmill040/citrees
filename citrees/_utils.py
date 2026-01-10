@@ -74,7 +74,7 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
     return min(n_values, total)
 
 
-@njit(fastmath=True, nogil=True)
+@njit(cache=True, fastmath=True, nogil=True)
 def split_data(
     *, X: np.ndarray, y: np.ndarray, feature: int, threshold: float
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -112,7 +112,7 @@ def split_data(
     return X[idx], y[idx], X[~idx], y[~idx]
 
 
-@njit(fastmath=True, nogil=True)
+@njit(cache=True, fastmath=True, nogil=True)
 def bayesian_bootstrap_proba(*, n: int, random_state: int) -> np.ndarray:
     """Generate Bayesian bootstrap probabilities for a sample of size n.
 

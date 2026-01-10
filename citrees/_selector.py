@@ -91,7 +91,7 @@ _permutation_test_compiled = njit(cache=True, fastmath=True, nogil=True)(_permut
 
 
 # Parallel permutation test for multiple correlation (classifier)
-@njit(fastmath=True, nogil=True, parallel=True)
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _permutation_test_mc_parallel(
     x: np.ndarray,
     y: np.ndarray,
@@ -134,7 +134,7 @@ def _permutation_test_mc_parallel(
 
 
 # Parallel permutation test for pearson correlation (regressor)
-@njit(fastmath=True, nogil=True, parallel=True)
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _permutation_test_pc_parallel(
     x: np.ndarray,
     y: np.ndarray,
@@ -180,7 +180,7 @@ def _permutation_test_pc_parallel(
 
 
 @ClassifierSelectors.register("mc")
-@njit(nogil=True, fastmath=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: Optional[int] = None) -> float:
     """Calculate the multiple correlation coefficient.
 
@@ -305,7 +305,7 @@ def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state
 
 
 @RegressorSelectors.register("pc")
-@njit(nogil=True, fastmath=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None) -> float:
     """Calculate the Pearson correlation coefficient.
 
@@ -336,7 +336,7 @@ def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_
     return _correlation(x, y) if standardize else _covariance(x, y)
 
 
-@njit(nogil=True, fastmath=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def _covariance(x: np.ndarray, y: np.ndarray) -> float:
     """Calculate the covariance.
 
@@ -368,7 +368,7 @@ def _covariance(x: np.ndarray, y: np.ndarray) -> float:
     return (sxy - (sx * sy / n)) / n
 
 
-@njit(nogil=True, fastmath=True)
+@njit(cache=True, nogil=True, fastmath=True)
 def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     """Calculate the Pearson correlation coefficient.
 

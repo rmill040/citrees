@@ -85,11 +85,11 @@ def _permutation_test(
 
 
 # Compiled version of permutation test
-_permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
+_permutation_test_compiled = njit(cache=True, fastmath=True, nogil=True)(_permutation_test)
 
 
 # Parallel permutation test for Gini index (classifier)
-@njit(fastmath=True, nogil=True, parallel=True)
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _permutation_test_gini_parallel(
     x: np.ndarray,
     y: np.ndarray,
@@ -130,7 +130,7 @@ def _permutation_test_gini_parallel(
 
 
 # Parallel permutation test for MSE (regressor)
-@njit(fastmath=True, nogil=True, parallel=True)
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _permutation_test_mse_parallel(
     x: np.ndarray,
     y: np.ndarray,

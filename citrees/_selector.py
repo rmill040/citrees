@@ -4,10 +4,13 @@ from typing import Any, Optional
 import numpy as np
 from dcor import distance_correlation as _d_correlation
 from dcor import distance_covariance as _d_covariance
-from numba import njit
+from numba import njit, prange
 from sklearn.feature_selection import mutual_info_classif
 
 from citrees._registry import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
+
+# Threshold for using parallel permutation tests
+_PARALLEL_THRESHOLD = 200
 
 
 def _permutation_test(
@@ -85,6 +88,95 @@ def _permutation_test(
 
 # Compiled version of permutation test
 _permutation_test_compiled = njit(fastmath=True, nogil=True)(_permutation_test)
+
+
+# Parallel permutation test for multiple correlation (classifier)
+@njit(fastmath=True, nogil=True, parallel=True)
+def _permutation_test_mc_parallel(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    n_resamples: int,
+    random_state: int,
+) -> float:
+    """Parallel permutation test for multiple correlation."""
+    # Compute observed statistic
+    mu = x.mean()
+    sst = np.sum((x - mu) ** 2)
+    if sst == 0:
+        return 1.0
+    ssb = 0.0
+    for j in range(n_classes):
+        x_j = x[y == j]
+        n_j = len(x_j)
+        if n_j > 0:
+            mu_j = x_j.mean()
+            ssb += n_j * (mu_j - mu) ** 2
+    theta = np.sqrt(ssb / sst)
+
+    # Parallel permutation
+    theta_p = np.empty(n_resamples)
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)
+        y_perm = y.copy()
+        np.random.shuffle(y_perm)
+
+        ssb_perm = 0.0
+        for j in range(n_classes):
+            x_j = x[y_perm == j]
+            n_j = len(x_j)
+            if n_j > 0:
+                mu_j = x_j.mean()
+                ssb_perm += n_j * (mu_j - mu) ** 2
+        theta_p[i] = np.sqrt(ssb_perm / sst)
+
+    return np.mean(np.abs(theta_p) >= theta)
+
+
+# Parallel permutation test for pearson correlation (regressor)
+@njit(fastmath=True, nogil=True, parallel=True)
+def _permutation_test_pc_parallel(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_resamples: int,
+    random_state: int,
+) -> float:
+    """Parallel permutation test for pearson correlation."""
+    n = len(x)
+    sx = x.sum()
+    sx2 = np.sum(x * x)
+    sy = y.sum()
+    sy2 = np.sum(y * y)
+    sxy = np.sum(x * y)
+
+    cov = n * sxy - sx * sy
+    ssx = n * sx2 - sx * sx
+    ssy = n * sy2 - sy * sy
+    denom = np.sqrt(ssx * ssy)
+    if denom == 0:
+        return 1.0
+    theta = np.abs(cov / denom)
+
+    # Parallel permutation
+    theta_p = np.empty(n_resamples)
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)
+        y_perm = y.copy()
+        np.random.shuffle(y_perm)
+
+        sy_perm = y_perm.sum()
+        sy2_perm = np.sum(y_perm * y_perm)
+        sxy_perm = np.sum(x * y_perm)
+
+        cov_perm = n * sxy_perm - sx * sy_perm
+        ssy_perm = n * sy2_perm - sy_perm * sy_perm
+        denom_perm = np.sqrt(ssx * ssy_perm)
+        if denom_perm == 0:
+            theta_p[i] = 0.0
+        else:
+            theta_p[i] = np.abs(cov_perm / denom_perm)
+
+    return np.mean(theta_p >= theta)
 
 
 @ClassifierSelectors.register("mc")
@@ -421,6 +513,16 @@ def permutation_test_multiple_correlation(
     float
         Estimated achieved significance level.
     """
+    # Use parallel version when not using early stopping and enough resamples
+    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+        return _permutation_test_mc_parallel(
+            x=x,
+            y=y,
+            n_classes=n_classes,
+            n_resamples=n_resamples,
+            random_state=random_state,
+        )
+
     return _permutation_test_compiled(
         func=multiple_correlation,
         func_arg=n_classes,
@@ -597,6 +699,15 @@ def permutation_test_pearson_correlation(
     float
         Estimated achieved significance level.
     """
+    # Use parallel version when not using early stopping and enough resamples
+    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+        return _permutation_test_pc_parallel(
+            x=x,
+            y=y,
+            n_resamples=n_resamples,
+            random_state=random_state,
+        )
+
     return _permutation_test_compiled(
         func=pearson_correlation,
         func_arg=standardize,

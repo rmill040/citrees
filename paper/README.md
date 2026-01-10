@@ -40,8 +40,7 @@ Compare citrees feature ranking against baselines (RF, XGBoost, LightGBM, etc.) 
 | `clf_feature_selection_server.py` | FastAPI server that serves experiment configurations |
 | `clf_feature_selection_worker.py` | Worker that runs feature selection methods |
 | `clf_cv_server.py` | Serves configurations for downstream evaluation |
-| `clf_cv_worker.py` | Evaluates feature rankings with SVM downstream |
-| `clf_cv_worker_v2.py` | Multi-model downstream (SVM, LR, kNN) |
+| `clf_cv_worker.py` | Multi-model downstream evaluation (SVM, LR, kNN) |
 
 **Running distributed experiments:**
 
@@ -144,9 +143,9 @@ uv run python scripts/timing.py
 
 ### Downstream Models (for evaluation)
 
-- SVM (original)
-- Logistic Regression (v2)
-- k-NN (v2)
+- SVM (Support Vector Machine)
+- Logistic Regression
+- k-NN (k-Nearest Neighbors)
 
 ## Reproducing Results
 

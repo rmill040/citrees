@@ -111,16 +111,6 @@ def mc() -> List[Dict[str, Any]]:
     return params
 
 
-@METHODS.register("hybrid")
-def hybrid() -> List[Dict[str, Any]]:
-    """Hybrid selector hyperparameters."""
-    method = inspect.currentframe().f_code.co_name
-
-    params = [{"random_state": RANDOM_STATE, "method": method}]
-
-    return params
-
-
 @METHODS.register("rdc")
 def rdc() -> List[Dict[str, Any]]:
     """Randomized Dependence Coefficient hyperparameters."""
@@ -182,28 +172,6 @@ def ptest_mc() -> List[Dict[str, Any]]:
 
     params = []
     for alpha in [0.10, 0.05, 0.01]:
-        for n_resamples in ["minimum", "maximum", "auto"]:
-            for early_stopping in [True, False]:
-                params.append(
-                    {
-                        "alpha": alpha,
-                        "n_resamples": n_resamples,
-                        "early_stopping": early_stopping,
-                        "random_state": RANDOM_STATE,
-                        "method": method,
-                    }
-                )
-
-    return params
-
-
-@METHODS.register("ptest_hybrid")
-def ptest_hybrid() -> List[Dict[str, Any]]:
-    """Permutation testing with multiple correlation or mutual information hyperparameters."""
-    method = inspect.currentframe().f_code.co_name
-
-    params = []
-    for alpha in [0.10, 0.05]:
         for n_resamples in ["minimum", "maximum", "auto"]:
             for early_stopping in [True, False]:
                 params.append(

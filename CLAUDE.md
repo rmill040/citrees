@@ -8,36 +8,38 @@
 
 ```bash
 # Install dependencies
-poetry install
+uv sync
 
 # Run tests
-pytest tests/
+uv run pytest tests/
 
 # With pre-commit hooks
-pre-commit install
+uv run pre-commit install
 ```
 
 ## Repository Structure
 
 ```
 citrees/
-├── pyproject.toml          # Poetry config, dependencies, tool settings
-├── poetry.lock             # Locked dependencies
+├── pyproject.toml          # uv/pip config, dependencies, tool settings
+├── uv.lock                 # Locked dependencies
 ├── tox.ini                 # Tox test configuration
 ├── .pre-commit-config.yaml # Pre-commit hooks (black, ruff, mypy)
 ├── citrees/                # Main package
 │   ├── __init__.py         # Exports main classes
-│   ├── _tree.py            # Tree classifiers/regressors (~1400 lines)
+│   ├── _tree.py            # Tree classifiers/regressors
 │   ├── _forest.py          # Forest ensembles
-│   ├── _selector.py        # Feature selection methods (mc, mi, pc, dc)
+│   ├── _selector.py        # Feature selection methods (mc, mi, rdc, pc, dc)
 │   ├── _splitter.py        # Split criteria (gini, entropy, mse, mae)
 │   ├── _threshold_method.py # Threshold calculation methods
 │   ├── _registry.py        # Registry pattern for selectors/splitters
+│   ├── _conformal.py       # Conformal prediction wrappers
 │   ├── _utils.py           # Utility functions
 │   └── py.typed            # PEP 561 marker
 ├── tests/                  # Pytest test suite
 │   ├── data/               # Test datasets (parquet format)
-│   └── test_*.py           # Test modules
+│   ├── integration/        # Integration tests
+│   └── unit/               # Unit tests
 └── paper/                  # Research paper experiments
     ├── data/               # Experiment datasets
     └── scripts/            # Experiment runners (FastAPI workers)
@@ -69,8 +71,8 @@ def multiple_correlation(x, y, n_classes, random_state=None):
 ```
 
 Available registries:
-- `ClassifierSelectors` / `ClassifierSelectorTests` - mc, mi, hybrid
-- `RegressorSelectors` / `RegressorSelectorTests` - pc, dc, hybrid
+- `ClassifierSelectors` / `ClassifierSelectorTests` - mc, mi, rdc
+- `RegressorSelectors` / `RegressorSelectorTests` - pc, dc, rdc
 - `ClassifierSplitters` / `ClassifierSplitterTests` - gini, entropy
 - `RegressorSplitters` / `RegressorSplitterTests` - mse, mae
 - `ThresholdMethods` - exact, random, percentile, histogram
@@ -79,7 +81,7 @@ Available registries:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `selector` | Feature selection method | 'mc' (clf) / 'pc' (reg) |
+| `selector` | Feature selection method: str or list[str] | 'mc' (clf) / 'pc' (reg) |
 | `splitter` | Split criterion | 'gini' (clf) / 'mse' (reg) |
 | `alpha_selector` | P-value threshold for feature selection | 0.05 |
 | `alpha_splitter` | P-value threshold for split selection | 0.05 |
@@ -91,6 +93,33 @@ Available registries:
 | `threshold_method` | How to generate split candidates | 'exact' |
 | `max_features` | Features per split: 'sqrt', 'log2', float, int | None (all) |
 | `max_thresholds` | Thresholds per feature | None (all) |
+
+### Selector Parameter
+
+The `selector` parameter accepts either a single string or a list of strings:
+
+**Classification selectors:**
+- `'mc'` - Multiple correlation (ANOVA-based, [0,1] scale)
+- `'mi'` - Mutual information (unbounded scale, cannot be combined with others)
+- `'rdc'` - Randomized Dependence Coefficient (O(n log n), [0,1] scale)
+
+**Regression selectors:**
+- `'pc'` - Pearson correlation ([0,1] scale after abs)
+- `'dc'` - Distance correlation (O(n²), [0,1] scale)
+- `'rdc'` - Randomized Dependence Coefficient (O(n log n), [0,1] scale)
+
+**List-based selector (multi-selector mode):**
+When a list is provided, all selectors compute their scores and the maximum is used. The permutation test is run on the selector that produced the highest score.
+
+```python
+# Classification: only mc and rdc can be combined (both [0,1] scale)
+clf = ConditionalInferenceTreeClassifier(selector=['mc', 'rdc'])
+
+# Regression: all three can be combined
+reg = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
+```
+
+**Note:** For classification, `'mi'` cannot be in a list because mutual information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
 
 ### Pydantic Validation
 All parameters are validated via `BaseConditionalInferenceTreeParameters`:
@@ -108,13 +137,13 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
 ### Dependencies
 ```toml
-python = ">=3.8,<3.11"
-numpy = "^1.22.4"
-numba = "^0.56.4"
-scikit-learn = "^1.2.0"
-scipy = "^1.9.3"
-dcor = "^0.6"           # Distance correlation
-pydantic = "^1.10.4"    # Validation
+python = ">=3.12"
+numpy = ">=1.26"
+numba = ">=0.60"
+scikit-learn = ">=1.5"
+scipy = ">=1.14"
+dcor = ">=0.6"           # Distance correlation
+pydantic = ">=2.0"       # Validation
 ```
 
 ### Code Style
@@ -125,9 +154,10 @@ pydantic = "^1.10.4"    # Validation
 
 ### Testing
 ```bash
-pytest tests/ -v                    # Run all tests
-pytest tests/test_tree.py -v        # Run specific module
-pytest -k "classifier" -v           # Run by keyword
+uv run pytest tests/ -v                           # Run all tests
+uv run pytest tests/integration/ -v               # Run integration tests
+uv run pytest tests/unit/ -v                      # Run unit tests
+uv run pytest -k "classifier" -v                  # Run by keyword
 ```
 
 ### Scratch Directory

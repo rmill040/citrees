@@ -40,7 +40,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     estimator_type: Literal["classifier", "regressor"]
-    selector: str
+    selector: str | list[str]
     splitter: str
     alpha_selector: ProbabilityFloat
     alpha_splitter: ProbabilityFloat
@@ -75,8 +75,24 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             sel_registry = RegressorSelectors
             spl_registry = RegressorSplitters
 
-        if self.selector not in sel_registry.keys():
-            raise ValueError(f"selector '{self.selector}' not in {sel_registry.keys()}")
+        # Handle selector validation - can be string or list of strings
+        selectors = [self.selector] if isinstance(self.selector, str) else self.selector
+
+        if len(selectors) == 0:
+            raise ValueError("selector list cannot be empty")
+
+        for sel in selectors:
+            if sel not in sel_registry.keys():
+                raise ValueError(f"selector '{sel}' not in {sel_registry.keys()}")
+
+        # Validate that mi is not in a list for classification (mi is not on [0,1] scale)
+        if self.estimator_type == "classifier" and len(selectors) > 1:
+            if "mi" in selectors:
+                raise ValueError(
+                    "selector 'mi' cannot be used in a list with other selectors because mutual information "
+                    "is not on the same [0,1] scale as 'mc' and 'rdc'. Use selector='mi' alone instead."
+                )
+
         if self.splitter not in spl_registry.keys():
             raise ValueError(f"splitter '{self.splitter}' not in {spl_registry.keys()}")
 
@@ -323,7 +339,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
     def __init__(
         self,
         *,
-        selector: str,
+        selector: str | list[str],
         splitter: str,
         alpha_selector: float,
         alpha_splitter: float,
@@ -395,6 +411,44 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         return BaseConditionalInferenceTreeParameters
 
+    def _compute_selector_score(self, x: np.ndarray, y: np.ndarray) -> tuple[float, str]:
+        """Compute selector score, using max across all selectors in multi-selector mode.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Feature values.
+
+        y : np.ndarray
+            Target values.
+
+        Returns
+        -------
+        best_score : float
+            Best selector score (max across selectors in multi-selector mode).
+
+        best_selector_name : str
+            Name of the selector that produced the best score.
+        """
+        if self._multi_selector:
+            best_score = -np.inf
+            best_name = self._selector_names[0]
+            for name in self._selector_names:
+                score = self._selectors[name](x=x, y=y, **self._selector_kwargs)
+                # For pc (Pearson correlation), take absolute value to handle negative correlations
+                if name == "pc":
+                    score = abs(score)
+                if score > best_score:
+                    best_score = score
+                    best_name = name
+            return best_score, best_name
+        else:
+            score = self._selector(x=x, y=y, **self._selector_kwargs)
+            # For pc (Pearson correlation), take absolute value
+            if self._selector_names[0] == "pc":
+                score = abs(score)
+            return score, self._selector_names[0]
+
     def _select_best_feature(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> tuple[int, float, bool]:
         """Select best feature associated with the target.
 
@@ -430,7 +484,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # Feature selection with permutation testing
             if self._n_resamples_selector:
-                pval_feature = self._selector_test(x=x, y=y, **self._selector_test_kwargs)
+                # In multi-selector mode, compute all selector scores first to find the best one
+                if self._multi_selector:
+                    _, best_selector_name = self._compute_selector_score(x, y)
+                    selector_test = self._selector_tests[best_selector_name]
+                else:
+                    selector_test = self._selector_test
+
+                pval_feature = selector_test(x=x, y=y, **self._selector_test_kwargs)
 
                 # Update best feature
                 if pval_feature < best_pval:
@@ -449,7 +510,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # Feature selection without permutation testing
             else:
-                metric = self._selector(x=x, y=y, **self._selector_kwargs)
+                metric, _ = self._compute_selector_score(x, y)
                 if metric > best_metric:
                     best_feature = feature
                     best_metric = metric
@@ -602,7 +663,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         np.ndarray
             Feature indices sorted in descending order based on strength of association with the target.
         """
-        scores = np.array([self._selector(X[:, feature], y, **self._selector_kwargs) for feature in features])
+        scores = np.array([self._compute_selector_score(X[:, feature], y)[0] for feature in features])
         ranks = np.argsort(scores)[::-1]
 
         return features[ranks]
@@ -874,9 +935,15 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             "alpha": self._alpha_selector,
             "random_state": self._random_state,
         }
+
+        # Handle list-based selectors (multi-selector mode)
+        selectors = [self.selector] if isinstance(self.selector, str) else self.selector
+        self._multi_selector = len(selectors) > 1
+        self._selector_names = selectors
+
         if self._estimator_type == "classifier":
-            self._selector = ClassifierSelectors[self.selector]
-            self._selector_test = ClassifierSelectorTests[self.selector]
+            self._selectors = {name: ClassifierSelectors[name] for name in selectors}
+            self._selector_tests = {name: ClassifierSelectorTests[name] for name in selectors}
             self._splitter = ClassifierSplitters[self.splitter]
             self._splitter_test = ClassifierSplitterTests[self.splitter]
 
@@ -893,8 +960,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
         else:
-            self._selector = RegressorSelectors[self.selector]
-            self._selector_test = RegressorSelectorTests[self.selector]
+            self._selectors = {name: RegressorSelectors[name] for name in selectors}
+            self._selector_tests = {name: RegressorSelectorTests[name] for name in selectors}
             self._splitter = RegressorSplitters[self.splitter]
             self._splitter_test = RegressorSplitterTests[self.splitter]
 
@@ -906,6 +973,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 **common_selector_test_kwargs,
                 **{"standardize": True},
             }
+
+        # For backwards compatibility, set _selector and _selector_test to first selector
+        # These are used by _scan_features
+        self._selector = self._selectors[selectors[0]]
+        self._selector_test = self._selector_tests[selectors[0]]
 
         self._splitter_test_kwargs = {
             "n_resamples": self._n_resamples_splitter,
@@ -1093,7 +1165,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
     def __init__(
         self,
         *,
-        selector: str = "mc",
+        selector: str | list[str] = "mc",
         splitter: str = "gini",
         alpha_selector: float = 0.05,
         alpha_splitter: float = 0.05,
@@ -1206,7 +1278,7 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
     def __init__(
         self,
         *,
-        selector: str = "pc",
+        selector: str | list[str] = "pc",
         splitter: str = "mse",
         alpha_selector: float = 0.05,
         alpha_splitter: float = 0.05,

@@ -134,12 +134,50 @@ class TestConditionalInferenceTreeClassifier:
         assert hasattr(clf2, "classes_")
 
     def test_selector_methods(self, classification_data):
-        """Test different selector methods."""
+        """Test all individual selector methods."""
         X, y = classification_data
-        for selector in ["mc", "mi", "hybrid"]:
+        # Test each selector individually
+        for selector in ["mc", "mi", "rdc"]:
             clf = ConditionalInferenceTreeClassifier(selector=selector, random_state=42, verbose=0)
             clf.fit(X, y)
             assert clf.predict(X).shape == y.shape
+
+    def test_list_selector_all_combos(self, classification_data):
+        """Test all valid list selector combinations for classification.
+
+        Only mc and rdc can be combined (both on [0,1] scale).
+        mi cannot be in a list because it's unbounded.
+        """
+        X, y = classification_data
+        # All valid combinations: only [mc, rdc] since mi is not on same scale
+        for selector in [["mc", "rdc"]]:
+            clf = ConditionalInferenceTreeClassifier(selector=selector, random_state=42, verbose=0)
+            clf.fit(X, y)
+            assert clf.predict(X).shape == y.shape
+
+    def test_list_selector_no_ptest(self, classification_data):
+        """Test list-based selector without permutation testing."""
+        X, y = classification_data
+        clf = ConditionalInferenceTreeClassifier(
+            selector=["mc", "rdc"], n_resamples_selector=None, random_state=42, verbose=0
+        )
+        clf.fit(X, y)
+        assert clf.predict(X).shape == y.shape
+
+    def test_list_selector_mi_invalid(self, classification_data):
+        """Test that mi cannot be in a list selector for classification."""
+        import pytest
+
+        X, y = classification_data
+        # mi + mc is invalid
+        with pytest.raises(ValueError, match="mi.*cannot be used in a list"):
+            ConditionalInferenceTreeClassifier(selector=["mc", "mi"], random_state=42, verbose=0)
+        # mi + rdc is invalid
+        with pytest.raises(ValueError, match="mi.*cannot be used in a list"):
+            ConditionalInferenceTreeClassifier(selector=["mi", "rdc"], random_state=42, verbose=0)
+        # mi + mc + rdc is invalid
+        with pytest.raises(ValueError, match="mi.*cannot be used in a list"):
+            ConditionalInferenceTreeClassifier(selector=["mc", "mi", "rdc"], random_state=42, verbose=0)
 
     def test_splitter_methods(self, classification_data):
         """Test different splitter methods."""
@@ -176,10 +214,34 @@ class TestConditionalInferenceTreeRegressor:
         assert r2 > 0, f"R2 {r2} is negative"
 
     def test_selector_methods(self, regression_data):
-        """Test different selector methods."""
+        """Test all individual selector methods."""
         X, y = regression_data
-        for selector in ["pc", "dc", "hybrid"]:
+        # Test each selector individually
+        for selector in ["pc", "dc", "rdc"]:
             reg = ConditionalInferenceTreeRegressor(selector=selector, random_state=42, verbose=0)
+            reg.fit(X, y)
+            assert reg.predict(X).shape == y.shape
+
+    def test_list_selector_all_combos(self, regression_data):
+        """Test all valid list selector combinations for regression.
+
+        All three selectors (pc, dc, rdc) are on [0,1] scale and can be combined.
+        """
+        X, y = regression_data
+        # All valid 2-way and 3-way combinations
+        for selector in [["pc", "dc"], ["pc", "rdc"], ["dc", "rdc"], ["pc", "dc", "rdc"]]:
+            reg = ConditionalInferenceTreeRegressor(selector=selector, random_state=42, verbose=0)
+            reg.fit(X, y)
+            assert reg.predict(X).shape == y.shape
+
+    def test_list_selector_no_ptest(self, regression_data):
+        """Test list-based selector without permutation testing."""
+        X, y = regression_data
+        # Test all combinations without ptest
+        for selector in [["pc", "dc"], ["pc", "rdc"], ["dc", "rdc"], ["pc", "dc", "rdc"]]:
+            reg = ConditionalInferenceTreeRegressor(
+                selector=selector, n_resamples_selector=None, random_state=42, verbose=0
+            )
             reg.fit(X, y)
             assert reg.predict(X).shape == y.shape
 

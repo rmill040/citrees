@@ -275,65 +275,6 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_stat
     return mutual_info_classif(x, y, random_state=random_state)[0]
 
 
-@ClassifierSelectors.register("hybrid")
-def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
-    """Calculate mc, mi, and rdc and return the highest.
-
-    Parameters
-    ----------
-    x : np.ndarray
-        Feature.
-
-    y : np.ndarray
-        Target.
-
-    n_classes : int
-        Number of classes.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    float
-        Estimated metric (max of mc, mi, rdc).
-    """
-    mc = multiple_correlation(x=x, y=y, n_classes=n_classes, random_state=random_state)
-    mi = mutual_information(x=x, y=y, n_classes=n_classes, random_state=random_state)
-    rdc = rdc_classifier(x=x, y=y, n_classes=n_classes, random_state=random_state)
-
-    return max(mc, mi, rdc)
-
-
-@ClassifierSelectors.register("hybrid_fast")
-def hybrid_fast_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
-    """Calculate mc and rdc and return the highest (skips slow mi).
-
-    Parameters
-    ----------
-    x : np.ndarray
-        Feature.
-
-    y : np.ndarray
-        Target.
-
-    n_classes : int
-        Number of classes.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    float
-        Estimated metric (max of mc, rdc).
-    """
-    mc = multiple_correlation(x=x, y=y, n_classes=n_classes, random_state=random_state)
-    rdc = rdc_classifier(x=x, y=y, n_classes=n_classes, random_state=random_state)
-
-    return max(mc, rdc)
-
-
 @RegressorSelectors.register("pc")
 @njit(cache=True, nogil=True, fastmath=True)
 def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None) -> float:
@@ -470,36 +411,6 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random
         y = y.ravel()
 
     return _d_correlation(x, y) if standardize else _d_covariance(x, y)
-
-
-@RegressorSelectors.register("hybrid")
-def hybrid_regressor(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int) -> float:
-    """Calculate Pearson correlation, distance correlation, and RDC and return the highest.
-
-    Parameters
-    ----------
-    x : np.ndarray
-        Feature.
-
-    y : np.ndarray
-        Target.
-
-    standardize : bool
-        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    float
-        Estimated metric (max of pc, dc, rdc).
-    """
-    pc = np.abs(pearson_correlation(x=x, y=y, standardize=standardize, random_state=random_state))
-    dc = distance_correlation(x=x, y=y, standardize=standardize, random_state=random_state)
-    rdc = rdc_regressor(x=x, y=y, standardize=standardize, random_state=random_state)
-
-    return max(pc, dc, rdc)
 
 
 # =============================================================================
@@ -681,7 +592,7 @@ def rdc_regressor(
 
 
 @ClassifierSelectorTests.register("mc")
-def permutation_test_multiple_correlation(
+def ptest_multiple_correlation(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -745,7 +656,7 @@ def permutation_test_multiple_correlation(
 
 
 @ClassifierSelectorTests.register("mi")
-def permutation_test_mutual_information(
+def ptest_mutual_information(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -798,91 +709,8 @@ def permutation_test_mutual_information(
     )
 
 
-@ClassifierSelectorTests.register("hybrid")
-def permutation_test_hybrid_classifier(
-    *,
-    x: np.ndarray,
-    y: np.ndarray,
-    n_classes: int,
-    n_resamples: int,
-    early_stopping: bool,
-    alpha: float,
-    random_state: int,
-) -> float:
-    """Perform a permutation test using the highest of mc, mi, or RDC.
-
-    Parameters
-    ----------
-    x : np.ndarray
-        Feature values.
-
-    y : np.ndarray
-        Target values.
-
-    n_classes : int
-        Number of classes.
-
-    n_resamples : int
-        Number of permutations to perform.
-
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
-
-    alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    float
-        Estimated achieved significance level.
-    """
-    mc = multiple_correlation(x, y, n_classes, random_state)
-    mi = mutual_information(x, y, n_classes, random_state)
-    rdc = rdc_classifier(x, y, n_classes, random_state)
-
-    # Find which selector has the highest score
-    scores = {"mc": mc, "mi": mi, "rdc": rdc}
-    best = max(scores, key=scores.get)
-
-    if best == "mc":
-        asl = permutation_test_multiple_correlation(
-            x=x,
-            y=y,
-            n_classes=n_classes,
-            n_resamples=n_resamples,
-            early_stopping=early_stopping,
-            alpha=alpha,
-            random_state=random_state,
-        )
-    elif best == "mi":
-        asl = permutation_test_mutual_information(
-            x=x,
-            y=y,
-            n_classes=n_classes,
-            n_resamples=n_resamples,
-            early_stopping=early_stopping,
-            alpha=alpha,
-            random_state=random_state,
-        )
-    else:
-        asl = permutation_test_rdc_classifier(
-            x=x,
-            y=y,
-            n_classes=n_classes,
-            n_resamples=n_resamples,
-            early_stopping=early_stopping,
-            alpha=alpha,
-            random_state=random_state,
-        )
-    return asl
-
-
 @RegressorSelectorTests.register("pc")
-def permutation_test_pearson_correlation(
+def ptest_pearson_correlation(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -945,7 +773,7 @@ def permutation_test_pearson_correlation(
 
 
 @RegressorSelectorTests.register("dc")
-def permutation_test_distance_correlation(
+def ptest_distance_correlation(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -998,82 +826,13 @@ def permutation_test_distance_correlation(
     )
 
 
-@RegressorSelectorTests.register("hybrid")
-def permutation_test_hybrid_regressor(
-    *,
-    x: np.ndarray,
-    y: np.ndarray,
-    standardize: bool,
-    n_resamples: int,
-    early_stopping: bool,
-    alpha: float,
-    random_state: int,
-) -> float:
-    """Perform a permutation test using the larger of the Pearson correlation and distance correlation.
-
-    Parameters
-    ----------
-    x : np.ndarray
-        Feature values.
-
-    y : np.ndarray
-        Target values.
-
-    standardize : bool
-        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
-
-    n_resamples : int
-        Number of permutations to perform.
-
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
-
-    alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    float
-        Estimated achieved significance level.
-    """
-    pc = np.abs(pearson_correlation(x, y, standardize=True, random_state=random_state))
-    dc = distance_correlation(x, y, standardize=True, random_state=random_state)
-
-    if pc >= dc:
-        asl = permutation_test_pearson_correlation(
-            x=x,
-            y=y,
-            standardize=standardize,
-            n_resamples=n_resamples,
-            early_stopping=early_stopping,
-            alpha=alpha,
-            random_state=random_state,
-        )
-    else:
-        asl = permutation_test_distance_correlation(
-            x=x,
-            y=y,
-            standardize=standardize,
-            n_resamples=n_resamples,
-            early_stopping=early_stopping,
-            alpha=alpha,
-            random_state=random_state,
-        )
-
-    return asl
-
-
 # =============================================================================
 # RDC Permutation Tests
 # =============================================================================
 
 
 @ClassifierSelectorTests.register("rdc")
-def permutation_test_rdc_classifier(
+def ptest_rdc_classifier(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -1130,7 +889,7 @@ def permutation_test_rdc_classifier(
 
 
 @RegressorSelectorTests.register("rdc")
-def permutation_test_rdc_regressor(
+def ptest_rdc_regressor(
     *,
     x: np.ndarray,
     y: np.ndarray,

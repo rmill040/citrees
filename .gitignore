@@ -1,5 +1,6 @@
 # Local files
 metrics/
+scratch/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

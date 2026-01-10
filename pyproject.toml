@@ -41,6 +41,7 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 dev-dependencies = [
+    "matplotlib>=3.10.8",
     "pytest>=8.0",
     "pytest-cov>=4.0",
     "ruff>=0.4",

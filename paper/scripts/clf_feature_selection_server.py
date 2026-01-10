@@ -121,6 +121,38 @@ def hybrid() -> List[Dict[str, Any]]:
     return params
 
 
+@METHODS.register("rdc")
+def rdc() -> List[Dict[str, Any]]:
+    """Randomized Dependence Coefficient hyperparameters."""
+    method = inspect.currentframe().f_code.co_name
+
+    params = [{"random_state": RANDOM_STATE, "method": method}]
+
+    return params
+
+
+@METHODS.register("ptest_rdc")
+def ptest_rdc() -> List[Dict[str, Any]]:
+    """Permutation testing with RDC hyperparameters."""
+    method = inspect.currentframe().f_code.co_name
+
+    params = []
+    for alpha in [0.10, 0.05]:
+        for n_resamples in ["minimum", "maximum", "auto"]:
+            for early_stopping in [True, False]:
+                params.append(
+                    {
+                        "alpha": alpha,
+                        "n_resamples": n_resamples,
+                        "early_stopping": early_stopping,
+                        "random_state": RANDOM_STATE,
+                        "method": method,
+                    }
+                )
+
+    return params
+
+
 @METHODS.register("ptest_mi")
 def ptest_mi() -> List[Dict[str, Any]]:
     """Permutation testing with mutual information hyperparameters."""

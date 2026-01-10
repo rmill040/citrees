@@ -277,7 +277,7 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_stat
 
 @ClassifierSelectors.register("hybrid")
 def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
-    """Calculate the multiple correlation and mutual information and return the higher metric.
+    """Calculate mc, mi, and rdc and return the highest.
 
     Parameters
     ----------
@@ -296,12 +296,42 @@ def hybrid_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state
     Returns
     -------
     float
-        Estimated metric.
+        Estimated metric (max of mc, mi, rdc).
     """
     mc = multiple_correlation(x=x, y=y, n_classes=n_classes, random_state=random_state)
     mi = mutual_information(x=x, y=y, n_classes=n_classes, random_state=random_state)
+    rdc = rdc_classifier(x=x, y=y, n_classes=n_classes, random_state=random_state)
 
-    return max(mc, mi)
+    return max(mc, mi, rdc)
+
+
+@ClassifierSelectors.register("hybrid_fast")
+def hybrid_fast_classifier(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
+    """Calculate mc and rdc and return the highest (skips slow mi).
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature.
+
+    y : np.ndarray
+        Target.
+
+    n_classes : int
+        Number of classes.
+
+    random_state : int
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated metric (max of mc, rdc).
+    """
+    mc = multiple_correlation(x=x, y=y, n_classes=n_classes, random_state=random_state)
+    rdc = rdc_classifier(x=x, y=y, n_classes=n_classes, random_state=random_state)
+
+    return max(mc, rdc)
 
 
 @RegressorSelectors.register("pc")
@@ -444,7 +474,7 @@ def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random
 
 @RegressorSelectors.register("hybrid")
 def hybrid_regressor(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int) -> float:
-    """Calculate the Pearson correlation and distance correlation and return the higher metric.
+    """Calculate Pearson correlation, distance correlation, and RDC and return the highest.
 
     Parameters
     ----------
@@ -463,12 +493,13 @@ def hybrid_regressor(x: np.ndarray, y: np.ndarray, standardize: bool, random_sta
     Returns
     -------
     float
-        Estimated metric.
+        Estimated metric (max of pc, dc, rdc).
     """
     pc = np.abs(pearson_correlation(x=x, y=y, standardize=standardize, random_state=random_state))
     dc = distance_correlation(x=x, y=y, standardize=standardize, random_state=random_state)
+    rdc = rdc_regressor(x=x, y=y, standardize=standardize, random_state=random_state)
 
-    return max(pc, dc)
+    return max(pc, dc, rdc)
 
 
 # =============================================================================
@@ -778,7 +809,7 @@ def permutation_test_hybrid_classifier(
     alpha: float,
     random_state: int,
 ) -> float:
-    """Perform a permutation test using the larger of the multiple correlation or mutual information.
+    """Perform a permutation test using the highest of mc, mi, or RDC.
 
     Parameters
     ----------
@@ -811,8 +842,13 @@ def permutation_test_hybrid_classifier(
     """
     mc = multiple_correlation(x, y, n_classes, random_state)
     mi = mutual_information(x, y, n_classes, random_state)
+    rdc = rdc_classifier(x, y, n_classes, random_state)
 
-    if mc >= mi:
+    # Find which selector has the highest score
+    scores = {"mc": mc, "mi": mi, "rdc": rdc}
+    best = max(scores, key=scores.get)
+
+    if best == "mc":
         asl = permutation_test_multiple_correlation(
             x=x,
             y=y,
@@ -822,8 +858,18 @@ def permutation_test_hybrid_classifier(
             alpha=alpha,
             random_state=random_state,
         )
-    else:
+    elif best == "mi":
         asl = permutation_test_mutual_information(
+            x=x,
+            y=y,
+            n_classes=n_classes,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+        )
+    else:
+        asl = permutation_test_rdc_classifier(
             x=x,
             y=y,
             n_classes=n_classes,

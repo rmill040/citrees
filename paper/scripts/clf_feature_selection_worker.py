@@ -92,7 +92,7 @@ def run(url: str, skip: List[str]) -> None:
             config["n_jobs"] = -1
 
         X, y = DATASETS[dataset]
-        if method in ["mc", "mi", "hybrid"]:
+        if method in ["mc", "mi", "hybrid", "rdc"]:
             func = _filter_method_selector
         elif method.startswith("ptest_"):
             func = _filter_permutation_method_selector

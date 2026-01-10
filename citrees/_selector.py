@@ -471,6 +471,184 @@ def hybrid_regressor(x: np.ndarray, y: np.ndarray, standardize: bool, random_sta
     return max(pc, dc)
 
 
+# =============================================================================
+# Randomized Dependence Coefficient (RDC)
+# Lopez-Paz et al. (2013) - https://arxiv.org/abs/1304.7717
+# O(n log n) non-linear dependence measure (vs O(n²) for distance correlation)
+#
+# R reference implementation from paper:
+#   rdc <- function(x,y,k,s) {
+#     x <- cbind(apply(as.matrix(x),2,function(u) ecdf(u)(u)),1)
+#     y <- cbind(apply(as.matrix(y),2,function(u) ecdf(u)(u)),1)
+#     wx <- matrix(rnorm(ncol(x)*k,0,s),ncol(x),k)
+#     wy <- matrix(rnorm(ncol(y)*k,0,s),ncol(y),k)
+#     cancor(cbind(cos(x%*%wx),sin(x%*%wx)), cbind(cos(y%*%wy),sin(y%*%wy)))$cor[1]
+#   }
+# =============================================================================
+
+_RDC_K = 10  # Number of random projections (paper uses 20, we use 10 for speed)
+_RDC_S = 1.0 / 6.0  # Bandwidth parameter
+
+
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_ecdf(x: np.ndarray) -> np.ndarray:
+    """Empirical CDF transform: ecdf(x)(x) = rank(x) / n."""
+    n = len(x)
+    order = np.argsort(x)
+    ranks = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        ranks[order[i]] = (i + 1) / n
+    return ranks
+
+
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_features(x: np.ndarray, k: int, s: float, seed: int) -> np.ndarray:
+    """Create RDC features: [cos(X @ w), sin(X @ w)] where X = [ecdf(x), 1]."""
+    n = len(x)
+    np.random.seed(seed)
+
+    # X = [ecdf(x), 1] has shape (n, 2)
+    ecdf_x = _rdc_ecdf(x)
+
+    # w has shape (2, k): random weights for [ecdf, bias]
+    w0 = np.empty(k, dtype=np.float64)  # weights for ecdf
+    w1 = np.empty(k, dtype=np.float64)  # weights for bias
+    for j in range(k):
+        w0[j] = np.random.randn() * s
+        w1[j] = np.random.randn() * s
+
+    # Compute X @ w = ecdf * w0 + 1 * w1, then [cos, sin]
+    features = np.empty((n, 2 * k), dtype=np.float64)
+    for i in range(n):
+        for j in range(k):
+            proj = ecdf_x[i] * w0[j] + w1[j]
+            features[i, j] = np.cos(proj)
+            features[i, k + j] = np.sin(proj)
+
+    return features
+
+
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_cancor(X: np.ndarray, Y: np.ndarray) -> float:
+    """Largest canonical correlation between X and Y feature matrices.
+
+    Computes max absolute correlation between standardized columns.
+    """
+    n, p = X.shape
+    q = Y.shape[1]
+
+    # Standardize X columns (in-place)
+    for j in range(p):
+        mu = 0.0
+        for i in range(n):
+            mu += X[i, j]
+        mu /= n
+        ss = 0.0
+        for i in range(n):
+            X[i, j] -= mu
+            ss += X[i, j] * X[i, j]
+        if ss > 1e-10:
+            inv_std = 1.0 / np.sqrt(ss)
+            for i in range(n):
+                X[i, j] *= inv_std
+
+    # Standardize Y columns (in-place)
+    for j in range(q):
+        mu = 0.0
+        for i in range(n):
+            mu += Y[i, j]
+        mu /= n
+        ss = 0.0
+        for i in range(n):
+            Y[i, j] -= mu
+            ss += Y[i, j] * Y[i, j]
+        if ss > 1e-10:
+            inv_std = 1.0 / np.sqrt(ss)
+            for i in range(n):
+                Y[i, j] *= inv_std
+
+    # Find max |corr(X[:,j], Y[:,k])| - X,Y already standardized so corr = X'Y/n
+    max_corr = 0.0
+    for j in range(p):
+        for k in range(q):
+            corr = 0.0
+            for i in range(n):
+                corr += X[i, j] * Y[i, k]
+            if corr < 0:
+                corr = -corr
+            if corr > max_corr:
+                max_corr = corr
+
+    return min(max_corr, 1.0)
+
+
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc(x: np.ndarray, y: np.ndarray, k: int, s: float, seed: int) -> float:
+    """Randomized Dependence Coefficient."""
+    n = len(x)
+    if n < 3:
+        return 0.0
+
+    # Check constant
+    x_min, x_max = x[0], x[0]
+    y_min, y_max = y[0], y[0]
+    for i in range(1, n):
+        if x[i] < x_min:
+            x_min = x[i]
+        if x[i] > x_max:
+            x_max = x[i]
+        if y[i] < y_min:
+            y_min = y[i]
+        if y[i] > y_max:
+            y_max = y[i]
+    if x_max - x_min < 1e-10 or y_max - y_min < 1e-10:
+        return 0.0
+
+    # Create features
+    X_feat = _rdc_features(x, k, s, seed)
+    Y_feat = _rdc_features(y, k, s, seed + 1000)
+
+    return _rdc_cancor(X_feat, Y_feat)
+
+
+@ClassifierSelectors.register("rdc")
+def rdc_classifier(
+    x: np.ndarray, y: np.ndarray, n_classes: int, random_state: Optional[int] = None
+) -> float:
+    """RDC for classification. O(n log n) non-linear dependence."""
+    if x.ndim > 1:
+        x = x.ravel()
+    if y.ndim > 1:
+        y = y.ravel()
+
+    seed = 42 if random_state is None else random_state
+
+    if n_classes == 2:
+        return _rdc(x, y.astype(np.float64), _RDC_K, _RDC_S, seed)
+
+    # Multi-class: max RDC over one-vs-all
+    max_rdc = 0.0
+    for c in range(n_classes):
+        rdc_c = _rdc(x, (y == c).astype(np.float64), _RDC_K, _RDC_S, seed + c)
+        if rdc_c > max_rdc:
+            max_rdc = rdc_c
+    return max_rdc
+
+
+@RegressorSelectors.register("rdc")
+def rdc_regressor(
+    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None
+) -> float:
+    """RDC for regression. O(n log n) non-linear dependence."""
+    if x.ndim > 1:
+        x = x.ravel()
+    if y.ndim > 1:
+        y = y.ravel()
+
+    seed = 42 if random_state is None else random_state
+    return _rdc(x, y, _RDC_K, _RDC_S, seed)
+
+
 @ClassifierSelectorTests.register("mc")
 def permutation_test_multiple_correlation(
     *,
@@ -841,3 +1019,122 @@ def permutation_test_hybrid_regressor(
         )
 
     return asl
+
+
+# =============================================================================
+# RDC Permutation Tests
+# =============================================================================
+
+
+@ClassifierSelectorTests.register("rdc")
+def permutation_test_rdc_classifier(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
+    """Perform a permutation test using the Randomized Dependence Coefficient.
+
+    RDC-based permutation test for feature selection in classification.
+    O(n log n) per permutation vs O(n²) for distance correlation.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Target values (class labels).
+
+    n_classes : int
+        Number of classes.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    return _permutation_test(
+        func=rdc_classifier,
+        func_arg=n_classes,
+        x=x,
+        y=y,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )
+
+
+@RegressorSelectorTests.register("rdc")
+def permutation_test_rdc_regressor(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    standardize: bool,
+    n_resamples: int,
+    early_stopping: bool,
+    alpha: float,
+    random_state: int,
+) -> float:
+    """Perform a permutation test using the Randomized Dependence Coefficient.
+
+    RDC-based permutation test for feature selection in regression.
+    O(n log n) per permutation vs O(n²) for distance correlation.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Target values.
+
+    standardize : bool
+        Whether to standardize the result. RDC is inherently standardized.
+
+    n_resamples : int
+        Number of permutations to perform.
+
+    early_stopping : bool
+        Whether to implement early stopping during permutation testing.
+
+    alpha : float
+        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
+        This parameter is only used when early_stopping is True.
+
+    random_state : int
+        Random seed.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    return _permutation_test(
+        func=rdc_regressor,
+        func_arg=standardize,
+        x=x,
+        y=y,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+    )

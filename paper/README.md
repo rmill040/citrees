@@ -35,12 +35,25 @@ Compare citrees feature ranking against baselines (RF, XGBoost, LightGBM, etc.) 
 
 **Architecture**: Distributed server-worker pattern using FastAPI + DynamoDB
 
+**Classification:**
+
 | Script | Description |
 |--------|-------------|
 | `clf_feature_selection_server.py` | FastAPI server that serves experiment configurations |
 | `clf_feature_selection_worker.py` | Worker that runs feature selection methods |
 | `clf_cv_server.py` | Serves configurations for downstream evaluation |
 | `clf_cv_worker.py` | Multi-model downstream evaluation (SVM, LR, kNN) |
+| `clf_cv_analysis.py` | Analyze results and generate rankings |
+
+**Regression:**
+
+| Script | Description |
+|--------|-------------|
+| `reg_feature_selection_server.py` | FastAPI server for regression configs |
+| `reg_feature_selection_worker.py` | Worker for regression feature selection |
+| `reg_cv_server.py` | Serves configs for downstream evaluation |
+| `reg_cv_worker.py` | Multi-model downstream evaluation (SVR, Ridge, kNN) |
+| `reg_cv_analysis.py` | Analyze results and generate rankings |
 
 **Running distributed experiments:**
 
@@ -143,9 +156,15 @@ uv run python scripts/timing.py
 
 ### Downstream Models (for evaluation)
 
+**Classification:**
 - SVM (Support Vector Machine)
-- Logistic Regression
-- k-NN (k-Nearest Neighbors)
+- LR (Logistic Regression)
+- kNN (k-Nearest Neighbors)
+
+**Regression:**
+- SVR (Support Vector Regression)
+- Ridge (L2 regularized linear regression)
+- kNN (k-Nearest Neighbors Regressor)
 
 ## Reproducing Results
 
@@ -161,7 +180,7 @@ uv run python scripts/timing.py
 
 3. **Run downstream evaluation**:
    ```bash
-   ./scripts/run.sh scripts/clf_cv_worker_v2.py
+   ./scripts/run.sh scripts/clf_cv_worker.py
    ```
 
 4. **Analyze results**:

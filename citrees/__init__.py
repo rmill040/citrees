@@ -16,10 +16,15 @@ __all__ = [
     "CQR",
 ]
 
-# Try to update recursion limit
-try:
-    import sys
+# Increase recursion limit for deep tree building
+# Note: _predict_value and _reestimate_tree_by_path use iterative traversal,
+# but _build_tree is recursive. Depth is bounded by max_depth, min_samples_split,
+# and min_samples_leaf parameters. 5000 is sufficient for any reasonable tree.
+import sys
 
-    sys.setrecursionlimit(100_000)
-except Exception:
-    pass
+_current_limit = sys.getrecursionlimit()
+if _current_limit < 5000:
+    try:
+        sys.setrecursionlimit(5000)
+    except (ValueError, RecursionError):
+        pass

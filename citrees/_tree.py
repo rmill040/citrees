@@ -1018,7 +1018,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
     def _reestimate_tree_by_path(
         self, tree: Node, y: np.ndarray, leaf_samples: dict[tuple, list[int]], path: tuple
     ) -> None:
-        """Recursively re-estimate leaf values in tree using path-based identification.
+        """Re-estimate leaf values in tree using path-based identification (iterative).
 
         Parameters
         ----------
@@ -1034,22 +1034,27 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         path : tuple
             Current path from root.
         """
-        if "value" in tree:
-            # This is a leaf node
-            if path in leaf_samples and len(leaf_samples[path]) > 0:
-                indices = leaf_samples[path]
-                y_leaf = y[indices]
-                tree["value"] = self._node_value(y_leaf)
-                tree["n_samples"] = len(indices)
-            # If no estimation samples fall into this leaf, keep the original value
-            # Note: This is a known trade-off. Empty leaves retain splitting-sample estimates.
-        else:
-            # Recurse into children
-            self._reestimate_tree_by_path(tree["left_child"], y, leaf_samples, path + ("L",))
-            self._reestimate_tree_by_path(tree["right_child"], y, leaf_samples, path + ("R",))
+        # Use stack-based iteration to avoid recursion limit issues
+        stack = [(tree, path)]
+
+        while stack:
+            node, current_path = stack.pop()
+
+            if "value" in node:
+                # This is a leaf node
+                if current_path in leaf_samples and len(leaf_samples[current_path]) > 0:
+                    indices = leaf_samples[current_path]
+                    y_leaf = y[indices]
+                    node["value"] = self._node_value(y_leaf)
+                    node["n_samples"] = len(indices)
+                # If no estimation samples fall into this leaf, keep the original value
+            else:
+                # Add children to stack (right first so left is processed first)
+                stack.append((node["right_child"], current_path + ("R",)))
+                stack.append((node["left_child"], current_path + ("L",)))
 
     def _predict_value(self, x: np.ndarray, tree: Node | None = None) -> float | np.ndarray:
-        """Predict target for single sample.
+        """Predict target for single sample using iterative traversal.
 
         Parameters
         ----------
@@ -1064,19 +1069,15 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         float | np.ndarray
             Predicted value for sample.
         """
-        # If we have a value => return value as the prediction
         if tree is None:
             tree = self.tree_
 
-        if "value" in tree:
-            return tree["value"]
+        # Iterative traversal (avoids recursion limit issues)
+        while "value" not in tree:
+            feature_value = x[tree["feature"]]
+            tree = tree["left_child"] if feature_value <= tree["threshold"] else tree["right_child"]
 
-        # Determine if we will follow left or right branch
-        feature_value = x[tree["feature"]]
-        branch = tree["left_child"] if feature_value <= tree["threshold"] else tree["right_child"]
-
-        # Recurse subtree
-        return self._predict_value(x, branch)
+        return tree["value"]
 
     @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:

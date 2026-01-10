@@ -71,3 +71,10 @@ markers = [
 [tool.coverage.run]
 source = ["citrees"]
 omit = ["tests/*"]
+
+[dependency-groups]
+paper = [
+    "lightgbm>=4.6.0",
+    "loguru>=0.7.3",
+    "xgboost>=3.1.3",
+]

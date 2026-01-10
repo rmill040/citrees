@@ -25,6 +25,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
 
 from citrees import ConditionalInferenceTreeClassifier, ConditionalInferenceForestClassifier
 
@@ -45,6 +47,7 @@ class SyntheticConfig:
 def get_feature_rankers() -> Dict[str, Any]:
     """Return feature ranking methods to compare."""
     return {
+        # Conditional Inference Trees
         "citree": ConditionalInferenceTreeClassifier(
             selector="mc", n_resamples_selector="auto",
             alpha_selector=0.05, verbose=0, random_state=42
@@ -53,9 +56,13 @@ def get_feature_rankers() -> Dict[str, Any]:
             n_estimators=100, selector="mc", n_resamples_selector=None,
             alpha_selector=0.05, n_jobs=-1, verbose=0, random_state=42
         ),
+        # Standard tree-based methods
         "rf": RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=42),
         "et": ExtraTreesClassifier(n_estimators=100, n_jobs=-1, random_state=42),
         "dt": DecisionTreeClassifier(random_state=42),
+        # Gradient boosting methods
+        "xgb": XGBClassifier(n_estimators=100, n_jobs=-1, random_state=42, verbosity=0),
+        "lgbm": LGBMClassifier(n_estimators=100, n_jobs=-1, random_state=42, verbose=-1),
     }
 
 
@@ -222,9 +229,9 @@ def main():
 
     # Print summary
     print("\n=== SUMMARY ===")
-    print(df.groupby(["n_features", "n_informative"])[[
-        "citree_precision@10", "ciforest_precision@10", "rf_precision@10"
-    ]].mean().round(3))
+    precision_cols = [c for c in df.columns if c.endswith("_precision@10")]
+    if precision_cols:
+        print(df.groupby(["n_features", "n_informative"])[precision_cols].mean().round(3))
 
 
 if __name__ == "__main__":

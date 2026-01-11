@@ -236,7 +236,7 @@ def select_features(
         return permutation_selector(X_train, y_train, method, n_classes, hyperparameters, n_select)
     elif method == "boruta":
         return boruta_selector(X_train, y_train, hyperparameters, n_select)
-    elif method == "permutation_importance":
+    elif method == "pi":
         return sklearn_permutation_selector(X_train, y_train, hyperparameters, n_select)
     elif method in ESTIMATORS:
         return embedding_selector(X_train, y_train, method, n_classes, hyperparameters, n_select)

@@ -292,7 +292,7 @@ def _ptest_mae_parallel(
         dev_right_perm = np.abs(y_right_perm - y_right_perm.mean())
         theta_p[i] = np.mean(dev_left_perm) + np.mean(dev_right_perm)
 
-    return np.mean(theta_p <= theta)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 @ClassifierSplitters.register("gini")

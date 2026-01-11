@@ -103,6 +103,11 @@ features). Let $m_t := |F_t|$.
 If both stages reject and additional deterministic constraints are satisfied (e.g., `min_samples_leaf`,
 `min_impurity_decrease`), split the node into left/right children by the rule $X_{ij_t^\star}\le c_t^\star$ and recurse.
 
+**Important inferential note.**  
+Stage B is performed *after selecting* the feature $j_t^\star$ using the same response values $Y_t$. Unless $j_t^\star$
+is treated as fixed in advance (or additional sample splitting / selective-inference machinery is used), the Stage B
+p-values should be viewed as *algorithmic stopping statistics*, not classical post-selection p-values.
+
 ## 3. Permutation p-values (finite-sample validity)
 
 ### 3.0 Exact vs Monte Carlo permutation tests
@@ -298,9 +303,11 @@ $$
 
 **Proof.** Apply Lemma 2 with $m=m_t$. ∎
 
-**Proposition 3a (per-feature false selection bound).**  
-Under the assumptions of Proposition 3, fix any particular feature $j\in F_t$. If the algorithm splits at node $t$ and
-chooses feature $j$ (i.e., $j_t^\star=j$), then necessarily $p_{t,j}\le \alpha_{\text{sel}}/m_t$. Consequently,
+**Proposition 3a (per-feature false selection bound; no global-null needed).**  
+Fix any node $t$ and any particular feature $j\in F_t$ such that its null $H^{\text{sel}}_{t,j}$ is true and its
+p-value $p_{t,j}$ is super-uniform (Theorem 1 / Corollary 2). If the algorithm splits at node $t$ and chooses feature
+$j$ (i.e., $j_t^\star=j$), then necessarily $p_{t,j}\le \alpha_{\text{sel}}/m_t$ (in the Bonferroni-adjusted case).
+Consequently,
 $$
 \mathbb{P}(j_t^\star = j \text{ and node } t \text{ splits}) \le \alpha_{\text{sel}}/m_t.
 $$
@@ -323,13 +330,30 @@ $$
 
 **Proof.** Apply Lemma 2 with $m=\ell_{t,j}$. ∎
 
+**Proposition 3a′ (per-threshold false selection bound; fixed feature).**  
+Under the assumptions of Proposition 3′, fix any particular threshold $c\in C_{t,j}$. If the algorithm (at node $t$)
+splits using threshold $c$ on feature $j$ (i.e., $c_t^\star=c$), then necessarily $p_{t,j,c}\le \alpha_{\text{split}}/\ell_{t,j}$
+(in the Bonferroni-adjusted case). Consequently,
+$$
+\mathbb{P}(c_t^\star=c \text{ and node } t \text{ splits on feature } j) \le \alpha_{\text{split}}/\ell_{t,j}.
+$$
+
+**Proof.** Identical to Proposition 3a, replacing the feature family with the threshold family. ∎
+
+**Interpretation: what “unbiased selection” can mean rigorously.**  
+In CART-style algorithms, a feature with many candidate thresholds has many chances to look good when optimizing an
+impurity objective, which can inflate false selection probability (selection bias). In citrees, the statements
+Propositions 3a and 3a′ say: **for any null candidate (feature or threshold) among the tested family, the probability it
+is selected as the split driver is bounded by the same Bonferroni share of $\alpha$**, regardless of how many unique
+values it has—because a larger candidate family simply tightens the per-candidate threshold.
+
 **Remarks.**
 
 1. This bound is *nodewise* and does not claim global family-wise error control over the entire adaptively-grown tree.
 2. Additional constraints (e.g., `min_samples_leaf`, `min_impurity_decrease`) can only reduce the probability of making a
    split, so they preserve the inequality.
 
-## 4.3 Random feature/threshold subsampling (root-level validity)
+### 4.3 Random feature/threshold subsampling (root-level validity)
 
 citrees optionally tests only a subset of features (`max_features`) and/or a subset of thresholds (`max_thresholds`
 through the threshold method). This is statistically safe at the *root*, because these candidate sets are functions of
@@ -348,8 +372,14 @@ Then any +1-corrected permutation p-values computed by permuting $Y$ (holding $X
 super-uniform under the null, and Bonferroni correction over the tested families yields the corresponding root-level
 FWER bounds.
 
-**Proof sketch.** Conditional on $(X,U)$, the tested families are fixed and $Y$ remains exchangeable under the null.
-Apply Theorem 1 to each tested hypothesis and then Lemma 2 to the family. ∎
+**Proof.** Fix $(X,U)$. By assumption, the tested feature family $F$ and each tested threshold family $C_j$ are
+measurable w.r.t. $(X,U)$, so they are fixed when conditioning on $(X,U)$.
+
+Under the null, $Y$ is exchangeable conditional on $(X,U)$, hence for any tested hypothesis, the Monte Carlo +1
+permutation p-value is super-uniform conditional on $(X,U)$ by Corollary 2.
+
+Applying Lemma 2 conditionally on $(X,U)$ yields the corresponding Bonferroni family-wise error bounds over the tested
+families. Finally, taking expectations over $(X,U)$ preserves the inequality. ∎
 
 ### 4.4 Root-level “tree makes any split” guarantee (safe global statement)
 
@@ -489,7 +519,58 @@ Before making inferential claims in a paper, it’s worth explicitly deciding wh
    If you subsample features (`max_features`) or thresholds (`max_thresholds`), be explicit in the paper: you are
    controlling error over the tested subset, not over all $p$ features / all thresholds.
 
-4. **Phipson–Smyth +1 correction everywhere.**  
-   In `citrees/_splitter.py`, the parallel MAE permutation test (`_ptest_mae_parallel`) currently returns
-   `np.mean(theta_p <= theta)` (no +1 correction). For strict alignment with Section 3, either (a) avoid MAE in paper
-   runs, or (b) patch the implementation to use `(1 + count)/(1 + B)` consistently.
+4. **Phipson–Smyth +1 correction everywhere.**
+   All permutation tests in `citrees/_splitter.py` now use the +1 correction `(1 + count)/(1 + B)` consistently,
+   including the parallel MAE permutation test (`_ptest_mae_parallel`). This aligns with Section 3.
+
+## 9. What is actually “publishable” theory for citrees (safe claims)
+
+This section is meant to be copy/paste-able into a paper as “theoretical guarantees,” without over-claiming.
+
+### 9.1 Minimal assumptions to state explicitly
+
+For any theorem involving permutation p-values, state (some variant of):
+
+1. **Exchangeability under the null:** under $H_0$, labels $Y$ are exchangeable conditional on the covariates treated as
+   fixed by the permutation procedure (and any algorithm RNG used to form candidate sets).
+2. **Fixed permutation budget per test:** the Monte Carlo test uses a fixed $B$ permutations (no data-dependent early
+   stopping).
+3. **Multiplicity correction matches the tested family:** if you test $m$ features / $\ell$ thresholds, your correction
+   is over those tested hypotheses (not over untested ones).
+
+### 9.2 Theorems/Propositions you can safely include
+
+1. **Permutation p-value validity (finite sample).**  
+   The +1 Monte Carlo permutation p-value is super-uniform under the null (Theorem 1). This is the core reason the
+   method can use p-values as unbiased selection scores.
+
+2. **Feature-selection family-wise error at a fixed node (global null).**  
+   If all tested features at a node are null, Bonferroni gives
+   $\mathbb{P}(\text{select any feature at that node}) \le \alpha_{\text{sel}}$ (Proposition 3).
+
+3. **Per-feature false selection bound (partial null).**  
+   For any particular null feature in the tested family,
+   $\mathbb{P}(\text{node splits on that feature}) \le \alpha_{\text{sel}}/m$ (Proposition 3a).
+   This is a rigorous way to say “high-cardinality noise does not get an unfair advantage” (it cannot be selected more
+   often than this bound, regardless of its number of unique values).
+
+4. **Root-level global-null bound on *any* split in the fitted tree.**  
+   Under a global null at the root across tested features, the probability the learned tree has any split is at most
+   $\alpha_{\text{sel}}$ (Proposition 3b).
+
+5. **(Optional) Honest estimation unbiasedness.**  
+   If `honesty=True`, leaf means/probabilities are unbiased conditional on the learned partition on leaves that receive
+   estimation samples (Proposition 4). If `honesty=False`, do not claim unbiased leaf estimation.
+
+6. **(Optional) Conformal coverage.**  
+   If you wrap a fitted model with split conformal prediction, you can claim finite-sample marginal coverage under
+   exchangeability (standard conformal theory; not unique to citrees).
+
+### 9.3 “Rigorous mode” settings for experiments that cite these results
+
+For runs where you want to invoke the theorems above as written:
+
+- `early_stopping_selector=False`, `early_stopping_splitter=False`
+- `adjust_alpha_selector=True` (and optionally `adjust_alpha_splitter=True` if you talk about threshold families)
+- Prefer `selector` as a single string (avoid list-based multi-selector inference claims)
+- Prefer `feature_muting=False` for any inferential statements (keep it for speed-only ablations)

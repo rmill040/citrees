@@ -74,7 +74,44 @@ H^{\text{split}}_{t,j,c}: \; Y_t \text{ is exchangeable w.r.t. the partition } (
 $$
 In particular, if $X_{t,j} \perp Y_t$, then $H^{\text{split}}_{t,j,c}$ holds for all $c$.
 
+### 2.3 Algorithm (formal node-level description)
+
+We describe one node expansion in a way that matches the implementation in `citrees/_tree.py`:
+
+Let $F_t \subseteq \{1,\dots,p\}$ be the candidate feature set (potentially a random subset of currently-available
+features). Let $m_t := |F_t|$.
+
+**Stage A (feature selection / stopping rule).**
+
+1. For each $j \in F_t$, compute a permutation p-value $p_{t,j}$ for testing $H^{\text{sel}}_{t,j}$.
+2. Let $j_t^\star := \arg\min_{j\in F_t} p_{t,j}$ and $p_t^\star := \min_{j\in F_t} p_{t,j}$.
+3. If `adjust_alpha_selector=True`, compare against $\alpha_{\text{sel}}/m_t$ (Bonferroni); otherwise compare against
+   $\alpha_{\text{sel}}$.
+4. If $p_t^\star$ is not below the relevant threshold, stop and return a leaf node.
+
+**Stage B (threshold selection / split validation).**
+
+1. Given the selected feature $j_t^\star$, construct a finite threshold candidate set $C_{t,j_t^\star}$ with
+   $\ell_t := |C_{t,j_t^\star}|$. In citrees, these are midpoints of unique sorted values (possibly subsampled).
+2. For each $c \in C_{t,j_t^\star}$, compute a permutation p-value $p_{t,c}$ for testing $H^{\text{split}}_{t,j_t^\star,c}$
+   using the split statistic $T^{\text{split}}_{j_t^\star,c}$.
+3. Let $c_t^\star := \arg\min_{c\in C_{t,j_t^\star}} p_{t,c}$ and $p_{t,\text{split}}^\star := \min_{c\in C_{t,j_t^\star}} p_{t,c}$.
+4. If `adjust_alpha_splitter=True`, compare against $\alpha_{\text{split}}/\ell_t$; otherwise compare against
+   $\alpha_{\text{split}}$.
+5. If $p_{t,\text{split}}^\star$ is not below the relevant threshold, stop and return a leaf node.
+
+If both stages reject and additional deterministic constraints are satisfied (e.g., `min_samples_leaf`,
+`min_impurity_decrease`), split the node into left/right children by the rule $X_{ij_t^\star}\le c_t^\star$ and recurse.
+
 ## 3. Permutation p-values (finite-sample validity)
+
+### 3.0 Exact vs Monte Carlo permutation tests
+
+For a fixed node $t$ and feature $j$, an *exact* permutation test would enumerate all $n_t!$ permutations (or all
+distinct labelings under the relevant group action) to compute the null distribution of $T(X_{t,j}, Y_t)$.
+citrees uses *Monte Carlo* permutation tests: sample $B$ random permutations and estimate the tail probability.
+
+All results below are stated for the Monte Carlo test with fixed $B$.
 
 ### 3.1 Exchangeability assumption
 
@@ -85,7 +122,33 @@ $$
 $$
 This is standard in randomization/permutation test theory and is satisfied under i.i.d. sampling with $X_{t,j} \perp Y_t$.
 
-### 3.2 Monte Carlo permutation p-value with +1 correction
+### 3.2 A key lemma: exchangeability of the permutation statistics
+
+The “rank proof” of permutation p-value validity is simplest when the vector $(T_0,\dots,T_B)$ is exchangeable. We
+spell out one sufficient construction that makes this true.
+
+Let $\Pi_0,\Pi_1,\dots,\Pi_B$ be i.i.d. uniform random permutations of $\{1,\dots,n_t\}$, independent of $(X_t, Y_t)$.
+Define
+$$
+T_b := T(X_{t,j}, \Pi_b(Y_t)) \quad (b=0,1,\dots,B),
+$$
+where $T$ is the chosen test statistic and tail.
+
+**Lemma 1 (exchangeability of $(T_0,\dots,T_B)$).**  
+Conditional on $(X_t, Y_t)$, the vector $(T_0,\dots,T_B)$ is exchangeable. Consequently, it is exchangeable
+unconditionally.
+
+**Proof.** Conditional on $(X_t,Y_t)$, the random variables $T_b$ are measurable functions of the i.i.d. random
+permutations $(\Pi_b)_{b=0}^B$. Any permutation of the indices $b$ leaves the joint law unchanged because
+$(\Pi_0,\dots,\Pi_B)$ is i.i.d. ∎
+
+**Why this matches the practical procedure.**  
+In practice, one typically sets $T_0 := T(X_{t,j}, Y_t)$ (the “unpermuted” labels) and samples only
+$\Pi_1,\dots,\Pi_B$. Under the exchangeability of $Y_t$ (Section 3.1), $Y_t \stackrel{d}{=} \Pi_0(Y_t)$ for uniform
+$\Pi_0$ independent of $Y_t$. Therefore the distribution of $(T_0,\dots,T_B)$ in the “unpermuted + $B$ permuted”
+procedure is the same as in the i.i.d.-permutations construction above, and the validity conclusions apply.
+
+### 3.3 Monte Carlo permutation p-value with +1 correction
 
 Fix a statistic $T(\cdot,\cdot)$ (either feature selection or split selection, with the appropriate tail). Let
 $\pi_1,\dots,\pi_B$ be i.i.d. uniform random permutations of $\{1,\dots,n_t\}$, drawn independently of the data.
@@ -108,7 +171,7 @@ $$
 
 This is exactly the “+1 correction” recommended by Phipson & Smyth (2010) for Monte Carlo permutation tests.
 
-### 3.3 Theorem: super-uniformity of the +1 p-value
+### 3.4 Theorem: super-uniformity of the +1 p-value
 
 **Theorem 1 (Monte Carlo permutation p-values are valid).**  
 Assume that under the null hypothesis of interest, the random variables $(T_0, T_1, \dots, T_B)$ are exchangeable.
@@ -154,6 +217,52 @@ Under $H^{\text{sel}}_{t,j}$ (or $H^{\text{split}}_{t,j,c}$), the conditional di
 that define the null is invariant to permutations. Therefore $T(X_{t,j}, Y_t)$ has the same distribution as
 $T(X_{t,j}, \pi(Y_t))$ for uniform $\pi$, and the collection $(T_0,\dots,T_B)$ is exchangeable.
 
+### 3.5 Conditional (on-$X$) validity
+
+The most defensible way to state permutation-test validity in a tree context is conditional on the covariates that are
+treated as fixed by the permutation procedure.
+
+**Corollary 2 (conditional super-uniformity).**  
+Fix $(X_t, U)$ where $U$ denotes any algorithmic randomness used to choose the candidate family (e.g., the indices in
+`max_features`, or subsampled thresholds) and assume that, under the null hypothesis being tested, $Y_t$ is
+exchangeable conditional on $(X_t,U)$. Then the +1 Monte Carlo permutation p-value satisfies
+$$
+\mathbb{P}(p \le \alpha \mid X_t, U) \le \alpha \quad \text{for all } \alpha\in[0,1].
+$$
+
+**Proof.** Conditional on $(X_t,U)$, the candidate family and the statistic are fixed, and the exchangeability
+assumption reduces to the setup of Lemma 1 + Theorem 1. ∎
+
+### 3.6 Monte Carlo resolution and error (fixed $B$)
+
+Even when the *test* is valid, finite $B$ limits the granularity of the p-value and introduces Monte Carlo variability.
+This can be described exactly.
+
+Let
+$$
+p^\star := \mathbb{P}\big(T(X_{t,j}, \Pi(Y_t)) \text{ is at least as extreme as } T(X_{t,j}, Y_t)\;\big|\;X_t,Y_t\big),
+$$
+where $\Pi$ is a uniform random permutation independent of everything. Under the Monte Carlo scheme with i.i.d.
+permutations, the exceedance count
+$$
+K := \sum_{b=1}^B \mathbf{1}\{T_b \ge T_0\} \quad \text{(or } \mathbf{1}\{T_b \le T_0\}\text{)}
+$$
+satisfies, conditional on $(X_t,Y_t)$,
+$$
+K \sim \mathrm{Binomial}(B, p^\star),
+$$
+so the reported +1 p-value is $p=(1+K)/(B+1)$.
+
+From this representation:
+
+1. **Resolution:** $p \in \{1/(B+1), 2/(B+1), \dots, 1\}$. In particular, to have the possibility of rejecting at level
+   $\alpha$, one needs $1/(B+1)\le \alpha$, i.e. $B \ge 1/\alpha - 1$.
+2. **Concentration:** by Hoeffding’s inequality, for any $\varepsilon>0$,
+   $$
+   \mathbb{P}\Big(\Big|\frac{K}{B} - p^\star\Big|\ge \varepsilon \;\Big|\; X_t,Y_t\Big) \le 2e^{-2B\varepsilon^2}.
+   $$
+   This gives a simple “how many permutations are needed” calibration for Monte Carlo accuracy (separate from validity).
+
 ## 4. Multiplicity correction (Bonferroni)
 
 ### 4.1 Lemma: Bonferroni with super-uniform p-values
@@ -189,6 +298,20 @@ $$
 
 **Proof.** Apply Lemma 2 with $m=m_t$. ∎
 
+**Proposition 3a (per-feature false selection bound).**  
+Under the assumptions of Proposition 3, fix any particular feature $j\in F_t$. If the algorithm splits at node $t$ and
+chooses feature $j$ (i.e., $j_t^\star=j$), then necessarily $p_{t,j}\le \alpha_{\text{sel}}/m_t$. Consequently,
+$$
+\mathbb{P}(j_t^\star = j \text{ and node } t \text{ splits}) \le \alpha_{\text{sel}}/m_t.
+$$
+
+**Proof.** The event $\{j_t^\star=j \text{ and split at }t\}$ implies $p_{t,j} = \min_{k\in F_t} p_{t,k} \le
+\alpha_{\text{sel}}/m_t$, hence
+$$
+\mathbb{P}(j_t^\star=j \text{ and split at }t) \le \mathbb{P}(p_{t,j}\le \alpha_{\text{sel}}/m_t) \le \alpha_{\text{sel}}/m_t
+$$
+by Corollary 2 / Theorem 1 (super-uniformity for a true null). ∎
+
 **Proposition 3′ (nodewise global-null control for threshold selection, fixed feature).**  
 Fix a node $t$ and a feature $j$, and let $C_{t,j}$ be the candidate threshold set with $|C_{t,j}| = \ell_{t,j}$.
 Assume $H^{\text{sel}}_{t,j}$ holds (so $X_{t,j}\perp Y_t$), which implies $H^{\text{split}}_{t,j,c}$ holds for all
@@ -205,6 +328,53 @@ $$
 1. This bound is *nodewise* and does not claim global family-wise error control over the entire adaptively-grown tree.
 2. Additional constraints (e.g., `min_samples_leaf`, `min_impurity_decrease`) can only reduce the probability of making a
    split, so they preserve the inequality.
+
+## 4.3 Random feature/threshold subsampling (root-level validity)
+
+citrees optionally tests only a subset of features (`max_features`) and/or a subset of thresholds (`max_thresholds`
+through the threshold method). This is statistically safe at the *root*, because these candidate sets are functions of
+the covariates and the algorithm RNG, not of the labels.
+
+**Proposition 3″ (root-level validity under random candidate sets).**  
+Consider the root node (so the candidate pool is the full sample). Suppose:
+
+1. Under the null, $Y$ is exchangeable conditional on $X$ (e.g., i.i.d. with $X \perp Y$).
+2. The tested feature set $F$ is (possibly random) but measurable w.r.t. $(X, U)$ where $U$ is algorithm randomness
+   independent of $Y$.
+3. For each tested feature $j\in F$, the threshold candidate set $C_j$ is (possibly random) but measurable w.r.t.
+   $(X_{\cdot j}, U)$, independent of $Y$ given $(X,U)$.
+
+Then any +1-corrected permutation p-values computed by permuting $Y$ (holding $X$ and the candidate sets fixed) are
+super-uniform under the null, and Bonferroni correction over the tested families yields the corresponding root-level
+FWER bounds.
+
+**Proof sketch.** Conditional on $(X,U)$, the tested families are fixed and $Y$ remains exchangeable under the null.
+Apply Theorem 1 to each tested hypothesis and then Lemma 2 to the family. ∎
+
+### 4.4 Root-level “tree makes any split” guarantee (safe global statement)
+
+Tree adaptivity makes it hard to interpret internal-node tests as classical inferential p-values. However, there is one
+global statement that remains clean: **a tree can only split if the root rejects.**
+
+**Proposition 3b (global-null split probability at the root).**  
+Consider the root node and suppose the global null holds for all tested features at the root (i.e., for every
+$j\in F_{\text{root}}$, $X_{\cdot j}\perp Y$ so the feature-selection null is true). In “rigorous mode” (fixed $B$ and
+Bonferroni over the tested feature family), we have
+$$
+\mathbb{P}(\text{the fitted tree has at least one internal split}) \le \alpha_{\text{sel}}.
+$$
+
+**Proof.** The event “the fitted tree has at least one split” implies “the root splits,” which implies that at the root
+we rejected at least one of the feature-selection nulls. Apply Proposition 3 at the root. ∎
+
+**Corollary 3c (per-feature root split bound).**  
+Under the assumptions of Proposition 3b with $m_{\text{root}} := |F_{\text{root}}|$, for any particular tested feature
+$j\in F_{\text{root}}$,
+$$
+\mathbb{P}(\text{the root splits on feature }j) \le \alpha_{\text{sel}}/m_{\text{root}}.
+$$
+
+**Proof.** This is Proposition 3a specialized to the root. ∎
 
 ## 5. Honest estimation: unbiased leaf predictions (when leaves get estimation data)
 

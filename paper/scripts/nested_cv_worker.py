@@ -42,6 +42,19 @@ from sklearn.preprocessing import StandardScaler, label_binarize
 from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 from citrees._selector import ClassifierSelectors, ClassifierSelectorTests
 
+# R interface for partykit::ctree (optional - requires R + rpy2 + partykit)
+R_AVAILABLE = False
+try:
+    import subprocess
+    r_home = subprocess.run(["R", "RHOME"], capture_output=True, text=True).stdout.strip()
+    if r_home:
+        os.environ.setdefault("R_HOME", r_home)
+    import rpy2.robjects as ro
+    from rpy2.robjects.packages import importr
+    R_AVAILABLE = True
+except (ImportError, FileNotFoundError, Exception):
+    ro = None
+
 # ==============================================================================
 # Constants
 # ==============================================================================
@@ -221,6 +234,54 @@ def sklearn_permutation_selector(
     return np.argsort(result.importances_mean)[::-1][:n_select]
 
 
+def r_ctree_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    hyperparameters: dict,
+    n_select: int,
+) -> np.ndarray:
+    """R partykit::ctree feature selection using variable importance."""
+    if not R_AVAILABLE:
+        raise RuntimeError("R/rpy2/partykit not available. Install with: brew install r && uv add rpy2")
+
+    from rpy2.robjects import pandas2ri
+    from rpy2.robjects.conversion import localconverter
+
+    # Convert to pandas DataFrame
+    import pandas as pd
+    df = pd.DataFrame(X_train, columns=[f"X{i}" for i in range(X_train.shape[1])])
+    df["y"] = y_train.astype(int)
+
+    # Transfer to R using converter
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        ro.globalenv["train_data"] = df
+
+    # Build formula
+    feature_names = [f"X{i}" for i in range(X_train.shape[1])]
+    formula_str = "factor(y) ~ " + " + ".join(feature_names)
+
+    # Fit ctree and get variable importance
+    ro.r(f'''
+        library(partykit)
+        ct <- ctree({formula_str}, data=train_data)
+        vi <- varimp(ct)
+    ''')
+
+    # Get variable importance
+    vi = np.array(ro.r("vi"))
+
+    # Handle case where varimp returns named vector (some features not used)
+    if len(vi) < X_train.shape[1]:
+        full_vi = np.zeros(X_train.shape[1])
+        vi_names = list(ro.r("names(vi)"))
+        for i, name in enumerate(vi_names):
+            idx = int(name.replace("X", ""))
+            full_vi[idx] = vi[i]
+        vi = full_vi
+
+    return np.argsort(vi)[::-1][:n_select]
+
+
 def select_features(
     X_train: np.ndarray,
     y_train: np.ndarray,
@@ -238,6 +299,8 @@ def select_features(
         return boruta_selector(X_train, y_train, hyperparameters, n_select)
     elif method == "pi":
         return sklearn_permutation_selector(X_train, y_train, hyperparameters, n_select)
+    elif method == "r_ctree":
+        return r_ctree_selector(X_train, y_train, hyperparameters, n_select)
     elif method in ESTIMATORS:
         return embedding_selector(X_train, y_train, method, n_classes, hyperparameters, n_select)
     else:

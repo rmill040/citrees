@@ -299,3 +299,99 @@ class TestEarlyStopping:
         )
         # Should get a low p-value
         assert pval < 0.05
+
+
+class TestParallelPtests:
+    """Tests for parallel versions of permutation tests (n_resamples >= 200)."""
+
+    def test_ptest_gini_parallel(self):
+        """Test parallel version of ptest_gini."""
+        np.random.seed(42)
+        n = 100
+        x = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
+        y = np.concatenate([np.zeros(n // 2), np.ones(n // 2)]).astype(np.int64)
+
+        # n_resamples >= 200 triggers parallel version when early_stopping=False
+        pval = ptest_gini(
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=250,
+            early_stopping=False,
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_ptest_entropy_parallel(self):
+        """Test parallel version of ptest_entropy."""
+        np.random.seed(42)
+        n = 100
+        x = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
+        y = np.concatenate([np.zeros(n // 2), np.ones(n // 2)]).astype(np.int64)
+
+        pval = ptest_entropy(
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=250,
+            early_stopping=False,
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_ptest_mse_parallel(self):
+        """Test parallel version of ptest_mse."""
+        np.random.seed(42)
+        n = 100
+        x = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
+        y = np.concatenate([np.zeros(n // 2) + 0, np.ones(n // 2) + 10])
+
+        pval = ptest_mse(
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=250,
+            early_stopping=False,
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_ptest_mae_parallel(self):
+        """Test parallel version of ptest_mae."""
+        np.random.seed(42)
+        n = 100
+        x = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
+        y = np.concatenate([np.zeros(n // 2) + 0, np.ones(n // 2) + 10])
+
+        pval = ptest_mae(
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=250,
+            early_stopping=False,
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_parallel_no_signal(self):
+        """Test parallel version with no signal."""
+        np.random.seed(42)
+        n = 100
+        x = np.random.randn(n)
+        y = np.random.randn(n)
+
+        pval = ptest_mse(
+            x=x,
+            y=y,
+            threshold=0.0,
+            n_resamples=250,
+            early_stopping=False,
+            alpha=0.05,
+            random_state=42,
+        )
+        # Should give reasonable p-value for random data
+        assert 0 < pval <= 1

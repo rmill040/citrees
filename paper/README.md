@@ -42,6 +42,35 @@ uv run python paper/scripts/comprehensive_analysis.py
 
 ---
 
+## Required Dependencies
+
+### R (for partykit::ctree baseline)
+
+The `r_ctree` baseline requires R and the partykit package:
+
+```bash
+# Install R (macOS)
+brew install r
+
+# Install partykit R package
+R -e 'install.packages("partykit", repos="https://cloud.r-project.org")'
+
+# Install rpy2 Python package
+uv add rpy2
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt-get install r-base
+R -e 'install.packages("partykit", repos="https://cloud.r-project.org")'
+uv add rpy2
+```
+
+If R is not installed, the `r_ctree` method will be unavailable but all other
+methods will work.
+
+---
+
 ## Experiment Overview
 
 ### NEW: Synthetic Datasets with Ground Truth

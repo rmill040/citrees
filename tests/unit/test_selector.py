@@ -4,7 +4,275 @@ import numpy as np
 import pytest
 from scipy.stats import kstest
 
-from citrees._selector import ptest_mc
+from citrees._selector import (
+    _correlation,
+    _covariance,
+    _rdc,
+    _RDC_K,
+    _RDC_S,
+    dc,
+    mc,
+    mi,
+    pc,
+    ptest_dc,
+    ptest_mc,
+    ptest_mi,
+    ptest_pc,
+    ptest_rdc_classifier,
+    ptest_rdc_regressor,
+    rdc_classifier,
+    rdc_regressor,
+)
+
+
+class TestMultipleCorrelation:
+    """Tests for mc (multiple correlation) selector."""
+
+    def test_perfect_separation(self):
+        """Test mc returns 1.0 for perfect class separation."""
+        x = np.array([0.0, 0.0, 0.0, 10.0, 10.0, 10.0])
+        y = np.array([0, 0, 0, 1, 1, 1], dtype=np.int64)
+        result = mc(x, y, n_classes=2)
+        assert result == pytest.approx(1.0, rel=0.01)
+
+    def test_no_separation(self):
+        """Test mc returns ~0 for random/no separation."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randint(0, 2, 100).astype(np.int64)
+        result = mc(x, y, n_classes=2)
+        # Should be low for random data
+        assert result < 0.3
+
+    def test_multiclass(self):
+        """Test mc works with multiple classes."""
+        x = np.array([0.0, 0.0, 5.0, 5.0, 10.0, 10.0])
+        y = np.array([0, 0, 1, 1, 2, 2], dtype=np.int64)
+        result = mc(x, y, n_classes=3)
+        assert 0 <= result <= 1
+
+    def test_output_range(self):
+        """Test mc returns values in [0, 1]."""
+        np.random.seed(42)
+        for _ in range(10):
+            x = np.random.randn(50)
+            y = np.random.randint(0, 2, 50).astype(np.int64)
+            result = mc(x, y, n_classes=2)
+            assert 0 <= result <= 1
+
+
+class TestMutualInformation:
+    """Tests for mi (mutual information) selector."""
+
+    def test_perfect_dependence(self):
+        """Test mi is high for perfectly dependent features."""
+        x = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+        y = np.array([0, 0, 0, 1, 1, 1], dtype=np.int64)
+        result = mi(x, y, n_classes=2, random_state=42)
+        assert result > 0.5
+
+    def test_no_dependence(self):
+        """Test mi is low for independent features."""
+        np.random.seed(42)
+        x = np.random.randn(200)
+        y = np.random.randint(0, 2, 200).astype(np.int64)
+        result = mi(x, y, n_classes=2, random_state=42)
+        assert result < 0.1
+
+    def test_output_non_negative(self):
+        """Test mi returns non-negative values."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randint(0, 3, 100).astype(np.int64)
+        result = mi(x, y, n_classes=3, random_state=42)
+        assert result >= 0
+
+
+class TestPearsonCorrelation:
+    """Tests for pc (Pearson correlation) selector."""
+
+    def test_perfect_positive_correlation(self):
+        """Test pc returns 1.0 for perfect positive correlation."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        result = pc(x, y, standardize=True)
+        assert result == pytest.approx(1.0, rel=0.01)
+
+    def test_perfect_negative_correlation(self):
+        """Test pc returns -1.0 for perfect negative correlation."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([5.0, 4.0, 3.0, 2.0, 1.0])
+        result = pc(x, y, standardize=True)
+        assert result == pytest.approx(-1.0, rel=0.01)
+
+    def test_no_correlation(self):
+        """Test pc returns ~0 for uncorrelated data."""
+        np.random.seed(42)
+        x = np.random.randn(200)
+        y = np.random.randn(200)
+        result = pc(x, y, standardize=True)
+        assert abs(result) < 0.2
+
+    def test_covariance_mode(self):
+        """Test pc returns covariance when standardize=False."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        cov = pc(x, y, standardize=False)
+        corr = pc(x, y, standardize=True)
+        # Covariance should be positive for positive relationship
+        assert cov > 0
+        # Correlation should be 1.0
+        assert corr == pytest.approx(1.0, rel=0.01)
+
+
+class TestDistanceCorrelation:
+    """Tests for dc (distance correlation) selector."""
+
+    def test_perfect_linear(self):
+        """Test dc detects linear relationship."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        result = dc(x, y, standardize=True)
+        assert result > 0.9
+
+    def test_no_dependence(self):
+        """Test dc is low for independent data."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randn(100)
+        result = dc(x, y, standardize=True)
+        assert result < 0.3
+
+    def test_nonlinear_dependence(self):
+        """Test dc detects nonlinear relationships."""
+        x = np.linspace(-3, 3, 100)
+        y = x**2  # Parabolic relationship
+        result = dc(x, y, standardize=True)
+        # DC should detect the nonlinear relationship
+        assert result > 0.4
+
+    def test_output_range(self):
+        """Test dc returns values in [0, 1]."""
+        np.random.seed(42)
+        for _ in range(5):
+            x = np.random.randn(50)
+            y = np.random.randn(50)
+            result = dc(x, y, standardize=True)
+            assert 0 <= result <= 1
+
+
+class TestRDC:
+    """Tests for RDC (Randomized Dependence Coefficient) selector."""
+
+    def test_rdc_classifier_strong_signal(self):
+        """Test RDC classifier with strong signal."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        result = rdc_classifier(x, y, n_classes=2, random_state=42)
+        assert result > 0.5
+
+    def test_rdc_classifier_no_signal(self):
+        """Test RDC classifier with no signal."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randint(0, 2, 100).astype(np.int64)
+        result = rdc_classifier(x, y, n_classes=2, random_state=42)
+        assert result < 0.5
+
+    def test_rdc_classifier_multiclass(self):
+        """Test RDC classifier with multiclass."""
+        x = np.concatenate([np.zeros(30) + i for i in range(3)])
+        y = np.concatenate([np.full(30, i, dtype=np.int64) for i in range(3)])
+        result = rdc_classifier(x, y, n_classes=3, random_state=42)
+        assert result > 0.5
+
+    def test_rdc_regressor_linear(self):
+        """Test RDC regressor with linear relationship."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + 1
+        result = rdc_regressor(x, y, standardize=True, random_state=42)
+        assert result > 0.7
+
+    def test_rdc_regressor_nonlinear(self):
+        """Test RDC regressor with nonlinear relationship."""
+        x = np.linspace(-3, 3, 100)
+        y = x**2
+        result = rdc_regressor(x, y, standardize=True, random_state=42)
+        assert result > 0.5
+
+    def test_rdc_output_range(self):
+        """Test RDC returns values in [0, 1]."""
+        np.random.seed(42)
+        for _ in range(5):
+            x = np.random.randn(50)
+            y = np.random.randn(50)
+            result = rdc_regressor(x, y, standardize=True, random_state=42)
+            assert 0 <= result <= 1
+
+    def test_internal_rdc_function(self):
+        """Test internal _rdc function."""
+        x = np.linspace(0, 10, 50)
+        y = x * 2
+        result = _rdc(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert result > 0.5
+
+    def test_rdc_constant_input(self):
+        """Test RDC handles constant input."""
+        x = np.ones(50)
+        y = np.random.randn(50)
+        result = _rdc(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert result == 0.0
+
+    def test_rdc_small_sample(self):
+        """Test RDC handles very small samples."""
+        x = np.array([1.0, 2.0])
+        y = np.array([1.0, 2.0])
+        result = _rdc(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert result == 0.0  # n < 3 returns 0
+
+
+class TestCorrelationHelpers:
+    """Tests for correlation helper functions."""
+
+    def test_correlation_function(self):
+        """Test _correlation helper."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        result = _correlation(x, y)
+        assert result == pytest.approx(1.0, rel=0.01)
+
+    def test_covariance_function(self):
+        """Test _covariance helper."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        result = _covariance(x, y)
+        # Covariance of x with 2x should be 2 * var(x)
+        assert result > 0
+
+
+class TestPtestMC:
+    """Tests for ptest_mc permutation test."""
+
+    def test_strong_signal_low_pvalue(self):
+        """Test ptest_mc gives low p-value for strong signal."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval = ptest_mc(
+            x=x, y=y, n_classes=2, n_resamples=100,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.05
+
+    def test_parallel_version(self):
+        """Test parallel version is triggered with enough resamples."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        # n_resamples >= 200 triggers parallel version
+        pval = ptest_mc(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.05
 
 
 def test_pvalue_uniform_under_null():
@@ -79,3 +347,147 @@ def test_pvalue_never_zero():
     assert pval == pytest.approx(expected_min, rel=0.01), (
         f"With strong signal, p-value should be minimum possible: {expected_min:.4f}, got {pval:.4f}"
     )
+
+
+class TestPtestMI:
+    """Tests for ptest_mi permutation test."""
+
+    def test_strong_signal_low_pvalue(self):
+        """Test ptest_mi gives low p-value for strong signal."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval = ptest_mi(
+            x=x, y=y, n_classes=2, n_resamples=50,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.1
+
+    def test_no_signal_high_pvalue(self):
+        """Test ptest_mi gives reasonable p-value for no signal."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randint(0, 2, 100).astype(np.int64)
+        pval = ptest_mi(
+            x=x, y=y, n_classes=2, n_resamples=50,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert 0 < pval <= 1
+
+
+class TestPtestPC:
+    """Tests for ptest_pc permutation test."""
+
+    def test_strong_signal_low_pvalue(self):
+        """Test ptest_pc gives low p-value for strong signal."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        pval = ptest_pc(
+            x=x, y=y, standardize=True, n_resamples=100,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.05
+
+    def test_no_signal_high_pvalue(self):
+        """Test ptest_pc gives reasonable p-value for no signal."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randn(100)
+        pval = ptest_pc(
+            x=x, y=y, standardize=True, n_resamples=100,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert 0 < pval <= 1
+
+    def test_parallel_version(self):
+        """Test parallel version is triggered with enough resamples."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        # n_resamples >= 200 triggers parallel version
+        pval = ptest_pc(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.05
+
+
+class TestPtestDC:
+    """Tests for ptest_dc permutation test."""
+
+    def test_strong_linear_signal(self):
+        """Test ptest_dc gives low p-value for linear signal."""
+        x = np.linspace(0, 10, 50)
+        y = 2 * x + np.random.randn(50) * 0.1
+        pval = ptest_dc(
+            x=x, y=y, standardize=True, n_resamples=50,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.1
+
+    def test_nonlinear_signal(self):
+        """Test ptest_dc detects nonlinear relationships."""
+        x = np.linspace(-3, 3, 50)
+        y = x**2 + np.random.randn(50) * 0.1
+        pval = ptest_dc(
+            x=x, y=y, standardize=True, n_resamples=50,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.1
+
+
+class TestPtestRDC:
+    """Tests for ptest_rdc permutation tests."""
+
+    def test_classifier_strong_signal(self):
+        """Test ptest_rdc_classifier gives low p-value for strong signal."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval = ptest_rdc_classifier(
+            x=x, y=y, n_classes=2, n_resamples=50,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.1
+
+    def test_regressor_strong_signal(self):
+        """Test ptest_rdc_regressor gives low p-value for strong signal."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        pval = ptest_rdc_regressor(
+            x=x, y=y, standardize=True, n_resamples=50,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert pval < 0.1
+
+    def test_classifier_no_signal(self):
+        """Test ptest_rdc_classifier gives reasonable p-value for no signal."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randint(0, 2, 100).astype(np.int64)
+        pval = ptest_rdc_classifier(
+            x=x, y=y, n_classes=2, n_resamples=50,
+            early_stopping=False, alpha=0.05, random_state=42
+        )
+        assert 0 < pval <= 1
+
+
+class TestEarlyStopping:
+    """Tests for early stopping in permutation tests."""
+
+    def test_early_stopping_mc(self):
+        """Test early stopping for ptest_mc."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval = ptest_mc(
+            x=x, y=y, n_classes=2, n_resamples=1000,
+            early_stopping=True, alpha=0.05, random_state=42
+        )
+        assert pval < 0.05
+
+    def test_early_stopping_pc(self):
+        """Test early stopping for ptest_pc."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        pval = ptest_pc(
+            x=x, y=y, standardize=True, n_resamples=1000,
+            early_stopping=True, alpha=0.05, random_state=42
+        )
+        assert pval < 0.05

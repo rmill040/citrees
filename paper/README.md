@@ -265,7 +265,22 @@ python paper/scripts/ec2_launch.py worker \
 
 See `paper/scripts/ec2_launch.py --help` for all options.
 
-### Running CV Evaluation (Phase 2)
+### Nested CV Evaluation
+
+Given the limitations of evaluating feature selection with standard CV (where
+test fold data informs feature selection), we use nested cross-validation:
+
+```bash
+export URL=http://<server-ip>:8000
+export TABLE_NAME=ClfFeatureSelection
+uv run python paper/scripts/nested_cv_worker.py
+```
+
+Feature selection occurs within each CV fold on training data only.
+
+---
+
+### Running CV Evaluation (Phase 2 - Legacy)
 
 After feature selection completes, run downstream model evaluation:
 

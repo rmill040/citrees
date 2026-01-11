@@ -1244,7 +1244,39 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
 
 class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, ClassifierMixin):
-    """Conditional inference tree classifier."""
+    """Conditional inference tree classifier.
+
+    Uses permutation-based hypothesis testing for unbiased variable selection.
+
+    Parameters
+    ----------
+    early_stopping_selector : bool, default=True
+        If True, stop permutation testing early when p-value falls below alpha.
+        Faster but p-values are approximate. Set to False for rigorous inference.
+
+    early_stopping_splitter : bool, default=True
+        If True, stop permutation testing early when p-value falls below alpha.
+        Faster but p-values are approximate. Set to False for rigorous inference.
+
+    Notes
+    -----
+    For valid statistical inference (e.g., research papers), use:
+
+    >>> clf = ConditionalInferenceTreeClassifier(
+    ...     early_stopping_selector=False,
+    ...     early_stopping_splitter=False,
+    ...     n_resamples_selector='maximum',
+    ...     n_resamples_splitter='maximum',
+    ... )
+
+    P-values use the Phipson & Smyth (2010) +1 correction to ensure they are
+    never exactly zero: p = (b+1)/(m+1) instead of p = b/m.
+
+    References
+    ----------
+    Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
+    SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+    """
 
     _estimator_type = "classifier"
 
@@ -1357,7 +1389,39 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
 
 
 class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorMixin):
-    """Conditional inference tree regressor."""
+    """Conditional inference tree regressor.
+
+    Uses permutation-based hypothesis testing for unbiased variable selection.
+
+    Parameters
+    ----------
+    early_stopping_selector : bool, default=True
+        If True, stop permutation testing early when p-value falls below alpha.
+        Faster but p-values are approximate. Set to False for rigorous inference.
+
+    early_stopping_splitter : bool, default=True
+        If True, stop permutation testing early when p-value falls below alpha.
+        Faster but p-values are approximate. Set to False for rigorous inference.
+
+    Notes
+    -----
+    For valid statistical inference (e.g., research papers), use:
+
+    >>> reg = ConditionalInferenceTreeRegressor(
+    ...     early_stopping_selector=False,
+    ...     early_stopping_splitter=False,
+    ...     n_resamples_selector='maximum',
+    ...     n_resamples_splitter='maximum',
+    ... )
+
+    P-values use the Phipson & Smyth (2010) +1 correction to ensure they are
+    never exactly zero: p = (b+1)/(m+1) instead of p = b/m.
+
+    References
+    ----------
+    Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
+    SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+    """
 
     _estimator_type = "regressor"
 

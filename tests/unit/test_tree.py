@@ -14,6 +14,14 @@ from citrees._tree import (
     Node,
 )
 
+# Fast parameters for unit tests
+FAST_PARAMS = {
+    "n_resamples_selector": "minimum",
+    "n_resamples_splitter": "minimum",
+    "verbose": 0,
+    "random_state": 42,
+}
+
 pytestmark = pytest.mark.tree
 
 
@@ -95,8 +103,7 @@ class TestHonestEstimation:
         clf = ConditionalInferenceTreeClassifier(
             honesty=True,
             honesty_fraction=0.5,
-            random_state=42,
-            verbose=0,
+            **FAST_PARAMS,
         )
         clf.fit(X, y)
 
@@ -111,8 +118,7 @@ class TestHonestEstimation:
         reg = ConditionalInferenceTreeRegressor(
             honesty=True,
             honesty_fraction=0.5,
-            random_state=42,
-            verbose=0,
+            **FAST_PARAMS,
         )
         reg.fit(X, y)
 
@@ -128,8 +134,7 @@ class TestHonestEstimation:
         # Non-honest tree
         clf_regular = ConditionalInferenceTreeClassifier(
             honesty=False,
-            random_state=42,
-            verbose=0,
+            **FAST_PARAMS,
         )
         clf_regular.fit(X, y)
 
@@ -137,8 +142,7 @@ class TestHonestEstimation:
         clf_honest = ConditionalInferenceTreeClassifier(
             honesty=True,
             honesty_fraction=0.5,
-            random_state=42,
-            verbose=0,
+            **FAST_PARAMS,
         )
         clf_honest.fit(X, y)
 

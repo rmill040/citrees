@@ -70,7 +70,7 @@ Input: Feature x ∈ ℝⁿ, labels y ∈ {1,...,K}ⁿ, threshold c
 
 ```python
 @njit(cache=True, fastmath=True, nogil=True)
-def gini_impurity(y_left, y_right, n_classes):
+def gini(y_left, y_right, n_classes):
     n_left = len(y_left)
     n_right = len(y_right)
     n_total = n_left + n_right

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 RANDOM_STATE = 1718
+RANDOM_SEEDS = list(range(30))  # 30 seeds (0-29) for robust variance estimation
 
 
 @dataclass

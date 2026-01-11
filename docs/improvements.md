@@ -19,9 +19,9 @@ Distance correlation (`dc`) from the `dcor` library has **O(n²)** time AND spac
 complexity:
 
 ```python
-# From _selector.py line 414-442
+# From _selector.py
 @RegressorSelectors.register("dc")
-def distance_correlation(x, y, standardize, random_state):
+def dc(x, y, standardize, random_state):
     return _d_correlation(x, y)  # Uses dcor library - O(n²)
 ```
 

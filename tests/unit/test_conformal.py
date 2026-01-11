@@ -12,6 +12,14 @@ from citrees import (
     ConformalRegressor,
 )
 
+# Fast parameters for unit tests
+FAST_PARAMS = {
+    "n_resamples_selector": "minimum",
+    "n_resamples_splitter": "minimum",
+    "verbose": 0,
+    "random_state": 42,
+}
+
 
 @pytest.fixture
 def classification_data():
@@ -45,7 +53,7 @@ class TestConformalClassifier:
     def test_fit_predict(self, classification_data):
         """Test basic fit and predict."""
         X, y = classification_data
-        base = ConditionalInferenceForestClassifier(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestClassifier(n_estimators=10, **FAST_PARAMS)
         clf = ConformalClassifier(base, alpha=0.1, random_state=42)
         clf.fit(X, y)
 
@@ -61,7 +69,7 @@ class TestConformalClassifier:
     def test_predict_set(self, classification_data):
         """Test prediction set generation."""
         X, y = classification_data
-        base = ConditionalInferenceForestClassifier(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestClassifier(n_estimators=10, **FAST_PARAMS)
         clf = ConformalClassifier(base, alpha=0.1, random_state=42)
         clf.fit(X, y)
 
@@ -74,7 +82,7 @@ class TestConformalClassifier:
     def test_coverage_guarantee(self, classification_data):
         """Test coverage is approximately 1-alpha."""
         X, y = classification_data
-        base = ConditionalInferenceForestClassifier(n_estimators=20, random_state=42, verbose=0)
+        base = ConditionalInferenceForestClassifier(n_estimators=20, **FAST_PARAMS)
         alpha = 0.1
         clf = ConformalClassifier(base, alpha=alpha, random_state=42)
         clf.fit(X, y)
@@ -86,7 +94,7 @@ class TestConformalClassifier:
     def test_average_set_size(self, classification_data):
         """Test average set size calculation."""
         X, y = classification_data
-        base = ConditionalInferenceForestClassifier(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestClassifier(n_estimators=10, **FAST_PARAMS)
         clf = ConformalClassifier(base, alpha=0.1, random_state=42)
         clf.fit(X, y)
 
@@ -97,7 +105,7 @@ class TestConformalClassifier:
     def test_predict_proba(self, classification_data):
         """Test predict_proba passthrough."""
         X, y = classification_data
-        base = ConditionalInferenceForestClassifier(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestClassifier(n_estimators=10, **FAST_PARAMS)
         clf = ConformalClassifier(base, alpha=0.1, random_state=42)
         clf.fit(X, y)
 
@@ -118,7 +126,7 @@ class TestConformalClassifier:
     def test_invalid_alpha(self, classification_data):
         """Test invalid alpha values."""
         X, y = classification_data
-        base = ConditionalInferenceForestClassifier(n_estimators=5, verbose=0)
+        base = ConditionalInferenceForestClassifier(n_estimators=5, **FAST_PARAMS)
 
         with pytest.raises(ValueError, match="alpha"):
             ConformalClassifier(base, alpha=0.0)
@@ -129,7 +137,7 @@ class TestConformalClassifier:
     def test_different_alpha_values(self, classification_data):
         """Test that different alpha values produce different set sizes."""
         X, y = classification_data
-        base = ConditionalInferenceForestClassifier(n_estimators=15, random_state=42, verbose=0)
+        base = ConditionalInferenceForestClassifier(n_estimators=15, **FAST_PARAMS)
 
         clf_low = ConformalClassifier(base, alpha=0.05, random_state=42)
         clf_low.fit(X, y)
@@ -149,7 +157,7 @@ class TestConformalRegressor:
     def test_fit_predict(self, regression_data):
         """Test basic fit and predict."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=10, **FAST_PARAMS)
         reg = ConformalRegressor(base, alpha=0.1, random_state=42)
         reg.fit(X, y)
 
@@ -164,7 +172,7 @@ class TestConformalRegressor:
     def test_predict_interval(self, regression_data):
         """Test prediction interval generation."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=10, **FAST_PARAMS)
         reg = ConformalRegressor(base, alpha=0.1, random_state=42)
         reg.fit(X, y)
 
@@ -177,7 +185,7 @@ class TestConformalRegressor:
     def test_coverage_guarantee(self, regression_data):
         """Test coverage is approximately 1-alpha."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=20, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=20, **FAST_PARAMS)
         alpha = 0.1
         reg = ConformalRegressor(base, alpha=alpha, random_state=42)
         reg.fit(X, y)
@@ -189,7 +197,7 @@ class TestConformalRegressor:
     def test_average_interval_width(self, regression_data):
         """Test average interval width calculation."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=10, **FAST_PARAMS)
         reg = ConformalRegressor(base, alpha=0.1, random_state=42)
         reg.fit(X, y)
 
@@ -199,7 +207,7 @@ class TestConformalRegressor:
     def test_invalid_alpha(self, regression_data):
         """Test invalid alpha values."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=5, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=5, **FAST_PARAMS)
 
         with pytest.raises(ValueError, match="alpha"):
             ConformalRegressor(base, alpha=0.0)
@@ -214,7 +222,7 @@ class TestCQR:
     def test_fit_predict(self, regression_data):
         """Test basic fit and predict."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=10, **FAST_PARAMS)
         cqr = CQR(base, alpha=0.1, random_state=42)
         cqr.fit(X, y)
 
@@ -225,7 +233,7 @@ class TestCQR:
     def test_predict_interval(self, regression_data):
         """Test CQR prediction intervals."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=10, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=10, **FAST_PARAMS)
         cqr = CQR(base, alpha=0.1, random_state=42)
         cqr.fit(X, y)
 
@@ -237,7 +245,7 @@ class TestCQR:
     def test_coverage(self, regression_data):
         """Test CQR coverage."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=20, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=20, **FAST_PARAMS)
         alpha = 0.1
         cqr = CQR(base, alpha=alpha, random_state=42)
         cqr.fit(X, y)
@@ -249,7 +257,7 @@ class TestCQR:
     def test_adaptive_intervals(self, regression_data):
         """Test that CQR produces adaptive intervals."""
         X, y = regression_data
-        base = ConditionalInferenceForestRegressor(n_estimators=20, random_state=42, verbose=0)
+        base = ConditionalInferenceForestRegressor(n_estimators=20, **FAST_PARAMS)
         cqr = CQR(base, alpha=0.1, random_state=42)
         cqr.fit(X, y)
 

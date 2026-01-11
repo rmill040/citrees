@@ -297,7 +297,7 @@ def _ptest_mae_parallel(
 
 @ClassifierSplitters.register("gini")
 @njit(cache=True, fastmath=True, nogil=True)
-def gini_index(y: np.ndarray) -> float:
+def gini(y: np.ndarray) -> float:
     """Gini index of node.
 
     Parameters
@@ -343,7 +343,7 @@ def entropy(y: np.ndarray) -> float:
 
 
 @ClassifierSplitterTests.register("gini")
-def ptest_gini_index(
+def ptest_gini(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -393,7 +393,7 @@ def ptest_gini_index(
         )
 
     return _ptest_compiled(
-        func=gini_index,
+        func=gini,
         x=x,
         y=y,
         threshold=threshold,
@@ -468,7 +468,7 @@ def ptest_entropy(
 
 @RegressorSplitters.register("mse")
 @njit(cache=True, fastmath=True, nogil=True)
-def mean_squared_error(y: np.ndarray) -> float:
+def mse(y: np.ndarray) -> float:
     """Mean squared error impurity of a node.
 
     Computes the variance of target values in a node, used as the
@@ -495,7 +495,7 @@ def mean_squared_error(y: np.ndarray) -> float:
 
 @RegressorSplitters.register("mae")
 @njit(cache=True, fastmath=True, nogil=True)
-def mean_absolute_error(y: np.ndarray) -> float:
+def mae(y: np.ndarray) -> float:
     """Mean absolute error impurity of a node.
 
     Computes the mean absolute deviation from the mean for target values
@@ -570,7 +570,7 @@ def ptest_mse(
         )
 
     return _ptest_compiled(
-        func=mean_squared_error,
+        func=mse,
         x=x,
         y=y,
         threshold=threshold,
@@ -632,7 +632,7 @@ def ptest_mae(
         )
 
     return _ptest_compiled(
-        func=mean_absolute_error,
+        func=mae,
         x=x,
         y=y,
         threshold=threshold,

@@ -261,7 +261,7 @@ def mc(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = 
 
 
 @ClassifierSelectors.register("mi")
-def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
+def mi(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
     """Calculate the mutual information.
 
     Parameters
@@ -399,7 +399,7 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
 
 
 @RegressorSelectors.register("dc")
-def distance_correlation(
+def dc(
     x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None
 ) -> float:
     """Calculate the distance correlation.
@@ -680,7 +680,7 @@ def ptest_mc(
 
 
 @ClassifierSelectorTests.register("mi")
-def ptest_mutual_information(
+def ptest_mi(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -722,7 +722,7 @@ def ptest_mutual_information(
         Estimated achieved significance level.
     """
     return _ptest(
-        func=mutual_information,
+        func=mi,
         func_arg=n_classes,
         x=x,
         y=y,
@@ -797,7 +797,7 @@ def ptest_pc(
 
 
 @RegressorSelectorTests.register("dc")
-def ptest_distance_correlation(
+def ptest_dc(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -839,7 +839,7 @@ def ptest_distance_correlation(
         Estimated achieved significance level.
     """
     return _ptest(
-        func=distance_correlation,
+        func=dc,
         func_arg=standardize,
         x=x,
         y=y,

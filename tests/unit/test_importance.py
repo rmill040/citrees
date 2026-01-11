@@ -12,6 +12,14 @@ from citrees import (
     compute_importance,
 )
 
+# Fast parameters for unit tests
+FAST_PARAMS = {
+    "n_resamples_selector": "minimum",
+    "n_resamples_splitter": "minimum",
+    "verbose": 0,
+    "random_state": 42,
+}
+
 
 @pytest.fixture
 def classification_data():
@@ -43,7 +51,7 @@ def regression_data():
 def fitted_tree_classifier(classification_data):
     """Return fitted tree classifier."""
     X, y = classification_data
-    clf = ConditionalInferenceTreeClassifier(random_state=42, verbose=0)
+    clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
     clf.fit(X, y)
     return clf, X, y
 
@@ -52,7 +60,7 @@ def fitted_tree_classifier(classification_data):
 def fitted_tree_regressor(regression_data):
     """Return fitted tree regressor."""
     X, y = regression_data
-    reg = ConditionalInferenceTreeRegressor(random_state=42, verbose=0)
+    reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
     reg.fit(X, y)
     return reg, X, y
 
@@ -61,7 +69,7 @@ def fitted_tree_regressor(regression_data):
 def fitted_forest_classifier(classification_data):
     """Return fitted forest classifier."""
     X, y = classification_data
-    clf = ConditionalInferenceForestClassifier(n_estimators=5, random_state=42, verbose=0)
+    clf = ConditionalInferenceForestClassifier(n_estimators=5, **FAST_PARAMS)
     clf.fit(X, y)
     return clf, X, y
 
@@ -217,7 +225,7 @@ class TestConditionalPermutationImportance:
         X = np.column_stack([X1, X2, X3])
         y = (X1 > 0).astype(int)
 
-        clf = ConditionalInferenceTreeClassifier(random_state=42, verbose=0)
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
         clf.fit(X, y)
 
         imp = compute_importance(clf, X, y, method="cpi", n_repeats=5, correlation_threshold=0.5)
@@ -232,7 +240,7 @@ class TestConditionalPermutationImportance:
         X[:, 1] = 1.0  # Constant feature
         y = (X[:, 0] > 0).astype(int)
 
-        clf = ConditionalInferenceTreeClassifier(random_state=42, verbose=0)
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
         clf.fit(X, y)
 
         imp = compute_importance(clf, X, y, method="cpi", n_repeats=3)
@@ -245,7 +253,7 @@ class TestImportanceComparison:
     def test_informative_features_ranked_higher(self, classification_data):
         """Test that informative features generally rank higher."""
         X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(n_estimators=10, random_state=42, verbose=0)
+        clf = ConditionalInferenceForestClassifier(n_estimators=10, **FAST_PARAMS)
         clf.fit(X, y)
 
         # Get importance from multiple methods

@@ -128,6 +128,32 @@ reg = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
 
 **Note:** For classification, `'mi'` cannot be in a list because mutual information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
 
+### Early Stopping and Statistical Inference
+
+When `early_stopping_selector=True` or `early_stopping_splitter=True`, the permutation test stops as soon as the p-value falls below alpha. This is computationally efficient but affects p-value precision.
+
+**For valid statistical inference (e.g., research papers):**
+- Set `early_stopping_selector=False` and `early_stopping_splitter=False`
+- Use `n_resamples_selector='maximum'` and `n_resamples_splitter='maximum'`
+
+```python
+# Rigorous mode for statistical inference
+clf = ConditionalInferenceTreeClassifier(
+    early_stopping_selector=False,
+    early_stopping_splitter=False,
+    n_resamples_selector='maximum',
+    n_resamples_splitter='maximum',
+)
+```
+
+**For faster training (acceptable for most applications):**
+- Keep defaults (`early_stopping=True`, `n_resamples='auto'`)
+- Results are valid but p-values are approximate upper bounds
+
+**P-value correction:** The permutation test uses the Phipson & Smyth (2010) +1 correction: `p = (b+1)/(m+1)` instead of `p = b/m`. This ensures p-values are never exactly zero, which is critical for multiple testing correction.
+
+Reference: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero." SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+
 ### Pydantic Validation
 All parameters are validated via `BaseConditionalInferenceTreeParameters`:
 

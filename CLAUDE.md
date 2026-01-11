@@ -215,7 +215,41 @@ uv run pytest tests/ -v                           # Run all tests
 uv run pytest tests/integration/ -v               # Run integration tests
 uv run pytest tests/unit/ -v                      # Run unit tests
 uv run pytest -k "classifier" -v                  # Run by keyword
+uv run pytest --cov=citrees --cov-report=term-missing  # With coverage
 ```
+
+#### Testing Numba Functions
+
+Numba `@njit` decorated functions compile to machine code, so **pytest-cov cannot
+track line coverage inside them**. To get coverage of these functions, use the
+`.py_func` attribute which returns the original Python function:
+
+```python
+from citrees._splitter import gini
+
+def test_gini_py_func():
+    """Test gini via .py_func for coverage tracking."""
+    y = np.array([0, 0, 1, 1], dtype=np.int64)
+
+    # Test JIT version (ensures compiled code works)
+    result_jit = gini(y)
+
+    # Test py_func version (enables coverage tracking)
+    result_py = gini.py_func(y)
+
+    # Verify both produce identical results
+    assert result_jit == result_py == pytest.approx(0.5)
+```
+
+**Best practices for Numba testing:**
+
+1. **Test both versions**: JIT-compiled code can behave differently across OS/platforms
+2. **Consistency checks**: Always verify `func(x) == func.py_func(x)` for the same input
+3. **Use `.py_func` in test class**: Group all `.py_func` tests in a `TestModulePyFunc` class
+4. **Document the pattern**: Include a docstring explaining why `.py_func` is used
+
+**Alternative**: Set `NUMBA_DISABLE_JIT=1` before importing Numba to disable JIT
+globally, but this must be done before any Numba imports and is all-or-nothing.
 
 ### Scratch Directory
 

@@ -282,6 +282,53 @@ def r_ctree_selector(
     return np.argsort(vi)[::-1][:n_select]
 
 
+def shap_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    hyperparameters: dict,
+    n_select: int,
+) -> np.ndarray:
+    """SHAP-based feature selection using RF as base model."""
+    from citrees._importance import shap_importance
+
+    hp = hyperparameters.copy()
+    n_estimators = hp.pop("n_estimators", 100)
+    random_state = hp.pop("random_state", RANDOM_STATE)
+    max_background = hp.pop("max_background", 100)
+
+    rf = RandomForestClassifier(
+        n_estimators=n_estimators,
+        random_state=random_state,
+        n_jobs=-1,
+    )
+    rf.fit(X_train, y_train)
+
+    # Use training data as background (subsampled in shap_importance)
+    importances = shap_importance(rf, X_train, X_train, max_background)
+    return np.argsort(importances)[::-1][:n_select]
+
+
+def mrmr_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    hyperparameters: dict,
+    n_select: int,
+) -> np.ndarray:
+    """mRMR (Minimum Redundancy Maximum Relevance) feature selection."""
+    import pandas as pd
+    from mrmr import mrmr_classif
+
+    # mrmr requires pandas DataFrame
+    df = pd.DataFrame(X_train, columns=[f"f{i}" for i in range(X_train.shape[1])])
+    target = pd.Series(y_train, name="target")
+
+    # mrmr_classif returns list of selected feature names
+    selected = mrmr_classif(X=df, y=target, K=n_select)
+
+    # Convert feature names back to indices
+    return np.array([int(f[1:]) for f in selected])
+
+
 def select_features(
     X_train: np.ndarray,
     y_train: np.ndarray,
@@ -301,6 +348,10 @@ def select_features(
         return sklearn_permutation_selector(X_train, y_train, hyperparameters, n_select)
     elif method == "r_ctree":
         return r_ctree_selector(X_train, y_train, hyperparameters, n_select)
+    elif method == "shap":
+        return shap_selector(X_train, y_train, hyperparameters, n_select)
+    elif method == "mrmr":
+        return mrmr_selector(X_train, y_train, hyperparameters, n_select)
     elif method in ESTIMATORS:
         return embedding_selector(X_train, y_train, method, n_classes, hyperparameters, n_select)
     else:

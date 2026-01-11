@@ -74,6 +74,22 @@ H^{\text{split}}_{t,j,c}: \; Y_t \text{ is exchangeable w.r.t. the partition } (
 $$
 In particular, if $X_{t,j} \perp Y_t$, then $H^{\text{split}}_{t,j,c}$ holds for all $c$.
 
+### 2.2a Test tail conventions
+
+For **feature-selection statistics** (correlation, mutual information, RDC, distance correlation), larger values
+indicate stronger association, so we use the **right-tail** test:
+$$
+p_{t,j} = \frac{1 + \sum_{b=1}^B \mathbf{1}\{T^{\text{sel}}_b \ge T^{\text{sel}}_0\}}{B+1}.
+$$
+
+For **split statistics** (Gini, entropy, MSE, MAE), smaller values indicate better splits (more homogeneous
+children), so we use the **left-tail** test:
+$$
+p_{t,c} = \frac{1 + \sum_{b=1}^B \mathbf{1}\{T^{\text{split}}_b \le T^{\text{split}}_0\}}{B+1}.
+$$
+
+Both forms satisfy the super-uniformity guarantee of Theorem 1 (Section 3.4).
+
 ### 2.3 Algorithm (formal node-level description)
 
 We describe one node expansion in a way that matches the implementation in `citrees/_tree.py`:
@@ -116,7 +132,10 @@ For a fixed node $t$ and feature $j$, an *exact* permutation test would enumerat
 distinct labelings under the relevant group action) to compute the null distribution of $T(X_{t,j}, Y_t)$.
 citrees uses *Monte Carlo* permutation tests: sample $B$ random permutations and estimate the tail probability.
 
-All results below are stated for the Monte Carlo test with fixed $B$.
+All results below are stated for the Monte Carlo test with fixed $B$. In the implementation, $B$ can vary across tests
+and nodes (e.g., due to Bonferroni-adjusted $\alpha/m$ or due to `max_features` / `max_thresholds`). This is
+statistically fine: as long as $B$ is chosen as a function of $(X_t,U)$ (candidate-set randomness, RNG seeds, etc.) and
+not of $Y_t$ under the null, conditioning on $(X_t,U)$ reduces the analysis to fixed-$B$.
 
 ### 3.1 Exchangeability assumption
 
@@ -238,6 +257,13 @@ $$
 **Proof.** Conditional on $(X_t,U)$, the candidate family and the statistic are fixed, and the exchangeability
 assumption reduces to the setup of Lemma 1 + Theorem 1. ∎
 
+**Remark (random internal nodes).**  
+Corollary 2 conditions on $(X_t,U)$ for a *fixed* node $t$. In an adaptively-grown tree, internal nodes correspond to
+random index sets $I_t$ determined by earlier splits that depend on the labels. After conditioning on the event “these
+samples reach node $t$,” the label vector within the node need not remain exchangeable under a null, so permutation-test
+validity is not automatic. This is why the cleanest inferential statements are root-level (Section 4.4) or rely on
+sample splitting / selective-inference techniques (Section 6).
+
 ### 3.6 Monte Carlo resolution and error (fixed $B$)
 
 Even when the *test* is valid, finite $B$ limits the granularity of the p-value and introduces Monte Carlo variability.
@@ -267,6 +293,37 @@ From this representation:
    \mathbb{P}\Big(\Big|\frac{K}{B} - p^\star\Big|\ge \varepsilon \;\Big|\; X_t,Y_t\Big) \le 2e^{-2B\varepsilon^2}.
    $$
    This gives a simple “how many permutations are needed” calibration for Monte Carlo accuracy (separate from validity).
+
+### 3.7 Conservativeness of the +1 estimator (finite-$B$)
+
+The +1 correction produces a *valid* p-value, but it is not an unbiased estimator of $p^\star$.
+
+**Lemma 3 (upward bias / conservativeness).**  
+With $K\sim\mathrm{Binomial}(B,p^\star)$ conditional on $(X_t,Y_t)$ and $p=(1+K)/(B+1)$, we have
+$$
+\mathbb{E}[p\mid X_t,Y_t] \;=\; \frac{1+Bp^\star}{B+1} \;=\; p^\star + \frac{1-p^\star}{B+1} \;\ge\; p^\star.
+$$
+Moreover, $\mathbb{E}[p\mid X_t,Y_t]\to p^\star$ as $B\to\infty$.
+
+**Proof.** Immediate from $\mathbb{E}[K\mid X_t,Y_t]=Bp^\star$. ∎
+
+### 3.8 Remarks on power (informal)
+
+The propositions above control **Type I error** (false positive rate). **Power**—the probability of detecting a
+true association when one exists—depends on factors not addressed by the validity theorems:
+
+1. **Effect size**: How strongly does $X_j$ predict $Y$? Stronger associations yield smaller p-values.
+2. **Sample size at node**: $n_t$ determines permutation test resolution and signal detectability.
+3. **Number of permutations $B$**: Limits the smallest achievable p-value to $1/(B+1)$.
+4. **Multiplicity burden**: Bonferroni over $m$ features requires per-test significance $\alpha/m$, reducing power.
+
+We do not provide formal power guarantees, as these depend on the (unknown) alternative distribution. Simulation
+studies are the standard approach for assessing power in practice.
+
+**Practical guidance.** For a test at level $\alpha$ with $m$ features and Bonferroni correction, the effective
+per-feature threshold is $\alpha/m$. To have any chance of rejection, one needs $B \ge m/\alpha - 1$. For example,
+with $\alpha = 0.05$ and $m = 100$ features, the per-feature threshold is $0.0005$, requiring $B \ge 1999$
+permutations.
 
 ## 4. Multiplicity correction (Bonferroni)
 
@@ -406,6 +463,34 @@ $$
 
 **Proof.** This is Proposition 3a specialized to the root. ∎
 
+### 4.5 Joint error control (two-stage testing)
+
+At each node, citrees performs two sequential tests:
+1. **Stage A**: Feature selection at level $\alpha_{\text{sel}}$ (with Bonferroni over features)
+2. **Stage B**: Threshold selection at level $\alpha_{\text{split}}$ (with Bonferroni over thresholds)
+
+A natural question is: what is the joint false split probability?
+
+**Proposition 3d (joint false split probability under global null).**
+If the global null holds at node $t$ (i.e., $X_{t,j} \perp Y_t$ for all $j \in F_t$), then:
+$$
+\mathbb{P}(\text{node } t \text{ splits}) \le \alpha_{\text{sel}}.
+$$
+
+**Proof.**
+$$
+\{\text{node } t \text{ splits}\} \subseteq \{\text{Stage A rejects}\}
+$$
+because Stage A must reject for Stage B to run. Therefore:
+$$
+\mathbb{P}(\text{node } t \text{ splits}) \le \mathbb{P}(\text{Stage A rejects}) \le \alpha_{\text{sel}}
+$$
+by Proposition 3. ∎
+
+**Remark.** The parameter $\alpha_{\text{split}}$ controls Stage B's error rate but does not appear in this bound
+because Stage A is the "gatekeeper"—if Stage A does not reject, no split occurs regardless of $\alpha_{\text{split}}$.
+Stage B provides an additional layer of protection but the dominant control comes from Stage A.
+
 ## 5. Honest estimation: unbiased leaf predictions (when leaves get estimation data)
 
 citrees optionally uses sample splitting (“honesty”) to decouple structure learning from leaf estimation.
@@ -451,9 +536,31 @@ $$
 $$
 is similarly unbiased for $p_k(L) := \mathbb{P}(Y=k \mid X\in L)$, conditional on $\Pi$, on $\{|E(L)|\ge 1\}$.
 
-**Important implementation note.**  
+**Important implementation note.**
 If a leaf receives zero estimation samples, citrees currently retains the splitting-sample leaf value. That fallback is
 not covered by Proposition 4.
+
+### 5.3 Variance of honest estimator
+
+Proposition 4 establishes unbiasedness but does not address variance. Sample splitting increases variance because
+fewer samples are available for estimation.
+
+**Proposition 4a (variance of honest leaf estimator).**
+Under the assumptions of Proposition 4, let $n_E(L) := |E(L)|$ be the number of estimation samples in leaf $L$.
+Define $\sigma^2(L) := \mathrm{Var}(Y \mid X \in L)$. Then, conditional on $\Pi$ and on $\{n_E(L) = n\}$ for some
+$n \ge 1$:
+$$
+\mathrm{Var}(\widehat{\mu}(L) \mid \Pi, n_E(L) = n) = \frac{\sigma^2(L)}{n}.
+$$
+
+**Proof.** Conditional on $\Pi$, the samples $(X_i, Y_i)_{i \in E}$ are i.i.d. from $P$ (since $E \perp \Pi$).
+Conditional further on $n_E(L) = n$, the $Y_i$ for $i \in E(L)$ are i.i.d. with distribution $(Y \mid X \in L)$,
+which has variance $\sigma^2(L)$. The variance of the sample mean of $n$ i.i.d. draws is $\sigma^2(L)/n$. ∎
+
+**Bias-variance trade-off.** Honesty eliminates the bias from using the same data for splitting and estimation,
+but at the cost of increased variance. If the honesty split is 50-50, we use only half the data for estimation,
+roughly doubling the variance of leaf predictions compared to using all data. This trade-off is worthwhile when
+unbiased inference (e.g., confidence intervals, hypothesis tests on leaf predictions) is the goal.
 
 ## 6. Where proofs stop (and why)
 
@@ -464,10 +571,10 @@ publication-grade proofs:
    Because the number of permutations becomes a stopping time depending on partial results, the returned quantity is not
    the fixed-$B$ Monte Carlo p-value of Theorem 1. For strict inferential claims, disable early stopping.
 
-2. **Multi-selector mode** (`selector=[...]`).  
+2. **Multi-selector mode** (`selector=[...]`).
    In current code, the selector statistic used for a feature is chosen *after looking at the data* (pick the max score
    among selectors) but the permutation reference distribution is computed for that chosen statistic alone, without
-   adjusting for the selection over selectors. This is a classic “selective inference” issue; a rigorous alternative is
+   adjusting for the selection over selectors. This is a classic "selective inference" issue; a rigorous alternative is
    to define a composite statistic
    $$
    T^{\text{sel}}(X_{t,j},Y_t) := \max_{s\in \mathcal{S}} T^{\text{sel}}_s(X_{t,j},Y_t)
@@ -475,14 +582,45 @@ publication-grade proofs:
    and compute the permutation p-value using the *same max* inside each permutation. (That is provably valid by Theorem
    1, but it is not what the current implementation does.)
 
+   **Why the current implementation is anti-conservative (concrete counterexample).**
+   Suppose we have two selectors $s_1, s_2$ and under the null, both $T_{s_1}, T_{s_2} \stackrel{iid}{\sim} \mathrm{Unif}(0,1)$.
+   Suppose the observed data gives $T_{s_1}^{(0)} = 0.6$ and $T_{s_2}^{(0)} = 0.8$.
+
+   - Selected selector: $s^* = s_2$ (since $0.8 > 0.6$)
+   - Observed statistic: $T_0 = \max(0.6, 0.8) = 0.8$
+
+   The **correct p-value** (using max in reference distribution):
+   $$
+   p = \mathbb{P}(\max(T_{s_1}, T_{s_2}) \ge 0.8) = 1 - (0.8)^2 = 0.36
+   $$
+
+   The **incorrect p-value** (using only $s_2$ in reference distribution):
+   $$
+   \tilde{p} = \mathbb{P}(T_{s_2} \ge 0.8) = 1 - 0.8 = 0.2
+   $$
+
+   Since $\tilde{p} = 0.2 < 0.36 = p$, the current procedure produces **anti-conservative** (too small) p-values,
+   inflating the false positive rate.
+
 3. **Feature muting across nodes** (`feature_muting=True`).  
    Muting uses intermediate p-values to remove features globally from future consideration. This adaptively changes the
    hypothesis family across the tree and makes global error statements subtle.
 
-4. **Global error control across the entire tree.**  
+4. **Global error control across the entire tree.**
    Even with valid nodewise tests, the tree construction is adaptive; p-values at internal nodes should not be read as
    classical inferential p-values for a fixed hypothesis family without additional machinery (sample splitting, selective
    inference, or fully specified global testing procedures).
+
+   **Concrete example of adaptive invalidity ("double dipping").**
+   Consider a tree with two levels. At the root, we test features $\{1, 2\}$ at level $\alpha = 0.05$ with Bonferroni
+   (threshold $0.025$). Suppose feature 1 is selected and we split on the rule $X_1 \le c$.
+
+   Now at the left child, we test features $\{1, 2\}$ again. But the samples reaching this child were *selected* by the
+   data-dependent rule $X_1 \le c$. The "p-value" computed at this child is not a valid p-value for the original
+   hypothesis $H: X_2 \perp Y$, because the conditioning event (which samples reach this node) depends on the data.
+
+   This is why Propositions 3–3d are stated for single nodes (or the root), not for arbitrary internal nodes. For valid
+   inference at internal nodes, additional techniques (sample splitting, selective inference) are required.
 
 5. **Forest-level theory.**  
    Consistency, rates, and uncertainty quantification for the forest (especially with permutation-based splitting)
@@ -520,8 +658,8 @@ Before making inferential claims in a paper, it’s worth explicitly deciding wh
    controlling error over the tested subset, not over all $p$ features / all thresholds.
 
 4. **Phipson–Smyth +1 correction everywhere.**
-   All permutation tests in `citrees/_splitter.py` now use the +1 correction `(1 + count)/(1 + B)` consistently,
-   including the parallel MAE permutation test (`_ptest_mae_parallel`). This aligns with Section 3.
+   All permutation tests in `citrees/_selector.py` and `citrees/_splitter.py` use the +1 correction
+   `(1 + count)/(1 + B)` (including parallel implementations). This aligns with Section 3.
 
 ## 9. What is actually “publishable” theory for citrees (safe claims)
 
@@ -574,3 +712,95 @@ For runs where you want to invoke the theorems above as written:
 - `adjust_alpha_selector=True` (and optionally `adjust_alpha_splitter=True` if you talk about threshold families)
 - Prefer `selector` as a single string (avoid list-based multi-selector inference claims)
 - Prefer `feature_muting=False` for any inferential statements (keep it for speed-only ablations)
+
+## 10. Appendix: Concrete statistics used in citrees (definitions + basic bounds)
+
+This appendix is “paper boilerplate”: it records the exact nodewise statistics used in the codebase and a few
+properties that justify design decisions (e.g., which selectors can be combined in multi-selector mode).
+
+### 10.1 Classification selector: multiple correlation (`mc`)
+
+At a node with samples $\{(x_i,y_i)\}_{i=1}^n$, where $x_i\in\mathbb{R}$ and $y_i\in\{1,\dots,K\}$, define the overall
+mean $\mu := \frac1n\sum_{i=1}^n x_i$ and class means $\mu_k := \frac{1}{n_k}\sum_{i:y_i=k} x_i$ with
+$n_k := |\{i:y_i=k\}|$.
+
+Define the “total” and “between-class” sums of squares
+$$
+\mathrm{SST} := \sum_{i=1}^n (x_i-\mu)^2,\qquad
+\mathrm{SSB} := \sum_{k=1}^K n_k(\mu_k-\mu)^2.
+$$
+citrees uses the multiple correlation coefficient
+$$
+\mathrm{mc}(x,y) := \sqrt{\mathrm{SSB}/\mathrm{SST}}
+$$
+when $\mathrm{SST}>0$ (constant features are muted before testing).
+
+**Lemma 4 (boundedness of `mc`).**  
+If $\mathrm{SST}>0$, then $0\le \mathrm{mc}(x,y)\le 1$.
+
+**Proof.** The standard ANOVA decomposition gives
+$$
+\sum_{i=1}^n (x_i-\mu)^2
+=
+\sum_{k=1}^K\sum_{i:y_i=k}(x_i-\mu_k)^2 + \sum_{k=1}^K n_k(\mu_k-\mu)^2.
+$$
+Both terms on the right are nonnegative, so $\mathrm{SSB}\le \mathrm{SST}$ and hence
+$0\le \mathrm{SSB}/\mathrm{SST}\le 1$. Taking square roots yields the claim. ∎
+
+### 10.2 Regression selector: Pearson correlation (`pc`)
+
+For vectors $x,y\in\mathbb{R}^n$ with nonzero empirical variances, define
+$$
+\rho(x,y) := \frac{\sum_{i=1}^n (x_i-\bar x)(y_i-\bar y)}{\sqrt{\sum_{i=1}^n (x_i-\bar x)^2}\sqrt{\sum_{i=1}^n (y_i-\bar y)^2}}.
+$$
+citrees uses the magnitude $|\rho(x,y)|$ as the association score and permutation-test statistic.
+
+**Lemma 5 (boundedness of `pc`).**  
+Whenever the denominator is nonzero, $|\rho(x,y)|\le 1$.
+
+**Proof.** Let $x'_i := x_i-\bar x$ and $y'_i := y_i-\bar y$. By Cauchy–Schwarz,
+$$
+\Big|\sum_{i=1}^n x'_i y'_i\Big|
+\le \sqrt{\sum_{i=1}^n (x'_i)^2}\sqrt{\sum_{i=1}^n (y'_i)^2}.
+$$
+Dividing both sides by the product of norms yields $|\rho(x,y)|\le 1$. ∎
+
+### 10.3 Regression selector: distance correlation (`dc`)
+
+citrees uses distance correlation via the `dcor` library (Székely–Rizzo–Bakirov, 2007). In its standard definition,
+distance correlation takes values in $[0,1]$ and equals $0$ if and only if the variables are independent (under mild
+moment conditions). (For full definitions/proofs, cite the original distance correlation paper.)
+
+### 10.4 Selector: randomized dependence coefficient (`rdc`)
+
+citrees implements the RDC of Lopez-Paz et al. (2013) in a 1D-to-1D form:
+
+1. Apply the empirical CDF transform $x\mapsto \widehat{F}_x(x)$ (rank / $n$).
+2. Add a bias coordinate, then apply $k$ random linear projections.
+3. Apply sinusoidal features $\cos(\cdot),\sin(\cdot)$.
+4. Return the maximum absolute correlation between standardized feature columns.
+
+Because each correlation is bounded by 1, the returned value satisfies $0\le \mathrm{rdc}(x,y)\le 1$.
+
+### 10.5 Split impurities (`gini`, `entropy`, `mse`, `mae`)
+
+For a classification node with empirical class probabilities $p_1,\dots,p_K$:
+
+- Gini impurity: $\mathrm{gini}(p) := 1-\sum_{k=1}^K p_k^2$, hence $0\le \mathrm{gini}\le 1-1/K$.
+- Entropy impurity: $\mathrm{ent}(p):= -\sum_{k=1}^K p_k \log_2 p_k$, hence $0\le \mathrm{ent}\le \log_2 K$.
+
+For a regression node with targets $y_1,\dots,y_n$:
+
+- MSE impurity: $\mathrm{mse}(y):=\frac1n\sum_{i=1}^n (y_i-\bar y)^2$ (empirical variance), so $\mathrm{mse}\ge 0$.
+- MAE impurity: $\mathrm{mae}(y):=\frac1n\sum_{i=1}^n |y_i-\bar y|$, so $\mathrm{mae}\ge 0$.
+
+### 10.6 Why `mi` cannot be in multi-selector mode (scale incompatibility)
+
+The multi-selector mode takes a maximum over selector scores. This only makes sense when the scores are on a common
+scale. In citrees:
+
+- `mc`, `pc` (after absolute value), `dc`, and `rdc` are bounded in $[0,1]$,
+- mutual information is unbounded on $[0,\infty)$,
+
+so including `mi` in a max-with-others selector list would change the meaning of the maximum and would require
+additional normalization or theory.

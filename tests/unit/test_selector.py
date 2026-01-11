@@ -8,6 +8,9 @@ from citrees._selector import (
     _correlation,
     _covariance,
     _rdc,
+    _rdc_cancor,
+    _rdc_ecdf,
+    _rdc_features,
     _RDC_K,
     _RDC_S,
     dc,
@@ -491,3 +494,204 @@ class TestEarlyStopping:
             early_stopping=True, alpha=0.05, random_state=42
         )
         assert pval < 0.05
+
+
+class TestSelectorPyFunc:
+    """Tests for selector functions via .py_func for coverage.
+
+    Numba @njit decorated functions compile to machine code, so pytest-cov
+    cannot track line coverage. Using .py_func accesses the original Python
+    function, enabling coverage tracking.
+
+    Pattern:
+        1. Test the py_func version for various inputs
+        2. Verify JIT and py_func produce identical results (consistency check)
+    """
+
+    # MC (Multiple Correlation) py_func tests
+    def test_mc_py_func_perfect_separation(self):
+        """Test mc.py_func with perfect class separation."""
+        x = np.array([0.0, 0.0, 0.0, 10.0, 10.0, 10.0])
+        y = np.array([0, 0, 0, 1, 1, 1], dtype=np.int64)
+        result = mc.py_func(x, y, n_classes=2)
+        assert result == pytest.approx(1.0, rel=0.01)
+
+    def test_mc_py_func_no_separation(self):
+        """Test mc.py_func with random data."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randint(0, 2, 100).astype(np.int64)
+        result = mc.py_func(x, y, n_classes=2)
+        assert result < 0.3
+
+    def test_mc_py_func_multiclass(self):
+        """Test mc.py_func with multiple classes."""
+        x = np.array([0.0, 0.0, 5.0, 5.0, 10.0, 10.0])
+        y = np.array([0, 0, 1, 1, 2, 2], dtype=np.int64)
+        result = mc.py_func(x, y, n_classes=3)
+        assert 0 <= result <= 1
+
+    def test_mc_consistency(self):
+        """Verify mc JIT and py_func produce identical results."""
+        x = np.array([0.0, 1.0, 2.0, 5.0, 6.0, 7.0])
+        y = np.array([0, 0, 0, 1, 1, 1], dtype=np.int64)
+        assert mc(x, y, n_classes=2) == pytest.approx(mc.py_func(x, y, n_classes=2))
+
+    # PC (Pearson Correlation) py_func tests
+    def test_pc_py_func_perfect_positive(self):
+        """Test pc.py_func with perfect positive correlation."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        result = pc.py_func(x, y, standardize=True)
+        assert result == pytest.approx(1.0, rel=0.01)
+
+    def test_pc_py_func_perfect_negative(self):
+        """Test pc.py_func with perfect negative correlation."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([5.0, 4.0, 3.0, 2.0, 1.0])
+        result = pc.py_func(x, y, standardize=True)
+        assert result == pytest.approx(-1.0, rel=0.01)
+
+    def test_pc_py_func_no_correlation(self):
+        """Test pc.py_func with uncorrelated data."""
+        np.random.seed(42)
+        x = np.random.randn(200)
+        y = np.random.randn(200)
+        result = pc.py_func(x, y, standardize=True)
+        assert abs(result) < 0.2
+
+    def test_pc_py_func_covariance_mode(self):
+        """Test pc.py_func returns covariance when standardize=False."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        cov = pc.py_func(x, y, standardize=False)
+        assert cov > 0
+
+    def test_pc_consistency(self):
+        """Verify pc JIT and py_func produce identical results."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 3.0, 5.0, 4.0, 6.0])
+        assert pc(x, y, standardize=True) == pytest.approx(pc.py_func(x, y, standardize=True))
+
+    # _covariance helper py_func tests
+    def test_covariance_py_func_positive(self):
+        """Test _covariance.py_func with positive covariance."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        result = _covariance.py_func(x, y)
+        assert result > 0
+
+    def test_covariance_py_func_negative(self):
+        """Test _covariance.py_func with negative covariance."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([10.0, 8.0, 6.0, 4.0, 2.0])
+        result = _covariance.py_func(x, y)
+        assert result < 0
+
+    def test_covariance_consistency(self):
+        """Verify _covariance JIT and py_func produce identical results."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 3.0, 5.0, 4.0, 6.0])
+        assert _covariance(x, y) == pytest.approx(_covariance.py_func(x, y))
+
+    # _correlation helper py_func tests
+    def test_correlation_py_func_perfect(self):
+        """Test _correlation.py_func with perfect correlation."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        result = _correlation.py_func(x, y)
+        assert result == pytest.approx(1.0, rel=0.01)
+
+    def test_correlation_py_func_zero(self):
+        """Test _correlation.py_func near zero."""
+        np.random.seed(42)
+        x = np.random.randn(200)
+        y = np.random.randn(200)
+        result = _correlation.py_func(x, y)
+        assert abs(result) < 0.2
+
+    def test_correlation_consistency(self):
+        """Verify _correlation JIT and py_func produce identical results."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 3.0, 5.0, 4.0, 6.0])
+        assert _correlation(x, y) == pytest.approx(_correlation.py_func(x, y))
+
+    # RDC helper py_func tests
+    def test_rdc_ecdf_py_func(self):
+        """Test _rdc_ecdf.py_func computes ECDF."""
+        x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+        result = _rdc_ecdf.py_func(x)
+        # ECDF values should be in (0, 1]
+        assert np.all(result > 0)
+        assert np.all(result <= 1)
+        assert len(result) == len(x)
+
+    def test_rdc_ecdf_consistency(self):
+        """Verify _rdc_ecdf JIT and py_func produce identical results."""
+        x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+        assert np.allclose(_rdc_ecdf(x), _rdc_ecdf.py_func(x))
+
+    def test_rdc_features_py_func(self):
+        """Test _rdc_features.py_func creates random features."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        result = _rdc_features.py_func(x, k=5, s=1.0 / 6.0, seed=42)
+        # Output is [cos, sin] concatenated, so shape is (n, 2*k)
+        assert result.shape == (len(x), 10)
+
+    def test_rdc_features_consistency(self):
+        """Verify _rdc_features JIT and py_func produce identical results."""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        jit_result = _rdc_features(x, k=5, s=1.0 / 6.0, seed=42)
+        py_result = _rdc_features.py_func(x, k=5, s=1.0 / 6.0, seed=42)
+        assert np.allclose(jit_result, py_result)
+
+    def test_rdc_cancor_py_func(self):
+        """Test _rdc_cancor.py_func computes canonical correlation."""
+        X = np.random.randn(50, 5)
+        Y = np.random.randn(50, 5)
+        result = _rdc_cancor.py_func(X, Y)
+        assert 0 <= result <= 1
+
+    def test_rdc_cancor_consistency(self):
+        """Verify _rdc_cancor JIT and py_func produce identical results."""
+        np.random.seed(42)
+        X = np.random.randn(50, 5)
+        Y = np.random.randn(50, 5)
+        assert _rdc_cancor(X, Y) == pytest.approx(_rdc_cancor.py_func(X, Y))
+
+    def test_rdc_py_func_linear(self):
+        """Test _rdc.py_func with linear relationship."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + 1
+        result = _rdc.py_func(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert result > 0.7
+
+    def test_rdc_py_func_no_relationship(self):
+        """Test _rdc.py_func with no relationship."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randn(100)
+        result = _rdc.py_func(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert result < 0.5
+
+    def test_rdc_py_func_constant(self):
+        """Test _rdc.py_func with constant input."""
+        x = np.ones(50)
+        y = np.random.randn(50)
+        result = _rdc.py_func(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert result == 0.0
+
+    def test_rdc_py_func_small_sample(self):
+        """Test _rdc.py_func with very small sample."""
+        x = np.array([1.0, 2.0])
+        y = np.array([1.0, 2.0])
+        result = _rdc.py_func(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert result == 0.0  # n < 3 returns 0
+
+    def test_rdc_consistency(self):
+        """Verify _rdc JIT and py_func produce identical results."""
+        x = np.linspace(0, 10, 50)
+        y = x * 2 + np.random.randn(50) * 0.1
+        jit_result = _rdc(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        py_result = _rdc.py_func(x, y, k=_RDC_K, s=_RDC_S, seed=42)
+        assert jit_result == pytest.approx(py_result, rel=0.01)

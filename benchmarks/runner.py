@@ -88,9 +88,7 @@ class ExperimentRunner:
 
             for model_name, model in self.config.models.items():
                 for fold, (train_idx, test_idx) in enumerate(splits):
-                    result = self.run_single(
-                        dataset, model, model_name, train_idx, test_idx, fold
-                    )
+                    result = self.run_single(dataset, model, model_name, train_idx, test_idx, fold)
                     self.results.append(result)
                     print(f"{ds_name} | {model_name} | fold {fold} | {result.metrics}")
 

@@ -16,13 +16,13 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `tree_` | dict | The fitted tree structure |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Feature importance scores (MDI) |
-| `classes_` | ndarray | Unique class labels |
-| `n_classes_` | int | Number of classes |
+| Attribute              | Type    | Description                        |
+| ---------------------- | ------- | ---------------------------------- |
+| `tree_`                | dict    | The fitted tree structure          |
+| `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_importances_` | ndarray | Feature importance scores (MDI)    |
+| `classes_`             | ndarray | Unique class labels                |
+| `n_classes_`           | int     | Number of classes                  |
 
 **Methods:**
 
@@ -63,11 +63,11 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `tree_` | dict | The fitted tree structure |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Feature importance scores (MDI) |
+| Attribute              | Type    | Description                        |
+| ---------------------- | ------- | ---------------------------------- |
+| `tree_`                | dict    | The fitted tree structure          |
+| `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_importances_` | ndarray | Feature importance scores (MDI)    |
 
 **Methods:**
 
@@ -103,14 +103,14 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `estimators_` | list | List of fitted trees |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Averaged feature importance |
-| `classes_` | ndarray | Unique class labels |
-| `n_classes_` | int | Number of classes |
-| `oob_score_` | float | Out-of-bag score (if computed) |
+| Attribute              | Type    | Description                        |
+| ---------------------- | ------- | ---------------------------------- |
+| `estimators_`          | list    | List of fitted trees               |
+| `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_importances_` | ndarray | Averaged feature importance        |
+| `classes_`             | ndarray | Unique class labels                |
+| `n_classes_`           | int     | Number of classes                  |
+| `oob_score_`           | float   | Out-of-bag score (if computed)     |
 
 **Methods:**
 
@@ -147,12 +147,12 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `estimators_` | list | List of fitted trees |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Averaged feature importance |
-| `oob_score_` | float | Out-of-bag score (if computed) |
+| Attribute              | Type    | Description                        |
+| ---------------------- | ------- | ---------------------------------- |
+| `estimators_`          | list    | List of fitted trees               |
+| `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_importances_` | ndarray | Averaged feature importance        |
+| `oob_score_`           | float   | Out-of-bag score (if computed)     |
 
 **Methods:**
 
@@ -181,11 +181,11 @@ A conformal prediction wrapper for regression forests.
 
 **Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `alpha` | float | 0.10 | Miscoverage rate |
-| `method` | str | 'jackknife+' | Conformal method |
-| `calibration_size` | float | 0.2 | Calibration fraction (split method) |
+| Parameter          | Type  | Default      | Description                         |
+| ------------------ | ----- | ------------ | ----------------------------------- |
+| `alpha`            | float | 0.10         | Miscoverage rate                    |
+| `method`           | str   | 'jackknife+' | Conformal method                    |
+| `calibration_size` | float | 0.2          | Calibration fraction (split method) |
 
 Plus all forest parameters.
 
@@ -215,10 +215,10 @@ A conformal prediction wrapper for classification forests.
 
 **Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `alpha` | float | 0.10 | Miscoverage rate |
-| `method` | str | 'aps' | Conformal method |
+| Parameter | Type  | Default | Description      |
+| --------- | ----- | ------- | ---------------- |
+| `alpha`   | float | 0.10    | Miscoverage rate |
+| `method`  | str   | 'aps'   | Conformal method |
 
 **Methods:**
 

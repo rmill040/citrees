@@ -15,10 +15,9 @@ References:
 - Lei et al. (2018) - "Distribution-Free Predictive Inference for Regression"
 """
 
-from typing import Literal
 
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, clone
+from sklearn.base import ClassifierMixin, RegressorMixin, clone
 from sklearn.model_selection import train_test_split
 
 
@@ -122,8 +121,8 @@ class ConformalClassifier:
     def _compute_scores(self, proba: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Compute APS nonconformity scores.
 
-        Score = cumulative probability mass including true class,
-        when classes are sorted by decreasing probability.
+        Score = cumulative probability mass including true class, when classes are sorted by
+        decreasing probability.
         """
         n = len(y)
         scores = np.zeros(n)
@@ -492,8 +491,8 @@ class CQR(ConformalRegressor):
     def _predict_quantiles(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Predict lower and upper quantiles.
 
-        For forests, uses the distribution of tree predictions.
-        For single trees, falls back to point prediction ± 0.
+        For forests, uses the distribution of tree predictions. For single trees, falls back to
+        point prediction ± 0.
         """
         if hasattr(self.estimator_, "estimators_"):
             # Forest: use tree predictions

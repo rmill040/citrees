@@ -1,14 +1,17 @@
 # Honest Estimation
 
-Honest estimation is a sample-splitting technique that provides unbiased predictions and valid inference from decision trees. It separates the data used for tree construction from the data used for leaf estimation, eliminating the overfitting bias inherent in standard trees.
+Honest estimation is a sample-splitting technique that provides unbiased
+predictions and valid inference from decision trees. It separates the data used
+for tree construction from the data used for leaf estimation, eliminating the
+overfitting bias inherent in standard trees.
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| Purpose | Unbiased leaf predictions, valid confidence intervals |
-| Method | Sample splitting (cross-fitting) |
-| Trade-off | Reduced effective sample size for higher statistical validity |
+| Aspect        | Description                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| Purpose       | Unbiased leaf predictions, valid confidence intervals                                      |
+| Method        | Sample splitting (cross-fitting)                                                           |
+| Trade-off     | Reduced effective sample size for higher statistical validity                              |
 | Key reference | [Wager & Athey (2018)](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) |
 
 ---
@@ -18,10 +21,12 @@ Honest estimation is a sample-splitting technique that provides unbiased predict
 ### Adaptive Bias
 
 Standard decision trees use the **same data** for both:
+
 1. **Structure selection** - Choosing split points
 2. **Leaf estimation** - Computing predictions
 
-This creates **adaptive bias**: the tree structure is optimized to fit the training data, making leaf estimates overly optimistic.
+This creates **adaptive bias**: the tree structure is optimized to fit the
+training data, making leaf estimates overly optimistic.
 
 ```
 Standard Tree Bias
@@ -50,9 +55,9 @@ Training Data ─────┬────────────────
 
 ### Consequences
 
-| Issue | Description |
-|-------|-------------|
-| Overfitting | Leaf predictions fit noise in training data |
+| Issue             | Description                                  |
+| ----------------- | -------------------------------------------- |
+| Overfitting       | Leaf predictions fit noise in training data  |
 | Invalid inference | Confidence intervals have incorrect coverage |
 | Biased importance | Features appear more important than they are |
 
@@ -213,30 +218,30 @@ provided the trees grow slowly relative to $n$.
 
 ### Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| Unbiased predictions | No overfitting to training structure |
-| Valid inference | Confidence intervals have correct coverage |
-| Causal inference | Enables estimation of treatment effects |
+| Benefit              | Description                                |
+| -------------------- | ------------------------------------------ |
+| Unbiased predictions | No overfitting to training structure       |
+| Valid inference      | Confidence intervals have correct coverage |
+| Causal inference     | Enables estimation of treatment effects    |
 
 ### Costs
 
-| Cost | Description |
-|------|-------------|
+| Cost                | Description                                     |
+| ------------------- | ----------------------------------------------- |
 | Reduced sample size | Each tree sees only half the data for each task |
-| Empty leaves | Some leaves may have no estimation samples |
-| Variance increase | Predictions may be more variable |
+| Empty leaves        | Some leaves may have no estimation samples      |
+| Variance increase   | Predictions may be more variable                |
 
 ### When to Use Honesty
 
-| Use Case | Recommendation |
-|----------|----------------|
-| Prediction only | Honesty optional (may hurt accuracy) |
-| Inference/confidence intervals | Honesty required |
-| Causal effect estimation | Honesty required |
-| Feature importance | Honesty recommended |
-| Small datasets | Consider without honesty |
-| Large datasets | Honesty recommended |
+| Use Case                       | Recommendation                       |
+| ------------------------------ | ------------------------------------ |
+| Prediction only                | Honesty optional (may hurt accuracy) |
+| Inference/confidence intervals | Honesty required                     |
+| Causal effect estimation       | Honesty required                     |
+| Feature importance             | Honesty recommended                  |
+| Small datasets                 | Consider without honesty             |
+| Large datasets                 | Honesty recommended                  |
 
 ---
 
@@ -268,18 +273,18 @@ forest.fit(X_train, y_train)
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `honesty` | bool | False | Enable honest estimation |
-| `honesty_fraction` | float | 0.5 | Fraction for splitting (rest for estimation) |
+| Parameter          | Type  | Default | Description                                  |
+| ------------------ | ----- | ------- | -------------------------------------------- |
+| `honesty`          | bool  | False   | Enable honest estimation                     |
+| `honesty_fraction` | float | 0.5     | Fraction for splitting (rest for estimation) |
 
 ### Choosing `honesty_fraction`
 
-| Value | Splitting | Estimation | Use Case |
-|-------|-----------|------------|----------|
-| 0.3 | 30% | 70% | Prioritize estimation precision |
-| 0.5 | 50% | 50% | Balanced (default) |
-| 0.7 | 70% | 30% | Prioritize tree structure |
+| Value | Splitting | Estimation | Use Case                        |
+| ----- | --------- | ---------- | ------------------------------- |
+| 0.3   | 30%       | 70%        | Prioritize estimation precision |
+| 0.5   | 50%       | 50%        | Balanced (default)              |
+| 0.7   | 70%       | 30%        | Prioritize tree structure       |
 
 ---
 
@@ -287,11 +292,13 @@ forest.fit(X_train, y_train)
 
 ### Heterogeneous Treatment Effects
 
-Honest trees are essential for **Causal Forests** (Wager & Athey, 2018), which estimate heterogeneous treatment effects:
+Honest trees are essential for **Causal Forests** (Wager & Athey, 2018), which
+estimate heterogeneous treatment effects:
 
 $$\tau(x) = \mathbb{E}[Y(1) - Y(0) | X = x]$$
 
 where:
+
 - $Y(1)$ = potential outcome under treatment
 - $Y(0)$ = potential outcome under control
 - $\tau(x)$ = conditional average treatment effect (CATE)
@@ -316,7 +323,9 @@ Estimation sample provides unbiased CATE
 
 ### Connection to GRF
 
-The [Generalized Random Forests (GRF)](https://grf-labs.github.io/grf/) package implements honest causal forests in R. citrees provides similar capabilities in Python.
+The [Generalized Random Forests (GRF)](https://grf-labs.github.io/grf/) package
+implements honest causal forests in R. citrees provides similar capabilities in
+Python.
 
 ---
 
@@ -346,11 +355,11 @@ Splitting Sample              Estimation Sample
 
 ### Solutions
 
-| Strategy | Description | Implementation |
-|----------|-------------|----------------|
-| **Parent fallback** | Use parent node prediction | Default in citrees |
-| **Sibling borrowing** | Use sibling leaf prediction | Alternative |
-| **Minimum leaf size** | Require min samples in structure | Preventive |
+| Strategy              | Description                      | Implementation     |
+| --------------------- | -------------------------------- | ------------------ |
+| **Parent fallback**   | Use parent node prediction       | Default in citrees |
+| **Sibling borrowing** | Use sibling leaf prediction      | Alternative        |
+| **Minimum leaf size** | Require min samples in structure | Preventive         |
 
 ```python
 # Prevent empty leaves with minimum leaf size
@@ -366,21 +375,21 @@ tree = ConditionalInferenceTreeClassifier(
 
 ### Honest Trees vs. Pruning
 
-| Aspect | Honest Trees | Pruning |
-|--------|--------------|---------|
-| Goal | Unbiased inference | Prevent overfitting |
-| Method | Sample splitting | Complexity penalty |
-| Inference | Valid CIs | Invalid CIs |
-| Prediction | May be worse | Optimized |
+| Aspect     | Honest Trees       | Pruning             |
+| ---------- | ------------------ | ------------------- |
+| Goal       | Unbiased inference | Prevent overfitting |
+| Method     | Sample splitting   | Complexity penalty  |
+| Inference  | Valid CIs          | Invalid CIs         |
+| Prediction | May be worse       | Optimized           |
 
 ### Honest Trees vs. Cross-Validation
 
-| Aspect | Honest Trees | Cross-Validation |
-|--------|--------------|------------------|
-| Data usage | Single split | K-fold splits |
-| Inference | Valid | Invalid |
-| Computation | 1× training | K× training |
-| Structure | Fixed | Averaged |
+| Aspect      | Honest Trees | Cross-Validation |
+| ----------- | ------------ | ---------------- |
+| Data usage  | Single split | K-fold splits    |
+| Inference   | Valid        | Invalid          |
+| Computation | 1× training  | K× training      |
+| Structure   | Fixed        | Averaged         |
 
 ---
 
@@ -388,15 +397,21 @@ tree = ConditionalInferenceTreeClassifier(
 
 ### Accuracy Limits (2024-2025)
 
-Recent work by [Cattaneo, Klusowski, and Yu (2025)](https://mdcattaneo.github.io/papers/Cattaneo-Klusowski-Yu_2025_CausalTrees.pdf) establishes theoretical limitations:
+Recent work by
+[Cattaneo, Klusowski, and Yu (2025)](https://mdcattaneo.github.io/papers/Cattaneo-Klusowski-Yu_2025_CausalTrees.pdf)
+establishes theoretical limitations:
 
-- Honest causal trees cannot achieve polynomial convergence rates under basic conditions
-- Performance depends strongly on regularity of the conditional expectation function
+- Honest causal trees cannot achieve polynomial convergence rates under basic
+  conditions
+- Performance depends strongly on regularity of the conditional expectation
+  function
 - Adaptive methods may exhibit arbitrarily slow convergence
 
 ### Practical Guidance
 
-A [2023 practical guide](https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwad043/7056288) in the American Journal of Epidemiology provides recommendations:
+A
+[2023 practical guide](https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwad043/7056288)
+in the American Journal of Epidemiology provides recommendations:
 
 1. Use honest forests for CATE estimation
 2. Report confidence intervals from the forest
@@ -451,14 +466,19 @@ forest = ConditionalInferenceForestRegressor(
 
 ## References
 
-1. **Foundational Paper**: [Wager, S., & Athey, S. (2018). Estimation and Inference of Heterogeneous Treatment Effects using Random Forests. JASA, 113(523), 1228-1242.](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839)
+1. **Foundational Paper**:
+   [Wager, S., & Athey, S. (2018). Estimation and Inference of Heterogeneous Treatment Effects using Random Forests. JASA, 113(523), 1228-1242.](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839)
 
-2. **Generalized Random Forests**: [Athey, S., Tibshirani, J., & Wager, S. (2019). Generalized Random Forests. Annals of Statistics, 47(2), 1148-1178.](https://arxiv.org/abs/1610.01271)
+2. **Generalized Random Forests**:
+   [Athey, S., Tibshirani, J., & Wager, S. (2019). Generalized Random Forests. Annals of Statistics, 47(2), 1148-1178.](https://arxiv.org/abs/1610.01271)
 
 3. **GRF Package**: [grf-labs.github.io/grf/](https://grf-labs.github.io/grf/)
 
-4. **Practical Guide**: [Haggerty, C. J., et al. (2023). Practical Guide to Honest Causal Forests for Identifying Heterogeneous Treatment Effects. American Journal of Epidemiology.](https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwad043/7056288)
+4. **Practical Guide**:
+   [Haggerty, C. J., et al. (2023). Practical Guide to Honest Causal Forests for Identifying Heterogeneous Treatment Effects. American Journal of Epidemiology.](https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwad043/7056288)
 
-5. **Theoretical Limits**: [Cattaneo, M. D., Klusowski, J. M., & Yu, Z. (2025). The Honest Truth About Causal Trees: Accuracy Limits.](https://mdcattaneo.github.io/papers/Cattaneo-Klusowski-Yu_2025_CausalTrees.pdf)
+5. **Theoretical Limits**:
+   [Cattaneo, M. D., Klusowski, J. M., & Yu, Z. (2025). The Honest Truth About Causal Trees: Accuracy Limits.](https://mdcattaneo.github.io/papers/Cattaneo-Klusowski-Yu_2025_CausalTrees.pdf)
 
-6. **Applied Review**: [Brand, J. E., et al. (2024). How Do Applied Researchers Use the Causal Forest? A Methodological Review.](https://arxiv.org/abs/2404.13356)
+6. **Applied Review**:
+   [Brand, J. E., et al. (2024). How Do Applied Researchers Use the Causal Forest? A Methodological Review.](https://arxiv.org/abs/2404.13356)

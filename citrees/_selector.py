@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from dcor import distance_correlation as _d_correlation
@@ -7,13 +7,23 @@ from dcor import distance_covariance as _d_covariance
 from numba import njit, prange
 from sklearn.feature_selection import mutual_info_classif
 
-from citrees._registry import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
+from citrees._registry import (
+    ClassifierSelectors,
+    ClassifierSelectorTests,
+    RegressorSelectors,
+    RegressorSelectorTests,
+)
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
 
+# P-value correction: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
+# SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+# Use p = (b+1)/(m+1) instead of p = b/m to avoid p=0.
+# Note: min_resamples = ceil(1/alpha) remains valid since 1/(m+1) < alpha.
 
-def _permutation_test(
+
+def _ptest(
     *,
     func: Any,
     func_arg: Any,
@@ -73,7 +83,8 @@ def _permutation_test(
             np.random.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg, random_state=random_state)
             if i >= min_resamples - 1:
-                asl = np.mean(np.abs(theta_p[: i + 1]) >= theta)
+                # +1 correction (Phipson & Smyth 2010)
+                asl = (1 + np.sum(np.abs(theta_p[: i + 1]) >= theta)) / (2 + i)
                 if asl < alpha:
                     break
 
@@ -81,18 +92,19 @@ def _permutation_test(
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg, random_state=random_state)
-        asl = np.mean(np.abs(theta_p) >= theta)
+        # +1 correction (Phipson & Smyth 2010)
+        asl = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
 
     return asl
 
 
 # Compiled version of permutation test
-_permutation_test_compiled = njit(cache=True, fastmath=True, nogil=True)(_permutation_test)
+_ptest_compiled = njit(cache=True, fastmath=True, nogil=True)(_ptest)
 
 
 # Parallel permutation test for multiple correlation (classifier)
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_mc_parallel(
+def _ptest_mc_parallel(
     x: np.ndarray,
     y: np.ndarray,
     n_classes: int,
@@ -130,12 +142,13 @@ def _permutation_test_mc_parallel(
                 ssb_perm += n_j * (mu_j - mu) ** 2
         theta_p[i] = np.sqrt(ssb_perm / sst)
 
-    return np.mean(np.abs(theta_p) >= theta)
+    # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
 
 
 # Parallel permutation test for pearson correlation (regressor)
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_pc_parallel(
+def _ptest_pc_parallel(
     x: np.ndarray,
     y: np.ndarray,
     n_resamples: int,
@@ -176,12 +189,13 @@ def _permutation_test_pc_parallel(
         else:
             theta_p[i] = np.abs(cov_perm / denom_perm)
 
-    return np.mean(theta_p >= theta)
+    # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
 
 
 @ClassifierSelectors.register("mc")
 @njit(cache=True, nogil=True, fastmath=True)
-def multiple_correlation(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: Optional[int] = None) -> float:
+def mc(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = None) -> float:
     """Calculate the multiple correlation coefficient.
 
     Parameters
@@ -277,7 +291,9 @@ def mutual_information(x: np.ndarray, y: np.ndarray, n_classes: int, random_stat
 
 @RegressorSelectors.register("pc")
 @njit(cache=True, nogil=True, fastmath=True)
-def pearson_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None) -> float:
+def pc(
+    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None
+) -> float:
     """Calculate the Pearson correlation coefficient.
 
     Parameters
@@ -383,7 +399,9 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
 
 
 @RegressorSelectors.register("dc")
-def distance_correlation(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None) -> float:
+def distance_correlation(
+    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None
+) -> float:
     """Calculate the distance correlation.
 
     Parameters
@@ -555,9 +573,12 @@ def _rdc(x: np.ndarray, y: np.ndarray, k: int, s: float, seed: int) -> float:
 
 @ClassifierSelectors.register("rdc")
 def rdc_classifier(
-    x: np.ndarray, y: np.ndarray, n_classes: int, random_state: Optional[int] = None
+    x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = None
 ) -> float:
-    """RDC for classification. O(n log n) non-linear dependence."""
+    """RDC for classification.
+
+    O(n log n) non-linear dependence.
+    """
     if x.ndim > 1:
         x = x.ravel()
     if y.ndim > 1:
@@ -579,9 +600,12 @@ def rdc_classifier(
 
 @RegressorSelectors.register("rdc")
 def rdc_regressor(
-    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: Optional[int] = None
+    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None
 ) -> float:
-    """RDC for regression. O(n log n) non-linear dependence."""
+    """RDC for regression.
+
+    O(n log n) non-linear dependence.
+    """
     if x.ndim > 1:
         x = x.ravel()
     if y.ndim > 1:
@@ -592,7 +616,7 @@ def rdc_regressor(
 
 
 @ClassifierSelectorTests.register("mc")
-def ptest_multiple_correlation(
+def ptest_mc(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -635,7 +659,7 @@ def ptest_multiple_correlation(
     """
     # Use parallel version when not using early stopping and enough resamples
     if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_mc_parallel(
+        return _ptest_mc_parallel(
             x=x,
             y=y,
             n_classes=n_classes,
@@ -643,8 +667,8 @@ def ptest_multiple_correlation(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
-        func=multiple_correlation,
+    return _ptest_compiled(
+        func=mc,
         func_arg=n_classes,
         x=x,
         y=y,
@@ -697,7 +721,7 @@ def ptest_mutual_information(
     float
         Estimated achieved significance level.
     """
-    return _permutation_test(
+    return _ptest(
         func=mutual_information,
         func_arg=n_classes,
         x=x,
@@ -710,7 +734,7 @@ def ptest_mutual_information(
 
 
 @RegressorSelectorTests.register("pc")
-def ptest_pearson_correlation(
+def ptest_pc(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -753,15 +777,15 @@ def ptest_pearson_correlation(
     """
     # Use parallel version when not using early stopping and enough resamples
     if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_pc_parallel(
+        return _ptest_pc_parallel(
             x=x,
             y=y,
             n_resamples=n_resamples,
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
-        func=pearson_correlation,
+    return _ptest_compiled(
+        func=pc,
         func_arg=standardize,
         x=x,
         y=y,
@@ -814,7 +838,7 @@ def ptest_distance_correlation(
     float
         Estimated achieved significance level.
     """
-    return _permutation_test(
+    return _ptest(
         func=distance_correlation,
         func_arg=standardize,
         x=x,
@@ -876,7 +900,7 @@ def ptest_rdc_classifier(
     float
         Estimated achieved significance level.
     """
-    return _permutation_test(
+    return _ptest(
         func=rdc_classifier,
         func_arg=n_classes,
         x=x,
@@ -933,7 +957,7 @@ def ptest_rdc_regressor(
     float
         Estimated achieved significance level.
     """
-    return _permutation_test(
+    return _ptest(
         func=rdc_regressor,
         func_arg=standardize,
         x=x,

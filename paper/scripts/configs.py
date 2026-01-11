@@ -2,8 +2,10 @@
 
 Provides clean, typed configurations for all experiment methods.
 """
-from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Literal, Optional, Union
+
+from collections.abc import Iterator
+from dataclasses import dataclass
+from typing import Any, Literal
 
 RANDOM_STATE = 1718
 
@@ -11,10 +13,11 @@ RANDOM_STATE = 1718
 @dataclass
 class BaseConfig:
     """Base configuration with common fields."""
+
     random_state: int = RANDOM_STATE
     method: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for experiment."""
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
@@ -23,14 +26,16 @@ class BaseConfig:
 # Conditional Inference Tree/Forest Configs
 # =============================================================================
 
+
 @dataclass
 class CITConfig(BaseConfig):
     """Conditional Inference Tree configuration."""
+
     method: str = "cit"
 
     # Resampling
-    n_resamples_selector: Optional[Union[str, int]] = "auto"
-    n_resamples_splitter: Optional[Union[str, int]] = "auto"
+    n_resamples_selector: str | int | None = "auto"
+    n_resamples_splitter: str | int | None = "auto"
 
     # Alpha adjustment
     adjust_alpha_selector: bool = True
@@ -47,7 +52,7 @@ class CITConfig(BaseConfig):
 
     # Thresholds
     threshold_method: Literal["exact", "random", "percentile", "histogram"] = "exact"
-    max_thresholds: Optional[Union[int, float]] = None
+    max_thresholds: int | float | None = None
 
     # Honesty
     honesty: bool = False
@@ -59,11 +64,12 @@ class CITConfig(BaseConfig):
 @dataclass
 class CIFConfig(CITConfig):
     """Conditional Inference Forest configuration."""
+
     method: str = "cif"
 
     # Forest-specific
     n_estimators: int = 100
-    max_samples: Optional[float] = None
+    max_samples: float | None = None
     bootstrap_method: Literal["bayesian", "classic"] = "bayesian"
     sampling_method: Literal["balanced", "stratified"] = "stratified"
     n_jobs: int = 1
@@ -73,31 +79,34 @@ class CIFConfig(CITConfig):
 # Baseline Method Configs
 # =============================================================================
 
+
 @dataclass
 class RandomForestConfig(BaseConfig):
     """Random Forest configuration."""
+
     method: str = "rf"
     n_estimators: int = 100
-    max_depth: Optional[int] = None
+    max_depth: int | None = None
     min_samples_split: int = 2
     min_samples_leaf: int = 1
-    max_features: Optional[Union[str, float]] = "sqrt"
+    max_features: str | float | None = "sqrt"
     bootstrap: bool = True
-    class_weight: Optional[str] = None
+    class_weight: str | None = None
     n_jobs: int = 1
 
 
 @dataclass
 class XGBConfig(BaseConfig):
     """XGBoost configuration."""
+
     method: str = "xgb"
     n_estimators: int = 100
     max_depth: int = 6
     learning_rate: float = 0.1
     subsample: float = 1.0
     colsample_bytree: float = 1.0
-    reg_alpha: Optional[float] = None
-    reg_lambda: Optional[float] = None
+    reg_alpha: float | None = None
+    reg_lambda: float | None = None
     importance_type: str = "gain"
     n_jobs: int = 1
 
@@ -105,6 +114,7 @@ class XGBConfig(BaseConfig):
 @dataclass
 class LightGBMConfig(BaseConfig):
     """LightGBM configuration."""
+
     method: str = "lightgbm"
     n_estimators: int = 100
     max_depth: int = -1
@@ -121,14 +131,16 @@ class LightGBMConfig(BaseConfig):
 # Experiment Config
 # =============================================================================
 
+
 @dataclass
 class ExperimentConfig:
     """Full experiment configuration."""
+
     dataset: str
     method_config: BaseConfig
     cv_folds: int = 5
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to flat dictionary for experiment."""
         return {
             "dataset": self.dataset,
@@ -141,15 +153,16 @@ class ExperimentConfig:
 # Config Generators
 # =============================================================================
 
+
 def generate_cit_configs(
-    n_resamples_selector: List = ["minimum", "maximum", "auto", None],
-    n_resamples_splitter: List = ["minimum", "maximum", "auto", None],
-    adjust_alpha_selector: List[bool] = [True, False],
-    adjust_alpha_splitter: List[bool] = [True, False],
-    feature_scanning: List[bool] = [True, False],
-    threshold_scanning: List[bool] = [True, False],
-    threshold_method: List[str] = ["exact", "random", "percentile", "histogram"],
-    honesty: List[bool] = [True, False],
+    n_resamples_selector: list = ["minimum", "maximum", "auto", None],
+    n_resamples_splitter: list = ["minimum", "maximum", "auto", None],
+    adjust_alpha_selector: list[bool] = [True, False],
+    adjust_alpha_splitter: list[bool] = [True, False],
+    feature_scanning: list[bool] = [True, False],
+    threshold_scanning: list[bool] = [True, False],
+    threshold_method: list[str] = ["exact", "random", "percentile", "histogram"],
+    honesty: list[bool] = [True, False],
 ) -> Iterator[CITConfig]:
     """Generate CIT configurations for hyperparameter search."""
     for nrs in n_resamples_selector:
@@ -185,17 +198,17 @@ def generate_cit_configs(
 
 
 def generate_cif_configs(
-    n_resamples_selector: List = ["minimum", "maximum", "auto", None],
-    n_resamples_splitter: List = ["minimum", "maximum", "auto", None],
-    adjust_alpha_selector: List[bool] = [True, False],
-    adjust_alpha_splitter: List[bool] = [True, False],
-    feature_scanning: List[bool] = [True, False],
-    threshold_scanning: List[bool] = [True, False],
-    threshold_method: List[str] = ["exact", "random", "percentile", "histogram"],
-    max_samples: List = [None, 0.8],
-    bootstrap_method: List[str] = ["bayesian", "classic"],
-    sampling_method: List[str] = ["balanced", "stratified"],
-    honesty: List[bool] = [True, False],
+    n_resamples_selector: list = ["minimum", "maximum", "auto", None],
+    n_resamples_splitter: list = ["minimum", "maximum", "auto", None],
+    adjust_alpha_selector: list[bool] = [True, False],
+    adjust_alpha_splitter: list[bool] = [True, False],
+    feature_scanning: list[bool] = [True, False],
+    threshold_scanning: list[bool] = [True, False],
+    threshold_method: list[str] = ["exact", "random", "percentile", "histogram"],
+    max_samples: list = [None, 0.8],
+    bootstrap_method: list[str] = ["bayesian", "classic"],
+    sampling_method: list[str] = ["balanced", "stratified"],
+    honesty: list[bool] = [True, False],
 ) -> Iterator[CIFConfig]:
     """Generate CIF configurations for hyperparameter search."""
     for nrs in n_resamples_selector:
@@ -237,13 +250,13 @@ def generate_cif_configs(
 
 
 def generate_xgb_configs(
-    max_depth: List[int] = [1, 2, 3, 4, 6, 8],
-    learning_rate: List[float] = [0.001, 0.01, 0.1],
-    subsample: List[float] = [0.8, 0.9, 1.0],
-    colsample_bytree: List[float] = [0.8, 0.9, 1.0],
-    reg_alpha: List = [0.001, 0.01, None],
-    reg_lambda: List = [0.001, 0.01, None],
-    importance_type: List[str] = ["gain", "weight", "cover", "total_gain", "total_cover"],
+    max_depth: list[int] = [1, 2, 3, 4, 6, 8],
+    learning_rate: list[float] = [0.001, 0.01, 0.1],
+    subsample: list[float] = [0.8, 0.9, 1.0],
+    colsample_bytree: list[float] = [0.8, 0.9, 1.0],
+    reg_alpha: list = [0.001, 0.01, None],
+    reg_lambda: list = [0.001, 0.01, None],
+    importance_type: list[str] = ["gain", "weight", "cover", "total_gain", "total_cover"],
 ) -> Iterator[XGBConfig]:
     """Generate XGBoost configurations for hyperparameter search."""
     for md in max_depth:

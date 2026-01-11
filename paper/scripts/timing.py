@@ -10,10 +10,11 @@ the performance impact of various hyperparameters:
 
 Results are saved to paper/results/timing_results.parquet
 """
+
 import time
 from itertools import product
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -22,10 +23,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
 from citrees import (
-    ConditionalInferenceForestClassifier,
-    ConditionalInferenceForestRegressor,
     ConditionalInferenceTreeClassifier,
-    ConditionalInferenceTreeRegressor,
 )
 
 N = 500
@@ -35,7 +33,7 @@ RANDOM_STATE = 1718
 N_REPEATS = 10
 
 
-def tree_splits(tree: Any, splits: List[Any]) -> None:
+def tree_splits(tree: Any, splits: list[Any]) -> None:
     """Recursively get feature splits from conditional inference model.
 
     Parameters
@@ -83,18 +81,20 @@ def main() -> None:
 
         # Create all combinations
         configs = list(
-            product(*[
-                adjust_alpha_selector,
-                adjust_alpha_splitter,
-                n_resamples_selector,
-                n_resamples_splitter,
-                early_stopping_selector,
-                early_stopping_splitter,
-                threshold_method,
-                feature_muting,
-                feature_scanning,
-                threshold_scanning,
-            ])
+            product(
+                *[
+                    adjust_alpha_selector,
+                    adjust_alpha_splitter,
+                    n_resamples_selector,
+                    n_resamples_splitter,
+                    early_stopping_selector,
+                    early_stopping_splitter,
+                    threshold_method,
+                    feature_muting,
+                    feature_scanning,
+                    threshold_scanning,
+                ]
+            )
         )
         n_configs = len(configs)
         for config in configs:
@@ -114,7 +114,7 @@ def main() -> None:
             }
 
             clf = ConditionalInferenceTreeClassifier(**hps)
-                                        
+
             # Time
             tic = time.time()
             clf.fit(X[:N], y_binary[:N])
@@ -125,43 +125,51 @@ def main() -> None:
             tree_splits(clf.tree_, splits)
 
             # Save results
-            results.append({
-                "model": "cit",
-                "repeat": i,
-                "time": toc - tic,
-                "accuracy": np.mean(clf.predict(X[N:]) == y_binary[N:]),
-                "n_splits": len(splits),
-                "correct_features": sum(1 for s in splits if s < 5),  # Friedman1 has 5 informative
-                **hps,
-            })
+            results.append(
+                {
+                    "model": "cit",
+                    "repeat": i,
+                    "time": toc - tic,
+                    "accuracy": np.mean(clf.predict(X[N:]) == y_binary[N:]),
+                    "n_splits": len(splits),
+                    "correct_features": sum(
+                        1 for s in splits if s < 5
+                    ),  # Friedman1 has 5 informative
+                    **hps,
+                }
+            )
 
         # Baseline: Decision Tree
         clf = DecisionTreeClassifier(random_state=RANDOM_STATE + i)
         tic = time.time()
         clf.fit(X[:N], y_binary[:N])
         toc = time.time()
-        results.append({
-            "model": "dt",
-            "repeat": i,
-            "time": toc - tic,
-            "accuracy": np.mean(clf.predict(X[N:]) == y_binary[N:]),
-            "n_splits": clf.tree_.node_count,
-            "correct_features": None,
-        })
+        results.append(
+            {
+                "model": "dt",
+                "repeat": i,
+                "time": toc - tic,
+                "accuracy": np.mean(clf.predict(X[N:]) == y_binary[N:]),
+                "n_splits": clf.tree_.node_count,
+                "correct_features": None,
+            }
+        )
 
         # Baseline: Random Forest
         clf = RandomForestClassifier(n_estimators=100, random_state=RANDOM_STATE + i, n_jobs=-1)
         tic = time.time()
         clf.fit(X[:N], y_binary[:N])
         toc = time.time()
-        results.append({
-            "model": "rf",
-            "repeat": i,
-            "time": toc - tic,
-            "accuracy": np.mean(clf.predict(X[N:]) == y_binary[N:]),
-            "n_splits": None,
-            "correct_features": None,
-        })
+        results.append(
+            {
+                "model": "rf",
+                "repeat": i,
+                "time": toc - tic,
+                "accuracy": np.mean(clf.predict(X[N:]) == y_binary[N:]),
+                "n_splits": None,
+                "correct_features": None,
+            }
+        )
 
     # Save results
     df = pd.DataFrame(results)

@@ -1,21 +1,25 @@
 # Split Criteria (Splitters)
 
-Splitters evaluate the quality of a potential split point. Once a feature is selected, citrees tests various thresholds and chooses the split that best separates the target variable.
+Splitters evaluate the quality of a potential split point. Once a feature is
+selected, citrees tests various thresholds and chooses the split that best
+separates the target variable.
 
 ## Overview
 
-| Splitter | Task | Measures | Range |
-|----------|------|----------|-------|
-| `gini` | Classification | Impurity | [0, 0.5] for binary |
-| `entropy` | Classification | Information gain | [0, log₂K] |
-| `mse` | Regression | Mean squared error | [0, ∞) |
-| `mae` | Regression | Mean absolute error | [0, ∞) |
+| Splitter  | Task           | Measures            | Range               |
+| --------- | -------------- | ------------------- | ------------------- |
+| `gini`    | Classification | Impurity            | [0, 0.5] for binary |
+| `entropy` | Classification | Information gain    | [0, log₂K]          |
+| `mse`     | Regression     | Mean squared error  | [0, ∞)              |
+| `mae`     | Regression     | Mean absolute error | [0, ∞)              |
 
 ---
 
 ## Gini Impurity (gini)
 
-**Default for classification.** Measures the probability of incorrect classification if a random sample was randomly labeled according to the class distribution.
+**Default for classification.** Measures the probability of incorrect
+classification if a random sample was randomly labeled according to the class
+distribution.
 
 ### Mathematical Definition
 
@@ -31,11 +35,11 @@ $$\Delta Gini = Gini_{parent} - Gini_{split}$$
 
 ### Properties
 
-| Property | Value |
-|----------|-------|
-| Minimum | 0 (pure node, single class) |
-| Maximum | 0.5 (binary), $(K-1)/K$ (K classes) |
-| Perfect split | $\Delta Gini = Gini_{parent}$ |
+| Property      | Value                               |
+| ------------- | ----------------------------------- |
+| Minimum       | 0 (pure node, single class)         |
+| Maximum       | 0.5 (binary), $(K-1)/K$ (K classes) |
+| Perfect split | $\Delta Gini = Gini_{parent}$       |
 
 ### Algorithm
 
@@ -93,19 +97,21 @@ def gini_impurity(y_left, y_right, n_classes):
 
 ### Comparison with Entropy
 
-| Aspect | Gini | Entropy |
-|--------|------|---------|
-| Computation | Faster (no log) | Slower |
-| Behavior | Favors larger partitions | More balanced splits |
-| Typical difference | Minimal | Minimal |
+| Aspect             | Gini                     | Entropy              |
+| ------------------ | ------------------------ | -------------------- |
+| Computation        | Faster (no log)          | Slower               |
+| Behavior           | Favors larger partitions | More balanced splits |
+| Typical difference | Minimal                  | Minimal              |
 
-In practice, Gini and entropy produce similar trees. Gini is preferred for computational efficiency.
+In practice, Gini and entropy produce similar trees. Gini is preferred for
+computational efficiency.
 
 ---
 
 ## Entropy / Information Gain (entropy)
 
-Measures the expected information content of the class distribution. Based on Shannon's information theory.
+Measures the expected information content of the class distribution. Based on
+Shannon's information theory.
 
 ### Mathematical Definition
 
@@ -119,11 +125,11 @@ $$IG = H_{parent} - \left[\frac{n_L}{n} H_L + \frac{n_R}{n} H_R\right]$$
 
 ### Properties
 
-| Property | Value |
-|----------|-------|
-| Minimum entropy | 0 (pure node) |
-| Maximum entropy | $\log_2 K$ (uniform distribution) |
-| Information gain | Higher = better split |
+| Property         | Value                             |
+| ---------------- | --------------------------------- |
+| Minimum entropy  | 0 (pure node)                     |
+| Maximum entropy  | $\log_2 K$ (uniform distribution) |
+| Information gain | Higher = better split             |
 
 ### Algorithm
 
@@ -152,17 +158,18 @@ Input: Feature x ∈ ℝⁿ, labels y ∈ {1,...,K}ⁿ, threshold c
 
 ### Interpretation
 
-| H value | Interpretation |
-|---------|----------------|
-| 0 | Pure node (all same class) |
-| 1.0 | Binary, 50/50 split |
-| $\log_2 K$ | K classes, uniform |
+| H value    | Interpretation             |
+| ---------- | -------------------------- |
+| 0          | Pure node (all same class) |
+| 1.0        | Binary, 50/50 split        |
+| $\log_2 K$ | K classes, uniform         |
 
 ---
 
 ## Mean Squared Error (mse)
 
-**Default for regression.** Measures the average squared deviation from the mean prediction in each child node.
+**Default for regression.** Measures the average squared deviation from the mean
+prediction in each child node.
 
 ### Mathematical Definition
 
@@ -176,11 +183,11 @@ $$MSE_{split} = \frac{1}{n}\left[\sum_{i \in L}(y_i - \bar{y}_L)^2 + \sum_{i \in
 
 ### Properties
 
-| Property | Value |
-|----------|-------|
-| Minimum | 0 (perfect prediction) |
-| Maximum | $\sigma^2$ (no improvement) |
-| Optimal split | Minimizes total variance |
+| Property      | Value                       |
+| ------------- | --------------------------- |
+| Minimum       | 0 (perfect prediction)      |
+| Maximum       | $\sigma^2$ (no improvement) |
+| Optimal split | Minimizes total variance    |
 
 ### Algorithm
 
@@ -234,7 +241,8 @@ def mse_split(y_left, y_right):
 
 ## Mean Absolute Error (mae)
 
-More robust to outliers than MSE. Uses absolute deviations instead of squared deviations.
+More robust to outliers than MSE. Uses absolute deviations instead of squared
+deviations.
 
 ### Mathematical Definition
 
@@ -244,11 +252,11 @@ Note: MAE is minimized by the **median**, not the mean.
 
 ### Properties
 
-| Property | Value |
-|----------|-------|
-| Robustness | More robust to outliers than MSE |
-| Gradient | Non-smooth at 0 |
-| Optimal prediction | Median |
+| Property           | Value                            |
+| ------------------ | -------------------------------- |
+| Robustness         | More robust to outliers than MSE |
+| Gradient           | Non-smooth at 0                  |
+| Optimal prediction | Median                           |
 
 ### Algorithm
 
@@ -276,13 +284,13 @@ Input: Feature x ∈ ℝⁿ, target y ∈ ℝⁿ, threshold c
 
 ### Comparison: MSE vs MAE
 
-| Aspect | MSE | MAE |
-|--------|-----|-----|
-| Outlier sensitivity | High | Low |
-| Gradient | Smooth | Non-smooth |
-| Central tendency | Mean | Median |
-| Computation | O(n) | O(n log n) for median |
-| Common use | Most applications | Robust regression |
+| Aspect              | MSE               | MAE                   |
+| ------------------- | ----------------- | --------------------- |
+| Outlier sensitivity | High              | Low                   |
+| Gradient            | Smooth            | Non-smooth            |
+| Central tendency    | Mean              | Median                |
+| Computation         | O(n)              | O(n log n) for median |
+| Common use          | Most applications | Robust regression     |
 
 ---
 
@@ -320,7 +328,8 @@ Input: x ∈ ℝⁿ, y, threshold c, n_resamples
 4. Return p
 ```
 
-The `+1` in numerator and denominator is a finite-sample correction ensuring valid p-values.
+The `+1` in numerator and denominator is a finite-sample correction ensuring
+valid p-values.
 
 ---
 
@@ -328,12 +337,12 @@ The `+1` in numerator and denominator is a finite-sample correction ensuring val
 
 citrees supports multiple methods for generating candidate split thresholds:
 
-| Method | Description | Use Case |
-|--------|-------------|----------|
-| `exact` | All unique values | Small datasets, precise |
-| `random` | Random subset | Large datasets |
-| `percentile` | Quantile-based | Robust to outliers |
-| `histogram` | Equal-width bins | Very large datasets |
+| Method       | Description       | Use Case                |
+| ------------ | ----------------- | ----------------------- |
+| `exact`      | All unique values | Small datasets, precise |
+| `random`     | Random subset     | Large datasets          |
+| `percentile` | Quantile-based    | Robust to outliers      |
+| `histogram`  | Equal-width bins  | Very large datasets     |
 
 ### Algorithm: Threshold Generation
 
@@ -365,10 +374,14 @@ Return thresholds
 
 ## References
 
-1. **Gini Impurity**: Breiman, L., Friedman, J., Stone, C.J., & Olshen, R.A. (1984). Classification and Regression Trees. CRC Press.
+1. **Gini Impurity**: Breiman, L., Friedman, J., Stone, C.J., & Olshen, R.A.
+   (1984). Classification and Regression Trees. CRC Press.
 
-2. **Information Gain**: Quinlan, J.R. (1986). Induction of Decision Trees. Machine Learning.
+2. **Information Gain**: Quinlan, J.R. (1986). Induction of Decision Trees.
+   Machine Learning.
 
-3. **MSE/MAE**: Friedman, J.H. (2001). Greedy Function Approximation: A Gradient Boosting Machine. Annals of Statistics.
+3. **MSE/MAE**: Friedman, J.H. (2001). Greedy Function Approximation: A Gradient
+   Boosting Machine. Annals of Statistics.
 
-4. **Permutation Tests for Splits**: Hothorn, T., Hornik, K., & Zeileis, A. (2006). Unbiased Recursive Partitioning. JCGS.
+4. **Permutation Tests for Splits**: Hothorn, T., Hornik, K., & Zeileis, A.
+   (2006). Unbiased Recursive Partitioning. JCGS.

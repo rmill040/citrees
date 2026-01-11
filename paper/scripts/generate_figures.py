@@ -8,6 +8,7 @@ Creates visualizations comparing feature selection behavior across methods:
 Usage:
     uv run python scripts/generate_figures.py
 """
+
 import warnings
 from collections import Counter
 from pathlib import Path
@@ -15,10 +16,13 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy import stats
-from sklearn.datasets import make_classification, make_regression, make_friedman1
-from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.datasets import make_classification, make_friedman1, make_regression
+from sklearn.ensemble import (
+    ExtraTreesClassifier,
+    ExtraTreesRegressor,
+    RandomForestClassifier,
+    RandomForestRegressor,
+)
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 from citrees import (
@@ -151,13 +155,15 @@ def run_feature_selection_experiment(task: str = "classification") -> pd.DataFra
 
             # Record results
             for feature in range(n_features):
-                results.append({
-                    "method": name,
-                    "feature": feature,
-                    "count": counts.get(feature, 0),
-                    "repeat": repeat,
-                    "is_informative": feature < n_informative,
-                })
+                results.append(
+                    {
+                        "method": name,
+                        "feature": feature,
+                        "count": counts.get(feature, 0),
+                        "repeat": repeat,
+                        "is_informative": feature < n_informative,
+                    }
+                )
 
     return pd.DataFrame(results)
 
@@ -179,17 +185,25 @@ def plot_feature_selection_bars(df: pd.DataFrame, task: str, output_path: Path) 
         method_df = df[df["method"] == method]
 
         # Aggregate across repeats
-        agg = method_df.groupby("feature").agg({
-            "count": ["mean", "std"],
-            "is_informative": "first"
-        }).reset_index()
+        agg = (
+            method_df.groupby("feature")
+            .agg({"count": ["mean", "std"], "is_informative": "first"})
+            .reset_index()
+        )
         agg.columns = ["feature", "mean", "std", "is_informative"]
 
         # Colors: blue for informative, gray for noise
         colors = ["#2ecc71" if inf else "#bdc3c7" for inf in agg["is_informative"]]
 
-        ax.bar(agg["feature"], agg["mean"], yerr=agg["std"], color=colors,
-               edgecolor="black", linewidth=0.5, capsize=2)
+        ax.bar(
+            agg["feature"],
+            agg["mean"],
+            yerr=agg["std"],
+            color=colors,
+            edgecolor="black",
+            linewidth=0.5,
+            capsize=2,
+        )
         ax.set_xlabel("Feature ID")
         ax.set_title(method_labels[method])
         ax.set_xticks([0, 4, 9, 14, 19])
@@ -201,6 +215,7 @@ def plot_feature_selection_bars(df: pd.DataFrame, task: str, output_path: Path) 
 
     # Add legend
     from matplotlib.patches import Patch
+
     legend_elements = [
         Patch(facecolor="#2ecc71", edgecolor="black", label="Informative"),
         Patch(facecolor="#bdc3c7", edgecolor="black", label="Noise"),
@@ -239,8 +254,14 @@ def plot_informative_ratio(df: pd.DataFrame, output_path: Path) -> None:
 
     # Add value labels on bars
     for bar, ratio in zip(bars, ratios):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
-                f"{ratio:.1f}%", ha="center", va="bottom", fontsize=10)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 2,
+            f"{ratio:.1f}%",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
     plt.title("Feature Selection Bias: Informative vs Noise Features")
     plt.tight_layout()
@@ -266,12 +287,14 @@ def compute_statistics(df: pd.DataFrame) -> pd.DataFrame:
             if total > 0:
                 repeat_ratios.append(100 * informative / total)
 
-        stats_data.append({
-            "method": method,
-            "informative_ratio_mean": np.mean(repeat_ratios),
-            "informative_ratio_std": np.std(repeat_ratios),
-            "total_splits_mean": method_df.groupby("repeat")["count"].sum().mean(),
-        })
+        stats_data.append(
+            {
+                "method": method,
+                "informative_ratio_mean": np.mean(repeat_ratios),
+                "informative_ratio_std": np.std(repeat_ratios),
+                "total_splits_mean": method_df.groupby("repeat")["count"].sum().mean(),
+            }
+        )
 
     return pd.DataFrame(stats_data)
 
@@ -289,7 +312,9 @@ def generate_latex_table(stats_df: pd.DataFrame, output_path: Path) -> None:
     latex = []
     latex.append(r"\begin{table}[h]")
     latex.append(r"\centering")
-    latex.append(r"\caption{Feature selection bias across tree-based methods. Higher informative ratio indicates better selection of relevant features.}")
+    latex.append(
+        r"\caption{Feature selection bias across tree-based methods. Higher informative ratio indicates better selection of relevant features.}"
+    )
     latex.append(r"\label{tab:feature_selection_bias}")
     latex.append(r"\begin{tabular}{lcc}")
     latex.append(r"\toprule")
@@ -320,7 +345,9 @@ def run_timing_experiment() -> pd.DataFrame:
     n_features = 100
 
     # Generate data once
-    X, y = make_friedman1(n_samples=n_samples, n_features=n_features, noise=1.0, random_state=RANDOM_STATE)
+    X, y = make_friedman1(
+        n_samples=n_samples, n_features=n_features, noise=1.0, random_state=RANDOM_STATE
+    )
     y_binary = (y > np.median(y)).astype(int)
 
     # Key hyperparameters to vary
@@ -332,11 +359,23 @@ def run_timing_experiment() -> pd.DataFrame:
         {"name": "alpha=0.10", "params": {"alpha_selector": 0.10, "alpha_splitter": 0.10}},
         {"name": "alpha=0.20", "params": {"alpha_selector": 0.20, "alpha_splitter": 0.20}},
         # Early stopping
-        {"name": "no_early_stop", "params": {"early_stopping_selector": False, "early_stopping_splitter": False}},
+        {
+            "name": "no_early_stop",
+            "params": {"early_stopping_selector": False, "early_stopping_splitter": False},
+        },
         # Resamples
-        {"name": "resamples=100", "params": {"n_resamples_selector": 100, "n_resamples_splitter": 100}},
-        {"name": "resamples=1000", "params": {"n_resamples_selector": 1000, "n_resamples_splitter": 1000}},
-        {"name": "resamples=auto", "params": {"n_resamples_selector": "auto", "n_resamples_splitter": "auto"}},
+        {
+            "name": "resamples=100",
+            "params": {"n_resamples_selector": 100, "n_resamples_splitter": 100},
+        },
+        {
+            "name": "resamples=1000",
+            "params": {"n_resamples_selector": 1000, "n_resamples_splitter": 1000},
+        },
+        {
+            "name": "resamples=auto",
+            "params": {"n_resamples_selector": "auto", "n_resamples_splitter": "auto"},
+        },
         # Threshold method
         {"name": "histogram", "params": {"threshold_method": "histogram", "max_thresholds": 128}},
         # Feature muting
@@ -344,11 +383,17 @@ def run_timing_experiment() -> pd.DataFrame:
         # Scanning
         {"name": "no_scanning", "params": {"feature_scanning": False, "threshold_scanning": False}},
         # Combined fast
-        {"name": "fast", "params": {
-            "early_stopping_selector": True, "early_stopping_splitter": True,
-            "threshold_method": "histogram", "max_thresholds": 128,
-            "n_resamples_selector": "auto", "n_resamples_splitter": "auto",
-        }},
+        {
+            "name": "fast",
+            "params": {
+                "early_stopping_selector": True,
+                "early_stopping_splitter": True,
+                "threshold_method": "histogram",
+                "max_thresholds": 128,
+                "n_resamples_selector": "auto",
+                "n_resamples_splitter": "auto",
+            },
+        },
     ]
 
     for repeat in range(5):
@@ -361,12 +406,14 @@ def run_timing_experiment() -> pd.DataFrame:
             clf.fit(X, y_binary)
             toc = time.time()
 
-            results.append({
-                "config": config["name"],
-                "repeat": repeat,
-                "time": toc - tic,
-                "depth": clf.depth_,
-            })
+            results.append(
+                {
+                    "config": config["name"],
+                    "repeat": repeat,
+                    "time": toc - tic,
+                    "depth": clf.depth_,
+                }
+            )
 
     return pd.DataFrame(results)
 
@@ -374,9 +421,15 @@ def run_timing_experiment() -> pd.DataFrame:
 def plot_timing_bars(df: pd.DataFrame, output_path: Path) -> None:
     """Create bar plot showing timing for different configurations."""
     # Aggregate
-    agg = df.groupby("config").agg({
-        "time": ["mean", "std"],
-    }).reset_index()
+    agg = (
+        df.groupby("config")
+        .agg(
+            {
+                "time": ["mean", "std"],
+            }
+        )
+        .reset_index()
+    )
     agg.columns = ["config", "mean", "std"]
     agg = agg.sort_values("mean")
 
@@ -396,8 +449,15 @@ def plot_timing_bars(df: pd.DataFrame, output_path: Path) -> None:
 
     colors = [get_color(name) for name in agg["config"]]
 
-    bars = ax.barh(agg["config"], agg["mean"], xerr=agg["std"], color=colors,
-                   edgecolor="black", linewidth=0.5, capsize=3)
+    bars = ax.barh(
+        agg["config"],
+        agg["mean"],
+        xerr=agg["std"],
+        color=colors,
+        edgecolor="black",
+        linewidth=0.5,
+        capsize=3,
+    )
 
     ax.set_xlabel("Time (seconds)")
     ax.set_ylabel("Configuration")
@@ -405,8 +465,14 @@ def plot_timing_bars(df: pd.DataFrame, output_path: Path) -> None:
 
     # Add value labels
     for bar, mean in zip(bars, agg["mean"]):
-        ax.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height()/2,
-                f"{mean:.2f}s", ha="left", va="center", fontsize=9)
+        ax.text(
+            bar.get_width() + 0.1,
+            bar.get_y() + bar.get_height() / 2,
+            f"{mean:.2f}s",
+            ha="left",
+            va="center",
+            fontsize=9,
+        )
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -432,8 +498,14 @@ def plot_timing_speedup(df: pd.DataFrame, output_path: Path) -> None:
     ax.set_title("CITree Training Speedup by Configuration")
 
     for bar, speedup in zip(bars, agg["speedup"]):
-        ax.text(bar.get_width() + 0.05, bar.get_y() + bar.get_height()/2,
-                f"{speedup:.1f}x", ha="left", va="center", fontsize=9)
+        ax.text(
+            bar.get_width() + 0.05,
+            bar.get_y() + bar.get_height() / 2,
+            f"{speedup:.1f}x",
+            ha="left",
+            va="center",
+            fontsize=9,
+        )
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -512,17 +584,19 @@ def run_correlated_features_experiment() -> pd.DataFrame:
             noise_count = sum(counts.get(i, 0) for i in range(10, 20))
             total = informative_count + correlated_count + noise_count
 
-            results.append({
-                "method": name,
-                "repeat": repeat,
-                "informative": informative_count,
-                "correlated": correlated_count,
-                "noise": noise_count,
-                "total": total,
-                "informative_pct": 100 * informative_count / max(total, 1),
-                "correlated_pct": 100 * correlated_count / max(total, 1),
-                "noise_pct": 100 * noise_count / max(total, 1),
-            })
+            results.append(
+                {
+                    "method": name,
+                    "repeat": repeat,
+                    "informative": informative_count,
+                    "correlated": correlated_count,
+                    "noise": noise_count,
+                    "total": total,
+                    "informative_pct": 100 * informative_count / max(total, 1),
+                    "correlated_pct": 100 * correlated_count / max(total, 1),
+                    "noise_pct": 100 * noise_count / max(total, 1),
+                }
+            )
 
     return pd.DataFrame(results)
 
@@ -533,11 +607,17 @@ def plot_correlated_features(df: pd.DataFrame, output_path: Path) -> None:
     method_labels = ["CITree", "CIForest", "Random Forest", "Extra Trees"]
 
     # Aggregate
-    agg = df.groupby("method").agg({
-        "informative_pct": "mean",
-        "correlated_pct": "mean",
-        "noise_pct": "mean",
-    }).reindex(methods)
+    agg = (
+        df.groupby("method")
+        .agg(
+            {
+                "informative_pct": "mean",
+                "correlated_pct": "mean",
+                "noise_pct": "mean",
+            }
+        )
+        .reindex(methods)
+    )
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -546,15 +626,28 @@ def plot_correlated_features(df: pd.DataFrame, output_path: Path) -> None:
 
     # Stacked bars
     bars1 = ax.bar(x, agg["informative_pct"], width, label="Informative (0-4)", color="#27ae60")
-    bars2 = ax.bar(x, agg["correlated_pct"], width, bottom=agg["informative_pct"],
-                   label="Correlated copies (5-9)", color="#f39c12")
-    bars3 = ax.bar(x, agg["noise_pct"], width,
-                   bottom=agg["informative_pct"] + agg["correlated_pct"],
-                   label="Pure noise (10-19)", color="#e74c3c")
+    bars2 = ax.bar(
+        x,
+        agg["correlated_pct"],
+        width,
+        bottom=agg["informative_pct"],
+        label="Correlated copies (5-9)",
+        color="#f39c12",
+    )
+    bars3 = ax.bar(
+        x,
+        agg["noise_pct"],
+        width,
+        bottom=agg["informative_pct"] + agg["correlated_pct"],
+        label="Pure noise (10-19)",
+        color="#e74c3c",
+    )
 
     ax.set_ylabel("% of Splits")
     ax.set_xlabel("Method")
-    ax.set_title("Feature Selection with Correlated Features\n(Features 5-9 are noisy copies of 0-4)")
+    ax.set_title(
+        "Feature Selection with Correlated Features\n(Features 5-9 are noisy copies of 0-4)"
+    )
     ax.set_xticks(x)
     ax.set_xticklabels(method_labels)
     ax.legend(loc="upper right")
@@ -563,8 +656,16 @@ def plot_correlated_features(df: pd.DataFrame, output_path: Path) -> None:
     # Add percentage labels
     for i, method in enumerate(methods):
         row = agg.loc[method]
-        ax.text(i, row["informative_pct"]/2, f'{row["informative_pct"]:.0f}%',
-                ha="center", va="center", fontsize=10, fontweight="bold", color="white")
+        ax.text(
+            i,
+            row["informative_pct"] / 2,
+            f"{row['informative_pct']:.0f}%",
+            ha="center",
+            va="center",
+            fontsize=10,
+            fontweight="bold",
+            color="white",
+        )
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -599,8 +700,12 @@ def run_complexity_vs_accuracy_experiment() -> pd.DataFrame:
         models = {
             "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
             "dt": DecisionTreeClassifier(random_state=RANDOM_STATE + repeat),
-            "rf": RandomForestClassifier(n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1),
-            "et": ExtraTreesClassifier(n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1),
+            "rf": RandomForestClassifier(
+                n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+            ),
+            "et": ExtraTreesClassifier(
+                n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+            ),
         }
 
         for name, model in models.items():
@@ -620,20 +725,27 @@ def run_complexity_vs_accuracy_experiment() -> pd.DataFrame:
                 n_splits = sum(t.tree_.node_count for t in model.estimators_)
                 depth = np.mean([t.tree_.max_depth for t in model.estimators_])
 
-            results.append({
-                "method": name,
-                "repeat": repeat,
-                "accuracy": accuracy,
-                "n_splits": n_splits,
-                "depth": depth,
-            })
+            results.append(
+                {
+                    "method": name,
+                    "repeat": repeat,
+                    "accuracy": accuracy,
+                    "n_splits": n_splits,
+                    "depth": depth,
+                }
+            )
 
     return pd.DataFrame(results)
 
 
 def plot_complexity_vs_accuracy(df: pd.DataFrame, output_path: Path) -> None:
     """Scatter plot of complexity vs accuracy."""
-    method_labels = {"cit": "CITree", "dt": "Decision Tree", "rf": "Random Forest", "et": "Extra Trees"}
+    method_labels = {
+        "cit": "CITree",
+        "dt": "Decision Tree",
+        "rf": "Random Forest",
+        "et": "Extra Trees",
+    }
     colors = {"cit": "#27ae60", "dt": "#3498db", "rf": "#e74c3c", "et": "#9b59b6"}
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -642,8 +754,14 @@ def plot_complexity_vs_accuracy(df: pd.DataFrame, output_path: Path) -> None:
     ax = axes[0]
     for method in ["cit", "dt"]:  # Only single trees for fair comparison
         method_df = df[df["method"] == method]
-        ax.scatter(method_df["n_splits"], method_df["accuracy"],
-                   label=method_labels[method], color=colors[method], s=80, alpha=0.7)
+        ax.scatter(
+            method_df["n_splits"],
+            method_df["accuracy"],
+            label=method_labels[method],
+            color=colors[method],
+            s=80,
+            alpha=0.7,
+        )
     ax.set_xlabel("Number of Splits")
     ax.set_ylabel("Test Accuracy")
     ax.set_title("Tree Complexity vs Accuracy (Single Trees)")
@@ -651,18 +769,31 @@ def plot_complexity_vs_accuracy(df: pd.DataFrame, output_path: Path) -> None:
 
     # Plot 2: Aggregate comparison
     ax = axes[1]
-    agg = df.groupby("method").agg({
-        "accuracy": ["mean", "std"],
-        "n_splits": ["mean", "std"],
-    }).reset_index()
+    agg = (
+        df.groupby("method")
+        .agg(
+            {
+                "accuracy": ["mean", "std"],
+                "n_splits": ["mean", "std"],
+            }
+        )
+        .reset_index()
+    )
     agg.columns = ["method", "acc_mean", "acc_std", "splits_mean", "splits_std"]
 
     for _, row in agg.iterrows():
         method = row["method"]
-        ax.errorbar(row["splits_mean"], row["acc_mean"],
-                    xerr=row["splits_std"], yerr=row["acc_std"],
-                    fmt="o", markersize=12, label=method_labels[method],
-                    color=colors[method], capsize=5)
+        ax.errorbar(
+            row["splits_mean"],
+            row["acc_mean"],
+            xerr=row["splits_std"],
+            yerr=row["acc_std"],
+            fmt="o",
+            markersize=12,
+            label=method_labels[method],
+            color=colors[method],
+            capsize=5,
+        )
 
     ax.set_xlabel("Mean Number of Splits")
     ax.set_ylabel("Mean Test Accuracy")
@@ -678,8 +809,8 @@ def plot_complexity_vs_accuracy(df: pd.DataFrame, output_path: Path) -> None:
 def run_signal_strength_experiment() -> pd.DataFrame:
     """Test performance with varying signal strength (class_sep).
 
-    Uses make_classification with different class_sep values.
-    Higher class_sep = more separable classes = easier problem.
+    Uses make_classification with different class_sep values. Higher class_sep = more separable
+    classes = easier problem.
     """
     results = []
 
@@ -737,20 +868,27 @@ def run_signal_strength_experiment() -> pd.DataFrame:
                 total = sum(counts.values())
                 informative_ratio = informative / total if total > 0 else 0
 
-                results.append({
-                    "method": name,
-                    "class_sep": class_sep,
-                    "repeat": repeat,
-                    "accuracy": accuracy,
-                    "informative_ratio": informative_ratio,
-                })
+                results.append(
+                    {
+                        "method": name,
+                        "class_sep": class_sep,
+                        "repeat": repeat,
+                        "accuracy": accuracy,
+                        "informative_ratio": informative_ratio,
+                    }
+                )
 
     return pd.DataFrame(results)
 
 
 def plot_signal_strength(df: pd.DataFrame, output_path: Path) -> None:
     """Plot performance vs signal strength."""
-    method_labels = {"cit": "CITree", "cif": "CIForest", "dt": "Decision Tree", "rf": "Random Forest"}
+    method_labels = {
+        "cit": "CITree",
+        "cif": "CIForest",
+        "dt": "Decision Tree",
+        "rf": "Random Forest",
+    }
     colors = {"cit": "#27ae60", "cif": "#2ecc71", "dt": "#3498db", "rf": "#e74c3c"}
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -761,9 +899,17 @@ def plot_signal_strength(df: pd.DataFrame, output_path: Path) -> None:
         method_df = df[df["method"] == method]
         agg = method_df.groupby("class_sep").agg({"accuracy": ["mean", "std"]}).reset_index()
         agg.columns = ["class_sep", "mean", "std"]
-        ax.errorbar(agg["class_sep"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["class_sep"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.set_xlabel("Class Separation (Signal Strength)")
     ax.set_ylabel("Test Accuracy")
     ax.set_title("Accuracy vs Signal Strength")
@@ -773,11 +919,21 @@ def plot_signal_strength(df: pd.DataFrame, output_path: Path) -> None:
     ax = axes[1]
     for method in ["cit", "cif", "dt", "rf"]:
         method_df = df[df["method"] == method]
-        agg = method_df.groupby("class_sep").agg({"informative_ratio": ["mean", "std"]}).reset_index()
+        agg = (
+            method_df.groupby("class_sep").agg({"informative_ratio": ["mean", "std"]}).reset_index()
+        )
         agg.columns = ["class_sep", "mean", "std"]
-        ax.errorbar(agg["class_sep"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["class_sep"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.axhline(y=0.25, color="gray", linestyle="--", alpha=0.5, label="Random (5/20)")
     ax.set_xlabel("Class Separation (Signal Strength)")
     ax.set_ylabel("Informative Feature Ratio")
@@ -794,8 +950,8 @@ def plot_signal_strength(df: pd.DataFrame, output_path: Path) -> None:
 def run_redundant_features_experiment() -> pd.DataFrame:
     """Test feature selection with sklearn's redundant feature generation.
 
-    n_redundant creates linear combinations of informative features.
-    This is different from our manual correlated features experiment.
+    n_redundant creates linear combinations of informative features. This is different from our
+    manual correlated features experiment.
     """
     results = []
 
@@ -846,18 +1002,24 @@ def run_redundant_features_experiment() -> pd.DataFrame:
 
                 # Categorize features
                 informative = sum(counts.get(i, 0) for i in range(n_informative))
-                redundant = sum(counts.get(i, 0) for i in range(n_informative, n_informative + n_redundant))
-                noise = sum(counts.get(i, 0) for i in range(n_informative + n_redundant, n_features))
+                redundant = sum(
+                    counts.get(i, 0) for i in range(n_informative, n_informative + n_redundant)
+                )
+                noise = sum(
+                    counts.get(i, 0) for i in range(n_informative + n_redundant, n_features)
+                )
                 total = informative + redundant + noise
 
-                results.append({
-                    "method": name,
-                    "n_redundant": n_redundant,
-                    "repeat": repeat,
-                    "informative_pct": 100 * informative / max(total, 1),
-                    "redundant_pct": 100 * redundant / max(total, 1),
-                    "noise_pct": 100 * noise / max(total, 1),
-                })
+                results.append(
+                    {
+                        "method": name,
+                        "n_redundant": n_redundant,
+                        "repeat": repeat,
+                        "informative_pct": 100 * informative / max(total, 1),
+                        "redundant_pct": 100 * redundant / max(total, 1),
+                        "noise_pct": 100 * noise / max(total, 1),
+                    }
+                )
 
     return pd.DataFrame(results)
 
@@ -871,21 +1033,38 @@ def plot_redundant_features(df: pd.DataFrame, output_path: Path) -> None:
 
     for ax, method in zip(axes, methods):
         method_df = df[df["method"] == method]
-        agg = method_df.groupby("n_redundant").agg({
-            "informative_pct": "mean",
-            "redundant_pct": "mean",
-            "noise_pct": "mean",
-        }).reset_index()
+        agg = (
+            method_df.groupby("n_redundant")
+            .agg(
+                {
+                    "informative_pct": "mean",
+                    "redundant_pct": "mean",
+                    "noise_pct": "mean",
+                }
+            )
+            .reset_index()
+        )
 
         x = np.arange(len(agg))
         width = 0.6
 
         bars1 = ax.bar(x, agg["informative_pct"], width, label="Informative", color="#27ae60")
-        bars2 = ax.bar(x, agg["redundant_pct"], width, bottom=agg["informative_pct"],
-                       label="Redundant", color="#f39c12")
-        bars3 = ax.bar(x, agg["noise_pct"], width,
-                       bottom=agg["informative_pct"] + agg["redundant_pct"],
-                       label="Noise", color="#e74c3c")
+        bars2 = ax.bar(
+            x,
+            agg["redundant_pct"],
+            width,
+            bottom=agg["informative_pct"],
+            label="Redundant",
+            color="#f39c12",
+        )
+        bars3 = ax.bar(
+            x,
+            agg["noise_pct"],
+            width,
+            bottom=agg["informative_pct"] + agg["redundant_pct"],
+            label="Noise",
+            color="#e74c3c",
+        )
 
         ax.set_xlabel("Number of Redundant Features")
         ax.set_title(method_labels[method])
@@ -896,7 +1075,10 @@ def plot_redundant_features(df: pd.DataFrame, output_path: Path) -> None:
     axes[0].set_ylabel("% of Splits")
     axes[0].legend(loc="upper right")
 
-    plt.suptitle("Feature Selection with Redundant Features\n(Redundant = linear combinations of informative)", y=1.02)
+    plt.suptitle(
+        "Feature Selection with Redundant Features\n(Redundant = linear combinations of informative)",
+        y=1.02,
+    )
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -960,20 +1142,27 @@ def run_multiclass_experiment() -> pd.DataFrame:
                 total = sum(counts.values())
                 informative_ratio = informative / total if total > 0 else 0
 
-                results.append({
-                    "method": name,
-                    "n_classes": n_classes,
-                    "repeat": repeat,
-                    "accuracy": accuracy,
-                    "informative_ratio": informative_ratio,
-                })
+                results.append(
+                    {
+                        "method": name,
+                        "n_classes": n_classes,
+                        "repeat": repeat,
+                        "accuracy": accuracy,
+                        "informative_ratio": informative_ratio,
+                    }
+                )
 
     return pd.DataFrame(results)
 
 
 def plot_multiclass(df: pd.DataFrame, output_path: Path) -> None:
     """Plot performance on multi-class problems."""
-    method_labels = {"cit": "CITree", "cif": "CIForest", "dt": "Decision Tree", "rf": "Random Forest"}
+    method_labels = {
+        "cit": "CITree",
+        "cif": "CIForest",
+        "dt": "Decision Tree",
+        "rf": "Random Forest",
+    }
     colors = {"cit": "#27ae60", "cif": "#2ecc71", "dt": "#3498db", "rf": "#e74c3c"}
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -984,9 +1173,17 @@ def plot_multiclass(df: pd.DataFrame, output_path: Path) -> None:
         method_df = df[df["method"] == method]
         agg = method_df.groupby("n_classes").agg({"accuracy": ["mean", "std"]}).reset_index()
         agg.columns = ["n_classes", "mean", "std"]
-        ax.errorbar(agg["n_classes"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["n_classes"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.set_xlabel("Number of Classes")
     ax.set_ylabel("Test Accuracy")
     ax.set_title("Accuracy vs Number of Classes")
@@ -996,11 +1193,21 @@ def plot_multiclass(df: pd.DataFrame, output_path: Path) -> None:
     ax = axes[1]
     for method in ["cit", "cif", "dt", "rf"]:
         method_df = df[df["method"] == method]
-        agg = method_df.groupby("n_classes").agg({"informative_ratio": ["mean", "std"]}).reset_index()
+        agg = (
+            method_df.groupby("n_classes").agg({"informative_ratio": ["mean", "std"]}).reset_index()
+        )
         agg.columns = ["n_classes", "mean", "std"]
-        ax.errorbar(agg["n_classes"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["n_classes"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.axhline(y=0.5, color="gray", linestyle="--", alpha=0.5, label="Random (10/20)")
     ax.set_xlabel("Number of Classes")
     ax.set_ylabel("Informative Feature Ratio")
@@ -1020,9 +1227,9 @@ def run_imbalanced_experiment() -> pd.DataFrame:
 
     # Vary imbalance ratio (minority class weight)
     weights_values = [
-        [0.5, 0.5],    # Balanced
-        [0.7, 0.3],    # Moderate imbalance
-        [0.9, 0.1],    # Heavy imbalance
+        [0.5, 0.5],  # Balanced
+        [0.7, 0.3],  # Moderate imbalance
+        [0.9, 0.1],  # Heavy imbalance
         [0.95, 0.05],  # Extreme imbalance
     ]
 
@@ -1066,22 +1273,30 @@ def run_imbalanced_experiment() -> pd.DataFrame:
 
                 # Balanced accuracy (average of recalls)
                 from sklearn.metrics import balanced_accuracy_score
+
                 balanced_acc = balanced_accuracy_score(y_test, y_pred)
 
-                results.append({
-                    "method": name,
-                    "imbalance_ratio": imbalance_ratio,
-                    "repeat": repeat,
-                    "accuracy": accuracy,
-                    "balanced_accuracy": balanced_acc,
-                })
+                results.append(
+                    {
+                        "method": name,
+                        "imbalance_ratio": imbalance_ratio,
+                        "repeat": repeat,
+                        "accuracy": accuracy,
+                        "balanced_accuracy": balanced_acc,
+                    }
+                )
 
     return pd.DataFrame(results)
 
 
 def plot_imbalanced(df: pd.DataFrame, output_path: Path) -> None:
     """Plot performance with class imbalance."""
-    method_labels = {"cit": "CITree", "cif": "CIForest", "dt": "Decision Tree", "rf": "Random Forest"}
+    method_labels = {
+        "cit": "CITree",
+        "cif": "CIForest",
+        "dt": "Decision Tree",
+        "rf": "Random Forest",
+    }
     colors = {"cit": "#27ae60", "cif": "#2ecc71", "dt": "#3498db", "rf": "#e74c3c"}
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -1092,9 +1307,17 @@ def plot_imbalanced(df: pd.DataFrame, output_path: Path) -> None:
         method_df = df[df["method"] == method]
         agg = method_df.groupby("imbalance_ratio").agg({"accuracy": ["mean", "std"]}).reset_index()
         agg.columns = ["imbalance_ratio", "mean", "std"]
-        ax.errorbar(agg["imbalance_ratio"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["imbalance_ratio"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.set_xlabel("Class Imbalance Ratio")
     ax.set_ylabel("Test Accuracy")
     ax.set_title("Accuracy vs Class Imbalance")
@@ -1105,11 +1328,23 @@ def plot_imbalanced(df: pd.DataFrame, output_path: Path) -> None:
     ax = axes[1]
     for method in ["cit", "cif", "dt", "rf"]:
         method_df = df[df["method"] == method]
-        agg = method_df.groupby("imbalance_ratio").agg({"balanced_accuracy": ["mean", "std"]}).reset_index()
+        agg = (
+            method_df.groupby("imbalance_ratio")
+            .agg({"balanced_accuracy": ["mean", "std"]})
+            .reset_index()
+        )
         agg.columns = ["imbalance_ratio", "mean", "std"]
-        ax.errorbar(agg["imbalance_ratio"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["imbalance_ratio"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.set_xlabel("Class Imbalance Ratio")
     ax.set_ylabel("Balanced Accuracy")
     ax.set_title("Balanced Accuracy vs Class Imbalance")
@@ -1178,20 +1413,27 @@ def run_sample_size_experiment() -> pd.DataFrame:
                 total = sum(counts.values())
                 informative_ratio = informative / total if total > 0 else 0
 
-                results.append({
-                    "method": name,
-                    "n_samples": n_samples,
-                    "repeat": repeat,
-                    "accuracy": accuracy,
-                    "informative_ratio": informative_ratio,
-                })
+                results.append(
+                    {
+                        "method": name,
+                        "n_samples": n_samples,
+                        "repeat": repeat,
+                        "accuracy": accuracy,
+                        "informative_ratio": informative_ratio,
+                    }
+                )
 
     return pd.DataFrame(results)
 
 
 def plot_sample_size(df: pd.DataFrame, output_path: Path) -> None:
     """Plot performance vs sample size."""
-    method_labels = {"cit": "CITree", "cif": "CIForest", "dt": "Decision Tree", "rf": "Random Forest"}
+    method_labels = {
+        "cit": "CITree",
+        "cif": "CIForest",
+        "dt": "Decision Tree",
+        "rf": "Random Forest",
+    }
     colors = {"cit": "#27ae60", "cif": "#2ecc71", "dt": "#3498db", "rf": "#e74c3c"}
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -1202,9 +1444,17 @@ def plot_sample_size(df: pd.DataFrame, output_path: Path) -> None:
         method_df = df[df["method"] == method]
         agg = method_df.groupby("n_samples").agg({"accuracy": ["mean", "std"]}).reset_index()
         agg.columns = ["n_samples", "mean", "std"]
-        ax.errorbar(agg["n_samples"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["n_samples"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.set_xlabel("Number of Samples")
     ax.set_ylabel("Test Accuracy")
     ax.set_title("Accuracy vs Sample Size")
@@ -1214,11 +1464,21 @@ def plot_sample_size(df: pd.DataFrame, output_path: Path) -> None:
     ax = axes[1]
     for method in ["cit", "cif", "dt", "rf"]:
         method_df = df[df["method"] == method]
-        agg = method_df.groupby("n_samples").agg({"informative_ratio": ["mean", "std"]}).reset_index()
+        agg = (
+            method_df.groupby("n_samples").agg({"informative_ratio": ["mean", "std"]}).reset_index()
+        )
         agg.columns = ["n_samples", "mean", "std"]
-        ax.errorbar(agg["n_samples"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["n_samples"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.axhline(y=0.25, color="gray", linestyle="--", alpha=0.5, label="Random (5/20)")
     ax.set_xlabel("Number of Samples")
     ax.set_ylabel("Informative Feature Ratio")
@@ -1277,6 +1537,7 @@ def run_regression_experiment() -> pd.DataFrame:
 
             # R2 score
             from sklearn.metrics import r2_score
+
             y_pred = model.predict(X_test)
             r2 = r2_score(y_test, y_pred)
 
@@ -1295,14 +1556,16 @@ def run_regression_experiment() -> pd.DataFrame:
             informative = sum(counts.get(i, 0) for i in range(n_informative))
             total = sum(counts.values())
 
-            results.append({
-                "method": name,
-                "repeat": repeat,
-                "r2": r2,
-                "informative_count": informative,
-                "total_splits": total,
-                "informative_ratio": informative / total if total > 0 else 0,
-            })
+            results.append(
+                {
+                    "method": name,
+                    "repeat": repeat,
+                    "r2": r2,
+                    "informative_count": informative,
+                    "total_splits": total,
+                    "informative_ratio": informative / total if total > 0 else 0,
+                }
+            )
 
     return pd.DataFrame(results)
 
@@ -1316,41 +1579,63 @@ def plot_regression_comparison(df: pd.DataFrame, output_path: Path) -> None:
 
     # Plot 1: Informative ratio
     ax = axes[0]
-    agg = df.groupby("method").agg({
-        "informative_ratio": ["mean", "std"]
-    }).reset_index()
+    agg = df.groupby("method").agg({"informative_ratio": ["mean", "std"]}).reset_index()
     agg.columns = ["method", "mean", "std"]
     agg = agg.set_index("method").reindex(methods).reset_index()
 
     colors = ["#27ae60" if r > 0.5 else "#e74c3c" for r in agg["mean"]]
-    bars = ax.bar(method_labels, agg["mean"] * 100, yerr=agg["std"] * 100, color=colors,
-                  edgecolor="black", linewidth=1, capsize=5)
+    bars = ax.bar(
+        method_labels,
+        agg["mean"] * 100,
+        yerr=agg["std"] * 100,
+        color=colors,
+        edgecolor="black",
+        linewidth=1,
+        capsize=5,
+    )
     ax.axhline(y=25, color="gray", linestyle="--", alpha=0.5, label="Random (5/20)")
     ax.set_ylabel("% Splits on Informative Features")
     ax.set_title("Regression: Feature Selection Quality")
     ax.set_ylim(0, 100)
 
     for bar, mean in zip(bars, agg["mean"]):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 3,
-                f"{mean*100:.1f}%", ha="center", va="bottom", fontsize=9)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 3,
+            f"{mean * 100:.1f}%",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
 
     # Plot 2: R2 score
     ax = axes[1]
-    agg = df.groupby("method").agg({
-        "r2": ["mean", "std"]
-    }).reset_index()
+    agg = df.groupby("method").agg({"r2": ["mean", "std"]}).reset_index()
     agg.columns = ["method", "mean", "std"]
     agg = agg.set_index("method").reindex(methods).reset_index()
 
-    bars = ax.bar(method_labels, agg["mean"], yerr=agg["std"], color="#3498db",
-                  edgecolor="black", linewidth=1, capsize=5)
+    bars = ax.bar(
+        method_labels,
+        agg["mean"],
+        yerr=agg["std"],
+        color="#3498db",
+        edgecolor="black",
+        linewidth=1,
+        capsize=5,
+    )
     ax.set_ylabel("R² Score")
     ax.set_title("Regression: Prediction Quality")
     ax.set_ylim(0, 1)
 
     for bar, mean in zip(bars, agg["mean"]):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.03,
-                f"{mean:.2f}", ha="center", va="bottom", fontsize=9)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.03,
+            f"{mean:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -1361,16 +1646,16 @@ def plot_regression_comparison(df: pd.DataFrame, output_path: Path) -> None:
 def run_high_dimensional_experiment() -> pd.DataFrame:
     """Test performance on high-dimensional data (p >> n).
 
-    Uses make_classification with shuffle=False so first k features
-    are guaranteed to be informative (ground truth known).
+    Uses make_classification with shuffle=False so first k features are guaranteed to be informative
+    (ground truth known).
     """
     results = []
 
     # Vary p/n ratio
     configs = [
-        {"n": 200, "p": 50, "k": 5},    # p/n = 0.25
-        {"n": 200, "p": 200, "k": 5},   # p/n = 1
-        {"n": 200, "p": 500, "k": 5},   # p/n = 2.5
+        {"n": 200, "p": 50, "k": 5},  # p/n = 0.25
+        {"n": 200, "p": 200, "k": 5},  # p/n = 1
+        {"n": 200, "p": 500, "k": 5},  # p/n = 2.5
         {"n": 200, "p": 1000, "k": 5},  # p/n = 5
     ]
 
@@ -1426,15 +1711,17 @@ def run_high_dimensional_experiment() -> pd.DataFrame:
                 true_positives = sum(1 for f in top_features if f < k)
                 precision_at_k = true_positives / k if top_features else 0
 
-                results.append({
-                    "method": name,
-                    "n": n,
-                    "p": p,
-                    "p_over_n": p / n,
-                    "repeat": repeat,
-                    "accuracy": accuracy,
-                    "precision_at_k": precision_at_k,
-                })
+                results.append(
+                    {
+                        "method": name,
+                        "n": n,
+                        "p": p,
+                        "p_over_n": p / n,
+                        "repeat": repeat,
+                        "accuracy": accuracy,
+                        "precision_at_k": precision_at_k,
+                    }
+                )
 
     return pd.DataFrame(results)
 
@@ -1452,9 +1739,17 @@ def plot_high_dimensional(df: pd.DataFrame, output_path: Path) -> None:
         method_df = df[df["method"] == method]
         agg = method_df.groupby("p_over_n").agg({"accuracy": ["mean", "std"]}).reset_index()
         agg.columns = ["p_over_n", "mean", "std"]
-        ax.errorbar(agg["p_over_n"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["p_over_n"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.set_xlabel("p/n Ratio (Features / Samples)")
     ax.set_ylabel("Test Accuracy")
     ax.set_title("Accuracy in High Dimensions")
@@ -1467,9 +1762,17 @@ def plot_high_dimensional(df: pd.DataFrame, output_path: Path) -> None:
         method_df = df[df["method"] == method]
         agg = method_df.groupby("p_over_n").agg({"precision_at_k": ["mean", "std"]}).reset_index()
         agg.columns = ["p_over_n", "mean", "std"]
-        ax.errorbar(agg["p_over_n"], agg["mean"], yerr=agg["std"],
-                    label=method_labels[method], color=colors[method],
-                    marker="o", markersize=8, capsize=5, linewidth=2)
+        ax.errorbar(
+            agg["p_over_n"],
+            agg["mean"],
+            yerr=agg["std"],
+            label=method_labels[method],
+            color=colors[method],
+            marker="o",
+            markersize=8,
+            capsize=5,
+            linewidth=2,
+        )
     ax.set_xlabel("p/n Ratio (Features / Samples)")
     ax.set_ylabel("Precision@k (True Informative in Top-k)")
     ax.set_title("Feature Selection Quality in High Dimensions")
@@ -1524,7 +1827,11 @@ def main() -> None:
     corr_df.to_parquet(OUTPUT_DIR / "correlated_features_data.parquet")
 
     print("\nCorrelated features summary:")
-    print(corr_df.groupby("method")[["informative_pct", "correlated_pct", "noise_pct"]].mean().round(1))
+    print(
+        corr_df.groupby("method")[["informative_pct", "correlated_pct", "noise_pct"]]
+        .mean()
+        .round(1)
+    )
 
     # 4. Complexity vs accuracy
     print("\n" + "=" * 60)

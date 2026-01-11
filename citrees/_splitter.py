@@ -4,13 +4,23 @@ from typing import Any
 import numpy as np
 from numba import njit, prange
 
-from citrees._registry import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
+from citrees._registry import (
+    ClassifierSplitters,
+    ClassifierSplitterTests,
+    RegressorSplitters,
+    RegressorSplitterTests,
+)
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
 
+# P-value correction: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
+# SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+# Use p = (b+1)/(m+1) instead of p = b/m to avoid p=0.
+# Note: min_resamples = ceil(1/alpha) remains valid since 1/(m+1) < alpha.
 
-def _permutation_test(
+
+def _ptest(
     *,
     func: Any,
     x: np.ndarray,
@@ -71,7 +81,8 @@ def _permutation_test(
             np.random.shuffle(y_)
             theta_p[i] = func(y_[idx]) + func(y_[~idx])
             if i >= min_resamples - 1:
-                asl = np.mean(theta_p[: i + 1] <= theta)
+                # +1 correction (Phipson & Smyth 2010)
+                asl = (1 + np.sum(theta_p[: i + 1] <= theta)) / (2 + i)
                 if asl < alpha:
                     break
 
@@ -79,18 +90,19 @@ def _permutation_test(
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p[i] = func(y_[idx]) + func(y_[~idx])
-        asl = np.mean(theta_p <= theta)
+        # +1 correction (Phipson & Smyth 2010)
+        asl = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
     return asl
 
 
 # Compiled version of permutation test
-_permutation_test_compiled = njit(cache=True, fastmath=True, nogil=True)(_permutation_test)
+_ptest_compiled = njit(cache=True, fastmath=True, nogil=True)(_ptest)
 
 
 # Parallel permutation test for Gini index (classifier)
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_gini_parallel(
+def _ptest_gini_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -124,14 +136,17 @@ def _permutation_test_gini_parallel(
 
         p_left_perm = np.bincount(y_left_perm) / n_left
         p_right_perm = np.bincount(y_right_perm) / n_right
-        theta_p[i] = (1 - np.sum(p_left_perm * p_left_perm)) + (1 - np.sum(p_right_perm * p_right_perm))
+        theta_p[i] = (1 - np.sum(p_left_perm * p_left_perm)) + (
+            1 - np.sum(p_right_perm * p_right_perm)
+        )
 
-    return np.mean(theta_p <= theta)
+        # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 # Parallel permutation test for MSE (regressor)
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_mse_parallel(
+def _ptest_mse_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -165,14 +180,17 @@ def _permutation_test_mse_parallel(
 
         dev_left_perm = y_left_perm - y_left_perm.mean()
         dev_right_perm = y_right_perm - y_right_perm.mean()
-        theta_p[i] = np.mean(dev_left_perm * dev_left_perm) + np.mean(dev_right_perm * dev_right_perm)
+        theta_p[i] = np.mean(dev_left_perm * dev_left_perm) + np.mean(
+            dev_right_perm * dev_right_perm
+        )
 
-    return np.mean(theta_p <= theta)
+        # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 # Parallel permutation test for Entropy (classifier)
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_entropy_parallel(
+def _ptest_entropy_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -232,12 +250,13 @@ def _permutation_test_entropy_parallel(
 
         theta_p[i] = entropy_left_perm + entropy_right_perm
 
-    return np.mean(theta_p <= theta)
+        # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 # Parallel permutation test for MAE (regressor)
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_mae_parallel(
+def _ptest_mae_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -324,7 +343,7 @@ def entropy(y: np.ndarray) -> float:
 
 
 @ClassifierSplitterTests.register("gini")
-def permutation_test_gini_index(
+def ptest_gini_index(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -365,7 +384,7 @@ def permutation_test_gini_index(
     """
     # Use parallel version when early stopping is disabled and enough resamples
     if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_gini_parallel(
+        return _ptest_gini_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -373,7 +392,7 @@ def permutation_test_gini_index(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
+    return _ptest_compiled(
         func=gini_index,
         x=x,
         y=y,
@@ -386,7 +405,7 @@ def permutation_test_gini_index(
 
 
 @ClassifierSplitterTests.register("entropy")
-def permutation_test_entropy(
+def ptest_entropy(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -427,7 +446,7 @@ def permutation_test_entropy(
     """
     # Use parallel version when early stopping is disabled and enough resamples
     if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_entropy_parallel(
+        return _ptest_entropy_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -435,7 +454,7 @@ def permutation_test_entropy(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
+    return _ptest_compiled(
         func=entropy,
         x=x,
         y=y,
@@ -501,7 +520,7 @@ def mean_absolute_error(y: np.ndarray) -> float:
 
 
 @RegressorSplitterTests.register("mse")
-def permutation_test_mse(
+def ptest_mse(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -542,7 +561,7 @@ def permutation_test_mse(
     """
     # Use parallel version when early stopping is disabled and enough resamples
     if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_mse_parallel(
+        return _ptest_mse_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -550,7 +569,7 @@ def permutation_test_mse(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
+    return _ptest_compiled(
         func=mean_squared_error,
         x=x,
         y=y,
@@ -563,7 +582,7 @@ def permutation_test_mse(
 
 
 @RegressorSplitterTests.register("mae")
-def permutation_test_mae(
+def ptest_mae(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -604,7 +623,7 @@ def permutation_test_mae(
     """
     # Use parallel version when early stopping is disabled and enough resamples
     if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_mae_parallel(
+        return _ptest_mae_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -612,7 +631,7 @@ def permutation_test_mae(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
+    return _ptest_compiled(
         func=mean_absolute_error,
         x=x,
         y=y,

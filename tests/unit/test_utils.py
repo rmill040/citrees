@@ -1,5 +1,6 @@
 """Tests for citrees._utils.py."""
-from typing import Any, Dict
+
+from typing import Any
 
 import numpy as np
 import pytest
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.other
         ({"y": np.array([1, 1, 2, 2]), "n_classes": 3}, np.array([0.0, 0.5, 0.5])),
     ],
 )
-def test_estimate_proba(kwargs: Dict[str, Any], expected: float) -> None:
+def test_estimate_proba(kwargs: dict[str, Any], expected: float) -> None:
     """Test estimate_proba function."""
     proba = estimate_proba(**kwargs)
     assert np.all(proba == expected)

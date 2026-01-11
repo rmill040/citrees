@@ -2,7 +2,10 @@
 
 ## Overview
 
-citrees implements **Conditional Inference Trees** (CIT), which differ fundamentally from traditional CART-style trees. The key innovation is separating **variable selection** from **split point selection** using statistical hypothesis testing.
+citrees implements **Conditional Inference Trees** (CIT), which differ
+fundamentally from traditional CART-style trees. The key innovation is
+separating **variable selection** from **split point selection** using
+statistical hypothesis testing.
 
 ## The Problem with Traditional Trees
 
@@ -16,7 +19,9 @@ For each node:
     Select (feature, split) that maximizes impurity reduction
 ```
 
-**The problem**: This approach is **biased toward features with more split points**. A feature with 1000 unique values has 999 chances to find a "good" split by chance, while a binary feature has only 1 chance. This leads to:
+**The problem**: This approach is **biased toward features with more split
+points**. A feature with 1000 unique values has 999 chances to find a "good"
+split by chance, while a binary feature has only 1 chance. This leads to:
 
 1. **Variable selection bias**: High-cardinality features appear more important
 2. **Spurious splits**: Trees can find splits on noise features by chance
@@ -44,11 +49,15 @@ For each node:
 
 ### Why This Works
 
-1. **Unbiased variable selection**: The p-value is computed under the null hypothesis. A feature with 1000 values doesn't have more "chances" - the permutation test accounts for this.
+1. **Unbiased variable selection**: The p-value is computed under the null
+   hypothesis. A feature with 1000 values doesn't have more "chances" - the
+   permutation test accounts for this.
 
-2. **Principled stopping**: The tree stops growing when no feature has a statistically significant association with the target. No need for pruning.
+2. **Principled stopping**: The tree stops growing when no feature has a
+   statistically significant association with the target. No need for pruning.
 
-3. **Interpretable importance**: Feature importance is based on how often a feature passes the statistical test and how much impurity it reduces.
+3. **Interpretable importance**: Feature importance is based on how often a
+   feature passes the statistical test and how much impurity it reduces.
 
 ---
 
@@ -58,13 +67,13 @@ For each node:
 
 citrees supports multiple association measures:
 
-| Selector | For | Measures |
-|----------|-----|----------|
-| `mc` | Classification | Multiple Correlation (η²) - how much variance in X is explained by class membership |
-| `mi` | Classification | Mutual Information - non-linear dependence |
-| `rdc` | Both | Randomized Dependence Coefficient - O(n log n) non-linear dependence |
-| `pc` | Regression | Pearson Correlation |
-| `dc` | Regression | Distance Correlation - captures non-linear relationships |
+| Selector | For            | Measures                                                                            |
+| -------- | -------------- | ----------------------------------------------------------------------------------- |
+| `mc`     | Classification | Multiple Correlation (η²) - how much variance in X is explained by class membership |
+| `mi`     | Classification | Mutual Information - non-linear dependence                                          |
+| `rdc`    | Both           | Randomized Dependence Coefficient - O(n log n) non-linear dependence                |
+| `pc`     | Regression     | Pearson Correlation                                                                 |
+| `dc`     | Regression     | Distance Correlation - captures non-linear relationships                            |
 
 **Multiple Correlation (mc)** - Default for classification:
 
@@ -82,7 +91,7 @@ The p-value is computed via Monte Carlo permutation test:
 
 ```python
 # Pseudocode - see _selector.py for implementation
-def _permutation_test(func, x, y, n_resamples, alpha, early_stopping):
+def _ptest(func, x, y, n_resamples, alpha, early_stopping):
     θ = |func(x, y)|  # Observed statistic
 
     θ_perm = []
@@ -95,6 +104,7 @@ def _permutation_test(func, x, y, n_resamples, alpha, early_stopping):
 ```
 
 **Key parameters**:
+
 - `n_resamples_selector`: Number of permutations (default: "auto" ≈ 100-500)
 - `alpha_selector`: Significance threshold (default: 0.05)
 - `early_stopping_selector`: Stop testing once significance is achieved
@@ -108,7 +118,8 @@ When testing multiple features, the alpha is adjusted:
 alpha_adjusted = alpha / n_features
 ```
 
-This controls the **family-wise error rate** - the probability of at least one false positive.
+This controls the **family-wise error rate** - the probability of at least one
+false positive.
 
 ### Feature Muting
 
@@ -126,16 +137,21 @@ This accelerates training by not re-testing clearly uninformative features.
 
 ## What is Honesty?
 
-**Honest estimation** is a technique from the causal inference literature (Wager & Athey, 2018) that produces **unbiased leaf predictions** by using different data for tree structure and leaf values.
+**Honest estimation** is a technique from the causal inference literature (Wager
+& Athey, 2018) that produces **unbiased leaf predictions** by using different
+data for tree structure and leaf values.
 
 ### The Problem with Adaptive Estimation
 
 In a standard tree, the same data is used to:
+
 1. Choose which features to split on
 2. Choose where to split
 3. Estimate the prediction in each leaf
 
-This creates **overfitting bias** - the leaf predictions are optimistically biased because the tree structure was chosen to make them look good on the training data.
+This creates **overfitting bias** - the leaf predictions are optimistically
+biased because the tree structure was chosen to make them look good on the
+training data.
 
 ### The Honest Solution
 
@@ -168,25 +184,29 @@ if self.honesty:
 
 ### When to Use Honesty
 
-| Use Case | Honesty? | Why |
-|----------|----------|-----|
-| Pure prediction | Optional | May hurt accuracy (less training data) |
-| Causal inference | **Yes** | Required for valid confidence intervals |
-| Feature importance | Optional | Reduces selection bias |
-| Small datasets | No | Can't afford to split data |
-| Large datasets | Yes | Benefits outweigh data loss |
+| Use Case           | Honesty? | Why                                     |
+| ------------------ | -------- | --------------------------------------- |
+| Pure prediction    | Optional | May hurt accuracy (less training data)  |
+| Causal inference   | **Yes**  | Required for valid confidence intervals |
+| Feature importance | Optional | Reduces selection bias                  |
+| Small datasets     | No       | Can't afford to split data              |
+| Large datasets     | Yes      | Benefits outweigh data loss             |
 
 ### Current Implementation Issues
 
-1. **Forest honesty**: Each tree in a forest uses its own honest split. This is correct but different from GRF which uses out-of-bag samples.
+1. **Forest honesty**: Each tree in a forest uses its own honest split. This is
+   correct but different from GRF which uses out-of-bag samples.
 
-2. **No variance estimation**: True honest forests (like GRF) can provide valid confidence intervals. Our implementation doesn't compute these yet.
+2. **No variance estimation**: True honest forests (like GRF) can provide valid
+   confidence intervals. Our implementation doesn't compute these yet.
 
 ---
 
 ## What is Conformal Prediction?
 
-**Conformal Prediction** provides **distribution-free prediction intervals** with guaranteed coverage. Unlike parametric methods, it makes no assumptions about the data distribution.
+**Conformal Prediction** provides **distribution-free prediction intervals**
+with guaranteed coverage. Unlike parametric methods, it makes no assumptions
+about the data distribution.
 
 ### The Guarantee
 
@@ -221,6 +241,7 @@ interval = [y_pred - q, y_pred + q]
 ### citrees Implementation
 
 **ConformalClassifier** (Adaptive Prediction Sets):
+
 ```python
 # From _conformal.py - produces prediction SETS for classification
 # A set of classes that contains the true class with probability 1-α
@@ -230,6 +251,7 @@ prediction_sets = clf.predict_set(X_test)
 ```
 
 **ConformalRegressor** (Split Conformal):
+
 ```python
 # From _conformal.py - produces prediction INTERVALS for regression
 lower, upper = reg.predict_interval(X_test)
@@ -237,6 +259,7 @@ lower, upper = reg.predict_interval(X_test)
 ```
 
 **CQR** (Conformalized Quantile Regression):
+
 ```python
 # From _conformal.py - adaptive intervals that vary with local uncertainty
 # Uses the spread of tree predictions as a quantile estimate
@@ -246,7 +269,8 @@ lower, upper = cqr.predict_interval(X_test)
 
 ### Why Conformal + Citrees?
 
-1. **Principled uncertainty**: Citrees' statistical tests already embody a frequentist worldview. Conformal prediction extends this to predictions.
+1. **Principled uncertainty**: Citrees' statistical tests already embody a
+   frequentist worldview. Conformal prediction extends this to predictions.
 
 2. **Distribution-free**: Works without assumptions about residual distribution.
 
@@ -256,7 +280,8 @@ lower, upper = cqr.predict_interval(X_test)
 
 ## What is SHAP?
 
-**SHAP (SHapley Additive exPlanations)** provides theoretically grounded feature attributions based on game theory.
+**SHAP (SHapley Additive exPlanations)** provides theoretically grounded feature
+attributions based on game theory.
 
 ### The Problem with MDI
 
@@ -267,6 +292,7 @@ importance[j] = Σ (impurity_decrease at nodes using feature j)
 ```
 
 **Problems with MDI**:
+
 1. Biased toward high-cardinality features (in CART)
 2. Doesn't account for feature correlations
 3. Not additive: importances don't sum to prediction
@@ -284,6 +310,7 @@ Where:
 ```
 
 **Properties**:
+
 - **Local accuracy**: φ values sum to (f(x) - base_value)
 - **Consistency**: If feature j contributes more in model A than B, φⱼ is larger
 - **Missingness**: φⱼ = 0 if feature j doesn't affect prediction
@@ -299,17 +326,21 @@ class SHAPExplainer:
         self.explainer_ = shap.Explainer(model.predict_proba, background_data)
 ```
 
-**Current limitation**: We use the model-agnostic SHAP explainer, not TreeSHAP. TreeSHAP is O(TLD²) for tree models, while model-agnostic is slower. A native TreeSHAP implementation would be much faster.
+**Current limitation**: We use the model-agnostic SHAP explainer, not TreeSHAP.
+TreeSHAP is O(TLD²) for tree models, while model-agnostic is slower. A native
+TreeSHAP implementation would be much faster.
 
 ---
 
 ## Conditional Permutation Importance (CPI)
 
-CPI addresses a limitation of standard permutation importance with correlated features.
+CPI addresses a limitation of standard permutation importance with correlated
+features.
 
 ### The Problem
 
 Standard permutation importance:
+
 ```python
 for feature j:
     X_permuted = X.copy()
@@ -317,7 +348,9 @@ for feature j:
     importance[j] = score(X) - score(X_permuted)
 ```
 
-**Problem**: When features are correlated, permuting one creates an unrealistic data distribution (extrapolation). This inflates the importance of correlated features.
+**Problem**: When features are correlated, permuting one creates an unrealistic
+data distribution (extrapolation). This inflates the importance of correlated
+features.
 
 ### CPI Solution
 
@@ -337,32 +370,40 @@ def conditional_permutation_importance(model, X, y):
         importance[j] = score(X) - score(X_permuted)
 ```
 
-This maintains the correlation structure while testing the marginal effect of feature j.
+This maintains the correlation structure while testing the marginal effect of
+feature j.
 
 ---
 
 ## Summary: What Each Feature Adds
 
-| Feature | Scientific Contribution | When to Use |
-|---------|------------------------|-------------|
-| **Permutation tests** | Unbiased variable selection, principled stopping | Always (core algorithm) |
-| **Bonferroni correction** | Controls family-wise error rate | When interpretability matters |
-| **Feature muting** | Accelerates training | Large feature spaces |
-| **Honesty** | Unbiased leaf predictions | Causal inference, confidence intervals |
-| **Conformal prediction** | Distribution-free coverage guarantees | Uncertainty quantification |
-| **SHAP** | Theoretically grounded feature attributions | Local explanations |
-| **CPI** | Handles correlated features | When features are correlated |
+| Feature                   | Scientific Contribution                          | When to Use                            |
+| ------------------------- | ------------------------------------------------ | -------------------------------------- |
+| **Permutation tests**     | Unbiased variable selection, principled stopping | Always (core algorithm)                |
+| **Bonferroni correction** | Controls family-wise error rate                  | When interpretability matters          |
+| **Feature muting**        | Accelerates training                             | Large feature spaces                   |
+| **Honesty**               | Unbiased leaf predictions                        | Causal inference, confidence intervals |
+| **Conformal prediction**  | Distribution-free coverage guarantees            | Uncertainty quantification             |
+| **SHAP**                  | Theoretically grounded feature attributions      | Local explanations                     |
+| **CPI**                   | Handles correlated features                      | When features are correlated           |
 
 ## References
 
-1. Hothorn, T., Hornik, K., & Zeileis, A. (2006). Unbiased Recursive Partitioning: A Conditional Inference Framework. *JCGS*, 15(3), 651-674.
+1. Hothorn, T., Hornik, K., & Zeileis, A. (2006). Unbiased Recursive
+   Partitioning: A Conditional Inference Framework. _JCGS_, 15(3), 651-674.
 
-2. Strobl, C., Boulesteix, A. L., Zeileis, A., & Hothorn, T. (2007). Bias in Random Forest Variable Importance Measures. *BMC Bioinformatics*, 8(1), 25.
+2. Strobl, C., Boulesteix, A. L., Zeileis, A., & Hothorn, T. (2007). Bias in
+   Random Forest Variable Importance Measures. _BMC Bioinformatics_, 8(1), 25.
 
-3. Wager, S., & Athey, S. (2018). Estimation and Inference of Heterogeneous Treatment Effects using Random Forests. *JASA*, 113(523), 1228-1242.
+3. Wager, S., & Athey, S. (2018). Estimation and Inference of Heterogeneous
+   Treatment Effects using Random Forests. _JASA_, 113(523), 1228-1242.
 
-4. Vovk, V., Gammerman, A., & Shafer, G. (2005). Algorithmic Learning in a Random World. Springer.
+4. Vovk, V., Gammerman, A., & Shafer, G. (2005). Algorithmic Learning in a
+   Random World. Springer.
 
-5. Lundberg, S. M., & Lee, S. I. (2017). A Unified Approach to Interpreting Model Predictions. *NeurIPS*.
+5. Lundberg, S. M., & Lee, S. I. (2017). A Unified Approach to Interpreting
+   Model Predictions. _NeurIPS_.
 
-6. Strobl, C., Boulesteix, A. L., Kneib, T., Augustin, T., & Zeileis, A. (2008). Conditional Variable Importance for Random Forests. *BMC Bioinformatics*, 9(1), 307.
+6. Strobl, C., Boulesteix, A. L., Kneib, T., Augustin, T., & Zeileis, A. (2008).
+   Conditional Variable Importance for Random Forests. _BMC Bioinformatics_,
+   9(1), 307.

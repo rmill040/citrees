@@ -1,6 +1,7 @@
 # Paper Experiments
 
-This directory contains scripts and data for reproducing the experiments in the citrees paper.
+This directory contains scripts and data for reproducing the experiments in the
+citrees paper.
 
 ## Directory Structure
 
@@ -45,7 +46,8 @@ uv run python paper/scripts/comprehensive_analysis.py
 
 ### NEW: Synthetic Datasets with Ground Truth
 
-Synthetic datasets are now integrated into the main pipeline. Generate them before running experiments:
+Synthetic datasets are now integrated into the main pipeline. Generate them
+before running experiments:
 
 ```bash
 uv run python paper/scripts/generate_synthetic_datasets.py
@@ -53,14 +55,15 @@ uv run python paper/scripts/generate_synthetic_datasets.py
 
 **Dataset Types:**
 
-| Type | Purpose | Count |
-|------|---------|-------|
-| **Selection Bias** | High-cardinality noise features to test selection bias | 27 |
-| **Standard** | Varying n_features, n_informative, class_sep | 162 |
-| **Nonlinear** | Friedman #1 function, tests RDC vs MC | 27 |
-| **Correlated** | Correlated feature blocks, tests conditional importance | 18 |
+| Type               | Purpose                                                 | Count |
+| ------------------ | ------------------------------------------------------- | ----- |
+| **Selection Bias** | High-cardinality noise features to test selection bias  | 27    |
+| **Standard**       | Varying n_features, n_informative, class_sep            | 162   |
+| **Nonlinear**      | Friedman #1 function, tests RDC vs MC                   | 27    |
+| **Correlated**     | Correlated feature blocks, tests conditional importance | 18    |
 
-**Total: ~234 synthetic datasets** with ground truth stored in `synthetic_ground_truth.json`
+**Total: ~234 synthetic datasets** with ground truth stored in
+`synthetic_ground_truth.json`
 
 ---
 
@@ -71,12 +74,15 @@ uv run python paper/scripts/generate_synthetic_datasets.py
 **Goal**: Prove citrees avoids selection bias that plagues CART/RF
 
 **Design**:
-- Synthetic data with **uninformative high-cardinality features** (50-500 unique values)
+
+- Synthetic data with **uninformative high-cardinality features** (50-500 unique
+  values)
 - Truly informative low-cardinality features
 - RF/CART will spuriously select high-cardinality noise
 - citrees should correctly ignore them
 
 **Metrics**:
+
 - Noise selection rate (% of top-k that are noise features)
 - Precision@k for true informative features
 
@@ -85,6 +91,7 @@ uv run python paper/scripts/generate_synthetic_datasets.py
 **Goal**: Compare MC vs RDC vs MI on different relationship types
 
 **Design**:
+
 - Linear datasets → MC should excel
 - Nonlinear datasets (Friedman #1) → RDC should help
 - Permutation test variants (ptest_mc, ptest_rdc, ptest_mi)
@@ -94,6 +101,7 @@ uv run python paper/scripts/generate_synthetic_datasets.py
 **Goal**: Quantify computational cost
 
 **Metrics**:
+
 - Wall-clock time per experiment (captured by workers)
 - Scaling with n_samples, n_features
 
@@ -101,7 +109,8 @@ uv run python paper/scripts/generate_synthetic_datasets.py
 
 ### Feature Selection Experiments (Distributed)
 
-Compare citrees feature ranking against baselines on real and synthetic datasets.
+Compare citrees feature ranking against baselines on real and synthetic
+datasets.
 
 **Architecture:** Distributed server-worker pattern using FastAPI + DynamoDB
 
@@ -128,14 +137,14 @@ Compare citrees feature ranking against baselines on real and synthetic datasets
 
 **Scripts:**
 
-| Script | Type | Description |
-|--------|------|-------------|
-| `clf_feature_selection_server.py` | Server | Serves experiment configurations |
-| `clf_feature_selection_worker.py` | Worker | Runs feature selection methods |
-| `clf_cv_server.py` | Server | Serves downstream evaluation configs |
-| `clf_cv_worker.py` | Worker | Multi-model evaluation (SVM, LR, kNN, XGB, LGBM) |
-| `clf_cv_analysis.py` | Analysis | Generate rankings and figures |
-| `reg_*` | Same | Regression equivalents |
+| Script                            | Type     | Description                                      |
+| --------------------------------- | -------- | ------------------------------------------------ |
+| `clf_feature_selection_server.py` | Server   | Serves experiment configurations                 |
+| `clf_feature_selection_worker.py` | Worker   | Runs feature selection methods                   |
+| `clf_cv_server.py`                | Server   | Serves downstream evaluation configs             |
+| `clf_cv_worker.py`                | Worker   | Multi-model evaluation (SVM, LR, kNN, XGB, LGBM) |
+| `clf_cv_analysis.py`              | Analysis | Generate rankings and figures                    |
+| `reg_*`                           | Same     | Regression equivalents                           |
 
 ---
 
@@ -149,6 +158,7 @@ Compare citrees feature ranking against baselines on real and synthetic datasets
    - IAM (create roles)
 
 2. **DynamoDB Tables** (create these first):
+
    ```
    ClfFeatureSelection        # Stores feature selection results
    ClfFeatureSelectionFail    # Stores failed experiments
@@ -166,16 +176,18 @@ Compare citrees feature ranking against baselines on real and synthetic datasets
    ```json
    {
      "Version": "2012-10-17",
-     "Statement": [{
-       "Effect": "Allow",
-       "Action": [
-         "dynamodb:PutItem",
-         "dynamodb:GetItem",
-         "dynamodb:Scan",
-         "dynamodb:Query"
-       ],
-       "Resource": "arn:aws:dynamodb:us-east-1:*:table/*"
-     }]
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "dynamodb:PutItem",
+           "dynamodb:GetItem",
+           "dynamodb:Scan",
+           "dynamodb:Query"
+         ],
+         "Resource": "arn:aws:dynamodb:us-east-1:*:table/*"
+       }
+     ]
    }
    ```
 
@@ -218,12 +230,14 @@ python paper/scripts/clf_feature_selection_worker.py
 
 Scale horizontally by launching more EC2 instances. General guidelines:
 
-- **Instance type**: Use compute-optimized instances (c5, c6i, c7i families) for CPU-bound workloads
+- **Instance type**: Use compute-optimized instances (c5, c6i, c7i families) for
+  CPU-bound workloads
 - **N_JOBS_OUTER**: Set to 1-2 per 4 vCPUs to avoid overwhelming the server
 - **N_JOBS_INNER**: Set to `-1` to use all cores for each experiment
 - **Fleet size**: More instances = faster completion; each worker is stateless
 
-The server tracks progress via DynamoDB, so workers can be added/removed at any time without losing work.
+The server tracks progress via DynamoDB, so workers can be added/removed at any
+time without losing work.
 
 ### Automated EC2 Deployment
 
@@ -278,31 +292,33 @@ uv run python paper/scripts/analysis.py
 
 ### Generated Figures
 
-| Figure | File | Description |
-|--------|------|-------------|
-| **Critical Difference Diagram** | `cd_precision@10.png` | Nemenyi post-hoc test visualization |
-| **Critical Difference Diagram** | `cd_downstream_acc_mean.png` | For downstream accuracy |
-| **Box Plots** | `boxplot_precision@10.png` | Method comparison distributions |
-| **Box Plots** | `boxplot_downstream_acc_mean.png` | Accuracy distributions |
-| **Heatmaps** | `heatmap_precision@10_*.png` | Performance by experimental factors |
+| Figure                          | File                              | Description                         |
+| ------------------------------- | --------------------------------- | ----------------------------------- |
+| **Critical Difference Diagram** | `cd_precision@10.png`             | Nemenyi post-hoc test visualization |
+| **Critical Difference Diagram** | `cd_downstream_acc_mean.png`      | For downstream accuracy             |
+| **Box Plots**                   | `boxplot_precision@10.png`        | Method comparison distributions     |
+| **Box Plots**                   | `boxplot_downstream_acc_mean.png` | Accuracy distributions              |
+| **Heatmaps**                    | `heatmap_precision@10_*.png`      | Performance by experimental factors |
 
 ### Generated Tables
 
-| Table | File | Description |
-|-------|------|-------------|
-| **Friedman Test** | `friedman_synthetic.csv/.tex` | Overall significance test |
-| **Rankings** | `ranks_precision@10.csv/.tex` | Method rankings with CD |
-| **Rankings** | `ranks_downstream_acc_mean.csv/.tex` | Accuracy rankings |
-| **Summary Stats** | `summary_synthetic.csv` | Mean ± std for all metrics |
+| Table             | File                                 | Description                |
+| ----------------- | ------------------------------------ | -------------------------- |
+| **Friedman Test** | `friedman_synthetic.csv/.tex`        | Overall significance test  |
+| **Rankings**      | `ranks_precision@10.csv/.tex`        | Method rankings with CD    |
+| **Rankings**      | `ranks_downstream_acc_mean.csv/.tex` | Accuracy rankings          |
+| **Summary Stats** | `summary_synthetic.csv`              | Mean ± std for all metrics |
 
 ### Critical Difference Diagrams
 
 These diagrams show:
+
 - **Horizontal axis**: Average rank across datasets (lower = better)
 - **Black bars**: Connect methods not significantly different (Nemenyi test)
 - **CD bar**: Critical difference threshold
 
 Example interpretation:
+
 ```
     1    2    3    4    5    6    7
     |----ciforest
@@ -324,48 +340,32 @@ Methods connected by bars are NOT significantly different.
 
 ### Feature Selection Methods
 
-**Filter methods (score-based):**
-| Method | Task | Description |
-|--------|------|-------------|
-| `mc` | Classification | Multiple correlation (ANOVA-based) |
-| `mi` | Classification | Mutual information |
-| `rdc` | Both | Randomized dependence coefficient |
-| `pc` | Regression | Pearson correlation |
+**Filter methods (score-based):** | Method | Task | Description |
+|--------|------|-------------| | `mc` | Classification | Multiple correlation
+(ANOVA-based) | | `mi` | Classification | Mutual information | | `rdc` | Both |
+Randomized dependence coefficient | | `pc` | Regression | Pearson correlation |
 | `dc` | Regression | Distance correlation |
 
-**Embedded methods (model-based):**
-| Method | Description | Importance Type |
-|--------|-------------|-----------------|
-| `cit` | Conditional Inference Tree | Impurity decrease |
-| `cif` | Conditional Inference Forest | Averaged impurity decrease |
-| `rf` | Random Forest | Impurity decrease |
-| `et` | Extra Trees | Impurity decrease |
-| `dt` | Decision Tree | Impurity decrease |
-| `xgb` | XGBoost | Gain / Weight / Cover |
-| `lightgbm` | LightGBM | Gain / Split |
-| `catboost` | CatBoost | Permutation importance |
-| `lr_l1` | Lasso | Coefficient magnitude |
-| `lr_l2` | Ridge | Coefficient magnitude |
+**Embedded methods (model-based):** | Method | Description | Importance Type |
+|--------|-------------|-----------------| | `cit` | Conditional Inference Tree
+| Impurity decrease | | `cif` | Conditional Inference Forest | Averaged impurity
+decrease | | `rf` | Random Forest | Impurity decrease | | `et` | Extra Trees |
+Impurity decrease | | `dt` | Decision Tree | Impurity decrease | | `xgb` |
+XGBoost | Gain / Weight / Cover | | `lightgbm` | LightGBM | Gain / Split | |
+`catboost` | CatBoost | Permutation importance | | `lr_l1` | Lasso | Coefficient
+magnitude | | `lr_l2` | Ridge | Coefficient magnitude |
 
 ### Downstream Models (for CV evaluation)
 
-**Classification:**
-| Model | Description |
-|-------|-------------|
-| `svm` | Support Vector Machine (balanced) |
-| `lr` | Logistic Regression (balanced) |
-| `knn` | k-Nearest Neighbors (k=5, distance-weighted) |
-| `xgb` | XGBoost Classifier |
-| `lgbm` | LightGBM Classifier |
+**Classification:** | Model | Description | |-------|-------------| | `svm` |
+Support Vector Machine (balanced) | | `lr` | Logistic Regression (balanced) | |
+`knn` | k-Nearest Neighbors (k=5, distance-weighted) | | `xgb` | XGBoost
+Classifier | | `lgbm` | LightGBM Classifier |
 
-**Regression:**
-| Model | Description |
-|-------|-------------|
-| `svr` | Support Vector Regression |
-| `ridge` | Ridge Regression (α=1.0) |
-| `knn` | k-Nearest Neighbors Regressor |
-| `xgb` | XGBoost Regressor |
-| `lgbm` | LightGBM Regressor |
+**Regression:** | Model | Description | |-------|-------------| | `svr` |
+Support Vector Regression | | `ridge` | Ridge Regression (α=1.0) | | `knn` |
+k-Nearest Neighbors Regressor | | `xgb` | XGBoost Regressor | | `lgbm` |
+LightGBM Regressor |
 
 ---
 
@@ -373,41 +373,41 @@ Methods connected by bars are NOT significantly different.
 
 ### Classification (24 datasets)
 
-| Dataset | Samples | Features | Classes | Domain |
-|---------|---------|----------|---------|--------|
-| ALLAML | 72 | 7,129 | 2 | Genomics |
-| CLL_SUB_111 | 111 | 11,340 | 3 | Genomics |
-| arcene | 100 | 10,000 | 2 | Mass spectrometry |
-| dexter | 300 | 20,000 | 2 | Text |
-| dorothea | 800 | 100,000 | 2 | Drug discovery |
-| gisette | 6,000 | 5,000 | 2 | Digit recognition |
-| isolet | 7,797 | 616 | 26 | Speech |
-| madelon | 2,000 | 500 | 2 | Synthetic |
-| ... | | | | |
+| Dataset      | Samples | Features | Classes | Domain            |
+| ------------ | ------- | -------- | ------- | ----------------- |
+| ALLAML       | 72      | 7,129    | 2       | Genomics          |
+| CALL_SUB_111 | 111     | 11,340   | 3       | Genomics          |
+| arcene       | 100     | 10,000   | 2       | Mass spectrometry |
+| dexter       | 300     | 20,000   | 2       | Text              |
+| dorothea     | 800     | 100,000  | 2       | Drug discovery    |
+| gisette      | 6,000   | 5,000    | 2       | Digit recognition |
+| isolet       | 7,797   | 616      | 26      | Speech            |
+| madelon      | 2,000   | 500      | 2       | Synthetic         |
+| ...          |         |          |         |                   |
 
 ### Regression (8 datasets)
 
-| Dataset | Samples | Features | Domain |
-|---------|---------|----------|--------|
-| coepra1-3 | varies | varies | Chemical |
-| comm_violence | varies | varies | Social |
-| community_crime | varies | varies | Social |
-| ... | | | |
+| Dataset         | Samples | Features | Domain   |
+| --------------- | ------- | -------- | -------- |
+| coepra1-3       | varies  | varies   | Chemical |
+| comm_violence   | varies  | varies   | Social   |
+| community_crime | varies  | varies   | Social   |
+| ...             |         |          |          |
 
 ---
 
 ## Environment Variables Reference
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `TABLE_NAME` | DynamoDB table prefix | Required | `ClfFeatureSelection` |
-| `URL` | FastAPI server URL | Required | `http://10.0.0.1:8000` |
-| `AWS_DEFAULT_REGION` | AWS region | `us-east-1` | `us-east-1` |
-| `N_JOBS_OUTER` | Parallel server requests | `1` | `4` |
-| `N_JOBS_INNER` | Parallelism within experiment | `-1` | `-1` (all cores) |
-| `SKIP` | Methods to skip | None | `xgb,lightgbm,catboost` |
-| `DATA_DIR` | Data directory (analysis) | None | `/path/to/data` |
-| `GET_DATA` | Export from DynamoDB | `0` | `1` |
+| Variable             | Description                   | Default     | Example                 |
+| -------------------- | ----------------------------- | ----------- | ----------------------- |
+| `TABLE_NAME`         | DynamoDB table prefix         | Required    | `ClfFeatureSelection`   |
+| `URL`                | FastAPI server URL            | Required    | `http://10.0.0.1:8000`  |
+| `AWS_DEFAULT_REGION` | AWS region                    | `us-east-1` | `us-east-1`             |
+| `N_JOBS_OUTER`       | Parallel server requests      | `1`         | `4`                     |
+| `N_JOBS_INNER`       | Parallelism within experiment | `-1`        | `-1` (all cores)        |
+| `SKIP`               | Methods to skip               | None        | `xgb,lightgbm,catboost` |
+| `DATA_DIR`           | Data directory (analysis)     | None        | `/path/to/data`         |
+| `GET_DATA`           | Export from DynamoDB          | `0`         | `1`                     |
 
 ---
 
@@ -416,19 +416,23 @@ Methods connected by bars are NOT significantly different.
 ### Common Issues
 
 **Server shows 0 configs remaining:**
+
 - Configs already processed are stored in DynamoDB
 - Clear tables or use different `TABLE_NAME` for fresh run
 
 **Worker connection refused:**
+
 - Check server is running and accessible
 - Verify security groups allow port 8000
 
 **Out of memory on large datasets:**
+
 - Reduce `N_JOBS_INNER` to `1`
 - Use larger instance type
 - Add `max_depth` limit for trees
 
 **DynamoDB throughput exceeded:**
+
 - Increase provisioned capacity or use on-demand
 - Reduce `N_JOBS_OUTER` on workers
 

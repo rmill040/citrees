@@ -25,10 +25,11 @@ Usage:
     # After running experiments
     uv run python paper/scripts/comprehensive_analysis.py
 """
+
 import json
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -49,7 +50,7 @@ TABLES_DIR = OUTPUT_DIR / "tables"
 GROUND_TRUTH_PATH = DATA_DIR / "synthetic_ground_truth.json"
 
 
-def load_ground_truth() -> Dict[str, Any]:
+def load_ground_truth() -> dict[str, Any]:
     """Load ground truth for synthetic datasets."""
     if GROUND_TRUTH_PATH.exists():
         with open(GROUND_TRUTH_PATH) as f:
@@ -58,10 +59,8 @@ def load_ground_truth() -> Dict[str, Any]:
 
 
 def compute_precision_recall_at_k(
-    feature_ranks: List[int],
-    informative_indices: List[int],
-    k: int
-) -> Tuple[float, float]:
+    feature_ranks: list[int], informative_indices: list[int], k: int
+) -> tuple[float, float]:
     """Compute precision@k and recall@k.
 
     Parameters
@@ -92,9 +91,7 @@ def compute_precision_recall_at_k(
 
 
 def compute_noise_selection_rate(
-    feature_ranks: List[int],
-    noise_indices: List[int],
-    k: int
+    feature_ranks: list[int], noise_indices: list[int], k: int
 ) -> float:
     """Compute rate of noise features in top-k (false positive rate).
 
@@ -109,7 +106,7 @@ def compute_noise_selection_rate(
     return len(top_k & noise_set) / k
 
 
-def friedman_test(scores: np.ndarray) -> Tuple[float, float]:
+def friedman_test(scores: np.ndarray) -> tuple[float, float]:
     """Perform Friedman test.
 
     Parameters
@@ -139,10 +136,18 @@ def friedman_test(scores: np.ndarray) -> Tuple[float, float]:
 def nemenyi_cd(n_methods: int, n_datasets: int, alpha: float = 0.05) -> float:
     """Compute Nemenyi critical difference."""
     q_values = {
-        (3, 0.05): 2.343, (4, 0.05): 2.569, (5, 0.05): 2.728,
-        (6, 0.05): 2.850, (7, 0.05): 2.949, (8, 0.05): 3.031,
-        (9, 0.05): 3.102, (10, 0.05): 3.164, (11, 0.05): 3.219,
-        (12, 0.05): 3.268, (13, 0.05): 3.313, (14, 0.05): 3.354,
+        (3, 0.05): 2.343,
+        (4, 0.05): 2.569,
+        (5, 0.05): 2.728,
+        (6, 0.05): 2.850,
+        (7, 0.05): 2.949,
+        (8, 0.05): 3.031,
+        (9, 0.05): 3.102,
+        (10, 0.05): 3.164,
+        (11, 0.05): 3.219,
+        (12, 0.05): 3.268,
+        (13, 0.05): 3.313,
+        (14, 0.05): 3.354,
         (15, 0.05): 3.391,
     }
     q = q_values.get((n_methods, alpha), 2.728)
@@ -160,10 +165,9 @@ def compute_ranks(scores: np.ndarray, higher_is_better: bool = True) -> np.ndarr
 # ANALYSIS FUNCTIONS
 # =============================================================================
 
+
 def analyze_selection_bias(
-    results_df: pd.DataFrame,
-    ground_truth: Dict[str, Any],
-    output_dir: Path
+    results_df: pd.DataFrame, ground_truth: dict[str, Any], output_dir: Path
 ) -> pd.DataFrame:
     """Analyze selection bias on high-cardinality noise datasets.
 
@@ -174,7 +178,7 @@ def analyze_selection_bias(
     print("=" * 60)
 
     # Filter to bias datasets
-    bias_datasets = [name for name in ground_truth.keys() if "bias" in name]
+    bias_datasets = [name for name in ground_truth if "bias" in name]
 
     if not bias_datasets:
         print("No selection bias datasets found.")
@@ -200,20 +204,20 @@ def analyze_selection_bias(
                 precision, recall = compute_precision_recall_at_k(
                     feature_ranks, informative_indices, k
                 )
-                noise_rate = compute_noise_selection_rate(
-                    feature_ranks, noise_indices, k
-                )
+                noise_rate = compute_noise_selection_rate(feature_ranks, noise_indices, k)
 
-                records.append({
-                    "dataset": dataset,
-                    "method": row["method"],
-                    "k": k,
-                    "precision": precision,
-                    "recall": recall,
-                    "noise_selection_rate": noise_rate,
-                    "n_noise_features": len(noise_indices),
-                    "high_cardinality_levels": meta.get("high_cardinality_levels", 0),
-                })
+                records.append(
+                    {
+                        "dataset": dataset,
+                        "method": row["method"],
+                        "k": k,
+                        "precision": precision,
+                        "recall": recall,
+                        "noise_selection_rate": noise_rate,
+                        "n_noise_features": len(noise_indices),
+                        "high_cardinality_levels": meta.get("high_cardinality_levels", 0),
+                    }
+                )
 
     if not records:
         print("No results found for bias datasets.")
@@ -222,11 +226,17 @@ def analyze_selection_bias(
     df = pd.DataFrame(records)
 
     # Aggregate by method
-    summary = df.groupby("method").agg({
-        "precision": "mean",
-        "recall": "mean",
-        "noise_selection_rate": "mean",
-    }).round(3)
+    summary = (
+        df.groupby("method")
+        .agg(
+            {
+                "precision": "mean",
+                "recall": "mean",
+                "noise_selection_rate": "mean",
+            }
+        )
+        .round(3)
+    )
 
     print("\n=== SELECTION BIAS SUMMARY (mean across datasets) ===")
     print(summary.sort_values("noise_selection_rate"))
@@ -241,7 +251,7 @@ def analyze_selection_bias(
     rf_noise = df[df["method"].isin(rf_methods)]["noise_selection_rate"].mean()
     ci_noise = df[df["method"].isin(citrees_methods)]["noise_selection_rate"].mean()
 
-    print(f"\n=== KEY FINDING ===")
+    print("\n=== KEY FINDING ===")
     print(f"RF/Boosting methods noise selection rate: {rf_noise:.3f}")
     print(f"citrees methods noise selection rate: {ci_noise:.3f}")
     print(f"Reduction: {(rf_noise - ci_noise) / rf_noise * 100:.1f}%")
@@ -250,7 +260,11 @@ def analyze_selection_bias(
     fig, ax = plt.subplots(figsize=(10, 6))
     methods = summary.index.tolist()
     x = range(len(methods))
-    ax.bar(x, summary["noise_selection_rate"], color=["red" if m in rf_methods else "green" for m in methods])
+    ax.bar(
+        x,
+        summary["noise_selection_rate"],
+        color=["red" if m in rf_methods else "green" for m in methods],
+    )
     ax.set_xticks(x)
     ax.set_xticklabels(methods, rotation=45, ha="right")
     ax.set_ylabel("Noise Selection Rate (lower is better)")
@@ -264,9 +278,7 @@ def analyze_selection_bias(
 
 
 def analyze_selector_comparison(
-    results_df: pd.DataFrame,
-    ground_truth: Dict[str, Any],
-    output_dir: Path
+    results_df: pd.DataFrame, ground_truth: dict[str, Any], output_dir: Path
 ) -> pd.DataFrame:
     """Compare selectors (MC vs RDC vs MI) on different dataset types."""
     print("\n" + "=" * 60)
@@ -274,9 +286,10 @@ def analyze_selector_comparison(
     print("=" * 60)
 
     # Separate linear vs nonlinear datasets
-    linear_datasets = [name for name in ground_truth.keys()
-                       if "syn_p" in name and "nonlinear" not in name]
-    nonlinear_datasets = [name for name in ground_truth.keys() if "nonlinear" in name]
+    linear_datasets = [
+        name for name in ground_truth if "syn_p" in name and "nonlinear" not in name
+    ]
+    nonlinear_datasets = [name for name in ground_truth if "nonlinear" in name]
 
     selector_methods = ["mc", "mi", "rdc", "ptest_mc", "ptest_mi", "ptest_rdc"]
 
@@ -291,8 +304,7 @@ def analyze_selector_comparison(
             informative_indices = meta["informative_indices"]
 
             dataset_results = results_df[
-                (results_df["dataset"] == dataset) &
-                (results_df["method"].isin(selector_methods))
+                (results_df["dataset"] == dataset) & (results_df["method"].isin(selector_methods))
             ]
 
             for _, row in dataset_results.iterrows():
@@ -303,14 +315,16 @@ def analyze_selector_comparison(
                         feature_ranks, informative_indices, k
                     )
 
-                    records.append({
-                        "dataset_type": dataset_type,
-                        "dataset": dataset,
-                        "method": row["method"],
-                        "k": k,
-                        "precision": precision,
-                        "recall": recall,
-                    })
+                    records.append(
+                        {
+                            "dataset_type": dataset_type,
+                            "dataset": dataset,
+                            "method": row["method"],
+                            "k": k,
+                            "precision": precision,
+                            "recall": recall,
+                        }
+                    )
 
     if not records:
         print("No selector comparison data found.")
@@ -319,10 +333,16 @@ def analyze_selector_comparison(
     df = pd.DataFrame(records)
 
     # Summary by dataset type and method
-    summary = df.groupby(["dataset_type", "method"]).agg({
-        "precision": "mean",
-        "recall": "mean",
-    }).round(3)
+    summary = (
+        df.groupby(["dataset_type", "method"])
+        .agg(
+            {
+                "precision": "mean",
+                "recall": "mean",
+            }
+        )
+        .round(3)
+    )
 
     print("\n=== SELECTOR COMPARISON ===")
     print(summary)
@@ -360,9 +380,11 @@ def analyze_timing(results_df: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
     # Summary by method
-    timing_summary = results_df.groupby("method")["elapsed_seconds"].agg([
-        "mean", "std", "min", "max", "count"
-    ]).round(3)
+    timing_summary = (
+        results_df.groupby("method")["elapsed_seconds"]
+        .agg(["mean", "std", "min", "max", "count"])
+        .round(3)
+    )
 
     print("\n=== TIMING BY METHOD (seconds) ===")
     print(timing_summary.sort_values("mean"))
@@ -371,7 +393,9 @@ def analyze_timing(results_df: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
 
     # Timing by n_samples and n_features
     if "n_samples" in results_df.columns and "n_features" in results_df.columns:
-        timing_by_size = results_df.groupby(["method", "n_samples", "n_features"])["elapsed_seconds"].mean()
+        timing_by_size = results_df.groupby(["method", "n_samples", "n_features"])[
+            "elapsed_seconds"
+        ].mean()
         timing_by_size.to_csv(output_dir / "timing_by_size.csv")
 
     # Plot
@@ -393,9 +417,7 @@ def analyze_timing(results_df: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
 
 
 def analyze_feature_selection_quality(
-    results_df: pd.DataFrame,
-    ground_truth: Dict[str, Any],
-    output_dir: Path
+    results_df: pd.DataFrame, ground_truth: dict[str, Any], output_dir: Path
 ) -> pd.DataFrame:
     """Analyze overall feature selection quality with Friedman/Nemenyi tests."""
     print("\n" + "=" * 60)
@@ -403,7 +425,7 @@ def analyze_feature_selection_quality(
     print("=" * 60)
 
     # Get synthetic datasets with ground truth
-    synthetic_datasets = [name for name in ground_truth.keys()]
+    synthetic_datasets = [name for name in ground_truth]
 
     if not synthetic_datasets:
         print("No synthetic datasets with ground truth found.")
@@ -424,17 +446,17 @@ def analyze_feature_selection_quality(
             feature_ranks = [int(x) for x in row["feature_ranks"].split(",")]
 
             k = len(informative_indices)
-            precision, recall = compute_precision_recall_at_k(
-                feature_ranks, informative_indices, k
-            )
+            precision, recall = compute_precision_recall_at_k(feature_ranks, informative_indices, k)
 
-            records.append({
-                "dataset": dataset,
-                "method": row["method"],
-                "precision": precision,
-                "recall": recall,
-                "n_informative": k,
-            })
+            records.append(
+                {
+                    "dataset": dataset,
+                    "method": row["method"],
+                    "precision": precision,
+                    "recall": recall,
+                    "n_informative": k,
+                }
+            )
 
     if not records:
         print("No results found for synthetic datasets.")
@@ -463,11 +485,13 @@ def analyze_feature_selection_quality(
     ranks = compute_ranks(score_matrix, higher_is_better=True)
     avg_ranks = np.nanmean(ranks, axis=0)
 
-    rank_df = pd.DataFrame({
-        "method": methods,
-        "avg_rank": avg_ranks,
-        "mean_precision": np.nanmean(score_matrix, axis=0),
-    }).sort_values("avg_rank")
+    rank_df = pd.DataFrame(
+        {
+            "method": methods,
+            "avg_rank": avg_ranks,
+            "mean_precision": np.nanmean(score_matrix, axis=0),
+        }
+    ).sort_values("avg_rank")
 
     # Critical difference
     n_valid_datasets = np.sum(~np.any(np.isnan(score_matrix), axis=1))
@@ -480,10 +504,16 @@ def analyze_feature_selection_quality(
     rank_df.to_csv(output_dir / "method_rankings.csv", index=False)
 
     # Summary by method
-    summary = df.groupby("method").agg({
-        "precision": ["mean", "std"],
-        "recall": ["mean", "std"],
-    }).round(3)
+    summary = (
+        df.groupby("method")
+        .agg(
+            {
+                "precision": ["mean", "std"],
+                "recall": ["mean", "std"],
+            }
+        )
+        .round(3)
+    )
 
     print("\n=== PRECISION/RECALL SUMMARY ===")
     print(summary)

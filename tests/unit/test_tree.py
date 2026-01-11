@@ -1,5 +1,6 @@
 """Tests for citrees._.tree.py."""
-from typing import Any, Dict
+
+from typing import Any
 
 import numpy as np
 import pytest
@@ -32,7 +33,7 @@ pytestmark = pytest.mark.tree
         {"value": 0.5},
     ],
 )
-def test_node(kwargs: Dict[str, Any]) -> None:
+def test_node(kwargs: dict[str, Any]) -> None:
     """Test Node functionality."""
     node = Node(**kwargs)
 
@@ -45,7 +46,9 @@ def test_base_conditional_inference_tree_parameters():
     # Failure
     with pytest.raises(ValidationError) as e:
         BaseConditionalInferenceTreeParameters()
-    assert e.type is ValidationError, f"Wrong exception, got ({e.type}) but expected ({ValidationError})"
+    assert e.type is ValidationError, (
+        f"Wrong exception, got ({e.type}) but expected ({ValidationError})"
+    )
 
     # TODO: ADD HERE
 
@@ -78,9 +81,9 @@ def test_base_conditional_inference_tree_parameters():
         verbose=1,
         check_for_unused_parameters=False,
     )
-    assert (
-        type(params) is BaseConditionalInferenceTreeParameters
-    ), f"Wrong class, got ({type(params)}) but expected ({BaseConditionalInferenceTreeParameters})"
+    assert type(params) is BaseConditionalInferenceTreeParameters, (
+        f"Wrong class, got ({type(params)}) but expected ({BaseConditionalInferenceTreeParameters})"
+    )
 
 
 class TestHonestEstimation:

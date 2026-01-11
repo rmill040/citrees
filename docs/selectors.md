@@ -1,22 +1,25 @@
 # Feature Selectors
 
-Feature selectors in citrees measure the association between a feature and the target variable. The selector with the strongest association (lowest p-value) is chosen for splitting at each node.
+Feature selectors in citrees measure the association between a feature and the
+target variable. The selector with the strongest association (lowest p-value) is
+chosen for splitting at each node.
 
 ## Overview
 
-| Selector | Task | Captures | Complexity | Scale |
-|----------|------|----------|------------|-------|
-| `mc` | Classification | Linear | O(n) | [0, 1] |
-| `mi` | Classification | Non-linear | O(n log n) | [0, ∞) |
-| `rdc` | Both | Non-linear | O(n log n) | [0, 1] |
-| `pc` | Regression | Linear | O(n) | [0, 1] |
-| `dc` | Regression | Non-linear | O(n²) | [0, 1] |
+| Selector | Task           | Captures   | Complexity | Scale  |
+| -------- | -------------- | ---------- | ---------- | ------ |
+| `mc`     | Classification | Linear     | O(n)       | [0, 1] |
+| `mi`     | Classification | Non-linear | O(n log n) | [0, ∞) |
+| `rdc`    | Both           | Non-linear | O(n log n) | [0, 1] |
+| `pc`     | Regression     | Linear     | O(n)       | [0, 1] |
+| `dc`     | Regression     | Non-linear | O(n²)      | [0, 1] |
 
 ---
 
 ## Multiple Correlation (mc)
 
-**Default for classification.** Measures how much variance in the feature is explained by class membership using ANOVA.
+**Default for classification.** Measures how much variance in the feature is
+explained by class membership using ANOVA.
 
 ### Mathematical Definition
 
@@ -25,6 +28,7 @@ For a feature $X$ and categorical target $Y$ with $K$ classes:
 $$\eta^2 = \frac{SS_B}{SS_T} = \frac{\sum_{k=1}^{K} n_k (\bar{x}_k - \bar{x})^2}{\sum_{i=1}^{n} (x_i - \bar{x})^2}$$
 
 Where:
+
 - $SS_B$ = Between-class sum of squares
 - $SS_T$ = Total sum of squares
 - $n_k$ = Number of samples in class $k$
@@ -34,7 +38,8 @@ Where:
 ### Properties
 
 - **Range**: [0, 1]
-- **Interpretation**: $\eta^2 = 0$ means no linear separation; $\eta^2 = 1$ means perfect separation
+- **Interpretation**: $\eta^2 = 0$ means no linear separation; $\eta^2 = 1$
+  means perfect separation
 - **Equivalent to**: ANOVA F-statistic (monotonically related)
 - **Limitation**: Only captures linear class separation
 
@@ -58,7 +63,7 @@ Input: Feature x ∈ ℝⁿ, class labels y ∈ {1,...,K}ⁿ
 ```python
 # From _selector.py - JIT-compiled for performance
 @njit(cache=True, fastmath=True, nogil=True)
-def multiple_correlation(x, y, n_classes, random_state=None):
+def mc(x, y, n_classes, random_state=None):
     x_mean = np.mean(x)
     ss_total = np.sum((x - x_mean) ** 2)
 
@@ -80,17 +85,20 @@ def multiple_correlation(x, y, n_classes, random_state=None):
 
 ## Mutual Information (mi)
 
-Measures non-linear statistical dependence using information theory. Based on k-nearest neighbors estimation.
+Measures non-linear statistical dependence using information theory. Based on
+k-nearest neighbors estimation.
 
 ### Mathematical Definition
 
 $$MI(X; Y) = H(Y) - H(Y|X) = \sum_{y \in Y} \sum_{x \in X} p(x,y) \log \frac{p(x,y)}{p(x)p(y)}$$
 
 Where:
+
 - $H(Y)$ = Entropy of $Y$
 - $H(Y|X)$ = Conditional entropy of $Y$ given $X$
 
-For continuous features, MI is estimated using the [KSG estimator](https://arxiv.org/abs/cond-mat/0305641):
+For continuous features, MI is estimated using the
+[KSG estimator](https://arxiv.org/abs/cond-mat/0305641):
 
 $$\hat{MI}(X; Y) = \psi(k) - \langle \psi(n_x + 1) + \psi(n_y + 1) \rangle + \psi(N)$$
 
@@ -121,7 +129,8 @@ Input: Feature x ∈ ℝⁿ, class labels y ∈ {1,...,K}ⁿ, neighbors k
 
 ### Usage Note
 
-Because MI is unbounded, it **cannot** be combined with other selectors in multi-selector mode:
+Because MI is unbounded, it **cannot** be combined with other selectors in
+multi-selector mode:
 
 ```python
 # Valid
@@ -135,15 +144,18 @@ clf = ConditionalInferenceTreeClassifier(selector=["mc", "mi"])  # ❌
 
 ## Randomized Dependence Coefficient (rdc)
 
-**Recommended for non-linear relationships.** RDC detects arbitrary dependence with O(n log n) complexity.
+**Recommended for non-linear relationships.** RDC detects arbitrary dependence
+with O(n log n) complexity.
 
 ### Mathematical Definition
 
-RDC is defined as the largest canonical correlation between random non-linear projections of the copula-transformed variables:
+RDC is defined as the largest canonical correlation between random non-linear
+projections of the copula-transformed variables:
 
 $$RDC(X, Y) = \sup_{f,g \in \mathcal{F}} \text{Corr}(f(\Phi(X)), g(\Phi(Y)))$$
 
 Where:
+
 - $\Phi$ = Copula transform (rank-based, makes marginals uniform)
 - $\mathcal{F}$ = Random Fourier features
 
@@ -182,27 +194,28 @@ RDC satisfies all of Rényi's axioms for dependence measures:
 
 ### Complexity
 
-| Operation | Complexity |
-|-----------|------------|
-| Copula transform (sorting) | O(n log n) |
-| Random projections | O(nk) |
-| CCA | O(nk²) |
-| **Total** | **O(n log n)** for k ≪ n |
+| Operation                  | Complexity               |
+| -------------------------- | ------------------------ |
+| Copula transform (sorting) | O(n log n)               |
+| Random projections         | O(nk)                    |
+| CCA                        | O(nk²)                   |
+| **Total**                  | **O(n log n)** for k ≪ n |
 
 ### Why RDC for citrees?
 
-| Comparison | RDC | Distance Correlation |
-|------------|-----|---------------------|
-| Non-linear detection | ✓ | ✓ |
-| Time complexity | O(n log n) | O(n²) |
-| Space complexity | O(nk) | O(n²) |
-| 10,000 samples | ~0.1s | ~50s |
+| Comparison           | RDC        | Distance Correlation |
+| -------------------- | ---------- | -------------------- |
+| Non-linear detection | ✓          | ✓                    |
+| Time complexity      | O(n log n) | O(n²)                |
+| Space complexity     | O(nk)      | O(n²)                |
+| 10,000 samples       | ~0.1s      | ~50s                 |
 
 ---
 
 ## Pearson Correlation (pc)
 
-**Default for regression.** Measures linear association between feature and continuous target.
+**Default for regression.** Measures linear association between feature and
+continuous target.
 
 ### Mathematical Definition
 
@@ -213,7 +226,8 @@ For feature selection, we use the absolute value: $|r|$
 ### Properties
 
 - **Range**: [-1, 1], using |r| gives [0, 1]
-- **Interpretation**: 0 = no linear relationship, 1 = perfect linear relationship
+- **Interpretation**: 0 = no linear relationship, 1 = perfect linear
+  relationship
 - **Limitation**: Only detects linear relationships
 - **Complexity**: O(n)
 
@@ -234,7 +248,8 @@ Input: Feature x ∈ ℝⁿ, target y ∈ ℝⁿ
 
 ## Distance Correlation (dc)
 
-Measures arbitrary (linear and non-linear) dependence between variables. Zero if and only if independent.
+Measures arbitrary (linear and non-linear) dependence between variables. Zero if
+and only if independent.
 
 ### Mathematical Definition
 
@@ -243,7 +258,9 @@ Distance correlation is based on distance covariance:
 $$dCov^2(X, Y) = \frac{1}{n^2} \sum_{i,j} A_{ij} B_{ij}$$
 
 Where:
-- $A_{ij} = a_{ij} - \bar{a}_{i\cdot} - \bar{a}_{\cdot j} + \bar{a}_{\cdot\cdot}$ (doubly-centered distance matrix for X)
+
+- $A_{ij} = a_{ij} - \bar{a}_{i\cdot} - \bar{a}_{\cdot j} + \bar{a}_{\cdot\cdot}$
+  (doubly-centered distance matrix for X)
 - $B_{ij}$ = analogous for Y
 - $a_{ij} = \|x_i - x_j\|$
 
@@ -284,19 +301,22 @@ Input: x ∈ ℝⁿ, y ∈ ℝⁿ
 
 ### Complexity Warning
 
-| n (samples) | Time | Memory |
-|-------------|------|--------|
-| 1,000 | ~0.5s | ~8 MB |
-| 10,000 | ~50s | ~800 MB |
-| 100,000 | ~5000s | ~80 GB |
+| n (samples) | Time   | Memory  |
+| ----------- | ------ | ------- |
+| 1,000       | ~0.5s  | ~8 MB   |
+| 10,000      | ~50s   | ~800 MB |
+| 100,000     | ~5000s | ~80 GB  |
 
-**Recommendation**: Use `rdc` instead of `dc` for datasets with more than ~5,000 samples.
+**Recommendation**: Use `rdc` instead of `dc` for datasets with more than ~5,000
+samples.
 
 ---
 
 ## Multi-Selector Mode
 
-citrees supports combining multiple selectors. The feature with the maximum score across all selectors is selected, and the permutation test uses that selector.
+citrees supports combining multiple selectors. The feature with the maximum
+score across all selectors is selected, and the permutation test uses that
+selector.
 
 ### Usage
 
@@ -324,20 +344,27 @@ p_value = PermutationTest(X[:,j*], y, selector=best_selector[j*])
 
 ### Compatibility
 
-| Combination | Valid | Reason |
-|-------------|-------|--------|
-| `['mc', 'rdc']` | ✓ | Both [0,1] scale |
-| `['pc', 'dc', 'rdc']` | ✓ | All [0,1] scale |
-| `['mc', 'mi']` | ✗ | MI is unbounded |
+| Combination           | Valid | Reason           |
+| --------------------- | ----- | ---------------- |
+| `['mc', 'rdc']`       | ✓     | Both [0,1] scale |
+| `['pc', 'dc', 'rdc']` | ✓     | All [0,1] scale  |
+| `['mc', 'mi']`        | ✗     | MI is unbounded  |
 
 ---
 
 ## References
 
-1. **Multiple Correlation**: Fisher, R.A. (1925). Statistical Methods for Research Workers.
+1. **Multiple Correlation**: Fisher, R.A. (1925). Statistical Methods for
+   Research Workers.
 
-2. **Mutual Information**: Kraskov, A., Stögbauer, H., & Grassberger, P. (2004). [Estimating mutual information](https://arxiv.org/abs/cond-mat/0305641). Physical Review E.
+2. **Mutual Information**: Kraskov, A., Stögbauer, H., & Grassberger, P. (2004).
+   [Estimating mutual information](https://arxiv.org/abs/cond-mat/0305641).
+   Physical Review E.
 
-3. **RDC**: Lopez-Paz, D., Hennig, P., & Schölkopf, B. (2013). [The Randomized Dependence Coefficient](https://arxiv.org/abs/1304.7717). NeurIPS.
+3. **RDC**: Lopez-Paz, D., Hennig, P., & Schölkopf, B. (2013).
+   [The Randomized Dependence Coefficient](https://arxiv.org/abs/1304.7717).
+   NeurIPS.
 
-4. **Distance Correlation**: Székely, G.J., Rizzo, M.L., & Bakirov, N.K. (2007). [Measuring and Testing Dependence by Correlation of Distances](https://projecteuclid.org/journals/annals-of-statistics/volume-35/issue-6/Measuring-and-testing-dependence-by-correlation-of-distances/10.1214/009053607000000505.full). Annals of Statistics.
+4. **Distance Correlation**: Székely, G.J., Rizzo, M.L., & Bakirov, N.K. (2007).
+   [Measuring and Testing Dependence by Correlation of Distances](https://projecteuclid.org/journals/annals-of-statistics/volume-35/issue-6/Measuring-and-testing-dependence-by-correlation-of-distances/10.1214/009053607000000505.full).
+   Annals of Statistics.

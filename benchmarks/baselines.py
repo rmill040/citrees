@@ -1,10 +1,14 @@
 from typing import Any
 
 from sklearn.base import BaseEstimator
-from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
-from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-
+from sklearn.ensemble import (
+    ExtraTreesClassifier,
+    ExtraTreesRegressor,
+    GradientBoostingClassifier,
+    GradientBoostingRegressor,
+    RandomForestClassifier,
+    RandomForestRegressor,
+)
 
 CLASSIFIERS: dict[str, type[BaseEstimator]] = {
     "rf": RandomForestClassifier,

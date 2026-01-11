@@ -1,11 +1,12 @@
 """Regression metrics - SERVER."""
+
 import concurrent.futures
 import itertools
 import json
 import os
 from collections import defaultdict
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any
 
 import boto3
 import numpy as np
@@ -20,7 +21,7 @@ HOSTS = defaultdict(lambda: 0)
 RANDOM_STATE = 1718
 
 
-def parallel_scan_table(dynamo_client: Any, *, TableName: str, **kwargs: Dict[str, Any]) -> None:
+def parallel_scan_table(dynamo_client: Any, *, TableName: str, **kwargs: dict[str, Any]) -> None:
     """Generates all the items in a DynamoDB table."""
     # How many segments to divide the table into?  As long as this is >= to the
     # number of threads used by the ThreadPoolExecutor, the exact number doesn't
@@ -48,7 +49,6 @@ def parallel_scan_table(dynamo_client: Any, *, TableName: str, **kwargs: Dict[st
     scans_to_run = iter(tasks_to_do)
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-
         # Schedule the initial batch of futures.  Here we assume that
         # max_scans_in_parallel < total_segments, so there's no risk that
         # the queue will throw an Empty exception.
@@ -59,7 +59,9 @@ def parallel_scan_table(dynamo_client: Any, *, TableName: str, **kwargs: Dict[st
 
         while futures:
             # Wait for the first future to complete.
-            done, _ = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+            done, _ = concurrent.futures.wait(
+                futures, return_when=concurrent.futures.FIRST_COMPLETED
+            )
 
             for fut in done:
                 yield from fut.result()["Items"]
@@ -100,7 +102,9 @@ def create_configurations() -> None:
     # Populate configs
     deserializer = TypeDeserializer()
     dynamodb = boto3.client("dynamodb", region_name="us-east-1")
-    for j, config in enumerate(parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]), 1):
+    for j, config in enumerate(
+        parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"]), 1
+    ):
         if j % 10_000 == 0:
             logger.info(f"{j} configs processed for testing feature selection")
         config = {k: deserializer.deserialize(v) for k, v in config.items()}
@@ -112,7 +116,9 @@ def create_configurations() -> None:
     processed = set()
     for config in parallel_scan_table(dynamodb, TableName=os.environ["TABLE_NAME"] + "Metrics"):
         if len(processed) % 10_000 == 0:
-            logger.info(f"{len(processed)} configs already processed from feature selection metrics table")
+            logger.info(
+                f"{len(processed)} configs already processed from feature selection metrics table"
+            )
         processed.add(int(config["config_idx"]["N"]))
 
     if processed:
@@ -127,7 +133,7 @@ def create_configurations() -> None:
 
 
 @app.get("/")
-async def get_config(request: Request) -> Dict[str, Any]:
+async def get_config(request: Request) -> dict[str, Any]:
     """Get configuration for feature selection."""
     if len(CONFIGS):
         HOSTS[request.client.host] += 1
@@ -137,6 +143,6 @@ async def get_config(request: Request) -> Dict[str, Any]:
 
 
 @app.get("/status")
-async def get_status() -> Dict[str, Any]:
+async def get_status() -> dict[str, Any]:
     """Get status of feature selection."""
     return {"n_configs_remaining": len(CONFIGS), "hosts": HOSTS}

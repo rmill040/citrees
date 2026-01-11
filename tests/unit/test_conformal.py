@@ -5,12 +5,11 @@ import pytest
 from sklearn.datasets import make_classification, make_regression
 
 from citrees import (
-    ConformalClassifier,
-    ConformalRegressor,
+    CQR,
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
-    ConditionalInferenceTreeClassifier,
-    CQR,
+    ConformalClassifier,
+    ConformalRegressor,
 )
 
 

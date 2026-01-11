@@ -2,16 +2,15 @@
 
 import numpy as np
 import pytest
+from sklearn.base import clone
 from sklearn.datasets import make_classification, make_regression
 from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.utils.estimator_checks import parametrize_with_checks
-from sklearn.base import clone
 
 from citrees import (
-    ConditionalInferenceTreeClassifier,
-    ConditionalInferenceTreeRegressor,
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
+    ConditionalInferenceTreeClassifier,
+    ConditionalInferenceTreeRegressor,
 )
 
 
@@ -145,8 +144,8 @@ class TestConditionalInferenceTreeClassifier:
     def test_list_selector_all_combos(self, classification_data):
         """Test all valid list selector combinations for classification.
 
-        Only mc and rdc can be combined (both on [0,1] scale).
-        mi cannot be in a list because it's unbounded.
+        Only mc and rdc can be combined (both on [0,1] scale). mi cannot be in a list because it's
+        unbounded.
         """
         X, y = classification_data
         # All valid combinations: only [mc, rdc] since mi is not on same scale
@@ -177,7 +176,9 @@ class TestConditionalInferenceTreeClassifier:
             ConditionalInferenceTreeClassifier(selector=["mi", "rdc"], random_state=42, verbose=0)
         # mi + mc + rdc is invalid
         with pytest.raises(ValueError, match="mi.*cannot be used in a list"):
-            ConditionalInferenceTreeClassifier(selector=["mc", "mi", "rdc"], random_state=42, verbose=0)
+            ConditionalInferenceTreeClassifier(
+                selector=["mc", "mi", "rdc"], random_state=42, verbose=0
+            )
 
     def test_splitter_methods(self, classification_data):
         """Test different splitter methods."""
@@ -442,9 +443,7 @@ class TestEdgeCases:
         X = np.random.randn(50, 100)
         y = np.random.randint(0, 2, 50)
 
-        clf = ConditionalInferenceTreeClassifier(
-            random_state=42, verbose=0, max_features="sqrt"
-        )
+        clf = ConditionalInferenceTreeClassifier(random_state=42, verbose=0, max_features="sqrt")
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 
@@ -460,9 +459,7 @@ class TestEdgeCases:
         X = np.random.randn(20, 5)
         y = np.random.randint(0, 2, 20)
 
-        clf = ConditionalInferenceTreeClassifier(
-            random_state=42, verbose=0, min_samples_split=2
-        )
+        clf = ConditionalInferenceTreeClassifier(random_state=42, verbose=0, min_samples_split=2)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 

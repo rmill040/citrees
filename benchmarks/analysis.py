@@ -71,8 +71,13 @@ class StatisticalAnalysis:
         avg_ranks = ranks_matrix.mean(axis=0)
         ranks = {m: float(r) for m, r in zip(models, avg_ranks)}
 
-        means = {m: float(np.nanmean([agg[ds].get(m, [np.nan]) for ds in datasets])) for m in models}
-        stds = {m: float(np.nanstd([np.mean(agg[ds].get(m, [np.nan])) for ds in datasets])) for m in models}
+        means = {
+            m: float(np.nanmean([agg[ds].get(m, [np.nan]) for ds in datasets])) for m in models
+        }
+        stds = {
+            m: float(np.nanstd([np.mean(agg[ds].get(m, [np.nan])) for ds in datasets]))
+            for m in models
+        }
 
         return ComparisonResult(
             metric=metric,

@@ -1,4 +1,5 @@
 """Regression experiments - WORKER."""
+
 import json
 import os
 import time
@@ -6,14 +7,14 @@ from copy import deepcopy
 from decimal import Decimal
 from math import ceil
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import boto3
 import numpy as np
 import pandas as pd
 import requests
 from catboost import CatBoostRegressor
-from joblib import delayed, Parallel
+from joblib import Parallel, delayed
 from lightgbm import LGBMRegressor
 from loguru import logger
 from pydantic import BaseModel
@@ -48,14 +49,14 @@ class Result(BaseModel):
     """Data structure to hold single experiment result."""
 
     method: str
-    hyperparameters: Dict[str, Any] = {}
-    feature_ranks: List[int]
+    hyperparameters: dict[str, Any] = {}
+    feature_ranks: list[int]
     dataset: str
     n_samples: int
     n_features: int
 
 
-def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
+def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> list[int]:
     """Sort features based on score and return up to top 100 features."""
     ranks = np.argsort(scores).tolist()
     if higher_is_better:
@@ -63,10 +64,14 @@ def sort_features(*, scores: np.ndarray, higher_is_better: bool) -> List[int]:
     return ranks[:100]
 
 
-def run(url: str, skip: List[str]) -> None:
+def run(url: str, skip: list[str]) -> None:
     """Run configuration for feature selection."""
-    ddb_table_s = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"])
-    ddb_table_f = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "Fail")
+    ddb_table_s = boto3.resource("dynamodb", region_name="us-east-1").Table(
+        os.environ["TABLE_NAME"]
+    )
+    ddb_table_f = boto3.resource("dynamodb", region_name="us-east-1").Table(
+        os.environ["TABLE_NAME"] + "Fail"
+    )
 
     response = requests.get(url)
     if response.ok:
@@ -156,14 +161,15 @@ def run(url: str, skip: List[str]) -> None:
 def _filter_method_selector(
     *,
     method: str,
-    hyperparameters: Dict[str, Any],
+    hyperparameters: dict[str, Any],
     n_features: int,
     X: np.ndarray,
     y: np.ndarray,
 ) -> np.ndarray:
     """Filter method feature selector."""
     scores = Parallel(n_jobs=int(os.environ["N_JOBS_INNER"]), backend="loky")(
-        delayed(RegressorSelectors[method])(x=X[:, j], y=y, **hyperparameters) for j in range(n_features)
+        delayed(RegressorSelectors[method])(x=X[:, j], y=y, **hyperparameters)
+        for j in range(n_features)
     )
 
     return sort_features(scores=scores, higher_is_better=True)
@@ -172,7 +178,7 @@ def _filter_method_selector(
 def _filter_permutation_method_selector(
     *,
     method: str,
-    hyperparameters: Dict[str, Any],
+    hyperparameters: dict[str, Any],
     n_features: int,
     X: np.ndarray,
     y: np.ndarray,
@@ -182,14 +188,19 @@ def _filter_permutation_method_selector(
     if hyperparameters["n_resamples"] == "minimum":
         _hyperparameters["n_resamples"] = ceil(1 / hyperparameters["alpha"])
     elif hyperparameters["n_resamples"] == "maximum":
-        _hyperparameters["n_resamples"] = ceil(1 / (4 * hyperparameters["alpha"] * hyperparameters["alpha"]))
+        _hyperparameters["n_resamples"] = ceil(
+            1 / (4 * hyperparameters["alpha"] * hyperparameters["alpha"])
+        )
     else:
         z = norm.ppf(1 - hyperparameters["alpha"])
-        _hyperparameters["n_resamples"] = ceil(z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"])
+        _hyperparameters["n_resamples"] = ceil(
+            z * z * (1 - hyperparameters["alpha"]) / hyperparameters["alpha"]
+        )
 
     key = method.split("_")[-1]
     scores = Parallel(n_jobs=int(os.environ["N_JOBS_INNER"]), backend="loky")(
-        delayed(RegressorSelectorTests[key])(x=X[:, j], y=y, **_hyperparameters) for j in range(n_features)
+        delayed(RegressorSelectorTests[key])(x=X[:, j], y=y, **_hyperparameters)
+        for j in range(n_features)
     )
 
     return sort_features(scores=scores, higher_is_better=False)
@@ -198,7 +209,7 @@ def _filter_permutation_method_selector(
 def _embedding_method_selector(
     *,
     method: str,
-    hyperparameters: Dict[str, Any],
+    hyperparameters: dict[str, Any],
     n_features: int,
     X: np.ndarray,
     y: np.ndarray,

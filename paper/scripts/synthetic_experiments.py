@@ -6,34 +6,32 @@ This script evaluates feature selection methods on synthetic datasets with:
 - Varying sample sizes (n = 200, 500, 1000)
 - Varying noise levels
 """
-import json
+
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
+from lightgbm import LGBMClassifier
 from loguru import logger
 from sklearn.datasets import make_classification
-from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
 
-from citrees import ConditionalInferenceTreeClassifier, ConditionalInferenceForestClassifier
+from citrees import ConditionalInferenceForestClassifier, ConditionalInferenceTreeClassifier
 
 
 @dataclass
 class SyntheticConfig:
     """Configuration for synthetic experiment."""
+
     n_samples: int
     n_features: int
     n_informative: int
@@ -44,17 +42,25 @@ class SyntheticConfig:
 
 
 # Feature selection methods
-def get_feature_rankers() -> Dict[str, Any]:
+def get_feature_rankers() -> dict[str, Any]:
     """Return feature ranking methods to compare."""
     return {
         # Conditional Inference Trees
         "citree": ConditionalInferenceTreeClassifier(
-            selector="mc", n_resamples_selector="auto",
-            alpha_selector=0.05, verbose=0, random_state=42
+            selector="mc",
+            n_resamples_selector="auto",
+            alpha_selector=0.05,
+            verbose=0,
+            random_state=42,
         ),
         "ciforest": ConditionalInferenceForestClassifier(
-            n_estimators=100, selector="mc", n_resamples_selector=None,
-            alpha_selector=0.05, n_jobs=-1, verbose=0, random_state=42
+            n_estimators=100,
+            selector="mc",
+            n_resamples_selector=None,
+            alpha_selector=0.05,
+            n_jobs=-1,
+            verbose=0,
+            random_state=42,
         ),
         # Standard tree-based methods
         "rf": RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=42),
@@ -81,10 +87,8 @@ def rank_features(method_name: str, model: Any, X: np.ndarray, y: np.ndarray) ->
 
 
 def evaluate_ranking(
-    ranking: np.ndarray,
-    true_informative: np.ndarray,
-    k_values: List[int]
-) -> Dict[str, float]:
+    ranking: np.ndarray, true_informative: np.ndarray, k_values: list[int]
+) -> dict[str, float]:
     """Evaluate how well the ranking recovers true informative features."""
     results = {}
 
@@ -105,11 +109,8 @@ def evaluate_ranking(
 
 
 def downstream_accuracy(
-    X: np.ndarray,
-    y: np.ndarray,
-    ranking: np.ndarray,
-    n_features_to_use: int
-) -> Dict[str, float]:
+    X: np.ndarray, y: np.ndarray, ranking: np.ndarray, n_features_to_use: int
+) -> dict[str, float]:
     """Evaluate downstream classification with selected features."""
     selected_features = ranking[:n_features_to_use]
     X_selected = X[:, selected_features]
@@ -121,20 +122,14 @@ def downstream_accuracy(
         X_train, y_train = X_selected[train_idx], y[train_idx]
         X_test, y_test = X_selected[test_idx], y[test_idx]
 
-        pipe = Pipeline([
-            ("scaler", StandardScaler()),
-            ("clf", LogisticRegression(max_iter=1000))
-        ])
+        pipe = Pipeline([("scaler", StandardScaler()), ("clf", LogisticRegression(max_iter=1000))])
         pipe.fit(X_train, y_train)
         accuracies.append(pipe.score(X_test, y_test))
 
-    return {
-        "accuracy_mean": np.mean(accuracies),
-        "accuracy_std": np.std(accuracies)
-    }
+    return {"accuracy_mean": np.mean(accuracies), "accuracy_std": np.std(accuracies)}
 
 
-def run_single_experiment(config: SyntheticConfig) -> Dict[str, Any]:
+def run_single_experiment(config: SyntheticConfig) -> dict[str, Any]:
     """Run a single synthetic experiment."""
     # Generate data
     X, y = make_classification(
@@ -145,7 +140,7 @@ def run_single_experiment(config: SyntheticConfig) -> Dict[str, Any]:
         n_clusters_per_class=config.n_clusters_per_class,
         class_sep=config.class_sep,
         random_state=config.random_state,
-        shuffle=False  # Keep informative features at the start
+        shuffle=False,  # Keep informative features at the start
     )
 
     # True informative features are indices 0 to n_informative-1
@@ -205,13 +200,15 @@ def main():
                 for n_samples in [200, 500, 1000]:
                     for class_sep in [0.5, 1.0, 2.0]:  # Easy to hard
                         for seed in range(5):  # 5 repetitions
-                            configs.append(SyntheticConfig(
-                                n_samples=n_samples,
-                                n_features=n_features,
-                                n_informative=n_informative,
-                                class_sep=class_sep,
-                                random_state=42 + seed
-                            ))
+                            configs.append(
+                                SyntheticConfig(
+                                    n_samples=n_samples,
+                                    n_features=n_features,
+                                    n_informative=n_informative,
+                                    class_sep=class_sep,
+                                    random_state=42 + seed,
+                                )
+                            )
 
     logger.info(f"Running {len(configs)} synthetic experiments")
 

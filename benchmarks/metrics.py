@@ -1,6 +1,7 @@
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 from sklearn.metrics import (
@@ -30,7 +31,12 @@ CLASSIFICATION_METRICS: dict[str, tuple[Callable, bool]] = {
 }
 
 CLASSIFICATION_PROBA_METRICS: dict[str, tuple[Callable, bool]] = {
-    "roc_auc": (lambda y, p: roc_auc_score(y, p[:, 1]) if p.shape[1] == 2 else roc_auc_score(y, p, multi_class="ovr"), True),
+    "roc_auc": (
+        lambda y, p: roc_auc_score(y, p[:, 1])
+        if p.shape[1] == 2
+        else roc_auc_score(y, p, multi_class="ovr"),
+        True,
+    ),
     "log_loss": (log_loss, False),
 }
 
@@ -97,6 +103,7 @@ class Timer:
 
 
 METRICS = {
-    "classification": list(CLASSIFICATION_METRICS.keys()) + list(CLASSIFICATION_PROBA_METRICS.keys()),
+    "classification": list(CLASSIFICATION_METRICS.keys())
+    + list(CLASSIFICATION_PROBA_METRICS.keys()),
     "regression": list(REGRESSION_METRICS.keys()),
 }

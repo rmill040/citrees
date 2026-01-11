@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -14,7 +14,7 @@ class Registry:
 
     def __init__(self, name: str) -> None:
         self._name = name
-        self._registry: Dict[str, Any] = {}
+        self._registry: dict[str, Any] = {}
 
     @property
     def name(self) -> str:
@@ -27,7 +27,7 @@ class Registry:
         """
         return self._name
 
-    def keys(self) -> List[Any]:
+    def keys(self) -> list[Any]:
         """Return keys in registry.
 
         Returns

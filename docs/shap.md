@@ -1,14 +1,17 @@
 # SHAP Integration
 
-SHAP (SHapley Additive exPlanations) provides theoretically grounded feature attributions based on cooperative game theory. citrees supports TreeSHAP, an efficient algorithm for computing exact SHAP values in polynomial time for tree-based models.
+SHAP (SHapley Additive exPlanations) provides theoretically grounded feature
+attributions based on cooperative game theory. citrees supports TreeSHAP, an
+efficient algorithm for computing exact SHAP values in polynomial time for
+tree-based models.
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| Purpose | Feature attribution / explanation |
-| Foundation | Shapley values from game theory |
-| Complexity | $O(TLD^2)$ for trees (vs $O(2^M)$ exact) |
+| Aspect        | Description                                               |
+| ------------- | --------------------------------------------------------- |
+| Purpose       | Feature attribution / explanation                         |
+| Foundation    | Shapley values from game theory                           |
+| Complexity    | $O(TLD^2)$ for trees (vs $O(2^M)$ exact)                  |
 | Key reference | [Lundberg & Lee (2017)](https://arxiv.org/abs/1705.07874) |
 
 ---
@@ -19,21 +22,21 @@ SHAP (SHapley Additive exPlanations) provides theoretically grounded feature att
 
 Standard tree feature importance (Mean Decrease Impurity, MDI) has known issues:
 
-| Problem | Description |
-|---------|-------------|
+| Problem                          | Description                                              |
+| -------------------------------- | -------------------------------------------------------- |
 | **Bias toward high-cardinality** | Features with more unique values get inflated importance |
-| **Correlation blindness** | Cannot distinguish correlated features |
-| **No direction** | Only magnitude, not positive/negative effect |
-| **Global only** | Same importance for all predictions |
+| **Correlation blindness**        | Cannot distinguish correlated features                   |
+| **No direction**                 | Only magnitude, not positive/negative effect             |
+| **Global only**                  | Same importance for all predictions                      |
 
 ### SHAP Advantages
 
-| Advantage | Description |
-|-----------|-------------|
-| **Local explanations** | Different importance for each prediction |
-| **Directional** | Shows positive/negative contribution |
-| **Theoretically grounded** | Based on Shapley values |
-| **Consistent** | If feature contributes more, importance increases |
+| Advantage                  | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| **Local explanations**     | Different importance for each prediction          |
+| **Directional**            | Shows positive/negative contribution              |
+| **Theoretically grounded** | Based on Shapley values                           |
+| **Consistent**             | If feature contributes more, importance increases |
 
 ---
 
@@ -42,6 +45,7 @@ Standard tree feature importance (Mean Decrease Impurity, MDI) has known issues:
 ### Game Theory Foundation
 
 Shapley values come from **cooperative game theory**. Given:
+
 - Players: Features $\{1, 2, \ldots, M\}$
 - Value function: $v(S) = $ prediction using features in $S$
 
@@ -49,16 +53,17 @@ The Shapley value for feature $j$ is:
 
 $$\phi_j = \sum_{S \subseteq \{1,\ldots,M\} \setminus \{j\}} \frac{|S|!(M-|S|-1)!}{M!} [v(S \cup \{j\}) - v(S)]$$
 
-This is the **average marginal contribution** of feature $j$ across all possible coalitions.
+This is the **average marginal contribution** of feature $j$ across all possible
+coalitions.
 
 ### Properties (Axioms)
 
-| Property | Description |
-|----------|-------------|
-| **Efficiency** | $\sum_j \phi_j = f(x) - \mathbb{E}[f(X)]$ |
-| **Symmetry** | Equal features get equal attribution |
-| **Linearity** | Additive across models |
-| **Null player** | Unused features get zero attribution |
+| Property        | Description                               |
+| --------------- | ----------------------------------------- |
+| **Efficiency**  | $\sum_j \phi_j = f(x) - \mathbb{E}[f(X)]$ |
+| **Symmetry**    | Equal features get equal attribution      |
+| **Linearity**   | Additive across models                    |
+| **Null player** | Unused features get zero attribution      |
 
 ### Interpretation
 
@@ -67,6 +72,7 @@ For a prediction $f(x)$:
 $$f(x) = \phi_0 + \sum_{j=1}^{M} \phi_j(x)$$
 
 where:
+
 - $\phi_0 = \mathbb{E}[f(X)]$ (base value / expected prediction)
 - $\phi_j(x)$ = contribution of feature $j$ for this instance
 
@@ -76,13 +82,16 @@ where:
 
 ### The Challenge
 
-Exact Shapley values require summing over $2^M$ subsets - exponential in the number of features.
+Exact Shapley values require summing over $2^M$ subsets - exponential in the
+number of features.
 
-**TreeSHAP** (Lundberg et al., 2019) exploits tree structure to compute exact SHAP values in polynomial time.
+**TreeSHAP** (Lundberg et al., 2019) exploits tree structure to compute exact
+SHAP values in polynomial time.
 
 ### Key Insight
 
 For decision trees, the value function $v(S)$ can be computed efficiently by:
+
 1. Following paths where features in $S$ determine splits
 2. Averaging over branches where features not in $S$ would split
 
@@ -125,15 +134,16 @@ Input: Tree T, instance x, background data X_bg
 
 ### Complexity
 
-| Method | Time Complexity | Space |
-|--------|-----------------|-------|
-| Exact Shapley | $O(2^M)$ | $O(M)$ |
-| KernelSHAP | $O(TL \cdot 2^M)$ | $O(M)$ |
-| TreeSHAP | $O(TLD^2)$ | $O(D)$ |
-| FastTreeSHAP v1 | ~$O(TLD^2)$ | $O(D)$ |
-| FastTreeSHAP v2 | ~$O(TLD^{1.5})$ | $O(D^2)$ |
+| Method          | Time Complexity   | Space    |
+| --------------- | ----------------- | -------- |
+| Exact Shapley   | $O(2^M)$          | $O(M)$   |
+| KernelSHAP      | $O(TL \cdot 2^M)$ | $O(M)$   |
+| TreeSHAP        | $O(TLD^2)$        | $O(D)$   |
+| FastTreeSHAP v1 | ~$O(TLD^2)$       | $O(D)$   |
+| FastTreeSHAP v2 | ~$O(TLD^{1.5})$   | $O(D^2)$ |
 
 Where:
+
 - $T$ = number of trees
 - $L$ = maximum leaves per tree
 - $D$ = maximum depth
@@ -166,20 +176,21 @@ Aggregate SHAP values across instances:
 $$I_j = \frac{1}{n} \sum_{i=1}^{n} |\phi_j(x_i)|$$
 
 This gives **global feature importance** that:
+
 - Accounts for both positive and negative effects
 - Is consistent with local explanations
 - Reduces bias from MDI importance
 
 ### Visualization Types
 
-| Plot | Purpose |
-|------|---------|
+| Plot             | Purpose                                 |
+| ---------------- | --------------------------------------- |
 | **Summary plot** | Distribution of SHAP values per feature |
-| **Bar plot** | Mean absolute SHAP value per feature |
-| **Waterfall** | Single prediction breakdown |
-| **Force plot** | Interactive single prediction |
-| **Dependence** | SHAP value vs feature value |
-| **Interaction** | Pairwise feature interactions |
+| **Bar plot**     | Mean absolute SHAP value per feature    |
+| **Waterfall**    | Single prediction breakdown             |
+| **Force plot**   | Interactive single prediction           |
+| **Dependence**   | SHAP value vs feature value             |
+| **Interaction**  | Pairwise feature interactions           |
 
 ---
 
@@ -257,14 +268,14 @@ $$MDI_j = \sum_{nodes\ where\ j\ splits} \frac{n_{node}}{n} \Delta_{impurity}$$
 
 ### Comparison
 
-| Aspect | MDI | SHAP |
-|--------|-----|------|
-| **Scope** | Global only | Local + Global |
-| **Direction** | Magnitude only | Signed contribution |
-| **Computation** | Fast | Slower |
-| **Consistency** | Can be inconsistent | Theoretically consistent |
-| **Correlation handling** | Poor | Better |
-| **High cardinality bias** | Yes | Reduced |
+| Aspect                    | MDI                 | SHAP                     |
+| ------------------------- | ------------------- | ------------------------ |
+| **Scope**                 | Global only         | Local + Global           |
+| **Direction**             | Magnitude only      | Signed contribution      |
+| **Computation**           | Fast                | Slower                   |
+| **Consistency**           | Can be inconsistent | Theoretically consistent |
+| **Correlation handling**  | Poor                | Better                   |
+| **High cardinality bias** | Yes                 | Reduced                  |
 
 ### Example: Correlated Features
 
@@ -287,12 +298,13 @@ SHAP Importance:
 
 ### Interaction with Permutation Tests
 
-citrees uses permutation tests for feature selection, which provides statistical significance. SHAP provides complementary information:
+citrees uses permutation tests for feature selection, which provides statistical
+significance. SHAP provides complementary information:
 
-| Method | What It Measures |
-|--------|------------------|
-| **Permutation p-value** | Is feature associated with target? |
-| **SHAP importance** | How much does feature contribute to predictions? |
+| Method                  | What It Measures                                 |
+| ----------------------- | ------------------------------------------------ |
+| **Permutation p-value** | Is feature associated with target?               |
+| **SHAP importance**     | How much does feature contribute to predictions? |
 
 ### Recommended Workflow
 
@@ -322,11 +334,11 @@ for i, name in enumerate(feature_names):
 
 ### Benefits of Combining
 
-| Benefit | Description |
-|---------|-------------|
+| Benefit                  | Description                               |
+| ------------------------ | ----------------------------------------- |
 | **Statistical validity** | Permutation tests control false positives |
-| **Interpretability** | SHAP provides local explanations |
-| **Robustness** | Two independent measures of importance |
+| **Interpretability**     | SHAP provides local explanations          |
+| **Robustness**           | Two independent measures of importance    |
 
 ---
 
@@ -334,13 +346,14 @@ for i, name in enumerate(feature_names):
 
 ### Performance Improvements
 
-[FastTreeSHAP](https://engineering.linkedin.com/blog/2022/fasttreeshap--accelerating-shap-value-computation-for-trees) (LinkedIn, 2021) provides faster computation:
+[FastTreeSHAP](https://engineering.linkedin.com/blog/2022/fasttreeshap--accelerating-shap-value-computation-for-trees)
+(LinkedIn, 2021) provides faster computation:
 
-| Version | Speedup | Memory |
-|---------|---------|--------|
-| TreeSHAP (original) | 1× | Baseline |
-| FastTreeSHAP v1 | 1.5× | Same |
-| FastTreeSHAP v2 | 2.5× | Higher |
+| Version             | Speedup | Memory   |
+| ------------------- | ------- | -------- |
+| TreeSHAP (original) | 1×      | Baseline |
+| FastTreeSHAP v1     | 1.5×    | Same     |
+| FastTreeSHAP v2     | 2.5×    | Higher   |
 
 ### Usage
 
@@ -381,10 +394,10 @@ explainer = shap.TreeExplainer(
 
 ### Interventional vs Path-Dependent
 
-| Method | Behavior | Use Case |
-|--------|----------|----------|
-| **Interventional** | Breaks feature correlations | Causal interpretation |
-| **Tree-path dependent** | Respects correlations | Predictive interpretation |
+| Method                  | Behavior                    | Use Case                  |
+| ----------------------- | --------------------------- | ------------------------- |
+| **Interventional**      | Breaks feature correlations | Causal interpretation     |
+| **Tree-path dependent** | Respects correlations       | Predictive interpretation |
 
 ### Large Datasets
 
@@ -506,16 +519,22 @@ print(f"Interaction: {np.abs(interaction_ij).mean():.3f}")
 
 ## References
 
-1. **Original SHAP Paper**: [Lundberg, S. M., & Lee, S. I. (2017). A Unified Approach to Interpreting Model Predictions. NeurIPS.](https://arxiv.org/abs/1705.07874)
+1. **Original SHAP Paper**:
+   [Lundberg, S. M., & Lee, S. I. (2017). A Unified Approach to Interpreting Model Predictions. NeurIPS.](https://arxiv.org/abs/1705.07874)
 
-2. **TreeSHAP**: [Lundberg, S. M., Erion, G., Chen, H., et al. (2019). Explainable AI for Trees: From Local Explanations to Global Understanding.](https://arxiv.org/abs/1905.04610)
+2. **TreeSHAP**:
+   [Lundberg, S. M., Erion, G., Chen, H., et al. (2019). Explainable AI for Trees: From Local Explanations to Global Understanding.](https://arxiv.org/abs/1905.04610)
 
-3. **FastTreeSHAP**: [Yang, J. (2021). Fast TreeSHAP: Accelerating SHAP Value Computation for Trees. NeurIPS XAI4Debugging Workshop.](https://xai4debugging.github.io/files/papers/fast_treeshap_accelerating_sha.pdf)
+3. **FastTreeSHAP**:
+   [Yang, J. (2021). Fast TreeSHAP: Accelerating SHAP Value Computation for Trees. NeurIPS XAI4Debugging Workshop.](https://xai4debugging.github.io/files/papers/fast_treeshap_accelerating_sha.pdf)
 
 4. **SHAP Documentation**: [shap.readthedocs.io](https://shap.readthedocs.io/)
 
-5. **Interpretable ML Book**: [Molnar, C. (2024). Interpretable Machine Learning. Chapter on SHAP.](https://christophm.github.io/interpretable-ml-book/shap.html)
+5. **Interpretable ML Book**:
+   [Molnar, C. (2024). Interpretable Machine Learning. Chapter on SHAP.](https://christophm.github.io/interpretable-ml-book/shap.html)
 
-6. **treeshap R Package**: [ModelOriented/treeshap](https://github.com/ModelOriented/treeshap)
+6. **treeshap R Package**:
+   [ModelOriented/treeshap](https://github.com/ModelOriented/treeshap)
 
-7. **SHAP for Feature Selection**: [Marcílio, W. E., & Eler, D. M. (2024). From Explanations to Feature Selection: A Comprehensive Analysis of SHAP Values.](https://link.springer.com/article/10.1186/s40537-024-00905-w)
+7. **SHAP for Feature Selection**:
+   [Marcílio, W. E., & Eler, D. M. (2024). From Explanations to Feature Selection: A Comprehensive Analysis of SHAP Values.](https://link.springer.com/article/10.1186/s40537-024-00905-w)

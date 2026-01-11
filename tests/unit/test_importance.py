@@ -6,7 +6,6 @@ from sklearn.datasets import make_classification, make_regression
 
 from citrees import (
     ConditionalInferenceForestClassifier,
-    ConditionalInferenceForestRegressor,
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
     SHAPExplainer,

@@ -78,6 +78,10 @@ markers = [
 source = ["citrees"]
 omit = ["tests/*"]
 
+[tool.typos.default.extend-words]
+# Abbreviation for adjust_alpha_selector
+aas = "aas"
+
 [dependency-groups]
 paper = [
     "lightgbm>=4.6.0",

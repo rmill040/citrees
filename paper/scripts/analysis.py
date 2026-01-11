@@ -16,9 +16,9 @@ Tables:
 Usage:
     uv run python scripts/analysis.py
 """
+
 import warnings
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,7 +32,7 @@ FIGURES_DIR = OUTPUT_DIR / "figures"
 TABLES_DIR = OUTPUT_DIR / "tables"
 
 
-def friedman_test(data: pd.DataFrame, methods: List[str], metric: str) -> Tuple[float, float]:
+def friedman_test(data: pd.DataFrame, methods: list[str], metric: str) -> tuple[float, float]:
     """Perform Friedman test across methods.
 
     Parameters
@@ -77,14 +77,22 @@ def nemenyi_critical_difference(n_methods: int, n_datasets: int, alpha: float = 
     # From: https://www.itl.nist.gov/div898/handbook/prc/section4/prc453.htm
     q_values = {
         # (n_methods, alpha): q_value
-        (3, 0.05): 2.343, (3, 0.10): 2.052,
-        (4, 0.05): 2.569, (4, 0.10): 2.291,
-        (5, 0.05): 2.728, (5, 0.10): 2.459,
-        (6, 0.05): 2.850, (6, 0.10): 2.589,
-        (7, 0.05): 2.949, (7, 0.10): 2.693,
-        (8, 0.05): 3.031, (8, 0.10): 2.780,
-        (9, 0.05): 3.102, (9, 0.10): 2.855,
-        (10, 0.05): 3.164, (10, 0.10): 2.920,
+        (3, 0.05): 2.343,
+        (3, 0.10): 2.052,
+        (4, 0.05): 2.569,
+        (4, 0.10): 2.291,
+        (5, 0.05): 2.728,
+        (5, 0.10): 2.459,
+        (6, 0.05): 2.850,
+        (6, 0.10): 2.589,
+        (7, 0.05): 2.949,
+        (7, 0.10): 2.693,
+        (8, 0.05): 3.031,
+        (8, 0.10): 2.780,
+        (9, 0.05): 3.102,
+        (9, 0.10): 2.855,
+        (10, 0.05): 3.164,
+        (10, 0.10): 2.920,
     }
 
     q = q_values.get((n_methods, alpha), 2.728)  # Default to 5 methods
@@ -92,7 +100,9 @@ def nemenyi_critical_difference(n_methods: int, n_datasets: int, alpha: float = 
     return cd
 
 
-def compute_ranks(data: pd.DataFrame, methods: List[str], metric: str, higher_is_better: bool = True) -> pd.DataFrame:
+def compute_ranks(
+    data: pd.DataFrame, methods: list[str], metric: str, higher_is_better: bool = True
+) -> pd.DataFrame:
     """Compute average ranks for each method.
 
     Parameters
@@ -132,11 +142,13 @@ def compute_ranks(data: pd.DataFrame, methods: List[str], metric: str, higher_is
     avg_ranks = np.nanmean(ranks, axis=0)
     std_ranks = np.nanstd(ranks, axis=0)
 
-    return pd.DataFrame({
-        "method": methods_available,
-        "avg_rank": avg_ranks,
-        "std_rank": std_ranks,
-    }).sort_values("avg_rank")
+    return pd.DataFrame(
+        {
+            "method": methods_available,
+            "avg_rank": avg_ranks,
+            "std_rank": std_ranks,
+        }
+    ).sort_values("avg_rank")
 
 
 def pairwise_nemenyi(ranks_df: pd.DataFrame, cd: float) -> pd.DataFrame:
@@ -153,30 +165,35 @@ def pairwise_nemenyi(ranks_df: pd.DataFrame, cd: float) -> pd.DataFrame:
             if i < j:
                 diff = abs(avg_ranks[m1] - avg_ranks[m2])
                 significant = diff > cd
-                results.append({
-                    "method1": m1,
-                    "method2": m2,
-                    "rank_diff": diff,
-                    "cd": cd,
-                    "significant": significant,
-                })
+                results.append(
+                    {
+                        "method1": m1,
+                        "method2": m2,
+                        "rank_diff": diff,
+                        "cd": cd,
+                        "significant": significant,
+                    }
+                )
 
     return pd.DataFrame(results)
 
 
-def generate_friedman_table(data: pd.DataFrame, methods: List[str], metrics: List[str],
-                            output_path: Path) -> None:
+def generate_friedman_table(
+    data: pd.DataFrame, methods: list[str], metrics: list[str], output_path: Path
+) -> None:
     """Generate Friedman test results table."""
     results = []
 
     for metric in metrics:
         stat, pvalue = friedman_test(data, methods, metric)
-        results.append({
-            "metric": metric,
-            "chi_square": stat,
-            "p_value": pvalue,
-            "significant": pvalue < 0.05 if not np.isnan(pvalue) else False,
-        })
+        results.append(
+            {
+                "metric": metric,
+                "chi_square": stat,
+                "p_value": pvalue,
+                "significant": pvalue < 0.05 if not np.isnan(pvalue) else False,
+            }
+        )
 
     df = pd.DataFrame(results)
     df.to_csv(output_path.with_suffix(".csv"), index=False)
@@ -209,8 +226,13 @@ def generate_friedman_table(data: pd.DataFrame, methods: List[str], metrics: Lis
     print(f"Saved: {output_path.with_suffix('.tex')}")
 
 
-def generate_ranking_table(data: pd.DataFrame, methods: List[str], metric: str,
-                           output_path: Path, higher_is_better: bool = True) -> None:
+def generate_ranking_table(
+    data: pd.DataFrame,
+    methods: list[str],
+    metric: str,
+    output_path: Path,
+    higher_is_better: bool = True,
+) -> None:
     """Generate method ranking table with CD test."""
     ranks_df = compute_ranks(data, methods, metric, higher_is_better)
 
@@ -255,8 +277,9 @@ def generate_ranking_table(data: pd.DataFrame, methods: List[str], metric: str,
     print(f"Saved: {output_path.with_suffix('.tex')}")
 
 
-def generate_summary_table(data: pd.DataFrame, methods: List[str], metrics: List[str],
-                           output_path: Path) -> None:
+def generate_summary_table(
+    data: pd.DataFrame, methods: list[str], metrics: list[str], output_path: Path
+) -> None:
     """Generate summary statistics table."""
     results = []
 
@@ -274,8 +297,9 @@ def generate_summary_table(data: pd.DataFrame, methods: List[str], metrics: List
     print(f"Saved: {output_path}")
 
 
-def plot_critical_difference(ranks_df: pd.DataFrame, cd: float, metric: str,
-                              output_path: Path) -> None:
+def plot_critical_difference(
+    ranks_df: pd.DataFrame, cd: float, metric: str, output_path: Path
+) -> None:
     """Plot Critical Difference diagram.
 
     Methods with rank differences <= CD are connected by a bar (not significantly different).
@@ -354,8 +378,9 @@ def plot_critical_difference(ranks_df: pd.DataFrame, cd: float, metric: str,
     print(f"Saved: {output_path}")
 
 
-def plot_performance_heatmap(data: pd.DataFrame, methods: List[str], metric: str,
-                              group_cols: List[str], output_path: Path) -> None:
+def plot_performance_heatmap(
+    data: pd.DataFrame, methods: list[str], metric: str, group_cols: list[str], output_path: Path
+) -> None:
     """Plot performance heatmap across experimental factors."""
     # Pivot data
     pivot_data = []
@@ -364,11 +389,13 @@ def plot_performance_heatmap(data: pd.DataFrame, methods: List[str], metric: str
         if col not in data.columns:
             continue
         for _, row in data.groupby(group_cols)[col].mean().reset_index().iterrows():
-            pivot_data.append({
-                "method": method,
-                **{c: row[c] for c in group_cols},
-                "value": row[col],
-            })
+            pivot_data.append(
+                {
+                    "method": method,
+                    **{c: row[c] for c in group_cols},
+                    "value": row[col],
+                }
+            )
 
     if not pivot_data:
         return
@@ -401,13 +428,14 @@ def plot_performance_heatmap(data: pd.DataFrame, methods: List[str], metric: str
 
         plt.colorbar(im, ax=ax)
         plt.tight_layout()
-        plt.savefig(output_path.parent / f"{output_path.stem}_{group_col}.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            output_path.parent / f"{output_path.stem}_{group_col}.png", dpi=300, bbox_inches="tight"
+        )
         plt.close()
         print(f"Saved: {output_path.parent / f'{output_path.stem}_{group_col}.png'}")
 
 
-def plot_boxplots(data: pd.DataFrame, methods: List[str], metric: str,
-                   output_path: Path) -> None:
+def plot_boxplots(data: pd.DataFrame, methods: list[str], metric: str, output_path: Path) -> None:
     """Plot box plots comparing methods."""
     cols = [f"{m}_{metric}" for m in methods if f"{m}_{metric}" in data.columns]
     available_methods = [m for m in methods if f"{m}_{metric}" in data.columns]
@@ -491,8 +519,9 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     # 6. Heatmaps by experimental factors
     experimental_factors = ["n_features", "n_informative", "n_samples", "class_sep"]
     for metric in ["precision@10"]:
-        plot_performance_heatmap(data, methods, metric, experimental_factors,
-                                  figures_dir / f"heatmap_{metric}")
+        plot_performance_heatmap(
+            data, methods, metric, experimental_factors, figures_dir / f"heatmap_{metric}"
+        )
 
     # === PRINT SUMMARY ===
     print("\n=== Results Summary ===")
@@ -519,7 +548,7 @@ def main():
     print("\n" + "=" * 60)
     print("ANALYSIS COMPLETE")
     print("=" * 60)
-    print(f"\nOutput directories:")
+    print("\nOutput directories:")
     print(f"  Tables:  {TABLES_DIR}")
     print(f"  Figures: {FIGURES_DIR}")
 

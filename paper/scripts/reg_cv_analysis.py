@@ -10,14 +10,14 @@ Usage:
     # Run analysis on formatted data
     DATA_DIR=/path/to/data python reg_cv_analysis.py
 """
+
 import json
 import os
 from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-import numpy as np
 import pandas as pd
 from boto3.dynamodb.types import TypeDeserializer
 from loguru import logger
@@ -69,7 +69,7 @@ def format_raw_data() -> None:
         df.to_csv(DATA_DIR / (key + ".csv"), index=False)
 
 
-def load_results() -> Dict[str, pd.DataFrame]:
+def load_results() -> dict[str, pd.DataFrame]:
     """Load all CSV result files into a dictionary of DataFrames."""
     results = {}
     csv_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv")]
@@ -82,7 +82,7 @@ def load_results() -> Dict[str, pd.DataFrame]:
     return results
 
 
-def compute_summary_statistics(results: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+def compute_summary_statistics(results: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Compute summary statistics across methods and datasets."""
     summaries = []
 
@@ -105,19 +105,21 @@ def compute_summary_statistics(results: Dict[str, pd.DataFrame]) -> pd.DataFrame
                         best_idx = subset[col].idxmin()
                     best_row = subset.loc[best_idx]
 
-                    summaries.append({
-                        "method": method,
-                        "dataset": dataset,
-                        "model": model,
-                        "metric": metric.replace("_mean", ""),
-                        "best_value": best_row[col],
-                        "best_hyperparameters": str(best_row.get("hyperparameters", {})),
-                    })
+                    summaries.append(
+                        {
+                            "method": method,
+                            "dataset": dataset,
+                            "model": model,
+                            "metric": metric.replace("_mean", ""),
+                            "best_value": best_row[col],
+                            "best_hyperparameters": str(best_row.get("hyperparameters", {})),
+                        }
+                    )
 
     return pd.DataFrame(summaries)
 
 
-def compute_ranking_table(results: Dict[str, pd.DataFrame], metric: str = "r2") -> pd.DataFrame:
+def compute_ranking_table(results: dict[str, pd.DataFrame], metric: str = "r2") -> pd.DataFrame:
     """Compute method rankings per dataset."""
     rankings = []
 
@@ -143,11 +145,13 @@ def compute_ranking_table(results: Dict[str, pd.DataFrame], metric: str = "r2") 
             else:
                 best_value = subset[metric_cols].min().min()
 
-            dataset_results.append({
-                "method": method,
-                "dataset": dataset,
-                "value": best_value,
-            })
+            dataset_results.append(
+                {
+                    "method": method,
+                    "dataset": dataset,
+                    "value": best_value,
+                }
+            )
 
         # Rank methods for this dataset
         dataset_df = pd.DataFrame(dataset_results)
@@ -160,7 +164,7 @@ def compute_ranking_table(results: Dict[str, pd.DataFrame], metric: str = "r2") 
     return pd.DataFrame(rankings)
 
 
-def print_summary(results: Dict[str, pd.DataFrame]) -> None:
+def print_summary(results: dict[str, pd.DataFrame]) -> None:
     """Print summary of results to console."""
     print("\n" + "=" * 60)
     print("EXPERIMENT SUMMARY")

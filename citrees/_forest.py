@@ -317,7 +317,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         n, p = X.shape
 
         # Private attributes for all parameters - for consistency to reference across other classes and methods
-        self._random_state = int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
+        self._random_state = (
+            int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
+        )
         self._verbose = min(self.verbose, 3)
 
         if self._estimator_type == "classifier":
@@ -325,7 +327,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
 
-        self._max_samples = calculate_max_value(n_values=n, desired_max=self.max_samples) if self.max_samples else n
+        self._max_samples = (
+            calculate_max_value(n_values=n, desired_max=self.max_samples) if self.max_samples else n
+        )
 
         max_cpus = cpu_count()
         value = 1 if self.n_jobs is None else self.n_jobs
@@ -605,7 +609,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         Maximum depth to grow tree.
 
     min_samples_split : int, default=2
-        Minimim samples required for a valid binary split.
+        Minimum samples required for a valid binary split.
 
     min_samples_leaf : int, default=1
         Minimum number of samples in a leaf node.

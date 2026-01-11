@@ -1,10 +1,11 @@
 """Regression experiments - SERVER."""
+
 import inspect
 import os
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import boto3
 import numpy as np
@@ -28,7 +29,7 @@ CONFIGS = []
 
 
 @METHODS.register("dc")
-def dc() -> List[Dict[str, Any]]:
+def dc() -> list[dict[str, Any]]:
     """Distance correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -38,7 +39,7 @@ def dc() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("pc")
-def pc() -> List[Dict[str, Any]]:
+def pc() -> list[dict[str, Any]]:
     """Pearson correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -48,7 +49,7 @@ def pc() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("rdc")
-def rdc() -> List[Dict[str, Any]]:
+def rdc() -> list[dict[str, Any]]:
     """Randomized Dependence Coefficient hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -58,7 +59,7 @@ def rdc() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("ptest_rdc")
-def ptest_rdc() -> List[Dict[str, Any]]:
+def ptest_rdc() -> list[dict[str, Any]]:
     """Permutation testing with RDC hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -81,7 +82,7 @@ def ptest_rdc() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("ptest_dc")
-def ptest_dc() -> List[Dict[str, Any]]:
+def ptest_dc() -> list[dict[str, Any]]:
     """Permutation testing with distance correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -104,7 +105,7 @@ def ptest_dc() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("ptest_pc")
-def ptest_pc() -> List[Dict[str, Any]]:
+def ptest_pc() -> list[dict[str, Any]]:
     """Permutation testing with Pearson correlation hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -132,7 +133,7 @@ def ptest_pc() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("lr")
-def lr() -> List[Dict[str, Any]]:
+def lr() -> list[dict[str, Any]]:
     """Linear regression hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -142,7 +143,7 @@ def lr() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("lr_l1")
-def lr_l1() -> List[Dict[str, Any]]:
+def lr_l1() -> list[dict[str, Any]]:
     """Linear regression with L1 norm hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -160,7 +161,7 @@ def lr_l1() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("lr_l2")
-def lr_l2() -> List[Dict[str, Any]]:
+def lr_l2() -> list[dict[str, Any]]:
     """Linear regression with L2 norm hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -178,7 +179,7 @@ def lr_l2() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("xgb")
-def xgb() -> List[Dict[str, Any]]:
+def xgb() -> list[dict[str, Any]]:
     """XGBOOST regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -189,7 +190,13 @@ def xgb() -> List[Dict[str, Any]]:
                 for colsample_bytree in [0.8, 0.9, 1.0]:
                     for reg_alpha in [0.001, 0.01, None]:
                         for reg_lambda in [0.001, 0.01, None]:
-                            for importance_type in ["gain", "weight", "cover", "total_gain", "total_cover"]:
+                            for importance_type in [
+                                "gain",
+                                "weight",
+                                "cover",
+                                "total_gain",
+                                "total_cover",
+                            ]:
                                 params.append(
                                     {
                                         "max_depth": max_depth,
@@ -210,7 +217,7 @@ def xgb() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("lightgbm")
-def lightgbm() -> List[Dict[str, Any]]:
+def lightgbm() -> list[dict[str, Any]]:
     """LightGBM regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -242,7 +249,7 @@ def lightgbm() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("catboost")
-def catboost() -> List[Dict[str, Any]]:
+def catboost() -> list[dict[str, Any]]:
     """CatBoost regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -270,7 +277,7 @@ def catboost() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("dt")
-def dt() -> List[Dict[str, Any]]:
+def dt() -> list[dict[str, Any]]:
     """Decision tree regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -286,7 +293,7 @@ def dt() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("rt")
-def rt() -> List[Dict[str, Any]]:
+def rt() -> list[dict[str, Any]]:
     """Random decision tree regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -302,7 +309,7 @@ def rt() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("rf")
-def rf() -> List[Dict[str, Any]]:
+def rf() -> list[dict[str, Any]]:
     """Random forest regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -322,7 +329,7 @@ def rf() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("et")
-def et() -> List[Dict[str, Any]]:
+def et() -> list[dict[str, Any]]:
     """Extra trees regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -338,7 +345,7 @@ def et() -> List[Dict[str, Any]]:
     return params
 
 
-def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
+def _filter_param_conflicts(params: dict[str, Any]) -> dict[str, Any]:
     """Filter out hyperparameters with conflicting settings."""
     # SELECTOR constraints
 
@@ -350,7 +357,11 @@ def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
         filter(
             lambda p: not (
                 p["n_resamples_selector"] is None
-                and (p["adjust_alpha_selector"] or p["feature_muting"] or p["early_stopping_selector"])
+                and (
+                    p["adjust_alpha_selector"]
+                    or p["feature_muting"]
+                    or p["early_stopping_selector"]
+                )
             ),
             params,
         )
@@ -358,7 +369,9 @@ def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
 
     # 2. No early stopping (value == False) =>
     # - No feature scanning
-    params = list(filter(lambda p: not (not p["early_stopping_selector"] and p["feature_scanning"]), params))
+    params = list(
+        filter(lambda p: not (not p["early_stopping_selector"] and p["feature_scanning"]), params)
+    )
 
     # SPLITTER constraints
     # 1. No permutation test (value == None) =>
@@ -367,7 +380,8 @@ def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
     params = list(
         filter(
             lambda p: not (
-                p["n_resamples_splitter"] is None and (p["adjust_alpha_splitter"] or p["early_stopping_splitter"])
+                p["n_resamples_splitter"] is None
+                and (p["adjust_alpha_splitter"] or p["early_stopping_splitter"])
             ),
             params,
         )
@@ -375,13 +389,15 @@ def _filter_param_conflicts(params: Dict[str, Any]) -> Dict[str, Any]:
 
     # 2. No early stopping (value == False) =>
     # - No threshold scanning
-    params = list(filter(lambda p: not (not p["early_stopping_splitter"] and p["threshold_scanning"]), params))
+    params = list(
+        filter(lambda p: not (not p["early_stopping_splitter"] and p["threshold_scanning"]), params)
+    )
 
     return params
 
 
 @METHODS.register("cit")
-def cit() -> List[Dict[str, Any]]:
+def cit() -> list[dict[str, Any]]:
     """Conditional inference tree regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -444,7 +460,7 @@ def cit() -> List[Dict[str, Any]]:
 
 
 @METHODS.register("cif")
-def cif() -> List[Dict[str, Any]]:
+def cif() -> list[dict[str, Any]]:
     """Conditional inference forest regressor hyperparameters."""
     method = inspect.currentframe().f_code.co_name
 
@@ -490,23 +506,31 @@ def cif() -> List[Dict[str, Any]]:
                                                 if threshold_method == "exact":
                                                     for max_thresholds in [None]:
                                                         hyperparameters = deepcopy(hyperparameters)
-                                                        hyperparameters["max_thresholds"] = max_thresholds
+                                                        hyperparameters["max_thresholds"] = (
+                                                            max_thresholds
+                                                        )
                                                         params.append(hyperparameters)
                                                 elif threshold_method == "random":
                                                     for max_thresholds in [0.5, 0.8]:
                                                         hyperparameters = deepcopy(hyperparameters)
-                                                        hyperparameters["max_thresholds"] = max_thresholds
+                                                        hyperparameters["max_thresholds"] = (
+                                                            max_thresholds
+                                                        )
                                                         params.append(hyperparameters)
                                                 elif threshold_method == "percentile":
                                                     for max_thresholds in [10, 50]:
                                                         hyperparameters = deepcopy(hyperparameters)
-                                                        hyperparameters["max_thresholds"] = max_thresholds
+                                                        hyperparameters["max_thresholds"] = (
+                                                            max_thresholds
+                                                        )
                                                         params.append(hyperparameters)
                                                 else:
                                                     # Histogram method
                                                     for max_thresholds in [128, 256]:
                                                         hyperparameters = deepcopy(hyperparameters)
-                                                        hyperparameters["max_thresholds"] = max_thresholds
+                                                        hyperparameters["max_thresholds"] = (
+                                                            max_thresholds
+                                                        )
                                                         params.append(hyperparameters)
 
     # Filter out bad combinations of parameters
@@ -540,9 +564,9 @@ def create_configurations() -> None:
 
     config_idx = 0
     hp_configs = {method: METHODS[method]() for method in METHODS.keys()}
-    for method in hp_configs.keys():
+    for method in hp_configs:
         for config in hp_configs[method]:
-            for name in ds_configs.keys():
+            for name in ds_configs:
                 CONFIGS.append({**config, **ds_configs[name], **{"config_idx": config_idx}})
                 config_idx += 1
 
@@ -567,7 +591,7 @@ def create_configurations() -> None:
 
 
 @app.get("/")
-async def get_config(request: Request) -> Dict[str, Any]:
+async def get_config(request: Request) -> dict[str, Any]:
     """Get configuration for feature selection."""
     if len(CONFIGS):
         HOSTS[request.client.host] += 1
@@ -577,6 +601,6 @@ async def get_config(request: Request) -> Dict[str, Any]:
 
 
 @app.get("/status")
-async def get_status() -> Dict[str, Any]:
+async def get_status() -> dict[str, Any]:
     """Get status of feature selection."""
     return {"n_configs_remaining": len(CONFIGS), "hosts": HOSTS}

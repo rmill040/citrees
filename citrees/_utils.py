@@ -1,5 +1,4 @@
 from math import ceil
-from typing import Optional, Tuple, Union
 
 import numpy as np
 from numba import njit
@@ -44,7 +43,9 @@ def estimate_mean(y: np.ndarray) -> float:
     return np.mean(y)
 
 
-def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float, int]] = None) -> int:
+def calculate_max_value(
+    *, n_values: int, desired_max: str | float | int | None = None
+) -> int:
     """Calculate the maximum desired value based on a fixed input size.
 
     Parameters
@@ -77,7 +78,7 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
 @njit(cache=True, fastmath=True, nogil=True)
 def split_data(
     *, X: np.ndarray, y: np.ndarray, feature: int, threshold: float
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Split data based on feature and threshold.
 
     Parameters
@@ -167,7 +168,11 @@ def stratified_bootstrap_sample(
     idx = []
     for idx_class in idx_classes:
         n_class = len(idx_class)
-        p = bayesian_bootstrap_proba(n=n_class, random_state=random_state) if bayesian_bootstrap else None
+        p = (
+            bayesian_bootstrap_proba(n=n_class, random_state=random_state)
+            if bayesian_bootstrap
+            else None
+        )
         idx.append(prng.choice(idx_class, size=n_class, p=p, replace=True))
 
     # Subsample if needed
@@ -205,7 +210,10 @@ def stratified_bootstrap_unsampled_idx(
         Indices for bootstrap sample.
     """
     idx_sampled = stratified_bootstrap_sample(
-        y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+        y=y,
+        max_samples=max_samples,
+        bayesian_bootstrap=bayesian_bootstrap,
+        random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
     idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
@@ -245,7 +253,11 @@ def balanced_bootstrap_sample(
     idx = []
     n_per_class = np.bincount(y).min()
     for idx_class in idx_classes:
-        p = bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state) if bayesian_bootstrap else None
+        p = (
+            bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state)
+            if bayesian_bootstrap
+            else None
+        )
         idx.append(prng.choice(idx_class, size=n_per_class, p=p, replace=True))
 
     # Subsample if needed
@@ -282,7 +294,10 @@ def balanced_bootstrap_unsampled_idx(
         Indices for bootstrap sample.
     """
     idx_sampled = balanced_bootstrap_sample(
-        y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+        y=y,
+        max_samples=max_samples,
+        bayesian_bootstrap=bayesian_bootstrap,
+        random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
     idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
@@ -350,7 +365,10 @@ def classic_bootstrap_unsampled_idx(
         Indices for bootstrap sample.
     """
     idx_sampled = classic_bootstrap_sample(
-        y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+        y=y,
+        max_samples=max_samples,
+        bayesian_bootstrap=bayesian_bootstrap,
+        random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
     idx_unsampled = np.setdiff1d(idx_all, idx_sampled)

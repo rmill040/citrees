@@ -1,21 +1,25 @@
 # Conformal Prediction
 
-Conformal prediction provides distribution-free uncertainty quantification with guaranteed coverage. It transforms any point predictor into a set predictor that contains the true value with a specified probability, without making distributional assumptions.
+Conformal prediction provides distribution-free uncertainty quantification with
+guaranteed coverage. It transforms any point predictor into a set predictor that
+contains the true value with a specified probability, without making
+distributional assumptions.
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| Purpose | Prediction intervals/sets with coverage guarantees |
-| Assumption | Exchangeability (weaker than i.i.d.) |
-| Coverage | Finite-sample valid: $P(Y \in \hat{C}(X)) \geq 1 - \alpha$ |
-| Key reference | [Vovk et al. (2005)](http://www.alrw.net/articles/01.pdf) |
+| Aspect        | Description                                                |
+| ------------- | ---------------------------------------------------------- |
+| Purpose       | Prediction intervals/sets with coverage guarantees         |
+| Assumption    | Exchangeability (weaker than i.i.d.)                       |
+| Coverage      | Finite-sample valid: $P(Y \in \hat{C}(X)) \geq 1 - \alpha$ |
+| Key reference | [Vovk et al. (2005)](http://www.alrw.net/articles/01.pdf)  |
 
 ---
 
 ## The Problem: Uncertainty Quantification
 
-Standard machine learning models produce **point predictions** without uncertainty:
+Standard machine learning models produce **point predictions** without
+uncertainty:
 
 ```
 Standard Prediction
@@ -29,18 +33,19 @@ Answer: Unknown! No uncertainty quantification.
 
 ### Why Uncertainty Matters
 
-| Application | Consequence of Ignoring Uncertainty |
-|-------------|-------------------------------------|
-| Medical diagnosis | Overconfident predictions harm patients |
-| Financial forecasting | No risk assessment |
-| Autonomous systems | Unsafe decision making |
-| Scientific research | Invalid conclusions |
+| Application           | Consequence of Ignoring Uncertainty     |
+| --------------------- | --------------------------------------- |
+| Medical diagnosis     | Overconfident predictions harm patients |
+| Financial forecasting | No risk assessment                      |
+| Autonomous systems    | Unsafe decision making                  |
+| Scientific research   | Invalid conclusions                     |
 
 ---
 
 ## Conformal Prediction: The Solution
 
-Conformal prediction wraps any predictor to produce **prediction sets** with guaranteed coverage:
+Conformal prediction wraps any predictor to produce **prediction sets** with
+guaranteed coverage:
 
 ```
 Conformal Prediction
@@ -54,12 +59,12 @@ Guarantee: P(Y ∈ C(X)) ≥ 1 - α (e.g., 90%)
 
 ### Key Properties
 
-| Property | Description |
-|----------|-------------|
-| **Distribution-free** | No assumptions on $P(X, Y)$ |
+| Property                | Description                                         |
+| ----------------------- | --------------------------------------------------- |
+| **Distribution-free**   | No assumptions on $P(X, Y)$                         |
 | **Finite-sample valid** | Coverage holds for any $n$, not just asymptotically |
-| **Model-agnostic** | Works with any base predictor |
-| **Adaptive** | Intervals can vary with input uncertainty |
+| **Model-agnostic**      | Works with any base predictor                       |
+| **Adaptive**            | Intervals can vary with input uncertainty           |
 
 ---
 
@@ -68,6 +73,7 @@ Guarantee: P(Y ∈ C(X)) ≥ 1 - α (e.g., 90%)
 ### Setup
 
 Given:
+
 - Training data: $(X_1, Y_1), \ldots, (X_n, Y_n)$
 - Calibration data: $(X_{n+1}, Y_{n+1}), \ldots, (X_{n+m}, Y_{n+m})$
 - Test point: $X_{test}$
@@ -85,15 +91,16 @@ $$s_i = s(X_i, Y_i, \hat{f})$$
 
 Common scores:
 
-| Task | Score | Formula |
-|------|-------|---------|
-| Regression | Absolute residual | $s_i = |Y_i - \hat{f}(X_i)|$ |
-| Regression | Normalized residual | $s_i = |Y_i - \hat{f}(X_i)| / \hat{\sigma}(X_i)$ |
-| Classification | 1 - probability | $s_i = 1 - \hat{f}_{Y_i}(X_i)$ |
+| Task           | Score               | Formula                        |
+| -------------- | ------------------- | ------------------------------ | ------------------ | -------------------- |
+| Regression     | Absolute residual   | $s_i =                         | Y_i - \hat{f}(X_i) | $                    |
+| Regression     | Normalized residual | $s_i =                         | Y_i - \hat{f}(X_i) | / \hat{\sigma}(X_i)$ |
+| Classification | 1 - probability     | $s_i = 1 - \hat{f}_{Y_i}(X_i)$ |
 
 ### Quantile Computation
 
-The prediction set is constructed using the $(1-\alpha)$ quantile of calibration scores:
+The prediction set is constructed using the $(1-\alpha)$ quantile of calibration
+scores:
 
 $$\hat{q} = \text{Quantile}_{1-\alpha}\left(\{s_i\}_{i=n+1}^{n+m} \cup \{\infty\}\right)$$
 
@@ -221,11 +228,11 @@ OOB_residual(2) = |y_2 - OOB_pred(2)|
 
 ### Advantages for Forests
 
-| Advantage | Description |
-|-----------|-------------|
-| No data splitting | Uses all data for both training and calibration |
-| Natural calibration | OOB errors approximate leave-one-out |
-| Efficiency | Single training pass |
+| Advantage           | Description                                     |
+| ------------------- | ----------------------------------------------- |
+| No data splitting   | Uses all data for both training and calibration |
+| Natural calibration | OOB errors approximate leave-one-out            |
+| Efficiency          | Single training pass                            |
 
 ---
 
@@ -233,7 +240,8 @@ OOB_residual(2) = |y_2 - OOB_pred(2)|
 
 ### Conformal Classification
 
-For classification, conformal prediction produces **prediction sets** (subsets of classes):
+For classification, conformal prediction produces **prediction sets** (subsets
+of classes):
 
 ```
 Algorithm: Conformal Classification
@@ -293,32 +301,34 @@ def adaptive_prediction_set(probs, calibration_scores, alpha):
 The calibration set size affects coverage precision:
 
 | Calibration Size | Coverage Precision | Recommendation |
-|------------------|-------------------|----------------|
-| 50 | ±7% | Minimum viable |
-| 100 | ±5% | Acceptable |
-| 500 | ±2% | Good |
-| 1000+ | ±1% | Excellent |
+| ---------------- | ------------------ | -------------- |
+| 50               | ±7%                | Minimum viable |
+| 100              | ±5%                | Acceptable     |
+| 500              | ±2%                | Good           |
+| 1000+            | ±1%                | Excellent      |
 
-For exact finite-sample coverage of $1 - \alpha$, you need at least $\lceil 1/\alpha \rceil - 1$ calibration points.
+For exact finite-sample coverage of $1 - \alpha$, you need at least
+$\lceil 1/\alpha \rceil - 1$ calibration points.
 
 ### Conditional vs. Marginal Coverage
 
-| Type | Guarantee | Achievability |
-|------|-----------|---------------|
-| **Marginal** | $P(Y \in C(X)) \geq 1-\alpha$ | Always achievable |
-| **Conditional** | $P(Y \in C(X) | X=x) \geq 1-\alpha$ | Generally impossible |
+| Type            | Guarantee                     | Achievability       |
+| --------------- | ----------------------------- | ------------------- | -------------------- |
+| **Marginal**    | $P(Y \in C(X)) \geq 1-\alpha$ | Always achievable   |
+| **Conditional** | $P(Y \in C(X)                 | X=x) \geq 1-\alpha$ | Generally impossible |
 
-Conformal prediction guarantees **marginal** coverage. For different inputs, actual coverage may vary.
+Conformal prediction guarantees **marginal** coverage. For different inputs,
+actual coverage may vary.
 
 ### Handling Distribution Shift
 
 Standard conformal assumes exchangeability. Under distribution shift:
 
-| Method | Approach |
-|--------|----------|
+| Method             | Approach                            |
+| ------------------ | ----------------------------------- |
 | Weighted conformal | Reweight scores by likelihood ratio |
-| Online conformal | Update calibration over time |
-| Robust conformal | Use worst-case quantiles |
+| Online conformal   | Update calibration over time        |
+| Robust conformal   | Use worst-case quantiles            |
 
 ---
 
@@ -375,20 +385,20 @@ prediction_sets = forest.predict_set(X_test)  # Set of classes
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `alpha` | float | 0.10 | Miscoverage rate (1 - coverage) |
-| `method` | str | 'jackknife+' | Conformal method |
-| `calibration_size` | float | 0.2 | Fraction for calibration (split method) |
+| Parameter          | Type  | Default      | Description                             |
+| ------------------ | ----- | ------------ | --------------------------------------- |
+| `alpha`            | float | 0.10         | Miscoverage rate (1 - coverage)         |
+| `method`           | str   | 'jackknife+' | Conformal method                        |
+| `calibration_size` | float | 0.2          | Fraction for calibration (split method) |
 
 ### Available Methods
 
-| Method | Description | Data Efficiency |
-|--------|-------------|-----------------|
-| `'split'` | Simple split conformal | Low |
-| `'cv+'` | Cross-validation+ | High |
-| `'jackknife+'` | Jackknife+ after bootstrap | High |
-| `'aps'` | Adaptive prediction sets (classification) | High |
+| Method         | Description                               | Data Efficiency |
+| -------------- | ----------------------------------------- | --------------- |
+| `'split'`      | Simple split conformal                    | Low             |
+| `'cv+'`        | Cross-validation+                         | High            |
+| `'jackknife+'` | Jackknife+ after bootstrap                | High            |
+| `'aps'`        | Adaptive prediction sets (classification) | High            |
 
 ---
 
@@ -396,21 +406,21 @@ prediction_sets = forest.predict_set(X_test)  # Set of classes
 
 ### Conformal vs. Bayesian Uncertainty
 
-| Aspect | Conformal | Bayesian |
-|--------|-----------|----------|
-| Assumptions | Exchangeability | Prior + likelihood |
-| Computation | Fast | Often expensive |
-| Coverage | Guaranteed | Approximate |
-| Interpretation | Frequentist | Posterior probability |
+| Aspect         | Conformal       | Bayesian              |
+| -------------- | --------------- | --------------------- |
+| Assumptions    | Exchangeability | Prior + likelihood    |
+| Computation    | Fast            | Often expensive       |
+| Coverage       | Guaranteed      | Approximate           |
+| Interpretation | Frequentist     | Posterior probability |
 
 ### Conformal vs. Bootstrap Intervals
 
-| Aspect | Conformal | Bootstrap |
-|--------|-----------|-----------|
-| Assumptions | Exchangeability | i.i.d. |
-| Coverage | Finite-sample valid | Asymptotic |
-| Width | Adaptive | Fixed quantiles |
-| Computation | O(n) | O(B × n) |
+| Aspect      | Conformal           | Bootstrap       |
+| ----------- | ------------------- | --------------- |
+| Assumptions | Exchangeability     | i.i.d.          |
+| Coverage    | Finite-sample valid | Asymptotic      |
+| Width       | Adaptive            | Fixed quantiles |
+| Computation | O(n)                | O(B × n)        |
 
 ---
 
@@ -418,7 +428,8 @@ prediction_sets = forest.predict_set(X_test)  # Set of classes
 
 ### coverforest Package
 
-[coverforest](https://arxiv.org/abs/2501.14570) (2025) provides efficient conformal prediction for random forests:
+[coverforest](https://arxiv.org/abs/2501.14570) (2025) provides efficient
+conformal prediction for random forests:
 
 - 2-9× faster than existing implementations
 - Supports split conformal, CV+, Jackknife+-after-bootstrap
@@ -426,7 +437,8 @@ prediction_sets = forest.predict_set(X_test)  # Set of classes
 
 ### Adaptive Prediction Intervals
 
-[Regression Trees for Fast and Adaptive Prediction Intervals](https://arxiv.org/pdf/2402.07357) (2024):
+[Regression Trees for Fast and Adaptive Prediction Intervals](https://arxiv.org/pdf/2402.07357)
+(2024):
 
 - Interpolates between conformal and non-conformal
 - Calibrated intervals with theoretical guarantees
@@ -434,7 +446,8 @@ prediction_sets = forest.predict_set(X_test)  # Set of classes
 
 ### Circular Data
 
-[Projected Random Forests and Conformal Prediction of Circular Data](https://arxiv.org/abs/2410.24145) (2024):
+[Projected Random Forests and Conformal Prediction of Circular Data](https://arxiv.org/abs/2410.24145)
+(2024):
 
 - Extends conformal to circular responses
 - Uses OOB dynamics to avoid separate calibration
@@ -480,16 +493,23 @@ forest = ConformalForestRegressor(
 
 ## References
 
-1. **Foundational Book**: [Vovk, V., Gammerman, A., & Shafer, G. (2005). Algorithmic Learning in a Random World. Springer.](http://www.alrw.net/)
+1. **Foundational Book**:
+   [Vovk, V., Gammerman, A., & Shafer, G. (2005). Algorithmic Learning in a Random World. Springer.](http://www.alrw.net/)
 
-2. **Tutorial**: [Angelopoulos, A. N., & Bates, S. (2021). A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification.](https://arxiv.org/abs/2107.07511)
+2. **Tutorial**:
+   [Angelopoulos, A. N., & Bates, S. (2021). A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification.](https://arxiv.org/abs/2107.07511)
 
-3. **CV+**: [Barber, R. F., Candès, E. J., Ramdas, A., & Tibshirani, R. J. (2021). Predictive Inference with the Jackknife+. Annals of Statistics.](https://arxiv.org/abs/1905.02928)
+3. **CV+**:
+   [Barber, R. F., Candès, E. J., Ramdas, A., & Tibshirani, R. J. (2021). Predictive Inference with the Jackknife+. Annals of Statistics.](https://arxiv.org/abs/1905.02928)
 
-4. **Random Forests**: [Johansson, U., Boström, H., Löfström, T., & Linusson, H. (2014). Regression Conformal Prediction with Random Forests. Machine Learning, 97(1-2), 155-176.](https://link.springer.com/article/10.1007/s10994-014-5453-0)
+4. **Random Forests**:
+   [Johansson, U., Boström, H., Löfström, T., & Linusson, H. (2014). Regression Conformal Prediction with Random Forests. Machine Learning, 97(1-2), 155-176.](https://link.springer.com/article/10.1007/s10994-014-5453-0)
 
-5. **coverforest**: [Brayford, J., et al. (2025). coverforest: Conformal Predictions with Random Forest in Python. Neurocomputing.](https://arxiv.org/abs/2501.14570)
+5. **coverforest**:
+   [Brayford, J., et al. (2025). coverforest: Conformal Predictions with Random Forest in Python. Neurocomputing.](https://arxiv.org/abs/2501.14570)
 
-6. **Survey**: [Fontana, M., et al. (2024). Conformal Prediction: A Unified Review of Theory and New Challenges. ACM Computing Surveys.](https://dl.acm.org/doi/10.1145/3736575)
+6. **Survey**:
+   [Fontana, M., et al. (2024). Conformal Prediction: A Unified Review of Theory and New Challenges. ACM Computing Surveys.](https://dl.acm.org/doi/10.1145/3736575)
 
-7. **Adaptive Sets**: [Romano, Y., Sesia, M., & Candès, E. (2020). Classification with Valid and Adaptive Coverage. NeurIPS.](https://arxiv.org/abs/2006.02544)
+7. **Adaptive Sets**:
+   [Romano, Y., Sesia, M., & Candès, E. (2020). Classification with Valid and Adaptive Coverage. NeurIPS.](https://arxiv.org/abs/2006.02544)

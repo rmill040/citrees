@@ -13,15 +13,14 @@ Dataset types:
 Usage:
     uv run python paper/scripts/generate_synthetic_datasets.py
 """
+
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from sklearn.datasets import make_classification, make_friedman1
-
 
 RANDOM_STATE = 1718
 OUTPUT_DIR = Path(__file__).parent.parent / "data"
@@ -30,6 +29,7 @@ OUTPUT_DIR = Path(__file__).parent.parent / "data"
 @dataclass
 class SyntheticDatasetConfig:
     """Configuration for a synthetic dataset."""
+
     name: str
     n_samples: int
     n_features: int
@@ -49,7 +49,9 @@ class SyntheticDatasetConfig:
     correlation_strength: float = 0.9
 
 
-def generate_standard_dataset(config: SyntheticDatasetConfig) -> Tuple[np.ndarray, np.ndarray, List[int]]:
+def generate_standard_dataset(
+    config: SyntheticDatasetConfig,
+) -> tuple[np.ndarray, np.ndarray, list[int]]:
     """Generate a standard synthetic classification dataset.
 
     Returns X, y, and list of informative feature indices.
@@ -82,16 +84,12 @@ def generate_standard_dataset(config: SyntheticDatasetConfig) -> Tuple[np.ndarra
 
 
 def add_high_cardinality_noise(
-    X: np.ndarray,
-    n_noise_features: int,
-    n_levels: int,
-    random_state: int
-) -> Tuple[np.ndarray, List[int]]:
+    X: np.ndarray, n_noise_features: int, n_levels: int, random_state: int
+) -> tuple[np.ndarray, list[int]]:
     """Add high-cardinality categorical noise features (encoded as integers).
 
-    These features have many unique values but NO relationship to y.
-    CART/RF will spuriously select these due to selection bias.
-    citrees should correctly ignore them.
+    These features have many unique values but NO relationship to y. CART/RF will spuriously select
+    these due to selection bias. citrees should correctly ignore them.
 
     Returns augmented X and indices of the noise features.
     """
@@ -112,15 +110,15 @@ def add_high_cardinality_noise(
 
 def add_correlated_blocks(
     X: np.ndarray,
-    informative_indices: List[int],
+    informative_indices: list[int],
     n_blocks: int,
     correlation: float,
-    random_state: int
-) -> Tuple[np.ndarray, List[int], List[int]]:
+    random_state: int,
+) -> tuple[np.ndarray, list[int], list[int]]:
     """Add features that are correlated with informative features.
 
-    This tests whether methods correctly handle correlated features.
-    Standard permutation importance inflates importance of correlated features.
+    This tests whether methods correctly handle correlated features. Standard permutation importance
+    inflates importance of correlated features.
 
     Returns augmented X, correlated feature indices, and updated informative indices.
     """
@@ -145,11 +143,13 @@ def add_correlated_blocks(
     return X_augmented, correlated_indices, informative_indices
 
 
-def generate_nonlinear_dataset(config: SyntheticDatasetConfig) -> Tuple[np.ndarray, np.ndarray, List[int]]:
+def generate_nonlinear_dataset(
+    config: SyntheticDatasetConfig,
+) -> tuple[np.ndarray, np.ndarray, list[int]]:
     """Generate dataset with nonlinear relationships.
 
-    Uses Friedman #1 function which has nonlinear relationships.
-    Linear methods (Pearson, MC) will underperform; RDC should excel.
+    Uses Friedman #1 function which has nonlinear relationships. Linear methods (Pearson, MC) will
+    underperform; RDC should excel.
     """
     # Friedman1 has 5 truly informative features
     n_informative = 5
@@ -178,7 +178,7 @@ def generate_nonlinear_dataset(config: SyntheticDatasetConfig) -> Tuple[np.ndarr
     return X, y, informative_indices
 
 
-def generate_dataset(config: SyntheticDatasetConfig) -> Tuple[pd.DataFrame, dict]:
+def generate_dataset(config: SyntheticDatasetConfig) -> tuple[pd.DataFrame, dict]:
     """Generate a complete synthetic dataset with ground truth metadata."""
 
     # Generate base dataset
@@ -246,16 +246,18 @@ def generate_all_datasets() -> None:
     for seed in range(3):  # 3 replicates
         for n_noise in [10, 20, 50]:
             for n_levels in [50, 100, 500]:
-                configs.append(SyntheticDatasetConfig(
-                    name=f"syn_bias_noise{n_noise}_levels{n_levels}_seed{seed}",
-                    n_samples=1000,
-                    n_features=50,  # 50 real features
-                    n_informative=10,
-                    class_sep=1.0,
-                    random_state=RANDOM_STATE + seed,
-                    n_high_cardinality_noise=n_noise,
-                    high_cardinality_levels=n_levels,
-                ))
+                configs.append(
+                    SyntheticDatasetConfig(
+                        name=f"syn_bias_noise{n_noise}_levels{n_levels}_seed{seed}",
+                        n_samples=1000,
+                        n_features=50,  # 50 real features
+                        n_informative=10,
+                        class_sep=1.0,
+                        random_state=RANDOM_STATE + seed,
+                        n_high_cardinality_noise=n_noise,
+                        high_cardinality_levels=n_levels,
+                    )
+                )
 
     # ==========================================================================
     # 2. STANDARD SYNTHETIC DATASETS
@@ -268,14 +270,16 @@ def generate_all_datasets() -> None:
                     continue
                 for n_samples in [500, 1000, 2000]:
                     for class_sep in [0.5, 1.0, 2.0]:
-                        configs.append(SyntheticDatasetConfig(
-                            name=f"syn_p{n_features}_k{n_informative}_n{n_samples}_sep{class_sep}_seed{seed}",
-                            n_samples=n_samples,
-                            n_features=n_features,
-                            n_informative=n_informative,
-                            class_sep=class_sep,
-                            random_state=RANDOM_STATE + seed,
-                        ))
+                        configs.append(
+                            SyntheticDatasetConfig(
+                                name=f"syn_p{n_features}_k{n_informative}_n{n_samples}_sep{class_sep}_seed{seed}",
+                                n_samples=n_samples,
+                                n_features=n_features,
+                                n_informative=n_informative,
+                                class_sep=class_sep,
+                                random_state=RANDOM_STATE + seed,
+                            )
+                        )
 
     # ==========================================================================
     # 3. NONLINEAR DATASETS (Friedman #1)
@@ -284,14 +288,16 @@ def generate_all_datasets() -> None:
     for seed in range(3):
         for n_features in [50, 100, 500]:
             for n_samples in [500, 1000, 2000]:
-                configs.append(SyntheticDatasetConfig(
-                    name=f"syn_nonlinear_p{n_features}_n{n_samples}_seed{seed}",
-                    n_samples=n_samples,
-                    n_features=n_features,
-                    n_informative=5,  # Friedman1 has 5 informative
-                    random_state=RANDOM_STATE + seed,
-                    nonlinear=True,
-                ))
+                configs.append(
+                    SyntheticDatasetConfig(
+                        name=f"syn_nonlinear_p{n_features}_n{n_samples}_seed{seed}",
+                        n_samples=n_samples,
+                        n_features=n_features,
+                        n_informative=5,  # Friedman1 has 5 informative
+                        random_state=RANDOM_STATE + seed,
+                        nonlinear=True,
+                    )
+                )
 
     # ==========================================================================
     # 4. CORRELATED FEATURE DATASETS
@@ -300,23 +306,25 @@ def generate_all_datasets() -> None:
     for seed in range(3):
         for n_correlated in [5, 10]:
             for correlation in [0.7, 0.9, 0.95]:
-                configs.append(SyntheticDatasetConfig(
-                    name=f"syn_corr_blocks{n_correlated}_r{correlation}_seed{seed}",
-                    n_samples=1000,
-                    n_features=50,
-                    n_informative=10,
-                    class_sep=1.0,
-                    random_state=RANDOM_STATE + seed,
-                    n_correlated_blocks=n_correlated,
-                    correlation_strength=correlation,
-                ))
+                configs.append(
+                    SyntheticDatasetConfig(
+                        name=f"syn_corr_blocks{n_correlated}_r{correlation}_seed{seed}",
+                        n_samples=1000,
+                        n_features=50,
+                        n_informative=10,
+                        class_sep=1.0,
+                        random_state=RANDOM_STATE + seed,
+                        n_correlated_blocks=n_correlated,
+                        correlation_strength=correlation,
+                    )
+                )
 
     print(f"Generating {len(configs)} synthetic datasets...")
 
     all_metadata = {}
 
     for i, config in enumerate(configs):
-        print(f"[{i+1}/{len(configs)}] {config.name}")
+        print(f"[{i + 1}/{len(configs)}] {config.name}")
 
         df, metadata = generate_dataset(config)
 
@@ -338,7 +346,9 @@ def generate_all_datasets() -> None:
     # Print summary
     print("\n=== DATASET SUMMARY ===")
     print(f"Selection bias datasets: {sum(1 for c in configs if c.n_high_cardinality_noise > 0)}")
-    print(f"Standard datasets: {sum(1 for c in configs if not c.nonlinear and c.n_high_cardinality_noise == 0 and c.n_correlated_blocks == 0)}")
+    print(
+        f"Standard datasets: {sum(1 for c in configs if not c.nonlinear and c.n_high_cardinality_noise == 0 and c.n_correlated_blocks == 0)}"
+    )
     print(f"Nonlinear datasets: {sum(1 for c in configs if c.nonlinear)}")
     print(f"Correlated datasets: {sum(1 for c in configs if c.n_correlated_blocks > 0)}")
 

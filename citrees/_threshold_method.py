@@ -1,4 +1,3 @@
-from typing import Optional
 
 import numpy as np
 from numba import njit
@@ -8,7 +7,9 @@ from citrees._registry import ThresholdMethods
 
 @ThresholdMethods.register("exact")
 @njit(cache=True, fastmath=True, nogil=True)
-def exact(x: np.ndarray, max_thresholds: Optional[int] = None, random_state: Optional[int] = None) -> np.ndarray:
+def exact(
+    x: np.ndarray, max_thresholds: int | None = None, random_state: int | None = None
+) -> np.ndarray:
     """Unique midpoints in array.
 
     Parameters
@@ -71,7 +72,9 @@ def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:
 
 @ThresholdMethods.register("percentile")
 @njit(cache=True, fastmath=True, nogil=True)
-def percentile(x: np.ndarray, max_thresholds: int, random_state: Optional[int] = None) -> np.ndarray:
+def percentile(
+    x: np.ndarray, max_thresholds: int, random_state: int | None = None
+) -> np.ndarray:
     """Percentiles of midpoints in array.
 
     Parameters
@@ -103,7 +106,7 @@ def percentile(x: np.ndarray, max_thresholds: int, random_state: Optional[int] =
 
 @ThresholdMethods.register("histogram")
 @njit(cache=True, fastmath=True, nogil=True)
-def histogram(x: np.ndarray, max_thresholds: int, random_state: Optional[int] = None) -> np.ndarray:
+def histogram(x: np.ndarray, max_thresholds: int, random_state: int | None = None) -> np.ndarray:
     """Histogram bin edges of midpoints in array.
 
     Parameters

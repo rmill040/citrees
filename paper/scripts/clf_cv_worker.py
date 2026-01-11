@@ -7,17 +7,18 @@ Evaluates feature selection quality using multiple downstream classifiers:
 
 Features pre-computed CV folds to ensure fair comparison across models.
 """
+
 import json
 import os
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import boto3
 import numpy as np
 import pandas as pd
 import requests
-from joblib import delayed, Parallel
+from joblib import Parallel, delayed
 from lightgbm import LGBMClassifier
 from loguru import logger
 from sklearn.linear_model import LogisticRegression
@@ -39,8 +40,22 @@ DOWNSTREAM_MODELS = {
     "svm": lambda: SVC(class_weight="balanced", probability=True),
     "lr": lambda: LogisticRegression(class_weight="balanced", max_iter=1000, solver="lbfgs"),
     "knn": lambda: KNeighborsClassifier(n_neighbors=5, weights="distance"),
-    "xgb": lambda: XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=RANDOM_STATE, verbosity=0, n_jobs=1),
-    "lgbm": lambda: LGBMClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=RANDOM_STATE, verbose=-1, n_jobs=1),
+    "xgb": lambda: XGBClassifier(
+        n_estimators=100,
+        max_depth=6,
+        learning_rate=0.1,
+        random_state=RANDOM_STATE,
+        verbosity=0,
+        n_jobs=1,
+    ),
+    "lgbm": lambda: LGBMClassifier(
+        n_estimators=100,
+        max_depth=6,
+        learning_rate=0.1,
+        random_state=RANDOM_STATE,
+        verbose=-1,
+        n_jobs=1,
+    ),
 }
 
 
@@ -55,13 +70,8 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def cv_scores_single_model(
-    *,
-    X: np.ndarray,
-    y: np.ndarray,
-    n_classes: int,
-    model_name: str,
-    precomputed_folds: List[tuple]
-) -> Dict[str, float]:
+    *, X: np.ndarray, y: np.ndarray, n_classes: int, model_name: str, precomputed_folds: list[tuple]
+) -> dict[str, float]:
     """Run CV for a single model with precomputed folds."""
     accs = np.zeros(len(precomputed_folds))
     aucs = np.zeros(len(precomputed_folds))
@@ -72,10 +82,9 @@ def cv_scores_single_model(
         X_test, y_test = X[test_idx], y[test_idx]
 
         # Build pipeline
-        pipeline = Pipeline([
-            ("scaler", StandardScaler()),
-            ("clf", DOWNSTREAM_MODELS[model_name]())
-        ])
+        pipeline = Pipeline(
+            [("scaler", StandardScaler()), ("clf", DOWNSTREAM_MODELS[model_name]())]
+        )
 
         pipeline.fit(X_train, y_train)
         y_hat = pipeline.predict(X_test)
@@ -94,7 +103,9 @@ def cv_scores_single_model(
 
             if n_classes > 2:
                 y_test_bin = label_binarize(y_test, classes=list(range(n_classes)))
-                aucs[fold] = roc_auc_score(y_test_bin, y_prob, multi_class="ovr", average="weighted")
+                aucs[fold] = roc_auc_score(
+                    y_test_bin, y_prob, multi_class="ovr", average="weighted"
+                )
             else:
                 aucs[fold] = roc_auc_score(y_test, y_prob)
         except Exception:
@@ -110,12 +121,7 @@ def cv_scores_single_model(
     }
 
 
-def cv_scores_all_models(
-    *,
-    X: np.ndarray,
-    y: np.ndarray,
-    n_classes: int
-) -> Dict[str, Any]:
+def cv_scores_all_models(*, X: np.ndarray, y: np.ndarray, n_classes: int) -> dict[str, Any]:
     """Run CV for all downstream models."""
     # Precompute folds once for all models (ensures fair comparison)
     cv = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
@@ -124,9 +130,11 @@ def cv_scores_all_models(
     results = {}
     for model_name in DOWNSTREAM_MODELS:
         model_results = cv_scores_single_model(
-            X=X, y=y, n_classes=n_classes,
+            X=X,
+            y=y,
+            n_classes=n_classes,
             model_name=model_name,
-            precomputed_folds=precomputed_folds
+            precomputed_folds=precomputed_folds,
         )
         results.update(model_results)
 
@@ -137,8 +145,12 @@ def run(url: str) -> None:
     """Calculate classifier metrics for all downstream models."""
     global DATASETS
 
-    ddb_table_s = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "Metrics")
-    ddb_table_f = boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"] + "MetricsFail")
+    ddb_table_s = boto3.resource("dynamodb", region_name="us-east-1").Table(
+        os.environ["TABLE_NAME"] + "Metrics"
+    )
+    ddb_table_f = boto3.resource("dynamodb", region_name="us-east-1").Table(
+        os.environ["TABLE_NAME"] + "MetricsFail"
+    )
 
     response = requests.get(url)
     if not response.ok:
@@ -176,7 +188,9 @@ def run(url: str) -> None:
             X_ = X[:, feature_ranks[:n_features]]
             metrics = cv_scores_all_models(X=X_, y=y, n_classes=n_classes)
 
-            config["metrics"]["feature_ranks"].append(",".join(map(str, feature_ranks[:n_features])))
+            config["metrics"]["feature_ranks"].append(
+                ",".join(map(str, feature_ranks[:n_features]))
+            )
             config["metrics"]["n_features_used"].append(int(n_features))
             for key, value in metrics.items():
                 config["metrics"][key].append(value)
@@ -187,7 +201,9 @@ def run(url: str) -> None:
 
     except Exception as e:
         message = str(e)
-        logger.error(f"Config: {config['config_idx']} | Dataset: {config['dataset']} | Error: {message}")
+        logger.error(
+            f"Config: {config['config_idx']} | Dataset: {config['dataset']} | Error: {message}"
+        )
 
         item = {
             "config_idx": config["config_idx"],

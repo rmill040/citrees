@@ -35,11 +35,11 @@ Usage:
         --iam-role citrees-worker-role \\
         --security-group sg-xxx
 """
+
 import argparse
 import base64
 import sys
 import textwrap
-from typing import Optional
 
 try:
     import boto3
@@ -190,7 +190,7 @@ def launch_instances(
     iam_role: str,
     user_data: str,
     name_tag: str,
-    subnet_id: Optional[str] = None,
+    subnet_id: str | None = None,
 ) -> list:
     """Launch EC2 instances with the given configuration."""
     # Encode user data as base64
@@ -420,7 +420,9 @@ def main():
 
     if args.command == "server":
         print("\nAfter startup, get the server's private IP:")
-        print(f"  aws ec2 describe-instances --instance-ids {instances[0]['InstanceId']} --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text")
+        print(
+            f"  aws ec2 describe-instances --instance-ids {instances[0]['InstanceId']} --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text"
+        )
 
 
 if __name__ == "__main__":

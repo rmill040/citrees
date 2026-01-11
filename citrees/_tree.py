@@ -4,14 +4,24 @@ from math import ceil
 from typing import Annotated, Any, Literal, TypedDict
 
 import numpy as np
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from citrees._selector import ClassifierSelectors, ClassifierSelectorTests, RegressorSelectors, RegressorSelectorTests
-from citrees._splitter import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
+from citrees._selector import (
+    ClassifierSelectors,
+    ClassifierSelectorTests,
+    RegressorSelectors,
+    RegressorSelectorTests,
+)
+from citrees._splitter import (
+    ClassifierSplitters,
+    ClassifierSplitterTests,
+    RegressorSplitters,
+    RegressorSplitterTests,
+)
 from citrees._threshold_method import ThresholdMethods
 from citrees._utils import calculate_max_value, estimate_mean, estimate_proba, split_data
 
@@ -109,7 +119,6 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
 
 class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
-
     @property
     @abstractmethod
     def _parameter_model(self) -> type[BaseModel]:
@@ -148,7 +157,9 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         """
         return self.__repr__()
 
-    def _validate_data_fit(self, *, X: Any, y: Any, estimator_type: str) -> tuple[np.ndarray, np.ndarray]:
+    def _validate_data_fit(
+        self, *, X: Any, y: Any, estimator_type: str
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Validate data for training by checking types and casting.
 
         Parameters
@@ -207,7 +218,9 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         if y.ndim == 2:
             y = y.ravel()
         elif y.ndim > 2:
-            raise ValueError(f"Multi-output labels are not supported for y, detected ({y.ndim - 1}) outputs")
+            raise ValueError(
+                f"Multi-output labels are not supported for y, detected ({y.ndim - 1}) outputs"
+            )
 
         if len(X) != len(y):
             raise ValueError(f"Different number of samples between X ({len(X)}) and y ({len(y)})")
@@ -254,12 +267,16 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             )
 
         if X.shape[1] != len(self.feature_names_in_):
-            raise ValueError(f"X should have ({len(self.feature_names_in_)}) features, got ({X.shape[1]})")
+            raise ValueError(
+                f"X should have ({len(self.feature_names_in_)}) features, got ({X.shape[1]})"
+            )
 
         if feature_names:
             if set(feature_names) != set(self.feature_names_in_):
                 diff = list(set(feature_names) - set(self.feature_names_in_))
-                raise ValueError(f"Mismatch in feature names for X, missing ({len(diff)}) features: {diff}")
+                raise ValueError(
+                    f"Mismatch in feature names for X, missing ({len(diff)}) features: {diff}"
+                )
 
         X = X.astype(float)
         return X
@@ -299,7 +316,9 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         flags = []
         if params["n_resamples_selector"] is None:
             flags = [
-                key for key in ["adjust_alpha_selector", "feature_muting", "early_stopping_selector"] if params[key]
+                key
+                for key in ["adjust_alpha_selector", "feature_muting", "early_stopping_selector"]
+                if params[key]
             ]
         if flags:
             warnings.warn(
@@ -315,7 +334,9 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
 
         flags = []
         if params["n_resamples_splitter"] is None:
-            flags = [key for key in ["adjust_alpha_splitter", "early_stopping_splitter"] if params[key]]
+            flags = [
+                key for key in ["adjust_alpha_splitter", "early_stopping_splitter"] if params[key]
+            ]
         if flags:
             warnings.warn(
                 "Unused hyperparameter(s) detected: When n_resamples_splitter=None, hyperparameter(s) "
@@ -449,7 +470,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 score = abs(score)
             return score, self._selector_names[0]
 
-    def _select_best_feature(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> tuple[int, float, bool]:
+    def _select_best_feature(
+        self, X: np.ndarray, y: np.ndarray, features: np.ndarray
+    ) -> tuple[int, float, bool]:
         """Select best feature associated with the target.
 
         Parameters
@@ -476,8 +499,23 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         best_feature = features[0]
         best_pval = np.inf
-        reject_H0 = self._n_resamples_selector is None  # Hack to force True when permutation testing is disabled
+        reject_H0 = (
+            self._n_resamples_selector is None
+        )  # Hack to force True when permutation testing is disabled
         best_metric = -np.inf
+
+        # Apply Bonferroni correction for multiple feature tests (matches R's partykit::ctree behavior)
+        if self._adjust_alpha_selector and self._n_resamples_selector is not None:
+            self._bonferroni_correction(adjust="selector", n_tests=len(features))
+            # Update kwargs to reflect Bonferroni-corrected values (preserve type-specific params)
+            self._selector_test_kwargs.update(
+                {
+                    "n_resamples": self._n_resamples_selector,
+                    "early_stopping": self._early_stopping_selector,
+                    "alpha": self._alpha_selector,
+                    "random_state": self._random_state,
+                }
+            )
 
         for feature in features:
             x = X[:, feature]
@@ -505,8 +543,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
                 # Check for feature muting
                 alpha = max(self._alpha_selector, 1 - self._alpha_selector)
-                if self._feature_muting and pval_feature >= alpha and len(self._available_features) > 1:
-                    self._mute_feature(feature=feature, reason=f"FEATURE PVAL ({pval_feature}) >= ALPHA ({alpha})")
+                if (
+                    self._feature_muting
+                    and pval_feature >= alpha
+                    and len(self._available_features) > 1
+                ):
+                    self._mute_feature(
+                        feature=feature, reason=f"FEATURE PVAL ({pval_feature}) >= ALPHA ({alpha})"
+                    )
 
             # Feature selection without permutation testing
             else:
@@ -517,7 +561,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         return best_feature, best_pval, reject_H0
 
-    def _select_best_split(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> tuple[float, float, bool]:
+    def _select_best_split(
+        self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray
+    ) -> tuple[float, float, bool]:
         """Select best binary split.
 
         Parameters
@@ -544,16 +590,27 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         best_threshold = thresholds[0]
         best_pval = np.inf
-        reject_H0 = self._n_resamples_splitter is None  # Hack to force True when permutation testing is disabled
+        reject_H0 = (
+            self._n_resamples_splitter is None
+        )  # Hack to force True when permutation testing is disabled
         best_metric = np.inf
 
         if self._adjust_alpha_splitter and self._n_resamples_splitter is not None:
             self._bonferroni_correction(adjust="splitter", n_tests=len(thresholds))
+            # Update kwargs to reflect Bonferroni-corrected values
+            self._splitter_test_kwargs = {
+                "n_resamples": self._n_resamples_splitter,
+                "early_stopping": self._early_stopping_splitter,
+                "alpha": self._alpha_splitter,
+                "random_state": self._random_state,
+            }
 
         for threshold in thresholds:
             # Split selection with permutation testing
             if self._n_resamples_splitter:
-                pval_threshold = self._splitter_test(x=x, y=y, threshold=threshold, **self._splitter_test_kwargs)
+                pval_threshold = self._splitter_test(
+                    x=x, y=y, threshold=threshold, **self._splitter_test_kwargs
+                )
 
                 # Update best threshold
                 if pval_threshold < best_pval:
@@ -627,15 +684,22 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         # Drop feature and recalculate maximum features available
         idx = self._available_features == feature
-        self._available_features: np.ndarray = self._available_features[~idx]  # make mypy happy with type
+        self._available_features: np.ndarray = self._available_features[
+            ~idx
+        ]  # make mypy happy with type
 
         p = len(self._available_features)
         if self.verbose > 2:
-            print(f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features " "available")
+            print(
+                f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features "
+                "available"
+            )
 
         if p > 0:
             self._max_features = (
-                calculate_max_value(n_values=p, desired_max=self.max_features) if self.max_features else p
+                calculate_max_value(n_values=p, desired_max=self.max_features)
+                if self.max_features
+                else p
             )
 
             # Update alpha if needed
@@ -645,7 +709,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._max_features = 0
 
     def _scan_features(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> np.ndarray:
-        """Perform feature scanning to return the feature indices that are most associated with the target.
+        """Perform feature scanning to return the feature indices that are most associated with the
+        target.
 
         Parameters
         ----------
@@ -663,7 +728,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         np.ndarray
             Feature indices sorted in descending order based on strength of association with the target.
         """
-        scores = np.array([self._compute_selector_score(X[:, feature], y)[0] for feature in features])
+        scores = np.array(
+            [self._compute_selector_score(X[:, feature], y)[0] for feature in features]
+        )
         ranks = np.argsort(scores)[::-1]
 
         return features[ranks]
@@ -697,7 +764,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         return thresholds[ranks]
 
     def _split_impurity(self, *, x: np.ndarray, y: np.ndarray, threshold: float) -> float:
-        """Perform binary split and calculate split impurity as weighted sum of children node impurities.
+        """Perform binary split and calculate split impurity as weighted sum of children node
+        impurities.
 
         Parameters
         ----------
@@ -753,7 +821,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             Node impurity decrease after binary split on threshold.
         """
         parent_impurity = self._splitter(y)
-        children_impurity = (n_left / n) * self._splitter(y[idx]) + (n_right / n) * self._splitter(y[~idx])
+        children_impurity = (n_left / n) * self._splitter(y[idx]) + (n_right / n) * self._splitter(
+            y[~idx]
+        )
         impurity_decrease = parent_impurity - children_impurity
 
         return parent_impurity, impurity_decrease
@@ -812,7 +882,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 )
                 if self._early_stopping_selector and self._scan_features and len(features) > 1:
                     features = self._scan_features(X, y, features)
-                best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(X, y, features)
+                best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(
+                    X, y, features
+                )
 
         if reject_H0_feature:
             # Split selection
@@ -844,7 +916,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     if self._threshold_scanning and len(thresholds) > 1
                     else prng.permutation(thresholds)
                 )
-            best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(x, y, thresholds)
+            best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(
+                x, y, thresholds
+            )
 
         # Calculate impurity decrease
         if reject_H0_threshold:
@@ -903,7 +977,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # Private attributes for all parameters - for consistency to reference across other classes and methods
         self._available_features = np.arange(p, dtype=int)
         self._max_depth = self.max_depth if self.max_depth else np.inf
-        self._random_state = int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
+        self._random_state = (
+            int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
+        )
         self._verbose = min(self.verbose, 3)
         for param in ["n_resamples_selector", "n_resamples_splitter"]:
             value = getattr(self, param)
@@ -923,7 +999,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         # No need to adjust alphas yet if flags are enabled. The alpha adjustments happen during each call to
         # self._selector_test and self._splitter_test
-        for param in ["alpha_selector", "alpha_splitter", "early_stopping_selector", "early_stopping_splitter"]:
+        for param in [
+            "alpha_selector",
+            "alpha_splitter",
+            "early_stopping_selector",
+            "early_stopping_splitter",
+        ]:
             setattr(self, f"_{param}", getattr(self, param))
 
         common_selector_kwargs = {
@@ -992,7 +1073,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 f"Using threshold_method='{self.threshold_method}' with max_thresholds=None is not recommended, "
                 "consider reducing max_thresholds to speed up split selection."
             )
-        self._max_features = calculate_max_value(n_values=p, desired_max=self.max_features) if self.max_features else p
+        self._max_features = (
+            calculate_max_value(n_values=p, desired_max=self.max_features)
+            if self.max_features
+            else p
+        )
 
         # Set rest of parameters as private attributes
         for param, value in self.get_params().items():
@@ -1013,7 +1098,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         if self.honesty:
             stratify = y if self._estimator_type == "classifier" else None
             X_split, X_est, y_split, y_est = train_test_split(
-                X, y,
+                X,
+                y,
                 test_size=self.honesty_fraction,
                 random_state=self._random_state,
                 stratify=stratify,

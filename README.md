@@ -5,7 +5,9 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-citrees implements statistically principled decision trees and random forests using permutation-based hypothesis testing for variable selection. Unlike traditional CART-style trees that greedily optimize split criteria, conditional inference trees separate variable selection from split point selection using statistical tests to determine significance.
+citrees implements statistically principled decision trees and random forests using permutation-based hypothesis testing for variable selection. Unlike traditional CART-style trees that greedily optimize split criteria, citrees separates variable selection from split point selection using statistical tests to determine significance.
+
+**Note**: citrees is *inspired by* the conditional inference framework (Hothorn et al., 2006) but is not a direct port of R's `partykit::ctree`. We implement the core principles—permutation-based variable selection, statistical stopping rules, and unbiased splitting—while adding our own extensions like RDC selectors, feature muting, and conformal prediction.
 
 ## Why citrees?
 

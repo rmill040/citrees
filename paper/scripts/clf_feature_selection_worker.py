@@ -1,6 +1,7 @@
 """Classifier experiments - WORKER."""
 import json
 import os
+import time
 from copy import deepcopy
 from decimal import Decimal
 from math import ceil
@@ -105,6 +106,8 @@ def run(url: str, skip: List[str]) -> None:
         )
 
         try:
+            # Time the feature selection
+            tic = time.perf_counter()
             feature_ranks = func(
                 method=method,
                 hyperparameters=config,
@@ -113,6 +116,8 @@ def run(url: str, skip: List[str]) -> None:
                 X=X,
                 y=y,
             )
+            toc = time.perf_counter()
+            elapsed_seconds = toc - tic
 
             # Transform into comma delimited string to store easier in DDB
             feature_ranks = ",".join(list(map(str, feature_ranks)))
@@ -127,6 +132,7 @@ def run(url: str, skip: List[str]) -> None:
                 "n_features": n_features,
                 "n_classes": n_classes,
                 "feature_ranks": feature_ranks,
+                "elapsed_seconds": Decimal(str(round(elapsed_seconds, 4))),
             }
 
             item = json.loads(json.dumps(item), parse_float=Decimal)

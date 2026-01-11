@@ -56,10 +56,9 @@ Input: Feature x ∈ ℝⁿ, class labels y ∈ {1,...,K}ⁿ
 ### Implementation
 
 ```python
-# From citrees/_selector.py
+# From _selector.py - JIT-compiled for performance
 @njit(cache=True, fastmath=True, nogil=True)
 def multiple_correlation(x, y, n_classes, random_state=None):
-    n = len(x)
     x_mean = np.mean(x)
     ss_total = np.sum((x - x_mean) ** 2)
 

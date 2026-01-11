@@ -62,6 +62,7 @@ citrees supports multiple association measures:
 |----------|-----|----------|
 | `mc` | Classification | Multiple Correlation (η²) - how much variance in X is explained by class membership |
 | `mi` | Classification | Mutual Information - non-linear dependence |
+| `rdc` | Both | Randomized Dependence Coefficient - O(n log n) non-linear dependence |
 | `pc` | Regression | Pearson Correlation |
 | `dc` | Regression | Distance Correlation - captures non-linear relationships |
 
@@ -80,7 +81,7 @@ citrees supports multiple association measures:
 The p-value is computed via Monte Carlo permutation test:
 
 ```python
-# From _selector.py lines 16-86
+# Pseudocode - see _selector.py for implementation
 def _permutation_test(func, x, y, n_resamples, alpha, early_stopping):
     θ = |func(x, y)|  # Observed statistic
 
@@ -103,8 +104,8 @@ def _permutation_test(func, x, y, n_resamples, alpha, early_stopping):
 When testing multiple features, the alpha is adjusted:
 
 ```python
-# From _tree.py lines 516-549
-alpha_adjusted = alpha / n_features  # Bonferroni correction
+# Bonferroni correction controls family-wise error rate
+alpha_adjusted = alpha / n_features
 ```
 
 This controls the **family-wise error rate** - the probability of at least one false positive.
@@ -114,7 +115,7 @@ This controls the **family-wise error rate** - the probability of at least one f
 Features that clearly fail the test are "muted" (removed from consideration):
 
 ```python
-# From _tree.py lines 446-448
+# Feature muting accelerates training by removing uninformative features
 if feature_muting and pval >= max(alpha, 1 - alpha):
     mute_feature(feature)  # Remove from available features
 ```
@@ -154,7 +155,7 @@ for leaf in tree.leaves:
 ### citrees Implementation
 
 ```python
-# From _tree.py lines 940-954
+# Honest estimation splits data for structure and prediction
 if self.honesty:
     X_split, X_est, y_split, y_est = train_test_split(
         X, y, test_size=self.honesty_fraction, stratify=y
@@ -290,7 +291,7 @@ Where:
 ### citrees Implementation
 
 ```python
-# From _importance.py
+# See _importance.py for full implementation
 class SHAPExplainer:
     def __init__(self, model, background_data):
         # Uses shap's model-agnostic Explainer
@@ -323,7 +324,7 @@ for feature j:
 Permute feature j **conditionally** on correlated features:
 
 ```python
-# From _importance.py lines 201-278
+# Pseudocode - see _importance.py for full implementation
 def conditional_permutation_importance(model, X, y):
     for feature j:
         correlated = find_correlated_features(X, j)

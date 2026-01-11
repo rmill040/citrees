@@ -7,20 +7,22 @@ This directory contains scripts and data for reproducing the experiments in the 
 ```
 paper/
 ├── data/                    # Datasets (parquet format)
-│   ├── clf_*.parquet       # Classification datasets (24)
-│   └── reg_*.parquet       # Regression datasets (8)
+│   ├── clf_*.parquet       # Classification datasets (24 real + synthetic)
+│   ├── reg_*.parquet       # Regression datasets (8)
+│   └── synthetic_ground_truth.json  # Ground truth for synthetic datasets
 ├── scripts/
 │   ├── configs.py          # Experiment config dataclasses
-│   ├── synthetic_experiments.py  # Synthetic data experiments
+│   ├── generate_synthetic_datasets.py  # Generate synthetic datasets
+│   ├── comprehensive_analysis.py  # Full analysis with ground truth
 │   ├── analysis.py         # Statistical tests and visualizations
-│   ├── generate_figures.py # Paper figure generation
+│   ├── timing.py           # Timing benchmarks
 │   ├── ec2_launch.py       # EC2 server/worker launcher
 │   ├── clf_*               # Classification experiments
 │   └── reg_*               # Regression experiments
 └── results/
-    ├── analysis/           # Tables and figures from analysis.py
-    │   ├── figures/        # PNG visualizations
-    │   └── tables/         # CSV and LaTeX tables
+    ├── comprehensive_analysis/  # Full analysis output
+    │   ├── figures/
+    │   └── tables/
     └── *.parquet           # Experiment outputs
 ```
 
@@ -30,54 +32,76 @@ paper/
 # Install paper dependencies
 uv sync --group paper
 
-# Run synthetic experiments (self-contained, no AWS needed)
-uv run python paper/scripts/synthetic_experiments.py
+# Generate synthetic datasets (creates clf_syn_*.parquet files)
+uv run python paper/scripts/generate_synthetic_datasets.py
 
-# Run analysis (after experiments complete)
-uv run python paper/scripts/analysis.py
+# Run comprehensive analysis (after experiments complete)
+uv run python paper/scripts/comprehensive_analysis.py
 ```
 
 ---
 
 ## Experiment Overview
 
-### 1. Synthetic Experiments (Local)
+### NEW: Synthetic Datasets with Ground Truth
 
-Controlled experiments with known ground truth to evaluate feature selection quality. **No AWS required.**
+Synthetic datasets are now integrated into the main pipeline. Generate them before running experiments:
 
 ```bash
-uv run python paper/scripts/synthetic_experiments.py
+uv run python paper/scripts/generate_synthetic_datasets.py
 ```
 
-**Methods compared:**
-| Method | Description |
-|--------|-------------|
-| `citree` | Conditional Inference Tree |
-| `ciforest` | Conditional Inference Forest |
-| `rf` | Random Forest |
-| `et` | Extra Trees |
-| `dt` | Decision Tree |
-| `xgb` | XGBoost |
-| `lgbm` | LightGBM |
+**Dataset Types:**
 
-**Experimental grid:**
-- Total features: 50, 100, 500, 1000
-- Informative features: 5, 10, 20
-- Sample sizes: 200, 500, 1000
-- Signal strength (class_sep): 0.5, 1.0, 2.0
-- 5 random seeds per configuration
+| Type | Purpose | Count |
+|------|---------|-------|
+| **Selection Bias** | High-cardinality noise features to test selection bias | 27 |
+| **Standard** | Varying n_features, n_informative, class_sep | 162 |
+| **Nonlinear** | Friedman #1 function, tests RDC vs MC | 27 |
+| **Correlated** | Correlated feature blocks, tests conditional importance | 18 |
 
-**Metrics:**
-- Precision@k / Recall@k for true feature recovery
-- Downstream classification accuracy with selected features
-
-**Output:** `results/synthetic_experiments.parquet`
+**Total: ~234 synthetic datasets** with ground truth stored in `synthetic_ground_truth.json`
 
 ---
 
-### 2. Feature Selection Experiments (Distributed)
+### Key Experiments
 
-Compare citrees feature ranking against baselines on real datasets.
+#### 1. Selection Bias Demonstration (NEW)
+
+**Goal**: Prove citrees avoids selection bias that plagues CART/RF
+
+**Design**:
+- Synthetic data with **uninformative high-cardinality features** (50-500 unique values)
+- Truly informative low-cardinality features
+- RF/CART will spuriously select high-cardinality noise
+- citrees should correctly ignore them
+
+**Metrics**:
+- Noise selection rate (% of top-k that are noise features)
+- Precision@k for true informative features
+
+#### 2. Selector Comparison (NEW)
+
+**Goal**: Compare MC vs RDC vs MI on different relationship types
+
+**Design**:
+- Linear datasets → MC should excel
+- Nonlinear datasets (Friedman #1) → RDC should help
+- Permutation test variants (ptest_mc, ptest_rdc, ptest_mi)
+
+#### 3. Timing Analysis (NEW)
+
+**Goal**: Quantify computational cost
+
+**Metrics**:
+- Wall-clock time per experiment (captured by workers)
+- Scaling with n_samples, n_features
+
+---
+
+### Feature Selection Experiments (Distributed)
+
+Compare citrees feature ranking against baselines on real and synthetic datasets.
 
 **Architecture:** Distributed server-worker pattern using FastAPI + DynamoDB
 

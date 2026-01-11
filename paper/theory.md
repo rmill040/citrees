@@ -76,8 +76,8 @@ In particular, if $X_{t,j} \perp Y_t$, then $H^{\text{split}}_{t,j,c}$ holds for
 
 ### 2.2a Test tail conventions
 
-For **feature-selection statistics** (correlation, mutual information, RDC, distance correlation), larger values
-indicate stronger association, so we use the **right-tail** test:
+For **feature-selection statistics** in citrees (nonnegative association scores such as `mc`, `mi`, `rdc`, `dc`, and
+`|pc|`), larger values indicate stronger association, so we use the **right-tail** test:
 $$
 p_{t,j} = \frac{1 + \sum_{b=1}^B \mathbf{1}\{T^{\text{sel}}_b \ge T^{\text{sel}}_0\}}{B+1}.
 $$
@@ -85,7 +85,7 @@ $$
 For **split statistics** (Gini, entropy, MSE, MAE), smaller values indicate better splits (more homogeneous
 children), so we use the **left-tail** test:
 $$
-p_{t,c} = \frac{1 + \sum_{b=1}^B \mathbf{1}\{T^{\text{split}}_b \le T^{\text{split}}_0\}}{B+1}.
+p_{t,j,c} = \frac{1 + \sum_{b=1}^B \mathbf{1}\{T^{\text{split}}_b \le T^{\text{split}}_0\}}{B+1}.
 $$
 
 Both forms satisfy the super-uniformity guarantee of Theorem 1 (Section 3.4).
@@ -409,6 +409,10 @@ values it has—because a larger candidate family simply tightens the per-candid
 1. This bound is *nodewise* and does not claim global family-wise error control over the entire adaptively-grown tree.
 2. Additional constraints (e.g., `min_samples_leaf`, `min_impurity_decrease`) can only reduce the probability of making a
    split, so they preserve the inequality.
+3. **Without Bonferroni correction** (`adjust_alpha_selector=False`), each p-value is compared directly against
+   $\alpha_{\text{sel}}$. By the union bound, the probability of selecting *any* feature under the global null is then
+   at most $m_t \cdot \alpha_{\text{sel}}$, which is not a valid Type I error control at level $\alpha_{\text{sel}}$
+   unless $m_t = 1$. The analogous statement holds for threshold selection with `adjust_alpha_splitter=False`.
 
 ### 4.3 Random feature/threshold subsampling (root-level validity)
 
@@ -820,7 +824,8 @@ The multi-selector mode takes a maximum over selector scores. This only makes se
 scale. In citrees:
 
 - `mc`, `pc` (after absolute value), `dc`, and `rdc` are bounded in $[0,1]$,
-- mutual information is unbounded on $[0,\infty)$,
+- for classification, mutual information satisfies $0\le I(X;Y)\le H(Y)\le \log K$ (units depend on the log base), so
+  it is **not** normalized to $[0,1]$ and its scale depends on $K$ and on the entropy of the class labels,
 
 so including `mi` in a max-with-others selector list would change the meaning of the maximum and would require
 additional normalization or theory.

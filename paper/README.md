@@ -7,18 +7,18 @@ citrees paper.
 
 ```
 paper/
-├── data/                    # Datasets (parquet format)
-│   ├── clf_*.parquet       # Classification datasets
-│   └── reg_*.parquet       # Regression datasets
+├── data/                              # Datasets (parquet format)
+│   ├── clf_*.parquet                 # Classification datasets
+│   └── reg_*.parquet                 # Regression datasets
 ├── scripts/
-│   ├── nested_cv_server.py # FastAPI server for experiment configs
-│   ├── nested_cv_worker.py # Worker that runs nested CV experiments
-│   ├── configs.py          # Experiment config dataclasses
-│   ├── analysis.py         # Statistical tests and visualizations
-│   ├── ec2_launch.py       # EC2 server/worker launcher
-│   └── generate_figures.py # Paper figure generation
-└── results/
-    └── *.parquet           # Experiment outputs
+│   ├── feature_selection_server.py   # Stage 1: FastAPI server
+│   ├── feature_selection_worker.py   # Stage 1: Feature selection workers
+│   ├── eval_server.py                # Stage 2: FastAPI server
+│   ├── eval_worker.py                # Stage 2: Model evaluation workers
+│   ├── analysis.py                   # Statistical tests and visualizations
+│   ├── ec2_launch.py                 # EC2 server/worker launcher
+│   └── generate_figures.py           # Paper figure generation
+└── results/                          # Local cache (S3 is source of truth)
 ```
 
 ## Quick Start (Local Validation)
@@ -27,8 +27,13 @@ paper/
 # Install dependencies
 uv sync
 
-# Test nested CV worker locally
-LOCAL_TEST=1 uv run python paper/scripts/nested_cv_worker.py
+# Test Stage 1 (feature selection) locally
+LOCAL_TEST=1 S3_BUCKET=citrees-results AWS_PROFILE=personal \
+    uv run python paper/scripts/feature_selection_worker.py
+
+# Test Stage 2 (model evaluation) locally
+LOCAL_TEST=1 S3_BUCKET=citrees-results AWS_PROFILE=personal \
+    uv run python paper/scripts/eval_worker.py
 
 # Or use Docker
 docker-compose run --rm sanity
@@ -36,19 +41,36 @@ docker-compose run --rm sanity
 
 ---
 
-## Experiment Design: Nested Cross-Validation
+## Two-Stage Architecture
 
-We use **proper nested CV** where feature selection happens INSIDE each fold:
+We split experiments into two independent stages for maximum parallelization:
 
 ```
-For each outer fold:
-  1. Split data into train/test
-  2. Run feature selection on TRAIN ONLY
-  3. Evaluate selected features with downstream models on TEST
-  4. For embedding methods: also capture model's own predictions
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STAGE 1: Feature Selection (EC2 fleet)                                  │
+│                                                                          │
+│ Server ──→ Workers ──→ S3 (rankings) + DynamoDB (tracking)              │
+│                                                                          │
+│ 11,520 configs (16 methods × 24 datasets × 30 seeds)                    │
+│ Output: s3://citrees-results/rankings/{task}/{dataset}/{method}_seed{s} │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STAGE 2: Downstream Evaluation (EC2 fleet)                              │
+│                                                                          │
+│ Server ──→ Workers ──→ S3 (metrics) + DynamoDB (tracking)               │
+│                                                                          │
+│ Same 11,520 configs, each evaluates k=1..n_features                     │
+│ Output: s3://citrees-results/metrics/{task}/{dataset}/{method}_seed{s}  │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-This avoids data leakage that plagues traditional feature selection benchmarks.
+**Benefits:**
+- Stage 1 (slow feature selection) runs independently from Stage 2 (fast evaluation)
+- Can re-run Stage 2 with different models without repeating Stage 1
+- Evaluate at ALL k values (1 to n_features) for complete accuracy curves
+- Full resume capability via DynamoDB tracking
 
 ---
 
@@ -100,125 +122,117 @@ This avoids data leakage that plagues traditional feature selection benchmarks.
 
 ---
 
-## Distributed Architecture
+## AWS Resources
 
+### S3 Bucket
+
+```bash
+AWS_PROFILE=personal aws s3 mb s3://citrees-results --region us-east-1
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                     DISTRIBUTED ARCHITECTURE                          │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│   ┌─────────────────┐         ┌─────────────────────────────────┐   │
-│   │ nested_cv_      │  HTTP   │         EC2 Fleet               │   │
-│   │ server.py       │◄────────│   ┌─────────┐  ┌─────────┐     │   │
-│   │ (FastAPI)       │         │   │ Worker  │  │ Worker  │ ... │   │
-│   └────────┬────────┘         │   │   1     │  │   2     │     │   │
-│            │                  │   └────┬────┘  └────┬────┘     │   │
-│            │                  │        │            │           │   │
-│            ▼                  └────────┼────────────┼───────────┘   │
-│   ┌─────────────────┐                  │            │               │
-│   │   DynamoDB      │◄─────────────────┴────────────┘               │
-│   │   (results)     │              Results stored                   │
-│   └─────────────────┘                                               │
-│                                                                       │
-└──────────────────────────────────────────────────────────────────────┘
+
+### DynamoDB Tables
+
+```bash
+# Stage 1 tracking
+for table in ClfFeatureSelection RegFeatureSelection; do
+    AWS_PROFILE=personal aws dynamodb create-table \
+        --table-name $table \
+        --attribute-definitions AttributeName=config_idx,AttributeType=N \
+        --key-schema AttributeName=config_idx,KeyType=HASH \
+        --billing-mode PAY_PER_REQUEST --region us-east-1
+done
+
+# Stage 2 tracking
+for table in ClfDownstreamEval RegDownstreamEval; do
+    AWS_PROFILE=personal aws dynamodb create-table \
+        --table-name $table \
+        --attribute-definitions AttributeName=config_idx,AttributeType=N \
+        --key-schema AttributeName=config_idx,KeyType=HASH \
+        --billing-mode PAY_PER_REQUEST --region us-east-1
+done
 ```
 
 ---
 
 ## Running Experiments
 
-### 1. Create DynamoDB Tables
+### Stage 1: Feature Selection
 
 ```bash
-# Classification tables
-AWS_PROFILE=personal aws dynamodb create-table \
-    --table-name ClfNestedCV \
-    --attribute-definitions AttributeName=config_idx,AttributeType=N \
-    --key-schema AttributeName=config_idx,KeyType=HASH \
-    --billing-mode PAY_PER_REQUEST --region us-east-1
-
-AWS_PROFILE=personal aws dynamodb create-table \
-    --table-name ClfNestedCVFail \
-    --attribute-definitions AttributeName=config_idx,AttributeType=N \
-    --key-schema AttributeName=config_idx,KeyType=HASH \
-    --billing-mode PAY_PER_REQUEST --region us-east-1
-
-# Regression tables
-AWS_PROFILE=personal aws dynamodb create-table \
-    --table-name RegNestedCV \
-    --attribute-definitions AttributeName=config_idx,AttributeType=N \
-    --key-schema AttributeName=config_idx,KeyType=HASH \
-    --billing-mode PAY_PER_REQUEST --region us-east-1
-
-AWS_PROFILE=personal aws dynamodb create-table \
-    --table-name RegNestedCVFail \
-    --attribute-definitions AttributeName=config_idx,AttributeType=N \
-    --key-schema AttributeName=config_idx,KeyType=HASH \
-    --billing-mode PAY_PER_REQUEST --region us-east-1
-```
-
-### 2. Start Server
-
-```bash
-# Classification experiments
-TABLE_NAME=Clf AWS_PROFILE=personal \
-    uv run uvicorn paper.scripts.nested_cv_server:app --host 0.0.0.0 --port 8000
+# Start server
+S3_BUCKET=citrees-results TABLE_NAME=ClfFeatureSelection AWS_PROFILE=personal \
+    uv run uvicorn paper.scripts.feature_selection_server:app --host 0.0.0.0 --port 8000
 
 # Check status
 curl http://localhost:8000/status/
-# {"n_configs_remaining": 14400, "hosts": {}}
+# {"n_configs_remaining": 11520, "hosts": {}, ...}
+
+# Start workers (can run many in parallel on EC2)
+URL=http://localhost:8000 S3_BUCKET=citrees-results TABLE_NAME=ClfFeatureSelection \
+    AWS_PROFILE=personal uv run python paper/scripts/feature_selection_worker.py
 ```
 
-### 3. Run Workers
+### Stage 2: Downstream Evaluation
 
 ```bash
-# Local worker (for validation)
-URL=http://localhost:8000 TABLE_NAME=Clf AWS_PROFILE=personal N_JOBS=1 \
-    uv run python paper/scripts/nested_cv_worker.py
+# Start server (only serves configs with Stage 1 rankings in S3)
+S3_BUCKET=citrees-results TABLE_NAME=ClfDownstreamEval AWS_PROFILE=personal \
+    uv run uvicorn paper.scripts.eval_server:app --host 0.0.0.0 --port 8000
 
-# EC2 workers (production)
-# See ec2_launch.py for automated deployment
+# Check status
+curl http://localhost:8000/status/
+
+# Start workers
+URL=http://localhost:8000 S3_BUCKET=citrees-results TABLE_NAME=ClfDownstreamEval \
+    AWS_PROFILE=personal uv run python paper/scripts/eval_worker.py
 ```
 
 ---
 
 ## Result Structure
 
-Each experiment stores:
+### Stage 1 Output (S3 rankings)
 
-```python
-{
-    "config_idx": 123,
-    "task_type": "classification",
-    "dataset": "iris",
-    "method": "rf",
-    "n_features_list": [1, 2, ..., 20],
-    "results": {
-        "folds": [
-            {
-                "fold": 0,
-                "selected_features": [3, 1, 4, 0, 2, ...],
-                "selection_time": 0.5,
-
-                # Downstream metrics (selected features evaluated with LR/SVM/kNN)
-                "downstream_metrics": {
-                    5: {
-                        "lr": {"acc": 0.9, "f1": 0.9, "auc": 0.95},
-                        "svm": {"acc": 0.88, "f1": 0.87, "auc": 0.92},
-                        "knn": {"acc": 0.85, "f1": 0.84, "auc": 0.90}
-                    },
-                    10: {...},
-                },
-
-                # Embedding model metrics (for rf/xgb/cit/etc only)
-                "embedding_metrics": {"acc": 0.92, "f1": 0.91, "auc": 0.96}
-            },
-            ...
-        ],
-        "aggregated": {...}  # Mean/std across folds
-    }
-}
 ```
+s3://citrees-results/rankings/{task}/{dataset}/{method}_seed{seed}.parquet
+
+Columns:
+- fold_idx: int
+- train_indices: list[int]
+- test_indices: list[int]
+- feature_ranking: list[int]      # Full ranking [best → worst]
+- selection_time_seconds: float
+- embedding_train_preds: list     # For embedding methods
+- embedding_test_preds: list      # For embedding methods
+```
+
+### Stage 2 Output (S3 metrics)
+
+```
+s3://citrees-results/metrics/{task}/{dataset}/{method}_seed{seed}.parquet
+
+Columns:
+- fold_idx: int
+- n_features: int                 # k value (1 to total_features)
+- lr_acc, lr_f1, lr_roc_auc, lr_pr_auc: float      # Classification
+- svm_acc, svm_f1, svm_roc_auc, svm_pr_auc: float
+- knn_acc, knn_f1, knn_roc_auc, knn_pr_auc: float
+- ridge_mse, ridge_mae, ridge_r2: float  # Regression
+- svr_mse, svr_mae, svr_r2: float
+- knn_mse, knn_mae, knn_r2: float
+- embedding_acc, embedding_f1: float     # For embedding methods
+```
+
+---
+
+## Resume Logic
+
+Both stages support full resume:
+
+1. **Server startup**: Queries DynamoDB for completed configs, only serves remaining
+2. **Worker**: Checks S3 before processing (defensive skip if file exists)
+3. **Stale timeout**: Pending configs older than 30-60 min are reset (dead worker recovery)
+4. **Crash recovery**: Just restart server and workers - they pick up where they left off
 
 ---
 
@@ -226,11 +240,12 @@ Each experiment stores:
 
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
-| `TABLE_NAME` | DynamoDB table prefix | Required | `Clf` or `Reg` |
+| `S3_BUCKET` | S3 bucket for results | `citrees-results` | `citrees-results` |
+| `TABLE_NAME` | DynamoDB table name | Required | `ClfFeatureSelection` |
 | `URL` | FastAPI server URL | Required | `http://10.0.0.1:8000` |
 | `AWS_DEFAULT_REGION` | AWS region | `us-east-1` | `us-east-1` |
 | `AWS_PROFILE` | AWS credentials profile | None | `personal` |
-| `N_JOBS` | Parallel jobs | `-1` | `4` |
+| `N_JOBS` | Parallel jobs (Stage 2) | `-1` | `4` |
 | `LOCAL_TEST` | Run local test mode | None | `1` |
 
 ---
@@ -255,7 +270,7 @@ docker-compose run --rm validate
 
 ## Config Calculation
 
-**Classification:** 16 methods × N datasets × 30 seeds = N × 480 configs
+**Classification:** 16 methods × 24 datasets × 30 seeds = 11,520 configs
 **Regression:** 13 methods × N datasets × 30 seeds = N × 390 configs
 
 ---
@@ -265,6 +280,9 @@ docker-compose run --rm validate
 After experiments complete:
 
 ```bash
+# Download results from S3
+aws s3 sync s3://citrees-results/metrics/ paper/results/metrics/
+
 # Run statistical analysis
 uv run python paper/scripts/analysis.py
 
@@ -276,6 +294,7 @@ uv run python paper/scripts/generate_figures.py
 
 | Output | Description |
 |--------|-------------|
+| Accuracy vs k curves | Performance at each feature subset size |
 | Critical difference diagrams | Nemenyi post-hoc test visualization |
 | Box plots | Method comparison distributions |
 | Heatmaps | Performance by experimental factors |

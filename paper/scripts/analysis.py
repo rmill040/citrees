@@ -32,6 +32,197 @@ FIGURES_DIR = OUTPUT_DIR / "figures"
 TABLES_DIR = OUTPUT_DIR / "tables"
 
 
+# ==============================================================================
+# Statistical Functions
+# ==============================================================================
+
+
+def bootstrap_ci(
+    scores: np.ndarray, n_bootstrap: int = 2000, ci: float = 0.95, random_state: int = 42
+) -> tuple[float, float]:
+    """Bootstrap confidence interval.
+
+    Important: Bootstrap across independent seeds/datasets, NOT CV folds.
+
+    Parameters
+    ----------
+    scores : np.ndarray
+        Array of scores (e.g., accuracy from each seed).
+    n_bootstrap : int
+        Number of bootstrap samples.
+    ci : float
+        Confidence level (e.g., 0.95 for 95% CI).
+    random_state : int
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    tuple[float, float]
+        Lower and upper bounds of CI.
+    """
+    rng = np.random.default_rng(random_state)
+    bootstrap_means = []
+    for _ in range(n_bootstrap):
+        sample = rng.choice(scores, size=len(scores), replace=True)
+        bootstrap_means.append(np.mean(sample))
+    alpha = 1 - ci
+    return (
+        float(np.percentile(bootstrap_means, alpha / 2 * 100)),
+        float(np.percentile(bootstrap_means, (1 - alpha / 2) * 100)),
+    )
+
+
+def pairwise_wilcoxon_holm(
+    data: pd.DataFrame, methods: list[str], metric: str
+) -> pd.DataFrame:
+    """Wilcoxon signed-rank test with Holm-Bonferroni correction.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Results with columns for each method's metric.
+    methods : list[str]
+        List of method names.
+    metric : str
+        Metric column suffix.
+
+    Returns
+    -------
+    pd.DataFrame
+        Pairwise comparison results with corrected p-values.
+    """
+    from scipy.stats import wilcoxon
+    from statsmodels.stats.multitest import multipletests
+
+    pvalues = []
+    pairs = []
+
+    for i, m1 in enumerate(methods):
+        for j, m2 in enumerate(methods):
+            if i < j:
+                col1 = f"{m1}_{metric}"
+                col2 = f"{m2}_{metric}"
+                if col1 in data.columns and col2 in data.columns:
+                    v1 = data[col1].dropna().values
+                    v2 = data[col2].dropna().values
+                    min_len = min(len(v1), len(v2))
+                    if min_len >= 10:
+                        stat, pval = wilcoxon(v1[:min_len], v2[:min_len], alternative="two-sided")
+                        pvalues.append(pval)
+                        pairs.append((m1, m2, stat))
+
+    if not pvalues:
+        return pd.DataFrame()
+
+    _, corrected_pvals, _, _ = multipletests(pvalues, method="holm")
+
+    results = []
+    for (m1, m2, stat), pval, corrected in zip(pairs, pvalues, corrected_pvals):
+        results.append({
+            "method1": m1,
+            "method2": m2,
+            "statistic": stat,
+            "p_value": pval,
+            "p_value_corrected": corrected,
+            "significant": corrected < 0.05,
+        })
+
+    return pd.DataFrame(results)
+
+
+def kendalls_w(chi2_friedman: float, n_datasets: int, k_methods: int) -> float:
+    """Kendall's W effect size for Friedman test.
+
+    Interpretation: 0.1=small, 0.3=medium, 0.5=large.
+
+    Parameters
+    ----------
+    chi2_friedman : float
+        Friedman chi-square statistic.
+    n_datasets : int
+        Number of datasets/observations.
+    k_methods : int
+        Number of methods compared.
+
+    Returns
+    -------
+    float
+        Kendall's W coefficient of concordance.
+    """
+    return chi2_friedman / (n_datasets * (k_methods - 1))
+
+
+def cohens_d(group1: np.ndarray, group2: np.ndarray) -> float:
+    """Cohen's d effect size (standardized mean difference).
+
+    Interpretation: 0.2=small, 0.5=medium, 0.8=large.
+
+    Parameters
+    ----------
+    group1, group2 : np.ndarray
+        Arrays of values for each group.
+
+    Returns
+    -------
+    float
+        Cohen's d value.
+    """
+    n1, n2 = len(group1), len(group2)
+    var1, var2 = np.var(group1, ddof=1), np.var(group2, ddof=1)
+    pooled_std = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
+    if pooled_std == 0:
+        return 0.0
+    return float((np.mean(group1) - np.mean(group2)) / pooled_std)
+
+
+def nogueira_stability_index(feature_sets: list[list[int]], total_features: int) -> float:
+    """Nogueira stability index with correction for chance.
+
+    Measures consistency of feature selection across runs (e.g., CV folds, seeds).
+
+    Parameters
+    ----------
+    feature_sets : list[list[int]]
+        List of selected feature indices from each run.
+    total_features : int
+        Total number of features in the dataset.
+
+    Returns
+    -------
+    float
+        Stability index in range [-1, 1]. Higher is more stable.
+    """
+    M = len(feature_sets)
+    p = total_features
+
+    if M < 2:
+        return 1.0
+
+    # Compute selection frequency for each feature
+    freq = np.zeros(p)
+    for fs in feature_sets:
+        for f in fs:
+            if 0 <= f < p:
+                freq[f] += 1
+    freq /= M
+
+    # Average number of selected features
+    k_bar = np.mean([len(fs) for fs in feature_sets])
+
+    # Nogueira formula
+    numerator = (1 / p) * np.sum(freq * (1 - freq))
+    denominator = (k_bar / p) * (1 - k_bar / p)
+
+    if denominator == 0:
+        return 1.0
+    return float(1 - numerator / denominator)
+
+
+# ==============================================================================
+# Core Statistical Tests
+# ==============================================================================
+
+
 def friedman_test(data: pd.DataFrame, methods: list[str], metric: str) -> tuple[float, float]:
     """Perform Friedman test across methods.
 

@@ -33,6 +33,7 @@ from lightgbm import LGBMClassifier
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
+from sklearn.inspection import permutation_importance
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
@@ -191,6 +192,35 @@ def boruta_selector(
     return np.argsort(ranking)[:n_select]
 
 
+def sklearn_permutation_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    hyperparameters: dict,
+    n_select: int,
+) -> np.ndarray:
+    """sklearn permutation importance using RF as base estimator."""
+    hp = hyperparameters.copy()
+    n_repeats = hp.pop("n_repeats", 10)
+    n_estimators = hp.pop("n_estimators", 100)
+    random_state = hp.pop("random_state", RANDOM_STATE)
+
+    rf = RandomForestClassifier(
+        n_estimators=n_estimators,
+        random_state=random_state,
+        n_jobs=-1,
+    )
+    rf.fit(X_train, y_train)
+
+    result = permutation_importance(
+        rf, X_train, y_train,
+        n_repeats=n_repeats,
+        random_state=random_state,
+        n_jobs=-1,
+    )
+    # Higher importance = better
+    return np.argsort(result.importances_mean)[::-1][:n_select]
+
+
 def select_features(
     X_train: np.ndarray,
     y_train: np.ndarray,
@@ -206,6 +236,8 @@ def select_features(
         return permutation_selector(X_train, y_train, method, n_classes, hyperparameters, n_select)
     elif method == "boruta":
         return boruta_selector(X_train, y_train, hyperparameters, n_select)
+    elif method == "permutation_importance":
+        return sklearn_permutation_selector(X_train, y_train, hyperparameters, n_select)
     elif method in ESTIMATORS:
         return embedding_selector(X_train, y_train, method, n_classes, hyperparameters, n_select)
     else:

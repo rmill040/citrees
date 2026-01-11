@@ -642,6 +642,26 @@ Add BibTeX entries for:
 - Mutual information (if used): Kraskov, Stögbauer, Grassberger (2004) for KSG-style estimation
 - Honesty / honest forests: Wager & Athey (2018); Athey, Tibshirani, Wager (2019)
 
+### 7.1 Relationship to Hothorn et al. (2006) ctree
+
+citrees is inspired by the conditional inference tree framework of Hothorn, Hornik, and Zeileis (2006), but differs
+in several implementation details:
+
+| Aspect | Original ctree (partykit) | citrees |
+|--------|---------------------------|---------|
+| **Test statistic** | Linear statistics (Strasser & Weber, 1999) | Flexible: correlation, MI, RDC, distance correlation |
+| **P-value computation** | Asymptotic (limiting distribution) | Monte Carlo permutation (finite-sample exact) |
+| **Split criterion** | Maximizes linear test statistic | Impurity-based (Gini, entropy, MSE, MAE) |
+| **Threshold testing** | Implicit in linear statistic framework | Separate permutation test on split quality |
+
+**Key theoretical difference.** The original ctree uses asymptotic p-values derived from the limiting distribution of
+linear statistics under the null. citrees uses Monte Carlo permutation p-values, which are finite-sample valid under
+exchangeability (Theorem 1) without requiring asymptotic approximations.
+
+**Practical implication.** The finite-sample guarantees in this document (Theorem 1, Propositions 3–4) hold for any
+sample size $n$ and any measurable test statistic, whereas asymptotic guarantees require $n$ to be "large enough" for
+the limiting distribution to be accurate.
+
 ## 8. Implementation-to-theory alignment checklist (paper-facing)
 
 Before making inferential claims in a paper, it’s worth explicitly deciding which of the following you will *support*:

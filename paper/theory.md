@@ -566,11 +566,9 @@ $$
 $$
 (We do **not** generally have $E \perp \Pi$ unconditionally because $\Pi$ depends on which indices are placed in $S$.)
 
-**Implementation note.**  
-In `citrees/_tree.py`, honest estimation uses `train_test_split`. For regression, the split is unstratified, matching
-the independence assumption. For classification, the split is stratified by labels to preserve class balance, which
-introduces dependence on $Y$; we therefore do **not** interpret the classification “honesty” mode as providing
-publication-grade unbiased leaf probability estimation unless the split is made independent of $Y$.
+**Implementation note.**
+In `citrees/_tree.py`, honest estimation uses `train_test_split` with `stratify=None` for both classification and
+regression, satisfying the independence assumption required by Proposition 4.
 
 For a leaf (cell) $L \in \Pi$, define the estimation indices landing in that leaf
 $$
@@ -856,8 +854,7 @@ Before making inferential claims in a paper, it’s worth explicitly deciding wh
 
 5. **Honesty claims match the sampling scheme.**
    Proposition 4 (unbiased honest leaf estimation) assumes the index split $(S,E)$ is independent of the observed data.
-   In the current implementation, this matches regression (unstratified split) but not classification (stratified by
-   labels).
+   The implementation uses `stratify=None` for both classification and regression, satisfying this assumption.
 
 ## 9. What is actually “publishable” theory for citrees (safe claims)
 

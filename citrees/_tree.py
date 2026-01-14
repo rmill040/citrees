@@ -1136,13 +1136,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         # Honest estimation: split data into splitting and estimation samples
         if self.honesty:
-            stratify = y if self._estimator_type == EstimatorType.CLASSIFIER else None
             X_split, X_est, y_split, y_est = train_test_split(
                 X,
                 y,
                 test_size=self.honesty_fraction,
                 random_state=self._random_state,
-                stratify=stratify,
             )
             # Build tree structure using splitting sample
             self.tree_ = self._build_tree(X_split, y_split, depth=1)

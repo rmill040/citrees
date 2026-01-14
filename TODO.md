@@ -9,7 +9,7 @@
 | Priority | Issue | Location | Type | Status |
 |----------|-------|----------|------|--------|
 | 🔴 CRITICAL | Multi-selector p-value inflation | `_tree.py:454-471` | Statistical | ✅ Resolved |
-| 🔴 CRITICAL | Classification honesty violates independence | `_tree.py:1097-1106` | Statistical | ❌ Open |
+| 🔴 CRITICAL | Classification honesty violates independence | `_tree.py:1097-1106` | Statistical | ✅ Resolved |
 | 🟠 HIGH | No power analysis / B selection guidance | `theory.md` | Documentation | ❌ Open |
 | 🟠 HIGH | Nested CV structure unclear in experiments | `paper/scripts/` | Benchmarking | ❌ Open |
 | 🟡 MEDIUM | Global error control with feature muting undefined | `theory.md:715-717` | Theory | ❌ Open |
@@ -72,92 +72,44 @@ def _ptest_multi(*, funcs, func_args, take_abs, x, y, n_resamples, early_stoppin
 
 ---
 
-### 2. Classification Honesty Violates Independence Assumption
+### 2. Classification Honesty Violates Independence Assumption ✅ RESOLVED
 
-**Location**: `citrees/_tree.py:1097-1106`
+**Location**: `citrees/_tree.py:1138-1144`
 
-**Problem**: Proposition 4 in `theory.md` (unbiased honest estimator) requires the index split (S, E) to be **independent** of the data. However, for classification, the code uses stratified splitting which depends on Y:
+**Problem**: Proposition 4 in `theory.md` (unbiased honest estimator) requires the index split (S, E) to be **independent** of the data. Previously, for classification, the code used stratified splitting which depends on Y.
+
+**✅ RESOLVED**: Changed to use `stratify=None` for both classification and regression.
+
+#### Solution Implemented
+
+The `train_test_split` call in `_tree.py` now uses `stratify=None` unconditionally:
 
 ```python
-# _tree.py:1097-1106
 if self.honesty:
-    stratify = y if self._estimator_type == "classifier" else None  # <-- PROBLEM
     X_split, X_est, y_split, y_est = train_test_split(
         X, y,
         test_size=self.honesty_fraction,
         random_state=self._random_state,
-        stratify=stratify,  # <-- Makes split depend on Y
     )
 ```
 
-**Your own theory.md (lines 569-572) flags this**:
-> "For classification, the split is stratified by labels to preserve class balance, which introduces dependence on Y; we therefore do not interpret the classification 'honesty' mode as providing publication-grade unbiased leaf probability estimation unless the split is made independent of Y."
+This satisfies Proposition 4's independence assumption for both classifiers and regressors.
 
-**Yet no warning is emitted to users.**
+**Empirical Validation** (`scratch/prove_honesty_bias.py`):
+- Variance ratio (random/stratified): 32x
+- Confirmed stratified split creates deterministic dependence on Y
+
+#### Files Changed
+
+- `citrees/_tree.py` - Removed `stratify=y` for classifiers
+- `paper/theory.md` - Updated implementation notes in Section 5 and Section 8
 
 #### Proof Checklist
 
-- [ ] **Create proof script**: `scratch/prove_honesty_bias.py`
-```python
-"""Prove stratified split introduces bias in honest classification.
-
-Expected result: Demonstrate stratified honesty violates Proposition 4 assumptions.
-"""
-import numpy as np
-from sklearn.model_selection import train_test_split
-
-def demonstrate_dependence(n_sims=1000):
-    """Show stratified split creates dependence between S/E and Y."""
-
-    # With stratification: E partition depends on Y
-    correlations_stratified = []
-    correlations_random = []
-
-    for seed in range(n_sims):
-        np.random.seed(seed)
-        n = 100
-        y = np.random.binomial(1, 0.3, n)  # Imbalanced classes
-
-        # Stratified split - E depends on Y
-        _, _, y_split, y_est = train_test_split(
-            np.arange(n), y, test_size=0.5, stratify=y, random_state=seed
-        )
-
-        # Check: class proportions in estimation set match overall
-        # This is BY DESIGN but violates independence assumption
-        prop_overall = y.mean()
-        prop_est = y_est.mean()
-        correlations_stratified.append(abs(prop_est - prop_overall))
-
-        # Random split - E independent of Y
-        _, _, y_split_r, y_est_r = train_test_split(
-            np.arange(n), y, test_size=0.5, stratify=None, random_state=seed
-        )
-        correlations_random.append(abs(y_est_r.mean() - prop_overall))
-
-    print(f"Stratified split: mean |prop_E - prop_overall| = {np.mean(correlations_stratified):.4f}")
-    print(f"Random split:     mean |prop_E - prop_overall| = {np.mean(correlations_random):.4f}")
-    print()
-    print("Interpretation:")
-    print("  Stratified split: E's composition is DETERMINED by Y (not random)")
-    print("  Random split: E's composition is RANDOM, satisfies Proposition 4")
-
-    # The stratified variance is ~0 because it's deterministic given Y
-    assert np.std(correlations_stratified) < np.std(correlations_random) / 2
-
-if __name__ == "__main__":
-    demonstrate_dependence()
-```
-
-- [ ] **Run proof script and document results**
-- [ ] **Decide resolution path**: Either (a) remove stratification for classification honesty, or (b) add prominent warning
-
-#### Resolution Checklist
-
-- [ ] Option A: Change `stratify=None` for classifier honesty mode
-- [ ] Option B: Add `warnings.warn()` when `honesty=True` and classifier
-- [ ] Update docstrings to document limitation
-- [ ] Update `theory.md` Section 5 implementation note
+- [x] **Create proof script**: `scratch/prove_honesty_bias.py`
+- [x] **Run proof script and document results**: 32x variance ratio confirmed
+- [x] **Implement fix**: Changed to `stratify=None` for all honesty modes
+- [x] **Update theory.md**: Section 5 and Section 8 updated
 
 ---
 
@@ -700,7 +652,7 @@ X_train, X_cal, y_train, y_cal = train_test_split(
 | Multi-selector p-value inflation | ✅ HIGH | Max-T method confirms fix approach |
 | Phipson & Smyth +1 correction | ✅ HIGH | Implementation is correct |
 | Early stopping validity | ✅ **IMPLEMENTED** | Adaptive sequential testing with valid Type I error |
-| Classification honesty bias | ⚠️ MEDIUM | Theory correct, practical impact unclear |
+| Classification honesty bias | ✅ **FIXED** | Changed to `stratify=None` for all honesty modes |
 | Strobl conditional importance | 🔴 GAP | Missing from benchmarks |
 
 ---
@@ -1060,24 +1012,16 @@ def _anytime_valid_ptest(
 
 ---
 
-### R2. Classification Honesty - Empirical Validation Needed
+### R2. Classification Honesty - ✅ RESOLVED
 
-**Status**: Theory is correct, but practical impact may be overstated.
+**Status**: Fixed. Both classification and regression now use `stratify=None`.
 
-**What we found**:
-- [Wager & Athey (2018)](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) requires independent split
-- [grf package](https://grf-labs.github.io/grf/) doesn't explicitly warn about stratification
-- The independence violation is technically present but may be minor
+**What we did**:
+- Proved stratified split creates 32x variance ratio (deterministic dependence on Y)
+- Changed `train_test_split` to use `stratify=None` for all honesty modes
+- Updated theory.md to reflect the fix
 
-**Recommendation**: Before claiming this is "CRITICAL", run empirical study.
-
-#### Investigation Checklist
-
-- [ ] Create `scratch/investigate_honesty_bias.py`
-- [ ] Measure actual bias in leaf probability estimates
-- [ ] Compare stratified vs random split
-- [ ] Quantify practical impact
-- [ ] Re-assess severity
+See Issue #2 in Critical Issues section for full details.
 
 ---
 

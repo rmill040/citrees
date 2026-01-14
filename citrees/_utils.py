@@ -115,6 +115,7 @@ def split_data(
     return X[idx], y[idx], X[~idx], y[~idx]
 
 
+# Note: Uses np.random.seed() because Numba doesn't support default_rng() inside @njit.
 @njit(cache=True, fastmath=True, nogil=True)
 def bayesian_bootstrap_proba(*, n: int, random_state: int) -> np.ndarray:
     """Generate Bayesian bootstrap probabilities for a sample of size n.

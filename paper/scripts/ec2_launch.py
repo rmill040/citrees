@@ -2,38 +2,79 @@
 """EC2 instance launcher for citrees distributed experiments.
 
 Launches EC2 instances configured to run citrees experiment servers or workers.
-Instances are bootstrapped via user data scripts that:
-1. Install Python and dependencies
-2. Clone the citrees repository
-3. Install the package with benchmarking dependencies
-4. Start the appropriate server or worker process
+All instances should be in the SAME VPC subnet for private network communication.
 
-Prerequisites:
-- AWS credentials configured (aws configure or environment variables)
-- IAM role with DynamoDB access for instances
-- Security group allowing:
-  - SSH (port 22) for debugging
-  - Port 8000 (server only, from worker security group)
-- Key pair for SSH access
+## VPC Setup (one-time)
 
-Usage:
-    # Launch a server
+1. Create VPC with internet gateway (instances need internet for git clone & pip install):
+   aws ec2 create-vpc --cidr-block 10.0.0.0/16 --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=citrees-vpc}]'
+   aws ec2 create-internet-gateway --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=citrees-igw}]'
+   aws ec2 attach-internet-gateway --vpc-id vpc-xxx --internet-gateway-id igw-xxx
+
+2. Create public subnet with auto-assign public IP:
+   aws ec2 create-subnet --vpc-id vpc-xxx --cidr-block 10.0.1.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=citrees-subnet}]'
+   aws ec2 modify-subnet-attribute --subnet-id subnet-xxx --map-public-ip-on-launch
+
+3. Create route table with internet access:
+   aws ec2 create-route-table --vpc-id vpc-xxx --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=citrees-rt}]'
+   aws ec2 create-route --route-table-id rtb-xxx --destination-cidr-block 0.0.0.0/0 --gateway-id igw-xxx
+   aws ec2 associate-route-table --route-table-id rtb-xxx --subnet-id subnet-xxx
+
+4. Create security group:
+   aws ec2 create-security-group --group-name citrees-sg --description "citrees experiments" --vpc-id vpc-xxx
+   # Allow port 8000 within VPC (server-worker communication)
+   aws ec2 authorize-security-group-ingress --group-id sg-xxx --protocol tcp --port 8000 --cidr 10.0.0.0/16
+
+5. Create IAM role with DynamoDB + S3 + SSM access (see paper/scripts/iam_policy.json)
+
+## Usage
+
+    # 1. Launch server (get private IP from output)
     python ec2_launch.py server \\
         --table-name ClfFeatureSelection \\
-        --instance-type c5.xlarge \\
-        --key-name my-keypair \\
+        --subnet-id subnet-xxx \\
+        --security-group sg-xxx \\
         --iam-role citrees-worker-role \\
-        --security-group sg-xxx
+        --key-name my-keypair
 
-    # Launch workers
+    # 2. Launch workers (use server's PRIVATE IP)
     python ec2_launch.py worker \\
-        --server-url http://10.0.0.5:8000 \\
+        --server-url http://10.0.1.5:8000 \\
         --table-name ClfFeatureSelection \\
-        --instance-type c5.xlarge \\
-        --count 5 \\
-        --key-name my-keypair \\
+        --subnet-id subnet-xxx \\
+        --security-group sg-xxx \\
         --iam-role citrees-worker-role \\
-        --security-group sg-xxx
+        --key-name my-keypair \\
+        --count 5
+
+## Network Architecture
+
+    ┌─────────────────────────────────────────────┐
+    │              VPC (10.0.0.0/16)              │
+    │  ┌───────────────────────────────────────┐  │
+    │  │      Private Subnet (10.0.1.0/24)     │  │
+    │  │                                       │  │
+    │  │   ┌─────────┐      ┌─────────┐       │  │
+    │  │   │ Server  │◄────►│ Worker  │ × N   │  │
+    │  │   │ :8000   │      │         │       │  │
+    │  │   └─────────┘      └─────────┘       │  │
+    │  │   10.0.1.5         10.0.1.10-N       │  │
+    │  └───────────────────────────────────────┘  │
+    └─────────────────────────────────────────────┘
+
+## Debugging (no SSH needed)
+
+Use AWS Systems Manager Session Manager instead of SSH:
+
+    # Connect to instance shell
+    aws ssm start-session --target i-xxxxx
+
+    # View bootstrap logs
+    cat /var/log/user-data.log
+
+    # View server/worker logs
+    cat /var/log/citrees-server.log
+    cat /var/log/citrees-worker.log
 """
 
 import argparse
@@ -185,7 +226,7 @@ def launch_instances(
     count: int,
     instance_type: str,
     ami_id: str,
-    key_name: str,
+    key_name: str | None,
     security_group: str,
     iam_role: str,
     user_data: str,
@@ -202,7 +243,6 @@ def launch_instances(
         "InstanceType": instance_type,
         "MinCount": count,
         "MaxCount": count,
-        "KeyName": key_name,
         "SecurityGroupIds": [security_group],
         "UserData": user_data_b64,
         "TagSpecifications": [
@@ -216,6 +256,10 @@ def launch_instances(
             }
         ],
     }
+
+    # Add SSH key if specified (optional - can use SSM instead)
+    if key_name:
+        params["KeyName"] = key_name
 
     # Add IAM instance profile if specified
     if iam_role:
@@ -265,8 +309,7 @@ def main():
     )
     common.add_argument(
         "--key-name",
-        required=True,
-        help="SSH key pair name",
+        help="SSH key pair name (optional - use SSM Session Manager instead)",
     )
     common.add_argument(
         "--security-group",
@@ -280,7 +323,8 @@ def main():
     )
     common.add_argument(
         "--subnet-id",
-        help="VPC subnet ID (optional)",
+        required=True,
+        help="VPC subnet ID (required - all instances must be in same subnet for private communication)",
     )
     common.add_argument(
         "--region",

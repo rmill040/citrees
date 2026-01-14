@@ -344,6 +344,47 @@ per-feature threshold is $\alpha/m$. To have any chance of rejection, one needs 
 with $\alpha = 0.05$ and $m = 100$ features, the per-feature threshold is $0.0005$, requiring $B \ge 1999$
 permutations.
 
+#### Implementation guarantee
+
+citrees validates at initialization that integer `n_resamples >= ceil(1/α)`. Combined with Bonferroni scaling
+(where the effective number of permutations is `n_resamples × m`), this guarantees rejection is always
+mathematically possible regardless of the number of features.
+
+**Proof sketch.** Let $R$ be the user-specified `n_resamples` and $m$ the number of features. With Bonferroni:
+- Effective permutations: $B_{\text{eff}} = R \times m$
+- Effective threshold: $\alpha' = \alpha/m$
+- Minimum achievable p-value: $p_{\min} = 1/(R \times m + 1)$
+
+For rejection to be possible, we need $p_{\min} < \alpha'$:
+$$
+\frac{1}{Rm + 1} < \frac{\alpha}{m} \implies R > \frac{1}{\alpha} - \frac{1}{m}
+$$
+
+Since $1/\alpha - 1/m < 1/\alpha$ for all $m \ge 1$, the condition $R \ge \lceil 1/\alpha \rceil$ is sufficient.
+
+#### AUTO mode scaling
+
+When `n_resamples='auto'` (default), citrees recalculates $B$ using the Bonferroni-corrected threshold $\alpha/m$:
+
+| $m$ features | $\alpha$ | $\alpha/m$ | Min $B$ (rejection) | AUTO $B$ |
+|--------------|----------|------------|---------------------|----------|
+| 10           | 0.05     | 0.005      | 199                 | 1,321    |
+| 50           | 0.05     | 0.001      | 999                 | 9,540    |
+| 100          | 0.05     | 0.0005     | 1,999               | 21,645   |
+| 500          | 0.05     | 0.0001     | 9,999               | 138,298  |
+| 1,000        | 0.05     | 0.00005    | 19,999              | 302,719  |
+| 5,000        | 0.05     | 0.00001    | 99,999              | 1,818,912|
+
+AUTO always exceeds the minimum required, ensuring valid inference. For high-dimensional settings ($m > 1000$),
+consider using `early_stopping_selector='adaptive'` (default) to reduce computational cost while maintaining
+valid Type I error control.
+
+#### Recommendations
+
+- **`n_resamples='auto'`** (default): Automatically scales with Bonferroni correction. Sufficient for all scenarios.
+- **`n_resamples='maximum'`**: For maximum p-value precision when computational cost is not a concern.
+- **Integer values**: Validated at initialization; must satisfy `n_resamples >= ceil(1/α)`.
+
 ## 4. Multiplicity correction (Bonferroni)
 
 ### 4.1 Lemma: Bonferroni with super-uniform p-values
@@ -1002,3 +1043,208 @@ scale. In citrees:
 
 so including `mi` in a max-with-others selector list would change the meaning of the maximum and would require
 additional normalization or theory.
+
+## 11. Selection Bias in CART and the citrees Solution
+
+### 11.1 The Selection Bias Problem in CART
+
+CART-style decision trees (Breiman et al., 1984) select split variables by maximizing impurity reduction. This leads to
+a fundamental problem: **features with more candidate split points have more chances to appear optimal by chance**.
+
+**Example (Strobl et al., 2007).**
+Consider two features: a binary feature (1 candidate split) and a continuous feature (100 candidate splits). Under the
+null hypothesis where neither feature predicts the response, CART will select the continuous feature far more often
+because it has 100 chances to find an "optimal" split versus just 1.
+
+**Mathematical formulation.**
+Let $X_j$ have $\ell_j$ unique values (hence $\ell_j - 1$ candidate split points). Under the global null, for a random
+split point $c$ on feature $j$, the probability of observing impurity reduction $\Delta I_{j,c} \geq \delta$ is
+approximately:
+$$
+\mathbb{P}\left(\max_{c \in C_j} \Delta I_{j,c} \geq \delta\right) \approx 1 - \left(1 - \mathbb{P}(\Delta I \geq \delta)\right)^{|C_j|}
+$$
+which increases with $|C_j|$. This creates selection bias toward high-cardinality features.
+
+### 11.2 How citrees Eliminates Selection Bias
+
+citrees addresses this problem through two mechanisms:
+
+1. **Permutation-based hypothesis testing**: Instead of comparing impurity reductions directly, we compare them to
+   their null distributions obtained by permuting the response. This automatically accounts for the number of tests.
+
+2. **Bonferroni correction over the tested family**: The p-value threshold is adjusted based on the number of
+   hypotheses actually tested ($\alpha/m$ for $m$ features or $\alpha/\ell$ for $\ell$ thresholds).
+
+**Key result (Proposition 3a).**
+For any particular null feature $j$ in the tested set $F_t$, the probability of selecting that feature is bounded by:
+$$
+\mathbb{P}(j_t^\star = j) \leq \alpha_{\text{sel}}/|F_t|
+$$
+regardless of how many unique values (candidate splits) feature $j$ has.
+
+**Intuition.**
+The permutation test asks: "How often would we see an association this strong or stronger if there were no true
+relationship?" The answer depends on the test statistic (not the number of candidate splits), and the Bonferroni
+correction ensures fair comparison across features with different numbers of unique values.
+
+### 11.3 Comparison to Variable Importance Corrections
+
+Alternative approaches to selection bias in random forests include:
+
+1. **Conditional permutation importance (Strobl et al., 2008)**: Permutes within strata defined by correlated variables.
+2. **Subsampling without replacement (Strobl et al., 2007)**: Reduces bias but doesn't eliminate it.
+3. **Bias-corrected variable importance (Sandri & Zuccolotto, 2008)**: Post-hoc correction.
+
+citrees addresses the problem at the source: the split decision itself is unbiased, rather than correcting biased
+importance measures after the fact.
+
+## 12. Conditional Inference vs. Marginal Inference
+
+### 12.1 Conditioning Framework
+
+In citrees, all p-values are computed **conditional on the covariates** $X_t$ at each node. This is the natural
+framework for permutation tests:
+
+$$
+p = \mathbb{P}\left(T(X_{t,j}, \pi(Y_t)) \geq T(X_{t,j}, Y_t) \mid X_t\right)
+$$
+
+where $\pi$ is a uniform random permutation.
+
+**Advantages of conditional inference:**
+1. Valid regardless of the marginal distribution of $X$
+2. No parametric assumptions on the relationship between $X$ and $Y$
+3. Finite-sample exact (not asymptotic)
+
+**Contrast with marginal approaches:**
+Classical hypothesis tests (e.g., F-test for ANOVA) make distributional assumptions and provide marginal (unconditional)
+p-values. These require stronger assumptions but can be more powerful when assumptions hold.
+
+### 12.2 Exchangeability vs. Independence
+
+The permutation test assumes **exchangeability** under the null, not independence. Specifically:
+$$
+H_0: (Y_1, \ldots, Y_n) \text{ is exchangeable conditional on } X
+$$
+
+This is implied by, but weaker than, the standard independence null:
+$$
+H'_0: Y_i \stackrel{\text{iid}}{\sim} P_Y \text{ independently of } X
+$$
+
+The practical implication: permutation tests are valid under heteroscedasticity and other departures from i.i.d.
+assumptions, as long as exchangeability holds under the null.
+
+## 13. Computational Considerations and Practical Guidance
+
+### 13.1 When to Use Each Early Stopping Mode
+
+| Setting | Recommended Mode | Rationale |
+|---------|-----------------|-----------|
+| Production/default | `adaptive` | Valid Type I error, 95% speedup |
+| Maximum precision | `None` | Exact fixed-$B$ p-values |
+| Speed benchmark only | `simple` | Fast but inflates error |
+| Theoretical analysis | `None` | Clean proofs apply |
+
+### 13.2 Choosing n_resamples
+
+| Scenario | Recommended | Permutations (typical) |
+|----------|-------------|------------------------|
+| Default | `auto` | Adapts to Bonferroni |
+| High-dimensional ($p > 1000$) | `auto` + `adaptive` | ~50 effective |
+| Publication-quality inference | `maximum` | $O(1/\alpha^2)$ |
+| Quick exploration | `minimum` | $\lceil 1/\alpha \rceil$ |
+
+### 13.3 Memory and Time Complexity
+
+**Time complexity per node:**
+- Feature selection: $O(m \cdot B \cdot n)$ without early stopping
+- With adaptive stopping: typically $O(m \cdot 50 \cdot n)$ under null
+- Split selection: $O(\ell \cdot B \cdot n)$ per selected feature
+
+**Memory:**
+- Tree storage: $O(\text{depth} \cdot \text{width})$ nodes
+- Per node: $O(1)$ for split parameters
+- Training: $O(n \cdot p)$ for data, $O(B)$ for permutation statistics
+
+### 13.4 Parallelization Strategy
+
+citrees uses two levels of parallelization:
+
+1. **Forest level (joblib)**: Trees are trained independently in parallel
+2. **Permutation level (Numba prange)**: Permutations within a test are parallelized when:
+   - `early_stopping=None` (no sequential dependencies)
+   - $B \geq 200$ (overhead amortization)
+
+## 14. Relationship to Other Methods
+
+### 14.1 Comparison with R's partykit::ctree
+
+citrees is inspired by Hothorn et al. (2006) but differs in several ways:
+
+| Aspect | partykit::ctree | citrees |
+|--------|-----------------|---------|
+| Test statistic | Linear statistics | Multiple options (mc, mi, rdc, pc, dc) |
+| P-value computation | Asymptotic approximation | Monte Carlo permutation |
+| Multiple selectors | Single | Multi-selector mode (max-T) |
+| Early stopping | None | Adaptive sequential testing |
+| Implementation | R | Python (NumPy + Numba) |
+
+### 14.2 Comparison with Generalized Random Forests (GRF)
+
+GRF (Athey, Tibshirani, Wager, 2019) uses a different framework:
+
+| Aspect | GRF | citrees |
+|--------|-----|---------|
+| Primary goal | Causal inference | Prediction + selection |
+| Variable selection | Gradient-based | Permutation testing |
+| Honest estimation | Always | Optional |
+| Inference target | Treatment effects | Feature importance |
+| Theoretical focus | Asymptotic normality | Finite-sample validity |
+
+### 14.3 When to Use citrees vs. Alternatives
+
+**Use citrees when:**
+- Interpretable p-values for variable selection are desired
+- Selection bias is a concern
+- Finite-sample validity is important
+- Combining multiple association measures
+
+**Use CART/Random Forest when:**
+- Maximum predictive accuracy is the only goal
+- Speed is critical and p-values are not needed
+- Very large datasets where permutation testing is prohibitive
+
+**Use GRF when:**
+- Causal inference is the primary goal
+- Treatment effect heterogeneity estimation
+- Asymptotic confidence intervals are sufficient
+
+## 15. Future Directions
+
+### 15.1 Theoretical Extensions
+
+1. **Selective inference for internal nodes**: Develop valid post-selection inference for p-values at non-root nodes
+   using recent advances in selective inference (Lee et al., 2016).
+
+2. **Concentration bounds for tree predictions**: Establish finite-sample prediction error bounds under the citrees
+   splitting criterion.
+
+3. **Multiple testing across the tree**: Extend family-wise error control from nodewise to treewise using hierarchical
+   testing procedures.
+
+### 15.2 Methodological Extensions
+
+1. **Oblique splits**: Extend permutation testing to linear combinations of features.
+
+2. **Structured outputs**: Multi-label classification, multi-output regression.
+
+3. **Missing data**: Permutation-based imputation or surrogate splits.
+
+### 15.3 Computational Improvements
+
+1. **GPU acceleration**: Port permutation loops to CUDA for massive parallelization.
+
+2. **Streaming/online learning**: Adapt sequential testing for incremental tree updates.
+
+3. **Approximate permutation tests**: Use importance sampling or saddlepoint approximations.

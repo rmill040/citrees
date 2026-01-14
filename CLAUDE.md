@@ -268,6 +268,32 @@ JIT globally. This means:
 - Coverage tracking works automatically
 - Tests run the same code paths as production, just without compilation
 
+#### RNG Usage Pattern
+
+The codebase uses two different RNG approaches based on Numba constraints:
+
+**Pure Python functions** use `np.random.default_rng()` for isolated RNG streams:
+```python
+def _ptest(..., random_state: int):
+    rng = np.random.default_rng(random_state)
+    rng.shuffle(y_)  # Doesn't contaminate global state
+```
+
+**Numba @njit functions** must use `np.random.seed()` because Numba's Generator
+support is not thread-safe (see [GitHub #7686](https://github.com/numba/numba/issues/7686)):
+```python
+@njit(parallel=True)
+def _ptest_parallel(..., random_state: int):
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)  # Per-iteration seeding
+        np.random.shuffle(y_perm)
+```
+
+**Key points:**
+- Never use `np.random.seed()` in pure Python code (contaminates global state)
+- Per-iteration seeding `(random_state + i)` in `prange` is the recommended Numba pattern
+- All Numba functions using legacy RNG have documentation comments explaining why
+
 ### Scratch Directory
 
 Use `scratch/` for experimental code and proving concepts. Add to .gitignore.

@@ -1,7 +1,6 @@
 # Paper Experiments
 
-This directory contains scripts and data for reproducing the experiments in the
-citrees paper.
+Scripts and data for reproducing the citrees paper experiments.
 
 ## Directory Structure
 
@@ -9,74 +8,99 @@ citrees paper.
 paper/
 ├── data/                              # Datasets (parquet format)
 │   ├── clf_*.parquet                 # Classification datasets
+│   ├── clf_synthetic_*.parquet       # Synthetic datasets (with ground truth)
 │   └── reg_*.parquet                 # Regression datasets
 ├── scripts/
-│   ├── feature_selection_server.py   # Stage 1: FastAPI server
-│   ├── feature_selection_worker.py   # Stage 1: Feature selection workers
-│   ├── eval_server.py                # Stage 2: FastAPI server
-│   ├── eval_worker.py                # Stage 2: Model evaluation workers
-│   ├── analysis.py                   # Statistical tests and visualizations
-│   ├── ec2_launch.py                 # EC2 server/worker launcher
-│   └── generate_figures.py           # Paper figure generation
+│   ├── ray_feature_selection.py      # Stage 1: Distributed feature selection
+│   ├── ray_eval.py                   # Stage 2: Distributed downstream eval
+│   ├── check_progress.py             # Progress monitoring via S3
+│   ├── generate_synthetic_datasets.py # Generate synthetic data
+│   ├── synthetic_analysis.py         # Precision/recall@k analysis
+│   ├── analysis.py                   # Statistical tests
+│   ├── constants.py                  # Method lists, defaults
+│   ├── classifiers.py                # Downstream model definitions
+│   ├── metrics.py                    # Evaluation metrics
+│   └── infra/
+│       ├── config.py                 # Configuration dataclasses
+│       ├── config.yaml               # Experiment settings
+│       └── ray/
+│           ├── cluster.yaml          # Ray cluster config
+│           └── setup_cluster.py      # AMI update helper
 └── results/                          # Local cache (S3 is source of truth)
 ```
 
-## Quick Start (Local Validation)
+## Quick Start
+
+### Local Testing
 
 ```bash
 # Install dependencies
-uv sync
+uv sync --group paper
 
-# Test Stage 1 (feature selection) locally
-LOCAL_TEST=1 S3_BUCKET=citrees-results AWS_PROFILE=personal \
-    uv run python paper/scripts/feature_selection_worker.py
-
-# Test Stage 2 (model evaluation) locally
-LOCAL_TEST=1 S3_BUCKET=citrees-results AWS_PROFILE=personal \
-    uv run python paper/scripts/eval_worker.py
-
-# Or use Docker
-docker-compose run --rm sanity
+# Test feature selection locally
+uv run python -c "
+from paper.scripts.ray_feature_selection import run_selection
+import numpy as np
+X = np.random.randn(100, 20)
+y = (X[:, 0] + X[:, 1] > 0).astype(int)
+results = run_selection(X, y, 'mc', 'classification', seed=0)
+print(f'Got {len(results)} fold results')
+print(f'Top 5 features: {results[0][\"feature_ranking\"][:5]}')
+"
 ```
 
----
+### Distributed (AWS)
+
+See [INFRASTRUCTURE.md](INFRASTRUCTURE.md) for full AWS setup.
+
+```bash
+# Start Ray cluster
+AWS_PROFILE=personal ray up paper/scripts/infra/ray/cluster.yaml
+
+# Run feature selection
+AWS_PROFILE=personal ray submit paper/scripts/infra/ray/cluster.yaml \
+    paper/scripts/ray_feature_selection.py
+
+# Run evaluation
+AWS_PROFILE=personal ray submit paper/scripts/infra/ray/cluster.yaml \
+    paper/scripts/ray_eval.py
+
+# Tear down
+AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
+```
 
 ## Two-Stage Architecture
 
-We split experiments into two independent stages for maximum parallelization:
-
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ STAGE 1: Feature Selection (EC2 fleet)                                  │
+│ STAGE 1: Feature Selection (ray_feature_selection.py)                   │
 │                                                                          │
-│ Server ──→ Workers ──→ S3 (rankings) + DynamoDB (tracking)              │
+│ Ray Workers ──→ S3 (rankings)                                           │
 │                                                                          │
-│ 11,520 configs (16 methods × 24 datasets × 30 seeds)                    │
-│ Output: s3://citrees-results/rankings/{task}/{dataset}/{method}_seed{s} │
+│ N configs = methods × datasets × seeds                                  │
+│ Output: s3://bucket/rankings/{task}/{dataset}/{method}_seed{s}.parquet  │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ STAGE 2: Downstream Evaluation (EC2 fleet)                              │
+│ STAGE 2: Downstream Evaluation (ray_eval.py)                            │
 │                                                                          │
-│ Server ──→ Workers ──→ S3 (metrics) + DynamoDB (tracking)               │
+│ Ray Workers ──→ S3 (metrics)                                            │
 │                                                                          │
-│ Same 11,520 configs, each evaluates k=1..n_features                     │
-│ Output: s3://citrees-results/metrics/{task}/{dataset}/{method}_seed{s}  │
+│ Evaluates at k = [5, 10, 25, 50, 100, all]                             │
+│ Output: s3://bucket/metrics/{task}/{dataset}/{method}_seed{s}.parquet   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Benefits:**
-- Stage 1 (slow feature selection) runs independently from Stage 2 (fast evaluation)
-- Can re-run Stage 2 with different models without repeating Stage 1
-- Evaluate at ALL k values (1 to n_features) for complete accuracy curves
-- Full resume capability via DynamoDB tracking
+- Stage 1 (slow) runs independently from Stage 2 (fast)
+- Can re-run Stage 2 with different downstream models
+- Full resume via S3 file existence checks
+- Spot instance fault tolerance via Ray
 
----
+## Methods
 
-## Methods (29 Total)
-
-### Classification (16 methods)
+### Classification (18 methods)
 
 | Method | Type | Description |
 |--------|------|-------------|
@@ -93,13 +117,15 @@ We split experiments into two independent stages for maximum parallelization:
 | `et` | embedding | Extra Trees |
 | `xgb` | embedding | XGBoost |
 | `lgbm` | embedding | LightGBM |
+| `cat` | embedding | CatBoost |
 | `boruta` | wrapper | Boruta feature selection |
-| `pi` | wrapper | sklearn permutation importance |
-| `shap` | wrapper | SHAP importance (RF base) |
+| `pi` | wrapper | Permutation importance |
+| `shap` | wrapper | SHAP importance |
+| `rfe` | wrapper | Recursive Feature Elimination |
 
-**Downstream models:** LR, SVM, kNN
+**Downstream models:** LogisticRegression, SVM, kNN
 
-### Regression (13 methods)
+### Regression (16 methods)
 
 | Method | Type | Description |
 |--------|------|-------------|
@@ -115,188 +141,107 @@ We split experiments into two independent stages for maximum parallelization:
 | `et` | embedding | Extra Trees |
 | `xgb` | embedding | XGBoost |
 | `lgbm` | embedding | LightGBM |
+| `cat` | embedding | CatBoost |
 | `boruta` | wrapper | Boruta feature selection |
-| `pi` | wrapper | sklearn permutation importance |
+| `pi` | wrapper | Permutation importance |
+| `rfe` | wrapper | Recursive Feature Elimination |
 
 **Downstream models:** Ridge, SVR, kNN
 
----
+## Synthetic Datasets
 
-## AWS Resources
-
-### S3 Bucket
+Generate datasets with known ground truth for precision/recall@k:
 
 ```bash
-AWS_PROFILE=personal aws s3 mb s3://citrees-results --region us-east-1
+uv run python paper/scripts/generate_synthetic_datasets.py
 ```
 
-### DynamoDB Tables
+**Dataset types (132 total):**
+
+| Type | Count | Description |
+|------|-------|-------------|
+| STANDARD | 108 | Varying features, informative, samples, separation |
+| BIAS | 9 | High-cardinality noise (selection bias test) |
+| NONLINEAR | 6 | Friedman #1 (tests nonlinear methods) |
+| CORRELATED | 6 | Correlated feature blocks |
+| REDUNDANT | 3 | Linear combinations of informative features |
+
+Ground truth stored in parquet schema metadata.
+
+## Check Progress
 
 ```bash
-# Stage 1 tracking
-for table in ClfFeatureSelection RegFeatureSelection; do
-    AWS_PROFILE=personal aws dynamodb create-table \
-        --table-name $table \
-        --attribute-definitions AttributeName=config_idx,AttributeType=N \
-        --key-schema AttributeName=config_idx,KeyType=HASH \
-        --billing-mode PAY_PER_REQUEST --region us-east-1
-done
+# Stage 1 (feature selection)
+AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings
 
-# Stage 2 tracking
-for table in ClfDownstreamEval RegDownstreamEval; do
-    AWS_PROFILE=personal aws dynamodb create-table \
-        --table-name $table \
-        --attribute-definitions AttributeName=config_idx,AttributeType=N \
-        --key-schema AttributeName=config_idx,KeyType=HASH \
-        --billing-mode PAY_PER_REQUEST --region us-east-1
-done
+# Stage 2 (evaluation)
+AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage metrics
+
+# By method
+AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-method
+
+# By dataset
+AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-dataset
 ```
-
----
-
-## Running Experiments
-
-### Stage 1: Feature Selection
-
-```bash
-# Start server
-S3_BUCKET=citrees-results TABLE_NAME=ClfFeatureSelection AWS_PROFILE=personal \
-    uv run uvicorn paper.scripts.feature_selection_server:app --host 0.0.0.0 --port 8000
-
-# Check status
-curl http://localhost:8000/status/
-# {"n_configs_remaining": 11520, "hosts": {}, ...}
-
-# Start workers (can run many in parallel on EC2)
-URL=http://localhost:8000 S3_BUCKET=citrees-results TABLE_NAME=ClfFeatureSelection \
-    AWS_PROFILE=personal uv run python paper/scripts/feature_selection_worker.py
-```
-
-### Stage 2: Downstream Evaluation
-
-```bash
-# Start server (only serves configs with Stage 1 rankings in S3)
-S3_BUCKET=citrees-results TABLE_NAME=ClfDownstreamEval AWS_PROFILE=personal \
-    uv run uvicorn paper.scripts.eval_server:app --host 0.0.0.0 --port 8000
-
-# Check status
-curl http://localhost:8000/status/
-
-# Start workers
-URL=http://localhost:8000 S3_BUCKET=citrees-results TABLE_NAME=ClfDownstreamEval \
-    AWS_PROFILE=personal uv run python paper/scripts/eval_worker.py
-```
-
----
 
 ## Result Structure
 
-### Stage 1 Output (S3 rankings)
+### Stage 1 Output (rankings)
 
 ```
-s3://citrees-results/rankings/{task}/{dataset}/{method}_seed{seed}.parquet
+s3://bucket/rankings/{task}/{dataset}/{method}_seed{seed}.parquet
 
 Columns:
 - fold_idx: int
 - train_indices: list[int]
 - test_indices: list[int]
 - feature_ranking: list[int]      # Full ranking [best → worst]
-- selection_time_seconds: float
 - embedding_train_preds: list     # For embedding methods
-- embedding_test_preds: list      # For embedding methods
+- embedding_test_preds: list
+- embedding_train_proba: list     # For classifiers with predict_proba
+- embedding_test_proba: list
 ```
 
-### Stage 2 Output (S3 metrics)
+### Stage 2 Output (metrics)
 
 ```
-s3://citrees-results/metrics/{task}/{dataset}/{method}_seed{seed}.parquet
+s3://bucket/metrics/{task}/{dataset}/{method}_seed{seed}.parquet
 
 Columns:
 - fold_idx: int
-- n_features: int                 # k value (1 to total_features)
-- lr_acc, lr_f1, lr_roc_auc, lr_pr_auc: float      # Classification
-- svm_acc, svm_f1, svm_roc_auc, svm_pr_auc: float
-- knn_acc, knn_f1, knn_roc_auc, knn_pr_auc: float
-- ridge_mse, ridge_mae, ridge_r2: float  # Regression
-- svr_mse, svr_mae, svr_r2: float
-- knn_mse, knn_mae, knn_r2: float
-- embedding_acc, embedding_f1: float     # For embedding methods
+- k: int                          # Number of features used
+- downstream_model: str           # lr, svm, knn / ridge, svr, knn
+- accuracy, f1, roc_auc: float    # Classification metrics
+- r2, rmse, mae: float            # Regression metrics
 ```
-
----
-
-## Resume Logic
-
-Both stages support full resume:
-
-1. **Server startup**: Queries DynamoDB for completed configs, only serves remaining
-2. **Worker**: Checks S3 before processing (defensive skip if file exists)
-3. **Stale timeout**: Pending configs older than 30-60 min are reset (dead worker recovery)
-4. **Crash recovery**: Just restart server and workers - they pick up where they left off
-
----
-
-## Environment Variables
-
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `S3_BUCKET` | S3 bucket for results | `citrees-results` | `citrees-results` |
-| `TABLE_NAME` | DynamoDB table name | Required | `ClfFeatureSelection` |
-| `URL` | FastAPI server URL | Required | `http://10.0.0.1:8000` |
-| `AWS_DEFAULT_REGION` | AWS region | `us-east-1` | `us-east-1` |
-| `AWS_PROFILE` | AWS credentials profile | None | `personal` |
-| `N_JOBS` | Parallel jobs (Stage 2) | `-1` | `4` |
-| `LOCAL_TEST` | Run local test mode | None | `1` |
-
----
-
-## Docker Usage
-
-```bash
-# Sanity check
-docker-compose run --rm sanity
-
-# Run pytest
-docker-compose run --rm test
-
-# Interactive shell
-docker-compose run --rm shell
-
-# Local validation
-docker-compose run --rm validate
-```
-
----
-
-## Config Calculation
-
-**Classification:** 16 methods × 24 datasets × 30 seeds = 11,520 configs
-**Regression:** 13 methods × N datasets × 30 seeds = N × 390 configs
-
----
 
 ## Analysis
 
 After experiments complete:
 
 ```bash
-# Download results from S3
-aws s3 sync s3://citrees-results/metrics/ paper/results/metrics/
+# Download from S3
+aws s3 sync s3://bucket/rankings/ paper/results/rankings/
+aws s3 sync s3://bucket/metrics/ paper/results/metrics/
 
-# Run statistical analysis
+# Synthetic analysis (precision/recall@k)
+uv run python paper/scripts/synthetic_analysis.py \
+    --results-dir paper/results/rankings/classification \
+    --data-dir paper/data \
+    --output paper/results/synthetic_analysis.parquet
+
+# Statistical analysis
 uv run python paper/scripts/analysis.py
 
 # Generate figures
 uv run python paper/scripts/generate_figures.py
 ```
 
-### Generated Outputs
+## Config Calculation
 
-| Output | Description |
-|--------|-------------|
-| Accuracy vs k curves | Performance at each feature subset size |
-| Critical difference diagrams | Nemenyi post-hoc test visualization |
-| Box plots | Method comparison distributions |
-| Heatmaps | Performance by experimental factors |
-| Friedman test tables | Overall significance tests |
-| Rankings | Method rankings with confidence intervals |
+**Classification:** 18 methods × N datasets × 10 seeds
+**Regression:** 16 methods × N datasets × 10 seeds
+
+Example with 132 synthetic + 7 real datasets = 139 datasets:
+- Classification: 18 × 139 × 10 = **25,020 configs**
+- Regression: 16 × 139 × 10 = **22,240 configs**

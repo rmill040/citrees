@@ -73,7 +73,8 @@ def _ptest(
     float
         Estimated achieved significance level.
     """
-    np.random.seed(random_state)
+    # Use default_rng for isolated RNG stream (avoids global state contamination)
+    rng = np.random.default_rng(random_state)
 
     idx = x <= threshold
     theta = func(y[idx]) + func(y[~idx])
@@ -82,7 +83,7 @@ def _ptest(
     if early_stopping is None:
         theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p[i] = func(y_[idx]) + func(y_[~idx])
         return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
@@ -92,7 +93,7 @@ def _ptest(
 
     if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p = func(y_[idx]) + func(y_[~idx])
             if theta_p <= theta:
                 extreme_count += 1
@@ -112,7 +113,7 @@ def _ptest(
 
     else:  # simple
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p = func(y_[idx]) + func(y_[~idx])
             if theta_p <= theta:
                 extreme_count += 1
@@ -132,6 +133,9 @@ def _ptest(
 
 
 # Parallel permutation test for Gini index (classifier)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_gini_parallel(
     x: np.ndarray,
@@ -176,6 +180,9 @@ def _ptest_gini_parallel(
 
 
 # Parallel permutation test for MSE (regressor)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_mse_parallel(
     x: np.ndarray,
@@ -220,6 +227,9 @@ def _ptest_mse_parallel(
 
 
 # Parallel permutation test for Entropy (classifier)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_entropy_parallel(
     x: np.ndarray,
@@ -286,6 +296,9 @@ def _ptest_entropy_parallel(
 
 
 # Parallel permutation test for MAE (regressor)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_mae_parallel(
     x: np.ndarray,

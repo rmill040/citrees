@@ -37,6 +37,7 @@ def exact(
     return midpoints
 
 
+# Note: Uses np.random.seed() because Numba doesn't support default_rng() inside @njit.
 @ThresholdMethods.register("random")
 @njit(cache=True, fastmath=True, nogil=True)
 def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:

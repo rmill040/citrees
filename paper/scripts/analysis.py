@@ -218,6 +218,215 @@ def nogueira_stability_index(feature_sets: list[list[int]], total_features: int)
     return float(1 - numerator / denominator)
 
 
+def compute_noise_selection_rate(
+    feature_ranking: list[int], noise_indices: list[int], k: int
+) -> float:
+    """Compute rate of noise features in top-k (false positive rate).
+
+    This is the KEY metric for selection bias analysis. It measures how often
+    a feature selection method incorrectly ranks noise features in the top-k.
+
+    Parameters
+    ----------
+    feature_ranking : list[int]
+        Feature indices sorted by importance (best first).
+    noise_indices : list[int]
+        Indices of known noise features (from ground truth).
+    k : int
+        Number of top features to consider.
+
+    Returns
+    -------
+    float
+        Fraction of top-k that are noise features. Range [0, 1].
+        Lower is better. 0.0 = no noise selected, 1.0 = all noise.
+
+    Examples
+    --------
+    >>> # Perfect selection: informative features ranked first
+    >>> compute_noise_selection_rate([0, 1, 2, 3, 4], [10, 11, 12], k=3)
+    0.0
+
+    >>> # Worst case: all noise in top-k
+    >>> compute_noise_selection_rate([10, 11, 12, 0, 1], [10, 11, 12], k=3)
+    1.0
+
+    >>> # Mixed: half noise in top-k
+    >>> compute_noise_selection_rate([0, 10, 1, 11], [10, 11, 12], k=4)
+    0.5
+    """
+    if k == 0 or len(noise_indices) == 0:
+        return 0.0
+    top_k = set(feature_ranking[:k])
+    noise_set = set(noise_indices)
+    return len(top_k & noise_set) / k
+
+
+def analyze_selection_bias(
+    data: pd.DataFrame,
+    ground_truth: dict[str, dict],
+    methods: list[str],
+    tables_dir: Path,
+    figures_dir: Path,
+) -> pd.DataFrame:
+    """Analyze selection bias on datasets with high-cardinality noise.
+
+    This proves citrees' core claim: unbiased feature selection.
+    RF/XGBoost tend to favor high-cardinality features, leading to elevated
+    noise selection rates. Conditional inference methods should maintain
+    noise selection near the nominal alpha level.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Results with columns: dataset, method, feature_ranking.
+    ground_truth : dict[str, dict]
+        Ground truth metadata keyed by dataset name. Each entry should have:
+        - 'informative_indices': list of true informative feature indices
+        - 'noise_indices': list of noise feature indices
+    methods : list[str]
+        List of method names to analyze.
+    tables_dir : Path
+        Directory to save output tables.
+    figures_dir : Path
+        Directory to save output figures.
+
+    Returns
+    -------
+    pd.DataFrame
+        Detailed results with noise selection rate for each method/dataset/k.
+    """
+    print("\n" + "=" * 60)
+    print("SELECTION BIAS ANALYSIS")
+    print("=" * 60)
+
+    # Filter to bias datasets (those with noise_indices in ground truth)
+    bias_datasets = [
+        name for name, meta in ground_truth.items()
+        if meta.get("noise_indices") and len(meta.get("noise_indices", [])) > 0
+    ]
+
+    if not bias_datasets:
+        print("No datasets with noise_indices found in ground truth.")
+        return pd.DataFrame()
+
+    records = []
+
+    for dataset in bias_datasets:
+        meta = ground_truth[dataset]
+        informative_indices = meta.get("informative_indices", [])
+        noise_indices = meta.get("noise_indices", [])
+
+        # Get results for this dataset
+        dataset_results = data[data["dataset"] == dataset]
+
+        for _, row in dataset_results.iterrows():
+            method = row["method"]
+            if method not in methods:
+                continue
+
+            # Parse feature ranking
+            feature_ranking = row.get("feature_ranking", [])
+            if isinstance(feature_ranking, str):
+                import ast
+                feature_ranking = ast.literal_eval(feature_ranking)
+
+            if not feature_ranking:
+                continue
+
+            # Compute metrics at different k values
+            for k in [5, 10, 20]:
+                if k > len(feature_ranking):
+                    continue
+
+                noise_rate = compute_noise_selection_rate(feature_ranking, noise_indices, k)
+
+                records.append({
+                    "dataset": dataset,
+                    "method": method,
+                    "k": k,
+                    "noise_selection_rate": noise_rate,
+                    "n_noise_features": len(noise_indices),
+                    "n_informative": len(informative_indices),
+                })
+
+    if not records:
+        print("No results found for bias datasets.")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(records)
+
+    # Aggregate by method (mean across datasets and k values)
+    summary = (
+        df.groupby("method")
+        .agg({"noise_selection_rate": ["mean", "std"]})
+        .round(3)
+    )
+    summary.columns = ["noise_rate_mean", "noise_rate_std"]
+    summary = summary.sort_values("noise_rate_mean")
+
+    print("\n=== SELECTION BIAS SUMMARY (mean across datasets) ===")
+    print(summary.to_string())
+
+    # Save summary
+    summary_path = tables_dir / "selection_bias_summary.csv"
+    summary.to_csv(summary_path)
+    print(f"\nSaved: {summary_path}")
+
+    # Key comparison: RF methods vs citrees methods
+    rf_methods = {"rf", "et", "xgb", "lgbm", "cat"}
+    citrees_methods = {"cit", "cif"}
+
+    rf_data = df[df["method"].isin(rf_methods)]
+    ci_data = df[df["method"].isin(citrees_methods)]
+
+    if not rf_data.empty and not ci_data.empty:
+        rf_noise = rf_data["noise_selection_rate"].mean()
+        ci_noise = ci_data["noise_selection_rate"].mean()
+
+        print("\n=== KEY FINDING ===")
+        print(f"RF/Boosting methods noise selection rate: {rf_noise:.3f}")
+        print(f"citrees methods noise selection rate: {ci_noise:.3f}")
+        if rf_noise > 0:
+            print(f"Reduction: {(rf_noise - ci_noise) / rf_noise * 100:.1f}%")
+
+    # Generate visualization
+    if not summary.empty:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        methods_sorted = summary.index.tolist()
+        x = range(len(methods_sorted))
+
+        # Color by method type
+        colors = []
+        for m in methods_sorted:
+            if m in rf_methods:
+                colors.append("indianred")
+            elif m in citrees_methods:
+                colors.append("seagreen")
+            else:
+                colors.append("steelblue")
+
+        ax.bar(x, summary["noise_rate_mean"], color=colors, edgecolor="black", linewidth=0.5)
+        ax.errorbar(x, summary["noise_rate_mean"], yerr=summary["noise_rate_std"],
+                    fmt="none", color="black", capsize=3)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(methods_sorted, rotation=45, ha="right")
+        ax.set_ylabel("Noise Selection Rate (lower is better)")
+        ax.set_title("Selection Bias: Rate of Spurious Noise Feature Selection")
+        ax.axhline(y=0.05, color="gray", linestyle="--", linewidth=1, label="α = 0.05")
+        ax.legend()
+        ax.set_ylim(0, min(1.0, summary["noise_rate_mean"].max() * 1.3))
+
+        plt.tight_layout()
+        fig_path = figures_dir / "selection_bias_comparison.png"
+        plt.savefig(fig_path, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"Saved: {fig_path}")
+
+    return df
+
+
 # ==============================================================================
 # Core Statistical Tests
 # ==============================================================================
@@ -655,8 +864,138 @@ def plot_boxplots(data: pd.DataFrame, methods: list[str], metric: str, output_pa
     print(f"Saved: {output_path}")
 
 
+def analyze_stratified_results(
+    data: pd.DataFrame, methods: list[str], metric: str, tables_dir: Path
+) -> None:
+    """Analyze results stratified by dataset characteristics.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Results dataframe with columns: dataset, method, n_samples, n_features, class_sep.
+    methods : list[str]
+        List of method names.
+    metric : str
+        Metric column name (e.g., 'precision@10').
+    tables_dir : Path
+        Directory to save output tables.
+    """
+    if metric not in data.columns:
+        print(f"Metric {metric} not found in data")
+        return
+
+    # Work with a copy to avoid modifying original
+    df = data.copy()
+
+    # 1. By synthetic type (extract from dataset name)
+    if "dataset" in df.columns:
+        # Extract type: synthetic_standard_*, synthetic_bias_*, etc.
+        df["synthetic_type"] = df["dataset"].str.extract(r"synthetic_(\w+)_")[0]
+        if df["synthetic_type"].notna().any():
+            stratified = df.groupby(["synthetic_type", "method"])[metric].agg(["mean", "std"])
+            out_path = tables_dir / f"stratified_by_type_{metric.replace('@', '_at_')}.csv"
+            stratified.to_csv(out_path)
+            print(f"Saved: {out_path}")
+
+    # 2. By sample size bins
+    if "n_samples" in df.columns:
+        df["size_bin"] = pd.cut(
+            df["n_samples"], bins=[0, 500, 1000, np.inf], labels=["small", "medium", "large"]
+        )
+        stratified_size = df.groupby(["size_bin", "method"])[metric].agg(["mean", "std"])
+        out_path = tables_dir / f"stratified_by_size_{metric.replace('@', '_at_')}.csv"
+        stratified_size.to_csv(out_path)
+        print(f"Saved: {out_path}")
+
+    # 3. By dimensionality (p/n ratio)
+    if "n_features" in df.columns and "n_samples" in df.columns:
+        df["pn_ratio"] = df["n_features"] / df["n_samples"]
+        df["dim_bin"] = pd.cut(
+            df["pn_ratio"], bins=[0, 0.5, 1.0, np.inf], labels=["low", "medium", "high"]
+        )
+        stratified_dim = df.groupby(["dim_bin", "method"])[metric].agg(["mean", "std"])
+        out_path = tables_dir / f"stratified_by_dim_{metric.replace('@', '_at_')}.csv"
+        stratified_dim.to_csv(out_path)
+        print(f"Saved: {out_path}")
+
+    # 4. By signal strength (class_sep)
+    if "class_sep" in df.columns:
+        stratified_signal = df.groupby(["class_sep", "method"])[metric].agg(["mean", "std"])
+        out_path = tables_dir / f"stratified_by_signal_{metric.replace('@', '_at_')}.csv"
+        stratified_signal.to_csv(out_path)
+        print(f"Saved: {out_path}")
+
+
+def compute_stability_analysis(
+    rankings_data: pd.DataFrame, methods: list[str], top_k: int, tables_dir: Path
+) -> None:
+    """Compute Nogueira stability index for each method.
+
+    Parameters
+    ----------
+    rankings_data : pd.DataFrame
+        DataFrame with columns: dataset, method, seed, feature_ranking.
+        feature_ranking should be a list of feature indices in rank order.
+    methods : list[str]
+        List of method names.
+    top_k : int
+        Number of top features to consider for stability.
+    tables_dir : Path
+        Directory to save output tables.
+    """
+    if "feature_ranking" not in rankings_data.columns:
+        print("No feature_ranking column found - skipping stability analysis")
+        return
+
+    results = []
+
+    for method in methods:
+        method_data = rankings_data[rankings_data["method"] == method]
+
+        for dataset in method_data["dataset"].unique():
+            dataset_method = method_data[method_data["dataset"] == dataset]
+
+            # Get feature sets (top-k features) across seeds
+            feature_sets = []
+            total_features = 0
+            for _, row in dataset_method.iterrows():
+                ranking = row["feature_ranking"]
+                if isinstance(ranking, str):
+                    import ast
+
+                    ranking = ast.literal_eval(ranking)
+                if ranking:
+                    feature_sets.append(ranking[:top_k])
+                    total_features = len(ranking)
+
+            if len(feature_sets) >= 2 and total_features > 0:
+                stability = nogueira_stability_index(feature_sets, total_features)
+                results.append(
+                    {
+                        "method": method,
+                        "dataset": dataset,
+                        f"stability@{top_k}": stability,
+                        "n_seeds": len(feature_sets),
+                    }
+                )
+
+    if results:
+        df = pd.DataFrame(results)
+        # Summary by method
+        summary = df.groupby("method")[f"stability@{top_k}"].agg(["mean", "std"])
+        out_path = tables_dir / f"stability_at_{top_k}.csv"
+        summary.to_csv(out_path)
+        print(f"Saved: {out_path}")
+
+
 def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: Path) -> None:
-    """Analyze synthetic experiment results."""
+    """Analyze synthetic experiment results.
+
+    Expects data from synthetic_analysis.py with columns:
+    - dataset, method, seed, fold_idx
+    - n_features, n_informative, n_samples, class_sep, etc.
+    - precision@k, recall@k, f1@k for various k values
+    """
     print("\n=== Analyzing Synthetic Experiments ===")
 
     if not input_path.exists():
@@ -664,65 +1003,112 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
         return
 
     data = pd.read_parquet(input_path)
-    print(f"Loaded {len(data)} experiments")
+    print(f"Loaded {len(data)} result rows")
 
-    # Infer methods from columns
-    precision_cols = [c for c in data.columns if c.endswith("_precision@10")]
-    methods = [c.replace("_precision@10", "") for c in precision_cols]
+    # Get methods from the 'method' column
+    methods = sorted(data["method"].unique())
     print(f"Methods: {methods}")
 
-    # Metrics to analyze
-    metrics = ["precision@5", "precision@10", "precision@20", "recall@10", "downstream_acc_mean"]
+    # Find available metrics
+    metric_cols = [c for c in data.columns if c.startswith(("precision@", "recall@", "f1@"))]
+    print(f"Metrics: {metric_cols}")
 
     # Create output directories
     tables_dir.mkdir(parents=True, exist_ok=True)
     figures_dir.mkdir(parents=True, exist_ok=True)
 
+    # Aggregate by dataset and method (mean across folds)
+    agg_cols = ["dataset", "method", "n_features", "n_informative", "n_samples"]
+    if "class_sep" in data.columns:
+        agg_cols.append("class_sep")
+
+    data_agg = data.groupby(agg_cols)[metric_cols].mean().reset_index()
+
+    # Pivot to wide format for analysis (method as columns)
+    # This matches the format expected by generate_friedman_table, etc.
+    data_wide = data_agg.pivot(
+        index=["dataset", "n_features", "n_informative", "n_samples"],
+        columns="method",
+        values=metric_cols,
+    )
+    # Flatten column names: (precision@10, method) -> method_precision@10
+    data_wide.columns = [f"{col[1]}_{col[0]}" for col in data_wide.columns]
+    data_wide = data_wide.reset_index()
+
+    # Update methods list with column format
+    methods_prefixed = [f"{m}_precision@10" for m in methods]
+
     # === TABLES ===
-    print("\n--- Generating Tables ---")
+    print("\n--- Generating Summary Tables ---")
 
-    # 1. Friedman test
-    generate_friedman_table(data, methods, metrics, tables_dir / "friedman_synthetic")
-
-    # 2. Rankings for key metrics
-    for metric in ["precision@10", "downstream_acc_mean"]:
-        generate_ranking_table(data, methods, metric, tables_dir / f"ranks_{metric}")
-
-    # 3. Summary statistics
-    generate_summary_table(data, methods, metrics, tables_dir / "summary_synthetic.csv")
+    # Summary by method
+    summary = data.groupby("method")[metric_cols].agg(["mean", "std"])
+    summary_path = tables_dir / "summary_synthetic.csv"
+    summary.to_csv(summary_path)
+    print(f"Saved: {summary_path}")
 
     # === FIGURES ===
     print("\n--- Generating Figures ---")
 
-    # 4. Critical difference diagrams
-    for metric in ["precision@10", "downstream_acc_mean"]:
-        ranks_df = compute_ranks(data, methods, metric)
-        if not ranks_df.empty:
-            n_methods = len(ranks_df)
-            n_datasets = len(data)
-            cd = nemenyi_critical_difference(n_methods, n_datasets)
-            plot_critical_difference(ranks_df, cd, metric, figures_dir / f"cd_{metric}.png")
+    # Box plots by method for precision@10
+    if "precision@10" in data.columns:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        data.boxplot(column="precision@10", by="method", ax=ax)
+        ax.set_title("Precision@10 by Method (Synthetic Datasets)")
+        ax.set_xlabel("Method")
+        ax.set_ylabel("Precision@10")
+        plt.suptitle("")
+        plt.xticks(rotation=45, ha="right")
+        plt.tight_layout()
+        boxplot_path = figures_dir / "boxplot_precision10_synthetic.png"
+        plt.savefig(boxplot_path, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"Saved: {boxplot_path}")
 
-    # 5. Box plots
-    for metric in ["precision@10", "downstream_acc_mean"]:
-        plot_boxplots(data, methods, metric, figures_dir / f"boxplot_{metric}.png")
+    # === CRITICAL DIFFERENCE DIAGRAMS ===
+    print("\n--- Generating Critical Difference Diagrams ---")
 
-    # 6. Heatmaps by experimental factors
-    experimental_factors = ["n_features", "n_informative", "n_samples", "class_sep"]
-    for metric in ["precision@10"]:
-        plot_performance_heatmap(
-            data, methods, metric, experimental_factors, figures_dir / f"heatmap_{metric}"
-        )
+    for metric in ["precision@5", "precision@10", "precision@20"]:
+        if metric in metric_cols:
+            # Compute ranks across datasets for each method
+            ranks_df = compute_ranks(data_wide, methods, metric, higher_is_better=True)
+            if not ranks_df.empty:
+                n_methods = len(ranks_df)
+                n_datasets = len(data_wide)
+                cd = nemenyi_critical_difference(n_methods, n_datasets)
+
+                # Generate CD diagram
+                cd_path = figures_dir / f"cd_{metric.replace('@', '_at_')}.png"
+                plot_critical_difference(ranks_df, cd, metric, cd_path)
+
+    # === RANKING TABLES ===
+    print("\n--- Generating Ranking Tables ---")
+
+    for metric in ["precision@10", "recall@10", "f1@10"]:
+        if metric in metric_cols:
+            ranking_path = tables_dir / f"ranking_{metric.replace('@', '_at_')}"
+            generate_ranking_table(data_wide, methods, metric, ranking_path, higher_is_better=True)
+
+    # Generate Friedman test table
+    friedman_path = tables_dir / "friedman_synthetic"
+    generate_friedman_table(data_wide, methods, metric_cols, friedman_path)
+
+    # === STRATIFIED ANALYSIS ===
+    print("\n--- Generating Stratified Analysis ---")
+    analyze_stratified_results(data, methods, "precision@10", tables_dir)
+
+    # === STABILITY ANALYSIS ===
+    print("\n--- Generating Stability Analysis ---")
+    # Stability requires raw feature_ranking column from original data
+    if "feature_ranking" in data.columns:
+        for top_k in [5, 10, 20]:
+            compute_stability_analysis(data, methods, top_k, tables_dir)
+    else:
+        print("No feature_ranking column - skipping stability analysis")
 
     # === PRINT SUMMARY ===
     print("\n=== Results Summary ===")
-    for n_features in sorted(data["n_features"].unique()):
-        subset = data[data["n_features"] == n_features]
-        print(f"\nn_features = {n_features}:")
-        for method in methods:
-            col = f"{method}_precision@10"
-            if col in subset.columns:
-                print(f"  {method}: {subset[col].mean():.3f} +/- {subset[col].std():.3f}")
+    print(summary.round(3).to_string())
 
 
 def main():
@@ -732,8 +1118,8 @@ def main():
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Analyze synthetic experiment results
-    synthetic_path = Path(__file__).parent.parent / "results" / "synthetic_experiments.parquet"
+    # Analyze synthetic experiment results (from synthetic_analysis.py)
+    synthetic_path = Path(__file__).parent.parent / "results" / "synthetic_analysis.parquet"
     analyze_synthetic_results(synthetic_path, TABLES_DIR, FIGURES_DIR)
 
     print("\n" + "=" * 60)

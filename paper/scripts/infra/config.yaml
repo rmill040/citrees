@@ -1,0 +1,86 @@
+# citrees Distributed Experiment Infrastructure Configuration
+#
+# All resources are auto-named using: citrees-{service}-{account_id}
+# Account ID is auto-detected from AWS credentials.
+#
+# Usage:
+#   uv run python setup.py      # Provision all resources
+#   uv run python launch.py     # Launch server + workers
+#   uv run python teardown.py   # Clean up everything
+
+# =============================================================================
+# Project
+# =============================================================================
+project:
+  name: citrees
+  # Account ID auto-detected, used in resource naming
+
+# =============================================================================
+# AWS Region
+# =============================================================================
+region: us-east-1
+
+# =============================================================================
+# VPC Configuration
+# =============================================================================
+vpc:
+  # Set to "create" to provision new VPC, or existing VPC ID (e.g., "vpc-0abc123")
+  vpc_id: create
+
+  # Only used if vpc_id: create
+  cidr_block: 10.0.0.0/16
+  private_subnet_cidr: 10.0.1.0/24
+  public_subnet_cidr: 10.0.2.0/24  # For NAT gateway
+
+  # Availability zone for all resources
+  availability_zone: us-east-1a
+
+# =============================================================================
+# Storage
+# =============================================================================
+dynamodb:
+  # null = auto-name: citrees-results-{account_id}
+  table_name: null
+
+s3:
+  # null = auto-name: citrees-results-{account_id}
+  bucket_name: null
+
+ecr:
+  # null = auto-name: citrees-{account_id}
+  repository_name: null
+  image_tag: latest
+
+# =============================================================================
+# EC2 Instances
+# =============================================================================
+server:
+  # Server needs to stay up reliably - use on-demand
+  instance_type: c7i.2xlarge  # 8 vCPUs, 16GB RAM, high network
+  spot: false
+
+workers:
+  # Workers are stateless - use spot for cost savings
+  instance_type: c7i.8xlarge  # 32 vCPUs, 64GB RAM
+  spot: true
+  count: 5
+
+# AMI: Amazon Linux 2023 (auto-resolved per region if null)
+ami_id: null
+
+# =============================================================================
+# IAM
+# =============================================================================
+iam:
+  # null = auto-name: citrees-worker-role-{account_id}
+  role_name: null
+  # Policies are auto-scoped to citrees-* resources
+
+# =============================================================================
+# Experiment Configuration
+# =============================================================================
+experiment:
+  # "classification" or "regression"
+  type: classification
+  n_seeds: 10
+  stale_timeout_minutes: 30

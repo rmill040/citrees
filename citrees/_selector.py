@@ -76,7 +76,8 @@ def _ptest(
     float
         Estimated achieved significance level.
     """
-    np.random.seed(random_state)
+    # Use default_rng for isolated RNG stream (avoids global state contamination)
+    rng = np.random.default_rng(random_state)
 
     theta = np.abs(func(x, y, func_arg, random_state=random_state))
     y_ = y.copy()
@@ -84,7 +85,7 @@ def _ptest(
     if early_stopping is None:
         theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg, random_state=random_state)
         return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
 
@@ -94,7 +95,7 @@ def _ptest(
 
     if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
             if theta_p >= theta:
                 extreme_count += 1
@@ -114,7 +115,7 @@ def _ptest(
 
     else:  # simple
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
             if theta_p >= theta:
                 extreme_count += 1
@@ -192,7 +193,8 @@ def _ptest_multi(
     float
         Estimated achieved significance level.
     """
-    np.random.seed(random_state)
+    # Use default_rng for isolated RNG stream (avoids global state contamination)
+    rng = np.random.default_rng(random_state)
 
     def compute_max_stat(x: np.ndarray, y: np.ndarray) -> float:
         """Compute max statistic across all selectors."""
@@ -213,7 +215,7 @@ def _ptest_multi(
     if early_stopping is None:
         theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p[i] = compute_max_stat(x, y_)
         return (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
 
@@ -223,7 +225,7 @@ def _ptest_multi(
 
     if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p = compute_max_stat(x, y_)
             if theta_p >= theta:
                 extreme_count += 1
@@ -243,7 +245,7 @@ def _ptest_multi(
 
     else:  # simple
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p = compute_max_stat(x, y_)
             if theta_p >= theta:
                 extreme_count += 1
@@ -263,6 +265,9 @@ def _ptest_multi(
 
 
 # Parallel permutation test for multiple correlation (classifier)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_mc_parallel(
     x: np.ndarray,
@@ -307,6 +312,9 @@ def _ptest_mc_parallel(
 
 
 # Parallel permutation test for pearson correlation (regressor)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_pc_parallel(
     x: np.ndarray,
@@ -621,6 +629,7 @@ def _rdc_ecdf(x: np.ndarray) -> np.ndarray:
     return ranks
 
 
+# Note: Uses np.random.seed() because Numba doesn't support default_rng() inside @njit.
 @njit(cache=True, nogil=True, fastmath=True)
 def _rdc_features(x: np.ndarray, k: int, s: float, seed: int) -> np.ndarray:
     """Create RDC features: [cos(X @ w), sin(X @ w)] where X = [ecdf(x), 1]."""

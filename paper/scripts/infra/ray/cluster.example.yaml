@@ -101,7 +101,7 @@ worker_setup_commands: []
 
 head_start_ray_commands:
   - $HOME/citrees/.venv/bin/ray stop
-  - $HOME/citrees/.venv/bin/ray start --head --port=6379 --dashboard-host=0.0.0.0
+  - $HOME/citrees/.venv/bin/ray start --head --port=6379 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
 
 worker_start_ray_commands:
   - $HOME/citrees/.venv/bin/ray stop

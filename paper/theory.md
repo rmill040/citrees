@@ -166,11 +166,29 @@ unconditionally.
 permutations $(\Pi_b)_{b=0}^B$. Any permutation of the indices $b$ leaves the joint law unchanged because
 $(\Pi_0,\dots,\Pi_B)$ is i.i.d. ∎
 
-**Why this matches the practical procedure.**  
-In practice, one typically sets $T_0 := T(X_{t,j}, Y_t)$ (the “unpermuted” labels) and samples only
-$\Pi_1,\dots,\Pi_B$. Under the exchangeability of $Y_t$ (Section 3.1), $Y_t \stackrel{d}{=} \Pi_0(Y_t)$ for uniform
-$\Pi_0$ independent of $Y_t$. Therefore the distribution of $(T_0,\dots,T_B)$ in the “unpermuted + $B$ permuted”
-procedure is the same as in the i.i.d.-permutations construction above, and the validity conclusions apply.
+**Why the usual “unpermuted + $B$ permuted” computation is covered.**  
+Lemma 1 draws $\Pi_0$ as a *random* permutation, whereas implementations typically take $\Pi_0$ to be the identity
+(i.e., $T_0=T(X_{t,j},Y_t)$). Under the null exchangeability assumption (Section 3.1), these lead to the same
+distribution for $(T_0,\dots,T_B)$.
+
+To see this, draw $\Pi_0,\Pi_1,\dots,\Pi_B$ i.i.d. uniform and define
+$\widetilde{Y}:=\Pi_0(Y_t)$ and $\Pi'_b := \Pi_b\circ \Pi_0^{-1}$ for $b=1,\dots,B$.
+Then:
+
+1. $(\Pi'_1,\dots,\Pi'_B)$ are i.i.d. uniform (composition with a fixed permutation preserves the uniform distribution on
+   the permutation group).
+2. The vector from Lemma 1 can be rewritten as
+   $$
+   (T(X_{t,j},\Pi_0(Y_t)), T(X_{t,j},\Pi_1(Y_t)),\dots,T(X_{t,j},\Pi_B(Y_t)))
+   =
+   (T(X_{t,j},\widetilde{Y}), T(X_{t,j},\Pi'_1(\widetilde{Y})),\dots,T(X_{t,j},\Pi'_B(\widetilde{Y}))).
+   $$
+3. Under exchangeability of $Y_t$, $\widetilde{Y}\stackrel{d}{=}Y_t$, and the right-hand side has the same
+   distribution as the practical “unpermuted + $B$ permuted” vector
+   $(T(X_{t,j},Y_t), T(X_{t,j},\Pi_1(Y_t)),\dots,T(X_{t,j},\Pi_B(Y_t)))$.
+
+Since the left-hand side is exchangeable by Lemma 1, the practical vector is also exchangeable, and the rank-based proof
+of Theorem 1 applies.
 
 ### 3.3 Monte Carlo permutation p-value with +1 correction
 
@@ -473,6 +491,28 @@ $$
 
 **Proof.** This is Proposition 3a specialized to the root. ∎
 
+**Corollary 3d (per-feature root split bound with random feature subsampling).**  
+Assume the global null holds at the root for all $p$ features. Suppose the root tests a subset
+$F_{\text{root}}\subseteq\{1,\dots,p\}$ obtained by sampling $m$ features uniformly without replacement (as in
+`max_features`), and uses Bonferroni correction over the tested subset. Then for any feature $j\in\{1,\dots,p\}$,
+$$
+\mathbb{P}(\text{the root splits on feature }j) \le \alpha_{\text{sel}}/p.
+$$
+
+**Proof.** Condition on $F_{\text{root}}$.
+If $j\notin F_{\text{root}}$, the root cannot split on $j$.
+If $j\in F_{\text{root}}$, Proposition 3a (at the root) gives
+$\mathbb{P}(\text{root splits on }j\mid F_{\text{root}})\le \alpha_{\text{sel}}/|F_{\text{root}}|=\alpha_{\text{sel}}/m$.
+Therefore,
+$$
+\mathbb{P}(\text{root splits on }j)
+=\mathbb{E}\!\left[\mathbb{P}(\text{root splits on }j\mid F_{\text{root}})\right]
+\le \mathbb{E}\!\left[\mathbf{1}\{j\in F_{\text{root}}\}\frac{\alpha_{\text{sel}}}{m}\right]
+=\frac{\alpha_{\text{sel}}}{m}\cdot \frac{m}{p}
+=\alpha_{\text{sel}}/p.
+$$
+∎
+
 ### 4.5 Joint error control (two-stage testing)
 
 At each node, citrees performs two sequential tests:
@@ -515,7 +555,15 @@ $\{(X_i,Y_i)\}_{i\in S}$).
 **Assumption (independent sample split).**  
 For the clean conditional unbiasedness statements below, assume the random index split $(S,E)$ is independent of the
 observed sample $\{(X_i,Y_i)\}_{i=1}^n$. (Equivalently: the indices are chosen by an external RNG that does not look at
-the data.) Under this assumption, $E \perp \Pi$ because $\Pi$ is measurable w.r.t. the splitting-sample data.
+the data.)
+
+Under this assumption, conditional on $S$ the splitting-sample data $\{(X_i,Y_i)\}_{i\in S}$ is independent of the
+estimation-sample data $\{(X_i,Y_i)\}_{i\in E}$. Since the learned partition $\Pi$ is measurable with respect to
+$\sigma(S, \{(X_i,Y_i)\}_{i\in S})$, we have the conditional independence
+$$
+\{(X_i,Y_i)\}_{i\in E} \perp \Pi \mid S.
+$$
+(We do **not** generally have $E \perp \Pi$ unconditionally because $\Pi$ depends on which indices are placed in $S$.)
 
 **Implementation note.**  
 In `citrees/_tree.py`, honest estimation uses `train_test_split`. For regression, the split is unstratified, matching
@@ -546,11 +594,30 @@ $$
 \quad \text{on the event } \{|E(L)| \ge 1\}.
 $$
 
-**Proof.** By the independent split assumption, $E \perp \Pi$. Since the original sample is i.i.d., the subcollection
-$\{(X_i,Y_i)\}_{i\in E}$ is i.i.d. from $P$ and is independent of $\Pi$.
+**Proof.** By Section 5.1, $\{(X_i,Y_i)\}_{i\in E} \perp \Pi \mid S$. In particular, conditional on $(\Pi,S)$ the
+estimation-sample observations are i.i.d. from $P$ and independent of the (random) leaf partition.
 
-Conditional on $\Pi$ and on the event $\{|E(L)|\ge 1\}$, the variables $\{Y_i : i\in E(L)\}$ are i.i.d. with mean
-$\mu(L)$. Therefore the sample average has conditional expectation $\mu(L)$. ∎
+Fix a leaf $L\in \Pi$ and, for $i\in E$, define the indicator $I_i := \mathbf{1}\{X_i\in L\}$ and the random count
+$N:=n_E(L)=\sum_{i\in E} I_i$.
+
+On the event $\{N\ge 1\}$ we can write the honest mean as a ratio
+$$
+\widehat{\mu}(L)=\frac{\sum_{i\in E} I_i Y_i}{\sum_{i\in E} I_i}.
+$$
+
+Condition on $(\Pi,S,(I_i)_{i\in E})$. Then $N$ is fixed, and for every $i$ with $I_i=1$ we have
+$$
+\mathbb{E}[Y_i\mid \Pi,S,I_i=1]=\mathbb{E}[Y\mid X\in L]=\mu(L),
+$$
+because $I_i=1$ is the event $\{X_i\in L\}$ and $L$ is fixed given $\Pi$.
+Therefore, on $\{N\ge 1\}$,
+$$
+\mathbb{E}\!\left[\widehat{\mu}(L)\;\middle|\;\Pi,S,(I_i)_{i\in E}\right]
+=\frac{1}{N}\sum_{i\in E:I_i=1}\mathbb{E}[Y_i\mid \Pi,S,I_i=1]
+=\mu(L).
+$$
+Taking conditional expectations first over $(I_i)_{i\in E}$ and then over $S$ yields
+$\mathbb{E}[\widehat{\mu}(L)\mid \Pi]=\mu(L)$ on $\{N\ge 1\}$. ∎
 
 **Classification analogue (requires independent split).**  
 If the index split $(S,E)$ is independent of the data, then for classification the honest leaf class-probability vector
@@ -576,17 +643,37 @@ $$
 \mathrm{Var}(\widehat{\mu}(L) \mid \Pi, n_E(L) = n) = \frac{\sigma^2(L)}{n}.
 $$
 
-**Proof.** By the same reasoning as Proposition 4, conditional on $\Pi$ the samples $(X_i, Y_i)_{i \in E}$ are i.i.d.
-from $P$ (since $E \perp \Pi$).
-Conditional further on $n_E(L) = n$, the $Y_i$ for $i \in E(L)$ are i.i.d. with distribution $(Y \mid X \in L)$,
-which has variance $\sigma^2(L)$. The variance of the sample mean of $n$ i.i.d. draws is $\sigma^2(L)/n$. ∎
+**Proof.** Use the notation $I_i=\mathbf{1}\{X_i\in L\}$ and $N=\sum_{i\in E}I_i$ from Proposition 4.
 
-**Bias-variance trade-off (exact statement).**  
-Honesty reduces the adaptive bias of leaf *estimation* by using an estimation sample that is independent of the
-partition-learning step. The cost is increased variance due to smaller effective sample sizes $n_E(L)$ in each leaf.
-If one were to estimate $\mu(L)$ using all $n_{\mathrm{all}}(L)$ samples landing in $L$, the (conditional) variance would
-scale like $\sigma^2(L)/n_{\mathrm{all}}(L)$. Under honesty, the corresponding variance scales like
-$\sigma^2(L)/n_E(L)$, i.e., inflated by the factor $n_{\mathrm{all}}(L)/n_E(L)\ge 1$.
+Condition on $(\Pi,S,(I_i)_{i\in E})$. On the event $\{N=n\ge 1\}$, the variables $\{Y_i: i\in E, I_i=1\}$ are
+independent with common distribution $(Y\mid X\in L)$ (because conditioning on the events $\{X_i\in L\}$ factorizes over
+$i$ under i.i.d. sampling). Hence
+$$
+\mathrm{Var}\!\left(\widehat{\mu}(L)\;\middle|\;\Pi,S,(I_i)_{i\in E}\right)=\sigma^2(L)/n
+\quad\text{on }\{N=n\ge 1\},
+$$
+and Proposition 4 gives
+$\mathbb{E}[\widehat{\mu}(L)\mid \Pi,S,(I_i)_{i\in E}]=\mu(L)$ on $\{N\ge 1\}$.
+
+Now condition only on $(\Pi, N=n)$ and apply the law of total variance with the refinement $(S,(I_i)_{i\in E})$:
+$$
+\mathrm{Var}(\widehat{\mu}(L)\mid \Pi,N=n)
+=\mathbb{E}\!\left[\mathrm{Var}\!\left(\widehat{\mu}(L)\;\middle|\;\Pi,S,(I_i)_{i\in E}\right)\;\middle|\;\Pi,N=n\right]
+\,+\,\mathrm{Var}\!\left(\mathbb{E}[\widehat{\mu}(L)\mid \Pi,S,(I_i)_{i\in E}]\;\middle|\;\Pi,N=n\right).
+$$
+The first term equals $\sigma^2(L)/n$ and the second term is $0$, yielding the claim. ∎
+
+**Bias-variance trade-off (rigorous part + intuition).**  
+Honesty reduces adaptive bias in leaf *estimation* by using an estimation sample that is independent of the
+partition-learning step. Propositions 4–4a make the variance statement precise: for a fixed leaf $L$ and
+$n_E(L)=n\ge 1$, the honest mean has conditional variance $\sigma^2(L)/n$.
+
+Using fewer observations for estimation typically increases variance. If an alternative estimator used
+$n_{\mathrm{all}}(L)$ i.i.d. observations from $(Y\mid X\in L)$, its variance would be $\sigma^2(L)/n_{\mathrm{all}}(L)$,
+so moving from $n_{\mathrm{all}}(L)$ to $n_E(L)$ inflates variance by the factor $n_{\mathrm{all}}(L)/n_E(L)\ge 1$.
+In non-honest trees, the extra observations are also used to *learn* $\Pi$, so the comparison to a
+$\sigma^2(L)/n_{\mathrm{all}}(L)$ baseline should be read as intuition rather than an exact conditional identity for the
+implemented (non-honest) estimator.
 
 ## 6. Where proofs stop (and why)
 
@@ -608,19 +695,22 @@ publication-grade proofs:
    and compute the permutation p-value using the *same max* inside each permutation. (That is provably valid by Theorem
    1, but it is not what the current implementation does.)
 
-	   **Why the current implementation can be anti-conservative (simple counterexample).**
-	   Think of the selector choice as an additional multiple-testing layer over a set of candidate statistics. Under a
-	   (toy) global null, suppose the permutation p-values for two candidate selectors are independent and valid:
-	   $p_1, p_2 \stackrel{iid}{\sim} \mathrm{Unif}(0,1)$.
+   **Why the current implementation can be anti-conservative (toy illustration).**
+   Selecting *which* statistic to test after looking at the data introduces another layer of multiple testing. In
+   general, if you compute multiple valid p-values for the *same* null hypothesis and then choose one to report based on
+   the data, the reported p-value need not be super-uniform.
 
-	   If we select the “best” selector and then report the selected p-value without adjusting for having searched over
-	   selectors, we are effectively using $p_{\min}:=\min(p_1,p_2)$ as a p-value. But
-	   $$
-	   \mathbb{P}(p_{\min}\le \alpha)=1-(1-\alpha)^2>\alpha,
-	   $$
-	   so this procedure is anti-conservative. A rigorous fix is to either (i) define the selector statistic as a
-	   max-over-selectors *inside each permutation* (so Theorem 1 applies to the composite statistic) or (ii) apply a
-	   correction over selectors (e.g., Bonferroni/Holm) in addition to the correction over features.
+   A simple model: under a (toy) global null, suppose two candidate selectors each yield a valid p-value and (for
+   simplicity) $p_1, p_2 \stackrel{iid}{\sim} \mathrm{Unif}(0,1)$. If the selection rule ends up reporting
+   $p_{\min}:=\min(p_1,p_2)$, then
+   $$
+   \mathbb{P}(p_{\min}\le \alpha)=1-(1-\alpha)^2>\alpha,
+   $$
+   so the procedure is anti-conservative.
+
+   A rigorous fix is to either (i) define the selector statistic as a max-over-selectors *inside each permutation* (so
+   Theorem 1 applies to the composite statistic) or (ii) apply a correction over selectors (e.g., Bonferroni/Holm) in
+   addition to the correction over features.
 
 3. **Feature muting across nodes** (`feature_muting=True`).  
    Muting uses intermediate p-values to remove features globally from future consideration. This adaptively changes the

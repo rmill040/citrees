@@ -83,10 +83,12 @@ available_node_types:
 head_node_type: head
 
 setup_commands:
+  - sudo apt-get update && sudo apt-get install -y r-base r-base-dev
   - curl -LsSf https://astral.sh/uv/install.sh | sh
   - $HOME/.local/bin/uv python install 3.12
-  - git clone -b __BRANCH__ https://github.com/rmill040/citrees.git ~/citrees || (cd ~/citrees && git fetch && git checkout __BRANCH__ && git pull)
+  - rm -rf ~/citrees && git clone -b __BRANCH__ https://github.com/rmill040/citrees.git ~/citrees
   - cd ~/citrees && $HOME/.local/bin/uv sync --group paper
+  - sudo ln -sf $HOME/citrees/.venv/bin/python /usr/local/bin/python
 
 # Override Ray's default pip commands (we use uv)
 head_setup_commands: []

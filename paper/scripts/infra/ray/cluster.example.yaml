@@ -89,11 +89,7 @@ setup_commands:
   - rm -rf ~/citrees && git clone -b __BRANCH__ https://github.com/rmill040/citrees.git ~/citrees
   - cd ~/citrees && $HOME/.local/bin/uv sync --group paper
   # Create python wrapper script (symlink bypasses venv detection, wrapper preserves it)
-  - sudo rm -f /usr/local/bin/python && sudo bash -c 'cat > /usr/local/bin/python << "EOF"
-#!/bin/bash
-exec /home/ubuntu/citrees/.venv/bin/python "$@"
-EOF
-' && sudo chmod +x /usr/local/bin/python
+  - sudo rm -f /usr/local/bin/python && echo -e '#!/bin/bash\nexec /home/ubuntu/citrees/.venv/bin/python "$@"' | sudo tee /usr/local/bin/python > /dev/null && sudo chmod +x /usr/local/bin/python
 
 # Override Ray's default pip commands (we use uv)
 head_setup_commands: []

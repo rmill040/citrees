@@ -60,7 +60,11 @@ except ImportError:
     HAS_XGB = False
 
 config = load_config()
-s3 = boto3.client("s3", region_name=config.region)
+
+
+def get_s3_client():
+    """Create S3 client lazily (avoid serialization issues with Ray)."""
+    return boto3.client("s3", region_name=config.region)
 
 
 def get_datasets(task_type: str) -> list[str]:
@@ -89,7 +93,7 @@ def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
 def s3_file_exists(s3_path: str) -> bool:
     parts = s3_path.replace("s3://", "").split("/", 1)
     try:
-        s3.head_object(Bucket=parts[0], Key=parts[1])
+        get_s3_client().head_object(Bucket=parts[0], Key=parts[1])
         return True
     except Exception:
         return False
@@ -101,7 +105,7 @@ def upload_to_s3(data: list[dict], s3_path: str) -> None:
     df.to_parquet(buffer, index=False)
     buffer.seek(0)
     parts = s3_path.replace("s3://", "").split("/", 1)
-    s3.put_object(Bucket=parts[0], Key=parts[1], Body=buffer.getvalue())
+    get_s3_client().put_object(Bucket=parts[0], Key=parts[1], Body=buffer.getvalue())
 
 
 def filter_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, random_state: int) -> np.ndarray:

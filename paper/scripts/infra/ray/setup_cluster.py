@@ -32,12 +32,47 @@ import yaml
 CLUSTER_YAML = Path(__file__).parent / "cluster.yaml"
 CLUSTER_EXAMPLE_YAML = Path(__file__).parent / "cluster.example.yaml"
 UBUNTU_OWNER_ID = "099720109477"  # Canonical
+DEFAULT_REGION = "us-east-1"
 
 
 def get_public_ip() -> str:
     """Get the user's current public IP address."""
     with urllib.request.urlopen("https://ifconfig.me", timeout=10) as response:
         return response.read().decode("utf-8").strip()
+
+
+def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
+    """Ensure the S3 bucket for results exists, create if not.
+
+    Returns the bucket name.
+    """
+    # Import config here to avoid circular imports
+    from paper.scripts.infra.config import load_config
+
+    config = load_config()
+    bucket_name = config.bucket_name
+    s3 = boto3.client("s3", region_name=region)
+
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+        print(f"  S3 bucket exists: {bucket_name}")
+    except s3.exceptions.ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code")
+        if error_code in ("404", "NoSuchBucket"):
+            print(f"  Creating S3 bucket: {bucket_name}")
+            # us-east-1 doesn't need LocationConstraint
+            if region == "us-east-1":
+                s3.create_bucket(Bucket=bucket_name)
+            else:
+                s3.create_bucket(
+                    Bucket=bucket_name,
+                    CreateBucketConfiguration={"LocationConstraint": region}
+                )
+            print(f"  Created S3 bucket: {bucket_name}")
+        else:
+            raise
+
+    return bucket_name
 
 
 def get_current_branch() -> str:
@@ -63,6 +98,9 @@ def generate_config(branch: str | None = None) -> None:
     if branch is None:
         branch = get_current_branch()
     print(f"  Branch: {branch}")
+
+    print("\nEnsuring S3 bucket for results...")
+    ensure_s3_bucket()
 
     print(f"\nReading template: {CLUSTER_EXAMPLE_YAML}")
     template = CLUSTER_EXAMPLE_YAML.read_text()

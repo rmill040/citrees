@@ -144,7 +144,7 @@ def permutation_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: s
                 X[:, j], y, n_classes,
                 alpha=alpha,
                 n_resamples=n_resamples,
-                early_stopping=False,
+                early_stopping=None,
                 random_state=rs,
             )
     else:
@@ -156,7 +156,7 @@ def permutation_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: s
                 standardize=True,
                 alpha=alpha,
                 n_resamples=n_resamples,
-                early_stopping=False,
+                early_stopping=None,
                 random_state=rs,
             )
 

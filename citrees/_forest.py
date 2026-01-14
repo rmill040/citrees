@@ -210,8 +210,10 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         adjust_alpha_splitter: bool,
         n_resamples_selector: str | int | None,
         n_resamples_splitter: str | int | None,
-        early_stopping_selector: bool,
-        early_stopping_splitter: bool,
+        early_stopping_selector: str | None,
+        early_stopping_splitter: str | None,
+        early_stopping_confidence_selector: float,
+        early_stopping_confidence_splitter: float,
         feature_muting: bool,
         feature_scanning: bool,
         threshold_scanning: bool,
@@ -242,6 +244,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.n_resamples_splitter = n_resamples_splitter
         self.early_stopping_selector = early_stopping_selector
         self.early_stopping_splitter = early_stopping_splitter
+        self.early_stopping_confidence_selector = early_stopping_confidence_selector
+        self.early_stopping_confidence_splitter = early_stopping_confidence_splitter
         self.feature_muting = feature_muting
         self.feature_scanning = feature_scanning
         self.threshold_scanning = threshold_scanning
@@ -439,8 +443,10 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         adjust_alpha_splitter: bool = True,
         n_resamples_selector: str | int | None = "auto",
         n_resamples_splitter: str | int | None = "auto",
-        early_stopping_selector: bool = True,
-        early_stopping_splitter: bool = True,
+        early_stopping_selector: str | None = "adaptive",
+        early_stopping_splitter: str | None = "adaptive",
+        early_stopping_confidence_selector: float = 0.95,
+        early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
         max_features: str | float | int | None = "sqrt",
@@ -472,6 +478,8 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         self.n_resamples_splitter = n_resamples_splitter
         self.early_stopping_selector = early_stopping_selector
         self.early_stopping_splitter = early_stopping_splitter
+        self.early_stopping_confidence_selector = early_stopping_confidence_selector
+        self.early_stopping_confidence_splitter = early_stopping_confidence_splitter
         self.feature_muting = feature_muting
         self.feature_scanning = feature_scanning
         self.threshold_scanning = threshold_scanning
@@ -581,11 +589,17 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
     n_resamples_splitter : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for split selection.
 
-    early_stopping_selector : bool, default=True
-        Use early stopping during feature selection.
+    early_stopping_selector : {"adaptive", "simple"} or None, default="adaptive"
+        Early stopping method for feature selection permutation tests.
 
-    early_stopping_splitter : bool, default=True
-        Use early stopping during split selection.
+    early_stopping_splitter : {"adaptive", "simple"} or None, default="adaptive"
+        Early stopping method for split selection permutation tests.
+
+    early_stopping_confidence_selector : float, default=0.95
+        Confidence threshold for adaptive stopping in feature selection.
+
+    early_stopping_confidence_splitter : float, default=0.95
+        Confidence threshold for adaptive stopping in split selection.
 
     feature_muting : bool, default=True
         Whether to perform feature muting.
@@ -664,8 +678,10 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         adjust_alpha_splitter: bool = True,
         n_resamples_selector: str | int | None = "auto",
         n_resamples_splitter: str | int | None = "auto",
-        early_stopping_selector: bool = True,
-        early_stopping_splitter: bool = True,
+        early_stopping_selector: str | None = "adaptive",
+        early_stopping_splitter: str | None = "adaptive",
+        early_stopping_confidence_selector: float = 0.95,
+        early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
         max_features: str | float | int | None = "sqrt",
@@ -697,6 +713,8 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
             n_resamples_splitter=n_resamples_splitter,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
+            early_stopping_confidence_selector=early_stopping_confidence_selector,
+            early_stopping_confidence_splitter=early_stopping_confidence_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
             max_features=max_features,

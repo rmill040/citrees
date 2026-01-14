@@ -43,8 +43,8 @@ class CITConfig(BaseConfig):
     adjust_alpha_splitter: bool = True
 
     # Early stopping
-    early_stopping_selector: bool = True
-    early_stopping_splitter: bool = True
+    early_stopping_selector: str | None = "adaptive"
+    early_stopping_splitter: str | None = "adaptive"
 
     # Scanning
     feature_scanning: bool = True

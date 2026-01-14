@@ -130,25 +130,33 @@ reg = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
 
 ### Early Stopping and Statistical Inference
 
-When `early_stopping_selector=True` or `early_stopping_splitter=True`, the permutation test stops as soon as the p-value falls below alpha. This is computationally efficient but affects p-value precision.
+The `early_stopping_selector` and `early_stopping_splitter` parameters control how permutation tests terminate:
 
-**For valid statistical inference (e.g., research papers):**
-- Set `early_stopping_selector=False` and `early_stopping_splitter=False`
-- Use `n_resamples_selector='maximum'` and `n_resamples_splitter='maximum'`
+- `"adaptive"` (default): Bayesian Beta CDF stopping - valid Type I error (~5%), 95% faster
+- `"simple"`: Futility + significance stopping - inflates Type I error to ~9%
+- `None`: Full permutation test - no early stopping
+
+**Default mode (recommended for most applications):**
 
 ```python
-# Rigorous mode for statistical inference
+# Default: adaptive sequential testing with valid p-values
 clf = ConditionalInferenceTreeClassifier(
-    early_stopping_selector=False,
-    early_stopping_splitter=False,
+    early_stopping_selector="adaptive",  # default
+    early_stopping_splitter="adaptive",  # default
+)
+```
+
+**Rigorous mode (maximum precision):**
+
+```python
+# Disable early stopping for maximum p-value precision
+clf = ConditionalInferenceTreeClassifier(
+    early_stopping_selector=None,
+    early_stopping_splitter=None,
     n_resamples_selector='maximum',
     n_resamples_splitter='maximum',
 )
 ```
-
-**For faster training (acceptable for most applications):**
-- Keep defaults (`early_stopping=True`, `n_resamples='auto'`)
-- Results are valid but p-values are approximate upper bounds
 
 **P-value correction:** The permutation test uses the Phipson & Smyth (2010) +1 correction: `p = (b+1)/(m+1)` instead of `p = b/m`. This ensures p-values are never exactly zero, which is critical for multiple testing correction.
 
@@ -221,15 +229,12 @@ def test_gini_py_func():
     assert result_jit == result_py == pytest.approx(0.5)
 ```
 
-**Best practices for Numba testing:**
-
-1. **Test both versions**: JIT-compiled code can behave differently across OS/platforms
-2. **Consistency checks**: Always verify `func(x) == func.py_func(x)` for the same input
-3. **Use `.py_func` in test class**: Group all `.py_func` tests in a `TestModulePyFunc` class
-4. **Document the pattern**: Include a docstring explaining why `.py_func` is used
-
-**Alternative**: Set `NUMBA_DISABLE_JIT=1` before importing Numba to disable JIT
-globally, but this must be done before any Numba imports and is all-or-nothing.
+**Note**: Tests use `NUMBA_DISABLE_JIT=1` (set in `tests/conftest.py`) to disable
+JIT globally. This means:
+- All `@njit` functions run as plain Python during tests
+- No `.py_func` attribute exists (functions are already Python)
+- Coverage tracking works automatically
+- Tests run the same code paths as production, just without compilation
 
 ### Scratch Directory
 Use `scratch/` for experimental code and proving concepts. Add to .gitignore.

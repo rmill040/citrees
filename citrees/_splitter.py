@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numba import njit, prange
@@ -10,6 +10,9 @@ from citrees._registry import (
     RegressorSplitters,
     RegressorSplitterTests,
 )
+from citrees._sequential import _beta_cdf
+
+EarlyStoppingOption = Literal["simple", "adaptive"] | None
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
@@ -27,9 +30,10 @@ def _ptest(
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Perform a permutation test for split selection.
 
@@ -50,14 +54,20 @@ def _ptest(
     n_resamples : int
         Number of resamples.
 
-    early_stopping : bool
-        Whether to early stop permutation testing if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method:
+        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, default)
+        - "simple": Futility + significance stopping (inflates Type I error)
+        - None: No early stopping (fixed-B test)
 
     alpha : float
         Alpha level for significance testing.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
 
     Returns
     -------
@@ -69,35 +79,57 @@ def _ptest(
     idx = x <= threshold
     theta = func(y[idx]) + func(y[~idx])
     y_ = y.copy()
-    theta_p = np.empty(n_resamples)
 
-    if early_stopping:
-        # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
-        min_resamples = ceil(1 / alpha)
-        if n_resamples < min_resamples:
-            n_resamples = min_resamples
-            theta_p = np.empty(n_resamples)
+    if early_stopping is None:
+        theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p[i] = func(y_[idx]) + func(y_[~idx])
-            if i >= min_resamples - 1:
-                # +1 correction (Phipson & Smyth 2010)
-                asl = (1 + np.sum(theta_p[: i + 1] <= theta)) / (2 + i)
-                if asl < alpha:
-                    break
+        return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
-    else:
+    min_resamples = ceil(1 / alpha)
+    n_resamples = max(n_resamples, min_resamples)
+    extreme_count = 0
+
+    if early_stopping == "adaptive":
         for i in range(n_resamples):
             np.random.shuffle(y_)
-            theta_p[i] = func(y_[idx]) + func(y_[~idx])
-        # +1 correction (Phipson & Smyth 2010)
-        asl = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+            theta_p = func(y_[idx]) + func(y_[~idx])
+            if theta_p <= theta:
+                extreme_count += 1
 
-    return asl
+            n = i + 1
+            if n >= min_resamples:
+                a = 1.0 + extreme_count
+                b = 1.0 + n - extreme_count
+                prob_sig = _beta_cdf(alpha, a, b)
 
+                if prob_sig >= confidence:
+                    return (extreme_count + 1) / (n + 1)
+                if (1.0 - prob_sig) >= confidence:
+                    return (extreme_count + 1) / (n + 1)
 
-# Compiled version of permutation test
-_ptest_compiled = njit(cache=True, fastmath=True, nogil=True)(_ptest)
+        return (extreme_count + 1) / (n_resamples + 1)
+
+    else:  # simple
+        for i in range(n_resamples):
+            np.random.shuffle(y_)
+            theta_p = func(y_[idx]) + func(y_[~idx])
+            if theta_p <= theta:
+                extreme_count += 1
+
+            n = i + 1
+            current_pval = (extreme_count + 1) / (n + 1)
+
+            if n >= min_resamples:
+                if current_pval < alpha:
+                    return current_pval
+
+                best_possible = (extreme_count + 1) / (n_resamples + 1)
+                if best_possible >= alpha and extreme_count >= 3:
+                    return current_pval
+
+        return (extreme_count + 1) / (n_resamples + 1)
 
 
 # Parallel permutation test for Gini index (classifier)
@@ -348,9 +380,10 @@ def ptest_gini(
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for Gini index split selection.
 
@@ -368,8 +401,8 @@ def ptest_gini(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -377,13 +410,15 @@ def ptest_gini(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_gini_parallel(
             x=x,
             y=y,
@@ -392,7 +427,7 @@ def ptest_gini(
             random_state=random_state,
         )
 
-    return _ptest_compiled(
+    return _ptest(
         func=gini,
         x=x,
         y=y,
@@ -401,6 +436,7 @@ def ptest_gini(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -410,9 +446,10 @@ def ptest_entropy(
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for entropy split selection.
 
@@ -430,8 +467,8 @@ def ptest_entropy(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -439,13 +476,15 @@ def ptest_entropy(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_entropy_parallel(
             x=x,
             y=y,
@@ -454,7 +493,7 @@ def ptest_entropy(
             random_state=random_state,
         )
 
-    return _ptest_compiled(
+    return _ptest(
         func=entropy,
         x=x,
         y=y,
@@ -463,6 +502,7 @@ def ptest_entropy(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -525,9 +565,10 @@ def ptest_mse(
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for MSE split selection.
 
@@ -545,8 +586,8 @@ def ptest_mse(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -554,13 +595,15 @@ def ptest_mse(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_mse_parallel(
             x=x,
             y=y,
@@ -569,7 +612,7 @@ def ptest_mse(
             random_state=random_state,
         )
 
-    return _ptest_compiled(
+    return _ptest(
         func=mse,
         x=x,
         y=y,
@@ -578,6 +621,7 @@ def ptest_mse(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -587,9 +631,10 @@ def ptest_mae(
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for MAE split selection.
 
@@ -607,8 +652,8 @@ def ptest_mae(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -616,13 +661,15 @@ def ptest_mae(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_mae_parallel(
             x=x,
             y=y,
@@ -631,7 +678,7 @@ def ptest_mae(
             random_state=random_state,
         )
 
-    return _ptest_compiled(
+    return _ptest(
         func=mae,
         x=x,
         y=y,
@@ -640,4 +687,5 @@ def ptest_mae(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )

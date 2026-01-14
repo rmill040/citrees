@@ -187,7 +187,7 @@ tree = ConditionalInferenceTreeClassifier(
     alpha_splitter=0.05,
     n_resamples_selector='auto',
     adjust_alpha_selector=True,
-    early_stopping_selector=True,
+    early_stopping_selector="adaptive",  # Bayesian stopping - valid p-values
 )
 ```
 
@@ -199,7 +199,7 @@ tree = ConditionalInferenceTreeClassifier(
     alpha_splitter=0.10,
     n_resamples_selector='minimum',
     adjust_alpha_selector=False,
-    early_stopping_selector=True,
+    early_stopping_selector="adaptive",  # "adaptive", "simple", or None
     threshold_method='percentile',
     max_thresholds=50,
 )

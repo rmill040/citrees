@@ -128,7 +128,7 @@ class TestPtestGini:
             y=y,
             threshold=threshold,
             n_resamples=100,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -147,7 +147,7 @@ class TestPtestGini:
             y=y,
             threshold=threshold,
             n_resamples=100,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -167,7 +167,7 @@ class TestPtestGini:
             y=y,
             threshold=0.5,
             n_resamples=100,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -189,7 +189,7 @@ class TestPtestEntropy:
             y=y,
             threshold=0.5,
             n_resamples=100,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -211,7 +211,7 @@ class TestPtestMSE:
             y=y,
             threshold=0.5,
             n_resamples=100,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -229,7 +229,7 @@ class TestPtestMSE:
             y=y,
             threshold=0.0,
             n_resamples=100,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -251,7 +251,7 @@ class TestPtestMAE:
             y=y,
             threshold=0.5,
             n_resamples=100,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -273,7 +273,7 @@ class TestEarlyStopping:
             y=y,
             threshold=0.5,
             n_resamples=100,
-            early_stopping=True,
+            early_stopping="adaptive",
             alpha=0.05,
             random_state=42,
         )
@@ -293,7 +293,7 @@ class TestEarlyStopping:
             y=y,
             threshold=0.5,
             n_resamples=1000,
-            early_stopping=True,
+            early_stopping="adaptive",
             alpha=0.05,
             random_state=42,
         )
@@ -301,106 +301,66 @@ class TestEarlyStopping:
         assert pval < 0.05
 
 
-class TestSplitterPyFunc:
-    """Tests for splitter functions via .py_func for coverage."""
+class TestSplitterDirect:
+    """Direct tests for splitter functions (JIT disabled via NUMBA_DISABLE_JIT=1)."""
 
-    # Gini py_func tests
-    def test_gini_py_func_pure(self):
-        """Test gini.py_func with pure node."""
+    def test_gini_pure(self):
+        """Test gini with pure node."""
         y = np.array([0, 0, 0, 0], dtype=np.int64)
-        assert gini.py_func(y) == pytest.approx(0.0)
+        assert gini(y) == pytest.approx(0.0)
 
-    def test_gini_py_func_balanced(self):
-        """Test gini.py_func with balanced classes."""
+    def test_gini_balanced(self):
+        """Test gini with balanced classes."""
         y = np.array([0, 0, 1, 1], dtype=np.int64)
-        assert gini.py_func(y) == pytest.approx(0.5)
+        assert gini(y) == pytest.approx(0.5)
 
-    def test_gini_py_func_imbalanced(self):
-        """Test gini.py_func with imbalanced classes."""
+    def test_gini_imbalanced(self):
+        """Test gini with imbalanced classes."""
         y = np.array([0, 0, 0, 1], dtype=np.int64)
-        assert gini.py_func(y) == pytest.approx(0.375)
+        assert gini(y) == pytest.approx(0.375)
 
-    def test_gini_py_func_multiclass(self):
-        """Test gini.py_func with multiclass."""
+    def test_gini_multiclass(self):
+        """Test gini with multiclass."""
         y = np.array([0, 1, 2], dtype=np.int64)
-        assert gini.py_func(y) == pytest.approx(2 / 3)
+        assert gini(y) == pytest.approx(2 / 3)
 
-    def test_gini_consistency(self):
-        """Verify gini JIT and py_func produce identical results."""
-        y = np.array([0, 1, 1, 2, 2, 2], dtype=np.int64)
-        assert gini(y) == pytest.approx(gini.py_func(y))
-
-    # Entropy py_func tests
-    def test_entropy_py_func_pure(self):
-        """Test entropy.py_func with pure node."""
+    def test_entropy_pure(self):
+        """Test entropy with pure node."""
         y = np.array([0, 0, 0, 0], dtype=np.int64)
-        assert entropy.py_func(y) == pytest.approx(0.0)
+        assert entropy(y) == pytest.approx(0.0)
 
-    def test_entropy_py_func_balanced(self):
-        """Test entropy.py_func with balanced classes."""
+    def test_entropy_balanced(self):
+        """Test entropy with balanced classes."""
         y = np.array([0, 0, 1, 1], dtype=np.int64)
-        assert entropy.py_func(y) == pytest.approx(1.0)
+        assert entropy(y) == pytest.approx(1.0)
 
-    def test_entropy_py_func_imbalanced(self):
-        """Test entropy.py_func with imbalanced classes."""
-        y = np.array([0, 0, 0, 1], dtype=np.int64)
-        expected = -0.75 * np.log2(0.75) - 0.25 * np.log2(0.25)
-        assert entropy.py_func(y) == pytest.approx(expected)
-
-    def test_entropy_py_func_multiclass(self):
-        """Test entropy.py_func with multiclass."""
+    def test_entropy_multiclass(self):
+        """Test entropy with multiclass."""
         y = np.array([0, 1, 2], dtype=np.int64)
-        assert entropy.py_func(y) == pytest.approx(np.log2(3))
+        assert entropy(y) == pytest.approx(np.log2(3))
 
-    def test_entropy_consistency(self):
-        """Verify entropy JIT and py_func produce identical results."""
-        y = np.array([0, 1, 1, 2, 2, 2], dtype=np.int64)
-        assert entropy(y) == pytest.approx(entropy.py_func(y))
-
-    # MSE py_func tests
-    def test_mse_py_func_constant(self):
-        """Test mse.py_func with constant values."""
+    def test_mse_constant(self):
+        """Test mse with constant values."""
         y = np.array([5.0, 5.0, 5.0, 5.0])
-        assert mse.py_func(y) == pytest.approx(0.0)
+        assert mse(y) == pytest.approx(0.0)
 
-    def test_mse_py_func_variance(self):
-        """Test mse.py_func equals variance."""
+    def test_mse_variance(self):
+        """Test mse equals variance."""
         y = np.array([1.0, 2.0, 3.0, 4.0])
         expected = np.var(y)
-        assert mse.py_func(y) == pytest.approx(expected)
+        assert mse(y) == pytest.approx(expected)
 
-    def test_mse_py_func_symmetric(self):
-        """Test mse.py_func for symmetric values."""
-        y = np.array([-1.0, 1.0])
-        assert mse.py_func(y) == pytest.approx(1.0)
-
-    def test_mse_consistency(self):
-        """Verify mse JIT and py_func produce identical results."""
-        y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        assert mse(y) == pytest.approx(mse.py_func(y))
-
-    # MAE py_func tests
-    def test_mae_py_func_constant(self):
-        """Test mae.py_func with constant values."""
+    def test_mae_constant(self):
+        """Test mae with constant values."""
         y = np.array([5.0, 5.0, 5.0, 5.0])
-        assert mae.py_func(y) == pytest.approx(0.0)
+        assert mae(y) == pytest.approx(0.0)
 
-    def test_mae_py_func_deviation(self):
-        """Test mae.py_func equals mean absolute deviation."""
+    def test_mae_deviation(self):
+        """Test mae equals mean absolute deviation."""
         y = np.array([1.0, 2.0, 3.0, 4.0])
         mean = np.mean(y)
         expected = np.mean(np.abs(y - mean))
-        assert mae.py_func(y) == pytest.approx(expected)
-
-    def test_mae_py_func_symmetric(self):
-        """Test mae.py_func for symmetric values."""
-        y = np.array([-1.0, 1.0])
-        assert mae.py_func(y) == pytest.approx(1.0)
-
-    def test_mae_consistency(self):
-        """Verify mae JIT and py_func produce identical results."""
-        y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        assert mae(y) == pytest.approx(mae.py_func(y))
+        assert mae(y) == pytest.approx(expected)
 
 
 class TestParallelPtests:
@@ -413,13 +373,13 @@ class TestParallelPtests:
         x = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
         y = np.concatenate([np.zeros(n // 2), np.ones(n // 2)]).astype(np.int64)
 
-        # n_resamples >= 200 triggers parallel version when early_stopping=False
+        # n_resamples >= 200 triggers parallel version when early_stopping=None
         pval = ptest_gini(
             x=x,
             y=y,
             threshold=0.5,
             n_resamples=250,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -437,7 +397,7 @@ class TestParallelPtests:
             y=y,
             threshold=0.5,
             n_resamples=250,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -455,7 +415,7 @@ class TestParallelPtests:
             y=y,
             threshold=0.5,
             n_resamples=250,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -473,7 +433,7 @@ class TestParallelPtests:
             y=y,
             threshold=0.5,
             n_resamples=250,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )
@@ -491,7 +451,7 @@ class TestParallelPtests:
             y=y,
             threshold=0.0,
             n_resamples=250,
-            early_stopping=False,
+            early_stopping=None,
             alpha=0.05,
             random_state=42,
         )

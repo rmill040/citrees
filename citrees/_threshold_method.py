@@ -97,6 +97,9 @@ def percentile(
         x = x.ravel()
 
     values = np.unique(x)
+    if len(values) < 2:
+        return np.empty(0, dtype=np.float64)
+
     midpoints = (values[:-1] + values[1:]) / 2
     max_thresholds = min(len(midpoints), max_thresholds)
     q = np.linspace(0, 100, max_thresholds)

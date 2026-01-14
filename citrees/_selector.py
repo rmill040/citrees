@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from dcor import distance_correlation as _d_correlation
@@ -13,6 +13,9 @@ from citrees._registry import (
     RegressorSelectors,
     RegressorSelectorTests,
 )
+from citrees._sequential import _beta_cdf
+
+EarlyStoppingOption = Literal["simple", "adaptive"] | None
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
@@ -30,9 +33,10 @@ def _ptest(
     x: np.ndarray,
     y: np.ndarray,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Calculate the achieved significance level using a permutation test.
 
@@ -53,14 +57,20 @@ def _ptest(
     n_resamples : int
         Number of resamples.
 
-    early_stopping : bool
-        Whether to early stop permutation testing if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method:
+        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, default)
+        - "simple": Futility + significance stopping (inflates Type I error)
+        - None: No early stopping (fixed-B test)
 
     alpha : float
         Alpha level for significance testing.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping. Only used when early_stopping="adaptive".
 
     Returns
     -------
@@ -71,35 +81,57 @@ def _ptest(
 
     theta = np.abs(func(x, y, func_arg, random_state=random_state))
     y_ = y.copy()
-    theta_p = np.empty(n_resamples)
 
-    if early_stopping:
-        # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
-        min_resamples = ceil(1 / alpha)
-        if n_resamples < min_resamples:
-            n_resamples = min_resamples
-            theta_p = np.empty(n_resamples)
+    if early_stopping is None:
+        theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg, random_state=random_state)
-            if i >= min_resamples - 1:
-                # +1 correction (Phipson & Smyth 2010)
-                asl = (1 + np.sum(np.abs(theta_p[: i + 1]) >= theta)) / (2 + i)
-                if asl < alpha:
-                    break
+        return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
 
-    else:
+    min_resamples = ceil(1 / alpha)
+    n_resamples = max(n_resamples, min_resamples)
+    extreme_count = 0
+
+    if early_stopping == "adaptive":
         for i in range(n_resamples):
             np.random.shuffle(y_)
-            theta_p[i] = func(x, y_, func_arg, random_state=random_state)
-        # +1 correction (Phipson & Smyth 2010)
-        asl = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+            theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
+            if theta_p >= theta:
+                extreme_count += 1
 
-    return asl
+            n = i + 1
+            if n >= min_resamples:
+                a = 1.0 + extreme_count
+                b = 1.0 + n - extreme_count
+                prob_sig = _beta_cdf(alpha, a, b)
 
+                if prob_sig >= confidence:
+                    return (extreme_count + 1) / (n + 1)
+                if (1.0 - prob_sig) >= confidence:
+                    return (extreme_count + 1) / (n + 1)
 
-# Compiled version of permutation test
-_ptest_compiled = njit(cache=True, fastmath=True, nogil=True)(_ptest)
+        return (extreme_count + 1) / (n_resamples + 1)
+
+    else:  # simple
+        for i in range(n_resamples):
+            np.random.shuffle(y_)
+            theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
+            if theta_p >= theta:
+                extreme_count += 1
+
+            n = i + 1
+            current_pval = (extreme_count + 1) / (n + 1)
+
+            if n >= min_resamples:
+                if current_pval < alpha:
+                    return current_pval
+
+                best_possible = (extreme_count + 1) / (n_resamples + 1)
+                if best_possible >= alpha and extreme_count >= 3:
+                    return current_pval
+
+        return (extreme_count + 1) / (n_resamples + 1)
 
 
 # Parallel permutation test for multiple correlation (classifier)
@@ -622,9 +654,10 @@ def ptest_mc(
     y: np.ndarray,
     n_classes: int,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Perform a permutation test using the multiple correlation coefficient.
 
@@ -642,23 +675,25 @@ def ptest_mc(
     n_resamples : int
         Number of permutations to perform.
 
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method. "adaptive" (default) uses Bayesian stopping,
+        "simple" uses futility stopping, None disables early stopping.
 
     alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
+        Significance threshold.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
 
     Returns
     -------
     float
         Estimated achieved significance level.
     """
-    # Use parallel version when not using early stopping and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_mc_parallel(
             x=x,
             y=y,
@@ -667,7 +702,7 @@ def ptest_mc(
             random_state=random_state,
         )
 
-    return _ptest_compiled(
+    return _ptest(
         func=mc,
         func_arg=n_classes,
         x=x,
@@ -676,6 +711,7 @@ def ptest_mc(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -686,9 +722,10 @@ def ptest_mi(
     y: np.ndarray,
     n_classes: int,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Perform a permutation test using the mutual information.
 
@@ -701,20 +738,22 @@ def ptest_mi(
         Target values.
 
     n_classes : int
-        Number of classes. Kept for API compatibility.
+        Number of classes.
 
     n_resamples : int
         Number of permutations to perform.
 
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
+        Significance threshold.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
 
     Returns
     -------
@@ -730,6 +769,7 @@ def ptest_mi(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -740,9 +780,10 @@ def ptest_pc(
     y: np.ndarray,
     standardize: bool,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
-    random_state,
+    random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Perform a permutation test using the Pearson correlation coefficient.
 
@@ -755,28 +796,29 @@ def ptest_pc(
         Target values.
 
     standardize : bool
-        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
+        Whether to standardize the result.
 
     n_resamples : int
         Number of permutations to perform.
 
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
+        Significance threshold.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
 
     Returns
     -------
     float
         Estimated achieved significance level.
     """
-    # Use parallel version when not using early stopping and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_pc_parallel(
             x=x,
             y=y,
@@ -784,7 +826,7 @@ def ptest_pc(
             random_state=random_state,
         )
 
-    return _ptest_compiled(
+    return _ptest(
         func=pc,
         func_arg=standardize,
         x=x,
@@ -793,6 +835,7 @@ def ptest_pc(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -803,11 +846,12 @@ def ptest_dc(
     y: np.ndarray,
     standardize: bool,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
-    """Perform a permutation test using the distsance correlation coefficient.
+    """Perform a permutation test using the distance correlation coefficient.
 
     Parameters
     ----------
@@ -818,20 +862,22 @@ def ptest_dc(
         Target values.
 
     standardize : bool
-        Whether to standardize the result. If True, return the correlation, if False, return the covariance.
+        Whether to standardize the result.
 
     n_resamples : int
         Number of permutations to perform.
 
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
+        Significance threshold.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
 
     Returns
     -------
@@ -847,6 +893,7 @@ def ptest_dc(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -862,14 +909,12 @@ def ptest_rdc_classifier(
     y: np.ndarray,
     n_classes: int,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Perform a permutation test using the Randomized Dependence Coefficient.
-
-    RDC-based permutation test for feature selection in classification.
-    O(n log n) per permutation vs O(n²) for distance correlation.
 
     Parameters
     ----------
@@ -885,15 +930,17 @@ def ptest_rdc_classifier(
     n_resamples : int
         Number of permutations to perform.
 
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
+        Significance threshold.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
 
     Returns
     -------
@@ -909,6 +956,7 @@ def ptest_rdc_classifier(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
@@ -919,14 +967,12 @@ def ptest_rdc_regressor(
     y: np.ndarray,
     standardize: bool,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Perform a permutation test using the Randomized Dependence Coefficient.
-
-    RDC-based permutation test for feature selection in regression.
-    O(n log n) per permutation vs O(n²) for distance correlation.
 
     Parameters
     ----------
@@ -937,20 +983,22 @@ def ptest_rdc_regressor(
         Target values.
 
     standardize : bool
-        Whether to standardize the result. RDC is inherently standardized.
+        Whether to standardize the result.
 
     n_resamples : int
         Number of permutations to perform.
 
-    early_stopping : bool
-        Whether to implement early stopping during permutation testing.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
-        Threshold used to compare the estimated achieved significance level to and early stop permutation testing.
-        This parameter is only used when early_stopping is True.
+        Significance threshold.
 
     random_state : int
         Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
 
     Returns
     -------
@@ -966,4 +1014,5 @@ def ptest_rdc_regressor(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )

@@ -32,6 +32,8 @@ NonNegativeInt = Annotated[int, Field(ge=0)]
 NonNegativeFloat = Annotated[float, Field(ge=0.0)]
 NResamplesOption = Literal["minimum", "maximum", "auto"] | NonNegativeInt | None
 MaxValuesOption = Literal["sqrt", "log2"] | float | int | None
+EarlyStoppingOption = Literal["simple", "adaptive"] | None
+ConfidenceFloat = Annotated[float, Field(gt=0.5, lt=1.0)]
 
 
 class Node(TypedDict, total=False):
@@ -58,8 +60,10 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     adjust_alpha_splitter: bool
     n_resamples_selector: NResamplesOption
     n_resamples_splitter: NResamplesOption
-    early_stopping_selector: bool
-    early_stopping_splitter: bool
+    early_stopping_selector: EarlyStoppingOption
+    early_stopping_splitter: EarlyStoppingOption
+    early_stopping_confidence_selector: ConfidenceFloat
+    early_stopping_confidence_splitter: ConfidenceFloat
     feature_muting: bool
     feature_scanning: bool
     threshold_scanning: bool
@@ -298,17 +302,17 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         1. n_resamples_selector is None =>
             - adjust_alpha_selector = False
             - feature_muting = False
-            - early_stopping_selector = False
+            - early_stopping_selector = None
 
-        2. early_stopping_selector == False =>
+        2. early_stopping_selector is None =>
             - feature_scanning == False
 
         Splitter constraints:
         1. n_resamples_splitter is None =>
             - adjust_alpha_splitter = False
-            - early_stopping_splitter = False
+            - early_stopping_splitter = None
 
-        2. early_stopping_splitter = False =>
+        2. early_stopping_splitter is None =>
             - threshold_scanning = False
         """
         params = self.get_params()
@@ -326,9 +330,9 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
                 f"({', '.join(flags)}) should be False"
             )
 
-        if not params["early_stopping_selector"] and params["feature_scanning"]:
+        if params["early_stopping_selector"] is None and params["feature_scanning"]:
             warnings.warn(
-                "Unused hyperparameter detected: When early_stopping_selector=False, hyperparameter "
+                "Unused hyperparameter detected: When early_stopping_selector=None, hyperparameter "
                 "('feature_scanning') should be False"
             )
 
@@ -343,10 +347,10 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
                 f"({', '.join(flags)}) should be False"
             )
 
-        if not params["early_stopping_splitter"] and params["threshold_scanning"]:
+        if params["early_stopping_splitter"] is None and params["threshold_scanning"]:
             warnings.warn(
-                "Unused hyperparameters detected: When early_stopping_splitter=False, hyperparameter "
-                "('feature_scanning') should be False"
+                "Unused hyperparameters detected: When early_stopping_splitter=None, hyperparameter "
+                "('threshold_scanning') should be False"
             )
 
 
@@ -368,8 +372,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         adjust_alpha_splitter: bool,
         n_resamples_selector: str | int | None,
         n_resamples_splitter: str | int | None,
-        early_stopping_selector: bool,
-        early_stopping_splitter: bool,
+        early_stopping_selector: str | None,
+        early_stopping_splitter: str | None,
+        early_stopping_confidence_selector: float,
+        early_stopping_confidence_splitter: float,
         feature_muting: bool,
         feature_scanning: bool,
         threshold_scanning: bool,
@@ -396,6 +402,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.n_resamples_splitter = n_resamples_splitter
         self.early_stopping_selector = early_stopping_selector
         self.early_stopping_splitter = early_stopping_splitter
+        self.early_stopping_confidence_selector = early_stopping_confidence_selector
+        self.early_stopping_confidence_splitter = early_stopping_confidence_splitter
         self.feature_muting = feature_muting
         self.feature_scanning = feature_scanning
         self.threshold_scanning = threshold_scanning
@@ -514,6 +522,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     "early_stopping": self._early_stopping_selector,
                     "alpha": self._alpha_selector,
                     "random_state": self._random_state,
+                    "confidence": self._early_stopping_confidence_selector,
                 }
             )
 
@@ -538,7 +547,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     reject_H0 = best_pval < self._alpha_selector
 
                     # Check for early stopping
-                    if pval_feature == 0 or (self._early_stopping_selector and reject_H0):
+                    if pval_feature == 0 or (self._early_stopping_selector is not None and reject_H0):
                         break
 
                 # Check for feature muting
@@ -603,6 +612,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 "early_stopping": self._early_stopping_splitter,
                 "alpha": self._alpha_splitter,
                 "random_state": self._random_state,
+                "confidence": self._early_stopping_confidence_splitter,
             }
 
         for threshold in thresholds:
@@ -619,7 +629,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     reject_H0 = best_pval < self._alpha_splitter
 
                     # Check for early stopping
-                    if pval_threshold == 0 or (self._early_stopping_splitter and reject_H0):
+                    if pval_threshold == 0 or (self._early_stopping_splitter is not None and reject_H0):
                         break
 
             # Split selection without permutation testing
@@ -880,7 +890,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     if len(self._available_features) > 1
                     else self._available_features
                 )
-                if self._early_stopping_selector and self._scan_features and len(features) > 1:
+                if self._early_stopping_selector is not None and self._scan_features and len(features) > 1:
                     features = self._scan_features(X, y, features)
                 best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(
                     X, y, features
@@ -1004,6 +1014,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             "alpha_splitter",
             "early_stopping_selector",
             "early_stopping_splitter",
+            "early_stopping_confidence_selector",
+            "early_stopping_confidence_splitter",
         ]:
             setattr(self, f"_{param}", getattr(self, param))
 
@@ -1015,6 +1027,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             "early_stopping": self._early_stopping_selector,
             "alpha": self._alpha_selector,
             "random_state": self._random_state,
+            "confidence": self._early_stopping_confidence_selector,
         }
 
         # Handle list-based selectors (multi-selector mode)
@@ -1065,6 +1078,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             "early_stopping": self._early_stopping_splitter,
             "alpha": self._alpha_splitter,
             "random_state": self._random_state,
+            "confidence": self._early_stopping_confidence_splitter,
         }
 
         self._threshold_method: Any = ThresholdMethods[self.threshold_method]
@@ -1250,25 +1264,23 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
 
     Parameters
     ----------
-    early_stopping_selector : bool, default=True
-        If True, stop permutation testing early when p-value falls below alpha.
-        Faster but p-values are approximate. Set to False for rigorous inference.
+    early_stopping_selector : {"adaptive", "simple"} or None, default="adaptive"
+        Early stopping method for feature selection permutation tests:
+        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, recommended)
+        - "simple": Futility + significance stopping (inflates Type I error)
+        - None: No early stopping (fixed-B test)
 
-    early_stopping_splitter : bool, default=True
-        If True, stop permutation testing early when p-value falls below alpha.
-        Faster but p-values are approximate. Set to False for rigorous inference.
+    early_stopping_splitter : {"adaptive", "simple"} or None, default="adaptive"
+        Early stopping method for split selection permutation tests.
+
+    early_stopping_confidence_selector : float, default=0.95
+        Confidence threshold for adaptive stopping in feature selection.
+
+    early_stopping_confidence_splitter : float, default=0.95
+        Confidence threshold for adaptive stopping in split selection.
 
     Notes
     -----
-    For valid statistical inference (e.g., research papers), use:
-
-    >>> clf = ConditionalInferenceTreeClassifier(
-    ...     early_stopping_selector=False,
-    ...     early_stopping_splitter=False,
-    ...     n_resamples_selector='maximum',
-    ...     n_resamples_splitter='maximum',
-    ... )
-
     P-values use the Phipson & Smyth (2010) +1 correction to ensure they are
     never exactly zero: p = (b+1)/(m+1) instead of p = b/m.
 
@@ -1291,8 +1303,10 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         adjust_alpha_splitter: bool = True,
         n_resamples_selector: str | int | None = "auto",
         n_resamples_splitter: str | int | None = "auto",
-        early_stopping_selector: bool = True,
-        early_stopping_splitter: bool = True,
+        early_stopping_selector: str | None = "adaptive",
+        early_stopping_splitter: str | None = "adaptive",
+        early_stopping_confidence_selector: float = 0.95,
+        early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
         max_features: str | float | int | None = None,
@@ -1320,6 +1334,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
             n_resamples_splitter=n_resamples_splitter,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
+            early_stopping_confidence_selector=early_stopping_confidence_selector,
+            early_stopping_confidence_splitter=early_stopping_confidence_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
             max_features=max_features,
@@ -1395,25 +1411,23 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
 
     Parameters
     ----------
-    early_stopping_selector : bool, default=True
-        If True, stop permutation testing early when p-value falls below alpha.
-        Faster but p-values are approximate. Set to False for rigorous inference.
+    early_stopping_selector : {"adaptive", "simple"} or None, default="adaptive"
+        Early stopping method for feature selection permutation tests:
+        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, recommended)
+        - "simple": Futility + significance stopping (inflates Type I error)
+        - None: No early stopping (fixed-B test)
 
-    early_stopping_splitter : bool, default=True
-        If True, stop permutation testing early when p-value falls below alpha.
-        Faster but p-values are approximate. Set to False for rigorous inference.
+    early_stopping_splitter : {"adaptive", "simple"} or None, default="adaptive"
+        Early stopping method for split selection permutation tests.
+
+    early_stopping_confidence_selector : float, default=0.95
+        Confidence threshold for adaptive stopping in feature selection.
+
+    early_stopping_confidence_splitter : float, default=0.95
+        Confidence threshold for adaptive stopping in split selection.
 
     Notes
     -----
-    For valid statistical inference (e.g., research papers), use:
-
-    >>> reg = ConditionalInferenceTreeRegressor(
-    ...     early_stopping_selector=False,
-    ...     early_stopping_splitter=False,
-    ...     n_resamples_selector='maximum',
-    ...     n_resamples_splitter='maximum',
-    ... )
-
     P-values use the Phipson & Smyth (2010) +1 correction to ensure they are
     never exactly zero: p = (b+1)/(m+1) instead of p = b/m.
 
@@ -1436,8 +1450,10 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
         adjust_alpha_splitter: bool = True,
         n_resamples_selector: str | int | None = "auto",
         n_resamples_splitter: str | int | None = "auto",
-        early_stopping_selector: bool = True,
-        early_stopping_splitter: bool = True,
+        early_stopping_selector: str | None = "adaptive",
+        early_stopping_splitter: str | None = "adaptive",
+        early_stopping_confidence_selector: float = 0.95,
+        early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
         max_features: str | float | int | None = None,
@@ -1465,6 +1481,8 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
             n_resamples_splitter=n_resamples_splitter,
             early_stopping_selector=early_stopping_selector,
             early_stopping_splitter=early_stopping_splitter,
+            early_stopping_confidence_selector=early_stopping_confidence_selector,
+            early_stopping_confidence_splitter=early_stopping_confidence_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
             max_features=max_features,

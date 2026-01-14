@@ -538,7 +538,7 @@ class TestStatisticalCorrectness:
     They are slower but ensure the statistical machinery is functioning properly.
     """
 
-    def test_full_permutation_testing(self, classification_data):
+    def test_full_ptest(self, classification_data):
         """Test that full permutation testing produces valid p-values."""
         X, y = classification_data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -791,28 +791,28 @@ class TestEarlyStopping:
     def test_early_stopping_selector_enabled(self, classification_data):
         """Test with early stopping for selector enabled."""
         X, y = classification_data
-        clf = ConditionalInferenceTreeClassifier(early_stopping_selector=True, **FAST_PARAMS)
+        clf = ConditionalInferenceTreeClassifier(early_stopping_selector="adaptive", **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 
     def test_early_stopping_selector_disabled(self, classification_data):
         """Test with early stopping for selector disabled."""
         X, y = classification_data
-        clf = ConditionalInferenceTreeClassifier(early_stopping_selector=False, **FAST_PARAMS)
+        clf = ConditionalInferenceTreeClassifier(early_stopping_selector=None, **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 
     def test_early_stopping_splitter_enabled(self, classification_data):
         """Test with early stopping for splitter enabled."""
         X, y = classification_data
-        clf = ConditionalInferenceTreeClassifier(early_stopping_splitter=True, **FAST_PARAMS)
+        clf = ConditionalInferenceTreeClassifier(early_stopping_splitter="adaptive", **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 
     def test_early_stopping_splitter_disabled(self, classification_data):
         """Test with early stopping for splitter disabled."""
         X, y = classification_data
-        clf = ConditionalInferenceTreeClassifier(early_stopping_splitter=False, **FAST_PARAMS)
+        clf = ConditionalInferenceTreeClassifier(early_stopping_splitter=None, **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 
@@ -820,8 +820,8 @@ class TestEarlyStopping:
         """Test with both early stopping disabled (rigorous mode)."""
         X, y = classification_data
         clf = ConditionalInferenceTreeClassifier(
-            early_stopping_selector=False,
-            early_stopping_splitter=False,
+            early_stopping_selector=None,
+            early_stopping_splitter=None,
             **FAST_PARAMS,
         )
         clf.fit(X, y)
@@ -831,8 +831,8 @@ class TestEarlyStopping:
         """Test early stopping with regressor."""
         X, y = regression_data
         reg = ConditionalInferenceTreeRegressor(
-            early_stopping_selector=False,
-            early_stopping_splitter=False,
+            early_stopping_selector=None,
+            early_stopping_splitter=None,
             **FAST_PARAMS,
         )
         reg.fit(X, y)

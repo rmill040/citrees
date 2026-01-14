@@ -390,8 +390,10 @@ Input: x, y, statistic, n_resamples, α
 Enable with:
 
 ```python
-early_stopping_selector=True  # Default
-early_stopping_splitter=True  # Default
+early_stopping_selector="adaptive"  # Default - Bayesian stopping, valid Type I error
+early_stopping_splitter="adaptive"  # Default
+# Or use "simple" for basic futility stopping (inflates Type I error to ~9%)
+# Or use None to disable early stopping entirely
 ```
 
 ---
@@ -429,8 +431,8 @@ tree = ConditionalInferenceTreeClassifier(
     n_resamples_splitter='maximum',
     adjust_alpha_selector=True,           # Bonferroni correction
     adjust_alpha_splitter=True,
-    early_stopping_selector=False,        # Full computation
-    early_stopping_splitter=False,
+    early_stopping_selector=None,         # Full computation (no early stopping)
+    early_stopping_splitter=None,
 )
 ```
 
@@ -444,8 +446,8 @@ tree = ConditionalInferenceTreeClassifier(
     n_resamples_splitter='minimum',
     adjust_alpha_selector=False,          # No correction
     adjust_alpha_splitter=False,
-    early_stopping_selector=True,         # Early stopping
-    early_stopping_splitter=True,
+    early_stopping_selector="adaptive",   # Bayesian early stopping (default)
+    early_stopping_splitter="adaptive",
 )
 ```
 
@@ -459,8 +461,8 @@ tree = ConditionalInferenceTreeClassifier(
     n_resamples_splitter='auto',
     adjust_alpha_selector=True,
     adjust_alpha_splitter=True,
-    early_stopping_selector=True,
-    early_stopping_splitter=True,
+    early_stopping_selector="adaptive",   # Bayesian stopping - valid p-values
+    early_stopping_splitter="adaptive",
 )
 ```
 

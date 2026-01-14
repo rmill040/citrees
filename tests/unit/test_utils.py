@@ -313,32 +313,32 @@ class TestBalancedBootstrapUnsampledIdx:
 
 
 class TestUtilsPyFunc:
-    """Tests for utility functions via .py_func for coverage.
+    """Tests for utility functions via  for coverage.
 
     Numba @njit decorated functions compile to machine code, so pytest-cov
-    cannot track line coverage. Using .py_func accesses the original Python
+    cannot track line coverage. Using  accesses the original Python
     function, enabling coverage tracking.
     """
 
     # estimate_proba py_func tests
     def test_estimate_proba_py_func_binary(self):
-        """Test estimate_proba.py_func with binary classes."""
+        """Test estimate_proba with binary classes."""
         y = np.array([0, 0, 1, 1])
-        result = estimate_proba.py_func(y=y, n_classes=2)
+        result = estimate_proba(y=y, n_classes=2)
         expected = np.array([0.5, 0.5])
         assert np.allclose(result, expected)
 
     def test_estimate_proba_py_func_multiclass(self):
-        """Test estimate_proba.py_func with multiple classes."""
+        """Test estimate_proba with multiple classes."""
         y = np.array([0, 1, 2])
-        result = estimate_proba.py_func(y=y, n_classes=3)
+        result = estimate_proba(y=y, n_classes=3)
         expected = np.array([1 / 3, 1 / 3, 1 / 3])
         assert np.allclose(result, expected)
 
     def test_estimate_proba_py_func_missing_class(self):
-        """Test estimate_proba.py_func with missing class."""
+        """Test estimate_proba with missing class."""
         y = np.array([0, 0, 1, 1])
-        result = estimate_proba.py_func(y=y, n_classes=3)
+        result = estimate_proba(y=y, n_classes=3)
         expected = np.array([0.5, 0.5, 0.0])
         assert np.allclose(result, expected)
 
@@ -346,53 +346,53 @@ class TestUtilsPyFunc:
         """Verify estimate_proba JIT and py_func produce identical results."""
         y = np.array([0, 0, 1, 1, 2])
         jit_result = estimate_proba(y=y, n_classes=3)
-        py_result = estimate_proba.py_func(y=y, n_classes=3)
+        py_result = estimate_proba(y=y, n_classes=3)
         assert np.allclose(jit_result, py_result)
 
     # estimate_mean py_func tests
     def test_estimate_mean_py_func(self):
-        """Test estimate_mean.py_func."""
+        """Test estimate_mean."""
         y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        result = estimate_mean.py_func(y)
+        result = estimate_mean(y)
         assert result == pytest.approx(3.0)
 
     def test_estimate_mean_py_func_single(self):
-        """Test estimate_mean.py_func with single value."""
+        """Test estimate_mean with single value."""
         y = np.array([5.0])
-        result = estimate_mean.py_func(y)
+        result = estimate_mean(y)
         assert result == pytest.approx(5.0)
 
     def test_estimate_mean_consistency(self):
         """Verify estimate_mean JIT and py_func produce identical results."""
         y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        assert estimate_mean(y) == pytest.approx(estimate_mean.py_func(y))
+        assert estimate_mean(y) == pytest.approx(estimate_mean(y))
 
     # split_data py_func tests
     def test_split_data_py_func_basic(self):
-        """Test split_data.py_func basic split."""
+        """Test split_data basic split."""
         X = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
         y = np.array([0, 0, 1, 1])
-        X_left, y_left, X_right, y_right = split_data.py_func(
+        X_left, y_left, X_right, y_right = split_data(
             X=X, y=y, feature=0, threshold=4.0
         )
         assert len(X_left) == 2
         assert len(X_right) == 2
 
     def test_split_data_py_func_all_left(self):
-        """Test split_data.py_func all samples go left."""
+        """Test split_data all samples go left."""
         X = np.array([[1.0], [2.0], [3.0]])
         y = np.array([0, 1, 2])
-        X_left, y_left, X_right, y_right = split_data.py_func(
+        X_left, y_left, X_right, y_right = split_data(
             X=X, y=y, feature=0, threshold=10.0
         )
         assert len(X_left) == 3
         assert len(X_right) == 0
 
     def test_split_data_py_func_all_right(self):
-        """Test split_data.py_func all samples go right."""
+        """Test split_data all samples go right."""
         X = np.array([[1.0], [2.0], [3.0]])
         y = np.array([0, 1, 2])
-        X_left, y_left, X_right, y_right = split_data.py_func(
+        X_left, y_left, X_right, y_right = split_data(
             X=X, y=y, feature=0, threshold=0.0
         )
         assert len(X_left) == 0
@@ -403,28 +403,28 @@ class TestUtilsPyFunc:
         X = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
         y = np.array([0, 1, 2])
         jit_result = split_data(X=X, y=y, feature=0, threshold=2.5)
-        py_result = split_data.py_func(X=X, y=y, feature=0, threshold=2.5)
+        py_result = split_data(X=X, y=y, feature=0, threshold=2.5)
         for jit_arr, py_arr in zip(jit_result, py_result):
             assert np.allclose(jit_arr, py_arr)
 
     # bayesian_bootstrap_proba py_func tests
     def test_bayesian_bootstrap_proba_py_func_sums_to_one(self):
-        """Test bayesian_bootstrap_proba.py_func sums to 1."""
-        proba = bayesian_bootstrap_proba.py_func(n=100, random_state=42)
+        """Test bayesian_bootstrap_proba sums to 1."""
+        proba = bayesian_bootstrap_proba(n=100, random_state=42)
         assert np.isclose(proba.sum(), 1.0)
 
     def test_bayesian_bootstrap_proba_py_func_all_positive(self):
-        """Test bayesian_bootstrap_proba.py_func all positive."""
-        proba = bayesian_bootstrap_proba.py_func(n=50, random_state=42)
+        """Test bayesian_bootstrap_proba all positive."""
+        proba = bayesian_bootstrap_proba(n=50, random_state=42)
         assert (proba > 0).all()
 
     def test_bayesian_bootstrap_proba_py_func_shape(self):
-        """Test bayesian_bootstrap_proba.py_func returns correct shape."""
-        proba = bayesian_bootstrap_proba.py_func(n=100, random_state=42)
+        """Test bayesian_bootstrap_proba returns correct shape."""
+        proba = bayesian_bootstrap_proba(n=100, random_state=42)
         assert proba.shape == (100,)
 
     def test_bayesian_bootstrap_proba_consistency(self):
         """Verify bayesian_bootstrap_proba JIT and py_func produce identical results."""
         jit_result = bayesian_bootstrap_proba(n=100, random_state=42)
-        py_result = bayesian_bootstrap_proba.py_func(n=100, random_state=42)
+        py_result = bayesian_bootstrap_proba(n=100, random_state=42)
         assert np.allclose(jit_result, py_result)

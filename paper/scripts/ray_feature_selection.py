@@ -80,7 +80,11 @@ def get_datasets(task_type: str) -> list[str]:
 def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
     data_dir = Path(__file__).resolve().parents[1] / "data"
     prefix = "clf_" if task_type == "classification" else "reg_"
-    df = pd.read_parquet(data_dir / f"{prefix}{name}.parquet")
+    # Try both .parquet and .snappy.parquet extensions
+    path = data_dir / f"{prefix}{name}.parquet"
+    if not path.exists():
+        path = data_dir / f"{prefix}{name}.snappy.parquet"
+    df = pd.read_parquet(path)
     y = df.pop("y").values
     if task_type == "classification":
         y = y.astype(np.int64)

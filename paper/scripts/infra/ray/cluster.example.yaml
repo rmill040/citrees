@@ -1,0 +1,101 @@
+# Ray Cluster Configuration Template
+#
+# Usage:
+#   1. Generate cluster.yaml with your IP:
+#      AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
+#
+#   2. Deploy:
+#      AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
+#
+# Placeholder: __MY_IP__ is replaced with your public IP during generation
+
+cluster_name: citrees
+
+provider:
+  type: aws
+  region: us-east-1
+  security_group:
+    GroupName: ray-citrees
+    IpPermissions:
+      # SSH - restricted to your IP
+      - FromPort: 22
+        ToPort: 22
+        IpProtocol: tcp
+        IpRanges:
+          - CidrIp: __MY_IP__/32
+      # Ray GCS
+      - FromPort: 6379
+        ToPort: 6379
+        IpProtocol: tcp
+        IpRanges:
+          - CidrIp: __MY_IP__/32
+      # Ray dashboard
+      - FromPort: 8265
+        ToPort: 8265
+        IpProtocol: tcp
+        IpRanges:
+          - CidrIp: __MY_IP__/32
+      # Ray client
+      - FromPort: 10001
+        ToPort: 10001
+        IpProtocol: tcp
+        IpRanges:
+          - CidrIp: __MY_IP__/32
+
+auth:
+  ssh_user: ubuntu
+
+available_node_types:
+  head:
+    node_config:
+      InstanceType: c7i.4xlarge
+      ImageId: ami-0030e4319cbf4dbf2  # Ubuntu 22.04 us-east-1
+    resources: {}
+
+  selection_worker:
+    node_config:
+      InstanceType: c7i.8xlarge  # 32 vCPUs, 64GB RAM - heavy feature selection
+      ImageId: ami-0030e4319cbf4dbf2
+      InstanceMarketOptions:
+        MarketType: spot
+        SpotOptions:
+          SpotInstanceType: persistent
+          InstanceInterruptionBehavior: terminate
+    resources:
+      selection: 100
+    min_workers: 0
+    max_workers: 250
+
+  eval_worker:
+    node_config:
+      InstanceType: c7i.4xlarge  # 16 vCPUs, 32GB RAM - lighter downstream eval
+      ImageId: ami-0030e4319cbf4dbf2
+      InstanceMarketOptions:
+        MarketType: spot
+        SpotOptions:
+          SpotInstanceType: persistent
+          InstanceInterruptionBehavior: terminate
+    resources:
+      evaluation: 100
+    min_workers: 0
+    max_workers: 250
+
+head_node_type: head
+
+setup_commands:
+  - curl -LsSf https://astral.sh/uv/install.sh | sh
+  - $HOME/.local/bin/uv python install 3.12
+  - git clone -b __BRANCH__ https://github.com/rmill040/citrees.git ~/citrees || (cd ~/citrees && git fetch && git checkout __BRANCH__ && git pull)
+  - cd ~/citrees && $HOME/.local/bin/uv sync --group paper
+
+# Override Ray's default pip commands (we use uv)
+head_setup_commands: []
+worker_setup_commands: []
+
+head_start_ray_commands:
+  - $HOME/citrees/.venv/bin/ray stop
+  - $HOME/citrees/.venv/bin/ray start --head --port=6379 --dashboard-host=0.0.0.0
+
+worker_start_ray_commands:
+  - $HOME/citrees/.venv/bin/ray stop
+  - $HOME/citrees/.venv/bin/ray start --address=$RAY_HEAD_IP:6379

@@ -1076,6 +1076,54 @@ Where:
 
 Range: [-1, 1], higher is better. 1.0 indicates perfect consistency.
 
+### 12.4 Pairwise Statistical Comparisons
+
+After establishing overall ranking differences via Friedman test, we perform
+pairwise comparisons using the **Wilcoxon signed-rank test** with **Holm-Bonferroni
+correction** for family-wise error rate (FWER) control.
+
+**Wilcoxon signed-rank test** is a non-parametric paired test that compares
+matched samples without assuming normality. For each pair of methods $(i, j)$:
+- $H_0$: Methods $i$ and $j$ have equal performance distributions
+- $H_1$: Methods $i$ and $j$ differ in performance
+
+**Holm-Bonferroni correction** controls FWER by a step-down procedure:
+1. Sort $m$ p-values: $p_{(1)} \leq p_{(2)} \leq \cdots \leq p_{(m)}$
+2. For $i = 1, \ldots, m$: reject $H_{(i)}$ if $p_{(i)} \leq \alpha/(m-i+1)$
+3. Stop at first non-rejection
+
+This is more powerful than Bonferroni while maintaining FWER $\leq \alpha$.
+
+### 12.5 Cohen's d Effect Size
+
+To quantify practical significance beyond statistical significance, we report
+Cohen's $d$ effect size for each pairwise comparison:
+
+$$d = \frac{\bar{x}_1 - \bar{x}_2}{s_{\text{pooled}}}$$
+
+where $s_{\text{pooled}} = \sqrt{\frac{(n_1-1)s_1^2 + (n_2-1)s_2^2}{n_1+n_2-2}}$
+
+**Interpretation:**
+| $|d|$ Range | Effect Size |
+|-------------|-------------|
+| < 0.2 | Negligible |
+| 0.2 - 0.5 | Small |
+| 0.5 - 0.8 | Medium |
+| ≥ 0.8 | Large |
+
+### 12.6 Statistical Analysis Pipeline
+
+All statistical analyses follow a unified pipeline applied to each dataset type
+(synthetic, classification, regression):
+
+1. **Friedman omnibus test**: Tests whether at least one method differs
+2. **Pairwise Wilcoxon + Holm**: Identifies which specific pairs differ
+3. **Cohen's d**: Quantifies effect magnitude for each significant pair
+4. **Bootstrap CIs**: 95% confidence intervals via 2000 bootstrap resamples
+5. **Critical difference diagrams**: Visualizes method rankings with CD bars
+
+This ensures consistent, reproducible statistical comparisons across all experiments.
+
 ---
 
 ## 13. Implementation Details
@@ -1091,7 +1139,7 @@ Range: [-1, 1], higher is better. 1.0 indicates perfect consistency.
 | Parallelism | joblib | Forest training |
 | Distance correlation | dcor | Specialized dCor implementation |
 
-### 12.2 Registry Pattern
+### 13.2 Registry Pattern
 
 Selectors and splitters are registered via decorators for extensibility:
 
@@ -1111,7 +1159,7 @@ Available registries:
 - `RegressorSplitters` / `RegressorSplitterTests`
 - `ThresholdMethods`
 
-### 12.3 Type System
+### 13.3 Type System
 
 All types are centralized in `citrees/_types.py`:
 
@@ -1132,7 +1180,7 @@ class NResamples(StrEnum):
     AUTO = "auto"
 ```
 
-### 12.4 Computational Complexity
+### 13.4 Computational Complexity
 
 | Operation | Complexity | Notes |
 |-----------|------------|-------|
@@ -1145,7 +1193,7 @@ class NResamples(StrEnum):
 
 **Memory**: O(n · p) for data storage, O(B) for permutation statistics.
 
-### 12.5 Numerical Stability
+### 13.5 Numerical Stability
 
 - **Log-space computation**: Beta CDF uses log-gamma and log-exp
 - **Continued fraction**: Lentz's algorithm with underflow protection

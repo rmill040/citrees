@@ -175,6 +175,30 @@ def cohens_d(group1: np.ndarray, group2: np.ndarray) -> float:
     return float((np.mean(group1) - np.mean(group2)) / pooled_std)
 
 
+def interpret_cohens_d(d: float) -> str:
+    """Return human-readable effect size interpretation.
+
+    Parameters
+    ----------
+    d : float
+        Cohen's d value.
+
+    Returns
+    -------
+    str
+        Effect size category: negligible, small, medium, or large.
+    """
+    abs_d = abs(d)
+    if abs_d < 0.2:
+        return "negligible"
+    elif abs_d < 0.5:
+        return "small"
+    elif abs_d < 0.8:
+        return "medium"
+    else:
+        return "large"
+
+
 def nogueira_stability_index(feature_sets: list[list[int]], total_features: int) -> float:
     """Nogueira stability index with correction for chance.
 
@@ -1111,16 +1135,283 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     print(summary.round(3).to_string())
 
 
+# ==============================================================================
+# Generic Statistical Analysis (Define Once, Apply Everywhere)
+# ==============================================================================
+
+
+def run_statistical_analysis(
+    data_wide: pd.DataFrame,
+    methods: list[str],
+    metrics: list[str],
+    output_prefix: str,
+    tables_dir: Path,
+    figures_dir: Path,
+    higher_is_better: dict[str, bool] | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Run ALL statistical analyses on ANY results dataset.
+
+    This is the SINGLE entry point for statistical analysis.
+    Apply to: synthetic, classification, regression results.
+
+    Generates:
+    - Friedman omnibus test
+    - Pairwise Wilcoxon + Holm with Cohen's d effect sizes
+    - Ranking tables with bootstrap CIs
+    - Critical difference diagrams
+
+    Parameters
+    ----------
+    data_wide : pd.DataFrame
+        Results with columns: {method}_{metric} for each method/metric combo.
+        One row per dataset.
+    methods : list[str]
+        Method names (e.g., ['rf', 'cif', 'boruta', ...])
+    metrics : list[str]
+        Metric names (e.g., ['precision@10', 'accuracy', 'r2'])
+    output_prefix : str
+        Prefix for output files (e.g., 'synthetic', 'clf', 'reg')
+    tables_dir, figures_dir : Path
+        Output directories
+    higher_is_better : dict[str, bool], optional
+        Whether higher values are better for each metric.
+        Default: True for all metrics.
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        All generated tables keyed by name.
+    """
+    if higher_is_better is None:
+        higher_is_better = {m: True for m in metrics}
+
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    results = {}
+
+    print(f"\n{'='*60}")
+    print(f"STATISTICAL ANALYSIS: {output_prefix.upper()}")
+    print(f"{'='*60}")
+    print(f"Methods: {methods}")
+    print(f"Metrics: {metrics}")
+    print(f"Datasets: {len(data_wide)}")
+
+    for metric in metrics:
+        print(f"\n--- {metric} ---")
+        hib = higher_is_better.get(metric, True)
+
+        # Check if we have enough data
+        cols_present = [f"{m}_{metric}" for m in methods if f"{m}_{metric}" in data_wide.columns]
+        if len(cols_present) < 2:
+            print(f"  Skipping: insufficient methods with {metric}")
+            continue
+
+        # 1. Friedman omnibus test
+        try:
+            chi2, p_friedman = friedman_test(data_wide, methods, metric)
+            n_datasets = len(data_wide)
+            k_methods = len(methods)
+            w = kendalls_w(chi2, n_datasets, k_methods)
+            print(f"  Friedman: chi2={chi2:.2f}, p={p_friedman:.4f}, W={w:.3f}")
+
+            friedman_row = {
+                "metric": metric,
+                "chi2": chi2,
+                "p_value": p_friedman,
+                "kendalls_w": w,
+                "n_datasets": n_datasets,
+                "n_methods": k_methods,
+            }
+            results[f"{output_prefix}_friedman_{metric}"] = pd.DataFrame([friedman_row])
+        except Exception as e:
+            print(f"  Friedman failed: {e}")
+
+        # 2. Pairwise Wilcoxon + Holm + Cohen's d
+        pairwise_df = pairwise_wilcoxon_holm(data_wide, methods, metric)
+        if not pairwise_df.empty:
+            # Add Cohen's d and interpretation
+            cohens_d_vals = []
+            effect_sizes = []
+            for _, row in pairwise_df.iterrows():
+                col1 = f"{row['method1']}_{metric}"
+                col2 = f"{row['method2']}_{metric}"
+                if col1 in data_wide.columns and col2 in data_wide.columns:
+                    v1 = data_wide[col1].dropna().values
+                    v2 = data_wide[col2].dropna().values
+                    d = cohens_d(v1, v2)
+                    cohens_d_vals.append(d)
+                    effect_sizes.append(interpret_cohens_d(d))
+                else:
+                    cohens_d_vals.append(np.nan)
+                    effect_sizes.append("unknown")
+
+            pairwise_df["cohens_d"] = cohens_d_vals
+            pairwise_df["effect_size"] = effect_sizes
+
+            # Save
+            out_path = tables_dir / f"{output_prefix}_pairwise_{metric.replace('@', '_at_').replace('/', '_')}.csv"
+            pairwise_df.to_csv(out_path, index=False)
+            print(f"  Saved: {out_path.name}")
+
+            # Print significant pairs
+            sig_pairs = pairwise_df[pairwise_df["significant"]]
+            if not sig_pairs.empty:
+                print(f"  Significant pairs ({len(sig_pairs)}):")
+                for _, row in sig_pairs.head(5).iterrows():
+                    print(f"    {row['method1']} vs {row['method2']}: p_adj={row['p_value_corrected']:.4f}, d={row['cohens_d']:.2f} ({row['effect_size']})")
+                if len(sig_pairs) > 5:
+                    print(f"    ... and {len(sig_pairs) - 5} more")
+
+            results[f"{output_prefix}_pairwise_{metric}"] = pairwise_df
+        else:
+            print(f"  No pairwise comparisons (insufficient data)")
+
+        # 3. Ranking table with bootstrap CIs
+        try:
+            ranking_path = tables_dir / f"{output_prefix}_ranking_{metric.replace('@', '_at_').replace('/', '_')}"
+            generate_ranking_table(data_wide, methods, metric, ranking_path, higher_is_better=hib)
+        except Exception as e:
+            print(f"  Ranking table failed: {e}")
+
+        # 4. Critical difference diagram
+        try:
+            ranks_df = compute_ranks(data_wide, methods, metric, higher_is_better=hib)
+            if not ranks_df.empty:
+                n_methods = len(ranks_df)
+                n_datasets = len(data_wide)
+                cd = nemenyi_critical_difference(n_methods, n_datasets)
+                cd_path = figures_dir / f"{output_prefix}_cd_{metric.replace('@', '_at_').replace('/', '_')}.png"
+                plot_critical_difference(ranks_df, cd, f"{output_prefix} - {metric}", cd_path)
+        except Exception as e:
+            print(f"  CD diagram failed: {e}")
+
+    return results
+
+
+def load_and_pivot_results(input_path: Path, methods: list[str], metric_cols: list[str]) -> pd.DataFrame:
+    """Load results and pivot to wide format for statistical analysis.
+
+    Parameters
+    ----------
+    input_path : Path
+        Path to parquet file with results.
+    methods : list[str]
+        Method names to include.
+    metric_cols : list[str]
+        Metric column names to include.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide-format DataFrame with columns: {method}_{metric}.
+        One row per dataset.
+    """
+    data = pd.read_parquet(input_path)
+
+    # Aggregate by dataset and method (mean across folds/seeds)
+    agg_cols = ["dataset", "method"]
+    for col in ["n_features", "n_informative", "n_samples", "class_sep"]:
+        if col in data.columns:
+            agg_cols.append(col)
+
+    available_metrics = [m for m in metric_cols if m in data.columns]
+    data_agg = data.groupby(agg_cols)[available_metrics].mean().reset_index()
+
+    # Pivot to wide format (one row per dataset, columns = {method}_{metric})
+    index_cols = [c for c in agg_cols if c != "method"]
+    data_wide = data_agg.pivot(
+        index=index_cols,
+        columns="method",
+        values=available_metrics,
+    )
+    # Flatten column names: (precision@10, rf) -> rf_precision@10
+    data_wide.columns = [f"{col[1]}_{col[0]}" for col in data_wide.columns]
+    data_wide = data_wide.reset_index()
+
+    return data_wide
+
+
 def main():
-    """Run comprehensive analysis."""
+    """Run comprehensive analysis on ALL dataset types."""
     # Create output directories
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Analyze synthetic experiment results (from synthetic_analysis.py)
+    print("=" * 60)
+    print("CITREES COMPREHENSIVE ANALYSIS")
+    print("=" * 60)
+
+    # === SYNTHETIC DATASETS ===
+    # First run the existing analysis for detailed synthetic-specific outputs
     synthetic_path = Path(__file__).parent.parent / "results" / "synthetic_analysis.parquet"
-    analyze_synthetic_results(synthetic_path, TABLES_DIR, FIGURES_DIR)
+    if synthetic_path.exists():
+        analyze_synthetic_results(synthetic_path, TABLES_DIR, FIGURES_DIR)
+
+        # Then run the generic statistical analysis for standardized outputs
+        data = pd.read_parquet(synthetic_path)
+        methods = sorted(data["method"].unique())
+        metric_cols = [c for c in data.columns if c.startswith(("precision@", "recall@", "f1@"))]
+        data_wide = load_and_pivot_results(synthetic_path, methods, metric_cols)
+
+        run_statistical_analysis(
+            data_wide=data_wide,
+            methods=methods,
+            metrics=["precision@10", "recall@10", "f1@10"],
+            output_prefix="synthetic",
+            tables_dir=TABLES_DIR,
+            figures_dir=FIGURES_DIR,
+        )
+    else:
+        print(f"\nSkipping synthetic analysis: {synthetic_path} not found")
+
+    # === CLASSIFICATION DATASETS ===
+    clf_eval_path = Path(__file__).parent.parent / "results" / "clf_evaluation.parquet"
+    if clf_eval_path.exists():
+        print("\n" + "=" * 60)
+        print("CLASSIFICATION EVALUATION")
+        print("=" * 60)
+        data = pd.read_parquet(clf_eval_path)
+        methods = sorted(data["method"].unique())
+        metric_cols = [c for c in data.columns if c in ["accuracy", "f1_macro", "auc", "balanced_accuracy"]]
+        data_wide = load_and_pivot_results(clf_eval_path, methods, metric_cols)
+
+        run_statistical_analysis(
+            data_wide=data_wide,
+            methods=methods,
+            metrics=["accuracy", "f1_macro", "balanced_accuracy"],
+            output_prefix="clf",
+            tables_dir=TABLES_DIR,
+            figures_dir=FIGURES_DIR,
+        )
+    else:
+        print(f"\nSkipping classification analysis: {clf_eval_path} not found")
+        print("  (Run evaluation experiments first to generate this file)")
+
+    # === REGRESSION DATASETS ===
+    reg_eval_path = Path(__file__).parent.parent / "results" / "reg_evaluation.parquet"
+    if reg_eval_path.exists():
+        print("\n" + "=" * 60)
+        print("REGRESSION EVALUATION")
+        print("=" * 60)
+        data = pd.read_parquet(reg_eval_path)
+        methods = sorted(data["method"].unique())
+        metric_cols = [c for c in data.columns if c in ["r2", "mse", "mae", "rmse"]]
+        data_wide = load_and_pivot_results(reg_eval_path, methods, metric_cols)
+
+        run_statistical_analysis(
+            data_wide=data_wide,
+            methods=methods,
+            metrics=["r2", "mse", "mae"],
+            output_prefix="reg",
+            tables_dir=TABLES_DIR,
+            figures_dir=FIGURES_DIR,
+            higher_is_better={"r2": True, "mse": False, "mae": False},
+        )
+    else:
+        print(f"\nSkipping regression analysis: {reg_eval_path} not found")
+        print("  (Run evaluation experiments first to generate this file)")
 
     print("\n" + "=" * 60)
     print("ANALYSIS COMPLETE")

@@ -4,6 +4,9 @@ scratch/
 .uv-cache/
 .pytest_cache/
 
+# Generated Ray cluster config (contains user's IP)
+paper/scripts/infra/ray/cluster.yaml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

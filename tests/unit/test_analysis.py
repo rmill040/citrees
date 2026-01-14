@@ -11,7 +11,14 @@ import pytest
 # Add paper/scripts to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "paper" / "scripts"))
 
-from analysis import compute_noise_selection_rate
+import pandas as pd
+
+from analysis import (
+    cohens_d,
+    compute_noise_selection_rate,
+    interpret_cohens_d,
+    pairwise_wilcoxon_holm,
+)
 
 
 # ==============================================================================
@@ -115,3 +122,163 @@ class TestComputeNoiseSelectionRate:
         assert rf_rate > 0.0
         # citrees should be strictly better
         assert citrees_rate < rf_rate
+
+
+# ==============================================================================
+# Tests for pairwise_wilcoxon_holm
+# ==============================================================================
+
+
+class TestPairwiseWilcoxonHolm:
+    """Tests for pairwise Wilcoxon signed-rank test with Holm correction."""
+
+    def test_detects_significant_difference(self):
+        """Should detect difference between clearly different distributions."""
+        np.random.seed(42)
+        n = 30
+        data = pd.DataFrame({
+            "A_precision@10": np.random.normal(0.8, 0.05, n),
+            "B_precision@10": np.random.normal(0.5, 0.05, n),
+        })
+        result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
+        assert len(result) == 1
+        assert result.iloc[0]["significant"] == True
+        assert result.iloc[0]["p_value_corrected"] < 0.05
+
+    def test_no_false_positive_similar_distributions(self):
+        """Should not find significance when distributions are similar."""
+        np.random.seed(123)
+        n = 30
+        data = pd.DataFrame({
+            "A_precision@10": np.random.normal(0.7, 0.1, n),
+            "B_precision@10": np.random.normal(0.7, 0.1, n),
+        })
+        result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
+        if not result.empty:
+            # Similar distributions should have high p-value
+            assert result.iloc[0]["p_value_corrected"] > 0.01
+
+    def test_holm_correction_increases_pvalues(self):
+        """Holm-corrected p-values should be >= raw p-values."""
+        np.random.seed(42)
+        n = 30
+        data = pd.DataFrame({
+            "A_precision@10": np.random.normal(0.8, 0.1, n),
+            "B_precision@10": np.random.normal(0.6, 0.1, n),
+            "C_precision@10": np.random.normal(0.7, 0.1, n),
+        })
+        result = pairwise_wilcoxon_holm(data, ["A", "B", "C"], "precision@10")
+        for _, row in result.iterrows():
+            assert row["p_value_corrected"] >= row["p_value"]
+
+    def test_empty_for_insufficient_data(self):
+        """Should return empty DataFrame when n < 10."""
+        data = pd.DataFrame({
+            "A_precision@10": [0.8, 0.7, 0.9],  # Only 3 samples
+            "B_precision@10": [0.5, 0.6, 0.4],
+        })
+        result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
+        assert result.empty
+
+    def test_output_columns(self):
+        """Should have expected output columns."""
+        np.random.seed(42)
+        n = 30
+        data = pd.DataFrame({
+            "A_precision@10": np.random.normal(0.8, 0.1, n),
+            "B_precision@10": np.random.normal(0.6, 0.1, n),
+        })
+        result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
+        expected_cols = ["method1", "method2", "statistic", "p_value", "p_value_corrected", "significant"]
+        assert list(result.columns) == expected_cols
+
+    def test_correct_number_of_pairs(self):
+        """Should generate C(n,2) pairs for n methods."""
+        np.random.seed(42)
+        n = 30
+        methods = ["rf", "cif", "boruta", "shap"]
+        data = pd.DataFrame({
+            f"{m}_precision@10": np.random.normal(0.5 + 0.1 * i, 0.05, n)
+            for i, m in enumerate(methods)
+        })
+        result = pairwise_wilcoxon_holm(data, methods, "precision@10")
+        expected_pairs = len(methods) * (len(methods) - 1) // 2  # C(4,2) = 6
+        assert len(result) == expected_pairs
+
+
+# ==============================================================================
+# Tests for cohens_d
+# ==============================================================================
+
+
+class TestCohensD:
+    """Tests for Cohen's d effect size calculation."""
+
+    def test_identical_distributions_zero(self):
+        """Identical distributions should have d ≈ 0."""
+        g1 = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        g2 = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        assert abs(cohens_d(g1, g2)) < 0.001
+
+    def test_one_sd_difference(self):
+        """1 SD difference should give d ≈ 1."""
+        np.random.seed(42)
+        g1 = np.random.normal(0, 1, 1000)
+        g2 = np.random.normal(1, 1, 1000)
+        d = cohens_d(g1, g2)
+        # g1 < g2, so d should be negative and close to -1
+        assert abs(d + 1.0) < 0.15
+
+    def test_sign_direction(self):
+        """d should be positive when g1 > g2, negative when g1 < g2."""
+        np.random.seed(42)
+        g1 = np.random.normal(10, 1, 100)
+        g2 = np.random.normal(5, 1, 100)
+        d = cohens_d(g1, g2)
+        assert d > 0  # g1 > g2
+
+        d_reversed = cohens_d(g2, g1)
+        assert d_reversed < 0  # g2 < g1
+
+    def test_zero_variance_returns_zero(self):
+        """Zero variance should return 0.0 to avoid division by zero."""
+        g1 = np.array([5.0, 5.0, 5.0, 5.0])
+        g2 = np.array([5.0, 5.0, 5.0, 5.0])
+        assert cohens_d(g1, g2) == 0.0
+
+
+# ==============================================================================
+# Tests for interpret_cohens_d
+# ==============================================================================
+
+
+class TestInterpretCohensD:
+    """Tests for Cohen's d interpretation."""
+
+    def test_negligible(self):
+        """d < 0.2 should be negligible."""
+        assert interpret_cohens_d(0.0) == "negligible"
+        assert interpret_cohens_d(0.1) == "negligible"
+        assert interpret_cohens_d(0.19) == "negligible"
+        assert interpret_cohens_d(-0.1) == "negligible"
+
+    def test_small(self):
+        """0.2 <= d < 0.5 should be small."""
+        assert interpret_cohens_d(0.2) == "small"
+        assert interpret_cohens_d(0.35) == "small"
+        assert interpret_cohens_d(0.49) == "small"
+        assert interpret_cohens_d(-0.3) == "small"
+
+    def test_medium(self):
+        """0.5 <= d < 0.8 should be medium."""
+        assert interpret_cohens_d(0.5) == "medium"
+        assert interpret_cohens_d(0.65) == "medium"
+        assert interpret_cohens_d(0.79) == "medium"
+        assert interpret_cohens_d(-0.6) == "medium"
+
+    def test_large(self):
+        """d >= 0.8 should be large."""
+        assert interpret_cohens_d(0.8) == "large"
+        assert interpret_cohens_d(1.0) == "large"
+        assert interpret_cohens_d(2.5) == "large"
+        assert interpret_cohens_d(-1.2) == "large"

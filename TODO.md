@@ -15,7 +15,7 @@
 | 🟡 MEDIUM | Global error control with feature muting undefined | `theory.md:715-717` | Theory | ❌ Open |
 | 🟡 MEDIUM | Missing baselines (RFE, TreeSHAP, mRMR) | `paper/scripts/` | Benchmarking | ❌ Open |
 | 🟡 MEDIUM | Synthetic experiments too easy | `synthetic_experiments.py` | Benchmarking | ❌ Open |
-| 🟡 MEDIUM | Early stopping p-value inflation not quantified | `theory.md:683-685` | Theory | ❌ Open |
+| 🟡 MEDIUM | Early stopping p-value inflation not quantified | `theory.md:683-685` | Theory | ✅ Resolved |
 | 🟢 LOW | Broad exception handling | `_selector.py:257-260` | Code Quality | ❌ Open |
 | 🟢 LOW | Parallel RNG seeding fragile | `_selector.py:131-132` | Code Quality | ❌ Open |
 | 🟢 LOW | Forest-level theory absent | `theory.md:735-737` | Theory | ❌ Open |
@@ -567,71 +567,44 @@ if __name__ == "__main__":
 
 ---
 
-### 8. Early Stopping P-Value Inflation Not Quantified
+### 8. Early Stopping P-Value Inflation Not Quantified ✅ RESOLVED
 
-**Location**: `theory.md:683-685`, `citrees/_selector.py:76-89`
+**Location**: `theory.md:683-685`, `citrees/_selector.py`, `citrees/_sequential.py`
 
-**Problem**: Theory.md acknowledges early stopping affects p-values but doesn't quantify the inflation:
+**Problem**: Theory.md acknowledges early stopping affects p-values but doesn't quantify the inflation.
 
-> "Because the number of permutations becomes a stopping time depending on partial results, the returned quantity is not the fixed-B Monte Carlo p-value of Theorem 1."
+**✅ RESOLVED**: Implemented adaptive sequential permutation testing using Bayesian Beta CDF stopping.
 
-**No empirical measurement of how much inflation occurs.**
+#### Solution Implemented
+
+Changed `early_stopping_*: bool` to `early_stopping_*: Literal["simple", "adaptive"] | None`:
+- **`"adaptive"`** (default): Bayesian Beta CDF stopping - valid Type I error (~5%), 95% faster
+- **`"simple"`**: Futility + significance stopping - for baseline comparison (inflates to ~9%)
+- **`None`**: No early stopping (equivalent to old `early_stopping=False`)
+
+**Benchmark Results** (from `scratch/benchmark_sequential_ptest.py`):
+
+| Method | Type I Error | Avg Perms (null) | Power |
+|--------|-------------|------------------|-------|
+| fixed_b | 0.056 | 1000 | 0.970 |
+| citrees_early (old) | **0.091** | 915 | 0.978 |
+| simple_seq | **0.091** | 135 | 0.978 |
+| adaptive_seq | **0.055** | **48** | 0.964 |
+
+#### Files Changed
+
+- `citrees/_sequential.py` - NEW: Beta CDF and sequential test functions
+- `citrees/_selector.py` - Updated early stopping API
+- `citrees/_splitter.py` - Updated early stopping API
+- `citrees/_tree.py` - New parameters: `early_stopping_confidence_selector/splitter`
+- `citrees/_forest.py` - Updated parameter passing
+- `paper/theory.md` Section 6.1 - Documented algorithm and theory
 
 #### Proof Checklist
 
-- [ ] **Create proof script**: `scratch/prove_early_stopping_inflation.py`
-```python
-"""Quantify p-value inflation from early stopping.
-
-Expected result: Measure difference between early_stopping="adaptive"/None p-values.
-"""
-import numpy as np
-from citrees._selector import ptest_mc
-
-def compare_pvalues(n_sims=500):
-    """Compare p-values with and without early stopping under null."""
-
-    diffs = []
-
-    for seed in range(n_sims):
-        np.random.seed(seed)
-        x = np.random.randn(100)
-        y = np.random.randint(0, 2, 100)  # Null: X indep Y
-
-        p_early = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=1000,
-            early_stopping="adaptive", alpha=0.05, random_state=seed
-        )
-
-        p_fixed = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=1000,
-            early_stopping=None, alpha=0.05, random_state=seed
-        )
-
-        diffs.append(p_early - p_fixed)
-
-    print(f"P-value difference (early - fixed):")
-    print(f"  Mean: {np.mean(diffs):.4f}")
-    print(f"  Std:  {np.std(diffs):.4f}")
-    print(f"  Min:  {np.min(diffs):.4f}")
-    print(f"  Max:  {np.max(diffs):.4f}")
-
-    # Check Type I error rates
-    alpha = 0.05
-    rate_early = np.mean([1 for d in diffs if d < 0])  # p_early < p_fixed
-    print(f"\nEarly stopping tends to {'increase' if np.mean(diffs) > 0 else 'decrease'} p-values")
-
-if __name__ == "__main__":
-    compare_pvalues()
-```
-
-- [ ] **Run proof script and document results**
-
-#### Resolution Checklist
-
-- [ ] Run empirical study of early stopping inflation across scenarios
-- [ ] Add quantified bounds to `theory.md` Section 6.1
-- [ ] Consider adding guidance: "early stopping inflation is typically X%"
+- [x] **Benchmarked**: `scratch/benchmark_sequential_ptest.py` validates Type I error control
+- [x] **Implemented**: Adaptive sequential testing with valid p-values
+- [x] **Documented**: Updated `theory.md` with algorithm details
 
 ---
 
@@ -789,17 +762,17 @@ X_train, X_cal, y_train, y_cal = train_test_split(
 |-------|------------|-------------------|
 | Multi-selector p-value inflation | ✅ HIGH | Max-T method confirms fix approach |
 | Phipson & Smyth +1 correction | ✅ HIGH | Implementation is correct |
-| Early stopping validity | ⚠️ **MAJOR FINDING** | Modern "anytime-valid" solutions exist |
+| Early stopping validity | ✅ **IMPLEMENTED** | Adaptive sequential testing with valid Type I error |
 | Classification honesty bias | ⚠️ MEDIUM | Theory correct, practical impact unclear |
 | Strobl conditional importance | 🔴 GAP | Missing from benchmarks |
 
 ---
 
-### R1. Anytime-Valid Sequential Monte Carlo Testing (CRITICAL)
+### R1. Anytime-Valid Sequential Monte Carlo Testing ✅ IMPLEMENTED
 
-> **This is potentially the most important improvement opportunity for citrees.**
-> The Fischer & Ramdas (2025) method could replace the current flawed early stopping
-> with a principled approach that is BOTH fast AND statistically valid.
+> **✅ IMPLEMENTED**: Adaptive sequential permutation testing using Bayesian Beta CDF stopping.
+> See Issue #8 above for implementation details and benchmark results.
+> The new `early_stopping_selector="adaptive"` (default) provides valid Type I error (~5%) with 95% faster execution.
 
 #### The Problem with Current citrees Early Stopping
 
@@ -2139,8 +2112,8 @@ echo "=== Verification complete ==="
 
 | # | Optimization | Status | Evidence | Priority |
 |---|--------------|--------|----------|----------|
-| P1 | Sequential Permutation Testing | **PROVEN** | 9-38x speedup | 🔴 HIGH |
-| P2 | Type I Error Fix (early_stopping) | **PROVEN** | 11% vs 5% error | 🔴 HIGH |
+| P1 | Sequential Permutation Testing | ✅ DONE | 9-38x speedup | N/A |
+| P2 | Type I Error Fix (early_stopping) | ✅ DONE | 5% error (fixed) | N/A |
 | P3 | Parallel RDC Permutation Test | NOT PROVEN | Needs benchmarking | 🟡 MEDIUM |
 | P4 | Benjamini-Hochberg FDR | NOT PROVEN | Needs benchmarking | 🟡 MEDIUM |
 | P5 | Spearman Correlation Selector | NOT PROVEN | Needs benchmarking | 🟢 LOW |
@@ -2154,11 +2127,13 @@ echo "=== Verification complete ==="
 
 ---
 
-### P1. Sequential Permutation Testing (PROVEN - 9-38x speedup)
+### P1. Sequential Permutation Testing ✅ DONE
 
-**Location**: `citrees/_selector.py:26-98`, `citrees/_splitter.py:23-96`
+**Location**: `citrees/_selector.py`, `citrees/_splitter.py`, `citrees/_sequential.py`
 
-**Problem**: Current early stopping only stops when finding SIGNIFICANCE. For noise features (the majority), we run ALL permutations just to confirm "not significant."
+**✅ RESOLVED**: Implemented adaptive sequential testing. See Issue #8 above for full details.
+
+~~**Problem**: Current early stopping only stops when finding SIGNIFICANCE.~~
 
 **Current behavior** (`_selector.py:82-89`):
 ```python
@@ -2223,11 +2198,13 @@ Conclusion: CANNOT become significant → STOP NOW (save 450 permutations!)
 
 ---
 
-### P2. Type I Error Inflation with Early Stopping (PROVEN - 11% vs 5%)
+### P2. Type I Error Inflation with Early Stopping ✅ DONE
 
-**Location**: `citrees/_selector.py:87`, `citrees/_splitter.py:85`
+**Location**: `citrees/_selector.py`, `citrees/_splitter.py`, `citrees/_sequential.py`
 
-**Problem**: Current early stopping has **inflated Type I error** (~11% instead of 5%). This is the "optional stopping" problem in sequential testing.
+**✅ RESOLVED**: Implemented adaptive sequential testing with Bayesian Beta CDF stopping. See Issue #8 above for full details.
+
+~~**Problem**: Current early stopping has **inflated Type I error** (~11% instead of 5%).~~
 
 **Current formula** (`_selector.py:87`):
 ```python

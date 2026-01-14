@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 from numba import njit, prange
@@ -11,8 +11,7 @@ from citrees._registry import (
     RegressorSplitterTests,
 )
 from citrees._sequential import _beta_cdf
-
-EarlyStoppingOption = Literal["simple", "adaptive"] | None
+from citrees._types import EarlyStopping, EarlyStoppingOption
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
@@ -91,7 +90,7 @@ def _ptest(
     n_resamples = max(n_resamples, min_resamples)
     extreme_count = 0
 
-    if early_stopping == "adaptive":
+    if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p = func(y_[idx]) + func(y_[~idx])

@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 from dcor import distance_correlation as _d_correlation
@@ -14,8 +14,7 @@ from citrees._registry import (
     RegressorSelectorTests,
 )
 from citrees._sequential import _beta_cdf
-
-EarlyStoppingOption = Literal["simple", "adaptive"] | None
+from citrees._types import EarlyStopping, EarlyStoppingOption
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
@@ -93,7 +92,7 @@ def _ptest(
     n_resamples = max(n_resamples, min_resamples)
     extreme_count = 0
 
-    if early_stopping == "adaptive":
+    if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
@@ -117,6 +116,135 @@ def _ptest(
         for i in range(n_resamples):
             np.random.shuffle(y_)
             theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
+            if theta_p >= theta:
+                extreme_count += 1
+
+            n = i + 1
+            current_pval = (extreme_count + 1) / (n + 1)
+
+            if n >= min_resamples:
+                if current_pval < alpha:
+                    return current_pval
+
+                best_possible = (extreme_count + 1) / (n_resamples + 1)
+                if best_possible >= alpha and extreme_count >= 3:
+                    return current_pval
+
+        return (extreme_count + 1) / (n_resamples + 1)
+
+
+def _ptest_multi(
+    *,
+    funcs: list,
+    func_args: list,
+    take_abs: list[bool],
+    x: np.ndarray,
+    y: np.ndarray,
+    n_resamples: int,
+    early_stopping: EarlyStoppingOption,
+    alpha: float,
+    random_state: int,
+    confidence: float = 0.95,
+) -> float:
+    """Max-T permutation test for multiple selectors.
+
+    Computes max(selector_scores) INSIDE each permutation to provide
+    valid Type I error control when using multiple selectors.
+
+    This implements the max-T method from Westfall & Young (1993), which
+    accounts for the multiplicity of testing multiple selectors by using
+    the maximum statistic under each permutation.
+
+    Parameters
+    ----------
+    funcs : list
+        List of selector functions.
+
+    func_args : list
+        Corresponding arguments for each selector function.
+
+    take_abs : list[bool]
+        Whether to take absolute value of each selector's output.
+
+    x : np.ndarray
+        Input data, usually the feature in the (x, y) pair.
+
+    y : np.ndarray
+        Input data, usually the target in the (x, y) pair.
+
+    n_resamples : int
+        Number of resamples.
+
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
+
+    alpha : float
+        Alpha level for significance testing.
+
+    random_state : int
+        Random seed.
+
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
+    Returns
+    -------
+    float
+        Estimated achieved significance level.
+    """
+    np.random.seed(random_state)
+
+    def compute_max_stat(x: np.ndarray, y: np.ndarray) -> float:
+        """Compute max statistic across all selectors."""
+        max_score = -np.inf
+        for func, arg, do_abs in zip(funcs, func_args, take_abs):
+            score = func(x, y, arg, random_state=random_state)
+            if do_abs:
+                score = abs(score)
+            else:
+                score = abs(score)  # Always use absolute for permutation test
+            if score > max_score:
+                max_score = score
+        return max_score
+
+    theta = compute_max_stat(x, y)
+    y_ = y.copy()
+
+    if early_stopping is None:
+        theta_p = np.empty(n_resamples)
+        for i in range(n_resamples):
+            np.random.shuffle(y_)
+            theta_p[i] = compute_max_stat(x, y_)
+        return (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
+
+    min_resamples = ceil(1 / alpha)
+    n_resamples = max(n_resamples, min_resamples)
+    extreme_count = 0
+
+    if early_stopping == EarlyStopping.ADAPTIVE:
+        for i in range(n_resamples):
+            np.random.shuffle(y_)
+            theta_p = compute_max_stat(x, y_)
+            if theta_p >= theta:
+                extreme_count += 1
+
+            n = i + 1
+            if n >= min_resamples:
+                a = 1.0 + extreme_count
+                b = 1.0 + n - extreme_count
+                prob_sig = _beta_cdf(alpha, a, b)
+
+                if prob_sig >= confidence:
+                    return (extreme_count + 1) / (n + 1)
+                if (1.0 - prob_sig) >= confidence:
+                    return (extreme_count + 1) / (n + 1)
+
+        return (extreme_count + 1) / (n_resamples + 1)
+
+    else:  # simple
+        for i in range(n_resamples):
+            np.random.shuffle(y_)
+            theta_p = compute_max_stat(x, y_)
             if theta_p >= theta:
                 extreme_count += 1
 

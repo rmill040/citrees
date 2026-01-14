@@ -74,8 +74,8 @@ tree.fit(X_train, y_train)
 # Forest ensemble
 forest = ConditionalInferenceForestClassifier(
     n_estimators=100,
-    max_features="sqrt",     # Random feature subset per split
-    n_jobs=-1,               # Parallel training
+    max_features=MaxValuesMethod.SQRT,  # Random feature subset per split
+    n_jobs=-1,                          # Parallel training
 )
 forest.fit(X_train, y_train)
 

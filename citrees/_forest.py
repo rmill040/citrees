@@ -1,7 +1,6 @@
 import warnings
 from abc import ABCMeta, abstractmethod
 from multiprocessing import cpu_count
-from typing import Literal
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -14,8 +13,15 @@ from citrees._tree import (
     BaseConditionalInferenceTreeParameters,
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
+)
+from citrees._types import (
+    BootstrapMethod,
+    BootstrapMethodOption,
+    EstimatorType,
     PositiveInt,
     ProbabilityFloat,
+    SamplingMethod,
+    SamplingMethodOption,
 )
 from citrees._utils import (
     balanced_bootstrap_sample,
@@ -90,13 +96,13 @@ def _parallel_fit_classifier(
     if bootstrap_method:
         kwargs = {
             "max_samples": max_samples,
-            "bayesian_bootstrap": bootstrap_method == "bayesian",
+            "bayesian_bootstrap": bootstrap_method == BootstrapMethod.BAYESIAN,
             "random_state": estimator.random_state,
         }
-        if sampling_method in ["balanced", "stratified"]:
+        if sampling_method in (SamplingMethod.BALANCED, SamplingMethod.STRATIFIED):
             boot_idx = (
                 balanced_bootstrap_sample(y=y, **kwargs)
-                if sampling_method == "balanced"
+                if sampling_method == SamplingMethod.BALANCED
                 else stratified_bootstrap_sample(y=y, **kwargs)
             )
         else:
@@ -166,7 +172,7 @@ def _parallel_fit_regressor(
         boot_idx = classic_bootstrap_sample(
             y=y,
             max_samples=max_samples,
-            bayesian_bootstrap=bootstrap_method == "bayesian",
+            bayesian_bootstrap=bootstrap_method == BootstrapMethod.BAYESIAN,
             random_state=estimator.random_state,
         )
         estimator.fit(X[boot_idx], y[boot_idx])
@@ -180,7 +186,7 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
     """Model for BaseConditionalInferenceForest parameters."""
 
     n_estimators: PositiveInt
-    bootstrap_method: Literal["bayesian", "classic"] | None
+    bootstrap_method: BootstrapMethodOption
     max_samples: PositiveInt | ProbabilityFloat | None
     n_jobs: int | None
 
@@ -188,7 +194,7 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
 class ConditionalInferenceForestClassifierParameters(BaseConditionalInferenceForestParameters):
     """Model for ConditionalInferenceForestClassifier parameters."""
 
-    sampling_method: Literal["balanced", "stratified"] | None
+    sampling_method: SamplingMethodOption
 
 
 class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, metaclass=ABCMeta):
@@ -326,7 +332,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         )
         self._verbose = min(self.verbose, 3)
 
-        if self._estimator_type == "classifier":
+        if self._estimator_type == EstimatorType.CLASSIFIER:
             n_classes = len(np.unique(y))
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
@@ -352,7 +358,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         # Fitted attributes
         self.feature_importances_ = np.zeros(p, dtype=float)
         self.n_features_in_ = p
-        if self._estimator_type == "classifier":
+        if self._estimator_type == EstimatorType.CLASSIFIER:
             base_estimator = ConditionalInferenceTreeClassifier
             self.classes_ = np.unique(y)
             self.n_classes_ = n_classes
@@ -374,7 +380,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self.estimators_.append(base_estimator)
 
         # Train estimators
-        if self._estimator_type == "classifier":
+        if self._estimator_type == EstimatorType.CLASSIFIER:
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_classifier)(
                     estimator=estimator,

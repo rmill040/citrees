@@ -314,9 +314,11 @@ samples.
 
 ## Multi-Selector Mode
 
-citrees supports combining multiple selectors. The feature with the maximum
-score across all selectors is selected, and the permutation test uses that
-selector.
+citrees supports combining multiple selectors using the **max-T method**
+(Westfall & Young, 1993). The permutation test computes max(selector_scores)
+inside each permutation, providing valid Type I error control.
+
+Each selector in the list must be unique - duplicates are not allowed.
 
 ### Usage
 

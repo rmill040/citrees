@@ -7,12 +7,10 @@ Supports:
 - cpi: Conditional Permutation Importance (Strobl et al. 2008)
 """
 
-from typing import Literal
-
 import numpy as np
 from sklearn.base import BaseEstimator
 
-ImportanceMethod = Literal["mdi", "permutation", "shap", "cpi"]
+from citrees._types import ImportanceMethod
 
 
 class SHAPExplainer:
@@ -372,23 +370,23 @@ def compute_importance(
     >>> # Conditional Permutation Importance
     >>> imp_cpi = compute_importance(clf, X_train, y_train, method="cpi")
     """
-    if method == "mdi":
+    if method == ImportanceMethod.MDI:
         if not hasattr(model, "feature_importances_"):
             raise ValueError("Model doesn't have feature_importances_. Fit the model first.")
         return model.feature_importances_
 
-    elif method == "permutation":
+    elif method == ImportanceMethod.PERMUTATION:
         if y is None:
             raise ValueError("y is required for permutation importance")
         return permutation_importance(model, X, y, **kwargs)
 
-    elif method == "shap":
+    elif method == ImportanceMethod.SHAP:
         return shap_importance(model, X, **kwargs)
 
-    elif method == "cpi":
+    elif method == ImportanceMethod.CPI:
         if y is None:
             raise ValueError("y is required for CPI")
         return conditional_permutation_importance(model, X, y, **kwargs)
 
     else:
-        raise ValueError(f"Unknown method: {method}. Choose from: mdi, permutation, shap, cpi")
+        raise ValueError(f"Unknown method: {method}. Choose from: {list(ImportanceMethod)}")

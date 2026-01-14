@@ -324,23 +324,23 @@ The number of permutations controls the precision of the p-value estimate:
 ### Auto-Selection in citrees
 
 ```python
-n_resamples_selector='auto'  # Adaptive based on alpha
-n_resamples_splitter='auto'
+n_resamples_selector=NResamples.AUTO  # Adaptive based on alpha
+n_resamples_splitter=NResamples.AUTO
 ```
 
-The `'auto'` setting chooses resamples based on the significance level:
+The `NResamples.AUTO` setting chooses resamples based on the significance level:
 
-| Setting     | Formula                    | Rationale                          |
-| ----------- | -------------------------- | ---------------------------------- |
-| `'minimum'` | $\lceil 1/\alpha \rceil$   | Just enough to detect significance |
-| `'auto'`    | $\lceil 10/\alpha \rceil$  | Good balance                       |
-| `'maximum'` | $\lceil 100/\alpha \rceil$ | High precision                     |
+| Setting              | Formula                    | Rationale                          |
+| -------------------- | -------------------------- | ---------------------------------- |
+| `NResamples.MINIMUM` | $\lceil 1/\alpha \rceil$   | Just enough to detect significance |
+| `NResamples.AUTO`    | $\lceil 10/\alpha \rceil$  | Good balance                       |
+| `NResamples.MAXIMUM` | $\lceil 100/\alpha \rceil$ | High precision                     |
 
 For $\alpha = 0.05$:
 
-- `'minimum'`: 20 resamples
-- `'auto'`: 200 resamples
-- `'maximum'`: 2,000 resamples
+- `NResamples.MINIMUM`: 20 resamples
+- `NResamples.AUTO`: 200 resamples
+- `NResamples.MAXIMUM`: 2,000 resamples
 
 ### Precision vs. Computation
 
@@ -390,9 +390,9 @@ Input: x, y, statistic, n_resamples, α
 Enable with:
 
 ```python
-early_stopping_selector="adaptive"  # Default - Bayesian stopping, valid Type I error
-early_stopping_splitter="adaptive"  # Default
-# Or use "simple" for basic futility stopping (inflates Type I error to ~9%)
+early_stopping_selector=EarlyStopping.ADAPTIVE  # Default - Bayesian stopping, valid Type I error
+early_stopping_splitter=EarlyStopping.ADAPTIVE  # Default
+# Or use EarlyStopping.SIMPLE for basic futility stopping (inflates Type I error to ~9%)
 # Or use None to disable early stopping entirely
 ```
 
@@ -427,11 +427,11 @@ def parallel_ptests(X, y, statistic_func, n_resamples, random_state):
 tree = ConditionalInferenceTreeClassifier(
     alpha_selector=0.05,
     alpha_splitter=0.05,
-    n_resamples_selector='maximum',      # High precision
-    n_resamples_splitter='maximum',
-    adjust_alpha_selector=True,           # Bonferroni correction
+    n_resamples_selector=NResamples.MAXIMUM,  # High precision
+    n_resamples_splitter=NResamples.MAXIMUM,
+    adjust_alpha_selector=True,                # Bonferroni correction
     adjust_alpha_splitter=True,
-    early_stopping_selector=None,         # Full computation (no early stopping)
+    early_stopping_selector=None,              # Full computation (no early stopping)
     early_stopping_splitter=None,
 )
 ```
@@ -440,14 +440,14 @@ tree = ConditionalInferenceTreeClassifier(
 
 ```python
 tree = ConditionalInferenceTreeClassifier(
-    alpha_selector=0.10,                  # More lenient
+    alpha_selector=0.10,                       # More lenient
     alpha_splitter=0.10,
-    n_resamples_selector='minimum',       # Fewer resamples
-    n_resamples_splitter='minimum',
-    adjust_alpha_selector=False,          # No correction
+    n_resamples_selector=NResamples.MINIMUM,   # Fewer resamples
+    n_resamples_splitter=NResamples.MINIMUM,
+    adjust_alpha_selector=False,               # No correction
     adjust_alpha_splitter=False,
-    early_stopping_selector="adaptive",   # Bayesian early stopping (default)
-    early_stopping_splitter="adaptive",
+    early_stopping_selector=EarlyStopping.ADAPTIVE,  # Bayesian early stopping (default)
+    early_stopping_splitter=EarlyStopping.ADAPTIVE,
 )
 ```
 
@@ -457,12 +457,12 @@ tree = ConditionalInferenceTreeClassifier(
 tree = ConditionalInferenceTreeClassifier(
     alpha_selector=0.05,
     alpha_splitter=0.05,
-    n_resamples_selector='auto',          # Adaptive
-    n_resamples_splitter='auto',
+    n_resamples_selector=NResamples.AUTO,      # Adaptive
+    n_resamples_splitter=NResamples.AUTO,
     adjust_alpha_selector=True,
     adjust_alpha_splitter=True,
-    early_stopping_selector="adaptive",   # Bayesian stopping - valid p-values
-    early_stopping_splitter="adaptive",
+    early_stopping_selector=EarlyStopping.ADAPTIVE,  # Bayesian stopping - valid p-values
+    early_stopping_splitter=EarlyStopping.ADAPTIVE,
 )
 ```
 

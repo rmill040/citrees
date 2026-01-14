@@ -15,16 +15,16 @@ Complete reference for all citrees parameters with tuning guidance.
 
 ### Resampling Parameters
 
-| Parameter              | Type       | Default  | Description                        |
-| ---------------------- | ---------- | -------- | ---------------------------------- |
-| `n_resamples_selector` | str or int | `'auto'` | Permutation resamples for selector |
-| `n_resamples_splitter` | str or int | `'auto'` | Permutation resamples for splitter |
+| Parameter              | Type              | Default           | Description                        |
+| ---------------------- | ----------------- | ----------------- | ---------------------------------- |
+| `n_resamples_selector` | NResamples or int | `NResamples.AUTO` | Permutation resamples for selector |
+| `n_resamples_splitter` | NResamples or int | `NResamples.AUTO` | Permutation resamples for splitter |
 
 Options for `n_resamples_*`:
 
-- `'auto'`: Adaptive based on alpha (recommended)
-- `'minimum'`: `ceil(1/alpha)` resamples
-- `'maximum'`: `ceil(100/alpha)` resamples
+- `NResamples.AUTO`: Adaptive based on alpha (recommended)
+- `NResamples.MINIMUM`: `ceil(1/alpha)` resamples
+- `NResamples.MAXIMUM`: `ceil(100/alpha)` resamples
 - `int`: Exact number of resamples
 
 ### Alpha Adjustment
@@ -50,18 +50,18 @@ Options for `n_resamples_*`:
 
 ### Threshold Generation
 
-| Parameter            | Type         | Default   | Description                      |
-| -------------------- | ------------ | --------- | -------------------------------- |
-| `threshold_method`   | str          | `'exact'` | How to generate split candidates |
-| `max_thresholds`     | int or float | None      | Maximum thresholds per feature   |
-| `threshold_scanning` | bool         | True      | Test promising thresholds first  |
+| Parameter            | Type            | Default                 | Description                      |
+| -------------------- | --------------- | ----------------------- | -------------------------------- |
+| `threshold_method`   | ThresholdMethod | `ThresholdMethod.EXACT` | How to generate split candidates |
+| `max_thresholds`     | int or float    | None                    | Maximum thresholds per feature   |
+| `threshold_scanning` | bool            | True                    | Test promising thresholds first  |
 
 Options for `threshold_method`:
 
-- `'exact'`: All unique values (precise, slower)
-- `'random'`: Random subset of values
-- `'percentile'`: Quantile-based thresholds
-- `'histogram'`: Equal-width bins
+- `ThresholdMethod.EXACT`: All unique values (precise, slower)
+- `ThresholdMethod.RANDOM`: Random subset of values
+- `ThresholdMethod.PERCENTILE`: Quantile-based thresholds
+- `ThresholdMethod.HISTOGRAM`: Equal-width bins
 
 ### Tree Structure
 
@@ -75,8 +75,8 @@ Options for `threshold_method`:
 Options for `max_features`:
 
 - `None`: All features
-- `'sqrt'`: Square root of total features
-- `'log2'`: Log base 2 of total features
+- `MaxValuesMethod.SQRT`: Square root of total features
+- `MaxValuesMethod.LOG2`: Log base 2 of total features
 - `int`: Exact number of features
 - `float`: Fraction of total features
 
@@ -93,23 +93,23 @@ Options for `max_features`:
 
 All tree parameters plus:
 
-| Parameter          | Type  | Default        | Description                      |
-| ------------------ | ----- | -------------- | -------------------------------- |
-| `n_estimators`     | int   | 100            | Number of trees                  |
-| `max_samples`      | float | None           | Bootstrap sample size (fraction) |
-| `bootstrap_method` | str   | `'bayesian'`   | Sampling method                  |
-| `sampling_method`  | str   | `'stratified'` | How to stratify samples          |
-| `n_jobs`           | int   | 1              | Parallel jobs (-1 for all cores) |
+| Parameter          | Type            | Default                    | Description                      |
+| ------------------ | --------------- | -------------------------- | -------------------------------- |
+| `n_estimators`     | int             | 100                        | Number of trees                  |
+| `max_samples`      | float           | None                       | Bootstrap sample size (fraction) |
+| `bootstrap_method` | BootstrapMethod | `BootstrapMethod.BAYESIAN` | Sampling method                  |
+| `sampling_method`  | SamplingMethod  | `SamplingMethod.STRATIFIED`| How to stratify samples          |
+| `n_jobs`           | int             | 1                          | Parallel jobs (-1 for all cores) |
 
 Options for `bootstrap_method`:
 
-- `'bayesian'`: Poisson bootstrap (recommended)
-- `'classic'`: Standard bootstrap with replacement
+- `BootstrapMethod.BAYESIAN`: Poisson bootstrap (recommended)
+- `BootstrapMethod.CLASSIC`: Standard bootstrap with replacement
 
 Options for `sampling_method`:
 
-- `'stratified'`: Maintain class proportions
-- `'balanced'`: Equal class weights
+- `SamplingMethod.STRATIFIED`: Maintain class proportions
+- `SamplingMethod.BALANCED`: Equal class weights
 
 ---
 
@@ -172,7 +172,7 @@ because its scale is unbounded.
 tree = ConditionalInferenceTreeClassifier(
     alpha_selector=0.01,        # Strict significance
     alpha_splitter=0.01,
-    n_resamples_selector='maximum',
+    n_resamples_selector=NResamples.MAXIMUM,
     adjust_alpha_selector=True,
     adjust_alpha_splitter=True,
     feature_muting=True,
@@ -185,9 +185,9 @@ tree = ConditionalInferenceTreeClassifier(
 tree = ConditionalInferenceTreeClassifier(
     alpha_selector=0.05,
     alpha_splitter=0.05,
-    n_resamples_selector='auto',
+    n_resamples_selector=NResamples.AUTO,
     adjust_alpha_selector=True,
-    early_stopping_selector="adaptive",  # Bayesian stopping - valid p-values
+    early_stopping_selector=EarlyStopping.ADAPTIVE,
 )
 ```
 
@@ -197,10 +197,10 @@ tree = ConditionalInferenceTreeClassifier(
 tree = ConditionalInferenceTreeClassifier(
     alpha_selector=0.10,
     alpha_splitter=0.10,
-    n_resamples_selector='minimum',
+    n_resamples_selector=NResamples.MINIMUM,
     adjust_alpha_selector=False,
-    early_stopping_selector="adaptive",  # "adaptive", "simple", or None
-    threshold_method='percentile',
+    early_stopping_selector=EarlyStopping.ADAPTIVE,
+    threshold_method=ThresholdMethod.PERCENTILE,
     max_thresholds=50,
 )
 ```
@@ -209,7 +209,7 @@ tree = ConditionalInferenceTreeClassifier(
 
 ```python
 tree = ConditionalInferenceTreeClassifier(
-    threshold_method='histogram',
+    threshold_method=ThresholdMethod.HISTOGRAM,
     max_thresholds=256,
     max_depth=10,
     min_samples_leaf=20,
@@ -220,7 +220,7 @@ tree = ConditionalInferenceTreeClassifier(
 
 ```python
 tree = ConditionalInferenceTreeClassifier(
-    max_features='sqrt',
+    max_features=MaxValuesMethod.SQRT,
     feature_muting=True,
     feature_scanning=True,
     selector=['mc', 'rdc'],  # Multiple selectors

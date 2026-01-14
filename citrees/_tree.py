@@ -1,10 +1,27 @@
 import warnings
 from abc import ABCMeta, abstractmethod
 from math import ceil
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, TypedDict
 
 import numpy as np
 from pydantic import BaseModel, Field, model_validator
+
+from citrees._types import (
+    ConfidenceFloat,
+    EarlyStopping,
+    EarlyStoppingOption,
+    EstimatorType,
+    HonestyFraction,
+    MaxValuesOption,
+    MinSamplesSplit,
+    NonNegativeFloat,
+    NonNegativeInt,
+    NResamples,
+    NResamplesOption,
+    PositiveInt,
+    ProbabilityFloat,
+    ThresholdMethod,
+)
 from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.model_selection import train_test_split
@@ -15,6 +32,7 @@ from citrees._selector import (
     ClassifierSelectorTests,
     RegressorSelectors,
     RegressorSelectorTests,
+    _ptest_multi,
 )
 from citrees._splitter import (
     ClassifierSplitters,
@@ -24,16 +42,6 @@ from citrees._splitter import (
 )
 from citrees._threshold_method import ThresholdMethods
 from citrees._utils import calculate_max_value, estimate_mean, estimate_proba, split_data
-
-# Type aliases
-ProbabilityFloat = Annotated[float, Field(gt=0.0, le=1.0)]
-PositiveInt = Annotated[int, Field(gt=0)]
-NonNegativeInt = Annotated[int, Field(ge=0)]
-NonNegativeFloat = Annotated[float, Field(ge=0.0)]
-NResamplesOption = Literal["minimum", "maximum", "auto"] | NonNegativeInt | None
-MaxValuesOption = Literal["sqrt", "log2"] | float | int | None
-EarlyStoppingOption = Literal["simple", "adaptive"] | None
-ConfidenceFloat = Annotated[float, Field(gt=0.5, lt=1.0)]
 
 
 class Node(TypedDict, total=False):
@@ -51,7 +59,7 @@ class Node(TypedDict, total=False):
 class BaseConditionalInferenceTreeParameters(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
-    estimator_type: Literal["classifier", "regressor"]
+    estimator_type: EstimatorType
     selector: str | list[str]
     splitter: str
     alpha_selector: ProbabilityFloat
@@ -67,22 +75,22 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     feature_muting: bool
     feature_scanning: bool
     threshold_scanning: bool
-    threshold_method: Literal["exact", "random", "percentile", "histogram"]
+    threshold_method: ThresholdMethod
     max_thresholds: MaxValuesOption
     max_features: MaxValuesOption
     max_depth: PositiveInt | None = None
-    min_samples_split: Annotated[int, Field(ge=2)]
+    min_samples_split: MinSamplesSplit
     min_samples_leaf: PositiveInt
     min_impurity_decrease: NonNegativeFloat
     honesty: bool
-    honesty_fraction: Annotated[float, Field(gt=0.0, lt=1.0)]
+    honesty_fraction: HonestyFraction
     random_state: NonNegativeInt | None = None
     verbose: NonNegativeInt
     check_for_unused_parameters: bool
 
     @model_validator(mode="after")
     def validate_selector_splitter(self) -> "BaseConditionalInferenceTreeParameters":
-        if self.estimator_type == "classifier":
+        if self.estimator_type == EstimatorType.CLASSIFIER:
             sel_registry = ClassifierSelectors
             spl_registry = ClassifierSplitters
         else:
@@ -99,8 +107,14 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             if sel not in sel_registry.keys():
                 raise ValueError(f"selector '{sel}' not in {sel_registry.keys()}")
 
+        # Check for duplicate selectors
+        if len(selectors) != len(set(selectors)):
+            raise ValueError(
+                f"selector list contains duplicates: {selectors}. Each selector must be unique."
+            )
+
         # Validate that mi is not in a list for classification (mi is not on [0,1] scale)
-        if self.estimator_type == "classifier" and len(selectors) > 1:
+        if self.estimator_type == EstimatorType.CLASSIFIER and len(selectors) > 1:
             if "mi" in selectors:
                 raise ValueError(
                     "selector 'mi' cannot be used in a list with other selectors because mutual information "
@@ -140,7 +154,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         params = self.get_params()
         n_params = len(params)
         for j, (param, value) in enumerate(params.items()):
-            if type(value) == str:
+            if isinstance(value, str):
                 string += f"{param}='{value}'"
             else:
                 string += f"{param}={value}"
@@ -230,7 +244,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             raise ValueError(f"Different number of samples between X ({len(X)}) and y ({len(y)})")
 
         X = X.astype(float)
-        y = y.astype(int) if estimator_type == "classifier" else y.astype(float)
+        y = y.astype(int) if estimator_type == EstimatorType.CLASSIFIER else y.astype(float)
 
         return X, y
 
@@ -531,14 +545,26 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
             # Feature selection with permutation testing
             if self._n_resamples_selector:
-                # In multi-selector mode, compute all selector scores first to find the best one
                 if self._multi_selector:
-                    _, best_selector_name = self._compute_selector_score(x, y)
-                    selector_test = self._selector_tests[best_selector_name]
+                    # Max-T permutation test: compute max(selector_scores) INSIDE each
+                    # permutation to provide valid Type I error control
+                    type_arg = self._selector_kwargs.get(
+                        "n_classes", self._selector_kwargs.get("standardize")
+                    )
+                    pval_feature = _ptest_multi(
+                        funcs=[self._selectors[name] for name in self._selector_names],
+                        func_args=[type_arg] * len(self._selector_names),
+                        take_abs=[name == "pc" for name in self._selector_names],
+                        x=x,
+                        y=y,
+                        n_resamples=self._selector_test_kwargs["n_resamples"],
+                        early_stopping=self._selector_test_kwargs["early_stopping"],
+                        alpha=self._selector_test_kwargs["alpha"],
+                        random_state=self._selector_test_kwargs["random_state"],
+                        confidence=self._selector_test_kwargs["confidence"],
+                    )
                 else:
-                    selector_test = self._selector_test
-
-                pval_feature = selector_test(x=x, y=y, **self._selector_test_kwargs)
+                    pval_feature = self._selector_test(x=x, y=y, **self._selector_test_kwargs)
 
                 # Update best feature
                 if pval_feature < best_pval:
@@ -660,11 +686,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             alpha = getattr(self, f"alpha_{adjust}")
             n_resamples = getattr(self, f"n_resamples_{adjust}")
             _alpha = alpha / n_tests
-            if type(n_resamples) == str:
+            if isinstance(n_resamples, str):
                 lower_limit = ceil(1 / _alpha)
-                if n_resamples == "minimum":
+                if n_resamples == NResamples.MINIMUM:
                     _n_resamples = lower_limit
-                elif n_resamples == "maximum":
+                elif n_resamples == NResamples.MAXIMUM:
                     _n_resamples = ceil(1 / (4 * _alpha * _alpha))
                 else:
                     z = norm.ppf(1 - _alpha)
@@ -993,12 +1019,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self._verbose = min(self.verbose, 3)
         for param in ["n_resamples_selector", "n_resamples_splitter"]:
             value = getattr(self, param)
-            if type(value) == str:
+            if isinstance(value, str):
                 alpha = self.alpha_selector if "selector" in param else self.alpha_splitter
                 lower_limit = ceil(1 / alpha)
-                if value == "minimum":
+                if value == NResamples.MINIMUM:
                     value = lower_limit
-                elif value == "maximum":
+                elif value == NResamples.MAXIMUM:
                     value = ceil(1 / (4 * alpha * alpha))
                 else:
                     # Approximate upper limit
@@ -1035,7 +1061,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self._multi_selector = len(selectors) > 1
         self._selector_names = selectors
 
-        if self._estimator_type == "classifier":
+        if self._estimator_type == EstimatorType.CLASSIFIER:
             self._selectors = {name: ClassifierSelectors[name] for name in selectors}
             self._selector_tests = {name: ClassifierSelectorTests[name] for name in selectors}
             self._splitter = ClassifierSplitters[self.splitter]
@@ -1082,7 +1108,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         }
 
         self._threshold_method: Any = ThresholdMethods[self.threshold_method]
-        if self.threshold_method != "exact" and self.max_thresholds is None:
+        if self.threshold_method != ThresholdMethod.EXACT and self.max_thresholds is None:
             warnings.warn(
                 f"Using threshold_method='{self.threshold_method}' with max_thresholds=None is not recommended, "
                 "consider reducing max_thresholds to speed up split selection."
@@ -1100,7 +1126,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 setattr(self, p_param, value)
 
         # Fitted attributes
-        if self._estimator_type == "classifier":
+        if self._estimator_type == EstimatorType.CLASSIFIER:
             self.classes_ = np.unique(y)
             if not hasattr(self, "n_classes_"):
                 self.n_classes_ = n_classes
@@ -1110,7 +1136,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         # Honest estimation: split data into splitting and estimation samples
         if self.honesty:
-            stratify = y if self._estimator_type == "classifier" else None
+            stratify = y if self._estimator_type == EstimatorType.CLASSIFIER else None
             X_split, X_est, y_split, y_est = train_test_split(
                 X,
                 y,

@@ -27,6 +27,7 @@ citrees/
 ├── .pre-commit-config.yaml # Pre-commit hooks (black, ruff, mypy)
 ├── citrees/                # Main package
 │   ├── __init__.py         # Exports main classes
+│   ├── _types.py           # Centralized StrEnums and type aliases
 │   ├── _tree.py            # Tree classifiers/regressors
 │   ├── _forest.py          # Forest ensembles
 │   ├── _selector.py        # Feature selection methods (mc, mi, rdc, pc, dc)
@@ -60,6 +61,13 @@ from citrees import (
     ConditionalInferenceTreeRegressor,
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
+    # Enums for parameter options
+    EarlyStopping,
+    NResamples,
+    ThresholdMethod,
+    MaxValuesMethod,
+    BootstrapMethod,
+    SamplingMethod,
 )
 ```
 
@@ -88,18 +96,18 @@ Available registries:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `selector` | Feature selection method: str or list[str] | 'mc' (clf) / 'pc' (reg) |
+| `selector` | Feature selection method: str or list | 'mc' (clf) / 'pc' (reg) |
 | `splitter` | Split criterion | 'gini' (clf) / 'mse' (reg) |
 | `alpha_selector` | P-value threshold for feature selection | 0.05 |
 | `alpha_splitter` | P-value threshold for split selection | 0.05 |
-| `n_resamples_selector` | Permutation resamples: 'auto', 'minimum', 'maximum', or int | 'auto' |
+| `n_resamples_selector` | NResamples enum or int | NResamples.AUTO |
 | `adjust_alpha_*` | Bonferroni correction | True |
-| `early_stopping_*` | Stop on first significant result | True |
+| `early_stopping_*` | EarlyStopping enum or None | EarlyStopping.ADAPTIVE |
 | `feature_muting` | Remove uninformative features | True |
 | `feature_scanning` | Sort features by promise before testing | True |
-| `threshold_method` | How to generate split candidates | 'exact' |
-| `max_features` | Features per split: 'sqrt', 'log2', float, int | None (all) |
-| `max_thresholds` | Thresholds per feature | None (all) |
+| `threshold_method` | ThresholdMethod enum | ThresholdMethod.EXACT |
+| `max_features` | MaxValuesMethod enum, float, or int | None (all) |
+| `max_thresholds` | MaxValuesMethod enum, float, or int | None (all) |
 
 ### Selector Parameter
 
@@ -116,7 +124,7 @@ The `selector` parameter accepts either a single string or a list of strings:
 - `'rdc'` - Randomized Dependence Coefficient (O(n log n), [0,1] scale)
 
 **List-based selector (multi-selector mode):**
-When a list is provided, all selectors compute their scores and the maximum is used. The permutation test is run on the selector that produced the highest score.
+When a list is provided, citrees uses the max-T method (Westfall & Young, 1993) for valid Type I error control. The permutation test computes max(selector_scores) inside each permutation. Each selector must be unique (no duplicates).
 
 ```python
 # Classification: only mc and rdc can be combined (both [0,1] scale)
@@ -132,8 +140,8 @@ reg = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
 
 The `early_stopping_selector` and `early_stopping_splitter` parameters control how permutation tests terminate:
 
-- `"adaptive"` (default): Bayesian Beta CDF stopping - valid Type I error (~5%), 95% faster
-- `"simple"`: Futility + significance stopping - inflates Type I error to ~9%
+- `EarlyStopping.ADAPTIVE` (default): Bayesian Beta CDF stopping - valid Type I error (~5%), 95% faster
+- `EarlyStopping.SIMPLE`: Futility + significance stopping - inflates Type I error to ~9%
 - `None`: Full permutation test - no early stopping
 
 **Default mode (recommended for most applications):**
@@ -141,8 +149,8 @@ The `early_stopping_selector` and `early_stopping_splitter` parameters control h
 ```python
 # Default: adaptive sequential testing with valid p-values
 clf = ConditionalInferenceTreeClassifier(
-    early_stopping_selector="adaptive",  # default
-    early_stopping_splitter="adaptive",  # default
+    early_stopping_selector=EarlyStopping.ADAPTIVE,  # default
+    early_stopping_splitter=EarlyStopping.ADAPTIVE,  # default
 )
 ```
 
@@ -153,8 +161,8 @@ clf = ConditionalInferenceTreeClassifier(
 clf = ConditionalInferenceTreeClassifier(
     early_stopping_selector=None,
     early_stopping_splitter=None,
-    n_resamples_selector='maximum',
-    n_resamples_splitter='maximum',
+    n_resamples_selector=NResamples.MAXIMUM,
+    n_resamples_splitter=NResamples.MAXIMUM,
 )
 ```
 
@@ -163,19 +171,26 @@ clf = ConditionalInferenceTreeClassifier(
 Reference: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero." SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
 
 ### Pydantic Validation
-All parameters are validated via `BaseConditionalInferenceTreeParameters`:
+
+All parameters are validated via `BaseConditionalInferenceTreeParameters`. Type
+aliases and enums are centralized in `_types.py`:
 
 ```python
-from typing import Annotated
+# citrees/_types.py
+from enum import StrEnum
+from typing import Annotated, TypeAlias
+from pydantic import Field
 
-from pydantic import BaseModel, Field
+ProbabilityFloat: TypeAlias = Annotated[float, Field(gt=0.0, le=1.0)]
 
-ProbabilityFloat = Annotated[float, Field(gt=0.0, le=1.0)]
+class EarlyStopping(StrEnum):
+    ADAPTIVE = "adaptive"
+    SIMPLE = "simple"
 
-class BaseConditionalInferenceTreeParameters(BaseModel):
-    alpha_selector: ProbabilityFloat
-    min_samples_split: Annotated[int, Field(ge=2)]
-    ...
+class NResamples(StrEnum):
+    MINIMUM = "minimum"
+    MAXIMUM = "maximum"
+    AUTO = "auto"
 ```
 
 ## Development

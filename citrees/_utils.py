@@ -3,6 +3,8 @@ from math import ceil
 import numpy as np
 from numba import njit
 
+from citrees._types import MaxValuesMethod
+
 
 @njit(cache=True, fastmath=True, nogil=True)
 def estimate_proba(*, y: np.ndarray, n_classes: int) -> np.ndarray:
@@ -63,9 +65,9 @@ def calculate_max_value(
     """
     if type(desired_max) is int:
         total = min(desired_max, n_values)
-    elif desired_max == "sqrt":
+    elif desired_max == MaxValuesMethod.SQRT:
         total = ceil(np.sqrt(n_values))
-    elif desired_max == "log2":
+    elif desired_max == MaxValuesMethod.LOG2:
         total = ceil(np.log2(n_values))
     elif type(desired_max) is float:
         total = ceil(n_values * desired_max)

@@ -6,17 +6,38 @@ from citrees._forest import (
 )
 from citrees._importance import SHAPExplainer, compute_importance
 from citrees._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor
+from citrees._types import (
+    BootstrapMethod,
+    EarlyStopping,
+    EstimatorType,
+    ImportanceMethod,
+    MaxValuesMethod,
+    NResamples,
+    SamplingMethod,
+    ThresholdMethod,
+)
 
 __all__ = [
+    # Estimators
     "ConditionalInferenceTreeClassifier",
     "ConditionalInferenceTreeRegressor",
     "ConditionalInferenceForestClassifier",
     "ConditionalInferenceForestRegressor",
+    # Utilities
     "compute_importance",
     "SHAPExplainer",
     "ConformalClassifier",
     "ConformalRegressor",
     "CQR",
+    # Enums
+    "EarlyStopping",
+    "NResamples",
+    "MaxValuesMethod",
+    "ThresholdMethod",
+    "BootstrapMethod",
+    "SamplingMethod",
+    "ImportanceMethod",
+    "EstimatorType",
 ]
 
 # Increase recursion limit for deep tree building

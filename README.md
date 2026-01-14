@@ -71,8 +71,8 @@ reg.fit(X_train, y_train)
 # Forest ensemble (parallel training)
 forest = ConditionalInferenceForestClassifier(
     n_estimators=100,
-    max_features="sqrt",     # Random feature subset per split
-    n_jobs=-1,               # Use all cores
+    max_features=MaxValuesMethod.SQRT,  # Random feature subset per split
+    n_jobs=-1,                          # Use all cores
 )
 forest.fit(X_train, y_train)
 
@@ -175,8 +175,8 @@ function BuildTree(X, y, depth):
 | `splitter`             | str         | `'gini'`/`'mse'` | Split criterion                         |
 | `alpha_selector`       | float       | 0.05             | P-value threshold for feature selection |
 | `alpha_splitter`       | float       | 0.05             | P-value threshold for split selection   |
-| `n_resamples_selector` | str/int     | `'auto'`         | Permutation resamples for selector      |
-| `n_resamples_splitter` | str/int     | `'auto'`         | Permutation resamples for splitter      |
+| `n_resamples_selector` | NResamples/int | `NResamples.AUTO` | Permutation resamples for selector      |
+| `n_resamples_splitter` | NResamples/int | `NResamples.AUTO` | Permutation resamples for splitter      |
 
 ### Optimization Parameters
 
@@ -197,7 +197,7 @@ function BuildTree(X, y, depth):
 | `min_samples_split` | int           | 2         | Minimum samples to split         |
 | `min_samples_leaf`  | int           | 1         | Minimum samples in leaf          |
 | `max_features`      | str/int/float | None      | Features per split               |
-| `threshold_method`  | str           | `'exact'` | How to generate split candidates |
+| `threshold_method`  | ThresholdMethod | `ThresholdMethod.EXACT` | How to generate split candidates |
 
 ### Forest Parameters
 
@@ -205,7 +205,7 @@ function BuildTree(X, y, depth):
 | ------------------ | ----- | ------------ | -------------------------------- |
 | `n_estimators`     | int   | 100          | Number of trees                  |
 | `max_samples`      | float | None         | Bootstrap sample size            |
-| `bootstrap_method` | str   | `'bayesian'` | Sampling method                  |
+| `bootstrap_method` | BootstrapMethod | `BootstrapMethod.BAYESIAN` | Sampling method                  |
 | `n_jobs`           | int   | 1            | Parallel jobs (-1 for all cores) |
 
 ## Comparison with Other Methods

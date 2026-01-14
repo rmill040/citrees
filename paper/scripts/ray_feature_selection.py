@@ -61,6 +61,10 @@ except ImportError:
 
 config = load_config()
 
+# Data directory - works both locally and when rsynced to remote
+# On remote, script is at ~/ray_feature_selection.py but data is at ~/citrees/paper/data/
+DATA_DIR = Path("/home/ubuntu/citrees/paper/data") if Path("/home/ubuntu/citrees").exists() else Path(__file__).resolve().parents[1] / "data"
+
 
 def get_s3_client():
     """Create S3 client lazily (avoid serialization issues with Ray)."""
@@ -68,7 +72,7 @@ def get_s3_client():
 
 
 def get_datasets(task_type: str) -> list[str]:
-    data_dir = Path(__file__).resolve().parents[1] / "data"
+    data_dir = DATA_DIR
     prefix = "clf_" if task_type == "classification" else "reg_"
     datasets = []
     for f in data_dir.glob(f"{prefix}*.parquet"):
@@ -78,7 +82,7 @@ def get_datasets(task_type: str) -> list[str]:
 
 
 def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
-    data_dir = Path(__file__).resolve().parents[1] / "data"
+    data_dir = DATA_DIR
     prefix = "clf_" if task_type == "classification" else "reg_"
     # Try both .parquet and .snappy.parquet extensions
     path = data_dir / f"{prefix}{name}.parquet"
@@ -255,6 +259,72 @@ def shap_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str, rand
     return np.argsort(importances)[::-1]
 
 
+def cpi_selector(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray,
+                 task_type: str, random_state: int, n_repeats: int = 10,
+                 correlation_threshold: float = 0.5) -> np.ndarray:
+    if task_type == "classification":
+        model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
+        scoring_fn = lambda m, X, y: (m.predict(X) == y).mean()
+    else:
+        model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
+        scoring_fn = lambda m, X, y: 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
+
+    model.fit(X_train, y_train)
+    rng = np.random.default_rng(random_state)
+    n_features = X_test.shape[1]
+    baseline = scoring_fn(model, X_test, y_test)
+    importances = np.zeros(n_features)
+
+    for j in range(n_features):
+        scores = []
+        for rep in range(n_repeats):
+            X_perm = X_test.copy()
+            corr_features = _find_correlated(X_test, j, correlation_threshold)
+
+            if len(corr_features) > 0:
+                strata = _create_strata(X_test[:, corr_features])
+                for stratum in np.unique(strata):
+                    mask = strata == stratum
+                    idx = np.where(mask)[0]
+                    if len(idx) > 1:
+                        X_perm[idx, j] = rng.permutation(X_perm[idx, j])
+            else:
+                X_perm[:, j] = rng.permutation(X_perm[:, j])
+
+            scores.append(scoring_fn(model, X_perm, y_test))
+        importances[j] = baseline - np.mean(scores)
+
+    return np.argsort(importances)[::-1]
+
+
+def _find_correlated(X: np.ndarray, j: int, threshold: float) -> list[int]:
+    """Find features correlated with feature j above threshold."""
+    correlated = []
+    for k in range(X.shape[1]):
+        if k != j:
+            if np.std(X[:, j]) == 0 or np.std(X[:, k]) == 0:
+                continue
+            corr = np.abs(np.corrcoef(X[:, j], X[:, k])[0, 1])
+            if not np.isnan(corr) and corr > threshold:
+                correlated.append(k)
+    return correlated
+
+
+def _create_strata(X: np.ndarray, n_bins: int = 5) -> np.ndarray:
+    """Create strata for conditional permutation."""
+    if X.shape[1] == 0:
+        return np.zeros(X.shape[0], dtype=int)
+    strata = np.zeros(X.shape[0], dtype=int)
+    for j in range(X.shape[1]):
+        if np.std(X[:, j]) == 0:
+            continue
+        bins = np.unique(np.percentile(X[:, j], np.linspace(0, 100, n_bins + 1)))
+        if len(bins) > 1:
+            binned = np.digitize(X[:, j], bins[1:-1])
+            strata = strata * n_bins + binned
+    return strata
+
+
 def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str) -> np.ndarray:
     df = pd.DataFrame(X_train)
     y_series = pd.Series(y_train)
@@ -307,6 +377,8 @@ def run_selection(X: np.ndarray, y: np.ndarray, method: str, task_type: str, see
             ranking = pi_selector(X_train, y_train, X_test, y_test, task_type, rs)
         elif method == "shap":
             ranking = shap_selector(X_train, y_train, task_type, rs)
+        elif method == "cpi":
+            ranking = cpi_selector(X_train, y_train, X_test, y_test, task_type, rs)
         elif method == "mrmr":
             ranking = mrmr_selector(X_train, y_train, task_type)
         elif method == "rfe":

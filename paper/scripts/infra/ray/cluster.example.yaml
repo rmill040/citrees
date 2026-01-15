@@ -12,23 +12,7 @@
 #   __BRANCH__   - Current git branch
 #   __S3_BUCKET__ - S3 bucket for results
 #
-# IAM Setup Required:
-#   Workers need an IAM instance profile with S3 access. Create role "citrees-ray-worker":
-#
-#   1. Create IAM role with EC2 trust policy:
-#      aws iam create-role --role-name citrees-ray-worker \
-#        --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
-#
-#   2. Attach S3 access:
-#      aws iam attach-role-policy --role-name citrees-ray-worker --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
-#
-#   3. Create instance profile:
-#      aws iam create-instance-profile --instance-profile-name citrees-ray-worker
-#      aws iam add-role-to-instance-profile --instance-profile-name citrees-ray-worker --role-name citrees-ray-worker
-#
-#   4. Grant head node PassRole permission (add to head's IAM role):
-#      aws iam put-role-policy --role-name <HEAD_ROLE> --policy-name PassRole \
-#        --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"iam:PassRole","Resource":"arn:aws:iam::<ACCOUNT_ID>:role/citrees-ray-worker"}]}'
+# IAM: Ray auto-creates IAM roles with EC2 + S3 permissions (no manual setup needed)
 
 cluster_name: citrees
 
@@ -77,8 +61,6 @@ available_node_types:
     node_config:
       InstanceType: c6i.8xlarge  # 32 vCPUs, 64GB RAM - heavy feature selection
       ImageId: ami-0030e4319cbf4dbf2
-      IamInstanceProfile:
-        Name: citrees-ray-worker
       InstanceMarketOptions:
         MarketType: spot
     resources:
@@ -88,10 +70,8 @@ available_node_types:
 
   eval_worker:
     node_config:
-      InstanceType: c6i.4xlarge  # 16 vCPUs, 32GB RAM - lighter downstream eval
+      InstanceType: c6i.xlarge  # 4 vCPUs, 8GB RAM - lightweight downstream eval
       ImageId: ami-0030e4319cbf4dbf2
-      IamInstanceProfile:
-        Name: citrees-ray-worker
       InstanceMarketOptions:
         MarketType: spot
     resources:

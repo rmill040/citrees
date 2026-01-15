@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import io
+import os
 import time
 from pathlib import Path
 from typing import Any
 
-import boto3
 import numpy as np
 import pandas as pd
 import ray
@@ -22,23 +22,37 @@ from paper.scripts.constants import CLF_DOWNSTREAM_MODELS, CLF_METHODS, REG_DOWN
 from paper.scripts.infra.config import load_config
 
 config = load_config()
-s3 = boto3.client("s3", region_name=config.region)
+
+# Data directory - works both locally and when rsynced to remote
+DATA_DIR = Path("/home/ubuntu/citrees/paper/data") if Path("/home/ubuntu/citrees").exists() else Path(__file__).resolve().parents[1] / "data"
+
+_s3_client = None
+
+
+def get_s3_client():
+    global _s3_client
+    if _s3_client is None:
+        import boto3
+        _s3_client = boto3.client("s3")
+    return _s3_client
 
 
 def get_datasets(task_type: str) -> list[str]:
-    data_dir = Path(__file__).resolve().parents[1] / "data"
     prefix = "clf_" if task_type == "classification" else "reg_"
     datasets = []
-    for f in data_dir.glob(f"{prefix}*.parquet"):
+    for f in DATA_DIR.glob(f"{prefix}*.parquet"):
         name = f.stem.replace(prefix, "").replace(".snappy", "")
         datasets.append(name)
     return sorted(datasets)
 
 
 def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
-    data_dir = Path(__file__).resolve().parents[1] / "data"
     prefix = "clf_" if task_type == "classification" else "reg_"
-    df = pd.read_parquet(data_dir / f"{prefix}{name}.parquet")
+    # Try both .parquet and .snappy.parquet extensions
+    path = DATA_DIR / f"{prefix}{name}.parquet"
+    if not path.exists():
+        path = DATA_DIR / f"{prefix}{name}.snappy.parquet"
+    df = pd.read_parquet(path)
     y = df.pop("y").values
     if task_type == "classification":
         y = y.astype(np.int64)
@@ -51,7 +65,7 @@ def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
 def s3_file_exists(s3_path: str) -> bool:
     parts = s3_path.replace("s3://", "").split("/", 1)
     try:
-        s3.head_object(Bucket=parts[0], Key=parts[1])
+        get_s3_client().head_object(Bucket=parts[0], Key=parts[1])
         return True
     except Exception:
         return False
@@ -59,7 +73,7 @@ def s3_file_exists(s3_path: str) -> bool:
 
 def download_from_s3(s3_path: str) -> pd.DataFrame:
     parts = s3_path.replace("s3://", "").split("/", 1)
-    response = s3.get_object(Bucket=parts[0], Key=parts[1])
+    response = get_s3_client().get_object(Bucket=parts[0], Key=parts[1])
     return pd.read_parquet(io.BytesIO(response["Body"].read()))
 
 
@@ -69,7 +83,7 @@ def upload_to_s3(data: list[dict], s3_path: str) -> None:
     df.to_parquet(buffer, index=False)
     buffer.seek(0)
     parts = s3_path.replace("s3://", "").split("/", 1)
-    s3.put_object(Bucket=parts[0], Key=parts[1], Body=buffer.getvalue())
+    get_s3_client().put_object(Bucket=parts[0], Key=parts[1], Body=buffer.getvalue())
 
 
 def get_clf_models(random_state: int) -> dict[str, Any]:
@@ -177,8 +191,9 @@ def run_evaluation(
 
 @ray.remote(resources={"evaluation": 1})
 def process_config(method: str, dataset: str, seed: int, task_type: str) -> dict[str, Any]:
-    rankings_path = f"s3://{config.bucket_name}/rankings/{task_type}/{dataset}/{method}_seed{seed}.parquet"
-    metrics_path = f"s3://{config.bucket_name}/metrics/{task_type}/{dataset}/{method}_seed{seed}.parquet"
+    bucket = os.environ["S3_BUCKET"]
+    rankings_path = f"s3://{bucket}/rankings/{task_type}/{dataset}/{method}_seed{seed}.parquet"
+    metrics_path = f"s3://{bucket}/metrics/{task_type}/{dataset}/{method}_seed{seed}.parquet"
 
     if s3_file_exists(metrics_path):
         return {"status": "skipped", "method": method, "dataset": dataset, "seed": seed}

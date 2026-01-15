@@ -56,6 +56,8 @@ available_node_types:
     node_config:
       InstanceType: c6i.8xlarge  # 32 vCPUs, 64GB RAM - heavy feature selection
       ImageId: ami-0030e4319cbf4dbf2
+      IamInstanceProfile:
+        Name: ray-autoscaler-v1
       InstanceMarketOptions:
         MarketType: spot
     resources:
@@ -67,6 +69,8 @@ available_node_types:
     node_config:
       InstanceType: c6i.4xlarge  # 16 vCPUs, 32GB RAM - lighter downstream eval
       ImageId: ami-0030e4319cbf4dbf2
+      IamInstanceProfile:
+        Name: ray-autoscaler-v1
       InstanceMarketOptions:
         MarketType: spot
     resources:

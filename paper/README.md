@@ -51,22 +51,25 @@ print(f'Top 5 features: {results[0][\"feature_ranking\"][:5]}')
 
 ### Distributed (AWS)
 
-See [INFRASTRUCTURE.md](INFRASTRUCTURE.md) for full AWS setup.
+See [infrastructure.md](infrastructure.md) for full AWS setup.
 
 ```bash
+# Generate config first
+AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
+
 # Start Ray cluster
-AWS_PROFILE=personal ray up paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
 
 # Run feature selection
-AWS_PROFILE=personal ray submit paper/scripts/infra/ray/cluster.yaml \
+AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
     paper/scripts/ray_feature_selection.py
 
 # Run evaluation
-AWS_PROFILE=personal ray submit paper/scripts/infra/ray/cluster.yaml \
+AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
     paper/scripts/ray_eval.py
 
 # Tear down
-AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 ```
 
 ## Two-Stage Architecture

@@ -5,39 +5,36 @@ Run citrees feature selection experiments at scale on AWS using Ray.
 ## Quick Start
 
 ```bash
-# 1. Update cluster config with latest AMI
-AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --update-ami
+# 1. Generate config (creates S3 bucket, fills placeholders)
+AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
 
-# 2. Validate configuration
-AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --validate
+# 2. Deploy cluster
+AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
 
-# 3. Start Ray cluster (spot instances)
-AWS_PROFILE=personal ray up paper/scripts/infra/ray/cluster.yaml
-
-# 4. Run feature selection (Stage 1)
-AWS_PROFILE=personal ray submit paper/scripts/infra/ray/cluster.yaml \
+# 3. Run feature selection (Stage 1)
+AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
     paper/scripts/ray_feature_selection.py
 
-# 5. Run downstream evaluation (Stage 2)
-AWS_PROFILE=personal ray submit paper/scripts/infra/ray/cluster.yaml \
+# 4. Run downstream evaluation (Stage 2)
+AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
     paper/scripts/ray_eval.py
 
-# 6. Monitor progress
+# 5. Monitor progress
 AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings
 
-# 7. Tear down when done
-AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
+# 6. Tear down when done
+AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 ```
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Ray Cluster                               │
-│                                                                   │
-│  ┌────────────────┐                                              │
-│  │   Head Node    │                                              │
-│  │  c7i.4xlarge   │──────────────────────────────────┐          │
+│                        Ray Cluster                              │
+│                                                                 │
+│  ┌────────────────┐                                             │
+│  │   Head Node    │                                             │
+│  │  c6i.4xlarge   │──────────────────────────────────┐          │
 │  │                │                                   │          │
 │  │  - Scheduler   │                                   │          │
 │  │  - Dashboard   │                                   │          │
@@ -46,8 +43,8 @@ AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
 │          ▼                                            ▼          │
 │  ┌────────────────────────┐    ┌────────────────────────┐       │
 │  │  Selection Workers     │    │  Eval Workers          │       │
-│  │  c7i.8xlarge (spot)    │    │  c7i.4xlarge (spot)    │       │
-│  │  32 vCPUs, 64GB        │    │  16 vCPUs, 32GB        │       │
+│  │  c6i.8xlarge (spot)    │    │  c6i.xlarge (spot)     │       │
+│  │  32 vCPUs, 64GB        │    │  4 vCPUs, 8GB          │       │
 │  │  max: 250              │    │  max: 250              │       │
 │  │                        │    │                        │       │
 │  │  Stage 1:              │    │  Stage 2:              │       │
@@ -65,7 +62,21 @@ AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
 
 ## Configuration
 
+### Setup Script (`paper/scripts/infra/ray/setup_cluster.py`)
+
+```bash
+# Generate cluster.yaml from template
+AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
+
+# What it does:
+# - Fetches your public IP for security group rules
+# - Creates S3 bucket if needed
+# - Fills in __MY_IP__, __BRANCH__, __S3_BUCKET__ placeholders
+```
+
 ### Cluster Config (`paper/scripts/infra/ray/cluster.yaml`)
+
+Generated from `cluster.example.yaml`. Key settings:
 
 ```yaml
 cluster_name: citrees
@@ -77,27 +88,25 @@ provider:
 available_node_types:
   head:
     node_config:
-      InstanceType: c7i.4xlarge
+      InstanceType: c6i.4xlarge
       ImageId: ami-xxx  # Ubuntu 22.04
 
   selection_worker:
     node_config:
-      InstanceType: c7i.8xlarge  # 32 vCPUs
+      InstanceType: c6i.8xlarge  # 32 vCPUs, 64GB
       InstanceMarketOptions:
         MarketType: spot
     resources:
-      selection: 100  # 100 concurrent tasks per worker
-    min_workers: 0
+      selection: 100
     max_workers: 250
 
   eval_worker:
     node_config:
-      InstanceType: c7i.4xlarge  # 16 vCPUs
+      InstanceType: c6i.xlarge   # 4 vCPUs, 8GB
       InstanceMarketOptions:
         MarketType: spot
     resources:
       evaluation: 100
-    min_workers: 0
     max_workers: 250
 ```
 
@@ -120,36 +129,32 @@ experiment:
 
 ```bash
 # Start cluster
-ray up paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
 
 # Check cluster status
-ray status
-
-# Scale workers manually
-ray up paper/scripts/infra/ray/cluster.yaml --min-workers 50
+AWS_PROFILE=personal uv run ray exec paper/scripts/infra/ray/cluster.yaml \
+    '$HOME/citrees/.venv/bin/ray status'
 
 # View dashboard (opens browser)
-ray dashboard paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray dashboard paper/scripts/infra/ray/cluster.yaml
 
 # SSH to head node
-ray attach paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray attach paper/scripts/infra/ray/cluster.yaml
 
 # Tear down cluster
-ray down paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 ```
 
 ### Running Jobs
 
 ```bash
 # Submit feature selection job
-ray submit paper/scripts/infra/ray/cluster.yaml paper/scripts/ray_feature_selection.py
+AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
+    paper/scripts/ray_feature_selection.py
 
 # Submit evaluation job
-ray submit paper/scripts/infra/ray/cluster.yaml paper/scripts/ray_eval.py
-
-# Run with specific config
-ray submit paper/scripts/infra/ray/cluster.yaml paper/scripts/ray_feature_selection.py \
-    --runtime-env-json='{"env_vars": {"EXPERIMENT_TYPE": "regression"}}'
+AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
+    paper/scripts/ray_eval.py
 ```
 
 ## Worker Pools
@@ -158,8 +163,9 @@ The cluster uses separate worker pools for each stage:
 
 | Pool | Instance | vCPUs | RAM | Resource | Purpose |
 |------|----------|-------|-----|----------|---------|
-| `selection_worker` | c7i.8xlarge | 32 | 64GB | `selection: 100` | Feature selection (heavy) |
-| `eval_worker` | c7i.4xlarge | 16 | 32GB | `evaluation: 100` | Downstream eval (light) |
+| `head` | c6i.4xlarge | 16 | 32GB | - | Scheduler, dashboard |
+| `selection_worker` | c6i.8xlarge | 32 | 64GB | `selection: 100` | Feature selection (heavy) |
+| `eval_worker` | c6i.xlarge | 4 | 8GB | `evaluation: 100` | Downstream eval (light) |
 
 Tasks are routed via custom resources:
 - `@ray.remote(resources={"selection": 1})` → runs on selection_worker
@@ -204,7 +210,7 @@ AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage ranki
 
 Access at `http://<head-ip>:8265` or via:
 ```bash
-ray dashboard paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray dashboard paper/scripts/infra/ray/cluster.yaml
 ```
 
 Features:
@@ -223,22 +229,22 @@ Both stages support full resume:
 
 ```bash
 # Re-run after interruption - only processes remaining configs
-ray submit paper/scripts/infra/ray/cluster.yaml paper/scripts/ray_feature_selection.py
+AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
+    paper/scripts/ray_feature_selection.py
 ```
 
 ## Cost Estimates
 
 | Configuration | Spot Price | Est. Daily Cost |
 |---------------|------------|-----------------|
-| 1 head (c7i.4xlarge) | ~$0.20/hr | ~$4.80 |
-| 10 selection workers (c7i.8xlarge) | ~$0.40/hr each | ~$96 |
-| 10 eval workers (c7i.4xlarge) | ~$0.20/hr each | ~$48 |
+| 1 head (c6i.4xlarge) | ~$0.15/hr | ~$3.60 |
+| 10 selection workers (c6i.8xlarge) | ~$0.30/hr each | ~$72 |
+| 10 eval workers (c6i.xlarge) | ~$0.04/hr each | ~$10 |
 
 **Tips:**
 - Spot instances are 60-90% cheaper than on-demand
 - Workers auto-scale based on pending tasks
 - Tear down cluster when not in use
-- Use `--min-workers 0` to allow scale-to-zero
 
 ## Troubleshooting
 
@@ -246,10 +252,11 @@ ray submit paper/scripts/infra/ray/cluster.yaml paper/scripts/ray_feature_select
 
 ```bash
 # Check cluster status
-ray status
+AWS_PROFILE=personal uv run ray exec paper/scripts/infra/ray/cluster.yaml \
+    '$HOME/citrees/.venv/bin/ray status'
 
 # Check autoscaler logs
-ray attach paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray attach paper/scripts/infra/ray/cluster.yaml
 cat /tmp/ray/session_latest/logs/monitor.log
 ```
 
@@ -257,10 +264,10 @@ cat /tmp/ray/session_latest/logs/monitor.log
 
 ```bash
 # View task errors in dashboard
-ray dashboard paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray dashboard paper/scripts/infra/ray/cluster.yaml
 
 # Or check logs on head
-ray attach paper/scripts/infra/ray/cluster.yaml
+AWS_PROFILE=personal uv run ray attach paper/scripts/infra/ray/cluster.yaml
 cat /tmp/ray/session_latest/logs/raylet.out
 ```
 
@@ -269,11 +276,4 @@ cat /tmp/ray/session_latest/logs/raylet.out
 ```bash
 # Update to latest Ubuntu 22.04 AMI
 AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --update-ami
-```
-
-### S3 permission errors
-
-Ensure your AWS credentials have S3 access:
-```bash
-AWS_PROFILE=personal aws s3 ls s3://citrees-results-xxx/
 ```

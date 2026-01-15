@@ -11,16 +11,22 @@ paper/
 │   ├── clf_synthetic_*.parquet       # Synthetic datasets (with ground truth)
 │   └── reg_*.parquet                 # Regression datasets
 ├── scripts/
-│   ├── ray_feature_selection.py      # Stage 1: Distributed feature selection
-│   ├── ray_eval.py                   # Stage 2: Distributed downstream eval
-│   ├── check_progress.py             # Progress monitoring via S3
-│   ├── generate_synthetic_datasets.py # Generate synthetic data
-│   ├── synthetic_analysis.py         # Precision/recall@k analysis
-│   ├── analysis.py                   # Statistical tests
-│   ├── constants.py                  # Method lists, defaults
-│   ├── classifiers.py                # Downstream model definitions
-│   ├── metrics.py                    # Evaluation metrics
-│   └── infra/
+│   ├── experiments/                  # Core experiment runners
+│   │   ├── ray_feature_selection.py  # Stage 1: Distributed feature selection
+│   │   ├── ray_eval.py               # Stage 2: Distributed downstream eval
+│   │   └── check_progress.py         # Progress monitoring via S3
+│   ├── analysis/                     # Analysis and visualization
+│   │   ├── analysis.py               # Statistical tests
+│   │   ├── synthetic_analysis.py     # Precision/recall@k analysis
+│   │   └── generate_figures.py       # Paper figure generation
+│   ├── data_generation/              # Dataset generation
+│   │   └── generate_synthetic_datasets.py
+│   ├── utils/                        # Shared utilities
+│   │   ├── config.py                 # Hyperparameter grids
+│   │   ├── constants.py              # Method lists, defaults
+│   │   ├── eval_models.py            # Downstream model definitions
+│   │   └── metrics.py                # Evaluation metrics
+│   └── infra/                        # Infrastructure
 │       ├── config.py                 # Configuration dataclasses
 │       ├── config.yaml               # Experiment settings
 │       └── ray/
@@ -39,7 +45,7 @@ uv sync --group paper
 
 # Test feature selection locally
 uv run python -c "
-from paper.scripts.ray_feature_selection import run_selection
+from paper.scripts.experiments.ray_feature_selection import run_selection
 import numpy as np
 X = np.random.randn(100, 20)
 y = (X[:, 0] + X[:, 1] > 0).astype(int)
@@ -62,11 +68,11 @@ AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
 
 # Run feature selection
 AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/ray_feature_selection.py
+    paper/scripts/experiments/ray_feature_selection.py
 
 # Run evaluation
 AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/ray_eval.py
+    paper/scripts/experiments/ray_eval.py
 
 # Tear down
 AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
@@ -160,7 +166,7 @@ AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 Generate datasets with known ground truth for precision/recall@k:
 
 ```bash
-uv run python paper/scripts/generate_synthetic_datasets.py
+uv run python paper/scripts/data_generation/generate_synthetic_datasets.py
 ```
 
 **Dataset types (132 total):**
@@ -179,16 +185,16 @@ Ground truth stored in parquet schema metadata.
 
 ```bash
 # Stage 1 (feature selection)
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings
 
 # Stage 2 (evaluation)
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage metrics
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage metrics
 
 # By method
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-method
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-method
 
 # By dataset
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-dataset
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-dataset
 ```
 
 ## Result Structure
@@ -232,16 +238,16 @@ aws s3 sync s3://bucket/rankings/ paper/results/rankings/
 aws s3 sync s3://bucket/metrics/ paper/results/metrics/
 
 # Synthetic analysis (precision/recall@k)
-uv run python paper/scripts/synthetic_analysis.py \
+uv run python paper/scripts/analysis/synthetic_analysis.py \
     --results-dir paper/results/rankings/classification \
     --data-dir paper/data \
     --output paper/results/synthetic_analysis.parquet
 
 # Statistical analysis
-uv run python paper/scripts/analysis.py
+uv run python paper/scripts/analysis/analysis.py
 
 # Generate figures
-uv run python paper/scripts/generate_figures.py
+uv run python paper/scripts/analysis/generate_figures.py
 ```
 
 ## Config Calculation

@@ -24,7 +24,7 @@ from pathlib import Path
 import boto3
 from loguru import logger
 
-from paper.scripts.constants import CLF_METHODS, N_SEEDS, REG_METHODS, S3_BUCKET, AWS_REGION
+from paper.scripts.utils.constants import CLF_METHODS, N_SEEDS, REG_METHODS, S3_BUCKET, AWS_REGION
 
 
 def get_datasets(task_type: str = "classification") -> list[str]:

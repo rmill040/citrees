@@ -4,7 +4,7 @@ This module defines hyperparameter grids for all feature selection methods
 and generates config combinations using itertools.product with conflict filtering.
 
 Usage:
-    from paper.scripts.config import get_configs, grid_sizes
+    from paper.scripts.utils.config import get_configs, grid_sizes
 
     # Get all configs for classification
     configs = get_configs("classification")
@@ -19,7 +19,7 @@ from __future__ import annotations
 from itertools import product
 from typing import Any
 
-from paper.scripts.constants import RANDOM_STATE
+from paper.scripts.utils.constants import RANDOM_STATE
 
 
 # =============================================================================

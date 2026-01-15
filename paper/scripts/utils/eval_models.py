@@ -12,7 +12,7 @@ from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.svm import SVC, SVR
 
-from paper.scripts.constants import RANDOM_STATE
+from paper.scripts.utils.constants import RANDOM_STATE
 
 
 def get_clf_models() -> dict[str, Any]:

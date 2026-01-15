@@ -39,7 +39,7 @@ from citrees._selector import (
     RegressorSelectors,
     RegressorSelectorTests,
 )
-from paper.scripts.constants import CLF_METHODS, N_SPLITS, REG_METHODS
+from paper.scripts.utils.constants import CLF_METHODS, N_SPLITS, REG_METHODS
 from paper.scripts.infra.config import load_config
 
 try:

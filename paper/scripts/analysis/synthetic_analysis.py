@@ -19,7 +19,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 from loguru import logger
 
-from .metrics import f1_at_k, precision_at_k, recall_at_k
+from paper.scripts.utils.metrics import f1_at_k, precision_at_k, recall_at_k
 
 
 # =============================================================================

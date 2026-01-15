@@ -18,7 +18,7 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC, SVR
 
-from paper.scripts.constants import CLF_DOWNSTREAM_MODELS, CLF_METHODS, REG_DOWNSTREAM_MODELS, REG_METHODS
+from paper.scripts.utils.constants import CLF_DOWNSTREAM_MODELS, CLF_METHODS, REG_DOWNSTREAM_MODELS, REG_METHODS
 from paper.scripts.infra.config import load_config
 
 config = load_config()

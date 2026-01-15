@@ -13,14 +13,14 @@ AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
 
 # 3. Run feature selection (Stage 1)
 AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/ray_feature_selection.py
+    paper/scripts/experiments/ray_feature_selection.py
 
 # 4. Run downstream evaluation (Stage 2)
 AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/ray_eval.py
+    paper/scripts/experiments/ray_eval.py
 
 # 5. Monitor progress
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings
 
 # 6. Tear down when done
 AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
@@ -150,11 +150,11 @@ AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 ```bash
 # Submit feature selection job
 AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/ray_feature_selection.py
+    paper/scripts/experiments/ray_feature_selection.py
 
 # Submit evaluation job
 AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/ray_eval.py
+    paper/scripts/experiments/ray_eval.py
 ```
 
 ## Worker Pools
@@ -194,16 +194,16 @@ s3://citrees-results-{account_id}/
 
 ```bash
 # Stage 1 progress
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings
 
 # Stage 2 progress
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage metrics
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage metrics
 
 # By method
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-method
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-method
 
 # By dataset
-AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-dataset
+AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-dataset
 ```
 
 ### Ray Dashboard
@@ -230,7 +230,7 @@ Both stages support full resume:
 ```bash
 # Re-run after interruption - only processes remaining configs
 AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/ray_feature_selection.py
+    paper/scripts/experiments/ray_feature_selection.py
 ```
 
 ## Cost Estimates

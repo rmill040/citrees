@@ -541,9 +541,13 @@ CLF_SHAP_GRID: dict[str, list[Any]] = {
     "max_samples": [100, 500, 1000],
 }
 
-CLF_RFE_GRID: dict[str, list[Any]] = {}  # No hyperparameters (uses RF defaults)
+CLF_RFE_GRID: dict[str, list[Any]] = {}
 
-REG_RFE_GRID: dict[str, list[Any]] = {}  # No hyperparameters (uses RF defaults)
+REG_SHAP_GRID: dict[str, list[Any]] = {
+    "max_samples": [100, 500, 1000],
+}
+
+REG_RFE_GRID: dict[str, list[Any]] = {}
 
 
 # =============================================================================
@@ -810,6 +814,14 @@ def reg_rfe() -> list[dict[str, Any]]:
     return _generate_simple_grid(REG_RFE_GRID, "rfe")
 
 
+def reg_mrmr() -> list[dict[str, Any]]:
+    return _generate_simple_grid(REG_FILTER_GRID, "mrmr")
+
+
+def reg_shap() -> list[dict[str, Any]]:
+    return _generate_simple_grid(REG_SHAP_GRID, "shap")
+
+
 # =============================================================================
 # METHOD REGISTRY
 # =============================================================================
@@ -844,6 +856,7 @@ REG_CONFIG_GENERATORS: dict[str, callable] = {
     "pc": reg_pc,
     "dc": reg_dc,
     "rdc": reg_rdc,
+    "mrmr": reg_mrmr,
     # Permutation tests
     "ptest_pc": reg_ptest_pc,
     "ptest_dc": reg_ptest_dc,
@@ -859,6 +872,7 @@ REG_CONFIG_GENERATORS: dict[str, callable] = {
     # Wrapper
     "boruta": reg_boruta,
     "pi": reg_pi,
+    "shap": reg_shap,
     "rfe": reg_rfe,
 }
 

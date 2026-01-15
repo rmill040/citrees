@@ -41,11 +41,9 @@ citrees addresses these issues by using **permutation tests** at each node to:
 
 ### Advanced Features
 
-| Document                                        | Description                                         |
-| ----------------------------------------------- | --------------------------------------------------- |
-| [Honest Estimation](honest-estimation.md)       | Sample splitting for unbiased predictions           |
-| [Conformal Prediction](conformal-prediction.md) | Uncertainty quantification with coverage guarantees |
-| [SHAP Integration](shap.md)                     | TreeSHAP feature attributions                       |
+| Document                                  | Description                             |
+| ----------------------------------------- | --------------------------------------- |
+| [Honest Estimation](honest-estimation.md) | Sample splitting for unbiased predictions |
 
 ### Reference
 
@@ -102,8 +100,6 @@ print(forest.feature_importances_)
 ### Advanced Capabilities
 
 - **Honest Estimation**: Sample splitting for unbiased leaf predictions
-- **Conformal Prediction**: Distribution-free prediction intervals
-- **SHAP Support**: TreeSHAP-compatible explanations
 - **Feature Muting**: Automatically removes uninformative features
 
 ## Installation

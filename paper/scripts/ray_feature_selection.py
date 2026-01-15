@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -402,7 +403,7 @@ def run_selection(X: np.ndarray, y: np.ndarray, method: str, task_type: str, see
 
 @ray.remote(resources={"selection": 1})
 def process_config(method: str, dataset: str, seed: int, task_type: str) -> dict[str, Any]:
-    s3_path = f"s3://{config.bucket_name}/rankings/{task_type}/{dataset}/{method}_seed{seed}.parquet"
+    s3_path = f"s3://{os.environ['S3_BUCKET']}/rankings/{task_type}/{dataset}/{method}_seed{seed}.parquet"
 
     if s3_file_exists(s3_path):
         return {"status": "skipped", "method": method, "dataset": dataset, "seed": seed}

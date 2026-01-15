@@ -15,7 +15,7 @@ to determine significance.
 et al., 2006) but is not a direct port of R's `partykit::ctree`. We implement
 the core principles—permutation-based variable selection, statistical stopping
 rules, and unbiased splitting—while adding our own extensions like RDC
-selectors, feature muting, and conformal prediction.
+selectors and feature muting.
 
 ## Why citrees?
 
@@ -105,9 +105,6 @@ considered for splitting.
 - **Feature Muting**: Automatically removes clearly uninformative features
 - **Honest Estimation**: Sample splitting for unbiased leaf predictions (Wager &
   Athey, 2018)
-- **Conformal Prediction**: Distribution-free prediction intervals with coverage
-  guarantees
-- **SHAP Support**: Model-agnostic feature attributions
 
 ## Algorithm Overview
 
@@ -155,15 +152,13 @@ function BuildTree(X, y, depth):
 
 ## Documentation
 
-| Document                                             | Description                                     |
-| ---------------------------------------------------- | ----------------------------------------------- |
-| [Algorithm Details](docs/algorithm.md)               | Deep dive into conditional inference            |
-| [Selectors](docs/selectors.md)                       | Feature selection methods (mc, mi, rdc, pc, dc) |
-| [Splitters](docs/splitters.md)                       | Split criteria (gini, entropy, mse, mae)        |
-| [Permutation Tests](docs/permutation-tests.md)       | Statistical testing framework                   |
-| [Honest Estimation](docs/honest-estimation.md)       | Sample splitting for causal inference           |
-| [Conformal Prediction](docs/conformal-prediction.md) | Uncertainty quantification                      |
-| [SHAP Integration](docs/shap.md)                     | Feature attributions                            |
+| Document                                       | Description                                     |
+| ---------------------------------------------- | ----------------------------------------------- |
+| [Algorithm Details](docs/algorithm.md)         | Deep dive into conditional inference            |
+| [Selectors](docs/selectors.md)                 | Feature selection methods (mc, mi, rdc, pc, dc) |
+| [Splitters](docs/splitters.md)                 | Split criteria (gini, entropy, mse, mae)        |
+| [Permutation Tests](docs/permutation-tests.md) | Statistical testing framework                   |
+| [Honest Estimation](docs/honest-estimation.md) | Sample splitting for causal inference           |
 
 ## Parameters Reference
 

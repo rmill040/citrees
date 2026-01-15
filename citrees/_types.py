@@ -49,13 +49,6 @@ class SamplingMethod(StrEnum):
     STRATIFIED = "stratified"
 
 
-class ImportanceMethod(StrEnum):
-    MDI = "mdi"
-    PERMUTATION = "permutation"
-    SHAP = "shap"
-    CPI = "cpi"
-
-
 class EstimatorType(StrEnum):
     CLASSIFIER = "classifier"
     REGRESSOR = "regressor"

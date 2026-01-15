@@ -74,8 +74,6 @@ nav:
       - Permutation Tests: permutation-tests.md
   - Advanced:
       - Honest Estimation: honest-estimation.md
-      - Conformal Prediction: conformal-prediction.md
-      - SHAP Integration: shap.md
   - Reference:
       - Parameters: parameters.md
       - API: api.md

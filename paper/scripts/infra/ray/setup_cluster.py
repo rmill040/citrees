@@ -100,13 +100,18 @@ def generate_config(branch: str | None = None) -> None:
     print(f"  Branch: {branch}")
 
     print("\nEnsuring S3 bucket for results...")
-    ensure_s3_bucket()
+    bucket_name = ensure_s3_bucket()
 
     print(f"\nReading template: {CLUSTER_EXAMPLE_YAML}")
     template = CLUSTER_EXAMPLE_YAML.read_text()
 
     print("Replacing placeholders...")
-    config_content = template.replace("__MY_IP__", ip).replace("__BRANCH__", branch)
+    config_content = (
+        template
+        .replace("__MY_IP__", ip)
+        .replace("__BRANCH__", branch)
+        .replace("__S3_BUCKET__", bucket_name)
+    )
 
     print(f"Writing: {CLUSTER_YAML}")
     CLUSTER_YAML.write_text(config_content)

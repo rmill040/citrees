@@ -932,14 +932,10 @@ For any theorem involving permutation p-values, state (some variant of):
    Under a global null at the root across tested features, the probability the learned tree has any split is at most
    $\alpha_{\text{sel}}$ (Proposition 3b).
 
-5. **(Optional) Honest estimation unbiasedness.**  
+5. **(Optional) Honest estimation unbiasedness.**
    If `honesty=True` and the sample split is independent of the observed data, leaf means are unbiased conditional on
    the learned partition on leaves that receive estimation samples (Proposition 4). If these conditions do not hold (or
    if `honesty=False`), do not claim unbiased leaf estimation.
-
-6. **(Optional) Conformal coverage.**  
-   If you wrap a fitted model with split conformal prediction, you can claim finite-sample marginal coverage under
-   exchangeability (standard conformal theory; not unique to citrees).
 
 ### 9.3 "Rigorous mode" settings for experiments that cite these results
 

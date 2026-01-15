@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "paper" / "scripts"
 import pandas as pd
 
 from analysis import (
+    bootstrap_ci,
     cohens_d,
     compute_noise_selection_rate,
     interpret_cohens_d,
@@ -282,3 +283,56 @@ class TestInterpretCohensD:
         assert interpret_cohens_d(1.0) == "large"
         assert interpret_cohens_d(2.5) == "large"
         assert interpret_cohens_d(-1.2) == "large"
+
+
+# ==============================================================================
+# Tests for bootstrap_ci
+# ==============================================================================
+
+
+class TestBootstrapCI:
+    """Tests for bootstrap confidence interval calculation."""
+
+    def test_ci_contains_sample_mean(self):
+        """CI should contain sample mean."""
+        scores = np.array([0.8, 0.82, 0.79, 0.81, 0.83, 0.78, 0.80, 0.84, 0.77, 0.82])
+        lo, hi = bootstrap_ci(scores)
+        mean = np.mean(scores)
+        assert lo <= mean <= hi
+
+    def test_larger_samples_narrower_ci(self):
+        """Larger samples should produce narrower CI."""
+        np.random.seed(42)
+        small_sample = np.random.normal(0.8, 0.1, 10)
+        large_sample = np.random.normal(0.8, 0.1, 100)
+
+        lo_s, hi_s = bootstrap_ci(small_sample)
+        lo_l, hi_l = bootstrap_ci(large_sample)
+
+        width_small = hi_s - lo_s
+        width_large = hi_l - lo_l
+        assert width_large < width_small
+
+    def test_deterministic_with_seed(self):
+        """Same seed should produce identical results."""
+        scores = np.array([0.8, 0.82, 0.79, 0.81, 0.83])
+        ci1 = bootstrap_ci(scores, random_state=42)
+        ci2 = bootstrap_ci(scores, random_state=42)
+        assert ci1 == ci2
+
+    def test_different_seeds_different_results(self):
+        """Different seeds should produce different results."""
+        scores = np.array([0.8, 0.82, 0.79, 0.81, 0.83])
+        ci1 = bootstrap_ci(scores, random_state=42)
+        ci2 = bootstrap_ci(scores, random_state=123)
+        assert ci1 != ci2
+
+    def test_high_confidence_wider_ci(self):
+        """Higher confidence level should produce wider CI."""
+        scores = np.array([0.8, 0.82, 0.79, 0.81, 0.83, 0.78, 0.80, 0.84])
+        lo_95, hi_95 = bootstrap_ci(scores, ci=0.95)
+        lo_99, hi_99 = bootstrap_ci(scores, ci=0.99)
+
+        width_95 = hi_95 - lo_95
+        width_99 = hi_99 - lo_99
+        assert width_99 > width_95

@@ -48,19 +48,16 @@ auth:
 available_node_types:
   head:
     node_config:
-      InstanceType: c7i.4xlarge
+      InstanceType: c6i.4xlarge
       ImageId: ami-0030e4319cbf4dbf2  # Ubuntu 22.04 us-east-1
     resources: {}
 
   selection_worker:
     node_config:
-      InstanceType: c7i.8xlarge  # 32 vCPUs, 64GB RAM - heavy feature selection
+      InstanceType: c6i.8xlarge  # 32 vCPUs, 64GB RAM - heavy feature selection
       ImageId: ami-0030e4319cbf4dbf2
       InstanceMarketOptions:
         MarketType: spot
-        SpotOptions:
-          SpotInstanceType: persistent
-          InstanceInterruptionBehavior: terminate
     resources:
       selection: 100
     min_workers: 0
@@ -68,13 +65,10 @@ available_node_types:
 
   eval_worker:
     node_config:
-      InstanceType: c7i.4xlarge  # 16 vCPUs, 32GB RAM - lighter downstream eval
+      InstanceType: c6i.4xlarge  # 16 vCPUs, 32GB RAM - lighter downstream eval
       ImageId: ami-0030e4319cbf4dbf2
       InstanceMarketOptions:
         MarketType: spot
-        SpotOptions:
-          SpotInstanceType: persistent
-          InstanceInterruptionBehavior: terminate
     resources:
       evaluation: 100
     min_workers: 0
@@ -90,6 +84,8 @@ setup_commands:
   - cd ~/citrees && $HOME/.local/bin/uv sync --group paper
   # Create python wrapper script (symlink bypasses venv detection, wrapper preserves it)
   - sudo rm -f /usr/local/bin/python && echo -e '#!/bin/bash\nexec /home/ubuntu/citrees/.venv/bin/python "$@"' | sudo tee /usr/local/bin/python > /dev/null && sudo chmod +x /usr/local/bin/python
+  # Set S3_BUCKET env var (resolved at generate time, avoids STS calls on workers)
+  - echo 'export S3_BUCKET=__S3_BUCKET__' >> ~/.bashrc
 
 # Override Ray's default pip commands (we use uv)
 head_setup_commands: []

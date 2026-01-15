@@ -446,8 +446,6 @@ dependencies = [
     { name = "rpy2" },
     { name = "scikit-learn" },
     { name = "scipy" },
-    { name = "shap", version = "0.49.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "shap", version = "0.50.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "statsmodels" },
     { name = "xgboost" },
 ]
@@ -497,6 +495,8 @@ paper = [
     { name = "pyyaml" },
     { name = "ray", extra = ["default"] },
     { name = "rich" },
+    { name = "shap", version = "0.49.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
+    { name = "shap", version = "0.50.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "typer" },
     { name = "xgboost" },
 ]
@@ -533,7 +533,6 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.4" },
     { name = "scipy", specifier = ">=1.12" },
     { name = "seaborn", marker = "extra == 'bench'", specifier = ">=0.13" },
-    { name = "shap", specifier = ">=0.49.1" },
     { name = "shap", marker = "extra == 'bench'", specifier = ">=0.45" },
     { name = "statsmodels", specifier = ">=0.14.6" },
     { name = "xgboost", specifier = ">=3.1.3" },
@@ -560,6 +559,7 @@ paper = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ray", extras = ["default"], specifier = ">=2.9.0" },
     { name = "rich", specifier = ">=13.0.0" },
+    { name = "shap", specifier = ">=0.49.1" },
     { name = "typer", specifier = ">=0.12.0" },
     { name = "xgboost", specifier = ">=3.1.3" },
 ]

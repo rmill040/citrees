@@ -37,7 +37,6 @@ citrees/
 │   ├── _splitter.py        # Split criteria (gini, entropy, mse, mae)
 │   ├── _threshold_method.py # Threshold calculation methods
 │   ├── _registry.py        # Registry pattern for selectors/splitters
-│   ├── _conformal.py       # Conformal prediction wrappers
 │   ├── _utils.py           # Utility functions
 │   └── py.typed            # PEP 561 marker
 ├── tests/                  # Pytest test suite
@@ -344,83 +343,23 @@ and **do not claim results you did not run**.
 
 ## Current Limitations vs State of the Art
 
-| Area               | citrees Now  | SOTA (2024-2025)         | Priority |
-| ------------------ | ------------ | ------------------------ | -------- |
-| Feature Importance | MDI only     | SHAP/TreeSHAP            | HIGH     |
-| Uncertainty        | None         | Conformal Prediction     | HIGH     |
-| Causal Inference   | None         | Honest Estimation, GRF   | MEDIUM   |
-| Speed              | CPU/Numba    | GPU (cuML 20-45x faster) | MEDIUM   |
-| Tree Structure     | Axis-aligned | Oblique, Neural Trees    | LOW      |
+| Area               | citrees Now | SOTA (2024-2025)         | Priority |
+| ------------------ | ----------- | ------------------------ | -------- |
+| Feature Importance | MDI         | SHAP/TreeSHAP            | N/A      |
+| Causal Inference   | Honesty     | Honest Estimation, GRF   | DONE     |
+| Speed              | CPU/Numba   | GPU (cuML 20-45x faster) | MEDIUM   |
+| Tree Structure     | Axis-aligned| Oblique, Neural Trees    | LOW      |
 
----
-
-## HIGH PRIORITY
-
-### 1. SHAP/TreeSHAP Integration
-
-**Why**: Current `feature_importances_` (MDI) has known biases with correlated
-features. SHAP provides theoretically grounded, consistent feature attributions.
-
-**Research**:
-
-- [TreeSHAP](https://shap.readthedocs.io/en/latest/) - O(TLD²) complexity for
-  tree ensembles
-- [FastTreeSHAP](https://engineering.linkedin.com/blog/2022/fasttreeshap--accelerating-shap-value-computation-for-trees) -
-  2.5x faster (NeurIPS 2021)
-- [2024 Study](https://link.springer.com/article/10.1186/s40537-024-00905-w) -
-  Compared SHAP vs importance-based selection
-
-**Implementation**:
-
-```python
-# Add to _tree.py or new _explainer.py
-def shap_values(self, X):
-    """Compute SHAP values using TreeSHAP algorithm."""
-    import shap
-    explainer = shap.TreeExplainer(self)
-    return explainer.shap_values(X)
-```
-
-**Effort**: ~2-3 days (can wrap existing `shap` library)
-
----
-
-### 2. Conformal Prediction for Uncertainty Quantification
-
-**Why**: No current way to get prediction intervals or confidence sets. Critical
-for high-stakes applications.
-
-**Research**:
-
-- [Conformal Prediction Survey](https://dl.acm.org/doi/10.1145/3736575) - ACM
-  Computing Surveys 2024
-- [Mondrian Conformal Prediction](https://www.sciencedirect.com/science/article/abs/pii/S0031320325009999) -
-  Handles heteroscedasticity
-- [Regression Trees for Prediction Intervals](https://www.sciencedirect.com/science/article/abs/pii/S0020025524012830) -
-  2024
-
-**Implementation**:
-
-```python
-class ConformalForestClassifier(ConditionalInferenceForestClassifier):
-    def predict_set(self, X, alpha=0.1):
-        """Return prediction sets with 1-alpha coverage guarantee."""
-        # Split-conformal or CV+ approach
-        ...
-
-class ConformalForestRegressor(ConditionalInferenceForestRegressor):
-    def predict_interval(self, X, alpha=0.1):
-        """Return prediction intervals with 1-alpha coverage."""
-        ...
-```
-
-**Effort**: ~1 week (algorithm implementation + calibration)
+**Note on SHAP**: citrees uses a custom tree structure not compatible with SHAP's
+TreeExplainer. For benchmarking, SHAP TreeExplainer is used with sklearn/XGBoost/
+LightGBM models in `paper/scripts/`. This is intentional - SHAP is a benchmark
+comparison tool, not a core library feature.
 
 ---
 
 ## MEDIUM PRIORITY
 
-### 3. Honest Estimation (Sample Splitting)
+### 1. Honest Estimation (Sample Splitting)
 
 **Why**: Current trees use same data for splitting and estimation, causing bias.
 Honest trees use separate samples, enabling valid inference.
@@ -452,7 +391,7 @@ class HonestConditionalInferenceTree(ConditionalInferenceTreeClassifier):
 
 ---
 
-### 4. GPU Acceleration
+### 2. GPU Acceleration
 
 **Why**: Training on large datasets is slow. cuML achieves 20-45x speedups.
 
@@ -474,7 +413,7 @@ class HonestConditionalInferenceTree(ConditionalInferenceTreeClassifier):
 
 ## LOW PRIORITY (Future Research)
 
-### 5. Oblique Decision Trees
+### 3. Oblique Decision Trees
 
 **Why**: Axis-aligned splits are limiting. Oblique trees use linear combinations
 of features.
@@ -488,7 +427,7 @@ of features.
 - [Statistical Advantages](https://arxiv.org/abs/2407.02458) - Oblique Mondrian
   trees (2024)
 
-### 6. Neural/Differentiable Trees
+### 4. Neural/Differentiable Trees
 
 **Why**: End-to-end training with neural networks.
 
@@ -499,7 +438,7 @@ of features.
 - [Deep Neural Decision Trees](https://arxiv.org/pdf/1806.06988)
 - [Neural-Backed Decision Trees](https://research.alvinwan.com/neural-backed-decision-trees/)
 
-### 7. Gradient Boosting Integration
+### 5. Gradient Boosting Integration
 
 **Why**: Combine conditional inference with boosting.
 

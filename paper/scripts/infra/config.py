@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -169,8 +170,13 @@ class Config:
 
     @property
     def bucket_name(self) -> str:
-        """S3 bucket name."""
+        """S3 bucket name (may call STS if not configured)."""
         return self.s3.bucket_name or f"{self.project_name}-results-{self.account_id}"
+
+    @property
+    def s3_bucket(self) -> str:
+        """S3 bucket - reads from S3_BUCKET env var first (set by cluster setup), avoids STS calls on workers."""
+        return os.environ.get("S3_BUCKET") or self.bucket_name
 
     @property
     def ecr_repository_name(self) -> str:

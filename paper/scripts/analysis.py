@@ -72,6 +72,71 @@ def bootstrap_ci(
     )
 
 
+def generate_summary_with_ci(
+    data_wide: pd.DataFrame,
+    methods: list[str],
+    metrics: list[str],
+    output_path: Path,
+    n_bootstrap: int = 2000,
+    ci_level: float = 0.95,
+) -> pd.DataFrame:
+    """Generate summary table with bootstrap confidence intervals.
+
+    Follows "Define Once, Apply Everywhere" architecture.
+    Works for synthetic, classification, and regression results.
+
+    Parameters
+    ----------
+    data_wide : pd.DataFrame
+        Wide-format data with columns: {method}_{metric}
+    methods : list[str]
+        Method names (e.g., ['cif', 'rf', 'boruta'])
+    metrics : list[str]
+        Metric names (e.g., ['precision@10', 'accuracy'])
+    output_path : Path
+        Where to save CSV output
+    n_bootstrap : int
+        Number of bootstrap resamples (default: 2000)
+    ci_level : float
+        Confidence level (default: 0.95 for 95% CI)
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary with columns:
+        - method
+        - {metric}_mean, {metric}_ci_lo, {metric}_ci_hi, {metric}_formatted
+    """
+    results = []
+
+    for method in methods:
+        row = {"method": method}
+        for metric in metrics:
+            col = f"{method}_{metric}"
+            if col in data_wide.columns:
+                values = data_wide[col].dropna().values
+                if len(values) >= 5:  # Need minimum samples for meaningful CI
+                    mean = float(np.mean(values))
+                    lo, hi = bootstrap_ci(values, n_bootstrap=n_bootstrap, ci=ci_level)
+                    row[f"{metric}_mean"] = mean
+                    row[f"{metric}_ci_lo"] = lo
+                    row[f"{metric}_ci_hi"] = hi
+                    row[f"{metric}_formatted"] = f"{mean:.3f} [{lo:.3f}, {hi:.3f}]"
+                else:
+                    row[f"{metric}_mean"] = float(np.mean(values)) if len(values) > 0 else np.nan
+                    row[f"{metric}_ci_lo"] = np.nan
+                    row[f"{metric}_ci_hi"] = np.nan
+                    row[f"{metric}_formatted"] = (
+                        f"{np.mean(values):.3f} [insufficient data]" if len(values) > 0 else "N/A"
+                    )
+        results.append(row)
+
+    df = pd.DataFrame(results)
+    df.to_csv(output_path, index=False)
+    print(f"  Saved summary with CI: {output_path}")
+    return df
+
+
 def pairwise_wilcoxon_holm(
     data: pd.DataFrame, methods: list[str], metric: str
 ) -> pd.DataFrame:
@@ -1285,6 +1350,19 @@ def run_statistical_analysis(
                 plot_critical_difference(ranks_df, cd, f"{output_prefix} - {metric}", cd_path)
         except Exception as e:
             print(f"  CD diagram failed: {e}")
+
+    # 5. Summary table with bootstrap CIs (aggregates all metrics)
+    try:
+        summary_ci_path = tables_dir / f"{output_prefix}_summary_with_ci.csv"
+        summary_df = generate_summary_with_ci(
+            data_wide=data_wide,
+            methods=methods,
+            metrics=metrics,
+            output_path=summary_ci_path,
+        )
+        results[f"{output_prefix}_summary_with_ci"] = summary_df
+    except Exception as e:
+        print(f"  Summary with CI failed: {e}")
 
     return results
 

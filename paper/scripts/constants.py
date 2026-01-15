@@ -33,7 +33,7 @@ AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 # Feature Selection Methods
 # =============================================================================
 
-# Classification methods (18 total)
+# Classification methods (19 total)
 CLF_METHODS = [
     # Filter methods
     "mc",  # Multiple correlation (ANOVA-based)
@@ -55,16 +55,18 @@ CLF_METHODS = [
     # Wrapper methods
     "boruta",
     "pi",  # Permutation importance
+    "cpi",
     "shap",
     "rfe",  # Recursive Feature Elimination
 ]
 
-# Regression methods (16 total)
+# Regression methods (17 total)
 REG_METHODS = [
     # Filter methods
-    "pc",  # Pearson correlation
-    "dc",  # Distance correlation
-    "rdc",  # Randomized dependence coefficient
+    "pc",
+    "dc",
+    "rdc",
+    "mrmr",
     # Permutation test methods
     "ptest_pc",
     "ptest_dc",
@@ -80,7 +82,9 @@ REG_METHODS = [
     # Wrapper methods
     "boruta",
     "pi",
-    "rfe",  # Recursive Feature Elimination
+    "cpi",
+    "shap",
+    "rfe",
 ]
 
 # Embedding methods (have feature_importances_ and can make predictions)

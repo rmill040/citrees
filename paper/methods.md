@@ -1124,6 +1124,23 @@ All statistical analyses follow a unified pipeline applied to each dataset type
 
 This ensures consistent, reproducible statistical comparisons across all experiments.
 
+### 12.7 Bootstrap Confidence Intervals
+
+To quantify uncertainty in performance estimates, we compute bootstrap
+confidence intervals using the percentile method:
+
+1. **Resample**: Draw $B = 2000$ bootstrap samples with replacement
+2. **Compute**: Calculate mean for each bootstrap sample
+3. **Percentile**: Take [2.5th, 97.5th] percentiles for 95% CI
+
+$$\text{CI}_{95\%} = [q_{0.025}, q_{0.975}]$$
+
+This non-parametric approach makes no distributional assumptions and
+provides valid intervals for any sample size $\geq 5$.
+
+**Output format**: Results are reported as `mean [CI_lo, CI_hi]`, e.g.,
+`0.847 [0.823, 0.871]`.
+
 ---
 
 ## 13. Implementation Details

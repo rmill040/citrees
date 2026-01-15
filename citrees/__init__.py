@@ -1,16 +1,13 @@
 # flake8: noqa
-from citrees._conformal import ConformalClassifier, ConformalRegressor, CQR
 from citrees._forest import (
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
 )
-from citrees._importance import SHAPExplainer, compute_importance
 from citrees._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor
 from citrees._types import (
     BootstrapMethod,
     EarlyStopping,
     EstimatorType,
-    ImportanceMethod,
     MaxValuesMethod,
     NResamples,
     SamplingMethod,
@@ -18,25 +15,16 @@ from citrees._types import (
 )
 
 __all__ = [
-    # Estimators
     "ConditionalInferenceTreeClassifier",
     "ConditionalInferenceTreeRegressor",
     "ConditionalInferenceForestClassifier",
     "ConditionalInferenceForestRegressor",
-    # Utilities
-    "compute_importance",
-    "SHAPExplainer",
-    "ConformalClassifier",
-    "ConformalRegressor",
-    "CQR",
-    # Enums
     "EarlyStopping",
     "NResamples",
     "MaxValuesMethod",
     "ThresholdMethod",
     "BootstrapMethod",
     "SamplingMethod",
-    "ImportanceMethod",
     "EstimatorType",
 ]
 

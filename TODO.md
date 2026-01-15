@@ -13,13 +13,12 @@
 | 🟠 HIGH | No power analysis / B selection guidance | `theory.md` | Documentation | ✅ Resolved |
 | 🟠 HIGH | Nested CV structure unclear in experiments | `paper/scripts/` | Benchmarking | ❌ Open |
 | 🟡 MEDIUM | Global error control with feature muting undefined | `theory.md:715-717` | Theory | ❌ Open |
-| 🟡 MEDIUM | Missing baselines (RFE, TreeSHAP, mRMR) | `paper/scripts/` | Benchmarking | ❌ Open |
+| 🟡 MEDIUM | Missing baselines (RFE, TreeSHAP, mRMR) | `paper/scripts/` | Benchmarking | ✅ Resolved |
 | 🟡 MEDIUM | Synthetic experiments too easy | `synthetic_experiments.py` | Benchmarking | ❌ Open |
 | 🟡 MEDIUM | Early stopping p-value inflation not quantified | `theory.md:683-685` | Theory | ✅ Resolved |
 | 🟢 LOW | Broad exception handling | `_selector.py:257-260` | Code Quality | ❌ Open |
 | 🟢 LOW | Parallel RNG seeding fragile | `_selector.py`, `_splitter.py` | Code Quality | ✅ Resolved |
 | 🟢 LOW | Forest-level theory absent | `theory.md:735-737` | Theory | ❌ Open |
-| 🟢 LOW | Conformal prediction double-dipping | `_conformal.py` | Statistical | ❌ Open |
 
 ---
 
@@ -562,29 +561,6 @@ except Exception:  # Too broad!
 - [ ] Reference Wager & Athey (2018) for honest forest consistency
 - [ ] Add empirical study of forest vs tree performance
 - [ ] Consider implementing forest-level confidence intervals
-
----
-
-### 12. Conformal Prediction Double-Dipping
-
-**Location**: `citrees/_conformal.py:84-102`
-
-**Problem**: Conformal prediction assumes exchangeability of (X, Y). If conformal is applied *after* tree structure selection (which uses Y), the exchangeability assumption breaks.
-
-**Current code** (`_conformal.py:100-101`):
-```python
-X_train, X_cal, y_train, y_cal = train_test_split(
-    X, y, test_size=self.calibration_size, random_state=self.random_state, stratify=y
-)
-```
-
-**Issue**: Stratified split depends on Y, similar to honesty issue.
-
-#### Resolution Checklist
-
-- [ ] Add warning about applying conformal after data-dependent model selection
-- [ ] Document when conformal coverage guarantees hold
-- [ ] Consider implementing "conformalized honest trees" with proper sample splitting
 
 ---
 
@@ -1631,7 +1607,6 @@ class ConditionalInferenceTreeClassifier:
 | Method | Type | Coverage Guarantee | Computation |
 |--------|------|-------------------|-------------|
 | **Quantile RF** | Prediction intervals | Asymptotic | O(n × T) |
-| **Conformal** | Prediction sets | Finite-sample | O(n × T) |
 | **RF-FIRE** | Trust scores | Heuristic | O(n × T) |
 | **Jackknife+** | Confidence intervals | Finite-sample | O(n² × T) |
 
@@ -1659,20 +1634,6 @@ class QuantileForest:
         """Predict q-th quantile."""
         weights = self._compute_weights(X)  # From all trees
         return weighted_quantile(self.y_train_, weights, q)
-```
-
-#### Conformal Prediction (Already in citrees!)
-
-citrees has `_conformal.py` but it's a **wrapper**, not integrated:
-
-```python
-# Current: Separate wrapper
-from citrees._conformal import ConformalForestClassifier
-
-# Could be: Integrated into forest
-clf = ConditionalInferenceForestClassifier()
-clf.fit(X_train, y_train)
-intervals = clf.predict_interval(X_test, alpha=0.1)  # ← Add this
 ```
 
 #### RF-FIRE: Localized UQ via Proximities
@@ -1706,7 +1667,7 @@ def rf_fire_trust_score(forest, X_train, y_train, X_new):
 
 ```python
 class ConditionalInferenceForestRegressor:
-    def predict_interval(self, X, alpha=0.1, method="conformal"):
+    def predict_interval(self, X, alpha=0.1, method="quantile"):
         """
         Predict with uncertainty quantification.
 
@@ -1715,13 +1676,10 @@ class ConditionalInferenceForestRegressor:
         alpha : float
             Miscoverage rate (returns 1-alpha coverage interval)
         method : str
-            - "conformal": Split conformal (finite-sample guarantee)
             - "quantile": Quantile regression forest (asymptotic)
             - "jackknife": Jackknife+ (finite-sample, expensive)
         """
-        if method == "conformal":
-            return self._conformal_interval(X, alpha)
-        elif method == "quantile":
+        if method == "quantile":
             return self._quantile_interval(X, alpha)
         elif method == "jackknife":
             return self._jackknife_interval(X, alpha)
@@ -1729,7 +1687,6 @@ class ConditionalInferenceForestRegressor:
 
 #### Proof-of-Concept Checklist
 
-- [ ] **Integrate conformal into forest API**: Add `predict_interval` method
 - [ ] **Implement quantile forest**: Store leaf responses, compute weighted quantiles
 - [ ] **Benchmark coverage**: `scratch/benchmark_uq.py`
   - Test empirical coverage vs nominal
@@ -1935,7 +1892,7 @@ class ConditionalInferenceForestClassifier:
 
 #### Proof-of-Concept Checklist
 
-- [ ] **Implement CVPFI**: `citrees/_importance.py`
+- [ ] **Implement CVPFI**: `paper/scripts/` (benchmark utility, not core library)
 - [ ] **Benchmark vs MDI**: Compare rankings on correlated data
 - [ ] **Test stability**: Compare variance across runs
 
@@ -1985,10 +1942,7 @@ echo "=== Verification complete ==="
 | P6 | Batch Selector Computation | NOT PROVEN | Needs benchmarking | 🟢 LOW |
 | P7 | Look-Ahead Interaction Detection | NOT PROVEN | Needs benchmarking | 🟢 LOW |
 | P8 | OOB Error Estimation | **MISSING** | Confirmed not implemented | 🟡 MEDIUM |
-| P9 | Conformal Prediction | ✅ DONE | `_conformal.py` complete | N/A |
-| P10 | TreeSHAP Integration | ✅ DONE | `_importance.py` has SHAP | N/A |
-| P11 | CPI (Conditional Permutation) | ✅ DONE | `_importance.py` | N/A |
-| P12 | Honest Estimation | ✅ DONE | Parameter exists in tree | N/A |
+| P9 | Honest Estimation | ✅ DONE | Parameter exists in tree | N/A |
 
 ---
 

@@ -60,7 +60,7 @@ CLF_METHODS = [
     "rfe",  # Recursive Feature Elimination
 ]
 
-# Regression methods (17 total)
+# Regression methods (19 total)
 REG_METHODS = [
     # Filter methods
     "pc",

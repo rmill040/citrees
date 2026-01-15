@@ -537,6 +537,10 @@ CLF_PI_GRID: dict[str, list[Any]] = {
     "n_repeats": [5, 10, 20],
 }
 
+CLF_CPI_GRID: dict[str, list[Any]] = {
+    "n_repeats": [5, 10, 20],
+}
+
 CLF_SHAP_GRID: dict[str, list[Any]] = {
     "max_samples": [100, 500, 1000],
 }
@@ -645,6 +649,10 @@ REG_PI_GRID: dict[str, list[Any]] = {
     "n_repeats": [5, 10, 20],
 }
 
+REG_CPI_GRID: dict[str, list[Any]] = {
+    "n_repeats": [5, 10, 20],
+}
+
 
 # =============================================================================
 # CONFIG GENERATORS
@@ -726,6 +734,10 @@ def clf_boruta() -> list[dict[str, Any]]:
 
 def clf_pi() -> list[dict[str, Any]]:
     return _generate_simple_grid(CLF_PI_GRID, "pi")
+
+
+def clf_cpi() -> list[dict[str, Any]]:
+    return _generate_simple_grid(CLF_CPI_GRID, "cpi")
 
 
 def clf_shap() -> list[dict[str, Any]]:
@@ -810,6 +822,10 @@ def reg_pi() -> list[dict[str, Any]]:
     return _generate_simple_grid(REG_PI_GRID, "pi")
 
 
+def reg_cpi() -> list[dict[str, Any]]:
+    return _generate_simple_grid(REG_CPI_GRID, "cpi")
+
+
 def reg_rfe() -> list[dict[str, Any]]:
     return _generate_simple_grid(REG_RFE_GRID, "rfe")
 
@@ -847,6 +863,7 @@ CLF_CONFIG_GENERATORS: dict[str, callable] = {
     # Wrapper
     "boruta": clf_boruta,
     "pi": clf_pi,
+    "cpi": clf_cpi,
     "shap": clf_shap,
     "rfe": clf_rfe,
 }
@@ -872,6 +889,7 @@ REG_CONFIG_GENERATORS: dict[str, callable] = {
     # Wrapper
     "boruta": reg_boruta,
     "pi": reg_pi,
+    "cpi": reg_cpi,
     "shap": reg_shap,
     "rfe": reg_rfe,
 }

@@ -100,7 +100,7 @@ AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
 
 ## Methods
 
-### Classification (18 methods)
+### Classification (19 methods)
 
 | Method | Type | Description |
 |--------|------|-------------|
@@ -120,18 +120,20 @@ AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
 | `cat` | embedding | CatBoost |
 | `boruta` | wrapper | Boruta feature selection |
 | `pi` | wrapper | Permutation importance |
+| `cpi` | wrapper | Conditional permutation importance |
 | `shap` | wrapper | SHAP importance |
 | `rfe` | wrapper | Recursive Feature Elimination |
 
 **Downstream models:** LogisticRegression, SVM, kNN
 
-### Regression (16 methods)
+### Regression (19 methods)
 
 | Method | Type | Description |
 |--------|------|-------------|
 | `pc` | filter | Pearson correlation |
 | `dc` | filter | Distance correlation |
 | `rdc` | filter | Randomized dependence coefficient |
+| `mrmr` | filter | Minimum Redundancy Maximum Relevance |
 | `ptest_pc` | permutation | PC with permutation test |
 | `ptest_dc` | permutation | DC with permutation test |
 | `ptest_rdc` | permutation | RDC with permutation test |
@@ -144,6 +146,8 @@ AWS_PROFILE=personal ray down paper/scripts/infra/ray/cluster.yaml
 | `cat` | embedding | CatBoost |
 | `boruta` | wrapper | Boruta feature selection |
 | `pi` | wrapper | Permutation importance |
+| `cpi` | wrapper | Conditional permutation importance |
+| `shap` | wrapper | SHAP importance |
 | `rfe` | wrapper | Recursive Feature Elimination |
 
 **Downstream models:** Ridge, SVR, kNN
@@ -239,9 +243,9 @@ uv run python paper/scripts/generate_figures.py
 
 ## Config Calculation
 
-**Classification:** 18 methods × N datasets × 10 seeds
-**Regression:** 16 methods × N datasets × 10 seeds
+**Classification:** 19 methods × N datasets × 10 seeds
+**Regression:** 19 methods × N datasets × 10 seeds
 
 Example with 132 synthetic + 7 real datasets = 139 datasets:
-- Classification: 18 × 139 × 10 = **25,020 configs**
-- Regression: 16 × 139 × 10 = **22,240 configs**
+- Classification: 19 × 139 × 10 = **26,410 configs**
+- Regression: 19 × 139 × 10 = **26,410 configs**

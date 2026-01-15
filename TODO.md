@@ -301,31 +301,30 @@ if __name__ == "__main__":
 
 ---
 
-### 6. Missing Baselines (RFE, TreeSHAP, mRMR)
+### 6. Missing Baselines (RFE, TreeSHAP, mRMR) ✅ RESOLVED
 
-**Location**: `paper/scripts/synthetic_experiments.py:45-72`
+**Location**: `paper/scripts/constants.py`, `paper/scripts/config.py`, `paper/scripts/ray_feature_selection.py`
 
-**Problem**: Several widely-used feature selection methods are missing from benchmarks:
+**✅ RESOLVED**: All baselines implemented for both classification and regression.
 
-| Missing Method | Why Important |
-|----------------|---------------|
-| **RFE** | Recursive Feature Elimination - standard sklearn baseline |
-| **TreeSHAP** | Listed as HIGH priority in roadmap but not benchmarked |
-| **mRMR** | minimum Redundancy Maximum Relevance - handles correlations |
-| **Conditional Permutation Importance** | Strobl et al. 2008 - directly relevant |
+#### Implemented Methods
 
-**Current methods** (`synthetic_experiments.py:45-72`):
-- citree, ciforest (yours)
-- rf, et, dt (sklearn trees)
-- xgb, lgbm (gradient boosting)
+| Method | Classification | Regression |
+|--------|----------------|------------|
+| **RFE** | ✅ | ✅ |
+| **TreeSHAP** | ✅ | ✅ |
+| **mRMR** | ✅ | ✅ |
+| **CPI** (Conditional Permutation Importance) | ✅ | ✅ |
+| **Boruta** | ✅ | ✅ |
+| **PI** (Permutation Importance) | ✅ | ✅ |
 
 #### Resolution Checklist
 
-- [ ] Add RFE with RF base estimator
-- [ ] Add TreeSHAP importance extraction
-- [ ] Add mRMR (use `mrmr_selection` package or implement)
-- [ ] Add Conditional Permutation Importance (use `rfpimp` or implement)
-- [ ] Re-run synthetic experiments with new baselines
+- [x] Add RFE with RF base estimator
+- [x] Add TreeSHAP importance extraction
+- [x] Add mRMR (uses `mrmr_selection` package)
+- [x] Add Conditional Permutation Importance
+- [ ] Re-run experiments with new baselines
 - [ ] Update results and figures
 
 ---

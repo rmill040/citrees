@@ -230,18 +230,66 @@ pydantic = ">=2.0"       # Validation
 ### Testing
 
 ```bash
-uv run pytest tests/ -v                           # Run all tests
+uv run pytest tests/ -v                           # Run all tests (JIT enabled, fast)
+uv run pytest tests/ -m "not slow" -v             # Skip slow tests
 uv run pytest tests/integration/ -v               # Run integration tests
 uv run pytest tests/unit/ -v                      # Run unit tests
 uv run pytest -k "classifier" -v                  # Run by keyword
-uv run pytest --cov=citrees --cov-report=term-missing  # With coverage
+uv run pytest --cov=citrees --cov-report=term-missing  # With coverage (JIT disabled)
+```
+
+#### Two Test Modes: JIT On vs Off
+
+The test suite supports two modes controlled by `tests/conftest.py`:
+
+| Mode | JIT | Speed | Coverage | Use Case |
+|------|-----|-------|----------|----------|
+| Default | Enabled | Fast | No | Validate compiled Numba code works |
+| Coverage | Disabled | Slower | Yes | Track line coverage for CI |
+
+**How it works:**
+- JIT is **enabled by default** for fast test execution
+- JIT is **automatically disabled** when running with `--cov` flag
+- You can explicitly control JIT via `NUMBA_DISABLE_JIT` environment variable
+
+```bash
+# Fast tests (JIT enabled, validates compiled code)
+uv run pytest tests/
+
+# Coverage tests (JIT disabled, slower but tracks coverage)
+uv run pytest tests/ --cov=citrees
+
+# Explicitly control JIT
+NUMBA_DISABLE_JIT=1 uv run pytest tests/  # Force JIT off
+NUMBA_DISABLE_JIT=0 uv run pytest tests/  # Force JIT on
+```
+
+#### Slow Test Marker
+
+Tests that are computationally expensive are marked with `@pytest.mark.slow`:
+- `TestStatisticalCorrectness.test_full_ptest` - uses "auto" resamples
+- `TestResamplesConfiguration.test_n_resamples_maximum` - uses "maximum" resamples
+
+Skip slow tests for faster iteration:
+```bash
+uv run pytest tests/ -m "not slow" -v
 ```
 
 #### Testing Numba Functions
 
 Numba `@njit` decorated functions compile to machine code, so **pytest-cov cannot
-track line coverage inside them**. To get coverage of these functions, use the
-`.py_func` attribute which returns the original Python function:
+track line coverage inside them**. When running with coverage (`--cov`), JIT is
+automatically disabled, allowing coverage tracking.
+
+When JIT is disabled:
+- All `@njit` functions run as plain Python
+- No `.py_func` attribute exists (functions are already Python)
+- Coverage tracking works automatically
+- Tests run the same code paths as production, just without compilation
+
+When JIT is enabled (default):
+- Tests validate that compiled Numba code actually works
+- Use `.py_func` attribute to test both versions if needed:
 
 ```python
 from citrees._splitter import gini
@@ -259,13 +307,6 @@ def test_gini_py_func():
     # Verify both produce identical results
     assert result_jit == result_py == pytest.approx(0.5)
 ```
-
-**Note**: Tests use `NUMBA_DISABLE_JIT=1` (set in `tests/conftest.py`) to disable
-JIT globally. This means:
-- All `@njit` functions run as plain Python during tests
-- No `.py_func` attribute exists (functions are already Python)
-- Coverage tracking works automatically
-- Tests run the same code paths as production, just without compilation
 
 #### RNG Usage Pattern
 

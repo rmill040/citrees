@@ -34,7 +34,10 @@ from citrees import (
 
 warnings.filterwarnings("ignore")
 
-OUTPUT_DIR = Path(__file__).parent.parent / "results" / "figures"
+RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+FIGURES_DIR = RESULTS_DIR / "figures"
+TABLES_DIR = RESULTS_DIR / "tables"
+CACHE_DIR = RESULTS_DIR / "cache"
 RANDOM_STATE = 1718
 N_REPEATS = 10
 
@@ -1788,7 +1791,9 @@ def plot_high_dimensional(df: pd.DataFrame, output_path: Path) -> None:
 
 def main() -> None:
     """Generate all figures."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    TABLES_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
     # 1. Feature selection bias figures (classification)
     print("=" * 60)
@@ -1796,16 +1801,16 @@ def main() -> None:
     clf_df = run_feature_selection_experiment("classification")
 
     print("\nGenerating classification figures...")
-    plot_feature_selection_bars(clf_df, "classification", OUTPUT_DIR / "feature_selection_clf.png")
-    plot_informative_ratio(clf_df, OUTPUT_DIR / "informative_ratio.png")
+    plot_feature_selection_bars(clf_df, "classification", FIGURES_DIR / "feature_selection_clf.png")
+    plot_informative_ratio(clf_df, FIGURES_DIR / "informative_ratio.png")
 
     print("\nComputing statistics...")
     stats_df = compute_statistics(clf_df)
     print(stats_df.to_string(index=False))
 
     print("\nGenerating LaTeX table...")
-    generate_latex_table(stats_df, OUTPUT_DIR / "feature_selection_table.tex")
-    clf_df.to_parquet(OUTPUT_DIR / "feature_selection_data.parquet")
+    generate_latex_table(stats_df, TABLES_DIR / "feature_selection_table.tex")
+    clf_df.to_parquet(CACHE_DIR / "feature_selection_data.parquet")
 
     # 2. Timing figures
     print("\n" + "=" * 60)
@@ -1813,9 +1818,9 @@ def main() -> None:
     timing_df = run_timing_experiment()
 
     print("\nGenerating timing figures...")
-    plot_timing_bars(timing_df, OUTPUT_DIR / "timing_bars.png")
-    plot_timing_speedup(timing_df, OUTPUT_DIR / "timing_speedup.png")
-    timing_df.to_parquet(OUTPUT_DIR / "timing_data.parquet")
+    plot_timing_bars(timing_df, FIGURES_DIR / "timing_bars.png")
+    plot_timing_speedup(timing_df, FIGURES_DIR / "timing_speedup.png")
+    timing_df.to_parquet(CACHE_DIR / "timing_data.parquet")
 
     # 3. Correlated features experiment
     print("\n" + "=" * 60)
@@ -1823,8 +1828,8 @@ def main() -> None:
     corr_df = run_correlated_features_experiment()
 
     print("\nGenerating correlated features figure...")
-    plot_correlated_features(corr_df, OUTPUT_DIR / "correlated_features.png")
-    corr_df.to_parquet(OUTPUT_DIR / "correlated_features_data.parquet")
+    plot_correlated_features(corr_df, FIGURES_DIR / "correlated_features.png")
+    corr_df.to_parquet(CACHE_DIR / "correlated_features_data.parquet")
 
     print("\nCorrelated features summary:")
     print(
@@ -1839,8 +1844,8 @@ def main() -> None:
     complexity_df = run_complexity_vs_accuracy_experiment()
 
     print("\nGenerating complexity figure...")
-    plot_complexity_vs_accuracy(complexity_df, OUTPUT_DIR / "complexity_vs_accuracy.png")
-    complexity_df.to_parquet(OUTPUT_DIR / "complexity_data.parquet")
+    plot_complexity_vs_accuracy(complexity_df, FIGURES_DIR / "complexity_vs_accuracy.png")
+    complexity_df.to_parquet(CACHE_DIR / "complexity_data.parquet")
 
     # 5. High-dimensional experiment
     print("\n" + "=" * 60)
@@ -1848,8 +1853,8 @@ def main() -> None:
     highdim_df = run_high_dimensional_experiment()
 
     print("\nGenerating high-dimensional figure...")
-    plot_high_dimensional(highdim_df, OUTPUT_DIR / "high_dimensional.png")
-    highdim_df.to_parquet(OUTPUT_DIR / "high_dimensional_data.parquet")
+    plot_high_dimensional(highdim_df, FIGURES_DIR / "high_dimensional.png")
+    highdim_df.to_parquet(CACHE_DIR / "high_dimensional_data.parquet")
 
     # 6. Signal strength experiment
     print("\n" + "=" * 60)
@@ -1857,8 +1862,8 @@ def main() -> None:
     signal_df = run_signal_strength_experiment()
 
     print("\nGenerating signal strength figure...")
-    plot_signal_strength(signal_df, OUTPUT_DIR / "signal_strength.png")
-    signal_df.to_parquet(OUTPUT_DIR / "signal_strength_data.parquet")
+    plot_signal_strength(signal_df, FIGURES_DIR / "signal_strength.png")
+    signal_df.to_parquet(CACHE_DIR / "signal_strength_data.parquet")
 
     # 7. Redundant features experiment
     print("\n" + "=" * 60)
@@ -1866,8 +1871,8 @@ def main() -> None:
     redundant_df = run_redundant_features_experiment()
 
     print("\nGenerating redundant features figure...")
-    plot_redundant_features(redundant_df, OUTPUT_DIR / "redundant_features.png")
-    redundant_df.to_parquet(OUTPUT_DIR / "redundant_features_data.parquet")
+    plot_redundant_features(redundant_df, FIGURES_DIR / "redundant_features.png")
+    redundant_df.to_parquet(CACHE_DIR / "redundant_features_data.parquet")
 
     # 8. Multi-class experiment
     print("\n" + "=" * 60)
@@ -1875,8 +1880,8 @@ def main() -> None:
     multiclass_df = run_multiclass_experiment()
 
     print("\nGenerating multi-class figure...")
-    plot_multiclass(multiclass_df, OUTPUT_DIR / "multiclass.png")
-    multiclass_df.to_parquet(OUTPUT_DIR / "multiclass_data.parquet")
+    plot_multiclass(multiclass_df, FIGURES_DIR / "multiclass.png")
+    multiclass_df.to_parquet(CACHE_DIR / "multiclass_data.parquet")
 
     # 9. Class imbalance experiment
     print("\n" + "=" * 60)
@@ -1884,8 +1889,8 @@ def main() -> None:
     imbalance_df = run_imbalanced_experiment()
 
     print("\nGenerating imbalance figure...")
-    plot_imbalanced(imbalance_df, OUTPUT_DIR / "imbalanced.png")
-    imbalance_df.to_parquet(OUTPUT_DIR / "imbalanced_data.parquet")
+    plot_imbalanced(imbalance_df, FIGURES_DIR / "imbalanced.png")
+    imbalance_df.to_parquet(CACHE_DIR / "imbalanced_data.parquet")
 
     # 10. Sample size experiment
     print("\n" + "=" * 60)
@@ -1893,8 +1898,8 @@ def main() -> None:
     sample_df = run_sample_size_experiment()
 
     print("\nGenerating sample size figure...")
-    plot_sample_size(sample_df, OUTPUT_DIR / "sample_size.png")
-    sample_df.to_parquet(OUTPUT_DIR / "sample_size_data.parquet")
+    plot_sample_size(sample_df, FIGURES_DIR / "sample_size.png")
+    sample_df.to_parquet(CACHE_DIR / "sample_size_data.parquet")
 
     # 11. Regression experiment
     print("\n" + "=" * 60)
@@ -1902,17 +1907,19 @@ def main() -> None:
     reg_df = run_regression_experiment()
 
     print("\nGenerating regression figure...")
-    plot_regression_comparison(reg_df, OUTPUT_DIR / "regression_comparison.png")
-    reg_df.to_parquet(OUTPUT_DIR / "regression_data.parquet")
+    plot_regression_comparison(reg_df, FIGURES_DIR / "regression_comparison.png")
+    reg_df.to_parquet(CACHE_DIR / "regression_data.parquet")
 
     print("\nRegression summary:")
     print(reg_df.groupby("method")[["informative_ratio", "r2"]].mean().round(3))
 
     print("\n" + "=" * 60)
     print("All figures generated successfully!")
-    print(f"Output directory: {OUTPUT_DIR}")
+    print(f"Figures directory: {FIGURES_DIR}")
+    print(f"Tables directory: {TABLES_DIR}")
+    print(f"Cache directory: {CACHE_DIR}")
     print("\nFigures created:")
-    for f in sorted(OUTPUT_DIR.glob("*.png")):
+    for f in sorted(FIGURES_DIR.glob("*.png")):
         print(f"  - {f.name}")
 
 

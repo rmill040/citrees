@@ -520,8 +520,13 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             return score, self._selector_names[0]
 
     def _select_best_feature(
-        self, X: np.ndarray, y: np.ndarray, features: np.ndarray
-    ) -> tuple[int, float, bool]:
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        *,
+        features: np.ndarray,
+        available_features: np.ndarray,
+    ) -> tuple[int, float, bool, np.ndarray]:
         """Select best feature associated with the target.
 
         Parameters
@@ -535,6 +540,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         features : np.ndarray
             Feature indices.
 
+        available_features : np.ndarray
+            Feature indices available for descendant nodes. When feature muting is enabled, this set can shrink during
+            feature selection, but the updated set must only be propagated to descendants of the current node.
+
         Returns
         -------
         best_feature : int
@@ -545,6 +554,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         reject_H0 : bool
             Whether to reject the null hypothesis of no significant association between features and target.
+
+        updated_available_features : np.ndarray
+            Available feature indices after muting decisions at this node.
         """
         best_feature = features[0]
         best_pval = np.inf
@@ -607,10 +619,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 if (
                     self._feature_muting
                     and pval_feature >= alpha
-                    and len(self._available_features) > 1
+                    and len(available_features) > 1
                 ):
-                    self._mute_feature(
-                        feature=feature, reason=f"FEATURE PVAL ({pval_feature}) >= ALPHA ({alpha})"
+                    available_features = self._mute_feature(
+                        available_features=available_features,
+                        feature=feature,
+                        reason=f"FEATURE PVAL ({pval_feature}) >= ALPHA ({alpha})",
                     )
 
             # Feature selection without permutation testing
@@ -620,7 +634,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     best_feature = feature
                     best_metric = metric
 
-        return best_feature, best_pval, reject_H0
+        return best_feature, best_pval, reject_H0, available_features
 
     def _select_best_split(
         self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray
@@ -728,47 +742,28 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             setattr(self, f"_alpha_{adjust}", _alpha)
             setattr(self, f"_n_resamples_{adjust}", _n_resamples)
 
-    def _mute_feature(self, *, feature: int, reason: str) -> None:
-        """Mute feature from being selected during tree building.
+    def _mute_feature(
+        self,
+        *,
+        available_features: np.ndarray,
+        feature: int,
+        reason: str,
+    ) -> np.ndarray:
+        """Remove a feature from the candidate set that will be propagated to descendants.
 
-        When feature muting is performed, a single feature gets removed from the set of available features during
-        feature selection. Given the reduced number of features, the self._max_features attribute must be recalculated
-        and if alpha adjustment is enabled, then the self._alpha_selector must also be recalculated to reflect the
-        change in feature space.
-
-        Parameters
-        ----------
-        feature : int
-            Index of feature to mute.
-
-        reason : str
-            Reason for muting feature.
+        Important: this must be traversal-order invariant. In particular, we must not mutate any shared/global
+        candidate set during recursion, otherwise siblings can affect each other's available feature sets.
         """
-        # Drop feature and recalculate maximum features available
-        idx = self._available_features == feature
-        self._available_features: np.ndarray = self._available_features[
-            ~idx
-        ]  # make mypy happy with type
+        idx = available_features == feature
+        updated = available_features[~idx]
 
-        p = len(self._available_features)
         if self.verbose > 2:
+            p = len(updated)
             print(
-                f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features "
-                "available"
+                f"Muted feature ({self.feature_names_in_[feature]}) because ({reason}), ({p}) features available"
             )
 
-        if p > 0:
-            self._max_features = (
-                calculate_max_value(n_values=p, desired_max=self.max_features)
-                if self.max_features
-                else p
-            )
-
-            # Update alpha if needed
-            if self._adjust_alpha_selector and self._n_resamples_selector is not None:
-                self._bonferroni_correction(adjust="selector", n_tests=self._max_features)
-        else:
-            self._max_features = 0
+        return updated
 
     def _scan_features(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> np.ndarray:
         """Perform feature scanning to return the feature indices that are most associated with the
@@ -888,7 +883,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         return parent_impurity, impurity_decrease
 
-    def _build_tree(self, X: np.ndarray, y: np.ndarray, depth: int) -> Node:
+    def _build_tree(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        *,
+        depth: int,
+        available_features: np.ndarray,
+    ) -> Node:
         """Recursively build tree.
 
         Parameters
@@ -902,6 +904,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         depth : int
             Depth of tree.
 
+        available_features : np.ndarray
+            Feature indices available to this node. This set must be treated as immutable; any muting decisions at this
+            node should be applied to a local copy and the updated set propagated to descendants.
+
         Returns
         -------
         Node
@@ -911,6 +917,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         reject_H0_threshold = False
         impurity_decrease = -1
         n, p = X.shape
+        local_available = available_features
 
         # Keep track of current tree depth
         self.depth_ = depth
@@ -920,29 +927,42 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             if self.verbose > 2:
                 print(f"Building tree at depth ({depth}) with ({n}) samples")
 
-            # Check for constant features and mute if constant
-            for feature in self._available_features:
+            # Check for constant features and remove them from the local candidate set. This is safe to propagate to
+            # descendants because a feature that is constant on a node's samples cannot become non-constant deeper in
+            # that subtree. Crucially, this must not affect siblings.
+            for feature in available_features:
                 x = X[:, feature]
                 if np.all(x == x[0]):
-                    self._mute_feature(feature=feature, reason="FEATURE IS CONSTANT")
+                    local_available = self._mute_feature(
+                        available_features=local_available,
+                        feature=int(feature),
+                        reason="FEATURE IS CONSTANT",
+                    )
 
             # Feature selection
 
-            # Note: self._max_features is automatically updated only when a feature is muted so no need to recalculate
-            # during each iteration as we do below for self._max_thresholds
-
             # If early stopping, we scan features and sort based on most promising features but no need to also
             # randomly permute since a random sample is already taken from the feature set
-            if len(self._available_features):
+            if len(local_available):
+                max_features = (
+                    calculate_max_value(n_values=len(local_available), desired_max=self.max_features)
+                    if self.max_features
+                    else len(local_available)
+                )
                 features = (
-                    self._rng.choice(self._available_features, size=self._max_features, replace=False)
-                    if len(self._available_features) > 1
-                    else self._available_features
+                    self._rng.choice(local_available, size=max_features, replace=False)
+                    if len(local_available) > 1
+                    else local_available
                 )
                 if self._early_stopping_selector is not None and self._scan_features and len(features) > 1:
                     features = self._scan_features(X, y, features)
-                best_feature, best_pval_feature, reject_H0_feature = self._select_best_feature(
-                    X, y, features
+                best_feature, best_pval_feature, reject_H0_feature, local_available = (
+                    self._select_best_feature(
+                        X,
+                        y,
+                        features=features,
+                        available_features=local_available,
+                    )
                 )
 
         if reject_H0_feature:
@@ -1014,8 +1034,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 feature=best_feature,
                 threshold=best_threshold,
             )
-            left_child = self._build_tree(X=X_left, y=y_left, depth=depth + 1)
-            right_child = self._build_tree(X=X_right, y=y_right, depth=depth + 1)
+            left_child = self._build_tree(
+                X=X_left, y=y_left, depth=depth + 1, available_features=local_available
+            )
+            right_child = self._build_tree(
+                X=X_right, y=y_right, depth=depth + 1, available_features=local_available
+            )
 
             return Node(
                 feature=best_feature,
@@ -1051,7 +1075,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         n, p = X.shape
 
         # Private attributes for all parameters - for consistency to reference across other classes and methods
-        self._available_features = np.arange(p, dtype=int)
         self._max_depth = self.max_depth if self.max_depth else np.inf
         self._random_state = (
             int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
@@ -1155,12 +1178,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 f"Using threshold_method='{self.threshold_method}' with max_thresholds=None is not recommended, "
                 "consider reducing max_thresholds to speed up split selection."
             )
-        self._max_features = (
-            calculate_max_value(n_values=p, desired_max=self.max_features)
-            if self.max_features
-            else p
-        )
-
         # Set rest of parameters as private attributes
         for param, value in self.get_params().items():
             p_param = f"_{param}"
@@ -1184,11 +1201,13 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 random_state=self._random_state,
             )
             # Build tree structure using splitting sample
-            self.tree_ = self._build_tree(X_split, y_split, depth=1)
+            self.tree_ = self._build_tree(
+                X_split, y_split, depth=1, available_features=np.arange(p, dtype=int)
+            )
             # Re-estimate leaf values using estimation sample
             self._reestimate_leaf_values(X_est, y_est)
         else:
-            self.tree_ = self._build_tree(X, y, depth=1)
+            self.tree_ = self._build_tree(X, y, depth=1, available_features=np.arange(p, dtype=int))
 
         # Normalize feature importances
         fi_sum = self.feature_importances_.sum()

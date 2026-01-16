@@ -34,7 +34,7 @@ from sklearn.datasets import make_classification, make_friedman1
 
 # Configurable via environment variable for reproducibility
 RANDOM_STATE = int(os.environ.get("RANDOM_STATE", "1718"))
-OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data"
+OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data" / "classification" / "synthetic"
 
 
 @dataclass

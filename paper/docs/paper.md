@@ -4,6 +4,7 @@ This file is the **paper-facing** draft: it distills the clean, defensible mathe
 `paper/theory.md` and ties them to reproducible simulations under `paper/scripts/`.
 
 For a claim-by-claim verification log (what is proved vs cited vs empirical), see `paper/claim_audit.md`.
+For a reproducible mapping from scripts → figures/tables → claims, see `paper/figures_plan.md`.
 
 **Scope.** The focus here is the validity of the permutation p-values used for *Stage A (feature screening)* and the
 resulting finite-sample error-control statements (Bonferroni/root-level). Wherever a statement is only heuristic or
@@ -389,11 +390,13 @@ $$
 
 1. **Stage B is post-selection.** Stage B is performed *after selecting* $j_t^\star$ using the same labels $Y_t$.
    Without sample splitting or selective-inference adjustments, Stage B p-values should be treated as **algorithmic
-   stopping statistics**, not classical post-selection p-values.
+   stopping statistics**, not classical post-selection p-values (e.g., Berk et al., 2013; Lee et al., 2016; Fithian
+   et al., 2014).
 2. **Internal nodes are adaptive.** In an adaptively-grown tree, a node $t$ corresponds to a random index set $I_t$
    determined by earlier splits that depend on the labels; conditioning on “these samples reach node $t$” can break
    exchangeability under nulls. This is why the most defensible inferential statements are either (i) for a fixed node,
-   or (ii) root-level.
+   or (ii) root-level (see also Dwork et al., 2015; Leeb & Pötscher, 2015 for general cautions about adaptive
+   inference).
 
 ---
 
@@ -511,9 +514,12 @@ This appendix concerns **feature muting**, which is a computational heuristic ra
 citrees.
 
 citrees implements **feature muting** as a computational heuristic: after testing a feature at a node, if the p-value
-exceeds the threshold, the feature is removed from consideration in all descendant nodes. This section analyzes when
-global muting (root-level decision) can miss conditionally informative features that local (node-level) muting would
-retain.
+is *extremely* non-significant (by default, in the upper tail: `p >= max(alpha, 1 - alpha)`), the feature is removed
+from the candidate set for **descendants of that node** (subtree-local propagation; siblings are isolated).
+
+This section explains why **aggressive global screening** (e.g., a one-shot root decision to never consider a feature
+again) can be dangerous under conditional/interaction effects, and motivates keeping muting conservative and treating
+it as a speed-only heuristic (compare `feature_muting=True` vs `False`).
 
 ### B.1 The gated effect model
 
@@ -597,11 +603,12 @@ For $n=2000$, $p=0.05$: $d_{\max} \approx 4.1$, meaning the signal is detectable
 ### B.6 Practical implications
 
 1. **When to use local muting:** If your application involves features with **conditional effects** (informative only
-   in subsets of the data), consider using `muting_scope="branch"` or `muting_scope="node"` to avoid dropping these
-   features at the root.
+   in subsets of the data), be cautious with any muting heuristic. In such settings, consider disabling muting
+   (`feature_muting=False`) and comparing results, since conditionally-informative features can look null on larger
+   mixed samples.
 
 2. **Diagnostic:** Compare trees with `feature_muting=True` vs `feature_muting=False`. Large discrepancies in which
-   features appear may indicate conditional effects being missed by global muting.
+   features appear may indicate conditional effects being missed by muting.
 
 3. **Sample size requirements:** Even with local muting, sufficient samples are needed in the gated branch. If $np < 20$
    (expected gate size), detection power may be inadequate regardless of muting scope.

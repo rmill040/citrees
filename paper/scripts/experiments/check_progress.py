@@ -3,41 +3,30 @@
 
 Usage:
     # Check feature selection progress (Stage 1)
-    AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings
+    AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings
 
     # Check downstream eval progress (Stage 2)
-    AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage metrics
+    AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage metrics
 
     # Show progress by method
-    AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-method
+    AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-method
 
     # Show progress by dataset
-    AWS_PROFILE=personal uv run python paper/scripts/check_progress.py --stage rankings --by-dataset
+    AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-dataset
 """
 
 from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from pathlib import Path
 
 import boto3
 from loguru import logger
 
+from paper.scripts.experiments._common import get_datasets
 from paper.scripts.infra.config import load_config
 from paper.scripts.utils.constants import CLF_METHODS, REG_METHODS, S3_BUCKET, AWS_REGION
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
-
-
-def get_datasets(task_type: str = "classification") -> list[str]:
-    """Get dataset names from paper/data directory."""
-    data_dir = Path(__file__).resolve().parents[2] / "data"
-    prefix = "clf_" if task_type == "classification" else "reg_"
-    datasets = []
-    for f in data_dir.glob(f"{prefix}*.parquet"):
-        name = f.stem.replace(prefix, "").replace(".snappy", "")
-        datasets.append(name)
-    return sorted(datasets)
 
 
 def list_s3_completed(stage: str, task_type: str = "classification") -> dict[str, set[tuple[str, int]]]:

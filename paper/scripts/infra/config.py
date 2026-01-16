@@ -87,6 +87,9 @@ class ExperimentConfig:
     selection_cpus_cif_large: int = 32
     selection_cif_large_threshold: int = 10_000_000
     selection_cpus_overrides: dict[str, int] = field(default_factory=dict)
+    # Stage 2 (evaluation) CPU scheduling
+    evaluation_cpus_default: int = 1
+    evaluation_cpus_overrides: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -419,6 +422,7 @@ def load_config(path: Path | None = None) -> Config:
     # Experiment
     if exp_data := data.get("experiment"):
         overrides = exp_data.get("selection_cpus_overrides") or {}
+        eval_overrides = exp_data.get("evaluation_cpus_overrides") or {}
         config.experiment = ExperimentConfig(
             type=exp_data.get("type", "classification"),
             n_seeds=exp_data.get("n_seeds", 10),
@@ -429,6 +433,8 @@ def load_config(path: Path | None = None) -> Config:
             selection_cpus_cif_large=exp_data.get("selection_cpus_cif_large", 32),
             selection_cif_large_threshold=exp_data.get("selection_cif_large_threshold", 10_000_000),
             selection_cpus_overrides={str(k): int(v) for k, v in overrides.items()},
+            evaluation_cpus_default=exp_data.get("evaluation_cpus_default", 1),
+            evaluation_cpus_overrides={str(k): int(v) for k, v in eval_overrides.items()},
         )
 
     # Load state if exists

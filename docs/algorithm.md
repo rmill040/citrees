@@ -132,7 +132,8 @@ if feature_muting and pval >= max(alpha, 1 - alpha):
     mute_feature(feature)  # Remove from available features
 ```
 
-This accelerates training by not re-testing clearly uninformative features.
+This accelerates training by not re-testing clearly uninformative features within a subtree: muted features are removed
+only for descendants of the current node (siblings are isolated).
 
 ---
 

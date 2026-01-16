@@ -1,0 +1,132 @@
+# Figures + Tables Plan (Reproducible Map)
+
+This file maps each paper-facing figure/table to:
+1) the script that generates it,
+2) the data artifact(s) it writes, and
+3) the claim/story it supports.
+
+**Canonical output directory:** `paper/results/figures/`
+
+---
+
+## A. Theory / calibration figures (p-values)
+
+### A1. Selection bias demo (why testing matters)
+
+- Outputs:
+  - `paper/results/figures/selection_bias_demo.png`
+  - `paper/results/figures/selection_bias_demo_data.parquet`
+- Script: `paper/scripts/theory/generate_selection_bias_demo.py`
+- Claim/story:
+  - Greedy split optimization can favor “high-cardinality” noise under the global null; Stage A permutation screening
+    prevents “split unless significant” at the root.
+- Status:
+  - Should be kept in main text (motivation figure).
+
+### A2. Fixed-$B$ Monte Carlo p-value calibration (+1 correction)
+
+- Outputs:
+  - `paper/results/figures/fixedB_pvalue_calibration.png`
+  - `paper/results/figures/fixedB_pvalue_calibration_data.parquet`
+- Script: `paper/scripts/theory/generate_fixedB_pvalue_calibration.py`
+- Claim/story:
+  - Empirical backstop for Theorem 1 (super-uniformity of the +1 Monte Carlo permutation p-value).
+- Status:
+  - Appendix figure (calibration/sanity check).
+
+### A3. Adaptive sequential stopping calibration (continuous-null idealization)
+
+- Outputs:
+  - `paper/results/figures/sequential_stopping_calibration.png`
+  - `paper/results/figures/sequential_stopping_calibration_data.parquet`
+- Script: `paper/scripts/theory/generate_sequential_stopping_calibration.py`
+- Claim/story:
+  - Empirical backstop for the decision-level bound on `stop_sig` (Section 6.1).
+  - Explicitly *not* a claim that the returned $\widehat p_\tau$ is a classical p-value under optional stopping.
+- Status:
+  - Appendix figure (calibration/sanity check).
+
+### A4. Martingale identity sanity check (developer note)
+
+- Output: console only
+- Script: `paper/scripts/theory/supermartingale_check.py`
+- Claim/story:
+  - Numerically checks the one-step identity $\mathbb{E}[S_{n+1}\mid L_n,n]=S_n$ under the continuous-null mixture
+    model.
+- Status:
+  - Not a paper figure; keep as a reproducibility check for theory development.
+
+---
+
+## B. Main benchmark figures (synthetic experiments)
+
+These are self-contained synthetic experiments for feature-selection behavior and scaling.
+
+**Regenerate in one command:**
+
+```bash
+uv sync --group paper
+UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figures.py
+```
+
+### B1. Feature selection behavior (classification)
+
+- Outputs:
+  - `paper/results/figures/feature_selection_clf.png`
+  - `paper/results/figures/feature_selection_data.parquet`
+  - `paper/results/figures/feature_selection_table.tex`
+  - `paper/results/figures/informative_ratio.png`
+- Script: `paper/scripts/analysis/generate_figures.py`
+- Claim/story:
+  - How embedding methods split on informative vs noise features in a controlled setting.
+- Status:
+  - Main text (core behavioral figure) + appendix table.
+
+### B2. Synthetic robustness slices (one question per figure)
+
+- Outputs (each has a `_data.parquet` companion):
+  - `paper/results/figures/signal_strength.png`
+  - `paper/results/figures/sample_size.png`
+  - `paper/results/figures/high_dimensional.png`
+  - `paper/results/figures/correlated_features.png`
+  - `paper/results/figures/redundant_features.png`
+  - `paper/results/figures/complexity_vs_accuracy.png`
+  - `paper/results/figures/multiclass.png`
+  - `paper/results/figures/imbalanced.png`
+- Script: `paper/scripts/analysis/generate_figures.py`
+- Claim/story:
+  - Synthetic “stress tests” to show when/why citrees behaves well or fails.
+- Status (suggested ordering):
+  - Main text: `signal_strength`, `sample_size`, `high_dimensional`, `correlated_features`, `redundant_features`
+  - Appendix: `multiclass`, `imbalanced`, `complexity_vs_accuracy`
+
+### B3. Runtime / scalability
+
+- Outputs:
+  - `paper/results/figures/timing_speedup.png`
+  - `paper/results/figures/timing_bars.png`
+  - `paper/results/figures/timing_data.parquet`
+- Script: `paper/scripts/analysis/generate_figures.py`
+- Claim/story:
+  - Cost of permutation testing and speedups from early stopping / parallelism.
+- Status:
+  - Main text: one runtime figure (pick either speedup curve or bars); appendix for the other.
+
+---
+
+## C. Real-data figures (Stage 1/Stage 2 pipeline)
+
+These figures depend on the full experiment pipeline (S3-backed in the current setup). They should only be used in the
+paper after verifying the underlying parquet artifacts correspond to the reported benchmark protocol.
+
+- Existing artifacts in `paper/results/figures/`:
+  - `paper/results/figures/regression_comparison.png`
+  - `paper/results/figures/regression_data.parquet`
+  - (and any other `*_comparison.png` figures)
+- Scripts:
+  - Stage 1 (rankings): `paper/scripts/experiments/ray_feature_selection.py`
+  - Stage 2 (downstream eval): `paper/scripts/experiments/ray_eval.py`
+  - Analysis aggregation: `paper/scripts/analysis/analysis.py`
+- Paper rule:
+  - Every number/curve must have a traceable pipeline: config → parquet inputs → analysis script → figure output.
+

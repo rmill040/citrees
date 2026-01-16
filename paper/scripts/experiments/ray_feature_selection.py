@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-import io
-import os
+import argparse
 import time
-from pathlib import Path
 from typing import Any
 
-import boto3
-from botocore.exceptions import ClientError
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import ray
 import shap
 from boruta import BorutaPy
@@ -41,6 +36,15 @@ from citrees._selector import (
     RegressorSelectors,
     RegressorSelectorTests,
 )
+from paper.scripts.experiments._common import (
+    get_git_sha,
+    get_dataset_shape,
+    get_datasets,
+    load_dataset,
+    rankings_s3_path,
+    utc_now_iso,
+    upload_parquet_to_s3,
+)
 from paper.scripts.utils.constants import CLF_METHODS, N_SPLITS, REG_METHODS
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs, extract_params
 from paper.scripts.infra.config import load_config
@@ -64,14 +68,6 @@ except ImportError:
     HAS_XGB = False
 
 config = load_config()
-
-# Data directory - works both locally and when rsynced to remote
-# On remote, script is at ~/ray_feature_selection.py but data is at ~/citrees/paper/data/
-DATA_DIR = (
-    Path("/home/ubuntu/citrees/paper/data")
-    if Path("/home/ubuntu/citrees").exists()
-    else Path(__file__).resolve().parents[2] / "data"
-)
 
 
 # =============================================================================
@@ -122,76 +118,6 @@ def selection_num_cpus(method: str, *, n_samples: int | None = None, n_features:
         return exp.selection_cpus_threaded
 
     return exp.selection_cpus_default
-
-
-def get_s3_client():
-    """Create S3 client lazily (avoid serialization issues with Ray)."""
-    return boto3.client("s3", region_name=config.region)
-
-
-def get_datasets(task_type: str) -> list[str]:
-    data_dir = DATA_DIR
-    prefix = "clf_" if task_type == "classification" else "reg_"
-    datasets = []
-    for f in data_dir.glob(f"{prefix}*.parquet"):
-        name = f.stem.replace(prefix, "").replace(".snappy", "")
-        datasets.append(name)
-    return sorted(datasets)
-
-
-def get_dataset_path(name: str, task_type: str) -> Path:
-    prefix = "clf_" if task_type == "classification" else "reg_"
-    path = DATA_DIR / f"{prefix}{name}.parquet"
-    if not path.exists():
-        path = DATA_DIR / f"{prefix}{name}.snappy.parquet"
-    return path
-
-
-def get_dataset_shape(name: str, task_type: str) -> tuple[int, int]:
-    """Get (n_samples, n_features) from parquet metadata, without loading the full dataset."""
-    path = get_dataset_path(name, task_type)
-
-    try:
-        pf = pq.ParquetFile(path)
-        n_samples = pf.metadata.num_rows
-        feature_columns = [c for c in pf.schema_arrow.names if c != "y"]
-        return int(n_samples), int(len(feature_columns))
-    except Exception:
-        X, _y = load_dataset(name, task_type)
-        return int(X.shape[0]), int(X.shape[1])
-
-
-def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
-    path = get_dataset_path(name, task_type)
-    df = pd.read_parquet(path)
-    y = df.pop("y").values
-    if task_type == "classification":
-        y = y.astype(np.int64)
-    else:
-        y = y.astype(np.float64)
-    X = df.values.astype(np.float64)
-    return X, y
-
-
-def s3_file_exists(s3_path: str) -> bool:
-    parts = s3_path.replace("s3://", "").split("/", 1)
-    try:
-        get_s3_client().head_object(Bucket=parts[0], Key=parts[1])
-        return True
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in {"404", "NoSuchKey", "NotFound"}:
-            return False
-        raise
-
-
-def upload_to_s3(data: list[dict], s3_path: str) -> None:
-    df = pd.DataFrame(data)
-    buffer = io.BytesIO()
-    df.to_parquet(buffer, index=False)
-    buffer.seek(0)
-    parts = s3_path.replace("s3://", "").split("/", 1)
-    get_s3_client().put_object(Bucket=parts[0], Key=parts[1], Body=buffer.getvalue())
 
 
 def filter_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, random_state: int) -> np.ndarray:
@@ -640,35 +566,107 @@ def run_selection(
 
 
 @ray.remote(resources={"selection": 1})
-def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: str, selection_cpus: int) -> dict[str, Any]:
+def process_config(
+    config: dict[str, Any],
+    dataset: str,
+    seed: int,
+    task_type: str,
+    selection_cpus: int,
+    git_sha: str,
+) -> dict[str, Any]:
     method = config["method"]
     params = extract_params(config)
     method_id = config_label(config)
-    s3_path = f"s3://{os.environ['S3_BUCKET']}/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
+    s3_path = rankings_s3_path(task_type, dataset, method_id, seed)
 
     try:
         X, y = load_dataset(dataset, task_type)
+        n_samples, n_features = int(X.shape[0]), int(X.shape[1])
+        created_at_utc = utc_now_iso()
         tic = time.perf_counter()
         results = run_selection(X, y, method, task_type, seed, params=params, n_jobs=selection_cpus)
         elapsed = time.perf_counter() - tic
-        upload_to_s3(results, s3_path)
+        for row in results:
+            row["dataset"] = dataset
+            row["task_type"] = task_type
+            row["seed"] = seed
+            row["method_id"] = method_id
+            row["method"] = method_id
+            row["method_base"] = method
+            row["artifact_version"] = 2
+            row["n_samples"] = n_samples
+            row["n_features"] = n_features
+            row["selection_cpus"] = selection_cpus
+            row["elapsed_seconds"] = float(elapsed)
+            row["created_at_utc"] = created_at_utc
+            row["git_sha"] = git_sha
+        upload_parquet_to_s3(results, s3_path, region_name=config.region)
         return {"status": "done", "method": method_id, "dataset": dataset, "seed": seed, "elapsed": elapsed}
     except Exception as e:
         return {"status": "failed", "method": method_id, "dataset": dataset, "seed": seed, "error": str(e)}
 
 
-def main():
-    ray.init(address="auto", ignore_reinit_error=True)
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Ray Stage 1: feature selection → rankings")
+    parser.add_argument(
+        "--ray-address",
+        default="auto",
+        help="Ray address (default: auto). Use 'local' for local mode.",
+    )
+    parser.add_argument("--task-type", choices=["classification", "regression"], default=None)
+    parser.add_argument("--source", choices=["all", "real", "synthetic"], default="all", help="Dataset source filter")
+    parser.add_argument("--datasets", default=None, help="Comma-separated dataset names (default: all)")
+    parser.add_argument("--methods", default=None, help="Comma-separated base method names (default: all)")
+    parser.add_argument("--seeds", default=None, help="Comma-separated seed indices (default: 0..n_seeds-1)")
+    parser.add_argument("--dry-run", action="store_true", help="Print planned configs and exit")
+    return parser.parse_args()
 
-    task_type = config.experiment.type
+
+def _parse_csv_list(value: str | None) -> list[str] | None:
+    if value is None:
+        return None
+    items = [v.strip() for v in value.split(",")]
+    return [v for v in items if v]
+
+
+def _parse_csv_ints(value: str | None) -> list[int] | None:
+    if value is None:
+        return None
+    items = [v.strip() for v in value.split(",") if v.strip()]
+    return [int(v) for v in items]
+
+
+def main():
+    args = _parse_args()
+    if args.ray_address == "local":
+        ray.init(ignore_reinit_error=True)
+    else:
+        ray.init(address=args.ray_address, ignore_reinit_error=True)
+
+    task_type = args.task_type or config.experiment.type
     methods = CLF_METHODS if task_type == "classification" else REG_METHODS
     method_configs = expand_method_configs(methods)
-    datasets = get_datasets(task_type)
+    datasets = get_datasets(task_type, source=args.source)
     n_seeds = config.experiment.n_seeds
+    git_sha = get_git_sha()
 
-    configs = [(m, d, s) for m in method_configs for d in datasets for s in range(n_seeds)]
+    datasets_filter = set(_parse_csv_list(args.datasets) or [])
+    methods_filter = set(_parse_csv_list(args.methods) or [])
+    seeds_filter = _parse_csv_ints(args.seeds)
+
+    if datasets_filter:
+        datasets = [d for d in datasets if d in datasets_filter]
+    if methods_filter:
+        method_configs = [c for c in method_configs if c.get("method") in methods_filter]
+    seeds = list(range(n_seeds)) if seeds_filter is None else seeds_filter
+
+    configs = [(m, d, s) for m in method_configs for d in datasets for s in seeds]
     logger.info(
-        f"Submitting {len(configs)} configs ({len(method_configs)} methods × {len(datasets)} datasets × {n_seeds} seeds)"
+        "Submitting {} configs ({} methods × {} datasets × {} seeds)",
+        len(configs),
+        len(method_configs),
+        len(datasets),
+        len(seeds),
     )
 
     exp = config.experiment
@@ -688,9 +686,29 @@ def main():
         method = method_cfg["method"]
         n_samples, n_features = dataset_shapes[dataset]
         selection_cpus = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
+        if args.dry_run:
+            logger.info(
+                "DRY RUN: method={}, dataset={}, seed={}, num_cpus={}",
+                config_label(method_cfg),
+                dataset,
+                seed,
+                selection_cpus,
+            )
+            continue
         futures.append(
-            process_config.options(num_cpus=selection_cpus).remote(method_cfg, dataset, seed, task_type, selection_cpus)
+            process_config.options(num_cpus=selection_cpus).remote(
+                method_cfg,
+                dataset,
+                seed,
+                task_type,
+                selection_cpus,
+                git_sha,
+            )
         )
+
+    if args.dry_run:
+        return
+
     results = ray.get(futures)
 
     done = sum(1 for r in results if r["status"] == "done")

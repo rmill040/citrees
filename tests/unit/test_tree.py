@@ -97,6 +97,71 @@ def test_base_conditional_inference_tree_parameters():
     )
 
 
+def _features_used(tree: Node) -> set[int]:
+    if "value" in tree:
+        return set()
+    return {
+        int(tree["feature"]),
+        *_features_used(tree["left_child"]),
+        *_features_used(tree["right_child"]),
+    }
+
+
+class TestCandidateSetIsolation:
+    """Regression tests for candidate-set handling during recursion."""
+
+    def test_constant_feature_in_one_branch_does_not_affect_sibling(self) -> None:
+        """A feature constant in one child must remain available in the sibling.
+
+        This guards against traversal-order dependence from mutating a shared/global candidate set.
+        """
+        rng = np.random.default_rng(0)
+        n = 2000
+
+        # Gate feature: binary split at 0.5.
+        z = rng.integers(0, 2, size=n).astype(float)
+
+        # Feature x1 is constant when z==0, but variable (and informative) when z==1.
+        x1 = np.zeros(n, dtype=float)
+        x1[z == 1] = rng.standard_normal((z == 1).sum())
+
+        # Noise feature.
+        x2 = rng.standard_normal(n)
+
+        # Target:
+        # - Left branch (z==0): noisy but high base rate (ensures left node is not a leaf, so constant-feature filtering runs)
+        # - Right branch (z==1): deterministic threshold on x1 (so x1 should be used in that subtree)
+        y = np.zeros(n, dtype=int)
+        y[z == 0] = rng.binomial(1, 0.9, size=(z == 0).sum())
+        y[z == 1] = (x1[z == 1] > 1.2815515655446004).astype(int)
+
+        X = np.column_stack([z, x1, x2])
+        X_flip = np.column_stack([1.0 - z, x1, x2])
+
+        params = {
+            "n_resamples_selector": None,
+            "n_resamples_splitter": None,
+            "feature_muting": False,  # bug is in constant-feature handling, not p-value muting
+            "feature_scanning": False,
+            "threshold_scanning": False,
+            "max_depth": 2,
+            "random_state": 0,
+            "verbose": 0,
+            "check_for_unused_parameters": False,
+        }
+
+        clf_a = ConditionalInferenceTreeClassifier(**params)
+        clf_a.fit(X, y)
+        used_a = _features_used(clf_a.tree_)
+
+        clf_b = ConditionalInferenceTreeClassifier(**params)
+        clf_b.fit(X_flip, y)
+        used_b = _features_used(clf_b.tree_)
+
+        assert 1 in used_a
+        assert 1 in used_b
+
+
 class TestHonestEstimation:
     """Tests for honest estimation feature."""
 

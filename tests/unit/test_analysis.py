@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "paper" / "scripts"
 
 import pandas as pd
 
-from analysis import (
+from analysis.stats import (
     bootstrap_ci,
     cohens_d,
     compute_noise_selection_rate,

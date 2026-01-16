@@ -128,7 +128,8 @@ If both stages reject and additional deterministic constraints are satisfied (e.
 **Important inferential note.**  
 Stage B is performed *after selecting* the feature $j_t^\star$ using the same response values $Y_t$. Unless $j_t^\star$
 is treated as fixed in advance (or additional sample splitting / selective-inference machinery is used), the Stage B
-p-values should be viewed as *algorithmic stopping statistics*, not classical post-selection p-values.
+p-values should be viewed as *algorithmic stopping statistics*, not classical post-selection p-values (see, e.g., Berk
+et al., 2013; Lee et al., 2016; Fithian et al., 2014).
 
 ## 3. Permutation p-values (finite-sample validity)
 
@@ -286,7 +287,8 @@ Corollary 2 conditions on $(X_t,U)$ for a *fixed* node $t$. In an adaptively-gro
 random index sets $I_t$ determined by earlier splits that depend on the labels. After conditioning on the event “these
 samples reach node $t$,” the label vector within the node need not remain exchangeable under a null, so permutation-test
 validity is not automatic. This is why the cleanest inferential statements are root-level (Section 4.4) or rely on
-sample splitting / selective-inference techniques (Section 6).
+sample splitting / selective-inference techniques (Section 6); see, e.g., Dwork et al. (2015) and Leeb & Pötscher
+(2015) for general cautions about adaptive inference.
 
 ### 3.6 Monte Carlo resolution and error (fixed $B$)
 
@@ -762,8 +764,8 @@ publication-grade proofs:
 3. **Feature muting across nodes** (`feature_muting=True`).  
    Feature muting is a **computational heuristic**: after testing a feature at a node, if its p-value is
    *extremely* non-significant (currently `p \ge \max(\alpha, 1-\alpha)`), the feature is removed from the
-   **global candidate set** for all descendant nodes. This can speed up training but **changes the hypothesis
-   family adaptively**.
+   candidate set that is propagated to **descendants of that node**. This can speed up training but **changes the
+   hypothesis family adaptively**.
 
    Concretely:
    - The set of tested features at node $t$ becomes a **random, data-dependent** set determined by earlier
@@ -778,9 +780,9 @@ publication-grade proofs:
    **Recommendation.** Use `feature_muting=False` for any inferential claims. Keep muting for speed-focused runs or
    ablations, and report sensitivity by comparing `feature_muting=True` vs `False`.
 
-   **In‑progress (empirical)**: We are testing alternative muting scopes (branch-local or node-local) to avoid global
-   feature removal. Early scratch benchmarks have **not yet shown accuracy or feature-selection gains** vs global
-   muting, but the search is ongoing and will be documented alongside other empirical checks.
+   **Implementation note (current).** Muting is implemented with **subtree-local candidate sets**: muting decisions at a
+   node affect only its descendants, and siblings are isolated (traversal-order invariant). There is no “node-reset”
+   muting mode; resetting the candidate set at every node is effectively equivalent to `feature_muting=False`.
 
    **Detailed status and next steps (muting scope theory).**
    The core issue is that global muting uses a *root-level* test to decide whether a feature is ever tested again,
@@ -858,12 +860,12 @@ publication-grade proofs:
    \mathcal{F}_\text{global} \leftarrow \{1,\dots,p\};\quad
    \text{if } p\text{-value}(j) \ge \max(\alpha, 1-\alpha)\text{ then } \mathcal{F}_\text{global} \leftarrow \mathcal{F}_\text{global}\setminus\{j\}.
    \]
-   Local muting instead uses a **local** candidate set, either per-node or per-branch:
-   - **Node-local**: each node has its own candidate set; mutations do not affect siblings or descendants.
-   - **Branch-local**: mutations propagate only down the current branch (affects descendants of that node only).
+   Correct muting instead uses a **subtree-local** candidate set:
+   - Mutations at node $t$ propagate only to descendants of $t$ (siblings are isolated).
 
-   **Implementation sketch (conceptual, not yet in src).**
-   The change is confined to tree-building logic (candidate-feature bookkeeping). For illustration:
+   **Implementation (in src).**
+   This is a bookkeeping change confined to tree building: the recursion threads an `available_features` array, and
+   feature-selection returns an updated candidate set to be passed to descendants.
 
    ```python
    # Pseudocode for local muting (branch-local)
@@ -886,22 +888,17 @@ publication-grade proofs:
        return Node(feature=best_feature, left=left, right=right)
    ```
 
-   **Interface implication (if exposed).**
-   If we decide to expose this, a minimal public API would be:
-   ```python
-   ConditionalInferenceTreeClassifier(
-       feature_muting=True,
-       muting_scope="global" | "branch" | "node",
-   )
-   ```
-   Default stays `"global"` for backward compatibility until evidence justifies a change.
+   **Public API.**
+   No additional public parameters: `feature_muting=True` uses subtree-local propagation. Any semantics that allow one
+   child’s constant-feature filtering or muting decisions to remove candidates for its sibling are incorrect, because
+   they make the fitted tree depend on traversal order.
 
    **Checklist for moving from theory to src.**
    - [ ] Prove the gated-effect counterexample yields a **power gap** in the selector p-values.
    - [ ] Show local muting recovers $X_1$ in the gated branch with high probability.
    - [ ] Demonstrate downstream accuracy gains on $Z=1$ subsets with minimal runtime cost.
    - [ ] Document tradeoffs in `theory.md` and `docs/algorithm.md` (if adopted).
-   - [ ] Add unit tests for candidate-set handling under node-local/branch-local modes.
+   - [ ] Add unit tests for candidate-set isolation (no sibling cross-talk).
    - [ ] Add regression benchmarks to ensure no major slowdowns.
 
    **Deeper derivation outline (formal structure).**
@@ -973,8 +970,8 @@ publication-grade proofs:
      ```
    - **Feature scanning order**: `feature_scanning` should operate on the local candidate set.
    - **Muting events**: record per-node muting counts; global counters can still be aggregated for diagnostics.
-   - **Determinism**: if we introduce `muting_scope`, RNG draws must remain consistent across scopes for fair
-     benchmarking (same random feature subsampling and threshold permutations).
+   - **Determinism**: candidate-set bookkeeping changes should avoid introducing extra RNG draws, so benchmarks remain
+     comparable (same random feature subsampling and threshold permutations per node).
 
    **Implementation snippets (illustrative).**
    ```python
@@ -987,13 +984,10 @@ publication-grade proofs:
    ```
 
    ```python
-   # In _build_tree, scope controls propagation:
-   if muting_scope == "global":
-       next_available = self._available_features  # existing behavior
-   elif muting_scope == "branch":
-       next_available = local_available
-   elif muting_scope == "node":
-       next_available = np.arange(p)  # reset every node
+   # In _build_tree, propagate within the subtree (siblings isolated):
+   next_available = local_available
+   left = _build_tree(X_left, y_left, depth=depth + 1, available_features=next_available)
+   right = _build_tree(X_right, y_right, depth=depth + 1, available_features=next_available)
    ```
 
    **Stop/Go criteria for src changes.**
@@ -1837,146 +1831,12 @@ publication-grade proofs:
    guiding heuristics, not a completed proof. Any publication claims must clearly separate the exact results
    (population moments, null quantile under Gaussianity) from the asymptotic and finite‑sample approximations.
 
-   **Implementation plan (src changes, recorded here for future work).**
-   This is **not** implemented yet; it is a precise outline so we can pick up later. The goal is to support
-   local muting scopes while preserving current behavior by default.
-
-   **API surface (public).**
-   - Add parameter `muting_scope` to tree/forest constructors:
-     ```python
-     muting_scope: Literal["global", "branch", "node"] = "global"
-     ```
-   - Keep `feature_muting=True/False` as the master on/off switch.
-   - Default remains `"global"` for backward compatibility.
-
-   **Core algorithm changes (tree).**
-   - **Change signature** of the recursive builder:
-     ```python
-     _build_tree(self, X, y, depth, available_features)
-     ```
-   - **Change _select_best_feature** to *return* the updated candidate set rather than mutating a global list.
-   - **Propagation logic**:
-     ```python
-     if muting_scope == "global":
-         next_available = self._available_features  # current behavior
-     elif muting_scope == "branch":
-         next_available = local_available  # pass down to descendants of this node
-     elif muting_scope == "node":
-         next_available = np.arange(p)  # reset to full set at each node
-     ```
-   - Ensure **feature_scanning** and **max_features subsampling** only use the *local* candidate set.
-   - Ensure **constant‑feature filtering** happens per node on the local set.
-
-   **RNG determinism / benchmarking comparability.**
-   - Feature subsampling and random threshold permutations must use the same RNG sequence across scopes
-     to allow fair comparisons; avoid scope‑dependent extra RNG draws.
-   - If necessary, pre‑draw feature subsets and threshold permutations and reuse them per node.
-
-   **Diagnostics / logging (optional).**
-   - Track `muted_events` per node and aggregate into tree‑level counters for reporting.
-   - Add a debug flag to dump candidate‑set sizes for reproducibility.
-
-   **Forest aggregation.**
-   - No changes required beyond passing `muting_scope` to base estimators.
-   - Ensure OOB scoring uses identical settings.
-
-   **Testing plan (minimum).**
-   - Unit: candidate‑set propagation for `"global"`, `"branch"`, `"node"`.
-   - Unit: confirm identical predictions for `"global"` vs legacy (back‑compat test).
-   - Unit: ensure `"node"` behaves like `feature_muting=False` at each node (except for constant‑feature filtering).
-   - Integration: performance sanity on small synthetic datasets.
-
-   **Documentation plan.**
-   - `docs/parameters.md`: describe `muting_scope`, defaults, and warnings.
-   - `docs/algorithm.md`: explain candidate‑set propagation and theoretical caveats.
-   - `theory.md`: keep this section as the theoretical rationale + limitations.
-
-   **File‑level change map (concrete touchpoints).**
-   - `citrees/_types.py`:
-     - Add `MutingScope` StrEnum (`global`, `branch`, `node`) for config validation.
-   - `citrees/_tree.py`:
-     - Extend parameter model to include `muting_scope`.
-     - Add `self.muting_scope` to estimator init/fit.
-     - Modify `_build_tree` signature and call sites to accept `available_features`.
-     - Modify `_select_best_feature` to return updated candidates and avoid global mutation.
-     - Ensure `_scan_features` uses the local candidate list.
-     - Ensure constant‑feature filtering happens per node on local set.
-   - `citrees/_forest.py`:
-     - Thread `muting_scope` through base estimator creation.
-     - Keep `feature_muting` behavior unchanged except scope propagation.
-   - `citrees/__init__.py`:
-     - Export the new `MutingScope` enum if added.
-   - `docs/parameters.md`, `docs/algorithm.md`:
-     - Document new parameter and theoretical caveats.
-
-   **Detailed pseudo‑diff (tree core).**
-   ```python
-   # BEFORE
-   def _build_tree(self, X, y, depth):
-       ...
-       features = self._available_features  # global mutable set
-       best_feature, pval, reject = self._select_best_feature(X, y, features)
-       ...
-       self._build_tree(X_left, y_left, depth+1)
-   ```
-
-   ```python
-   # AFTER (outline)
-   def _build_tree(self, X, y, depth, available_features):
-       local = available_features.copy()
-       local = local[~is_constant(X[:, local])]
-       ...
-       best_feature, pval, reject, local = self._select_best_feature(
-           X, y, features=subsample(local), available_features=local
-       )
-       ...
-       if self.muting_scope == "global":
-           next_avail = self._available_features
-       elif self.muting_scope == "branch":
-           next_avail = local
-       else:  # node
-           next_avail = np.arange(p)
-       left = _build_tree(X_left, y_left, depth+1, next_avail)
-       right = _build_tree(X_right, y_right, depth+1, next_avail)
-   ```
-
-   **Detailed pseudo‑diff (_select_best_feature).**
-   ```python
-   # BEFORE
-   if feature_muting and pval >= max(alpha, 1 - alpha):
-       self._available_features = self._available_features[self._available_features != feature]
-
-   # AFTER
-   if feature_muting and pval >= max(alpha, 1 - alpha):
-       available_features = available_features[available_features != feature]
-       muted_events += 1
-   return best_feature, best_pval, reject, available_features
-   ```
-
-   **Call‑site updates (fit).**
-   - Initialize `self._available_features = np.arange(p)` once per fit.
-   - Root call becomes `_build_tree(X, y, depth=0, available_features=self._available_features)`.
-
-   **Back‑compat test (explicit).**
-   - `muting_scope="global"` must reproduce the old behavior bit‑for‑bit (except for RNG changes if any).
-   - Add a test that fits with legacy config and compares tree structure hashes.
-
-   **Step 5 — Algorithmic statement.**
-   Combine Steps 1–4 to state a theorem of the form:
-   > For the gated model with parameters $(n,p)$ in region $\mathcal{R}$, any policy that
-   > permanently removes features based on a root-level test has lower conditional power than a local muting policy.
-
-   **Step 6 — Empirical verification loop (necessary for credibility).**
-   - Simulate from the gated model on a grid of $(n,p)$
-   - Check both the correlation-level power gap and the actual tree-level accuracy gap
-   - Confirm that local muting improves $Z=1$ accuracy without large regressions elsewhere
-
-   **Known limitations (explicitly acknowledged).**
-   - The Fisher transform approximation is asymptotic; it won’t be exact for very small $n$ or heavy-tailed data.
-   - Permutation p-values depend on the exact statistic and ties; we must ensure continuity assumptions or use
-     randomized tie-breaking.
-   - Adaptive tree construction introduces selection bias; the proof only targets the *feature screening step*,
-     not the full tree’s inferential validity.
+   **Implementation note (done).**
+   The subtree-local candidate-set semantics described above are implemented in `citrees/_tree.py` by threading an
+   `available_features` array through recursion and returning an updated candidate set from feature selection. The public
+   API is unchanged: `feature_muting=True` uses subtree-local propagation, and siblings never share mutable
+   candidate-set state. A regression test guards against traversal-order dependence where constant-feature filtering in
+   one child could remove features needed by its sibling.
 
 4. **Global error control across the entire tree.**
    Even with valid nodewise tests, the tree construction is adaptive; p-values at internal nodes should not be read as
@@ -2142,100 +2002,35 @@ citrees' Bayesian rule is a different sequential procedure: it admits a clean bo
 rejection event (Section 6.1) and is empirically close to nominal levels, but it is not claimed to output an
 anytime-valid p-value under optional stopping.
 
-### 6.1.2 Preliminary Theoretical Analysis (DRAFT - Requires Peer Review)
+### 6.1.2 Summary of provable guarantees (proved)
 
-> **⚠️ WARNING**: The following analysis is preliminary and requires rigorous peer review before publication.
-> The proof sketch below has not been independently verified. See `paper/scripts/theory/sequential_stopping_analysis.py`
-> for the consolidated analysis.
+This section is a short “what is actually proven?” summary for `early_stopping_*="adaptive"`.
 
-**Conjecture:** Under H0 (exchangeability), the citrees adaptive stopping rule achieves Type I error
-substantially below α, potentially approaching zero.
+1. **Decision-level bound (posterior-confidence stop).**  
+   Under the continuous-null idealization (so the true exceedance probability $p^\star\sim\mathrm{Unif}(0,1)$),
+   define the posterior-confidence score
+   $$
+   S_n := P(p^\star < \alpha \mid L_n,n) = I_\alpha(1+L_n,1+n-L_n).
+   $$
+   For any stopping time $\tau$,
+   $$
+   \mathbb{P}(S_\tau \ge \gamma) \le \alpha/\gamma.
+   $$
+   This is the only paper-facing Type I guarantee we attach to the adaptive mode.
 
-**Proof sketch (requires verification):**
+2. **Returned value is not a classical p-value under stopping.**  
+   The returned Monte Carlo estimate $\widehat p_\tau=(L_\tau+1)/(\tau+1)$ is evaluated at a data-dependent time.
+   We do **not** claim $\widehat p_\tau$ is a fixed-$B$ super-uniform permutation p-value under optional stopping.
+   For classical p-values, use fixed-$B$ (`early_stopping_*=None`) so Theorem 1 applies directly.
 
-1. **Setup.** Under H0 with exchangeability, at step n the exceedance count L_n follows:
-   $$L_n \sim \text{Uniform}\{0, 1, \ldots, n\}$$
-
-   > **⚠️ CORRECTION**: An earlier version incorrectly stated $L_n \sim \text{Binomial}(n, 0.5)$.
-   > The correct distribution is Uniform, derived as follows:
-   > - Let $p = F(T_0)$ where $F$ is the permutation distribution CDF
-   > - Under H0, $T_0 \sim F$, so $p \sim \text{Uniform}(0, 1)$ by probability integral transform
-   > - Conditional on $p$: $L_n \mid p \sim \text{Binomial}(n, p)$
-   > - Marginalizing: $L_n \sim \text{BetaBinomial}(n, 1, 1) = \text{Uniform}\{0, \ldots, n\}$
-   >
-   > **This changes the analysis significantly** - P(L_20=0) = 1/21 ≈ 0.048, NOT 10⁻⁶.
-
-2. **First check (n = 20 for α = 0.05).** At the minimum resamples $n_{\min} = \lceil 1/\alpha \rceil = 20$:
-   - Rejection threshold: $k^*_{20} = -1$ (no rejection possible at n=20)
-   - Acceptance threshold: $k^{\text{acc}}_{20} = 3$
-   - With $L_{20} \sim \text{Uniform}\{0, \ldots, 20\}$:
-     - $P(L_{20} \ge 3 \mid H_0) = 18/21 \approx 0.857$
-     - $P(L_{20} \le 2 \mid H_0) = 3/21 \approx 0.143$ (continue)
-     - $P(L_{20} \le -1 \mid H_0) = 0$ (reject - impossible)
-
-3. **At n=20, ~86% accept, ~14% continue, 0% reject.** The analysis must account for what happens to the
-   14% that continue past n=20.
-
-4. **Sequential dynamics.** For paths that continue, the analysis becomes complex because:
-   - L_n evolves as $L_{n+1} = L_n + \text{Bernoulli}(p)$ where $p = F(T_0)$ is fixed but random
-   - The sequential stopping creates dependencies that require careful analysis
-
-5. **UPDATE:** The script `paper/scripts/theory/sequential_stopping_analysis.py` uses the correct
-   dynamics with $p \sim \text{Uniform}(0,1)$. The simulation shows Type I error ≈ 4.5%.
-
-**Simulation results (from `paper/scripts/theory/sequential_stopping_analysis.py`):**
-
-| Metric | Value |
-|--------|-------|
-| **Type I Error** | **0.0455** |
-| Target α | 0.05 |
-| Rejections | 4,549 |
-| Acceptances | 94,929 |
-| Max reached | 522 |
-| Mean stop time | 48.0 |
-
-**Key insight:** Rejections occur when $p = F(T_0)$ is small, i.e., when the observed statistic is extreme:
-
-| p range | Rejection rate |
-|---------|----------------|
-| [0.00, 0.05) | 85.8% |
-| [0.05, 0.10) | 4.2% |
-| [0.10, 0.20) | 0.07% |
-| [0.20, 1.00) | 0% |
-
-This is **correct behavior**: when $T_0$ is in the top 5% of the permutation distribution (i.e., $p < 0.05$),
-the test should reject. The method achieves Type I error of 4.55%, which is below the nominal α = 0.05.
-
-**Open questions requiring rigorous analysis:**
-
-1. **Correct sequential dynamics with random p.** The proper analysis must:
-   - Draw $p = F(T_0) \sim \text{Uniform}(0, 1)$ once at the start
-   - Simulate $L_n$ as sum of i.i.d. Bernoulli(p)
-   - Account for sequential stopping with this random p
-   - This is a "random environment" random walk problem
-
-2. **First-passage time analysis.** What is $P(\text{hit rejection before acceptance} \mid p)$? Then integrate
-   over $p \sim \text{Uniform}(0,1)$ to get marginal Type I error.
-
-3. **Connection to anytime-valid testing.** Can we show citrees' rule is a special case of Fischer-Ramdas's
-   test martingale framework, thereby inheriting their theoretical guarantees?
-
-4. **Role of ties.** The Uniform distribution derivation assumes continuous test statistics. How do ties
-   (discrete statistics) affect the analysis?
-
-5. **Sensitivity to parameters.** How do α, γ, and n_min affect the theoretical guarantees?
-
-**Status:** This analysis provides strong evidence for validity but is NOT a complete proof. Independent
-verification and peer review are required before making formal claims.
-
-**Files:**
-- `paper/scripts/theory/sequential_stopping_analysis.py` - Consolidated theoretical analysis
-- `paper/scripts/theory/sequential_stopping_comparison.py` - Empirical comparison with Fischer-Ramdas
+3. **Connection to Fischer–Ramdas (2025).**  
+   In Section 6.1.3.8 we show $W_n:=S_n/\alpha$ is exactly the binomial-mixture e-process appearing in Fischer &
+   Ramdas (2025, Proposition 5). Ville’s inequality then yields the same bound.
 
 ### 6.1.3 Mathematical Foundations for Sequential Stopping (DETAILED)
 
-> **⚠️ WARNING**: This section documents the mathematical framework needed to formalize validity
-> guarantees. The connections described here are preliminary and require peer review.
+> **Note:** Subsections explicitly labeled “RESOLVED” / “FORMALLY PROVEN” are complete. Other subsections are
+> sketches/intuition and should not be treated as paper-ready results.
 
 #### 6.1.3.1 Key Mathematical Objects
 
@@ -2367,7 +2162,9 @@ This would give Type I error control at level $\gamma \cdot \widetilde{W}_0$.
 
 #### 6.1.3.4 Distribution of $L_n$ Under $H_0$
 
-**Critical Result:** Under $H_0$ (exchangeability), the exceedance count $L_n$ follows:
+**Critical Result (continuous / tie-free case):** Under $H_0$ (exchangeability) and assuming the permutation
+distribution of the test statistic is continuous (so ties occur with probability 0), the exceedance count $L_n$
+follows:
 $$
 L_n \sim \text{Uniform}\{0, 1, \ldots, n\}
 $$
@@ -2377,7 +2174,7 @@ $$
 **Proof:**
 1. Under $H_0$, let $p = F(T_0)$ where $F$ is the permutation distribution CDF and $T_0$ is the
    observed test statistic.
-2. By the probability integral transform, $p \sim \text{Uniform}(0, 1)$.
+2. By the probability integral transform (continuous case), $p \sim \text{Uniform}(0, 1)$.
 3. Conditional on $p$: each permutation exceeds $T_0$ with probability $p$, so
    $L_n \mid p \sim \text{Binomial}(n, p)$.
 4. Marginalizing over $p \sim \text{Uniform}(0, 1)$:
@@ -2392,6 +2189,10 @@ $$
 
 The larger variance (Uniform std $\approx 2.7 \times$ Binomial std for large $n$) is crucial
 for understanding the sequential dynamics.
+
+**Remark (ties / discrete statistics).** If the permutation distribution has atoms (ties), then $p=F(T_0)$ is not
+exactly Uniform by PIT; this changes the exact marginal law of $L_n$. The sequential stopping theory in this section
+uses the continuous-null idealization for clean, closed-form calculations.
 
 #### 6.1.3.5 Sequential Dynamics with Random Environment
 
@@ -2408,22 +2209,10 @@ $$
 \mathbb{P}(\text{reject}) = \int_0^1 \rho(p) \, dp
 $$
 
-**Empirical Results (from `sequential_stopping_analysis.py`):**
-
-| $p$ range | Rejection rate $\rho(p)$ |
-|-----------|--------------------------|
-| $[0.00, 0.05)$ | 85.8% |
-| $[0.05, 0.10)$ | 4.2% |
-| $[0.10, 0.20)$ | 0.07% |
-| $[0.20, 1.00)$ | ≈0% |
-
-**Interpretation:** Rejections occur almost exclusively when $p < 0.05$, i.e., when the observed
-statistic is in the top 5% of the permutation distribution. This is **correct behavior**.
-
-The marginal Type I error is:
-$$
-\mathbb{P}(\text{reject}) = \int_0^1 \rho(p) \, dp \approx 0.05 \times 0.86 + 0.05 \times 0.04 + \cdots \approx 0.045
-$$
+**Interpretation (qualitative).** Under this mixture model, the only way to stop due to “confident significance” is if
+the underlying drift $p$ is small (roughly $p \lesssim \alpha$), i.e., the observed statistic is extreme under the
+permutation distribution. Quantitative calibration is kept in the reproducible scripts/figures referenced in Section
+6.1.
 
 #### 6.1.3.6 First-Passage Time Analysis (Sketch)
 
@@ -2689,46 +2478,29 @@ This provides useful intuition but does not yield a rigorous bound without addit
 
 ---
 
-##### Verification Against Empirical Results
+##### Empirical calibration (reproducible)
 
-**Simulation parameters:** $N = 10{,}000$ trials, $\alpha = 0.05$, $\gamma = 0.95$,
-$n_{\min} = 20$, $n_{\max} = 10{,}000$.
+Reproducible null-calibration outputs for the continuous-null idealization are generated by
+`paper/scripts/theory/generate_sequential_stopping_calibration.py` and stored in:
+- `paper/results/figures/sequential_stopping_calibration_data.parquet`
+- `paper/results/figures/sequential_stopping_calibration.png`
 
-| Quantity | Theoretical | Empirical | Match |
-|----------|-------------|-----------|-------|
-| $\mathbb{E}[S_\tau]$ | $\alpha = 0.05$ | 0.0499 | ✅ |
-| Type I error bound | $\alpha/\gamma = 0.0526$ | — | — |
-| Actual Type I error | $\leq 0.0526$ | 0.0448 | ✅ |
-
-The empirical $\mathbb{E}[S_\tau] = 0.0499$ matches the theoretical prediction $\alpha = 0.05$
-almost exactly (within simulation noise).
-
-**Breakdown by true $p$ range:**
-
-| True $p$ Range | $P(\text{reject} \mid p)$ | Contribution to Type I |
-|----------------|---------------------------|------------------------|
-| $[0.00, 0.05)$ | 85.9% | 4.30% |
-| $[0.05, 0.10)$ | 2.6% | 0.13% |
-| $[0.10, 0.20)$ | 0% | 0% |
-| $[0.20, 1.00)$ | 0% | 0% |
-| **Total** | — | **4.43%** |
-
-Almost all rejections (97%) come from $p < \alpha$, which is **correct behavior** — the test
-rejects when the true p-value is below the significance threshold.
-
----
+In the committed run ($n_\text{sims}=20{,}000$, $n_\text{max}=2000$), the default $\gamma=0.95$ yields:
+- $\Pr(\text{stop\_sig})=0.04245$ vs bound $\alpha/\gamma=0.05263$,
+- $\Pr(\widehat p_\tau<\alpha)=0.04485$ for the algorithm-returned $\widehat p_\tau$.
 
 ##### Tightness of the Markov Bound
 
 The Markov inequality bound $P(S_\tau \geq \gamma) \leq \alpha/\gamma$ is **not tight**:
 
-| $\gamma$ | Markov bound $\alpha/\gamma$ | Empirical Type I |
+| $\gamma$ | Bound $\alpha/\gamma$ | Empirical $\Pr(\text{stop\_sig})$ |
 |----------|------------------------------|------------------|
-| 0.90 | 5.56% | ~4.8% |
-| 0.95 | 5.26% | ~4.5% |
-| 0.99 | 5.05% | ~4.2% |
+| 0.90 | 0.05556 | 0.04485 |
+| 0.95 | 0.05263 | 0.04245 |
+| 0.975 | 0.05128 | 0.04400 |
+| 0.99 | 0.05051 | 0.04290 |
 
-The actual Type I error is consistently below the Markov bound. This slack arises from:
+The empirical $\Pr(\text{stop\_sig})$ is consistently below the bound in this calibration run. This slack arises from:
 
 1. **Discrete jumps:** $S_n$ cannot hit $\gamma$ exactly; it jumps over it, making
    $\mathbb{E}[S_\tau \cdot \mathbf{1}_{S_\tau \geq \gamma}] < \gamma \cdot P(S_\tau \geq \gamma)$.
@@ -2806,9 +2578,9 @@ Uniform."**
 **Response:** Correct. With ties, $p$ is **super-uniform** (stochastically larger than Uniform), not
 exactly Uniform. In this case:
 - The Uniform prior is a slight misspecification
-- The procedure becomes **conservative**: $\mathbb{E}[S_\tau] \leq \alpha$ (inequality, not equality)
-- Type I error is still controlled: $P(\text{reject}) \leq \alpha/\gamma$
-- Empirically verified: Type I error 4.48% < bound 5.26%
+- The clean equality $\mathbb{E}[S_\tau]=\alpha$ relies on the continuous-null PIT argument
+- With the standard “count ties against the null” convention (using $\ge$ for right-tail tests), sequential
+  betting/e-process results (Fischer–Ramdas, Remark 1) suggest the same stop\_sig bound remains conservative
 
 This is explained in "With Discrete Test Statistics (Ties)" subsection. A formal proof for the
 discrete case remains an open question.

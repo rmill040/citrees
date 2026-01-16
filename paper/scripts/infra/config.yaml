@@ -84,7 +84,7 @@ experiment:
   type: classification
   n_seeds: 10
   stale_timeout_minutes: 30
-  # Ray CPU scheduling (per config)
+  # Ray CPU scheduling (per config) - Stage 1 (feature selection)
   # - Lightweight methods pack densely (default=1 CPU)
   # - Threaded methods (rf/et/xgb/lgbm/cat/...) reserve more (threaded=8 CPUs)
   # - CIF can scale more on large datasets: use `selection_cpus_cif_large` when
@@ -102,3 +102,15 @@ experiment:
   #   cif: 32
   #   rf: 8
   selection_cpus_overrides: {}
+
+  # Ray CPU scheduling (per config) - Stage 2 (downstream evaluation)
+  # Stage 2 is usually lightweight (lr/svm/knn), so default is 1 CPU per config.
+  # If you add heavier downstream models later, set `evaluation_cpus_default` higher
+  # or override specific downstream model names via `evaluation_cpus_overrides`.
+  #
+  # Example:
+  # evaluation_cpus_overrides:
+  #   xgb: 8
+  #   lgbm: 8
+  evaluation_cpus_default: 1
+  evaluation_cpus_overrides: {}

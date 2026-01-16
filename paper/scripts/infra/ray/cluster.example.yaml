@@ -91,6 +91,8 @@ setup_commands:
   - sudo rm -f /usr/local/bin/python && echo -e '#!/bin/bash\nexec /home/ubuntu/citrees/.venv/bin/python "$@"' | sudo tee /usr/local/bin/python > /dev/null && sudo chmod +x /usr/local/bin/python
   # Set S3_BUCKET env var (resolved at generate time, avoids STS calls on workers)
   - echo 'export S3_BUCKET=__S3_BUCKET__' >> ~/.bashrc
+  # Provenance: prefer env var to avoid relying on `.git/` at runtime
+  - echo 'export GIT_SHA=$(cd ~/citrees && git rev-parse HEAD)' >> ~/.bashrc
 
 # Override Ray's default pip commands (we use uv)
 head_setup_commands: []
@@ -98,8 +100,8 @@ worker_setup_commands: []
 
 head_start_ray_commands:
   - $HOME/citrees/.venv/bin/ray stop
-  - $HOME/citrees/.venv/bin/ray start --head --port=6379 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
+  - S3_BUCKET=__S3_BUCKET__ GIT_SHA="$(cd $HOME/citrees && git rev-parse HEAD)" $HOME/citrees/.venv/bin/ray start --head --port=6379 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
 
 worker_start_ray_commands:
   - $HOME/citrees/.venv/bin/ray stop
-  - $HOME/citrees/.venv/bin/ray start --address=$RAY_HEAD_IP:6379
+  - S3_BUCKET=__S3_BUCKET__ GIT_SHA="$(cd $HOME/citrees && git rev-parse HEAD)" $HOME/citrees/.venv/bin/ray start --address=$RAY_HEAD_IP:6379

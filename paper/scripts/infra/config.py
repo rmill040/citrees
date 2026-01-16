@@ -418,6 +418,7 @@ def load_config(path: Path | None = None) -> Config:
 
     # Experiment
     if exp_data := data.get("experiment"):
+        overrides = exp_data.get("selection_cpus_overrides") or {}
         config.experiment = ExperimentConfig(
             type=exp_data.get("type", "classification"),
             n_seeds=exp_data.get("n_seeds", 10),
@@ -427,6 +428,7 @@ def load_config(path: Path | None = None) -> Config:
             selection_cpus_cif=exp_data.get("selection_cpus_cif", 16),
             selection_cpus_cif_large=exp_data.get("selection_cpus_cif_large", 32),
             selection_cif_large_threshold=exp_data.get("selection_cif_large_threshold", 10_000_000),
+            selection_cpus_overrides={str(k): int(v) for k, v in overrides.items()},
         )
 
     # Load state if exists

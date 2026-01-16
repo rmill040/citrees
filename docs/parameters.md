@@ -22,10 +22,13 @@ Complete reference for all citrees parameters with tuning guidance.
 
 Options for `n_resamples_*`:
 
-- `NResamples.AUTO`: Adaptive based on alpha (recommended)
-- `NResamples.MINIMUM`: `ceil(1/alpha)` resamples
-- `NResamples.MAXIMUM`: `ceil(100/alpha)` resamples
-- `int`: Exact number of resamples
+- `NResamples.AUTO`: Adaptive based on alpha (recommended). Implemented as:
+  - `lower = ceil(1/alpha)`
+  - `upper = ceil(z^2 * (1 - alpha) / alpha)` where `z = Φ^{-1}(1 - alpha)`
+  - `B = max(lower, upper)`
+- `NResamples.MINIMUM`: `ceil(1/alpha)` resamples (minimum resolution to allow `p < alpha` with +1 correction)
+- `NResamples.MAXIMUM`: `ceil(1 / (4 * alpha^2))` resamples (high precision; matches `100` when `alpha=0.05`)
+- `int`: Exact number of resamples (must be `>= ceil(1/alpha)`; with Bonferroni, this scales by the number of tests)
 
 ### Alpha Adjustment
 
@@ -36,10 +39,17 @@ Options for `n_resamples_*`:
 
 ### Early Stopping
 
-| Parameter                 | Type | Default | Description                       |
-| ------------------------- | ---- | ------- | --------------------------------- |
-| `early_stopping_selector` | bool | True    | Stop on first significant feature |
-| `early_stopping_splitter` | bool | True    | Stop on first significant split   |
+| Parameter                           | Type                  | Default                    | Description |
+| ----------------------------------- | --------------------- | -------------------------- | ----------- |
+| `early_stopping_selector`           | EarlyStopping or None | `EarlyStopping.ADAPTIVE`   | Sequential stopping rule for selector permutation tests |
+| `early_stopping_splitter`           | EarlyStopping or None | `EarlyStopping.ADAPTIVE`   | Sequential stopping rule for splitter permutation tests |
+| `early_stopping_confidence_selector`| float                 | 0.95                       | Posterior-confidence threshold γ for `EarlyStopping.ADAPTIVE` (selectors) |
+| `early_stopping_confidence_splitter`| float                 | 0.95                       | Posterior-confidence threshold γ for `EarlyStopping.ADAPTIVE` (splitters) |
+
+Notes:
+- `EarlyStopping.ADAPTIVE` uses a Beta posterior confidence rule to stop when confident about `p < alpha` or `p >= alpha`.
+- `EarlyStopping.SIMPLE` uses a futility + significance heuristic and can inflate Type I error.
+- Use `early_stopping_*=None` for fixed-B Monte Carlo p-values (recommended for publication-grade p-value claims).
 
 ### Feature Optimization
 

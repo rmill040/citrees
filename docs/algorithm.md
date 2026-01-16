@@ -105,9 +105,10 @@ def _ptest(func, x, y, n_resamples, alpha, early_stopping):
 
 **Key parameters**:
 
-- `n_resamples_selector`: Number of permutations (default: "auto" ≈ 100-500)
+- `n_resamples_selector`: Number of permutations (`"auto"`, `"minimum"`, `"maximum"`, `int`, or `None`)
 - `alpha_selector`: Significance threshold (default: 0.05)
-- `early_stopping_selector`: Stop testing once significance is achieved
+- `early_stopping_selector`: `"adaptive"`, `"simple"`, or `None` (fixed-$B$)
+- `early_stopping_confidence_selector`: Posterior-confidence threshold γ for `"adaptive"` (default: 0.95)
 
 ### Bonferroni Correction
 

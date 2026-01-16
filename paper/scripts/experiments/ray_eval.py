@@ -14,11 +14,12 @@ import ray
 from loguru import logger
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import accuracy_score, f1_score, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
+from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC, SVR
 
-from paper.scripts.utils.constants import CLF_DOWNSTREAM_MODELS, CLF_METHODS, REG_DOWNSTREAM_MODELS, REG_METHODS
+from paper.scripts.utils.constants import CLF_DOWNSTREAM_MODELS, CLF_METHODS, N_SPLITS, REG_DOWNSTREAM_MODELS, REG_METHODS
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 from paper.scripts.infra.config import load_config
 
@@ -68,12 +69,17 @@ def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def s3_file_exists(s3_path: str) -> bool:
+    from botocore.exceptions import ClientError
+
     parts = s3_path.replace("s3://", "").split("/", 1)
     try:
         get_s3_client().head_object(Bucket=parts[0], Key=parts[1])
         return True
-    except Exception:
-        return False
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        raise
 
 
 def download_from_s3(s3_path: str) -> pd.DataFrame:
@@ -105,6 +111,18 @@ def get_reg_models(random_state: int) -> dict[str, Any]:
         "svr": SVR(),
         "knn": KNeighborsRegressor(n_neighbors=5, weights="distance"),
     }
+
+
+def safe_roc_auc_score(y_true: np.ndarray, y_proba: np.ndarray) -> float:
+    """Compute ROC AUC, returning NaN when undefined (e.g., single-class fold)."""
+    try:
+        if y_proba.ndim == 1:
+            return float(roc_auc_score(y_true, y_proba))
+        if y_proba.shape[1] == 2:
+            return float(roc_auc_score(y_true, y_proba[:, 1]))
+        return float(roc_auc_score(y_true, y_proba, multi_class="ovr", average="weighted"))
+    except Exception:
+        return float(np.nan)
 
 
 def evaluate_fold(
@@ -146,10 +164,7 @@ def evaluate_fold(
                 }
                 if hasattr(model, "predict_proba"):
                     y_proba = model.predict_proba(X_test_scaled)
-                    if y_proba.shape[1] == 2:
-                        metrics["roc_auc"] = roc_auc_score(y_test, y_proba[:, 1])
-                    else:
-                        metrics["roc_auc"] = roc_auc_score(y_test, y_proba, multi_class="ovr", average="weighted")
+                    metrics["roc_auc"] = safe_roc_auc_score(y_test, y_proba)
             else:
                 metrics = {
                     "r2": r2_score(y_test, y_pred),
@@ -170,15 +185,26 @@ def run_evaluation(
     X: np.ndarray,
     y: np.ndarray,
     rankings_df: pd.DataFrame,
+    dataset: str,
+    method_id: str,
     task_type: str,
     seed: int,
 ) -> list[dict[str, Any]]:
     results = []
 
+    # Reconstruct deterministic CV splits instead of storing per-sample indices in artifacts.
+    if task_type == "classification":
+        cv = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=seed)
+    else:
+        cv = KFold(n_splits=N_SPLITS, shuffle=True, random_state=seed)
+    splits = list(cv.split(X, y))
+
     for _, row in rankings_df.iterrows():
-        fold_idx = row["fold_idx"]
-        train_idx = np.array(row["train_indices"])
-        test_idx = np.array(row["test_indices"])
+        fold_idx = int(row["fold_idx"])
+        try:
+            train_idx, test_idx = splits[fold_idx]
+        except IndexError as e:
+            raise ValueError(f"Invalid fold_idx={fold_idx}; expected 0..{len(splits) - 1}") from e
         ranking = np.array(row["feature_ranking"])
 
         X_train, X_test = X[train_idx], X[test_idx]
@@ -188,6 +214,10 @@ def run_evaluation(
         fold_results = evaluate_fold(X_train, y_train, X_test, y_test, ranking, task_type, rs)
 
         for res in fold_results:
+            res["dataset"] = dataset
+            res["method_id"] = method_id
+            res["task_type"] = task_type
+            res["seed"] = seed
             res["fold_idx"] = fold_idx
             results.append(res)
 
@@ -202,17 +232,19 @@ def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: s
     rankings_path = f"s3://{bucket}/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
     metrics_path = f"s3://{bucket}/metrics/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
 
-    if s3_file_exists(metrics_path):
-        return {"status": "skipped", "method": method_id, "dataset": dataset, "seed": seed}
+    try:
+        rankings_exist = s3_file_exists(rankings_path)
+    except Exception as e:
+        return {"status": "failed", "method": method_id, "dataset": dataset, "seed": seed, "error": str(e)}
 
-    if not s3_file_exists(rankings_path):
+    if not rankings_exist:
         return {"status": "no_rankings", "method": method_id, "dataset": dataset, "seed": seed}
 
     try:
         rankings_df = download_from_s3(rankings_path)
         X, y = load_dataset(dataset, task_type)
         tic = time.perf_counter()
-        results = run_evaluation(X, y, rankings_df, task_type, seed)
+        results = run_evaluation(X, y, rankings_df, dataset, method_id, task_type, seed)
         elapsed = time.perf_counter() - tic
         upload_to_s3(results, metrics_path)
         return {"status": "done", "method": method_id, "dataset": dataset, "seed": seed, "elapsed": elapsed}
@@ -238,11 +270,10 @@ def main():
     results = ray.get(futures)
 
     done = sum(1 for r in results if r["status"] == "done")
-    skipped = sum(1 for r in results if r["status"] == "skipped")
     no_rankings = sum(1 for r in results if r["status"] == "no_rankings")
     failed = sum(1 for r in results if r["status"] == "failed")
 
-    logger.info(f"Done: {done}, Skipped: {skipped}, No rankings: {no_rankings}, Failed: {failed}")
+    logger.info(f"Done: {done}, No rankings: {no_rankings}, Failed: {failed}")
 
     if failed > 0:
         for r in results:

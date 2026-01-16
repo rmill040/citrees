@@ -1,4 +1,3 @@
-import warnings
 from math import ceil
 from typing import Any
 
@@ -416,21 +415,12 @@ def mc(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = 
         ssb += n_j * dev_j
 
     if sst <= 0.0 or not np.isfinite(sst):
-        warnings.warn(
-            "mc received non-finite or zero-variance feature; returning 0.0",
-            RuntimeWarning,
-            stacklevel=2,
-        )
         return 0.0
     ratio = ssb / sst
     if ratio < 0.0 or not np.isfinite(ratio):
-        warnings.warn(
-            "mc encountered invalid ratio during computation; returning 0.0",
-            RuntimeWarning,
-            stacklevel=2,
-        )
         return 0.0
     return np.sqrt(ratio)
+
 
 
 @ClassifierSelectors.register("mi")

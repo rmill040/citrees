@@ -170,8 +170,8 @@ function BuildTree(X, y, depth):
 | `splitter`             | str         | `'gini'`/`'mse'` | Split criterion                         |
 | `alpha_selector`       | float       | 0.05             | P-value threshold for feature selection |
 | `alpha_splitter`       | float       | 0.05             | P-value threshold for split selection   |
-| `n_resamples_selector` | NResamples/int | `NResamples.AUTO` | Permutation resamples for selector      |
-| `n_resamples_splitter` | NResamples/int | `NResamples.AUTO` | Permutation resamples for splitter      |
+| `n_resamples_selector` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for selector (`None` disables permutation tests) |
+| `n_resamples_splitter` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for splitter (`None` disables permutation tests) |
 
 ### Optimization Parameters
 
@@ -179,8 +179,10 @@ function BuildTree(X, y, depth):
 | ------------------------- | ---- | ------- | ------------------------------------ |
 | `adjust_alpha_selector`   | bool | True    | Bonferroni correction for features   |
 | `adjust_alpha_splitter`   | bool | True    | Bonferroni correction for thresholds |
-| `early_stopping_selector` | bool | True    | Stop on first significant feature    |
-| `early_stopping_splitter` | bool | True    | Stop on first significant split      |
+| `early_stopping_selector` | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for selector permutation tests |
+| `early_stopping_splitter` | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests |
+| `early_stopping_confidence_selector` | float | 0.95 | Posterior-confidence threshold γ for adaptive stopping (selectors) |
+| `early_stopping_confidence_splitter` | float | 0.95 | Posterior-confidence threshold γ for adaptive stopping (splitters) |
 | `feature_muting`          | bool | True    | Remove uninformative features        |
 | `feature_scanning`        | bool | True    | Test promising features first        |
 

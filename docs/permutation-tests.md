@@ -328,19 +328,19 @@ n_resamples_selector=NResamples.AUTO  # Adaptive based on alpha
 n_resamples_splitter=NResamples.AUTO
 ```
 
-The `NResamples.AUTO` setting chooses resamples based on the significance level:
+`n_resamples_*` controls the permutation budget $B$. In citrees, the string presets are functions of $\alpha$:
 
-| Setting              | Formula                    | Rationale                          |
-| -------------------- | -------------------------- | ---------------------------------- |
-| `NResamples.MINIMUM` | $\lceil 1/\alpha \rceil$   | Just enough to detect significance |
-| `NResamples.AUTO`    | $\lceil 10/\alpha \rceil$  | Good balance                       |
-| `NResamples.MAXIMUM` | $\lceil 100/\alpha \rceil$ | High precision                     |
+| Setting              | Formula | Notes |
+| -------------------- | ------- | ----- |
+| `NResamples.MINIMUM` | $\lceil 1/\alpha \rceil$ | Minimum resolution to allow rejection with +1 correction |
+| `NResamples.AUTO`    | $\max\{\lceil 1/\alpha \rceil,\ \lceil z_{1-\alpha}^2 (1-\alpha)/\alpha \rceil\}$ | $z_{1-\alpha}=\Phi^{-1}(1-\alpha)$ |
+| `NResamples.MAXIMUM` | $\lceil 1/(4\alpha^2) \rceil$ | High precision (equals 100 at $\alpha=0.05$) |
 
-For $\alpha = 0.05$:
+For $\alpha = 0.05$ this yields:
 
 - `NResamples.MINIMUM`: 20 resamples
-- `NResamples.AUTO`: 200 resamples
-- `NResamples.MAXIMUM`: 2,000 resamples
+- `NResamples.AUTO`: 52 resamples
+- `NResamples.MAXIMUM`: 100 resamples
 
 ### Precision vs. Computation
 
@@ -357,27 +357,43 @@ For $p = 0.05$ and $B = 200$: $SE \approx 0.015$
 ### The Idea
 
 If we've already seen enough extreme permutations to know the p-value will
-exceed $\alpha$, we can stop early:
+citrees supports early stopping **inside permutation tests** via `early_stopping_*`:
+
+- `EarlyStopping.ADAPTIVE` (default): posterior-confidence stopping using a Beta posterior on the exceedance rate.
+- `EarlyStopping.SIMPLE`: a futility + significance heuristic (can inflate Type I error).
+- `None`: fixed-$B$ Monte Carlo permutation p-value (no early stopping).
+
+In both sequential modes, the function returns the usual **+1 corrected** Monte Carlo estimate
+$\hat p = (L_n+1)/(n+1)$ evaluated at the stopping time $n$.
+
+### Adaptive (posterior-confidence) stopping
+
+Let $L_n$ be the number of exceedances after $n$ permutations (right-tail: $T_b \ge T_0$; left-tail: $T_b \le T_0$).
+With a Beta(1,1) prior on the unknown exceedance probability $p$, the posterior is
+$p \mid L_n \sim \mathrm{Beta}(1+L_n, 1+n-L_n)$. The adaptive rule stops once it is confident that $p < \alpha$ or
+$p \ge \alpha$:
 
 ```
-Algorithm: Early Stopping Permutation Test
-Input: x, y, statistic, n_resamples, α
+Algorithm: Adaptive Sequential Permutation Test (citrees)
+Input: x, y, statistic T, max permutations B, threshold α, confidence γ
 
-1. t_obs ← statistic(x, y)
-2. count ← 0
-3. threshold ← ⌈α × (n_resamples + 1)⌉
-
-4. For b = 1 to n_resamples:
-       t_perm ← statistic(x, Permute(y))
-       If t_perm ≥ t_obs:
-           count ← count + 1
-
-       # Early stopping check
-       If count ≥ threshold:
-           Return (count + 1) / (b + 1)  # p > α, not significant
-
-5. Return (count + 1) / (n_resamples + 1)
+1. Compute observed statistic T0 ← T(x, y)
+2. min_resamples ← ceil(1/α); B ← max(B, min_resamples)
+3. L ← 0  # exceedance count
+4. For n = 1..B:
+     - Permute y and compute Tn ← T(x, perm(y))
+     - Update L based on the chosen tail (≥ for selectors, ≤ for splitters)
+     - If n ≥ min_resamples:
+         S ← BetaCDF(α; 1+L, 1+n-L)  # posterior mass below α
+         If S ≥ γ or (1-S) ≥ γ: return p_hat = (L+1)/(n+1)
+5. Return p_hat = (L+1)/(B+1)
 ```
+
+### Simple stopping (heuristic)
+
+The simple rule stops early if (i) the running estimate is already below $\alpha$ (significant), or (ii) even the best
+possible p-value after all remaining permutations cannot drop below $\alpha$ (futility). This can inflate Type I error
+because it “peeks” without a validity correction.
 
 ### Benefits
 
@@ -390,7 +406,7 @@ Input: x, y, statistic, n_resamples, α
 Enable with:
 
 ```python
-early_stopping_selector=EarlyStopping.ADAPTIVE  # Default - Bayesian stopping, valid Type I error
+early_stopping_selector=EarlyStopping.ADAPTIVE  # Default - posterior-confidence stopping
 early_stopping_splitter=EarlyStopping.ADAPTIVE  # Default
 # Or use EarlyStopping.SIMPLE for basic futility stopping (inflates Type I error to ~9%)
 # Or use None to disable early stopping entirely

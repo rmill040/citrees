@@ -21,8 +21,20 @@ Run:
 from __future__ import annotations
 
 import argparse
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+
+_paper_dir = Path(__file__).resolve().parents[2]
+# Ensure Matplotlib/fontconfig caches are writable in sandboxed environments.
+_cache_root = Path(tempfile.gettempdir()) / "citrees-paper-cache"
+_mpl_dir = _cache_root / "mplconfig"
+_xdg_dir = _cache_root / "xdg-cache"
+_mpl_dir.mkdir(parents=True, exist_ok=True)
+_xdg_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(_mpl_dir))
+os.environ.setdefault("XDG_CACHE_HOME", str(_xdg_dir))
 
 import numpy as np
 import pandas as pd
@@ -175,7 +187,7 @@ def main() -> None:
 
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.plot(df["gamma"], df["reject_rate"], marker="o", label=r"Pr($\hat p_\tau < \alpha$) (algorithm output)")
-    ax.plot(df["gamma"], df["stop_sig_rate"], marker="o", label=r"Pr(stop due to $S_\tau \ge \gamma$)")
+    ax.plot(df["gamma"], df["stop_sig_rate"], marker="o", label=r"Pr(stop due to $S_\tau \geq \gamma$)")
     ax.plot(df["gamma"], df["bound_stop_sig"], linestyle="--", label=r"Bound: $\alpha/\gamma$")
     ax.axhline(args.alpha, color="black", linewidth=1, linestyle=":", label=r"Target $\alpha$")
     ax.set_xlabel(r"Confidence threshold $\gamma$")
@@ -194,4 +206,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

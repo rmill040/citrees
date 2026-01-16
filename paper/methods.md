@@ -271,7 +271,7 @@ def _rdc(x, y, k, s, seed):
 ```
 Algorithm 3: Feature Selection at Node t
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Input: Data (X_t, y_t), candidate features F_t, α_sel, B permutations
+Input: Data (X_t, y_t), candidate features F_t, α_sel, B permutations, adjust_alpha
 Output: Best feature j*, p-value p*, rejection decision
 
 1. If |F_t| > max_features:
@@ -280,24 +280,27 @@ Output: Best feature j*, p-value p*, rejection decision
 2. If feature_scanning and early_stopping enabled:
    F_t ← SortByAssociationScore(F_t, X_t, y_t)  # Most promising first
 
-3. Initialize: p* ← ∞, j* ← F_t[0]
+3. Set effective threshold:
+   α_eff ← α_sel/|F_t| if adjust_alpha else α_sel
 
-4. For each feature j in F_t:
+4. Initialize: p* ← ∞, j* ← F_t[0]
+
+5. For each feature j in F_t:
    a. Compute association score: θ_0 ← |T(X_t[:,j], y_t)|
    b. Compute p-value via permutation test:
-      p_j ← PermutationTest(X_t[:,j], y_t, B, α_sel/|F_t|)
+      p_j ← PermutationTest(X_t[:,j], y_t, B, α_eff)
 
    c. If p_j < p*:
       p* ← p_j, j* ← j
 
    d. Early stopping check (if enabled):
-      If p_j < α_sel / |F_t|: break
+      If p* < α_eff: break  # first significant new best
 
    e. Feature muting (if enabled):
-      If p_j ≥ max(α_sel, 1-α_sel):
+      If p_j ≥ max(α_eff, 1-α_eff):
          Remove j from available features globally
 
-5. Return (j*, p*, p* < α_sel / |F_t|)
+6. Return (j*, p*, p* < α_eff)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -443,7 +446,7 @@ Histogram bin edges of midpoints.
 ```
 Algorithm 4: Split Selection at Node t
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Input: Feature x = X_t[:,j*], response y_t, α_split, B permutations
+Input: Feature x = X_t[:,j*], response y_t, α_split, B permutations, adjust_alpha
 Output: Best threshold c*, p-value p*, rejection decision
 
 1. Generate threshold candidates:
@@ -454,22 +457,28 @@ Output: Best threshold c*, p-value p*, rejection decision
 2. If threshold_scanning and early_stopping enabled:
    C ← SortByImpurityReduction(C, x, y_t)  # Best splits first
 
-3. Initialize: p* ← ∞, c* ← C[0]
+3. Set effective threshold:
+   α_eff ← α_split/|C| if adjust_alpha else α_split
 
-4. For each threshold c in C:
+4. Initialize: p* ← ∞, c* ← C[0]
+
+5. For each threshold c in C:
    a. Compute split impurity:
       θ_0 ← Impurity(y[x ≤ c]) + Impurity(y[x > c])
 
    b. Compute p-value via permutation test (LEFT-TAIL):
-      p_c ← PermutationTestSplit(x, y_t, c, B, α_split/|C|)
+      p_c ← PermutationTestSplit(x, y_t, c, B, α_eff)
 
    c. If p_c < p*:
       p* ← p_c, c* ← c
 
    d. Early stopping (if enabled):
-      If p_c < α_split / |C|: break
+      If p* < α_eff: break  # first significant new best
 
-5. Return (c*, p*, p* < α_split / |C|)
+5. Check deterministic split constraints:
+   If min_samples_leaf violated by c*: set reject=False
+
+6. Return (c*, p*, p* < α_eff)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -547,7 +556,13 @@ return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 ## 6. Sequential Permutation Testing
 
-citrees implements adaptive sequential stopping to reduce computational cost while maintaining valid Type I error control.
+citrees implements sequential Monte Carlo stopping rules to reduce computational cost in permutation testing.
+
+**Important inferential note.** When `early_stopping_*=None`, citrees reports fixed-$B$ Monte Carlo permutation p-values
+with the Phipson–Smyth (+1) correction, and standard permutation-test guarantees apply. When
+`early_stopping_* ∈ {"adaptive","simple"}`, the algorithm may stop at a data-dependent time and returns the +1 Monte
+Carlo estimate evaluated at that stopping time; this number should not be treated as a classical fixed-$B$ p-value.
+For publication-grade p-value claims, use fixed-$B$ mode (`early_stopping_*=None`) and report $B$ explicitly.
 
 ### 6.1 Motivation
 
@@ -668,7 +683,10 @@ def _beta_cdf(x, a, b):
 
 ### 6.5 Empirical Performance
 
-Based on 5,000 simulations:
+The tradeoff is best understood empirically via null/signal simulations; see `paper/scripts/theory/` for reproducible
+calibration scripts.
+
+Example summary (illustrative; regenerate from scripts for the paper):
 
 | Method | Type I Error | Avg Perms (null) | Power | Speedup |
 |--------|-------------|------------------|-------|---------|
@@ -676,7 +694,8 @@ Based on 5,000 simulations:
 | Simple | **9.1%** | 135 | 97.8% | 7x |
 | Adaptive (γ=0.95) | **5.5%** | 48 | 96.4% | **21x** |
 
-The adaptive method maintains valid Type I error while achieving 95% reduction in permutations on null features.
+Adaptive stopping can reduce computation substantially on clearly non-significant tests while keeping the *rejection
+rate* close to nominal in many regimes; however, fixed-$B$ mode remains the clean option for classical p-value claims.
 
 ---
 

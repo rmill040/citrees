@@ -72,6 +72,37 @@ DATA_DIR = (
 )
 
 
+# =============================================================================
+# Ray resource planning (per-method CPU needs)
+# =============================================================================
+
+# Many selection methods are effectively single-threaded, while others (tree ensembles) can use multi-core parallelism.
+# Request Ray `num_cpus` per task to avoid oversubscription and to pack lightweight tasks per node.
+#
+# Tune these values based on your instance types and dataset sizes.
+_DEFAULT_SELECTION_CPUS = 1
+_THREADED_SELECTION_CPUS = 8
+_THREADED_SELECTION_METHODS = {
+    # Embedding methods
+    "rf",
+    "et",
+    "cif",
+    "xgb",
+    "lgbm",
+    "cat",
+    # Wrapper methods (typically train tree ensembles internally)
+    "boruta",
+    "pi",
+    "cpi",
+    "shap",
+    "rfe",
+}
+
+
+def selection_num_cpus(method: str) -> int:
+    return _THREADED_SELECTION_CPUS if method in _THREADED_SELECTION_METHODS else _DEFAULT_SELECTION_CPUS
+
+
 def get_s3_client():
     """Create S3 client lazily (avoid serialization issues with Ray)."""
     return boto3.client("s3", region_name=config.region)
@@ -105,12 +136,17 @@ def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def s3_file_exists(s3_path: str) -> bool:
+    from botocore.exceptions import ClientError
+
     parts = s3_path.replace("s3://", "").split("/", 1)
     try:
         get_s3_client().head_object(Bucket=parts[0], Key=parts[1])
         return True
-    except Exception:
-        return False
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        raise
 
 
 def upload_to_s3(data: list[dict], s3_path: str) -> None:
@@ -187,17 +223,23 @@ def permutation_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: s
     return np.lexsort((-scores, pvalues))
 
 
-def get_embedding_model(method: str, task_type: str, random_state: int, params: dict[str, Any] | None = None):
+def get_embedding_model(
+    method: str,
+    task_type: str,
+    random_state: int,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    params: dict[str, Any] | None = None,
+):
     params = params or {}
 
     if task_type == "classification":
         if method == "rf":
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return RandomForestClassifier(**model_params)
         if method == "et":
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return ExtraTreesClassifier(**model_params)
@@ -205,39 +247,39 @@ def get_embedding_model(method: str, task_type: str, random_state: int, params: 
             model_params = {**params, "random_state": random_state}
             return ConditionalInferenceTreeClassifier(**model_params)
         if method == "cif":
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return ConditionalInferenceForestClassifier(**model_params)
         if method == "xgb":
             if not HAS_XGB:
                 raise ValueError("XGBoost is not installed")
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": 0}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": 0}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return XGBClassifier(**model_params)
         if method == "lgbm":
             if not HAS_LGBM:
                 raise ValueError("LightGBM is not installed")
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": -1}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": -1}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return LGBMClassifier(**model_params)
         if method == "cat":
             if not HAS_CAT:
                 raise ValueError("CatBoost is not installed")
-            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0}
+            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0, "thread_count": n_jobs}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return CatBoostClassifier(**model_params)
     else:
         if method == "rf":
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return RandomForestRegressor(**model_params)
         if method == "et":
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return ExtraTreesRegressor(**model_params)
@@ -245,28 +287,28 @@ def get_embedding_model(method: str, task_type: str, random_state: int, params: 
             model_params = {**params, "random_state": random_state}
             return ConditionalInferenceTreeRegressor(**model_params)
         if method == "cif":
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return ConditionalInferenceForestRegressor(**model_params)
         if method == "xgb":
             if not HAS_XGB:
                 raise ValueError("XGBoost is not installed")
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": 0}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": 0}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return XGBRegressor(**model_params)
         if method == "lgbm":
             if not HAS_LGBM:
                 raise ValueError("LightGBM is not installed")
-            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": -1}
+            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": -1}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return LGBMRegressor(**model_params)
         if method == "cat":
             if not HAS_CAT:
                 raise ValueError("CatBoost is not installed")
-            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0}
+            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0, "thread_count": n_jobs}
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return CatBoostRegressor(**model_params)
@@ -283,8 +325,9 @@ def embedding_selector(
     task_type: str,
     random_state: int,
     params: dict[str, Any] | None = None,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
 ) -> tuple[np.ndarray, dict[str, Any]]:
-    model = get_embedding_model(method, task_type, random_state, params=params)
+    model = get_embedding_model(method, task_type, random_state, n_jobs=n_jobs, params=params)
     model.fit(X_train, y_train)
     ranking = np.argsort(model.feature_importances_)[::-1]
 
@@ -299,11 +342,17 @@ def embedding_selector(
     return ranking, embedding_data
 
 
-def boruta_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str, random_state: int) -> np.ndarray:
+def boruta_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    task_type: str,
+    random_state: int,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+) -> np.ndarray:
     if task_type == "classification":
-        base_model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
+        base_model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
     else:
-        base_model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
+        base_model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
 
     boruta = BorutaPy(base_model, n_estimators="auto", random_state=random_state, verbose=0)
     boruta.fit(X_train, y_train)
@@ -315,13 +364,14 @@ def pi_selector(
     y_train: np.ndarray,
     task_type: str,
     random_state: int,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
     val_fraction: float = 0.2,
 ) -> np.ndarray:
     if task_type == "classification":
-        model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
+        model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
         scoring = "accuracy"
     else:
-        model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
+        model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
         scoring = "r2"
 
     stratify = y_train if task_type == "classification" else None
@@ -341,16 +391,22 @@ def pi_selector(
         n_repeats=10,
         random_state=random_state,
         scoring=scoring,
-        n_jobs=-1,
+        n_jobs=n_jobs,
     )
     return np.argsort(result.importances_mean)[::-1]
 
 
-def shap_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str, random_state: int) -> np.ndarray:
+def shap_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    task_type: str,
+    random_state: int,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+) -> np.ndarray:
     if task_type == "classification":
-        model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
+        model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
     else:
-        model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
+        model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
 
     model.fit(X_train, y_train)
     explainer = shap.TreeExplainer(model)
@@ -376,15 +432,16 @@ def cpi_selector(
     y_train: np.ndarray,
     task_type: str,
     random_state: int,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
     val_fraction: float = 0.2,
     n_repeats: int = 10,
     correlation_threshold: float = 0.5,
 ) -> np.ndarray:
     if task_type == "classification":
-        model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
+        model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
         scoring_fn = lambda m, X, y: (m.predict(X) == y).mean()
     else:
-        model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
+        model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
         scoring_fn = lambda m, X, y: 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
 
     stratify = y_train if task_type == "classification" else None
@@ -465,11 +522,17 @@ def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str) -> n
     return np.array(selected)
 
 
-def rfe_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str, random_state: int) -> np.ndarray:
+def rfe_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    task_type: str,
+    random_state: int,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+) -> np.ndarray:
     if task_type == "classification":
-        base_model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
+        base_model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
     else:
-        base_model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
+        base_model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
 
     rfe = RFE(base_model, n_features_to_select=1, step=1)
     rfe.fit(X_train, y_train)
@@ -483,9 +546,8 @@ def run_selection(
     task_type: str,
     seed: int,
     params: dict[str, Any] | None = None,
+    n_jobs: int = _DEFAULT_SELECTION_CPUS,
 ) -> list[dict[str, Any]]:
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
     params = params or {}
 
     if task_type == "classification":
@@ -494,9 +556,15 @@ def run_selection(
         cv = KFold(n_splits=N_SPLITS, shuffle=True, random_state=seed)
 
     results = []
-    for fold_idx, (train_idx, test_idx) in enumerate(cv.split(X_scaled, y)):
-        X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
+    for fold_idx, (train_idx, test_idx) in enumerate(cv.split(X, y)):
+        X_train_raw, X_test_raw = X[train_idx], X[test_idx]
         y_train, y_test = y[train_idx], y[test_idx]
+
+        # Fit preprocessing only on the training fold to avoid CV leakage.
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train_raw)
+        X_test = scaler.transform(X_test_raw)
+
         rs = seed + fold_idx
         embedding_data = None
 
@@ -506,27 +574,25 @@ def run_selection(
             ranking = permutation_selector(X_train, y_train, method, task_type, rs)
         elif method in ["rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
             ranking, embedding_data = embedding_selector(
-                X_train, y_train, X_test, y_test, method, task_type, rs, params=params
+                X_train, y_train, X_test, y_test, method, task_type, rs, params=params, n_jobs=n_jobs
             )
         elif method == "boruta":
-            ranking = boruta_selector(X_train, y_train, task_type, rs)
+            ranking = boruta_selector(X_train, y_train, task_type, rs, n_jobs=n_jobs)
         elif method == "pi":
-            ranking = pi_selector(X_train, y_train, task_type, rs)
+            ranking = pi_selector(X_train, y_train, task_type, rs, n_jobs=n_jobs)
         elif method == "shap":
-            ranking = shap_selector(X_train, y_train, task_type, rs)
+            ranking = shap_selector(X_train, y_train, task_type, rs, n_jobs=n_jobs)
         elif method == "cpi":
-            ranking = cpi_selector(X_train, y_train, task_type, rs)
+            ranking = cpi_selector(X_train, y_train, task_type, rs, n_jobs=n_jobs)
         elif method == "mrmr":
             ranking = mrmr_selector(X_train, y_train, task_type)
         elif method == "rfe":
-            ranking = rfe_selector(X_train, y_train, task_type, rs)
+            ranking = rfe_selector(X_train, y_train, task_type, rs, n_jobs=n_jobs)
         else:
             raise ValueError(f"Unknown method: {method}")
 
         fold_result = {
             "fold_idx": fold_idx,
-            "train_indices": train_idx.tolist(),
-            "test_indices": test_idx.tolist(),
             "feature_ranking": ranking.tolist(),
         }
         if embedding_data:
@@ -538,19 +604,16 @@ def run_selection(
 
 
 @ray.remote(resources={"selection": 1})
-def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: str) -> dict[str, Any]:
+def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: str, n_jobs: int) -> dict[str, Any]:
     method = config["method"]
     params = extract_params(config)
     method_id = config_label(config)
     s3_path = f"s3://{os.environ['S3_BUCKET']}/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
 
-    if s3_file_exists(s3_path):
-        return {"status": "skipped", "method": method_id, "dataset": dataset, "seed": seed}
-
     try:
         X, y = load_dataset(dataset, task_type)
         tic = time.perf_counter()
-        results = run_selection(X, y, method, task_type, seed, params=params)
+        results = run_selection(X, y, method, task_type, seed, params=params, n_jobs=n_jobs)
         elapsed = time.perf_counter() - tic
         upload_to_s3(results, s3_path)
         return {"status": "done", "method": method_id, "dataset": dataset, "seed": seed, "elapsed": elapsed}
@@ -572,14 +635,18 @@ def main():
         f"Submitting {len(configs)} configs ({len(method_configs)} methods × {len(datasets)} datasets × {n_seeds} seeds)"
     )
 
-    futures = [process_config.remote(m, d, s, task_type) for m, d, s in configs]
+    futures = [
+        process_config.options(num_cpus=selection_num_cpus(m["method"])).remote(
+            m, d, s, task_type, selection_num_cpus(m["method"])
+        )
+        for m, d, s in configs
+    ]
     results = ray.get(futures)
 
     done = sum(1 for r in results if r["status"] == "done")
-    skipped = sum(1 for r in results if r["status"] == "skipped")
     failed = sum(1 for r in results if r["status"] == "failed")
 
-    logger.info(f"Done: {done}, Skipped: {skipped}, Failed: {failed}")
+    logger.info(f"Done: {done}, Failed: {failed}")
 
     if failed > 0:
         for r in results:

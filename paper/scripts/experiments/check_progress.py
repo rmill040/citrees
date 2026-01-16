@@ -24,7 +24,8 @@ from pathlib import Path
 import boto3
 from loguru import logger
 
-from paper.scripts.utils.constants import CLF_METHODS, N_SEEDS, REG_METHODS, S3_BUCKET, AWS_REGION
+from paper.scripts.infra.config import load_config
+from paper.scripts.utils.constants import CLF_METHODS, REG_METHODS, S3_BUCKET, AWS_REGION
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 
 
@@ -101,6 +102,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    config = load_config()
+    n_seeds = config.experiment.n_seeds
+
     # Get expected datasets and methods
     datasets = get_datasets(args.task)
     methods = CLF_METHODS if args.task == "classification" else REG_METHODS
@@ -110,9 +114,9 @@ def main() -> None:
     if args.synthetic_only:
         datasets = [d for d in datasets if d.startswith("synthetic_")]
 
-    total_expected = len(datasets) * len(method_labels) * N_SEEDS
+    total_expected = len(datasets) * len(method_labels) * n_seeds
     logger.info(
-        f"Expected: {len(datasets)} datasets × {len(method_labels)} methods × {N_SEEDS} seeds = {total_expected}"
+        f"Expected: {len(datasets)} datasets × {len(method_labels)} methods × {n_seeds} seeds = {total_expected}"
     )
 
     # Get completed from S3
@@ -137,7 +141,7 @@ def main() -> None:
             for method, _ in dataset_items:
                 method_counts[method] += 1
 
-        expected_per_method = len(datasets) * N_SEEDS
+        expected_per_method = len(datasets) * n_seeds
         for method in method_labels:
             count = method_counts.get(method, 0)
             pct = 100 * count / expected_per_method if expected_per_method > 0 else 0
@@ -148,7 +152,7 @@ def main() -> None:
         print(f"\n{'='*60}")
         print("BY DATASET:")
         print(f"{'='*60}")
-        expected_per_dataset = len(method_labels) * N_SEEDS
+        expected_per_dataset = len(method_labels) * n_seeds
 
         # Show incomplete datasets first
         incomplete = []

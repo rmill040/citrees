@@ -107,6 +107,10 @@ def selection_num_cpus(method: str, *, n_samples: int | None = None, n_features:
     """
     exp = config.experiment
 
+    override = exp.selection_cpus_overrides.get(method)
+    if override is not None:
+        return int(override)
+
     if method == "cif":
         if n_samples is not None and n_features is not None:
             complexity = n_samples * n_features
@@ -636,7 +640,7 @@ def run_selection(
 
 
 @ray.remote(resources={"selection": 1})
-def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: str, n_jobs: int) -> dict[str, Any]:
+def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: str, selection_cpus: int) -> dict[str, Any]:
     method = config["method"]
     params = extract_params(config)
     method_id = config_label(config)
@@ -645,7 +649,7 @@ def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: s
     try:
         X, y = load_dataset(dataset, task_type)
         tic = time.perf_counter()
-        results = run_selection(X, y, method, task_type, seed, params=params, n_jobs=n_jobs)
+        results = run_selection(X, y, method, task_type, seed, params=params, n_jobs=selection_cpus)
         elapsed = time.perf_counter() - tic
         upload_to_s3(results, s3_path)
         return {"status": "done", "method": method_id, "dataset": dataset, "seed": seed, "elapsed": elapsed}
@@ -683,8 +687,10 @@ def main():
     for method_cfg, dataset, seed in configs:
         method = method_cfg["method"]
         n_samples, n_features = dataset_shapes[dataset]
-        n_jobs = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
-        futures.append(process_config.options(num_cpus=n_jobs).remote(method_cfg, dataset, seed, task_type, n_jobs))
+        selection_cpus = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
+        futures.append(
+            process_config.options(num_cpus=selection_cpus).remote(method_cfg, dataset, seed, task_type, selection_cpus)
+        )
     results = ray.get(futures)
 
     done = sum(1 for r in results if r["status"] == "done")

@@ -321,16 +321,27 @@ Mixing `n_jobs=-1` with unbounded task concurrency is the failure mode.
 
 ### 5.2 Recommended approach (simple + stable)
 
-1. In remote decorators:
-   - `@ray.remote(num_cpus=1, resources={"selection": 1})`
-   - `@ray.remote(num_cpus=1, resources={"evaluation": 1})`
-2. Set all sklearn-like model params to `n_jobs=1`.
-3. Update cluster YAML custom resources to be routing-only:
-   - `selection: 1` on selection nodes
-   - `evaluation: 1` on eval nodes
+1. Use custom resources (`selection`, `evaluation`) for **routing**, not for concurrency control:
+   - `@ray.remote(resources={"selection": 1})`
+   - `@ray.remote(resources={"evaluation": 1})`
+2. Declare **real CPU needs** per task using Ray `num_cpus` (recommended: per-config, per-method):
+   - `process_config.options(num_cpus=selection_cpus).remote(...)`
+3. Align internal threading with Ray scheduling:
+   - For thread-parallel libraries: set `n_jobs` / `thread_count` to `selection_cpus`.
+   - For single-threaded methods: keep `selection_cpus=1`.
 
-Then Ray’s default CPU resource controls concurrency: a 32-vCPU node can run 32 tasks concurrently (or fewer if memory
-requires adjusting `num_cpus` upward).
+With this pattern, Ray naturally behaves like a worker-queue system: tasks are submitted, and workers “pull” them when
+they have the declared resources. On a 32-vCPU node, if you request:
+- `selection_cpus_default=1`: up to 32 lightweight tasks can pack per node.
+- `selection_cpus_threaded=8`: up to 4 threaded tasks can pack per node.
+- `selection_cpus_cif_large=32`: at most 1 large CIF task runs per node.
+
+The CPU policy is configured in `paper/scripts/infra/config.yaml` and is deterministic:
+
+1. If `selection_cpus_overrides` has an entry for the base method, use it.
+2. Else if method is `cif`, use the dataset-size rule (`n_samples * n_features` threshold).
+3. Else if method is in the “threaded” bucket, use `selection_cpus_threaded`.
+4. Else use `selection_cpus_default`.
 
 ### 5.3 Success criteria
 
@@ -453,6 +464,8 @@ Pick one policy (recommended: “Ray owns placement; estimator threading matches
 Status:
 - Implemented in `paper/scripts/experiments/ray_feature_selection.py`:
   - `selection_num_cpus(method, n_samples, n_features)` defines per-config CPU needs from `paper/scripts/infra/config.yaml`:
+    - `selection_cpus_overrides` (optional): per-method override mapping (base method name → CPU count). This takes
+      precedence over all other rules.
     - `selection_cpus_default` (lightweight methods)
     - `selection_cpus_threaded` (rf/et/xgb/lgbm/cat + wrappers)
     - `selection_cpus_cif` vs `selection_cpus_cif_large` chosen by `n_samples * n_features >= selection_cif_large_threshold`

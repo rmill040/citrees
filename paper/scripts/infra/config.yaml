@@ -94,3 +94,11 @@ experiment:
   selection_cpus_cif: 16
   selection_cpus_cif_large: 32
   selection_cif_large_threshold: 10000000
+  # Optional per-method CPU overrides (base method name -> CPU count)
+  # Overrides take precedence over the CIF size rule and threaded/default buckets.
+  #
+  # Example:
+  # selection_cpus_overrides:
+  #   cif: 32
+  #   rf: 8
+  selection_cpus_overrides: {}

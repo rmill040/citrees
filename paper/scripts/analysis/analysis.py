@@ -976,9 +976,14 @@ def analyze_stratified_results(
     # Work with a copy to avoid modifying original
     df = data.copy()
 
-    # 1. By synthetic type (extract from dataset name)
-    if "dataset" in df.columns:
-        # Extract type: synthetic_standard_*, synthetic_bias_*, etc.
+    # 1. By synthetic type
+    if "dataset_type" in df.columns:
+        stratified = df.groupby(["dataset_type", "method"])[metric].agg(["mean", "std"])
+        out_path = tables_dir / f"stratified_by_type_{metric.replace('@', '_at_')}.csv"
+        stratified.to_csv(out_path)
+        print(f"Saved: {out_path}")
+    elif "dataset" in df.columns:
+        # Fallback: extract type from dataset name
         df["synthetic_type"] = df["dataset"].str.extract(r"synthetic_(\w+)_")[0]
         if df["synthetic_type"].notna().any():
             stratified = df.groupby(["synthetic_type", "method"])[metric].agg(["mean", "std"])
@@ -997,8 +1002,12 @@ def analyze_stratified_results(
         print(f"Saved: {out_path}")
 
     # 3. By dimensionality (p/n ratio)
-    if "n_features" in df.columns and "n_samples" in df.columns:
-        df["pn_ratio"] = df["n_features"] / df["n_samples"]
+    if "n_samples" in df.columns:
+        feature_col = "n_features_final" if "n_features_final" in df.columns else "n_features"
+        if feature_col in df.columns:
+            df["pn_ratio"] = df[feature_col] / df["n_samples"]
+        else:
+            df["pn_ratio"] = np.nan
         df["dim_bin"] = pd.cut(
             df["pn_ratio"], bins=[0, 0.5, 1.0, np.inf], labels=["low", "medium", "high"]
         )
@@ -1084,6 +1093,8 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     - dataset, method, seed, fold_idx
     - n_features, n_informative, n_samples, class_sep, etc.
     - precision@k, recall@k, f1@k for various k values
+    - precision_ir@k, recall_ir@k, f1_ir@k (informative+redundant)
+    - confounder_rate@k (correlated noise selection rate)
     """
     print("\n=== Analyzing Synthetic Experiments ===")
 
@@ -1099,7 +1110,20 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     print(f"Methods: {methods}")
 
     # Find available metrics
-    metric_cols = [c for c in data.columns if c.startswith(("precision@", "recall@", "f1@"))]
+    metric_cols = [
+        c
+        for c in data.columns
+        if c.startswith(
+            (
+                "precision@",
+                "recall@",
+                "f1@",
+                "precision_ir@",
+                "recall_ir@",
+                "f1_ir@",
+            )
+        )
+    ]
     print(f"Metrics: {metric_cols}")
 
     # Create output directories

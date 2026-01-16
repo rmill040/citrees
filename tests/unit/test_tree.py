@@ -3,6 +3,7 @@
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
 from pydantic import ValidationError
 from sklearn.datasets import make_classification, make_regression
@@ -218,6 +219,130 @@ class TestParameterValidation:
             ConditionalInferenceTreeClassifier(alpha_selector=1.5)
 
 
+class TestFeatureNameValidation:
+    """Tests for feature name validation behavior."""
+
+    def test_feature_name_order_validation_raises(self):
+        """Test that reordered columns raise an error."""
+        X, y = make_classification(
+            n_samples=80,
+            n_features=3,
+            n_informative=2,
+            n_redundant=0,
+            n_repeated=0,
+            random_state=42,
+        )
+        X_df = pd.DataFrame(X, columns=["a", "b", "c"])
+
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
+        clf.fit(X_df, y)
+
+        X_reordered = X_df[["b", "a", "c"]]
+        with pytest.raises(ValueError, match="out of order"):
+            clf.predict(X_reordered)
+
+
+class TestThresholdScanning:
+    """Tests for threshold scanning behavior."""
+
+    def test_scan_thresholds_uses_weighted_impurity(self):
+        """Threshold scanning should align with weighted split impurity."""
+        x = np.arange(10, dtype=float)
+        y = np.array([0] * 9 + [1], dtype=int)
+        X = x.reshape(-1, 1)
+
+        clf = ConditionalInferenceTreeClassifier(
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            early_stopping_selector=None,
+            early_stopping_splitter=None,
+            feature_scanning=False,
+            threshold_scanning=False,
+            random_state=0,
+            verbose=0,
+            check_for_unused_parameters=False,
+        )
+        clf.fit(X, y)
+
+        thresholds = (x[:-1] + x[1:]) / 2
+        scanned = clf._scan_thresholds(x, y, thresholds)
+        scores = np.array([clf._split_impurity(x=x, y=y, threshold=t) for t in thresholds])
+        expected = thresholds[np.argsort(scores)]
+
+        assert np.array_equal(scanned, expected)
+
+
+class TestLabelHandling:
+    """Tests for classifier label handling."""
+
+    def test_string_labels(self):
+        """Classifier should preserve original string labels."""
+        X = np.array([[0.0], [0.1], [0.2], [0.9], [1.0], [1.1]])
+        y = np.array(["cat", "cat", "dog", "dog", "cat", "dog"], dtype=object)
+
+        clf = ConditionalInferenceTreeClassifier(
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            random_state=42,
+            verbose=0,
+        )
+        clf.fit(X, y)
+
+        assert set(clf.classes_) == set(y)
+        preds = clf.predict(X)
+        assert set(preds).issubset(set(y))
+
+
+class TestRandomness:
+    """Tests for RNG behavior during tree building."""
+
+    def test_feature_subsampling_advances_rng(self):
+        """RNG should advance across nodes when max_features forces subsampling."""
+        x = np.linspace(0.0, 1.0, 40)
+        X = np.column_stack([x, x])
+        y = np.array([0, 1] * 20, dtype=np.int64)
+
+        clf = ConditionalInferenceTreeClassifier(
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            max_features=1,
+            max_depth=2,
+            min_samples_split=2,
+            min_samples_leaf=1,
+            random_state=42,
+            verbose=0,
+        )
+        clf.fit(X, y)
+
+        def collect_features(node: Node) -> set[int]:
+            if "value" in node:
+                return set()
+            feats = {int(node["feature"])}
+            feats |= collect_features(node["left_child"])
+            feats |= collect_features(node["right_child"])
+            return feats
+
+        feats = collect_features(clf.tree_)
+        assert len(feats) > 1, f"Expected multiple features due to RNG advancement, got {feats}"
+
+    def test_nonzero_int_labels(self):
+        """Classifier should preserve non-zero-based integer labels."""
+        X = np.array([[0.0], [0.1], [0.2], [0.9], [1.0], [1.1]])
+        y = np.array([1, 1, 3, 3, 1, 3], dtype=np.int64)
+
+        clf = ConditionalInferenceTreeClassifier(
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            random_state=42,
+            verbose=0,
+        )
+        clf.fit(X, y)
+
+        assert set(clf.classes_) == set(y)
+        preds = clf.predict(X)
+        assert set(preds).issubset(set(y))
+
+
 class TestTreeRepr:
     """Tests for tree string representation."""
 
@@ -297,6 +422,32 @@ class TestTreePredictions:
         proba = clf.predict_proba(X)
         preds_from_proba = clf.classes_[np.argmax(proba, axis=1)]
         assert np.array_equal(preds, preds_from_proba)
+
+
+class TestTreePaths:
+    """Tests for tree apply/decision_path."""
+
+    def test_apply_and_decision_path(self):
+        """apply should return leaf ids; decision_path should include leaf node."""
+        X, y = make_classification(n_samples=80, n_features=4, random_state=42)
+        clf = ConditionalInferenceTreeClassifier(
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            random_state=42,
+            verbose=0,
+        )
+        clf.fit(X, y)
+
+        leaf_ids = clf.apply(X)
+        assert leaf_ids.shape == (len(X),)
+
+        path = clf.decision_path(X)
+        assert path.shape[0] == len(X)
+        assert leaf_ids.max() < path.shape[1]
+
+        for i in range(len(X)):
+            row = path.getrow(i)
+            assert leaf_ids[i] in row.indices
 
 
 class TestRegressorSpecific:

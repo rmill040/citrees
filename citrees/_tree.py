@@ -23,6 +23,7 @@ from citrees._types import (
     ThresholdMethod,
 )
 from scipy.stats import norm
+from scipy.sparse import csr_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -54,6 +55,7 @@ class Node(TypedDict, total=False):
     left_child: "Node"
     right_child: "Node"
     n_samples: int
+    node_id: int
 
 
 class BaseConditionalInferenceTreeParameters(BaseModel):
@@ -244,7 +246,11 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             raise ValueError(f"Different number of samples between X ({len(X)}) and y ({len(y)})")
 
         X = X.astype(float)
-        y = y.astype(int) if estimator_type == EstimatorType.CLASSIFIER else y.astype(float)
+        if estimator_type == EstimatorType.CLASSIFIER:
+            # Keep labels as-is; LabelEncoder handles encoding during fit.
+            y = y
+        else:
+            y = y.astype(float)
 
         return X, y
 
@@ -290,10 +296,17 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             )
 
         if feature_names:
-            if set(feature_names) != set(self.feature_names_in_):
-                diff = list(set(feature_names) - set(self.feature_names_in_))
+            if feature_names != self.feature_names_in_:
+                missing = [name for name in self.feature_names_in_ if name not in feature_names]
+                extra = [name for name in feature_names if name not in self.feature_names_in_]
+                if missing or extra:
+                    raise ValueError(
+                        "Mismatch in feature names for X, missing "
+                        f"({len(missing)}) features: {missing}; extra ({len(extra)}) features: {extra}"
+                    )
                 raise ValueError(
-                    f"Mismatch in feature names for X, missing ({len(diff)}) features: {diff}"
+                    "Feature names are out of order for X, expected "
+                    f"{self.feature_names_in_} but got {feature_names}"
                 )
 
         X = X.astype(float)
@@ -554,7 +567,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     pval_feature = _ptest_multi(
                         funcs=[self._selectors[name] for name in self._selector_names],
                         func_args=[type_arg] * len(self._selector_names),
-                        take_abs=[name == "pc" for name in self._selector_names],
                         x=x,
                         y=y,
                         n_resamples=self._selector_test_kwargs["n_resamples"],
@@ -772,7 +784,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         return features[ranks]
 
     def _scan_thresholds(self, x: np.ndarray, y: np.ndarray, thresholds: np.ndarray) -> np.ndarray:
-        """Perform threshold scanning to return the threshold that result in the best binary split.
+        """Perform threshold scanning to return thresholds ordered by weighted split impurity.
 
         Parameters
         ----------
@@ -788,13 +800,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Returns
         -------
         np.ndarray
-            Thresholds sorted in ascending order based on the impurity in children nodes resulting from the binary
-            split.
+            Thresholds sorted in ascending order based on weighted child impurity from the binary split.
         """
-        scores = []
-        for threshold in thresholds:
-            idx = x <= threshold
-            scores.append(self._splitter(y[idx]) + self._splitter(y[~idx]))
+        scores = np.array(
+            [self._split_impurity(x=x, y=y, threshold=threshold) for threshold in thresholds]
+        )
         ranks = np.argsort(scores)
 
         return thresholds[ranks]
@@ -883,7 +893,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         Node
             Node in decision tree.
         """
-        prng = np.random.RandomState(self._random_state)
         reject_H0_feature = False
         reject_H0_threshold = False
         impurity_decrease = -1
@@ -912,7 +921,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             # randomly permute since a random sample is already taken from the feature set
             if len(self._available_features):
                 features = (
-                    prng.choice(self._available_features, size=self._max_features, replace=False)
+                    self._rng.choice(self._available_features, size=self._max_features, replace=False)
                     if len(self._available_features) > 1
                     else self._available_features
                 )
@@ -938,8 +947,13 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
                 # If early stopping, we either scan thresholds and sort based on most promising thresholds or create a
                 # random permutation of the values to help randomize chance of finding a good split and early stopping
+                threshold_seed = None
+                if self.threshold_method == ThresholdMethod.RANDOM:
+                    threshold_seed = int(self._rng.randint(1, 1_000_000))
                 thresholds = self._threshold_method(
-                    x, max_thresholds=self._max_thresholds, random_state=self._random_state
+                    x,
+                    max_thresholds=self._max_thresholds,
+                    random_state=threshold_seed,
                 )
             else:
                 # With smaller samples, just use all midpoints as potential split points
@@ -950,7 +964,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 thresholds = (
                     self._scan_thresholds(x, y, thresholds)
                     if self._threshold_scanning and len(thresholds) > 1
-                    else prng.permutation(thresholds)
+                    else self._rng.permutation(thresholds)
                 )
             best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(
                 x, y, thresholds
@@ -1016,6 +1030,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self._random_state = (
             int(np.random.randint(1, 1_000_000)) if self.random_state is None else self.random_state
         )
+        # RNG used across nodes to avoid reseeding at each recursion level.
+        self._rng = np.random.RandomState(self._random_state)
         self._verbose = min(self.verbose, 3)
         for param in ["n_resamples_selector", "n_resamples_splitter"]:
             value = getattr(self, param)
@@ -1127,7 +1143,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         # Fitted attributes
         if self._estimator_type == EstimatorType.CLASSIFIER:
-            self.classes_ = np.unique(y)
+            self.classes_ = self._label_encoder.classes_
             if not hasattr(self, "n_classes_"):
                 self.n_classes_ = n_classes
 
@@ -1153,6 +1169,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         fi_sum = self.feature_importances_.sum()
         if fi_sum:
             self.feature_importances_ /= fi_sum
+
+        # Assign node IDs for apply/decision_path
+        self._assign_node_ids()
 
         return self
 
@@ -1274,6 +1293,61 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             tree = tree["left_child"] if feature_value <= tree["threshold"] else tree["right_child"]
 
         return tree["value"]
+
+    def _assign_node_ids(self) -> None:
+        """Assign deterministic node IDs to all nodes in the tree.
+
+        Node IDs are assigned in pre-order to match sklearn-style apply/decision_path behavior.
+        """
+        if "node_id" in self.tree_ and hasattr(self, "_n_nodes"):
+            return
+
+        stack = [self.tree_]
+        node_id = 0
+        while stack:
+            node = stack.pop()
+            node["node_id"] = node_id
+            node_id += 1
+            if "value" not in node:
+                # Right first so left is processed first (pre-order)
+                stack.append(node["right_child"])
+                stack.append(node["left_child"])
+
+        self._n_nodes = node_id
+
+    def apply(self, X: Any) -> np.ndarray:
+        """Return leaf indices for each sample (sklearn-compatible)."""
+        X = self._validate_data_predict(X)
+        self._assign_node_ids()
+
+        leaf_ids = np.empty(X.shape[0], dtype=int)
+        for i, x in enumerate(X):
+            node = self.tree_
+            while "value" not in node:
+                node = node["left_child"] if x[node["feature"]] <= node["threshold"] else node["right_child"]
+            leaf_ids[i] = node["node_id"]
+
+        return leaf_ids
+
+    def decision_path(self, X: Any) -> csr_matrix:
+        """Return sparse matrix indicating the decision path for each sample."""
+        X = self._validate_data_predict(X)
+        self._assign_node_ids()
+
+        indices: list[int] = []
+        indptr = [0]
+
+        for x in X:
+            node = self.tree_
+            while True:
+                indices.append(node["node_id"])
+                if "value" in node:
+                    break
+                node = node["left_child"] if x[node["feature"]] <= node["threshold"] else node["right_child"]
+            indptr.append(len(indices))
+
+        data = np.ones(len(indices), dtype=int)
+        return csr_matrix((data, indices, indptr), shape=(X.shape[0], self._n_nodes))
 
     @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -1425,7 +1499,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         X = self._validate_data_predict(X)
 
         y_hat = self.predict_proba(X)
-        return np.argmax(y_hat, axis=1)
+        labels = np.argmax(y_hat, axis=1)
+        return self._label_encoder.inverse_transform(labels)
 
 
 class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorMixin):

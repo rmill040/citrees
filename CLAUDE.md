@@ -47,12 +47,12 @@ citrees/
     ├── data/               # Experiment datasets
     ├── results/            # Experiment outputs (parquet, figures, tables)
     └── scripts/
-        ├── configs.py              # Experiment config dataclasses
-        ├── synthetic_experiments.py # Synthetic data feature selection
-        ├── analysis.py             # Statistical tests and visualizations
-        ├── clf_feature_selection_server.py  # Classification experiments
-        ├── reg_feature_selection_server.py  # Regression experiments
-        └── generate_figures.py     # Paper figure generation
+        ├── analysis/       # Statistical tests, visualizations, figures
+        ├── data_generation/# Synthetic dataset generation
+        ├── experiments/    # Ray-based feature selection experiments
+        ├── infra/          # AWS/Ray cluster setup and management
+        ├── theory/         # Sequential stopping analysis scripts
+        └── utils/          # Shared utilities, configs, metrics
 ```
 
 ## Core Classes
@@ -359,95 +359,37 @@ comparison tool, not a core library feature.
 
 ## MEDIUM PRIORITY
 
-### 1. Honest Estimation (Sample Splitting)
+### GPU Acceleration
 
-**Why**: Current trees use same data for splitting and estimation, causing bias.
-Honest trees use separate samples, enabling valid inference.
-
-**Research**:
-
-- [Wager & Athey 2018](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) -
-  Causal Forests paper
-- [GRF Package](https://grf-labs.github.io/grf/) - Gold standard implementation
-- [Honesty Trade-offs](https://arxiv.org/html/2506.13107v2) - When it helps vs
-  hurts (2025)
-
-**Implementation**:
-
-```python
-class HonestConditionalInferenceTree(ConditionalInferenceTreeClassifier):
-    def __init__(self, ..., honesty=True, honesty_fraction=0.5):
-        self.honesty = honesty
-        self.honesty_fraction = honesty_fraction
-
-    def fit(self, X, y):
-        if self.honesty:
-            X_split, X_est, y_split, y_est = train_test_split(...)
-            # Use X_split, y_split for tree structure
-            # Use X_est, y_est for leaf estimates
-```
-
-**Effort**: ~1 week (requires careful handling of OOB samples)
-
----
-
-### 2. GPU Acceleration
-
-**Why**: Training on large datasets is slow. cuML achieves 20-45x speedups.
-
-**Research**:
-
-- [cuML Random Forests](https://developer.nvidia.com/blog/accelerating-random-forests-up-to-45x-using-cuml/) -
-  NVIDIA RAPIDS
-- [RFX](https://arxiv.org/html/2511.19493) - GPU + QLORA (Nov 2025)
+Training on large datasets is slow. cuML achieves 20-45x speedups.
 
 **Options**:
-
 1. **Wrap cuML**: Use cuML for splitting, keep citrees API
 2. **CUDA kernels**: Custom kernels for permutation tests
 3. **JAX/Triton**: Python-native GPU compilation
 
-**Effort**: ~2-4 weeks depending on approach
+**Research**:
+- [cuML Random Forests](https://developer.nvidia.com/blog/accelerating-random-forests-up-to-45x-using-cuml/)
+- [RFX](https://arxiv.org/html/2511.19493) - GPU + QLORA (Nov 2025)
 
 ---
 
 ## LOW PRIORITY (Future Research)
 
-### 3. Oblique Decision Trees
+### Oblique Decision Trees
+Axis-aligned splits are limiting. Oblique trees use linear combinations of features.
+- [TAO Algorithm](https://faculty.ucmerced.edu/mcarreira-perpinan/research/TAO.html)
+- [DTSemNet](https://arxiv.org/abs/2408.09135) - Vanilla gradient descent (2024)
 
-**Why**: Axis-aligned splits are limiting. Oblique trees use linear combinations
-of features.
-
-**Research**:
-
-- [TAO Algorithm](https://faculty.ucmerced.edu/mcarreira-perpinan/research/TAO.html) -
-  Tree Alternating Optimization
-- [DTSemNet](https://arxiv.org/abs/2408.09135) - Vanilla gradient descent for
-  oblique trees (2024)
-- [Statistical Advantages](https://arxiv.org/abs/2407.02458) - Oblique Mondrian
-  trees (2024)
-
-### 4. Neural/Differentiable Trees
-
-**Why**: End-to-end training with neural networks.
-
-**Research**:
-
-- [NCART](https://www.sciencedirect.com/science/article/abs/pii/S0031320324003297) -
-  Neural CART (2024)
-- [Deep Neural Decision Trees](https://arxiv.org/pdf/1806.06988)
+### Neural/Differentiable Trees
+End-to-end training with neural networks.
+- [NCART](https://www.sciencedirect.com/science/article/abs/pii/S0031320324003297) - Neural CART (2024)
 - [Neural-Backed Decision Trees](https://research.alvinwan.com/neural-backed-decision-trees/)
 
-### 5. Gradient Boosting Integration
-
-**Why**: Combine conditional inference with boosting.
-
-**Research**:
-
-- [LightGBM techniques](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree) -
-  GOSS, EFB
-- [Piecewise Linear Trees](https://nimasarang.com/blog/2025-12-14-gbt-algorithms/) -
-  PL-Trees in boosting
+### Gradient Boosting Integration
+Combine conditional inference with boosting.
+- [LightGBM techniques](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree)
+- [Piecewise Linear Trees](https://nimasarang.com/blog/2025-12-14-gbt-algorithms/)
 
 ---
 

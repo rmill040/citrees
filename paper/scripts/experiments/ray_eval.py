@@ -19,12 +19,17 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC, SVR
 
 from paper.scripts.utils.constants import CLF_DOWNSTREAM_MODELS, CLF_METHODS, REG_DOWNSTREAM_MODELS, REG_METHODS
+from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 from paper.scripts.infra.config import load_config
 
 config = load_config()
 
 # Data directory - works both locally and when rsynced to remote
-DATA_DIR = Path("/home/ubuntu/citrees/paper/data") if Path("/home/ubuntu/citrees").exists() else Path(__file__).resolve().parents[1] / "data"
+DATA_DIR = (
+    Path("/home/ubuntu/citrees/paper/data")
+    if Path("/home/ubuntu/citrees").exists()
+    else Path(__file__).resolve().parents[2] / "data"
+)
 
 _s3_client = None
 
@@ -190,16 +195,18 @@ def run_evaluation(
 
 
 @ray.remote(resources={"evaluation": 1})
-def process_config(method: str, dataset: str, seed: int, task_type: str) -> dict[str, Any]:
+def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: str) -> dict[str, Any]:
+    method = config["method"]
+    method_id = config_label(config)
     bucket = os.environ["S3_BUCKET"]
-    rankings_path = f"s3://{bucket}/rankings/{task_type}/{dataset}/{method}_seed{seed}.parquet"
-    metrics_path = f"s3://{bucket}/metrics/{task_type}/{dataset}/{method}_seed{seed}.parquet"
+    rankings_path = f"s3://{bucket}/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
+    metrics_path = f"s3://{bucket}/metrics/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
 
     if s3_file_exists(metrics_path):
-        return {"status": "skipped", "method": method, "dataset": dataset, "seed": seed}
+        return {"status": "skipped", "method": method_id, "dataset": dataset, "seed": seed}
 
     if not s3_file_exists(rankings_path):
-        return {"status": "no_rankings", "method": method, "dataset": dataset, "seed": seed}
+        return {"status": "no_rankings", "method": method_id, "dataset": dataset, "seed": seed}
 
     try:
         rankings_df = download_from_s3(rankings_path)
@@ -208,9 +215,9 @@ def process_config(method: str, dataset: str, seed: int, task_type: str) -> dict
         results = run_evaluation(X, y, rankings_df, task_type, seed)
         elapsed = time.perf_counter() - tic
         upload_to_s3(results, metrics_path)
-        return {"status": "done", "method": method, "dataset": dataset, "seed": seed, "elapsed": elapsed}
+        return {"status": "done", "method": method_id, "dataset": dataset, "seed": seed, "elapsed": elapsed}
     except Exception as e:
-        return {"status": "failed", "method": method, "dataset": dataset, "seed": seed, "error": str(e)}
+        return {"status": "failed", "method": method_id, "dataset": dataset, "seed": seed, "error": str(e)}
 
 
 def main():
@@ -218,11 +225,14 @@ def main():
 
     task_type = config.experiment.type
     methods = CLF_METHODS if task_type == "classification" else REG_METHODS
+    method_configs = expand_method_configs(methods)
     datasets = get_datasets(task_type)
     n_seeds = config.experiment.n_seeds
 
-    configs = [(m, d, s) for m in methods for d in datasets for s in range(n_seeds)]
-    logger.info(f"Submitting {len(configs)} configs ({len(methods)} methods × {len(datasets)} datasets × {n_seeds} seeds)")
+    configs = [(m, d, s) for m in method_configs for d in datasets for s in range(n_seeds)]
+    logger.info(
+        f"Submitting {len(configs)} configs ({len(method_configs)} methods × {len(datasets)} datasets × {n_seeds} seeds)"
+    )
 
     futures = [process_config.remote(m, d, s, task_type) for m, d, s in configs]
     results = ray.get(futures)

@@ -1,8 +1,11 @@
-# CLAUDE.md - AI Assistant Guide for citrees
+# AGENTS.md - AI Assistant Guide for citrees
 
 ## Project Overview
 
-**citrees** is a Python library implementing conditional inference trees and forests. It uses permutation-based hypothesis testing for variable selection at each node split, providing statistically principled alternatives to traditional CART-style decision trees.
+**citrees** is a Python library implementing conditional inference trees and
+forests. It uses permutation-based hypothesis testing for variable selection at
+each node split, providing statistically principled alternatives to traditional
+CART-style decision trees.
 
 ## Quick Start
 
@@ -44,12 +47,12 @@ citrees/
     ├── data/               # Experiment datasets
     ├── results/            # Experiment outputs (parquet, figures, tables)
     └── scripts/
-        ├── configs.py              # Experiment config dataclasses
-        ├── synthetic_experiments.py # Synthetic data feature selection
-        ├── analysis.py             # Statistical tests and visualizations
-        ├── clf_feature_selection_server.py  # Classification experiments
-        ├── reg_feature_selection_server.py  # Regression experiments
-        └── generate_figures.py     # Paper figure generation
+        ├── analysis/       # Statistical tests, visualizations, figures
+        ├── data_generation/# Synthetic dataset generation
+        ├── experiments/    # Ray-based feature selection experiments
+        ├── infra/          # AWS/Ray cluster setup and management
+        ├── theory/         # Sequential stopping analysis scripts
+        └── utils/          # Shared utilities, configs, metrics
 ```
 
 ## Core Classes
@@ -73,6 +76,7 @@ from citrees import (
 ## Architecture
 
 ### Registry Pattern
+
 Selectors and splitters are registered via decorators:
 
 ```python
@@ -85,6 +89,7 @@ def mc(x, y, n_classes, random_state=None):
 ```
 
 Available registries:
+
 - `ClassifierSelectors` / `ClassifierSelectorTests` - mc, mi, rdc
 - `RegressorSelectors` / `RegressorSelectorTests` - pc, dc, rdc
 - `ClassifierSplitters` / `ClassifierSplitterTests` - gini, entropy
@@ -93,37 +98,41 @@ Available registries:
 
 ### Key Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `selector` | Feature selection method: str or list | 'mc' (clf) / 'pc' (reg) |
-| `splitter` | Split criterion | 'gini' (clf) / 'mse' (reg) |
-| `alpha_selector` | P-value threshold for feature selection | 0.05 |
-| `alpha_splitter` | P-value threshold for split selection | 0.05 |
-| `n_resamples_selector` | NResamples enum or int | NResamples.AUTO |
-| `adjust_alpha_*` | Bonferroni correction | True |
-| `early_stopping_*` | EarlyStopping enum or None | EarlyStopping.ADAPTIVE |
-| `feature_muting` | Remove uninformative features | True |
-| `feature_scanning` | Sort features by promise before testing | True |
-| `threshold_method` | ThresholdMethod enum | ThresholdMethod.EXACT |
-| `max_features` | MaxValuesMethod enum, float, or int | None (all) |
-| `max_thresholds` | MaxValuesMethod enum, float, or int | None (all) |
+| Parameter              | Description                               | Default                    |
+| ---------------------- | ----------------------------------------- | -------------------------- |
+| `selector`             | Feature selection method: str or list     | 'mc' (clf) / 'pc' (reg)    |
+| `splitter`             | Split criterion                           | 'gini' (clf) / 'mse' (reg) |
+| `alpha_selector`       | P-value threshold for feature selection   | 0.05                       |
+| `alpha_splitter`       | P-value threshold for split selection     | 0.05                       |
+| `n_resamples_selector` | NResamples enum or int                    | NResamples.AUTO            |
+| `adjust_alpha_*`       | Bonferroni correction                     | True                       |
+| `early_stopping_*`     | EarlyStopping enum or None                | EarlyStopping.ADAPTIVE     |
+| `feature_muting`       | Remove uninformative features             | True                       |
+| `feature_scanning`     | Sort features by promise before testing   | True                       |
+| `threshold_method`     | ThresholdMethod enum                      | ThresholdMethod.EXACT      |
+| `max_features`         | MaxValuesMethod enum, float, or int       | None (all)                 |
+| `max_thresholds`       | MaxValuesMethod enum, float, or int       | None (all)                 |
 
 ### Selector Parameter
 
 The `selector` parameter accepts either a single string or a list of strings:
 
 **Classification selectors:**
+
 - `'mc'` - Multiple correlation (ANOVA-based, [0,1] scale)
 - `'mi'` - Mutual information (unbounded scale, cannot be combined with others)
 - `'rdc'` - Randomized Dependence Coefficient (O(n log n), [0,1] scale)
 
 **Regression selectors:**
+
 - `'pc'` - Pearson correlation ([0,1] scale after abs)
 - `'dc'` - Distance correlation (O(n²), [0,1] scale)
 - `'rdc'` - Randomized Dependence Coefficient (O(n log n), [0,1] scale)
 
-**List-based selector (multi-selector mode):**
-When a list is provided, citrees uses the max-T method (Westfall & Young, 1993) for valid Type I error control. The permutation test computes max(selector_scores) inside each permutation. Each selector must be unique (no duplicates).
+**List-based selector (multi-selector mode):** When a list is provided, citrees
+uses the max-T method (Westfall & Young, 1993) for valid Type I error control.
+The permutation test computes max(selector_scores) inside each permutation.
+Each selector in the list must be unique (no duplicates allowed).
 
 ```python
 # Classification: only mc and rdc can be combined (both [0,1] scale)
@@ -133,11 +142,13 @@ clf = ConditionalInferenceTreeClassifier(selector=['mc', 'rdc'])
 reg = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
 ```
 
-**Note:** For classification, `'mi'` cannot be in a list because mutual information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
+**Note:** For classification, `'mi'` cannot be in a list because mutual
+information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
 
 ### Early Stopping and Statistical Inference
 
-The `early_stopping_selector` and `early_stopping_splitter` parameters control how permutation tests terminate:
+The `early_stopping_selector` and `early_stopping_splitter` parameters control
+how permutation tests terminate:
 
 - `EarlyStopping.ADAPTIVE` (default): Bayesian Beta CDF stopping - valid Type I error (~5%), 95% faster
 - `EarlyStopping.SIMPLE`: Futility + significance stopping - inflates Type I error to ~9%
@@ -165,9 +176,12 @@ clf = ConditionalInferenceTreeClassifier(
 )
 ```
 
-**P-value correction:** The permutation test uses the Phipson & Smyth (2010) +1 correction: `p = (b+1)/(m+1)` instead of `p = b/m`. This ensures p-values are never exactly zero, which is critical for multiple testing correction.
+**P-value correction:** The permutation test uses the Phipson & Smyth (2010) +1
+correction: `p = (b+1)/(m+1)` instead of `p = b/m`. This ensures p-values are
+never exactly zero, which is critical for multiple testing correction.
 
-Reference: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero." SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+Reference: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
+SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
 
 ### Pydantic Validation
 
@@ -195,6 +209,7 @@ class NResamples(StrEnum):
 ## Development
 
 ### Dependencies
+
 ```toml
 python = ">=3.12"
 numpy = ">=1.26"
@@ -206,12 +221,14 @@ pydantic = ">=2.0"       # Validation
 ```
 
 ### Code Style
+
 - **Formatter**: black (line-length=120)
 - **Linter**: ruff
 - **Type checker**: mypy (strict)
 - **Import sorter**: isort
 
 ### Testing
+
 ```bash
 uv run pytest tests/ -v                           # Run all tests
 uv run pytest tests/integration/ -v               # Run integration tests
@@ -277,16 +294,21 @@ def _ptest_parallel(..., random_state: int):
 - All Numba functions using legacy RNG have documentation comments explaining why
 
 ### Scratch Directory
+
 Use `scratch/` for experimental code and proving concepts. Add to .gitignore.
 
 ### Bug-Fix Pipeline (Repro → Fix → Verify → Tests)
 
-When fixing a bug, do not jump straight to a code change. Follow this pipeline and **do not claim results you did not run**.
+When fixing a bug, do not jump straight to a code change. Follow this pipeline
+and **do not claim results you did not run**.
 
 1. **Prove the bug exists (repro script in `scratch/`)**
-   - Write a minimal, deterministic repro script in `scratch/` (e.g., `scratch/repro_<issue>.py`).
-   - The script must use **real code paths** and, when needed, **real models + real data** (prefer existing datasets under `tests/data/`).
-   - Hard-require the expected failure (e.g., `assert`, explicit exception) so it’s unambiguous.
+   - Write a minimal, deterministic repro script in `scratch/` (e.g.,
+     `scratch/repro_<issue>.py`).
+   - The script must use **real code paths** and, when needed, **real models +
+     real data** (prefer existing datasets under `tests/data/`).
+   - Hard-require the expected failure (e.g., `assert`, explicit exception) so
+     it’s unambiguous.
    - Print enough context to debug: library versions, random seeds, key params.
    - Run it and confirm it fails:
      ```bash
@@ -306,8 +328,10 @@ When fixing a bug, do not jump straight to a code change. Follow this pipeline a
 4. **Backstop with tests (unit/integration/regression)**
    - Convert the repro into a **small, deterministic** test:
      - **Unit test** for the smallest failing component.
-     - **Integration/regression test** if the failure spans estimators, fit/predict, parallelism, or I/O.
-   - Avoid network and large datasets in tests; prefer `tests/data/` or small generated fixtures with fixed `random_state`.
+     - **Integration/regression test** if the failure spans estimators,
+       fit/predict, parallelism, or I/O.
+   - Avoid network and large datasets in tests; prefer `tests/data/` or small
+     generated fixtures with fixed `random_state`.
    - Run the relevant test(s):
      ```bash
      uv run pytest -k "<relevant_keyword>" -v
@@ -319,12 +343,12 @@ When fixing a bug, do not jump straight to a code change. Follow this pipeline a
 
 ## Current Limitations vs State of the Art
 
-| Area | citrees Now | SOTA (2024-2025) | Priority |
-|------|-------------|------------------|----------|
-| Feature Importance | MDI | SHAP/TreeSHAP | N/A |
-| Causal Inference | Honesty | Honest Estimation, GRF | DONE |
-| Speed | CPU/Numba | GPU (cuML 20-45x faster) | MEDIUM |
-| Tree Structure | Axis-aligned | Oblique, Neural Trees | LOW |
+| Area               | citrees Now | SOTA (2024-2025)         | Priority |
+| ------------------ | ----------- | ------------------------ | -------- |
+| Feature Importance | MDI         | SHAP/TreeSHAP            | N/A      |
+| Causal Inference   | Honesty     | Honest Estimation, GRF   | DONE     |
+| Speed              | CPU/Numba   | GPU (cuML 20-45x faster) | MEDIUM   |
+| Tree Structure     | Axis-aligned| Oblique, Neural Trees    | LOW      |
 
 **Note on SHAP**: citrees uses a custom tree structure not compatible with SHAP's
 TreeExplainer. For benchmarking, SHAP TreeExplainer is used with sklearn/XGBoost/
@@ -335,113 +359,82 @@ comparison tool, not a core library feature.
 
 ## MEDIUM PRIORITY
 
-### 1. Honest Estimation (Sample Splitting)
+### GPU Acceleration
 
-**Why**: Current trees use same data for splitting and estimation, causing bias. Honest trees use separate samples, enabling valid inference.
-
-**Research**:
-- [Wager & Athey 2018](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) - Causal Forests paper
-- [GRF Package](https://grf-labs.github.io/grf/) - Gold standard implementation
-- [Honesty Trade-offs](https://arxiv.org/html/2506.13107v2) - When it helps vs hurts (2025)
-
-**Implementation**:
-```python
-class HonestConditionalInferenceTree(ConditionalInferenceTreeClassifier):
-    def __init__(self, ..., honesty=True, honesty_fraction=0.5):
-        self.honesty = honesty
-        self.honesty_fraction = honesty_fraction
-
-    def fit(self, X, y):
-        if self.honesty:
-            X_split, X_est, y_split, y_est = train_test_split(...)
-            # Use X_split, y_split for tree structure
-            # Use X_est, y_est for leaf estimates
-```
-
-**Effort**: ~1 week (requires careful handling of OOB samples)
-
----
-
-### 2. GPU Acceleration
-
-**Why**: Training on large datasets is slow. cuML achieves 20-45x speedups.
-
-**Research**:
-- [cuML Random Forests](https://developer.nvidia.com/blog/accelerating-random-forests-up-to-45x-using-cuml/) - NVIDIA RAPIDS
-- [RFX](https://arxiv.org/html/2511.19493) - GPU + QLORA (Nov 2025)
+Training on large datasets is slow. cuML achieves 20-45x speedups.
 
 **Options**:
 1. **Wrap cuML**: Use cuML for splitting, keep citrees API
 2. **CUDA kernels**: Custom kernels for permutation tests
 3. **JAX/Triton**: Python-native GPU compilation
 
-**Effort**: ~2-4 weeks depending on approach
+**Research**:
+- [cuML Random Forests](https://developer.nvidia.com/blog/accelerating-random-forests-up-to-45x-using-cuml/)
+- [RFX](https://arxiv.org/html/2511.19493) - GPU + QLORA (Nov 2025)
 
 ---
 
 ## LOW PRIORITY (Future Research)
 
-### 3. Oblique Decision Trees
+### Oblique Decision Trees
+Axis-aligned splits are limiting. Oblique trees use linear combinations of features.
+- [TAO Algorithm](https://faculty.ucmerced.edu/mcarreira-perpinan/research/TAO.html)
+- [DTSemNet](https://arxiv.org/abs/2408.09135) - Vanilla gradient descent (2024)
 
-**Why**: Axis-aligned splits are limiting. Oblique trees use linear combinations of features.
-
-**Research**:
-- [TAO Algorithm](https://faculty.ucmerced.edu/mcarreira-perpinan/research/TAO.html) - Tree Alternating Optimization
-- [DTSemNet](https://arxiv.org/abs/2408.09135) - Vanilla gradient descent for oblique trees (2024)
-- [Statistical Advantages](https://arxiv.org/abs/2407.02458) - Oblique Mondrian trees (2024)
-
-### 4. Neural/Differentiable Trees
-
-**Why**: End-to-end training with neural networks.
-
-**Research**:
+### Neural/Differentiable Trees
+End-to-end training with neural networks.
 - [NCART](https://www.sciencedirect.com/science/article/abs/pii/S0031320324003297) - Neural CART (2024)
-- [Deep Neural Decision Trees](https://arxiv.org/pdf/1806.06988)
 - [Neural-Backed Decision Trees](https://research.alvinwan.com/neural-backed-decision-trees/)
 
-### 5. Gradient Boosting Integration
-
-**Why**: Combine conditional inference with boosting.
-
-**Research**:
-- [LightGBM techniques](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree) - GOSS, EFB
-- [Piecewise Linear Trees](https://nimasarang.com/blog/2025-12-14-gbt-algorithms/) - PL-Trees in boosting
+### Gradient Boosting Integration
+Combine conditional inference with boosting.
+- [LightGBM techniques](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree)
+- [Piecewise Linear Trees](https://nimasarang.com/blog/2025-12-14-gbt-algorithms/)
 
 ---
 
 ## Benchmarking
 
 Compare against:
+
 - R's `partykit::ctree` and `party::cforest` (original implementations)
 - `grf` package (causal forests)
 - scikit-learn `RandomForest`, `ExtraTrees`
 - XGBoost, LightGBM, CatBoost
 
-Use [TabZilla Benchmark Suite](https://arxiv.org/abs/2305.02997) for standardized evaluation.
+Use [TabZilla Benchmark Suite](https://arxiv.org/abs/2305.02997) for
+standardized evaluation.
 
 ---
 
 ## References
 
 ### Core Papers
+
 - Hothorn et al. (2006) - "Unbiased Recursive Partitioning" (original ctree)
 - Strobl et al. (2007) - "Bias in Random Forest Variable Importance"
 - Strobl et al. (2008) - "Conditional Variable Importance for Random Forests"
 
 ### Recent Advances
-- [Causal Forests](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) - Wager & Athey (2018)
+
+- [Causal Forests](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) -
+  Wager & Athey (2018)
 - [GRF](https://grf-labs.github.io/grf/) - Athey, Tibshirani, Wager (2019)
 - [TabZilla](https://arxiv.org/abs/2305.02997) - When NNs beat trees (2023)
-- [Conditional Permutation Importance](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03622-2) (2020)
-- [Distance Correlation Feature Selection](https://www.mdpi.com/1099-4300/25/9/1250) (2023)
+- [Conditional Permutation Importance](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03622-2)
+  (2020)
+- [Distance Correlation Feature Selection](https://www.mdpi.com/1099-4300/25/9/1250)
+  (2023)
 
 ---
 
 ## Notes for AI Assistants
 
-1. **Pydantic v2**: Uses Pydantic v2 APIs (e.g., `Field`, `field_validator`, `model_validator`, `model_config`)
+1. **Pydantic v2**: Uses Pydantic v2 APIs (e.g., `Field`, `field_validator`,
+   `model_validator`, `model_config`)
 2. **Numba JIT**: Performance-critical functions use `@njit`
-3. **Registry pattern**: Add new selectors/splitters via `@Registry.register("name")`
+3. **Registry pattern**: Add new selectors/splitters via
+   `@Registry.register("name")`
 4. **Type hints**: All functions should have type annotations
 5. **Tests**: Use pytest markers (`@pytest.mark.tree`, etc.)
 6. **Data format**: Test data uses parquet (pyarrow)

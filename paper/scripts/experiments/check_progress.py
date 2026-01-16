@@ -25,11 +25,12 @@ import boto3
 from loguru import logger
 
 from paper.scripts.utils.constants import CLF_METHODS, N_SEEDS, REG_METHODS, S3_BUCKET, AWS_REGION
+from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 
 
 def get_datasets(task_type: str = "classification") -> list[str]:
     """Get dataset names from paper/data directory."""
-    data_dir = Path(__file__).resolve().parents[1] / "data"
+    data_dir = Path(__file__).resolve().parents[2] / "data"
     prefix = "clf_" if task_type == "classification" else "reg_"
     datasets = []
     for f in data_dir.glob(f"{prefix}*.parquet"):
@@ -103,12 +104,16 @@ def main() -> None:
     # Get expected datasets and methods
     datasets = get_datasets(args.task)
     methods = CLF_METHODS if args.task == "classification" else REG_METHODS
+    method_configs = expand_method_configs(methods)
+    method_labels = [config_label(cfg) for cfg in method_configs]
 
     if args.synthetic_only:
         datasets = [d for d in datasets if d.startswith("synthetic_")]
 
-    total_expected = len(datasets) * len(methods) * N_SEEDS
-    logger.info(f"Expected: {len(datasets)} datasets × {len(methods)} methods × {N_SEEDS} seeds = {total_expected}")
+    total_expected = len(datasets) * len(method_labels) * N_SEEDS
+    logger.info(
+        f"Expected: {len(datasets)} datasets × {len(method_labels)} methods × {N_SEEDS} seeds = {total_expected}"
+    )
 
     # Get completed from S3
     completed = list_s3_completed(args.stage, args.task)
@@ -133,7 +138,7 @@ def main() -> None:
                 method_counts[method] += 1
 
         expected_per_method = len(datasets) * N_SEEDS
-        for method in methods:
+        for method in method_labels:
             count = method_counts.get(method, 0)
             pct = 100 * count / expected_per_method if expected_per_method > 0 else 0
             bar = "█" * int(pct / 5) + "░" * (20 - int(pct / 5))
@@ -143,7 +148,7 @@ def main() -> None:
         print(f"\n{'='*60}")
         print("BY DATASET:")
         print(f"{'='*60}")
-        expected_per_dataset = len(methods) * N_SEEDS
+        expected_per_dataset = len(method_labels) * N_SEEDS
 
         # Show incomplete datasets first
         incomplete = []

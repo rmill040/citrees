@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Analyze synthetic experiment results using ground truth.
 
-Computes precision@k and recall@k for synthetic datasets where ground truth
-informative feature indices are known (stored in parquet metadata).
+Computes precision/recall/F1@k for synthetic datasets with known ground truth
+informative indices. Also reports informative+redundant variants and
+confounder selection rates when available in metadata.
 
 Usage:
     # After running experiments and downloading results from S3:
@@ -25,6 +26,25 @@ from paper.scripts.utils.metrics import f1_at_k, precision_at_k, recall_at_k
 # =============================================================================
 # Metadata Loading
 # =============================================================================
+
+
+def dataset_type_from_config(config: dict) -> str:
+    """Map synthetic config to a dataset type label."""
+    if config.get("toeplitz_rho", 0.0) > 0:
+        return "toeplitz"
+    if config.get("weak_signal", False):
+        return "weak_signal"
+    if config.get("nonlinear", False):
+        return "nonlinear"
+    if config.get("n_high_cardinality_noise", 0) > 0:
+        return "bias"
+    if config.get("n_correlated_noise", 0) > 0:
+        return "confounder"
+    if config.get("n_correlated_blocks", 0) > 0:
+        return "correlated"
+    if config.get("n_redundant", 0) > 0:
+        return "redundant"
+    return "standard"
 
 
 def load_synthetic_metadata(data_dir: Path) -> dict[str, dict]:
@@ -51,8 +71,10 @@ def load_synthetic_metadata(data_dir: Path) -> dict[str, dict]:
             metadata[name] = {
                 "config": json.loads(schema_meta[b"config"]),
                 "informative_indices": json.loads(schema_meta[b"informative_indices"]),
+                "redundant_indices": json.loads(schema_meta.get(b"redundant_indices", b"[]")),
                 "noise_indices": json.loads(schema_meta.get(b"noise_indices", b"[]")),
                 "correlated_indices": json.loads(schema_meta.get(b"correlated_indices", b"[]")),
+                "correlated_noise_indices": json.loads(schema_meta.get(b"correlated_noise_indices", b"[]")),
                 "n_features_final": int(schema_meta.get(b"n_features_final", b"0")),
             }
 
@@ -118,7 +140,11 @@ def analyze_results(
 
         meta = metadata[dataset]
         true_indices = meta["informative_indices"]
+        redundant_indices = meta.get("redundant_indices", [])
         config = meta["config"]
+        informative_plus_redundant = sorted(set(true_indices) | set(redundant_indices))
+        confounder_indices = meta.get("correlated_noise_indices") or meta.get("correlated_indices", [])
+        n_features_final = meta.get("n_features_final", 0)
 
         # Determine k values
         n_informative = config["n_informative"]
@@ -143,13 +169,19 @@ def analyze_results(
                 "fold_idx": fold_idx,
                 # Config params for grouping
                 "n_features": config["n_features"],
+                "n_features_final": n_features_final,
                 "n_informative": config["n_informative"],
                 "n_samples": config["n_samples"],
                 "class_sep": config.get("class_sep", 1.0),
+                "flip_y": config.get("flip_y", 0.0),
                 "nonlinear": config.get("nonlinear", False),
                 "n_high_cardinality_noise": config.get("n_high_cardinality_noise", 0),
                 "n_correlated_blocks": config.get("n_correlated_blocks", 0),
+                "n_correlated_noise": config.get("n_correlated_noise", 0),
                 "n_redundant": config.get("n_redundant", 0),
+                "toeplitz_rho": config.get("toeplitz_rho", 0.0),
+                "weak_signal": config.get("weak_signal", False),
+                "dataset_type": dataset_type_from_config(config),
             }
 
             # Compute metrics for each k
@@ -157,6 +189,16 @@ def analyze_results(
                 row_data[f"precision@{k}"] = precision_at_k(ranking, true_indices, k)
                 row_data[f"recall@{k}"] = recall_at_k(ranking, true_indices, k)
                 row_data[f"f1@{k}"] = f1_at_k(ranking, true_indices, k)
+                row_data[f"precision_ir@{k}"] = precision_at_k(
+                    ranking, informative_plus_redundant, k
+                )
+                row_data[f"recall_ir@{k}"] = recall_at_k(
+                    ranking, informative_plus_redundant, k
+                )
+                row_data[f"f1_ir@{k}"] = f1_at_k(ranking, informative_plus_redundant, k)
+                row_data[f"confounder_rate@{k}"] = precision_at_k(
+                    ranking, confounder_indices, k
+                )
 
             results.append(row_data)
 
@@ -180,7 +222,22 @@ def summarize_by_method(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     # Find metric columns
-    metric_cols = [c for c in df.columns if c.startswith(("precision@", "recall@", "f1@"))]
+    metric_cols = [
+        c
+        for c in df.columns
+        if c.startswith(
+            (
+                "precision@",
+                "recall@",
+                "f1@",
+                "f1@",
+                "precision_ir@",
+                "recall_ir@",
+                "f1_ir@",
+                "confounder_rate@",
+            )
+        )
+    ]
 
     # Group by method and aggregate
     summary = df.groupby("method")[metric_cols].agg(["mean", "std"])
@@ -197,21 +254,24 @@ def summarize_by_dataset_type(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     # Categorize datasets
-    def categorize(row):
-        if row["nonlinear"]:
-            return "nonlinear"
-        if row["n_high_cardinality_noise"] > 0:
-            return "bias"
-        if row["n_correlated_blocks"] > 0:
-            return "correlated"
-        if row["n_redundant"] > 0:
-            return "redundant"
-        return "standard"
-
     df = df.copy()
-    df["dataset_type"] = df.apply(categorize, axis=1)
+    if "dataset_type" not in df.columns:
+        df["dataset_type"] = df.apply(lambda row: dataset_type_from_config(row), axis=1)
 
-    metric_cols = [c for c in df.columns if c.startswith(("precision@", "recall@"))]
+    metric_cols = [
+        c
+        for c in df.columns
+        if c.startswith(
+            (
+                "precision@",
+                "recall@",
+                "precision_ir@",
+                "recall_ir@",
+                "f1_ir@",
+                "confounder_rate@",
+            )
+        )
+    ]
 
     return df.groupby(["dataset_type", "method"])[metric_cols].mean()
 

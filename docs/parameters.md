@@ -85,7 +85,7 @@ Options for `max_features`:
 | Parameter          | Type  | Default | Description                                  |
 | ------------------ | ----- | ------- | -------------------------------------------- |
 | `honesty`          | bool  | False   | Enable sample splitting                      |
-| `honesty_fraction` | float | 0.5     | Fraction for structure (rest for estimation) |
+| `honesty_fraction` | float | 0.5     | Fraction for estimation sample (rest for structure) |
 
 ---
 
@@ -100,6 +100,7 @@ All tree parameters plus:
 | `bootstrap_method` | BootstrapMethod | `BootstrapMethod.BAYESIAN` | Sampling method                  |
 | `sampling_method`  | SamplingMethod  | `SamplingMethod.STRATIFIED`| How to stratify samples          |
 | `n_jobs`           | int             | 1                          | Parallel jobs (-1 for all cores) |
+| `oob_score`        | bool            | False                      | Compute out-of-bag score (requires bootstrap) |
 
 Options for `bootstrap_method`:
 

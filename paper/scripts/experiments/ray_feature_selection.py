@@ -24,7 +24,7 @@ from sklearn.ensemble import (
 )
 from sklearn.feature_selection import RFE
 from sklearn.inspection import permutation_importance
-from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.preprocessing import StandardScaler
 
 from citrees import (
@@ -40,6 +40,7 @@ from citrees._selector import (
     RegressorSelectorTests,
 )
 from paper.scripts.utils.constants import CLF_METHODS, N_SPLITS, REG_METHODS
+from paper.scripts.utils.experiment_configs import config_label, expand_method_configs, extract_params
 from paper.scripts.infra.config import load_config
 
 try:
@@ -64,7 +65,11 @@ config = load_config()
 
 # Data directory - works both locally and when rsynced to remote
 # On remote, script is at ~/ray_feature_selection.py but data is at ~/citrees/paper/data/
-DATA_DIR = Path("/home/ubuntu/citrees/paper/data") if Path("/home/ubuntu/citrees").exists() else Path(__file__).resolve().parents[1] / "data"
+DATA_DIR = (
+    Path("/home/ubuntu/citrees/paper/data")
+    if Path("/home/ubuntu/citrees").exists()
+    else Path(__file__).resolve().parents[2] / "data"
+)
 
 
 def get_s3_client():
@@ -129,8 +134,10 @@ def filter_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, r
         for j in range(n_features):
             scores[j] = selector_fn(X[:, j], y, n_classes, random_state=rng.integers(0, 2**31))
     else:
+        use_abs = method == "pc"
         for j in range(n_features):
-            scores[j] = selector_fn(X[:, j], y, standardize=True, random_state=rng.integers(0, 2**31))
+            score = selector_fn(X[:, j], y, standardize=True, random_state=rng.integers(0, 2**31))
+            scores[j] = abs(score) if use_abs else score
 
     return np.argsort(scores)[::-1]
 
@@ -152,50 +159,132 @@ def permutation_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: s
         for j in range(n_features):
             rs = rng.integers(0, 2**31)
             scores[j] = selector_fn(X[:, j], y, n_classes, random_state=rs)
-            pvalues[j] = test_fn(X[:, j], y, n_classes, alpha=0.05, n_resamples=1000, early_stopping=None, random_state=rs)
+            pvalues[j] = test_fn(
+                x=X[:, j],
+                y=y,
+                n_classes=n_classes,
+                alpha=0.05,
+                n_resamples=1000,
+                early_stopping=None,
+                random_state=rs,
+            )
     else:
+        use_abs = base_method == "pc"
         for j in range(n_features):
             rs = rng.integers(0, 2**31)
-            scores[j] = selector_fn(X[:, j], y, standardize=True, random_state=rs)
-            pvalues[j] = test_fn(X[:, j], y, standardize=True, alpha=0.05, n_resamples=1000, early_stopping=None, random_state=rs)
+            score = selector_fn(X[:, j], y, standardize=True, random_state=rs)
+            scores[j] = abs(score) if use_abs else score
+            pvalues[j] = test_fn(
+                x=X[:, j],
+                y=y,
+                standardize=True,
+                alpha=0.05,
+                n_resamples=1000,
+                early_stopping=None,
+                random_state=rs,
+            )
 
     return np.lexsort((-scores, pvalues))
 
 
-def get_embedding_model(method: str, task_type: str, random_state: int):
+def get_embedding_model(method: str, task_type: str, random_state: int, params: dict[str, Any] | None = None):
+    params = params or {}
+
     if task_type == "classification":
-        models = {
-            "rf": RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state),
-            "et": ExtraTreesClassifier(n_estimators=100, n_jobs=-1, random_state=random_state),
-            "cit": ConditionalInferenceTreeClassifier(random_state=random_state),
-            "cif": ConditionalInferenceForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state),
-        }
-        if HAS_XGB:
-            models["xgb"] = XGBClassifier(n_estimators=100, n_jobs=-1, random_state=random_state, verbosity=0)
-        if HAS_LGBM:
-            models["lgbm"] = LGBMClassifier(n_estimators=100, n_jobs=-1, random_state=random_state, verbosity=-1)
-        if HAS_CAT:
-            models["cat"] = CatBoostClassifier(n_estimators=100, random_state=random_state, verbose=0)
+        if method == "rf":
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return RandomForestClassifier(**model_params)
+        if method == "et":
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return ExtraTreesClassifier(**model_params)
+        if method == "cit":
+            model_params = {**params, "random_state": random_state}
+            return ConditionalInferenceTreeClassifier(**model_params)
+        if method == "cif":
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return ConditionalInferenceForestClassifier(**model_params)
+        if method == "xgb":
+            if not HAS_XGB:
+                raise ValueError("XGBoost is not installed")
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": 0}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return XGBClassifier(**model_params)
+        if method == "lgbm":
+            if not HAS_LGBM:
+                raise ValueError("LightGBM is not installed")
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": -1}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return LGBMClassifier(**model_params)
+        if method == "cat":
+            if not HAS_CAT:
+                raise ValueError("CatBoost is not installed")
+            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return CatBoostClassifier(**model_params)
     else:
-        models = {
-            "rf": RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state),
-            "et": ExtraTreesRegressor(n_estimators=100, n_jobs=-1, random_state=random_state),
-            "cit": ConditionalInferenceTreeRegressor(random_state=random_state),
-            "cif": ConditionalInferenceForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state),
-        }
-        if HAS_XGB:
-            models["xgb"] = XGBRegressor(n_estimators=100, n_jobs=-1, random_state=random_state, verbosity=0)
-        if HAS_LGBM:
-            models["lgbm"] = LGBMRegressor(n_estimators=100, n_jobs=-1, random_state=random_state, verbosity=-1)
-        if HAS_CAT:
-            models["cat"] = CatBoostRegressor(n_estimators=100, random_state=random_state, verbose=0)
+        if method == "rf":
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return RandomForestRegressor(**model_params)
+        if method == "et":
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return ExtraTreesRegressor(**model_params)
+        if method == "cit":
+            model_params = {**params, "random_state": random_state}
+            return ConditionalInferenceTreeRegressor(**model_params)
+        if method == "cif":
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return ConditionalInferenceForestRegressor(**model_params)
+        if method == "xgb":
+            if not HAS_XGB:
+                raise ValueError("XGBoost is not installed")
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": 0}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return XGBRegressor(**model_params)
+        if method == "lgbm":
+            if not HAS_LGBM:
+                raise ValueError("LightGBM is not installed")
+            base = {"n_estimators": 100, "n_jobs": -1, "random_state": random_state, "verbosity": -1}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return LGBMRegressor(**model_params)
+        if method == "cat":
+            if not HAS_CAT:
+                raise ValueError("CatBoost is not installed")
+            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0}
+            model_params = {**base, **params}
+            model_params["random_state"] = random_state
+            return CatBoostRegressor(**model_params)
 
-    return models[method]
+    raise ValueError(f"Unknown embedding method: {method}")
 
 
-def embedding_selector(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray,
-                       method: str, task_type: str, random_state: int) -> tuple[np.ndarray, dict[str, Any]]:
-    model = get_embedding_model(method, task_type, random_state)
+def embedding_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    method: str,
+    task_type: str,
+    random_state: int,
+    params: dict[str, Any] | None = None,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    model = get_embedding_model(method, task_type, random_state, params=params)
     model.fit(X_train, y_train)
     ranking = np.argsort(model.feature_importances_)[::-1]
 
@@ -221,8 +310,13 @@ def boruta_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str, ra
     return np.argsort(boruta.ranking_)
 
 
-def pi_selector(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray,
-                task_type: str, random_state: int) -> np.ndarray:
+def pi_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    task_type: str,
+    random_state: int,
+    val_fraction: float = 0.2,
+) -> np.ndarray:
     if task_type == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
         scoring = "accuracy"
@@ -230,8 +324,25 @@ def pi_selector(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_
         model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
         scoring = "r2"
 
-    model.fit(X_train, y_train)
-    result = permutation_importance(model, X_test, y_test, n_repeats=10, random_state=random_state, scoring=scoring, n_jobs=-1)
+    stratify = y_train if task_type == "classification" else None
+    X_fit, X_val, y_fit, y_val = train_test_split(
+        X_train,
+        y_train,
+        test_size=val_fraction,
+        random_state=random_state,
+        stratify=stratify,
+    )
+
+    model.fit(X_fit, y_fit)
+    result = permutation_importance(
+        model,
+        X_val,
+        y_val,
+        n_repeats=10,
+        random_state=random_state,
+        scoring=scoring,
+        n_jobs=-1,
+    )
     return np.argsort(result.importances_mean)[::-1]
 
 
@@ -260,9 +371,15 @@ def shap_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str, rand
     return np.argsort(importances)[::-1]
 
 
-def cpi_selector(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray,
-                 task_type: str, random_state: int, n_repeats: int = 10,
-                 correlation_threshold: float = 0.5) -> np.ndarray:
+def cpi_selector(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    task_type: str,
+    random_state: int,
+    val_fraction: float = 0.2,
+    n_repeats: int = 10,
+    correlation_threshold: float = 0.5,
+) -> np.ndarray:
     if task_type == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=random_state)
         scoring_fn = lambda m, X, y: (m.predict(X) == y).mean()
@@ -270,20 +387,29 @@ def cpi_selector(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y
         model = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=random_state)
         scoring_fn = lambda m, X, y: 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
 
-    model.fit(X_train, y_train)
+    stratify = y_train if task_type == "classification" else None
+    X_fit, X_val, y_fit, y_val = train_test_split(
+        X_train,
+        y_train,
+        test_size=val_fraction,
+        random_state=random_state,
+        stratify=stratify,
+    )
+
+    model.fit(X_fit, y_fit)
     rng = np.random.default_rng(random_state)
-    n_features = X_test.shape[1]
-    baseline = scoring_fn(model, X_test, y_test)
+    n_features = X_val.shape[1]
+    baseline = scoring_fn(model, X_val, y_val)
     importances = np.zeros(n_features)
 
     for j in range(n_features):
         scores = []
         for rep in range(n_repeats):
-            X_perm = X_test.copy()
-            corr_features = _find_correlated(X_test, j, correlation_threshold)
+            X_perm = X_val.copy()
+            corr_features = _find_correlated(X_val, j, correlation_threshold)
 
             if len(corr_features) > 0:
-                strata = _create_strata(X_test[:, corr_features])
+                strata = _create_strata(X_val[:, corr_features])
                 for stratum in np.unique(strata):
                     mask = strata == stratum
                     idx = np.where(mask)[0]
@@ -292,7 +418,7 @@ def cpi_selector(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y
             else:
                 X_perm[:, j] = rng.permutation(X_perm[:, j])
 
-            scores.append(scoring_fn(model, X_perm, y_test))
+            scores.append(scoring_fn(model, X_perm, y_val))
         importances[j] = baseline - np.mean(scores)
 
     return np.argsort(importances)[::-1]
@@ -350,9 +476,17 @@ def rfe_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str, rando
     return np.argsort(rfe.ranking_)
 
 
-def run_selection(X: np.ndarray, y: np.ndarray, method: str, task_type: str, seed: int) -> list[dict[str, Any]]:
+def run_selection(
+    X: np.ndarray,
+    y: np.ndarray,
+    method: str,
+    task_type: str,
+    seed: int,
+    params: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
+    params = params or {}
 
     if task_type == "classification":
         cv = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=seed)
@@ -371,15 +505,17 @@ def run_selection(X: np.ndarray, y: np.ndarray, method: str, task_type: str, see
         elif method.startswith("ptest_"):
             ranking = permutation_selector(X_train, y_train, method, task_type, rs)
         elif method in ["rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
-            ranking, embedding_data = embedding_selector(X_train, y_train, X_test, y_test, method, task_type, rs)
+            ranking, embedding_data = embedding_selector(
+                X_train, y_train, X_test, y_test, method, task_type, rs, params=params
+            )
         elif method == "boruta":
             ranking = boruta_selector(X_train, y_train, task_type, rs)
         elif method == "pi":
-            ranking = pi_selector(X_train, y_train, X_test, y_test, task_type, rs)
+            ranking = pi_selector(X_train, y_train, task_type, rs)
         elif method == "shap":
             ranking = shap_selector(X_train, y_train, task_type, rs)
         elif method == "cpi":
-            ranking = cpi_selector(X_train, y_train, X_test, y_test, task_type, rs)
+            ranking = cpi_selector(X_train, y_train, task_type, rs)
         elif method == "mrmr":
             ranking = mrmr_selector(X_train, y_train, task_type)
         elif method == "rfe":
@@ -402,21 +538,24 @@ def run_selection(X: np.ndarray, y: np.ndarray, method: str, task_type: str, see
 
 
 @ray.remote(resources={"selection": 1})
-def process_config(method: str, dataset: str, seed: int, task_type: str) -> dict[str, Any]:
-    s3_path = f"s3://{os.environ['S3_BUCKET']}/rankings/{task_type}/{dataset}/{method}_seed{seed}.parquet"
+def process_config(config: dict[str, Any], dataset: str, seed: int, task_type: str) -> dict[str, Any]:
+    method = config["method"]
+    params = extract_params(config)
+    method_id = config_label(config)
+    s3_path = f"s3://{os.environ['S3_BUCKET']}/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
 
     if s3_file_exists(s3_path):
-        return {"status": "skipped", "method": method, "dataset": dataset, "seed": seed}
+        return {"status": "skipped", "method": method_id, "dataset": dataset, "seed": seed}
 
     try:
         X, y = load_dataset(dataset, task_type)
         tic = time.perf_counter()
-        results = run_selection(X, y, method, task_type, seed)
+        results = run_selection(X, y, method, task_type, seed, params=params)
         elapsed = time.perf_counter() - tic
         upload_to_s3(results, s3_path)
-        return {"status": "done", "method": method, "dataset": dataset, "seed": seed, "elapsed": elapsed}
+        return {"status": "done", "method": method_id, "dataset": dataset, "seed": seed, "elapsed": elapsed}
     except Exception as e:
-        return {"status": "failed", "method": method, "dataset": dataset, "seed": seed, "error": str(e)}
+        return {"status": "failed", "method": method_id, "dataset": dataset, "seed": seed, "error": str(e)}
 
 
 def main():
@@ -424,11 +563,14 @@ def main():
 
     task_type = config.experiment.type
     methods = CLF_METHODS if task_type == "classification" else REG_METHODS
+    method_configs = expand_method_configs(methods)
     datasets = get_datasets(task_type)
     n_seeds = config.experiment.n_seeds
 
-    configs = [(m, d, s) for m in methods for d in datasets for s in range(n_seeds)]
-    logger.info(f"Submitting {len(configs)} configs ({len(methods)} methods × {len(datasets)} datasets × {n_seeds} seeds)")
+    configs = [(m, d, s) for m in method_configs for d in datasets for s in range(n_seeds)]
+    logger.info(
+        f"Submitting {len(configs)} configs ({len(method_configs)} methods × {len(datasets)} datasets × {n_seeds} seeds)"
+    )
 
     futures = [process_config.remote(m, d, s, task_type) for m, d, s in configs]
     results = ray.get(futures)

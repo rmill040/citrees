@@ -9,9 +9,13 @@ Dataset types:
 2. SELECTION BIAS: High-cardinality noise features to demonstrate bias
 3. NONLINEAR: Friedman #1 function to test RDC vs linear selectors
 4. CORRELATED: Correlated feature blocks to test conditional importance
+5. REDUNDANT: Linear combinations of informative features (multicollinearity)
+6. CORR_NOISE: Correlated noise features (confounders)
+7. TOEPLITZ: Toeplitz covariance structure (global correlation)
+8. WEAK_SIGNAL: Low class_sep + label noise (hard signal)
 
 Usage:
-    uv run python paper/scripts/generate_synthetic_datasets.py
+    uv run python paper/scripts/data_generation/generate_synthetic_datasets.py
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ from sklearn.datasets import make_classification, make_friedman1
 
 # Configurable via environment variable for reproducibility
 RANDOM_STATE = int(os.environ.get("RANDOM_STATE", "1718"))
-OUTPUT_DIR = Path(__file__).parent.parent / "data"
+OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
 @dataclass
@@ -54,9 +58,18 @@ class SyntheticConfig:
     # Correlated features
     n_correlated_blocks: int = 0
     correlation_strength: float = 0.9
+    # Correlated noise (confounders)
+    n_correlated_noise: int = 0
+    correlated_noise_strength: float = 0.9
+    # Toeplitz correlation
+    toeplitz_rho: float = 0.0
+    # Weak signal
+    weak_signal: bool = False
 
 
-def generate_standard_dataset(config: SyntheticConfig) -> tuple[np.ndarray, np.ndarray, list[int]]:
+def generate_standard_dataset(
+    config: SyntheticConfig,
+) -> tuple[np.ndarray, np.ndarray, list[int], list[int]]:
     """Generate standard synthetic classification dataset."""
     X, y = make_classification(
         n_samples=config.n_samples,
@@ -77,11 +90,20 @@ def generate_standard_dataset(config: SyntheticConfig) -> tuple[np.ndarray, np.n
 
     inv_perm = np.argsort(perm)
     informative_indices = [int(inv_perm[i]) for i in range(config.n_informative)]
+    if config.n_redundant > 0:
+        redundant_indices = [
+            int(inv_perm[i])
+            for i in range(config.n_informative, config.n_informative + config.n_redundant)
+        ]
+    else:
+        redundant_indices = []
 
-    return X, y, informative_indices
+    return X, y, informative_indices, redundant_indices
 
 
-def generate_nonlinear_dataset(config: SyntheticConfig) -> tuple[np.ndarray, np.ndarray, list[int]]:
+def generate_nonlinear_dataset(
+    config: SyntheticConfig,
+) -> tuple[np.ndarray, np.ndarray, list[int], list[int]]:
     """Generate dataset with nonlinear relationships (Friedman #1)."""
     n_informative = 5  # Friedman1 always has 5 informative
 
@@ -103,7 +125,35 @@ def generate_nonlinear_dataset(config: SyntheticConfig) -> tuple[np.ndarray, np.
     inv_perm = np.argsort(perm)
     informative_indices = [int(inv_perm[i]) for i in range(n_informative)]
 
-    return X, y, informative_indices
+    return X, y, informative_indices, []
+
+
+def generate_toeplitz_dataset(
+    config: SyntheticConfig,
+) -> tuple[np.ndarray, np.ndarray, list[int], list[int]]:
+    """Generate dataset with Toeplitz correlation structure."""
+    rng = np.random.RandomState(config.seed)
+    p = config.n_features
+    rho = config.toeplitz_rho
+
+    idx = np.arange(p)
+    cov = rho ** np.abs(np.subtract.outer(idx, idx))
+    cov += np.eye(p) * 1e-6
+    X = rng.multivariate_normal(mean=np.zeros(p), cov=cov, size=config.n_samples)
+
+    # Linear signal on first n_informative features
+    beta = rng.normal(size=config.n_informative)
+    signal = X[:, : config.n_informative] @ beta
+    signal += rng.normal(scale=1.0, size=config.n_samples)
+    y = (signal >= np.median(signal)).astype(int)
+
+    # Shuffle columns but track informative indices
+    perm = rng.permutation(p)
+    X = X[:, perm]
+    inv_perm = np.argsort(perm)
+    informative_indices = [int(inv_perm[i]) for i in range(config.n_informative)]
+
+    return X, y, informative_indices, []
 
 
 def add_high_cardinality_noise(
@@ -137,16 +187,39 @@ def add_correlated_blocks(
     return X_aug, corr_indices
 
 
+def add_correlated_noise(
+    X: np.ndarray, informative_indices: list[int], n_noise: int, corr: float, seed: int
+) -> tuple[np.ndarray, list[int]]:
+    """Add correlated noise features (confounders)."""
+    if n_noise <= 0 or not informative_indices:
+        return X, []
+
+    rng = np.random.RandomState(seed)
+    correlated = []
+    for i in range(n_noise):
+        base_idx = informative_indices[i % len(informative_indices)]
+        noise = rng.randn(X.shape[0]) * np.sqrt(1 - corr**2)
+        correlated.append((corr * X[:, base_idx] + noise).reshape(-1, 1))
+
+    X_aug = np.hstack([X, np.hstack(correlated)])
+    corr_indices = list(range(X.shape[1], X_aug.shape[1]))
+
+    return X_aug, corr_indices
+
+
 def generate_dataset(config: SyntheticConfig) -> tuple[pa.Table, dict]:
     """Generate dataset and return as PyArrow table with metadata."""
     # Generate base data
-    if config.nonlinear:
-        X, y, informative_indices = generate_nonlinear_dataset(config)
+    if config.toeplitz_rho > 0:
+        X, y, informative_indices, redundant_indices = generate_toeplitz_dataset(config)
+    elif config.nonlinear:
+        X, y, informative_indices, redundant_indices = generate_nonlinear_dataset(config)
     else:
-        X, y, informative_indices = generate_standard_dataset(config)
+        X, y, informative_indices, redundant_indices = generate_standard_dataset(config)
 
     noise_indices = []
-    corr_indices = []
+    corr_block_indices: list[int] = []
+    corr_noise_indices: list[int] = []
 
     # Add high-cardinality noise
     if config.n_high_cardinality_noise > 0:
@@ -156,9 +229,21 @@ def generate_dataset(config: SyntheticConfig) -> tuple[pa.Table, dict]:
 
     # Add correlated features
     if config.n_correlated_blocks > 0:
-        X, corr_indices = add_correlated_blocks(
+        X, corr_block_indices = add_correlated_blocks(
             X, informative_indices, config.n_correlated_blocks, config.correlation_strength, config.seed + 2
         )
+
+    # Add correlated noise (confounders)
+    if config.n_correlated_noise > 0:
+        X, corr_noise_indices = add_correlated_noise(
+            X,
+            informative_indices,
+            config.n_correlated_noise,
+            config.correlated_noise_strength,
+            config.seed + 3,
+        )
+
+    correlated_indices = corr_block_indices + corr_noise_indices
 
     # Create DataFrame
     df = pd.DataFrame(X, columns=[f"x{i}" for i in range(X.shape[1])])
@@ -169,8 +254,10 @@ def generate_dataset(config: SyntheticConfig) -> tuple[pa.Table, dict]:
         "synthetic": "true",
         "config": json.dumps(asdict(config)),
         "informative_indices": json.dumps(informative_indices),
+        "redundant_indices": json.dumps(redundant_indices),
         "noise_indices": json.dumps(noise_indices),
-        "correlated_indices": json.dumps(corr_indices),
+        "correlated_indices": json.dumps(correlated_indices),
+        "correlated_noise_indices": json.dumps(corr_noise_indices),
         "n_features_final": str(X.shape[1]),
     }
 
@@ -278,6 +365,60 @@ def get_all_configs() -> list[SyntheticConfig]:
             )
         )
 
+    # =========================================================================
+    # 6. CORRELATED NOISE: Confounders correlated with informative features
+    # =========================================================================
+    for n_corr in [10, 20]:
+        for corr_strength in [0.7, 0.9]:
+            configs.append(
+                SyntheticConfig(
+                    name=f"synthetic_corr_noise_p100_k10_n1000_noise{n_corr}_r{corr_strength}",
+                    n_samples=1000,
+                    n_features=100,
+                    n_informative=10,
+                    class_sep=1.0,
+                    seed=RANDOM_STATE,
+                    n_correlated_noise=n_corr,
+                    correlated_noise_strength=corr_strength,
+                )
+            )
+
+    # =========================================================================
+    # 7. TOEPLITZ: Global correlation structure
+    # =========================================================================
+    for n_features in [50, 100]:
+        for n_informative in [5, 10]:
+            for n_samples in [500, 1000]:
+                for rho in [0.7, 0.9, 0.95]:
+                    configs.append(
+                        SyntheticConfig(
+                            name=f"synthetic_toeplitz_p{n_features}_k{n_informative}_n{n_samples}_r{rho}",
+                            n_samples=n_samples,
+                            n_features=n_features,
+                            n_informative=n_informative,
+                            seed=RANDOM_STATE,
+                            toeplitz_rho=rho,
+                        )
+                    )
+
+    # =========================================================================
+    # 8. WEAK SIGNAL: Low separation + label noise
+    # =========================================================================
+    for class_sep in [0.1, 0.2, 0.3]:
+        for flip_y in [0.05, 0.1, 0.2]:
+            configs.append(
+                SyntheticConfig(
+                    name=f"synthetic_weak_p100_k10_n1000_sep{class_sep}_flip{flip_y}",
+                    n_samples=1000,
+                    n_features=100,
+                    n_informative=10,
+                    class_sep=class_sep,
+                    flip_y=flip_y,
+                    seed=RANDOM_STATE,
+                    weak_signal=True,
+                )
+            )
+
     return configs
 
 
@@ -301,17 +442,33 @@ def main() -> None:
     logger.info(f"Generated {len(configs)} datasets in {OUTPUT_DIR}")
 
     # Summary
-    standard = sum(1 for c in configs if not c.nonlinear and c.n_high_cardinality_noise == 0 and c.n_correlated_blocks == 0 and c.n_redundant == 0)
+    standard = sum(
+        1
+        for c in configs
+        if not c.nonlinear
+        and not c.weak_signal
+        and c.toeplitz_rho == 0.0
+        and c.n_high_cardinality_noise == 0
+        and c.n_correlated_blocks == 0
+        and c.n_correlated_noise == 0
+        and c.n_redundant == 0
+    )
     bias = sum(1 for c in configs if c.n_high_cardinality_noise > 0)
     nonlinear = sum(1 for c in configs if c.nonlinear)
     correlated = sum(1 for c in configs if c.n_correlated_blocks > 0)
+    correlated_noise = sum(1 for c in configs if c.n_correlated_noise > 0)
     redundant = sum(1 for c in configs if c.n_redundant > 0)
+    toeplitz = sum(1 for c in configs if c.toeplitz_rho > 0)
+    weak_signal = sum(1 for c in configs if c.weak_signal)
 
     logger.info(f"  Standard: {standard}")
     logger.info(f"  Bias: {bias}")
     logger.info(f"  Nonlinear: {nonlinear}")
     logger.info(f"  Correlated: {correlated}")
+    logger.info(f"  Correlated noise: {correlated_noise}")
     logger.info(f"  Redundant: {redundant}")
+    logger.info(f"  Toeplitz: {toeplitz}")
+    logger.info(f"  Weak signal: {weak_signal}")
 
 
 if __name__ == "__main__":

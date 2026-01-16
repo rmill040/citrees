@@ -174,7 +174,7 @@ for leaf in tree.leaves:
 # Honest estimation splits data for structure and prediction
 if self.honesty:
     X_split, X_est, y_split, y_est = train_test_split(
-        X, y, test_size=self.honesty_fraction, stratify=y
+        X, y, test_size=self.honesty_fraction, random_state=self._random_state
     )
     # Build tree structure using splitting sample
     self.tree_ = self._build_tree(X_split, y_split, depth=1)
@@ -196,6 +196,8 @@ if self.honesty:
 
 1. **Forest honesty**: Each tree in a forest uses its own honest split. This is
    correct but different from GRF which uses out-of-bag samples.
+2. **No stratification**: The honest split is unstratified (for both classifiers
+   and regressors) to preserve the independence assumptions used in the theory.
 
 2. **No variance estimation**: True honest forests (like GRF) can provide valid
    confidence intervals. Our implementation doesn't compute these yet.

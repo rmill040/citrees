@@ -1031,6 +1031,16 @@ $$\text{Recall}@k = \frac{|\text{top}_k \cap \text{informative}|}{|\text{informa
 
 $$\text{F1}@k = 2 \cdot \frac{\text{Precision}@k \cdot \text{Recall}@k}{\text{Precision}@k + \text{Recall}@k}$$
 
+**Redundant features (informative+redundant).**  
+For datasets with redundant features (linear combinations of informative ones), we also report metrics using the union
+of informative and redundant indices as ground truth:
+
+$$\text{Precision}^{\mathrm{IR}}@k = \frac{|\text{top}_k \cap (\text{informative} \cup \text{redundant})|}{k}$$
+
+$$\text{Recall}^{\mathrm{IR}}@k = \frac{|\text{top}_k \cap (\text{informative} \cup \text{redundant})|}{|\text{informative} \cup \text{redundant}|}$$
+
+This avoids penalizing methods that select redundant-but-correct proxies of the signal.
+
 ### 12.2 Noise Selection Rate (False Positive Rate)
 
 The noise selection rate measures how often a feature selection method
@@ -1055,6 +1065,13 @@ features are pure noise.
 Conditional inference methods (citrees) use permutation-based hypothesis
 testing which is invariant to feature cardinality, and should therefore
 maintain NSR near the nominal α level (e.g., ~0.05 for α=0.05).
+
+**Confounder selection rate (correlated noise).**  
+For confounder datasets (noise features correlated with informative features), we report:
+
+$$\text{ConfounderRate}@k = \frac{|\text{top}_k \cap \text{confounders}|}{k}$$
+
+This measures how often a method is misled by correlated-but-noncausal features.
 
 **Expected Results:**
 

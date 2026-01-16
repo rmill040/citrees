@@ -20,6 +20,7 @@ See [Parameters Reference](parameters.md) for complete list.
 | ---------------------- | ------- | ---------------------------------- |
 | `tree_`                | dict    | The fitted tree structure          |
 | `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
 | `feature_importances_` | ndarray | Feature importance scores (MDI)    |
 | `classes_`             | ndarray | Unique class labels                |
 | `n_classes_`           | int     | Number of classes                  |
@@ -30,21 +31,18 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the tree
 tree.fit(X, y)
 
+# Leaf indices for each sample
+leaf_ids = tree.apply(X)
+
+# Decision path (csr_matrix)
+path = tree.decision_path(X)
+
 # Predict class labels
 y_pred = tree.predict(X)
 
 # Predict class probabilities
 y_proba = tree.predict_proba(X)
 
-# Get leaf indices
-leaf_ids = tree.apply(X)
-
-# Get decision path
-path = tree.decision_path(X)
-
-# Export tree structure
-tree.export_text()
-tree.export_graphviz(filename)
 ```
 
 ---
@@ -67,6 +65,7 @@ See [Parameters Reference](parameters.md) for complete list.
 | ---------------------- | ------- | ---------------------------------- |
 | `tree_`                | dict    | The fitted tree structure          |
 | `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
 | `feature_importances_` | ndarray | Feature importance scores (MDI)    |
 
 **Methods:**
@@ -75,14 +74,15 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the tree
 tree.fit(X, y)
 
+# Leaf indices for each sample
+leaf_ids = tree.apply(X)
+
+# Decision path (csr_matrix)
+path = tree.decision_path(X)
+
 # Predict values
 y_pred = tree.predict(X)
 
-# Get leaf indices
-leaf_ids = tree.apply(X)
-
-# Get decision path
-path = tree.decision_path(X)
 ```
 
 ---
@@ -107,10 +107,12 @@ See [Parameters Reference](parameters.md) for complete list.
 | ---------------------- | ------- | ---------------------------------- |
 | `estimators_`          | list    | List of fitted trees               |
 | `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
 | `feature_importances_` | ndarray | Averaged feature importance        |
 | `classes_`             | ndarray | Unique class labels                |
 | `n_classes_`           | int     | Number of classes                  |
-| `oob_score_`           | float   | Out-of-bag score (if computed)     |
+| `oob_score_`           | float   | OOB accuracy (if enabled)          |
+| `oob_decision_function_` | ndarray | OOB class probabilities (if enabled) |
 
 **Methods:**
 
@@ -118,17 +120,18 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the forest
 forest.fit(X, y)
 
+# Leaf indices per estimator (n_samples, n_estimators)
+leaf_ids = forest.apply(X)
+
+# Decision paths across all estimators
+indicator, n_nodes_ptr = forest.decision_path(X)
+
 # Predict class labels
 y_pred = forest.predict(X)
 
 # Predict class probabilities
 y_proba = forest.predict_proba(X)
 
-# Get leaf indices for each tree
-leaf_ids = forest.apply(X)
-
-# Get decision paths
-paths = forest.decision_path(X)
 ```
 
 ---
@@ -151,8 +154,10 @@ See [Parameters Reference](parameters.md) for complete list.
 | ---------------------- | ------- | ---------------------------------- |
 | `estimators_`          | list    | List of fitted trees               |
 | `n_features_in_`       | int     | Number of features seen during fit |
+| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
 | `feature_importances_` | ndarray | Averaged feature importance        |
-| `oob_score_`           | float   | Out-of-bag score (if computed)     |
+| `oob_score_`           | float   | OOB R² score (if enabled)          |
+| `oob_prediction_`      | ndarray | OOB predictions (if enabled)       |
 
 **Methods:**
 
@@ -160,32 +165,15 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the forest
 forest.fit(X, y)
 
+# Leaf indices per estimator (n_samples, n_estimators)
+leaf_ids = forest.apply(X)
+
+# Decision paths across all estimators
+indicator, n_nodes_ptr = forest.decision_path(X)
+
 # Predict values
 y_pred = forest.predict(X)
 
-# Get leaf indices for each tree
-leaf_ids = forest.apply(X)
-```
-
----
-
-## Utility Functions
-
-### Export Functions
-
-```python
-# Text representation
-text = tree.export_text(feature_names=feature_names)
-
-# GraphViz DOT format
-tree.export_graphviz(
-    filename="tree.dot",
-    feature_names=feature_names,
-    class_names=class_names,
-)
-
-# Render to image (requires graphviz)
-# dot -Tpng tree.dot -o tree.png
 ```
 
 ---

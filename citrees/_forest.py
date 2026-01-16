@@ -6,7 +6,9 @@ import numpy as np
 from joblib import Parallel, delayed
 from pydantic import BaseModel
 from sklearn.base import ClassifierMixin, RegressorMixin, clone
+from sklearn.metrics import r2_score
 from sklearn.preprocessing import LabelEncoder
+from scipy.sparse import csr_matrix, hstack
 
 from citrees._tree import (
     BaseConditionalInferenceTreeEstimator,
@@ -189,6 +191,7 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
     bootstrap_method: BootstrapMethodOption
     max_samples: PositiveInt | ProbabilityFloat | None
     n_jobs: int | None
+    oob_score: bool
 
 
 class ConditionalInferenceForestClassifierParameters(BaseConditionalInferenceForestParameters):
@@ -235,6 +238,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         bootstrap_method: str | None,
         max_samples: int | float | None,
         n_jobs: int | None,
+        oob_score: bool,
         random_state: int | None,
         verbose: int,
         check_for_unused_parameters: bool,
@@ -267,6 +271,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.bootstrap_method = bootstrap_method
         self.max_samples = max_samples
         self.n_jobs = n_jobs
+        self.oob_score = oob_score
         self.random_state = random_state
         self.verbose = verbose
         self.check_for_unused_parameters = check_for_unused_parameters
@@ -336,6 +341,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             n_classes = len(np.unique(y))
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
+            self._class_to_index = {
+                cls: idx for idx, cls in enumerate(self._label_encoder.classes_)
+            }
 
         self._max_samples = (
             calculate_max_value(n_values=n, desired_max=self.max_samples) if self.max_samples else n
@@ -360,7 +368,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.n_features_in_ = p
         if self._estimator_type == EstimatorType.CLASSIFIER:
             base_estimator = ConditionalInferenceTreeClassifier
-            self.classes_ = np.unique(y)
+            self.classes_ = self._label_encoder.classes_
             self.n_classes_ = n_classes
         else:
             base_estimator = ConditionalInferenceTreeRegressor
@@ -424,7 +432,128 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         if fi_sum:
             self.feature_importances_ /= fi_sum
 
+        if self.oob_score:
+            if self._bootstrap_method is None:
+                raise ValueError("oob_score requires bootstrap_method to be set (bootstrap enabled).")
+            self._compute_oob_score(X, y)
+
         return self
+
+    def _align_proba(self, proba: np.ndarray, classes: np.ndarray) -> np.ndarray:
+        """Align probability columns to the forest's global class order."""
+        if proba.shape[1] == self.n_classes_:
+            return proba
+
+        classes = np.asarray(classes)
+        aligned = np.zeros((proba.shape[0], self.n_classes_), dtype=float)
+        if np.issubdtype(classes.dtype, np.integer):
+            cols = classes.astype(int)
+        else:
+            try:
+                cols = np.array([self._class_to_index[cls] for cls in classes], dtype=int)
+            except KeyError:
+                cols = classes.astype(int)
+        aligned[:, cols] = proba
+        return aligned
+
+
+    def _compute_oob_score(self, X: np.ndarray, y: np.ndarray) -> None:
+        """Compute OOB predictions and score (sklearn-compatible)."""
+        n = X.shape[0]
+        n_oob = np.zeros(n, dtype=int)
+
+        if self._estimator_type == EstimatorType.CLASSIFIER:
+            oob_decision_function = np.zeros((n, self.n_classes_), dtype=float)
+        else:
+            oob_prediction = np.zeros(n, dtype=float)
+
+        for j, estimator in enumerate(self.estimators_):
+            if self._estimator_type == EstimatorType.CLASSIFIER:
+                kwargs = {
+                    "y": y,
+                    "max_samples": self._max_samples,
+                    "bayesian_bootstrap": self._bootstrap_method == BootstrapMethod.BAYESIAN,
+                    "random_state": self._random_state + j,
+                }
+                if self._sampling_method == SamplingMethod.BALANCED:
+                    boot_idx = balanced_bootstrap_sample(**kwargs)
+                elif self._sampling_method == SamplingMethod.STRATIFIED:
+                    boot_idx = stratified_bootstrap_sample(**kwargs)
+                else:
+                    boot_idx = classic_bootstrap_sample(**kwargs)
+            else:
+                boot_idx = classic_bootstrap_sample(
+                    y=y,
+                    max_samples=self._max_samples,
+                    bayesian_bootstrap=self._bootstrap_method == BootstrapMethod.BAYESIAN,
+                    random_state=self._random_state + j,
+                )
+
+            oob_idx = np.setdiff1d(np.arange(n), boot_idx)
+            if oob_idx.size == 0:
+                continue
+
+            if self._estimator_type == EstimatorType.CLASSIFIER:
+                proba = estimator.predict_proba(X[oob_idx])  # type: ignore
+                proba = self._align_proba(proba, estimator.classes_)  # type: ignore
+                oob_decision_function[oob_idx] += proba
+            else:
+                preds = estimator.predict(X[oob_idx])  # type: ignore
+                oob_prediction[oob_idx] += preds
+
+            n_oob[oob_idx] += 1
+
+        if np.any(n_oob == 0):
+            warnings.warn(
+                "Some inputs do not have OOB scores. This probably means too few trees were used "
+                "to compute any reliable OOB estimates."
+            )
+
+        mask = n_oob > 0
+        if self._estimator_type == EstimatorType.CLASSIFIER:
+            if np.any(mask):
+                oob_decision_function[mask] /= n_oob[mask, None]
+            self.oob_decision_function_ = oob_decision_function
+            y_pred = np.argmax(oob_decision_function, axis=1)
+            self.oob_score_ = float((y_pred == y).mean())
+        else:
+            if np.any(mask):
+                oob_prediction[mask] /= n_oob[mask]
+            self.oob_prediction_ = oob_prediction
+            self.oob_score_ = float(r2_score(y, oob_prediction))
+
+    def apply(self, X: np.ndarray) -> np.ndarray:
+        """Return leaf indices for each sample and estimator (sklearn-compatible)."""
+        X = self._validate_data_predict(X)
+
+        leaf_ids = np.zeros((X.shape[0], self._n_estimators), dtype=int)
+        for idx, estimator in enumerate(self.estimators_):
+            leaf_ids[:, idx] = estimator.apply(X)  # type: ignore
+
+        return leaf_ids
+
+    def decision_path(self, X: np.ndarray) -> tuple[csr_matrix, np.ndarray]:
+        """Return decision path for each sample across all estimators.
+
+        Returns
+        -------
+        indicator : csr_matrix
+            Sparse indicator matrix with concatenated node paths.
+        n_nodes_ptr : np.ndarray
+            Cumulative sum of node counts for each estimator.
+        """
+        X = self._validate_data_predict(X)
+
+        indicators = []
+        n_nodes_ptr = np.zeros(self._n_estimators + 1, dtype=int)
+        n_nodes = 0
+        for idx, estimator in enumerate(self.estimators_):
+            indicator = estimator.decision_path(X)  # type: ignore
+            indicators.append(indicator)
+            n_nodes += indicator.shape[1]
+            n_nodes_ptr[idx + 1] = n_nodes
+
+        return hstack(indicators).tocsr(), n_nodes_ptr
 
     @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -468,6 +597,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         bootstrap_method: str | None = "bayesian",
         sampling_method: str | None = "stratified",
         max_samples: int | float | None = None,
+        oob_score: bool = False,
         n_jobs: int | None = None,
         random_state: int | None = None,
         verbose: int = 1,
@@ -501,6 +631,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         self.bootstrap_method = bootstrap_method
         self.sampling_method = sampling_method
         self.max_samples = max_samples
+        self.oob_score = oob_score
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
@@ -538,7 +669,8 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
 
         y_hat = np.zeros((X.shape[0], self.n_classes_))
         for estimator in self.estimators_:
-            y_hat += estimator.predict_proba(X)  # type: ignore
+            proba = estimator.predict_proba(X)  # type: ignore
+            y_hat += self._align_proba(proba, estimator.classes_)  # type: ignore
 
         # Average probabilities
         y_hat /= self._n_estimators
@@ -560,7 +692,8 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         X = self._validate_data_predict(X)
 
         y_hat = self.predict_proba(X)
-        return np.argmax(y_hat, axis=1)
+        labels = np.argmax(y_hat, axis=1)
+        return self._label_encoder.inverse_transform(labels)
 
 
 class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, RegressorMixin):
@@ -643,6 +776,9 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
     max_samples : int or float, default=None
         Number of samples to draw for each bootstrap sample.
 
+    oob_score : bool, default=False
+        Whether to compute out-of-bag score (requires bootstrap).
+
     n_jobs : int, default=None
         Number of jobs to run in parallel.
 
@@ -668,6 +804,12 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
 
     estimators_ : List[ConditionalInferenceTreeRegressor]
         List of fitted estimators.
+
+    oob_score_ : float
+        Out-of-bag R² score (if enabled).
+
+    oob_prediction_ : np.ndarray
+        Out-of-bag predictions (if enabled).
     """
 
     _estimator_type = "regressor"
@@ -702,6 +844,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         honesty_fraction: float = 0.5,
         bootstrap_method: str | None = "bayesian",
         max_samples: int | float | None = None,
+        oob_score: bool = False,
         n_jobs: int | None = None,
         random_state: int | None = None,
         verbose: int = 1,
@@ -735,6 +878,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
             honesty_fraction=honesty_fraction,
             bootstrap_method=bootstrap_method,
             max_samples=max_samples,
+            oob_score=oob_score,
             n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose,

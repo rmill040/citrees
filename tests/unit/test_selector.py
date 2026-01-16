@@ -514,6 +514,13 @@ class TestSelectorDirect:
         result = mc(x, y, n_classes=2)
         assert result < 0.3
 
+    def test_mc_constant_feature_returns_zero(self):
+        """mc should return 0.0 for constant feature."""
+        x = np.ones(50)
+        y = np.array([0, 1] * 25, dtype=np.int64)
+        result = mc(x, y, n_classes=2)
+        assert result == 0.0
+
     def test_pc_perfect_positive(self):
         """Test pc with perfect positive correlation."""
         x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
@@ -599,6 +606,13 @@ class TestSelectorDirect:
         y = np.random.randn(200)
         result = _correlation(x, y)
         assert abs(result) < 0.2
+
+    def test_correlation_constant_inputs_returns_zero(self):
+        """_correlation should return 0.0 for constant inputs."""
+        x = np.ones(50)
+        y = np.ones(50)
+        result = _correlation(x, y)
+        assert result == 0.0
 
     def test_rdc_features(self):
         """Test _rdc_features computes random features."""

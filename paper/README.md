@@ -169,7 +169,7 @@ Generate datasets with known ground truth for precision/recall@k:
 uv run python paper/scripts/data_generation/generate_synthetic_datasets.py
 ```
 
-**Dataset types (132 total):**
+**Dataset types (169 total):**
 
 | Type | Count | Description |
 |------|-------|-------------|
@@ -178,8 +178,37 @@ uv run python paper/scripts/data_generation/generate_synthetic_datasets.py
 | NONLINEAR | 6 | Friedman #1 (tests nonlinear methods) |
 | CORRELATED | 6 | Correlated feature blocks |
 | REDUNDANT | 3 | Linear combinations of informative features |
+| CORR_NOISE | 4 | Correlated noise features (confounders) |
+| TOEPLITZ | 24 | Toeplitz covariance structure |
+| WEAK_SIGNAL | 9 | Low class separation + label noise |
 
 Ground truth stored in parquet schema metadata.
+
+### Flat File Naming (Synthetic)
+
+All synthetic datasets are saved as flat files under `paper/data/` with the prefix
+`clf_synthetic_`:
+
+```
+clf_synthetic_{name}.parquet
+```
+
+Name patterns by dataset type:
+
+```
+synthetic_p{p}_k{k}_n{n}_sep{sep}
+synthetic_bias_noise{n_noise}_levels{n_levels}
+synthetic_nonlinear_p{p}_n{n}
+synthetic_corr_blocks{n_corr}_r{rho}
+synthetic_redundant{n_redundant}
+synthetic_corr_noise_p{p}_k{k}_n{n}_noise{n_corr}_r{rho}
+synthetic_toeplitz_p{p}_k{k}_n{n}_r{rho}
+synthetic_weak_p{p}_k{k}_n{n}_sep{sep}_flip{flip}
+```
+
+Metadata fields stored in parquet schema include `config`, `informative_indices`,
+`redundant_indices`, `correlated_indices`, `correlated_noise_indices`, and
+`noise_indices`.
 
 ## Check Progress
 
@@ -255,6 +284,6 @@ uv run python paper/scripts/analysis/generate_figures.py
 **Classification:** 19 methods × N datasets × 10 seeds
 **Regression:** 19 methods × N datasets × 10 seeds
 
-Example with 132 synthetic + 7 real datasets = 139 datasets:
-- Classification: 19 × 139 × 10 = **26,410 configs**
-- Regression: 19 × 139 × 10 = **26,410 configs**
+Example with 169 synthetic + 7 real datasets = 176 datasets:
+- Classification: 19 × 176 × 10 = **33,440 configs**
+- Regression: 19 × 176 × 10 = **33,440 configs**

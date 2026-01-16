@@ -1,3 +1,4 @@
+import warnings
 from math import ceil
 from typing import Any
 
@@ -138,7 +139,6 @@ def _ptest_multi(
     *,
     funcs: list,
     func_args: list,
-    take_abs: list[bool],
     x: np.ndarray,
     y: np.ndarray,
     n_resamples: int,
@@ -163,9 +163,6 @@ def _ptest_multi(
 
     func_args : list
         Corresponding arguments for each selector function.
-
-    take_abs : list[bool]
-        Whether to take absolute value of each selector's output.
 
     x : np.ndarray
         Input data, usually the feature in the (x, y) pair.
@@ -199,12 +196,8 @@ def _ptest_multi(
     def compute_max_stat(x: np.ndarray, y: np.ndarray) -> float:
         """Compute max statistic across all selectors."""
         max_score = -np.inf
-        for func, arg, do_abs in zip(funcs, func_args, take_abs):
-            score = func(x, y, arg, random_state=random_state)
-            if do_abs:
-                score = abs(score)
-            else:
-                score = abs(score)  # Always use absolute for permutation test
+        for func, arg in zip(funcs, func_args):
+            score = abs(func(x, y, arg, random_state=random_state))
             if score > max_score:
                 max_score = score
         return max_score
@@ -422,10 +415,22 @@ def mc(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = 
         dev_j *= dev_j
         ssb += n_j * dev_j
 
-    try:
-        return np.sqrt(ssb / sst)
-    except Exception:
+    if sst <= 0.0 or not np.isfinite(sst):
+        warnings.warn(
+            "mc received non-finite or zero-variance feature; returning 0.0",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return 0.0
+    ratio = ssb / sst
+    if ratio < 0.0 or not np.isfinite(ratio):
+        warnings.warn(
+            "mc encountered invalid ratio during computation; returning 0.0",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return 0.0
+    return np.sqrt(ratio)
 
 
 @ClassifierSelectors.register("mi")
@@ -560,10 +565,10 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     ssx = n * sx2 - sx * sx
     ssy = n * sy2 - sy * sy
 
-    try:
-        return cov / np.sqrt(ssx * ssy)
-    except Exception:
+    denom = ssx * ssy
+    if denom <= 0.0 or not np.isfinite(denom):
         return 0.0
+    return cov / np.sqrt(denom)
 
 
 @RegressorSelectors.register("dc")

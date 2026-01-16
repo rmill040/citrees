@@ -461,7 +461,7 @@ tree = ConditionalInferenceTreeClassifier(
     n_resamples_splitter=NResamples.AUTO,
     adjust_alpha_selector=True,
     adjust_alpha_splitter=True,
-    early_stopping_selector=EarlyStopping.ADAPTIVE,  # Bayesian stopping - valid p-values
+    early_stopping_selector=EarlyStopping.ADAPTIVE,  # Bayesian posterior-confidence early stopping (default)
     early_stopping_splitter=EarlyStopping.ADAPTIVE,
 )
 ```

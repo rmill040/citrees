@@ -137,6 +137,20 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
 
         return self
 
+    @model_validator(mode="after")
+    def validate_max_values(self) -> "BaseConditionalInferenceTreeParameters":
+        for param in ["max_features", "max_thresholds"]:
+            value = getattr(self, param)
+            if isinstance(value, bool):
+                raise ValueError(f"{param} cannot be a bool, got {value!r}")
+            if isinstance(value, int):
+                if value <= 0:
+                    raise ValueError(f"{param} must be >= 1 when int, got {value}")
+            elif isinstance(value, float):
+                if not np.isfinite(value) or value <= 0.0 or value > 1.0:
+                    raise ValueError(f"{param} must be in (0, 1] when float, got {value}")
+        return self
+
 
 class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
     @property
@@ -960,15 +974,27 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 thresholds = (x_unique[:-1] + x_unique[1:]) / 2
                 self._max_thresholds = len(thresholds)
 
-            if self._early_stopping_splitter:
-                thresholds = (
-                    self._scan_thresholds(x, y, thresholds)
-                    if self._threshold_scanning and len(thresholds) > 1
-                    else self._rng.permutation(thresholds)
+            # Filter out thresholds that would violate min_samples_leaf. This prevents selecting an
+            # "optimal" split that is invalid and then failing to consider other valid thresholds.
+            if self._min_samples_leaf > 1 and len(thresholds):
+                x_sorted = np.sort(x)
+                n_left = np.searchsorted(x_sorted, thresholds, side="right")
+                valid = (n_left >= self._min_samples_leaf) & (n - n_left >= self._min_samples_leaf)
+                thresholds = thresholds[valid]
+                self._max_thresholds = len(thresholds)
+
+            if len(thresholds):
+                if self._early_stopping_splitter:
+                    thresholds = (
+                        self._scan_thresholds(x, y, thresholds)
+                        if self._threshold_scanning and len(thresholds) > 1
+                        else self._rng.permutation(thresholds)
+                    )
+                best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(
+                    x, y, thresholds
                 )
-            best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(
-                x, y, thresholds
-            )
+            else:
+                reject_H0_threshold = False
 
         # Calculate impurity decrease
         if reject_H0_threshold:
@@ -1083,7 +1109,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._splitter = ClassifierSplitters[self.splitter]
             self._splitter_test = ClassifierSplitterTests[self.splitter]
 
-            n_classes = getattr(self, "n_classes_", len(np.unique(y)))
+            n_classes = len(np.unique(y))
             self._selector_kwargs = {
                 **common_selector_kwargs,
                 **{"n_classes": n_classes},
@@ -1144,8 +1170,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # Fitted attributes
         if self._estimator_type == EstimatorType.CLASSIFIER:
             self.classes_ = self._label_encoder.classes_
-            if not hasattr(self, "n_classes_"):
-                self.n_classes_ = n_classes
+            self.n_classes_ = n_classes
 
         self.feature_importances_ = np.zeros(p, dtype=float)
         self.n_features_in_ = p

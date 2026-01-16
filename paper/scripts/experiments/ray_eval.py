@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import boto3
+from botocore.exceptions import ClientError
 import numpy as np
 import pandas as pd
 import ray
@@ -38,7 +40,6 @@ _s3_client = None
 def get_s3_client():
     global _s3_client
     if _s3_client is None:
-        import boto3
         _s3_client = boto3.client("s3")
     return _s3_client
 
@@ -69,8 +70,6 @@ def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def s3_file_exists(s3_path: str) -> bool:
-    from botocore.exceptions import ClientError
-
     parts = s3_path.replace("s3://", "").split("/", 1)
     try:
         get_s3_client().head_object(Bucket=parts[0], Key=parts[1])

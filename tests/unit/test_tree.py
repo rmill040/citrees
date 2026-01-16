@@ -218,6 +218,16 @@ class TestParameterValidation:
         with pytest.raises(ValidationError):
             ConditionalInferenceTreeClassifier(alpha_selector=1.5)
 
+    def test_invalid_max_features(self):
+        """Negative max_features should raise validation error."""
+        with pytest.raises(ValidationError):
+            ConditionalInferenceTreeClassifier(max_features=-1)
+
+    def test_invalid_max_thresholds(self):
+        """Negative max_thresholds should raise validation error."""
+        with pytest.raises(ValidationError):
+            ConditionalInferenceTreeClassifier(threshold_method="random", max_thresholds=-1)
+
 
 class TestFeatureNameValidation:
     """Tests for feature name validation behavior."""
@@ -291,6 +301,65 @@ class TestLabelHandling:
         assert set(clf.classes_) == set(y)
         preds = clf.predict(X)
         assert set(preds).issubset(set(y))
+
+    def test_refit_updates_n_classes(self):
+        """n_classes_ and predict_proba shape should update on successive fit() calls."""
+        clf = ConditionalInferenceTreeClassifier(
+            selector="rdc",
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            early_stopping_selector=None,
+            early_stopping_splitter=None,
+            feature_scanning=False,
+            threshold_scanning=False,
+            random_state=0,
+            verbose=0,
+        )
+
+        rng = np.random.RandomState(0)
+        X1 = rng.randn(60, 3)
+        y1 = rng.randint(0, 2, size=60)
+        clf.fit(X1, y1)
+
+        rng = np.random.RandomState(1)
+        X2 = rng.randn(90, 3)
+        y2 = rng.randint(0, 3, size=90)
+        clf.fit(X2, y2)
+
+        expected = len(np.unique(y2))
+        proba = clf.predict_proba(X2)
+
+        assert clf.n_classes_ == expected
+        assert len(clf.classes_) == expected
+        assert proba.shape == (len(X2), expected)
+
+
+class TestMinSamplesLeaf:
+    """Tests for min_samples_leaf behavior."""
+
+    def test_min_samples_leaf_does_not_block_valid_split(self):
+        """A node should still split if at least one valid threshold exists."""
+        x = np.arange(10, dtype=float)
+        X = x.reshape(-1, 1)
+        y = np.array([1] + [0] * 9, dtype=np.int64)
+
+        clf = ConditionalInferenceTreeClassifier(
+            selector="rdc",
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            early_stopping_selector=None,
+            early_stopping_splitter=None,
+            feature_scanning=False,
+            threshold_scanning=False,
+            min_samples_leaf=2,
+            max_depth=1,
+            random_state=0,
+            verbose=0,
+        )
+        clf.fit(X, y)
+
+        assert "feature" in clf.tree_
+        assert float(clf.tree_["threshold"]) == pytest.approx(1.5)
 
 
 class TestRandomness:

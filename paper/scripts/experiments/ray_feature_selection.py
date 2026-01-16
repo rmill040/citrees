@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Any
 
 import boto3
+from botocore.exceptions import ClientError
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import ray
 import shap
 from boruta import BorutaPy
@@ -80,13 +82,11 @@ DATA_DIR = (
 # Request Ray `num_cpus` per task to avoid oversubscription and to pack lightweight tasks per node.
 #
 # Tune these values based on your instance types and dataset sizes.
-_DEFAULT_SELECTION_CPUS = 1
-_THREADED_SELECTION_CPUS = 8
+_DEFAULT_N_JOBS = 1
 _THREADED_SELECTION_METHODS = {
     # Embedding methods
     "rf",
     "et",
-    "cif",
     "xgb",
     "lgbm",
     "cat",
@@ -99,8 +99,25 @@ _THREADED_SELECTION_METHODS = {
 }
 
 
-def selection_num_cpus(method: str) -> int:
-    return _THREADED_SELECTION_CPUS if method in _THREADED_SELECTION_METHODS else _DEFAULT_SELECTION_CPUS
+def selection_num_cpus(method: str, *, n_samples: int | None = None, n_features: int | None = None) -> int:
+    """Return Ray CPU reservation for a single (method, dataset, seed) config.
+
+    This value is also passed down as the thread count (`n_jobs` / `thread_count`) for thread-parallel methods so that
+    Ray scheduling and internal library parallelism stay aligned.
+    """
+    exp = config.experiment
+
+    if method == "cif":
+        if n_samples is not None and n_features is not None:
+            complexity = n_samples * n_features
+            if complexity >= exp.selection_cif_large_threshold:
+                return exp.selection_cpus_cif_large
+        return exp.selection_cpus_cif
+
+    if method in _THREADED_SELECTION_METHODS:
+        return exp.selection_cpus_threaded
+
+    return exp.selection_cpus_default
 
 
 def get_s3_client():
@@ -118,13 +135,30 @@ def get_datasets(task_type: str) -> list[str]:
     return sorted(datasets)
 
 
-def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
-    data_dir = DATA_DIR
+def get_dataset_path(name: str, task_type: str) -> Path:
     prefix = "clf_" if task_type == "classification" else "reg_"
-    # Try both .parquet and .snappy.parquet extensions
-    path = data_dir / f"{prefix}{name}.parquet"
+    path = DATA_DIR / f"{prefix}{name}.parquet"
     if not path.exists():
-        path = data_dir / f"{prefix}{name}.snappy.parquet"
+        path = DATA_DIR / f"{prefix}{name}.snappy.parquet"
+    return path
+
+
+def get_dataset_shape(name: str, task_type: str) -> tuple[int, int]:
+    """Get (n_samples, n_features) from parquet metadata, without loading the full dataset."""
+    path = get_dataset_path(name, task_type)
+
+    try:
+        pf = pq.ParquetFile(path)
+        n_samples = pf.metadata.num_rows
+        feature_columns = [c for c in pf.schema_arrow.names if c != "y"]
+        return int(n_samples), int(len(feature_columns))
+    except Exception:
+        X, _y = load_dataset(name, task_type)
+        return int(X.shape[0]), int(X.shape[1])
+
+
+def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
+    path = get_dataset_path(name, task_type)
     df = pd.read_parquet(path)
     y = df.pop("y").values
     if task_type == "classification":
@@ -136,8 +170,6 @@ def load_dataset(name: str, task_type: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def s3_file_exists(s3_path: str) -> bool:
-    from botocore.exceptions import ClientError
-
     parts = s3_path.replace("s3://", "").split("/", 1)
     try:
         get_s3_client().head_object(Bucket=parts[0], Key=parts[1])
@@ -227,7 +259,7 @@ def get_embedding_model(
     method: str,
     task_type: str,
     random_state: int,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
     params: dict[str, Any] | None = None,
 ):
     params = params or {}
@@ -325,7 +357,7 @@ def embedding_selector(
     task_type: str,
     random_state: int,
     params: dict[str, Any] | None = None,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     model = get_embedding_model(method, task_type, random_state, n_jobs=n_jobs, params=params)
     model.fit(X_train, y_train)
@@ -347,7 +379,7 @@ def boruta_selector(
     y_train: np.ndarray,
     task_type: str,
     random_state: int,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
 ) -> np.ndarray:
     if task_type == "classification":
         base_model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
@@ -364,7 +396,7 @@ def pi_selector(
     y_train: np.ndarray,
     task_type: str,
     random_state: int,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
     val_fraction: float = 0.2,
 ) -> np.ndarray:
     if task_type == "classification":
@@ -401,7 +433,7 @@ def shap_selector(
     y_train: np.ndarray,
     task_type: str,
     random_state: int,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
 ) -> np.ndarray:
     if task_type == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
@@ -432,7 +464,7 @@ def cpi_selector(
     y_train: np.ndarray,
     task_type: str,
     random_state: int,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
     val_fraction: float = 0.2,
     n_repeats: int = 10,
     correlation_threshold: float = 0.5,
@@ -527,7 +559,7 @@ def rfe_selector(
     y_train: np.ndarray,
     task_type: str,
     random_state: int,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
 ) -> np.ndarray:
     if task_type == "classification":
         base_model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
@@ -546,7 +578,7 @@ def run_selection(
     task_type: str,
     seed: int,
     params: dict[str, Any] | None = None,
-    n_jobs: int = _DEFAULT_SELECTION_CPUS,
+    n_jobs: int = _DEFAULT_N_JOBS,
 ) -> list[dict[str, Any]]:
     params = params or {}
 
@@ -635,12 +667,24 @@ def main():
         f"Submitting {len(configs)} configs ({len(method_configs)} methods × {len(datasets)} datasets × {n_seeds} seeds)"
     )
 
-    futures = [
-        process_config.options(num_cpus=selection_num_cpus(m["method"])).remote(
-            m, d, s, task_type, selection_num_cpus(m["method"])
-        )
-        for m, d, s in configs
-    ]
+    exp = config.experiment
+    logger.info(
+        "Selection CPU config: default={}, threaded={}, cif={}, cif_large={} (threshold={} on n_samples*n_features)",
+        exp.selection_cpus_default,
+        exp.selection_cpus_threaded,
+        exp.selection_cpus_cif,
+        exp.selection_cpus_cif_large,
+        exp.selection_cif_large_threshold,
+    )
+
+    dataset_shapes = {d: get_dataset_shape(d, task_type) for d in datasets}
+
+    futures = []
+    for method_cfg, dataset, seed in configs:
+        method = method_cfg["method"]
+        n_samples, n_features = dataset_shapes[dataset]
+        n_jobs = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
+        futures.append(process_config.options(num_cpus=n_jobs).remote(method_cfg, dataset, seed, task_type, n_jobs))
     results = ray.get(futures)
 
     done = sum(1 for r in results if r["status"] == "done")

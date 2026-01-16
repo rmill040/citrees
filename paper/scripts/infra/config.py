@@ -80,6 +80,13 @@ class ExperimentConfig:
     type: Literal["classification", "regression"] = "classification"
     n_seeds: int = 10
     stale_timeout_minutes: int = 30
+    # Ray CPU scheduling for experiment tasks
+    selection_cpus_default: int = 1
+    selection_cpus_threaded: int = 8
+    selection_cpus_cif: int = 16
+    selection_cpus_cif_large: int = 32
+    selection_cif_large_threshold: int = 10_000_000
+    selection_cpus_overrides: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -415,6 +422,11 @@ def load_config(path: Path | None = None) -> Config:
             type=exp_data.get("type", "classification"),
             n_seeds=exp_data.get("n_seeds", 10),
             stale_timeout_minutes=exp_data.get("stale_timeout_minutes", 30),
+            selection_cpus_default=exp_data.get("selection_cpus_default", 1),
+            selection_cpus_threaded=exp_data.get("selection_cpus_threaded", 8),
+            selection_cpus_cif=exp_data.get("selection_cpus_cif", 16),
+            selection_cpus_cif_large=exp_data.get("selection_cpus_cif_large", 32),
+            selection_cif_large_threshold=exp_data.get("selection_cif_large_threshold", 10_000_000),
         )
 
     # Load state if exists

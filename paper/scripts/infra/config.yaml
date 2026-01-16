@@ -84,3 +84,13 @@ experiment:
   type: classification
   n_seeds: 10
   stale_timeout_minutes: 30
+  # Ray CPU scheduling (per config)
+  # - Lightweight methods pack densely (default=1 CPU)
+  # - Threaded methods (rf/et/xgb/lgbm/cat/...) reserve more (threaded=8 CPUs)
+  # - CIF can scale more on large datasets: use `selection_cpus_cif_large` when
+  #   `n_samples * n_features >= selection_cif_large_threshold`
+  selection_cpus_default: 1
+  selection_cpus_threaded: 8
+  selection_cpus_cif: 16
+  selection_cpus_cif_large: 32
+  selection_cif_large_threshold: 10000000

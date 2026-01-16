@@ -452,7 +452,12 @@ Pick one policy (recommended: “Ray owns placement; estimator threading matches
 
 Status:
 - Implemented in `paper/scripts/experiments/ray_feature_selection.py`:
-  - `selection_num_cpus(method)` defines per-method CPU needs (currently 1 or 8).
+  - `selection_num_cpus(method, n_samples, n_features)` defines per-config CPU needs from `paper/scripts/infra/config.yaml`:
+    - `selection_cpus_default` (lightweight methods)
+    - `selection_cpus_threaded` (rf/et/xgb/lgbm/cat + wrappers)
+    - `selection_cpus_cif` vs `selection_cpus_cif_large` chosen by `n_samples * n_features >= selection_cif_large_threshold`
+  - Dataset shapes are read once on the driver from parquet metadata (fallback: load dataset) to make the CIF size rule
+    deterministic and cheap.
   - Stage 1 submits tasks with `process_config.options(num_cpus=...)`.
   - Threaded methods pass `n_jobs` / `thread_count` through to their underlying estimators.
 

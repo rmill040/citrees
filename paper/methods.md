@@ -27,7 +27,10 @@ citrees implements conditional inference trees and forests that use permutation-
 
 2. **Built-in stopping criterion**: The tree stops growing when no feature shows statistically significant association with the response, providing principled regularization.
 
-3. **Interpretable p-values**: Each split decision is accompanied by a p-value quantifying the evidence against the null hypothesis of no association.
+3. **Interpretable screening p-values (with scope caveats)**: Stage A produces permutation p-values for screening
+   feature–response association at a fixed node (especially at the root, and in fixed-$B$ mode). Stage B and
+   internal-node p-values are post-selection/adaptive and should be treated as algorithmic stopping statistics unless
+   additional selective-inference machinery is used.
 
 ### High-Level Algorithm
 
@@ -490,7 +493,9 @@ Output: Best threshold c*, p-value p*, rejection decision
 
 ### 5.1 Core Principle
 
-Under the null hypothesis $H_0: X \perp Y$, the joint distribution of $(X, Y)$ is invariant under permutations of $Y$. Therefore:
+Permutation tests rely on an exchangeability invariance: under the null hypothesis (in the sense used by the
+permutation scheme), the conditional distribution of $Y$ given the covariates treated as fixed by the test is
+invariant under permutations. A common sufficient condition is i.i.d. sampling with $X \perp Y$. Therefore:
 $$
 T(X, Y) \stackrel{d}{=} T(X, \pi(Y)) \quad \text{for all permutations } \pi
 $$
@@ -524,7 +529,8 @@ The p-value formula $p = (k+1)/(B+1)$ instead of $p = k/B$ ensures:
 
 1. **Non-zero p-values**: $p \geq 1/(B+1) > 0$, critical for multiple testing correction
 2. **Conservative estimate**: $\mathbb{E}[p | H_0] = p^* + (1-p^*)/(B+1) \geq p^*$
-3. **Valid Type I error**: $\mathbb{P}(p \leq \alpha) \leq \alpha$ for all $\alpha$
+3. **Finite-sample validity (super-uniformity)**: under the exchangeability null, $\mathbb{P}(p \leq \alpha) \leq \alpha$
+   for all $\alpha\in[0,1]$
 
 **Reference**: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero." SAGMB 9(1):39.
 
@@ -605,7 +611,8 @@ Output: P-value p
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Warning**: This method inflates Type I error to ~9% because it "peeks" at running p-values without proper adjustment.
+**Warning**: This method inflates Type I error because it "peeks" at running p-values without proper sequential
+adjustment.
 
 ### 6.3 Adaptive Sequential (Bayesian)
 
@@ -686,16 +693,14 @@ def _beta_cdf(x, a, b):
 The tradeoff is best understood empirically via null/signal simulations; see `paper/scripts/theory/` for reproducible
 calibration scripts.
 
-Example summary (illustrative; regenerate from scripts for the paper):
+Paper-facing outputs live under `paper/results/figures/`:
+- `paper/scripts/theory/generate_sequential_stopping_calibration.py` generates
+  `paper/results/figures/sequential_stopping_calibration.png` (null calibration under the continuous-null idealization).
+- `paper/scripts/theory/sequential_stopping_comparison.py` prints a reproducible comparison to Fischer–Ramdas’ anytime-valid
+  binomial-mixture rule on a concrete permutation test.
 
-| Method | Type I Error | Avg Perms (null) | Power | Speedup |
-|--------|-------------|------------------|-------|---------|
-| Fixed-B (1000) | 5.6% | 1000 | 97.0% | 1x |
-| Simple | **9.1%** | 135 | 97.8% | 7x |
-| Adaptive (γ=0.95) | **5.5%** | 48 | 96.4% | **21x** |
-
-Adaptive stopping can reduce computation substantially on clearly non-significant tests while keeping the *rejection
-rate* close to nominal in many regimes; however, fixed-$B$ mode remains the clean option for classical p-value claims.
+Adaptive stopping can reduce computation substantially on clearly non-significant tests, but fixed-$B$ mode remains the
+clean option for classical p-value claims.
 
 ---
 
@@ -1083,7 +1088,8 @@ features are pure noise.
 
 Conditional inference methods (citrees) use permutation-based hypothesis
 testing which is invariant to feature cardinality, and should therefore
-maintain NSR near the nominal α level (e.g., ~0.05 for α=0.05).
+reduce one important source of high-cardinality selection bias in split selection. However, metrics like NSR@k are not
+“Type I error at level $\alpha$” and are not directly controlled by $\alpha$; we treat NSR@k as an empirical metric.
 
 **Confounder selection rate (correlated noise).**  
 For confounder datasets (noise features correlated with informative features), we report:
@@ -1092,12 +1098,10 @@ $$\text{ConfounderRate}@k = \frac{|\text{top}_k \cap \text{confounders}|}{k}$$
 
 This measures how often a method is misled by correlated-but-noncausal features.
 
-**Expected Results:**
-
-| Method Type | Expected NSR@10 | Reason |
-|-------------|-----------------|--------|
-| citrees (CIT, CIF) | ~0.05 | Permutation test controls Type I error |
-| RF, XGBoost, etc. | 0.25-0.40 | Biased toward high-cardinality features |
+**Expected behavior (qualitative).** Under global-null “selection bias” simulations, greedy impurity optimization tends
+to over-select high-cardinality noise features, while testing-based screening can mitigate this. The magnitude of NSR@k
+differences is benchmark-dependent and should be reported empirically rather than asserted as a direct consequence of
+level-$\alpha$ testing.
 
 ### 12.3 Nogueira Stability Index
 

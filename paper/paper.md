@@ -3,6 +3,8 @@
 This file is the **paper-facing** draft: it distills the clean, defensible mathematical statements from
 `paper/theory.md` and ties them to reproducible simulations under `paper/scripts/`.
 
+For a claim-by-claim verification log (what is proved vs cited vs empirical), see `paper/claim_audit.md`.
+
 **Scope.** The focus here is the validity of the permutation p-values used for *Stage A (feature screening)* and the
 resulting finite-sample error-control statements (Bonferroni/root-level). Wherever a statement is only heuristic or
 requires additional selective-inference machinery, it is labeled as such.
@@ -426,7 +428,9 @@ incomplete beta function.
 
 Assume the continuous-null idealization where, under $H_0$, $p^\star\sim\mathrm{Unif}(0,1)$ and conditional on $p^\star$,
 the indicators $I_b$ are i.i.d. $\mathrm{Bernoulli}(p^\star)$ (this is the standard rank/PIT argument; randomized
-tie-breaking can be used to justify the continuous idealization).
+tie-breaking can be used to justify the continuous idealization. With ties/discrete permutation distributions, $p^\star$
+is not exactly uniform; counting ties “against the null” leads to conservative behavior (see Fischer & Ramdas, 2025,
+Remark 1).
 
 **Connection to anytime-valid e-values.** Define
 $$
@@ -437,8 +441,9 @@ $$
 W_n = \frac{1 - F_{\mathrm{Binom}}(L_n;\;n+1,\alpha)}{\alpha}.
 $$
 This is exactly the *binomial-mixture wealth process* from Fischer & Ramdas (2025, Proposition 5), and $(W_n)$ is a test
-martingale (an e-process). In particular, thresholding $W_n$ controls Type I error under optional stopping via Ville’s
-inequality.
+martingale (an e-process) under the continuous-null idealization (and remains valid/conservative with ties when ties
+are treated as losses; Fischer & Ramdas, 2025, Remark 1). In particular, thresholding $W_n$ controls Type I error under
+optional stopping via Ville’s inequality.
 
 Let $\tau$ be any (possibly data-dependent) stopping time and consider the **“significance-stop” event**
 $$

@@ -5,7 +5,10 @@ This file maps each paper-facing figure/table to:
 2) the data artifact(s) it writes, and
 3) the claim/story it supports.
 
-**Canonical output directory:** `paper/results/figures/`
+**Canonical output directories:**
+- Figures: `paper/results/figures/`
+- Data caches: `paper/results/cache/`
+- Tables: `paper/results/tables/`
 
 ---
 
@@ -15,7 +18,7 @@ This file maps each paper-facing figure/table to:
 
 - Outputs:
   - `paper/results/figures/selection_bias_demo.png`
-  - `paper/results/figures/selection_bias_demo_data.parquet`
+  - `paper/results/cache/selection_bias_demo_data.parquet`
 - Script: `paper/scripts/theory/generate_selection_bias_demo.py`
 - Claim/story:
   - Greedy split optimization can favor “high-cardinality” noise under the global null; Stage A permutation screening
@@ -27,7 +30,7 @@ This file maps each paper-facing figure/table to:
 
 - Outputs:
   - `paper/results/figures/fixedB_pvalue_calibration.png`
-  - `paper/results/figures/fixedB_pvalue_calibration_data.parquet`
+  - `paper/results/cache/fixedB_pvalue_calibration_data.parquet`
 - Script: `paper/scripts/theory/generate_fixedB_pvalue_calibration.py`
 - Claim/story:
   - Empirical backstop for Theorem 1 (super-uniformity of the +1 Monte Carlo permutation p-value).
@@ -38,7 +41,7 @@ This file maps each paper-facing figure/table to:
 
 - Outputs:
   - `paper/results/figures/sequential_stopping_calibration.png`
-  - `paper/results/figures/sequential_stopping_calibration_data.parquet`
+  - `paper/results/cache/sequential_stopping_calibration_data.parquet`
 - Script: `paper/scripts/theory/generate_sequential_stopping_calibration.py`
 - Claim/story:
   - Empirical backstop for the decision-level bound on `stop_sig` (Section 6.1).
@@ -73,8 +76,8 @@ UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figure
 
 - Outputs:
   - `paper/results/figures/feature_selection_clf.png`
-  - `paper/results/figures/feature_selection_data.parquet`
-  - `paper/results/figures/feature_selection_table.tex`
+  - `paper/results/cache/feature_selection_data.parquet`
+  - `paper/results/tables/feature_selection_table.tex`
   - `paper/results/figures/informative_ratio.png`
 - Script: `paper/scripts/analysis/generate_figures.py`
 - Claim/story:
@@ -105,7 +108,7 @@ UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figure
 - Outputs:
   - `paper/results/figures/timing_speedup.png`
   - `paper/results/figures/timing_bars.png`
-  - `paper/results/figures/timing_data.parquet`
+  - `paper/results/cache/timing_data.parquet`
 - Script: `paper/scripts/analysis/generate_figures.py`
 - Claim/story:
   - Cost of permutation testing and speedups from early stopping / parallelism.
@@ -119,9 +122,9 @@ UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figure
 These figures depend on the full experiment pipeline (S3-backed in the current setup). They should only be used in the
 paper after verifying the underlying parquet artifacts correspond to the reported benchmark protocol.
 
-- Existing artifacts in `paper/results/figures/`:
+- Existing artifacts in `paper/results/`:
   - `paper/results/figures/regression_comparison.png`
-  - `paper/results/figures/regression_data.parquet`
+  - `paper/results/cache/regression_data.parquet`
   - (and any other `*_comparison.png` figures)
 - Scripts:
   - Stage 1 (rankings): `paper/scripts/experiments/ray_feature_selection.py`
@@ -129,4 +132,3 @@ paper after verifying the underlying parquet artifacts correspond to the reporte
   - Analysis aggregation: `paper/scripts/analysis/analysis.py`
 - Paper rule:
   - Every number/curve must have a traceable pipeline: config → parquet inputs → analysis script → figure output.
-

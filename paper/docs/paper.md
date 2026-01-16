@@ -1,10 +1,10 @@
 # citrees: Paper Draft (Theory-First)
 
 This file is the **paper-facing** draft: it distills the clean, defensible mathematical statements from
-`paper/theory.md` and ties them to reproducible simulations under `paper/scripts/`.
+`paper/docs/theory.md` and ties them to reproducible simulations under `paper/scripts/`.
 
-For a claim-by-claim verification log (what is proved vs cited vs empirical), see `paper/claim_audit.md`.
-For a reproducible mapping from scripts → figures/tables → claims, see `paper/figures_plan.md`.
+For a claim-by-claim verification log (what is proved vs cited vs empirical), see `paper/docs/claim_audit.md`.
+For a reproducible mapping from scripts → figures/tables → claims, see `paper/docs/figures_plan.md`.
 
 **Scope.** The focus here is the validity of the permutation p-values used for *Stage A (feature screening)* and the
 resulting finite-sample error-control statements (Bonferroni/root-level). Wherever a statement is only heuristic or
@@ -106,7 +106,7 @@ feature ranking (e.g., split counts / impurity-based importance), which is then 
 
 ### 2.2 Methods compared (overview)
 
-We compare four families of feature selectors (full lists and exact configs live in `paper/README.md`):
+We compare four families of feature selectors (full lists and exact configs live in `paper/docs/README.md`):
 - **Filters:** correlation / MI / RDC / mRMR
 - **Permutation-test filters:** `ptest_*` methods that convert filter scores into permutation p-values
 - **Embeddings:** tree ensembles (`cit/cif`, `rf/et`, `xgb/lgbm/cat`)
@@ -114,7 +114,7 @@ We compare four families of feature selectors (full lists and exact configs live
 
 ### 2.3 Benchmark protocol (two-stage architecture)
 
-The experiments follow the repo’s two-stage pipeline (`paper/README.md`):
+The experiments follow the repo’s two-stage pipeline (`paper/docs/README.md`):
 1. **Stage 1 (selection):** each method outputs a feature ranking per dataset/seed/fold.
 2. **Stage 2 (evaluation):** train downstream models on top-$k$ features for $k\in\{5,10,25,50,100,\text{all}\}$.
 
@@ -284,12 +284,12 @@ the adjusted level remains meaningful).
 Reproduce a simple null calibration study (Theorem 1 backstop):
 
 ```bash
-uv sync
+uv sync --group paper
 UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/generate_fixedB_pvalue_calibration.py
 ```
 
 Outputs:
-- `paper/results/figures/fixedB_pvalue_calibration_data.parquet`
+- `paper/results/cache/fixedB_pvalue_calibration_data.parquet`
 - `paper/results/figures/fixedB_pvalue_calibration.png`
 
 #### A.2.3 Multi-selector mode (max-statistic / “max-T” combination)
@@ -364,12 +364,12 @@ we include a small null simulation:
 Reproduce:
 
 ```bash
-uv sync
+uv sync --group paper
 UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/generate_selection_bias_demo.py
 ```
 
 Outputs:
-- `paper/results/figures/selection_bias_demo_data.parquet`
+- `paper/results/cache/selection_bias_demo_data.parquet`
 - `paper/results/figures/selection_bias_demo.png`
 
 #### Proposition 4 (safe, global statement: “any split implies root rejection”)
@@ -431,9 +431,9 @@ incomplete beta function.
 
 Assume the continuous-null idealization where, under $H_0$, $p^\star\sim\mathrm{Unif}(0,1)$ and conditional on $p^\star$,
 the indicators $I_b$ are i.i.d. $\mathrm{Bernoulli}(p^\star)$ (this is the standard rank/PIT argument; randomized
-tie-breaking can be used to justify the continuous idealization. With ties/discrete permutation distributions, $p^\star$
-is not exactly uniform; counting ties “against the null” leads to conservative behavior (see Fischer & Ramdas, 2025,
-Remark 1).
+tie-breaking can be used to justify the continuous idealization). With ties/discrete permutation distributions,
+$p^\star$ is not exactly uniform; counting ties “against the null” leads to conservative behavior (see Fischer & Ramdas,
+2025, Remark 1).
 
 **Connection to anytime-valid e-values.** Define
 $$
@@ -443,10 +443,15 @@ Using the binomial–beta identity, this is equivalently
 $$
 W_n = \frac{1 - F_{\mathrm{Binom}}(L_n;\;n+1,\alpha)}{\alpha}.
 $$
-This is exactly the *binomial-mixture wealth process* from Fischer & Ramdas (2025, Proposition 5), and $(W_n)$ is a test
+This is exactly the *binomial-mixture wealth process* from Fischer & Ramdas (2025, Proposition 5.2), and $(W_n)$ is a test
 martingale (an e-process) under the continuous-null idealization (and remains valid/conservative with ties when ties
 are treated as losses; Fischer & Ramdas, 2025, Remark 1). In particular, thresholding $W_n$ controls Type I error under
 optional stopping via Ville’s inequality.
+
+**Note.** Fischer & Ramdas (2025, Proposition 5.2) also observe that with the special choice $c=\alpha$,
+$W_n^{u_\alpha}(L_n) < 1/\alpha$ for all $n$, so the $1/\alpha$ boundary is not reachable in finite time; they recommend
+choosing $c<\alpha$ for practical level-$\alpha$ sequential tests. citrees instead uses the lower boundary
+$\gamma/\alpha$ for the significance-stop event.
 
 Let $\tau$ be any (possibly data-dependent) stopping time and consider the **“significance-stop” event**
 $$
@@ -493,14 +498,15 @@ risk, see:
 The repository contains small scripts to empirically assess the behavior of the adaptive stopping rule under $H_0$
 (Type I error and stopping-time distribution) and to compare against anytime-valid alternatives:
 
-- `paper/scripts/theory/generate_sequential_stopping_calibration.py` (writes a table/figure into `paper/results/figures/`)
+- `paper/scripts/theory/generate_sequential_stopping_calibration.py` (writes a parquet cache into `paper/results/cache/` and
+  a figure into `paper/results/figures/`)
 - `paper/scripts/theory/sequential_stopping_analysis.py`
 - `paper/scripts/theory/sequential_stopping_comparison.py`
 
 To run (after environment setup):
 
 ```bash
-uv sync
+uv sync --group paper
 UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/generate_sequential_stopping_calibration.py
 UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/sequential_stopping_analysis.py
 UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/sequential_stopping_comparison.py

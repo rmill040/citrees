@@ -1,0 +1,196 @@
+"""Shared driver utilities for Ray experiment scripts.
+
+Centralizes:
+- common CLI flags (ray address, grid filters, dry run)
+- grid filtering/validation (datasets/methods/seeds)
+- Ray initialization (auto cluster vs local mode)
+- progress/throughput logging and failure reporting
+
+The goal is to keep Stage 1/Stage 2 scripts focused on computation and artifact IO, not orchestration glue.
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+from collections.abc import Callable, Iterable
+from typing import Any
+
+import ray
+from loguru import logger
+
+from paper.scripts.experiments._common import parse_csv_ints, parse_csv_list
+from paper.scripts.utils.experiment_configs import config_label
+
+
+def build_common_parser(description: str) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument(
+        "--ray-address",
+        default="auto",
+        help="Ray address (default: auto). Use 'local' for local mode.",
+    )
+    parser.add_argument("--task-type", choices=["classification", "regression"], default=None)
+    parser.add_argument("--source", choices=["all", "real", "synthetic"], default="all", help="Dataset source filter")
+    parser.add_argument("--datasets", default=None, help="Comma-separated dataset names (default: all)")
+    parser.add_argument("--methods", default=None, help="Comma-separated base method names (default: all)")
+    parser.add_argument("--seeds", default=None, help="Comma-separated seed indices (default: 0..n_seeds-1)")
+    parser.add_argument("--dry-run", action="store_true", help="Print planned configs and exit")
+    return parser
+
+
+def init_ray(ray_address: str) -> None:
+    if ray_address == "local":
+        ray.init(ignore_reinit_error=True)
+    else:
+        ray.init(address=ray_address, ignore_reinit_error=True)
+
+
+def resolve_grid(
+    *,
+    method_configs: list[dict[str, Any]],
+    datasets: list[str],
+    n_seeds: int,
+    datasets_csv: str | None,
+    methods_csv: str | None,
+    seeds_csv: str | None,
+) -> tuple[list[dict[str, Any]], list[str], list[int]]:
+    """Apply CLI filters to the experiment grid with validation."""
+    datasets_filter = parse_csv_list(datasets_csv) or None
+    methods_filter = parse_csv_list(methods_csv) or None
+    seeds_filter = parse_csv_ints(seeds_csv) or None
+
+    if datasets_filter:
+        missing = sorted(set(datasets_filter) - set(datasets))
+        if missing:
+            raise ValueError(f"Unknown datasets: {missing}. Available examples: {datasets[:10]}")
+        datasets = [d for d in datasets if d in set(datasets_filter)]
+
+    if methods_filter:
+        available_methods = {c.get("method") for c in method_configs}
+        missing = sorted(set(methods_filter) - available_methods)
+        if missing:
+            raise ValueError(f"Unknown methods: {missing}. Available: {sorted(available_methods)}")
+        method_configs = [c for c in method_configs if c.get("method") in set(methods_filter)]
+
+    if seeds_filter is None:
+        seeds = list(range(n_seeds))
+    else:
+        bad = [s for s in seeds_filter if s < 0 or s >= n_seeds]
+        if bad:
+            raise ValueError(f"Seed indices out of range (0..{n_seeds - 1}): {bad}")
+        seeds = list(seeds_filter)
+
+    return method_configs, datasets, seeds
+
+
+def iter_grid(
+    method_configs: list[dict[str, Any]],
+    datasets: list[str],
+    seeds: list[int],
+) -> Iterable[tuple[dict[str, Any], str, int]]:
+    for method_cfg in method_configs:
+        for dataset in datasets:
+            for seed in seeds:
+                yield method_cfg, dataset, seed
+
+
+def log_dry_run(
+    grid: Iterable[tuple[dict[str, Any], str, int]],
+    *,
+    stage: str,
+    limit: int = 50,
+    describe: Callable[[dict[str, Any], str, int], str] | None = None,
+) -> None:
+    count = 0
+    for method_cfg, dataset, seed in grid:
+        if count >= limit:
+            break
+        if describe is None:
+            msg = f"method={config_label(method_cfg)}, dataset={dataset}, seed={seed}"
+        else:
+            msg = describe(method_cfg, dataset, seed)
+        logger.info("DRY RUN [{}]: {}", stage, msg)
+        count += 1
+    if count == 0:
+        logger.info("DRY RUN [{}]: no configs to run", stage)
+
+
+def run_futures(
+    futures: list[Any],
+    *,
+    stage: str,
+    success_statuses: set[str],
+    skip_statuses: set[str] | None = None,
+    batch_size: int = 32,
+    progress_every_s: float = 30.0,
+) -> tuple[dict[str, int], list[dict[str, Any]], float, list[dict[str, Any]]]:
+    """Drain Ray futures with periodic progress logging.
+
+    Returns:
+    - status_counts: mapping from status string → count
+    - failures: list of task result dicts not in success/skip statuses
+    - elapsed_seconds: wall time to drain all futures
+    - results: all task result dicts (success + skip + failure)
+    """
+    skip_statuses = skip_statuses or set()
+
+    pending = list(futures)
+    status_counts: dict[str, int] = {}
+    failures: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
+
+    start = time.perf_counter()
+    last_log = start
+
+    while pending:
+        ready, pending = ray.wait(pending, num_returns=min(batch_size, len(pending)), timeout=10)
+        if ready:
+            batch = ray.get(ready)
+            for result in batch:
+                results.append(result)
+                status = str(result.get("status", "unknown"))
+                status_counts[status] = status_counts.get(status, 0) + 1
+                if status not in success_statuses and status not in skip_statuses:
+                    failures.append(result)
+
+        now = time.perf_counter()
+        if now - last_log >= progress_every_s:
+            elapsed = now - start
+            done = sum(status_counts.get(s, 0) for s in success_statuses)
+            skipped = sum(status_counts.get(s, 0) for s in skip_statuses)
+            failed = len(failures)
+            rate = done / elapsed if elapsed > 0 else 0.0
+            logger.info(
+                "Progress [{}]: done={}, skipped={}, failed={}, pending={}, rate={:.3f} configs/s",
+                stage,
+                done,
+                skipped,
+                failed,
+                len(pending),
+                rate,
+            )
+            last_log = now
+
+    elapsed_total = time.perf_counter() - start
+    logger.info("Completed [{}]: counts={}, elapsed_seconds={:.1f}", stage, status_counts, elapsed_total)
+    return status_counts, failures, float(elapsed_total), results
+
+
+def log_failures(failures: list[dict[str, Any]], *, stage: str, limit: int = 50) -> None:
+    if not failures:
+        return
+    logger.error("Failures [{}]: count={}", stage, len(failures))
+    for i, r in enumerate(failures[:limit]):
+        logger.error(
+            "Failed [{}] #{idx}: {method}/{dataset}/seed{seed} ({error_type}): {error}",
+            stage,
+            idx=i + 1,
+            method=r.get("method"),
+            dataset=r.get("dataset"),
+            seed=r.get("seed"),
+            error_type=r.get("error_type"),
+            error=r.get("error"),
+        )
+    if len(failures) > limit:
+        logger.error("Failures [{}]: ... ({} more)", stage, len(failures) - limit)

@@ -79,11 +79,27 @@ def get_git_sha() -> str:
     if value:
         return value.strip()
 
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = get_repo_root()
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_root, text=True).strip()
     except Exception:
         return "unknown"
+
+
+def parse_csv_list(value: str | None) -> list[str] | None:
+    """Parse comma-separated values into a list of stripped strings."""
+    if value is None:
+        return None
+    items = [v.strip() for v in value.split(",")]
+    return [v for v in items if v]
+
+
+def parse_csv_ints(value: str | None) -> list[int] | None:
+    """Parse comma-separated values into a list of ints."""
+    if value is None:
+        return None
+    items = [v.strip() for v in value.split(",") if v.strip()]
+    return [int(v) for v in items]
 
 
 def get_dataset_prefix(task_type: TaskType) -> str:
@@ -255,10 +271,25 @@ def download_parquet_from_s3(s3_path: str, *, region_name: str | None = None) ->
     return pd.read_parquet(io.BytesIO(response["Body"].read()))
 
 
-def upload_parquet_to_s3(rows: list[dict[str, Any]], s3_path: str, *, region_name: str | None = None) -> None:
+def upload_parquet_to_s3(
+    rows: list[dict[str, Any]],
+    s3_path: str,
+    *,
+    region_name: str | None = None,
+    validate: bool = False,
+) -> None:
     df = pd.DataFrame(rows)
     buffer = io.BytesIO()
     df.to_parquet(buffer, index=False)
-    buffer.seek(0)
+    payload = buffer.getvalue()
+    expected_bytes = len(payload)
     bucket, key = _split_s3_path(s3_path)
-    get_s3_client(region_name=region_name).put_object(Bucket=bucket, Key=key, Body=buffer.getvalue())
+    client = get_s3_client(region_name=region_name)
+    client.put_object(Bucket=bucket, Key=key, Body=payload)
+    if validate:
+        head = client.head_object(Bucket=bucket, Key=key)
+        uploaded_bytes = int(head.get("ContentLength") or 0)
+        if uploaded_bytes <= 0 or uploaded_bytes != expected_bytes:
+            raise RuntimeError(
+                f"S3 upload validation failed for {s3_path!r}: expected {expected_bytes} bytes, got {uploaded_bytes}"
+            )

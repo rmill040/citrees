@@ -90,6 +90,8 @@ class ExperimentConfig:
     # Stage 2 (evaluation) CPU scheduling
     evaluation_cpus_default: int = 1
     evaluation_cpus_overrides: dict[str, int] = field(default_factory=dict)
+    # S3 robustness
+    s3_validate_uploads: bool = False
 
 
 @dataclass
@@ -435,6 +437,7 @@ def load_config(path: Path | None = None) -> Config:
             selection_cpus_overrides={str(k): int(v) for k, v in overrides.items()},
             evaluation_cpus_default=exp_data.get("evaluation_cpus_default", 1),
             evaluation_cpus_overrides={str(k): int(v) for k, v in eval_overrides.items()},
+            s3_validate_uploads=bool(exp_data.get("s3_validate_uploads", False)),
         )
 
     # Load state if exists

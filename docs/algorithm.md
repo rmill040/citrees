@@ -132,8 +132,17 @@ if feature_muting and pval >= max(alpha, 1 - alpha):
     mute_feature(feature)  # Remove from available features
 ```
 
-This accelerates training by not re-testing clearly uninformative features within a subtree: muted features are removed
-only for descendants of the current node (siblings are isolated).
+For $\alpha \le 1/2$, this is an *upper-tail* rule: `pval >= 1 - alpha` (e.g., $\alpha=0.05 \Rightarrow p\ge 0.95$).
+It is a speed-only heuristic: it avoids repeatedly testing features that look extremely unpromising.
+
+Muting is **subtree-local**: muted features are removed only for descendants of the current node (siblings are
+isolated), which avoids traversal-order dependence:
+
+```
+Root available: {0,1,2}
+├─ Left child sees {0,1,2} → may drop feature 1 in its subtree → descendants see {0,2}
+└─ Right child sees {0,1,2} (unaffected by left)
+```
 
 ---
 

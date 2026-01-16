@@ -114,3 +114,7 @@ experiment:
   #   lgbm: 8
   evaluation_cpus_default: 1
   evaluation_cpus_overrides: {}
+
+  # Optional: validate each parquet upload with an extra S3 `head_object` call.
+  # Useful for smoke tests / debugging; leave false for full-scale runs to avoid extra S3 API calls.
+  s3_validate_uploads: false

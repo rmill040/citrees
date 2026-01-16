@@ -4,8 +4,8 @@ This file is meant to seed a *statistical* manuscript. It focuses only on claims
 high confidence from first principles. Anything that depends on adaptive, data-driven choices (tree growth, feature
 muting, multi-selector selection, early stopping, etc.) is flagged explicitly.
 
-For a paper-facing draft that collects only the clean, defensible statements, see `paper/paper.md`.
-For a claim-by-claim verification log (proved vs cited vs empirical), see `paper/claim_audit.md`.
+For a paper-facing draft that collects only the clean, defensible statements, see `paper/docs/paper.md`.
+For a claim-by-claim verification log (proved vs cited vs empirical), see `paper/docs/claim_audit.md`.
 
 ## 0. Scope and “rigorous mode”
 
@@ -763,9 +763,13 @@ publication-grade proofs:
 
 3. **Feature muting across nodes** (`feature_muting=True`).  
    Feature muting is a **computational heuristic**: after testing a feature at a node, if its p-value is
-   *extremely* non-significant (currently `p \ge \max(\alpha, 1-\alpha)`), the feature is removed from the
-   candidate set that is propagated to **descendants of that node**. This can speed up training but **changes the
-   hypothesis family adaptively**.
+   in the extreme upper tail (currently, for $\alpha\le 1/2$, `p >= 1 - alpha`; e.g., $\alpha=0.05 \Rightarrow p\ge
+   0.95$), the feature is removed from the candidate set that is propagated to **descendants of that node**
+   (subtree-local propagation). This can speed up training but **changes the hypothesis family adaptively**.
+
+   **Interpretation.** Under an ideal null where the permutation p-values are (discrete) uniform, a feature is muted
+   with probability about $\alpha$ when it is tested at a node. This “upper-tail muting” rule is intentionally
+   conservative: it aims to avoid dropping borderline features and should be treated as a speed-only heuristic.
 
    Concretely:
    - The set of tested features at node $t$ becomes a **random, data-dependent** set determined by earlier
@@ -781,18 +785,33 @@ publication-grade proofs:
    ablations, and report sensitivity by comparing `feature_muting=True` vs `False`.
 
    **Implementation note (current).** Muting is implemented with **subtree-local candidate sets**: muting decisions at a
-   node affect only its descendants, and siblings are isolated (traversal-order invariant). There is no “node-reset”
-   muting mode; resetting the candidate set at every node is effectively equivalent to `feature_muting=False`.
+   node affect only its descendants, and siblings are isolated (traversal-order invariant).
 
-   **Detailed status and next steps (muting scope theory).**
-   The core issue is that global muting uses a *root-level* test to decide whether a feature is ever tested again,
-   but the hypothesis of interest at a descendant node is conditional:
+   **Correctness requirement (sibling isolation / traversal-order invariance).**
+   Any muting (or constant-feature filtering) must be applied to a candidate set that is local to the subtree. If a
+   single shared/global candidate set is mutated during recursion, the fitted tree becomes dependent on traversal
+   order (or, equivalently, on the schedule if subtrees are built in parallel).
+
+   **Proposition (Traversal-order invariance).**
+   Consider building the left and right subtrees under a parent node $t$. Under subtree-local candidate sets, the
+   learned right subtree is a function only of $(X_{t,R},Y_{t,R})$ and the candidate set passed from $t$, and does not
+   depend on what happened in the left subtree. Consequently, expanding children in the order “left then right” versus
+   “right then left” yields the same fitted tree (up to swapping left/right pointers). In contrast, with a single
+   shared mutable candidate set, there exist datasets where a feature is constant (or extremely non-significant) in
+   one child but informative in its sibling, so mutating the shared set in the first-expanded child prevents the
+   sibling from ever considering that feature.
+
+   **Regression test.** `tests/unit/test_tree.py::TestCandidateSetIsolation` constructs such a dataset with a
+   branch-constant feature and guards against this scheduling dependence.
+
+   **Detailed status and next steps (muting theory).**
+   The core statistical issue is that the hypothesis of interest at a descendant node is conditional:
    \[
    H_{0,t,j}: X_j \perp Y \mid X \in \text{node } t.
    \]
-   Marginal non-association at the root does **not** imply conditional non-association in a branch. This can destroy
-   power for rare or gated signals. We do not yet have a formal proof of superiority for local muting; the goal is to
-   build one (or show limits) using a controlled counterexample.
+   A root-level (marginal) screen can therefore remove a feature that is conditionally informative in a rare branch.
+   We do not yet have a formal proof of superiority for a particular muting heuristic; the goal is to build one (or
+   show limits) using a controlled counterexample family.
 
    **Candidate counterexample family (gated effect).** Let $Z=\mathbf{1}(X_0>c)$ with $P(Z=1)=p \ll 1$ and
    $X_1 \sim \mathcal{N}(0,1)$ independent of $X_0$. Define
@@ -806,56 +825,58 @@ publication-grade proofs:
    \]
    Then $X_1$ is **strongly predictive** in the $Z=1$ branch, but its *marginal* association with $Y$ scales as $p$
    and can be arbitrarily small. A root-level permutation test for $X_1$ will fail with high probability for small
-   $p$, causing **global muting** to remove $X_1$ everywhere. A branch-local policy would still test $X_1$ in the
-   $Z=1$ child, preserving the conditional signal.
+   $p$, so an aggressive root-level screen (e.g., “drop features with $p\ge \alpha$ at the root”) can remove $X_1$
+   everywhere. A conservative subtree-local muting rule (like the implemented upper-tail rule) is much less likely to
+   eliminate $X_1$ at the root, so $X_1$ remains available to be tested in the $Z=1$ child.
 
    **What we still need to prove (sketch plan).**
    1. **Formalize the DGP and statistic.** Pick a concrete selector (e.g., MC or Pearson correlation) and specify the
       null/alternative distributions of the test statistic under the gated model above.
    2. **Asymptotic power gap.** Show that, for fixed sample size $n$ and small $p$, the root-level p-value for $X_1$
-      is stochastically larger than $\alpha$ with high probability (global muting likely triggers), while the
+      is stochastically larger than $\alpha$ with high probability (a root-level screen likely triggers), while the
       conditional p-value in the $Z=1$ branch concentrates below $\alpha$ provided $n p$ is large enough.
    3. **Decision-theoretic statement.** Compare expected loss (e.g., misclassification error or missed-signal rate)
       between:
-      - Global muting: one-shot root screen for all descendants
-      - Branch-local muting: re-test within each node with its own sample
+      - Root-only screen: one-shot root decision for all descendants
+      - Subtree-local muting: allow descendants to re-test when available
    4. **Finite-sample bounds.** If feasible, derive a bound of the form:
       \[
-      \Pr(\text{global mutes } X_1) \ge 1 - \delta \quad\text{while}\quad
-      \Pr(\text{branch detects } X_1) \ge 1 - \delta'
+      \Pr(\text{root screen drops } X_1) \ge 1 - \delta \quad\text{while}\quad
+      \Pr(\text{subtree detects } X_1) \ge 1 - \delta'
       \]
       for explicit $(n, p, \alpha)$.
    5. **Empirical corroboration.** Provide a simulation study showing:
       - Root-level p-values for $X_1$ are near-uniform (or large) under the gated model
       - Conditional p-values for $X_1$ within the gate are small
-      - Trees with global muting drop $X_1$; trees with local muting recover it
+      - Trees with a root-only screen drop $X_1$; trees with subtree-local muting recover it
 
    **Open questions / risks.**
-   - Local muting is still adaptive, so global FWER control is not automatically restored.
+   - Subtree-local muting is still adaptive, so global FWER control is not automatically restored.
    - If $p$ is too small, even local muting may fail due to insufficient samples in the gated branch.
    - Results may depend strongly on the selector (MC vs RDC vs MI) and on early-stopping mode.
 
    **Success criteria (what counts as "better" than global muting).**
-   We will treat local (node/branch) muting as "better" only if **all** of the following are met:
-   1. **Targeted power gap**: In a gated-effect family, global muting drops a conditionally-informative feature with
-      high probability, while local muting retains it in the relevant branch.
-      - Operationalized as: $\Pr(\text{global mutes } X_1) \ge 0.8$ **and**
-        $\Pr(\text{local uses } X_1 \mid Z=1) \ge 0.8$ for a range of $(n, p, \alpha)$.
+   We will treat subtree-local muting as "better" only if **all** of the following are met:
+   1. **Targeted power gap**: In a gated-effect family, a root-only screen drops a conditionally-informative feature
+      with high probability, while subtree-local muting retains it in the relevant branch.
+      - Operationalized as: $\Pr(\text{root screen drops } X_1) \ge 0.8$ **and**
+        $\Pr(\text{subtree uses } X_1 \mid Z=1) \ge 0.8$ for a range of $(n, p, \alpha)$.
    2. **Predictive benefit where it matters**: Accuracy (or loss) on the gated subset improves materially:
       \[
-      \mathbb{E}[\mathrm{Acc}_{Z=1}(\text{local})] - \mathbb{E}[\mathrm{Acc}_{Z=1}(\text{global})] \ge 0.05.
+      \mathbb{E}[\mathrm{Acc}_{Z=1}(\text{subtree})] - \mathbb{E}[\mathrm{Acc}_{Z=1}(\text{root screen})] \ge 0.05.
       \]
       Overall accuracy may be similar; we care about the conditional regime.
-   3. **No catastrophic regressions**: On standard synthetic benchmarks, local muting does not reduce overall accuracy
-      by more than ~1-2% relative to global muting, and training time does not increase by more than ~20-30%.
+   3. **No catastrophic regressions**: On standard synthetic benchmarks, subtree-local muting does not reduce overall
+      accuracy by more than ~1-2% relative to a root-only screen, and training time does not increase by more than
+      ~20-30%.
    4. **Stability**: Results persist across random seeds and selectors (at least MC and RDC), and under
       `early_stopping_selector=None` and `adaptive`.
    5. **Interpretability delta**: The set of used features should match the ground-truth relevant set more often
-      under local muting (precision/recall of selected features improves).
+      under subtree-local muting (precision/recall of selected features improves).
 
    **Algorithm implications (what changes in code if we adopt local muting).**
    This affects only the **candidate feature set** used at each node. The core p-value calculation does not change.
-   In pseudocode, the current global muting acts as a shared mutable list:
+   In pseudocode, an *incorrect* shared-state implementation acts as a mutable list:
    \[
    \mathcal{F}_\text{global} \leftarrow \{1,\dots,p\};\quad
    \text{if } p\text{-value}(j) \ge \max(\alpha, 1-\alpha)\text{ then } \mathcal{F}_\text{global} \leftarrow \mathcal{F}_\text{global}\setminus\{j\}.
@@ -1920,20 +1941,11 @@ scripts and paper-ready figures:
 
 1. **Continuous-null idealization** ($p^\star\sim\mathrm{Unif}(0,1)$, $L_n\mid p^\star\sim\mathrm{Binom}(n,p^\star)$):  
    `paper/scripts/theory/generate_sequential_stopping_calibration.py` generates
-   `paper/results/figures/sequential_stopping_calibration_data.parquet` and
-   `paper/results/figures/sequential_stopping_calibration.png`. In the committed run (20,000 sims, $n_{\max}=2000$),
-   the default $\gamma=0.95$ yields:
-   - $\Pr(\widehat{p}_\tau<\alpha)=0.04485$ (algorithm output compared to $\alpha$),
-   - $\Pr(\text{stop\_sig})=0.04245$ (event with a clean bound),
-   - mean stop time $\mathbb{E}[\tau]\approx 46.9$,
-   - bound $\alpha/\gamma=0.05263$.
+   `paper/results/cache/sequential_stopping_calibration_data.parquet` and
+   `paper/results/figures/sequential_stopping_calibration.png`.
 2. **Concrete permutation test comparison** (single-statistic, end-to-end):  
    `paper/scripts/theory/sequential_stopping_comparison.py` compares the posterior-confidence rule against the
-   Fischer–Ramdas binomial-mixture rule for a Pearson-correlation permutation test (10,000 null sims, $n=100$,
-   $\alpha=0.05$, cap 1000 permutations). It prints:
-   - Type I error: citrees 0.0493 vs Fischer–Ramdas 0.0503,
-   - Mean permutations (null): 41.5 vs 97.9,
-   - Time per test (ms): 0.041 vs 0.095.
+   Fischer–Ramdas binomial-mixture rule for a Pearson-correlation permutation test.
 
 These results are sanity checks; the paper-facing guarantees remain the fixed-$B$ p-value validity (Theorem 1) and the
 decision-level bound on $\Pr(\text{stop\_sig})$.
@@ -1960,12 +1972,13 @@ stopping rule uses a *wealth* (test-martingale) process; one convenient closed f
 $$
 W_n = \frac{1 - F_{\text{Binom}}(L_n; n+1, c)}{c}
 $$
-where $F_{\text{Binom}}$ is the binomial CDF and $c$ is a betting parameter (typically $c = \alpha$). They reject
-when $W_n \ge 1/\alpha$.
+where $F_{\text{Binom}}$ is the binomial CDF and $c$ is a betting parameter. For a level-$\alpha$ test, Fischer & Ramdas
+recommend using $c<\alpha$ so that the wealth can cross the $1/\alpha$ threshold after finitely many permutations (see
+their discussion around Corollary 5.4).
 
 **Mathematical relationship.** The binomial and beta CDFs are related by:
 $$
-F_{\text{Binom}}(k; n, p) = 1 - I_p(k+1, n-k)
+F_{\text{Binom}}(k; n+1, p) = 1 - I_p(k+1, n-k+1)
 $$
 where $I_p(a,b)$ is the regularized incomplete beta function (Beta CDF). Both methods use the same underlying
 mathematical machinery but apply different stopping criteria (and therefore have different guarantees):
@@ -1973,34 +1986,10 @@ mathematical machinery but apply different stopping criteria (and therefore have
 - **citrees**: Stop when $P(p < \alpha \mid L_n) \ge \gamma$ (Bayesian posterior probability)
 - **Fischer-Ramdas**: Stop when $W_n \ge 1/\alpha$ (wealth threshold)
 
-**Head-to-head comparison.** We conducted a rigorous comparison of both methods under identical conditions
-with njit-compiled implementations (`paper/scripts/theory/sequential_stopping_comparison.py`):
-
-| Metric | citrees (Beta CDF) | Fischer-Ramdas | Difference |
-|--------|-------------------|----------------|------------|
-| Type I Error (N=10,000) | 0.0493 | 0.0503 | Equivalent |
-| Mean Perms (null) | 41.5 | 97.9 | **citrees 2.4× fewer** |
-| Time per test | 0.042 ms | 0.092 ms | **citrees 2.2× faster** |
-
-Power comparison (N=3,000 per effect size):
-
-| Effect Size | citrees Power | F-R Power |
-|-------------|---------------|-----------|
-| 0.10 | 0.159 | 0.165 |
-| 0.20 | 0.502 | 0.510 |
-| 0.30 | 0.850 | 0.858 |
-| 0.50 | 0.999 | 0.999 |
-
-**Conclusions:**
-1. Both methods show similar empirical Type I error near $\alpha = 0.05$
-2. citrees' Beta CDF stopping rule requires **2.4× fewer permutations** on average under the null
-3. citrees achieves **2.2× faster** wall-clock time in this benchmark
-4. Power is statistically indistinguishable between methods
-
-**Theoretical interpretation.** Fischer–Ramdas provides formal anytime-valid guarantees via test-martingale theory.
-citrees' Bayesian rule is a different sequential procedure: it admits a clean bound for the posterior-confidence
-rejection event (Section 6.1) and is empirically close to nominal levels, but it is not claimed to output an
-anytime-valid p-value under optional stopping.
+**Empirical note (optional).**  
+`paper/scripts/theory/sequential_stopping_comparison.py` compares the posterior-confidence stop against the
+Fischer–Ramdas binomial-mixture rule in a controlled setting. We do not treat those numbers as theorems; any
+paper-facing performance claims should be backed by committed artifacts (figures/tables) produced from the scripts.
 
 ### 6.1.2 Summary of provable guarantees (proved)
 
@@ -2025,7 +2014,7 @@ This section is a short “what is actually proven?” summary for `early_stoppi
 
 3. **Connection to Fischer–Ramdas (2025).**  
    In Section 6.1.3.8 we show $W_n:=S_n/\alpha$ is exactly the binomial-mixture e-process appearing in Fischer &
-   Ramdas (2025, Proposition 5). Ville’s inequality then yields the same bound.
+   Ramdas (2025, Proposition 5.2). Ville’s inequality then yields the same bound.
 
 ### 6.1.3 Mathematical Foundations for Sequential Stopping (DETAILED)
 
@@ -2061,7 +2050,8 @@ $$
 W_n^{u_c}(k) = \frac{1 - F_{\text{Binom}}(k; n+1, c)}{c}
 $$
 where $F_{\text{Binom}}$ is the binomial CDF, $k$ is the exceedance count after $n$ permutations,
-and $c$ is a betting parameter (typically $c = \alpha$).
+and $c$ is a betting parameter (for a level-$\alpha$ test, Fischer & Ramdas recommend choosing $c<\alpha$ so the wealth
+can cross the $1/\alpha$ threshold after finitely many permutations; see their discussion around Corollary 5.4).
 
 They prove this is a test martingale under $H_0$, hence Ville's inequality gives:
 $$
@@ -2072,28 +2062,31 @@ $$
 
 The binomial and beta CDFs are related by the **regularized incomplete beta function**:
 $$
-F_{\text{Binom}}(k; n, p) = 1 - I_p(k+1, n-k) = 1 - F_{\text{Beta}}(p; k+1, n-k)
+F_{\text{Binom}}(k; n+1, p) = 1 - I_p(k+1, n-k+1) = 1 - F_{\text{Beta}}(p; k+1, n-k+1)
 $$
 where $I_p(a, b)$ is the regularized incomplete beta function.
 
 Therefore:
 $$
-W_n^{u_\alpha}(k) = \frac{1 - [1 - I_\alpha(k+1, n-k)]}{\alpha} = \frac{I_\alpha(k+1, n-k)}{\alpha}
-= \frac{F_{\text{Beta}}(\alpha; k+1, n-k)}{\alpha}
+W_n^{u_\alpha}(k)
+= \frac{1 - F_{\text{Binom}}(k; n+1, \alpha)}{\alpha}
+= \frac{I_\alpha(k+1, n-k+1)}{\alpha}
+= \frac{F_{\text{Beta}}(\alpha; k+1, n-k+1)}{\alpha}
 $$
 
 #### 6.1.3.2 Connection Between citrees and Fischer-Ramdas
 
-**citrees Stopping Rule:**
+**citrees significance-stop criterion:**
 
-citrees rejects when the posterior probability that $p < \alpha$ exceeds confidence threshold $\gamma$:
+citrees triggers the “confident significant” stop when the posterior probability that $p < \alpha$ exceeds confidence
+threshold $\gamma$:
 $$
-\text{Reject if } P(p < \alpha \mid L_n) = I_\alpha(1 + L_n, 1 + n - L_n) \geq \gamma
+\text{stop\_sig if } P(p < \alpha \mid L_n) = I_\alpha(1 + L_n, 1 + n - L_n) \geq \gamma
 $$
 
 **Equivalence to Wealth Threshold:**
 
-Using the identity above, citrees rejects when:
+Using the identity above, the significance-stop event occurs when:
 $$
 I_\alpha(1 + L_n, 1 + n - L_n) \geq \gamma
 $$
@@ -2109,6 +2102,11 @@ $$
 |--------|---------------------|--------------------------------------|
 | Fischer-Ramdas | $W_n \geq 1/\alpha$ | $W_n \geq 20$ |
 | citrees | $W_n \geq \gamma/\alpha$ | $W_n \geq 19$ |
+
+**Note (important).** With the special choice $c=\alpha$, Fischer & Ramdas (2025, Proposition 5.2) show
+$W_n^{u_\alpha}(L_n) < 1/\alpha$ for all $n$, so the $1/\alpha$ boundary is not reachable in finite time; they recommend
+choosing $c<\alpha$ for practical level-$\alpha$ sequential tests. citrees instead uses the lower boundary
+$\gamma/\alpha$ for the significance-stop event.
 
 **Key observation (rigorous).** citrees uses a lower threshold ($\gamma/\alpha$) than the canonical anytime-valid
 threshold $1/\alpha$. This makes the “confident significance” stop slightly more liberal in the worst case:
@@ -2260,7 +2258,7 @@ is more general than Besag-Clifford's fixed-$h$ rule, allowing faster terminatio
 > **Result:** Under the continuous-null idealization (so $p^\star\sim\mathrm{Unif}(0,1)$ and $I_b\mid p^\star$
 > i.i.d. $\mathrm{Bernoulli}(p^\star)$), the posterior-confidence process $(S_n)_{n\ge 0}$ is a bounded martingale with
 > respect to the filtration generated by $(L_n,n)$. Consequently $W_n := S_n/\alpha$ is a nonnegative martingale with
-> $W_0=1$ (an e-process / test martingale). In Fischer & Ramdas (2025, Proposition 5), $W_n$ is exactly the
+> $W_0=1$ (an e-process / test martingale). In Fischer & Ramdas (2025, Proposition 5.2), $W_n$ is exactly the
 > binomial-mixture wealth process $\bar W^{u_\alpha}_n(L_n)$.
 
 **Sketch.** By definition,
@@ -2482,21 +2480,16 @@ This provides useful intuition but does not yield a rigorous bound without addit
 
 Reproducible null-calibration outputs for the continuous-null idealization are generated by
 `paper/scripts/theory/generate_sequential_stopping_calibration.py` and stored in:
-- `paper/results/figures/sequential_stopping_calibration_data.parquet`
+- `paper/results/cache/sequential_stopping_calibration_data.parquet`
 - `paper/results/figures/sequential_stopping_calibration.png`
 
-In the committed run ($n_\text{sims}=20{,}000$, $n_\text{max}=2000$), the default $\gamma=0.95$ yields:
-- $\Pr(\text{stop\_sig})=0.04245$ vs bound $\alpha/\gamma=0.05263$,
-- $\Pr(\widehat p_\tau<\alpha)=0.04485$ for the algorithm-returned $\widehat p_\tau$.
+These are sanity checks; do not hard-code calibration rates in the theory text—read them from the parquet artifact (or
+regenerate) to avoid stale numbers.
 
 ##### Tightness of the Markov Bound
 
-The Markov inequality bound $P(S_\tau \geq \gamma) \leq \alpha/\gamma$ is **not tight**:
-
-| $\gamma$ | Bound $\alpha/\gamma$ | Empirical $\Pr(\text{stop\_sig})$ |
-|----------|------------------------------|------------------|
-| 0.90 | 0.05556 | 0.04485 |
-| 0.95 | 0.05263 | 0.04245 |
+The Markov inequality bound $P(S_\tau \geq \gamma) \leq \alpha/\gamma$ is generally **loose** (it uses only the first
+moment $\mathbb{E}[S_\tau]$). See the calibration artifact above for empirical stop-rate curves vs $\gamma$.
 | 0.975 | 0.05128 | 0.04400 |
 | 0.99 | 0.05051 | 0.04290 |
 
@@ -2629,7 +2622,8 @@ Ville's classical results.
 **Objection 11: "The Markov bound $\alpha/\gamma$ is not tight. Is this a problem?"**
 
 **Response:** No. The bound being loose is the **conservative direction** — actual Type I error is
-lower than the bound. We document this in the "Tightness of the Markov Bound" subsection, explaining
+at most the bound. In practice it is often lower, but we avoid claiming a universal gap. We document this in the
+"Tightness of the Markov Bound" subsection, explaining
 three reasons for the slack: discrete jumps, acceptance events, and max iterations. A tighter bound
 would require overshoot analysis, which we leave as an open question.
 

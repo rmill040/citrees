@@ -9,12 +9,12 @@ This script does **not** modify any algorithm. It runs a controlled simulation a
 
 Outputs
 -------
-- `paper/results/figures/selection_bias_demo_data.parquet`
+- `paper/results/cache/selection_bias_demo_data.parquet`
 - `paper/results/figures/selection_bias_demo.png`
 
 Run
 ---
-  uv sync
+  uv sync --group paper
   UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/generate_selection_bias_demo.py
 """
 
@@ -166,10 +166,12 @@ def main() -> None:
         ]
     )
 
-    out_dir = _paper_dir / "results" / "figures"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    data_path = out_dir / "selection_bias_demo_data.parquet"
-    fig_path = out_dir / "selection_bias_demo.png"
+    figures_dir = _paper_dir / "results" / "figures"
+    cache_dir = _paper_dir / "results" / "cache"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    data_path = cache_dir / "selection_bias_demo_data.parquet"
+    fig_path = figures_dir / "selection_bias_demo.png"
 
     # Store as a single parquet with two tables via a simple convention: concatenate with a marker column.
     df_out = df.copy()

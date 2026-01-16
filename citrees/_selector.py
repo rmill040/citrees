@@ -138,6 +138,7 @@ def _ptest_multi(
     *,
     funcs: list,
     func_args: list,
+    take_abs: list[bool] | None = None,
     x: np.ndarray,
     y: np.ndarray,
     n_resamples: int,
@@ -184,6 +185,10 @@ def _ptest_multi(
     confidence : float, default=0.95
         Confidence threshold for adaptive stopping.
 
+    take_abs : list[bool] or None
+        Whether to take the absolute value of each selector score before computing the max. If None, absolute values
+        are taken for all selectors (backwards-compatible behavior).
+
     Returns
     -------
     float
@@ -192,11 +197,20 @@ def _ptest_multi(
     # Use default_rng for isolated RNG stream (avoids global state contamination)
     rng = np.random.default_rng(random_state)
 
+    if take_abs is None:
+        take_abs = [True] * len(funcs)
+    if len(take_abs) != len(funcs):
+        raise ValueError(
+            "take_abs must have the same length as funcs (one flag per selector function)."
+        )
+
     def compute_max_stat(x: np.ndarray, y: np.ndarray) -> float:
         """Compute max statistic across all selectors."""
         max_score = -np.inf
-        for func, arg in zip(funcs, func_args):
-            score = abs(func(x, y, arg, random_state=random_state))
+        for func, arg, abs_flag in zip(funcs, func_args, take_abs):
+            score = func(x, y, arg, random_state=random_state)
+            if abs_flag:
+                score = abs(score)
             if score > max_score:
                 max_score = score
         return max_score

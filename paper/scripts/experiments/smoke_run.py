@@ -13,6 +13,7 @@ Use this before scaling to the full grid to verify:
 from __future__ import annotations
 
 import argparse
+from typing import Literal, cast
 
 import ray
 from loguru import logger
@@ -23,6 +24,7 @@ from paper.scripts.experiments._common import (
     get_datasets,
     get_s3_bucket,
     metrics_s3_path,
+    parse_csv_list,
 )
 from paper.scripts.experiments._common import rankings_s3_path as rankings_s3_key
 from paper.scripts.infra.config import load_config
@@ -30,6 +32,8 @@ from paper.scripts.utils.constants import N_SPLITS
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 
 from paper.scripts.experiments import ray_eval, ray_feature_selection
+
+DataSource = Literal["real", "synthetic", "all"]
 
 
 def _parse_args() -> argparse.Namespace:
@@ -51,15 +55,8 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _parse_csv_list(value: str | None) -> list[str] | None:
-    if value is None:
-        return None
-    items = [v.strip() for v in value.split(",")]
-    return [v for v in items if v]
-
-
-def _choose_dataset(task_type: str, source: str, preferred: str | None) -> str:
-    datasets = get_datasets(task_type, source=source)  # type: ignore[arg-type]
+def _choose_dataset(task_type: str, source: DataSource, preferred: str | None) -> str:
+    datasets = get_datasets(task_type, source=source)
     if not datasets:
         raise ValueError(f"No datasets found for task_type={task_type!r}, source={source!r}")
 
@@ -165,11 +162,12 @@ def main() -> None:
         ray.init(address=args.ray_address, ignore_reinit_error=True)
 
     task_type = args.task_type or cfg.experiment.type
-    dataset = _choose_dataset(task_type, args.source, args.dataset)
+    source = cast(DataSource, args.source)
+    dataset = _choose_dataset(task_type, source, args.dataset)
     seed = int(args.seed)
 
     default_methods = ["mc", "rf"] if task_type == "classification" else ["pc", "rf"]
-    methods = _parse_csv_list(args.methods) or default_methods
+    methods = parse_csv_list(args.methods) or default_methods
 
     logger.info(
         "Smoke run config: task_type={}, source={}, dataset={}, seed={}, methods={}",

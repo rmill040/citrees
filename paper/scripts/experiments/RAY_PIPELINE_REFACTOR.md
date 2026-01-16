@@ -7,6 +7,7 @@ Primary scripts:
 - Stage 1 (feature selection → rankings): `paper/scripts/experiments/ray_feature_selection.py`
 - Stage 2 (downstream evaluation → metrics): `paper/scripts/experiments/ray_eval.py`
 - Progress reporting (S3 listing): `paper/scripts/experiments/check_progress.py`
+- Full pipeline (Stage 1 → Stage 2): `paper/scripts/experiments/run_pipeline.py`
 - Smoke test (end-to-end + schema assertions): `paper/scripts/experiments/smoke_run.py`
 
 Required environment (non-negotiable for S3 IO):
@@ -23,9 +24,10 @@ Recommended environment (for provenance / attribution):
 Quick usage (subset runs):
 - Stage 1: `python paper/scripts/experiments/ray_feature_selection.py --datasets <dataset> --methods <m1>,<m2> --seeds 0`
 - Stage 2: `python paper/scripts/experiments/ray_eval.py --datasets <dataset> --methods <m1>,<m2> --seeds 0`
+- Full pipeline (sequential): `python paper/scripts/experiments/run_pipeline.py --source all`
 - Smoke test (Stage 1 → Stage 2 + asserts): `python paper/scripts/experiments/smoke_run.py --source real --seed 0`
 
-Common CLI flags (Stage 1/Stage 2):
+Common CLI flags (Stage 1/Stage 2/pipeline):
 - `--ray-address auto|local`: connect to a Ray cluster or run locally.
 - `--task-type classification|regression`: override `experiment.type` from `paper/scripts/infra/config.yaml`.
 - `--source all|real|synthetic`: dataset source filter.
@@ -33,6 +35,7 @@ Common CLI flags (Stage 1/Stage 2):
 - `--methods <m1>,<m2>,...`: limit to base selection methods (expands to all configs for those methods).
 - `--seeds 0,1,...`: limit to a few seed indices.
 - `--dry-run`: print planned configs (useful to confirm filters before scaling).
+- Pipeline-only: `--stage all|stage1|stage2` (defaults to `all`)
 
 ---
 
@@ -274,18 +277,14 @@ This section is intentionally explicit about **the failure mode**, **the impact*
 
 ### 4.1 Artifact conventions (paths + versions)
 
-Keep existing locations, but add an explicit version marker either:
-- In the path (recommended for safe migration):
-  - `rankings_v2/{...}`
-  - `metrics_v2/{...}`
-or
-- In the parquet schema only:
-  - add `artifact_version = 2` column and keep same paths (riskier: overwrites old).
+This repo intentionally **does not** use path versioning.
 
-**Recommendation**
-- Default: keep canonical `rankings/` and `metrics/` paths and rely on `artifact_version` in the schema (this repo
-  currently overwrites outputs on rerun anyway).
-- Optional: use `*_v2` prefixes only if you explicitly want side-by-side A/B comparisons or rollback.
+- Always write to canonical paths:
+  - `rankings/{...}`
+  - `metrics/{...}`
+- Store version/provenance in the parquet schema:
+  - `artifact_version` (schema version)
+  - `git_sha`, `created_at_utc` (provenance)
 
 ### 4.2 Rankings (Stage 1) schema: minimal + deterministic
 
@@ -418,14 +417,18 @@ Refactor behavior:
 
 ### 6.2 Write-time validation
 
-Optional but recommended:
-- After writing parquet to S3, read parquet metadata (or at least verify size > 0) to reduce the chance of “corrupt but
-present” artifacts causing permanent skips.
+Status: implemented (optional).
+
+- `upload_parquet_to_s3(..., validate=True)` performs a post-upload `head_object` check and verifies the uploaded object
+  size is non-zero and matches the bytes sent.
+- Controlled via `experiment.s3_validate_uploads` in `paper/scripts/infra/config.yaml`.
 
 ### 6.3 Add structured status outputs
 
-Instead of only `{"status": "...", ...}`, consider including:
-- `error_type`, `traceback` (truncated), `hostname`, `pid`, `ray_node_id`
+Status: implemented (driver-side observability).
+
+Each Ray task return dict now includes (when available):
+- `error_type`, `traceback` (may be large), `hostname`, `pid`, `ray_node_id`
 - `elapsed_seconds`
 
 This helps debugging.
@@ -566,7 +569,7 @@ Acceptance criteria:
 - [x] Rankings artifacts do not store per-sample indices.
 - [x] Metrics artifacts contain identifying metadata columns.
 - [x] Artifact schema version is recorded (`artifact_version`).
-- [ ] Path versioning enables side-by-side comparisons (optional).
+- [x] No path versioning (by design): canonical `rankings/` + `metrics/` overwrite.
 
 ### Robustness
 - [x] Undefined metrics (AUC edge cases) do not fail entire configs.
@@ -574,11 +577,11 @@ Acceptance criteria:
 
 ### Scalability
 - [x] Ray task scheduling is aligned with CPU resources (`num_cpus` + sane `n_jobs`).
-- [ ] Throughput improves predictably with more worker CPUs.
+- [ ] Throughput improves predictably with more worker CPUs (instrumented via driver progress logs; verify on cluster).
 
 ### Maintainability
 - [x] Shared utilities remove duplicated code between Stage 1 and Stage 2.
-- [ ] The pipeline is easier to read (clear stage responsibilities and consistent naming).
+- [x] The pipeline is easier to read (shared driver in `paper/scripts/experiments/_driver.py`).
 
 ---
 

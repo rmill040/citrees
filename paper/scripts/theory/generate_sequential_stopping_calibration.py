@@ -10,11 +10,11 @@ This script simulates the *null* behavior under the standard continuous-null ide
 - The function returns the usual +1 Monte Carlo estimate p_hat = (L_n+1)/(n+1) evaluated at the stopping time.
 
 Outputs:
-- `paper/results/figures/sequential_stopping_calibration_data.parquet`
+- `paper/results/cache/sequential_stopping_calibration_data.parquet`
 - `paper/results/figures/sequential_stopping_calibration.png`
 
 Run:
-  uv sync
+  uv sync --group paper
   uv run python paper/scripts/theory/generate_sequential_stopping_calibration.py
 """
 
@@ -177,11 +177,13 @@ def main() -> None:
     df = pd.DataFrame(rows).sort_values("gamma").reset_index(drop=True)
 
     paper_dir = Path(__file__).resolve().parents[2]
-    out_dir = paper_dir / "results" / "figures"
-    out_dir.mkdir(parents=True, exist_ok=True)
+    figures_dir = paper_dir / "results" / "figures"
+    cache_dir = paper_dir / "results" / "cache"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-    data_path = out_dir / "sequential_stopping_calibration_data.parquet"
-    fig_path = out_dir / "sequential_stopping_calibration.png"
+    data_path = cache_dir / "sequential_stopping_calibration_data.parquet"
+    fig_path = figures_dir / "sequential_stopping_calibration.png"
 
     df.to_parquet(data_path, index=False)
 

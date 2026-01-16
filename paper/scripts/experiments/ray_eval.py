@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-import argparse
+import os
+import socket
+import traceback
 import time
 from typing import Any
 
@@ -27,6 +29,15 @@ from paper.scripts.experiments._common import (
     s3_file_exists,
     utc_now_iso,
     upload_parquet_to_s3,
+)
+from paper.scripts.experiments._driver import (
+    build_common_parser,
+    init_ray,
+    iter_grid,
+    log_dry_run,
+    log_failures,
+    resolve_grid,
+    run_futures,
 )
 from paper.scripts.utils.constants import (
     CLF_DOWNSTREAM_MODELS,
@@ -218,14 +229,42 @@ def process_config(
     rankings_path = rankings_s3_path(task_type, dataset, method_id, seed)
     metrics_path = metrics_s3_path(task_type, dataset, method_id, seed)
     created_at_utc = utc_now_iso()
+    runtime: dict[str, Any] = {"hostname": socket.gethostname(), "pid": os.getpid()}
+    try:
+        rctx = ray.get_runtime_context()
+        runtime["ray_node_id"] = rctx.get_node_id()
+        runtime["ray_task_id"] = str(rctx.get_task_id())
+    except Exception:
+        pass
 
     try:
         rankings_exist = s3_file_exists(rankings_path, region_name=config.region)
     except Exception as e:
-        return {"status": "failed", "method": method_id, "dataset": dataset, "seed": seed, "error": str(e)}
+        return {
+            "status": "failed",
+            "method": method_id,
+            "dataset": dataset,
+            "seed": seed,
+            "evaluation_cpus": evaluation_cpus,
+            "rankings_path": rankings_path,
+            "metrics_path": metrics_path,
+            "error_type": type(e).__name__,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            **runtime,
+        }
 
     if not rankings_exist:
-        return {"status": "no_rankings", "method": method_id, "dataset": dataset, "seed": seed}
+        return {
+            "status": "no_rankings",
+            "method": method_id,
+            "dataset": dataset,
+            "seed": seed,
+            "evaluation_cpus": evaluation_cpus,
+            "rankings_path": rankings_path,
+            "metrics_path": metrics_path,
+            **runtime,
+        }
 
     try:
         rankings_df = download_parquet_from_s3(rankings_path, region_name=config.region)
@@ -237,48 +276,42 @@ def process_config(
             row["elapsed_seconds"] = float(elapsed)
             row["created_at_utc"] = created_at_utc
             row["git_sha"] = git_sha
-        upload_parquet_to_s3(results, metrics_path, region_name=config.region)
-        return {"status": "done", "method": method_id, "dataset": dataset, "seed": seed, "elapsed": elapsed}
+        upload_parquet_to_s3(
+            results,
+            metrics_path,
+            region_name=config.region,
+            validate=config.experiment.s3_validate_uploads,
+        )
+        return {
+            "status": "done",
+            "method": method_id,
+            "dataset": dataset,
+            "seed": seed,
+            "evaluation_cpus": evaluation_cpus,
+            "elapsed_seconds": float(elapsed),
+            "rankings_path": rankings_path,
+            "metrics_path": metrics_path,
+            **runtime,
+        }
     except Exception as e:
-        return {"status": "failed", "method": method_id, "dataset": dataset, "seed": seed, "error": str(e)}
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Ray Stage 2: rankings → metrics")
-    parser.add_argument(
-        "--ray-address",
-        default="auto",
-        help="Ray address (default: auto). Use 'local' for local mode.",
-    )
-    parser.add_argument("--task-type", choices=["classification", "regression"], default=None)
-    parser.add_argument("--source", choices=["all", "real", "synthetic"], default="all", help="Dataset source filter")
-    parser.add_argument("--datasets", default=None, help="Comma-separated dataset names (default: all)")
-    parser.add_argument("--methods", default=None, help="Comma-separated base method names (default: all)")
-    parser.add_argument("--seeds", default=None, help="Comma-separated seed indices (default: 0..n_seeds-1)")
-    parser.add_argument("--dry-run", action="store_true", help="Print planned configs and exit")
-    return parser.parse_args()
-
-
-def _parse_csv_list(value: str | None) -> list[str] | None:
-    if value is None:
-        return None
-    items = [v.strip() for v in value.split(",")]
-    return [v for v in items if v]
-
-
-def _parse_csv_ints(value: str | None) -> list[int] | None:
-    if value is None:
-        return None
-    items = [v.strip() for v in value.split(",") if v.strip()]
-    return [int(v) for v in items]
+        return {
+            "status": "failed",
+            "method": method_id,
+            "dataset": dataset,
+            "seed": seed,
+            "evaluation_cpus": evaluation_cpus,
+            "rankings_path": rankings_path,
+            "metrics_path": metrics_path,
+            "error_type": type(e).__name__,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            **runtime,
+        }
 
 
 def main() -> None:
-    args = _parse_args()
-    if args.ray_address == "local":
-        ray.init(ignore_reinit_error=True)
-    else:
-        ray.init(address=args.ray_address, ignore_reinit_error=True)
+    args = build_common_parser("Ray Stage 2: rankings → metrics").parse_args()
+    init_ray(args.ray_address)
 
     task_type = args.task_type or config.experiment.type
     methods = CLF_METHODS if task_type == "classification" else REG_METHODS
@@ -287,20 +320,19 @@ def main() -> None:
     n_seeds = config.experiment.n_seeds
     git_sha = get_git_sha()
 
-    datasets_filter = set(_parse_csv_list(args.datasets) or [])
-    methods_filter = set(_parse_csv_list(args.methods) or [])
-    seeds_filter = _parse_csv_ints(args.seeds)
+    method_configs, datasets, seeds = resolve_grid(
+        method_configs=method_configs,
+        datasets=datasets,
+        n_seeds=n_seeds,
+        datasets_csv=args.datasets,
+        methods_csv=args.methods,
+        seeds_csv=args.seeds,
+    )
 
-    if datasets_filter:
-        datasets = [d for d in datasets if d in datasets_filter]
-    if methods_filter:
-        method_configs = [c for c in method_configs if c.get("method") in methods_filter]
-    seeds = list(range(n_seeds)) if seeds_filter is None else seeds_filter
-
-    configs = [(m, d, s) for m in method_configs for d in datasets for s in seeds]
+    total = len(method_configs) * len(datasets) * len(seeds)
     logger.info(
         "Submitting {} configs ({} methods × {} datasets × {} seeds)",
-        len(configs),
+        total,
         len(method_configs),
         len(datasets),
         len(seeds),
@@ -315,34 +347,25 @@ def main() -> None:
     )
 
     if args.dry_run:
-        for method_cfg, dataset, seed in configs[:50]:
-            logger.info(
-                "DRY RUN: method={}, dataset={}, seed={}, num_cpus={}",
-                config_label(method_cfg),
-                dataset,
-                seed,
-                evaluation_cpus,
-            )
-        if len(configs) > 50:
-            logger.info("DRY RUN: ... ({} more configs)", len(configs) - 50)
+        log_dry_run(
+            iter_grid(method_configs, datasets, seeds),
+            stage="stage2",
+            describe=lambda m, d, s: f"method={config_label(m)}, dataset={d}, seed={s}, num_cpus={evaluation_cpus}",
+        )
         return
 
     futures = [
         process_config.options(num_cpus=evaluation_cpus).remote(m, d, s, task_type, evaluation_cpus, git_sha)
-        for m, d, s in configs
+        for m, d, s in iter_grid(method_configs, datasets, seeds)
     ]
-    results = ray.get(futures)
 
-    done = sum(1 for r in results if r["status"] == "done")
-    no_rankings = sum(1 for r in results if r["status"] == "no_rankings")
-    failed = sum(1 for r in results if r["status"] == "failed")
-
-    logger.info(f"Done: {done}, No rankings: {no_rankings}, Failed: {failed}")
-
-    if failed > 0:
-        for r in results:
-            if r["status"] == "failed":
-                logger.error(f"Failed: {r['method']}/{r['dataset']}/seed{r['seed']}: {r['error']}")
+    _counts, failures, _elapsed, _results = run_futures(
+        futures,
+        stage="stage2",
+        success_statuses={"done"},
+        skip_statuses={"no_rankings"},
+    )
+    log_failures(failures, stage="stage2")
 
 
 if __name__ == "__main__":

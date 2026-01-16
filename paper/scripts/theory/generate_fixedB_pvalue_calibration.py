@@ -7,12 +7,12 @@ is a consequence of exchangeability (Theorem 1), not of this particular statisti
 
 Outputs
 -------
-- `paper/results/figures/fixedB_pvalue_calibration_data.parquet`
+- `paper/results/cache/fixedB_pvalue_calibration_data.parquet`
 - `paper/results/figures/fixedB_pvalue_calibration.png`
 
 Run
 ---
-  uv sync
+  uv sync --group paper
   UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/generate_fixedB_pvalue_calibration.py
 """
 
@@ -76,10 +76,12 @@ def main() -> None:
     cdf = np.array([(pvals <= t).mean() for t in grid], dtype=np.float64)
     df_summary = pd.DataFrame({"t": grid, "empirical_P(p<=t)": cdf, "t_minus_empirical": grid - cdf})
 
-    out_dir = _paper_dir / "results" / "figures"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    data_path = out_dir / "fixedB_pvalue_calibration_data.parquet"
-    fig_path = out_dir / "fixedB_pvalue_calibration.png"
+    figures_dir = _paper_dir / "results" / "figures"
+    cache_dir = _paper_dir / "results" / "cache"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    data_path = cache_dir / "fixedB_pvalue_calibration_data.parquet"
+    fig_path = figures_dir / "fixedB_pvalue_calibration.png"
 
     df_out = pd.DataFrame({"p_value": pvals})
     df_out.to_parquet(data_path, index=False)

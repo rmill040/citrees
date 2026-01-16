@@ -59,7 +59,7 @@ quote-style = "double"
 addopts = "-v --tb=short"
 testpaths = ["tests"]
 markers = [
-    "slow: marks tests as slow",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "tree: tests for tree classes",
     "forest: tests for forest classes",
     "other: other tests",

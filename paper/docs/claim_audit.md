@@ -4,8 +4,9 @@ This file is a running audit log to keep `paper/docs/paper.md` and `paper/docs/t
 
 **Goal:** Every claim that matters for the paper should be either:
 - **PROVED** in our manuscript text, or
-- **CITED** to an external reference (`paper/references.bib`), or
-- **EMPIRICAL** with a reproducible script + committed output under `paper/results/`.
+- **CITED** to an external reference (`paper/docs/references.bib`), or
+- **EMPIRICAL** with a reproducible script + committed figure/table output under `paper/results/` (with optional parquet
+  caches under `paper/results/cache/`).
 
 If a claim is none of the above, it should be marked **TODO** (or moved to an explicitly non-paper “notes / archive”
 section).
@@ -23,7 +24,8 @@ section).
 | A5 | Multi-selector “max statistic inside each permutation” yields valid p-values | `paper/docs/theory.md` §6(2); `paper/docs/paper.md` Appendix A.2.3 | Composite statistic preserves exchangeability; cite max-T framing (Westfall & Young, 1993) | PROVED + CITED |
 
 **Empirical backstops (optional):**
-- E1: `paper/scripts/theory/generate_fixedB_pvalue_calibration.py` → `paper/results/figures/fixedB_pvalue_calibration_{data,plot}`.
+- E1: `paper/scripts/theory/generate_fixedB_pvalue_calibration.py` → `paper/results/cache/fixedB_pvalue_calibration_data.parquet` and
+  `paper/results/figures/fixedB_pvalue_calibration.png`.
 
 ---
 
@@ -41,12 +43,13 @@ section).
 | ID | Claim (short) | Where used | Verification | Status |
 |---:|---|---|---|---|
 | C1 | Under continuous-null idealization, $S_n := P(p^\star<\alpha \mid L_n,n)=I_\alpha(1+L_n,1+n-L_n)$ is a martingale | `paper/docs/theory.md` §6.1.3.8; `paper/docs/paper.md` Appendix A.5.2 | Doob martingale: $S_n = E[1\{p^\star<\alpha\}\mid \mathcal F_n]$ | PROVED |
-| C2 | $W_n := S_n/\alpha = (1-F_{\text{Binom}}(L_n; n+1,\alpha))/\alpha$ is the Fischer–Ramdas binomial-mixture e-process | `paper/docs/theory.md` §6.1.3.8–6.1.3.9; `paper/docs/paper.md` Appendix A.5.2 | Beta–binomial identity + Fischer & Ramdas (2025, Prop. 5) | PROVED + CITED |
+| C2 | $W_n := S_n/\alpha = (1-F_{\text{Binom}}(L_n; n+1,\alpha))/\alpha$ is the Fischer–Ramdas binomial-mixture e-process | `paper/docs/theory.md` §6.1.3.8–6.1.3.9; `paper/docs/paper.md` Appendix A.5.2 | Beta–binomial identity + Fischer & Ramdas (2025, Prop. 5.2) | PROVED + CITED |
 | C3 | Ville/Markov bound for the posterior-confidence stop: $\Pr(\exists n:\; S_n\ge \gamma)\le \alpha/\gamma$ | `paper/docs/theory.md` §6.1; `paper/docs/paper.md` Appendix A.5.2 | Ville on $W_n$ (or Markov + tower property at stopping times) | PROVED |
 | C4 | The returned $\hat p_\tau=(L_\tau+1)/(\tau+1)$ is *not* claimed to be an anytime-valid p-value under optional stopping | `paper/docs/theory.md` §6.1; `paper/docs/paper.md` Appendix A.5.1–A.5.2 | Clarifies scope; aligns with sequential MC testing literature | POLICY (must keep) |
 
 **Empirical backstops:**
-- E2: `paper/scripts/theory/generate_sequential_stopping_calibration.py` → `paper/results/figures/sequential_stopping_calibration_{data,plot}`.
+- E2: `paper/scripts/theory/generate_sequential_stopping_calibration.py` → `paper/results/cache/sequential_stopping_calibration_data.parquet` and
+  `paper/results/figures/sequential_stopping_calibration.png`.
 - E3: `paper/scripts/theory/sequential_stopping_comparison.py` prints a reproducible comparison vs Fischer–Ramdas on a Pearson-correlation test.
 - E4: `paper/scripts/theory/supermartingale_check.py` numerically checks the martingale identity and prints a calibration run.
 

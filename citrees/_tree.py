@@ -586,7 +586,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             if self._n_resamples_selector:
                 if self._multi_selector:
                     # Max-T permutation test: compute max(selector_scores) INSIDE each
-                    # permutation to provide valid Type I error control
+                    # permutation (fixed-B) to provide valid max-T p-values
                     type_arg = self._selector_kwargs.get(
                         "n_classes", self._selector_kwargs.get("standardize")
                     )
@@ -611,7 +611,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     reject_H0 = best_pval < self._alpha_selector
 
                     # Check for early stopping
-                    if pval_feature == 0 or (self._early_stopping_selector is not None and reject_H0):
+                    if self._early_stopping_selector is not None and reject_H0:
                         break
 
                 # Check for feature muting
@@ -710,7 +710,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
     def _bonferroni_correction(self, *, adjust: str, n_tests: int) -> None:
         """Implement Bonferroni correction to account for multiple hypothesis tests.
 
-        During training, when Bonferonni correction is enabled, alpha will be adjusted based on the number of hypothesis
+        During training, when Bonferroni correction is enabled, alpha will be adjusted based on the number of hypothesis
         tests, assuming permutation tests are used. Likewise, the number of resamples for a permutation test will be
         updated to enough resamples are run to compare the achieved significance level against alpha.
 
@@ -954,7 +954,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     if len(local_available) > 1
                     else local_available
                 )
-                if self._early_stopping_selector is not None and self._scan_features and len(features) > 1:
+                if self._early_stopping_selector is not None and self._feature_scanning and len(features) > 1:
                     features = self._scan_features(X, y, features)
                 best_feature, best_pval_feature, reject_H0_feature, local_available = (
                     self._select_best_feature(
@@ -1408,7 +1408,8 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
     ----------
     early_stopping_selector : {"adaptive", "simple"} or None, default="adaptive"
         Early stopping method for feature selection permutation tests:
-        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, recommended)
+        - "adaptive": Bayesian Beta CDF posterior-confidence stopping (speed-oriented; returns a +1 Monte Carlo estimate
+          at a stopping time)
         - "simple": Futility + significance stopping (inflates Type I error)
         - None: No early stopping (fixed-B test)
 
@@ -1556,7 +1557,8 @@ class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorM
     ----------
     early_stopping_selector : {"adaptive", "simple"} or None, default="adaptive"
         Early stopping method for feature selection permutation tests:
-        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, recommended)
+        - "adaptive": Bayesian Beta CDF posterior-confidence stopping (speed-oriented; returns a +1 Monte Carlo estimate
+          at a stopping time)
         - "simple": Futility + significance stopping (inflates Type I error)
         - None: No early stopping (fixed-B test)
 

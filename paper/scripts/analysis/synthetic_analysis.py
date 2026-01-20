@@ -7,7 +7,9 @@ confounder selection rates when available in metadata.
 
 Usage:
     # After running experiments and downloading results from S3:
-    uv run python paper/scripts/synthetic_analysis.py --results-dir paper/results/rankings
+    uv run python paper/scripts/analysis/synthetic_analysis.py \
+        --results-dir paper/results/rankings/classification \
+        --data-dir paper/data/classification/synthetic
 """
 
 from __future__ import annotations
@@ -293,7 +295,7 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("paper/data"),
+        default=Path("paper/data/classification/synthetic"),
         help="Directory with synthetic datasets",
     )
     parser.add_argument(

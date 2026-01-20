@@ -36,12 +36,28 @@ def build_common_parser(description: str) -> argparse.ArgumentParser:
     parser.add_argument("--methods", default=None, help="Comma-separated base method names (default: all)")
     parser.add_argument("--seeds", default=None, help="Comma-separated seed indices (default: 0..n_seeds-1)")
     parser.add_argument("--dry-run", action="store_true", help="Print planned configs and exit")
+    parser.add_argument(
+        "--dry-run-limit",
+        type=int,
+        default=50,
+        help="Max configs to print in dry-run (default: 50)",
+    )
+    parser.add_argument(
+        "--only-missing",
+        action="store_true",
+        help="Only run configs missing from S3 outputs for the stage",
+    )
     return parser
 
 
 def init_ray(ray_address: str) -> None:
     if ray_address == "local":
-        ray.init(ignore_reinit_error=True)
+        # Declare custom resources for local mode so tasks requesting them can be scheduled.
+        # In cluster mode, these resources are declared in cluster.yaml.
+        ray.init(
+            resources={"selection": 4, "evaluation": 4},
+            ignore_reinit_error=True,
+        )
     else:
         ray.init(address=ray_address, ignore_reinit_error=True)
 
@@ -93,6 +109,19 @@ def iter_grid(
         for dataset in datasets:
             for seed in seeds:
                 yield method_cfg, dataset, seed
+
+
+def filter_missing(
+    grid: Iterable[tuple[dict[str, Any], str, int]],
+    completed: set[tuple[str, str, int]],
+) -> list[tuple[dict[str, Any], str, int]]:
+    """Filter a grid to configs not present in `completed`."""
+    pending: list[tuple[dict[str, Any], str, int]] = []
+    for method_cfg, dataset, seed in grid:
+        method_id = config_label(method_cfg)
+        if (method_id, dataset, seed) not in completed:
+            pending.append((method_cfg, dataset, seed))
+    return pending
 
 
 def log_dry_run(

@@ -190,7 +190,7 @@ class TestPairwiseWilcoxonHolm:
             "B_precision@10": np.random.normal(0.6, 0.1, n),
         })
         result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
-        expected_cols = ["method1", "method2", "statistic", "p_value", "p_value_corrected", "significant"]
+        expected_cols = ["method1", "method2", "statistic", "p_value", "p_value_corrected", "significant", "n_pairs"]
         assert list(result.columns) == expected_cols
 
     def test_correct_number_of_pairs(self):

@@ -76,10 +76,10 @@ def _parallel_fit_classifier(
     n_estimators : int
         Number of parallel trees to grow.
 
-    bootstrap_method : str
+    bootstrap_method : str or None
         Type of bootstrap to use.
 
-    sampling_method : str
+    sampling_method : str or None
         Type of sampling to use during bootstrap.
 
     verbose : int
@@ -151,11 +151,8 @@ def _parallel_fit_regressor(
     n_estimators : int
         Number of parallel trees to grow.
 
-    bootstrap_method : str
+    bootstrap_method : str or None
         Type of bootstrap to use.
-
-    sampling_method : str
-        Type of sampling to use during bootstrap.
 
     verbose : int
         Controls verbosity of fitting.
@@ -351,6 +348,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
         max_cpus = cpu_count()
         value = 1 if self.n_jobs is None else self.n_jobs
+        if value == 0:
+            raise ValueError("n_jobs=0 is invalid. Use n_jobs=1 for single-threaded or n_jobs=-1 for all cores.")
         value = min(value, max_cpus)
         if value < 0:
             cpus = np.arange(1, max_cpus + 1)
@@ -404,13 +403,6 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                 for estimator_idx, estimator in enumerate(self.estimators_, 1)
             )
         else:
-            idx = np.arange(n, dtype=int)
-
-            # Subsample if needed
-            if self._max_samples < n:
-                prng = np.random.RandomState(self._random_state)
-                idx = prng.choice(idx, size=self._max_samples, replace=False)
-
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_regressor)(
                     estimator=estimator,
@@ -514,13 +506,15 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             if np.any(mask):
                 oob_decision_function[mask] /= n_oob[mask, None]
             self.oob_decision_function_ = oob_decision_function
-            y_pred = np.argmax(oob_decision_function, axis=1)
-            self.oob_score_ = float((y_pred == y).mean())
+            # Only score samples with OOB predictions (n_oob > 0)
+            y_pred = np.argmax(oob_decision_function[mask], axis=1)
+            self.oob_score_ = float((y_pred == y[mask]).mean())
         else:
             if np.any(mask):
                 oob_prediction[mask] /= n_oob[mask]
             self.oob_prediction_ = oob_prediction
-            self.oob_score_ = float(r2_score(y, oob_prediction))
+            # Only score samples with OOB predictions (n_oob > 0)
+            self.oob_score_ = float(r2_score(y[mask], oob_prediction[mask]))
 
     def apply(self, X: np.ndarray) -> np.ndarray:
         """Return leaf indices for each sample and estimator (sklearn-compatible)."""
@@ -701,10 +695,10 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
 
     Parameters
     ----------
-    n_estimator : n, default=100
+    n_estimators : int, default=100
         Number of estimators.
 
-    selector : {"pc", "dc", "hybrid"}, default="pc"
+    selector : {"pc", "dc", "rdc"} or list, default="pc"
         Method for feature selection.
 
     splitter : {"mse", "mae"}, default="mse"
@@ -720,7 +714,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
         Whether to perform a Bonferroni correction during feature selection.
 
     adjust_alpha_splitter : bool, default=True
-        Whether to perform a Berferonni correction during split selection.
+        Whether to perform a Bonferroni correction during split selection.
 
     n_resamples_selector : {"auto", "minimum", "maximum"} or int, default="auto"
         Number of resamples to use in permutation test for feature selection.
@@ -746,7 +740,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
     feature_scanning : bool, default=True
         Whether to perform feature scanning.
 
-    max_features : {"sqrt", "log2"}, int, or float, default="sqrt"
+    max_features : {"sqrt", "log2"}, int, float, or None, default="sqrt"
         Maximum number of features to use for feature selection.
 
     threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
@@ -755,7 +749,7 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
     threshold_scanning : bool, default=True
         Whether to perform threshold scanning.
 
-    max_thresholds : {"sqrt", "log2"}, int, or float, default=None
+    max_thresholds : {"sqrt", "log2"}, int, float, or None, default=None
         Maximum number of thresholds to use for split selection.
 
     max_depth : int, default=None
@@ -770,8 +764,8 @@ class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, Regres
     min_impurity_decrease : float, default=0.0
         Minimum impurity decrease required for a valid binary split.
 
-    bootstrap_method : {"bayesian", "classic"}, default="bayesian"
-        Type of bootstrap to use.
+    bootstrap_method : {"bayesian", "classic"} or None, default="bayesian"
+        Type of bootstrap to use. Set to None to disable bootstrapping.
 
     max_samples : int or float, default=None
         Number of samples to draw for each bootstrap sample.

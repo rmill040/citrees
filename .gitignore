@@ -3,6 +3,7 @@ metrics/
 scratch/
 .uv-cache/
 .pytest_cache/
+catboost_info/
 
 # Generated Ray cluster config (contains user's IP)
 paper/scripts/infra/ray/cluster.yaml

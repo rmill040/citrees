@@ -16,7 +16,7 @@ to favor variables with many possible split points or high cardinality. This
 leads to:
 
 1. **Biased feature importance** - Variables are ranked by how often they're
-   used, not their true predictive power
+   used, which can reflect multiplicity rather than predictive signal
 2. **Overfitting to noise** - Trees can find spurious splits on uninformative
    features by chance
 3. **Unreliable variable selection** - Important features may be masked by
@@ -43,7 +43,7 @@ citrees addresses these issues by using **permutation tests** at each node to:
 
 | Document                                  | Description                             |
 | ----------------------------------------- | --------------------------------------- |
-| [Honest Estimation](honest-estimation.md) | Sample splitting for unbiased predictions |
+| [Honest Estimation](honest-estimation.md) | Sample splitting to reduce adaptive bias |
 
 ### Reference
 
@@ -58,6 +58,7 @@ citrees addresses these issues by using **permutation tests** at each node to:
 from citrees import (
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceForestClassifier,
+    MaxValuesMethod,
 )
 
 # Single tree
@@ -77,7 +78,7 @@ forest = ConditionalInferenceForestClassifier(
 )
 forest.fit(X_train, y_train)
 
-# Feature importance (statistically grounded)
+# Feature importance (impurity decrease; subject to known caveats)
 print(forest.feature_importances_)
 ```
 
@@ -87,7 +88,8 @@ print(forest.feature_importances_)
 
 - **Permutation Tests**: Non-parametric hypothesis tests at each node
 - **Bonferroni Correction**: Controls family-wise error rate
-- **Early Stopping**: Principled stopping via statistical tests
+- **Statistical stopping**: Stop splitting when no feature is significant (Stage A)
+- **Early stopping (optional)**: Speed heuristic inside permutation tests (use fixed-$B$ for paper-facing p-values)
 
 ### Feature Selection Methods
 
@@ -99,7 +101,7 @@ print(forest.feature_importances_)
 
 ### Advanced Capabilities
 
-- **Honest Estimation**: Sample splitting for unbiased leaf predictions
+- **Honest Estimation**: Sample splitting to reduce adaptive bias in leaf estimation
 - **Feature Muting**: Automatically removes uninformative features
 
 ## Installation

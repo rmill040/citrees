@@ -560,9 +560,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         best_feature = features[0]
         best_pval = np.inf
-        reject_H0 = (
-            self._n_resamples_selector is None
-        )  # Hack to force True when permutation testing is disabled
+        # When permutation testing is disabled (n_resamples=None), always accept features.
+        # This provides CART-like behavior where splits are based purely on the selector
+        # metric without statistical significance testing. Users who disable permutation
+        # testing should rely on other regularization (max_depth, min_samples_leaf, etc.)
+        # to control overfitting.
+        reject_H0 = self._n_resamples_selector is None
         best_metric = -np.inf
 
         # Apply Bonferroni correction for multiple feature tests (matches R's partykit::ctree behavior)
@@ -614,17 +617,17 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     if self._early_stopping_selector is not None and reject_H0:
                         break
 
-                # Check for feature muting
-                alpha = max(self._alpha_selector, 1 - self._alpha_selector)
+                # Check for feature muting: mute features that are not statistically significant
+                # (i.e., p-value >= alpha means we fail to reject H0 of no association)
                 if (
                     self._feature_muting
-                    and pval_feature >= alpha
+                    and pval_feature >= self._alpha_selector
                     and len(available_features) > 1
                 ):
                     available_features = self._mute_feature(
                         available_features=available_features,
                         feature=feature,
-                        reason=f"FEATURE PVAL ({pval_feature}) >= ALPHA ({alpha})",
+                        reason=f"FEATURE PVAL ({pval_feature}) >= ALPHA ({self._alpha_selector})",
                     )
 
             # Feature selection without permutation testing
@@ -665,9 +668,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         """
         best_threshold = thresholds[0]
         best_pval = np.inf
-        reject_H0 = (
-            self._n_resamples_splitter is None
-        )  # Hack to force True when permutation testing is disabled
+        # When permutation testing is disabled (n_resamples=None), always accept splits.
+        # This provides CART-like behavior where splits are based purely on the splitter
+        # metric without statistical significance testing. Users who disable permutation
+        # testing should rely on other regularization (max_depth, min_samples_leaf, etc.)
+        # to control overfitting.
+        reject_H0 = self._n_resamples_splitter is None
         best_metric = np.inf
 
         if self._adjust_alpha_splitter and self._n_resamples_splitter is not None:

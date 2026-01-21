@@ -15,8 +15,9 @@ Traditional decision trees (CART, ID3, C4.5) use a greedy algorithm:
 For each node:
     For each feature X_j:
         For each possible split point c:
-            Compute impurity reduction: Gini(parent) - Gini(left) - Gini(right)
-    Select (feature, split) that maximizes impurity reduction
+            Compute weighted impurity reduction:
+            Δ = Gini(parent) - (|L|/n)·Gini(left) - (|R|/n)·Gini(right)
+    Select (feature, split) that maximizes Δ
 ```
 
 **The problem**: This approach is **biased toward features with more split
@@ -49,9 +50,11 @@ For each node:
 
 ### Why This Works
 
-1. **Unbiased variable selection**: The p-value is computed under the null
-   hypothesis. A feature with 1000 values doesn't have more "chances" - the
-   permutation test accounts for this.
+1. **Reduced high-cardinality bias**: Stage A selects variables via
+   permutation-test p-values rather than by searching over many thresholds for
+   the largest impurity improvement. This avoids the pure multiple-comparisons
+   mechanism that favors features with many candidate split points (at a fixed
+   node; see the scope note in `docs/permutation-tests.md`).
 
 2. **Principled stopping**: The tree stops growing when no feature has a
    statistically significant association with the target. No need for pruning.
@@ -69,7 +72,7 @@ citrees supports multiple association measures:
 
 | Selector | For            | Measures                                                                            |
 | -------- | -------------- | ----------------------------------------------------------------------------------- |
-| `mc`     | Classification | Multiple Correlation (η²) - how much variance in X is explained by class membership |
+| `mc`     | Classification | Multiple Correlation (η) - how much variance in X is explained by class membership |
 | `mi`     | Classification | Mutual Information - non-linear dependence                                          |
 | `rdc`    | Both           | Randomized Dependence Coefficient - O(n log n) non-linear dependence                |
 | `pc`     | Regression     | Pearson Correlation                                                                 |
@@ -79,7 +82,7 @@ citrees supports multiple association measures:
 
 ```python
 # Implemented in _selector.py
-η² = SSB / SST  # Between-class variance / Total variance
+η = sqrt(SSB / SST)  # Correlation ratio (monotone in η² = SSB/SST)
 
 # SST = Σ(x_i - x̄)²  (total sum of squares)
 # SSB = Σ n_k(x̄_k - x̄)²  (between-class sum of squares)
@@ -99,7 +102,8 @@ def _ptest(func, x, y, n_resamples, alpha, early_stopping):
         y_shuffled = permute(y)
         θ_perm[i] = func(x, y_shuffled)  # Statistic under null
 
-    p_value = mean(|θ_perm| >= θ)  # Proportion as extreme as observed
+    # +1 corrected Monte Carlo permutation p-value (Phipson & Smyth, 2010)
+    p_value = (1 + sum(|θ_perm| >= θ)) / (1 + n_resamples)
     return p_value
 ```
 
@@ -146,72 +150,12 @@ Root available: {0,1,2}
 
 ---
 
-## What is Honesty?
+## Honest Estimation
 
-**Honest estimation** is a technique from the causal inference literature (Wager
-& Athey, 2018) that produces **unbiased leaf predictions** by using different
-data for tree structure and leaf values.
-
-### The Problem with Adaptive Estimation
-
-In a standard tree, the same data is used to:
-
-1. Choose which features to split on
-2. Choose where to split
-3. Estimate the prediction in each leaf
-
-This creates **overfitting bias** - the leaf predictions are optimistically
-biased because the tree structure was chosen to make them look good on the
-training data.
-
-### The Honest Solution
-
-```python
-# Split data into two parts
-X_split, X_est = train_test_split(X, test_size=honesty_fraction)
-
-# Build tree structure using splitting sample
-tree = build_tree(X_split, y_split)
-
-# Re-estimate leaf values using estimation sample
-for leaf in tree.leaves:
-    samples_in_leaf = X_est[X_est falls into leaf]
-    leaf.value = mean(y_est[samples_in_leaf])
-```
-
-### citrees Implementation
-
-```python
-# Honest estimation splits data for structure and prediction
-if self.honesty:
-    X_split, X_est, y_split, y_est = train_test_split(
-        X, y, test_size=self.honesty_fraction, random_state=self._random_state
-    )
-    # Build tree structure using splitting sample
-    self.tree_ = self._build_tree(X_split, y_split, depth=1)
-    # Re-estimate leaf values using estimation sample
-    self._reestimate_leaf_values(X_est, y_est)
-```
-
-### When to Use Honesty
-
-| Use Case           | Honesty? | Why                                     |
-| ------------------ | -------- | --------------------------------------- |
-| Pure prediction    | Optional | May hurt accuracy (less training data)  |
-| Causal inference   | **Yes**  | Required for valid confidence intervals |
-| Feature importance | Optional | Reduces selection bias                  |
-| Small datasets     | No       | Can't afford to split data              |
-| Large datasets     | Yes      | Benefits outweigh data loss             |
-
-### Current Implementation Issues
-
-1. **Forest honesty**: Each tree in a forest uses its own honest split. This is
-   correct but different from GRF which uses out-of-bag samples.
-2. **No stratification**: The honest split is unstratified (for both classifiers
-   and regressors) to preserve the independence assumptions used in the theory.
-
-2. **No variance estimation**: True honest forests (like GRF) can provide valid
-   confidence intervals. Our implementation doesn't compute these yet.
+citrees supports **honest estimation**, a sample-splitting technique for
+reducing adaptive bias in leaf estimation (conditional unbiasedness under sample
+splitting assumptions). For full details, see the dedicated documentation:
+**[Honest Estimation](honest-estimation.md)**.
 
 ---
 
@@ -219,10 +163,10 @@ if self.honesty:
 
 | Feature                   | Scientific Contribution                          | When to Use                   |
 | ------------------------- | ------------------------------------------------ | ----------------------------- |
-| **Permutation tests**     | Unbiased variable selection, principled stopping | Always (core algorithm)       |
+| **Permutation tests**     | Reduced selection bias, test-based stopping      | Always (core algorithm)       |
 | **Bonferroni correction** | Controls family-wise error rate                  | When interpretability matters |
 | **Feature muting**        | Accelerates training                             | Large feature spaces          |
-| **Honesty**               | Unbiased leaf predictions                        | Causal inference              |
+| **Honesty**               | Reduced adaptive bias in leaf estimation         | Causal/estimation contexts    |
 
 ## References
 

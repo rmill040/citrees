@@ -13,9 +13,11 @@ to determine significance.
 
 **Note**: citrees is _inspired by_ the conditional inference framework (Hothorn
 et al., 2006) but is not a direct port of R's `partykit::ctree`. We implement
-the core principles—permutation-based variable selection, statistical stopping
-rules, and unbiased splitting—while adding our own extensions like RDC
-selectors and feature muting.
+the core principles—permutation-based variable selection and statistical
+stopping rules—while adding our own extensions like RDC selectors and feature
+muting. In particular, Stage A screening is designed to mitigate the classic
+high-cardinality selection bias mechanism of greedy impurity optimization (with
+the usual fixed-node/root scope caveats for adaptive trees).
 
 ## Why citrees?
 
@@ -27,7 +29,7 @@ bias**:
 | **Selection bias**     | Favors high-cardinality features        | Permutation tests control for multiple comparisons |
 | **Spurious splits**    | Finds "good" splits by chance           | Statistical significance required to split         |
 | **Overfitting**        | Requires pruning/cross-validation       | Principled stopping via hypothesis tests           |
-| **Feature importance** | Biased toward frequently-split features | Importance based on statistical contribution       |
+| **Feature importance** | Biased toward frequently-split features | Still uses impurity-decrease importance; Stage A mitigates a key root-level bias mechanism |
 
 ## Installation
 
@@ -49,6 +51,7 @@ from citrees import (
     ConditionalInferenceTreeRegressor,
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
+    MaxValuesMethod,
 )
 
 # Classification
@@ -76,7 +79,7 @@ forest = ConditionalInferenceForestClassifier(
 )
 forest.fit(X_train, y_train)
 
-# Feature importance (statistically grounded)
+# Feature importance (impurity decrease; subject to known caveats)
 importances = forest.feature_importances_
 ```
 
@@ -103,8 +106,8 @@ considered for splitting.
 - **Bonferroni Correction**: Controls family-wise error rate when testing
   multiple features
 - **Feature Muting**: Automatically removes clearly uninformative features
-- **Honest Estimation**: Sample splitting for unbiased leaf predictions (Wager &
-  Athey, 2018)
+- **Honest Estimation**: Optional sample splitting to reduce adaptive bias in
+  leaf estimation (Wager & Athey, 2018)
 
 ## Algorithm Overview
 
@@ -193,17 +196,44 @@ function BuildTree(X, y, depth):
 | `max_depth`         | int           | None      | Maximum tree depth               |
 | `min_samples_split` | int           | 2         | Minimum samples to split         |
 | `min_samples_leaf`  | int           | 1         | Minimum samples in leaf          |
-| `max_features`      | str/int/float | None      | Features per split               |
+| `min_impurity_decrease` | float     | 0.0       | Minimum impurity decrease to split |
+| `max_features`      | MaxValuesMethod/int/float/None | None      | Features per split               |
 | `threshold_method`  | ThresholdMethod | `ThresholdMethod.EXACT` | How to generate split candidates |
+| `max_thresholds`    | MaxValuesMethod/int/float/None | None      | Maximum thresholds per feature   |
+| `threshold_scanning`| bool          | True      | Test promising thresholds first  |
+
+### Honest Estimation
+
+| Parameter          | Type  | Default | Description                                  |
+| ------------------ | ----- | ------- | -------------------------------------------- |
+| `honesty`          | bool  | False   | Enable sample splitting                      |
+| `honesty_fraction` | float | 0.5     | Fraction for estimation sample (rest for splitting) |
 
 ### Forest Parameters
 
 | Parameter          | Type  | Default      | Description                      |
 | ------------------ | ----- | ------------ | -------------------------------- |
-| `n_estimators`     | int   | 100          | Number of trees                  |
-| `max_samples`      | float | None         | Bootstrap sample size            |
-| `bootstrap_method` | BootstrapMethod | `BootstrapMethod.BAYESIAN` | Sampling method                  |
-| `n_jobs`           | int   | 1            | Parallel jobs (-1 for all cores) |
+| `n_estimators`     | int       | 100          | Number of trees                  |
+| `max_samples`      | int/float/None | None         | Bootstrap sample size (count or fraction) |
+| `bootstrap_method` | BootstrapMethod/None | `BootstrapMethod.BAYESIAN` | Sampling method                  |
+| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED`| How to stratify samples          |
+| `n_jobs`           | int/None  | None         | Parallel jobs (-1 for all cores) |
+| `oob_score`        | bool      | False        | Compute out-of-bag score (requires bootstrap) |
+
+Notes:
+- `sampling_method` applies to classification forests only and is ignored when `bootstrap_method=None`.
+- `max_samples` is only used when `bootstrap_method` is not `None`.
+- `bootstrap_method=None` disables bootstrapping (and thus OOB).
+- Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default `None`).
+- OOB scores are computed only for samples that receive at least one OOB prediction.
+
+### Miscellaneous Parameters
+
+| Parameter                   | Type        | Default | Description |
+| --------------------------- | ----------- | ------- | ----------- |
+| `random_state`              | int/None    | None    | Random seed for permutation tests, sampling, and bootstrap |
+| `verbose`                   | int         | 1       | Verbosity level (0=quiet; higher prints more progress) |
+| `check_for_unused_parameters` | bool      | False   | Warn when parameters are ineffective due to other settings |
 
 ## Comparison with Other Methods
 

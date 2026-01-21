@@ -43,8 +43,8 @@ AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 │          ▼                                            ▼          │
 │  ┌────────────────────────┐    ┌────────────────────────┐       │
 │  │  Selection Workers     │    │  Eval Workers          │       │
-│  │  c6i.8xlarge (spot)    │    │  c6i.xlarge (spot)     │       │
-│  │  32 vCPUs, 64GB        │    │  4 vCPUs, 8GB          │       │
+│  │  c6i.8xlarge (spot)    │    │  c6i.4xlarge (spot)    │       │
+│  │  32 vCPUs, 64GB        │    │  16 vCPUs, 32GB        │       │
 │  │  max: 250              │    │  max: 250              │       │
 │  │                        │    │                        │       │
 │  │  Stage 1:              │    │  Stage 2:              │       │
@@ -102,7 +102,7 @@ available_node_types:
 
   eval_worker:
     node_config:
-      InstanceType: c6i.xlarge   # 4 vCPUs, 8GB
+      InstanceType: c6i.4xlarge  # 16 vCPUs, 32GB
       InstanceMarketOptions:
         MarketType: spot
     resources:
@@ -165,7 +165,7 @@ The cluster uses separate worker pools for each stage:
 |------|----------|-------|-----|----------|---------|
 | `head` | c6i.4xlarge | 16 | 32GB | - | Scheduler, dashboard |
 | `selection_worker` | c6i.8xlarge | 32 | 64GB | `selection: 100` | Feature selection (heavy) |
-| `eval_worker` | c6i.xlarge | 4 | 8GB | `evaluation: 100` | Downstream eval (light) |
+| `eval_worker` | c6i.4xlarge | 16 | 32GB | `evaluation: 100` | Downstream eval (light) |
 
 Tasks are routed via custom resources:
 - `@ray.remote(resources={"selection": 1})` → runs on selection_worker
@@ -178,13 +178,13 @@ s3://citrees-results-{account_id}/
 ├── rankings/
 │   └── classification/
 │       └── {dataset}/
-│           ├── mc_seed0.parquet
-│           ├── rf_seed0.parquet
+│           ├── {method_id}_seed0.parquet
+│           ├── {method_id}_seed1.parquet
 │           └── ...
 └── metrics/
     └── classification/
         └── {dataset}/
-            ├── mc_seed0.parquet
+            ├── {method_id}_seed0.parquet
             └── ...
 ```
 
@@ -219,30 +219,38 @@ Features:
 - Error logs
 - Resource usage
 
-## Resume & Fault Tolerance
+## Missing-only Runs (Recommended)
 
-Both stages support full resume:
-
-1. **S3 check**: Each task checks if output exists before processing
-2. **Spot interruption**: Ray automatically reschedules tasks from terminated workers
-3. **Crash recovery**: Just re-run the script - completed tasks are skipped
+The pipeline does **not** auto-skip inside each task. Instead, you filter the grid **before** submission using S3 listings.
+This gives you a deterministic, auditable list of configs that will run.
 
 ```bash
-# Re-run after interruption - only processes remaining configs
-AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/experiments/ray_feature_selection.py
+# Preview the exact configs that will run (print full list)
+AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
+    --stage all --only-missing --dry-run --dry-run-limit 100000
+
+# Run only configs missing in S3
+AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
+    --stage all --only-missing
 ```
+
+**Reruns:** delete the relevant S3 objects (rankings/metrics) and re-run with `--only-missing`.
+
+## Fault Tolerance
+
+- **Spot interruption**: Ray reschedules tasks from terminated workers.
+- **Crash recovery**: re-run with `--only-missing` to fill gaps.
 
 ## Cost Estimates
 
 | Configuration | Spot Price | Est. Daily Cost |
 |---------------|------------|-----------------|
-| 1 head (c6i.4xlarge) | ~$0.15/hr | ~$3.60 |
-| 10 selection workers (c6i.8xlarge) | ~$0.30/hr each | ~$72 |
-| 10 eval workers (c6i.xlarge) | ~$0.04/hr each | ~$10 |
+| 1 head (c6i.4xlarge) | varies | varies |
+| 10 selection workers (c6i.8xlarge) | varies | varies |
+| 10 eval workers (c6i.4xlarge) | varies | varies |
 
 **Tips:**
-- Spot instances are 60-90% cheaper than on-demand
+- Spot prices fluctuate; check AWS pricing for current rates
 - Workers auto-scale based on pending tasks
 - Tear down cluster when not in use
 

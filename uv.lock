@@ -478,10 +478,12 @@ docs = [
     { name = "pymdown-extensions" },
 ]
 paper = [
+    { name = "boruta" },
     { name = "catboost" },
     { name = "lightgbm" },
     { name = "loguru" },
     { name = "matplotlib" },
+    { name = "mrmr-selection" },
     { name = "openml" },
     { name = "pyarrow" },
     { name = "pyyaml" },
@@ -538,10 +540,12 @@ docs = [
     { name = "pymdown-extensions", specifier = ">=10.0" },
 ]
 paper = [
+    { name = "boruta", specifier = ">=0.4.3" },
     { name = "catboost", specifier = ">=1.2" },
     { name = "lightgbm", specifier = ">=4.6.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "matplotlib", specifier = ">=3.8" },
+    { name = "mrmr-selection", specifier = ">=0.2.8" },
     { name = "openml", specifier = ">=0.14" },
     { name = "pyarrow", specifier = ">=15.0" },
     { name = "pyyaml", specifier = ">=6.0" },

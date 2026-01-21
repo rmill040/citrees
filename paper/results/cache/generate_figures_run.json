@@ -1,0 +1,25 @@
+{
+  "generated_at_utc": "2026-01-18T19:55:38.249088+00:00",
+  "highdim_n": 500,
+  "highdim_repeats": 5,
+  "n_estimators_forest": 5,
+  "n_jobs": 1,
+  "n_repeats": 1,
+  "n_samples_main": 200,
+  "profile": "paper",
+  "sample_size_grid": [
+    200,
+    500,
+    1000,
+    2000,
+    5000
+  ],
+  "seed": 1718,
+  "selected_figures": [
+    "feature_selection"
+  ],
+  "timing_n_features": 200,
+  "timing_n_samples": 2000,
+  "timing_repeats": 3,
+  "train_fraction": 0.8
+}

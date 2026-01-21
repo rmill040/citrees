@@ -58,7 +58,8 @@ def _ptest(
 
     early_stopping : {"simple", "adaptive"} or None
         Early stopping method:
-        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, default)
+        - "adaptive": Bayesian Beta CDF posterior-confidence stopping (speed-oriented; returns a +1 Monte Carlo
+          estimate at a stopping time)
         - "simple": Futility + significance stopping (inflates Type I error)
         - None: No early stopping (fixed-B test)
 
@@ -150,7 +151,7 @@ def _ptest_multi(
     """Max-T permutation test for multiple selectors.
 
     Computes max(selector_scores) INSIDE each permutation to provide
-    valid Type I error control when using multiple selectors.
+    valid Type I error control in fixed-B mode when using multiple selectors.
 
     This implements the max-T method from Westfall & Young (1993), which
     accounts for the multiplicity of testing multiple selectors by using

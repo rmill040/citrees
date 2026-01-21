@@ -14,7 +14,7 @@ Tables:
 - Summary statistics (LaTeX and CSV)
 
 Usage:
-    uv run python scripts/analysis.py
+    uv run python paper/scripts/analysis/stats.py
 """
 
 import warnings
@@ -137,25 +137,14 @@ def generate_summary_with_ci(
     return df
 
 
-def pairwise_wilcoxon_holm(
-    data: pd.DataFrame, methods: list[str], metric: str
-) -> pd.DataFrame:
-    """Wilcoxon signed-rank test with Holm-Bonferroni correction.
+def _aligned_pair(data: pd.DataFrame, col1: str, col2: str) -> tuple[np.ndarray, np.ndarray]:
+    """Return aligned values for two columns using complete-case rows."""
+    subset = data[[col1, col2]].dropna()
+    return subset[col1].values, subset[col2].values
 
-    Parameters
-    ----------
-    data : pd.DataFrame
-        Results with columns for each method's metric.
-    methods : list[str]
-        List of method names.
-    metric : str
-        Metric column suffix.
 
-    Returns
-    -------
-    pd.DataFrame
-        Pairwise comparison results with corrected p-values.
-    """
+def pairwise_wilcoxon_holm(data: pd.DataFrame, methods: list[str], metric: str) -> pd.DataFrame:
+    """Wilcoxon signed-rank test with Holm-Bonferroni correction (paired, aligned)."""
     from scipy.stats import wilcoxon
     from statsmodels.stats.multitest import multipletests
 
@@ -168,13 +157,11 @@ def pairwise_wilcoxon_holm(
                 col1 = f"{m1}_{metric}"
                 col2 = f"{m2}_{metric}"
                 if col1 in data.columns and col2 in data.columns:
-                    v1 = data[col1].dropna().values
-                    v2 = data[col2].dropna().values
-                    min_len = min(len(v1), len(v2))
-                    if min_len >= 10:
-                        stat, pval = wilcoxon(v1[:min_len], v2[:min_len], alternative="two-sided")
+                    v1, v2 = _aligned_pair(data, col1, col2)
+                    if len(v1) >= 10:
+                        stat, pval = wilcoxon(v1, v2, alternative="two-sided")
                         pvalues.append(pval)
-                        pairs.append((m1, m2, stat))
+                        pairs.append((m1, m2, stat, len(v1)))
 
     if not pvalues:
         return pd.DataFrame()
@@ -182,38 +169,26 @@ def pairwise_wilcoxon_holm(
     _, corrected_pvals, _, _ = multipletests(pvalues, method="holm")
 
     results = []
-    for (m1, m2, stat), pval, corrected in zip(pairs, pvalues, corrected_pvals):
-        results.append({
-            "method1": m1,
-            "method2": m2,
-            "statistic": stat,
-            "p_value": pval,
-            "p_value_corrected": corrected,
-            "significant": corrected < 0.05,
-        })
+    for (m1, m2, stat, n_pairs), pval, corrected in zip(pairs, pvalues, corrected_pvals):
+        results.append(
+            {
+                "method1": m1,
+                "method2": m2,
+                "statistic": stat,
+                "p_value": pval,
+                "p_value_corrected": corrected,
+                "significant": corrected < 0.05,
+                "n_pairs": n_pairs,
+            }
+        )
 
     return pd.DataFrame(results)
 
 
 def kendalls_w(chi2_friedman: float, n_datasets: int, k_methods: int) -> float:
-    """Kendall's W effect size for Friedman test.
-
-    Interpretation: 0.1=small, 0.3=medium, 0.5=large.
-
-    Parameters
-    ----------
-    chi2_friedman : float
-        Friedman chi-square statistic.
-    n_datasets : int
-        Number of datasets/observations.
-    k_methods : int
-        Number of methods compared.
-
-    Returns
-    -------
-    float
-        Kendall's W coefficient of concordance.
-    """
+    """Kendall's W effect size for Friedman test."""
+    if n_datasets <= 0 or k_methods <= 1:
+        return float(np.nan)
     return chi2_friedman / (n_datasets * (k_methods - 1))
 
 
@@ -521,38 +496,23 @@ def analyze_selection_bias(
 # ==============================================================================
 
 
-def friedman_test(data: pd.DataFrame, methods: list[str], metric: str) -> tuple[float, float]:
-    """Perform Friedman test across methods.
+def friedman_test(
+    data: pd.DataFrame, methods: list[str], metric: str
+) -> tuple[float, float, int, int]:
+    """Perform Friedman test across methods using complete-case rows."""
+    method_cols = [(m, f"{m}_{metric}") for m in methods if f"{m}_{metric}" in data.columns]
+    if len(method_cols) < 3:
+        return np.nan, np.nan, 0, len(method_cols)
 
-    Parameters
-    ----------
-    data : pd.DataFrame
-        Results with columns for each method's metric.
-    methods : List[str]
-        List of method names.
-    metric : str
-        Metric column suffix (e.g., 'precision@10', 'downstream_acc_mean').
+    cols = [c for _, c in method_cols]
+    aligned = data[cols].dropna()
+    n_datasets = len(aligned)
+    if n_datasets < 2:
+        return np.nan, np.nan, n_datasets, len(method_cols)
 
-    Returns
-    -------
-    Tuple[float, float]
-        Friedman chi-square statistic and p-value.
-    """
-    cols = [f"{m}_{metric}" for m in methods]
-    available_cols = [c for c in cols if c in data.columns]
-    if len(available_cols) < 3:
-        return np.nan, np.nan
-
-    # Get values for each method
-    values = [data[col].dropna().values for col in available_cols]
-    min_len = min(len(v) for v in values)
-    values = [v[:min_len] for v in values]
-
-    if min_len < 2:
-        return np.nan, np.nan
-
+    values = [aligned[c].values for c in cols]
     stat, pvalue = stats.friedmanchisquare(*values)
-    return stat, pvalue
+    return stat, pvalue, n_datasets, len(method_cols)
 
 
 def nemenyi_critical_difference(n_methods: int, n_datasets: int, alpha: float = 0.05) -> float:
@@ -674,12 +634,14 @@ def generate_friedman_table(
     results = []
 
     for metric in metrics:
-        stat, pvalue = friedman_test(data, methods, metric)
+        stat, pvalue, n_datasets, n_methods = friedman_test(data, methods, metric)
         results.append(
             {
                 "metric": metric,
                 "chi_square": stat,
                 "p_value": pvalue,
+                "n_datasets": n_datasets,
+                "n_methods": n_methods,
                 "significant": pvalue < 0.05 if not np.isnan(pvalue) else False,
             }
         )
@@ -693,16 +655,18 @@ def generate_friedman_table(
     latex.append(r"\centering")
     latex.append(r"\caption{Friedman test results across methods.}")
     latex.append(r"\label{tab:friedman}")
-    latex.append(r"\begin{tabular}{lcc}")
+    latex.append(r"\begin{tabular}{lcccc}")
     latex.append(r"\toprule")
-    latex.append(r"Metric & $\chi^2$ & p-value \\")
+    latex.append(r"Metric & $\chi^2$ & p-value & $n$ & $k$ \\")
     latex.append(r"\midrule")
 
     for _, row in df.iterrows():
         sig = "*" if row["significant"] else ""
         pval = f"{row['p_value']:.4f}" if not np.isnan(row["p_value"]) else "N/A"
         chi2 = f"{row['chi_square']:.2f}" if not np.isnan(row["chi_square"]) else "N/A"
-        latex.append(f"{row['metric']} & {chi2} & {pval}{sig} \\\\")
+        n_d = int(row["n_datasets"]) if not np.isnan(row["n_datasets"]) else 0
+        k_m = int(row["n_methods"]) if not np.isnan(row["n_methods"]) else 0
+        latex.append(f"{row['metric']} & {chi2} & {pval}{sig} & {n_d} & {k_m} \\\\")
 
     latex.append(r"\bottomrule")
     latex.append(r"\end{tabular}")
@@ -1298,11 +1262,12 @@ def run_statistical_analysis(
 
         # 1. Friedman omnibus test
         try:
-            chi2, p_friedman = friedman_test(data_wide, methods, metric)
-            n_datasets = len(data_wide)
-            k_methods = len(methods)
+            chi2, p_friedman, n_datasets, k_methods = friedman_test(data_wide, methods, metric)
             w = kendalls_w(chi2, n_datasets, k_methods)
-            print(f"  Friedman: chi2={chi2:.2f}, p={p_friedman:.4f}, W={w:.3f}")
+            print(
+                f"  Friedman: chi2={chi2:.2f}, p={p_friedman:.4f}, W={w:.3f} "
+                f"(n={n_datasets}, k={k_methods})"
+            )
 
             friedman_row = {
                 "metric": metric,
@@ -1326,8 +1291,7 @@ def run_statistical_analysis(
                 col1 = f"{row['method1']}_{metric}"
                 col2 = f"{row['method2']}_{metric}"
                 if col1 in data_wide.columns and col2 in data_wide.columns:
-                    v1 = data_wide[col1].dropna().values
-                    v2 = data_wide[col2].dropna().values
+                    v1, v2 = _aligned_pair(data_wide, col1, col2)
                     d = cohens_d(v1, v2)
                     cohens_d_vals.append(d)
                     effect_sizes.append(interpret_cohens_d(d))
@@ -1434,6 +1398,255 @@ def load_and_pivot_results(input_path: Path, methods: list[str], metric_cols: li
     return data_wide
 
 
+# ==============================================================================
+# Runtime Analysis
+# ==============================================================================
+
+
+def generate_runtime_summary(
+    data: pd.DataFrame,
+    methods: list[str],
+    output_path: Path,
+    elapsed_col: str = "elapsed_seconds",
+) -> pd.DataFrame:
+    """Generate runtime summary table by method.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Results with elapsed_seconds column.
+    methods : list[str]
+        Method names to include.
+    output_path : Path
+        Where to save CSV output.
+    elapsed_col : str
+        Name of the elapsed time column.
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary with columns: method, mean, std, median, min, max, total.
+    """
+    if elapsed_col not in data.columns:
+        print(f"  Column '{elapsed_col}' not found - skipping runtime summary")
+        return pd.DataFrame()
+
+    # Filter to requested methods
+    method_col = "method_base" if "method_base" in data.columns else "method"
+    df = data[data[method_col].isin(methods)].copy()
+
+    if df.empty:
+        print("  No runtime data found for specified methods")
+        return pd.DataFrame()
+
+    summary = (
+        df.groupby(method_col)[elapsed_col]
+        .agg(["mean", "std", "median", "min", "max", "sum", "count"])
+        .round(3)
+    )
+    summary.columns = ["mean_sec", "std_sec", "median_sec", "min_sec", "max_sec", "total_sec", "n_runs"]
+    summary = summary.sort_values("median_sec")
+
+    # Save CSV
+    summary.to_csv(output_path)
+    print(f"  Saved runtime summary: {output_path}")
+
+    # Generate LaTeX table
+    latex_path = output_path.with_suffix(".tex")
+    latex = []
+    latex.append(r"\begin{table}[h]")
+    latex.append(r"\centering")
+    latex.append(r"\caption{Runtime summary by method (seconds).}")
+    latex.append(r"\label{tab:runtime}")
+    latex.append(r"\begin{tabular}{lrrrrr}")
+    latex.append(r"\toprule")
+    latex.append(r"Method & Mean & Std & Median & Min & Max \\")
+    latex.append(r"\midrule")
+
+    for method, row in summary.iterrows():
+        latex.append(
+            f"{method} & {row['mean_sec']:.2f} & {row['std_sec']:.2f} & "
+            f"{row['median_sec']:.2f} & {row['min_sec']:.2f} & {row['max_sec']:.2f} \\\\"
+        )
+
+    latex.append(r"\bottomrule")
+    latex.append(r"\end{tabular}")
+    latex.append(r"\end{table}")
+
+    with open(latex_path, "w") as f:
+        f.write("\n".join(latex))
+    print(f"  Saved runtime LaTeX: {latex_path}")
+
+    return summary
+
+
+def plot_runtime_bars(
+    data: pd.DataFrame,
+    methods: list[str],
+    output_path: Path,
+    elapsed_col: str = "elapsed_seconds",
+) -> None:
+    """Plot runtime bar chart with error bars.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Results with elapsed_seconds column.
+    methods : list[str]
+        Method names to include.
+    output_path : Path
+        Where to save the figure.
+    elapsed_col : str
+        Name of the elapsed time column.
+    """
+    if elapsed_col not in data.columns:
+        print(f"  Column '{elapsed_col}' not found - skipping runtime plot")
+        return
+
+    method_col = "method_base" if "method_base" in data.columns else "method"
+    df = data[data[method_col].isin(methods)].copy()
+
+    if df.empty:
+        return
+
+    # Aggregate
+    summary = df.groupby(method_col)[elapsed_col].agg(["mean", "std"]).reset_index()
+    summary = summary.sort_values("mean")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = range(len(summary))
+    ax.bar(x, summary["mean"], yerr=summary["std"], capsize=3, color="steelblue", edgecolor="black", linewidth=0.5)
+    ax.set_xticks(x)
+    ax.set_xticklabels(summary[method_col], rotation=45, ha="right")
+    ax.set_ylabel("Runtime (seconds)")
+    ax.set_title("Method Runtime Comparison")
+    ax.grid(True, alpha=0.3, axis="y")
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved runtime plot: {output_path}")
+
+
+def plot_runtime_violin(
+    data: pd.DataFrame,
+    methods: list[str],
+    output_path: Path,
+    elapsed_col: str = "elapsed_seconds",
+) -> None:
+    """Plot runtime violin/box plot for distribution comparison.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Results with elapsed_seconds column.
+    methods : list[str]
+        Method names to include.
+    output_path : Path
+        Where to save the figure.
+    elapsed_col : str
+        Name of the elapsed time column.
+    """
+    if elapsed_col not in data.columns:
+        return
+
+    method_col = "method_base" if "method_base" in data.columns else "method"
+    df = data[data[method_col].isin(methods)].copy()
+
+    if df.empty:
+        return
+
+    # Sort methods by median runtime
+    medians = df.groupby(method_col)[elapsed_col].median().sort_values()
+    sorted_methods = medians.index.tolist()
+
+    fig, ax = plt.subplots(figsize=(14, 6))
+
+    # Prepare data for boxplot
+    box_data = [df[df[method_col] == m][elapsed_col].dropna().values for m in sorted_methods]
+    box_data = [d for d in box_data if len(d) > 0]
+    labels = [m for m, d in zip(sorted_methods, box_data) if len(d) > 0]
+
+    if not box_data:
+        return
+
+    bp = ax.boxplot(box_data, labels=labels, patch_artist=True)
+
+    # Color by method type
+    embedding_methods = {"rf", "et", "xgb", "lgbm", "cat", "cit", "cif"}
+    wrapper_methods = {"boruta", "pi", "cpi", "shap", "rfe"}
+    filter_methods = {"mc", "mi", "rdc", "pc", "dc", "mrmr"}
+
+    for i, (patch, label) in enumerate(zip(bp["boxes"], labels)):
+        base_method = label.split("_")[0] if "_" in label else label
+        if base_method in embedding_methods:
+            patch.set_facecolor("lightcoral")
+        elif base_method in wrapper_methods:
+            patch.set_facecolor("lightgreen")
+        elif base_method in filter_methods:
+            patch.set_facecolor("lightblue")
+        else:
+            patch.set_facecolor("lightyellow")
+        patch.set_alpha(0.7)
+
+    ax.set_ylabel("Runtime (seconds)")
+    ax.set_title("Runtime Distribution by Method")
+    ax.grid(True, alpha=0.3, axis="y")
+    plt.xticks(rotation=45, ha="right")
+
+    # Add legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor="lightcoral", alpha=0.7, label="Embedding"),
+        Patch(facecolor="lightgreen", alpha=0.7, label="Wrapper"),
+        Patch(facecolor="lightblue", alpha=0.7, label="Filter"),
+    ]
+    ax.legend(handles=legend_elements, loc="upper right")
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved runtime violin plot: {output_path}")
+
+
+def analyze_runtime(
+    data: pd.DataFrame,
+    methods: list[str],
+    output_prefix: str,
+    tables_dir: Path,
+    figures_dir: Path,
+) -> None:
+    """Run complete runtime analysis.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Results with elapsed_seconds column.
+    methods : list[str]
+        Method names.
+    output_prefix : str
+        Prefix for output files.
+    tables_dir : Path
+        Directory for tables.
+    figures_dir : Path
+        Directory for figures.
+    """
+    print(f"\n--- Runtime Analysis ({output_prefix}) ---")
+
+    # Summary table
+    summary_path = tables_dir / f"{output_prefix}_runtime_summary.csv"
+    generate_runtime_summary(data, methods, summary_path)
+
+    # Bar chart
+    bar_path = figures_dir / f"{output_prefix}_runtime_bars.png"
+    plot_runtime_bars(data, methods, bar_path)
+
+    # Violin/box plot
+    violin_path = figures_dir / f"{output_prefix}_runtime_violin.png"
+    plot_runtime_violin(data, methods, violin_path)
+
+
 def main():
     """Run comprehensive analysis on ALL dataset types."""
     # Create output directories
@@ -1487,6 +1700,9 @@ def main():
             tables_dir=TABLES_DIR,
             figures_dir=FIGURES_DIR,
         )
+
+        # Runtime analysis
+        analyze_runtime(data, methods, "clf", TABLES_DIR, FIGURES_DIR)
     else:
         print(f"\nSkipping classification analysis: {clf_eval_path} not found")
         print("  (Run evaluation experiments first to generate this file)")
@@ -1511,6 +1727,9 @@ def main():
             figures_dir=FIGURES_DIR,
             higher_is_better={"r2": True, "mse": False, "mae": False},
         )
+
+        # Runtime analysis
+        analyze_runtime(data, methods, "reg", TABLES_DIR, FIGURES_DIR)
     else:
         print(f"\nSkipping regression analysis: {reg_eval_path} not found")
         print("  (Run evaluation experiments first to generate this file)")

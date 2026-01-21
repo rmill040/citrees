@@ -13,7 +13,15 @@ import pandas as pd
 import ray
 from loguru import logger
 from sklearn.linear_model import LogisticRegression, Ridge
-from sklearn.metrics import accuracy_score, f1_score, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
@@ -21,8 +29,10 @@ from sklearn.svm import SVC, SVR
 
 from paper.scripts.experiments._common import (
     download_parquet_from_s3,
+    get_dataset_metadata,
     get_git_sha,
     get_datasets,
+    list_s3_completed,
     load_dataset,
     metrics_s3_path,
     rankings_s3_path,
@@ -93,16 +103,38 @@ def get_reg_models(random_state: int, *, evaluation_cpus: int) -> dict[str, Any]
     }
 
 
-def safe_roc_auc_score(y_true: np.ndarray, y_proba: np.ndarray) -> float:
-    """Compute ROC AUC, returning NaN when undefined (e.g., single-class fold)."""
-    try:
-        if y_proba.ndim == 1:
-            return float(roc_auc_score(y_true, y_proba))
-        if y_proba.shape[1] == 2:
-            return float(roc_auc_score(y_true, y_proba[:, 1]))
-        return float(roc_auc_score(y_true, y_proba, multi_class="ovr", average="weighted"))
-    except Exception:
+def compute_roc_auc(y_true: np.ndarray, y_proba: np.ndarray, classes: np.ndarray | None) -> float:
+    """Compute ROC AUC with explicit label/proba alignment.
+
+    - Binary: uses the probability column corresponding to classes[1].
+    - Multiclass: uses sklearn's OVR + weighted average with explicit labels ordering.
+    - Undefined cases (single-class y_true or missing classes) return NaN.
+    """
+    unique = np.unique(y_true)
+    if unique.size < 2:
         return float(np.nan)
+
+    if y_proba.ndim == 1:
+        if classes is None or len(classes) < 2:
+            return float(np.nan)
+        y_bin = (y_true == classes[1]).astype(int)
+        return float(roc_auc_score(y_bin, y_proba))
+
+    if y_proba.shape[1] == 2:
+        if classes is None or len(classes) < 2:
+            return float(np.nan)
+        y_bin = (y_true == classes[1]).astype(int)
+        return float(roc_auc_score(y_bin, y_proba[:, 1]))
+
+    # Multiclass: require all classes to be present to avoid undefined metrics.
+    if classes is None:
+        return float(np.nan)
+    if y_proba.shape[1] != len(classes):
+        raise ValueError(f"y_proba has {y_proba.shape[1]} columns but classes has {len(classes)} entries")
+    if np.unique(y_true).size < len(classes):
+        return float(np.nan)
+
+    return float(roc_auc_score(y_true, y_proba, multi_class="ovr", average="weighted", labels=classes))
 
 
 def evaluate_fold(
@@ -142,13 +174,19 @@ def evaluate_fold(
                 metrics = {
                     "accuracy": accuracy_score(y_test, y_pred),
                     "f1": f1_score(y_test, y_pred, average="weighted"),
+                    "f1_macro": f1_score(y_test, y_pred, average="macro"),
+                    "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
                 }
                 if hasattr(model, "predict_proba"):
                     y_proba = model.predict_proba(X_test_scaled)
-                    metrics["roc_auc"] = safe_roc_auc_score(y_test, y_proba)
+                    classes = model.classes_ if hasattr(model, "classes_") else None
+                    roc_auc = compute_roc_auc(y_test, y_proba, classes)
+                    metrics["roc_auc"] = roc_auc
+                    metrics["auc"] = roc_auc
             else:
                 metrics = {
                     "r2": r2_score(y_test, y_pred),
+                    "mse": mean_squared_error(y_test, y_pred),
                     "rmse": np.sqrt(mean_squared_error(y_test, y_pred)),
                     "mae": mean_absolute_error(y_test, y_pred),
                 }
@@ -223,6 +261,7 @@ def process_config(
     task_type: str,
     evaluation_cpus: int,
     git_sha: str,
+    skip_existing: bool = False,
 ) -> dict[str, Any]:
     method = config["method"]
     method_id = config_label(config)
@@ -236,6 +275,24 @@ def process_config(
         runtime["ray_task_id"] = str(rctx.get_task_id())
     except Exception:
         pass
+
+    # Skip if output exists (per-task check for extra safety)
+    if skip_existing:
+        try:
+            if s3_file_exists(metrics_path, region_name=config.region):
+                return {
+                    "status": "skipped",
+                    "method": method_id,
+                    "dataset": dataset,
+                    "seed": seed,
+                    "evaluation_cpus": evaluation_cpus,
+                    "rankings_path": rankings_path,
+                    "metrics_path": metrics_path,
+                    "reason": "output_exists",
+                    **runtime,
+                }
+        except Exception:
+            pass  # Continue if check fails
 
     try:
         rankings_exist = s3_file_exists(rankings_path, region_name=config.region)
@@ -269,6 +326,10 @@ def process_config(
     try:
         rankings_df = download_parquet_from_s3(rankings_path, region_name=config.region)
         X, y = load_dataset(dataset, task_type)
+
+        # Get dataset metadata for provenance
+        dataset_meta = get_dataset_metadata(dataset, task_type)
+
         tic = time.perf_counter()
         results = run_evaluation(X, y, rankings_df, dataset, method, method_id, task_type, seed, evaluation_cpus)
         elapsed = time.perf_counter() - tic
@@ -276,6 +337,11 @@ def process_config(
             row["elapsed_seconds"] = float(elapsed)
             row["created_at_utc"] = created_at_utc
             row["git_sha"] = git_sha
+            # Add dataset metadata
+            row["dataset_source"] = dataset_meta.get("dataset_source")
+            row["dataset_type"] = dataset_meta.get("dataset_type")
+            row["dataset_family"] = dataset_meta.get("dataset_family")
+            row["n_informative"] = dataset_meta.get("n_informative")
         upload_parquet_to_s3(
             results,
             metrics_path,
@@ -329,10 +395,35 @@ def main() -> None:
         seeds_csv=args.seeds,
     )
 
-    total = len(method_configs) * len(datasets) * len(seeds)
+    total_expected = len(method_configs) * len(datasets) * len(seeds)
+    grid = list(iter_grid(method_configs, datasets, seeds))
+    if args.only_missing:
+        completed_metrics = list_s3_completed("metrics", task_type, region_name=config.region)
+        completed_rankings = list_s3_completed("rankings", task_type, region_name=config.region)
+        pending: list[tuple[dict[str, Any], str, int]] = []
+        missing_rankings = 0
+        for method_cfg, dataset, seed in grid:
+            method_id = config_label(method_cfg)
+            key = (method_id, dataset, seed)
+            if key in completed_metrics:
+                continue
+            if key not in completed_rankings:
+                missing_rankings += 1
+                continue
+            pending.append((method_cfg, dataset, seed))
+        logger.info(
+            "Stage 2 only-missing: expected={}, completed_metrics={}, pending={}, missing_rankings={}",
+            total_expected,
+            len(completed_metrics),
+            len(pending),
+            missing_rankings,
+        )
+    else:
+        pending = grid
+
     logger.info(
         "Submitting {} configs ({} methods × {} datasets × {} seeds)",
-        total,
+        len(pending),
         len(method_configs),
         len(datasets),
         len(seeds),
@@ -348,22 +439,25 @@ def main() -> None:
 
     if args.dry_run:
         log_dry_run(
-            iter_grid(method_configs, datasets, seeds),
+            pending,
             stage="stage2",
+            limit=args.dry_run_limit,
             describe=lambda m, d, s: f"method={config_label(m)}, dataset={d}, seed={s}, num_cpus={evaluation_cpus}",
         )
         return
 
     futures = [
-        process_config.options(num_cpus=evaluation_cpus).remote(m, d, s, task_type, evaluation_cpus, git_sha)
-        for m, d, s in iter_grid(method_configs, datasets, seeds)
+        process_config.options(num_cpus=evaluation_cpus).remote(
+            m, d, s, task_type, evaluation_cpus, git_sha, skip_existing=args.skip_existing
+        )
+        for m, d, s in pending
     ]
 
     _counts, failures, _elapsed, _results = run_futures(
         futures,
         stage="stage2",
         success_statuses={"done"},
-        skip_statuses={"no_rankings"},
+        skip_statuses={"no_rankings", "skipped"},
     )
     log_failures(failures, stage="stage2")
 

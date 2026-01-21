@@ -1,16 +1,21 @@
 # Permutation Tests
 
-Permutation tests are the statistical foundation of citrees. They provide
-distribution-free hypothesis testing for both feature selection and split
-validation, enabling statistically principled tree construction without
-parametric assumptions.
+Permutation tests are the statistical foundation of citrees.
+
+**Interpretation note (scope).** In fixed-$B$ mode, permutation p-values at a
+fixed node (especially the root) have the usual exchangeability-based validity.
+However, in an adaptively grown tree, internal nodes and Stage B split testing
+are post-selection/adaptive (the algorithm reuses the same labels after choosing
+which feature/threshold family to test). For that reason, p-values away from the
+root are best treated as **algorithmic selection/stopping statistics** unless
+additional selective-inference or sample-splitting machinery is used.
 
 ## Overview
 
 | Aspect          | Description                                      |
 | --------------- | ------------------------------------------------ |
 | Purpose         | Test independence between features and target    |
-| Type            | Non-parametric, exact test                       |
+| Type            | Non-parametric randomization test (exact if enumerated; Monte Carlo in practice) |
 | Null hypothesis | $H_0: X \perp Y$ (feature independent of target) |
 | Complexity      | Exact: $O(n!)$, Monte Carlo: $O(B \cdot T)$      |
 
@@ -38,7 +43,7 @@ bias**:
 
 | Problem               | Traditional Trees               | Permutation Solution               |
 | --------------------- | ------------------------------- | ---------------------------------- |
-| High-cardinality bias | Favor features with many values | P-values adjusted for split points |
+| High-cardinality bias | Favor features with many values | Screen features via permutation p-values (and optionally validate thresholds) |
 | Spurious splits       | Find "good" splits by chance    | Statistical significance required  |
 | Overfitting           | Need pruning/CV                 | Natural stopping via tests         |
 
@@ -55,11 +60,11 @@ $$T_{obs} = T(X, Y)$$
 
 Common test statistics in citrees:
 
-| Context              | Statistic      | Formula                                   |
-| -------------------- | -------------- | ----------------------------------------- |
-| Feature selection    | Correlation    | $\|r(X, Y)\|$                             |
-| Classification split | Gini reduction | $\Delta Gini = G_{parent} - G_{split}$    |
-| Regression split     | MSE reduction  | $\Delta MSE = MSE_{parent} - MSE_{split}$ |
+| Context              | Statistic                 | Formula                                              |
+| -------------------- | ------------------------- | ---------------------------------------------------- |
+| Feature selection    | Correlation               | $\|r(X, Y)\|$                                        |
+| Classification split | Child impurity sum (Gini) | $Gini(y_L) + Gini(y_R)$ (lower is better)           |
+| Regression split     | Child impurity sum (MSE)  | $MSE(y_L) + MSE(y_R)$ (lower is better)             |
 
 ### Null Distribution
 
@@ -81,6 +86,10 @@ The "+1" in numerator and denominator is a **finite-sample correction** (Phipson
 - Valid p-values even with few permutations
 - $p \in [\frac{1}{B+1}, 1]$ (never exactly 0)
 - Conservative under the null hypothesis
+
+**Direction matters:** If smaller values of the statistic are more extreme
+(e.g., splitters use a *minimize* criterion), reverse the inequality and use
+`T^{(b)} ≤ T_obs` instead.
 
 ---
 
@@ -233,15 +242,15 @@ Input: x_j ∈ ℝⁿ, y, threshold c, splitter (e.g., "gini", "mse")
    L ← {i : x_j[i] ≤ c}
    R ← {i : x_j[i] > c}
 
-2. Compute observed impurity reduction:
-   Δ_obs ← Impurity(y) - WeightedImpurity(y[L], y[R])
+2. Compute observed statistic (unweighted child impurity sum):
+   S_obs ← Impurity(y[L]) + Impurity(y[R])
 
 3. Generate null distribution:
    For b = 1 to n_resamples:
        y_perm ← Permute(y)
-       Δ_perm[b] ← Impurity(y_perm) - WeightedImpurity(y_perm[L], y_perm[R])
+       S_perm[b] ← Impurity(y_perm[L]) + Impurity(y_perm[R])
 
-4. p-value ← (1 + Σ 𝟙[Δ_perm ≥ Δ_obs]) / (1 + n_resamples)
+4. p-value ← (1 + Σ 𝟙[S_perm ≤ S_obs]) / (1 + n_resamples)  # left-tail
 
 5. Return p-value
 ```
@@ -336,7 +345,16 @@ n_resamples_splitter=NResamples.AUTO
 | `NResamples.AUTO`    | $\max\{\lceil 1/\alpha \rceil,\ \lceil z_{1-\alpha}^2 (1-\alpha)/\alpha \rceil\}$ | $z_{1-\alpha}=\Phi^{-1}(1-\alpha)$ |
 | `NResamples.MAXIMUM` | $\lceil 1/(4\alpha^2) \rceil$ | High precision (equals 100 at $\alpha=0.05$) |
 
-For $\alpha = 0.05$ this yields:
+**Bonferroni note (important).** If `adjust_alpha_* = True`, citrees applies Bonferroni correction by internally
+replacing $\alpha$ with $\alpha/n_{\text{tests}}$ for that node (features for Stage A, thresholds for Stage B). It then
+updates both the effective threshold and the effective permutation budget:
+- for `NResamples.*` string presets, the formulas above are applied to $\alpha/n_{\text{tests}}$, and
+- for an integer `n_resamples`, citrees multiplies the user-specified value by $n_{\text{tests}}$.
+
+This ensures the p-value grid has enough resolution to compare against the Bonferroni-adjusted threshold
+$\alpha/n_{\text{tests}}$ (see also `paper/docs/paper.md` Appendix A.2.1 for the fixed-$B$ grid calculation).
+
+For a **single** test at level $\alpha = 0.05$ this yields:
 
 - `NResamples.MINIMUM`: 20 resamples
 - `NResamples.AUTO`: 52 resamples
@@ -408,7 +426,7 @@ Enable with:
 ```python
 early_stopping_selector=EarlyStopping.ADAPTIVE  # Default - posterior-confidence stopping
 early_stopping_splitter=EarlyStopping.ADAPTIVE  # Default
-# Or use EarlyStopping.SIMPLE for basic futility stopping (inflates Type I error to ~9%)
+# Or use EarlyStopping.SIMPLE for basic futility stopping (can inflate Type I error)
 # Or use None to disable early stopping entirely
 ```
 

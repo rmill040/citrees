@@ -111,6 +111,18 @@ class TestMAE:
         # Mean = 0, MAE = (1 + 1) / 2 = 1
         assert mae(y) == pytest.approx(1.0)
 
+    def test_skewed_uses_median(self):
+        """Test MAE uses median (L1-optimal) not mean."""
+        y = np.array([1.0, 2.0, 3.0, 100.0])  # Skewed data
+        # Median = 2.5, Mean = 26.5
+        median_val = np.median(y)  # 2.5
+        mean_val = np.mean(y)  # 26.5
+        expected = np.mean(np.abs(y - median_val))  # ~24.0
+        not_expected = np.mean(np.abs(y - mean_val))  # ~36.5
+        result = mae(y)
+        assert result == pytest.approx(expected)
+        assert result != pytest.approx(not_expected, rel=0.1)
+
 
 class TestPtestGini:
     """Tests for ptest_gini permutation test."""

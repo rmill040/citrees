@@ -47,6 +47,11 @@ def build_common_parser(description: str) -> argparse.ArgumentParser:
         action="store_true",
         help="Only run configs missing from S3 outputs for the stage",
     )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip configs where output already exists (per-task S3 check for extra safety)",
+    )
     return parser
 
 

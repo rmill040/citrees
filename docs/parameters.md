@@ -15,10 +15,10 @@ Complete reference for all citrees parameters with tuning guidance.
 
 ### Resampling Parameters
 
-| Parameter              | Type              | Default           | Description                        |
-| ---------------------- | ----------------- | ----------------- | ---------------------------------- |
-| `n_resamples_selector` | NResamples or int | `NResamples.AUTO` | Permutation resamples for selector |
-| `n_resamples_splitter` | NResamples or int | `NResamples.AUTO` | Permutation resamples for splitter |
+| Parameter              | Type                    | Default           | Description                        |
+| ---------------------- | ----------------------- | ----------------- | ---------------------------------- |
+| `n_resamples_selector` | NResamples, int, or None | `NResamples.AUTO` | Permutation resamples for selector |
+| `n_resamples_splitter` | NResamples, int, or None | `NResamples.AUTO` | Permutation resamples for splitter |
 
 Options for `n_resamples_*`:
 
@@ -29,6 +29,12 @@ Options for `n_resamples_*`:
 - `NResamples.MINIMUM`: `ceil(1/alpha)` resamples (minimum resolution to allow `p < alpha` with +1 correction)
 - `NResamples.MAXIMUM`: `ceil(1 / (4 * alpha^2))` resamples (high precision; matches `100` when `alpha=0.05`)
 - `int`: Exact number of resamples (must be `>= ceil(1/alpha)`; with Bonferroni, this scales by the number of tests)
+- `None`: Disable permutation tests (selection/splitting uses raw association or impurity metric)
+
+Bonferroni behavior:
+- When `adjust_alpha_* = True` and multiple hypotheses are tested at a node, citrees internally uses the Bonferroni
+  threshold `alpha / n_tests` and adjusts the effective resample budget accordingly (string presets apply to
+  `alpha / n_tests`; integers are multiplied by `n_tests`).
 
 ### Alpha Adjustment
 
@@ -50,6 +56,7 @@ Notes:
 - `EarlyStopping.ADAPTIVE` uses a Beta posterior confidence rule to stop when confident about `p < alpha` or `p >= alpha`.
 - `EarlyStopping.SIMPLE` uses a futility + significance heuristic and can inflate Type I error.
 - Use `early_stopping_*=None` for fixed-B Monte Carlo p-values (recommended for publication-grade p-value claims).
+- `adjust_alpha_*`, `feature_muting`, and `early_stopping_*` are only used when `n_resamples_*` is not `None`.
 
 ### Feature Optimization
 
@@ -58,20 +65,37 @@ Notes:
 | `feature_muting`   | bool | True    | Remove clearly uninformative features |
 | `feature_scanning` | bool | True    | Test promising features first         |
 
+Notes:
+
+- `feature_scanning` only applies when `early_stopping_selector` is not `None`.
+
 ### Threshold Generation
 
-| Parameter            | Type            | Default                 | Description                      |
-| -------------------- | --------------- | ----------------------- | -------------------------------- |
-| `threshold_method`   | ThresholdMethod | `ThresholdMethod.EXACT` | How to generate split candidates |
-| `max_thresholds`     | int or float    | None                    | Maximum thresholds per feature   |
-| `threshold_scanning` | bool            | True                    | Test promising thresholds first  |
+| Parameter            | Type                         | Default                 | Description                      |
+| -------------------- | ---------------------------- | ----------------------- | -------------------------------- |
+| `threshold_method`   | ThresholdMethod              | `ThresholdMethod.EXACT` | How to generate split candidates |
+| `max_thresholds`     | MaxValuesMethod, int, float, or None  | None                    | Maximum thresholds per feature   |
+| `threshold_scanning` | bool                         | True                    | Test promising thresholds first  |
 
 Options for `threshold_method`:
 
-- `ThresholdMethod.EXACT`: All unique values (precise, slower)
-- `ThresholdMethod.RANDOM`: Random subset of values
-- `ThresholdMethod.PERCENTILE`: Quantile-based thresholds
-- `ThresholdMethod.HISTOGRAM`: Equal-width bins
+- `ThresholdMethod.EXACT`: All unique **midpoints** (precise, slower)
+- `ThresholdMethod.RANDOM`: Random subset of **midpoints**
+- `ThresholdMethod.PERCENTILE`: Quantile-based **midpoints**
+- `ThresholdMethod.HISTOGRAM`: Histogram bin edges over **midpoints**
+
+Notes:
+
+- `threshold_scanning` only applies when `early_stopping_splitter` is not `None`.
+- If `threshold_method != ThresholdMethod.EXACT` and `max_thresholds=None`, all midpoints are tested (can be slow).
+
+Options for `max_thresholds`:
+
+- `None`: Use all available thresholds
+- `MaxValuesMethod.SQRT`: √n thresholds (n = unique values; midpoints = n - 1)
+- `MaxValuesMethod.LOG2`: log₂(n) thresholds (n = unique values; midpoints = n - 1)
+- `int`: Exact number of thresholds
+- `float` (0.0, 1.0]: Fraction of available thresholds
 
 ### Tree Structure
 
@@ -80,7 +104,8 @@ Options for `threshold_method`:
 | `max_depth`         | int                | None    | Maximum tree depth            |
 | `min_samples_split` | int                | 2       | Minimum samples to split node |
 | `min_samples_leaf`  | int                | 1       | Minimum samples in leaf       |
-| `max_features`      | str, int, or float | None    | Features per split            |
+| `min_impurity_decrease` | float           | 0.0     | Minimum impurity decrease to split |
+| `max_features`      | MaxValuesMethod, int, float, or None | None    | Features per split            |
 
 Options for `max_features`:
 
@@ -88,7 +113,7 @@ Options for `max_features`:
 - `MaxValuesMethod.SQRT`: Square root of total features
 - `MaxValuesMethod.LOG2`: Log base 2 of total features
 - `int`: Exact number of features
-- `float`: Fraction of total features
+- `float` (0.0, 1.0]: Fraction of total features
 
 ### Honest Estimation
 
@@ -99,28 +124,56 @@ Options for `max_features`:
 
 ---
 
+## Miscellaneous
+
+| Parameter                   | Type        | Default | Description |
+| --------------------------- | ----------- | ------- | ----------- |
+| `random_state`              | int or None | None    | Random seed for permutation tests, sampling, and bootstrap; `None` uses a fresh seed |
+| `verbose`                   | int         | 1       | Verbosity level (0=quiet; higher prints more progress; forests cap at 3) |
+| `check_for_unused_parameters` | bool      | False   | Warn when parameters are ineffective due to other settings |
+
+---
+
 ## Forest Parameters
 
 All tree parameters plus:
 
-| Parameter          | Type            | Default                    | Description                      |
-| ------------------ | --------------- | -------------------------- | -------------------------------- |
-| `n_estimators`     | int             | 100                        | Number of trees                  |
-| `max_samples`      | float           | None                       | Bootstrap sample size (fraction) |
-| `bootstrap_method` | BootstrapMethod | `BootstrapMethod.BAYESIAN` | Sampling method                  |
-| `sampling_method`  | SamplingMethod  | `SamplingMethod.STRATIFIED`| How to stratify samples          |
-| `n_jobs`           | int             | 1                          | Parallel jobs (-1 for all cores) |
-| `oob_score`        | bool            | False                      | Compute out-of-bag score (requires bootstrap) |
+| Parameter          | Type                 | Default                    | Description                      |
+| ------------------ | -------------------- | -------------------------- | -------------------------------- |
+| `n_estimators`     | int                  | 100                        | Number of trees                  |
+| `max_samples`      | int/float/None        | None                       | Bootstrap sample size (count or fraction) |
+| `bootstrap_method` | BootstrapMethod/None  | `BootstrapMethod.BAYESIAN` | Sampling method (or disable bootstrap) |
+| `sampling_method`  | SamplingMethod/None   | `SamplingMethod.STRATIFIED`| How to stratify samples          |
+| `n_jobs`           | int or None           | None                       | Parallel jobs (-1 for all cores) |
+| `oob_score`        | bool                 | False                      | Compute out-of-bag score (requires bootstrap; scores only samples with OOB predictions) |
 
 Options for `bootstrap_method`:
 
-- `BootstrapMethod.BAYESIAN`: Poisson bootstrap (recommended)
+- `BootstrapMethod.BAYESIAN`: Bayesian bootstrap with Dirichlet weights (recommended)
 - `BootstrapMethod.CLASSIC`: Standard bootstrap with replacement
+- `None`: Disable bootstrap (no OOB, no sampling_method, max_samples ignored)
 
 Options for `sampling_method`:
 
 - `SamplingMethod.STRATIFIED`: Maintain class proportions
 - `SamplingMethod.BALANCED`: Equal class weights
+- `None`: Unstratified bootstrap (classic or Bayesian depending on `bootstrap_method`)
+
+Notes:
+
+- `sampling_method` applies to classification forests only.
+- Negative `n_jobs` values follow sklearn-style semantics (e.g., `-1` = all cores).
+- `n_jobs=0` is invalid; use `None` or `1` to disable parallelism.
+- `sampling_method` is only used when `bootstrap_method` is not `None`.
+- Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default `None`).
+
+Options for `max_samples`:
+
+- `None`: Use all samples for each tree
+- `int`: Exact number of samples (must be >= 1)
+- `float` (0.0, 1.0]: Fraction of samples
+
+`max_samples` is only used when `bootstrap_method` is not `None`.
 
 ---
 
@@ -152,8 +205,8 @@ tree = ConditionalInferenceTreeClassifier(selector=['mc', 'rdc'])
 tree = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
 ```
 
-!!! warning "Mutual Information" `'mi'` cannot be combined with other selectors
-because its scale is unbounded.
+!!! warning "Mutual Information"
+    `'mi'` cannot be combined with other selectors because its scale is unbounded.
 
 ---
 

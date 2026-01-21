@@ -14,9 +14,10 @@ from typing import Any
 
 from loguru import logger
 
-from paper.scripts.experiments._common import get_dataset_shape, get_datasets, get_git_sha
+from paper.scripts.experiments._common import get_dataset_shape, get_datasets, get_git_sha, list_s3_completed
 from paper.scripts.experiments._driver import (
     build_common_parser,
+    filter_missing,
     init_ray,
     iter_grid,
     log_dry_run,
@@ -86,8 +87,53 @@ def main() -> None:
             f"selection_cpus={selection_cpus}, evaluation_cpus={evaluation_cpus}"
         )
 
+    grid = list(iter_grid(method_configs, datasets, seeds))
+    completed_rankings: set[tuple[str, str, int]] = set()
+    completed_metrics: set[tuple[str, str, int]] = set()
+    if args.only_missing:
+        if args.stage in {"all", "stage1", "stage2"}:
+            completed_rankings = list_s3_completed("rankings", task_type, region_name=cfg.region)
+        if args.stage in {"all", "stage2"}:
+            completed_metrics = list_s3_completed("metrics", task_type, region_name=cfg.region)
+
+    stage1_items = filter_missing(grid, completed_rankings) if args.only_missing else grid
+
+    if args.only_missing and args.stage in {"all", "stage1"}:
+        logger.info(
+            "Stage 1 only-missing: expected={}, completed_in_s3={}, pending={}",
+            total,
+            len(completed_rankings),
+            len(stage1_items),
+        )
+
     if args.dry_run:
-        log_dry_run(iter_grid(method_configs, datasets, seeds), stage="pipeline", describe=_describe)
+        if args.stage in {"all", "stage1"}:
+            log_dry_run(stage1_items, stage="stage1", limit=args.dry_run_limit, describe=_describe)
+
+        if args.stage in {"all", "stage2"}:
+            if args.only_missing:
+                ranking_available = set(completed_rankings)
+                if args.stage == "all":
+                    for method_cfg, dataset, seed in stage1_items:
+                        ranking_available.add((config_label(method_cfg), dataset, seed))
+
+                stage2_items: list[tuple[dict[str, Any], str, int]] = []
+                for method_cfg, dataset, seed in grid:
+                    key = (config_label(method_cfg), dataset, seed)
+                    if key in completed_metrics:
+                        continue
+                    if key not in ranking_available:
+                        continue
+                    stage2_items.append((method_cfg, dataset, seed))
+            else:
+                stage2_items = grid
+
+            log_dry_run(
+                stage2_items,
+                stage="stage2",
+                limit=args.dry_run_limit,
+                describe=lambda m, d, s: f"method={config_label(m)}, dataset={d}, seed={s}",
+            )
         return
 
     # -------------------------------------------------------------------------
@@ -96,7 +142,7 @@ def main() -> None:
     stage1_done: set[tuple[str, str, int]] = set()
     if args.stage in {"all", "stage1"}:
         futures = []
-        for method_cfg, dataset, seed in iter_grid(method_configs, datasets, seeds):
+        for method_cfg, dataset, seed in stage1_items:
             method_base = method_cfg["method"]
             n_samples, n_features = dataset_shapes[dataset]
             selection_cpus = ray_feature_selection.selection_num_cpus(
@@ -118,6 +164,8 @@ def main() -> None:
         for r in results:
             if r.get("status") == "done":
                 stage1_done.add((str(r.get("method")), str(r.get("dataset")), int(r.get("seed"))))
+                if args.only_missing:
+                    completed_rankings.add((str(r.get("method")), str(r.get("dataset")), int(r.get("seed"))))
 
         logger.info("Stage 1 complete: done={}, failed={}", len(stage1_done), len(failures))
 
@@ -125,11 +173,28 @@ def main() -> None:
     # Stage 2
     # -------------------------------------------------------------------------
     if args.stage in {"all", "stage2"}:
-        if args.stage == "stage2":
+        if args.only_missing:
+            stage2_items = []
+            missing_rankings = 0
+            for method_cfg, dataset, seed in grid:
+                key = (config_label(method_cfg), dataset, seed)
+                if key in completed_metrics:
+                    continue
+                if key not in completed_rankings:
+                    missing_rankings += 1
+                    continue
+                stage2_items.append((method_cfg, dataset, seed))
+            logger.info(
+                "Stage 2 only-missing: completed_metrics={}, pending={}, missing_rankings={}",
+                len(completed_metrics),
+                len(stage2_items),
+                missing_rankings,
+            )
+        elif args.stage == "stage2":
             stage2_items = list(iter_grid(method_configs, datasets, seeds))
             logger.info("Stage 2 only: running full grid and skipping configs without rankings")
         else:
-            stage2_items: list[tuple[dict[str, Any], str, int]] = []
+            stage2_items = []
             for method_id, dataset, seed in sorted(stage1_done):
                 method_cfg = method_id_to_cfg.get(method_id)
                 if method_cfg is None:

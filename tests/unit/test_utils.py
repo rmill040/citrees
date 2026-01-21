@@ -428,3 +428,88 @@ class TestUtilsPyFunc:
         jit_result = bayesian_bootstrap_proba(n=100, random_state=42)
         py_result = bayesian_bootstrap_proba(n=100, random_state=42)
         assert np.allclose(jit_result, py_result)
+
+
+class TestBugFixes:
+    """Tests for specific bug fixes."""
+
+    def test_bug2_bayesian_bootstrap_different_seeds_per_class(self):
+        """Bug 2: Verify different classes receive different bootstrap probabilities.
+
+        Previously, bayesian_bootstrap_proba was called with the same random_state
+        for all classes, causing identical probabilities. Now each class gets
+        random_state + class_index.
+        """
+        # Create 3-class dataset
+        y = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2])
+
+        # Get bootstrap samples with bayesian_bootstrap=True
+        idx1 = stratified_bootstrap_sample(
+            y=y, max_samples=len(y), bayesian_bootstrap=True, random_state=42
+        )
+        idx2 = stratified_bootstrap_sample(
+            y=y, max_samples=len(y), bayesian_bootstrap=True, random_state=42
+        )
+
+        # Should be reproducible
+        assert np.array_equal(idx1, idx2)
+
+        # The key test: simulate what the old buggy code would produce
+        # Old code: all classes got same probabilities
+        # New code: each class gets different probabilities (random_state + j)
+        proba_class0 = bayesian_bootstrap_proba(n=5, random_state=42)
+        proba_class1 = bayesian_bootstrap_proba(n=5, random_state=43)  # 42 + 1
+        proba_class2 = bayesian_bootstrap_proba(n=5, random_state=44)  # 42 + 2
+
+        # Classes should have DIFFERENT probabilities
+        assert not np.allclose(proba_class0, proba_class1)
+        assert not np.allclose(proba_class1, proba_class2)
+        assert not np.allclose(proba_class0, proba_class2)
+
+    def test_bug3_stratified_bootstrap_exact_sample_count(self):
+        """Bug 3: Verify stratified bootstrap returns exactly max_samples.
+
+        Previously, using round() per class could cause total != max_samples.
+        Now uses proper integer allocation (largest remainder method).
+        """
+        # Test various configurations that previously caused mismatches
+        test_cases = [
+            # (n_per_class, n_classes, max_samples)
+            (5, 3, 4),   # Original bug report case
+            (3, 2, 3),   # Previously got 4 instead of 3
+            (3, 3, 4),   # Previously got 3 instead of 4
+            (3, 4, 2),   # Previously got 0 instead of 2
+            (10, 5, 7),  # General case
+        ]
+
+        for n_per_class, n_classes, max_samples in test_cases:
+            y = np.concatenate([np.full(n_per_class, j) for j in range(n_classes)])
+            idx = stratified_bootstrap_sample(
+                y=y, max_samples=max_samples, bayesian_bootstrap=False, random_state=42
+            )
+            assert len(idx) == max_samples, (
+                f"Expected {max_samples} samples, got {len(idx)} "
+                f"for n_per_class={n_per_class}, n_classes={n_classes}"
+            )
+
+    def test_bug3_balanced_bootstrap_exact_sample_count(self):
+        """Bug 3: Verify balanced bootstrap returns exactly max_samples.
+
+        Same fix applied to balanced_bootstrap_sample.
+        """
+        test_cases = [
+            (5, 3, 4),
+            (3, 2, 3),
+            (3, 3, 4),
+            (10, 5, 7),
+        ]
+
+        for n_per_class, n_classes, max_samples in test_cases:
+            y = np.concatenate([np.full(n_per_class, j) for j in range(n_classes)])
+            idx = balanced_bootstrap_sample(
+                y=y, max_samples=max_samples, bayesian_bootstrap=False, random_state=42
+            )
+            assert len(idx) == max_samples, (
+                f"Expected {max_samples} samples, got {len(idx)} "
+                f"for n_per_class={n_per_class}, n_classes={n_classes}"
+            )

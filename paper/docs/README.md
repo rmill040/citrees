@@ -7,16 +7,25 @@ Scripts and data for reproducing the citrees paper experiments.
 ```
 paper/
 ├── data/                              # Datasets (parquet format)
-│   ├── clf_*.parquet                 # Classification datasets
-│   ├── clf_synthetic_*.parquet       # Synthetic datasets (with ground truth)
-│   └── reg_*.parquet                 # Regression datasets
+│   ├── classification/
+│   │   ├── real/
+│   │   │   └── clf_*.parquet
+│   │   └── synthetic/
+│   │       └── clf_synthetic_*.parquet
+│   └── regression/
+│       ├── real/
+│       │   └── reg_*.parquet
+│       └── synthetic/
+│           └── reg_synthetic_*.parquet
 ├── scripts/
 │   ├── experiments/                  # Core experiment runners
+│   │   ├── run_pipeline.py           # Stage 1 + Stage 2 sequential runner
 │   │   ├── ray_feature_selection.py  # Stage 1: Distributed feature selection
 │   │   ├── ray_eval.py               # Stage 2: Distributed downstream eval
+│   │   ├── smoke_run.py              # Small end-to-end smoke test
 │   │   └── check_progress.py         # Progress monitoring via S3
 │   ├── analysis/                     # Analysis and visualization
-│   │   ├── analysis.py               # Statistical tests
+│   │   ├── stats.py                  # Statistical tests + tables
 │   │   ├── synthetic_analysis.py     # Precision/recall@k analysis
 │   │   └── generate_figures.py       # Paper figure generation
 │   ├── data_generation/              # Dataset generation
@@ -25,13 +34,17 @@ paper/
 │   │   ├── config.py                 # Hyperparameter grids
 │   │   ├── constants.py              # Method lists, defaults
 │   │   ├── eval_models.py            # Downstream model definitions
+│   │   ├── experiment_configs.py     # Method variants + labeling
 │   │   └── metrics.py                # Evaluation metrics
 │   └── infra/                        # Infrastructure
 │       ├── config.py                 # Configuration dataclasses
 │       ├── config.yaml               # Experiment settings
+│       ├── cli.py                    # Cluster + experiment CLI helpers
+│       ├── compute.py                # Instance sizing helpers
+│       ├── resources.py              # Resource calculators
 │       └── ray/
 │           ├── cluster.yaml          # Ray cluster config
-│           └── setup_cluster.py      # AMI update helper
+│           └── setup_cluster.py      # Cluster config generator / AMI helper
 └── results/                          # Local cache (S3 is source of truth)
 ```
 
@@ -87,7 +100,7 @@ AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 │ Ray Workers ──→ S3 (rankings)                                           │
 │                                                                          │
 │ N configs = methods × datasets × seeds                                  │
-│ Output: s3://bucket/rankings/{task}/{dataset}/{method}_seed{s}.parquet  │
+│ Output: s3://bucket/rankings/{task_type}/{dataset}/{method_id}_seed{s}.parquet  │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -97,15 +110,28 @@ AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 │ Ray Workers ──→ S3 (metrics)                                            │
 │                                                                          │
 │ Evaluates at k = [5, 10, 25, 50, 100, all]                             │
-│ Output: s3://bucket/metrics/{task}/{dataset}/{method}_seed{s}.parquet   │
+│ Output: s3://bucket/metrics/{task_type}/{dataset}/{method_id}_seed{s}.parquet   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Benefits:**
 - Stage 1 (slow) runs independently from Stage 2 (fast)
 - Can re-run Stage 2 with different downstream models
-- Full resume via S3 file existence checks
+- Only-missing runs via S3 listings (submit only configs without artifacts)
 - Spot instance fault tolerance via Ray
+
+**Only-missing workflow (recommended):**
+```bash
+# Preview exact configs that will run (print full grid)
+AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
+    --stage all --only-missing --dry-run --dry-run-limit 100000
+
+# Run only configs missing in S3 (rankings + metrics)
+AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
+    --stage all --only-missing
+```
+
+**Reruns:** delete the specific S3 objects you want to recompute, then re-run with `--only-missing`.
 
 ## Methods
 
@@ -186,8 +212,8 @@ Ground truth stored in parquet schema metadata.
 
 ### Flat File Naming (Synthetic)
 
-All synthetic datasets are saved as flat files under `paper/data/` with the prefix
-`clf_synthetic_`:
+All synthetic **classification** datasets are saved under
+`paper/data/classification/synthetic/` with the prefix `clf_synthetic_`:
 
 ```
 clf_synthetic_{name}.parquet
@@ -231,49 +257,80 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py -
 ### Stage 1 Output (rankings)
 
 ```
-s3://bucket/rankings/{task}/{dataset}/{method}_seed{seed}.parquet
+s3://bucket/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet
 
 Columns:
 - fold_idx: int
-- train_indices: list[int]
-- test_indices: list[int]
 - feature_ranking: list[int]      # Full ranking [best → worst]
-- embedding_train_preds: list     # For embedding methods
-- embedding_test_preds: list
-- embedding_train_proba: list     # For classifiers with predict_proba
-- embedding_test_proba: list
+- dataset, task_type, seed
+- method_id, method, method_base
+- artifact_version
+- n_samples, n_features
+- selection_cpus
+- elapsed_seconds
+- created_at_utc
+- git_sha
+
 ```
 
 ### Stage 2 Output (metrics)
 
 ```
-s3://bucket/metrics/{task}/{dataset}/{method}_seed{seed}.parquet
+s3://bucket/metrics/{task_type}/{dataset}/{method_id}_seed{seed}.parquet
 
 Columns:
 - fold_idx: int
 - k: int                          # Number of features used
 - downstream_model: str           # lr, svm, knn / ridge, svr, knn
+- dataset, task_type, seed
+- method_id, method, method_base
+- artifact_version
+- n_samples, n_features
+- n_features_selected
+- evaluation_cpus
+- elapsed_seconds
+- created_at_utc
+- git_sha
 - accuracy, f1, roc_auc: float    # Classification metrics
 - r2, rmse, mae: float            # Regression metrics
 ```
+
+## Aggregation Policy
+
+Stage 2 generates results per **fold × k × downstream_model × seed × dataset**. The following
+aggregation policy reduces this to per-method scores for statistical comparisons:
+
+| Dimension | Policy | Rationale |
+|-----------|--------|-----------|
+| **Folds** | Mean across folds | Standard CV aggregation |
+| **Seeds** | Mean across seeds | Reduce variance from random initialization |
+| **k values** | Fixed k=10 (or best-k if specified) | Comparable feature counts across methods |
+| **Downstream models** | Report per-model or average | Depends on analysis goal |
+
+**Summary:** Final metric per (dataset, method) = mean over folds → mean over seeds → fixed k.
+
+The `load_and_pivot_results()` function in `stats.py` implements this aggregation.
 
 ## Analysis
 
 After experiments complete:
 
 ```bash
-# Download from S3
+# Download and aggregate from S3 (recommended)
+S3_BUCKET=my-bucket uv run python paper/scripts/analysis/download_and_aggregate.py --task-type all
+
+# Or manually download from S3
 aws s3 sync s3://bucket/rankings/ paper/results/rankings/
 aws s3 sync s3://bucket/metrics/ paper/results/metrics/
 
 # Synthetic analysis (precision/recall@k)
 uv run python paper/scripts/analysis/synthetic_analysis.py \
     --results-dir paper/results/rankings/classification \
-    --data-dir paper/data \
+    --data-dir paper/data/classification/synthetic \
     --output paper/results/synthetic_analysis.parquet
 
-# Statistical analysis
-uv run python paper/scripts/analysis/analysis.py
+# Statistical analysis (includes runtime tables/figures)
+uv run python paper/scripts/analysis/stats.py
 
 # Generate figures
 uv run python paper/scripts/analysis/generate_figures.py

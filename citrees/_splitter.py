@@ -55,7 +55,8 @@ def _ptest(
 
     early_stopping : {"simple", "adaptive"} or None
         Early stopping method:
-        - "adaptive": Bayesian Beta CDF stopping (valid Type I error, default)
+        - "adaptive": Bayesian Beta CDF posterior-confidence stopping (speed-oriented; returns a +1 Monte Carlo
+          estimate at a stopping time)
         - "simple": Futility + significance stopping (inflates Type I error)
         - None: No early stopping (fixed-B test)
 
@@ -318,8 +319,8 @@ def _ptest_mae_parallel(
         return 1.0
 
     # Compute observed statistic
-    dev_left = np.abs(y_left - y_left.mean())
-    dev_right = np.abs(y_right - y_right.mean())
+    dev_left = np.abs(y_left - np.median(y_left))
+    dev_right = np.abs(y_right - np.median(y_right))
     theta = np.mean(dev_left) + np.mean(dev_right)
 
     # Parallel permutation
@@ -332,8 +333,8 @@ def _ptest_mae_parallel(
         y_left_perm = y_perm[idx]
         y_right_perm = y_perm[~idx]
 
-        dev_left_perm = np.abs(y_left_perm - y_left_perm.mean())
-        dev_right_perm = np.abs(y_right_perm - y_right_perm.mean())
+        dev_left_perm = np.abs(y_left_perm - np.median(y_left_perm))
+        dev_right_perm = np.abs(y_right_perm - np.median(y_right_perm))
         theta_p[i] = np.mean(dev_left_perm) + np.mean(dev_right_perm)
 
     return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
@@ -550,8 +551,8 @@ def mse(y: np.ndarray) -> float:
 def mae(y: np.ndarray) -> float:
     """Mean absolute error impurity of a node.
 
-    Computes the mean absolute deviation from the mean for target values
-    in a node, used as a robust impurity criterion for regression tree splits.
+    Computes the mean absolute deviation from the median for target values
+    in a node. Using the median makes this an L1-optimal impurity criterion.
 
     Parameters
     ----------
@@ -566,7 +567,7 @@ def mae(y: np.ndarray) -> float:
     if y.ndim > 1:
         y = y.ravel()
 
-    dev = np.abs(y - y.mean())
+    dev = np.abs(y - np.median(y))
 
     return np.mean(dev)
 

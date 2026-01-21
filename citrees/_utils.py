@@ -6,6 +6,54 @@ from numba import njit
 from citrees._types import MaxValuesMethod
 
 
+def _allocate_samples(weights: np.ndarray, total: int) -> np.ndarray:
+    """Allocate integer samples proportionally to weights, guaranteeing sum equals total.
+
+    Uses the largest remainder method (Hamilton method) for fair apportionment.
+
+    Parameters
+    ----------
+    weights : np.ndarray
+        Non-negative weights for each class (e.g., class sizes).
+
+    total : int
+        Total number of samples to allocate.
+
+    Returns
+    -------
+    np.ndarray
+        Integer allocation for each class, summing to total.
+    """
+    if total <= 0:
+        return np.zeros(len(weights), dtype=int)
+
+    weights = np.asarray(weights, dtype=float)
+    weight_sum = weights.sum()
+    if weight_sum == 0:
+        # Equal allocation if all weights are zero
+        base = total // len(weights)
+        allocation = np.full(len(weights), base, dtype=int)
+        remainder = total - allocation.sum()
+        allocation[:remainder] += 1
+        return allocation
+
+    # Calculate ideal (fractional) allocation
+    ideal = weights * total / weight_sum
+
+    # Floor allocation
+    allocation = np.floor(ideal).astype(int)
+
+    # Distribute remainder to classes with largest fractional parts
+    remainder = total - allocation.sum()
+    if remainder > 0:
+        fractional_parts = ideal - allocation
+        # Get indices sorted by fractional part (descending)
+        indices = np.argsort(-fractional_parts)
+        allocation[indices[:remainder]] += 1
+
+    return allocation
+
+
 @njit(cache=True, fastmath=True, nogil=True)
 def estimate_proba(*, y: np.ndarray, n_classes: int) -> np.ndarray:
     """Estimate class probabilities.
@@ -169,21 +217,23 @@ def stratified_bootstrap_sample(
     n_classes = len(np.unique(y))
     idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
     idx = []
-    for idx_class in idx_classes:
+    for j, idx_class in enumerate(idx_classes):
         n_class = len(idx_class)
+        # Vary seed per class to ensure independent bootstrap probabilities
         p = (
-            bayesian_bootstrap_proba(n=n_class, random_state=random_state)
+            bayesian_bootstrap_proba(n=n_class, random_state=random_state + j)
             if bayesian_bootstrap
             else None
         )
         idx.append(prng.choice(idx_class, size=n_class, p=p, replace=True))
 
-    # Subsample if needed
+    # Subsample if needed (use proper integer allocation to guarantee sum = max_samples)
     if max_samples < n:
+        class_sizes = np.array([len(idx[j]) for j in range(n_classes)])
+        allocation = _allocate_samples(class_sizes, max_samples)
         for j in range(n_classes):
-            n_class = len(idx[j])
-            ratio = n_class / n
-            idx[j] = prng.choice(idx[j], size=round(ratio * max_samples), replace=False)
+            if allocation[j] < len(idx[j]):
+                idx[j] = prng.choice(idx[j], size=allocation[j], replace=False)
 
     return np.concatenate(idx)
 
@@ -255,19 +305,23 @@ def balanced_bootstrap_sample(
     idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
     idx = []
     n_per_class = np.bincount(y).min()
-    for idx_class in idx_classes:
+    for j, idx_class in enumerate(idx_classes):
+        # Vary seed per class to ensure independent bootstrap probabilities
         p = (
-            bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state)
+            bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state + j)
             if bayesian_bootstrap
             else None
         )
         idx.append(prng.choice(idx_class, size=n_per_class, p=p, replace=True))
 
-    # Subsample if needed
+    # Subsample if needed (use proper integer allocation to guarantee sum = max_samples)
     if max_samples < n:
-        ratio = n_per_class / n
+        # For balanced bootstrap, all classes have equal weight
+        class_sizes = np.array([len(idx[j]) for j in range(n_classes)])
+        allocation = _allocate_samples(class_sizes, max_samples)
         for j in range(n_classes):
-            idx[j] = prng.choice(idx[j], size=round(ratio * max_samples), replace=False)
+            if allocation[j] < len(idx[j]):
+                idx[j] = prng.choice(idx[j], size=allocation[j], replace=False)
 
     return np.concatenate(idx)
 

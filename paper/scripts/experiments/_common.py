@@ -252,6 +252,46 @@ def get_s3_client(*, region_name: str | None = None):
     return _S3_CLIENTS[region_name]
 
 
+def list_s3_completed(
+    stage: str,
+    task_type: TaskType,
+    *,
+    region_name: str | None = None,
+) -> set[tuple[str, str, int]]:
+    """List completed artifacts for a stage in S3.
+
+    Returns a set of (method_id, dataset, seed) tuples parsed from object keys.
+    Expected key format: {stage}/{task_type}/{dataset}/{method_id}_seed{seed}.parquet
+    """
+    bucket = get_s3_bucket()
+    prefix = f"{stage}/{task_type}/"
+    client = get_s3_client(region_name=region_name)
+    paginator = client.get_paginator("list_objects_v2")
+    completed: set[tuple[str, str, int]] = set()
+
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj.get("Key") or ""
+            parts = key.split("/")
+            if len(parts) < 4:
+                continue
+            dataset = parts[2]
+            filename = parts[3]
+            if not filename.endswith(".parquet"):
+                continue
+            method_seed = filename[:-len(".parquet")]
+            if "_seed" not in method_seed:
+                continue
+            method_id, seed_str = method_seed.rsplit("_seed", 1)
+            try:
+                seed = int(seed_str)
+            except ValueError:
+                continue
+            completed.add((method_id, dataset, seed))
+
+    return completed
+
+
 def s3_file_exists(s3_path: str, *, region_name: str | None = None) -> bool:
     """Return True if the object exists; only 'not found' returns False; everything else raises."""
     bucket, key = _split_s3_path(s3_path)
@@ -269,6 +309,105 @@ def download_parquet_from_s3(s3_path: str, *, region_name: str | None = None) ->
     bucket, key = _split_s3_path(s3_path)
     response = get_s3_client(region_name=region_name).get_object(Bucket=bucket, Key=key)
     return pd.read_parquet(io.BytesIO(response["Body"].read()))
+
+
+def get_dataset_metadata(
+    name: str,
+    task_type: TaskType,
+    *,
+    source: DataSource | None = None,
+    data_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Extract metadata from a dataset's parquet schema.
+
+    Returns a dict with:
+    - source: "real" or "synthetic"
+    - dataset_type: extracted type (e.g., "standard", "bias", "nonlinear") for synthetic
+    - n_informative: number of informative features (synthetic only)
+    - config: full generation config (synthetic only)
+    """
+    path = get_dataset_path(name, task_type, source=source, data_dir=data_dir)
+    inferred_source: DataSource = "synthetic" if "synthetic" in name else "real"
+
+    metadata: dict[str, Any] = {
+        "dataset_source": inferred_source,
+        "dataset_type": None,
+        "dataset_family": None,
+        "n_informative": None,
+    }
+
+    if pq is None:
+        return metadata
+
+    try:
+        pf = pq.ParquetFile(path)
+        schema_meta = pf.schema_arrow.metadata or {}
+
+        # Check if synthetic
+        is_synthetic = schema_meta.get(b"synthetic", b"false").decode() == "true"
+        if is_synthetic:
+            metadata["dataset_source"] = "synthetic"
+
+            # Extract dataset type from name
+            # Examples: synthetic_bias_noise10_levels50, synthetic_nonlinear_p50_n500
+            if "bias" in name:
+                metadata["dataset_type"] = "bias"
+            elif "nonlinear" in name:
+                metadata["dataset_type"] = "nonlinear"
+            elif "corr_noise" in name:
+                metadata["dataset_type"] = "corr_noise"
+            elif "corr_blocks" in name or "corr" in name and "noise" not in name:
+                metadata["dataset_type"] = "correlated"
+            elif "redundant" in name:
+                metadata["dataset_type"] = "redundant"
+            elif "toeplitz" in name:
+                metadata["dataset_type"] = "toeplitz"
+            elif "weak" in name:
+                metadata["dataset_type"] = "weak_signal"
+            else:
+                metadata["dataset_type"] = "standard"
+
+            # Extract informative indices
+            info_json = schema_meta.get(b"informative_indices")
+            if info_json:
+                import json
+                info_indices = json.loads(info_json.decode())
+                metadata["n_informative"] = len(info_indices)
+
+            # Extract family from config
+            config_json = schema_meta.get(b"config")
+            if config_json:
+                import json
+                config_dict = json.loads(config_json.decode())
+                # Family based on generation parameters
+                if config_dict.get("n_high_cardinality_noise", 0) > 0:
+                    metadata["dataset_family"] = "high_cardinality"
+                elif config_dict.get("nonlinear"):
+                    metadata["dataset_family"] = "friedman"
+                elif config_dict.get("toeplitz_rho", 0) > 0:
+                    metadata["dataset_family"] = "toeplitz"
+                elif config_dict.get("n_correlated_noise", 0) > 0:
+                    metadata["dataset_family"] = "confounded"
+                elif config_dict.get("weak_signal"):
+                    metadata["dataset_family"] = "weak"
+                else:
+                    metadata["dataset_family"] = "standard"
+        else:
+            metadata["dataset_source"] = "real"
+            metadata["dataset_type"] = "real"
+            # Extract family from dataset name for real datasets
+            # e.g., openml_xxx, uci_xxx
+            if name.startswith("openml_"):
+                metadata["dataset_family"] = "openml"
+            elif name.startswith("uci_"):
+                metadata["dataset_family"] = "uci"
+            else:
+                metadata["dataset_family"] = "other"
+
+    except Exception:
+        pass
+
+    return metadata
 
 
 def upload_parquet_to_s3(

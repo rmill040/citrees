@@ -1,11 +1,9 @@
 """Sequential permutation testing with early stopping.
 
 Two methods:
-1. Simple: Futility + significance stopping (inflates Type I error to ~9%)
+1. Simple: Futility + significance stopping (can inflate Type I error)
 2. Adaptive: Bayesian Beta CDF posterior-confidence stopping (speed-oriented; the returned value is a Monte Carlo
    estimate evaluated at a stopping time, not a fixed-B permutation p-value)
-
-Reference: Fischer & Ramdas (2025) - formally anytime-valid sequential Monte Carlo testing
 """
 
 from math import ceil, exp, lgamma, log
@@ -87,8 +85,8 @@ def _ptest_sequential_simple(
     1. Significance: current p-value < alpha (after min_resamples)
     2. Futility: best possible p-value >= alpha (cannot reject)
 
-    Note: This method inflates Type I error to ~9%. Use adaptive for a more conservative posterior-confidence
-    stopping rule (or disable early stopping for fixed-B p-values).
+    Note: This method can inflate Type I error. Use adaptive for a more conservative posterior-confidence stopping
+    rule (or disable early stopping for fixed-B p-values).
     """
     np.random.seed(random_state)
     min_resamples = ceil(1.0 / alpha)
@@ -141,7 +139,10 @@ def _ptest_sequential_adaptive(
     Uses Beta posterior to estimate probability that true p-value < alpha.
     Stops when confident about significance or non-significance.
 
-    This method controls Type I error at the nominal level.
+    Note: This is a posterior-confidence stopping heuristic. The returned value
+    is the +1 Monte Carlo estimate evaluated at a stopping time (not a fixed-B
+    permutation p-value). For fixed-B p-value guarantees, disable early
+    stopping.
     """
     np.random.seed(random_state)
     min_resamples = ceil(1.0 / alpha)

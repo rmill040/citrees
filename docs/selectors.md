@@ -25,7 +25,7 @@ explained by class membership using ANOVA.
 
 For a feature $X$ and categorical target $Y$ with $K$ classes:
 
-$$\eta^2 = \frac{SS_B}{SS_T} = \frac{\sum_{k=1}^{K} n_k (\bar{x}_k - \bar{x})^2}{\sum_{i=1}^{n} (x_i - \bar{x})^2}$$
+$$\eta = \sqrt{\frac{SS_B}{SS_T}} = \sqrt{\frac{\sum_{k=1}^{K} n_k (\bar{x}_k - \bar{x})^2}{\sum_{i=1}^{n} (x_i - \bar{x})^2}}$$
 
 Where:
 
@@ -38,9 +38,13 @@ Where:
 ### Properties
 
 - **Range**: [0, 1]
-- **Interpretation**: $\eta^2 = 0$ means no linear separation; $\eta^2 = 1$
-  means perfect separation
-- **Equivalent to**: ANOVA F-statistic (monotonically related)
+- **Interpretation**: $\eta = 0$ means no linear separation; $\eta = 1$ means
+  perfect separation
+- **Notes**: Some references define the statistic as $\eta^2 = SS_B/SS_T$
+  (correlation ratio squared). citrees uses $\eta=\sqrt{SS_B/SS_T}$; this is a
+  monotone transformation, so fixed-$B$ permutation p-values and feature
+  rankings are unchanged.
+- **Equivalent to**: ANOVA $F$-statistic (monotonically related)
 - **Limitation**: Only captures linear class separation
 
 ### Algorithm
@@ -55,7 +59,7 @@ Input: Feature x ∈ ℝⁿ, class labels y ∈ {1,...,K}ⁿ
    a. Compute class mean: x̄ₖ = (1/nₖ) Σᵢ:yᵢ=k xᵢ
    b. Compute class size: nₖ = |{i : yᵢ = k}|
 4. Compute between-class SS: SS_B = Σₖ nₖ(x̄ₖ - x̄)²
-5. Return η² = SS_B / SS_T
+5. Return η = √(SS_B / SS_T)
 ```
 
 ### Implementation
@@ -78,7 +82,7 @@ def mc(x, y, n_classes, random_state=None):
             x_k_mean = np.mean(x[mask])
             ss_between += n_k * (x_k_mean - x_mean) ** 2
 
-    return ss_between / ss_total
+    return np.sqrt(ss_between / ss_total)
 ```
 
 ---
@@ -150,7 +154,8 @@ with O(n log n) complexity.
 ### Mathematical Definition
 
 RDC is defined as the largest canonical correlation between random non-linear
-projections of the copula-transformed variables:
+projections of the copula-transformed variables. **citrees uses a fast
+approximation** that replaces full CCA with a max pairwise-correlation step.
 
 $$RDC(X, Y) = \sup_{f,g \in \mathcal{F}} \text{Corr}(f(\Phi(X)), g(\Phi(Y)))$$
 
@@ -175,22 +180,26 @@ Input: x ∈ ℝⁿ, y ∈ ℝⁿ, projections k=20, bandwidth s=1/6
    Φ_x = [sin(x_copula · ω_x), cos(x_copula · ω_x)]  ∈ ℝⁿˣ²ᵏ
    Φ_y = [sin(y_copula · ω_y), cos(y_copula · ω_y)]  ∈ ℝⁿˣ²ᵏ
 
-3. Canonical Correlation Analysis:
-   Find u, v that maximize Corr(Φ_x · u, Φ_y · v)
+3. Approximate Canonical Correlation:
+   Compute max|Corr(Φ_x[:,j], Φ_y[:,k])| across all column pairs
+   (O(k²) approximation to true CCA)
 
-4. Return: max canonical correlation
+4. Return: max pairwise correlation
 ```
 
-### Properties (Rényi's Axioms)
+### Properties (Interpretation)
 
-RDC satisfies all of Rényi's axioms for dependence measures:
+RDC is a **randomized** dependence score designed to capture nonlinear association efficiently.
 
-1. **Defined for any pair**: Works for non-constant X, Y
-2. **Symmetric**: RDC(X, Y) = RDC(Y, X)
-3. **Bounded**: 0 ≤ RDC(X, Y) ≤ 1
-4. **Zero iff independent**: RDC(X, Y) = 0 ⟺ X ⊥ Y
-5. **Invariant to monotonic transforms**: RDC(f(X), g(Y)) = RDC(X, Y)
-6. **Maximum for functional relationships**: RDC(X, f(X)) = 1
+- **Defined for non-constant inputs**: If either input is constant, dependence measures are ill-posed; citrees returns 0
+  in such cases.
+- **Symmetric**: RDC(X, Y) = RDC(Y, X).
+- **Bounded**: 0 ≤ RDC(X, Y) ≤ 1 (as a correlation magnitude).
+- **Monotone-transform robustness**: The rank (copula) transform makes the score insensitive to strictly monotone
+  transforms of each marginal (up to finite-sample ranking ties).
+- **Dependence detection (heuristic at finite n)**: In finite samples with a finite number of random features and the
+  approximation used in citrees, RDC should be read as a practical dependence score, not as an exact “0 iff
+  independent” guarantee.
 
 ### Complexity
 
@@ -208,7 +217,7 @@ RDC satisfies all of Rényi's axioms for dependence measures:
 | Non-linear detection | ✓          | ✓                    |
 | Time complexity      | O(n log n) | O(n²)                |
 | Space complexity     | O(nk)      | O(n²)                |
-| 10,000 samples       | ~0.1s      | ~50s                 |
+| Large n scaling       | Typically faster | Typically slower |
 
 ---
 
@@ -316,7 +325,9 @@ samples.
 
 citrees supports combining multiple selectors using the **max-T method**
 (Westfall & Young, 1993). The permutation test computes max(selector_scores)
-inside each permutation, providing valid Type I error control.
+inside each permutation. In fixed-$B$ mode at a fixed node, this yields a
+standard exchangeability-based (super-uniform) permutation p-value for the
+composite max statistic.
 
 Each selector in the list must be unique - duplicates are not allowed.
 
@@ -333,15 +344,27 @@ reg = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
 ### Algorithm
 
 ```
-Algorithm: Multi-Selector Feature Selection
-Input: X ∈ ℝⁿˣᵖ, y, selectors S = {s₁, ..., sₘ}
+Algorithm: Max-T Permutation Test (per feature)
+Input: feature x ∈ ℝⁿ, labels y, selectors S = {s₁, ..., sₘ}, permutations B
+Output: p-value p
 
-For each feature j:
-    scores[j] = max_{s ∈ S} s(X[:,j], y)
-    best_selector[j] = argmax_{s ∈ S} s(X[:,j], y)
+1. Observed max statistic:
+   T0 ← max_{s ∈ S} |s(x, y)|
 
-j* = argmax_j scores[j]
-p_value = PermutationTest(X[:,j*], y, selector=best_selector[j*])
+2. Count exceedances:
+   L ← 0
+   For b = 1..B:
+       y_perm ← Permute(y)
+       Tb ← max_{s ∈ S} |s(x, y_perm)|
+       If Tb ≥ T0: L ← L + 1
+
+3. +1 corrected p-value:
+   p ← (L + 1) / (B + 1)
+
+4. Return p
+
+Stage A then computes p_j for each feature j using this max-T test and selects
+the feature with the smallest p-value.
 ```
 
 ### Compatibility

@@ -25,6 +25,7 @@ This file maps each paper-facing figure/table to:
     prevents “split unless significant” at the root.
 - Status:
   - Should be kept in main text (motivation figure).
+  - Generated on 2026-01-20.
 
 ### A2. Fixed-$B$ Monte Carlo p-value calibration (+1 correction)
 
@@ -36,6 +37,7 @@ This file maps each paper-facing figure/table to:
   - Empirical backstop for Theorem 1 (super-uniformity of the +1 Monte Carlo permutation p-value).
 - Status:
   - Appendix figure (calibration/sanity check).
+  - Generated on 2026-01-20.
 
 ### A3. Adaptive sequential stopping calibration (continuous-null idealization)
 
@@ -44,10 +46,11 @@ This file maps each paper-facing figure/table to:
   - `paper/results/cache/sequential_stopping_calibration_data.parquet`
 - Script: `paper/scripts/theory/generate_sequential_stopping_calibration.py`
 - Claim/story:
-  - Empirical backstop for the decision-level bound on `stop_sig` (Section 6.1).
+  - Empirical calibration of the early-stopping heuristic under a controlled null model.
   - Explicitly *not* a claim that the returned $\widehat p_\tau$ is a classical p-value under optional stopping.
 - Status:
   - Appendix figure (calibration/sanity check).
+  - Generated on 2026-01-20.
 
 ### A4. Martingale identity sanity check (developer note)
 
@@ -69,8 +72,16 @@ These are self-contained synthetic experiments for feature-selection behavior an
 
 ```bash
 uv sync --group paper
-UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figures.py
+UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figures.py --profile paper
 ```
+
+Notes:
+- `--profile paper` uses larger synthetic datasets than `--profile quick` (intended for publication-quality figures).
+- `--profile huge` is provided for “very large” runs (slow; mainly for stress-testing stability).
+- Profile defaults live in `paper/scripts/analysis/generate_figures.py` (see `PROFILES`).
+- In restricted/sandboxed environments, multiprocessing backends may be unavailable; the script will fall back to `n_jobs=1`.
+- Use `--only ...` to regenerate a subset, e.g.:
+  `UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figures.py --profile paper --only feature_selection signal`
 
 ### B1. Feature selection behavior (classification)
 
@@ -84,6 +95,17 @@ UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figure
   - How embedding methods split on informative vs noise features in a controlled setting.
 - Status:
   - Main text (core behavioral figure) + appendix table.
+
+### B1b. Feature selection behavior (regression)
+
+- Outputs:
+  - `paper/results/figures/regression_comparison.png`
+  - `paper/results/cache/regression_data.parquet`
+- Script: `paper/scripts/analysis/generate_figures.py`
+- Claim/story:
+  - Controlled regression toy experiment: split quality on known-informative features.
+- Status:
+  - Appendix or “sanity check” figure (not real-data performance).
 
 ### B2. Synthetic robustness slices (one question per figure)
 
@@ -122,13 +144,11 @@ UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figure
 These figures depend on the full experiment pipeline (S3-backed in the current setup). They should only be used in the
 paper after verifying the underlying parquet artifacts correspond to the reported benchmark protocol.
 
-- Existing artifacts in `paper/results/`:
-  - `paper/results/figures/regression_comparison.png`
-  - `paper/results/cache/regression_data.parquet`
-  - (and any other `*_comparison.png` figures)
+- Existing artifacts in `paper/results/` are **synthetic** (from `generate_figures.py`).
+- Real-data figures are not checked in and must be generated from S3-backed Stage 2 metrics.
 - Scripts:
   - Stage 1 (rankings): `paper/scripts/experiments/ray_feature_selection.py`
   - Stage 2 (downstream eval): `paper/scripts/experiments/ray_eval.py`
-  - Analysis aggregation: `paper/scripts/analysis/analysis.py`
+  - Analysis aggregation: `paper/scripts/analysis/stats.py`
 - Paper rule:
   - Every number/curve must have a traceable pipeline: config → parquet inputs → analysis script → figure output.

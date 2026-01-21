@@ -15,6 +15,13 @@ separates the target variable.
 
 ---
 
+**Implementation note.** In citrees, `gini(y)`, `entropy(y)`, `mse(y)`, and `mae(y)` are **node impurity** functions.
+There are two related “split quality” quantities used in different places:
+
+- **Weighted child impurity** (CART-style): $(n_L/n)\,I(y_L) + (n_R/n)\,I(y_R)$, used for `min_impurity_decrease`,
+  threshold scanning, and impurity-based feature importances.
+- **Unweighted child impurity sum**: $I(y_L) + I(y_R)$, used as the Stage B permutation-test statistic in citrees.
+
 ## Gini Impurity (gini)
 
 **Default for classification.** Measures the probability of incorrect
@@ -69,30 +76,20 @@ Input: Feature x ∈ ℝⁿ, labels y ∈ {1,...,K}ⁿ, threshold c
 ### Implementation
 
 ```python
+# Node impurity (citrees/_splitter.py)
 @njit(cache=True, fastmath=True, nogil=True)
-def gini(y_left, y_right, n_classes):
-    n_left = len(y_left)
-    n_right = len(y_right)
-    n_total = n_left + n_right
+def gini(y):
+    n = len(y)
+    p = np.bincount(y) / n
+    return 1.0 - np.sum(p * p)
 
-    if n_left == 0 or n_right == 0:
-        return 1.0  # Invalid split
-
-    # Count classes in each partition
-    counts_left = np.zeros(n_classes)
-    counts_right = np.zeros(n_classes)
-
-    for i in range(n_left):
-        counts_left[y_left[i]] += 1
-    for i in range(n_right):
-        counts_right[y_right[i]] += 1
-
-    # Compute Gini
-    gini_left = 1.0 - np.sum((counts_left / n_left) ** 2)
-    gini_right = 1.0 - np.sum((counts_right / n_right) ** 2)
-
-    # Weighted average
-    return (n_left * gini_left + n_right * gini_right) / n_total
+# Split impurity (citrees/_tree.py)
+def gini_split(x, y, threshold):
+    idx = x <= threshold
+    n = len(y)
+    n_left = idx.sum()
+    n_right = n - n_left
+    return (n_left / n) * gini(y[idx]) + (n_right / n) * gini(y[~idx])
 ```
 
 ### Comparison with Entropy
@@ -218,23 +215,20 @@ Input: Feature x ∈ ℝⁿ, target y ∈ ℝⁿ, threshold c
 Using the variance formula $Var(Y) = E[Y^2] - E[Y]^2$:
 
 ```python
+# Node impurity (citrees/_splitter.py)
 @njit(cache=True, fastmath=True, nogil=True)
-def mse_split(y_left, y_right):
-    n_left = len(y_left)
-    n_right = len(y_right)
-    n_total = n_left + n_right
+def mse(y):
+    dev = y - y.mean()
+    dev *= dev
+    return np.mean(dev)
 
-    if n_left == 0 or n_right == 0:
-        return np.inf
-
-    # Using variance formula: Var = E[Y²] - E[Y]²
-    mean_left = np.mean(y_left)
-    mean_right = np.mean(y_right)
-
-    mse_left = np.mean((y_left - mean_left) ** 2)
-    mse_right = np.mean((y_right - mean_right) ** 2)
-
-    return (n_left * mse_left + n_right * mse_right) / n_total
+# Split impurity (citrees/_tree.py)
+def mse_split(x, y, threshold):
+    idx = x <= threshold
+    n = len(y)
+    n_left = idx.sum()
+    n_right = n - n_left
+    return (n_left / n) * mse(y[idx]) + (n_right / n) * mse(y[~idx])
 ```
 
 ---
@@ -304,9 +298,10 @@ $$H_0: \text{The split provides no improvement in prediction}$$
 
 ### Test Statistic
 
-The test statistic is the impurity reduction:
+The implementation uses the **unweighted sum of child impurities** as the test
+statistic (lower is better):
 
-$$\Delta = \text{Impurity}_{parent} - \text{Impurity}_{split}$$
+$$S = \text{Impurity}(y_L) + \text{Impurity}(y_R)$$
 
 ### Permutation Procedure
 
@@ -315,21 +310,22 @@ Algorithm: Splitter Permutation Test
 Input: x ∈ ℝⁿ, y, threshold c, n_resamples
 
 1. Compute observed statistic:
-   Δ_obs = Impurity(y) - Impurity_split(x, y, c)
+   S_obs = Impurity(y_L) + Impurity(y_R)
 
 2. Generate null distribution:
    For b = 1 to n_resamples:
        y_perm = shuffle(y)
-       Δ_perm[b] = Impurity(y_perm) - Impurity_split(x, y_perm, c)
+       S_perm[b] = Impurity(y_perm[L]) + Impurity(y_perm[R])
 
-3. Compute p-value:
-   p = (1 + Σ_b 𝟙[Δ_perm[b] ≥ Δ_obs]) / (1 + n_resamples)
+3. Compute p-value (left-tail):
+   p = (1 + Σ_b 𝟙[S_perm[b] ≤ S_obs]) / (1 + n_resamples)
 
 4. Return p
 ```
 
-The `+1` in numerator and denominator is a finite-sample correction ensuring
-valid p-values.
+The `+1` in numerator and denominator is the Phipson–Smyth finite-sample
+correction: it prevents p-values of exactly zero and yields a super-uniform
+fixed-$B$ permutation p-value under the usual exchangeability conditions.
 
 ---
 
@@ -339,7 +335,7 @@ citrees supports multiple methods for generating candidate split thresholds:
 
 | Method       | Description       | Use Case                |
 | ------------ | ----------------- | ----------------------- |
-| `exact`      | All unique values | Small datasets, precise |
+| `exact`      | All unique midpoints | Small datasets, precise |
 | `random`     | Random subset     | Large datasets          |
 | `percentile` | Quantile-based    | Robust to outliers      |
 | `histogram`  | Equal-width bins  | Very large datasets     |
@@ -350,22 +346,27 @@ citrees supports multiple methods for generating candidate split thresholds:
 Algorithm: Generate Thresholds
 Input: x ∈ ℝⁿ, method, max_thresholds
 
+k = min(max_thresholds, |unique(x)| - 1) if max_thresholds else |unique(x)| - 1
+
 Case method:
     "exact":
-        thresholds = unique(x)[:-1]  # All but last
+        values = unique(x)
+        thresholds = midpoints(values)  # (values[i] + values[i+1]) / 2
 
     "random":
-        unique_vals = unique(x)
-        k = min(max_thresholds, len(unique_vals))
-        thresholds = random_sample(unique_vals, k)
+        values = unique(x)
+        midpoints = (values[:-1] + values[1:]) / 2
+        thresholds = random_sample(midpoints, k)
 
     "percentile":
-        percentiles = linspace(0, 100, max_thresholds + 2)[1:-1]
-        thresholds = percentile(x, percentiles)
+        values = unique(x)
+        midpoints = (values[:-1] + values[1:]) / 2
+        thresholds = percentile(midpoints, linspace(0, 100, k))
 
     "histogram":
-        bins = linspace(min(x), max(x), max_thresholds + 1)
-        thresholds = bins[1:-1]
+        values = unique(x)
+        midpoints = (values[:-1] + values[1:]) / 2
+        thresholds = histogram_bins(midpoints, k)
 
 Return thresholds
 ```

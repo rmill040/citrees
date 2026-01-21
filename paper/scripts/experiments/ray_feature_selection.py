@@ -40,15 +40,19 @@ from citrees._selector import (
 )
 from paper.scripts.experiments._common import (
     get_git_sha,
+    get_dataset_metadata,
     get_dataset_shape,
     get_datasets,
+    list_s3_completed,
     load_dataset,
     rankings_s3_path,
+    s3_file_exists,
     utc_now_iso,
     upload_parquet_to_s3,
 )
 from paper.scripts.experiments._driver import (
     build_common_parser,
+    filter_missing,
     init_ray,
     iter_grid,
     log_dry_run,
@@ -131,6 +135,13 @@ def selection_num_cpus(method: str, *, n_samples: int | None = None, n_features:
     return exp.selection_cpus_default
 
 
+def _encode_labels(y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return (y_encoded, classes) with labels mapped to 0..K-1."""
+    y_arr = np.asarray(y).ravel()
+    classes, y_encoded = np.unique(y_arr, return_inverse=True)
+    return y_encoded.astype(np.int64), classes
+
+
 def filter_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, random_state: int) -> np.ndarray:
     n_features = X.shape[1]
     selectors = ClassifierSelectors if task_type == "classification" else RegressorSelectors
@@ -139,9 +150,10 @@ def filter_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, r
     rng = np.random.default_rng(random_state)
 
     if task_type == "classification":
-        n_classes = len(np.unique(y))
+        y_enc, classes = _encode_labels(y)
+        n_classes = len(classes)
         for j in range(n_features):
-            scores[j] = selector_fn(X[:, j], y, n_classes, random_state=rng.integers(0, 2**31))
+            scores[j] = selector_fn(X[:, j], y_enc, n_classes, random_state=rng.integers(0, 2**31))
     else:
         use_abs = method == "pc"
         for j in range(n_features):
@@ -164,13 +176,14 @@ def permutation_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: s
     rng = np.random.default_rng(random_state)
 
     if task_type == "classification":
-        n_classes = len(np.unique(y))
+        y_enc, classes = _encode_labels(y)
+        n_classes = len(classes)
         for j in range(n_features):
             rs = rng.integers(0, 2**31)
-            scores[j] = selector_fn(X[:, j], y, n_classes, random_state=rs)
+            scores[j] = selector_fn(X[:, j], y_enc, n_classes, random_state=rs)
             pvalues[j] = test_fn(
                 x=X[:, j],
-                y=y,
+                y=y_enc,
                 n_classes=n_classes,
                 alpha=0.05,
                 n_resamples=1000,
@@ -299,20 +312,11 @@ def embedding_selector(
     random_state: int,
     params: dict[str, Any] | None = None,
     n_jobs: int = _DEFAULT_N_JOBS,
-) -> tuple[np.ndarray, dict[str, Any]]:
+) -> np.ndarray:
     model = get_embedding_model(method, task_type, random_state, n_jobs=n_jobs, params=params)
     model.fit(X_train, y_train)
     ranking = np.argsort(model.feature_importances_)[::-1]
-
-    embedding_data = {
-        "train_preds": model.predict(X_train).tolist(),
-        "test_preds": model.predict(X_test).tolist(),
-    }
-    if task_type == "classification" and hasattr(model, "predict_proba"):
-        embedding_data["train_proba"] = model.predict_proba(X_train).tolist()
-        embedding_data["test_proba"] = model.predict_proba(X_test).tolist()
-
-    return ranking, embedding_data
+    return ranking
 
 
 def boruta_selector(
@@ -539,14 +543,12 @@ def run_selection(
         X_test = scaler.transform(X_test_raw)
 
         rs = seed + fold_idx
-        embedding_data = None
-
         if method in ["mc", "mi", "rdc", "pc", "dc"]:
             ranking = filter_selector(X_train, y_train, method, task_type, rs)
         elif method.startswith("ptest_"):
             ranking = permutation_selector(X_train, y_train, method, task_type, rs)
         elif method in ["rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
-            ranking, embedding_data = embedding_selector(
+            ranking = embedding_selector(
                 X_train, y_train, X_test, y_test, method, task_type, rs, params=params, n_jobs=n_jobs
             )
         elif method == "boruta":
@@ -568,8 +570,6 @@ def run_selection(
             "fold_idx": fold_idx,
             "feature_ranking": ranking.tolist(),
         }
-        if embedding_data:
-            fold_result.update({f"embedding_{k}": v for k, v in embedding_data.items()})
 
         results.append(fold_result)
 
@@ -584,6 +584,7 @@ def process_config(
     task_type: str,
     selection_cpus: int,
     git_sha: str,
+    skip_existing: bool = False,
 ) -> dict[str, Any]:
     method = config["method"]
     params = extract_params(config)
@@ -597,9 +598,30 @@ def process_config(
     except Exception:
         pass
 
+    # Skip if output exists (per-task check for extra safety)
+    if skip_existing:
+        try:
+            if s3_file_exists(s3_path, region_name=config.region):
+                return {
+                    "status": "skipped",
+                    "method": method_id,
+                    "dataset": dataset,
+                    "seed": seed,
+                    "selection_cpus": selection_cpus,
+                    "s3_path": s3_path,
+                    "reason": "output_exists",
+                    **runtime,
+                }
+        except Exception:
+            pass  # Continue if check fails
+
     try:
         X, y = load_dataset(dataset, task_type)
         n_samples, n_features = int(X.shape[0]), int(X.shape[1])
+
+        # Get dataset metadata for provenance
+        dataset_meta = get_dataset_metadata(dataset, task_type)
+
         created_at_utc = utc_now_iso()
         tic = time.perf_counter()
         results = run_selection(X, y, method, task_type, seed, params=params, n_jobs=selection_cpus)
@@ -618,6 +640,11 @@ def process_config(
             row["elapsed_seconds"] = float(elapsed)
             row["created_at_utc"] = created_at_utc
             row["git_sha"] = git_sha
+            # Add dataset metadata
+            row["dataset_source"] = dataset_meta.get("dataset_source")
+            row["dataset_type"] = dataset_meta.get("dataset_type")
+            row["dataset_family"] = dataset_meta.get("dataset_family")
+            row["n_informative"] = dataset_meta.get("n_informative")
         upload_parquet_to_s3(
             results,
             s3_path,
@@ -669,10 +696,23 @@ def main():
         seeds_csv=args.seeds,
     )
 
-    total = len(method_configs) * len(datasets) * len(seeds)
+    total_expected = len(method_configs) * len(datasets) * len(seeds)
+    grid = list(iter_grid(method_configs, datasets, seeds))
+    if args.only_missing:
+        completed = list_s3_completed("rankings", task_type, region_name=config.region)
+        pending = filter_missing(grid, completed)
+        logger.info(
+            "Stage 1 only-missing: expected={}, completed_in_s3={}, pending={}",
+            total_expected,
+            len(completed),
+            len(pending),
+        )
+    else:
+        pending = grid
+
     logger.info(
         "Submitting {} configs ({} methods × {} datasets × {} seeds)",
-        total,
+        len(pending),
         len(method_configs),
         len(datasets),
         len(seeds),
@@ -697,11 +737,11 @@ def main():
         return f"method={config_label(method_cfg)}, dataset={dataset}, seed={seed}, num_cpus={selection_cpus}"
 
     if args.dry_run:
-        log_dry_run(iter_grid(method_configs, datasets, seeds), stage="stage1", describe=_describe)
+        log_dry_run(pending, stage="stage1", limit=args.dry_run_limit, describe=_describe)
         return
 
     futures = []
-    for method_cfg, dataset, seed in iter_grid(method_configs, datasets, seeds):
+    for method_cfg, dataset, seed in pending:
         method = method_cfg["method"]
         n_samples, n_features = dataset_shapes[dataset]
         selection_cpus = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
@@ -713,10 +753,13 @@ def main():
                 task_type,
                 selection_cpus,
                 git_sha,
+                skip_existing=args.skip_existing,
             )
         )
 
-    _counts, failures, _elapsed, _results = run_futures(futures, stage="stage1", success_statuses={"done"})
+    _counts, failures, _elapsed, _results = run_futures(
+        futures, stage="stage1", success_statuses={"done"}, skip_statuses={"skipped"}
+    )
     log_failures(failures, stage="stage1")
 
 

@@ -6,12 +6,37 @@ Creates visualizations comparing feature selection behavior across methods:
 - Box plots for downstream performance
 
 Usage:
-    uv run python scripts/generate_figures.py
+    uv sync --group paper
+    UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figures.py --profile paper
+
+Profiles:
+  - quick: fast sanity run (small n, few repeats)
+  - paper: larger synthetic datasets for publication figures
+  - huge: very large runs (slow; use with care)
 """
 
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import tempfile
 import warnings
 from collections import Counter
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
 from pathlib import Path
+
+_paper_dir = Path(__file__).resolve().parents[2]
+# Ensure Matplotlib/fontconfig caches are writable in sandboxed environments.
+_cache_root = Path(tempfile.gettempdir()) / "citrees-paper-cache"
+_mpl_dir = _cache_root / "mplconfig"
+_xdg_dir = _cache_root / "xdg-cache"
+_mpl_dir.mkdir(parents=True, exist_ok=True)
+_xdg_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(_mpl_dir))
+os.environ.setdefault("XDG_CACHE_HOME", str(_xdg_dir))
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,12 +59,142 @@ from citrees import (
 
 warnings.filterwarnings("ignore")
 
-RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+RESULTS_DIR = _paper_dir / "results"
 FIGURES_DIR = RESULTS_DIR / "figures"
 TABLES_DIR = RESULTS_DIR / "tables"
 CACHE_DIR = RESULTS_DIR / "cache"
-RANDOM_STATE = 1718
-N_REPEATS = 10
+
+
+@dataclass(frozen=True)
+class FigureRunConfig:
+    profile: str
+    seed: int
+    n_repeats: int
+    n_jobs: int
+    n_samples_main: int
+    n_estimators_forest: int
+    train_fraction: float
+    timing_repeats: int
+    timing_n_samples: int
+    timing_n_features: int
+    highdim_repeats: int
+    highdim_n: int
+    sample_size_grid: tuple[int, ...]
+
+
+PROFILES: dict[str, FigureRunConfig] = {
+    "quick": FigureRunConfig(
+        profile="quick",
+        seed=1718,
+        n_repeats=5,
+        n_jobs=1,
+        n_samples_main=500,
+        n_estimators_forest=50,
+        train_fraction=0.8,
+        timing_repeats=1,
+        timing_n_samples=500,
+        timing_n_features=100,
+        highdim_repeats=3,
+        highdim_n=200,
+        sample_size_grid=(100, 200, 500, 1000),
+    ),
+    "paper": FigureRunConfig(
+        profile="paper",
+        seed=1718,
+        n_repeats=10,
+        n_jobs=-1,
+        n_samples_main=2000,
+        n_estimators_forest=100,
+        train_fraction=0.8,
+        timing_repeats=3,
+        timing_n_samples=2000,
+        timing_n_features=200,
+        highdim_repeats=5,
+        highdim_n=500,
+        sample_size_grid=(200, 500, 1000, 2000, 5000),
+    ),
+    "huge": FigureRunConfig(
+        profile="huge",
+        seed=1718,
+        n_repeats=20,
+        n_jobs=-1,
+        n_samples_main=5000,
+        n_estimators_forest=200,
+        train_fraction=0.8,
+        timing_repeats=5,
+        timing_n_samples=5000,
+        timing_n_features=300,
+        highdim_repeats=10,
+        highdim_n=1000,
+        sample_size_grid=(200, 500, 1000, 2000, 5000, 10000),
+    ),
+}
+
+FIGURE_IDS: tuple[str, ...] = (
+    "feature_selection",
+    "timing",
+    "correlated",
+    "complexity",
+    "highdim",
+    "signal",
+    "redundant",
+    "multiclass",
+    "imbalanced",
+    "sample_size",
+    "regression",
+)
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", choices=sorted(PROFILES.keys()), default="paper")
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--n-repeats", type=int, default=None)
+    parser.add_argument("--n-samples", type=int, default=None, help="Base n for main synthetic figures.")
+    parser.add_argument("--n-estimators", type=int, default=None, help="n_estimators for forests (RF/ET/CIF).")
+    parser.add_argument("--n-jobs", type=int, default=None, help="Parallel jobs for sklearn and CIForest.")
+    parser.add_argument(
+        "--only",
+        nargs="*",
+        default=None,
+        choices=list(FIGURE_IDS),
+        help=(
+            "Run only a subset of figures. Options: feature_selection, timing, correlated, complexity, highdim, "
+            "signal, redundant, multiclass, imbalanced, sample_size, regression"
+        ),
+    )
+    return parser.parse_args()
+
+
+def _resolve_config(args: argparse.Namespace) -> FigureRunConfig:
+    cfg = PROFILES[str(args.profile)]
+    cfg = replace(cfg, profile=str(args.profile))
+    if args.seed is not None:
+        cfg = replace(cfg, seed=int(args.seed))
+    if args.n_repeats is not None:
+        cfg = replace(cfg, n_repeats=int(args.n_repeats))
+    if args.n_samples is not None:
+        cfg = replace(cfg, n_samples_main=int(args.n_samples))
+    if args.n_estimators is not None:
+        cfg = replace(cfg, n_estimators_forest=int(args.n_estimators))
+    if args.n_jobs is not None:
+        cfg = replace(cfg, n_jobs=int(args.n_jobs))
+
+    # Some sandboxed environments disallow `os.sysconf(...)`, which joblib/loky uses to validate
+    # system semaphore limits before spawning processes. Fall back to single-threaded execution
+    # rather than crashing, while still allowing `n_jobs != 1` on normal systems.
+    if cfg.n_jobs != 1:
+        try:
+            os.sysconf("SC_SEM_NSEMS_MAX")
+        except PermissionError:
+            print(
+                "Parallel backends unavailable in this environment; falling back to n_jobs=1.",
+                file=sys.stderr,
+                flush=True,
+            )
+            cfg = replace(cfg, n_jobs=1)
+
+    return cfg
 
 
 def count_splits_sklearn(estimator) -> Counter:
@@ -70,7 +225,7 @@ def count_splits_citree(tree_dict: dict, counts: Counter | None = None) -> Count
     return counts
 
 
-def run_feature_selection_experiment(task: str = "classification") -> pd.DataFrame:
+def run_feature_selection_experiment(task: str, cfg: FigureRunConfig) -> pd.DataFrame:
     """Run feature selection experiment across methods.
 
     Parameters
@@ -87,58 +242,64 @@ def run_feature_selection_experiment(task: str = "classification") -> pd.DataFra
     n_informative = 5
     n_features = 20
 
-    for repeat in range(N_REPEATS):
-        print(f"  Repeat {repeat + 1}/{N_REPEATS}")
+    for repeat in range(cfg.n_repeats):
+        print(f"  Repeat {repeat + 1}/{cfg.n_repeats}")
 
         # Generate data with explicit informative features
         # shuffle=False keeps informative features at indices 0 to n_informative-1
         if task == "classification":
             X, y = make_classification(
-                n_samples=500,
+                n_samples=cfg.n_samples_main,
                 n_features=n_features,
                 n_informative=n_informative,
                 n_redundant=0,
                 n_clusters_per_class=1,
                 flip_y=0.05,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
         else:
             X, y = make_regression(
-                n_samples=500,
+                n_samples=cfg.n_samples_main,
                 n_features=n_features,
                 n_informative=n_informative,
                 noise=10.0,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
 
         if task == "classification":
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestClassifier(
-                    n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
-                "dt": DecisionTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
                 "et": ExtraTreesClassifier(
-                    n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
         else:
             models = {
-                "cit": ConditionalInferenceTreeRegressor(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeRegressor(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestRegressor(
-                    n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
-                "dt": DecisionTreeRegressor(random_state=RANDOM_STATE + repeat),
+                "dt": DecisionTreeRegressor(random_state=cfg.seed + repeat),
                 "rf": RandomForestRegressor(
-                    n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
                 "et": ExtraTreesRegressor(
-                    n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
 
@@ -339,17 +500,17 @@ def generate_latex_table(stats_df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_timing_experiment() -> pd.DataFrame:
+def run_timing_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Run timing experiments varying key hyperparameters."""
     import time
 
     results = []
-    n_samples = 500
-    n_features = 100
+    n_samples = cfg.timing_n_samples
+    n_features = cfg.timing_n_features
 
     # Generate data once
     X, y = make_friedman1(
-        n_samples=n_samples, n_features=n_features, noise=1.0, random_state=RANDOM_STATE
+        n_samples=n_samples, n_features=n_features, noise=1.0, random_state=cfg.seed
     )
     y_binary = (y > np.median(y)).astype(int)
 
@@ -364,7 +525,7 @@ def run_timing_experiment() -> pd.DataFrame:
         # Early stopping
         {
             "name": "no_early_stop",
-            "params": {"early_stopping_selector": False, "early_stopping_splitter": False},
+            "params": {"early_stopping_selector": None, "early_stopping_splitter": None},
         },
         # Resamples
         {
@@ -389,8 +550,8 @@ def run_timing_experiment() -> pd.DataFrame:
         {
             "name": "fast",
             "params": {
-                "early_stopping_selector": True,
-                "early_stopping_splitter": True,
+                "early_stopping_selector": "adaptive",
+                "early_stopping_splitter": "adaptive",
                 "threshold_method": "histogram",
                 "max_thresholds": 128,
                 "n_resamples_selector": "auto",
@@ -399,10 +560,10 @@ def run_timing_experiment() -> pd.DataFrame:
         },
     ]
 
-    for repeat in range(5):
-        print(f"  Timing repeat {repeat + 1}/5")
+    for repeat in range(cfg.timing_repeats):
+        print(f"  Timing repeat {repeat + 1}/{cfg.timing_repeats}")
         for config in configs:
-            params = {"random_state": RANDOM_STATE + repeat, **config["params"]}
+            params = {"random_state": cfg.seed + repeat, "verbose": 0, **config["params"]}
             clf = ConditionalInferenceTreeClassifier(**params)
 
             tic = time.time()
@@ -516,7 +677,7 @@ def plot_timing_speedup(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_correlated_features_experiment() -> pd.DataFrame:
+def run_correlated_features_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Test feature selection with correlated features.
 
     Creates dataset where:
@@ -528,12 +689,12 @@ def run_correlated_features_experiment() -> pd.DataFrame:
     CITree should still prefer the original informative features.
     """
     results = []
-    n_samples = 500
+    n_samples = cfg.n_samples_main
     n_informative = 5
 
-    for repeat in range(N_REPEATS):
-        print(f"  Correlated repeat {repeat + 1}/{N_REPEATS}")
-        rng = np.random.RandomState(RANDOM_STATE + repeat)
+    for repeat in range(cfg.n_repeats):
+        print(f"  Correlated repeat {repeat + 1}/{cfg.n_repeats}")
+        rng = np.random.RandomState(cfg.seed + repeat)
 
         # Generate base classification data with explicit informative features
         X_base, y = make_classification(
@@ -543,7 +704,7 @@ def run_correlated_features_experiment() -> pd.DataFrame:
             n_redundant=0,
             n_clusters_per_class=1,
             shuffle=False,
-            random_state=RANDOM_STATE + repeat,
+            random_state=cfg.seed + repeat,
         )
 
         # Create correlated features (copies with small noise)
@@ -556,15 +717,18 @@ def run_correlated_features_experiment() -> pd.DataFrame:
         X = np.hstack([X_base, X_correlated, X_noise])
 
         models = {
-            "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+            "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
             "cif": ConditionalInferenceForestClassifier(
-                n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
+                verbose=0,
             ),
             "rf": RandomForestClassifier(
-                n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
             ),
             "et": ExtraTreesClassifier(
-                n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
             ),
         }
 
@@ -676,38 +840,38 @@ def plot_correlated_features(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_complexity_vs_accuracy_experiment() -> pd.DataFrame:
+def run_complexity_vs_accuracy_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Compare tree complexity (depth, n_splits) vs accuracy."""
     results = []
 
-    for repeat in range(N_REPEATS):
-        print(f"  Complexity repeat {repeat + 1}/{N_REPEATS}")
+    for repeat in range(cfg.n_repeats):
+        print(f"  Complexity repeat {repeat + 1}/{cfg.n_repeats}")
 
         # Use make_classification with explicit informative features
         X, y = make_classification(
-            n_samples=500,
+            n_samples=cfg.n_samples_main,
             n_features=20,
             n_informative=5,
             n_redundant=0,
             n_clusters_per_class=1,
             flip_y=0.05,
             shuffle=False,
-            random_state=RANDOM_STATE + repeat,
+            random_state=cfg.seed + repeat,
         )
 
         # Train/test split
-        n_train = 400
+        n_train = int(cfg.train_fraction * X.shape[0])
         X_train, X_test = X[:n_train], X[n_train:]
         y_train, y_test = y[:n_train], y[n_train:]
 
         models = {
-            "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
-            "dt": DecisionTreeClassifier(random_state=RANDOM_STATE + repeat),
+            "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+            "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
             "rf": RandomForestClassifier(
-                n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
             ),
             "et": ExtraTreesClassifier(
-                n_estimators=100, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
             ),
         }
 
@@ -717,9 +881,8 @@ def run_complexity_vs_accuracy_experiment() -> pd.DataFrame:
 
             # Get complexity metrics
             if name == "cit":
-                splits = []
-                count_splits_citree(model.tree_, Counter())  # Just to traverse
-                n_splits = sum(count_splits_citree(model.tree_).values())
+                counts = count_splits_citree(model.tree_)
+                n_splits = int(sum(counts.values()))
                 depth = model.depth_
             elif name == "dt":
                 n_splits = model.tree_.node_count
@@ -809,7 +972,7 @@ def plot_complexity_vs_accuracy(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_signal_strength_experiment() -> pd.DataFrame:
+def run_signal_strength_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Test performance with varying signal strength (class_sep).
 
     Uses make_classification with different class_sep values. Higher class_sep = more separable
@@ -823,9 +986,9 @@ def run_signal_strength_experiment() -> pd.DataFrame:
     for class_sep in class_seps:
         print(f"  Signal strength: class_sep={class_sep}")
 
-        for repeat in range(N_REPEATS):
+        for repeat in range(cfg.n_repeats):
             X, y = make_classification(
-                n_samples=500,
+                n_samples=cfg.n_samples_main,
                 n_features=20,
                 n_informative=5,
                 n_redundant=0,
@@ -833,22 +996,25 @@ def run_signal_strength_experiment() -> pd.DataFrame:
                 class_sep=class_sep,
                 flip_y=0.01,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
 
             # Train/test split
-            n_train = 400
+            n_train = int(cfg.train_fraction * X.shape[0])
             X_train, X_test = X[:n_train], X[n_train:]
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
-                "dt": DecisionTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
 
@@ -950,7 +1116,7 @@ def plot_signal_strength(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_redundant_features_experiment() -> pd.DataFrame:
+def run_redundant_features_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Test feature selection with sklearn's redundant feature generation.
 
     n_redundant creates linear combinations of informative features. This is different from our
@@ -965,9 +1131,9 @@ def run_redundant_features_experiment() -> pd.DataFrame:
         print(f"  Redundant features: n_redundant={n_redundant}")
         n_features = 5 + n_redundant + 10  # informative + redundant + noise
 
-        for repeat in range(N_REPEATS):
+        for repeat in range(cfg.n_repeats):
             X, y = make_classification(
-                n_samples=500,
+                n_samples=cfg.n_samples_main,
                 n_features=n_features,
                 n_informative=5,
                 n_redundant=n_redundant,
@@ -975,19 +1141,22 @@ def run_redundant_features_experiment() -> pd.DataFrame:
                 n_clusters_per_class=1,
                 flip_y=0.05,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
 
             # Feature layout: [informative (0-4), redundant (5-5+n_redundant), noise (rest)]
             n_informative = 5
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
                 "rf": RandomForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
 
@@ -1088,7 +1257,7 @@ def plot_redundant_features(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_multiclass_experiment() -> pd.DataFrame:
+def run_multiclass_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Test performance on multi-class problems."""
     results = []
 
@@ -1098,9 +1267,9 @@ def run_multiclass_experiment() -> pd.DataFrame:
     for n_classes in n_classes_values:
         print(f"  Multi-class: n_classes={n_classes}")
 
-        for repeat in range(N_REPEATS):
+        for repeat in range(cfg.n_repeats):
             X, y = make_classification(
-                n_samples=500,
+                n_samples=cfg.n_samples_main,
                 n_features=20,
                 n_informative=10,
                 n_redundant=0,
@@ -1108,22 +1277,25 @@ def run_multiclass_experiment() -> pd.DataFrame:
                 n_clusters_per_class=1,
                 flip_y=0.05,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
 
             # Train/test split
-            n_train = 400
+            n_train = int(cfg.train_fraction * X.shape[0])
             X_train, X_test = X[:n_train], X[n_train:]
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
-                "dt": DecisionTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
 
@@ -1224,7 +1396,7 @@ def plot_multiclass(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_imbalanced_experiment() -> pd.DataFrame:
+def run_imbalanced_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Test performance with class imbalance."""
     results = []
 
@@ -1240,9 +1412,9 @@ def run_imbalanced_experiment() -> pd.DataFrame:
         imbalance_ratio = max(weights) / min(weights)
         print(f"  Imbalance: {weights[0]:.2f}/{weights[1]:.2f} (ratio={imbalance_ratio:.1f})")
 
-        for repeat in range(N_REPEATS):
+        for repeat in range(cfg.n_repeats):
             X, y = make_classification(
-                n_samples=500,
+                n_samples=cfg.n_samples_main,
                 n_features=20,
                 n_informative=5,
                 n_redundant=0,
@@ -1250,22 +1422,25 @@ def run_imbalanced_experiment() -> pd.DataFrame:
                 weights=weights,
                 flip_y=0.01,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
 
             # Train/test split
-            n_train = 400
+            n_train = int(cfg.train_fraction * X.shape[0])
             X_train, X_test = X[:n_train], X[n_train:]
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
-                "dt": DecisionTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
 
@@ -1360,17 +1535,17 @@ def plot_imbalanced(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_sample_size_experiment() -> pd.DataFrame:
+def run_sample_size_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Test performance with varying sample sizes."""
     results = []
 
     # Vary sample size
-    n_samples_values = [100, 200, 500, 1000, 2000]
+    n_samples_values = list(cfg.sample_size_grid)
 
     for n_samples in n_samples_values:
         print(f"  Sample size: n={n_samples}")
 
-        for repeat in range(N_REPEATS):
+        for repeat in range(cfg.n_repeats):
             X, y = make_classification(
                 n_samples=n_samples,
                 n_features=20,
@@ -1379,22 +1554,25 @@ def run_sample_size_experiment() -> pd.DataFrame:
                 n_clusters_per_class=1,
                 flip_y=0.05,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
 
             # Train/test split (80/20)
-            n_train = int(0.8 * n_samples)
+            n_train = int(cfg.train_fraction * n_samples)
             X_train, X_test = X[:n_train], X[n_train:]
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
-                "dt": DecisionTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
 
@@ -1495,7 +1673,7 @@ def plot_sample_size(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_regression_experiment() -> pd.DataFrame:
+def run_regression_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Run feature selection experiment for regression.
 
     Uses make_regression with shuffle=False to have known informative features.
@@ -1504,34 +1682,37 @@ def run_regression_experiment() -> pd.DataFrame:
     n_informative = 5
     n_features = 20
 
-    for repeat in range(N_REPEATS):
-        print(f"  Regression repeat {repeat + 1}/{N_REPEATS}")
+    for repeat in range(cfg.n_repeats):
+        print(f"  Regression repeat {repeat + 1}/{cfg.n_repeats}")
 
         X, y = make_regression(
-            n_samples=500,
+            n_samples=cfg.n_samples_main,
             n_features=n_features,
             n_informative=n_informative,
             noise=10.0,
             shuffle=False,
-            random_state=RANDOM_STATE + repeat,
+            random_state=cfg.seed + repeat,
         )
 
         # Train/test split
-        n_train = 400
+        n_train = int(cfg.train_fraction * X.shape[0])
         X_train, X_test = X[:n_train], X[n_train:]
         y_train, y_test = y[:n_train], y[n_train:]
 
         models = {
-            "cit": ConditionalInferenceTreeRegressor(random_state=RANDOM_STATE + repeat),
+            "cit": ConditionalInferenceTreeRegressor(random_state=cfg.seed + repeat, verbose=0),
             "cif": ConditionalInferenceForestRegressor(
-                n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
+                verbose=0,
             ),
-            "dt": DecisionTreeRegressor(random_state=RANDOM_STATE + repeat),
+            "dt": DecisionTreeRegressor(random_state=cfg.seed + repeat),
             "rf": RandomForestRegressor(
-                n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
             ),
             "et": ExtraTreesRegressor(
-                n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
             ),
         }
 
@@ -1646,7 +1827,7 @@ def plot_regression_comparison(df: pd.DataFrame, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-def run_high_dimensional_experiment() -> pd.DataFrame:
+def run_high_dimensional_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
     """Test performance on high-dimensional data (p >> n).
 
     Uses make_classification with shuffle=False so first k features are guaranteed to be informative
@@ -1654,19 +1835,16 @@ def run_high_dimensional_experiment() -> pd.DataFrame:
     """
     results = []
 
-    # Vary p/n ratio
-    configs = [
-        {"n": 200, "p": 50, "k": 5},  # p/n = 0.25
-        {"n": 200, "p": 200, "k": 5},  # p/n = 1
-        {"n": 200, "p": 500, "k": 5},  # p/n = 2.5
-        {"n": 200, "p": 1000, "k": 5},  # p/n = 5
-    ]
+    # Vary p/n ratio (p >> n regimes)
+    n = cfg.highdim_n
+    k = 5
+    p_over_n_grid = [0.25, 1.0, 2.5, 5.0]
+    p_grid = [max(10, int(round(r * n))) for r in p_over_n_grid]
 
-    for config in configs:
-        n, p, k = config["n"], config["p"], config["k"]
+    for p in p_grid:
         print(f"  High-dim: n={n}, p={p}")
 
-        for repeat in range(5):
+        for repeat in range(cfg.highdim_repeats):
             # Use make_classification with explicit informative features
             # shuffle=False ensures features 0 to k-1 are informative
             X, y = make_classification(
@@ -1677,21 +1855,24 @@ def run_high_dimensional_experiment() -> pd.DataFrame:
                 n_clusters_per_class=1,
                 flip_y=0.05,
                 shuffle=False,
-                random_state=RANDOM_STATE + repeat,
+                random_state=cfg.seed + repeat,
             )
 
             # Train/test split
-            n_train = int(0.8 * n)
+            n_train = int(cfg.train_fraction * n)
             X_train, X_test = X[:n_train], X[n_train:]
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=RANDOM_STATE + repeat),
+                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
                 "cif": ConditionalInferenceForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1, verbose=0
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
+                    verbose=0,
                 ),
                 "rf": RandomForestClassifier(
-                    n_estimators=50, random_state=RANDOM_STATE + repeat, n_jobs=-1
+                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
                 ),
             }
 
@@ -1790,128 +1971,159 @@ def plot_high_dimensional(df: pd.DataFrame, output_path: Path) -> None:
 
 
 def main() -> None:
-    """Generate all figures."""
+    """Generate figures (optionally a subset)."""
+    args = _parse_args()
+    cfg = _resolve_config(args)
+
+    selected = set(args.only) if args.only else set(FIGURE_IDS)
+
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Feature selection bias figures (classification)
+    run_meta = {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "selected_figures": sorted(selected),
+        **asdict(cfg),
+    }
+    (CACHE_DIR / "generate_figures_run.json").write_text(json.dumps(run_meta, indent=2, sort_keys=True))
+
     print("=" * 60)
-    print("1. Running feature selection bias experiment...")
-    clf_df = run_feature_selection_experiment("classification")
+    print(f"Profile: {cfg.profile}")
+    print(
+        f"n_samples_main={cfg.n_samples_main} | n_repeats={cfg.n_repeats} | "
+        f"n_estimators_forest={cfg.n_estimators_forest} | n_jobs={cfg.n_jobs}"
+    )
+    print(f"Selected figures: {', '.join(sorted(selected))}")
 
-    print("\nGenerating classification figures...")
-    plot_feature_selection_bars(clf_df, "classification", FIGURES_DIR / "feature_selection_clf.png")
-    plot_informative_ratio(clf_df, FIGURES_DIR / "informative_ratio.png")
+    # 1. Feature selection bias figures (classification)
+    if "feature_selection" in selected:
+        print("=" * 60)
+        print("1. Running feature selection bias experiment...")
+        clf_df = run_feature_selection_experiment("classification", cfg)
 
-    print("\nComputing statistics...")
-    stats_df = compute_statistics(clf_df)
-    print(stats_df.to_string(index=False))
+        print("\nGenerating classification figures...")
+        plot_feature_selection_bars(clf_df, "classification", FIGURES_DIR / "feature_selection_clf.png")
+        plot_informative_ratio(clf_df, FIGURES_DIR / "informative_ratio.png")
 
-    print("\nGenerating LaTeX table...")
-    generate_latex_table(stats_df, TABLES_DIR / "feature_selection_table.tex")
-    clf_df.to_parquet(CACHE_DIR / "feature_selection_data.parquet")
+        print("\nComputing statistics...")
+        stats_df = compute_statistics(clf_df)
+        print(stats_df.to_string(index=False))
+
+        print("\nGenerating LaTeX table...")
+        generate_latex_table(stats_df, TABLES_DIR / "feature_selection_table.tex")
+        clf_df.to_parquet(CACHE_DIR / "feature_selection_data.parquet")
 
     # 2. Timing figures
-    print("\n" + "=" * 60)
-    print("2. Running timing experiment...")
-    timing_df = run_timing_experiment()
+    if "timing" in selected:
+        print("\n" + "=" * 60)
+        print("2. Running timing experiment...")
+        timing_df = run_timing_experiment(cfg)
 
-    print("\nGenerating timing figures...")
-    plot_timing_bars(timing_df, FIGURES_DIR / "timing_bars.png")
-    plot_timing_speedup(timing_df, FIGURES_DIR / "timing_speedup.png")
-    timing_df.to_parquet(CACHE_DIR / "timing_data.parquet")
+        print("\nGenerating timing figures...")
+        plot_timing_bars(timing_df, FIGURES_DIR / "timing_bars.png")
+        plot_timing_speedup(timing_df, FIGURES_DIR / "timing_speedup.png")
+        timing_df.to_parquet(CACHE_DIR / "timing_data.parquet")
 
     # 3. Correlated features experiment
-    print("\n" + "=" * 60)
-    print("3. Running correlated features experiment...")
-    corr_df = run_correlated_features_experiment()
+    if "correlated" in selected:
+        print("\n" + "=" * 60)
+        print("3. Running correlated features experiment...")
+        corr_df = run_correlated_features_experiment(cfg)
 
-    print("\nGenerating correlated features figure...")
-    plot_correlated_features(corr_df, FIGURES_DIR / "correlated_features.png")
-    corr_df.to_parquet(CACHE_DIR / "correlated_features_data.parquet")
+        print("\nGenerating correlated features figure...")
+        plot_correlated_features(corr_df, FIGURES_DIR / "correlated_features.png")
+        corr_df.to_parquet(CACHE_DIR / "correlated_features_data.parquet")
 
-    print("\nCorrelated features summary:")
-    print(
-        corr_df.groupby("method")[["informative_pct", "correlated_pct", "noise_pct"]]
-        .mean()
-        .round(1)
-    )
+        print("\nCorrelated features summary:")
+        print(
+            corr_df.groupby("method")[["informative_pct", "correlated_pct", "noise_pct"]]
+            .mean()
+            .round(1)
+        )
 
     # 4. Complexity vs accuracy
-    print("\n" + "=" * 60)
-    print("4. Running complexity vs accuracy experiment...")
-    complexity_df = run_complexity_vs_accuracy_experiment()
+    if "complexity" in selected:
+        print("\n" + "=" * 60)
+        print("4. Running complexity vs accuracy experiment...")
+        complexity_df = run_complexity_vs_accuracy_experiment(cfg)
 
-    print("\nGenerating complexity figure...")
-    plot_complexity_vs_accuracy(complexity_df, FIGURES_DIR / "complexity_vs_accuracy.png")
-    complexity_df.to_parquet(CACHE_DIR / "complexity_data.parquet")
+        print("\nGenerating complexity figure...")
+        plot_complexity_vs_accuracy(complexity_df, FIGURES_DIR / "complexity_vs_accuracy.png")
+        complexity_df.to_parquet(CACHE_DIR / "complexity_data.parquet")
 
     # 5. High-dimensional experiment
-    print("\n" + "=" * 60)
-    print("5. Running high-dimensional experiment...")
-    highdim_df = run_high_dimensional_experiment()
+    if "highdim" in selected:
+        print("\n" + "=" * 60)
+        print("5. Running high-dimensional experiment...")
+        highdim_df = run_high_dimensional_experiment(cfg)
 
-    print("\nGenerating high-dimensional figure...")
-    plot_high_dimensional(highdim_df, FIGURES_DIR / "high_dimensional.png")
-    highdim_df.to_parquet(CACHE_DIR / "high_dimensional_data.parquet")
+        print("\nGenerating high-dimensional figure...")
+        plot_high_dimensional(highdim_df, FIGURES_DIR / "high_dimensional.png")
+        highdim_df.to_parquet(CACHE_DIR / "high_dimensional_data.parquet")
 
     # 6. Signal strength experiment
-    print("\n" + "=" * 60)
-    print("6. Running signal strength experiment...")
-    signal_df = run_signal_strength_experiment()
+    if "signal" in selected:
+        print("\n" + "=" * 60)
+        print("6. Running signal strength experiment...")
+        signal_df = run_signal_strength_experiment(cfg)
 
-    print("\nGenerating signal strength figure...")
-    plot_signal_strength(signal_df, FIGURES_DIR / "signal_strength.png")
-    signal_df.to_parquet(CACHE_DIR / "signal_strength_data.parquet")
+        print("\nGenerating signal strength figure...")
+        plot_signal_strength(signal_df, FIGURES_DIR / "signal_strength.png")
+        signal_df.to_parquet(CACHE_DIR / "signal_strength_data.parquet")
 
     # 7. Redundant features experiment
-    print("\n" + "=" * 60)
-    print("7. Running redundant features experiment...")
-    redundant_df = run_redundant_features_experiment()
+    if "redundant" in selected:
+        print("\n" + "=" * 60)
+        print("7. Running redundant features experiment...")
+        redundant_df = run_redundant_features_experiment(cfg)
 
-    print("\nGenerating redundant features figure...")
-    plot_redundant_features(redundant_df, FIGURES_DIR / "redundant_features.png")
-    redundant_df.to_parquet(CACHE_DIR / "redundant_features_data.parquet")
+        print("\nGenerating redundant features figure...")
+        plot_redundant_features(redundant_df, FIGURES_DIR / "redundant_features.png")
+        redundant_df.to_parquet(CACHE_DIR / "redundant_features_data.parquet")
 
     # 8. Multi-class experiment
-    print("\n" + "=" * 60)
-    print("8. Running multi-class experiment...")
-    multiclass_df = run_multiclass_experiment()
+    if "multiclass" in selected:
+        print("\n" + "=" * 60)
+        print("8. Running multi-class experiment...")
+        multiclass_df = run_multiclass_experiment(cfg)
 
-    print("\nGenerating multi-class figure...")
-    plot_multiclass(multiclass_df, FIGURES_DIR / "multiclass.png")
-    multiclass_df.to_parquet(CACHE_DIR / "multiclass_data.parquet")
+        print("\nGenerating multi-class figure...")
+        plot_multiclass(multiclass_df, FIGURES_DIR / "multiclass.png")
+        multiclass_df.to_parquet(CACHE_DIR / "multiclass_data.parquet")
 
     # 9. Class imbalance experiment
-    print("\n" + "=" * 60)
-    print("9. Running class imbalance experiment...")
-    imbalance_df = run_imbalanced_experiment()
+    if "imbalanced" in selected:
+        print("\n" + "=" * 60)
+        print("9. Running class imbalance experiment...")
+        imbalance_df = run_imbalanced_experiment(cfg)
 
-    print("\nGenerating imbalance figure...")
-    plot_imbalanced(imbalance_df, FIGURES_DIR / "imbalanced.png")
-    imbalance_df.to_parquet(CACHE_DIR / "imbalanced_data.parquet")
+        print("\nGenerating imbalance figure...")
+        plot_imbalanced(imbalance_df, FIGURES_DIR / "imbalanced.png")
+        imbalance_df.to_parquet(CACHE_DIR / "imbalanced_data.parquet")
 
     # 10. Sample size experiment
-    print("\n" + "=" * 60)
-    print("10. Running sample size experiment...")
-    sample_df = run_sample_size_experiment()
+    if "sample_size" in selected:
+        print("\n" + "=" * 60)
+        print("10. Running sample size experiment...")
+        sample_df = run_sample_size_experiment(cfg)
 
-    print("\nGenerating sample size figure...")
-    plot_sample_size(sample_df, FIGURES_DIR / "sample_size.png")
-    sample_df.to_parquet(CACHE_DIR / "sample_size_data.parquet")
+        print("\nGenerating sample size figure...")
+        plot_sample_size(sample_df, FIGURES_DIR / "sample_size.png")
+        sample_df.to_parquet(CACHE_DIR / "sample_size_data.parquet")
 
     # 11. Regression experiment
-    print("\n" + "=" * 60)
-    print("11. Running regression experiment...")
-    reg_df = run_regression_experiment()
+    if "regression" in selected:
+        print("\n" + "=" * 60)
+        print("11. Running regression experiment...")
+        reg_df = run_regression_experiment(cfg)
 
-    print("\nGenerating regression figure...")
-    plot_regression_comparison(reg_df, FIGURES_DIR / "regression_comparison.png")
-    reg_df.to_parquet(CACHE_DIR / "regression_data.parquet")
+        print("\nGenerating regression figure...")
+        plot_regression_comparison(reg_df, FIGURES_DIR / "regression_comparison.png")
+        reg_df.to_parquet(CACHE_DIR / "regression_data.parquet")
 
-    print("\nRegression summary:")
-    print(reg_df.groupby("method")[["informative_ratio", "r2"]].mean().round(3))
+        print("\nRegression summary:")
+        print(reg_df.groupby("method")[["informative_ratio", "r2"]].mean().round(3))
 
     print("\n" + "=" * 60)
     print("All figures generated successfully!")

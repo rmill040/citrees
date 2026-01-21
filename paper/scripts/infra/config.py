@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -44,6 +45,11 @@ class Config:
     s3_bucket: str | None = None
     experiment: ExperimentConfig = field(default_factory=ExperimentConfig)
 
+    @property
+    def region(self) -> str:
+        """Alias for aws_region (backwards compatibility)."""
+        return self.aws_region
+
 
 def load_config(path: Path | None = None) -> Config:
     """Load configuration from YAML file.
@@ -72,10 +78,15 @@ def load_config(path: Path | None = None) -> Config:
     if not data:
         return Config()
 
+    s3_bucket = data.get("s3_bucket")
     config = Config(
         aws_region=data.get("aws_region", "us-east-1"),
-        s3_bucket=data.get("s3_bucket"),
+        s3_bucket=s3_bucket,
     )
+
+    # Set S3_BUCKET environment variable if configured (for get_s3_bucket() compatibility)
+    if s3_bucket and "S3_BUCKET" not in os.environ:
+        os.environ["S3_BUCKET"] = s3_bucket
 
     if exp_data := data.get("experiment"):
         cpu_overrides = exp_data.get("selection_cpus_overrides") or {}

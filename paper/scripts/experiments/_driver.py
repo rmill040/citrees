@@ -88,16 +88,46 @@ def build_common_parser(description: str) -> argparse.ArgumentParser:
 
 
 def init_ray(ray_address: str) -> None:
+    import os
+    from pathlib import Path
+
     register_signal_handlers()
+    # Exclude large files/directories to avoid exceeding Ray's 512MB package limit.
+    # Also exclude pyproject.toml/uv.lock to prevent Ray from creating a fresh venv
+    # (which would be missing ray itself, causing "No module named 'ray'" errors).
+    excludes = [
+        ".git/",
+        ".venv/",
+        ".uv-cache/",
+        ".ruff_cache/",
+        ".pytest_cache/",
+        ".mypy_cache/",
+        "__pycache__/",
+        "paper/data/",  # Large parquet datasets
+        "paper/results/",
+        "scratch/",
+        "pyproject.toml",  # Prevent Ray from creating new venv
+        "uv.lock",
+        "setup.py",
+        "setup.cfg",
+    ]
     if ray_address == "local":
-        # Declare custom resources for local mode so tasks requesting them can be scheduled.
-        # In cluster mode, these resources are declared in cluster.yaml.
+        # Local mode: workers run on the same machine and share the current environment.
+        # Set CITREES_REPO_ROOT so workers can find data files on the local filesystem
+        # (since paper/data is excluded from the package to keep size small).
+        repo_root = Path(__file__).resolve().parents[3]
+        env_vars = {"CITREES_REPO_ROOT": str(repo_root)}
         ray.init(
             resources={"selection": 4, "evaluation": 4},
+            runtime_env={"excludes": excludes, "env_vars": env_vars},
             ignore_reinit_error=True,
         )
     else:
-        ray.init(address=ray_address, ignore_reinit_error=True)
+        ray.init(
+            address=ray_address,
+            runtime_env={"excludes": excludes},
+            ignore_reinit_error=True,
+        )
 
 
 def resolve_grid(

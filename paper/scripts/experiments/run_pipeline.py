@@ -155,8 +155,11 @@ def main() -> None:
             selection_cpus = ray_feature_selection.selection_num_cpus(
                 method_base, n_samples=n_samples, n_features=n_features
             )
+            selection_memory = ray_feature_selection.selection_memory_bytes(method_base)
             futures.append(
-                ray_feature_selection.process_config.options(num_cpus=selection_cpus).remote(
+                ray_feature_selection.process_config.options(
+                    num_cpus=selection_cpus, memory=selection_memory
+                ).remote(
                     method_cfg,
                     dataset,
                     seed,
@@ -214,8 +217,11 @@ def main() -> None:
                     )
                 stage2_items.append((method_cfg, dataset, seed))
 
+        evaluation_memory = ray_eval.evaluation_memory_bytes(task_type)
         futures = [
-            ray_eval.process_config.options(num_cpus=evaluation_cpus).remote(
+            ray_eval.process_config.options(
+                num_cpus=evaluation_cpus, memory=evaluation_memory
+            ).remote(
                 method_cfg,
                 dataset,
                 seed,

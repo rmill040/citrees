@@ -212,10 +212,11 @@ def main() -> None:
         selection_cpus = ray_feature_selection.selection_num_cpus(
             method, n_samples=n_samples, n_features=n_features
         )
+        selection_memory = ray_feature_selection.selection_memory_bytes(method)
         stage1_futures.append(
-            ray_feature_selection.process_config.options(num_cpus=selection_cpus).remote(
-                method_cfg, dataset, seed, task_type, selection_cpus, git_sha
-            )
+            ray_feature_selection.process_config.options(
+                num_cpus=selection_cpus, memory=selection_memory
+            ).remote(method_cfg, dataset, seed, task_type, selection_cpus, git_sha)
         )
 
     stage1_results = ray.get(stage1_futures)
@@ -227,13 +228,14 @@ def main() -> None:
     # Stage 2: metrics
     # -----------------------------------------------------------------------------
     evaluation_cpus = ray_eval.evaluation_num_cpus(task_type)
+    evaluation_memory = ray_eval.evaluation_memory_bytes(task_type)
 
     stage2_futures = []
     for method_cfg in method_configs:
         stage2_futures.append(
-            ray_eval.process_config.options(num_cpus=evaluation_cpus).remote(
-                method_cfg, dataset, seed, task_type, evaluation_cpus, git_sha
-            )
+            ray_eval.process_config.options(
+                num_cpus=evaluation_cpus, memory=evaluation_memory
+            ).remote(method_cfg, dataset, seed, task_type, evaluation_cpus, git_sha)
         )
 
     stage2_results = ray.get(stage2_futures)

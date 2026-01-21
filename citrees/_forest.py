@@ -559,7 +559,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         pass
 
 
-class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, ClassifierMixin):
+class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInferenceForest):
     """Conditional inference forest classifier."""
 
     _estimator_type = "classifier"
@@ -694,7 +694,7 @@ class ConditionalInferenceForestClassifier(BaseConditionalInferenceForest, Class
         return self._label_encoder.inverse_transform(labels)
 
 
-class ConditionalInferenceForestRegressor(BaseConditionalInferenceForest, RegressorMixin):
+class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferenceForest):
     """Conditional inference forest regressor.
 
     Parameters

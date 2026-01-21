@@ -4,7 +4,7 @@ from math import ceil
 from typing import Any, TypedDict
 
 import numpy as np
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 from scipy.sparse import csr_matrix
 from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
@@ -87,6 +87,14 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     random_state: NonNegativeInt | None = None
     verbose: NonNegativeInt
     check_for_unused_parameters: bool
+
+    @field_validator("max_features", "max_thresholds", mode="before")
+    @classmethod
+    def _reject_bool(cls, v: Any) -> Any:
+        """Reject boolean values before they get coerced to int."""
+        if isinstance(v, bool):
+            raise ValueError(f"Cannot be boolean, got {v!r}")
+        return v
 
     @model_validator(mode="after")
     def validate_selector_splitter(self) -> "BaseConditionalInferenceTreeParameters":
@@ -1431,7 +1439,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         pass
 
 
-class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, ClassifierMixin):
+class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferenceTree):
     """Conditional inference tree classifier.
 
     Uses permutation-based hypothesis testing for unbiased variable selection.
@@ -1580,7 +1588,7 @@ class ConditionalInferenceTreeClassifier(BaseConditionalInferenceTree, Classifie
         return self._label_encoder.inverse_transform(labels)
 
 
-class ConditionalInferenceTreeRegressor(BaseConditionalInferenceTree, RegressorMixin):
+class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInferenceTree):
     """Conditional inference tree regressor.
 
     Uses permutation-based hypothesis testing for unbiased variable selection.

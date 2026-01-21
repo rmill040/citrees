@@ -20,6 +20,8 @@ def precision_at_k(ranking: list[int], true_indices: list[int], k: int) -> float
     float
         Precision@k: |top_k ∩ true| / k
     """
+    if k < 0:
+        raise ValueError(f"k must be non-negative, got {k}")
     if k == 0:
         return 0.0
     top_k = set(ranking[:k])
@@ -44,6 +46,8 @@ def recall_at_k(ranking: list[int], true_indices: list[int], k: int) -> float:
     float
         Recall@k: |top_k ∩ true| / |true|
     """
+    if k < 0:
+        raise ValueError(f"k must be non-negative, got {k}")
     if len(true_indices) == 0:
         return 0.0
     top_k = set(ranking[:k])
@@ -68,6 +72,8 @@ def f1_at_k(ranking: list[int], true_indices: list[int], k: int) -> float:
     float
         F1@k: harmonic mean of precision@k and recall@k
     """
+    if k < 0:
+        raise ValueError(f"k must be non-negative, got {k}")
     p = precision_at_k(ranking, true_indices, k)
     r = recall_at_k(ranking, true_indices, k)
     if p + r == 0:
@@ -92,6 +98,8 @@ def jaccard_at_k(ranking: list[int], true_indices: list[int], k: int) -> float:
     float
         Jaccard@k: |top_k ∩ true| / |top_k ∪ true|
     """
+    if k < 0:
+        raise ValueError(f"k must be non-negative, got {k}")
     top_k = set(ranking[:k])
     true_set = set(true_indices)
     intersection = len(top_k & true_set)

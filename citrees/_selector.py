@@ -735,7 +735,7 @@ def _rdc(x: np.ndarray, y: np.ndarray, k: int, s: float, seed: int) -> float:
             y_min = y[i]
         if y[i] > y_max:
             y_max = y[i]
-    if x_max - x_min < 1e-10 or y_max - y_min < 1e-10:
+    if x_max == x_min or y_max == y_min:
         return 0.0
 
     # Create features

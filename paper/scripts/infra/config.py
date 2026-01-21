@@ -447,7 +447,9 @@ def load_config(path: Path | None = None) -> Config:
             evaluation_cpus_default=exp_data.get("evaluation_cpus_default", 1),
             evaluation_cpus_overrides={str(k): int(v) for k, v in eval_cpu_overrides.items()},
             evaluation_memory_gb_default=float(exp_data.get("evaluation_memory_gb_default", 2.0)),
-            evaluation_memory_gb_overrides={str(k): float(v) for k, v in eval_mem_overrides.items()},
+            evaluation_memory_gb_overrides={
+                str(k): float(v) for k, v in eval_mem_overrides.items()
+            },
             s3_validate_uploads=bool(exp_data.get("s3_validate_uploads", False)),
         )
 

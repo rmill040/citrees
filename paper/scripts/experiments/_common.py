@@ -13,14 +13,16 @@ from __future__ import annotations
 import io
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 import boto3
-from botocore.exceptions import ClientError
 import numpy as np
 import pandas as pd
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
+from loguru import logger
 
 try:
     import pyarrow.parquet as pq
@@ -33,6 +35,7 @@ _S3_CLIENTS: dict[str | None, Any] = {}
 
 
 DataSource = Literal["real", "synthetic"]
+
 
 def get_repo_root() -> Path:
     """Return the repository root path.
@@ -64,7 +67,40 @@ def get_s3_bucket() -> str:
 
 def utc_now_iso() -> str:
     """Return current UTC time as an ISO-8601 string."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
+
+
+def get_library_versions() -> dict[str, str]:
+    """Return versions of key libraries for reproducibility tracking."""
+    versions: dict[str, str] = {}
+
+    try:
+        import sklearn
+
+        versions["sklearn"] = sklearn.__version__
+    except Exception:
+        pass
+
+    try:
+        versions["numpy"] = np.__version__
+    except Exception:
+        pass
+
+    try:
+        import numba
+
+        versions["numba"] = numba.__version__
+    except Exception:
+        pass
+
+    try:
+        import citrees
+
+        versions["citrees"] = getattr(citrees, "__version__", "unknown")
+    except Exception:
+        pass
+
+    return versions
 
 
 def get_git_sha() -> str:
@@ -81,7 +117,9 @@ def get_git_sha() -> str:
 
     repo_root = get_repo_root()
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_root, text=True).strip()
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
+        ).strip()
     except Exception:
         return "unknown"
 
@@ -227,12 +265,16 @@ def get_dataset_shape(
     return int(X.shape[0]), int(X.shape[1])
 
 
-def rankings_s3_path(task_type: TaskType, dataset: str, method_id: str, seed: int, *, bucket: str | None = None) -> str:
+def rankings_s3_path(
+    task_type: TaskType, dataset: str, method_id: str, seed: int, *, bucket: str | None = None
+) -> str:
     bucket = bucket or get_s3_bucket()
     return f"s3://{bucket}/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
 
 
-def metrics_s3_path(task_type: TaskType, dataset: str, method_id: str, seed: int, *, bucket: str | None = None) -> str:
+def metrics_s3_path(
+    task_type: TaskType, dataset: str, method_id: str, seed: int, *, bucket: str | None = None
+) -> str:
     bucket = bucket or get_s3_bucket()
     return f"s3://{bucket}/metrics/{task_type}/{dataset}/{method_id}_seed{seed}.parquet"
 
@@ -245,9 +287,16 @@ def _split_s3_path(s3_path: str) -> tuple[str, str]:
 
 
 def get_s3_client(*, region_name: str | None = None):
-    """Create and cache an S3 client (safe for Ray serialization)."""
+    """Create and cache an S3 client with retry config (safe for Ray serialization)."""
     if region_name not in _S3_CLIENTS:
-        kwargs = {"region_name": region_name} if region_name else {}
+        retry_config = BotoConfig(
+            retries={"max_attempts": 5, "mode": "adaptive"},
+            connect_timeout=10,
+            read_timeout=30,
+        )
+        kwargs: dict[str, Any] = {"config": retry_config}
+        if region_name:
+            kwargs["region_name"] = region_name
         _S3_CLIENTS[region_name] = boto3.client("s3", **kwargs)
     return _S3_CLIENTS[region_name]
 
@@ -279,7 +328,7 @@ def list_s3_completed(
             filename = parts[3]
             if not filename.endswith(".parquet"):
                 continue
-            method_seed = filename[:-len(".parquet")]
+            method_seed = filename[: -len(".parquet")]
             if "_seed" not in method_seed:
                 continue
             method_id, seed_str = method_seed.rsplit("_seed", 1)
@@ -371,6 +420,7 @@ def get_dataset_metadata(
             info_json = schema_meta.get(b"informative_indices")
             if info_json:
                 import json
+
                 info_indices = json.loads(info_json.decode())
                 metadata["n_informative"] = len(info_indices)
 
@@ -378,6 +428,7 @@ def get_dataset_metadata(
             config_json = schema_meta.get(b"config")
             if config_json:
                 import json
+
                 config_dict = json.loads(config_json.decode())
                 # Family based on generation parameters
                 if config_dict.get("n_high_cardinality_noise", 0) > 0:
@@ -404,8 +455,8 @@ def get_dataset_metadata(
             else:
                 metadata["dataset_family"] = "other"
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to parse metadata for dataset {name!r}: {e}")
 
     return metadata
 

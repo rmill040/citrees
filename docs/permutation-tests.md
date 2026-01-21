@@ -12,12 +12,12 @@ additional selective-inference or sample-splitting machinery is used.
 
 ## Overview
 
-| Aspect          | Description                                      |
-| --------------- | ------------------------------------------------ |
-| Purpose         | Test independence between features and target    |
+| Aspect          | Description                                                                      |
+| --------------- | -------------------------------------------------------------------------------- |
+| Purpose         | Test independence between features and target                                    |
 | Type            | Non-parametric randomization test (exact if enumerated; Monte Carlo in practice) |
-| Null hypothesis | $H_0: X \perp Y$ (feature independent of target) |
-| Complexity      | Exact: $O(n!)$, Monte Carlo: $O(B \cdot T)$      |
+| Null hypothesis | $H_0: X \perp Y$ (feature independent of target)                                 |
+| Complexity      | Exact: $O(n!)$, Monte Carlo: $O(B \cdot T)$                                      |
 
 ---
 
@@ -41,11 +41,11 @@ is that permutation tests can be used at each node to:
 Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection
 bias**:
 
-| Problem               | Traditional Trees               | Permutation Solution               |
-| --------------------- | ------------------------------- | ---------------------------------- |
+| Problem               | Traditional Trees               | Permutation Solution                                                          |
+| --------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
 | High-cardinality bias | Favor features with many values | Screen features via permutation p-values (and optionally validate thresholds) |
-| Spurious splits       | Find "good" splits by chance    | Statistical significance required  |
-| Overfitting           | Need pruning/CV                 | Natural stopping via tests         |
+| Spurious splits       | Find "good" splits by chance    | Statistical significance required                                             |
+| Overfitting           | Need pruning/CV                 | Natural stopping via tests                                                    |
 
 ---
 
@@ -60,11 +60,11 @@ $$T_{obs} = T(X, Y)$$
 
 Common test statistics in citrees:
 
-| Context              | Statistic                 | Formula                                              |
-| -------------------- | ------------------------- | ---------------------------------------------------- |
-| Feature selection    | Correlation               | $\|r(X, Y)\|$                                        |
-| Classification split | Child impurity sum (Gini) | $Gini(y_L) + Gini(y_R)$ (lower is better)           |
-| Regression split     | Child impurity sum (MSE)  | $MSE(y_L) + MSE(y_R)$ (lower is better)             |
+| Context              | Statistic                 | Formula                                   |
+| -------------------- | ------------------------- | ----------------------------------------- |
+| Feature selection    | Correlation               | $\|r(X, Y)\|$                             |
+| Classification split | Child impurity sum (Gini) | $Gini(y_L) + Gini(y_R)$ (lower is better) |
+| Regression split     | Child impurity sum (MSE)  | $MSE(y_L) + MSE(y_R)$ (lower is better)   |
 
 ### Null Distribution
 
@@ -88,7 +88,7 @@ The "+1" in numerator and denominator is a **finite-sample correction** (Phipson
 - Conservative under the null hypothesis
 
 **Direction matters:** If smaller values of the statistic are more extreme
-(e.g., splitters use a *minimize* criterion), reverse the inequality and use
+(e.g., splitters use a _minimize_ criterion), reverse the inequality and use
 `T^{(b)} ≤ T_obs` instead.
 
 ---
@@ -337,22 +337,29 @@ n_resamples_selector=NResamples.AUTO  # Adaptive based on alpha
 n_resamples_splitter=NResamples.AUTO
 ```
 
-`n_resamples_*` controls the permutation budget $B$. In citrees, the string presets are functions of $\alpha$:
+`n_resamples_*` controls the permutation budget $B$. In citrees, the string
+presets are functions of $\alpha$:
 
-| Setting              | Formula | Notes |
-| -------------------- | ------- | ----- |
-| `NResamples.MINIMUM` | $\lceil 1/\alpha \rceil$ | Minimum resolution to allow rejection with +1 correction |
-| `NResamples.AUTO`    | $\max\{\lceil 1/\alpha \rceil,\ \lceil z_{1-\alpha}^2 (1-\alpha)/\alpha \rceil\}$ | $z_{1-\alpha}=\Phi^{-1}(1-\alpha)$ |
-| `NResamples.MAXIMUM` | $\lceil 1/(4\alpha^2) \rceil$ | High precision (equals 100 at $\alpha=0.05$) |
+| Setting              | Formula                                                                           | Notes                                                    |
+| -------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `NResamples.MINIMUM` | $\lceil 1/\alpha \rceil$                                                          | Minimum resolution to allow rejection with +1 correction |
+| `NResamples.AUTO`    | $\max\{\lceil 1/\alpha \rceil,\ \lceil z_{1-\alpha}^2 (1-\alpha)/\alpha \rceil\}$ | $z_{1-\alpha}=\Phi^{-1}(1-\alpha)$                       |
+| `NResamples.MAXIMUM` | $\lceil 1/(4\alpha^2) \rceil$                                                     | High precision (equals 100 at $\alpha=0.05$)             |
 
-**Bonferroni note (important).** If `adjust_alpha_* = True`, citrees applies Bonferroni correction by internally
-replacing $\alpha$ with $\alpha/n_{\text{tests}}$ for that node (features for Stage A, thresholds for Stage B). It then
-updates both the effective threshold and the effective permutation budget:
-- for `NResamples.*` string presets, the formulas above are applied to $\alpha/n_{\text{tests}}$, and
-- for an integer `n_resamples`, citrees multiplies the user-specified value by $n_{\text{tests}}$.
+**Bonferroni note (important).** If `adjust_alpha_* = True`, citrees applies
+Bonferroni correction by internally replacing $\alpha$ with
+$\alpha/n_{\text{tests}}$ for that node (features for Stage A, thresholds for
+Stage B). It then updates both the effective threshold and the effective
+permutation budget:
 
-This ensures the p-value grid has enough resolution to compare against the Bonferroni-adjusted threshold
-$\alpha/n_{\text{tests}}$ (see also `paper/docs/paper.md` Appendix A.2.1 for the fixed-$B$ grid calculation).
+- for `NResamples.*` string presets, the formulas above are applied to
+  $\alpha/n_{\text{tests}}$, and
+- for an integer `n_resamples`, citrees multiplies the user-specified value by
+  $n_{\text{tests}}$.
+
+This ensures the p-value grid has enough resolution to compare against the
+Bonferroni-adjusted threshold $\alpha/n_{\text{tests}}$ (see also
+`paper/docs/paper.md` Appendix A.2.1 for the fixed-$B$ grid calculation).
 
 For a **single** test at level $\alpha = 0.05$ this yields:
 
@@ -375,21 +382,25 @@ For $p = 0.05$ and $B = 200$: $SE \approx 0.015$
 ### The Idea
 
 If we've already seen enough extreme permutations to know the p-value will
-citrees supports early stopping **inside permutation tests** via `early_stopping_*`:
+citrees supports early stopping **inside permutation tests** via
+`early_stopping_*`:
 
-- `EarlyStopping.ADAPTIVE` (default): posterior-confidence stopping using a Beta posterior on the exceedance rate.
-- `EarlyStopping.SIMPLE`: a futility + significance heuristic (can inflate Type I error).
+- `EarlyStopping.ADAPTIVE` (default): posterior-confidence stopping using a Beta
+  posterior on the exceedance rate.
+- `EarlyStopping.SIMPLE`: a futility + significance heuristic (can inflate Type
+  I error).
 - `None`: fixed-$B$ Monte Carlo permutation p-value (no early stopping).
 
-In both sequential modes, the function returns the usual **+1 corrected** Monte Carlo estimate
-$\hat p = (L_n+1)/(n+1)$ evaluated at the stopping time $n$.
+In both sequential modes, the function returns the usual **+1 corrected** Monte
+Carlo estimate $\hat p = (L_n+1)/(n+1)$ evaluated at the stopping time $n$.
 
 ### Adaptive (posterior-confidence) stopping
 
-Let $L_n$ be the number of exceedances after $n$ permutations (right-tail: $T_b \ge T_0$; left-tail: $T_b \le T_0$).
-With a Beta(1,1) prior on the unknown exceedance probability $p$, the posterior is
-$p \mid L_n \sim \mathrm{Beta}(1+L_n, 1+n-L_n)$. The adaptive rule stops once it is confident that $p < \alpha$ or
-$p \ge \alpha$:
+Let $L_n$ be the number of exceedances after $n$ permutations (right-tail:
+$T_b \ge T_0$; left-tail: $T_b \le T_0$). With a Beta(1,1) prior on the unknown
+exceedance probability $p$, the posterior is
+$p \mid L_n \sim \mathrm{Beta}(1+L_n, 1+n-L_n)$. The adaptive rule stops once it
+is confident that $p < \alpha$ or $p \ge \alpha$:
 
 ```
 Algorithm: Adaptive Sequential Permutation Test (citrees)
@@ -409,9 +420,10 @@ Input: x, y, statistic T, max permutations B, threshold α, confidence γ
 
 ### Simple stopping (heuristic)
 
-The simple rule stops early if (i) the running estimate is already below $\alpha$ (significant), or (ii) even the best
-possible p-value after all remaining permutations cannot drop below $\alpha$ (futility). This can inflate Type I error
-because it “peeks” without a validity correction.
+The simple rule stops early if (i) the running estimate is already below
+$\alpha$ (significant), or (ii) even the best possible p-value after all
+remaining permutations cannot drop below $\alpha$ (futility). This can inflate
+Type I error because it “peeks” without a validity correction.
 
 ### Benefits
 

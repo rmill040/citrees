@@ -25,7 +25,7 @@ import tempfile
 import warnings
 from collections import Counter
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _paper_dir = Path(__file__).resolve().parents[2]
@@ -150,9 +150,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", choices=sorted(PROFILES.keys()), default="paper")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--n-repeats", type=int, default=None)
-    parser.add_argument("--n-samples", type=int, default=None, help="Base n for main synthetic figures.")
-    parser.add_argument("--n-estimators", type=int, default=None, help="n_estimators for forests (RF/ET/CIF).")
-    parser.add_argument("--n-jobs", type=int, default=None, help="Parallel jobs for sklearn and CIForest.")
+    parser.add_argument(
+        "--n-samples", type=int, default=None, help="Base n for main synthetic figures."
+    )
+    parser.add_argument(
+        "--n-estimators", type=int, default=None, help="n_estimators for forests (RF/ET/CIF)."
+    )
+    parser.add_argument(
+        "--n-jobs", type=int, default=None, help="Parallel jobs for sklearn and CIForest."
+    )
     parser.add_argument(
         "--only",
         nargs="*",
@@ -270,7 +276,9 @@ def run_feature_selection_experiment(task: str, cfg: FigureRunConfig) -> pd.Data
 
         if task == "classification":
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+                "cit": ConditionalInferenceTreeClassifier(
+                    random_state=cfg.seed + repeat, verbose=0
+                ),
                 "cif": ConditionalInferenceForestClassifier(
                     n_estimators=cfg.n_estimators_forest,
                     random_state=cfg.seed + repeat,
@@ -279,10 +287,14 @@ def run_feature_selection_experiment(task: str, cfg: FigureRunConfig) -> pd.Data
                 ),
                 "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
                 "et": ExtraTreesClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
         else:
@@ -296,10 +308,14 @@ def run_feature_selection_experiment(task: str, cfg: FigureRunConfig) -> pd.Data
                 ),
                 "dt": DecisionTreeRegressor(random_state=cfg.seed + repeat),
                 "rf": RandomForestRegressor(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
                 "et": ExtraTreesRegressor(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
 
@@ -725,10 +741,14 @@ def run_correlated_features_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
                 verbose=0,
             ),
             "rf": RandomForestClassifier(
-                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
             ),
             "et": ExtraTreesClassifier(
-                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
             ),
         }
 
@@ -868,10 +888,14 @@ def run_complexity_vs_accuracy_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
             "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
             "rf": RandomForestClassifier(
-                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
             ),
             "et": ExtraTreesClassifier(
-                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
             ),
         }
 
@@ -1005,7 +1029,9 @@ def run_signal_strength_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+                "cit": ConditionalInferenceTreeClassifier(
+                    random_state=cfg.seed + repeat, verbose=0
+                ),
                 "cif": ConditionalInferenceForestClassifier(
                     n_estimators=cfg.n_estimators_forest,
                     random_state=cfg.seed + repeat,
@@ -1014,7 +1040,9 @@ def run_signal_strength_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
                 ),
                 "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
 
@@ -1148,7 +1176,9 @@ def run_redundant_features_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             n_informative = 5
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+                "cit": ConditionalInferenceTreeClassifier(
+                    random_state=cfg.seed + repeat, verbose=0
+                ),
                 "cif": ConditionalInferenceForestClassifier(
                     n_estimators=cfg.n_estimators_forest,
                     random_state=cfg.seed + repeat,
@@ -1156,7 +1186,9 @@ def run_redundant_features_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
                     verbose=0,
                 ),
                 "rf": RandomForestClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
 
@@ -1286,7 +1318,9 @@ def run_multiclass_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+                "cit": ConditionalInferenceTreeClassifier(
+                    random_state=cfg.seed + repeat, verbose=0
+                ),
                 "cif": ConditionalInferenceForestClassifier(
                     n_estimators=cfg.n_estimators_forest,
                     random_state=cfg.seed + repeat,
@@ -1295,7 +1329,9 @@ def run_multiclass_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
                 ),
                 "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
 
@@ -1431,7 +1467,9 @@ def run_imbalanced_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+                "cit": ConditionalInferenceTreeClassifier(
+                    random_state=cfg.seed + repeat, verbose=0
+                ),
                 "cif": ConditionalInferenceForestClassifier(
                     n_estimators=cfg.n_estimators_forest,
                     random_state=cfg.seed + repeat,
@@ -1440,7 +1478,9 @@ def run_imbalanced_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
                 ),
                 "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
 
@@ -1563,7 +1603,9 @@ def run_sample_size_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+                "cit": ConditionalInferenceTreeClassifier(
+                    random_state=cfg.seed + repeat, verbose=0
+                ),
                 "cif": ConditionalInferenceForestClassifier(
                     n_estimators=cfg.n_estimators_forest,
                     random_state=cfg.seed + repeat,
@@ -1572,7 +1614,9 @@ def run_sample_size_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
                 ),
                 "dt": DecisionTreeClassifier(random_state=cfg.seed + repeat),
                 "rf": RandomForestClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
 
@@ -1709,10 +1753,14 @@ def run_regression_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             ),
             "dt": DecisionTreeRegressor(random_state=cfg.seed + repeat),
             "rf": RandomForestRegressor(
-                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
             ),
             "et": ExtraTreesRegressor(
-                n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                n_estimators=cfg.n_estimators_forest,
+                random_state=cfg.seed + repeat,
+                n_jobs=cfg.n_jobs,
             ),
         }
 
@@ -1864,7 +1912,9 @@ def run_high_dimensional_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
             y_train, y_test = y[:n_train], y[n_train:]
 
             models = {
-                "cit": ConditionalInferenceTreeClassifier(random_state=cfg.seed + repeat, verbose=0),
+                "cit": ConditionalInferenceTreeClassifier(
+                    random_state=cfg.seed + repeat, verbose=0
+                ),
                 "cif": ConditionalInferenceForestClassifier(
                     n_estimators=cfg.n_estimators_forest,
                     random_state=cfg.seed + repeat,
@@ -1872,7 +1922,9 @@ def run_high_dimensional_experiment(cfg: FigureRunConfig) -> pd.DataFrame:
                     verbose=0,
                 ),
                 "rf": RandomForestClassifier(
-                    n_estimators=cfg.n_estimators_forest, random_state=cfg.seed + repeat, n_jobs=cfg.n_jobs
+                    n_estimators=cfg.n_estimators_forest,
+                    random_state=cfg.seed + repeat,
+                    n_jobs=cfg.n_jobs,
                 ),
             }
 
@@ -1982,11 +2034,13 @@ def main() -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
     run_meta = {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "selected_figures": sorted(selected),
         **asdict(cfg),
     }
-    (CACHE_DIR / "generate_figures_run.json").write_text(json.dumps(run_meta, indent=2, sort_keys=True))
+    (CACHE_DIR / "generate_figures_run.json").write_text(
+        json.dumps(run_meta, indent=2, sort_keys=True)
+    )
 
     print("=" * 60)
     print(f"Profile: {cfg.profile}")
@@ -2003,7 +2057,9 @@ def main() -> None:
         clf_df = run_feature_selection_experiment("classification", cfg)
 
         print("\nGenerating classification figures...")
-        plot_feature_selection_bars(clf_df, "classification", FIGURES_DIR / "feature_selection_clf.png")
+        plot_feature_selection_bars(
+            clf_df, "classification", FIGURES_DIR / "feature_selection_clf.png"
+        )
         plot_informative_ratio(clf_df, FIGURES_DIR / "informative_ratio.png")
 
         print("\nComputing statistics...")

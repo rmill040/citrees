@@ -77,6 +77,4 @@ class TestMultiSelectorTypeIError:
         rejection_rate = rejections / n_sims
 
         # Sanity check: shouldn't reject most of the time under null
-        assert rejection_rate <= 0.50, (
-            f"Type I error way too high: {rejection_rate:.3f} > 0.50"
-        )
+        assert rejection_rate <= 0.50, f"Type I error way too high: {rejection_rate:.3f} > 0.50"

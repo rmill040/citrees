@@ -5,16 +5,20 @@ from paper.scripts.experiments.ray_feature_selection import filter_selector
 
 def test_filter_selector_label_invariance():
     n_per = 5
-    x0 = np.vstack([
-        np.full((n_per, 1), 1.0),
-        np.full((n_per, 1), 0.0),
-        np.full((n_per, 1), 0.0),
-    ])
-    x1 = np.vstack([
-        np.full((n_per, 1), 0.0),
-        np.full((n_per, 1), 0.0),
-        np.full((n_per, 1), 100.0),
-    ])
+    x0 = np.vstack(
+        [
+            np.full((n_per, 1), 1.0),
+            np.full((n_per, 1), 0.0),
+            np.full((n_per, 1), 0.0),
+        ]
+    )
+    x1 = np.vstack(
+        [
+            np.full((n_per, 1), 0.0),
+            np.full((n_per, 1), 0.0),
+            np.full((n_per, 1), 100.0),
+        ]
+    )
     X = np.hstack([x0, x1])
     y = np.array([0] * n_per + [1] * n_per + [2] * n_per)
 

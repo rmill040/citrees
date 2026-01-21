@@ -12,9 +12,8 @@ Usage:
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -28,7 +27,7 @@ from .compute import (
     launch_workers,
     terminate_instances,
 )
-from .config import Config, load_config
+from .config import load_config
 from .resources import (
     build_and_push_image,
     create_dynamodb_table,
@@ -39,7 +38,6 @@ from .resources import (
     setup_vpc,
     teardown_ecr,
     teardown_iam,
-    teardown_instances,
     teardown_storage,
     teardown_vpc,
 )
@@ -65,7 +63,7 @@ def get_state_path(config_path: Path) -> Path:
 @app.command()
 def setup(
     config_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config.yaml"),
     ] = None,
     skip_docker: Annotated[
@@ -100,8 +98,13 @@ def setup(
     table.add_row("Region", config.region)
     table.add_row("Account ID", config.account_id)
     table.add_row("VPC", config.vpc.vpc_id)
-    table.add_row("Server", f"{config.server.instance_type} ({'spot' if config.server.spot else 'on-demand'})")
-    table.add_row("Workers", f"{config.workers.count}x {config.workers.instance_type} ({'spot' if config.workers.spot else 'on-demand'})")
+    table.add_row(
+        "Server", f"{config.server.instance_type} ({'spot' if config.server.spot else 'on-demand'})"
+    )
+    table.add_row(
+        "Workers",
+        f"{config.workers.count}x {config.workers.instance_type} ({'spot' if config.workers.spot else 'on-demand'})",
+    )
     console.print(table)
     console.print()
 
@@ -150,8 +153,12 @@ def setup(
     console.print(Panel.fit("[bold green]Setup complete![/bold green]"))
     console.print()
     console.print("Next steps:")
-    console.print("  1. Launch experiment:  [cyan]uv run python -m paper.scripts.infra.cli launch[/cyan]")
-    console.print("  2. Check status:       [cyan]uv run python -m paper.scripts.infra.cli status[/cyan]")
+    console.print(
+        "  1. Launch experiment:  [cyan]uv run python -m paper.scripts.infra.cli launch[/cyan]"
+    )
+    console.print(
+        "  2. Check status:       [cyan]uv run python -m paper.scripts.infra.cli status[/cyan]"
+    )
 
 
 # =============================================================================
@@ -162,7 +169,7 @@ def setup(
 @app.command()
 def launch(
     config_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config.yaml"),
     ] = None,
     workers_only: Annotated[
@@ -241,7 +248,7 @@ def scale(
         typer.Argument(help="Number of workers to add"),
     ],
     config_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config.yaml"),
     ] = None,
 ) -> None:
@@ -303,7 +310,7 @@ def scale(
 @app.command()
 def status(
     config_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config.yaml"),
     ] = None,
 ) -> None:
@@ -323,9 +330,21 @@ def status(
     resources_table.add_column("Name/ID")
     resources_table.add_column("Status", style="green")
 
-    resources_table.add_row("VPC", config._resolved_vpc_id or "Not created", "OK" if config._resolved_vpc_id else "Missing")
-    resources_table.add_row("Private Subnet", config._resolved_private_subnet_id or "Not created", "OK" if config._resolved_private_subnet_id else "Missing")
-    resources_table.add_row("Security Group", config._resolved_security_group_id or "Not created", "OK" if config._resolved_security_group_id else "Missing")
+    resources_table.add_row(
+        "VPC",
+        config._resolved_vpc_id or "Not created",
+        "OK" if config._resolved_vpc_id else "Missing",
+    )
+    resources_table.add_row(
+        "Private Subnet",
+        config._resolved_private_subnet_id or "Not created",
+        "OK" if config._resolved_private_subnet_id else "Missing",
+    )
+    resources_table.add_row(
+        "Security Group",
+        config._resolved_security_group_id or "Not created",
+        "OK" if config._resolved_security_group_id else "Missing",
+    )
     resources_table.add_row("DynamoDB", config.table_name, "OK")
     resources_table.add_row("S3", config.bucket_name, "OK")
     resources_table.add_row("ECR", config.ecr_repository_name, "OK")
@@ -378,9 +397,13 @@ def status(
     # Debug commands
     console.print("[bold]Debug Commands:[/bold]")
     if config._server_instance_id:
-        console.print(f"  Connect to server: [cyan]aws ssm start-session --target {config._server_instance_id}[/cyan]")
+        console.print(
+            f"  Connect to server: [cyan]aws ssm start-session --target {config._server_instance_id}[/cyan]"
+        )
     if config._worker_instance_ids:
-        console.print(f"  Connect to worker: [cyan]aws ssm start-session --target {config._worker_instance_ids[0]}[/cyan]")
+        console.print(
+            f"  Connect to worker: [cyan]aws ssm start-session --target {config._worker_instance_ids[0]}[/cyan]"
+        )
 
 
 # =============================================================================
@@ -395,7 +418,7 @@ def logs(
         typer.Argument(help="Target: 'server', 'worker-N', or instance ID"),
     ],
     config_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config.yaml"),
     ] = None,
     follow: Annotated[
@@ -431,7 +454,9 @@ def logs(
     elif target.startswith("worker-"):
         idx = int(target.split("-")[1])
         if idx >= len(config._worker_instance_ids):
-            console.print(f"[red]Error: Worker {idx} not found. Have {len(config._worker_instance_ids)} workers.[/red]")
+            console.print(
+                f"[red]Error: Worker {idx} not found. Have {len(config._worker_instance_ids)} workers.[/red]"
+            )
             raise typer.Exit(1)
         instance_id = config._worker_instance_ids[idx]
         container_name = "citrees-worker"
@@ -439,7 +464,9 @@ def logs(
         instance_id = target
         container_name = "citrees-server"  # Guess
     else:
-        console.print(f"[red]Error: Unknown target '{target}'. Use 'server', 'worker-N', or instance ID.[/red]")
+        console.print(
+            f"[red]Error: Unknown target '{target}'. Use 'server', 'worker-N', or instance ID.[/red]"
+        )
         raise typer.Exit(1)
 
     # Build SSM command
@@ -455,11 +482,17 @@ def logs(
 
     # Run SSM command
     cmd = [
-        "aws", "ssm", "start-session",
-        "--target", instance_id,
-        "--document-name", "AWS-StartInteractiveCommand",
-        "--parameters", f"command=[\"{remote_cmd}\"]",
-        "--region", config.region,
+        "aws",
+        "ssm",
+        "start-session",
+        "--target",
+        instance_id,
+        "--document-name",
+        "AWS-StartInteractiveCommand",
+        "--parameters",
+        f'command=["{remote_cmd}"]',
+        "--region",
+        config.region,
     ]
 
     try:
@@ -476,7 +509,7 @@ def logs(
 @app.command()
 def teardown(
     config_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config.yaml"),
     ] = None,
     keep_data: Annotated[
@@ -583,7 +616,7 @@ def connect(
         typer.Argument(help="Target: 'server', 'worker-N', or instance ID"),
     ],
     config_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to config.yaml"),
     ] = None,
 ) -> None:
@@ -618,7 +651,9 @@ def connect(
         raise typer.Exit(1)
 
     console.print(f"[dim]Connecting to {instance_id}...[/dim]")
-    console.print("[dim]Tip: Run 'docker logs citrees-server' or 'docker logs citrees-worker'[/dim]")
+    console.print(
+        "[dim]Tip: Run 'docker logs citrees-server' or 'docker logs citrees-worker'[/dim]"
+    )
     console.print()
 
     cmd = ["aws", "ssm", "start-session", "--target", instance_id, "--region", config.region]

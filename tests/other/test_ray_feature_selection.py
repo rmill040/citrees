@@ -63,7 +63,9 @@ def test_permutation_selector_kw_only_classifier(monkeypatch: pytest.MonkeyPatch
     X = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=float)
     y = np.array([0, 1, 0], dtype=int)
 
-    ranking = module.permutation_selector(X, y, method="ptest_kw", task_type="classification", random_state=0)
+    ranking = module.permutation_selector(
+        X, y, method="ptest_kw", task_type="classification", random_state=0
+    )
     assert ranking.shape == (X.shape[1],)
 
 
@@ -83,5 +85,7 @@ def test_permutation_selector_kw_only_regression(monkeypatch: pytest.MonkeyPatch
     X = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=float)
     y = np.array([0.1, -0.2, 0.3], dtype=float)
 
-    ranking = module.permutation_selector(X, y, method="ptest_kw", task_type="regression", random_state=0)
+    ranking = module.permutation_selector(
+        X, y, method="ptest_kw", task_type="regression", random_state=0
+    )
     assert ranking.shape == (X.shape[1],)

@@ -70,13 +70,13 @@ For each node:
 
 citrees supports multiple association measures:
 
-| Selector | For            | Measures                                                                            |
-| -------- | -------------- | ----------------------------------------------------------------------------------- |
+| Selector | For            | Measures                                                                           |
+| -------- | -------------- | ---------------------------------------------------------------------------------- |
 | `mc`     | Classification | Multiple Correlation (η) - how much variance in X is explained by class membership |
-| `mi`     | Classification | Mutual Information - non-linear dependence                                          |
-| `rdc`    | Both           | Randomized Dependence Coefficient - O(n log n) non-linear dependence                |
-| `pc`     | Regression     | Pearson Correlation                                                                 |
-| `dc`     | Regression     | Distance Correlation - captures non-linear relationships                            |
+| `mi`     | Classification | Mutual Information - non-linear dependence                                         |
+| `rdc`    | Both           | Randomized Dependence Coefficient - O(n log n) non-linear dependence               |
+| `pc`     | Regression     | Pearson Correlation                                                                |
+| `dc`     | Regression     | Distance Correlation - captures non-linear relationships                           |
 
 **Multiple Correlation (mc)** - Default for classification:
 
@@ -109,10 +109,12 @@ def _ptest(func, x, y, n_resamples, alpha, early_stopping):
 
 **Key parameters**:
 
-- `n_resamples_selector`: Number of permutations (`"auto"`, `"minimum"`, `"maximum"`, `int`, or `None`)
+- `n_resamples_selector`: Number of permutations (`"auto"`, `"minimum"`,
+  `"maximum"`, `int`, or `None`)
 - `alpha_selector`: Significance threshold (default: 0.05)
 - `early_stopping_selector`: `"adaptive"`, `"simple"`, or `None` (fixed-$B$)
-- `early_stopping_confidence_selector`: Posterior-confidence threshold γ for `"adaptive"` (default: 0.95)
+- `early_stopping_confidence_selector`: Posterior-confidence threshold γ for
+  `"adaptive"` (default: 0.95)
 
 ### Bonferroni Correction
 
@@ -136,11 +138,13 @@ if feature_muting and pval >= max(alpha, 1 - alpha):
     mute_feature(feature)  # Remove from available features
 ```
 
-For $\alpha \le 1/2$, this is an *upper-tail* rule: `pval >= 1 - alpha` (e.g., $\alpha=0.05 \Rightarrow p\ge 0.95$).
-It is a speed-only heuristic: it avoids repeatedly testing features that look extremely unpromising.
+For $\alpha \le 1/2$, this is an _upper-tail_ rule: `pval >= 1 - alpha` (e.g.,
+$\alpha=0.05 \Rightarrow p\ge 0.95$). It is a speed-only heuristic: it avoids
+repeatedly testing features that look extremely unpromising.
 
-Muting is **subtree-local**: muted features are removed only for descendants of the current node (siblings are
-isolated), which avoids traversal-order dependence:
+Muting is **subtree-local**: muted features are removed only for descendants of
+the current node (siblings are isolated), which avoids traversal-order
+dependence:
 
 ```
 Root available: {0,1,2}
@@ -161,12 +165,12 @@ splitting assumptions). For full details, see the dedicated documentation:
 
 ## Summary: What Each Feature Adds
 
-| Feature                   | Scientific Contribution                          | When to Use                   |
-| ------------------------- | ------------------------------------------------ | ----------------------------- |
-| **Permutation tests**     | Reduced selection bias, test-based stopping      | Always (core algorithm)       |
-| **Bonferroni correction** | Controls family-wise error rate                  | When interpretability matters |
-| **Feature muting**        | Accelerates training                             | Large feature spaces          |
-| **Honesty**               | Reduced adaptive bias in leaf estimation         | Causal/estimation contexts    |
+| Feature                   | Scientific Contribution                     | When to Use                   |
+| ------------------------- | ------------------------------------------- | ----------------------------- |
+| **Permutation tests**     | Reduced selection bias, test-based stopping | Always (core algorithm)       |
+| **Bonferroni correction** | Controls family-wise error rate             | When interpretability matters |
+| **Feature muting**        | Accelerates training                        | Large feature spaces          |
+| **Honesty**               | Reduced adaptive bias in leaf estimation    | Causal/estimation contexts    |
 
 ## References
 

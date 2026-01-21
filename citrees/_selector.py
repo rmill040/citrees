@@ -437,7 +437,6 @@ def mc(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = 
     return np.sqrt(ratio)
 
 
-
 @ClassifierSelectors.register("mi")
 def mi(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
     """Calculate the mutual information.
@@ -469,9 +468,7 @@ def mi(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float
 
 @RegressorSelectors.register("pc")
 @njit(cache=True, nogil=True, fastmath=True)
-def pc(
-    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None
-) -> float:
+def pc(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None) -> float:
     """Calculate the Pearson correlation coefficient.
 
     Parameters
@@ -577,9 +574,7 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
 
 
 @RegressorSelectors.register("dc")
-def dc(
-    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None
-) -> float:
+def dc(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None) -> float:
     """Calculate the distance correlation.
 
     Parameters

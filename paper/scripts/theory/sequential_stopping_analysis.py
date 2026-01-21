@@ -25,7 +25,6 @@ import numpy as np
 from scipy import stats
 from scipy.special import betainc
 
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -186,19 +185,19 @@ def run_sequential_simulation(n_sims: int = 100000, n_max: int = 2000) -> dict:
         if outcome == "reject":
             reject_p_values.append(p)
 
-    print(f"\nResults:")
-    print(f"  Rejections: {results['reject']} ({results['reject']/n_sims:.6f})")
-    print(f"  Acceptances: {results['accept']} ({results['accept']/n_sims:.6f})")
-    print(f"  Max reached: {results['max_reached']} ({results['max_reached']/n_sims:.6f})")
+    print("\nResults:")
+    print(f"  Rejections: {results['reject']} ({results['reject'] / n_sims:.6f})")
+    print(f"  Acceptances: {results['accept']} ({results['accept'] / n_sims:.6f})")
+    print(f"  Max reached: {results['max_reached']} ({results['max_reached'] / n_sims:.6f})")
     print(f"  Mean stop time: {np.mean(stop_times):.1f}")
     print(f"  Median stop time: {np.median(stop_times):.1f}")
 
     type1_error = results["reject"] / n_sims
     print(f"\n  TYPE I ERROR: {type1_error:.4f}")
-    print(f"  Target alpha: 0.05")
+    print("  Target alpha: 0.05")
 
     if reject_p_values:
-        print(f"\n  Rejections occurred at p values:")
+        print("\n  Rejections occurred at p values:")
         print(f"    Mean p: {np.mean(reject_p_values):.4f}")
         print(f"    Min p: {np.min(reject_p_values):.4f}")
         print(f"    Max p: {np.max(reject_p_values):.4f}")
@@ -234,7 +233,9 @@ def verify_distribution(n_samples: int = 50000, n_perms: int = 20) -> None:
     L_samples = np.array(L_samples)
 
     print(f"\nEmpirical distribution of L_{n_perms} (should be Uniform{{0,...,{n_perms}}}):")
-    print(f"{'k':<6} {'Empirical P(L=k)':<20} {'Uniform P(L=k)':<20} {'Binomial(n,0.5) P(L=k)':<25}")
+    print(
+        f"{'k':<6} {'Empirical P(L=k)':<20} {'Uniform P(L=k)':<20} {'Binomial(n,0.5) P(L=k)':<25}"
+    )
     print("-" * 75)
 
     for k in range(n_perms + 1):
@@ -247,10 +248,16 @@ def verify_distribution(n_samples: int = 50000, n_perms: int = 20) -> None:
     uniform_std = np.sqrt(n_perms * (n_perms + 2) / 12)  # Var(Uniform{0,...,n}) = n(n+2)/12
     binomial_std = np.sqrt(n_perms * 0.25)
 
-    print(f"\nSummary:")
-    print(f"  Empirical mean: {L_samples.mean():.2f} (Uniform: {n_perms/2:.1f}, Binomial: {n_perms/2:.1f})")
-    print(f"  Empirical std:  {L_samples.std():.2f} (Uniform: {uniform_std:.2f}, Binomial: {binomial_std:.2f})")
-    print(f"\n  CONCLUSION: L_n follows Uniform (std={uniform_std:.2f}), NOT Binomial (std={binomial_std:.2f})")
+    print("\nSummary:")
+    print(
+        f"  Empirical mean: {L_samples.mean():.2f} (Uniform: {n_perms / 2:.1f}, Binomial: {n_perms / 2:.1f})"
+    )
+    print(
+        f"  Empirical std:  {L_samples.std():.2f} (Uniform: {uniform_std:.2f}, Binomial: {binomial_std:.2f})"
+    )
+    print(
+        f"\n  CONCLUSION: L_n follows Uniform (std={uniform_std:.2f}), NOT Binomial (std={binomial_std:.2f})"
+    )
 
 
 # =============================================================================
@@ -308,13 +315,13 @@ KEY FINDINGS:
    This is because p = F(T_0) ~ Uniform(0,1), and L_n|p ~ Binomial(n,p).
 
 2. TYPE I ERROR CONTROL
-   Empirical Type I Error: {sim_results['type1_error']:.4f}
+   Empirical Type I Error: {sim_results["type1_error"]:.4f}
    Target alpha: 0.05
-   Status: {"VALID" if sim_results['type1_error'] <= 0.05 else "NEEDS REVIEW"}
+   Status: {"VALID" if sim_results["type1_error"] <= 0.05 else "NEEDS REVIEW"}
 
 3. STOPPING BEHAVIOR
-   Mean stop time: {np.mean(sim_results['stop_times']):.1f} permutations
-   Median stop time: {np.median(sim_results['stop_times']):.1f} permutations
+   Mean stop time: {np.mean(sim_results["stop_times"]):.1f} permutations
+   Median stop time: {np.median(sim_results["stop_times"]):.1f} permutations
 
 4. REJECTION MECHANISM
    Rejections occur when p = F(T_0) is small (observed statistic is extreme).

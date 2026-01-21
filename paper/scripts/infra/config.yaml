@@ -30,7 +30,7 @@ vpc:
   # Only used if vpc_id: create
   cidr_block: 10.0.0.0/16
   private_subnet_cidr: 10.0.1.0/24
-  public_subnet_cidr: 10.0.2.0/24  # For NAT gateway
+  public_subnet_cidr: 10.0.2.0/24 # For NAT gateway
 
   # Availability zone for all resources
   availability_zone: us-east-1a
@@ -56,12 +56,12 @@ ecr:
 # =============================================================================
 server:
   # Server needs to stay up reliably - use on-demand
-  instance_type: c7i.2xlarge  # 8 vCPUs, 16GB RAM, high network
+  instance_type: c7i.2xlarge # 8 vCPUs, 16GB RAM, high network
   spot: false
 
 workers:
   # Workers are stateless - use spot for cost savings
-  instance_type: c7i.8xlarge  # 32 vCPUs, 64GB RAM
+  instance_type: c7i.8xlarge # 32 vCPUs, 64GB RAM
   spot: true
   count: 5
 
@@ -103,6 +103,16 @@ experiment:
   #   rf: 8
   selection_cpus_overrides: {}
 
+  # Ray memory scheduling for Stage 1 (in GB)
+  # Memory-intensive methods (shap, dc, large ensembles) may need more.
+  selection_memory_gb_default: 4.0
+  # Optional per-method memory overrides (base method name -> GB)
+  # Example:
+  # selection_memory_gb_overrides:
+  #   shap: 8.0
+  #   dc: 6.0
+  selection_memory_gb_overrides: {}
+
   # Ray CPU scheduling (per config) - Stage 2 (downstream evaluation)
   # Stage 2 is usually lightweight (lr/svm/knn), so default is 1 CPU per config.
   # If you add heavier downstream models later, set `evaluation_cpus_default` higher
@@ -114,6 +124,11 @@ experiment:
   #   lgbm: 8
   evaluation_cpus_default: 1
   evaluation_cpus_overrides: {}
+
+  # Ray memory scheduling for Stage 2 (in GB)
+  evaluation_memory_gb_default: 2.0
+  # Optional per-model memory overrides (downstream model name -> GB)
+  evaluation_memory_gb_overrides: {}
 
   # Optional: validate each parquet upload with an extra S3 `head_object` call.
   # Useful for smoke tests / debugging; leave false for full-scale runs to avoid extra S3 API calls.

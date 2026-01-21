@@ -5,14 +5,14 @@ import pytest
 from scipy.stats import kstest
 
 from citrees._selector import (
+    _RDC_K,
+    _RDC_S,
     _correlation,
     _covariance,
     _rdc,
     _rdc_cancor,
     _rdc_ecdf,
     _rdc_features,
-    _RDC_K,
-    _RDC_S,
     dc,
     mc,
     mi,
@@ -261,8 +261,7 @@ class TestPtestMC:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=100,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x, y=y, n_classes=2, n_resamples=100, early_stopping=None, alpha=0.05, random_state=42
         )
         assert pval < 0.05
 
@@ -272,8 +271,7 @@ class TestPtestMC:
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         # n_resamples >= 200 triggers parallel version
         pval = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x, y=y, n_classes=2, n_resamples=250, early_stopping=None, alpha=0.05, random_state=42
         )
         assert pval < 0.05
 
@@ -318,7 +316,9 @@ def test_pvalue_uniform_under_null():
     # Check false positive rate is near nominal alpha=0.05
     # Allow range [0.02, 0.10] for sampling variability
     fp_rate = np.mean(pvalues < 0.05)
-    assert 0.02 < fp_rate < 0.10, f"False positive rate {fp_rate:.3f} outside expected range [0.02, 0.10]"
+    assert 0.02 < fp_rate < 0.10, (
+        f"False positive rate {fp_rate:.3f} outside expected range [0.02, 0.10]"
+    )
 
 
 def test_pvalue_never_zero():
@@ -360,8 +360,7 @@ class TestPtestMI:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_mi(
-            x=x, y=y, n_classes=2, n_resamples=50,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
         )
         assert pval < 0.1
 
@@ -371,8 +370,7 @@ class TestPtestMI:
         x = np.random.randn(100)
         y = np.random.randint(0, 2, 100).astype(np.int64)
         pval = ptest_mi(
-            x=x, y=y, n_classes=2, n_resamples=50,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
         )
         assert 0 < pval <= 1
 
@@ -385,8 +383,13 @@ class TestPtestPC:
         x = np.linspace(0, 10, 100)
         y = 2 * x + np.random.randn(100) * 0.1
         pval = ptest_pc(
-            x=x, y=y, standardize=True, n_resamples=100,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -396,8 +399,13 @@ class TestPtestPC:
         x = np.random.randn(100)
         y = np.random.randn(100)
         pval = ptest_pc(
-            x=x, y=y, standardize=True, n_resamples=100,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert 0 < pval <= 1
 
@@ -407,8 +415,13 @@ class TestPtestPC:
         y = 2 * x + np.random.randn(100) * 0.1
         # n_resamples >= 200 triggers parallel version
         pval = ptest_pc(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -421,8 +434,13 @@ class TestPtestDC:
         x = np.linspace(0, 10, 50)
         y = 2 * x + np.random.randn(50) * 0.1
         pval = ptest_dc(
-            x=x, y=y, standardize=True, n_resamples=50,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.1
 
@@ -431,8 +449,13 @@ class TestPtestDC:
         x = np.linspace(-3, 3, 50)
         y = x**2 + np.random.randn(50) * 0.1
         pval = ptest_dc(
-            x=x, y=y, standardize=True, n_resamples=50,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.1
 
@@ -445,8 +468,7 @@ class TestPtestRDC:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=50,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
         )
         assert pval < 0.1
 
@@ -455,8 +477,13 @@ class TestPtestRDC:
         x = np.linspace(0, 10, 100)
         y = 2 * x + np.random.randn(100) * 0.1
         pval = ptest_rdc_regressor(
-            x=x, y=y, standardize=True, n_resamples=50,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.1
 
@@ -466,8 +493,7 @@ class TestPtestRDC:
         x = np.random.randn(100)
         y = np.random.randint(0, 2, 100).astype(np.int64)
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=50,
-            early_stopping=None, alpha=0.05, random_state=42
+            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
         )
         assert 0 < pval <= 1
 
@@ -480,8 +506,13 @@ class TestEarlyStopping:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=1000,
-            early_stopping="adaptive", alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=1000,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -490,8 +521,13 @@ class TestEarlyStopping:
         x = np.linspace(0, 10, 100)
         y = 2 * x + np.random.randn(100) * 0.1
         pval = ptest_pc(
-            x=x, y=y, standardize=True, n_resamples=1000,
-            early_stopping="adaptive", alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=1000,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 

@@ -41,8 +41,8 @@ citrees addresses these issues by using **permutation tests** at each node to:
 
 ### Advanced Features
 
-| Document                                  | Description                             |
-| ----------------------------------------- | --------------------------------------- |
+| Document                                  | Description                              |
+| ----------------------------------------- | ---------------------------------------- |
 | [Honest Estimation](honest-estimation.md) | Sample splitting to reduce adaptive bias |
 
 ### Reference
@@ -88,8 +88,10 @@ print(forest.feature_importances_)
 
 - **Permutation Tests**: Non-parametric hypothesis tests at each node
 - **Bonferroni Correction**: Controls family-wise error rate
-- **Statistical stopping**: Stop splitting when no feature is significant (Stage A)
-- **Early stopping (optional)**: Speed heuristic inside permutation tests (use fixed-$B$ for paper-facing p-values)
+- **Statistical stopping**: Stop splitting when no feature is significant (Stage
+  A)
+- **Early stopping (optional)**: Speed heuristic inside permutation tests (use
+  fixed-$B$ for paper-facing p-values)
 
 ### Feature Selection Methods
 
@@ -101,7 +103,8 @@ print(forest.feature_importances_)
 
 ### Advanced Capabilities
 
-- **Honest Estimation**: Sample splitting to reduce adaptive bias in leaf estimation
+- **Honest Estimation**: Sample splitting to reduce adaptive bias in leaf
+  estimation
 - **Feature Muting**: Automatically removes uninformative features
 
 ## Installation

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 import socket
-import traceback
 import time
+import traceback
 from typing import Any
 
 import numpy as np
@@ -39,16 +39,17 @@ from citrees._selector import (
     RegressorSelectorTests,
 )
 from paper.scripts.experiments._common import (
-    get_git_sha,
     get_dataset_metadata,
     get_dataset_shape,
     get_datasets,
+    get_git_sha,
+    get_library_versions,
     list_s3_completed,
     load_dataset,
     rankings_s3_path,
     s3_file_exists,
-    utc_now_iso,
     upload_parquet_to_s3,
+    utc_now_iso,
 )
 from paper.scripts.experiments._driver import (
     build_common_parser,
@@ -60,24 +61,31 @@ from paper.scripts.experiments._driver import (
     resolve_grid,
     run_futures,
 )
-from paper.scripts.utils.constants import CLF_METHODS, N_SPLITS, REG_METHODS
-from paper.scripts.utils.experiment_configs import config_label, expand_method_configs, extract_params
 from paper.scripts.infra.config import load_config
+from paper.scripts.utils.constants import CLF_METHODS, N_SPLITS, REG_METHODS
+from paper.scripts.utils.experiment_configs import (
+    config_label,
+    expand_method_configs,
+    extract_params,
+)
 
 try:
     from catboost import CatBoostClassifier, CatBoostRegressor
+
     HAS_CAT = True
 except ImportError:
     HAS_CAT = False
 
 try:
     from lightgbm import LGBMClassifier, LGBMRegressor
+
     HAS_LGBM = True
 except ImportError:
     HAS_LGBM = False
 
 try:
     from xgboost import XGBClassifier, XGBRegressor
+
     HAS_XGB = True
 except ImportError:
     HAS_XGB = False
@@ -110,7 +118,9 @@ _THREADED_SELECTION_METHODS = {
 }
 
 
-def selection_num_cpus(method: str, *, n_samples: int | None = None, n_features: int | None = None) -> int:
+def selection_num_cpus(
+    method: str, *, n_samples: int | None = None, n_features: int | None = None
+) -> int:
     """Return Ray CPU reservation for a single (method, dataset, seed) config.
 
     This value is also passed down as the thread count (`n_jobs` / `thread_count`) for thread-parallel methods so that
@@ -135,6 +145,17 @@ def selection_num_cpus(method: str, *, n_samples: int | None = None, n_features:
     return exp.selection_cpus_default
 
 
+def selection_memory_bytes(method: str) -> int:
+    """Return Ray memory reservation (in bytes) for a single (method, dataset, seed) config."""
+    exp = config.experiment
+
+    override = exp.selection_memory_gb_overrides.get(method)
+    if override is not None:
+        return int(override * 1024 * 1024 * 1024)
+
+    return int(exp.selection_memory_gb_default * 1024 * 1024 * 1024)
+
+
 def _encode_labels(y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return (y_encoded, classes) with labels mapped to 0..K-1."""
     y_arr = np.asarray(y).ravel()
@@ -142,7 +163,9 @@ def _encode_labels(y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return y_encoded.astype(np.int64), classes
 
 
-def filter_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, random_state: int) -> np.ndarray:
+def filter_selector(
+    X: np.ndarray, y: np.ndarray, method: str, task_type: str, random_state: int
+) -> np.ndarray:
     n_features = X.shape[1]
     selectors = ClassifierSelectors if task_type == "classification" else RegressorSelectors
     selector_fn = selectors[method]
@@ -163,11 +186,15 @@ def filter_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, r
     return np.argsort(scores)[::-1]
 
 
-def permutation_selector(X: np.ndarray, y: np.ndarray, method: str, task_type: str, random_state: int) -> np.ndarray:
+def permutation_selector(
+    X: np.ndarray, y: np.ndarray, method: str, task_type: str, random_state: int
+) -> np.ndarray:
     base_method = method.replace("ptest_", "")
     n_features = X.shape[1]
     selectors = ClassifierSelectors if task_type == "classification" else RegressorSelectors
-    selector_tests = ClassifierSelectorTests if task_type == "classification" else RegressorSelectorTests
+    selector_tests = (
+        ClassifierSelectorTests if task_type == "classification" else RegressorSelectorTests
+    )
     selector_fn = selectors[base_method]
     test_fn = selector_tests[base_method]
 
@@ -240,21 +267,36 @@ def get_embedding_model(
         if method == "xgb":
             if not HAS_XGB:
                 raise ValueError("XGBoost is not installed")
-            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": 0}
+            base = {
+                "n_estimators": 100,
+                "n_jobs": n_jobs,
+                "random_state": random_state,
+                "verbosity": 0,
+            }
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return XGBClassifier(**model_params)
         if method == "lgbm":
             if not HAS_LGBM:
                 raise ValueError("LightGBM is not installed")
-            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": -1}
+            base = {
+                "n_estimators": 100,
+                "n_jobs": n_jobs,
+                "random_state": random_state,
+                "verbosity": -1,
+            }
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return LGBMClassifier(**model_params)
         if method == "cat":
             if not HAS_CAT:
                 raise ValueError("CatBoost is not installed")
-            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0, "thread_count": n_jobs}
+            base = {
+                "n_estimators": 100,
+                "random_state": random_state,
+                "verbose": 0,
+                "thread_count": n_jobs,
+            }
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return CatBoostClassifier(**model_params)
@@ -280,21 +322,36 @@ def get_embedding_model(
         if method == "xgb":
             if not HAS_XGB:
                 raise ValueError("XGBoost is not installed")
-            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": 0}
+            base = {
+                "n_estimators": 100,
+                "n_jobs": n_jobs,
+                "random_state": random_state,
+                "verbosity": 0,
+            }
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return XGBRegressor(**model_params)
         if method == "lgbm":
             if not HAS_LGBM:
                 raise ValueError("LightGBM is not installed")
-            base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state, "verbosity": -1}
+            base = {
+                "n_estimators": 100,
+                "n_jobs": n_jobs,
+                "random_state": random_state,
+                "verbosity": -1,
+            }
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return LGBMRegressor(**model_params)
         if method == "cat":
             if not HAS_CAT:
                 raise ValueError("CatBoost is not installed")
-            base = {"n_estimators": 100, "random_state": random_state, "verbose": 0, "thread_count": n_jobs}
+            base = {
+                "n_estimators": 100,
+                "random_state": random_state,
+                "verbose": 0,
+                "thread_count": n_jobs,
+            }
             model_params = {**base, **params}
             model_params["random_state"] = random_state
             return CatBoostRegressor(**model_params)
@@ -327,9 +384,13 @@ def boruta_selector(
     n_jobs: int = _DEFAULT_N_JOBS,
 ) -> np.ndarray:
     if task_type == "classification":
-        base_model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
+        base_model = RandomForestClassifier(
+            n_estimators=100, n_jobs=n_jobs, random_state=random_state
+        )
     else:
-        base_model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
+        base_model = RandomForestRegressor(
+            n_estimators=100, n_jobs=n_jobs, random_state=random_state
+        )
 
     boruta = BorutaPy(base_model, n_estimators="auto", random_state=random_state, verbose=0)
     boruta.fit(X_train, y_train)
@@ -419,7 +480,9 @@ def cpi_selector(
         scoring_fn = lambda m, X, y: (m.predict(X) == y).mean()
     else:
         model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
-        scoring_fn = lambda m, X, y: 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
+        scoring_fn = (
+            lambda m, X, y: 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
+        )
 
     stratify = y_train if task_type == "classification" else None
     X_fit, X_val, y_fit, y_val = train_test_split(
@@ -487,6 +550,15 @@ def _create_strata(X: np.ndarray, n_bins: int = 5) -> np.ndarray:
 
 
 def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str) -> np.ndarray:
+    """Select features using mRMR (minimum Redundancy Maximum Relevance).
+
+    Note: The mrmr library has no random_state parameter and is non-deterministic.
+    Results may vary between runs.
+
+    Note: mRMR internally drops constant features (zero variance). This function
+    appends any dropped features at the end of the ranking to ensure all features
+    are included.
+    """
     df = pd.DataFrame(X_train)
     y_series = pd.Series(y_train)
     n_features = X_train.shape[1]
@@ -496,7 +568,16 @@ def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str) -> n
     else:
         selected = mrmr_regression(df, y_series, K=n_features, show_progress=False)
 
-    return np.array(selected)
+    ranking = np.array(selected)
+
+    # Append missing features (e.g., constant features dropped by mRMR)
+    if len(ranking) < n_features:
+        all_features = set(range(n_features))
+        ranked_features = set(ranking)
+        missing = sorted(all_features - ranked_features)
+        ranking = np.concatenate([ranking, np.array(missing)])
+
+    return ranking
 
 
 def rfe_selector(
@@ -507,9 +588,13 @@ def rfe_selector(
     n_jobs: int = _DEFAULT_N_JOBS,
 ) -> np.ndarray:
     if task_type == "classification":
-        base_model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
+        base_model = RandomForestClassifier(
+            n_estimators=100, n_jobs=n_jobs, random_state=random_state
+        )
     else:
-        base_model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
+        base_model = RandomForestRegressor(
+            n_estimators=100, n_jobs=n_jobs, random_state=random_state
+        )
 
     rfe = RFE(base_model, n_features_to_select=1, step=1)
     rfe.fit(X_train, y_train)
@@ -542,14 +627,22 @@ def run_selection(
         X_train = scaler.fit_transform(X_train_raw)
         X_test = scaler.transform(X_test_raw)
 
-        rs = seed + fold_idx
+        rs = seed * 1000 + fold_idx  # Avoid collision: seed=0/fold=4 vs seed=4/fold=0
         if method in ["mc", "mi", "rdc", "pc", "dc"]:
             ranking = filter_selector(X_train, y_train, method, task_type, rs)
         elif method.startswith("ptest_"):
             ranking = permutation_selector(X_train, y_train, method, task_type, rs)
         elif method in ["rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
             ranking = embedding_selector(
-                X_train, y_train, X_test, y_test, method, task_type, rs, params=params, n_jobs=n_jobs
+                X_train,
+                y_train,
+                X_test,
+                y_test,
+                method,
+                task_type,
+                rs,
+                params=params,
+                n_jobs=n_jobs,
             )
         elif method == "boruta":
             ranking = boruta_selector(X_train, y_train, task_type, rs, n_jobs=n_jobs)
@@ -566,6 +659,10 @@ def run_selection(
         else:
             raise ValueError(f"Unknown method: {method}")
 
+        # Validate ranking is non-empty
+        if len(ranking) == 0:
+            raise ValueError(f"Empty ranking returned by {method} for fold {fold_idx}")
+
         fold_result = {
             "fold_idx": fold_idx,
             "feature_ranking": ranking.tolist(),
@@ -578,7 +675,7 @@ def run_selection(
 
 @ray.remote(resources={"selection": 1})
 def process_config(
-    config: dict[str, Any],
+    method_config: dict[str, Any],
     dataset: str,
     seed: int,
     task_type: str,
@@ -586,9 +683,9 @@ def process_config(
     git_sha: str,
     skip_existing: bool = False,
 ) -> dict[str, Any]:
-    method = config["method"]
-    params = extract_params(config)
-    method_id = config_label(config)
+    method = method_config["method"]
+    params = extract_params(method_config)
+    method_id = config_label(method_config)
     s3_path = rankings_s3_path(task_type, dataset, method_id, seed)
     runtime: dict[str, Any] = {"hostname": socket.gethostname(), "pid": os.getpid()}
     try:
@@ -640,6 +737,7 @@ def process_config(
             row["elapsed_seconds"] = float(elapsed)
             row["created_at_utc"] = created_at_utc
             row["git_sha"] = git_sha
+            row["library_versions"] = get_library_versions()
             # Add dataset metadata
             row["dataset_source"] = dataset_meta.get("dataset_source")
             row["dataset_type"] = dataset_meta.get("dataset_type")
@@ -745,8 +843,9 @@ def main():
         method = method_cfg["method"]
         n_samples, n_features = dataset_shapes[dataset]
         selection_cpus = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
+        selection_memory = selection_memory_bytes(method)
         futures.append(
-            process_config.options(num_cpus=selection_cpus).remote(
+            process_config.options(num_cpus=selection_cpus, memory=selection_memory).remote(
                 method_cfg,
                 dataset,
                 seed,

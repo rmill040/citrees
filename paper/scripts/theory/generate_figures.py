@@ -185,17 +185,17 @@ def plot_depth_propagation(
 
     # At each depth, sample size halves
     n_at_depth = [n // (2**d) for d in depths]
-    n_gate_at_depth = [int(nd * p) for nd in n_at_depth]
+    n_gate_at_depth = [int(and * p) for and in n_at_depth]
 
     # Power at each depth (testing at the node level, not root)
     # For root-style test at depth d with reduced sample
     power_node = []
     power_gate = []
 
-    for d, nd, ng in zip(depths, n_at_depth, n_gate_at_depth):
-        if nd >= 4:
+    for d, and, ng in zip(depths, n_at_depth, n_gate_at_depth):
+        if and >= 4:
             # Power of detecting the diluted signal at this node
-            power_node.append(root_power(p, nd, alpha))
+            power_node.append(root_power(p, and, alpha))
         else:
             power_node.append(0.0)
 
@@ -221,9 +221,9 @@ def plot_depth_propagation(
     ax.axvline(d_crit, color=COLORS["gap"], linestyle="--", alpha=0.7, label=f"Critical depth = {d_crit:.1f}")
 
     # Annotations for sample sizes
-    for d, nd, ng in zip(depths, n_at_depth, n_gate_at_depth):
+    for d, and, ng in zip(depths, n_at_depth, n_gate_at_depth):
         ax.annotate(
-            f"n={nd}\n$n_g$={ng}",
+            f"n={and}\n$n_g$={ng}",
             xy=(d, -0.08),
             ha="center",
             fontsize=8,

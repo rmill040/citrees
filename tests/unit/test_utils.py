@@ -94,9 +94,7 @@ class TestSplitData:
         y = np.array([0, 0, 1, 1])
         threshold = 4.0  # Split on first feature
 
-        X_left, y_left, X_right, y_right = split_data(
-            X=X, y=y, feature=0, threshold=threshold
-        )
+        X_left, y_left, X_right, y_right = split_data(X=X, y=y, feature=0, threshold=threshold)
 
         # First two samples should be left (x <= 4)
         assert len(X_left) == 2
@@ -109,9 +107,7 @@ class TestSplitData:
         X = np.array([[1.0], [2.0], [3.0]])
         y = np.array([0, 1, 2])
 
-        X_left, y_left, X_right, y_right = split_data(
-            X=X, y=y, feature=0, threshold=10.0
-        )
+        X_left, y_left, X_right, y_right = split_data(X=X, y=y, feature=0, threshold=10.0)
 
         assert len(X_left) == 3
         assert len(X_right) == 0
@@ -121,9 +117,7 @@ class TestSplitData:
         X = np.array([[1.0], [2.0], [3.0]])
         y = np.array([0, 1, 2])
 
-        X_left, y_left, X_right, y_right = split_data(
-            X=X, y=y, feature=0, threshold=0.0
-        )
+        X_left, y_left, X_right, y_right = split_data(X=X, y=y, feature=0, threshold=0.0)
 
         assert len(X_left) == 0
         assert len(X_right) == 3
@@ -372,9 +366,7 @@ class TestUtilsPyFunc:
         """Test split_data basic split."""
         X = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
         y = np.array([0, 0, 1, 1])
-        X_left, y_left, X_right, y_right = split_data(
-            X=X, y=y, feature=0, threshold=4.0
-        )
+        X_left, y_left, X_right, y_right = split_data(X=X, y=y, feature=0, threshold=4.0)
         assert len(X_left) == 2
         assert len(X_right) == 2
 
@@ -382,9 +374,7 @@ class TestUtilsPyFunc:
         """Test split_data all samples go left."""
         X = np.array([[1.0], [2.0], [3.0]])
         y = np.array([0, 1, 2])
-        X_left, y_left, X_right, y_right = split_data(
-            X=X, y=y, feature=0, threshold=10.0
-        )
+        X_left, y_left, X_right, y_right = split_data(X=X, y=y, feature=0, threshold=10.0)
         assert len(X_left) == 3
         assert len(X_right) == 0
 
@@ -392,9 +382,7 @@ class TestUtilsPyFunc:
         """Test split_data all samples go right."""
         X = np.array([[1.0], [2.0], [3.0]])
         y = np.array([0, 1, 2])
-        X_left, y_left, X_right, y_right = split_data(
-            X=X, y=y, feature=0, threshold=0.0
-        )
+        X_left, y_left, X_right, y_right = split_data(X=X, y=y, feature=0, threshold=0.0)
         assert len(X_left) == 0
         assert len(X_right) == 3
 
@@ -475,10 +463,10 @@ class TestBugFixes:
         # Test various configurations that previously caused mismatches
         test_cases = [
             # (n_per_class, n_classes, max_samples)
-            (5, 3, 4),   # Original bug report case
-            (3, 2, 3),   # Previously got 4 instead of 3
-            (3, 3, 4),   # Previously got 3 instead of 4
-            (3, 4, 2),   # Previously got 0 instead of 2
+            (5, 3, 4),  # Original bug report case
+            (3, 2, 3),  # Previously got 4 instead of 3
+            (3, 3, 4),  # Previously got 3 instead of 4
+            (3, 4, 2),  # Previously got 0 instead of 2
             (10, 5, 7),  # General case
         ]
 

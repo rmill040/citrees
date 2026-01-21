@@ -367,7 +367,8 @@ def analyze_selection_bias(
 
     # Filter to bias datasets (those with noise_indices in ground truth)
     bias_datasets = [
-        name for name, meta in ground_truth.items()
+        name
+        for name, meta in ground_truth.items()
         if meta.get("noise_indices") and len(meta.get("noise_indices", [])) > 0
     ]
 
@@ -394,6 +395,7 @@ def analyze_selection_bias(
             feature_ranking = row.get("feature_ranking", [])
             if isinstance(feature_ranking, str):
                 import ast
+
                 feature_ranking = ast.literal_eval(feature_ranking)
 
             if not feature_ranking:
@@ -406,14 +408,16 @@ def analyze_selection_bias(
 
                 noise_rate = compute_noise_selection_rate(feature_ranking, noise_indices, k)
 
-                records.append({
-                    "dataset": dataset,
-                    "method": method,
-                    "k": k,
-                    "noise_selection_rate": noise_rate,
-                    "n_noise_features": len(noise_indices),
-                    "n_informative": len(informative_indices),
-                })
+                records.append(
+                    {
+                        "dataset": dataset,
+                        "method": method,
+                        "k": k,
+                        "noise_selection_rate": noise_rate,
+                        "n_noise_features": len(noise_indices),
+                        "n_informative": len(informative_indices),
+                    }
+                )
 
     if not records:
         print("No results found for bias datasets.")
@@ -422,11 +426,7 @@ def analyze_selection_bias(
     df = pd.DataFrame(records)
 
     # Aggregate by method (mean across datasets and k values)
-    summary = (
-        df.groupby("method")
-        .agg({"noise_selection_rate": ["mean", "std"]})
-        .round(3)
-    )
+    summary = df.groupby("method").agg({"noise_selection_rate": ["mean", "std"]}).round(3)
     summary.columns = ["noise_rate_mean", "noise_rate_std"]
     summary = summary.sort_values("noise_rate_mean")
 
@@ -472,8 +472,14 @@ def analyze_selection_bias(
                 colors.append("steelblue")
 
         ax.bar(x, summary["noise_rate_mean"], color=colors, edgecolor="black", linewidth=0.5)
-        ax.errorbar(x, summary["noise_rate_mean"], yerr=summary["noise_rate_std"],
-                    fmt="none", color="black", capsize=3)
+        ax.errorbar(
+            x,
+            summary["noise_rate_mean"],
+            yerr=summary["noise_rate_std"],
+            fmt="none",
+            color="black",
+            capsize=3,
+        )
 
         ax.set_xticks(x)
         ax.set_xticklabels(methods_sorted, rotation=45, ha="right")
@@ -970,11 +976,11 @@ def analyze_stratified_results(
     if "n_samples" in df.columns:
         feature_col = "n_features_final" if "n_features_final" in df.columns else "n_features"
         if feature_col in df.columns:
-            df["pn_ratio"] = df[feature_col] / df["n_samples"]
+            df["on_ratio"] = df[feature_col] / df["n_samples"]
         else:
-            df["pn_ratio"] = np.nan
+            df["on_ratio"] = np.nan
         df["dim_bin"] = pd.cut(
-            df["pn_ratio"], bins=[0, 0.5, 1.0, np.inf], labels=["low", "medium", "high"]
+            df["on_ratio"], bins=[0, 0.5, 1.0, np.inf], labels=["low", "medium", "high"]
         )
         stratified_dim = df.groupby(["dim_bin", "method"])[metric].agg(["mean", "std"])
         out_path = tables_dir / f"stratified_by_dim_{metric.replace('@', '_at_')}.csv"
@@ -1244,9 +1250,9 @@ def run_statistical_analysis(
 
     results = {}
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"STATISTICAL ANALYSIS: {output_prefix.upper()}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Methods: {methods}")
     print(f"Metrics: {metrics}")
     print(f"Datasets: {len(data_wide)}")
@@ -1304,7 +1310,10 @@ def run_statistical_analysis(
             pairwise_df["effect_size"] = effect_sizes
 
             # Save
-            out_path = tables_dir / f"{output_prefix}_pairwise_{metric.replace('@', '_at_').replace('/', '_')}.csv"
+            out_path = (
+                tables_dir
+                / f"{output_prefix}_pairwise_{metric.replace('@', '_at_').replace('/', '_')}.csv"
+            )
             pairwise_df.to_csv(out_path, index=False)
             print(f"  Saved: {out_path.name}")
 
@@ -1313,17 +1322,22 @@ def run_statistical_analysis(
             if not sig_pairs.empty:
                 print(f"  Significant pairs ({len(sig_pairs)}):")
                 for _, row in sig_pairs.head(5).iterrows():
-                    print(f"    {row['method1']} vs {row['method2']}: p_adj={row['p_value_corrected']:.4f}, d={row['cohens_d']:.2f} ({row['effect_size']})")
+                    print(
+                        f"    {row['method1']} vs {row['method2']}: p_adj={row['p_value_corrected']:.4f}, d={row['cohens_d']:.2f} ({row['effect_size']})"
+                    )
                 if len(sig_pairs) > 5:
                     print(f"    ... and {len(sig_pairs) - 5} more")
 
             results[f"{output_prefix}_pairwise_{metric}"] = pairwise_df
         else:
-            print(f"  No pairwise comparisons (insufficient data)")
+            print("  No pairwise comparisons (insufficient data)")
 
         # 3. Ranking table with bootstrap CIs
         try:
-            ranking_path = tables_dir / f"{output_prefix}_ranking_{metric.replace('@', '_at_').replace('/', '_')}"
+            ranking_path = (
+                tables_dir
+                / f"{output_prefix}_ranking_{metric.replace('@', '_at_').replace('/', '_')}"
+            )
             generate_ranking_table(data_wide, methods, metric, ranking_path, higher_is_better=hib)
         except Exception as e:
             print(f"  Ranking table failed: {e}")
@@ -1335,7 +1349,10 @@ def run_statistical_analysis(
                 n_methods = len(ranks_df)
                 n_datasets = len(data_wide)
                 cd = nemenyi_critical_difference(n_methods, n_datasets)
-                cd_path = figures_dir / f"{output_prefix}_cd_{metric.replace('@', '_at_').replace('/', '_')}.png"
+                cd_path = (
+                    figures_dir
+                    / f"{output_prefix}_cd_{metric.replace('@', '_at_').replace('/', '_')}.png"
+                )
                 plot_critical_difference(ranks_df, cd, f"{output_prefix} - {metric}", cd_path)
         except Exception as e:
             print(f"  CD diagram failed: {e}")
@@ -1399,7 +1416,9 @@ def _aggregate_and_pivot(
     return data_wide
 
 
-def load_and_pivot_results(input_path: Path, methods: list[str], metric_cols: list[str]) -> pd.DataFrame:
+def load_and_pivot_results(
+    input_path: Path, methods: list[str], metric_cols: list[str]
+) -> pd.DataFrame:
     """Load results and pivot to wide format for statistical analysis.
 
     Parameters
@@ -1467,7 +1486,15 @@ def generate_runtime_summary(
         .agg(["mean", "std", "median", "min", "max", "sum", "count"])
         .round(3)
     )
-    summary.columns = ["mean_sec", "std_sec", "median_sec", "min_sec", "max_sec", "total_sec", "n_runs"]
+    summary.columns = [
+        "mean_sec",
+        "std_sec",
+        "median_sec",
+        "min_sec",
+        "max_sec",
+        "total_sec",
+        "n_runs",
+    ]
     summary = summary.sort_values("median_sec")
 
     # Save CSV
@@ -1539,7 +1566,15 @@ def plot_runtime_bars(
     fig, ax = plt.subplots(figsize=(12, 6))
 
     x = range(len(summary))
-    ax.bar(x, summary["mean"], yerr=summary["std"], capsize=3, color="steelblue", edgecolor="black", linewidth=0.5)
+    ax.bar(
+        x,
+        summary["mean"],
+        yerr=summary["std"],
+        capsize=3,
+        color="steelblue",
+        edgecolor="black",
+        linewidth=0.5,
+    )
     ax.set_xticks(x)
     ax.set_xticklabels(summary[method_col], rotation=45, ha="right")
     ax.set_ylabel("Runtime (seconds)")
@@ -1620,6 +1655,7 @@ def plot_runtime_violin(
 
     # Add legend
     from matplotlib.patches import Patch
+
     legend_elements = [
         Patch(facecolor="lightcoral", alpha=0.7, label="Embedding"),
         Patch(facecolor="lightgreen", alpha=0.7, label="Wrapper"),
@@ -1712,7 +1748,9 @@ def main():
         print("=" * 60)
         data = pd.read_parquet(clf_eval_path)
         methods = sorted(data["method"].unique())
-        metric_cols = [c for c in data.columns if c in ["accuracy", "f1_macro", "auc", "balanced_accuracy"]]
+        metric_cols = [
+            c for c in data.columns if c in ["accuracy", "f1_macro", "auc", "balanced_accuracy"]
+        ]
         data_wide = load_and_pivot_results(clf_eval_path, methods, metric_cols)
 
         run_statistical_analysis(

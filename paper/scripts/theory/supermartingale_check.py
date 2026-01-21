@@ -164,7 +164,7 @@ def main() -> None:
 
     print(f"n_sims={n_sims}, n_max={n_max}")
     print(f"E[S_tau] = {s_tau.mean():.4f} (target alpha={alpha:.4f})")
-    print(f"P(stop_sig) = {stop_sig.mean():.4f} (bound alpha/gamma={alpha/gamma:.4f})")
+    print(f"P(stop_sig) = {stop_sig.mean():.4f} (bound alpha/gamma={alpha / gamma:.4f})")
     print(f"P(stop_nonsig) = {stop_nonsig.mean():.4f}")
     print(f"P(max_reached) = {max_reached.mean():.4f}")
     print(f"mean(tau) = {tau.mean():.1f}, median(tau) = {float(np.median(tau)):.1f}")
@@ -173,4 +173,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

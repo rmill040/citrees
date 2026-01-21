@@ -5,10 +5,10 @@ from multiprocessing import cpu_count
 import numpy as np
 from joblib import Parallel, delayed
 from pydantic import BaseModel
+from scipy.sparse import csr_matrix, hstack
 from sklearn.base import ClassifierMixin, RegressorMixin, clone
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import LabelEncoder
-from scipy.sparse import csr_matrix, hstack
 
 from citrees._tree import (
     BaseConditionalInferenceTreeEstimator,
@@ -350,7 +350,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         max_cpus = cpu_count()
         value = 1 if self.n_jobs is None else self.n_jobs
         if value == 0:
-            raise ValueError("n_jobs=0 is invalid. Use n_jobs=1 for single-threaded or n_jobs=-1 for all cores.")
+            raise ValueError(
+                "n_jobs=0 is invalid. Use n_jobs=1 for single-threaded or n_jobs=-1 for all cores."
+            )
         value = min(value, max_cpus)
         if value < 0:
             cpus = np.arange(1, max_cpus + 1)
@@ -427,7 +429,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
         if self.oob_score:
             if self._bootstrap_method is None:
-                raise ValueError("oob_score requires bootstrap_method to be set (bootstrap enabled).")
+                raise ValueError(
+                    "oob_score requires bootstrap_method to be set (bootstrap enabled)."
+                )
             self._compute_oob_score(X, y)
 
         return self
@@ -448,7 +452,6 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                 cols = classes.astype(int)
         aligned[:, cols] = proba
         return aligned
-
 
     def _compute_oob_score(self, X: np.ndarray, y: np.ndarray) -> None:
         """Compute OOB predictions and score (sklearn-compatible)."""

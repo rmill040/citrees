@@ -54,12 +54,12 @@ available_node_types:
   head:
     node_config:
       InstanceType: c6i.4xlarge
-      ImageId: ami-0030e4319cbf4dbf2  # Ubuntu 22.04 us-east-1
+      ImageId: ami-0030e4319cbf4dbf2 # Ubuntu 22.04 us-east-1
     resources: {}
 
   selection_worker:
     node_config:
-      InstanceType: c6i.8xlarge  # 32 vCPUs, 64GB RAM - heavy feature selection
+      InstanceType: c6i.8xlarge # 32 vCPUs, 64GB RAM - heavy feature selection
       ImageId: ami-0030e4319cbf4dbf2
       InstanceMarketOptions:
         MarketType: spot
@@ -70,7 +70,7 @@ available_node_types:
 
   eval_worker:
     node_config:
-      InstanceType: c6i.xlarge  # 4 vCPUs, 8GB RAM - lightweight downstream eval
+      InstanceType: c6i.xlarge # 4 vCPUs, 8GB RAM - lightweight downstream eval
       ImageId: ami-0030e4319cbf4dbf2
       InstanceMarketOptions:
         MarketType: spot
@@ -85,10 +85,13 @@ setup_commands:
   - sudo apt-get update && sudo apt-get install -y r-base r-base-dev
   - curl -LsSf https://astral.sh/uv/install.sh | sh
   - $HOME/.local/bin/uv python install 3.12
-  - rm -rf ~/citrees && git clone -b __BRANCH__ https://github.com/rmill040/citrees.git ~/citrees
+  - rm -rf ~/citrees && git clone -b __BRANCH__
+    https://github.com/rmill040/citrees.git ~/citrees
   - cd ~/citrees && $HOME/.local/bin/uv sync --group paper
   # Create python wrapper script (symlink bypasses venv detection, wrapper preserves it)
-  - sudo rm -f /usr/local/bin/python && echo -e '#!/bin/bash\nexec /home/ubuntu/citrees/.venv/bin/python "$@"' | sudo tee /usr/local/bin/python > /dev/null && sudo chmod +x /usr/local/bin/python
+  - sudo rm -f /usr/local/bin/python && echo -e '#!/bin/bash\nexec
+    /home/ubuntu/citrees/.venv/bin/python "$@"' | sudo tee /usr/local/bin/python
+    > /dev/null && sudo chmod +x /usr/local/bin/python
   # Set S3_BUCKET env var (resolved at generate time, avoids STS calls on workers)
   - echo 'export S3_BUCKET=__S3_BUCKET__' >> ~/.bashrc
   # Provenance: prefer env var to avoid relying on `.git/` at runtime
@@ -100,8 +103,11 @@ worker_setup_commands: []
 
 head_start_ray_commands:
   - $HOME/citrees/.venv/bin/ray stop
-  - S3_BUCKET=__S3_BUCKET__ GIT_SHA="$(cd $HOME/citrees && git rev-parse HEAD)" $HOME/citrees/.venv/bin/ray start --head --port=6379 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
+  - S3_BUCKET=__S3_BUCKET__ GIT_SHA="$(cd $HOME/citrees && git rev-parse HEAD)"
+    $HOME/citrees/.venv/bin/ray start --head --port=6379
+    --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
 
 worker_start_ray_commands:
   - $HOME/citrees/.venv/bin/ray stop
-  - S3_BUCKET=__S3_BUCKET__ GIT_SHA="$(cd $HOME/citrees && git rev-parse HEAD)" $HOME/citrees/.venv/bin/ray start --address=$RAY_HEAD_IP:6379
+  - S3_BUCKET=__S3_BUCKET__ GIT_SHA="$(cd $HOME/citrees && git rev-parse HEAD)"
+    $HOME/citrees/.venv/bin/ray start --address=$RAY_HEAD_IP:6379

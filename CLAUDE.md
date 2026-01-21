@@ -98,20 +98,20 @@ Available registries:
 
 ### Key Parameters
 
-| Parameter              | Description                               | Default                    |
-| ---------------------- | ----------------------------------------- | -------------------------- |
-| `selector`             | Feature selection method: str or list     | 'mc' (clf) / 'pc' (reg)    |
-| `splitter`             | Split criterion                           | 'gini' (clf) / 'mse' (reg) |
-| `alpha_selector`       | P-value threshold for feature selection   | 0.05                       |
-| `alpha_splitter`       | P-value threshold for split selection     | 0.05                       |
-| `n_resamples_selector` | NResamples enum or int                    | NResamples.AUTO            |
-| `adjust_alpha_*`       | Bonferroni correction                     | True                       |
-| `early_stopping_*`     | EarlyStopping enum or None                | EarlyStopping.ADAPTIVE     |
-| `feature_muting`       | Remove uninformative features             | True                       |
-| `feature_scanning`     | Sort features by promise before testing   | True                       |
-| `threshold_method`     | ThresholdMethod enum                      | ThresholdMethod.EXACT      |
-| `max_features`         | MaxValuesMethod enum, float, or int       | None (all)                 |
-| `max_thresholds`       | MaxValuesMethod enum, float, or int       | None (all)                 |
+| Parameter              | Description                             | Default                    |
+| ---------------------- | --------------------------------------- | -------------------------- |
+| `selector`             | Feature selection method: str or list   | 'mc' (clf) / 'pc' (reg)    |
+| `splitter`             | Split criterion                         | 'gini' (clf) / 'mse' (reg) |
+| `alpha_selector`       | P-value threshold for feature selection | 0.05                       |
+| `alpha_splitter`       | P-value threshold for split selection   | 0.05                       |
+| `n_resamples_selector` | NResamples enum or int                  | NResamples.AUTO            |
+| `adjust_alpha_*`       | Bonferroni correction                   | True                       |
+| `early_stopping_*`     | EarlyStopping enum or None              | EarlyStopping.ADAPTIVE     |
+| `feature_muting`       | Remove uninformative features           | True                       |
+| `feature_scanning`     | Sort features by promise before testing | True                       |
+| `threshold_method`     | ThresholdMethod enum                    | ThresholdMethod.EXACT      |
+| `max_features`         | MaxValuesMethod enum, float, or int     | None (all)                 |
+| `max_thresholds`       | MaxValuesMethod enum, float, or int     | None (all)                 |
 
 ### Selector Parameter
 
@@ -131,8 +131,8 @@ The `selector` parameter accepts either a single string or a list of strings:
 
 **List-based selector (multi-selector mode):** When a list is provided, citrees
 uses the max-T method (Westfall & Young, 1993) for valid Type I error control.
-The permutation test computes max(selector_scores) inside each permutation.
-Each selector in the list must be unique (no duplicates allowed).
+The permutation test computes max(selector_scores) inside each permutation. Each
+selector in the list must be unique (no duplicates allowed).
 
 ```python
 # Classification: only mc and rdc can be combined (both [0,1] scale)
@@ -150,8 +150,10 @@ information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
 The `early_stopping_selector` and `early_stopping_splitter` parameters control
 how permutation tests terminate:
 
-- `EarlyStopping.ADAPTIVE` (default): Bayesian Beta CDF stopping - valid Type I error (~5%), 95% faster
-- `EarlyStopping.SIMPLE`: Futility + significance stopping - inflates Type I error to ~9%
+- `EarlyStopping.ADAPTIVE` (default): Bayesian Beta CDF stopping - valid Type I
+  error (~5%), 95% faster
+- `EarlyStopping.SIMPLE`: Futility + significance stopping - inflates Type I
+  error to ~9%
 - `None`: Full permutation test - no early stopping
 
 **Default mode (recommended for most applications):**
@@ -242,12 +244,13 @@ uv run pytest --cov=citrees --cov-report=term-missing  # With coverage (JIT disa
 
 The test suite supports two modes controlled by `tests/conftest.py`:
 
-| Mode | JIT | Speed | Coverage | Use Case |
-|------|-----|-------|----------|----------|
-| Default | Enabled | Fast | No | Validate compiled Numba code works |
-| Coverage | Disabled | Slower | Yes | Track line coverage for CI |
+| Mode     | JIT      | Speed  | Coverage | Use Case                           |
+| -------- | -------- | ------ | -------- | ---------------------------------- |
+| Default  | Enabled  | Fast   | No       | Validate compiled Numba code works |
+| Coverage | Disabled | Slower | Yes      | Track line coverage for CI         |
 
 **How it works:**
+
 - JIT is **enabled by default** for fast test execution
 - JIT is **automatically disabled** when running with `--cov` flag
 - You can explicitly control JIT via `NUMBA_DISABLE_JIT` environment variable
@@ -267,27 +270,32 @@ NUMBA_DISABLE_JIT=0 uv run pytest tests/  # Force JIT on
 #### Slow Test Marker
 
 Tests that are computationally expensive are marked with `@pytest.mark.slow`:
+
 - `TestStatisticalCorrectness.test_full_ptest` - uses "auto" resamples
-- `TestResamplesConfiguration.test_n_resamples_maximum` - uses "maximum" resamples
+- `TestResamplesConfiguration.test_n_resamples_maximum` - uses "maximum"
+  resamples
 
 Skip slow tests for faster iteration:
+
 ```bash
 uv run pytest tests/ -m "not slow" -v
 ```
 
 #### Testing Numba Functions
 
-Numba `@njit` decorated functions compile to machine code, so **pytest-cov cannot
-track line coverage inside them**. When running with coverage (`--cov`), JIT is
-automatically disabled, allowing coverage tracking.
+Numba `@njit` decorated functions compile to machine code, so **pytest-cov
+cannot track line coverage inside them**. When running with coverage (`--cov`),
+JIT is automatically disabled, allowing coverage tracking.
 
 When JIT is disabled:
+
 - All `@njit` functions run as plain Python
 - No `.py_func` attribute exists (functions are already Python)
 - Coverage tracking works automatically
 - Tests run the same code paths as production, just without compilation
 
 When JIT is enabled (default):
+
 - Tests validate that compiled Numba code actually works
 - Use `.py_func` attribute to test both versions if needed:
 
@@ -312,7 +320,9 @@ def test_gini_py_func():
 
 The codebase uses two different RNG approaches based on Numba constraints:
 
-**Pure Python functions** use `np.random.default_rng()` for isolated RNG streams:
+**Pure Python functions** use `np.random.default_rng()` for isolated RNG
+streams:
+
 ```python
 def _ptest(..., random_state: int):
     rng = np.random.default_rng(random_state)
@@ -320,7 +330,9 @@ def _ptest(..., random_state: int):
 ```
 
 **Numba @njit functions** must use `np.random.seed()` because Numba's Generator
-support is not thread-safe (see [GitHub #7686](https://github.com/numba/numba/issues/7686)):
+support is not thread-safe (see
+[GitHub #7686](https://github.com/numba/numba/issues/7686)):
+
 ```python
 @njit(parallel=True)
 def _ptest_parallel(..., random_state: int):
@@ -330,9 +342,12 @@ def _ptest_parallel(..., random_state: int):
 ```
 
 **Key points:**
+
 - Never use `np.random.seed()` in pure Python code (contaminates global state)
-- Per-iteration seeding `(random_state + i)` in `prange` is the recommended Numba pattern
-- All Numba functions using legacy RNG have documentation comments explaining why
+- Per-iteration seeding `(random_state + i)` in `prange` is the recommended
+  Numba pattern
+- All Numba functions using legacy RNG have documentation comments explaining
+  why
 
 ### Scratch Directory
 
@@ -384,17 +399,17 @@ and **do not claim results you did not run**.
 
 ## Current Limitations vs State of the Art
 
-| Area               | citrees Now | SOTA (2024-2025)         | Priority |
-| ------------------ | ----------- | ------------------------ | -------- |
-| Feature Importance | MDI         | SHAP/TreeSHAP            | N/A      |
-| Causal Inference   | Honesty     | Honest Estimation, GRF   | DONE     |
-| Speed              | CPU/Numba   | GPU (cuML 20-45x faster) | MEDIUM   |
-| Tree Structure     | Axis-aligned| Oblique, Neural Trees    | LOW      |
+| Area               | citrees Now  | SOTA (2024-2025)         | Priority |
+| ------------------ | ------------ | ------------------------ | -------- |
+| Feature Importance | MDI          | SHAP/TreeSHAP            | N/A      |
+| Causal Inference   | Honesty      | Honest Estimation, GRF   | DONE     |
+| Speed              | CPU/Numba    | GPU (cuML 20-45x faster) | MEDIUM   |
+| Tree Structure     | Axis-aligned | Oblique, Neural Trees    | LOW      |
 
-**Note on SHAP**: citrees uses a custom tree structure not compatible with SHAP's
-TreeExplainer. For benchmarking, SHAP TreeExplainer is used with sklearn/XGBoost/
-LightGBM models in `paper/scripts/`. This is intentional - SHAP is a benchmark
-comparison tool, not a core library feature.
+**Note on SHAP**: citrees uses a custom tree structure not compatible with
+SHAP's TreeExplainer. For benchmarking, SHAP TreeExplainer is used with
+sklearn/XGBoost/ LightGBM models in `paper/scripts/`. This is intentional - SHAP
+is a benchmark comparison tool, not a core library feature.
 
 ---
 
@@ -405,11 +420,13 @@ comparison tool, not a core library feature.
 Training on large datasets is slow. cuML achieves 20-45x speedups.
 
 **Options**:
+
 1. **Wrap cuML**: Use cuML for splitting, keep citrees API
 2. **CUDA kernels**: Custom kernels for permutation tests
 3. **JAX/Triton**: Python-native GPU compilation
 
 **Research**:
+
 - [cuML Random Forests](https://developer.nvidia.com/blog/accelerating-random-forests-up-to-45x-using-cuml/)
 - [RFX](https://arxiv.org/html/2511.19493) - GPU + QLORA (Nov 2025)
 
@@ -418,17 +435,25 @@ Training on large datasets is slow. cuML achieves 20-45x speedups.
 ## LOW PRIORITY (Future Research)
 
 ### Oblique Decision Trees
-Axis-aligned splits are limiting. Oblique trees use linear combinations of features.
+
+Axis-aligned splits are limiting. Oblique trees use linear combinations of
+features.
+
 - [TAO Algorithm](https://faculty.ucmerced.edu/mcarreira-perpinan/research/TAO.html)
 - [DTSemNet](https://arxiv.org/abs/2408.09135) - Vanilla gradient descent (2024)
 
 ### Neural/Differentiable Trees
+
 End-to-end training with neural networks.
-- [NCART](https://www.sciencedirect.com/science/article/abs/pii/S0031320324003297) - Neural CART (2024)
+
+- [NCART](https://www.sciencedirect.com/science/article/abs/pii/S0031320324003297) -
+  Neural CART (2024)
 - [Neural-Backed Decision Trees](https://research.alvinwan.com/neural-backed-decision-trees/)
 
 ### Gradient Boosting Integration
+
 Combine conditional inference with boosting.
+
 - [LightGBM techniques](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree)
 - [Piecewise Linear Trees](https://nimasarang.com/blog/2025-12-14-gbt-algorithms/)
 

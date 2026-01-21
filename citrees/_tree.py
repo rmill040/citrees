@@ -1,29 +1,12 @@
 import warnings
 from abc import ABCMeta, abstractmethod
 from math import ceil
-from typing import Annotated, Any, TypedDict
+from typing import Any, TypedDict
 
 import numpy as np
-from pydantic import BaseModel, Field, model_validator
-
-from citrees._types import (
-    ConfidenceFloat,
-    EarlyStopping,
-    EarlyStoppingOption,
-    EstimatorType,
-    HonestyFraction,
-    MaxValuesOption,
-    MinSamplesSplit,
-    NonNegativeFloat,
-    NonNegativeInt,
-    NResamples,
-    NResamplesOption,
-    PositiveInt,
-    ProbabilityFloat,
-    ThresholdMethod,
-)
-from scipy.stats import norm
+from pydantic import BaseModel, model_validator
 from scipy.sparse import csr_matrix
+from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -42,6 +25,21 @@ from citrees._splitter import (
     RegressorSplitterTests,
 )
 from citrees._threshold_method import ThresholdMethods
+from citrees._types import (
+    ConfidenceFloat,
+    EarlyStoppingOption,
+    EstimatorType,
+    HonestyFraction,
+    MaxValuesOption,
+    MinSamplesSplit,
+    NonNegativeFloat,
+    NonNegativeInt,
+    NResamples,
+    NResamplesOption,
+    PositiveInt,
+    ProbabilityFloat,
+    ThresholdMethod,
+)
 from citrees._utils import calculate_max_value, estimate_mean, estimate_proba, split_data
 
 
@@ -965,7 +963,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             # randomly permute since a random sample is already taken from the feature set
             if len(local_available):
                 max_features = (
-                    calculate_max_value(n_values=len(local_available), desired_max=self.max_features)
+                    calculate_max_value(
+                        n_values=len(local_available), desired_max=self.max_features
+                    )
                     if self.max_features
                     else len(local_available)
                 )
@@ -974,7 +974,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     if len(local_available) > 1
                     else local_available
                 )
-                if self._early_stopping_selector is not None and self._feature_scanning and len(features) > 1:
+                if (
+                    self._early_stopping_selector is not None
+                    and self._feature_scanning
+                    and len(features) > 1
+                ):
                     features = self._scan_features(X, y, features)
                 best_feature, best_pval_feature, reject_H0_feature, local_available = (
                     self._select_best_feature(
@@ -1388,7 +1392,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         for i, x in enumerate(X):
             node = self.tree_
             while "value" not in node:
-                node = node["left_child"] if x[node["feature"]] <= node["threshold"] else node["right_child"]
+                node = (
+                    node["left_child"]
+                    if x[node["feature"]] <= node["threshold"]
+                    else node["right_child"]
+                )
             leaf_ids[i] = node["node_id"]
 
         return leaf_ids
@@ -1407,7 +1415,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 indices.append(node["node_id"])
                 if "value" in node:
                     break
-                node = node["left_child"] if x[node["feature"]] <= node["threshold"] else node["right_child"]
+                node = (
+                    node["left_child"]
+                    if x[node["feature"]] <= node["threshold"]
+                    else node["right_child"]
+                )
             indptr.append(len(indices))
 
         data = np.ones(len(indices), dtype=int)

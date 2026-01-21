@@ -10,9 +10,9 @@ Verifies that:
 import numpy as np
 import pytest
 
-from citrees._selector import _ptest, _ptest_mc_parallel, _ptest_multi, _ptest_pc_parallel, mc, pc
+from citrees._selector import _ptest, _ptest_mc_parallel, _ptest_multi, _ptest_pc_parallel, mc
 from citrees._splitter import _ptest as _ptest_splitter
-from citrees._splitter import _ptest_gini_parallel, _ptest_mse_parallel, gini, mse
+from citrees._splitter import _ptest_gini_parallel, _ptest_mse_parallel, gini
 
 
 class TestSelectorRNGReproducibility:
@@ -292,8 +292,12 @@ class TestSplitterRNGReproducibility:
         """Parallel Gini test with same seed should produce identical results."""
         x, y, threshold = classification_data
 
-        pval1 = _ptest_gini_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
-        pval2 = _ptest_gini_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
+        pval1 = _ptest_gini_parallel(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
+        pval2 = _ptest_gini_parallel(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
 
         assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
 

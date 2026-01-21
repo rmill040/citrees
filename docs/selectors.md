@@ -189,16 +189,19 @@ Input: x ∈ ℝⁿ, y ∈ ℝⁿ, projections k=20, bandwidth s=1/6
 
 ### Properties (Interpretation)
 
-RDC is a **randomized** dependence score designed to capture nonlinear association efficiently.
+RDC is a **randomized** dependence score designed to capture nonlinear
+association efficiently.
 
-- **Defined for non-constant inputs**: If either input is constant, dependence measures are ill-posed; citrees returns 0
-  in such cases.
+- **Defined for non-constant inputs**: If either input is constant, dependence
+  measures are ill-posed; citrees returns 0 in such cases.
 - **Symmetric**: RDC(X, Y) = RDC(Y, X).
 - **Bounded**: 0 ≤ RDC(X, Y) ≤ 1 (as a correlation magnitude).
-- **Monotone-transform robustness**: The rank (copula) transform makes the score insensitive to strictly monotone
-  transforms of each marginal (up to finite-sample ranking ties).
-- **Dependence detection (heuristic at finite n)**: In finite samples with a finite number of random features and the
-  approximation used in citrees, RDC should be read as a practical dependence score, not as an exact “0 iff
+- **Monotone-transform robustness**: The rank (copula) transform makes the score
+  insensitive to strictly monotone transforms of each marginal (up to
+  finite-sample ranking ties).
+- **Dependence detection (heuristic at finite n)**: In finite samples with a
+  finite number of random features and the approximation used in citrees, RDC
+  should be read as a practical dependence score, not as an exact “0 iff
   independent” guarantee.
 
 ### Complexity
@@ -212,12 +215,12 @@ RDC is a **randomized** dependence score designed to capture nonlinear associati
 
 ### Why RDC for citrees?
 
-| Comparison           | RDC        | Distance Correlation |
-| -------------------- | ---------- | -------------------- |
-| Non-linear detection | ✓          | ✓                    |
-| Time complexity      | O(n log n) | O(n²)                |
-| Space complexity     | O(nk)      | O(n²)                |
-| Large n scaling       | Typically faster | Typically slower |
+| Comparison           | RDC              | Distance Correlation |
+| -------------------- | ---------------- | -------------------- |
+| Non-linear detection | ✓                | ✓                    |
+| Time complexity      | O(n log n)       | O(n²)                |
+| Space complexity     | O(nk)            | O(n²)                |
+| Large n scaling      | Typically faster | Typically slower     |
 
 ---
 

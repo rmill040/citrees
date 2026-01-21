@@ -9,7 +9,6 @@ from math import ceil, exp, lgamma, log
 import numpy as np
 from numba import njit
 
-
 # =============================================================================
 # NJIT-compiled implementations
 # =============================================================================
@@ -175,7 +174,7 @@ def pearson_corr_njit(x: np.ndarray, y: np.ndarray) -> float:
     if var_x < 1e-10 or var_y < 1e-10:
         return 0.0
 
-    corr = cov / (var_x ** 0.5 * var_y ** 0.5)
+    corr = cov / (var_x**0.5 * var_y**0.5)
     return abs(corr)
 
 
@@ -204,9 +203,7 @@ def run_single_test_citrees(
 
         n = i + 1
         if n >= min_resamples:
-            should_stop, is_sig = citrees_check_stopping(
-                extreme_count, n, alpha, confidence
-            )
+            should_stop, is_sig = citrees_check_stopping(extreme_count, n, alpha, confidence)
             if should_stop:
                 return is_sig, n
 
@@ -239,9 +236,7 @@ def run_single_test_fischer(
 
         n = i + 1
         if n >= min_resamples:
-            should_stop, is_sig = fischer_ramdas_check_stopping(
-                extreme_count, n, alpha, c
-            )
+            should_stop, is_sig = fischer_ramdas_check_stopping(extreme_count, n, alpha, c)
             if should_stop:
                 return is_sig, n
 
@@ -267,9 +262,9 @@ def warmup_jit():
 
 def run_cdf_timing_benchmark(n_iterations: int = 100000):
     """Benchmark CDF computation - both njit compiled."""
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("EXPERIMENT: CDF Computation Timing (both njit)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Generate test cases
     rng = np.random.default_rng(42)
@@ -297,8 +292,12 @@ def run_cdf_timing_benchmark(n_iterations: int = 100000):
 
     print(f"\n{'Method':<35} {'Total (s)':<15} {'Per call (μs)':<15}")
     print("-" * 65)
-    print(f"{'Beta CDF (citrees stopping)':<35} {beta_time:<15.3f} {beta_time/n_iterations*1e6:<15.2f}")
-    print(f"{'Binomial CDF (F-R stopping)':<35} {binom_time:<15.3f} {binom_time/n_iterations*1e6:<15.2f}")
+    print(
+        f"{'Beta CDF (citrees stopping)':<35} {beta_time:<15.3f} {beta_time / n_iterations * 1e6:<15.2f}"
+    )
+    print(
+        f"{'Binomial CDF (F-R stopping)':<35} {binom_time:<15.3f} {binom_time / n_iterations * 1e6:<15.2f}"
+    )
 
     return beta_time, binom_time
 
@@ -312,9 +311,9 @@ def run_type1_error_experiment(
     seed: int = 42,
 ):
     """Compare Type I error under null hypothesis."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("EXPERIMENT: Type I Error (Null Hypothesis)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Simulations: {n_simulations}, Samples: {n_samples}, Alpha: {alpha}")
 
     rng = np.random.default_rng(seed)
@@ -341,9 +340,7 @@ def run_type1_error_experiment(
     for sim in range(n_simulations):
         x = rng.standard_normal(n_samples)
         y = rng.standard_normal(n_samples)
-        rejected, n_perms = run_single_test_fischer(
-            x, y, alpha, alpha, max_resamples, seed + sim
-        )
+        rejected, n_perms = run_single_test_fischer(x, y, alpha, alpha, max_resamples, seed + sim)
         fischer_rejections += rejected
         fischer_perms.append(n_perms)
     fischer_total_time = time.perf_counter() - start_fischer
@@ -354,18 +351,24 @@ def run_type1_error_experiment(
     print(f"\n{'Metric':<30} {'citrees':<20} {'Fischer-Ramdas':<20}")
     print("-" * 70)
     print(f"{'Type I Error':<30} {citrees_type1:<20.4f} {fischer_type1:<20.4f}")
-    print(f"{'Mean Permutations':<30} {np.mean(citrees_perms):<20.1f} {np.mean(fischer_perms):<20.1f}")
-    print(f"{'Median Permutations':<30} {np.median(citrees_perms):<20.1f} {np.median(fischer_perms):<20.1f}")
+    print(
+        f"{'Mean Permutations':<30} {np.mean(citrees_perms):<20.1f} {np.mean(fischer_perms):<20.1f}"
+    )
+    print(
+        f"{'Median Permutations':<30} {np.median(citrees_perms):<20.1f} {np.median(fischer_perms):<20.1f}"
+    )
     print(f"{'Total Time (s)':<30} {citrees_total_time:<20.2f} {fischer_total_time:<20.2f}")
-    print(f"{'Time per test (ms)':<30} {citrees_total_time/n_simulations*1000:<20.3f} {fischer_total_time/n_simulations*1000:<20.3f}")
+    print(
+        f"{'Time per test (ms)':<30} {citrees_total_time / n_simulations * 1000:<20.3f} {fischer_total_time / n_simulations * 1000:<20.3f}"
+    )
 
     return {
-        'citrees_type1': citrees_type1,
-        'fischer_type1': fischer_type1,
-        'citrees_perms': citrees_perms,
-        'fischer_perms': fischer_perms,
-        'citrees_time': citrees_total_time,
-        'fischer_time': fischer_total_time,
+        "citrees_type1": citrees_type1,
+        "fischer_type1": fischer_type1,
+        "citrees_perms": citrees_perms,
+        "fischer_perms": fischer_perms,
+        "citrees_time": citrees_total_time,
+        "fischer_time": fischer_total_time,
     }
 
 
@@ -382,9 +385,9 @@ def run_power_experiment(
     if effect_sizes is None:
         effect_sizes = [0.1, 0.2, 0.3, 0.5]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("EXPERIMENT: Power (Alternative Hypothesis)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     print(f"\n{'Effect':<10} {'citrees':<12} {'F-R':<12} {'citrees perms':<15} {'F-R perms':<15}")
     print("-" * 65)
@@ -410,8 +413,10 @@ def run_power_experiment(
             fischer_rej += rej
             fischer_perms.append(n_p)
 
-        print(f"{effect:<10.2f} {citrees_rej/n_simulations:<12.3f} {fischer_rej/n_simulations:<12.3f} "
-              f"{np.mean(citrees_perms):<15.1f} {np.mean(fischer_perms):<15.1f}")
+        print(
+            f"{effect:<10.2f} {citrees_rej / n_simulations:<12.3f} {fischer_rej / n_simulations:<12.3f} "
+            f"{np.mean(citrees_perms):<15.1f} {np.mean(fischer_perms):<15.1f}"
+        )
 
 
 if __name__ == "__main__":
@@ -430,9 +435,15 @@ if __name__ == "__main__":
     # Power
     run_power_experiment(n_simulations=3000)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("FINAL SUMMARY")
-    print(f"{'='*60}")
-    print(f"\nType I Error: citrees={results['citrees_type1']:.4f}, F-R={results['fischer_type1']:.4f}")
-    print(f"Mean Perms (null): citrees={np.mean(results['citrees_perms']):.1f}, F-R={np.mean(results['fischer_perms']):.1f}")
-    print(f"Speedup: citrees is {results['fischer_time']/results['citrees_time']:.2f}x faster overall")
+    print(f"{'=' * 60}")
+    print(
+        f"\nType I Error: citrees={results['citrees_type1']:.4f}, F-R={results['fischer_type1']:.4f}"
+    )
+    print(
+        f"Mean Perms (null): citrees={np.mean(results['citrees_perms']):.1f}, F-R={np.mean(results['fischer_perms']):.1f}"
+    )
+    print(
+        f"Speedup: citrees is {results['fischer_time'] / results['citrees_time']:.2f}x faster overall"
+    )

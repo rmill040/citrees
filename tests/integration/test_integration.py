@@ -166,8 +166,11 @@ class TestConditionalInferenceTreeClassifier:
         """Test list-based selector without permutation testing."""
         X, y = classification_data
         clf = ConditionalInferenceTreeClassifier(
-            selector=["mc", "rdc"], n_resamples_selector=None, n_resamples_splitter="minimum",
-            verbose=0, random_state=42
+            selector=["mc", "rdc"],
+            n_resamples_selector=None,
+            n_resamples_splitter="minimum",
+            verbose=0,
+            random_state=42,
         )
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
@@ -250,8 +253,11 @@ class TestConditionalInferenceTreeRegressor:
         # Test all combinations without ptest
         for selector in [["pc", "dc"], ["pc", "rdc"], ["dc", "rdc"], ["pc", "dc", "rdc"]]:
             reg = ConditionalInferenceTreeRegressor(
-                selector=selector, n_resamples_selector=None, n_resamples_splitter="minimum",
-                verbose=0, random_state=42
+                selector=selector,
+                n_resamples_selector=None,
+                n_resamples_splitter="minimum",
+                verbose=0,
+                random_state=42,
             )
             reg.fit(X, y)
             assert reg.predict(X).shape == y.shape
@@ -1065,18 +1071,14 @@ class TestForestSampling:
     def test_max_samples_int(self, classification_data):
         """Test max_samples as integer."""
         X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, max_samples=100, **FAST_PARAMS
-        )
+        clf = ConditionalInferenceForestClassifier(n_estimators=5, max_samples=100, **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 
     def test_max_samples_float(self, classification_data):
         """Test max_samples as float (fraction)."""
         X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, max_samples=0.8, **FAST_PARAMS
-        )
+        clf = ConditionalInferenceForestClassifier(n_estimators=5, max_samples=0.8, **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 

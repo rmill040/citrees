@@ -25,11 +25,13 @@ from loguru import logger
 
 from paper.scripts.experiments._common import get_datasets
 from paper.scripts.infra.config import load_config
-from paper.scripts.utils.constants import CLF_METHODS, REG_METHODS, S3_BUCKET, AWS_REGION
+from paper.scripts.utils.constants import AWS_REGION, CLF_METHODS, REG_METHODS, S3_BUCKET
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 
 
-def list_s3_completed(stage: str, task_type: str = "classification") -> dict[str, set[tuple[str, int]]]:
+def list_s3_completed(
+    stage: str, task_type: str = "classification"
+) -> dict[str, set[tuple[str, int]]]:
     """List completed items from S3, grouped by dataset.
 
     Returns dict: dataset -> set of (method, seed) tuples
@@ -115,16 +117,16 @@ def main() -> None:
     total_completed = sum(len(items) for items in completed.values())
     pct = 100 * total_completed / total_expected if total_expected > 0 else 0
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"PROGRESS: {args.stage.upper()} ({args.task})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Completed: {total_completed:,} / {total_expected:,} ({pct:.1f}%)")
     print(f"Remaining: {total_expected - total_completed:,}")
 
     if args.by_method:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("BY METHOD:")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         method_counts: dict[str, int] = defaultdict(int)
         for dataset_items in completed.values():
             for method, _ in dataset_items:
@@ -138,9 +140,9 @@ def main() -> None:
             print(f"  {method:12} {bar} {count:5} / {expected_per_method} ({pct:5.1f}%)")
 
     if args.by_dataset:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("BY DATASET:")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         expected_per_dataset = len(method_labels) * n_seeds
 
         # Show incomplete datasets first

@@ -15,12 +15,15 @@ separates the target variable.
 
 ---
 
-**Implementation note.** In citrees, `gini(y)`, `entropy(y)`, `mse(y)`, and `mae(y)` are **node impurity** functions.
-There are two related “split quality” quantities used in different places:
+**Implementation note.** In citrees, `gini(y)`, `entropy(y)`, `mse(y)`, and
+`mae(y)` are **node impurity** functions. There are two related “split quality”
+quantities used in different places:
 
-- **Weighted child impurity** (CART-style): $(n_L/n)\,I(y_L) + (n_R/n)\,I(y_R)$, used for `min_impurity_decrease`,
-  threshold scanning, and impurity-based feature importances.
-- **Unweighted child impurity sum**: $I(y_L) + I(y_R)$, used as the Stage B permutation-test statistic in citrees.
+- **Weighted child impurity** (CART-style): $(n_L/n)\,I(y_L) + (n_R/n)\,I(y_R)$,
+  used for `min_impurity_decrease`, threshold scanning, and impurity-based
+  feature importances.
+- **Unweighted child impurity sum**: $I(y_L) + I(y_R)$, used as the Stage B
+  permutation-test statistic in citrees.
 
 ## Gini Impurity (gini)
 
@@ -333,12 +336,12 @@ fixed-$B$ permutation p-value under the usual exchangeability conditions.
 
 citrees supports multiple methods for generating candidate split thresholds:
 
-| Method       | Description       | Use Case                |
-| ------------ | ----------------- | ----------------------- |
+| Method       | Description          | Use Case                |
+| ------------ | -------------------- | ----------------------- |
 | `exact`      | All unique midpoints | Small datasets, precise |
-| `random`     | Random subset     | Large datasets          |
-| `percentile` | Quantile-based    | Robust to outliers      |
-| `histogram`  | Equal-width bins  | Very large datasets     |
+| `random`     | Random subset        | Large datasets          |
+| `percentile` | Quantile-based       | Robust to outliers      |
+| `histogram`  | Equal-width bins     | Very large datasets     |
 
 ### Algorithm: Threshold Generation
 

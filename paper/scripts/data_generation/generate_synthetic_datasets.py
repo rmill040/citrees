@@ -230,7 +230,11 @@ def generate_dataset(config: SyntheticConfig) -> tuple[pa.Table, dict]:
     # Add correlated features
     if config.n_correlated_blocks > 0:
         X, corr_block_indices = add_correlated_blocks(
-            X, informative_indices, config.n_correlated_blocks, config.correlation_strength, config.seed + 2
+            X,
+            informative_indices,
+            config.n_correlated_blocks,
+            config.correlation_strength,
+            config.seed + 2,
         )
 
     # Add correlated noise (confounders)

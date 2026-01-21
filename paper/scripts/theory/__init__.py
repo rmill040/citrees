@@ -11,33 +11,33 @@ This module provides tools for:
 """
 
 from .theoretical_predictions import (
-    # Core power functions
-    exact_r_critical,
-    power_correlation_test,
-    root_power,
-    gate_power,
-    # Gap region
-    GapRegion,
-    find_gap_region,
-    gap_region_table,
-    minimum_n_for_gap,
-    # Marginal power
-    marginal_gate_power_exact,
-    marginal_gate_power_approx,
-    # Soft gate
-    soft_gate_prob,
-    calibrate_soft_gate,
-    # Noisy gate
-    noisy_gate_true_positive_rate,
-    noisy_gate_correlations,
-    # Multi-feature
-    prob_feature_selected,
-    # Tree depth
-    critical_depth,
-    power_at_depth,
     # Constants
     RHO_GATE,
     RHO_ROOT_COEF,
+    # Gap region
+    GapRegion,
+    calibrate_soft_gate,
+    # Tree depth
+    critical_depth,
+    # Core power functions
+    exact_r_critical,
+    find_gap_region,
+    gap_region_table,
+    gate_power,
+    marginal_gate_power_approx,
+    # Marginal power
+    marginal_gate_power_exact,
+    minimum_n_for_gap,
+    noisy_gate_correlations,
+    # Noisy gate
+    noisy_gate_true_positive_rate,
+    power_at_depth,
+    power_correlation_test,
+    # Multi-feature
+    prob_feature_selected,
+    root_power,
+    # Soft gate
+    soft_gate_prob,
 )
 
 __all__ = [

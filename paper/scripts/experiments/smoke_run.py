@@ -18,6 +18,7 @@ from typing import Literal, cast
 import ray
 from loguru import logger
 
+from paper.scripts.experiments import ray_eval, ray_feature_selection
 from paper.scripts.experiments._common import (
     download_parquet_from_s3,
     get_dataset_shape,
@@ -31,8 +32,6 @@ from paper.scripts.infra.config import load_config
 from paper.scripts.utils.constants import N_SPLITS
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 
-from paper.scripts.experiments import ray_eval, ray_feature_selection
-
 DataSource = Literal["real", "synthetic", "all"]
 
 
@@ -44,8 +43,15 @@ def _parse_args() -> argparse.Namespace:
         help="Ray address (default: auto). Use 'local' for local mode.",
     )
     parser.add_argument("--task-type", choices=["classification", "regression"], default=None)
-    parser.add_argument("--source", choices=["real", "synthetic", "all"], default="real", help="Dataset source filter")
-    parser.add_argument("--dataset", default=None, help="Dataset name (default: choose smallest in source)")
+    parser.add_argument(
+        "--source",
+        choices=["real", "synthetic", "all"],
+        default="real",
+        help="Dataset source filter",
+    )
+    parser.add_argument(
+        "--dataset", default=None, help="Dataset name (default: choose smallest in source)"
+    )
     parser.add_argument(
         "--methods",
         default=None,
@@ -62,7 +68,9 @@ def _choose_dataset(task_type: str, source: DataSource, preferred: str | None) -
 
     if preferred is not None:
         if preferred not in datasets:
-            raise ValueError(f"Dataset {preferred!r} not found in {datasets[:10]}{'...' if len(datasets) > 10 else ''}")
+            raise ValueError(
+                f"Dataset {preferred!r} not found in {datasets[:10]}{'...' if len(datasets) > 10 else ''}"
+            )
         return preferred
 
     # Deterministic: pick smallest dataset by (n_samples * n_features), tie-break by name.
@@ -70,7 +78,9 @@ def _choose_dataset(task_type: str, source: DataSource, preferred: str | None) -
     return sorted(datasets, key=lambda d: (shapes[d][0] * shapes[d][1], d))[0]
 
 
-def _assert_rankings_schema(df, *, dataset: str, task_type: str, seed: int, method_id: str, method_base: str) -> None:
+def _assert_rankings_schema(
+    df, *, dataset: str, task_type: str, seed: int, method_id: str, method_base: str
+) -> None:
     required = {
         "fold_idx",
         "feature_ranking",
@@ -103,14 +113,20 @@ def _assert_rankings_schema(df, *, dataset: str, task_type: str, seed: int, meth
     if df["method_base"].nunique() != 1 or df["method_base"].iloc[0] != method_base:
         raise AssertionError("Rankings 'method_base' column mismatch")
     if (df["git_sha"] == "unknown").any():
-        raise AssertionError("Rankings git_sha is 'unknown' (expected env var or git checkout to provide a SHA)")
+        raise AssertionError(
+            "Rankings git_sha is 'unknown' (expected env var or git checkout to provide a SHA)"
+        )
 
     fold_idxs = sorted(int(v) for v in df["fold_idx"].tolist())
     if fold_idxs != list(range(N_SPLITS)):
-        raise AssertionError(f"Rankings fold_idx mismatch: got {fold_idxs}, expected {list(range(N_SPLITS))}")
+        raise AssertionError(
+            f"Rankings fold_idx mismatch: got {fold_idxs}, expected {list(range(N_SPLITS))}"
+        )
 
 
-def _assert_metrics_schema(df, *, dataset: str, task_type: str, seed: int, method_id: str, method_base: str) -> None:
+def _assert_metrics_schema(
+    df, *, dataset: str, task_type: str, seed: int, method_id: str, method_base: str
+) -> None:
     required = {
         "dataset",
         "task_type",
@@ -145,11 +161,15 @@ def _assert_metrics_schema(df, *, dataset: str, task_type: str, seed: int, metho
     if df["method_base"].nunique() != 1 or df["method_base"].iloc[0] != method_base:
         raise AssertionError("Metrics 'method_base' column mismatch")
     if (df["git_sha"] == "unknown").any():
-        raise AssertionError("Metrics git_sha is 'unknown' (expected env var or git checkout to provide a SHA)")
+        raise AssertionError(
+            "Metrics git_sha is 'unknown' (expected env var or git checkout to provide a SHA)"
+        )
 
     fold_idxs = sorted(set(int(v) for v in df["fold_idx"].tolist()))
     if fold_idxs != list(range(N_SPLITS)):
-        raise AssertionError(f"Metrics fold_idx mismatch: got {fold_idxs}, expected {list(range(N_SPLITS))}")
+        raise AssertionError(
+            f"Metrics fold_idx mismatch: got {fold_idxs}, expected {list(range(N_SPLITS))}"
+        )
 
 
 def main() -> None:
@@ -189,7 +209,9 @@ def main() -> None:
     stage1_futures = []
     for method_cfg in method_configs:
         method = method_cfg["method"]
-        selection_cpus = ray_feature_selection.selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
+        selection_cpus = ray_feature_selection.selection_num_cpus(
+            method, n_samples=n_samples, n_features=n_features
+        )
         stage1_futures.append(
             ray_feature_selection.process_config.options(num_cpus=selection_cpus).remote(
                 method_cfg, dataset, seed, task_type, selection_cpus, git_sha

@@ -6,18 +6,18 @@ data used for estimating leaf values.
 
 **Scope note.** In citrees, `honesty=True` performs a single random split of the
 training set: one part is used to learn the tree structure, and the other part
-is used to re-estimate leaf values. This can yield **conditional unbiasedness
-of leaf means/proportions** under standard i.i.d. assumptions, but it does **not
-by itself** provide confidence intervals, hypothesis tests, or causal effect
+is used to re-estimate leaf values. This can yield **conditional unbiasedness of
+leaf means/proportions** under standard i.i.d. assumptions, but it does **not by
+itself** provide confidence intervals, hypothesis tests, or causal effect
 estimation.
 
 ## Overview
 
 | Aspect        | Description                                                                                |
 | ------------- | ------------------------------------------------------------------------------------------ |
-| Purpose       | Reduce adaptive bias in leaf estimation                                                     |
-| Method        | Sample splitting (single split in citrees)                                                  |
-| Trade-off     | Fewer samples for structure and estimation (often higher variance)                          |
+| Purpose       | Reduce adaptive bias in leaf estimation                                                    |
+| Method        | Sample splitting (single split in citrees)                                                 |
+| Trade-off     | Fewer samples for structure and estimation (often higher variance)                         |
 | Key reference | [Wager & Athey (2018)](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) |
 
 ---
@@ -197,33 +197,44 @@ Input: Data (X, y), n_estimators T, honesty_fraction η
 ### Conditional unbiasedness of leaf values (what we can safely claim)
 
 Let the training set be split at random into two disjoint subsets:
-- a **splitting** sample $S$ used to learn the tree structure (the partition), and
+
+- a **splitting** sample $S$ used to learn the tree structure (the partition),
+  and
 - an **estimation** sample $E$ used to estimate leaf values.
 
-Let $\Pi$ denote the (random) partition learned from $S$, and let $L\in\Pi$ be any leaf. For regression, define the
-honest leaf mean using only estimation-sample points that fall into the leaf:
+Let $\Pi$ denote the (random) partition learned from $S$, and let $L\in\Pi$ be
+any leaf. For regression, define the honest leaf mean using only
+estimation-sample points that fall into the leaf:
+
 $$
 \widehat{\mu}(L) := \frac{1}{|E(L)|}\sum_{i\in E(L)} Y_i,\qquad E(L):=\{i\in E : X_i\in L\},
 $$
+
 whenever $|E(L)|\ge 1$.
 
-Under standard i.i.d. sampling and an **independent random split** $(S,E)$, $\widehat{\mu}(L)$ is unbiased conditional
-on the learned partition (on leaves that receive estimation samples):
+Under standard i.i.d. sampling and an **independent random split** $(S,E)$,
+$\widehat{\mu}(L)$ is unbiased conditional on the learned partition (on leaves
+that receive estimation samples):
+
 $$
 \mathbb{E}\!\left[\widehat{\mu}(L)\mid \Pi,\ |E(L)|\ge 1\right]=\mu(L):=\mathbb{E}[Y\mid X\in L].
 $$
-For classification, the same statement holds with $\widehat{\mu}(L)$ replaced by the empirical class proportions in the
-leaf.
 
-**Important caveat (empty leaves).** If a leaf receives **no** estimation samples ($|E(L)|=0$), the honest estimator is
-undefined. In citrees, such leaves keep their original value from the splitting sample, so the conditional-unbiasedness
-statement above does not apply to those leaves.
+For classification, the same statement holds with $\widehat{\mu}(L)$ replaced by
+the empirical class proportions in the leaf.
+
+**Important caveat (empty leaves).** If a leaf receives **no** estimation
+samples ($|E(L)|=0$), the honest estimator is undefined. In citrees, such leaves
+keep their original value from the splitting sample, so the
+conditional-unbiasedness statement above does not apply to those leaves.
 
 ### What we do not claim here
 
-- We do not claim that `honesty=True` alone yields confidence intervals or hypothesis tests in citrees.
-- Asymptotic normality/inference results exist in the literature for certain *honest random forests* under additional
-  conditions; see Wager & Athey (2018) for context.
+- We do not claim that `honesty=True` alone yields confidence intervals or
+  hypothesis tests in citrees.
+- Asymptotic normality/inference results exist in the literature for certain
+  _honest random forests_ under additional conditions; see Wager & Athey (2018)
+  for context.
 
 ---
 
@@ -231,8 +242,8 @@ statement above does not apply to those leaves.
 
 ### Benefits
 
-| Benefit              | Description                                |
-| -------------------- | ------------------------------------------ |
+| Benefit               | Description                                                          |
+| --------------------- | -------------------------------------------------------------------- |
 | Reduced adaptive bias | Leaf values use data not used to choose splits (on non-empty leaves) |
 
 ### Costs
@@ -245,12 +256,12 @@ statement above does not apply to those leaves.
 
 ### When to Use Honesty
 
-| Use Case                       | Recommendation                       |
-| ------------------------------ | ------------------------------------ |
-| Prediction only                | Honesty optional (may hurt accuracy) |
+| Use Case                       | Recommendation                                          |
+| ------------------------------ | ------------------------------------------------------- |
+| Prediction only                | Honesty optional (may hurt accuracy)                    |
 | Reduce adaptive bias in leaves | Consider honesty (especially with forests and larger n) |
-| Small datasets                 | Consider without honesty             |
-| Large datasets                 | Honesty recommended                  |
+| Small datasets                 | Consider without honesty                                |
+| Large datasets                 | Honesty recommended                                     |
 
 ---
 

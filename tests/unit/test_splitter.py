@@ -43,6 +43,7 @@ class TestGini:
         y = np.array([0, 1, 2], dtype=np.int64)
         assert gini(y) == pytest.approx(2 / 3)
 
+
 class TestEntropy:
     """Tests for the entropy impurity function."""
 
@@ -89,6 +90,7 @@ class TestMSE:
         y = np.array([-1.0, 1.0])
         # Mean = 0, MSE = (1 + 1) / 2 = 1
         assert mse(y) == pytest.approx(1.0)
+
 
 class TestMAE:
     """Tests for the MAE impurity function."""

@@ -14,7 +14,13 @@ from typing import Any
 
 from loguru import logger
 
-from paper.scripts.experiments._common import get_dataset_shape, get_datasets, get_git_sha, list_s3_completed
+from paper.scripts.experiments import ray_eval, ray_feature_selection
+from paper.scripts.experiments._common import (
+    get_dataset_shape,
+    get_datasets,
+    get_git_sha,
+    list_s3_completed,
+)
 from paper.scripts.experiments._driver import (
     build_common_parser,
     filter_missing,
@@ -25,7 +31,6 @@ from paper.scripts.experiments._driver import (
     resolve_grid,
     run_futures,
 )
-from paper.scripts.experiments import ray_eval, ray_feature_selection
 from paper.scripts.infra.config import load_config
 from paper.scripts.utils.constants import CLF_METHODS, REG_METHODS
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
@@ -33,7 +38,9 @@ from paper.scripts.utils.experiment_configs import config_label, expand_method_c
 
 def _parse_args() -> argparse.Namespace:
     parser = build_common_parser("Ray pipeline: Stage 1 → Stage 2")
-    parser.add_argument("--stage", choices=["all", "stage1", "stage2"], default="all", help="Which stages to run")
+    parser.add_argument(
+        "--stage", choices=["all", "stage1", "stage2"], default="all", help="Which stages to run"
+    )
     return parser.parse_args()
 
 
@@ -159,13 +166,17 @@ def main() -> None:
                 )
             )
 
-        _counts, failures, _elapsed, results = run_futures(futures, stage="stage1", success_statuses={"done"})
+        _counts, failures, _elapsed, results = run_futures(
+            futures, stage="stage1", success_statuses={"done"}
+        )
         log_failures(failures, stage="stage1")
         for r in results:
             if r.get("status") == "done":
                 stage1_done.add((str(r.get("method")), str(r.get("dataset")), int(r.get("seed"))))
                 if args.only_missing:
-                    completed_rankings.add((str(r.get("method")), str(r.get("dataset")), int(r.get("seed"))))
+                    completed_rankings.add(
+                        (str(r.get("method")), str(r.get("dataset")), int(r.get("seed")))
+                    )
 
         logger.info("Stage 1 complete: done={}, failed={}", len(stage1_done), len(failures))
 
@@ -198,7 +209,9 @@ def main() -> None:
             for method_id, dataset, seed in sorted(stage1_done):
                 method_cfg = method_id_to_cfg.get(method_id)
                 if method_cfg is None:
-                    raise RuntimeError(f"Internal error: missing method_cfg for method_id={method_id!r}")
+                    raise RuntimeError(
+                        f"Internal error: missing method_cfg for method_id={method_id!r}"
+                    )
                 stage2_items.append((method_cfg, dataset, seed))
 
         futures = [

@@ -260,9 +260,7 @@ class TestParameterValidation:
     def test_mi_in_list_raises_error(self):
         """Test mi in selector list raises error for classifier."""
         with pytest.raises(ValueError, match="mi"):
-            clf = ConditionalInferenceTreeClassifier(
-                selector=["mc", "mi"], **FAST_PARAMS
-            )
+            clf = ConditionalInferenceTreeClassifier(selector=["mc", "mi"], **FAST_PARAMS)
             clf.fit(np.random.randn(10, 5), np.random.randint(0, 2, 10))
 
     def test_n_resamples_too_low(self):
@@ -634,8 +632,12 @@ class TestClassifierSpecific:
     def test_multiclass(self):
         """Test classifier with multiclass."""
         X, y = make_classification(
-            n_samples=150, n_features=5, n_classes=3,
-            n_informative=3, n_clusters_per_class=1, random_state=42
+            n_samples=150,
+            n_features=5,
+            n_classes=3,
+            n_informative=3,
+            n_clusters_per_class=1,
+            random_state=42,
         )
         clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
         clf.fit(X, y)
@@ -650,18 +652,14 @@ class TestListSelector:
     def test_list_selector_classifier(self):
         """Test list selector for classifier."""
         X, y = make_classification(n_samples=100, n_features=5, random_state=42)
-        clf = ConditionalInferenceTreeClassifier(
-            selector=["mc", "rdc"], **FAST_PARAMS
-        )
+        clf = ConditionalInferenceTreeClassifier(selector=["mc", "rdc"], **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 
     def test_list_selector_regressor(self):
         """Test list selector for regressor."""
         X, y = make_regression(n_samples=100, n_features=5, random_state=42)
-        reg = ConditionalInferenceTreeRegressor(
-            selector=["pc", "dc", "rdc"], **FAST_PARAMS
-        )
+        reg = ConditionalInferenceTreeRegressor(selector=["pc", "dc", "rdc"], **FAST_PARAMS)
         reg.fit(X, y)
         assert reg.predict(X).shape == y.shape
 

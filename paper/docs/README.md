@@ -115,12 +115,14 @@ AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 ```
 
 **Benefits:**
+
 - Stage 1 (slow) runs independently from Stage 2 (fast)
 - Can re-run Stage 2 with different downstream models
 - Only-missing runs via S3 listings (submit only configs without artifacts)
 - Spot instance fault tolerance via Ray
 
 **Only-missing workflow (recommended):**
+
 ```bash
 # Preview exact configs that will run (print full grid)
 AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
@@ -131,11 +133,13 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
     --stage all --only-missing
 ```
 
-**Reruns:** delete the specific S3 objects you want to recompute, then re-run with `--only-missing`.
+**Reruns:** delete the specific S3 objects you want to recompute, then re-run
+with `--only-missing`.
 
 ## End-to-End Analysis Sequence (Ray → S3 → Local)
 
-This is the **full** analysis flow for real‑data benchmarks. The steps below are ordered and explicit.
+This is the **full** analysis flow for real‑data benchmarks. The steps below are
+ordered and explicit.
 
 ### 0) Prereqs (once)
 
@@ -150,6 +154,7 @@ export GIT_SHA=$(git rev-parse HEAD)
 ### 1) Run Stage 1 (feature selection on Ray)
 
 Option A (recommended, handles missing-only logic):
+
 ```bash
 AWS_PROFILE=personal S3_BUCKET=your-bucket-name \
 uv run python paper/scripts/experiments/run_pipeline.py \
@@ -157,6 +162,7 @@ uv run python paper/scripts/experiments/run_pipeline.py \
 ```
 
 Option B (direct Ray submit):
+
 ```bash
 AWS_PROFILE=personal S3_BUCKET=your-bucket-name \
 uv run ray submit paper/scripts/infra/ray/cluster.yaml \
@@ -175,9 +181,9 @@ uv run python paper/scripts/experiments/run_pipeline.py \
 
 ### 3) Download + aggregate S3 artifacts to local parquet
 
-This produces:
-`paper/results/clf_evaluation.parquet` and `paper/results/reg_evaluation.parquet`
-plus the rankings parquets (if requested).
+This produces: `paper/results/clf_evaluation.parquet` and
+`paper/results/reg_evaluation.parquet` plus the rankings parquets (if
+requested).
 
 ```bash
 S3_BUCKET=your-bucket-name \
@@ -192,7 +198,8 @@ uv run python paper/scripts/analysis/stats.py
 
 ### 5) Synthetic‑only figures (separate pipeline)
 
-`generate_figures.py` **does not** use Ray or S3; it generates synthetic figures locally.
+`generate_figures.py` **does not** use Ray or S3; it generates synthetic figures
+locally.
 
 ```bash
 uv run python paper/scripts/analysis/generate_figures.py --profile paper
@@ -204,53 +211,53 @@ uv run python paper/scripts/analysis/generate_figures.py --profile paper
 
 ### Classification (19 methods)
 
-| Method | Type | Description |
-|--------|------|-------------|
-| `mc` | filter | Multiple correlation (ANOVA-based) |
-| `mi` | filter | Mutual information |
-| `rdc` | filter | Randomized dependence coefficient |
-| `mrmr` | filter | Minimum Redundancy Maximum Relevance |
-| `ptest_mc` | permutation | MC with permutation test |
-| `ptest_mi` | permutation | MI with permutation test |
-| `ptest_rdc` | permutation | RDC with permutation test |
-| `cit` | embedding | Conditional Inference Tree |
-| `cif` | embedding | Conditional Inference Forest |
-| `rf` | embedding | Random Forest |
-| `et` | embedding | Extra Trees |
-| `xgb` | embedding | XGBoost |
-| `lgbm` | embedding | LightGBM |
-| `cat` | embedding | CatBoost |
-| `boruta` | wrapper | Boruta feature selection |
-| `pi` | wrapper | Permutation importance |
-| `cpi` | wrapper | Conditional permutation importance |
-| `shap` | wrapper | SHAP importance |
-| `rfe` | wrapper | Recursive Feature Elimination |
+| Method      | Type        | Description                          |
+| ----------- | ----------- | ------------------------------------ |
+| `mc`        | filter      | Multiple correlation (ANOVA-based)   |
+| `mi`        | filter      | Mutual information                   |
+| `rdc`       | filter      | Randomized dependence coefficient    |
+| `mrmr`      | filter      | Minimum Redundancy Maximum Relevance |
+| `ptest_mc`  | permutation | MC with permutation test             |
+| `ptest_mi`  | permutation | MI with permutation test             |
+| `ptest_rdc` | permutation | RDC with permutation test            |
+| `cit`       | embedding   | Conditional Inference Tree           |
+| `cif`       | embedding   | Conditional Inference Forest         |
+| `rf`        | embedding   | Random Forest                        |
+| `et`        | embedding   | Extra Trees                          |
+| `xgb`       | embedding   | XGBoost                              |
+| `lgbm`      | embedding   | LightGBM                             |
+| `cat`       | embedding   | CatBoost                             |
+| `boruta`    | wrapper     | Boruta feature selection             |
+| `pi`        | wrapper     | Permutation importance               |
+| `cpi`       | wrapper     | Conditional permutation importance   |
+| `shap`      | wrapper     | SHAP importance                      |
+| `rfe`       | wrapper     | Recursive Feature Elimination        |
 
 **Downstream models:** LogisticRegression, SVM, kNN
 
 ### Regression (19 methods)
 
-| Method | Type | Description |
-|--------|------|-------------|
-| `pc` | filter | Pearson correlation |
-| `dc` | filter | Distance correlation |
-| `rdc` | filter | Randomized dependence coefficient |
-| `mrmr` | filter | Minimum Redundancy Maximum Relevance |
-| `ptest_pc` | permutation | PC with permutation test |
-| `ptest_dc` | permutation | DC with permutation test |
-| `ptest_rdc` | permutation | RDC with permutation test |
-| `cit` | embedding | Conditional Inference Tree |
-| `cif` | embedding | Conditional Inference Forest |
-| `rf` | embedding | Random Forest |
-| `et` | embedding | Extra Trees |
-| `xgb` | embedding | XGBoost |
-| `lgbm` | embedding | LightGBM |
-| `cat` | embedding | CatBoost |
-| `boruta` | wrapper | Boruta feature selection |
-| `pi` | wrapper | Permutation importance |
-| `cpi` | wrapper | Conditional permutation importance |
-| `shap` | wrapper | SHAP importance |
-| `rfe` | wrapper | Recursive Feature Elimination |
+| Method      | Type        | Description                          |
+| ----------- | ----------- | ------------------------------------ |
+| `pc`        | filter      | Pearson correlation                  |
+| `dc`        | filter      | Distance correlation                 |
+| `rdc`       | filter      | Randomized dependence coefficient    |
+| `mrmr`      | filter      | Minimum Redundancy Maximum Relevance |
+| `ptest_pc`  | permutation | PC with permutation test             |
+| `ptest_dc`  | permutation | DC with permutation test             |
+| `ptest_rdc` | permutation | RDC with permutation test            |
+| `cit`       | embedding   | Conditional Inference Tree           |
+| `cif`       | embedding   | Conditional Inference Forest         |
+| `rf`        | embedding   | Random Forest                        |
+| `et`        | embedding   | Extra Trees                          |
+| `xgb`       | embedding   | XGBoost                              |
+| `lgbm`      | embedding   | LightGBM                             |
+| `cat`       | embedding   | CatBoost                             |
+| `boruta`    | wrapper     | Boruta feature selection             |
+| `pi`        | wrapper     | Permutation importance               |
+| `cpi`       | wrapper     | Conditional permutation importance   |
+| `shap`      | wrapper     | SHAP importance                      |
+| `rfe`       | wrapper     | Recursive Feature Elimination        |
 
 **Downstream models:** Ridge, SVR, kNN
 
@@ -264,16 +271,16 @@ uv run python paper/scripts/data_generation/generate_synthetic_datasets.py
 
 **Dataset types (169 total):**
 
-| Type | Count | Description |
-|------|-------|-------------|
-| STANDARD | 108 | Varying features, informative, samples, separation |
-| BIAS | 9 | High-cardinality noise (selection bias test) |
-| NONLINEAR | 6 | Friedman #1 (tests nonlinear methods) |
-| CORRELATED | 6 | Correlated feature blocks |
-| REDUNDANT | 3 | Linear combinations of informative features |
-| CORR_NOISE | 4 | Correlated noise features (confounders) |
-| TOEPLITZ | 24 | Toeplitz covariance structure |
-| WEAK_SIGNAL | 9 | Low class separation + label noise |
+| Type        | Count | Description                                        |
+| ----------- | ----- | -------------------------------------------------- |
+| STANDARD    | 108   | Varying features, informative, samples, separation |
+| BIAS        | 9     | High-cardinality noise (selection bias test)       |
+| NONLINEAR   | 6     | Friedman #1 (tests nonlinear methods)              |
+| CORRELATED  | 6     | Correlated feature blocks                          |
+| REDUNDANT   | 3     | Linear combinations of informative features        |
+| CORR_NOISE  | 4     | Correlated noise features (confounders)            |
+| TOEPLITZ    | 24    | Toeplitz covariance structure                      |
+| WEAK_SIGNAL | 9     | Low class separation + label noise                 |
 
 Ground truth stored in parquet schema metadata.
 
@@ -299,9 +306,9 @@ synthetic_toeplitz_p{p}_k{k}_n{n}_r{rho}
 synthetic_weak_p{p}_k{k}_n{n}_sep{sep}_flip{flip}
 ```
 
-Metadata fields stored in parquet schema include `config`, `informative_indices`,
-`redundant_indices`, `correlated_indices`, `correlated_noise_indices`, and
-`noise_indices`.
+Metadata fields stored in parquet schema include `config`,
+`informative_indices`, `redundant_indices`, `correlated_indices`,
+`correlated_noise_indices`, and `noise_indices`.
 
 ## Check Progress
 
@@ -364,14 +371,17 @@ Columns:
 
 ## Aggregation Policy
 
-Stage 2 generates results per **fold × k × downstream_model × seed × dataset**. The current statistical pipeline in
-`paper/scripts/analysis/stats.py` aggregates by **dataset × method** and **averages across all rows** present (folds,
-seeds, k values, and downstream models). If you want a fixed `k` or a specific downstream model, filter the evaluation
-parquet files before running `stats.py` or adjust the aggregation logic.
+Stage 2 generates results per **fold × k × downstream_model × seed × dataset**.
+The current statistical pipeline in `paper/scripts/analysis/stats.py` aggregates
+by **dataset × method** and **averages across all rows** present (folds, seeds,
+k values, and downstream models). If you want a fixed `k` or a specific
+downstream model, filter the evaluation parquet files before running `stats.py`
+or adjust the aggregation logic.
 
-**Granular outputs (per-model / per-k).** `stats.py` now also emits per‑downstream‑model outputs (prefixes like
-`clf_lr_*` or `reg_ridge_*`) and per‑model‑per‑k outputs (prefixes like `clf_lr_k10_*`), in addition to the overall
-aggregated `clf_*` / `reg_*` summaries.
+**Granular outputs (per-model / per-k).** `stats.py` now also emits
+per‑downstream‑model outputs (prefixes like `clf_lr_*` or `reg_ridge_*`) and
+per‑model‑per‑k outputs (prefixes like `clf_lr_k10_*`), in addition to the
+overall aggregated `clf_*` / `reg_*` summaries.
 
 **Optional pre-filtering examples (before `stats.py`).**
 
@@ -418,18 +428,21 @@ uv run python paper/scripts/analysis/stats.py
 uv run python paper/scripts/analysis/generate_figures.py
 ```
 
-`stats.py` now emits overall aggregates plus per‑downstream‑model and per‑model‑per‑k outputs in
-`paper/results/analysis/` (see prefixes like `clf_lr_*`, `clf_lr_k10_*`, `reg_ridge_*`).
+`stats.py` now emits overall aggregates plus per‑downstream‑model and
+per‑model‑per‑k outputs in `paper/results/analysis/` (see prefixes like
+`clf_lr_*`, `clf_lr_k10_*`, `reg_ridge_*`).
 
-**OOB scoring note (forests).** If you enable `oob_score=True` in the forest models, OOB predictions are computed only
-for samples that are out-of-bag for at least one tree; the reported OOB score uses those samples only. OOB scoring
+**OOB scoring note (forests).** If you enable `oob_score=True` in the forest
+models, OOB predictions are computed only for samples that are out-of-bag for at
+least one tree; the reported OOB score uses those samples only. OOB scoring
 requires bootstrap to be enabled.
 
 ## Config Calculation
 
-**Classification:** 19 methods × N datasets × 10 seeds
-**Regression:** 19 methods × N datasets × 10 seeds
+**Classification:** 19 methods × N datasets × 10 seeds **Regression:** 19
+methods × N datasets × 10 seeds
 
 Example with 169 synthetic + 7 real datasets = 176 datasets:
+
 - Classification: 19 × 176 × 10 = **33,440 configs**
 - Regression: 19 × 176 × 10 = **33,440 configs**

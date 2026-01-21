@@ -1,4 +1,6 @@
 # flake8: noqa
+from importlib.metadata import version as _get_version
+
 from citrees._forest import (
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
@@ -14,7 +16,13 @@ from citrees._types import (
     ThresholdMethod,
 )
 
+try:
+    __version__ = _get_version("citrees")
+except Exception:
+    __version__ = "unknown"
+
 __all__ = [
+    "__version__",
     "ConditionalInferenceTreeClassifier",
     "ConditionalInferenceTreeRegressor",
     "ConditionalInferenceForestClassifier",

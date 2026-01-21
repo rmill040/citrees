@@ -188,8 +188,15 @@ def main() -> None:
     df.to_parquet(data_path, index=False)
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(df["gamma"], df["reject_rate"], marker="o", label=r"Pr($\hat p_\tau < \alpha$) (algorithm output)")
-    ax.plot(df["gamma"], df["stop_sig_rate"], marker="o", label=r"Pr(stop due to $S_\tau \geq \gamma$)")
+    ax.plot(
+        df["gamma"],
+        df["reject_rate"],
+        marker="o",
+        label=r"Pr($\hat p_\tau < \alpha$) (algorithm output)",
+    )
+    ax.plot(
+        df["gamma"], df["stop_sig_rate"], marker="o", label=r"Pr(stop due to $S_\tau \geq \gamma$)"
+    )
     ax.plot(df["gamma"], df["bound_stop_sig"], linestyle="--", label=r"Bound: $\alpha/\gamma$")
     ax.axhline(args.alpha, color="black", linewidth=1, linestyle=":", label=r"Target $\alpha$")
     ax.set_xlabel(r"Confidence threshold $\gamma$")

@@ -7,13 +7,7 @@
   "n_repeats": 15,
   "n_samples_main": 5000,
   "profile": "paper",
-  "sample_size_grid": [
-    500,
-    1000,
-    2000,
-    5000,
-    10000
-  ],
+  "sample_size_grid": [500, 1000, 2000, 5000, 10000],
   "seed": 1718,
   "selected_figures": [
     "complexity",

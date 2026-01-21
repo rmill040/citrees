@@ -24,11 +24,11 @@ the usual fixed-node/root scope caveats for adaptive trees).
 Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection
 bias**:
 
-| Problem                | CART Behavior                           | citrees Solution                                   |
-| ---------------------- | --------------------------------------- | -------------------------------------------------- |
-| **Selection bias**     | Favors high-cardinality features        | Permutation tests control for multiple comparisons |
-| **Spurious splits**    | Finds "good" splits by chance           | Statistical significance required to split         |
-| **Overfitting**        | Requires pruning/cross-validation       | Principled stopping via hypothesis tests           |
+| Problem                | CART Behavior                           | citrees Solution                                                                           |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Selection bias**     | Favors high-cardinality features        | Permutation tests control for multiple comparisons                                         |
+| **Spurious splits**    | Finds "good" splits by chance           | Statistical significance required to split                                                 |
+| **Overfitting**        | Requires pruning/cross-validation       | Principled stopping via hypothesis tests                                                   |
 | **Feature importance** | Biased toward frequently-split features | Still uses impurity-decrease importance; Stage A mitigates a key root-level bias mechanism |
 
 ## Installation
@@ -167,73 +167,77 @@ function BuildTree(X, y, depth):
 
 ### Core Parameters
 
-| Parameter              | Type        | Default          | Description                             |
-| ---------------------- | ----------- | ---------------- | --------------------------------------- |
-| `selector`             | str or list | `'mc'`/`'pc'`    | Feature selection method                |
-| `splitter`             | str         | `'gini'`/`'mse'` | Split criterion                         |
-| `alpha_selector`       | float       | 0.05             | P-value threshold for feature selection |
-| `alpha_splitter`       | float       | 0.05             | P-value threshold for split selection   |
+| Parameter              | Type                | Default           | Description                                                            |
+| ---------------------- | ------------------- | ----------------- | ---------------------------------------------------------------------- |
+| `selector`             | str or list         | `'mc'`/`'pc'`     | Feature selection method                                               |
+| `splitter`             | str                 | `'gini'`/`'mse'`  | Split criterion                                                        |
+| `alpha_selector`       | float               | 0.05              | P-value threshold for feature selection                                |
+| `alpha_splitter`       | float               | 0.05              | P-value threshold for split selection                                  |
 | `n_resamples_selector` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for selector (`None` disables permutation tests) |
 | `n_resamples_splitter` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for splitter (`None` disables permutation tests) |
 
 ### Optimization Parameters
 
-| Parameter                 | Type | Default | Description                          |
-| ------------------------- | ---- | ------- | ------------------------------------ |
-| `adjust_alpha_selector`   | bool | True    | Bonferroni correction for features   |
-| `adjust_alpha_splitter`   | bool | True    | Bonferroni correction for thresholds |
-| `early_stopping_selector` | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for selector permutation tests |
-| `early_stopping_splitter` | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests |
-| `early_stopping_confidence_selector` | float | 0.95 | Posterior-confidence threshold γ for adaptive stopping (selectors) |
-| `early_stopping_confidence_splitter` | float | 0.95 | Posterior-confidence threshold γ for adaptive stopping (splitters) |
-| `feature_muting`          | bool | True    | Remove uninformative features        |
-| `feature_scanning`        | bool | True    | Test promising features first        |
+| Parameter                            | Type               | Default                  | Description                                                        |
+| ------------------------------------ | ------------------ | ------------------------ | ------------------------------------------------------------------ |
+| `adjust_alpha_selector`              | bool               | True                     | Bonferroni correction for features                                 |
+| `adjust_alpha_splitter`              | bool               | True                     | Bonferroni correction for thresholds                               |
+| `early_stopping_selector`            | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for selector permutation tests            |
+| `early_stopping_splitter`            | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests            |
+| `early_stopping_confidence_selector` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (selectors) |
+| `early_stopping_confidence_splitter` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (splitters) |
+| `feature_muting`                     | bool               | True                     | Remove uninformative features                                      |
+| `feature_scanning`                   | bool               | True                     | Test promising features first                                      |
 
 ### Tree Structure Parameters
 
-| Parameter           | Type          | Default   | Description                      |
-| ------------------- | ------------- | --------- | -------------------------------- |
-| `max_depth`         | int           | None      | Maximum tree depth               |
-| `min_samples_split` | int           | 2         | Minimum samples to split         |
-| `min_samples_leaf`  | int           | 1         | Minimum samples in leaf          |
-| `min_impurity_decrease` | float     | 0.0       | Minimum impurity decrease to split |
-| `max_features`      | MaxValuesMethod/int/float/None | None      | Features per split               |
-| `threshold_method`  | ThresholdMethod | `ThresholdMethod.EXACT` | How to generate split candidates |
-| `max_thresholds`    | MaxValuesMethod/int/float/None | None      | Maximum thresholds per feature   |
-| `threshold_scanning`| bool          | True      | Test promising thresholds first  |
+| Parameter               | Type                           | Default                 | Description                        |
+| ----------------------- | ------------------------------ | ----------------------- | ---------------------------------- |
+| `max_depth`             | int                            | None                    | Maximum tree depth                 |
+| `min_samples_split`     | int                            | 2                       | Minimum samples to split           |
+| `min_samples_leaf`      | int                            | 1                       | Minimum samples in leaf            |
+| `min_impurity_decrease` | float                          | 0.0                     | Minimum impurity decrease to split |
+| `max_features`          | MaxValuesMethod/int/float/None | None                    | Features per split                 |
+| `threshold_method`      | ThresholdMethod                | `ThresholdMethod.EXACT` | How to generate split candidates   |
+| `max_thresholds`        | MaxValuesMethod/int/float/None | None                    | Maximum thresholds per feature     |
+| `threshold_scanning`    | bool                           | True                    | Test promising thresholds first    |
 
 ### Honest Estimation
 
-| Parameter          | Type  | Default | Description                                  |
-| ------------------ | ----- | ------- | -------------------------------------------- |
-| `honesty`          | bool  | False   | Enable sample splitting                      |
+| Parameter          | Type  | Default | Description                                         |
+| ------------------ | ----- | ------- | --------------------------------------------------- |
+| `honesty`          | bool  | False   | Enable sample splitting                             |
 | `honesty_fraction` | float | 0.5     | Fraction for estimation sample (rest for splitting) |
 
 ### Forest Parameters
 
-| Parameter          | Type  | Default      | Description                      |
-| ------------------ | ----- | ------------ | -------------------------------- |
-| `n_estimators`     | int       | 100          | Number of trees                  |
-| `max_samples`      | int/float/None | None         | Bootstrap sample size (count or fraction) |
-| `bootstrap_method` | BootstrapMethod/None | `BootstrapMethod.BAYESIAN` | Sampling method                  |
-| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED`| How to stratify samples          |
-| `n_jobs`           | int/None  | None         | Parallel jobs (-1 for all cores) |
-| `oob_score`        | bool      | False        | Compute out-of-bag score (requires bootstrap) |
+| Parameter          | Type                 | Default                     | Description                                   |
+| ------------------ | -------------------- | --------------------------- | --------------------------------------------- |
+| `n_estimators`     | int                  | 100                         | Number of trees                               |
+| `max_samples`      | int/float/None       | None                        | Bootstrap sample size (count or fraction)     |
+| `bootstrap_method` | BootstrapMethod/None | `BootstrapMethod.BAYESIAN`  | Sampling method                               |
+| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to stratify samples                       |
+| `n_jobs`           | int/None             | None                        | Parallel jobs (-1 for all cores)              |
+| `oob_score`        | bool                 | False                       | Compute out-of-bag score (requires bootstrap) |
 
 Notes:
-- `sampling_method` applies to classification forests only and is ignored when `bootstrap_method=None`.
+
+- `sampling_method` applies to classification forests only and is ignored when
+  `bootstrap_method=None`.
 - `max_samples` is only used when `bootstrap_method` is not `None`.
 - `bootstrap_method=None` disables bootstrapping (and thus OOB).
-- Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default `None`).
-- OOB scores are computed only for samples that receive at least one OOB prediction.
+- Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
+  `None`).
+- OOB scores are computed only for samples that receive at least one OOB
+  prediction.
 
 ### Miscellaneous Parameters
 
-| Parameter                   | Type        | Default | Description |
-| --------------------------- | ----------- | ------- | ----------- |
-| `random_state`              | int/None    | None    | Random seed for permutation tests, sampling, and bootstrap |
-| `verbose`                   | int         | 1       | Verbosity level (0=quiet; higher prints more progress) |
-| `check_for_unused_parameters` | bool      | False   | Warn when parameters are ineffective due to other settings |
+| Parameter                     | Type     | Default | Description                                                |
+| ----------------------------- | -------- | ------- | ---------------------------------------------------------- |
+| `random_state`                | int/None | None    | Random seed for permutation tests, sampling, and bootstrap |
+| `verbose`                     | int      | 1       | Verbosity level (0=quiet; higher prints more progress)     |
+| `check_for_unused_parameters` | bool     | False   | Warn when parameters are ineffective due to other settings |
 
 ## Comparison with Other Methods
 

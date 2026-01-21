@@ -93,9 +93,7 @@ def estimate_mean(y: np.ndarray) -> float:
     return np.mean(y)
 
 
-def calculate_max_value(
-    *, n_values: int, desired_max: str | float | int | None = None
-) -> int:
+def calculate_max_value(*, n_values: int, desired_max: str | float | int | None = None) -> int:
     """Calculate the maximum desired value based on a fixed input size.
 
     Parameters

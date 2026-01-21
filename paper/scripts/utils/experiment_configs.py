@@ -7,7 +7,6 @@ import json
 import re
 from typing import Any
 
-
 METHOD_VARIANTS: dict[str, list[dict[str, Any]]] = {
     # Explicitly include both muting states for cit/cif.
     "cit": [
@@ -45,11 +44,7 @@ def extract_params(config: dict[str, Any]) -> dict[str, Any]:
     """Extract model params from a config dict."""
     if "params" in config:
         return dict(config["params"] or {})
-    return {
-        k: v
-        for k, v in config.items()
-        if k not in {"method", "label", "name", "random_state"}
-    }
+    return {k: v for k, v in config.items() if k not in {"method", "label", "name", "random_state"}}
 
 
 def config_label(config: dict[str, Any]) -> str:

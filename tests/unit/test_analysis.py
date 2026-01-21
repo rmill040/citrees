@@ -12,7 +12,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "paper" / "scripts"))
 
 import pandas as pd
-
 from analysis.stats import (
     bootstrap_ci,
     cohens_d,
@@ -20,7 +19,6 @@ from analysis.stats import (
     interpret_cohens_d,
     pairwise_wilcoxon_holm,
 )
-
 
 # ==============================================================================
 # Tests for compute_noise_selection_rate
@@ -109,7 +107,11 @@ class TestComputeNoiseSelectionRate:
         noise_indices = list(range(n_informative, n_features))
 
         # RF: biased ranking with noise in top positions
-        rf_ranking = [30, 35, 40, 0, 1, 2, 3, 4, 5, 6] + list(range(7, 30)) + [31, 32, 33, 34, 36, 37, 38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49]
+        rf_ranking = (
+            [30, 35, 40, 0, 1, 2, 3, 4, 5, 6]
+            + list(range(7, 30))
+            + [31, 32, 33, 34, 36, 37, 38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49]
+        )
 
         # citrees: unbiased ranking with informative first
         citrees_ranking = informative_indices + noise_indices
@@ -137,10 +139,12 @@ class TestPairwiseWilcoxonHolm:
         """Should detect difference between clearly different distributions."""
         np.random.seed(42)
         n = 30
-        data = pd.DataFrame({
-            "A_precision@10": np.random.normal(0.8, 0.05, n),
-            "B_precision@10": np.random.normal(0.5, 0.05, n),
-        })
+        data = pd.DataFrame(
+            {
+                "A_precision@10": np.random.normal(0.8, 0.05, n),
+                "B_precision@10": np.random.normal(0.5, 0.05, n),
+            }
+        )
         result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
         assert len(result) == 1
         assert result.iloc[0]["significant"] == True
@@ -150,10 +154,12 @@ class TestPairwiseWilcoxonHolm:
         """Should not find significance when distributions are similar."""
         np.random.seed(123)
         n = 30
-        data = pd.DataFrame({
-            "A_precision@10": np.random.normal(0.7, 0.1, n),
-            "B_precision@10": np.random.normal(0.7, 0.1, n),
-        })
+        data = pd.DataFrame(
+            {
+                "A_precision@10": np.random.normal(0.7, 0.1, n),
+                "B_precision@10": np.random.normal(0.7, 0.1, n),
+            }
+        )
         result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
         if not result.empty:
             # Similar distributions should have high p-value
@@ -163,21 +169,25 @@ class TestPairwiseWilcoxonHolm:
         """Holm-corrected p-values should be >= raw p-values."""
         np.random.seed(42)
         n = 30
-        data = pd.DataFrame({
-            "A_precision@10": np.random.normal(0.8, 0.1, n),
-            "B_precision@10": np.random.normal(0.6, 0.1, n),
-            "C_precision@10": np.random.normal(0.7, 0.1, n),
-        })
+        data = pd.DataFrame(
+            {
+                "A_precision@10": np.random.normal(0.8, 0.1, n),
+                "B_precision@10": np.random.normal(0.6, 0.1, n),
+                "C_precision@10": np.random.normal(0.7, 0.1, n),
+            }
+        )
         result = pairwise_wilcoxon_holm(data, ["A", "B", "C"], "precision@10")
         for _, row in result.iterrows():
             assert row["p_value_corrected"] >= row["p_value"]
 
     def test_empty_for_insufficient_data(self):
         """Should return empty DataFrame when n < 10."""
-        data = pd.DataFrame({
-            "A_precision@10": [0.8, 0.7, 0.9],  # Only 3 samples
-            "B_precision@10": [0.5, 0.6, 0.4],
-        })
+        data = pd.DataFrame(
+            {
+                "A_precision@10": [0.8, 0.7, 0.9],  # Only 3 samples
+                "B_precision@10": [0.5, 0.6, 0.4],
+            }
+        )
         result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
         assert result.empty
 
@@ -185,12 +195,22 @@ class TestPairwiseWilcoxonHolm:
         """Should have expected output columns."""
         np.random.seed(42)
         n = 30
-        data = pd.DataFrame({
-            "A_precision@10": np.random.normal(0.8, 0.1, n),
-            "B_precision@10": np.random.normal(0.6, 0.1, n),
-        })
+        data = pd.DataFrame(
+            {
+                "A_precision@10": np.random.normal(0.8, 0.1, n),
+                "B_precision@10": np.random.normal(0.6, 0.1, n),
+            }
+        )
         result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
-        expected_cols = ["method1", "method2", "statistic", "p_value", "p_value_corrected", "significant", "n_pairs"]
+        expected_cols = [
+            "method1",
+            "method2",
+            "statistic",
+            "p_value",
+            "p_value_corrected",
+            "significant",
+            "n_pairs",
+        ]
         assert list(result.columns) == expected_cols
 
     def test_correct_number_of_pairs(self):
@@ -198,10 +218,12 @@ class TestPairwiseWilcoxonHolm:
         np.random.seed(42)
         n = 30
         methods = ["rf", "cif", "boruta", "shap"]
-        data = pd.DataFrame({
-            f"{m}_precision@10": np.random.normal(0.5 + 0.1 * i, 0.05, n)
-            for i, m in enumerate(methods)
-        })
+        data = pd.DataFrame(
+            {
+                f"{m}_precision@10": np.random.normal(0.5 + 0.1 * i, 0.05, n)
+                for i, m in enumerate(methods)
+            }
+        )
         result = pairwise_wilcoxon_holm(data, methods, "precision@10")
         expected_pairs = len(methods) * (len(methods) - 1) // 2  # C(4,2) = 6
         assert len(result) == expected_pairs

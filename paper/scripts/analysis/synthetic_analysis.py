@@ -24,7 +24,6 @@ from loguru import logger
 
 from paper.scripts.utils.metrics import f1_at_k, precision_at_k, recall_at_k
 
-
 # =============================================================================
 # Metadata Loading
 # =============================================================================
@@ -76,7 +75,9 @@ def load_synthetic_metadata(data_dir: Path) -> dict[str, dict]:
                 "redundant_indices": json.loads(schema_meta.get(b"redundant_indices", b"[]")),
                 "noise_indices": json.loads(schema_meta.get(b"noise_indices", b"[]")),
                 "correlated_indices": json.loads(schema_meta.get(b"correlated_indices", b"[]")),
-                "correlated_noise_indices": json.loads(schema_meta.get(b"correlated_noise_indices", b"[]")),
+                "correlated_noise_indices": json.loads(
+                    schema_meta.get(b"correlated_noise_indices", b"[]")
+                ),
                 "n_features_final": int(schema_meta.get(b"n_features_final", b"0")),
             }
 
@@ -145,7 +146,9 @@ def analyze_results(
         redundant_indices = meta.get("redundant_indices", [])
         config = meta["config"]
         informative_plus_redundant = sorted(set(true_indices) | set(redundant_indices))
-        confounder_indices = meta.get("correlated_noise_indices") or meta.get("correlated_indices", [])
+        confounder_indices = meta.get("correlated_noise_indices") or meta.get(
+            "correlated_indices", []
+        )
         n_features_final = meta.get("n_features_final", 0)
 
         # Determine k values
@@ -194,13 +197,9 @@ def analyze_results(
                 row_data[f"precision_ir@{k}"] = precision_at_k(
                     ranking, informative_plus_redundant, k
                 )
-                row_data[f"recall_ir@{k}"] = recall_at_k(
-                    ranking, informative_plus_redundant, k
-                )
+                row_data[f"recall_ir@{k}"] = recall_at_k(ranking, informative_plus_redundant, k)
                 row_data[f"f1_ir@{k}"] = f1_at_k(ranking, informative_plus_redundant, k)
-                row_data[f"confounder_rate@{k}"] = precision_at_k(
-                    ranking, confounder_indices, k
-                )
+                row_data[f"confounder_rate@{k}"] = precision_at_k(ranking, confounder_indices, k)
 
             results.append(row_data)
 
@@ -247,7 +246,9 @@ def summarize_by_method(df: pd.DataFrame) -> pd.DataFrame:
     # Flatten column names
     summary.columns = [f"{col[0]}_{col[1]}" for col in summary.columns]
 
-    return summary.sort_values(f"precision@{df['n_informative'].mode().iloc[0]}_mean", ascending=False)
+    return summary.sort_values(
+        f"precision@{df['n_informative'].mode().iloc[0]}_mean", ascending=False
+    )
 
 
 def summarize_by_dataset_type(df: pd.DataFrame) -> pd.DataFrame:

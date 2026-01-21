@@ -1,11 +1,13 @@
 # Figures + Tables Plan (Reproducible Map)
 
 This file maps each paper-facing figure/table to:
-1) the script that generates it,
-2) the data artifact(s) it writes, and
-3) the claim/story it supports.
+
+1. the script that generates it,
+2. the data artifact(s) it writes, and
+3. the claim/story it supports.
 
 **Canonical output directories:**
+
 - Figures: `paper/results/figures/`
 - Data caches: `paper/results/cache/`
 - Tables: `paper/results/tables/`
@@ -21,11 +23,13 @@ This file maps each paper-facing figure/table to:
   - `paper/results/cache/selection_bias_demo_data.parquet`
 - Script: `paper/scripts/theory/generate_selection_bias_demo.py`
 - Claim/story:
-  - Greedy split optimization can favor “high-cardinality” noise under the global null; Stage A permutation screening
-    prevents “split unless significant” at the root.
+  - Greedy split optimization can favor “high-cardinality” noise under the
+    global null; Stage A permutation screening prevents “split unless
+    significant” at the root.
 - Status:
   - Should be kept in main text (motivation figure).
-  - Generated on 2026-01-20 (older defaults). Defaults were increased on 2026-01-21; rerun to update.
+  - Generated on 2026-01-20 (older defaults). Defaults were increased on
+    2026-01-21; rerun to update.
 
 ### A2. Fixed-$B$ Monte Carlo p-value calibration (+1 correction)
 
@@ -34,10 +38,12 @@ This file maps each paper-facing figure/table to:
   - `paper/results/cache/fixedB_pvalue_calibration_data.parquet`
 - Script: `paper/scripts/theory/generate_fixedB_pvalue_calibration.py`
 - Claim/story:
-  - Empirical backstop for Theorem 1 (super-uniformity of the +1 Monte Carlo permutation p-value).
+  - Empirical backstop for Theorem 1 (super-uniformity of the +1 Monte Carlo
+    permutation p-value).
 - Status:
   - Appendix figure (calibration/sanity check).
-  - Generated on 2026-01-20 (older defaults). Defaults were increased on 2026-01-21; rerun to update.
+  - Generated on 2026-01-20 (older defaults). Defaults were increased on
+    2026-01-21; rerun to update.
 
 ### A3. Adaptive sequential stopping calibration (continuous-null idealization)
 
@@ -46,8 +52,10 @@ This file maps each paper-facing figure/table to:
   - `paper/results/cache/sequential_stopping_calibration_data.parquet`
 - Script: `paper/scripts/theory/generate_sequential_stopping_calibration.py`
 - Claim/story:
-  - Empirical calibration of the early-stopping heuristic under a controlled null model.
-  - Explicitly *not* a claim that the returned $\widehat p_\tau$ is a classical p-value under optional stopping.
+  - Empirical calibration of the early-stopping heuristic under a controlled
+    null model.
+  - Explicitly _not_ a claim that the returned $\widehat p_\tau$ is a classical
+    p-value under optional stopping.
 - Status:
   - Appendix figure (calibration/sanity check).
   - Generated on 2026-01-20.
@@ -57,8 +65,8 @@ This file maps each paper-facing figure/table to:
 - Output: console only
 - Script: `paper/scripts/theory/supermartingale_check.py`
 - Claim/story:
-  - Numerically checks the one-step identity $\mathbb{E}[S_{n+1}\mid L_n,n]=S_n$ under the continuous-null mixture
-    model.
+  - Numerically checks the one-step identity $\mathbb{E}[S_{n+1}\mid L_n,n]=S_n$
+    under the continuous-null mixture model.
 - Status:
   - Not a paper figure; keep as a reproducibility check for theory development.
   - Generated on 2026-01-21 (console only).
@@ -67,7 +75,8 @@ This file maps each paper-facing figure/table to:
 
 ## B. Main benchmark figures (synthetic experiments)
 
-These are self-contained synthetic experiments for feature-selection behavior and scaling.
+These are self-contained synthetic experiments for feature-selection behavior
+and scaling.
 
 **Regenerate in one command:**
 
@@ -77,12 +86,17 @@ UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figure
 ```
 
 Notes:
-- `--profile paper` uses larger synthetic datasets than `--profile quick` (intended for publication-quality figures).
-- `--profile huge` is provided for “very large” runs (slow; mainly for stress-testing stability).
-- Profile defaults live in `paper/scripts/analysis/generate_figures.py` (see `PROFILES`).
-- Profile sizes were bumped on 2026-01-21 (paper/huge). Re-run figures after updating if you want outputs to reflect the
-  larger defaults.
-- In restricted/sandboxed environments, multiprocessing backends may be unavailable; the script will fall back to `n_jobs=1`.
+
+- `--profile paper` uses larger synthetic datasets than `--profile quick`
+  (intended for publication-quality figures).
+- `--profile huge` is provided for “very large” runs (slow; mainly for
+  stress-testing stability).
+- Profile defaults live in `paper/scripts/analysis/generate_figures.py` (see
+  `PROFILES`).
+- Profile sizes were bumped on 2026-01-21 (paper/huge). Re-run figures after
+  updating if you want outputs to reflect the larger defaults.
+- In restricted/sandboxed environments, multiprocessing backends may be
+  unavailable; the script will fall back to `n_jobs=1`.
 - Use `--only ...` to regenerate a subset, e.g.:
   `UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/analysis/generate_figures.py --profile paper --only feature_selection signal`
 
@@ -95,7 +109,8 @@ Notes:
   - `paper/results/figures/informative_ratio.png`
 - Script: `paper/scripts/analysis/generate_figures.py`
 - Claim/story:
-  - How embedding methods split on informative vs noise features in a controlled setting.
+  - How embedding methods split on informative vs noise features in a controlled
+    setting.
 - Status:
   - Main text (core behavioral figure) + appendix table.
 
@@ -106,7 +121,8 @@ Notes:
   - `paper/results/cache/regression_data.parquet`
 - Script: `paper/scripts/analysis/generate_figures.py`
 - Claim/story:
-  - Controlled regression toy experiment: split quality on known-informative features.
+  - Controlled regression toy experiment: split quality on known-informative
+    features.
 - Status:
   - Appendix or “sanity check” figure (not real-data performance).
 
@@ -125,7 +141,8 @@ Notes:
 - Claim/story:
   - Synthetic “stress tests” to show when/why citrees behaves well or fails.
 - Status (suggested ordering):
-  - Main text: `signal_strength`, `sample_size`, `high_dimensional`, `correlated_features`, `redundant_features`
+  - Main text: `signal_strength`, `sample_size`, `high_dimensional`,
+    `correlated_features`, `redundant_features`
   - Appendix: `multiclass`, `imbalanced`, `complexity_vs_accuracy`
 
 ### B3. Runtime / scalability
@@ -138,37 +155,45 @@ Notes:
 - Claim/story:
   - Cost of permutation testing and speedups from early stopping / parallelism.
 - Status:
-  - Main text: one runtime figure (pick either speedup curve or bars); appendix for the other.
+  - Main text: one runtime figure (pick either speedup curve or bars); appendix
+    for the other.
 
 ---
 
 ## C. Real-data figures (Stage 1/Stage 2 pipeline)
 
-These figures depend on the full experiment pipeline (S3-backed in the current setup). They should only be used in the
-paper after verifying the underlying parquet artifacts correspond to the reported benchmark protocol.
+These figures depend on the full experiment pipeline (S3-backed in the current
+setup). They should only be used in the paper after verifying the underlying
+parquet artifacts correspond to the reported benchmark protocol.
 
-- Existing artifacts in `paper/results/` are **synthetic** (from `generate_figures.py`).
-- Real-data figures are not checked in and must be generated from S3-backed Stage 2 metrics.
+- Existing artifacts in `paper/results/` are **synthetic** (from
+  `generate_figures.py`).
+- Real-data figures are not checked in and must be generated from S3-backed
+  Stage 2 metrics.
 - Scripts:
   - Stage 1 (rankings): `paper/scripts/experiments/ray_feature_selection.py`
   - Stage 2 (downstream eval): `paper/scripts/experiments/ray_eval.py`
   - Analysis aggregation: `paper/scripts/analysis/stats.py`
 - Paper rule:
-  - Every number/curve must have a traceable pipeline: config → parquet inputs → analysis script → figure output.
+  - Every number/curve must have a traceable pipeline: config → parquet inputs →
+    analysis script → figure output.
 
 ### C1. Per-model / per-k analysis outputs (after evaluation parquets exist)
 
-Once `paper/results/clf_evaluation.parquet` and `paper/results/reg_evaluation.parquet` exist, `stats.py` emits:
+Once `paper/results/clf_evaluation.parquet` and
+`paper/results/reg_evaluation.parquet` exist, `stats.py` emits:
 
 - Overall aggregates:
   - `paper/results/analysis/*/clf_*`
   - `paper/results/analysis/*/reg_*`
 - Per‑downstream‑model:
-  - `paper/results/analysis/*/clf_{model}_*` (e.g., `clf_lr_*`, `clf_svm_*`, `clf_knn_*`)
-  - `paper/results/analysis/*/reg_{model}_*` (e.g., `reg_ridge_*`, `reg_svr_*`, `reg_knn_*`)
+  - `paper/results/analysis/*/clf_{model}_*` (e.g., `clf_lr_*`, `clf_svm_*`,
+    `clf_knn_*`)
+  - `paper/results/analysis/*/reg_{model}_*` (e.g., `reg_ridge_*`, `reg_svr_*`,
+    `reg_knn_*`)
 - Per‑model‑per‑k:
   - `paper/results/analysis/*/clf_{model}_k{k}_*` (e.g., `clf_lr_k10_*`)
   - `paper/results/analysis/*/reg_{model}_k{k}_*` (e.g., `reg_ridge_k25_*`)
 
-These outputs are generated by `paper/scripts/analysis/stats.py` and should be mapped into figures/tables once the
-evaluation parquets are available.
+These outputs are generated by `paper/scripts/analysis/stats.py` and should be
+mapped into figures/tables once the evaluation parquets are available.

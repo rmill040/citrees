@@ -31,7 +31,6 @@ from scipy.optimize import brentq
 from scipy.special import ndtr
 from scipy.stats import binom
 
-
 # =============================================================================
 # Constants
 # =============================================================================
@@ -321,6 +320,7 @@ def find_gap_region(
     >>> 0.02 < gap.p_max < 0.05
     True
     """
+
     # Find p_max: solve root_power(p_max) = beta_low
     def root_objective(p: float) -> float:
         return root_power(p, n, alpha) - beta_low
@@ -403,8 +403,7 @@ def gap_region_table(
         gap = find_gap_region(n, alpha, beta_low, beta_high)
         if gap.is_valid:
             lines.append(
-                f"| {n:,} | {gap.p_min:.4f} | {gap.p_max:.4f} | "
-                f"{gap.ratio:.1f} | {gap.width:.4f} |"
+                f"| {n:,} | {gap.p_min:.4f} | {gap.p_max:.4f} | {gap.ratio:.1f} | {gap.width:.4f} |"
             )
         else:
             lines.append(f"| {n:,} | --- | --- | --- | --- |")

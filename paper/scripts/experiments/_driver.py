@@ -31,10 +31,21 @@ def build_common_parser(description: str) -> argparse.ArgumentParser:
         help="Ray address (default: auto). Use 'local' for local mode.",
     )
     parser.add_argument("--task-type", choices=["classification", "regression"], default=None)
-    parser.add_argument("--source", choices=["all", "real", "synthetic"], default="all", help="Dataset source filter")
-    parser.add_argument("--datasets", default=None, help="Comma-separated dataset names (default: all)")
-    parser.add_argument("--methods", default=None, help="Comma-separated base method names (default: all)")
-    parser.add_argument("--seeds", default=None, help="Comma-separated seed indices (default: 0..n_seeds-1)")
+    parser.add_argument(
+        "--source",
+        choices=["all", "real", "synthetic"],
+        default="all",
+        help="Dataset source filter",
+    )
+    parser.add_argument(
+        "--datasets", default=None, help="Comma-separated dataset names (default: all)"
+    )
+    parser.add_argument(
+        "--methods", default=None, help="Comma-separated base method names (default: all)"
+    )
+    parser.add_argument(
+        "--seeds", default=None, help="Comma-separated seed indices (default: 0..n_seeds-1)"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print planned configs and exit")
     parser.add_argument(
         "--dry-run-limit",
@@ -207,7 +218,9 @@ def run_futures(
             last_log = now
 
     elapsed_total = time.perf_counter() - start
-    logger.info("Completed [{}]: counts={}, elapsed_seconds={:.1f}", stage, status_counts, elapsed_total)
+    logger.info(
+        "Completed [{}]: counts={}, elapsed_seconds={:.1f}", stage, status_counts, elapsed_total
+    )
     return status_counts, failures, float(elapsed_total), results
 
 

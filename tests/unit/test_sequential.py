@@ -264,5 +264,3 @@ class TestSequentialAdaptive:
         # Both should indicate significance
         assert pval_high < 0.1
         assert pval_low < 0.1
-
-

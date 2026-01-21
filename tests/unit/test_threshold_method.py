@@ -271,7 +271,7 @@ class TestThresholdMethodPyFunc:
         x = np.arange(50, dtype=float)
         assert np.allclose(
             np.sort(random(x, max_thresholds=5, random_state=42)),
-            np.sort(random(x, max_thresholds=5, random_state=42))
+            np.sort(random(x, max_thresholds=5, random_state=42)),
         )
 
     # Percentile py_func tests
@@ -298,7 +298,7 @@ class TestThresholdMethodPyFunc:
         x = np.arange(50, dtype=float)
         assert np.allclose(
             percentile(x, max_thresholds=5, random_state=None),
-            percentile(x, max_thresholds=5, random_state=None)
+            percentile(x, max_thresholds=5, random_state=None),
         )
 
     # Histogram py_func tests
@@ -326,5 +326,5 @@ class TestThresholdMethodPyFunc:
         x = np.arange(100, dtype=float)
         assert np.allclose(
             histogram(x, max_thresholds=10, random_state=None),
-            histogram(x, max_thresholds=10, random_state=None)
+            histogram(x, max_thresholds=10, random_state=None),
         )

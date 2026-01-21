@@ -65,8 +65,7 @@ def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
                 s3.create_bucket(Bucket=bucket_name)
             else:
                 s3.create_bucket(
-                    Bucket=bucket_name,
-                    CreateBucketConfiguration={"LocationConstraint": region}
+                    Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": region}
                 )
             print(f"  Created S3 bucket: {bucket_name}")
         else:
@@ -107,8 +106,7 @@ def generate_config(branch: str | None = None) -> None:
 
     print("Replacing placeholders...")
     config_content = (
-        template
-        .replace("__MY_IP__", ip)
+        template.replace("__MY_IP__", ip)
         .replace("__BRANCH__", branch)
         .replace("__S3_BUCKET__", bucket_name)
     )
@@ -119,7 +117,9 @@ def generate_config(branch: str | None = None) -> None:
     print(f"\nGenerated {CLUSTER_YAML}")
     print("\nNext steps:")
     print(f"  1. Push branch: git push -u origin {branch}")
-    print("  2. Deploy: AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes")
+    print(
+        "  2. Deploy: AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes"
+    )
 
 
 def get_latest_ubuntu_ami(region: str) -> dict[str, str]:
@@ -202,24 +202,32 @@ def show_config(config: dict) -> None:
     region = config.get("provider", {}).get("region", "unknown")
     print(f"Cluster: {config.get('cluster_name', 'unknown')}")
     print(f"Region: {region}")
-    print(f"\nNode Types:")
+    print("\nNode Types:")
     for node_type, node_config in config.get("available_node_types", {}).items():
         nc = node_config.get("node_config", {})
         print(f"  {node_type}:")
         print(f"    Instance: {nc.get('InstanceType', 'N/A')}")
         print(f"    AMI: {nc.get('ImageId', 'N/A')}")
         if "InstanceMarketOptions" in nc:
-            print(f"    Spot: Yes")
+            print("    Spot: Yes")
         if "resources" in node_config:
             print(f"    Resources: {node_config['resources']}")
-        print(f"    Min/Max: {node_config.get('min_workers', 'N/A')}/{node_config.get('max_workers', 'N/A')}")
+        print(
+            f"    Min/Max: {node_config.get('min_workers', 'N/A')}/{node_config.get('max_workers', 'N/A')}"
+        )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Setup and validate Ray cluster config")
-    parser.add_argument("--generate", action="store_true", help="Generate cluster.yaml from template with your IP")
-    parser.add_argument("--branch", type=str, default=None, help="Git branch to use (default: current branch)")
-    parser.add_argument("--update-ami", action="store_true", help="Update AMI to latest Ubuntu 22.04")
+    parser.add_argument(
+        "--generate", action="store_true", help="Generate cluster.yaml from template with your IP"
+    )
+    parser.add_argument(
+        "--branch", type=str, default=None, help="Git branch to use (default: current branch)"
+    )
+    parser.add_argument(
+        "--update-ami", action="store_true", help="Update AMI to latest Ubuntu 22.04"
+    )
     parser.add_argument("--validate", action="store_true", help="Validate cluster configuration")
     parser.add_argument("--show", action="store_true", help="Show current configuration")
     args = parser.parse_args()
@@ -250,7 +258,7 @@ def main() -> int:
         print(f"\nUpdated {CLUSTER_YAML}")
 
     if args.validate:
-        print(f"\nValidating cluster configuration...")
+        print("\nValidating cluster configuration...")
         errors = validate_config(config)
         if errors:
             print("Errors found:")

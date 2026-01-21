@@ -62,7 +62,9 @@ def _parse_args() -> BiasDemoConfig:
     parser = argparse.ArgumentParser()
     parser.add_argument("--n-sims", type=int, default=10000)
     parser.add_argument("--n", type=int, default=200)
-    parser.add_argument("--n-levels", type=int, default=50, help="Number of levels for the categorical feature.")
+    parser.add_argument(
+        "--n-levels", type=int, default=50, help="Number of levels for the categorical feature."
+    )
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument(
         "--base-resamples",

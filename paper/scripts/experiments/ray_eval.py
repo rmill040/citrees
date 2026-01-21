@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 import socket
-import traceback
 import time
+import traceback
 from typing import Any
 
 import numpy as np
@@ -30,15 +30,16 @@ from sklearn.svm import SVC, SVR
 from paper.scripts.experiments._common import (
     download_parquet_from_s3,
     get_dataset_metadata,
-    get_git_sha,
     get_datasets,
+    get_git_sha,
+    get_library_versions,
     list_s3_completed,
     load_dataset,
     metrics_s3_path,
     rankings_s3_path,
     s3_file_exists,
-    utc_now_iso,
     upload_parquet_to_s3,
+    utc_now_iso,
 )
 from paper.scripts.experiments._driver import (
     build_common_parser,
@@ -49,6 +50,7 @@ from paper.scripts.experiments._driver import (
     resolve_grid,
     run_futures,
 )
+from paper.scripts.infra.config import load_config
 from paper.scripts.utils.constants import (
     CLF_DOWNSTREAM_MODELS,
     CLF_METHODS,
@@ -57,7 +59,6 @@ from paper.scripts.utils.constants import (
     REG_METHODS,
 )
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
-from paper.scripts.infra.config import load_config
 
 config = load_config()
 
@@ -65,6 +66,7 @@ config = load_config()
 # =============================================================================
 # Ray resource planning (Stage 2 evaluation CPU needs)
 # =============================================================================
+
 
 def evaluation_num_cpus(task_type: str, *, downstream_models: list[str] | None = None) -> int:
     """Return Ray CPU reservation for a single (method, dataset, seed) evaluation config.
@@ -85,6 +87,23 @@ def evaluation_num_cpus(task_type: str, *, downstream_models: list[str] | None =
             cpus = max(cpus, int(override))
 
     return cpus
+
+
+def evaluation_memory_bytes(task_type: str, *, downstream_models: list[str] | None = None) -> int:
+    """Return Ray memory reservation (in bytes) for a single evaluation config."""
+    exp = config.experiment
+
+    models = downstream_models
+    if models is None:
+        models = CLF_DOWNSTREAM_MODELS if task_type == "classification" else REG_DOWNSTREAM_MODELS
+
+    memory_gb = exp.evaluation_memory_gb_default
+    for model_name in models:
+        override = exp.evaluation_memory_gb_overrides.get(model_name)
+        if override is not None:
+            memory_gb = max(memory_gb, override)
+
+    return int(memory_gb * 1024 * 1024 * 1024)
 
 
 def get_clf_models(random_state: int, *, evaluation_cpus: int) -> dict[str, Any]:
@@ -112,29 +131,38 @@ def compute_roc_auc(y_true: np.ndarray, y_proba: np.ndarray, classes: np.ndarray
     """
     unique = np.unique(y_true)
     if unique.size < 2:
+        logger.debug("ROC AUC undefined: y_true has only {} unique class(es)", unique.size)
         return float(np.nan)
 
     if y_proba.ndim == 1:
         if classes is None or len(classes) < 2:
+            logger.debug("ROC AUC undefined: 1D y_proba with insufficient classes")
             return float(np.nan)
         y_bin = (y_true == classes[1]).astype(int)
         return float(roc_auc_score(y_bin, y_proba))
 
     if y_proba.shape[1] == 2:
         if classes is None or len(classes) < 2:
+            logger.debug("ROC AUC undefined: binary y_proba with insufficient classes")
             return float(np.nan)
         y_bin = (y_true == classes[1]).astype(int)
         return float(roc_auc_score(y_bin, y_proba[:, 1]))
 
     # Multiclass: require all classes to be present to avoid undefined metrics.
     if classes is None:
+        logger.debug("ROC AUC undefined: multiclass y_proba with no classes array")
         return float(np.nan)
     if y_proba.shape[1] != len(classes):
-        raise ValueError(f"y_proba has {y_proba.shape[1]} columns but classes has {len(classes)} entries")
+        raise ValueError(
+            f"y_proba has {y_proba.shape[1]} columns but classes has {len(classes)} entries"
+        )
     if np.unique(y_true).size < len(classes):
+        logger.debug("ROC AUC undefined: y_true has fewer unique classes than expected")
         return float(np.nan)
 
-    return float(roc_auc_score(y_true, y_proba, multi_class="ovr", average="weighted", labels=classes))
+    return float(
+        roc_auc_score(y_true, y_proba, multi_class="ovr", average="weighted", labels=classes)
+    )
 
 
 def evaluate_fold(
@@ -151,7 +179,9 @@ def evaluate_fold(
     k_values = [5, 10, 25, 50, 100, n_features]
     k_values = sorted(set(k for k in k_values if k <= n_features))
 
-    downstream_models = CLF_DOWNSTREAM_MODELS if task_type == "classification" else REG_DOWNSTREAM_MODELS
+    downstream_models = (
+        CLF_DOWNSTREAM_MODELS if task_type == "classification" else REG_DOWNSTREAM_MODELS
+    )
     model_factory = get_clf_models if task_type == "classification" else get_reg_models
 
     results = []
@@ -191,12 +221,14 @@ def evaluate_fold(
                     "mae": mean_absolute_error(y_test, y_pred),
                 }
 
-            results.append({
-                "k": k,
-                "n_features_selected": k,
-                "downstream_model": model_name,
-                **metrics,
-            })
+            results.append(
+                {
+                    "k": k,
+                    "n_features_selected": k,
+                    "downstream_model": model_name,
+                    **metrics,
+                }
+            )
 
     return results
 
@@ -233,8 +265,10 @@ def run_evaluation(
         X_train, X_test = X[train_idx], X[test_idx]
         y_train, y_test = y[train_idx], y[test_idx]
 
-        rs = seed + fold_idx
-        fold_results = evaluate_fold(X_train, y_train, X_test, y_test, ranking, task_type, rs, evaluation_cpus)
+        rs = seed * 1000 + fold_idx  # Avoid collision: seed=0/fold=4 vs seed=4/fold=0
+        fold_results = evaluate_fold(
+            X_train, y_train, X_test, y_test, ranking, task_type, rs, evaluation_cpus
+        )
 
         for res in fold_results:
             res["dataset"] = dataset
@@ -255,7 +289,7 @@ def run_evaluation(
 
 @ray.remote(resources={"evaluation": 1})
 def process_config(
-    config: dict[str, Any],
+    method_config: dict[str, Any],
     dataset: str,
     seed: int,
     task_type: str,
@@ -263,8 +297,8 @@ def process_config(
     git_sha: str,
     skip_existing: bool = False,
 ) -> dict[str, Any]:
-    method = config["method"]
-    method_id = config_label(config)
+    method = method_config["method"]
+    method_id = config_label(method_config)
     rankings_path = rankings_s3_path(task_type, dataset, method_id, seed)
     metrics_path = metrics_s3_path(task_type, dataset, method_id, seed)
     created_at_utc = utc_now_iso()
@@ -331,12 +365,15 @@ def process_config(
         dataset_meta = get_dataset_metadata(dataset, task_type)
 
         tic = time.perf_counter()
-        results = run_evaluation(X, y, rankings_df, dataset, method, method_id, task_type, seed, evaluation_cpus)
+        results = run_evaluation(
+            X, y, rankings_df, dataset, method, method_id, task_type, seed, evaluation_cpus
+        )
         elapsed = time.perf_counter() - tic
         for row in results:
             row["elapsed_seconds"] = float(elapsed)
             row["created_at_utc"] = created_at_utc
             row["git_sha"] = git_sha
+            row["library_versions"] = get_library_versions()
             # Add dataset metadata
             row["dataset_source"] = dataset_meta.get("dataset_source")
             row["dataset_type"] = dataset_meta.get("dataset_type")
@@ -430,11 +467,11 @@ def main() -> None:
     )
 
     evaluation_cpus = evaluation_num_cpus(task_type)
+    evaluation_memory = evaluation_memory_bytes(task_type)
     logger.info(
-        "Evaluation CPU config: default={} (effective={}), overrides={}",
-        config.experiment.evaluation_cpus_default,
+        "Evaluation resource config: cpus={}, memory={}GB",
         evaluation_cpus,
-        config.experiment.evaluation_cpus_overrides,
+        evaluation_memory / (1024 * 1024 * 1024),
     )
 
     if args.dry_run:
@@ -442,12 +479,14 @@ def main() -> None:
             pending,
             stage="stage2",
             limit=args.dry_run_limit,
-            describe=lambda m, d, s: f"method={config_label(m)}, dataset={d}, seed={s}, num_cpus={evaluation_cpus}",
+            describe=lambda m,
+            d,
+            s: f"method={config_label(m)}, dataset={d}, seed={s}, num_cpus={evaluation_cpus}",
         )
         return
 
     futures = [
-        process_config.options(num_cpus=evaluation_cpus).remote(
+        process_config.options(num_cpus=evaluation_cpus, memory=evaluation_memory).remote(
             m, d, s, task_type, evaluation_cpus, git_sha, skip_existing=args.skip_existing
         )
         for m, d, s in pending

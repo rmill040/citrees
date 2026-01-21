@@ -16,14 +16,14 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute              | Type    | Description                        |
-| ---------------------- | ------- | ---------------------------------- |
-| `tree_`                | dict    | The fitted tree structure          |
-| `n_features_in_`       | int     | Number of features seen during fit |
+| Attribute              | Type      | Description                                                     |
+| ---------------------- | --------- | --------------------------------------------------------------- |
+| `tree_`                | dict      | The fitted tree structure                                       |
+| `n_features_in_`       | int       | Number of features seen during fit                              |
 | `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
-| `feature_importances_` | ndarray | Feature importance scores (MDI)    |
-| `classes_`             | ndarray | Unique class labels                |
-| `n_classes_`           | int     | Number of classes                  |
+| `feature_importances_` | ndarray   | Feature importance scores (MDI)                                 |
+| `classes_`             | ndarray   | Unique class labels                                             |
+| `n_classes_`           | int       | Number of classes                                               |
 
 **Methods:**
 
@@ -61,12 +61,12 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute              | Type    | Description                        |
-| ---------------------- | ------- | ---------------------------------- |
-| `tree_`                | dict    | The fitted tree structure          |
-| `n_features_in_`       | int     | Number of features seen during fit |
+| Attribute              | Type      | Description                                                     |
+| ---------------------- | --------- | --------------------------------------------------------------- |
+| `tree_`                | dict      | The fitted tree structure                                       |
+| `n_features_in_`       | int       | Number of features seen during fit                              |
 | `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
-| `feature_importances_` | ndarray | Feature importance scores (MDI)    |
+| `feature_importances_` | ndarray   | Feature importance scores (MDI)                                 |
 
 **Methods:**
 
@@ -103,16 +103,16 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute              | Type    | Description                        |
-| ---------------------- | ------- | ---------------------------------- |
-| `estimators_`          | list    | List of fitted trees               |
-| `n_features_in_`       | int     | Number of features seen during fit |
-| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
-| `feature_importances_` | ndarray | Averaged feature importance        |
-| `classes_`             | ndarray | Unique class labels                |
-| `n_classes_`           | int     | Number of classes                  |
-| `oob_score_`           | float   | OOB accuracy over samples with OOB predictions (if enabled) |
-| `oob_decision_function_` | ndarray | OOB class probabilities (if enabled; rows with no OOB remain zero) |
+| Attribute                | Type      | Description                                                        |
+| ------------------------ | --------- | ------------------------------------------------------------------ |
+| `estimators_`            | list      | List of fitted trees                                               |
+| `n_features_in_`         | int       | Number of features seen during fit                                 |
+| `feature_names_in_`      | List[str] | Feature names seen during fit (order matters for pandas inputs)    |
+| `feature_importances_`   | ndarray   | Averaged feature importance                                        |
+| `classes_`               | ndarray   | Unique class labels                                                |
+| `n_classes_`             | int       | Number of classes                                                  |
+| `oob_score_`             | float     | OOB accuracy over samples with OOB predictions (if enabled)        |
+| `oob_decision_function_` | ndarray   | OOB class probabilities (if enabled; rows with no OOB remain zero) |
 
 **Methods:**
 
@@ -150,14 +150,14 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute              | Type    | Description                        |
-| ---------------------- | ------- | ---------------------------------- |
-| `estimators_`          | list    | List of fitted trees               |
-| `n_features_in_`       | int     | Number of features seen during fit |
+| Attribute              | Type      | Description                                                     |
+| ---------------------- | --------- | --------------------------------------------------------------- |
+| `estimators_`          | list      | List of fitted trees                                            |
+| `n_features_in_`       | int       | Number of features seen during fit                              |
 | `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
-| `feature_importances_` | ndarray | Averaged feature importance        |
-| `oob_score_`           | float   | OOB R² over samples with OOB predictions (if enabled) |
-| `oob_prediction_`      | ndarray | OOB predictions (if enabled; entries with no OOB remain zero) |
+| `feature_importances_` | ndarray   | Averaged feature importance                                     |
+| `oob_score_`           | float     | OOB R² over samples with OOB predictions (if enabled)           |
+| `oob_prediction_`      | ndarray   | OOB predictions (if enabled; entries with no OOB remain zero)   |
 
 **Methods:**
 

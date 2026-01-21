@@ -74,7 +74,9 @@ def main() -> None:
     # Empirical CDF at a small grid (for a quick super-uniform check)
     grid = np.array([0.01, 0.02, 0.05, 0.10, 0.20], dtype=np.float64)
     cdf = np.array([(pvals <= t).mean() for t in grid], dtype=np.float64)
-    df_summary = pd.DataFrame({"t": grid, "empirical_P(p<=t)": cdf, "t_minus_empirical": grid - cdf})
+    df_summary = pd.DataFrame(
+        {"t": grid, "empirical_P(p<=t)": cdf, "t_minus_empirical": grid - cdf}
+    )
 
     figures_dir = _paper_dir / "results" / "figures"
     cache_dir = _paper_dir / "results" / "cache"
@@ -104,7 +106,10 @@ def main() -> None:
     axes[1].set_ylabel("P(p ≤ t)")
     axes[1].legend(loc="best")
 
-    fig.suptitle(f"Fixed-B p-value calibration (n={args.n}, B={args.n_resamples}, sims={args.n_sims})", y=1.02)
+    fig.suptitle(
+        f"Fixed-B p-value calibration (n={args.n}, B={args.n_resamples}, sims={args.n_sims})",
+        y=1.02,
+    )
     fig.tight_layout()
     fig.savefig(fig_path, dpi=200, bbox_inches="tight")
     plt.close(fig)

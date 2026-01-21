@@ -509,27 +509,21 @@ class TestForestNJobs:
     def test_n_jobs_none(self, classification_data):
         """Test n_jobs=None (sequential)."""
         X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, n_jobs=None, **FAST_PARAMS
-        )
+        clf = ConditionalInferenceForestClassifier(n_estimators=5, n_jobs=None, **FAST_PARAMS)
         clf.fit(X, y)
         assert len(clf.estimators_) == 5
 
     def test_n_jobs_1(self, classification_data):
         """Test n_jobs=1 (single core)."""
         X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, n_jobs=1, **FAST_PARAMS
-        )
+        clf = ConditionalInferenceForestClassifier(n_estimators=5, n_jobs=1, **FAST_PARAMS)
         clf.fit(X, y)
         assert len(clf.estimators_) == 5
 
     def test_n_jobs_2(self, classification_data):
         """Test n_jobs=2 (two cores)."""
         X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, n_jobs=2, **FAST_PARAMS
-        )
+        clf = ConditionalInferenceForestClassifier(n_estimators=5, n_jobs=2, **FAST_PARAMS)
         clf.fit(X, y)
         assert len(clf.estimators_) == 5
 

@@ -119,7 +119,10 @@ def create_public_subnet(config: Config) -> str:
             {
                 "ResourceType": "route-table",
                 "Tags": [
-                    {"Key": "Name", "Value": f"{config.project_name}-public-rt-{config.account_id}"},
+                    {
+                        "Key": "Name",
+                        "Value": f"{config.project_name}-public-rt-{config.account_id}",
+                    },
                     {"Key": "Project", "Value": config.project_name},
                 ],
             }
@@ -540,7 +543,10 @@ def create_iam_role(config: Config) -> str:
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "EntityAlreadyExists":
-            console.print(f"  Instance profile already exists: {config.iam_instance_profile_name}", style="dim")
+            console.print(
+                f"  Instance profile already exists: {config.iam_instance_profile_name}",
+                style="dim",
+            )
         else:
             raise
 
@@ -651,7 +657,9 @@ def teardown_vpc(config: Config) -> None:
         console.print("  Waiting for NAT gateway deletion...")
         while True:
             try:
-                response = ec2.describe_nat_gateways(NatGatewayIds=[config._resolved_nat_gateway_id])
+                response = ec2.describe_nat_gateways(
+                    NatGatewayIds=[config._resolved_nat_gateway_id]
+                )
                 state = response["NatGateways"][0]["State"]
                 if state == "deleted":
                     break

@@ -21,7 +21,6 @@ from typing import Any
 
 from paper.scripts.utils.constants import RANDOM_STATE
 
-
 # =============================================================================
 # PARAMETER DEPENDENCY DOCUMENTATION
 # =============================================================================
@@ -274,91 +273,107 @@ def _generate_cit_cif_configs(
     for n_res_sel in ["auto", None]:
         if n_res_sel is None:
             # Rule 1: All dependent params fixed to defaults
-            selector_side_combos.append({
-                "n_resamples_selector": None,
-                "adjust_alpha_selector": True,
-                "early_stopping_selector": None,
-                "early_stopping_confidence_selector": 0.95,
-                "feature_muting": True,
-                "feature_scanning": True,
-            })
+            selector_side_combos.append(
+                {
+                    "n_resamples_selector": None,
+                    "adjust_alpha_selector": True,
+                    "early_stopping_selector": None,
+                    "early_stopping_confidence_selector": 0.95,
+                    "feature_muting": True,
+                    "feature_scanning": True,
+                }
+            )
         else:
             for adj_alpha_sel in [True, False]:
                 for es_sel in ["adaptive", None]:
                     if es_sel is None:
                         # Rule 2: confidence and scanning fixed
-                        selector_side_combos.append({
-                            "n_resamples_selector": n_res_sel,
-                            "adjust_alpha_selector": adj_alpha_sel,
-                            "early_stopping_selector": None,
-                            "early_stopping_confidence_selector": 0.95,
-                            "feature_muting": True,
-                            "feature_scanning": True,
-                        })
-                        selector_side_combos.append({
-                            "n_resamples_selector": n_res_sel,
-                            "adjust_alpha_selector": adj_alpha_sel,
-                            "early_stopping_selector": None,
-                            "early_stopping_confidence_selector": 0.95,
-                            "feature_muting": False,
-                            "feature_scanning": True,
-                        })
+                        selector_side_combos.append(
+                            {
+                                "n_resamples_selector": n_res_sel,
+                                "adjust_alpha_selector": adj_alpha_sel,
+                                "early_stopping_selector": None,
+                                "early_stopping_confidence_selector": 0.95,
+                                "feature_muting": True,
+                                "feature_scanning": True,
+                            }
+                        )
+                        selector_side_combos.append(
+                            {
+                                "n_resamples_selector": n_res_sel,
+                                "adjust_alpha_selector": adj_alpha_sel,
+                                "early_stopping_selector": None,
+                                "early_stopping_confidence_selector": 0.95,
+                                "feature_muting": False,
+                                "feature_scanning": True,
+                            }
+                        )
                     else:  # adaptive
                         for conf_sel in [0.95, 0.99]:
                             for feat_mut in [True, False]:
                                 for feat_scan in [True, False]:
-                                    selector_side_combos.append({
-                                        "n_resamples_selector": n_res_sel,
-                                        "adjust_alpha_selector": adj_alpha_sel,
-                                        "early_stopping_selector": "adaptive",
-                                        "early_stopping_confidence_selector": conf_sel,
-                                        "feature_muting": feat_mut,
-                                        "feature_scanning": feat_scan,
-                                    })
+                                    selector_side_combos.append(
+                                        {
+                                            "n_resamples_selector": n_res_sel,
+                                            "adjust_alpha_selector": adj_alpha_sel,
+                                            "early_stopping_selector": "adaptive",
+                                            "early_stopping_confidence_selector": conf_sel,
+                                            "feature_muting": feat_mut,
+                                            "feature_scanning": feat_scan,
+                                        }
+                                    )
 
     # Splitter-side effective combinations (respecting Rules 4-6)
     splitter_side_combos: list[dict[str, Any]] = []
     for n_res_spl in ["auto", None]:
         if n_res_spl is None:
             # Rule 4: All dependent params fixed
-            splitter_side_combos.append({
-                "n_resamples_splitter": None,
-                "adjust_alpha_splitter": True,
-                "early_stopping_splitter": None,
-                "early_stopping_confidence_splitter": 0.95,
-                "threshold_scanning": True,
-            })
+            splitter_side_combos.append(
+                {
+                    "n_resamples_splitter": None,
+                    "adjust_alpha_splitter": True,
+                    "early_stopping_splitter": None,
+                    "early_stopping_confidence_splitter": 0.95,
+                    "threshold_scanning": True,
+                }
+            )
         else:
             for adj_alpha_spl in [True, False]:
                 for es_spl in ["adaptive", None]:
                     if es_spl is None:
                         # Rule 5: confidence and scanning fixed
-                        splitter_side_combos.append({
-                            "n_resamples_splitter": n_res_spl,
-                            "adjust_alpha_splitter": adj_alpha_spl,
-                            "early_stopping_splitter": None,
-                            "early_stopping_confidence_splitter": 0.95,
-                            "threshold_scanning": True,
-                        })
+                        splitter_side_combos.append(
+                            {
+                                "n_resamples_splitter": n_res_spl,
+                                "adjust_alpha_splitter": adj_alpha_spl,
+                                "early_stopping_splitter": None,
+                                "early_stopping_confidence_splitter": 0.95,
+                                "threshold_scanning": True,
+                            }
+                        )
                     else:  # adaptive
                         for conf_spl in [0.95, 0.99]:
                             for thresh_scan in [True, False]:
-                                splitter_side_combos.append({
-                                    "n_resamples_splitter": n_res_spl,
-                                    "adjust_alpha_splitter": adj_alpha_spl,
-                                    "early_stopping_splitter": "adaptive",
-                                    "early_stopping_confidence_splitter": conf_spl,
-                                    "threshold_scanning": thresh_scan,
-                                })
+                                splitter_side_combos.append(
+                                    {
+                                        "n_resamples_splitter": n_res_spl,
+                                        "adjust_alpha_splitter": adj_alpha_spl,
+                                        "early_stopping_splitter": "adaptive",
+                                        "early_stopping_confidence_splitter": conf_spl,
+                                        "threshold_scanning": thresh_scan,
+                                    }
+                                )
 
     # Threshold combos (Rule 8-9)
     threshold_combos: list[dict[str, Any]] = []
     for thresh_method, max_thresh_opts in VALID_THRESHOLD_COMBOS.items():
         for max_thresh in max_thresh_opts:
-            threshold_combos.append({
-                "threshold_method": thresh_method,
-                "max_thresholds": max_thresh,
-            })
+            threshold_combos.append(
+                {
+                    "threshold_method": thresh_method,
+                    "max_thresholds": max_thresh,
+                }
+            )
 
     # Honesty combos (Rule 7)
     honesty_combos: list[dict[str, Any]] = [
@@ -369,16 +384,20 @@ def _generate_cit_cif_configs(
     # Forest-specific combos
     if is_forest:
         if is_classifier:
-            forest_combos = list(product(
-                [None, 0.8],  # max_samples
-                ["bayesian", "classic"],  # bootstrap_method
-                ["balanced", "stratified"],  # sampling_method
-            ))
+            forest_combos = list(
+                product(
+                    [None, 0.8],  # max_samples
+                    ["bayesian", "classic"],  # bootstrap_method
+                    ["balanced", "stratified"],  # sampling_method
+                )
+            )
         else:
-            forest_combos = list(product(
-                [None, 0.8],  # max_samples
-                ["bayesian", "classic"],  # bootstrap_method
-            ))
+            forest_combos = list(
+                product(
+                    [None, 0.8],  # max_samples
+                    ["bayesian", "classic"],  # bootstrap_method
+                )
+            )
     else:
         forest_combos = [None]
 
@@ -611,7 +630,15 @@ REG_CAT_GRID: dict[str, list[Any]] = {
 }
 
 REG_CIT_GRID: dict[str, list[Any]] = {
-    "selector": ["pc", "dc", "rdc", ["pc", "dc"], ["pc", "rdc"], ["dc", "rdc"], ["pc", "dc", "rdc"]],
+    "selector": [
+        "pc",
+        "dc",
+        "rdc",
+        ["pc", "dc"],
+        ["pc", "rdc"],
+        ["dc", "rdc"],
+        ["pc", "dc", "rdc"],
+    ],
     "splitter": ["mse"],  # fixed for now, can add "mae" later
     "alpha_selector": [0.05, 0.01],
     "alpha_splitter": [0.05, 0.01],
@@ -657,6 +684,7 @@ REG_CPI_GRID: dict[str, list[Any]] = {
 # =============================================================================
 # CONFIG GENERATORS
 # =============================================================================
+
 
 def clf_mc() -> list[dict[str, Any]]:
     return _generate_simple_grid(CLF_FILTER_GRID, "mc")
@@ -898,6 +926,7 @@ REG_CONFIG_GENERATORS: dict[str, callable] = {
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
+
 
 def get_configs(task_type: str) -> dict[str, list[dict[str, Any]]]:
     """Get all configs for a task type."""

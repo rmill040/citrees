@@ -89,11 +89,11 @@ available_node_types:
   head:
     node_config:
       InstanceType: c6i.4xlarge
-      ImageId: ami-xxx  # Ubuntu 22.04
+      ImageId: ami-xxx # Ubuntu 22.04
 
   selection_worker:
     node_config:
-      InstanceType: c6i.8xlarge  # 32 vCPUs, 64GB
+      InstanceType: c6i.8xlarge # 32 vCPUs, 64GB
       InstanceMarketOptions:
         MarketType: spot
     resources:
@@ -102,7 +102,7 @@ available_node_types:
 
   eval_worker:
     node_config:
-      InstanceType: c6i.4xlarge  # 16 vCPUs, 32GB
+      InstanceType: c6i.4xlarge # 16 vCPUs, 32GB
       InstanceMarketOptions:
         MarketType: spot
     resources:
@@ -116,10 +116,10 @@ available_node_types:
 region: us-east-1
 
 s3:
-  bucket_name: null  # Auto: citrees-results-{account_id}
+  bucket_name: null # Auto: citrees-results-{account_id}
 
 experiment:
-  type: classification  # or "regression"
+  type: classification # or "regression"
   n_seeds: 10
 ```
 
@@ -161,13 +161,14 @@ AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
 
 The cluster uses separate worker pools for each stage:
 
-| Pool | Instance | vCPUs | RAM | Resource | Purpose |
-|------|----------|-------|-----|----------|---------|
-| `head` | c6i.4xlarge | 16 | 32GB | - | Scheduler, dashboard |
-| `selection_worker` | c6i.8xlarge | 32 | 64GB | `selection: 100` | Feature selection (heavy) |
-| `eval_worker` | c6i.4xlarge | 16 | 32GB | `evaluation: 100` | Downstream eval (light) |
+| Pool               | Instance    | vCPUs | RAM  | Resource          | Purpose                   |
+| ------------------ | ----------- | ----- | ---- | ----------------- | ------------------------- |
+| `head`             | c6i.4xlarge | 16    | 32GB | -                 | Scheduler, dashboard      |
+| `selection_worker` | c6i.8xlarge | 32    | 64GB | `selection: 100`  | Feature selection (heavy) |
+| `eval_worker`      | c6i.4xlarge | 16    | 32GB | `evaluation: 100` | Downstream eval (light)   |
 
 Tasks are routed via custom resources:
+
 - `@ray.remote(resources={"selection": 1})` → runs on selection_worker
 - `@ray.remote(resources={"evaluation": 1})` → runs on eval_worker
 
@@ -209,11 +210,13 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py -
 ### Ray Dashboard
 
 Access at `http://<head-ip>:8265` or via:
+
 ```bash
 AWS_PROFILE=personal uv run ray dashboard paper/scripts/infra/ray/cluster.yaml
 ```
 
 Features:
+
 - Real-time task progress
 - Worker utilization
 - Error logs
@@ -221,8 +224,9 @@ Features:
 
 ## Missing-only Runs (Recommended)
 
-The pipeline does **not** auto-skip inside each task. Instead, you filter the grid **before** submission using S3 listings.
-This gives you a deterministic, auditable list of configs that will run.
+The pipeline does **not** auto-skip inside each task. Instead, you filter the
+grid **before** submission using S3 listings. This gives you a deterministic,
+auditable list of configs that will run.
 
 ```bash
 # Preview the exact configs that will run (print full list)
@@ -234,7 +238,8 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
     --stage all --only-missing
 ```
 
-**Reruns:** delete the relevant S3 objects (rankings/metrics) and re-run with `--only-missing`.
+**Reruns:** delete the relevant S3 objects (rankings/metrics) and re-run with
+`--only-missing`.
 
 ## Fault Tolerance
 
@@ -243,13 +248,14 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
 
 ## Cost Estimates
 
-| Configuration | Spot Price | Est. Daily Cost |
-|---------------|------------|-----------------|
-| 1 head (c6i.4xlarge) | varies | varies |
-| 10 selection workers (c6i.8xlarge) | varies | varies |
-| 10 eval workers (c6i.4xlarge) | varies | varies |
+| Configuration                      | Spot Price | Est. Daily Cost |
+| ---------------------------------- | ---------- | --------------- |
+| 1 head (c6i.4xlarge)               | varies     | varies          |
+| 10 selection workers (c6i.8xlarge) | varies     | varies          |
+| 10 eval workers (c6i.4xlarge)      | varies     | varies          |
 
 **Tips:**
+
 - Spot prices fluctuate; check AWS pricing for current rates
 - Workers auto-scale based on pending tasks
 - Tear down cluster when not in use

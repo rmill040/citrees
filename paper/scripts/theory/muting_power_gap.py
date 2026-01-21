@@ -28,11 +28,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy import stats
-
 from theoretical_predictions import (
     find_gap_region,
     gate_power,
-    power_correlation_test,
     root_power,
 )
 
@@ -107,7 +105,7 @@ def generate_gated_data(
 
     # Gate threshold for P(Z=1) = p
     c = stats.norm.ppf(1 - p)
-    Z = (X0 > c).astype(np.int64)
+    Z = (c < X0).astype(np.int64)
 
     # Response: deterministic in gate, random outside
     eps = rng.integers(0, 2, n)

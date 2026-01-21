@@ -1,4 +1,3 @@
-
 import numpy as np
 from numba import njit
 
@@ -73,9 +72,7 @@ def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:
 
 @ThresholdMethods.register("percentile")
 @njit(cache=True, fastmath=True, nogil=True)
-def percentile(
-    x: np.ndarray, max_thresholds: int, random_state: int | None = None
-) -> np.ndarray:
+def percentile(x: np.ndarray, max_thresholds: int, random_state: int | None = None) -> np.ndarray:
     """Percentiles of midpoints in array.
 
     Parameters

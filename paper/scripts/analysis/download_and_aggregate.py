@@ -24,7 +24,6 @@ import io
 from pathlib import Path
 from typing import Literal
 
-import boto3
 import pandas as pd
 from loguru import logger
 
@@ -148,9 +147,7 @@ def aggregate_stage(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Download and aggregate S3 experiment artifacts"
-    )
+    parser = argparse.ArgumentParser(description="Download and aggregate S3 experiment artifacts")
     parser.add_argument(
         "--stage",
         choices=["rankings", "metrics", "all"],
@@ -204,9 +201,9 @@ def main():
     for stage in stages:
         for task_type in task_types:
             output_path = args.output_dir / output_files[(stage, task_type)]
-            logger.info(f"\n{'='*60}")
+            logger.info(f"\n{'=' * 60}")
             logger.info(f"Processing {stage}/{task_type} -> {output_path.name}")
-            logger.info(f"{'='*60}")
+            logger.info(f"{'=' * 60}")
 
             n_files = aggregate_stage(
                 bucket=bucket,

@@ -313,7 +313,7 @@ def process_config(
     # Skip if output exists (per-task check for extra safety)
     if skip_existing:
         try:
-            if s3_file_exists(metrics_path, region_name=config.region):
+            if s3_file_exists(metrics_path, region_name=config.aws_region):
                 return {
                     "status": "skipped",
                     "method": method_id,
@@ -325,11 +325,11 @@ def process_config(
                     "reason": "output_exists",
                     **runtime,
                 }
-        except Exception:
-            pass  # Continue if check fails
+        except Exception as e:
+            logger.warning("skip_existing check failed for {}: {}", metrics_path, e)
 
     try:
-        rankings_exist = s3_file_exists(rankings_path, region_name=config.region)
+        rankings_exist = s3_file_exists(rankings_path, region_name=config.aws_region)
     except Exception as e:
         return {
             "status": "failed",
@@ -358,7 +358,7 @@ def process_config(
         }
 
     try:
-        rankings_df = download_parquet_from_s3(rankings_path, region_name=config.region)
+        rankings_df = download_parquet_from_s3(rankings_path, region_name=config.aws_region)
         X, y = load_dataset(dataset, task_type)
 
         # Get dataset metadata for provenance
@@ -382,7 +382,7 @@ def process_config(
         upload_parquet_to_s3(
             results,
             metrics_path,
-            region_name=config.region,
+            region_name=config.aws_region,
             validate=config.experiment.s3_validate_uploads,
         )
         return {
@@ -435,8 +435,8 @@ def main() -> None:
     total_expected = len(method_configs) * len(datasets) * len(seeds)
     grid = list(iter_grid(method_configs, datasets, seeds))
     if args.only_missing:
-        completed_metrics = list_s3_completed("metrics", task_type, region_name=config.region)
-        completed_rankings = list_s3_completed("rankings", task_type, region_name=config.region)
+        completed_metrics = list_s3_completed("metrics", task_type, region_name=config.aws_region)
+        completed_rankings = list_s3_completed("rankings", task_type, region_name=config.aws_region)
         pending: list[tuple[dict[str, Any], str, int]] = []
         missing_rankings = 0
         for method_cfg, dataset, seed in grid:

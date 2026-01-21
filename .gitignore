@@ -8,6 +8,9 @@ catboost_info/
 # Generated Ray cluster config (contains user's IP)
 paper/scripts/infra/ray/cluster.yaml
 
+# User-specific experiment config (may contain AWS account info)
+paper/scripts/infra/config.yaml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

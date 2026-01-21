@@ -50,7 +50,9 @@ def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
     from paper.scripts.infra.config import load_config
 
     config = load_config()
-    bucket_name = config.bucket_name
+    if not config.s3_bucket:
+        raise ValueError("s3_bucket must be set in config.yaml")
+    bucket_name = config.s3_bucket
     s3 = boto3.client("s3", region_name=region)
 
     try:

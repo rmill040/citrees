@@ -175,7 +175,7 @@ def main():
 
     config = load_config()
     bucket = get_s3_bucket()
-    region_name = config.region
+    region_name = config.aws_region
 
     logger.info(f"S3 bucket: {bucket}")
     logger.info(f"Region: {region_name}")

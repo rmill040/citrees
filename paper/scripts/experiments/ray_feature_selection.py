@@ -698,7 +698,7 @@ def process_config(
     # Skip if output exists (per-task check for extra safety)
     if skip_existing:
         try:
-            if s3_file_exists(s3_path, region_name=config.region):
+            if s3_file_exists(s3_path, region_name=config.aws_region):
                 return {
                     "status": "skipped",
                     "method": method_id,
@@ -746,7 +746,7 @@ def process_config(
         upload_parquet_to_s3(
             results,
             s3_path,
-            region_name=config.region,
+            region_name=config.aws_region,
             validate=config.experiment.s3_validate_uploads,
         )
         return {
@@ -797,7 +797,7 @@ def main():
     total_expected = len(method_configs) * len(datasets) * len(seeds)
     grid = list(iter_grid(method_configs, datasets, seeds))
     if args.only_missing:
-        completed = list_s3_completed("rankings", task_type, region_name=config.region)
+        completed = list_s3_completed("rankings", task_type, region_name=config.aws_region)
         pending = filter_missing(grid, completed)
         logger.info(
             "Stage 1 only-missing: expected={}, completed_in_s3={}, pending={}",

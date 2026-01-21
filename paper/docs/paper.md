@@ -928,6 +928,9 @@ $$
 \mathbb{P}\!\left(\exists j\in F_t:\; p_{t,j}\le \alpha_{\text{sel}}/m_t\right)\le \alpha_{\text{sel}}.
 $$
 
+**Proof.** Stage A rejects the global null only if $\min_{j\in F_t} p_{t,j}\le \alpha_{\text{sel}}/m_t$. Under the
+global null, Lemma 2 applies directly and yields the bound. ∎
+
 **Assumptions.** A0.1–A0.5.
 
 #### Proposition 3a (per-feature false selection bound; no global-null needed)
@@ -940,6 +943,10 @@ $$
 $$
 This bound does not depend on the feature’s number of unique values, which is one precise sense in which Stage A avoids
 the classic CART-style “high-cardinality selection bias”.
+
+**Proof.** If the node splits on $j$, then Stage A must have accepted $j$ at the Bonferroni threshold, so
+$p_{t,j}\le \alpha_{\text{sel}}/m_t$. Since $p_{t,j}$ is super-uniform under the null, we have
+$\mathbb{P}(p_{t,j}\le \alpha_{\text{sel}}/m_t)\le \alpha_{\text{sel}}/m_t$, and the claim follows by set inclusion. ∎
 
 **Assumptions.** A0.1–A0.5.
 
@@ -1338,6 +1345,10 @@ $$
 \mathbb{P}(\text{the fitted tree has at least one internal split}) \le \alpha_{\text{sel}}.
 $$
 
+**Proof.** If the tree has any split, then the root must have passed Stage A; thus the event “tree splits” is a subset
+of $\{\min_{j\in F_{\text{root}}} p_{t,j}\le \alpha_{\text{sel}}/m_{\text{root}}\}$. Under the global null at the root,
+Proposition 3 gives the bound. ∎
+
 **Assumptions.** A0.1–A0.5 per tree at root; complete null across features. (No independence between trees is required for the union bound.)
 
 #### Corollary 4a (forest-level bounds under complete null; root-level)
@@ -1722,6 +1733,14 @@ gap region table:
 UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/theoretical_predictions.py
 ```
 
+Run status (2026-01-21): executed; console tables printed (a soft-gate calibration step emits a benign overflow warning
+in `exp` for large sharpness values).
+
+**Optional empirical validation (Appendix B only).** The Monte Carlo check in
+`paper/scripts/theory/muting_power_gap.py` writes its outputs to `paper/results/theory/`. A quick run was executed on
+2026-01-21 (`--quick`); it completed with expected numpy warnings from correlation calculations on small samples and
+produced `muting_power_gap_raw.parquet` and `muting_power_gap_summary.parquet`.
+
 ---
 
 ## Appendix C. TODOs
@@ -2018,7 +2037,8 @@ in the corresponding proofs.
   `paper/results/figures/selection_bias_demo.png`.
 - `paper/scripts/theory/generate_sequential_stopping_calibration.py` → `paper/results/cache/sequential_stopping_calibration_data.parquet` and
   `paper/results/figures/sequential_stopping_calibration.png`.
-Run status (2026-01-20): all scripts above executed and artifacts are present at the paths above.
+Run status (2026-01-20): scripts executed under the prior defaults; defaults were increased on 2026-01-21, so rerun is
+needed to refresh the cached artifacts with the larger settings.
 
 ### F.2 Stage B and adaptive tree growth (what we do *not* claim)
 
@@ -2278,7 +2298,8 @@ Output: fitted forest {T₁,...,T_M}
 
 For m = 1..M:
     If bootstrap enabled:
-        - Draw bootstrap indices I_m (|I_m| = max_samples) by the chosen method
+        - Draw bootstrap indices I_m by the chosen method
+        - If max_samples < n, subsample I_m (without replacement) down to max_samples
         - Fit tree T_m ← FitTree(X[I_m], Y[I_m]; θ_tree)
     Else:
         - Fit tree T_m ← FitTree(X, Y; θ_tree)
@@ -2649,7 +2670,7 @@ with the largest raw selector score. In this mode, `adjust_alpha_selector`, `ear
 **`max_features` semantics (implementation-aligned).** The candidate subset size is computed by
 `calculate_max_value(n_values=|F_t|, desired_max=max_features)`, with:
 - integer: `min(max_features, |F_t|)`,
-- float in $(0,1]$: `ceil(|F_t| * max_features)`,
+- float in $(0,1]$: `ceil(|F_t| * max_features)` (values ≥ 1 are effectively “all features”),
 - `"sqrt"`: `ceil(sqrt(|F_t|))`,
 - `"log2"`: `ceil(log2(|F_t|))`,
 - `None`: all features.
@@ -2806,7 +2827,8 @@ directly, regardless of threshold method.
 
 **`max_thresholds` semantics (implementation-aligned).** When `max_thresholds` is set, the count is computed by
 `calculate_max_value(n_values=n_unique, desired_max=max_thresholds)` using the same integer/float/`sqrt`/`log2`
-rules as `max_features`, then applied to the candidate midpoints for the selected threshold method. When
+rules as `max_features` (floats ≥ 1 effectively mean “all thresholds”), then applied to the candidate midpoints for the
+selected threshold method. When
 `threshold_method="exact"`, all midpoints are returned regardless of `max_thresholds` (it is accepted for API
 compatibility but not used).
 
@@ -2947,6 +2969,10 @@ for i in range(n_resamples):
     theta_p[i] = func(y_[idx]) + func(y_[~idx])
 return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 ```
+
+**Randomized selector note.** For selectors with internal randomness (e.g., RDC, mutual information), the same
+`random_state` is used across all permutations, so the permutation p-value is conditional on that label-independent
+randomness. This is consistent with the fixed-node validity assumptions (A0.2–A0.3).
 
 ---
 
@@ -3214,11 +3240,11 @@ Output: P-value p
 
 **Theorem (fixed-$B$; exchangeability).** The max-T p-value is valid (super-uniform under $H_0$).
 
-**Proof sketch**: The composite statistic $T^{\text{max}}$ is a measurable function of the data. Under $H_0$, exchangeability of $Y$ implies:
-$$
-(T^{\text{max}}_0, T^{\text{max}}_1, \ldots, T^{\text{max}}_B) \text{ is exchangeable}
-$$
-where $T^{\text{max}}_b = \max_s |T_s(x, \pi_b(y))|$. The rank argument from Theorem 1 then applies directly.
+**Proof.** The composite statistic $T^{\text{max}}$ is a measurable function of the data. Under $H_0$, exchangeability of
+$Y$ implies that the vector
+$(T^{\text{max}}_0, T^{\text{max}}_1, \ldots, T^{\text{max}}_B)$ is exchangeable, where
+$T^{\text{max}}_b = \max_s |T_s(x, \pi_b(y))|$. The rank argument from Theorem 1 (Appendix A.2) then applies directly,
+so the +1 p-value based on $T^{\text{max}}$ is super-uniform. ∎
 
 #### 8.4 Scale Compatibility
 
@@ -3364,6 +3390,7 @@ subsample within each class.
 Forces equal class sizes:
 - Sample $n_{\min} = \min_k n_k$ from each class
 - Useful for imbalanced datasets
+The initial balanced bootstrap sample size is $K \cdot n_{\min}$ (which can be smaller than $n$).
 If `max_samples < n`, the bootstrap sample is further subsampled to size `max_samples` while keeping classes balanced
 (as equal as possible via integer allocation; per-class counts may differ by at most 1).
 
@@ -3388,6 +3415,16 @@ $$
 \text{Importance}^{(t)}_j \propto \sum_{\text{node } v \text{ splits on } j} \Delta I_v
 $$
 where each tree’s $\text{Importance}^{(t)}$ is normalized to sum to 1; the forest then averages (and renormalizes).
+
+#### 10.6 Out-of-bag (OOB) scoring (optional)
+
+If `oob_score=True`, the forest computes out-of-bag predictions by **reconstructing** each tree’s bootstrap indices
+using the same `random_state` and bootstrap method, then predicting on the complement set:
+- Classification: average OOB class probabilities and report accuracy on samples with at least one OOB prediction.
+- Regression: average OOB predictions and report $R^2$ on samples with at least one OOB prediction.
+
+If some samples are never OOB (too few trees or heavy resampling), the code emits a warning and scores only those with
+`n_oob > 0`. OOB scoring requires bootstrap to be enabled; otherwise an error is raised.
 
 ---
 
@@ -3560,6 +3597,9 @@ matched samples without assuming normality. For each pair of methods $(i, j)$:
 
 This is more powerful than Bonferroni while maintaining FWER $\leq \alpha$.
 
+**Implementation detail (alignment + minimum pairs).** The code aligns pairs using complete-case rows for the two
+methods/metric (dropna). It only runs Wilcoxon when there are at least 10 paired values; otherwise the pair is skipped.
+
 #### 12.5 Cohen's d Effect Size
 
 To quantify practical significance beyond statistical significance, we report
@@ -3587,8 +3627,16 @@ All statistical analyses follow a unified pipeline applied to each dataset type
 3. **Cohen's d**: Quantifies effect magnitude for each significant pair
 4. **Bootstrap CIs**: 95% confidence intervals via 2000 bootstrap resamples
 5. **Critical difference diagrams**: Visualizes method rankings with CD bars
+6. **Kendall’s W**: Effect size for the Friedman test (reported alongside the chi-square statistic)
 
 This ensures consistent, reproducible statistical comparisons across all experiments.
+
+**Implementation detail (Friedman/Nemenyi).** The Friedman test uses complete-case rows across all methods for the
+metric. Critical-difference diagrams use the Nemenyi CD computed from the Friedman ranks; the script also computes
+pairwise Nemenyi significance matrices for reporting/plots.
+
+**Output granularity.** The analysis script emits an overall aggregate (averaging across all k values and downstream
+models) and also generates per‑downstream‑model and per‑model‑per‑k outputs (Appendix H / `paper/docs/README.md`).
 
 #### 12.7 Bootstrap Confidence Intervals
 
@@ -3602,7 +3650,8 @@ confidence intervals using the percentile method:
 $$\text{CI}_{95\%} = [q_{0.025}, q_{0.975}]$$
 
 This non-parametric approach makes no distributional assumptions and
-provides a simple percentile CI; we only report it when the sample size is $\geq 5$.
+provides a simple percentile CI; we only report it when the sample size is $\geq 5$. Bootstrap resampling is performed
+across independent seeds/datasets (not across CV folds).
 
 **Output format**: Results are reported as `mean [CI_lo, CI_hi]`, e.g.,
 `0.847 [0.823, 0.871]`.

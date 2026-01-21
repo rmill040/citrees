@@ -163,6 +163,26 @@ class TestForestParameterValidation:
         with pytest.raises(ValidationError):
             ConditionalInferenceForestClassifier(sampling_method="invalid")
 
+    def test_regressor_check_for_unused_parameters(self):
+        """Test regressor with check_for_unused_parameters=True and bootstrap_method=None.
+
+        Previously, this raised KeyError because the regressor doesn't have
+        sampling_method but _validate_parameter_combinations tried to access it.
+        """
+        # This should not raise KeyError
+        reg = ConditionalInferenceForestRegressor(
+            n_estimators=2,
+            check_for_unused_parameters=True,
+            bootstrap_method=None,
+            random_state=42,
+            verbose=0,
+        )
+        # Verify it can be used
+        X = np.random.randn(20, 3)
+        y = np.random.randn(20)
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
 
 class TestForestBootstrap:
     """Tests for forest bootstrap functionality."""

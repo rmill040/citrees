@@ -133,6 +133,9 @@ def histogram(x: np.ndarray, max_thresholds: int, random_state: int | None = Non
         x = x.ravel()
 
     values = np.unique(x)
+    if len(values) < 2:
+        return np.empty(0, dtype=np.float64)
+
     midpoints = (values[:-1] + values[1:]) / 2
     max_thresholds = min(len(midpoints), max_thresholds)
 

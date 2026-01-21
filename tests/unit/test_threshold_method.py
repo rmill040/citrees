@@ -139,6 +139,17 @@ class TestHistogram:
         thresholds = histogram(x, max_thresholds=10, random_state=None)
         assert len(thresholds) == len(np.unique(thresholds))
 
+    def test_single_value_empty(self):
+        """Test that single unique value returns empty array.
+
+        Previously, histogram crashed with ValueError when given data with
+        only one unique value because np.histogram([], bins=0) is invalid.
+        """
+        x = np.array([5.0, 5.0, 5.0, 5.0, 5.0])
+        thresholds = histogram(x, max_thresholds=10, random_state=None)
+        assert len(thresholds) == 0
+
+
 class TestThresholdMethodComparison:
     """Tests comparing different threshold methods."""
 

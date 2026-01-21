@@ -237,7 +237,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
 
         if feature_names_in is None:
             feature_names_in = [f"f{j}" for j in range(1, X.shape[1] + 1)]
-        self.feature_names_in_ = feature_names_in
+        self.feature_names_in_ = np.array(feature_names_in, dtype=object)
 
         if not isinstance(y, np.ndarray):
             if isinstance(y, (list, tuple)):
@@ -265,6 +265,20 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             y = y
         else:
             y = y.astype(float)
+
+        # Reject NaN/Inf values - required for fastmath optimizations in split_data
+        if np.any(np.isnan(X)) or np.any(np.isinf(X)):
+            raise ValueError(
+                "Input X contains NaN or Inf values. "
+                "Please handle missing/infinite values before fitting."
+            )
+        # Check y only for numeric dtypes (string labels are valid for classifiers)
+        if np.issubdtype(y.dtype, np.number):
+            if np.any(np.isnan(y)) or np.any(np.isinf(y)):
+                raise ValueError(
+                    "Input y contains NaN or Inf values. "
+                    "Please handle missing/infinite values before fitting."
+                )
 
         return X, y
 
@@ -310,7 +324,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             )
 
         if feature_names:
-            if feature_names != self.feature_names_in_:
+            if not np.array_equal(feature_names, self.feature_names_in_):
                 missing = [name for name in self.feature_names_in_ if name not in feature_names]
                 extra = [name for name in feature_names if name not in self.feature_names_in_]
                 if missing or extra:
@@ -701,7 +715,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     reject_H0 = best_pval < self._alpha_splitter
 
                     # Check for early stopping
-                    if pval_threshold == 0 or (self._early_stopping_splitter is not None and reject_H0):
+                    if self._early_stopping_splitter is not None and reject_H0:
                         break
 
             # Split selection without permutation testing
@@ -925,8 +939,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         n, p = X.shape
         local_available = available_features
 
-        # Keep track of current tree depth
-        self.depth_ = depth
+        # Keep track of maximum tree depth
+        self.depth_ = max(getattr(self, "depth_", 0), depth)
 
         # Check for stopping criteria at node level
         if n >= self._min_samples_split and depth <= self._max_depth and not np.all(y == y[0]):

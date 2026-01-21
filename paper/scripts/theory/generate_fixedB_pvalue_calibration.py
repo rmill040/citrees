@@ -43,9 +43,9 @@ from citrees._selector import ptest_pc
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n-sims", type=int, default=10_000)
-    parser.add_argument("--n", type=int, default=80)
-    parser.add_argument("--n-resamples", type=int, default=99)
+    parser.add_argument("--n-sims", type=int, default=50_000)
+    parser.add_argument("--n", type=int, default=200)
+    parser.add_argument("--n-resamples", type=int, default=199)
     parser.add_argument("--seed", type=int, default=0)
     return parser.parse_args()
 

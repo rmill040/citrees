@@ -24,7 +24,7 @@ def _allocate_samples(weights: np.ndarray, total: int) -> np.ndarray:
     np.ndarray
         Integer allocation for each class, summing to total.
     """
-    if total <= 0:
+    if total <= 0 or len(weights) == 0:
         return np.zeros(len(weights), dtype=int)
 
     weights = np.asarray(weights, dtype=float)
@@ -111,7 +111,7 @@ def calculate_max_value(
     int
         Maximum value.
     """
-    if type(desired_max) is int:
+    if type(desired_max) is int or np.issubdtype(type(desired_max), np.integer):
         total = min(desired_max, n_values)
     elif desired_max == MaxValuesMethod.SQRT:
         total = ceil(np.sqrt(n_values))
@@ -130,6 +130,9 @@ def split_data(
     *, X: np.ndarray, y: np.ndarray, feature: int, threshold: float
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Split data based on feature and threshold.
+
+    Note: Input X must not contain NaN values. NaN validation is performed upstream
+    in _validate_data_fit(). With fastmath=True, NaN comparisons have undefined behavior.
 
     Parameters
     ----------

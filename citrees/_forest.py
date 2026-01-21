@@ -291,7 +291,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
         flags = []
         if params["bootstrap_method"] is None:
-            flags = [key for key in ["sampling_method", "max_samples"] if params[key]]
+            # Use .get() to handle regressor which doesn't have sampling_method
+            flags = [key for key in ["sampling_method", "max_samples"] if params.get(key)]
         if flags:
             warnings.warn(
                 "Unused hyperparameter(s) detected: When bootstrap_method=None, hyperparameter(s) "

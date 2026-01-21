@@ -133,6 +133,73 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
 
 **Reruns:** delete the specific S3 objects you want to recompute, then re-run with `--only-missing`.
 
+## End-to-End Analysis Sequence (Ray → S3 → Local)
+
+This is the **full** analysis flow for real‑data benchmarks. The steps below are ordered and explicit.
+
+### 0) Prereqs (once)
+
+```bash
+uv sync --group paper
+export AWS_PROFILE=personal
+export S3_BUCKET=your-bucket-name
+# Optional but recommended for provenance on remote workers:
+export GIT_SHA=$(git rev-parse HEAD)
+```
+
+### 1) Run Stage 1 (feature selection on Ray)
+
+Option A (recommended, handles missing-only logic):
+```bash
+AWS_PROFILE=personal S3_BUCKET=your-bucket-name \
+uv run python paper/scripts/experiments/run_pipeline.py \
+    --stage stage1 --only-missing
+```
+
+Option B (direct Ray submit):
+```bash
+AWS_PROFILE=personal S3_BUCKET=your-bucket-name \
+uv run ray submit paper/scripts/infra/ray/cluster.yaml \
+    paper/scripts/experiments/ray_feature_selection.py
+```
+
+### 2) Run Stage 2 (downstream evaluation on Ray)
+
+Stage 2 **requires Stage 1 rankings** in S3 for each (method, dataset, seed).
+
+```bash
+AWS_PROFILE=personal S3_BUCKET=your-bucket-name \
+uv run python paper/scripts/experiments/run_pipeline.py \
+    --stage stage2 --only-missing
+```
+
+### 3) Download + aggregate S3 artifacts to local parquet
+
+This produces:
+`paper/results/clf_evaluation.parquet` and `paper/results/reg_evaluation.parquet`
+plus the rankings parquets (if requested).
+
+```bash
+S3_BUCKET=your-bucket-name \
+uv run python paper/scripts/analysis/download_and_aggregate.py --stage all --task-type all
+```
+
+### 4) Run statistical analysis (tables/figures)
+
+```bash
+uv run python paper/scripts/analysis/stats.py
+```
+
+### 5) Synthetic‑only figures (separate pipeline)
+
+`generate_figures.py` **does not** use Ray or S3; it generates synthetic figures locally.
+
+```bash
+uv run python paper/scripts/analysis/generate_figures.py --profile paper
+```
+
+---
+
 ## Methods
 
 ### Classification (19 methods)
@@ -291,25 +358,40 @@ Columns:
 - elapsed_seconds
 - created_at_utc
 - git_sha
-- accuracy, f1, roc_auc: float    # Classification metrics
+- accuracy, f1, f1_macro, balanced_accuracy, roc_auc, auc: float  # Classification metrics
 - r2, rmse, mae: float            # Regression metrics
 ```
 
 ## Aggregation Policy
 
-Stage 2 generates results per **fold × k × downstream_model × seed × dataset**. The following
-aggregation policy reduces this to per-method scores for statistical comparisons:
+Stage 2 generates results per **fold × k × downstream_model × seed × dataset**. The current statistical pipeline in
+`paper/scripts/analysis/stats.py` aggregates by **dataset × method** and **averages across all rows** present (folds,
+seeds, k values, and downstream models). If you want a fixed `k` or a specific downstream model, filter the evaluation
+parquet files before running `stats.py` or adjust the aggregation logic.
 
-| Dimension | Policy | Rationale |
-|-----------|--------|-----------|
-| **Folds** | Mean across folds | Standard CV aggregation |
-| **Seeds** | Mean across seeds | Reduce variance from random initialization |
-| **k values** | Fixed k=10 (or best-k if specified) | Comparable feature counts across methods |
-| **Downstream models** | Report per-model or average | Depends on analysis goal |
+**Granular outputs (per-model / per-k).** `stats.py` now also emits per‑downstream‑model outputs (prefixes like
+`clf_lr_*` or `reg_ridge_*`) and per‑model‑per‑k outputs (prefixes like `clf_lr_k10_*`), in addition to the overall
+aggregated `clf_*` / `reg_*` summaries.
 
-**Summary:** Final metric per (dataset, method) = mean over folds → mean over seeds → fixed k.
+**Optional pre-filtering examples (before `stats.py`).**
 
-The `load_and_pivot_results()` function in `stats.py` implements this aggregation.
+```python
+# Example: keep only k=10 and downstream_model="lr" for classification
+import pandas as pd
+df = pd.read_parquet("paper/results/clf_evaluation.parquet")
+df = df[(df["k"] == 10) & (df["downstream_model"] == "lr")]
+df.to_parquet("paper/results/clf_evaluation_k10_lr.parquet")
+```
+
+```python
+# Example: keep only k=10 for regression (all downstream models)
+import pandas as pd
+df = pd.read_parquet("paper/results/reg_evaluation.parquet")
+df = df[df["k"] == 10]
+df.to_parquet("paper/results/reg_evaluation_k10.parquet")
+```
+
+Then point `stats.py` at the filtered parquet files.
 
 ## Analysis
 
@@ -335,6 +417,13 @@ uv run python paper/scripts/analysis/stats.py
 # Generate figures
 uv run python paper/scripts/analysis/generate_figures.py
 ```
+
+`stats.py` now emits overall aggregates plus per‑downstream‑model and per‑model‑per‑k outputs in
+`paper/results/analysis/` (see prefixes like `clf_lr_*`, `clf_lr_k10_*`, `reg_ridge_*`).
+
+**OOB scoring note (forests).** If you enable `oob_score=True` in the forest models, OOB predictions are computed only
+for samples that are out-of-bag for at least one tree; the reported OOB score uses those samples only. OOB scoring
+requires bootstrap to be enabled.
 
 ## Config Calculation
 

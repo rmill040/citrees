@@ -60,14 +60,14 @@ class BiasDemoConfig:
 
 def _parse_args() -> BiasDemoConfig:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n-sims", type=int, default=3000)
-    parser.add_argument("--n", type=int, default=80)
-    parser.add_argument("--n-levels", type=int, default=20, help="Number of levels for the categorical feature.")
+    parser.add_argument("--n-sims", type=int, default=10000)
+    parser.add_argument("--n", type=int, default=200)
+    parser.add_argument("--n-levels", type=int, default=50, help="Number of levels for the categorical feature.")
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument(
         "--base-resamples",
         type=int,
-        default=20,
+        default=50,
         help=(
             "Base permutations per test (R). Under Bonferroni with m features, citrees scales integer R to B=R*m "
             "per feature-test. We mirror that here for Stage A."

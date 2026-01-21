@@ -513,3 +513,24 @@ class TestBugFixes:
                 f"Expected {max_samples} samples, got {len(idx)} "
                 f"for n_per_class={n_per_class}, n_classes={n_classes}"
             )
+
+    def test_split_data_requires_no_nan(self):
+        """Verify that NaN/Inf inputs are rejected at fit time.
+
+        split_data uses fastmath=True for performance, which has undefined behavior
+        with NaN. Instead of removing fastmath, we validate inputs upstream in
+        _validate_data_fit() and reject NaN/Inf with a clear error message.
+        """
+        from citrees import ConditionalInferenceTreeClassifier
+
+        X_with_nan = np.array([[1.0], [np.nan], [3.0]])
+        y = np.array([0, 1, 0])
+
+        clf = ConditionalInferenceTreeClassifier(random_state=42)
+
+        with pytest.raises(ValueError, match="NaN or Inf"):
+            clf.fit(X_with_nan, y)
+
+        X_with_inf = np.array([[1.0], [np.inf], [3.0]])
+        with pytest.raises(ValueError, match="NaN or Inf"):
+            clf.fit(X_with_inf, y)

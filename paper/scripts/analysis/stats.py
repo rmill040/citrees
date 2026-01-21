@@ -27,7 +27,8 @@ from scipy import stats
 
 warnings.filterwarnings("ignore")
 
-OUTPUT_DIR = Path(__file__).parent.parent / "results" / "analysis"
+BASE_RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+OUTPUT_DIR = BASE_RESULTS_DIR / "analysis"
 FIGURES_DIR = OUTPUT_DIR / "figures"
 TABLES_DIR = OUTPUT_DIR / "tables"
 
@@ -1355,13 +1356,15 @@ def run_statistical_analysis(
     return results
 
 
-def load_and_pivot_results(input_path: Path, methods: list[str], metric_cols: list[str]) -> pd.DataFrame:
-    """Load results and pivot to wide format for statistical analysis.
+def _aggregate_and_pivot(
+    data: pd.DataFrame, methods: list[str], metric_cols: list[str]
+) -> pd.DataFrame:
+    """Aggregate results and pivot to wide format for statistical analysis.
 
     Parameters
     ----------
-    input_path : Path
-        Path to parquet file with results.
+    data : pd.DataFrame
+        Results dataframe.
     methods : list[str]
         Method names to include.
     metric_cols : list[str]
@@ -1373,8 +1376,6 @@ def load_and_pivot_results(input_path: Path, methods: list[str], metric_cols: li
         Wide-format DataFrame with columns: {method}_{metric}.
         One row per dataset.
     """
-    data = pd.read_parquet(input_path)
-
     # Aggregate by dataset and method (mean across folds/seeds)
     agg_cols = ["dataset", "method"]
     for col in ["n_features", "n_informative", "n_samples", "class_sep"]:
@@ -1396,6 +1397,28 @@ def load_and_pivot_results(input_path: Path, methods: list[str], metric_cols: li
     data_wide = data_wide.reset_index()
 
     return data_wide
+
+
+def load_and_pivot_results(input_path: Path, methods: list[str], metric_cols: list[str]) -> pd.DataFrame:
+    """Load results and pivot to wide format for statistical analysis.
+
+    Parameters
+    ----------
+    input_path : Path
+        Path to parquet file with results.
+    methods : list[str]
+        Method names to include.
+    metric_cols : list[str]
+        Metric column names to include.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide-format DataFrame with columns: {method}_{metric}.
+        One row per dataset.
+    """
+    data = pd.read_parquet(input_path)
+    return _aggregate_and_pivot(data, methods, metric_cols)
 
 
 # ==============================================================================
@@ -1660,7 +1683,7 @@ def main():
 
     # === SYNTHETIC DATASETS ===
     # First run the existing analysis for detailed synthetic-specific outputs
-    synthetic_path = Path(__file__).parent.parent / "results" / "synthetic_analysis.parquet"
+    synthetic_path = BASE_RESULTS_DIR / "synthetic_analysis.parquet"
     if synthetic_path.exists():
         analyze_synthetic_results(synthetic_path, TABLES_DIR, FIGURES_DIR)
 
@@ -1682,7 +1705,7 @@ def main():
         print(f"\nSkipping synthetic analysis: {synthetic_path} not found")
 
     # === CLASSIFICATION DATASETS ===
-    clf_eval_path = Path(__file__).parent.parent / "results" / "clf_evaluation.parquet"
+    clf_eval_path = BASE_RESULTS_DIR / "clf_evaluation.parquet"
     if clf_eval_path.exists():
         print("\n" + "=" * 60)
         print("CLASSIFICATION EVALUATION")
@@ -1701,14 +1724,41 @@ def main():
             figures_dir=FIGURES_DIR,
         )
 
-        # Runtime analysis
+        # Per-model, per-k analyses (more granular)
+        if "downstream_model" in data.columns and "k" in data.columns:
+            models = sorted(data["downstream_model"].dropna().unique())
+            ks = sorted(data["k"].dropna().unique())
+            for model in models:
+                data_model = data[data["downstream_model"] == model]
+                data_wide_model = _aggregate_and_pivot(data_model, methods, metric_cols)
+                run_statistical_analysis(
+                    data_wide=data_wide_model,
+                    methods=methods,
+                    metrics=["accuracy", "f1_macro", "balanced_accuracy"],
+                    output_prefix=f"clf_{model}",
+                    tables_dir=TABLES_DIR,
+                    figures_dir=FIGURES_DIR,
+                )
+                for k in ks:
+                    data_k = data_model[data_model["k"] == k]
+                    data_wide_k = _aggregate_and_pivot(data_k, methods, metric_cols)
+                    run_statistical_analysis(
+                        data_wide=data_wide_k,
+                        methods=methods,
+                        metrics=["accuracy", "f1_macro", "balanced_accuracy"],
+                        output_prefix=f"clf_{model}_k{k}",
+                        tables_dir=TABLES_DIR,
+                        figures_dir=FIGURES_DIR,
+                    )
+
+        # Runtime analysis (overall)
         analyze_runtime(data, methods, "clf", TABLES_DIR, FIGURES_DIR)
     else:
         print(f"\nSkipping classification analysis: {clf_eval_path} not found")
         print("  (Run evaluation experiments first to generate this file)")
 
     # === REGRESSION DATASETS ===
-    reg_eval_path = Path(__file__).parent.parent / "results" / "reg_evaluation.parquet"
+    reg_eval_path = BASE_RESULTS_DIR / "reg_evaluation.parquet"
     if reg_eval_path.exists():
         print("\n" + "=" * 60)
         print("REGRESSION EVALUATION")
@@ -1728,7 +1778,36 @@ def main():
             higher_is_better={"r2": True, "mse": False, "mae": False},
         )
 
-        # Runtime analysis
+        # Per-model, per-k analyses (more granular)
+        if "downstream_model" in data.columns and "k" in data.columns:
+            models = sorted(data["downstream_model"].dropna().unique())
+            ks = sorted(data["k"].dropna().unique())
+            for model in models:
+                data_model = data[data["downstream_model"] == model]
+                data_wide_model = _aggregate_and_pivot(data_model, methods, metric_cols)
+                run_statistical_analysis(
+                    data_wide=data_wide_model,
+                    methods=methods,
+                    metrics=["r2", "mse", "mae"],
+                    output_prefix=f"reg_{model}",
+                    tables_dir=TABLES_DIR,
+                    figures_dir=FIGURES_DIR,
+                    higher_is_better={"r2": True, "mse": False, "mae": False},
+                )
+                for k in ks:
+                    data_k = data_model[data_model["k"] == k]
+                    data_wide_k = _aggregate_and_pivot(data_k, methods, metric_cols)
+                    run_statistical_analysis(
+                        data_wide=data_wide_k,
+                        methods=methods,
+                        metrics=["r2", "mse", "mae"],
+                        output_prefix=f"reg_{model}_k{k}",
+                        tables_dir=TABLES_DIR,
+                        figures_dir=FIGURES_DIR,
+                        higher_is_better={"r2": True, "mse": False, "mae": False},
+                    )
+
+        # Runtime analysis (overall)
         analyze_runtime(data, methods, "reg", TABLES_DIR, FIGURES_DIR)
     else:
         print(f"\nSkipping regression analysis: {reg_eval_path} not found")

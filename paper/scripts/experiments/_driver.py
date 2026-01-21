@@ -12,6 +12,7 @@ The goal is to keep Stage 1/Stage 2 scripts focused on computation and artifact 
 from __future__ import annotations
 
 import argparse
+import signal
 import time
 from collections.abc import Callable, Iterable
 from typing import Any
@@ -21,6 +22,26 @@ from loguru import logger
 
 from paper.scripts.experiments._common import parse_csv_ints, parse_csv_list
 from paper.scripts.utils.experiment_configs import config_label
+
+# Shutdown flag for graceful termination
+_shutdown_requested = False
+
+
+def _signal_handler(signum: int, frame: Any) -> None:
+    """Handle SIGINT/SIGTERM for graceful shutdown."""
+    global _shutdown_requested
+    sig_name = signal.Signals(signum).name
+    if _shutdown_requested:
+        logger.warning("Received {} again, forcing exit", sig_name)
+        raise SystemExit(1)
+    logger.warning("Received {}, initiating graceful shutdown...", sig_name)
+    _shutdown_requested = True
+
+
+def register_signal_handlers() -> None:
+    """Register signal handlers for graceful shutdown."""
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
 
 
 def build_common_parser(description: str) -> argparse.ArgumentParser:
@@ -67,6 +88,7 @@ def build_common_parser(description: str) -> argparse.ArgumentParser:
 
 
 def init_ray(ray_address: str) -> None:
+    register_signal_handlers()
     if ray_address == "local":
         # Declare custom resources for local mode so tasks requesting them can be scheduled.
         # In cluster mode, these resources are declared in cluster.yaml.
@@ -178,6 +200,7 @@ def run_futures(
     - elapsed_seconds: wall time to drain all futures
     - results: all task result dicts (success + skip + failure)
     """
+    global _shutdown_requested
     skip_statuses = skip_statuses or set()
 
     pending = list(futures)
@@ -189,6 +212,19 @@ def run_futures(
     last_log = start
 
     while pending:
+        # Check for shutdown request
+        if _shutdown_requested:
+            logger.warning(
+                "Shutdown requested [{}]: cancelling {} pending tasks", stage, len(pending)
+            )
+            for future in pending:
+                try:
+                    ray.cancel(future, force=False)
+                except Exception:
+                    pass  # Best effort cancellation
+            status_counts["cancelled"] = len(pending)
+            break
+
         ready, pending = ray.wait(pending, num_returns=min(batch_size, len(pending)), timeout=10)
         if ready:
             batch = ray.get(ready)

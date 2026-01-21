@@ -96,7 +96,7 @@ class ExperimentConfig:
     evaluation_memory_gb_default: float = 2.0
     evaluation_memory_gb_overrides: dict[str, float] = field(default_factory=dict)
     # S3 robustness
-    s3_validate_uploads: bool = False
+    s3_validate_uploads: bool = True
 
 
 @dataclass

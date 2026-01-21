@@ -203,8 +203,8 @@ def evaluate_fold(
             if task_type == "classification":
                 metrics = {
                     "accuracy": accuracy_score(y_test, y_pred),
-                    "f1": f1_score(y_test, y_pred, average="weighted"),
-                    "f1_macro": f1_score(y_test, y_pred, average="macro"),
+                    "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0.0),
+                    "f1_macro": f1_score(y_test, y_pred, average="macro", zero_division=0.0),
                     "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
                 }
                 if hasattr(model, "predict_proba"):

@@ -57,7 +57,7 @@ def config_label(config: dict[str, Any]) -> str:
     if not params:
         return method
     payload = json.dumps(params, sort_keys=True, default=str)
-    digest = hashlib.md5(payload.encode("utf-8")).hexdigest()[:8]
+    digest = hashlib.md5(payload.encode("utf-8")).hexdigest()[:16]
     return f"{method}__cfg{digest}"
 
 

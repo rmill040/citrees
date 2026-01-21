@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import os
 import subprocess
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -32,6 +33,7 @@ except ImportError:  # pragma: no cover
 TaskType = Literal["classification", "regression"]
 
 _S3_CLIENTS: dict[str | None, Any] = {}
+_S3_CLIENT_LOCK = threading.Lock()
 
 
 DataSource = Literal["real", "synthetic"]
@@ -288,17 +290,18 @@ def _split_s3_path(s3_path: str) -> tuple[str, str]:
 
 def get_s3_client(*, region_name: str | None = None):
     """Create and cache an S3 client with retry config (safe for Ray serialization)."""
-    if region_name not in _S3_CLIENTS:
-        retry_config = BotoConfig(
-            retries={"max_attempts": 5, "mode": "adaptive"},
-            connect_timeout=10,
-            read_timeout=30,
-        )
-        kwargs: dict[str, Any] = {"config": retry_config}
-        if region_name:
-            kwargs["region_name"] = region_name
-        _S3_CLIENTS[region_name] = boto3.client("s3", **kwargs)
-    return _S3_CLIENTS[region_name]
+    with _S3_CLIENT_LOCK:
+        if region_name not in _S3_CLIENTS:
+            retry_config = BotoConfig(
+                retries={"max_attempts": 5, "mode": "adaptive"},
+                connect_timeout=10,
+                read_timeout=30,
+            )
+            kwargs: dict[str, Any] = {"config": retry_config}
+            if region_name:
+                kwargs["region_name"] = region_name
+            _S3_CLIENTS[region_name] = boto3.client("s3", **kwargs)
+        return _S3_CLIENTS[region_name]
 
 
 def list_s3_completed(

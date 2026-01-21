@@ -175,11 +175,13 @@ def main() -> None:
         log_failures(failures, stage="stage1")
         for r in results:
             if r.get("status") == "done":
-                stage1_done.add((str(r.get("method")), str(r.get("dataset")), int(r.get("seed"))))
+                method, dataset, seed = r.get("method"), r.get("dataset"), r.get("seed")
+                if method is None or dataset is None or seed is None:
+                    logger.warning("Malformed result missing required fields: {}", r)
+                    continue
+                stage1_done.add((str(method), str(dataset), int(seed)))
                 if args.only_missing:
-                    completed_rankings.add(
-                        (str(r.get("method")), str(r.get("dataset")), int(r.get("seed")))
-                    )
+                    completed_rankings.add((str(method), str(dataset), int(seed)))
 
         logger.info("Stage 1 complete: done={}, failed={}", len(stage1_done), len(failures))
 

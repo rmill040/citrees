@@ -709,8 +709,8 @@ def process_config(
                     "reason": "output_exists",
                     **runtime,
                 }
-        except Exception:
-            pass  # Continue if check fails
+        except Exception as e:
+            logger.warning("skip_existing check failed for {}: {}", s3_path, e)
 
     try:
         X, y = load_dataset(dataset, task_type)

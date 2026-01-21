@@ -28,6 +28,7 @@ from paper.scripts.experiments._common import (
     parse_csv_list,
 )
 from paper.scripts.experiments._common import rankings_s3_path as rankings_s3_key
+from paper.scripts.experiments._driver import init_ray
 from paper.scripts.infra.config import load_config
 from paper.scripts.utils.constants import N_SPLITS
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
@@ -176,10 +177,7 @@ def main() -> None:
     args = _parse_args()
     cfg = load_config()
 
-    if args.ray_address == "local":
-        ray.init(ignore_reinit_error=True)
-    else:
-        ray.init(address=args.ray_address, ignore_reinit_error=True)
+    init_ray(args.ray_address)
 
     task_type = args.task_type or cfg.experiment.type
     source = cast(DataSource, args.source)

@@ -1,0 +1,30 @@
+\section{Proof of Theorem~\ref{them:plusone-superuniform}}
+\label{app:proof-plusone}
+
+\paragraph{Claim.} Theorem~\ref{them:plusone-superuniform}.
+\paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}).
+
+Let $(T_0, T_1, \dots, T_B)$ be exchangeable under the null (conditional on
+$(X_t, U)$), and define the upper rank
+%
+\begin{equation}
+  R := 1 + \sum_{b=1}^B \ind\{T_b \ge T_0\},
+  \qquad
+  p = \frac{R}{B+1}.
+\end{equation}
+%
+If the statistics are almost surely tie-free, exchangeability implies that the
+position of $T_0$ among $(T_0, \dots, T_B)$ is uniform on $\{1, \dots, B+1\}$,
+so $\PP(R \le r) = r/(B+1)$ for each $r$. Therefore, for any $\alpha \in [0,1]$,
+%
+\begin{equation}
+  \PP(p \le \alpha)
+  = \PP\!\big(R \le (B+1)\alpha\big)
+  = \frac{\lfloor (B+1)\alpha \rfloor}{B+1}
+  \le \alpha.
+\end{equation}
+%
+If ties occur, counting ties against the null via $\ind\{T_b \ge T_0\}$ yields a
+conservative bound. Exact uniformity can be obtained by randomized tie-breaking,
+e.g.\ by ordering $(T_b, U_b)$ lexicographically with i.i.d.\ $U_b \sim
+\mathrm{Unif}(0,1)$ independent of the data.

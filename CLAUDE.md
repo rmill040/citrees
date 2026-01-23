@@ -2,7 +2,10 @@
 
 ## Project Overview
 
-**citrees** is a Python library implementing conditional inference trees and forests. It uses permutation-based hypothesis testing for variable selection at each node split, providing statistically principled alternatives to traditional CART-style decision trees.
+**citrees** is a Python library implementing conditional inference trees and
+forests. It uses permutation-based hypothesis testing for variable selection at
+each node split, providing statistically principled alternatives to traditional
+CART-style decision trees.
 
 ## Quick Start
 
@@ -27,13 +30,13 @@ citrees/
 ├── .pre-commit-config.yaml # Pre-commit hooks (black, ruff, mypy)
 ├── citrees/                # Main package
 │   ├── __init__.py         # Exports main classes
+│   ├── _types.py           # Centralized StrEnums and type aliases
 │   ├── _tree.py            # Tree classifiers/regressors
 │   ├── _forest.py          # Forest ensembles
 │   ├── _selector.py        # Feature selection methods (mc, mi, rdc, pc, dc)
 │   ├── _splitter.py        # Split criteria (gini, entropy, mse, mae)
 │   ├── _threshold_method.py # Threshold calculation methods
 │   ├── _registry.py        # Registry pattern for selectors/splitters
-│   ├── _conformal.py       # Conformal prediction wrappers
 │   ├── _utils.py           # Utility functions
 │   └── py.typed            # PEP 561 marker
 ├── tests/                  # Pytest test suite
@@ -44,12 +47,12 @@ citrees/
     ├── data/               # Experiment datasets
     ├── results/            # Experiment outputs (parquet, figures, tables)
     └── scripts/
-        ├── configs.py              # Experiment config dataclasses
-        ├── synthetic_experiments.py # Synthetic data feature selection
-        ├── analysis.py             # Statistical tests and visualizations
-        ├── clf_feature_selection_server.py  # Classification experiments
-        ├── reg_feature_selection_server.py  # Regression experiments
-        └── generate_figures.py     # Paper figure generation
+        ├── analysis/       # Statistical tests, visualizations, figures
+        ├── data_generation/# Synthetic dataset generation
+        ├── experiments/    # Ray-based feature selection experiments
+        ├── infra/          # AWS/Ray cluster setup and management
+        ├── theory/         # Sequential stopping analysis scripts
+        └── utils/          # Shared utilities, configs, metrics
 ```
 
 ## Core Classes
@@ -60,12 +63,20 @@ from citrees import (
     ConditionalInferenceTreeRegressor,
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
+    # Enums for parameter options
+    EarlyStopping,
+    NResamples,
+    ThresholdMethod,
+    MaxValuesMethod,
+    BootstrapMethod,
+    SamplingMethod,
 )
 ```
 
 ## Architecture
 
 ### Registry Pattern
+
 Selectors and splitters are registered via decorators:
 
 ```python
@@ -73,11 +84,12 @@ from ._registry import ClassifierSelectors
 
 @ClassifierSelectors.register("mc")
 @njit(nogil=True, fastmath=True)
-def multiple_correlation(x, y, n_classes, random_state=None):
+def mc(x, y, n_classes, random_state=None):
     ...
 ```
 
 Available registries:
+
 - `ClassifierSelectors` / `ClassifierSelectorTests` - mc, mi, rdc
 - `RegressorSelectors` / `RegressorSelectorTests` - pc, dc, rdc
 - `ClassifierSplitters` / `ClassifierSplitterTests` - gini, entropy
@@ -86,37 +98,41 @@ Available registries:
 
 ### Key Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `selector` | Feature selection method: str or list[str] | 'mc' (clf) / 'pc' (reg) |
-| `splitter` | Split criterion | 'gini' (clf) / 'mse' (reg) |
-| `alpha_selector` | P-value threshold for feature selection | 0.05 |
-| `alpha_splitter` | P-value threshold for split selection | 0.05 |
-| `n_resamples_selector` | Permutation resamples: 'auto', 'minimum', 'maximum', or int | 'auto' |
-| `adjust_alpha_*` | Bonferroni correction | True |
-| `early_stopping_*` | Stop on first significant result | True |
-| `feature_muting` | Remove uninformative features | True |
-| `feature_scanning` | Sort features by promise before testing | True |
-| `threshold_method` | How to generate split candidates | 'exact' |
-| `max_features` | Features per split: 'sqrt', 'log2', float, int | None (all) |
-| `max_thresholds` | Thresholds per feature | None (all) |
+| Parameter              | Description                             | Default                    |
+| ---------------------- | --------------------------------------- | -------------------------- |
+| `selector`             | Feature selection method: str or list   | 'mc' (clf) / 'pc' (reg)    |
+| `splitter`             | Split criterion                         | 'gini' (clf) / 'mse' (reg) |
+| `alpha_selector`       | P-value threshold for feature selection | 0.05                       |
+| `alpha_splitter`       | P-value threshold for split selection   | 0.05                       |
+| `n_resamples_selector` | NResamples enum or int                  | NResamples.AUTO            |
+| `adjust_alpha_*`       | Bonferroni correction                   | True                       |
+| `early_stopping_*`     | EarlyStopping enum or None              | EarlyStopping.ADAPTIVE     |
+| `feature_muting`       | Remove uninformative features           | True                       |
+| `feature_scanning`     | Sort features by promise before testing | True                       |
+| `threshold_method`     | ThresholdMethod enum                    | ThresholdMethod.EXACT      |
+| `max_features`         | MaxValuesMethod enum, float, or int     | None (all)                 |
+| `max_thresholds`       | MaxValuesMethod enum, float, or int     | None (all)                 |
 
 ### Selector Parameter
 
 The `selector` parameter accepts either a single string or a list of strings:
 
 **Classification selectors:**
+
 - `'mc'` - Multiple correlation (ANOVA-based, [0,1] scale)
 - `'mi'` - Mutual information (unbounded scale, cannot be combined with others)
 - `'rdc'` - Randomized Dependence Coefficient (O(n log n), [0,1] scale)
 
 **Regression selectors:**
+
 - `'pc'` - Pearson correlation ([0,1] scale after abs)
 - `'dc'` - Distance correlation (O(n²), [0,1] scale)
 - `'rdc'` - Randomized Dependence Coefficient (O(n log n), [0,1] scale)
 
-**List-based selector (multi-selector mode):**
-When a list is provided, all selectors compute their scores and the maximum is used. The permutation test is run on the selector that produced the highest score.
+**List-based selector (multi-selector mode):** When a list is provided, citrees
+uses the max-T method (Westfall & Young, 1993) for valid Type I error control.
+The permutation test computes max(selector_scores) inside each permutation. Each
+selector in the list must be unique (no duplicates allowed).
 
 ```python
 # Classification: only mc and rdc can be combined (both [0,1] scale)
@@ -126,23 +142,76 @@ clf = ConditionalInferenceTreeClassifier(selector=['mc', 'rdc'])
 reg = ConditionalInferenceTreeRegressor(selector=['pc', 'dc', 'rdc'])
 ```
 
-**Note:** For classification, `'mi'` cannot be in a list because mutual information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
+**Note:** For classification, `'mi'` cannot be in a list because mutual
+information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
 
-### Pydantic Validation
-All parameters are validated via `BaseConditionalInferenceTreeParameters`:
+### Early Stopping and Statistical Inference
+
+The `early_stopping_selector` and `early_stopping_splitter` parameters control
+how permutation tests terminate:
+
+- `EarlyStopping.ADAPTIVE` (default): Bayesian Beta CDF stopping - valid Type I
+  error (~5%), 95% faster
+- `EarlyStopping.SIMPLE`: Futility + significance stopping - inflates Type I
+  error to ~9%
+- `None`: Full permutation test - no early stopping
+
+**Default mode (recommended for most applications):**
 
 ```python
-from pydantic import BaseModel, confloat, conint
+# Default: adaptive sequential testing with valid p-values
+clf = ConditionalInferenceTreeClassifier(
+    early_stopping_selector=EarlyStopping.ADAPTIVE,  # default
+    early_stopping_splitter=EarlyStopping.ADAPTIVE,  # default
+)
+```
 
-class BaseConditionalInferenceTreeParameters(BaseModel):
-    alpha_selector: confloat(gt=0.0, le=1.0)
-    min_samples_split: conint(ge=2)
-    ...
+**Rigorous mode (maximum precision):**
+
+```python
+# Disable early stopping for maximum p-value precision
+clf = ConditionalInferenceTreeClassifier(
+    early_stopping_selector=None,
+    early_stopping_splitter=None,
+    n_resamples_selector=NResamples.MAXIMUM,
+    n_resamples_splitter=NResamples.MAXIMUM,
+)
+```
+
+**P-value correction:** The permutation test uses the Phipson & Smyth (2010) +1
+correction: `p = (b+1)/(m+1)` instead of `p = b/m`. This ensures p-values are
+never exactly zero, which is critical for multiple testing correction.
+
+Reference: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
+SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+
+### Pydantic Validation
+
+All parameters are validated via `BaseConditionalInferenceTreeParameters`. Type
+aliases and enums are centralized in `_types.py`:
+
+```python
+# citrees/_types.py
+from enum import StrEnum
+from typing import Annotated, TypeAlias
+from pydantic import Field
+
+ProbabilityFloat: TypeAlias = Annotated[float, Field(gt=0.0, le=1.0)]
+
+class EarlyStopping(StrEnum):
+    ADAPTIVE = "adaptive"
+    SIMPLE = "simple"
+
+class NResamples(StrEnum):
+    MINIMUM = "minimum"
+    MAXIMUM = "maximum"
+    AUTO = "auto"
 ```
 
 ## Development
 
 ### Dependencies
+
 ```toml
 python = ">=3.12"
 numpy = ">=1.26"
@@ -154,21 +223,175 @@ pydantic = ">=2.0"       # Validation
 ```
 
 ### Code Style
+
 - **Formatter**: black (line-length=120)
 - **Linter**: ruff
 - **Type checker**: mypy (strict)
 - **Import sorter**: isort
 
 ### Testing
+
 ```bash
-uv run pytest tests/ -v                           # Run all tests
+uv run pytest tests/ -v                           # Run all tests (JIT enabled, fast)
+uv run pytest tests/ -m "not slow" -v             # Skip slow tests
 uv run pytest tests/integration/ -v               # Run integration tests
 uv run pytest tests/unit/ -v                      # Run unit tests
 uv run pytest -k "classifier" -v                  # Run by keyword
+uv run pytest --cov=citrees --cov-report=term-missing  # With coverage (JIT disabled)
 ```
 
+#### Two Test Modes: JIT On vs Off
+
+The test suite supports two modes controlled by `tests/conftest.py`:
+
+| Mode     | JIT      | Speed  | Coverage | Use Case                           |
+| -------- | -------- | ------ | -------- | ---------------------------------- |
+| Default  | Enabled  | Fast   | No       | Validate compiled Numba code works |
+| Coverage | Disabled | Slower | Yes      | Track line coverage for CI         |
+
+**How it works:**
+
+- JIT is **enabled by default** for fast test execution
+- JIT is **automatically disabled** when running with `--cov` flag
+- You can explicitly control JIT via `NUMBA_DISABLE_JIT` environment variable
+
+```bash
+# Fast tests (JIT enabled, validates compiled code)
+uv run pytest tests/
+
+# Coverage tests (JIT disabled, slower but tracks coverage)
+uv run pytest tests/ --cov=citrees
+
+# Explicitly control JIT
+NUMBA_DISABLE_JIT=1 uv run pytest tests/  # Force JIT off
+NUMBA_DISABLE_JIT=0 uv run pytest tests/  # Force JIT on
+```
+
+#### Slow Test Marker
+
+Tests that are computationally expensive are marked with `@pytest.mark.slow`:
+
+- `TestStatisticalCorrectness.test_full_ptest` - uses "auto" resamples
+- `TestResamplesConfiguration.test_n_resamples_maximum` - uses "maximum"
+  resamples
+
+Skip slow tests for faster iteration:
+
+```bash
+uv run pytest tests/ -m "not slow" -v
+```
+
+#### Testing Numba Functions
+
+Numba `@njit` decorated functions compile to machine code, so **pytest-cov
+cannot track line coverage inside them**. When running with coverage (`--cov`),
+JIT is automatically disabled, allowing coverage tracking.
+
+When JIT is disabled:
+
+- All `@njit` functions run as plain Python
+- No `.py_func` attribute exists (functions are already Python)
+- Coverage tracking works automatically
+- Tests run the same code paths as production, just without compilation
+
+When JIT is enabled (default):
+
+- Tests validate that compiled Numba code actually works
+- Use `.py_func` attribute to test both versions if needed:
+
+```python
+from citrees._splitter import gini
+
+def test_gini_py_func():
+    """Test gini via .py_func for coverage tracking."""
+    y = np.array([0, 0, 1, 1], dtype=np.int64)
+
+    # Test JIT version (ensures compiled code works)
+    result_jit = gini(y)
+
+    # Test py_func version (enables coverage tracking)
+    result_py = gini.py_func(y)
+
+    # Verify both produce identical results
+    assert result_jit == result_py == pytest.approx(0.5)
+```
+
+#### RNG Usage Pattern
+
+The codebase uses two different RNG approaches based on Numba constraints:
+
+**Pure Python functions** use `np.random.default_rng()` for isolated RNG
+streams:
+
+```python
+def _ptest(..., random_state: int):
+    rng = np.random.default_rng(random_state)
+    rng.shuffle(y_)  # Doesn't contaminate global state
+```
+
+**Numba @njit functions** must use `np.random.seed()` because Numba's Generator
+support is not thread-safe (see
+[GitHub #7686](https://github.com/numba/numba/issues/7686)):
+
+```python
+@njit(parallel=True)
+def _ptest_parallel(..., random_state: int):
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)  # Per-iteration seeding
+        np.random.shuffle(y_perm)
+```
+
+**Key points:**
+
+- Never use `np.random.seed()` in pure Python code (contaminates global state)
+- Per-iteration seeding `(random_state + i)` in `prange` is the recommended
+  Numba pattern
+- All Numba functions using legacy RNG have documentation comments explaining
+  why
+
 ### Scratch Directory
+
 Use `scratch/` for experimental code and proving concepts. Add to .gitignore.
+
+### Bug-Fix Pipeline (Repro → Fix → Verify → Tests)
+
+When fixing a bug, do not jump straight to a code change. Follow this pipeline
+and **do not claim results you did not run**.
+
+1. **Prove the bug exists (repro script in `scratch/`)**
+   - Write a minimal, deterministic repro script in `scratch/` (e.g.,
+     `scratch/repro_<issue>.py`).
+   - The script must use **real code paths** and, when needed, **real models +
+     real data** (prefer existing datasets under `tests/data/`).
+   - Hard-require the expected failure (e.g., `assert`, explicit exception) so
+     it’s unambiguous.
+   - Print enough context to debug: library versions, random seeds, key params.
+   - Run it and confirm it fails:
+     ```bash
+     uv run python scratch/repro_<issue>.py
+     ```
+
+2. **Implement the fix (minimal + targeted)**
+   - Fix the root cause in the library (avoid unrelated refactors).
+   - Keep the repro script unchanged unless the bug definition changes.
+
+3. **Verify the fix (re-run the same repro)**
+   - Re-run the exact script and confirm it now passes:
+     ```bash
+     uv run python scratch/repro_<issue>.py
+     ```
+
+4. **Backstop with tests (unit/integration/regression)**
+   - Convert the repro into a **small, deterministic** test:
+     - **Unit test** for the smallest failing component.
+     - **Integration/regression test** if the failure spans estimators,
+       fit/predict, parallelism, or I/O.
+   - Avoid network and large datasets in tests; prefer `tests/data/` or small
+     generated fixtures with fixed `random_state`.
+   - Run the relevant test(s):
+     ```bash
+     uv run pytest -k "<relevant_keyword>" -v
+     ```
 
 ---
 
@@ -176,177 +399,108 @@ Use `scratch/` for experimental code and proving concepts. Add to .gitignore.
 
 ## Current Limitations vs State of the Art
 
-| Area | citrees Now | SOTA (2024-2025) | Priority |
-|------|-------------|------------------|----------|
-| Feature Importance | MDI only | SHAP/TreeSHAP | HIGH |
-| Uncertainty | None | Conformal Prediction | HIGH |
-| Causal Inference | None | Honest Estimation, GRF | MEDIUM |
-| Speed | CPU/Numba | GPU (cuML 20-45x faster) | MEDIUM |
-| Tree Structure | Axis-aligned | Oblique, Neural Trees | LOW |
+| Area               | citrees Now  | SOTA (2024-2025)         | Priority |
+| ------------------ | ------------ | ------------------------ | -------- |
+| Feature Importance | MDI          | SHAP/TreeSHAP            | N/A      |
+| Causal Inference   | Honesty      | Honest Estimation, GRF   | DONE     |
+| Speed              | CPU/Numba    | GPU (cuML 20-45x faster) | MEDIUM   |
+| Tree Structure     | Axis-aligned | Oblique, Neural Trees    | LOW      |
 
----
-
-## HIGH PRIORITY
-
-### 1. SHAP/TreeSHAP Integration
-
-**Why**: Current `feature_importances_` (MDI) has known biases with correlated features. SHAP provides theoretically grounded, consistent feature attributions.
-
-**Research**:
-- [TreeSHAP](https://shap.readthedocs.io/en/latest/) - O(TLD²) complexity for tree ensembles
-- [FastTreeSHAP](https://engineering.linkedin.com/blog/2022/fasttreeshap--accelerating-shap-value-computation-for-trees) - 2.5x faster (NeurIPS 2021)
-- [2024 Study](https://link.springer.com/article/10.1186/s40537-024-00905-w) - Compared SHAP vs importance-based selection
-
-**Implementation**:
-```python
-# Add to _tree.py or new _explainer.py
-def shap_values(self, X):
-    """Compute SHAP values using TreeSHAP algorithm."""
-    import shap
-    explainer = shap.TreeExplainer(self)
-    return explainer.shap_values(X)
-```
-
-**Effort**: ~2-3 days (can wrap existing `shap` library)
-
----
-
-### 2. Conformal Prediction for Uncertainty Quantification
-
-**Why**: No current way to get prediction intervals or confidence sets. Critical for high-stakes applications.
-
-**Research**:
-- [Conformal Prediction Survey](https://dl.acm.org/doi/10.1145/3736575) - ACM Computing Surveys 2024
-- [Mondrian Conformal Prediction](https://www.sciencedirect.com/science/article/abs/pii/S0031320325009999) - Handles heteroscedasticity
-- [Regression Trees for Prediction Intervals](https://www.sciencedirect.com/science/article/abs/pii/S0020025524012830) - 2024
-
-**Implementation**:
-```python
-class ConformalForestClassifier(ConditionalInferenceForestClassifier):
-    def predict_set(self, X, alpha=0.1):
-        """Return prediction sets with 1-alpha coverage guarantee."""
-        # Split-conformal or CV+ approach
-        ...
-
-class ConformalForestRegressor(ConditionalInferenceForestRegressor):
-    def predict_interval(self, X, alpha=0.1):
-        """Return prediction intervals with 1-alpha coverage."""
-        ...
-```
-
-**Effort**: ~1 week (algorithm implementation + calibration)
+**Note on SHAP**: citrees uses a custom tree structure not compatible with
+SHAP's TreeExplainer. For benchmarking, SHAP TreeExplainer is used with
+sklearn/XGBoost/ LightGBM models in `paper/scripts/`. This is intentional - SHAP
+is a benchmark comparison tool, not a core library feature.
 
 ---
 
 ## MEDIUM PRIORITY
 
-### 3. Honest Estimation (Sample Splitting)
+### GPU Acceleration
 
-**Why**: Current trees use same data for splitting and estimation, causing bias. Honest trees use separate samples, enabling valid inference.
-
-**Research**:
-- [Wager & Athey 2018](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) - Causal Forests paper
-- [GRF Package](https://grf-labs.github.io/grf/) - Gold standard implementation
-- [Honesty Trade-offs](https://arxiv.org/html/2506.13107v2) - When it helps vs hurts (2025)
-
-**Implementation**:
-```python
-class HonestConditionalInferenceTree(ConditionalInferenceTreeClassifier):
-    def __init__(self, ..., honesty=True, honesty_fraction=0.5):
-        self.honesty = honesty
-        self.honesty_fraction = honesty_fraction
-
-    def fit(self, X, y):
-        if self.honesty:
-            X_split, X_est, y_split, y_est = train_test_split(...)
-            # Use X_split, y_split for tree structure
-            # Use X_est, y_est for leaf estimates
-```
-
-**Effort**: ~1 week (requires careful handling of OOB samples)
-
----
-
-### 4. GPU Acceleration
-
-**Why**: Training on large datasets is slow. cuML achieves 20-45x speedups.
-
-**Research**:
-- [cuML Random Forests](https://developer.nvidia.com/blog/accelerating-random-forests-up-to-45x-using-cuml/) - NVIDIA RAPIDS
-- [RFX](https://arxiv.org/html/2511.19493) - GPU + QLORA (Nov 2025)
+Training on large datasets is slow. cuML achieves 20-45x speedups.
 
 **Options**:
+
 1. **Wrap cuML**: Use cuML for splitting, keep citrees API
 2. **CUDA kernels**: Custom kernels for permutation tests
 3. **JAX/Triton**: Python-native GPU compilation
 
-**Effort**: ~2-4 weeks depending on approach
+**Research**:
+
+- [cuML Random Forests](https://developer.nvidia.com/blog/accelerating-random-forests-up-to-45x-using-cuml/)
+- [RFX](https://arxiv.org/html/2511.19493) - GPU + QLORA (Nov 2025)
 
 ---
 
 ## LOW PRIORITY (Future Research)
 
-### 5. Oblique Decision Trees
+### Oblique Decision Trees
 
-**Why**: Axis-aligned splits are limiting. Oblique trees use linear combinations of features.
+Axis-aligned splits are limiting. Oblique trees use linear combinations of
+features.
 
-**Research**:
-- [TAO Algorithm](https://faculty.ucmerced.edu/mcarreira-perpinan/research/TAO.html) - Tree Alternating Optimization
-- [DTSemNet](https://arxiv.org/abs/2408.09135) - Vanilla gradient descent for oblique trees (2024)
-- [Statistical Advantages](https://arxiv.org/abs/2407.02458) - Oblique Mondrian trees (2024)
+- [TAO Algorithm](https://faculty.ucmerced.edu/mcarreira-perpinan/research/TAO.html)
+- [DTSemNet](https://arxiv.org/abs/2408.09135) - Vanilla gradient descent (2024)
 
-### 6. Neural/Differentiable Trees
+### Neural/Differentiable Trees
 
-**Why**: End-to-end training with neural networks.
+End-to-end training with neural networks.
 
-**Research**:
-- [NCART](https://www.sciencedirect.com/science/article/abs/pii/S0031320324003297) - Neural CART (2024)
-- [Deep Neural Decision Trees](https://arxiv.org/pdf/1806.06988)
+- [NCART](https://www.sciencedirect.com/science/article/abs/pii/S0031320324003297) -
+  Neural CART (2024)
 - [Neural-Backed Decision Trees](https://research.alvinwan.com/neural-backed-decision-trees/)
 
-### 7. Gradient Boosting Integration
+### Gradient Boosting Integration
 
-**Why**: Combine conditional inference with boosting.
+Combine conditional inference with boosting.
 
-**Research**:
-- [LightGBM techniques](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree) - GOSS, EFB
-- [Piecewise Linear Trees](https://nimasarang.com/blog/2025-12-14-gbt-algorithms/) - PL-Trees in boosting
+- [LightGBM techniques](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree)
+- [Piecewise Linear Trees](https://nimasarang.com/blog/2025-12-14-gbt-algorithms/)
 
 ---
 
 ## Benchmarking
 
 Compare against:
+
 - R's `partykit::ctree` and `party::cforest` (original implementations)
 - `grf` package (causal forests)
 - scikit-learn `RandomForest`, `ExtraTrees`
 - XGBoost, LightGBM, CatBoost
 
-Use [TabZilla Benchmark Suite](https://arxiv.org/abs/2305.02997) for standardized evaluation.
+Use [TabZilla Benchmark Suite](https://arxiv.org/abs/2305.02997) for
+standardized evaluation.
 
 ---
 
 ## References
 
 ### Core Papers
+
 - Hothorn et al. (2006) - "Unbiased Recursive Partitioning" (original ctree)
 - Strobl et al. (2007) - "Bias in Random Forest Variable Importance"
 - Strobl et al. (2008) - "Conditional Variable Importance for Random Forests"
 
 ### Recent Advances
-- [Causal Forests](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) - Wager & Athey (2018)
+
+- [Causal Forests](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839) -
+  Wager & Athey (2018)
 - [GRF](https://grf-labs.github.io/grf/) - Athey, Tibshirani, Wager (2019)
 - [TabZilla](https://arxiv.org/abs/2305.02997) - When NNs beat trees (2023)
-- [Conditional Permutation Importance](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03622-2) (2020)
-- [Distance Correlation Feature Selection](https://www.mdpi.com/1099-4300/25/9/1250) (2023)
+- [Conditional Permutation Importance](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-020-03622-2)
+  (2020)
+- [Distance Correlation Feature Selection](https://www.mdpi.com/1099-4300/25/9/1250)
+  (2023)
 
 ---
 
 ## Notes for AI Assistants
 
-1. **Pydantic v1**: Uses pydantic v1 syntax (not v2)
+1. **Pydantic v2**: Uses Pydantic v2 APIs (e.g., `Field`, `field_validator`,
+   `model_validator`, `model_config`)
 2. **Numba JIT**: Performance-critical functions use `@njit`
-3. **Registry pattern**: Add new selectors/splitters via `@Registry.register("name")`
+3. **Registry pattern**: Add new selectors/splitters via
+   `@Registry.register("name")`
 4. **Type hints**: All functions should have type annotations
 5. **Tests**: Use pytest markers (`@pytest.mark.tree`, etc.)
 6. **Data format**: Test data uses parquet (pyarrow)

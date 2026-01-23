@@ -1,0 +1,16 @@
+\section{Proof of Proposition~\ref{prop:per-feature-bound}}
+\label{app:proof-per-feature}
+
+\paragraph{Claim.} Proposition~\ref{prop:per-feature-bound}.
+\paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}).
+
+If node $t$ splits on feature $j$, then Stage~A must have rejected for $j$ at the
+Bonferroni threshold, hence $p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$. Therefore,
+%
+\begin{equation}
+  \PP(\text{node $t$ splits on $j$})
+  \le \PP(p_{t,j} \le \alpha_{\mathrm{sel}}/m_t)
+  \le \alpha_{\mathrm{sel}}/m_t
+\end{equation}
+%
+by super-uniformity of $p_{t,j}$ under the null.

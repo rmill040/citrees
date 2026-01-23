@@ -1,15 +1,23 @@
 # Permutation Tests
 
-Permutation tests are the statistical foundation of citrees. They provide distribution-free hypothesis testing for both feature selection and split validation, enabling statistically principled tree construction without parametric assumptions.
+Permutation tests are the statistical foundation of citrees.
+
+**Interpretation note (scope).** In fixed-$B$ mode, permutation p-values at a
+fixed node (especially the root) have the usual exchangeability-based validity.
+However, in an adaptively grown tree, internal nodes and Stage B split testing
+are post-selection/adaptive (the algorithm reuses the same labels after choosing
+which feature/threshold family to test). For that reason, p-values away from the
+root are best treated as **algorithmic selection/stopping statistics** unless
+additional selective-inference or sample-splitting machinery is used.
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| Purpose | Test independence between features and target |
-| Type | Non-parametric, exact test |
-| Null hypothesis | $H_0: X \perp Y$ (feature independent of target) |
-| Complexity | Exact: $O(n!)$, Monte Carlo: $O(B \cdot T)$ |
+| Aspect          | Description                                                                      |
+| --------------- | -------------------------------------------------------------------------------- |
+| Purpose         | Test independence between features and target                                    |
+| Type            | Non-parametric randomization test (exact if enumerated; Monte Carlo in practice) |
+| Null hypothesis | $H_0: X \perp Y$ (feature independent of target)                                 |
+| Complexity      | Exact: $O(n!)$, Monte Carlo: $O(B \cdot T)$                                      |
 
 ---
 
@@ -17,21 +25,27 @@ Permutation tests are the statistical foundation of citrees. They provide distri
 
 ### The Permutation Principle
 
-Permutation tests are based on the **exchangeability assumption**: under the null hypothesis of no association, the labels $Y$ are exchangeable with respect to the feature $X$. Any permutation of $Y$ is equally likely.
+Permutation tests are based on the **exchangeability assumption**: under the
+null hypothesis of no association, the labels $Y$ are exchangeable with respect
+to the feature $X$. Any permutation of $Y$ is equally likely.
 
-The key insight from [Hothorn, Hornik, and Zeileis (2006)](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933) is that permutation tests can be used at each node to:
+The key insight from
+[Hothorn, Hornik, and Zeileis (2006)](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933)
+is that permutation tests can be used at each node to:
+
 1. **Select features** - Test which features are associated with the target
 2. **Validate splits** - Test whether a split point improves prediction
 
 ### Why Permutation Tests?
 
-Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection bias**:
+Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection
+bias**:
 
-| Problem | Traditional Trees | Permutation Solution |
-|---------|-------------------|---------------------|
-| High-cardinality bias | Favor features with many values | P-values adjusted for split points |
-| Spurious splits | Find "good" splits by chance | Statistical significance required |
-| Overfitting | Need pruning/CV | Natural stopping via tests |
+| Problem               | Traditional Trees               | Permutation Solution                                                          |
+| --------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| High-cardinality bias | Favor features with many values | Screen features via permutation p-values (and optionally validate thresholds) |
+| Spurious splits       | Find "good" splits by chance    | Statistical significance required                                             |
+| Overfitting           | Need pruning/CV                 | Natural stopping via tests                                                    |
 
 ---
 
@@ -39,17 +53,18 @@ Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection bi
 
 ### Test Statistic
 
-For a feature $X$ and target $Y$, we compute a test statistic $T(X, Y)$ that measures association:
+For a feature $X$ and target $Y$, we compute a test statistic $T(X, Y)$ that
+measures association:
 
 $$T_{obs} = T(X, Y)$$
 
 Common test statistics in citrees:
 
-| Context | Statistic | Formula |
-|---------|-----------|---------|
-| Feature selection | Correlation | $\|r(X, Y)\|$ |
-| Classification split | Gini reduction | $\Delta Gini = G_{parent} - G_{split}$ |
-| Regression split | MSE reduction | $\Delta MSE = MSE_{parent} - MSE_{split}$ |
+| Context              | Statistic                 | Formula                                   |
+| -------------------- | ------------------------- | ----------------------------------------- |
+| Feature selection    | Correlation               | $\|r(X, Y)\|$                             |
+| Classification split | Child impurity sum (Gini) | $Gini(y_L) + Gini(y_R)$ (lower is better) |
+| Regression split     | Child impurity sum (MSE)  | $MSE(y_L) + MSE(y_R)$ (lower is better)   |
 
 ### Null Distribution
 
@@ -65,10 +80,16 @@ The Monte Carlo p-value is:
 
 $$p = \frac{1 + \sum_{b=1}^{B} \mathbb{1}[T^{(b)} \geq T_{obs}]}{1 + B}$$
 
-The "+1" in numerator and denominator is a **finite-sample correction** (Phipson & Smyth, 2010) ensuring:
+The "+1" in numerator and denominator is a **finite-sample correction** (Phipson
+& Smyth, 2010) ensuring:
+
 - Valid p-values even with few permutations
 - $p \in [\frac{1}{B+1}, 1]$ (never exactly 0)
 - Conservative under the null hypothesis
+
+**Direction matters:** If smaller values of the statistic are more extreme
+(e.g., splitters use a _minimize_ criterion), reverse the inequality and use
+`T^{(b)} ≤ T_obs` instead.
 
 ---
 
@@ -102,13 +123,14 @@ Output: p-value
 
 ### Complexity Analysis
 
-| Method | Time Complexity | Space Complexity |
-|--------|-----------------|------------------|
-| Exact enumeration | $O(n!)$ | $O(n!)$ |
-| Monte Carlo | $O(B \cdot T_{stat})$ | $O(n)$ |
-| Early stopping | $O(B_{eff} \cdot T_{stat})$ | $O(n)$ |
+| Method            | Time Complexity             | Space Complexity |
+| ----------------- | --------------------------- | ---------------- |
+| Exact enumeration | $O(n!)$                     | $O(n!)$          |
+| Monte Carlo       | $O(B \cdot T_{stat})$       | $O(n)$           |
+| Early stopping    | $O(B_{eff} \cdot T_{stat})$ | $O(n)$           |
 
 Where:
+
 - $n$ = sample size
 - $B$ = number of permutations
 - $T_{stat}$ = time to compute test statistic
@@ -118,7 +140,7 @@ Where:
 
 ```python
 @njit(cache=True, fastmath=True, nogil=True)
-def permutation_test(x, y, statistic_func, n_resamples, random_state):
+def ptest(x, y, statistic_func, n_resamples, random_state):
     """Monte Carlo permutation test with finite-sample correction."""
     n = len(y)
 
@@ -220,15 +242,15 @@ Input: x_j ∈ ℝⁿ, y, threshold c, splitter (e.g., "gini", "mse")
    L ← {i : x_j[i] ≤ c}
    R ← {i : x_j[i] > c}
 
-2. Compute observed impurity reduction:
-   Δ_obs ← Impurity(y) - WeightedImpurity(y[L], y[R])
+2. Compute observed statistic (unweighted child impurity sum):
+   S_obs ← Impurity(y[L]) + Impurity(y[R])
 
 3. Generate null distribution:
    For b = 1 to n_resamples:
        y_perm ← Permute(y)
-       Δ_perm[b] ← Impurity(y_perm) - WeightedImpurity(y_perm[L], y_perm[R])
+       S_perm[b] ← Impurity(y_perm[L]) + Impurity(y_perm[R])
 
-4. p-value ← (1 + Σ 𝟙[Δ_perm ≥ Δ_obs]) / (1 + n_resamples)
+4. p-value ← (1 + Σ 𝟙[S_perm ≤ S_obs]) / (1 + n_resamples)  # left-tail
 
 5. Return p-value
 ```
@@ -239,24 +261,27 @@ Input: x_j ∈ ℝⁿ, y, threshold c, splitter (e.g., "gini", "mse")
 
 ### The Problem
 
-When testing $p$ features, the probability of at least one false positive increases:
+When testing $p$ features, the probability of at least one false positive
+increases:
 
 $$FWER = 1 - (1 - \alpha)^p$$
 
-For $p = 20$ features at $\alpha = 0.05$: $FWER = 0.64$ (64% chance of false positive!)
+For $p = 20$ features at $\alpha = 0.05$: $FWER = 0.64$ (64% chance of false
+positive!)
 
 ### Bonferroni Correction
 
-citrees uses **Bonferroni correction** to control the family-wise error rate (FWER):
+citrees uses **Bonferroni correction** to control the family-wise error rate
+(FWER):
 
 $$\alpha_{adjusted} = \frac{\alpha}{m}$$
 
 where $m$ is the number of tests being performed.
 
-| Parameter | Controls | Formula |
-|-----------|----------|---------|
-| `adjust_alpha_selector` | Feature tests | $\alpha_{sel} / p$ |
-| `adjust_alpha_splitter` | Threshold tests | $\alpha_{spl} / |\{thresholds\}|$ |
+| Parameter               | Controls        | Formula            |
+| ----------------------- | --------------- | ------------------ | -------------- | --- |
+| `adjust_alpha_selector` | Feature tests   | $\alpha_{sel} / p$ |
+| `adjust_alpha_splitter` | Threshold tests | $\alpha\_{spl} /   | \{thresholds\} | $   |
 
 ### Algorithm with Correction
 
@@ -282,13 +307,14 @@ Input: X ∈ ℝⁿˣᵖ, y, α_selector, adjust_alpha
 
 ### Trade-offs
 
-| Correction | FWER Control | Power | Use Case |
-|------------|--------------|-------|----------|
-| None | Poor | High | Exploratory analysis |
-| Bonferroni | Strong | Low | Conservative, few tests |
-| Holm-Bonferroni | Strong | Medium | Sequential testing |
+| Correction      | FWER Control | Power  | Use Case                |
+| --------------- | ------------ | ------ | ----------------------- |
+| None            | Poor         | High   | Exploratory analysis    |
+| Bonferroni      | Strong       | Low    | Conservative, few tests |
+| Holm-Bonferroni | Strong       | Medium | Sequential testing      |
 
-citrees defaults to Bonferroni (`adjust_alpha_selector=True`) for conservative inference.
+citrees defaults to Bonferroni (`adjust_alpha_selector=True`) for conservative
+inference.
 
 ---
 
@@ -298,31 +324,48 @@ citrees defaults to Bonferroni (`adjust_alpha_selector=True`) for conservative i
 
 The number of permutations controls the precision of the p-value estimate:
 
-| n_resamples | Min p-value | Precision | Time |
-|-------------|-------------|-----------|------|
-| 100 | 0.0099 | ±0.02 | Fast |
-| 1,000 | 0.00099 | ±0.006 | Medium |
-| 10,000 | 0.000099 | ±0.002 | Slow |
+| n_resamples | Min p-value | Precision | Time   |
+| ----------- | ----------- | --------- | ------ |
+| 100         | 0.0099      | ±0.02     | Fast   |
+| 1,000       | 0.00099     | ±0.006    | Medium |
+| 10,000      | 0.000099    | ±0.002    | Slow   |
 
 ### Auto-Selection in citrees
 
 ```python
-n_resamples_selector='auto'  # Adaptive based on alpha
-n_resamples_splitter='auto'
+n_resamples_selector=NResamples.AUTO  # Adaptive based on alpha
+n_resamples_splitter=NResamples.AUTO
 ```
 
-The `'auto'` setting chooses resamples based on the significance level:
+`n_resamples_*` controls the permutation budget $B$. In citrees, the string
+presets are functions of $\alpha$:
 
-| Setting | Formula | Rationale |
-|---------|---------|-----------|
-| `'minimum'` | $\lceil 1/\alpha \rceil$ | Just enough to detect significance |
-| `'auto'` | $\lceil 10/\alpha \rceil$ | Good balance |
-| `'maximum'` | $\lceil 100/\alpha \rceil$ | High precision |
+| Setting              | Formula                                                                           | Notes                                                    |
+| -------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `NResamples.MINIMUM` | $\lceil 1/\alpha \rceil$                                                          | Minimum resolution to allow rejection with +1 correction |
+| `NResamples.AUTO`    | $\max\{\lceil 1/\alpha \rceil,\ \lceil z_{1-\alpha}^2 (1-\alpha)/\alpha \rceil\}$ | $z_{1-\alpha}=\Phi^{-1}(1-\alpha)$                       |
+| `NResamples.MAXIMUM` | $\lceil 1/(4\alpha^2) \rceil$                                                     | High precision (equals 100 at $\alpha=0.05$)             |
 
-For $\alpha = 0.05$:
-- `'minimum'`: 20 resamples
-- `'auto'`: 200 resamples
-- `'maximum'`: 2,000 resamples
+**Bonferroni note (important).** If `adjust_alpha_* = True`, citrees applies
+Bonferroni correction by internally replacing $\alpha$ with
+$\alpha/n_{\text{tests}}$ for that node (features for Stage A, thresholds for
+Stage B). It then updates both the effective threshold and the effective
+permutation budget:
+
+- for `NResamples.*` string presets, the formulas above are applied to
+  $\alpha/n_{\text{tests}}$, and
+- for an integer `n_resamples`, citrees multiplies the user-specified value by
+  $n_{\text{tests}}$.
+
+This ensures the p-value grid has enough resolution to compare against the
+Bonferroni-adjusted threshold $\alpha/n_{\text{tests}}$ (see also
+`paper/notes/notes.md` Appendix A.2.1 for the fixed-$B$ grid calculation).
+
+For a **single** test at level $\alpha = 0.05$ this yields:
+
+- `NResamples.MINIMUM`: 20 resamples
+- `NResamples.AUTO`: 52 resamples
+- `NResamples.MAXIMUM`: 100 resamples
 
 ### Precision vs. Computation
 
@@ -338,40 +381,65 @@ For $p = 0.05$ and $B = 200$: $SE \approx 0.015$
 
 ### The Idea
 
-If we've already seen enough extreme permutations to know the p-value will exceed $\alpha$, we can stop early:
+If we've already seen enough extreme permutations to know the p-value will
+citrees supports early stopping **inside permutation tests** via
+`early_stopping_*`:
+
+- `EarlyStopping.ADAPTIVE` (default): posterior-confidence stopping using a Beta
+  posterior on the exceedance rate.
+- `EarlyStopping.SIMPLE`: a futility + significance heuristic (can inflate Type
+  I error).
+- `None`: fixed-$B$ Monte Carlo permutation p-value (no early stopping).
+
+In both sequential modes, the function returns the usual **+1 corrected** Monte
+Carlo estimate $\hat p = (L_n+1)/(n+1)$ evaluated at the stopping time $n$.
+
+### Adaptive (posterior-confidence) stopping
+
+Let $L_n$ be the number of exceedances after $n$ permutations (right-tail:
+$T_b \ge T_0$; left-tail: $T_b \le T_0$). With a Beta(1,1) prior on the unknown
+exceedance probability $p$, the posterior is
+$p \mid L_n \sim \mathrm{Beta}(1+L_n, 1+n-L_n)$. The adaptive rule stops once it
+is confident that $p < \alpha$ or $p \ge \alpha$:
 
 ```
-Algorithm: Early Stopping Permutation Test
-Input: x, y, statistic, n_resamples, α
+Algorithm: Adaptive Sequential Permutation Test (citrees)
+Input: x, y, statistic T, max permutations B, threshold α, confidence γ
 
-1. t_obs ← statistic(x, y)
-2. count ← 0
-3. threshold ← ⌈α × (n_resamples + 1)⌉
-
-4. For b = 1 to n_resamples:
-       t_perm ← statistic(x, Permute(y))
-       If t_perm ≥ t_obs:
-           count ← count + 1
-
-       # Early stopping check
-       If count ≥ threshold:
-           Return (count + 1) / (b + 1)  # p > α, not significant
-
-5. Return (count + 1) / (n_resamples + 1)
+1. Compute observed statistic T0 ← T(x, y)
+2. min_resamples ← ceil(1/α); B ← max(B, min_resamples)
+3. L ← 0  # exceedance count
+4. For n = 1..B:
+     - Permute y and compute Tn ← T(x, perm(y))
+     - Update L based on the chosen tail (≥ for selectors, ≤ for splitters)
+     - If n ≥ min_resamples:
+         S ← BetaCDF(α; 1+L, 1+n-L)  # posterior mass below α
+         If S ≥ γ or (1-S) ≥ γ: return p_hat = (L+1)/(n+1)
+5. Return p_hat = (L+1)/(B+1)
 ```
+
+### Simple stopping (heuristic)
+
+The simple rule stops early if (i) the running estimate is already below
+$\alpha$ (significant), or (ii) even the best possible p-value after all
+remaining permutations cannot drop below $\alpha$ (futility). This can inflate
+Type I error because it “peeks” without a validity correction.
 
 ### Benefits
 
-| Scenario | Speedup |
-|----------|---------|
-| Clearly non-significant feature | 10-100× |
-| Borderline feature | 1× (no speedup) |
-| Clearly significant feature | 1× (runs full) |
+| Scenario                        | Speedup         |
+| ------------------------------- | --------------- |
+| Clearly non-significant feature | 10-100×         |
+| Borderline feature              | 1× (no speedup) |
+| Clearly significant feature     | 1× (runs full)  |
 
 Enable with:
+
 ```python
-early_stopping_selector=True  # Default
-early_stopping_splitter=True  # Default
+early_stopping_selector=EarlyStopping.ADAPTIVE  # Default - posterior-confidence stopping
+early_stopping_splitter=EarlyStopping.ADAPTIVE  # Default
+# Or use EarlyStopping.SIMPLE for basic futility stopping (can inflate Type I error)
+# Or use None to disable early stopping entirely
 ```
 
 ---
@@ -382,13 +450,13 @@ citrees uses Numba for JIT-compiled permutation tests:
 
 ```python
 @njit(parallel=True, cache=True, fastmath=True, nogil=True)
-def parallel_permutation_tests(X, y, statistic_func, n_resamples, random_state):
+def parallel_ptests(X, y, statistic_func, n_resamples, random_state):
     """Parallel permutation tests across features."""
     n_features = X.shape[1]
     p_values = np.empty(n_features)
 
     for j in prange(n_features):  # Parallel loop
-        p_values[j] = permutation_test(
+        p_values[j] = ptest(
             X[:, j], y, statistic_func, n_resamples, random_state + j
         )
 
@@ -405,12 +473,12 @@ def parallel_permutation_tests(X, y, statistic_func, n_resamples, random_state):
 tree = ConditionalInferenceTreeClassifier(
     alpha_selector=0.05,
     alpha_splitter=0.05,
-    n_resamples_selector='maximum',      # High precision
-    n_resamples_splitter='maximum',
-    adjust_alpha_selector=True,           # Bonferroni correction
+    n_resamples_selector=NResamples.MAXIMUM,  # High precision
+    n_resamples_splitter=NResamples.MAXIMUM,
+    adjust_alpha_selector=True,                # Bonferroni correction
     adjust_alpha_splitter=True,
-    early_stopping_selector=False,        # Full computation
-    early_stopping_splitter=False,
+    early_stopping_selector=None,              # Full computation (no early stopping)
+    early_stopping_splitter=None,
 )
 ```
 
@@ -418,14 +486,14 @@ tree = ConditionalInferenceTreeClassifier(
 
 ```python
 tree = ConditionalInferenceTreeClassifier(
-    alpha_selector=0.10,                  # More lenient
+    alpha_selector=0.10,                       # More lenient
     alpha_splitter=0.10,
-    n_resamples_selector='minimum',       # Fewer resamples
-    n_resamples_splitter='minimum',
-    adjust_alpha_selector=False,          # No correction
+    n_resamples_selector=NResamples.MINIMUM,   # Fewer resamples
+    n_resamples_splitter=NResamples.MINIMUM,
+    adjust_alpha_selector=False,               # No correction
     adjust_alpha_splitter=False,
-    early_stopping_selector=True,         # Early stopping
-    early_stopping_splitter=True,
+    early_stopping_selector=EarlyStopping.ADAPTIVE,  # Bayesian early stopping (default)
+    early_stopping_splitter=EarlyStopping.ADAPTIVE,
 )
 ```
 
@@ -435,12 +503,12 @@ tree = ConditionalInferenceTreeClassifier(
 tree = ConditionalInferenceTreeClassifier(
     alpha_selector=0.05,
     alpha_splitter=0.05,
-    n_resamples_selector='auto',          # Adaptive
-    n_resamples_splitter='auto',
+    n_resamples_selector=NResamples.AUTO,      # Adaptive
+    n_resamples_splitter=NResamples.AUTO,
     adjust_alpha_selector=True,
     adjust_alpha_splitter=True,
-    early_stopping_selector=True,
-    early_stopping_splitter=True,
+    early_stopping_selector=EarlyStopping.ADAPTIVE,  # Bayesian posterior-confidence early stopping (default)
+    early_stopping_splitter=EarlyStopping.ADAPTIVE,
 )
 ```
 
@@ -448,14 +516,20 @@ tree = ConditionalInferenceTreeClassifier(
 
 ## References
 
-1. **Core Framework**: [Hothorn, T., Hornik, K., & Zeileis, A. (2006). Unbiased Recursive Partitioning: A Conditional Inference Framework. JCGS, 15(3), 651-674.](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933)
+1. **Core Framework**:
+   [Hothorn, T., Hornik, K., & Zeileis, A. (2006). Unbiased Recursive Partitioning: A Conditional Inference Framework. JCGS, 15(3), 651-674.](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933)
 
-2. **Permutation Test Theory**: [Pesarin, F., & Salmaso, L. (2010). Permutation Tests for Complex Data. Wiley.](https://www.wiley.com/en-us/Permutation+Tests+for+Complex+Data-p-9780470516416)
+2. **Permutation Test Theory**:
+   [Pesarin, F., & Salmaso, L. (2010). Permutation Tests for Complex Data. Wiley.](https://www.wiley.com/en-us/Permutation+Tests+for+Complex+Data-p-9780470516416)
 
-3. **Finite-Sample Correction**: [Phipson, B., & Smyth, G. K. (2010). Permutation P-values Should Never Be Zero. Statistical Applications in Genetics and Molecular Biology, 9(1).](https://pubmed.ncbi.nlm.nih.gov/21044043/)
+3. **Finite-Sample Correction**:
+   [Phipson, B., & Smyth, G. K. (2010). Permutation P-values Should Never Be Zero. Statistical Applications in Genetics and Molecular Biology, 9(1).](https://pubmed.ncbi.nlm.nih.gov/21044043/)
 
-4. **Multiple Testing**: [Bonferroni Correction - Wikipedia](https://en.wikipedia.org/wiki/Bonferroni_correction)
+4. **Multiple Testing**:
+   [Bonferroni Correction - Wikipedia](https://en.wikipedia.org/wiki/Bonferroni_correction)
 
-5. **Review of Permutation Tests**: [Camillo, F., & Ferretti, F. (2024). Review about the Permutation Approach in Hypothesis Testing. Mathematics, 12(17), 2617.](https://www.mdpi.com/2227-7390/12/17/2617)
+5. **Review of Permutation Tests**:
+   [Camillo, F., & Ferretti, F. (2024). Review about the Permutation Approach in Hypothesis Testing. Mathematics, 12(17), 2617.](https://www.mdpi.com/2227-7390/12/17/2617)
 
-6. **Permutation Tests for Classifiers**: [Ojala, M., & Garriga, G. C. (2010). Permutation Tests for Studying Classifier Performance. JMLR, 11, 1833-1863.](https://www.jmlr.org/papers/volume11/ojala10a/ojala10a.pdf)
+6. **Permutation Tests for Classifiers**:
+   [Ojala, M., & Garriga, G. C. (2010). Permutation Tests for Studying Classifier Performance. JMLR, 11, 1833-1863.](https://www.jmlr.org/papers/volume11/ojala10a/ojala10a.pdf)

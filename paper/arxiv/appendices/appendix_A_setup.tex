@@ -1,0 +1,74 @@
+\section{Setup and assumptions}
+\label{app:setup-assumptions}
+
+\subsection{Setup and notation}
+\label{app:setup}
+
+Let $(X_i, Y_i)_{i=1}^n$ be training data and consider a fixed node $t$ with
+index set $I_t$ (size $n_t$). Write $X_t := (X_i)_{i \in I_t}$ and
+$Y_t := (Y_i)_{i \in I_t}$.
+
+At node $t$, \citrees performs two (potential) hypothesis-testing steps:
+Stage~A screens features $j \in F_t$ for association with $Y_t$, and Stage~B
+tests candidate thresholds for the selected feature $j_t^\star$.
+
+\subsection{Assumptions and scope ledger}
+\label{app:assumptions}
+
+We label assumptions to keep statements and proofs aligned. When a result below
+is described as ``fixed-node,'' it means the node $t$ is treated as fixed (not
+adaptively selected by the data).
+
+\paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
+The node $t$ is fixed, not data-adaptively selected.
+
+\paragraph{A0.2 (Conditional exchangeability).}\label{assump:exchangeability}
+Under the null being tested, $Y_t$ is exchangeable conditional on $(X_t, U)$,
+where $U$ denotes label-independent algorithmic randomness (e.g.,
+\texttt{max\_features}, threshold subsampling, RNG seeds).
+
+\paragraph{A0.3 (Label-independent tested family).}\label{assump:label-independence}
+The tested feature family $F_t$, candidate thresholds, and the resample budget
+$B$ are measurable functions of $(X_t, U)$ and do \emph{not} depend on the
+observed labels $Y_t$ (or on permutation outcomes).
+
+\paragraph{A0.4 (Fixed-$B$ p-values).}\label{assump:fixed-b}
+Permutation p-values are computed with a fixed number of resamples $B$ (no
+optional stopping).
+
+\paragraph{A0.5 (Tie handling).}\label{assump:ties}
+Ties are either (i) counted against the null (conservative) or (ii) resolved by
+randomized tie-breaking for exact uniformity.
+
+\paragraph{A0.6 (Idealized symmetry model for CART lemmas).}\label{assump:cart-symmetry}
+In idealized CART-bias lemmas (not used for paper-facing guarantees), candidate
+split scores are assumed exchangeable across all $(j,c)$ pairs (and tie-free, or
+tie-broken at random).
+
+\paragraph{A0.7 (Impurity moment bounds).}\label{assump:impurity-moments}
+When bounding expected impurity decreases under nulls, assume bounded root
+impurity (classification) or finite second moments as stated.
+
+\paragraph{A0.8 (Honest estimation).}\label{assump:honesty}
+For honest estimation statements, the sample split $(S, E)$ is independent of
+the observed data.
+
+\subsection{Result-to-assumption checklist (compact)}
+\label{app:assumption-checklist}
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{p{0.52\linewidth} p{0.42\linewidth}}
+    \toprule
+    Result & Minimal assumptions \\
+    \midrule
+    +1 p-value super-uniformity (Theorem~\ref{them:plusone-superuniform}) & A0.1--A0.5 \\
+    Stage A global-null bound (Proposition~\ref{prop:stageA-global-null}) & A0.1--A0.5 \\
+    Per-feature bound (Proposition~\ref{prop:per-feature-bound}) & A0.1--A0.5 \\
+    Root ``any split'' bound (Proposition~\ref{prop:any-split-implies-root-rejection}) & A0.1--A0.5 at root \\
+    Multi-selector validity (Proposition~\ref{prop:multiselector-validity}) & A0.1--A0.5 (exchangeability) \\
+    \bottomrule
+  \end{tabular}
+  \caption{Assumptions used by the core theorem chain in \cref{sec:theory}.}
+\end{table}

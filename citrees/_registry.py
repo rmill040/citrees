@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -14,7 +14,7 @@ class Registry:
 
     def __init__(self, name: str) -> None:
         self._name = name
-        self._registry: Dict[str, Any] = {}
+        self._registry: dict[str, Any] = {}
 
     @property
     def name(self) -> str:
@@ -27,7 +27,7 @@ class Registry:
         """
         return self._name
 
-    def keys(self) -> List[Any]:
+    def keys(self) -> list[Any]:
         """Return keys in registry.
 
         Returns
@@ -36,6 +36,25 @@ class Registry:
             List of keys.
         """
         return list(self._registry.keys())
+
+    def __contains__(self, key: object) -> bool:
+        """Return True if alias exists in the registry.
+
+        Without this method, Python may fall back to the sequence protocol for
+        membership checks and call ``__getitem__`` with integer indices (0, 1, ...),
+        which is not what this mapping-like type intends.
+        """
+        if not isinstance(key, str):
+            return False
+        return key in self._registry
+
+    def __iter__(self):
+        """Iterate over registered aliases."""
+        return iter(self._registry)
+
+    def __len__(self) -> int:
+        """Return the number of registered aliases."""
+        return len(self._registry)
 
     def __getitem__(self, key: str) -> T:  # type: ignore
         """Get item in registry.

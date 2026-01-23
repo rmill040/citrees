@@ -65,20 +65,18 @@ extra_javascript:
 nav:
   - Home: index.md
   - Getting Started:
-    - Installation: index.md#installation
-    - Quick Start: index.md#quick-start
+      - Installation: index.md#installation
+      - Quick Start: index.md#quick-start
   - User Guide:
-    - Algorithm: algorithm.md
-    - Selectors: selectors.md
-    - Splitters: splitters.md
-    - Permutation Tests: permutation-tests.md
+      - Algorithm: algorithm.md
+      - Selectors: selectors.md
+      - Splitters: splitters.md
+      - Permutation Tests: permutation-tests.md
   - Advanced:
-    - Honest Estimation: honest-estimation.md
-    - Conformal Prediction: conformal-prediction.md
-    - SHAP Integration: shap.md
+      - Honest Estimation: honest-estimation.md
   - Reference:
-    - Parameters: parameters.md
-    - API: api.md
+      - Parameters: parameters.md
+      - API: api.md
 
 extra:
   social:

@@ -16,13 +16,14 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `tree_` | dict | The fitted tree structure |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Feature importance scores (MDI) |
-| `classes_` | ndarray | Unique class labels |
-| `n_classes_` | int | Number of classes |
+| Attribute              | Type      | Description                                                     |
+| ---------------------- | --------- | --------------------------------------------------------------- |
+| `tree_`                | dict      | The fitted tree structure                                       |
+| `n_features_in_`       | int       | Number of features seen during fit                              |
+| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
+| `feature_importances_` | ndarray   | Feature importance scores (MDI)                                 |
+| `classes_`             | ndarray   | Unique class labels                                             |
+| `n_classes_`           | int       | Number of classes                                               |
 
 **Methods:**
 
@@ -30,21 +31,18 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the tree
 tree.fit(X, y)
 
+# Leaf indices for each sample
+leaf_ids = tree.apply(X)
+
+# Decision path (csr_matrix)
+path = tree.decision_path(X)
+
 # Predict class labels
 y_pred = tree.predict(X)
 
 # Predict class probabilities
 y_proba = tree.predict_proba(X)
 
-# Get leaf indices
-leaf_ids = tree.apply(X)
-
-# Get decision path
-path = tree.decision_path(X)
-
-# Export tree structure
-tree.export_text()
-tree.export_graphviz(filename)
 ```
 
 ---
@@ -63,11 +61,12 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `tree_` | dict | The fitted tree structure |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Feature importance scores (MDI) |
+| Attribute              | Type      | Description                                                     |
+| ---------------------- | --------- | --------------------------------------------------------------- |
+| `tree_`                | dict      | The fitted tree structure                                       |
+| `n_features_in_`       | int       | Number of features seen during fit                              |
+| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
+| `feature_importances_` | ndarray   | Feature importance scores (MDI)                                 |
 
 **Methods:**
 
@@ -75,14 +74,15 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the tree
 tree.fit(X, y)
 
+# Leaf indices for each sample
+leaf_ids = tree.apply(X)
+
+# Decision path (csr_matrix)
+path = tree.decision_path(X)
+
 # Predict values
 y_pred = tree.predict(X)
 
-# Get leaf indices
-leaf_ids = tree.apply(X)
-
-# Get decision path
-path = tree.decision_path(X)
 ```
 
 ---
@@ -103,14 +103,16 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `estimators_` | list | List of fitted trees |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Averaged feature importance |
-| `classes_` | ndarray | Unique class labels |
-| `n_classes_` | int | Number of classes |
-| `oob_score_` | float | Out-of-bag score (if computed) |
+| Attribute                | Type      | Description                                                        |
+| ------------------------ | --------- | ------------------------------------------------------------------ |
+| `estimators_`            | list      | List of fitted trees                                               |
+| `n_features_in_`         | int       | Number of features seen during fit                                 |
+| `feature_names_in_`      | List[str] | Feature names seen during fit (order matters for pandas inputs)    |
+| `feature_importances_`   | ndarray   | Averaged feature importance                                        |
+| `classes_`               | ndarray   | Unique class labels                                                |
+| `n_classes_`             | int       | Number of classes                                                  |
+| `oob_score_`             | float     | OOB accuracy over samples with OOB predictions (if enabled)        |
+| `oob_decision_function_` | ndarray   | OOB class probabilities (if enabled; rows with no OOB remain zero) |
 
 **Methods:**
 
@@ -118,17 +120,18 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the forest
 forest.fit(X, y)
 
+# Leaf indices per estimator (n_samples, n_estimators)
+leaf_ids = forest.apply(X)
+
+# Decision paths across all estimators
+indicator, n_nodes_ptr = forest.decision_path(X)
+
 # Predict class labels
 y_pred = forest.predict(X)
 
 # Predict class probabilities
 y_proba = forest.predict_proba(X)
 
-# Get leaf indices for each tree
-leaf_ids = forest.apply(X)
-
-# Get decision paths
-paths = forest.decision_path(X)
 ```
 
 ---
@@ -147,12 +150,14 @@ See [Parameters Reference](parameters.md) for complete list.
 
 **Attributes:**
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `estimators_` | list | List of fitted trees |
-| `n_features_in_` | int | Number of features seen during fit |
-| `feature_importances_` | ndarray | Averaged feature importance |
-| `oob_score_` | float | Out-of-bag score (if computed) |
+| Attribute              | Type      | Description                                                     |
+| ---------------------- | --------- | --------------------------------------------------------------- |
+| `estimators_`          | list      | List of fitted trees                                            |
+| `n_features_in_`       | int       | Number of features seen during fit                              |
+| `feature_names_in_`    | List[str] | Feature names seen during fit (order matters for pandas inputs) |
+| `feature_importances_` | ndarray   | Averaged feature importance                                     |
+| `oob_score_`           | float     | OOB R² over samples with OOB predictions (if enabled)           |
+| `oob_prediction_`      | ndarray   | OOB predictions (if enabled; entries with no OOB remain zero)   |
 
 **Methods:**
 
@@ -160,116 +165,15 @@ See [Parameters Reference](parameters.md) for complete list.
 # Fit the forest
 forest.fit(X, y)
 
+# Leaf indices per estimator (n_samples, n_estimators)
+leaf_ids = forest.apply(X)
+
+# Decision paths across all estimators
+indicator, n_nodes_ptr = forest.decision_path(X)
+
 # Predict values
 y_pred = forest.predict(X)
 
-# Get leaf indices for each tree
-leaf_ids = forest.apply(X)
-```
-
----
-
-## Conformal Prediction
-
-### ConformalForestRegressor
-
-```python
-from citrees import ConformalForestRegressor
-```
-
-A conformal prediction wrapper for regression forests.
-
-**Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `alpha` | float | 0.10 | Miscoverage rate |
-| `method` | str | 'jackknife+' | Conformal method |
-| `calibration_size` | float | 0.2 | Calibration fraction (split method) |
-
-Plus all forest parameters.
-
-**Methods:**
-
-```python
-# Fit and calibrate
-forest.fit(X, y)
-
-# Point predictions
-y_pred = forest.predict(X)
-
-# Prediction intervals
-intervals = forest.predict_interval(X)
-# Returns (n_samples, 2) array with [lower, upper] bounds
-```
-
----
-
-### ConformalForestClassifier
-
-```python
-from citrees import ConformalForestClassifier
-```
-
-A conformal prediction wrapper for classification forests.
-
-**Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `alpha` | float | 0.10 | Miscoverage rate |
-| `method` | str | 'aps' | Conformal method |
-
-**Methods:**
-
-```python
-# Fit and calibrate
-forest.fit(X, y)
-
-# Point predictions
-y_pred = forest.predict(X)
-
-# Prediction sets
-pred_sets = forest.predict_set(X)
-# Returns list of sets, each containing class labels
-```
-
----
-
-## Utility Functions
-
-### SHAP Integration
-
-```python
-import shap
-from citrees import ConditionalInferenceForestClassifier
-
-# Train model
-forest = ConditionalInferenceForestClassifier(n_estimators=100)
-forest.fit(X_train, y_train)
-
-# Create explainer
-explainer = shap.TreeExplainer(forest)
-
-# Compute SHAP values
-shap_values = explainer.shap_values(X_test)
-```
-
-### Export Functions
-
-```python
-# Text representation
-text = tree.export_text(feature_names=feature_names)
-
-# GraphViz DOT format
-tree.export_graphviz(
-    filename="tree.dot",
-    feature_names=feature_names,
-    class_names=class_names,
-)
-
-# Render to image (requires graphviz)
-# dot -Tpng tree.dot -o tree.png
 ```
 
 ---

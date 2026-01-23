@@ -1,3 +1,6 @@
+default_language_version:
+  python: python3.12
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -5,10 +8,20 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
+      - id: check-json
+      - id: check-case-conflict
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: debug-statements
       - id: detect-private-key
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: fix-byte-order-marker
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.8.1
+    hooks:
+      - id: uv-lock
 
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: v0.24.1
@@ -19,6 +32,34 @@ repos:
     rev: v1.40.0
     hooks:
       - id: typos
+
+  - repo: local
+    hooks:
+      - id: block-aws-configs
+        name: block-aws-configs
+        language: system
+        entry: python tools/hooks/check_no_aws_configs.py
+        files: ^paper/scripts/infra/(config|ray/cluster)\.yaml$
+      - id: check-aws-templates
+        name: check-aws-templates
+        language: system
+        entry: python tools/hooks/validate_templates.py
+        files: ^paper/scripts/infra/(config\.example\.yaml|ray/cluster\.example\.yaml)$
+      - id: prettier
+        name: prettier
+        language: node
+        entry: prettier
+        additional_dependencies:
+          - prettier@3.6.2
+        args:
+          - --write
+          - --cache
+          - --cache-location
+          - .cache/.prettier-cache
+          - --log-level=error
+          - --prose-wrap=always
+        files: \.(md|yaml|yml|json)$
+        exclude: ^(uv\.lock)
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.11

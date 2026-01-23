@@ -1,8 +1,57 @@
 from math import ceil
-from typing import Optional, Tuple, Union
 
 import numpy as np
 from numba import njit
+
+from citrees._types import MaxValuesMethod
+
+
+def _allocate_samples(weights: np.ndarray, total: int) -> np.ndarray:
+    """Allocate integer samples proportionally to weights, guaranteeing sum equals total.
+
+    Uses the largest remainder method (Hamilton method) for fair apportionment.
+
+    Parameters
+    ----------
+    weights : np.ndarray
+        Non-negative weights for each class (e.g., class sizes).
+
+    total : int
+        Total number of samples to allocate.
+
+    Returns
+    -------
+    np.ndarray
+        Integer allocation for each class, summing to total.
+    """
+    if total <= 0 or len(weights) == 0:
+        return np.zeros(len(weights), dtype=int)
+
+    weights = np.asarray(weights, dtype=float)
+    weight_sum = weights.sum()
+    if weight_sum == 0:
+        # Equal allocation if all weights are zero
+        base = total // len(weights)
+        allocation = np.full(len(weights), base, dtype=int)
+        remainder = total - allocation.sum()
+        allocation[:remainder] += 1
+        return allocation
+
+    # Calculate ideal (fractional) allocation
+    ideal = weights * total / weight_sum
+
+    # Floor allocation
+    allocation = np.floor(ideal).astype(int)
+
+    # Distribute remainder to classes with largest fractional parts
+    remainder = total - allocation.sum()
+    if remainder > 0:
+        fractional_parts = ideal - allocation
+        # Get indices sorted by fractional part (descending)
+        indices = np.argsort(-fractional_parts)
+        allocation[indices[:remainder]] += 1
+
+    return allocation
 
 
 @njit(cache=True, fastmath=True, nogil=True)
@@ -44,7 +93,7 @@ def estimate_mean(y: np.ndarray) -> float:
     return np.mean(y)
 
 
-def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float, int]] = None) -> int:
+def calculate_max_value(*, n_values: int, desired_max: str | float | int | None = None) -> int:
     """Calculate the maximum desired value based on a fixed input size.
 
     Parameters
@@ -60,13 +109,13 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
     int
         Maximum value.
     """
-    if type(desired_max) is int:
+    if type(desired_max) is int or np.issubdtype(type(desired_max), np.integer):
         total = min(desired_max, n_values)
-    elif desired_max == "sqrt":
+    elif desired_max == MaxValuesMethod.SQRT:
         total = ceil(np.sqrt(n_values))
-    elif desired_max == "log2":
+    elif desired_max == MaxValuesMethod.LOG2:
         total = ceil(np.log2(n_values))
-    elif type(desired_max) is float:
+    elif isinstance(desired_max, float | np.floating):
         total = ceil(n_values * desired_max)
     else:
         total = n_values
@@ -77,8 +126,11 @@ def calculate_max_value(*, n_values: int, desired_max: Optional[Union[str, float
 @njit(cache=True, fastmath=True, nogil=True)
 def split_data(
     *, X: np.ndarray, y: np.ndarray, feature: int, threshold: float
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Split data based on feature and threshold.
+
+    Note: Input X must not contain NaN values. NaN validation is performed upstream
+    in _validate_data_fit(). With fastmath=True, NaN comparisons have undefined behavior.
 
     Parameters
     ----------
@@ -112,6 +164,7 @@ def split_data(
     return X[idx], y[idx], X[~idx], y[~idx]
 
 
+# Note: Uses np.random.seed() because Numba doesn't support default_rng() inside @njit.
 @njit(cache=True, fastmath=True, nogil=True)
 def bayesian_bootstrap_proba(*, n: int, random_state: int) -> np.ndarray:
     """Generate Bayesian bootstrap probabilities for a sample of size n.
@@ -165,17 +218,23 @@ def stratified_bootstrap_sample(
     n_classes = len(np.unique(y))
     idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
     idx = []
-    for idx_class in idx_classes:
+    for j, idx_class in enumerate(idx_classes):
         n_class = len(idx_class)
-        p = bayesian_bootstrap_proba(n=n_class, random_state=random_state) if bayesian_bootstrap else None
+        # Vary seed per class to ensure independent bootstrap probabilities
+        p = (
+            bayesian_bootstrap_proba(n=n_class, random_state=random_state + j)
+            if bayesian_bootstrap
+            else None
+        )
         idx.append(prng.choice(idx_class, size=n_class, p=p, replace=True))
 
-    # Subsample if needed
+    # Subsample if needed (use proper integer allocation to guarantee sum = max_samples)
     if max_samples < n:
+        class_sizes = np.array([len(idx[j]) for j in range(n_classes)])
+        allocation = _allocate_samples(class_sizes, max_samples)
         for j in range(n_classes):
-            n_class = len(idx[j])
-            ratio = n_class / n
-            idx[j] = prng.choice(idx[j], size=round(ratio * max_samples), replace=False)
+            if allocation[j] < len(idx[j]):
+                idx[j] = prng.choice(idx[j], size=allocation[j], replace=False)
 
     return np.concatenate(idx)
 
@@ -205,7 +264,10 @@ def stratified_bootstrap_unsampled_idx(
         Indices for bootstrap sample.
     """
     idx_sampled = stratified_bootstrap_sample(
-        y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+        y=y,
+        max_samples=max_samples,
+        bayesian_bootstrap=bayesian_bootstrap,
+        random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
     idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
@@ -244,15 +306,23 @@ def balanced_bootstrap_sample(
     idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
     idx = []
     n_per_class = np.bincount(y).min()
-    for idx_class in idx_classes:
-        p = bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state) if bayesian_bootstrap else None
+    for j, idx_class in enumerate(idx_classes):
+        # Vary seed per class to ensure independent bootstrap probabilities
+        p = (
+            bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state + j)
+            if bayesian_bootstrap
+            else None
+        )
         idx.append(prng.choice(idx_class, size=n_per_class, p=p, replace=True))
 
-    # Subsample if needed
+    # Subsample if needed (use proper integer allocation to guarantee sum = max_samples)
     if max_samples < n:
-        ratio = n_per_class / n
+        # For balanced bootstrap, all classes have equal weight
+        class_sizes = np.array([len(idx[j]) for j in range(n_classes)])
+        allocation = _allocate_samples(class_sizes, max_samples)
         for j in range(n_classes):
-            idx[j] = prng.choice(idx[j], size=round(ratio * max_samples), replace=False)
+            if allocation[j] < len(idx[j]):
+                idx[j] = prng.choice(idx[j], size=allocation[j], replace=False)
 
     return np.concatenate(idx)
 
@@ -282,7 +352,10 @@ def balanced_bootstrap_unsampled_idx(
         Indices for bootstrap sample.
     """
     idx_sampled = balanced_bootstrap_sample(
-        y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+        y=y,
+        max_samples=max_samples,
+        bayesian_bootstrap=bayesian_bootstrap,
+        random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
     idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
@@ -350,7 +423,10 @@ def classic_bootstrap_unsampled_idx(
         Indices for bootstrap sample.
     """
     idx_sampled = classic_bootstrap_sample(
-        y=y, max_samples=max_samples, bayesian_bootstrap=bayesian_bootstrap, random_state=random_state
+        y=y,
+        max_samples=max_samples,
+        bayesian_bootstrap=bayesian_bootstrap,
+        random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
     idx_unsampled = np.setdiff1d(idx_all, idx_sampled)

@@ -4,22 +4,35 @@ from typing import Any
 import numpy as np
 from numba import njit, prange
 
-from citrees._registry import ClassifierSplitters, ClassifierSplitterTests, RegressorSplitters, RegressorSplitterTests
+from citrees._registry import (
+    ClassifierSplitters,
+    ClassifierSplitterTests,
+    RegressorSplitters,
+    RegressorSplitterTests,
+)
+from citrees._sequential import _beta_cdf
+from citrees._types import EarlyStopping, EarlyStoppingOption
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
 
+# P-value correction: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
+# SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+# Use p = (b+1)/(m+1) instead of p = b/m to avoid p=0.
+# Note: min_resamples = ceil(1/alpha) remains valid since 1/(m+1) < alpha.
 
-def _permutation_test(
+
+def _ptest(
     *,
     func: Any,
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Perform a permutation test for split selection.
 
@@ -40,8 +53,12 @@ def _permutation_test(
     n_resamples : int
         Number of resamples.
 
-    early_stopping : bool
-        Whether to early stop permutation testing if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method:
+        - "adaptive": Bayesian Beta CDF posterior-confidence stopping (speed-oriented; returns a +1 Monte Carlo
+          estimate at a stopping time)
+        - "simple": Futility + significance stopping (inflates Type I error)
+        - None: No early stopping (fixed-B test)
 
     alpha : float
         Alpha level for significance testing.
@@ -49,48 +66,79 @@ def _permutation_test(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Estimated achieved significance level.
     """
-    np.random.seed(random_state)
+    # Use default_rng for isolated RNG stream (avoids global state contamination)
+    rng = np.random.default_rng(random_state)
 
     idx = x <= threshold
     theta = func(y[idx]) + func(y[~idx])
     y_ = y.copy()
-    theta_p = np.empty(n_resamples)
 
-    if early_stopping:
-        # Handle cases where n_resamples is less than min_resamples and early stopping is not possible
-        min_resamples = ceil(1 / alpha)
-        if n_resamples < min_resamples:
-            n_resamples = min_resamples
-            theta_p = np.empty(n_resamples)
+    if early_stopping is None:
+        theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
-            np.random.shuffle(y_)
+            rng.shuffle(y_)
             theta_p[i] = func(y_[idx]) + func(y_[~idx])
-            if i >= min_resamples - 1:
-                asl = np.mean(theta_p[: i + 1] <= theta)
-                if asl < alpha:
-                    break
+        return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
-    else:
+    min_resamples = ceil(1 / alpha)
+    n_resamples = max(n_resamples, min_resamples)
+    extreme_count = 0
+
+    if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
-            np.random.shuffle(y_)
-            theta_p[i] = func(y_[idx]) + func(y_[~idx])
-        asl = np.mean(theta_p <= theta)
+            rng.shuffle(y_)
+            theta_p = func(y_[idx]) + func(y_[~idx])
+            if theta_p <= theta:
+                extreme_count += 1
 
-    return asl
+            n = i + 1
+            if n >= min_resamples:
+                a = 1.0 + extreme_count
+                b = 1.0 + n - extreme_count
+                prob_sig = _beta_cdf(alpha, a, b)
 
+                if prob_sig >= confidence:
+                    return (extreme_count + 1) / (n + 1)
+                if (1.0 - prob_sig) >= confidence:
+                    return (extreme_count + 1) / (n + 1)
 
-# Compiled version of permutation test
-_permutation_test_compiled = njit(cache=True, fastmath=True, nogil=True)(_permutation_test)
+        return (extreme_count + 1) / (n_resamples + 1)
+
+    else:  # simple
+        for i in range(n_resamples):
+            rng.shuffle(y_)
+            theta_p = func(y_[idx]) + func(y_[~idx])
+            if theta_p <= theta:
+                extreme_count += 1
+
+            n = i + 1
+            current_pval = (extreme_count + 1) / (n + 1)
+
+            if n >= min_resamples:
+                if current_pval < alpha:
+                    return current_pval
+
+                best_possible = (extreme_count + 1) / (n_resamples + 1)
+                if best_possible >= alpha and extreme_count >= 3:
+                    return current_pval
+
+        return (extreme_count + 1) / (n_resamples + 1)
 
 
 # Parallel permutation test for Gini index (classifier)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_gini_parallel(
+def _ptest_gini_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -124,14 +172,20 @@ def _permutation_test_gini_parallel(
 
         p_left_perm = np.bincount(y_left_perm) / n_left
         p_right_perm = np.bincount(y_right_perm) / n_right
-        theta_p[i] = (1 - np.sum(p_left_perm * p_left_perm)) + (1 - np.sum(p_right_perm * p_right_perm))
+        theta_p[i] = (1 - np.sum(p_left_perm * p_left_perm)) + (
+            1 - np.sum(p_right_perm * p_right_perm)
+        )
 
-    return np.mean(theta_p <= theta)
+        # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 # Parallel permutation test for MSE (regressor)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_mse_parallel(
+def _ptest_mse_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -165,14 +219,20 @@ def _permutation_test_mse_parallel(
 
         dev_left_perm = y_left_perm - y_left_perm.mean()
         dev_right_perm = y_right_perm - y_right_perm.mean()
-        theta_p[i] = np.mean(dev_left_perm * dev_left_perm) + np.mean(dev_right_perm * dev_right_perm)
+        theta_p[i] = np.mean(dev_left_perm * dev_left_perm) + np.mean(
+            dev_right_perm * dev_right_perm
+        )
 
-    return np.mean(theta_p <= theta)
+        # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 # Parallel permutation test for Entropy (classifier)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_entropy_parallel(
+def _ptest_entropy_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -232,12 +292,16 @@ def _permutation_test_entropy_parallel(
 
         theta_p[i] = entropy_left_perm + entropy_right_perm
 
-    return np.mean(theta_p <= theta)
+        # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 # Parallel permutation test for MAE (regressor)
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _permutation_test_mae_parallel(
+def _ptest_mae_parallel(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
@@ -255,8 +319,8 @@ def _permutation_test_mae_parallel(
         return 1.0
 
     # Compute observed statistic
-    dev_left = np.abs(y_left - y_left.mean())
-    dev_right = np.abs(y_right - y_right.mean())
+    dev_left = np.abs(y_left - np.median(y_left))
+    dev_right = np.abs(y_right - np.median(y_right))
     theta = np.mean(dev_left) + np.mean(dev_right)
 
     # Parallel permutation
@@ -269,16 +333,16 @@ def _permutation_test_mae_parallel(
         y_left_perm = y_perm[idx]
         y_right_perm = y_perm[~idx]
 
-        dev_left_perm = np.abs(y_left_perm - y_left_perm.mean())
-        dev_right_perm = np.abs(y_right_perm - y_right_perm.mean())
+        dev_left_perm = np.abs(y_left_perm - np.median(y_left_perm))
+        dev_right_perm = np.abs(y_right_perm - np.median(y_right_perm))
         theta_p[i] = np.mean(dev_left_perm) + np.mean(dev_right_perm)
 
-    return np.mean(theta_p <= theta)
+    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
 
 @ClassifierSplitters.register("gini")
 @njit(cache=True, fastmath=True, nogil=True)
-def gini_index(y: np.ndarray) -> float:
+def gini(y: np.ndarray) -> float:
     """Gini index of node.
 
     Parameters
@@ -324,14 +388,15 @@ def entropy(y: np.ndarray) -> float:
 
 
 @ClassifierSplitterTests.register("gini")
-def permutation_test_gini_index(
+def ptest_gini(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for Gini index split selection.
 
@@ -349,8 +414,8 @@ def permutation_test_gini_index(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -358,14 +423,16 @@ def permutation_test_gini_index(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_gini_parallel(
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
+        return _ptest_gini_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -373,8 +440,8 @@ def permutation_test_gini_index(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
-        func=gini_index,
+    return _ptest(
+        func=gini,
         x=x,
         y=y,
         threshold=threshold,
@@ -382,18 +449,20 @@ def permutation_test_gini_index(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
 @ClassifierSplitterTests.register("entropy")
-def permutation_test_entropy(
+def ptest_entropy(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for entropy split selection.
 
@@ -411,8 +480,8 @@ def permutation_test_entropy(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -420,14 +489,16 @@ def permutation_test_entropy(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_entropy_parallel(
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
+        return _ptest_entropy_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -435,7 +506,7 @@ def permutation_test_entropy(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
+    return _ptest(
         func=entropy,
         x=x,
         y=y,
@@ -444,12 +515,13 @@ def permutation_test_entropy(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
 @RegressorSplitters.register("mse")
 @njit(cache=True, fastmath=True, nogil=True)
-def mean_squared_error(y: np.ndarray) -> float:
+def mse(y: np.ndarray) -> float:
     """Mean squared error impurity of a node.
 
     Computes the variance of target values in a node, used as the
@@ -476,11 +548,11 @@ def mean_squared_error(y: np.ndarray) -> float:
 
 @RegressorSplitters.register("mae")
 @njit(cache=True, fastmath=True, nogil=True)
-def mean_absolute_error(y: np.ndarray) -> float:
+def mae(y: np.ndarray) -> float:
     """Mean absolute error impurity of a node.
 
-    Computes the mean absolute deviation from the mean for target values
-    in a node, used as a robust impurity criterion for regression tree splits.
+    Computes the mean absolute deviation from the median for target values
+    in a node. Using the median makes this an L1-optimal impurity criterion.
 
     Parameters
     ----------
@@ -495,20 +567,21 @@ def mean_absolute_error(y: np.ndarray) -> float:
     if y.ndim > 1:
         y = y.ravel()
 
-    dev = np.abs(y - y.mean())
+    dev = np.abs(y - np.median(y))
 
     return np.mean(dev)
 
 
 @RegressorSplitterTests.register("mse")
-def permutation_test_mse(
+def ptest_mse(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for MSE split selection.
 
@@ -526,8 +599,8 @@ def permutation_test_mse(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -535,14 +608,16 @@ def permutation_test_mse(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_mse_parallel(
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
+        return _ptest_mse_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -550,8 +625,8 @@ def permutation_test_mse(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
-        func=mean_squared_error,
+    return _ptest(
+        func=mse,
         x=x,
         y=y,
         threshold=threshold,
@@ -559,18 +634,20 @@ def permutation_test_mse(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )
 
 
 @RegressorSplitterTests.register("mae")
-def permutation_test_mae(
+def ptest_mae(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
-    early_stopping: bool,
+    early_stopping: EarlyStoppingOption,
     alpha: float,
     random_state: int,
+    confidence: float = 0.95,
 ) -> float:
     """Permutation test for MAE split selection.
 
@@ -588,8 +665,8 @@ def permutation_test_mae(
     n_resamples : int
         Number of permutation resamples.
 
-    early_stopping : bool
-        Whether to early stop if null hypothesis can be rejected.
+    early_stopping : {"simple", "adaptive"} or None
+        Early stopping method.
 
     alpha : float
         Significance level.
@@ -597,14 +674,16 @@ def permutation_test_mae(
     random_state : int
         Random seed.
 
+    confidence : float, default=0.95
+        Confidence threshold for adaptive stopping.
+
     Returns
     -------
     float
         Achieved significance level (p-value).
     """
-    # Use parallel version when early stopping is disabled and enough resamples
-    if not early_stopping and n_resamples >= _PARALLEL_THRESHOLD:
-        return _permutation_test_mae_parallel(
+    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
+        return _ptest_mae_parallel(
             x=x,
             y=y,
             threshold=threshold,
@@ -612,8 +691,8 @@ def permutation_test_mae(
             random_state=random_state,
         )
 
-    return _permutation_test_compiled(
-        func=mean_absolute_error,
+    return _ptest(
+        func=mae,
         x=x,
         y=y,
         threshold=threshold,
@@ -621,4 +700,5 @@ def permutation_test_mae(
         early_stopping=early_stopping,
         alpha=alpha,
         random_state=random_state,
+        confidence=confidence,
     )

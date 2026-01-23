@@ -1,6 +1,15 @@
 # Local files
 metrics/
 scratch/
+.uv-cache/
+.pytest_cache/
+catboost_info/
+
+# Generated Ray cluster config (contains user's IP)
+paper/scripts/infra/ray/cluster.yaml
+
+# User-specific experiment config (may contain AWS account info)
+paper/scripts/infra/config.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -106,3 +115,18 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# LaTeX (arXiv preprint)
+paper/arxiv/*.aux
+paper/arxiv/*.bbl
+paper/arxiv/*.blg
+paper/arxiv/*.fdb_latexmk
+paper/arxiv/*.fls
+paper/arxiv/*.loa
+paper/arxiv/*.lof
+paper/arxiv/*.log
+paper/arxiv/*.lot
+paper/arxiv/*.out
+paper/arxiv/*.pdf
+paper/arxiv/*.synctex.gz
+paper/arxiv/*.toc

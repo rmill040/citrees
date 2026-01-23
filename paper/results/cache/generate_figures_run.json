@@ -1,0 +1,29 @@
+{
+  "generated_at_utc": "2026-01-21T14:53:27.641596+00:00",
+  "highdim_n": 1000,
+  "highdim_repeats": 8,
+  "n_estimators_forest": 200,
+  "n_jobs": 1,
+  "n_repeats": 15,
+  "n_samples_main": 5000,
+  "profile": "paper",
+  "sample_size_grid": [500, 1000, 2000, 5000, 10000],
+  "seed": 1718,
+  "selected_figures": [
+    "complexity",
+    "correlated",
+    "feature_selection",
+    "highdim",
+    "imbalanced",
+    "multiclass",
+    "redundant",
+    "regression",
+    "sample_size",
+    "signal",
+    "timing"
+  ],
+  "timing_n_features": 300,
+  "timing_n_samples": 5000,
+  "timing_repeats": 5,
+  "train_fraction": 0.8
+}

@@ -1,0 +1,51 @@
+\section{CART high-cardinality selection bias (idealized)}
+\label{app:cart-bias}
+
+This appendix provides a simple symmetry calculation that formalizes the
+multiple-comparisons mechanism behind ``high-cardinality'' selection bias in
+greedy CART-style split selection \citep{Breiman1984ClassificationAndRegressionTrees}.
+This result is \emph{motivational} and is not
+used for any paper-facing p-value guarantees.
+
+\begin{lemma}[Proportional selection under an exchangeable null]
+\label{lem:cart-proportional-selection}
+Assume A0.6 (\cref{app:assumptions}). Consider a fixed node with candidate
+features $j \in \{1,\dots,p\}$ and candidate split sets $C_j$ with sizes
+$m_j := |C_j| \ge 1$. Let $S_{j,c}$ denote a split score for candidate split
+$(j,c)$, where smaller is better, and assume the collection
+$\{S_{j,c} : 1 \le j \le p,\ c \in C_j\}$ is exchangeable.
+
+Let $(U_{j,c})$ be i.i.d.\ $\mathrm{Unif}(0,1)$ independent of the scores and
+define tie-broken scores $\widetilde S_{j,c} := (S_{j,c}, U_{j,c})$ ordered
+lexicographically. Define the greedy CART choice
+%
+\begin{equation}
+  (\widehat j, \widehat c) \in \argmin_{1 \le j \le p,\ c \in C_j} \widetilde S_{j,c}.
+\end{equation}
+%
+Then for each feature $j$,
+%
+\begin{equation}
+  \PP(\widehat j = j) = \frac{m_j}{\sum_{k=1}^p m_k}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By construction, the augmented collection $\{(S_{j,c},U_{j,c})\}$ is
+exchangeable and almost surely tie-free. Therefore the argmin is uniformly
+distributed over the $\sum_{k=1}^p m_k$ candidate splits, and it belongs to
+feature $j$ with probability $m_j/\sum_{k=1}^p m_k$.
+\end{proof}
+
+\begin{remark}[Feature subsampling does not remove the mechanism]
+If a greedy CART-style method first samples a subset of candidate features
+$F \subseteq \{1,\dots,p\}$ (e.g., as in random forests) and then minimizes the
+score over candidates within $F$, the same symmetry argument gives, conditional
+on $F$,
+%
+\begin{equation}
+  \PP(\widehat j = j \mid F) = \frac{m_j}{\sum_{k \in F} m_k} \qquad (j \in F).
+\end{equation}
+%
+Thus high-cardinality features remain favored \emph{within} the tested subset.
+\end{remark}

@@ -1,0 +1,40 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Feature selection is a central primitive in modern tabular machine learning:
+practitioners want rankings that are predictively useful, stable across
+resamples, and interpretable. These goals are especially sharp in regimes with
+many features and comparatively few samples ($p \gg n$), where naive selection
+rules can overfit to noise.
+
+Decision trees provide an appealing embedding feature selector: the split
+structure yields an implicit ranking, and tree-based ensembles scale well in
+practice. However, classical CART-style trees choose split variables by
+maximizing a data-dependent objective over many candidate thresholds. This
+creates a systematic selection bias: even under a global null where all
+features are unrelated to the response, features with more candidate split
+points are more likely to produce extreme impurity improvements by chance.
+This ``high-cardinality'' selection bias has been documented for variable
+importance in random forests and related models \citep{Strobl2007BiasRFVariableImportance},
+and it appears immediately at the root in one-split trees.
+
+Conditional inference trees \citep{Hothorn2006UnbiasedRecursivePartitioning}
+mitigate this issue by separating variable selection from split-point
+optimization via hypothesis testing. At each node, the algorithm first screens
+features for association with the response (Stage~A). Only if at least one
+feature is significant does it proceed to optimize a split threshold (Stage~B).
+The test-based Stage~A step is the natural place to attach finite-sample
+error-control statements.
+
+\paragraph{Contributions.}
+This paper presents:
+(i)~\citrees, a Python implementation of conditional inference trees and
+forests using Monte Carlo permutation tests with the Phipson--Smyth (+1)
+correction \citep{PhipsonSmyth2010PermutationPValues};
+(ii)~finite-sample, fixed-node (especially root) validity statements for Stage~A
+screening in fixed-$B$ mode, including Bonferroni-based bounds that do not
+depend on a feature's number of candidate thresholds; and
+(iii)~a benchmark suite evaluating feature rankings on synthetic ground-truth
+datasets and real datasets under a two-stage rank-then-evaluate protocol.
+
+% TODO: add a short ``paper roadmap'' paragraph once section contents settle.

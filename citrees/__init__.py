@@ -1,19 +1,39 @@
 # flake8: noqa
-from citrees._conformal import ConformalClassifier, ConformalRegressor, CQR
-from citrees._forest import ConditionalInferenceForestClassifier, ConditionalInferenceForestRegressor
-from citrees._importance import SHAPExplainer, compute_importance
+from importlib.metadata import version as _get_version
+
+from citrees._forest import (
+    ConditionalInferenceForestClassifier,
+    ConditionalInferenceForestRegressor,
+)
 from citrees._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor
+from citrees._types import (
+    BootstrapMethod,
+    EarlyStopping,
+    EstimatorType,
+    MaxValuesMethod,
+    NResamples,
+    SamplingMethod,
+    ThresholdMethod,
+)
+
+try:
+    __version__ = _get_version("citrees")
+except Exception:
+    __version__ = "unknown"
 
 __all__ = [
+    "__version__",
     "ConditionalInferenceTreeClassifier",
     "ConditionalInferenceTreeRegressor",
     "ConditionalInferenceForestClassifier",
     "ConditionalInferenceForestRegressor",
-    "compute_importance",
-    "SHAPExplainer",
-    "ConformalClassifier",
-    "ConformalRegressor",
-    "CQR",
+    "EarlyStopping",
+    "NResamples",
+    "MaxValuesMethod",
+    "ThresholdMethod",
+    "BootstrapMethod",
+    "SamplingMethod",
+    "EstimatorType",
 ]
 
 # Increase recursion limit for deep tree building

@@ -1,0 +1,18 @@
+\section{Background and related work}
+\label{sec:background}
+
+Conditional inference trees were introduced by \citet{Hothorn2006UnbiasedRecursivePartitioning}
+as an alternative to greedy impurity optimization, replacing variable selection
+with hypothesis testing to reduce selection bias. A separate literature studies
+bias in tree-based importance measures (e.g., in random forests) and proposes
+corrections \citep{Strobl2007BiasRFVariableImportance}.
+
+Permutation tests provide a nonparametric route to calibration under an
+exchangeability assumption. In Monte Carlo permutation testing, the Phipson--Smyth
+``+1'' correction ensures p-values are never exactly zero and yields valid
+finite-sample super-uniformity under exchangeability \citep{PhipsonSmyth2010PermutationPValues}.
+
+% TODO: expand this section into a ``state of the field'' narrative:
+% - R party/partykit implementations and differences
+% - sklearn trees/forests (CART), and how Stage A addresses multiple comparisons
+% - other feature selection baselines (filters/embeddings/wrappers) used in experiments

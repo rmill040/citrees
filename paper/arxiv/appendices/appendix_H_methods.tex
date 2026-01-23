@@ -1,0 +1,452 @@
+\section{Detailed methods (implementation-aligned)}
+\label{app:methods}
+
+This appendix records implementation-aligned algorithmic details for \citrees.
+It is intended to make the manuscript reproducible and to keep the main text
+readable. Proofs for the paper's fixed-node/root claims are given in
+Appendices~A--G.
+
+\subsection{Algorithm overview}
+\label{app:methods-overview}
+
+\citrees implements conditional inference trees and forests that use
+permutation-based hypothesis testing for variable and split selection. The core
+design choice relative to CART-style trees is to separate variable screening
+(Stage~A) from split-point optimization (Stage~B) and to attach p-values to the
+screening step at a fixed node (especially the root).
+
+\subsection{Conditional inference tree (high level)}
+\label{app:methods-tree}
+
+\begin{algorithm}[t]
+  \caption{Conditional inference tree (Stage A $\rightarrow$ Stage B)}
+  \label{alg:citree}
+  \begin{algorithmic}[1]
+    \Require Node data $(X_t, y_t)$, significance levels $\alpha_{\mathrm{sel}}, \alpha_{\mathrm{split}}$
+    \State \textbf{if} stopping criteria hold \textbf{then} \Return leaf value from $y_t$
+    \State $F_t \gets$ candidate features (drop node-constant features; apply \texttt{max\_features} if configured)
+    \State \textbf{Stage A:} compute $(p_{t,j})_{j \in F_t}$ via +1 permutation tests; set $j_t^\star \gets \argmin_{j \in F_t} p_{t,j}$
+    \State \textbf{if} $\min_{j \in F_t} p_{t,j} \ge \alpha_{\mathrm{sel}}/|F_t|$ \textbf{then} \Return leaf
+    \State $C_{t,j_t^\star} \gets$ candidate thresholds for feature $j_t^\star$
+    \State \textbf{Stage B:} choose $c_t^\star \in C_{t,j_t^\star}$ (optionally with a permutation test on split quality)
+    \State \textbf{if} Stage B fails (e.g., not significant or violates \texttt{min\_impurity\_decrease} / min-leaf constraints) \textbf{then} \Return leaf
+    \State Split $(X_t, y_t)$ into left/right children using $(j_t^\star, c_t^\star)$
+    \State Recurse on children and return an internal node
+  \end{algorithmic}
+\end{algorithm}
+
+\paragraph{Notes.}
+If \texttt{adjust\_alpha\_selector} / \texttt{adjust\_alpha\_splitter} are
+disabled, compare to $\alpha_{\mathrm{sel}}$ / $\alpha_{\mathrm{split}}$ rather
+than Bonferroni-adjusted levels. If permutation testing is disabled for a stage
+(e.g., \texttt{n\_resamples\_selector = None}), that stage uses raw
+selector/splitter scores without p-values.
+
+\subsection{Stopping criteria}
+\label{app:methods-stopping}
+
+At a node $t$, tree growth stops when any of the following conditions hold:
+\begin{enumerate}
+  \item $n_t < \texttt{min\_samples\_split}$,
+  \item depth exceeds \texttt{max\_depth},
+  \item the node is pure (classification) or otherwise terminal per configuration,
+  \item Stage~A fails to reject any null hypothesis (no significant features),
+  \item Stage~B fails to validate any split (e.g., not significant),
+  \item impurity decrease is below \texttt{min\_impurity\_decrease},
+  \item a candidate split would violate \texttt{min\_samples\_leaf}.
+\end{enumerate}
+
+\subsection{Leaf values}
+\label{app:methods-leaves}
+
+\paragraph{Classification.}
+For a leaf containing indices $L$, the predicted class probabilities are
+%
+\begin{equation}
+  \hat{p}_k(L) = \frac{1}{|L|} \sum_{i \in L} \ind\{y_i = k\}, \qquad k=1,\dots,K.
+\end{equation}
+
+\paragraph{Regression.}
+For a leaf containing indices $L$, the leaf prediction is the mean response,
+%
+\begin{equation}
+  \hat{\mu}(L) = \frac{1}{|L|} \sum_{i \in L} y_i.
+\end{equation}
+
+\subsection{Stage A: feature screening}
+\label{app:methods-stageA}
+
+At node $t$ with sample indices $I_t$ and data $(X_t, y_t)$, Stage~A tests each
+candidate feature $X_{t,j}$ for association with $y_t$. Features that are
+constant at the node are removed from the candidate set since they cannot
+become non-constant within the subtree rooted at $t$.
+
+\subsubsection{Null hypothesis}
+\label{app:methods-stageA-null}
+
+For each feature $j \in F_t$,
+%
+\begin{equation}
+  H^{\mathrm{sel}}_{t,j}: X_{t,j} \perp y_t.
+\end{equation}
+
+\subsubsection{Selector statistics}
+\label{app:methods-selectors}
+
+\paragraph{Multiple correlation (mc; classification).}
+Define
+%
+\begin{equation}
+  \mathrm{mc}(x,y) := \sqrt{\frac{\mathrm{SSB}}{\mathrm{SST}}},
+\end{equation}
+%
+where $\mathrm{SST} = \sum_{i=1}^n (x_i - \bar{x})^2$ and
+$\mathrm{SSB} = \sum_{k=1}^K n_k(\bar{x}_k - \bar{x})^2$.
+This score lies in $[0,1]$ and is a monotone transform of the one-way ANOVA $F$
+statistic at fixed $(n,K)$, so fixed-$B$ permutation p-values (with the same tie
+convention) agree under either statistic.
+
+\paragraph{Mutual information (mi; classification).}
+Mutual information satisfies $I(X;Y)\ge 0$ with $I(X;Y)=0$ iff $X \perp Y$.
+\citrees uses a $k$-nearest-neighbor estimator \citep{Kraskov2004EstimatingMutualInformation}.
+Because MI is not bounded on $[0,1]$, it is not mixed with bounded selectors in
+max-statistic mode without an explicit normalization policy.
+
+\paragraph{Pearson correlation (pc; regression).}
+Define
+%
+\begin{equation}
+  \mathrm{pc}(x,y) := \left|\frac{\sum_{i=1}^n (x_i-\bar{x})(y_i-\bar{y})}
+  {\sqrt{\sum_{i=1}^n (x_i-\bar{x})^2}\sqrt{\sum_{i=1}^n (y_i-\bar{y})^2}}\right|.
+\end{equation}
+%
+This lies in $[0,1]$ and is a monotone transform of the usual correlation $t$
+statistic at fixed $n$, so it yields the same fixed-$B$ permutation p-values
+under the same tail/tie conventions.
+
+\paragraph{Distance correlation (dc; regression).}
+Distance correlation detects both linear and nonlinear dependence and satisfies
+$\mathrm{dCor}(X,Y)=0$ iff $X \perp Y$ under mild moment conditions
+\citep{Szekely2007DistanceCorrelation}.
+\citrees uses an external implementation of distance correlation.
+
+\paragraph{Randomized dependence coefficient (rdc; classification and regression).}
+RDC is a computationally efficient nonlinear dependence score based on random
+nonlinear projections of rank-transformed data \citep{LopezPaz2013RDC}. In
+\citrees, RDC is used as a bounded score in $[0,1]$ and can be combined with
+other bounded selectors in multi-selector mode.
+
+\subsubsection{Permutation p-values}
+\label{app:methods-stageA-pvalues}
+
+For each feature $j \in F_t$, Stage~A computes a Monte Carlo permutation p-value
+using the Phipson--Smyth (+1) correction as described in \cref{sec:plusone}. The
+paper's formal validity claims for these p-values are limited to fixed nodes
+and fixed-$B$ testing (see \cref{sec:theory} and Appendices~A--G).
+
+\subsection{Stage B: threshold screening (scope note)}
+\label{app:methods-stageB}
+
+Given the selected feature $j_t^\star$, \citrees considers a finite threshold
+set $C_{t,j_t^\star}$ and chooses a split point by optimizing split quality
+over candidates (and optionally performing a permutation test over thresholds).
+Because Stage~B is applied after selecting $j_t^\star$ using the same labels,
+we treat Stage~B p-values as post-selection/adaptive statistics unless
+additional selective-inference machinery or sample splitting is used.
+
+\subsubsection{Null hypothesis (conceptual)}
+\label{app:methods-stageB-null}
+
+For a fixed threshold $c \in C_{t,j_t^\star}$, define the induced partition
+$I_t^L(c) := \{i \in I_t : X_{i,j_t^\star} \le c\}$ and
+$I_t^R(c) := I_t \setminus I_t^L(c)$. The conceptual null for a split-quality
+test at threshold $c$ is that the labels are exchangeable with respect to this
+partition (i.e., there is no association between $y_t$ and the left/right child
+assignment). In the adaptive tree algorithm, this is tested only after choosing
+$j_t^\star$ using the same $y_t$, so the resulting p-values are post-selection.
+
+\subsubsection{Split quality statistics (splitters)}
+\label{app:methods-splitters}
+
+\paragraph{Convention (implementation-aligned).}
+For permutation testing of split quality, \citrees uses the \emph{unweighted}
+sum of child impurities, $I(y_L) + I(y_R)$, with a left-tail convention (smaller
+is better). Weighted impurity is used for deterministic threshold scanning and
+for the \texttt{min\_impurity\_decrease} constraint.
+
+\paragraph{Classification impurities.}
+For class probabilities $\hat p_k = \frac{1}{n}\sum_{i=1}^n \ind\{y_i=k\}$,
+%
+\begin{equation}
+  \mathrm{Gini}(y) = 1 - \sum_{k=1}^K \hat p_k^2,
+  \qquad
+  \mathrm{Entropy}(y) = -\sum_{k=1}^K \hat p_k \log_2(\hat p_k).
+\end{equation}
+%
+For a threshold $c$ inducing children $(y_L,y_R)$, the tested split statistic is
+%
+\begin{equation}
+  T^{\mathrm{split}}(c) := I(y_L) + I(y_R),
+\end{equation}
+%
+where $I(\cdot)$ is either Gini or Entropy.
+
+\paragraph{Regression impurities.}
+For regression,
+%
+\begin{equation}
+  \mathrm{MSE}(y) = \frac{1}{n}\sum_{i=1}^n (y_i-\bar y)^2,
+  \qquad
+  \mathrm{MAE}(y) = \frac{1}{n}\sum_{i=1}^n \big|y_i - \mathrm{median}(y)\big|.
+\end{equation}
+
+\subsubsection{Threshold candidate sets}
+\label{app:methods-thresholds}
+
+\citrees generates candidate thresholds from the set of midpoints between
+consecutive unique feature values. Let $x_{(1)} < \cdots < x_{(m)}$ denote the
+sorted unique values of a feature at node $t$; the full midpoint set is
+%
+\begin{equation}
+  \mathrm{Midpoints}(x) := \left\{\frac{x_{(i)} + x_{(i+1)}}{2} : i=1,\dots,m-1\right\}.
+\end{equation}
+
+\paragraph{Threshold methods.}
+\citrees supports several threshold selection policies:
+\begin{enumerate}
+  \item \textbf{Exact (default):} use all midpoints,
+  \item \textbf{Random:} subsample midpoints without replacement,
+  \item \textbf{Percentile:} choose evenly spaced percentiles of the midpoint set,
+  \item \textbf{Histogram:} choose histogram-based bin edges of the midpoint set.
+\end{enumerate}
+
+\paragraph{Small-sample fallback.}
+If a feature has very few unique values (implementation default: $\le 4$),
+\citrees uses all midpoints regardless of the configured threshold method.
+
+\paragraph{\texttt{max\_thresholds} semantics.}
+When \texttt{max\_thresholds} is set, the requested count is computed by the
+same integer/float/\texttt{sqrt}/\texttt{log2} rules used by \texttt{max\_features},
+then applied to the candidate midpoints for the chosen threshold method. When
+\texttt{threshold\_method="exact"}, all midpoints are returned regardless of
+\texttt{max\_thresholds} (accepted for API compatibility but not used).
+
+\subsubsection{Split selection procedure (pseudocode)}
+\label{app:methods-stageB-alg}
+
+\begin{algorithm}[t]
+  \caption{Split selection at a node (Stage B)}
+  \label{alg:stageB}
+  \begin{algorithmic}[1]
+    \Require Feature vector $x = X_{t,j_t^\star}$, labels $y_t$, level $\alpha_{\mathrm{split}}$, candidate thresholds $C_{t,j_t^\star}$
+    \Require Resamples $B$, \texttt{adjust\_alpha\_splitter}, \texttt{min\_samples\_leaf}, optional early stopping
+    \State Generate candidate thresholds $C_{t,j_t^\star}$ from midpoints (filter those violating \texttt{min\_samples\_leaf})
+    \If{$|C_{t,j_t^\star}| = 0$}
+      \State \Return no split
+    \EndIf
+    \State $\alpha_{\mathrm{eff}} \gets \alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ if Bonferroni is enabled else $\alpha_{\mathrm{split}}$
+    \State Initialize best threshold $c^\star$ and best p-value $p^\star \gets 1$
+    \For{each $c \in C_{t,j_t^\star}$ (optionally sorted by a scanning heuristic)}
+      \State Compute observed split score $T_0(c) \gets I(y_L(c)) + I(y_R(c))$
+      \State Compute permutation p-value $p_c$ for the left tail using $B$ label permutations
+      \If{$p_c < p^\star$}
+        \State $(p^\star, c^\star) \gets (p_c, c)$
+      \EndIf
+      \If{early stopping enabled and $p^\star < \alpha_{\mathrm{eff}}$}
+        \State \textbf{break}
+      \EndIf
+    \EndFor
+    \State Apply deterministic constraints (e.g., \texttt{min\_impurity\_decrease}); if violated, return no split
+    \State \Return split $(c^\star, p^\star)$
+  \end{algorithmic}
+\end{algorithm}
+
+\subsection{Permutation testing (fixed-B baseline)}
+\label{app:methods-permutation}
+
+For a scalar test statistic $T(\cdot,\cdot)$ with a right-tail convention, let
+$T_0$ denote the observed statistic and let $T_1,\dots,T_B$ denote the statistic
+computed on $B$ i.i.d.\ random permutations of the labels. \citrees uses the
+Phipson--Smyth (+1) Monte Carlo permutation p-value \citep{PhipsonSmyth2010PermutationPValues},
+%
+\begin{equation}
+  p := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1},
+\end{equation}
+%
+with the inequality direction chosen to match the tail convention. Under the
+fixed-node assumptions in \cref{app:assumptions}, these +1 p-values are
+super-uniform in fixed-$B$ mode (\cref{sec:theory}).
+
+\paragraph{Resolution in fixed-$B$ mode.}
+Because $p$ lies on the grid $\{1/(B+1),2/(B+1),\dots,1\}$, any configured
+significance threshold below $1/(B+1)$ is unattainable. In particular, if Stage~A
+uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$, then a necessary condition
+for any rejection is $\alpha_{\mathrm{sel}}/m_t \ge 1/(B+1)$ (equivalently
+$B \ge \lceil m_t/\alpha_{\mathrm{sel}} \rceil - 1$). Discreteness can also
+create ties (many candidates achieving the same minimal p-value), so a
+tie-breaking convention must be specified.
+
+\subsection{Sequential permutation testing (early stopping; scope note)}
+\label{app:methods-sequential}
+
+\citrees implements sequential stopping rules to reduce the computational cost
+of permutation testing. These are useful engineering heuristics, but they change
+the inferential object: if the algorithm stops at a data-dependent time and then
+reports the running +1 estimate $(k+1)/(b+1)$, this value should not be treated
+as a classical fixed-$B$ Monte Carlo p-value without additional sequential
+analysis. For publication-grade p-value claims in this manuscript, use fixed-$B$
+mode (\texttt{early\_stopping\_* = None}) and report $B$ explicitly.
+
+\subsubsection{Simple sequential stopping (baseline)}
+\label{app:methods-sequential-simple}
+
+The ``simple'' rule stops early either when the running estimate is already
+below the relevant threshold (significance) or when rejection is impossible
+given the remaining budget (futility). This rule is fast but can inflate Type I
+error by repeatedly checking the running estimate without a sequential
+adjustment.
+
+\begin{algorithm}[t]
+  \caption{Simple sequential permutation test (heuristic)}
+  \label{alg:simple-sequential}
+  \begin{algorithmic}[1]
+    \Require Statistic $T$, observed value $T_0$, max resamples $B$, threshold $\alpha$
+    \State $\texttt{min\_resamples} \gets \lceil 1/\alpha \rceil$; $B \gets \max(B,\texttt{min\_resamples})$; $k \gets 0$
+    \For{$b = 1,\dots,B$}
+      \State Sample a random permutation and compute $T_b$
+      \If{$T_b \ge T_0$} \State $k \gets k+1$ \EndIf
+      \State $p_{\mathrm{cur}} \gets (k+1)/(b+1)$
+      \If{$b \ge \texttt{min\_resamples}$}
+        \If{$p_{\mathrm{cur}} < \alpha$} \State \Return $p_{\mathrm{cur}}$ \EndIf
+        \State $p_{\mathrm{best}} \gets (k+1)/(B+1)$
+        \If{$p_{\mathrm{best}} \ge \alpha$} \State \Return $p_{\mathrm{cur}}$ \EndIf
+      \EndIf
+    \EndFor
+    \State \Return $(k+1)/(B+1)$
+  \end{algorithmic}
+\end{algorithm}
+
+\paragraph{Left-tail variant (Stage B).}
+For split testing, the same template is used with a left-tail convention, i.e.,
+replace the exceedance check by $T_b \le T_0$.
+
+\subsubsection{Adaptive sequential stopping (Bayesian)}
+\label{app:methods-sequential-adaptive}
+
+The ``adaptive'' rule uses a Beta--Binomial model to stop once the algorithm is
+confident that the (latent) p-value is either below or above the threshold. Let
+$k$ be the number of exceedances after $b$ permutations (right tail), model
+%
+\begin{equation}
+  k \mid p \sim \mathrm{Binomial}(b,p), \qquad p \sim \mathrm{Beta}(1,1),
+  \qquad p \mid k,b \sim \mathrm{Beta}(1+k, 1+b-k).
+\end{equation}
+%
+Given a confidence parameter $\gamma$ (default: $0.95$), stop if
+$\PP(p < \alpha \mid k,b) \ge \gamma$ or $\PP(p \ge \alpha \mid k,b) \ge \gamma$.
+
+\begin{algorithm}[t]
+  \caption{Adaptive sequential permutation test (heuristic)}
+  \label{alg:adaptive-sequential}
+  \begin{algorithmic}[1]
+    \Require Statistic $T$, observed value $T_0$, max resamples $B$, threshold $\alpha$, confidence $\gamma$
+    \State $\texttt{min\_resamples} \gets \lceil 1/\alpha \rceil$; $B \gets \max(B,\texttt{min\_resamples})$; $k \gets 0$
+    \For{$b = 1,\dots,B$}
+      \State Sample a random permutation and compute $T_b$
+      \If{$T_b \ge T_0$} \State $k \gets k+1$ \EndIf
+      \If{$b \ge \texttt{min\_resamples}$}
+        \State $q \gets \PP(p < \alpha \mid k,b)$ under $p \mid k,b \sim \mathrm{Beta}(1+k,1+b-k)$
+        \If{$q \ge \gamma$ or $1-q \ge \gamma$} \State \Return $(k+1)/(b+1)$ \EndIf
+      \EndIf
+    \EndFor
+    \State \Return $(k+1)/(B+1)$
+  \end{algorithmic}
+\end{algorithm}
+
+\paragraph{Left-tail variant (Stage B).}
+For split testing, replace the exceedance check by $T_b \le T_0$.
+
+\subsection{Computational heuristics (scope note)}
+\label{app:methods-heuristics}
+
+\citrees includes several heuristics intended to reduce computation. Some of
+these can change the algorithm's behavior and can break the clean ``fixed
+hypothesis family'' assumptions used by the paper's fixed-node theory. For
+paper-facing p-value guarantees, use fixed-$B$ testing and avoid adaptive
+hypothesis-family modifications (in particular, disable feature muting).
+
+\subsubsection{Feature muting}
+\label{app:methods-feature-muting}
+
+Feature muting removes features deemed uninformative at a node from future
+consideration within the subtree. Because muting decisions depend on observed
+labels via Stage~A p-values, it can violate the label-independence condition
+(A0.3) needed for clean fixed-node calibration statements when treated across
+multiple nodes.
+
+\subsubsection{Feature scanning}
+\label{app:methods-feature-scanning}
+
+When early stopping is enabled, feature scanning tests ``promising'' features
+first by sorting candidates using a cheap, non-permutation score. This can
+substantially reduce computation when a strong signal exists. When early
+stopping is disabled (fixed-$B$ mode), ordering does not affect the result.
+
+\subsubsection{Threshold scanning}
+\label{app:methods-threshold-scanning}
+
+Analogous to feature scanning, threshold scanning orders candidate thresholds
+using a cheap deterministic score (e.g., weighted impurity) so that early
+stopping can terminate quickly if a good split exists. In fixed-$B$ mode, the
+ordering is irrelevant.
+
+\subsection{Multiple testing correction}
+\label{app:methods-multipletesting}
+
+\paragraph{Bonferroni (default).}
+At a fixed node $t$, Stage~A tests $m_t=|F_t|$ features and compares
+$\min_{j\in F_t} p_{t,j}$ to $\alpha_{\mathrm{sel}}/m_t$ when
+\texttt{adjust\_alpha\_selector} is enabled. Stage~B analogously compares the
+best split p-value to $\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
+\texttt{adjust\_alpha\_splitter} is enabled.
+
+\paragraph{Max-$T$ / Westfall--Young (multi-selector mode).}
+When combining multiple selector statistics, \citrees supports a max-statistic
+construction: within each permutation, take the maximum across selectors for a
+fixed feature (and then compute a single p-value from the max-statistics).
+Under exchangeability, the resulting +1 p-value remains super-uniform (see
+\cref{prop:multiselector-validity} and \cref{app:multiselector}). This is
+closely related to the max-$T$ resampling principle \citep{WestfallYoung1993ResamplingBasedMultipleTesting}.
+
+\subsection{Forests and resampling}
+\label{app:methods-forests}
+
+\citrees forests fit $M$ trees and aggregate their predictions. Each tree is a
+conditional inference tree trained on either the full dataset or a resampled
+dataset (bootstrap). Classic and Bayesian bootstrap are described in
+\cref{sec:bootstrap}.
+
+\begin{algorithm}[t]
+  \caption{Forest training (bagging with optional bootstrap)}
+  \label{alg:forest}
+  \begin{algorithmic}[1]
+    \Require Training data $(X,y)$ with $n$ rows, number of trees $M$, tree hyperparameters $\theta_{\mathrm{tree}}$
+    \Require Optional bootstrap method, optional \texttt{max\_samples}
+    \For{$m = 1,\dots,M$}
+      \If{bootstrap enabled}
+        \State Draw bootstrap indices $I_m$ by the chosen method (size $n$, with replacement)
+        \If{\texttt{max\_samples} $< n$}
+          \State Subsample $I_m$ without replacement down to \texttt{max\_samples}
+        \EndIf
+        \State Fit $T_m \gets \textsc{FitTree}(X[I_m], y[I_m]; \theta_{\mathrm{tree}})$
+      \Else
+        \State Fit $T_m \gets \textsc{FitTree}(X, y; \theta_{\mathrm{tree}})$
+      \EndIf
+    \EndFor
+    \State \Return $\{T_1,\dots,T_M\}$
+  \end{algorithmic}
+\end{algorithm}
+
+\paragraph{Prediction.}
+Forest prediction is standard bagging: average class probability vectors for
+classification and average scalar predictions for regression.

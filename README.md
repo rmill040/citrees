@@ -5,20 +5,31 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-citrees implements statistically principled decision trees and random forests using permutation-based hypothesis testing for variable selection. Unlike traditional CART-style trees that greedily optimize split criteria, citrees separates variable selection from split point selection using statistical tests to determine significance.
+citrees implements statistically principled decision trees and random forests
+using permutation-based hypothesis testing for variable selection. Unlike
+traditional CART-style trees that greedily optimize split criteria, citrees
+separates variable selection from split point selection using statistical tests
+to determine significance.
 
-**Note**: citrees is *inspired by* the conditional inference framework (Hothorn et al., 2006) but is not a direct port of R's `partykit::ctree`. We implement the core principles—permutation-based variable selection, statistical stopping rules, and unbiased splitting—while adding our own extensions like RDC selectors, feature muting, and conformal prediction.
+**Note**: citrees is _inspired by_ the conditional inference framework (Hothorn
+et al., 2006) but is not a direct port of R's `partykit::ctree`. We implement
+the core principles—permutation-based variable selection and statistical
+stopping rules—while adding our own extensions like RDC selectors and feature
+muting. In particular, Stage A screening is designed to mitigate the classic
+high-cardinality selection bias mechanism of greedy impurity optimization (with
+the usual fixed-node/root scope caveats for adaptive trees).
 
 ## Why citrees?
 
-Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection bias**:
+Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection
+bias**:
 
-| Problem | CART Behavior | citrees Solution |
-|---------|---------------|------------------|
-| **Selection bias** | Favors high-cardinality features | Permutation tests control for multiple comparisons |
-| **Spurious splits** | Finds "good" splits by chance | Statistical significance required to split |
-| **Overfitting** | Requires pruning/cross-validation | Principled stopping via hypothesis tests |
-| **Feature importance** | Biased toward frequently-split features | Importance based on statistical contribution |
+| Problem                | CART Behavior                           | citrees Solution                                                                           |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Selection bias**     | Favors high-cardinality features        | Permutation tests control for multiple comparisons                                         |
+| **Spurious splits**    | Finds "good" splits by chance           | Statistical significance required to split                                                 |
+| **Overfitting**        | Requires pruning/cross-validation       | Principled stopping via hypothesis tests                                                   |
+| **Feature importance** | Biased toward frequently-split features | Still uses impurity-decrease importance; Stage A mitigates a key root-level bias mechanism |
 
 ## Installation
 
@@ -40,6 +51,7 @@ from citrees import (
     ConditionalInferenceTreeRegressor,
     ConditionalInferenceForestClassifier,
     ConditionalInferenceForestRegressor,
+    MaxValuesMethod,
 )
 
 # Classification
@@ -62,37 +74,40 @@ reg.fit(X_train, y_train)
 # Forest ensemble (parallel training)
 forest = ConditionalInferenceForestClassifier(
     n_estimators=100,
-    max_features="sqrt",     # Random feature subset per split
-    n_jobs=-1,               # Use all cores
+    max_features=MaxValuesMethod.SQRT,  # Random feature subset per split
+    n_jobs=-1,                          # Use all cores
 )
 forest.fit(X_train, y_train)
 
-# Feature importance (statistically grounded)
+# Feature importance (impurity decrease; subject to known caveats)
 importances = forest.feature_importances_
 ```
 
 ## Key Features
 
 ### Statistical Feature Selection
-At each node, features are tested for association with the target using permutation tests. Only statistically significant features (p < alpha) are considered for splitting.
+
+At each node, features are tested for association with the target using
+permutation tests. Only statistically significant features (p < alpha) are
+considered for splitting.
 
 ### Multiple Selector Methods
 
-| Selector | Task | Description | Complexity |
-|----------|------|-------------|------------|
-| `mc` | Classification | Multiple correlation (ANOVA-based) | O(n) |
-| `mi` | Classification | Mutual information | O(n log n) |
-| `rdc` | Both | Randomized Dependence Coefficient | O(n log n) |
-| `pc` | Regression | Pearson correlation | O(n) |
-| `dc` | Regression | Distance correlation | O(n²) |
+| Selector | Task           | Description                        | Complexity |
+| -------- | -------------- | ---------------------------------- | ---------- |
+| `mc`     | Classification | Multiple correlation (ANOVA-based) | O(n)       |
+| `mi`     | Classification | Mutual information                 | O(n log n) |
+| `rdc`    | Both           | Randomized Dependence Coefficient  | O(n log n) |
+| `pc`     | Regression     | Pearson correlation                | O(n)       |
+| `dc`     | Regression     | Distance correlation               | O(n²)      |
 
 ### Advanced Capabilities
 
-- **Bonferroni Correction**: Controls family-wise error rate when testing multiple features
+- **Bonferroni Correction**: Controls family-wise error rate when testing
+  multiple features
 - **Feature Muting**: Automatically removes clearly uninformative features
-- **Honest Estimation**: Sample splitting for unbiased leaf predictions (Wager & Athey, 2018)
-- **Conformal Prediction**: Distribution-free prediction intervals with coverage guarantees
-- **SHAP Support**: Model-agnostic feature attributions
+- **Honest Estimation**: Optional sample splitting to reduce adaptive bias in
+  leaf estimation (Wager & Athey, 2018)
 
 ## Algorithm Overview
 
@@ -140,79 +155,112 @@ function BuildTree(X, y, depth):
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Algorithm Details](docs/algorithm.md) | Deep dive into conditional inference |
-| [Selectors](docs/selectors.md) | Feature selection methods (mc, mi, rdc, pc, dc) |
-| [Splitters](docs/splitters.md) | Split criteria (gini, entropy, mse, mae) |
-| [Permutation Tests](docs/permutation-tests.md) | Statistical testing framework |
-| [Honest Estimation](docs/honest-estimation.md) | Sample splitting for causal inference |
-| [Conformal Prediction](docs/conformal-prediction.md) | Uncertainty quantification |
-| [SHAP Integration](docs/shap.md) | Feature attributions |
+| Document                                       | Description                                     |
+| ---------------------------------------------- | ----------------------------------------------- |
+| [Algorithm Details](docs/algorithm.md)         | Deep dive into conditional inference            |
+| [Selectors](docs/selectors.md)                 | Feature selection methods (mc, mi, rdc, pc, dc) |
+| [Splitters](docs/splitters.md)                 | Split criteria (gini, entropy, mse, mae)        |
+| [Permutation Tests](docs/permutation-tests.md) | Statistical testing framework                   |
+| [Honest Estimation](docs/honest-estimation.md) | Sample splitting for causal inference           |
 
 ## Parameters Reference
 
 ### Core Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `selector` | str or list | `'mc'`/`'pc'` | Feature selection method |
-| `splitter` | str | `'gini'`/`'mse'` | Split criterion |
-| `alpha_selector` | float | 0.05 | P-value threshold for feature selection |
-| `alpha_splitter` | float | 0.05 | P-value threshold for split selection |
-| `n_resamples_selector` | str/int | `'auto'` | Permutation resamples for selector |
-| `n_resamples_splitter` | str/int | `'auto'` | Permutation resamples for splitter |
+| Parameter              | Type                | Default           | Description                                                            |
+| ---------------------- | ------------------- | ----------------- | ---------------------------------------------------------------------- |
+| `selector`             | str or list         | `'mc'`/`'pc'`     | Feature selection method                                               |
+| `splitter`             | str                 | `'gini'`/`'mse'`  | Split criterion                                                        |
+| `alpha_selector`       | float               | 0.05              | P-value threshold for feature selection                                |
+| `alpha_splitter`       | float               | 0.05              | P-value threshold for split selection                                  |
+| `n_resamples_selector` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for selector (`None` disables permutation tests) |
+| `n_resamples_splitter` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for splitter (`None` disables permutation tests) |
 
 ### Optimization Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `adjust_alpha_selector` | bool | True | Bonferroni correction for features |
-| `adjust_alpha_splitter` | bool | True | Bonferroni correction for thresholds |
-| `early_stopping_selector` | bool | True | Stop on first significant feature |
-| `early_stopping_splitter` | bool | True | Stop on first significant split |
-| `feature_muting` | bool | True | Remove uninformative features |
-| `feature_scanning` | bool | True | Test promising features first |
+| Parameter                            | Type               | Default                  | Description                                                        |
+| ------------------------------------ | ------------------ | ------------------------ | ------------------------------------------------------------------ |
+| `adjust_alpha_selector`              | bool               | True                     | Bonferroni correction for features                                 |
+| `adjust_alpha_splitter`              | bool               | True                     | Bonferroni correction for thresholds                               |
+| `early_stopping_selector`            | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for selector permutation tests            |
+| `early_stopping_splitter`            | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests            |
+| `early_stopping_confidence_selector` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (selectors) |
+| `early_stopping_confidence_splitter` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (splitters) |
+| `feature_muting`                     | bool               | True                     | Remove uninformative features                                      |
+| `feature_scanning`                   | bool               | True                     | Test promising features first                                      |
 
 ### Tree Structure Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_depth` | int | None | Maximum tree depth |
-| `min_samples_split` | int | 2 | Minimum samples to split |
-| `min_samples_leaf` | int | 1 | Minimum samples in leaf |
-| `max_features` | str/int/float | None | Features per split |
-| `threshold_method` | str | `'exact'` | How to generate split candidates |
+| Parameter               | Type                           | Default                 | Description                        |
+| ----------------------- | ------------------------------ | ----------------------- | ---------------------------------- |
+| `max_depth`             | int                            | None                    | Maximum tree depth                 |
+| `min_samples_split`     | int                            | 2                       | Minimum samples to split           |
+| `min_samples_leaf`      | int                            | 1                       | Minimum samples in leaf            |
+| `min_impurity_decrease` | float                          | 0.0                     | Minimum impurity decrease to split |
+| `max_features`          | MaxValuesMethod/int/float/None | None                    | Features per split                 |
+| `threshold_method`      | ThresholdMethod                | `ThresholdMethod.EXACT` | How to generate split candidates   |
+| `max_thresholds`        | MaxValuesMethod/int/float/None | None                    | Maximum thresholds per feature     |
+| `threshold_scanning`    | bool                           | True                    | Test promising thresholds first    |
+
+### Honest Estimation
+
+| Parameter          | Type  | Default | Description                                         |
+| ------------------ | ----- | ------- | --------------------------------------------------- |
+| `honesty`          | bool  | False   | Enable sample splitting                             |
+| `honesty_fraction` | float | 0.5     | Fraction for estimation sample (rest for splitting) |
 
 ### Forest Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `n_estimators` | int | 100 | Number of trees |
-| `max_samples` | float | None | Bootstrap sample size |
-| `bootstrap_method` | str | `'bayesian'` | Sampling method |
-| `n_jobs` | int | 1 | Parallel jobs (-1 for all cores) |
+| Parameter          | Type                 | Default                     | Description                                   |
+| ------------------ | -------------------- | --------------------------- | --------------------------------------------- |
+| `n_estimators`     | int                  | 100                         | Number of trees                               |
+| `max_samples`      | int/float/None       | None                        | Bootstrap sample size (count or fraction)     |
+| `bootstrap_method` | BootstrapMethod/None | `BootstrapMethod.BAYESIAN`  | Sampling method                               |
+| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to stratify samples                       |
+| `n_jobs`           | int/None             | None                        | Parallel jobs (-1 for all cores)              |
+| `oob_score`        | bool                 | False                       | Compute out-of-bag score (requires bootstrap) |
+
+Notes:
+
+- `sampling_method` applies to classification forests only and is ignored when
+  `bootstrap_method=None`.
+- `max_samples` is only used when `bootstrap_method` is not `None`.
+- `bootstrap_method=None` disables bootstrapping (and thus OOB).
+- Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
+  `None`).
+- OOB scores are computed only for samples that receive at least one OOB
+  prediction.
+
+### Miscellaneous Parameters
+
+| Parameter                     | Type     | Default | Description                                                |
+| ----------------------------- | -------- | ------- | ---------------------------------------------------------- |
+| `random_state`                | int/None | None    | Random seed for permutation tests, sampling, and bootstrap |
+| `verbose`                     | int      | 1       | Verbosity level (0=quiet; higher prints more progress)     |
+| `check_for_unused_parameters` | bool     | False   | Warn when parameters are ineffective due to other settings |
 
 ## Comparison with Other Methods
 
-| Feature | citrees | sklearn RF | XGBoost | R partykit |
-|---------|---------|-----------|---------|------------|
-| Variable selection bias | No | Yes | Yes | No |
-| Statistical stopping | Yes | No | No | Yes |
-| Permutation tests | Yes | No | No | Yes |
-| Python native | Yes | Yes | Yes | No |
-| GPU support | No | No | Yes | No |
-| Honest estimation | Yes | No | No | Yes |
+| Feature                 | citrees | sklearn RF | XGBoost | R partykit |
+| ----------------------- | ------- | ---------- | ------- | ---------- |
+| Variable selection bias | No      | Yes        | Yes     | No         |
+| Statistical stopping    | Yes     | No         | No      | Yes        |
+| Permutation tests       | Yes     | No         | No      | Yes        |
+| Python native           | Yes     | Yes        | Yes     | No         |
+| GPU support             | No      | No         | Yes     | No         |
+| Honest estimation       | Yes     | No         | No      | Yes        |
 
 ## Benchmarks
 
 citrees excels in scenarios requiring:
+
 - **Unbiased feature selection** for interpretability
 - **High-dimensional data** where many features are noise
 - **Statistical rigor** for scientific applications
 - **Causal inference** with honest estimation
 
-For pure prediction performance on tabular data, gradient boosting methods (XGBoost, LightGBM) typically achieve higher accuracy.
+For pure prediction performance on tabular data, gradient boosting methods
+(XGBoost, LightGBM) typically achieve higher accuracy.
 
 ## Development
 
@@ -242,19 +290,31 @@ uv run pre-commit run --all-files
 
 ### Core Papers
 
-1. Hothorn, T., Hornik, K., & Zeileis, A. (2006). [Unbiased Recursive Partitioning: A Conditional Inference Framework](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933). *Journal of Computational and Graphical Statistics*, 15(3), 651-674.
+1. Hothorn, T., Hornik, K., & Zeileis, A. (2006).
+   [Unbiased Recursive Partitioning: A Conditional Inference Framework](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933).
+   _Journal of Computational and Graphical Statistics_, 15(3), 651-674.
 
-2. Strobl, C., Boulesteix, A. L., Zeileis, A., & Hothorn, T. (2007). [Bias in Random Forest Variable Importance Measures](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-8-25). *BMC Bioinformatics*, 8(1), 25.
+2. Strobl, C., Boulesteix, A. L., Zeileis, A., & Hothorn, T. (2007).
+   [Bias in Random Forest Variable Importance Measures](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-8-25).
+   _BMC Bioinformatics_, 8(1), 25.
 
-3. Strobl, C., Boulesteix, A. L., Kneib, T., Augustin, T., & Zeileis, A. (2008). [Conditional Variable Importance for Random Forests](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-307). *BMC Bioinformatics*, 9(1), 307.
+3. Strobl, C., Boulesteix, A. L., Kneib, T., Augustin, T., & Zeileis, A. (2008).
+   [Conditional Variable Importance for Random Forests](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-307).
+   _BMC Bioinformatics_, 9(1), 307.
 
 ### Additional Methods
 
-4. Wager, S., & Athey, S. (2018). [Estimation and Inference of Heterogeneous Treatment Effects using Random Forests](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839). *JASA*, 113(523), 1228-1242.
+4. Wager, S., & Athey, S. (2018).
+   [Estimation and Inference of Heterogeneous Treatment Effects using Random Forests](https://www.tandfonline.com/doi/full/10.1080/01621459.2017.1319839).
+   _JASA_, 113(523), 1228-1242.
 
-5. Lopez-Paz, D., Hennig, P., & Schölkopf, B. (2013). [The Randomized Dependence Coefficient](https://arxiv.org/abs/1304.7717). *NeurIPS*.
+5. Lopez-Paz, D., Hennig, P., & Schölkopf, B. (2013).
+   [The Randomized Dependence Coefficient](https://arxiv.org/abs/1304.7717).
+   _NeurIPS_.
 
-6. Székely, G. J., Rizzo, M. L., & Bakirov, N. K. (2007). [Measuring and Testing Dependence by Correlation of Distances](https://projecteuclid.org/journals/annals-of-statistics/volume-35/issue-6/Measuring-and-testing-dependence-by-correlation-of-distances/10.1214/009053607000000505.full). *Annals of Statistics*, 35(6), 2769-2794.
+6. Székely, G. J., Rizzo, M. L., & Bakirov, N. K. (2007).
+   [Measuring and Testing Dependence by Correlation of Distances](https://projecteuclid.org/journals/annals-of-statistics/volume-35/issue-6/Measuring-and-testing-dependence-by-correlation-of-distances/10.1214/009053607000000505.full).
+   _Annals of Statistics_, 35(6), 2769-2794.
 
 ## License
 

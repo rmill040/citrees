@@ -1,0 +1,36 @@
+\section{Implementation notes (aligned to \citrees)}
+\label{app:implementation}
+
+This appendix records implementation details that matter for reproducibility and
+for interpreting the scope of the theoretical statements in
+\cref{sec:theory}.
+
+This appendix complements Appendix~\ref{app:methods}: the methods appendix
+records algorithmic details, while this appendix focuses on reproducibility
+details (RNG, compilation modes, and implementation choices that affect how to
+interpret results).
+
+\subsection{Registry pattern}
+
+\citrees registers selectors and splitters via decorators to keep the codebase
+extensible while preserving a small, stable public API.
+
+\subsection{Testing modes (Numba JIT on/off)}
+
+Performance-critical routines are implemented with Numba. The test suite supports
+both JIT-enabled execution (to validate compiled code paths) and JIT-disabled
+execution (to enable line coverage in CI).
+
+\subsection{Randomness and reproducibility}
+
+\citrees uses isolated RNG streams in pure Python code and a per-iteration seeding
+pattern inside Numba-parallel loops where necessary.
+
+\subsection{Bootstrap methods in forests}
+
+Forests can optionally resample training rows per tree. In classic bootstrap
+mode, rows are sampled with replacement uniformly. In Bayesian bootstrap mode,
+rows are sampled with replacement using a random probability vector drawn via
+normalized exponential weights (equivalently a Dirichlet$(1,\dots,1)$ draw).
+This affects only the per-tree resampling distribution; it does not change the
+fixed-node permutation-test validity statements in \cref{sec:theory}.

@@ -14,6 +14,7 @@ import io
 import os
 import subprocess
 import threading
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -62,14 +63,37 @@ def get_data_dir(task_type: TaskType, source: DataSource = "real") -> Path:
         paper/data/classification/real/      - real classification datasets
         paper/data/classification/synthetic/ - synthetic classification datasets
         paper/data/regression/real/          - real regression datasets
-        paper/data/regression/synthetic/     - (future)
+        paper/data/regression/synthetic/     - synthetic regression datasets
     """
     return get_repo_root() / "paper" / "data" / task_type / source
 
 
+def get_data_cache_dir() -> Path:
+    """Return the local cache directory for S3 datasets.
+
+    On workers, datasets are downloaded from S3 to this cache directory.
+    Uses /tmp/citrees-data for fast local access.
+    """
+    cache_dir = Path("/tmp/citrees-data")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def get_data_s3_prefix(task_type: TaskType, source: DataSource) -> str:
+    """Return the S3 prefix for datasets."""
+    return f"data/{task_type}/{source}"
+
+
 def get_s3_bucket() -> str:
-    """Return the S3 bucket name from environment (required)."""
-    return os.environ["S3_BUCKET"]
+    """Return the S3 bucket name from environment (required for S3-backed runs)."""
+    bucket = os.environ.get("S3_BUCKET", "").strip()
+    if not bucket:
+        raise RuntimeError(
+            "S3_BUCKET is required but not set. "
+            "Set it explicitly (e.g., `export S3_BUCKET=...`) or use the Ray cluster setup "
+            "that exports S3_BUCKET on the head/workers."
+        )
+    return bucket
 
 
 def utc_now_iso() -> str:
@@ -81,31 +105,23 @@ def get_library_versions() -> dict[str, str]:
     """Return versions of key libraries for reproducibility tracking."""
     versions: dict[str, str] = {}
 
-    try:
+    with suppress(Exception):
         import sklearn
 
         versions["sklearn"] = sklearn.__version__
-    except Exception:
-        pass
 
-    try:
+    with suppress(Exception):
         versions["numpy"] = np.__version__
-    except Exception:
-        pass
 
-    try:
+    with suppress(Exception):
         import numba
 
         versions["numba"] = numba.__version__
-    except Exception:
-        pass
 
-    try:
+    with suppress(Exception):
         import citrees
 
         versions["citrees"] = getattr(citrees, "__version__", "unknown")
-    except Exception:
-        pass
 
     return versions
 
@@ -230,6 +246,104 @@ def get_dataset_path(
     return search_dir / f"{prefix}{name}.parquet"
 
 
+def _load_parquet_to_arrays(path: Path, task_type: TaskType) -> tuple[np.ndarray, np.ndarray]:
+    """Load a parquet file into (X, y) numpy arrays."""
+    df = pd.read_parquet(path)
+    y = df.pop("y").values
+    y = y.astype(np.int64) if task_type == "classification" else y.astype(np.float64)
+    X = df.values.astype(np.float64)
+    return X, y
+
+
+def ensure_dataset_cached(
+    name: str,
+    task_type: TaskType,
+    source: DataSource,
+    *,
+    region_name: str | None = None,
+) -> Path:
+    """Download dataset from S3 to local cache if not already present.
+
+    Uses file-based locking to prevent redundant downloads when multiple
+    workers request the same dataset concurrently.
+
+    Parameters
+    ----------
+    name : str
+        Dataset name (without prefix).
+    task_type : TaskType
+        Either "classification" or "regression".
+    source : DataSource
+        Either "real" or "synthetic".
+    region_name : str, optional
+        AWS region name for S3 client.
+
+    Returns
+    -------
+    Path
+        Path to the cached parquet file.
+
+    Raises
+    ------
+    RuntimeError
+        If S3_BUCKET is not set or download fails.
+    """
+    import fcntl
+
+    cache_dir = get_data_cache_dir()
+    prefix = get_dataset_prefix(task_type)
+    filename = f"{prefix}{name}.parquet"
+
+    # Create subdirectory structure matching S3: data/{task_type}/{source}/
+    local_dir = cache_dir / task_type / source
+    local_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = local_dir / filename
+
+    # Fast path: already cached
+    if cache_path.exists():
+        return cache_path
+
+    # Slow path: acquire lock, check again, download if needed
+    lock_path = cache_path.with_suffix(".lock")
+    with open(lock_path, "w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+
+        # Check again after acquiring lock (another worker may have downloaded)
+        if cache_path.exists():
+            return cache_path
+
+        # Download from S3
+        bucket = get_s3_bucket()
+        s3_key = f"{get_data_s3_prefix(task_type, source)}/{filename}"
+        s3_path = f"s3://{bucket}/{s3_key}"
+
+        logger.info(f"Downloading dataset from S3: {s3_path} -> {cache_path}")
+        try:
+            client = get_s3_client(region_name=region_name)
+            response = client.get_object(Bucket=bucket, Key=s3_key)
+            content = response["Body"].read()
+
+            # Write atomically to avoid partial files
+            # Use pid + tid to avoid collisions when multiple workers download concurrently
+            tmp_path = cache_path.with_suffix(
+                f".tmp.{os.getpid()}.{threading.current_thread().ident}"
+            )
+            tmp_path.write_bytes(content)
+            tmp_path.rename(cache_path)
+
+            logger.info(f"Successfully cached dataset: {cache_path} ({len(content)} bytes)")
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if code in {"404", "NoSuchKey", "NotFound"}:
+                raise FileNotFoundError(
+                    f"Dataset not found in S3: {s3_path}. "
+                    f"Upload datasets with: aws s3 sync paper/data/ s3://{bucket}/data/"
+                ) from e
+            raise RuntimeError(f"Failed to download dataset from S3: {s3_path}") from e
+
+    return cache_path
+
+
 def load_dataset(
     name: str,
     task_type: TaskType,
@@ -237,16 +351,44 @@ def load_dataset(
     source: DataSource | None = None,
     data_dir: Path | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Load dataset into (X, y) numpy arrays."""
+    """Load dataset into (X, y) numpy arrays.
+
+    Resolution order:
+    1. Local path (for local development or custom data_dir)
+    2. S3 download to /tmp/citrees-data/ cache (for Ray workers)
+
+    Parameters
+    ----------
+    name : str
+        Dataset name (without prefix).
+    task_type : TaskType
+        Either "classification" or "regression".
+    source : {"real", "synthetic"}, optional
+        If None, infers from name: "synthetic" if name contains "synthetic", else "real".
+    data_dir : Path, optional
+        Override base data directory (mainly for testing).
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        (X, y) arrays where X is float64 and y is int64 (classification) or float64 (regression).
+    """
+    # Infer source if not provided
+    if source is None:
+        source = "synthetic" if "synthetic" in name else "real"
+
+    # Try local path first
     path = get_dataset_path(name, task_type, source=source, data_dir=data_dir)
-    df = pd.read_parquet(path)
-    y = df.pop("y").values
-    if task_type == "classification":
-        y = y.astype(np.int64)
-    else:
-        y = y.astype(np.float64)
-    X = df.values.astype(np.float64)
-    return X, y
+    if path.exists():
+        return _load_parquet_to_arrays(path, task_type)
+
+    # Fall back to S3 cache (only when data_dir is not specified)
+    if data_dir is None:
+        cache_path = ensure_dataset_cached(name, task_type, source)
+        return _load_parquet_to_arrays(cache_path, task_type)
+
+    # data_dir was specified but file doesn't exist
+    raise FileNotFoundError(f"Dataset not found: {path}")
 
 
 def get_dataset_shape(
@@ -257,7 +399,14 @@ def get_dataset_shape(
     data_dir: Path | None = None,
 ) -> tuple[int, int]:
     """Get (n_samples, n_features) from parquet metadata without loading full dataset."""
+    # Infer source if not provided
+    if source is None:
+        source = "synthetic" if "synthetic" in name else "real"
+
+    # Resolve path: local first, then S3 cache
     path = get_dataset_path(name, task_type, source=source, data_dir=data_dir)
+    if not path.exists() and data_dir is None:
+        path = ensure_dataset_cached(name, task_type, source)
 
     if pq is not None:
         try:
@@ -383,8 +532,14 @@ def get_dataset_metadata(
     - n_informative: number of informative features (synthetic only)
     - config: full generation config (synthetic only)
     """
-    path = get_dataset_path(name, task_type, source=source, data_dir=data_dir)
+    # Infer source if not provided
     inferred_source: DataSource = "synthetic" if "synthetic" in name else "real"
+    resolved_source = source if source is not None else inferred_source
+
+    # Resolve path: local first, then S3 cache
+    path = get_dataset_path(name, task_type, source=resolved_source, data_dir=data_dir)
+    if not path.exists() and data_dir is None:
+        path = ensure_dataset_cached(name, task_type, resolved_source)
 
     metadata: dict[str, Any] = {
         "dataset_source": inferred_source,

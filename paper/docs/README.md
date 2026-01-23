@@ -73,8 +73,16 @@ print(f'Top 5 features: {results[0][\"feature_ranking\"][:5]}')
 See [infrastructure.md](infrastructure.md) for full AWS setup.
 
 ```bash
-# Generate config first
-AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
+# One-time setup:
+# - creates IAM role + instance profile for Ray autoscaling + S3/ECR access
+# - creates S3 bucket (citrees-{account_id})
+# - creates ECR repo (citrees-{account_id})
+# - builds + pushes Docker image to ECR
+# - generates paper/scripts/infra/ray/cluster.yaml with your IP + provenance
+AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --setup
+
+# If you already have the IAM role + Docker image, you can regenerate cluster.yaml only:
+# AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
 
 # Start Ray cluster
 AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
@@ -89,6 +97,15 @@ AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
 
 # Tear down
 AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
+```
+
+Note: The Ray cluster runs inside Docker on EC2. To allow containers to fetch
+instance profile credentials via IMDSv2, the cluster config sets hop limit 2:
+
+```yaml
+MetadataOptions:
+  HttpTokens: required
+  HttpPutResponseHopLimit: 2
 ```
 
 ## Two-Stage Architecture
@@ -428,9 +445,13 @@ uv run python paper/scripts/analysis/stats.py
 uv run python paper/scripts/analysis/generate_figures.py
 ```
 
-`stats.py` now emits overall aggregates plus per‑downstream‑model and
-per‑model‑per‑k outputs in `paper/results/analysis/` (see prefixes like
-`clf_lr_*`, `clf_lr_k10_*`, `reg_ridge_*`).
+`stats.py` emits overall aggregates plus per‑downstream‑model and
+per‑model‑per‑k tables/figures in:
+
+- `paper/results/tables/` (CSV/LaTeX)
+- `paper/results/figures/` (PNG)
+
+See prefixes like `clf_lr_*`, `clf_lr_k10_*`, `reg_ridge_*`.
 
 **OOB scoring note (forests).** If you enable `oob_score=True` in the forest
 models, OOB predictions are computed only for samples that are out-of-bag for at

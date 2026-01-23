@@ -278,7 +278,7 @@ def run_cdf_timing_benchmark(n_iterations: int = 100000):
 
     # Benchmark Beta CDF
     start = time.perf_counter()
-    for k, n in zip(ks, ns):
+    for k, n in zip(ks, ns, strict=False):
         a = 1.0 + k
         b = 1.0 + n - k
         _ = beta_cdf_njit(0.05, a, b)
@@ -286,7 +286,7 @@ def run_cdf_timing_benchmark(n_iterations: int = 100000):
 
     # Benchmark Binomial CDF (via Beta)
     start = time.perf_counter()
-    for k, n in zip(ks, ns):
+    for k, n in zip(ks, ns, strict=False):
         _ = binomial_cdf_njit(k, n, 0.05)
     binom_time = time.perf_counter() - start
 

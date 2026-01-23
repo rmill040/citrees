@@ -477,12 +477,15 @@ def cpi_selector(
 ) -> np.ndarray:
     if task_type == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
-        scoring_fn = lambda m, X, y: (m.predict(X) == y).mean()
+
+        def scoring_fn(m, X, y):
+            return (m.predict(X) == y).mean()
+
     else:
         model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
-        scoring_fn = (
-            lambda m, X, y: 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
-        )
+
+        def scoring_fn(m, X, y):
+            return 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
 
     stratify = y_train if task_type == "classification" else None
     X_fit, X_val, y_fit, y_val = train_test_split(
@@ -501,7 +504,7 @@ def cpi_selector(
 
     for j in range(n_features):
         scores = []
-        for rep in range(n_repeats):
+        for _rep in range(n_repeats):
             X_perm = X_val.copy()
             corr_features = _find_correlated(X_val, j, correlation_threshold)
 

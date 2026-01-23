@@ -37,6 +37,25 @@ class Registry:
         """
         return list(self._registry.keys())
 
+    def __contains__(self, key: object) -> bool:
+        """Return True if alias exists in the registry.
+
+        Without this method, Python may fall back to the sequence protocol for
+        membership checks and call ``__getitem__`` with integer indices (0, 1, ...),
+        which is not what this mapping-like type intends.
+        """
+        if not isinstance(key, str):
+            return False
+        return key in self._registry
+
+    def __iter__(self):
+        """Iterate over registered aliases."""
+        return iter(self._registry)
+
+    def __len__(self) -> int:
+        """Return the number of registered aliases."""
+        return len(self._registry)
+
     def __getitem__(self, key: str) -> T:  # type: ignore
         """Get item in registry.
 

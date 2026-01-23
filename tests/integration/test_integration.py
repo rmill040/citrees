@@ -270,6 +270,42 @@ class TestConditionalInferenceTreeRegressor:
             reg.fit(X, y)
             assert reg.predict(X).shape == y.shape
 
+    def test_feature_importances(self, regression_data):
+        """Test feature importances are computed for regressor."""
+        X, y = regression_data
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
+        reg.fit(X, y)
+
+        fi = reg.feature_importances_
+        assert fi.shape == (X.shape[1],)
+        assert (fi >= 0).all()
+
+    def test_clone_and_refit(self, regression_data):
+        """Test that cloning works correctly for regressor."""
+        X, y = regression_data
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS, alpha_selector=0.1)
+        reg.fit(X, y)
+
+        reg2 = clone(reg)
+        assert reg2.alpha_selector == 0.1
+        assert not hasattr(reg2, "tree_")  # Not fitted yet
+
+        reg2.fit(X, y)
+        assert hasattr(reg2, "tree_")
+
+    def test_apply_and_decision_path(self, regression_data):
+        """Test apply and decision_path for regressor."""
+        X, y = regression_data
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
+        reg.fit(X, y)
+
+        leaf_ids = reg.apply(X)
+        assert leaf_ids.shape == (len(X),)
+
+        path = reg.decision_path(X)
+        assert path.shape[0] == len(X)
+        assert leaf_ids.max() < path.shape[1]
+
 
 # Forest Classifier Tests
 class TestConditionalInferenceForestClassifier:
@@ -381,6 +417,45 @@ class TestConditionalInferenceForestRegressor:
             reg.fit(X, y)
             assert reg.predict(X).shape == y.shape
 
+    def test_parallel_training(self, regression_data):
+        """Test parallel training with n_jobs for regressor."""
+        X, y = regression_data
+        reg = ConditionalInferenceForestRegressor(n_estimators=10, n_jobs=2, **FAST_PARAMS)
+        reg.fit(X, y)
+        assert len(reg.estimators_) == 10
+        assert reg.predict(X).shape == y.shape
+
+    def test_feature_importances(self, regression_data):
+        """Test feature importances for forest regressor."""
+        X, y = regression_data
+        reg = ConditionalInferenceForestRegressor(n_estimators=5, **FAST_PARAMS)
+        reg.fit(X, y)
+
+        fi = reg.feature_importances_
+        assert fi.shape == (X.shape[1],)
+        assert (fi >= 0).all()
+
+    def test_max_samples_configurations(self, regression_data):
+        """Test different max_samples configurations for regressor."""
+        X, y = regression_data
+
+        # Test with integer max_samples
+        reg1 = ConditionalInferenceForestRegressor(n_estimators=5, max_samples=50, **FAST_PARAMS)
+        reg1.fit(X, y)
+        assert reg1.predict(X).shape == y.shape
+
+        # Test with float max_samples
+        reg2 = ConditionalInferenceForestRegressor(n_estimators=5, max_samples=0.8, **FAST_PARAMS)
+        reg2.fit(X, y)
+        assert reg2.predict(X).shape == y.shape
+
+    def test_n_jobs_minus_one(self, regression_data):
+        """Test forest regressor with n_jobs=-1 (all cores)."""
+        X, y = regression_data
+        reg = ConditionalInferenceForestRegressor(n_estimators=5, n_jobs=-1, **FAST_PARAMS)
+        reg.fit(X, y)
+        assert len(reg.estimators_) == 5
+
 
 # Cross-validation Tests
 class TestCrossValidation:
@@ -482,25 +557,25 @@ class TestParameterValidation:
     def test_invalid_selector_classifier(self):
         """Test invalid selector for classifier."""
         with pytest.raises(ValueError):
-            clf = ConditionalInferenceTreeClassifier(selector="invalid")
+            ConditionalInferenceTreeClassifier(selector="invalid")
 
     def test_invalid_splitter_classifier(self):
         """Test invalid splitter for classifier."""
         with pytest.raises(ValueError):
-            clf = ConditionalInferenceTreeClassifier(splitter="mse")  # mse is for regressor
+            ConditionalInferenceTreeClassifier(splitter="mse")  # mse is for regressor
 
     def test_invalid_selector_regressor(self):
         """Test invalid selector for regressor."""
         with pytest.raises(ValueError):
-            reg = ConditionalInferenceTreeRegressor(selector="mc")  # mc is for classifier
+            ConditionalInferenceTreeRegressor(selector="mc")  # mc is for classifier
 
     def test_invalid_alpha(self):
         """Test invalid alpha values."""
         with pytest.raises(ValueError):
-            clf = ConditionalInferenceTreeClassifier(alpha_selector=0.0)
+            ConditionalInferenceTreeClassifier(alpha_selector=0.0)
 
         with pytest.raises(ValueError):
-            clf = ConditionalInferenceTreeClassifier(alpha_selector=1.5)
+            ConditionalInferenceTreeClassifier(alpha_selector=1.5)
 
 
 # Reproducibility Tests

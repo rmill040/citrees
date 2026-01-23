@@ -84,6 +84,13 @@ class TestCalculateMaxValue:
         result = calculate_max_value(n_values=50, desired_max=0.8)
         assert result == 40
 
+    def test_numpy_floating(self):
+        """Test with numpy floating types (e.g., np.float64)."""
+        result = calculate_max_value(n_values=100, desired_max=np.float64(0.5))
+        assert result == 50
+        result = calculate_max_value(n_values=100, desired_max=np.float32(0.25))
+        assert result == 25
+
 
 class TestSplitData:
     """Tests for split_data function."""
@@ -392,7 +399,7 @@ class TestUtilsPyFunc:
         y = np.array([0, 1, 2])
         jit_result = split_data(X=X, y=y, feature=0, threshold=2.5)
         py_result = split_data(X=X, y=y, feature=0, threshold=2.5)
-        for jit_arr, py_arr in zip(jit_result, py_result):
+        for jit_arr, py_arr in zip(jit_result, py_result, strict=False):
             assert np.allclose(jit_arr, py_arr)
 
     # bayesian_bootstrap_proba py_func tests

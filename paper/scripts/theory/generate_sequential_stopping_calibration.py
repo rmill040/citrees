@@ -18,6 +18,8 @@ Run:
   uv run python paper/scripts/theory/generate_sequential_stopping_calibration.py
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

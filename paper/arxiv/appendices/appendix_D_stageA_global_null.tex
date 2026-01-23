@@ -1,0 +1,16 @@
+\section{Proof of Proposition~\ref{prop:stageA-global-null}}
+\label{app:proof-stageA-global}
+
+\paragraph{Claim.} Proposition~\ref{prop:stageA-global-null}.
+\paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}).
+
+Stage~A rejects the global null only if
+$\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$. Under the global null,
+each $p_{t,j}$ is super-uniform, and the union bound gives
+%
+\begin{equation}
+  \PP\!\left(\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t\right)
+  \le \sum_{j \in F_t} \PP(p_{t,j} \le \alpha_{\mathrm{sel}}/m_t)
+  \le m_t \cdot \frac{\alpha_{\mathrm{sel}}}{m_t}
+  = \alpha_{\mathrm{sel}}.
+\end{equation}

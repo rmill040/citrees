@@ -359,7 +359,7 @@ permutation budget:
 
 This ensures the p-value grid has enough resolution to compare against the
 Bonferroni-adjusted threshold $\alpha/n_{\text{tests}}$ (see also
-`paper/docs/paper.md` Appendix A.2.1 for the fixed-$B$ grid calculation).
+`paper/notes/notes.md` Appendix A.2.1 for the fixed-$B$ grid calculation).
 
 For a **single** test at level $\alpha = 0.05$ this yields:
 

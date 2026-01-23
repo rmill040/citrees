@@ -471,7 +471,7 @@ class TestForestReproducibility:
 
         # At least one estimator should differ
         trees_differ = False
-        for t1, t2 in zip(clf1.estimators_, clf2.estimators_):
+        for t1, t2 in zip(clf1.estimators_, clf2.estimators_, strict=False):
             if t1.random_state != t2.random_state:
                 trees_differ = True
                 break

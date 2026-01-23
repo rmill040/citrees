@@ -15,6 +15,7 @@ import argparse
 import signal
 import time
 from collections.abc import Callable, Iterable
+from contextlib import suppress
 from typing import Any
 
 import ray
@@ -88,7 +89,6 @@ def build_common_parser(description: str) -> argparse.ArgumentParser:
 
 
 def init_ray(ray_address: str) -> None:
-    import os
     from pathlib import Path
 
     register_signal_handlers()
@@ -248,10 +248,8 @@ def run_futures(
                 "Shutdown requested [{}]: cancelling {} pending tasks", stage, len(pending)
             )
             for future in pending:
-                try:
+                with suppress(Exception):
                     ray.cancel(future, force=False)
-                except Exception:
-                    pass  # Best effort cancellation
             status_counts["cancelled"] = len(pending)
             break
 

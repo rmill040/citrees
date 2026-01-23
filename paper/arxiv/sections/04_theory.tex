@@ -1,0 +1,96 @@
+\section{Theory (fixed-node / root guarantees)}
+\label{sec:theory}
+
+This section states the inferential guarantees we use in the paper, in the
+strongest defensible form. Proofs are provided in the appendices.
+
+\subsection{Setup and assumptions}
+\label{sec:theory-setup}
+
+We state results for a \emph{fixed} node $t$ with index set $I_t$ and data
+$(X_t, Y_t)$. Let $F_t$ be the tested feature set at node $t$, with
+$m_t := |F_t|$.
+
+Our guarantees are finite-sample and fixed-node: they are cleanest at the root.
+We keep all assumptions explicit and aligned across results; see the assumptions
+ledger in \cref{app:assumptions} and the compact checklist in
+\cref{app:assumption-checklist}. The core requirements are conditional
+exchangeability under the null, a label-independent tested family and resampling
+budget, fixed-$B$ p-values (no optional stopping), and a conservative or
+randomized tie convention.
+
+\subsection{Validity of the +1 Monte Carlo permutation p-value}
+\label{sec:theory-plusone}
+
+\begin{theorem}[+1 permutation p-values are super-uniform]
+\label{them:plusone-superuniform}
+Assume A0.1--A0.5 (\cref{app:assumptions}). In particular, under the null
+hypothesis being tested, the permutation statistics $(T_0, T_1, \dots, T_B)$ are
+exchangeable (conditional on $(X_t, U)$). Define the +1 Monte Carlo p-value
+%
+\begin{equation}
+  p := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
+\end{equation}
+%
+Then for all $\alpha \in [0,1]$, $\PP(p \le \alpha) \le \alpha$.
+\end{theorem}
+
+\subsection{Stage A control via Bonferroni}
+\label{sec:theory-stageA}
+
+\begin{proposition}[Stage A global-null bound at a fixed node]
+\label{prop:stageA-global-null}
+Assume A0.1--A0.5 (\cref{app:assumptions}).
+Assume $H^{\mathrm{sel}}_{t,j}$ is true for all $j \in F_t$ and each $p_{t,j}$ is
+super-uniform. If Stage~A uses Bonferroni and rejects when
+$\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$, then
+%
+\begin{equation}
+  \PP\!\left(\exists j \in F_t : p_{t,j} \le \alpha_{\mathrm{sel}}/m_t\right) \le \alpha_{\mathrm{sel}}.
+\end{equation}
+\end{proposition}
+
+\begin{proposition}[Per-feature false selection bound (cardinality-free)]
+\label{prop:per-feature-bound}
+Assume A0.1--A0.5 (\cref{app:assumptions}).
+Fix a feature $j \in F_t$ whose Stage~A null $H^{\mathrm{sel}}_{t,j}$ is true, so
+$p_{t,j}$ is super-uniform. If Stage~A uses Bonferroni at level
+$\alpha_{\mathrm{sel}}/m_t$, then
+%
+\begin{equation}
+  \PP(\text{node $t$ splits on feature $j$}) \le \alpha_{\mathrm{sel}}/m_t.
+\end{equation}
+%
+In particular, the bound does not depend on the number of candidate thresholds
+available for feature $j$.
+\end{proposition}
+
+\subsection{A root-level global statement}
+\label{sec:theory-root}
+
+\begin{proposition}[Any split implies root Stage A rejection]
+\label{prop:any-split-implies-root-rejection}
+Assume A0.1--A0.5 at the root (\cref{app:assumptions}).
+Consider a tree grown with Stage~A screening at the root in fixed-$B$ mode. The
+fitted tree can only contain any internal split if the root passes Stage~A.
+Consequently, under a complete global null over tested root features,
+%
+\begin{equation}
+  \PP(\text{the fitted tree has at least one internal split}) \le \alpha_{\mathrm{sel}}.
+\end{equation}
+\end{proposition}
+
+\subsection{Multi-selector mode}
+\label{sec:theory-multiselector}
+
+\begin{proposition}[Multi-selector max-statistic validity]
+\label{prop:multiselector-validity}
+Assume A0.1--A0.5 (\cref{app:assumptions}). Fix a feature at a fixed node and
+let $T^{(1)}_b, \dots, T^{(K)}_b$ denote $K$ selector statistics computed on
+permutation $b$, and define $M_b := \max_k |T^{(k)}_b|$. If the joint vector of
+all selector statistics is exchangeable across permutations under the null,
+then the +1 p-value computed from $(M_b)$ is super-uniform.
+\end{proposition}
+
+\noindent See \cref{app:multiselector} for details and a discussion of
+scale/normalization considerations when mixing selectors.

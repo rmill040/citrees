@@ -448,7 +448,7 @@ def _generate_simple_grid(
 
     params: list[dict[str, Any]] = []
     for combo in product(*values):
-        config = dict(zip(keys, combo))
+        config = dict(zip(keys, combo, strict=False))
         config["method"] = method
         config["random_state"] = RANDOM_STATE
         params.append(config)

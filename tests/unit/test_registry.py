@@ -32,7 +32,8 @@ class TestRegistry:
         def my_func(x):
             return x * 2
 
-        assert "my_func" in reg.keys()
+        assert "my_func" in reg
+        assert "nonexistent" not in reg
         assert reg["my_func"](5) == 10
 
     def test_duplicate_alias_raises(self):

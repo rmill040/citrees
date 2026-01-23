@@ -20,7 +20,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 from theoretical_predictions import (
     RHO_GATE,
     critical_depth,
@@ -66,7 +65,7 @@ def plot_power_curves(
 
     # Gap region shading
     if gap.is_valid:
-        ax.axvspan(gap.p_min, gap.p_max, alpha=0.2, color=COLORS["gap"], label=f"Gap region")
+        ax.axvspan(gap.p_min, gap.p_max, alpha=0.2, color=COLORS["gap"], label="Gap region")
         ax.axvline(gap.p_min, color=COLORS["gap"], linestyle="--", alpha=0.7)
         ax.axvline(gap.p_max, color=COLORS["gap"], linestyle="--", alpha=0.7)
 
@@ -133,8 +132,24 @@ def plot_gap_region_by_n(
     # Left: Gap boundaries
     ax1 = axes[0]
     ax1.fill_between(valid_n, p_mins, p_maxs, alpha=0.3, color=COLORS["gap"], label="Gap region")
-    ax1.plot(valid_n, p_mins, "o-", color=COLORS["gate"], linewidth=2, markersize=6, label="$p_{min}$ (gate constraint)")
-    ax1.plot(valid_n, p_maxs, "s-", color=COLORS["root"], linewidth=2, markersize=6, label="$p_{max}$ (root constraint)")
+    ax1.plot(
+        valid_n,
+        p_mins,
+        "o-",
+        color=COLORS["gate"],
+        linewidth=2,
+        markersize=6,
+        label="$p_{min}$ (gate constraint)",
+    )
+    ax1.plot(
+        valid_n,
+        p_maxs,
+        "s-",
+        color=COLORS["root"],
+        linewidth=2,
+        markersize=6,
+        label="$p_{max}$ (root constraint)",
+    )
     ax1.set_xlabel("Sample size $n$", fontsize=12)
     ax1.set_ylabel("Gate probability $p$", fontsize=12)
     ax1.set_title("Gap Region Boundaries", fontsize=14)
@@ -185,17 +200,17 @@ def plot_depth_propagation(
 
     # At each depth, sample size halves
     n_at_depth = [n // (2**d) for d in depths]
-    n_gate_at_depth = [int(and * p) for and in n_at_depth]
+    n_gate_at_depth = [int(n_node * p) for n_node in n_at_depth]
 
     # Power at each depth (testing at the node level, not root)
     # For root-style test at depth d with reduced sample
     power_node = []
     power_gate = []
 
-    for d, and, ng in zip(depths, n_at_depth, n_gate_at_depth):
-        if and >= 4:
+    for _d, n_node, ng in zip(depths, n_at_depth, n_gate_at_depth, strict=False):
+        if n_node >= 4:
             # Power of detecting the diluted signal at this node
-            power_node.append(root_power(p, and, alpha))
+            power_node.append(root_power(p, n_node, alpha))
         else:
             power_node.append(0.0)
 
@@ -212,18 +227,40 @@ def plot_depth_propagation(
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    ax.plot(depths, power_node, "o-", color=COLORS["root"], linewidth=2, markersize=8, label="Root-style power at node")
-    ax.plot(depths, power_gate, "s-", color=COLORS["gate"], linewidth=2, markersize=8, label="Gate power")
+    ax.plot(
+        depths,
+        power_node,
+        "o-",
+        color=COLORS["root"],
+        linewidth=2,
+        markersize=8,
+        label="Root-style power at node",
+    )
+    ax.plot(
+        depths,
+        power_gate,
+        "s-",
+        color=COLORS["gate"],
+        linewidth=2,
+        markersize=8,
+        label="Gate power",
+    )
 
     # Reference lines
     ax.axhline(0.8, color="gray", linestyle=":", alpha=0.5)
     ax.axhline(0.2, color="gray", linestyle=":", alpha=0.5)
-    ax.axvline(d_crit, color=COLORS["gap"], linestyle="--", alpha=0.7, label=f"Critical depth = {d_crit:.1f}")
+    ax.axvline(
+        d_crit,
+        color=COLORS["gap"],
+        linestyle="--",
+        alpha=0.7,
+        label=f"Critical depth = {d_crit:.1f}",
+    )
 
     # Annotations for sample sizes
-    for d, and, ng in zip(depths, n_at_depth, n_gate_at_depth):
+    for d, n_node, ng in zip(depths, n_at_depth, n_gate_at_depth, strict=False):
         ax.annotate(
-            f"n={and}\n$n_g$={ng}",
+            f"n={n_node}\n$n_g$={ng}",
             xy=(d, -0.08),
             ha="center",
             fontsize=8,

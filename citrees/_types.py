@@ -1,18 +1,18 @@
 """Centralized type definitions for citrees."""
 
 from enum import StrEnum
-from typing import Annotated, TypeAlias
+from typing import Annotated
 
 from pydantic import Field
 
 # Numeric Type Aliases
-ProbabilityFloat: TypeAlias = Annotated[float, Field(gt=0.0, le=1.0)]
-PositiveInt: TypeAlias = Annotated[int, Field(gt=0)]
-NonNegativeInt: TypeAlias = Annotated[int, Field(ge=0)]
-NonNegativeFloat: TypeAlias = Annotated[float, Field(ge=0.0)]
-ConfidenceFloat: TypeAlias = Annotated[float, Field(gt=0.5, lt=1.0)]
-HonestyFraction: TypeAlias = Annotated[float, Field(gt=0.0, lt=1.0)]
-MinSamplesSplit: TypeAlias = Annotated[int, Field(ge=2)]
+type ProbabilityFloat = Annotated[float, Field(gt=0.0, le=1.0)]
+type PositiveInt = Annotated[int, Field(gt=0)]
+type NonNegativeInt = Annotated[int, Field(ge=0)]
+type NonNegativeFloat = Annotated[float, Field(ge=0.0)]
+type ConfidenceFloat = Annotated[float, Field(gt=0.5, lt=1.0)]
+type HonestyFraction = Annotated[float, Field(gt=0.0, lt=1.0)]
+type MinSamplesSplit = Annotated[int, Field(ge=2)]
 
 
 # StrEnums
@@ -55,8 +55,8 @@ class EstimatorType(StrEnum):
 
 
 # Compound Type Aliases
-EarlyStoppingOption: TypeAlias = EarlyStopping | None
-NResamplesOption: TypeAlias = NResamples | NonNegativeInt | None
-MaxValuesOption: TypeAlias = MaxValuesMethod | float | int | None
-BootstrapMethodOption: TypeAlias = BootstrapMethod | None
-SamplingMethodOption: TypeAlias = SamplingMethod | None
+type EarlyStoppingOption = EarlyStopping | None
+type NResamplesOption = NResamples | NonNegativeInt | None
+type MaxValuesOption = MaxValuesMethod | float | int | None
+type BootstrapMethodOption = BootstrapMethod | None
+type SamplingMethodOption = SamplingMethod | None

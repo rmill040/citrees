@@ -1,0 +1,16 @@
+\section{Experiments}
+\label{sec:experiments}
+
+We evaluate feature rankings produced by \citrees and baselines on synthetic
+ground-truth datasets and real tabular datasets using a two-stage
+rank-then-evaluate protocol:
+(i)~each method produces a feature ranking; and
+(ii)~downstream models are trained on the top-$k$ selected features for a fixed
+set of $k$ values.
+
+All experiment orchestration and figure generation scripts live under
+\texttt{paper/scripts/}, and generated artifacts are written to
+\texttt{paper/results/}.
+
+% TODO: migrate the concrete benchmark suite + method list from paper/notes/notes.md.
+% TODO: add tables/figures (and keep arXiv bundle self-contained).

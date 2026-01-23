@@ -115,3 +115,18 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# LaTeX (arXiv preprint)
+paper/arxiv/*.aux
+paper/arxiv/*.bbl
+paper/arxiv/*.blg
+paper/arxiv/*.fdb_latexmk
+paper/arxiv/*.fls
+paper/arxiv/*.loa
+paper/arxiv/*.lof
+paper/arxiv/*.log
+paper/arxiv/*.lot
+paper/arxiv/*.out
+paper/arxiv/*.pdf
+paper/arxiv/*.synctex.gz
+paper/arxiv/*.toc

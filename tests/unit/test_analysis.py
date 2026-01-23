@@ -147,7 +147,7 @@ class TestPairwiseWilcoxonHolm:
         )
         result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
         assert len(result) == 1
-        assert result.iloc[0]["significant"] == True
+        assert result.iloc[0]["significant"]
         assert result.iloc[0]["p_value_corrected"] < 0.05
 
     def test_no_false_positive_similar_distributions(self):

@@ -28,9 +28,9 @@ from scipy import stats
 warnings.filterwarnings("ignore")
 
 BASE_RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
-OUTPUT_DIR = BASE_RESULTS_DIR / "analysis"
-FIGURES_DIR = OUTPUT_DIR / "figures"
-TABLES_DIR = OUTPUT_DIR / "tables"
+# Canonical paper outputs live here (see `paper/notes/figures_plan.md`).
+FIGURES_DIR = BASE_RESULTS_DIR / "figures"
+TABLES_DIR = BASE_RESULTS_DIR / "tables"
 
 
 # ==============================================================================
@@ -170,7 +170,9 @@ def pairwise_wilcoxon_holm(data: pd.DataFrame, methods: list[str], metric: str) 
     _, corrected_pvals, _, _ = multipletests(pvalues, method="holm")
 
     results = []
-    for (m1, m2, stat, n_pairs), pval, corrected in zip(pairs, pvalues, corrected_pvals):
+    for (m1, m2, stat, n_pairs), pval, corrected in zip(
+        pairs, pvalues, corrected_pvals, strict=False
+    ):
         results.append(
             {
                 "method1": m1,
@@ -577,7 +579,6 @@ def compute_ranks(
     pd.DataFrame
         DataFrame with method, avg_rank, std_rank columns.
     """
-    cols = [f"{m}_{metric}" for m in methods]
     available = [(m, f"{m}_{metric}") for m in methods if f"{m}_{metric}" in data.columns]
 
     if len(available) < 2:
@@ -590,10 +591,7 @@ def compute_ranks(
     values = data[cols_available].values
 
     # Compute ranks per row (1 = best)
-    if higher_is_better:
-        ranks = stats.rankdata(-values, axis=1)  # Negative for descending
-    else:
-        ranks = stats.rankdata(values, axis=1)
+    ranks = stats.rankdata(-values, axis=1) if higher_is_better else stats.rankdata(values, axis=1)
 
     avg_ranks = np.nanmean(ranks, axis=0)
     std_ranks = np.nanstd(ranks, axis=0)
@@ -706,7 +704,7 @@ def generate_ranking_table(
     cd = nemenyi_critical_difference(n_methods, n_datasets)
 
     # Get pairwise comparisons
-    pairwise = pairwise_nemenyi(ranks_df, cd)
+    _ = pairwise_nemenyi(ranks_df, cd)
 
     # Save ranks
     ranks_df["cd"] = cd
@@ -776,7 +774,7 @@ def plot_critical_difference(
     ax.axhline(y=0.5, color="black", linewidth=1)
 
     # Draw tick marks and labels
-    for i, (method, rank) in enumerate(zip(methods, avg_ranks)):
+    for i, (method, rank) in enumerate(zip(methods, avg_ranks, strict=False)):
         # Tick mark
         ax.plot([rank, rank], [0.3, 0.7], color="black", linewidth=1)
         # Label (alternate above/below)
@@ -910,7 +908,7 @@ def plot_boxplots(data: pd.DataFrame, methods: list[str], metric: str, output_pa
 
     # Color boxes
     colors = plt.cm.tab10(np.linspace(0, 1, len(available_methods)))
-    for patch, color in zip(bp["boxes"], colors):
+    for patch, color in zip(bp["boxes"], colors, strict=False):
         patch.set_facecolor(color)
         patch.set_alpha(0.7)
 
@@ -1118,9 +1116,6 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     # Flatten column names: (precision@10, method) -> method_precision@10
     data_wide.columns = [f"{col[1]}_{col[0]}" for col in data_wide.columns]
     data_wide = data_wide.reset_index()
-
-    # Update methods list with column format
-    methods_prefixed = [f"{m}_precision@10" for m in methods]
 
     # === TABLES ===
     print("\n--- Generating Summary Tables ---")
@@ -1624,7 +1619,7 @@ def plot_runtime_violin(
     # Prepare data for boxplot
     box_data = [df[df[method_col] == m][elapsed_col].dropna().values for m in sorted_methods]
     box_data = [d for d in box_data if len(d) > 0]
-    labels = [m for m, d in zip(sorted_methods, box_data) if len(d) > 0]
+    labels = [m for m, d in zip(sorted_methods, box_data, strict=False) if len(d) > 0]
 
     if not box_data:
         return
@@ -1636,7 +1631,7 @@ def plot_runtime_violin(
     wrapper_methods = {"boruta", "pi", "cpi", "shap", "rfe"}
     filter_methods = {"mc", "mi", "rdc", "pc", "dc", "mrmr"}
 
-    for i, (patch, label) in enumerate(zip(bp["boxes"], labels)):
+    for patch, label in zip(bp["boxes"], labels, strict=False):
         base_method = label.split("_")[0] if "_" in label else label
         if base_method in embedding_methods:
             patch.set_facecolor("lightcoral")
@@ -1709,7 +1704,6 @@ def analyze_runtime(
 def main():
     """Run comprehensive analysis on ALL dataset types."""
     # Create output directories
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 

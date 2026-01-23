@@ -3,7 +3,7 @@
 # Ray scheduling and S3 settings for distributed experiments.
 
 aws_region: us-east-1
-# s3_bucket: your-bucket-name  # Set this to enable S3 bucket creation in setup_cluster.py
+# Note: S3 bucket name is derived automatically as citrees-{account_id} by setup_cluster.py
 
 experiment:
   # "classification" or "regression"

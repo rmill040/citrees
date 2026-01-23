@@ -23,9 +23,9 @@ from collections import defaultdict
 import boto3
 from loguru import logger
 
-from paper.scripts.experiments._common import get_datasets
+from paper.scripts.experiments._common import get_datasets, get_s3_bucket
 from paper.scripts.infra.config import load_config
-from paper.scripts.utils.constants import AWS_REGION, CLF_METHODS, REG_METHODS, S3_BUCKET
+from paper.scripts.utils.constants import AWS_REGION, CLF_METHODS, REG_METHODS
 from paper.scripts.utils.experiment_configs import config_label, expand_method_configs
 
 
@@ -37,14 +37,15 @@ def list_s3_completed(
     Returns dict: dataset -> set of (method, seed) tuples
     """
     s3 = boto3.client("s3", region_name=AWS_REGION)
+    bucket = get_s3_bucket()
     completed: dict[str, set[tuple[str, int]]] = defaultdict(set)
     prefix = f"{stage}/{task_type}/"
 
-    logger.info(f"Listing s3://{S3_BUCKET}/{prefix}...")
+    logger.info(f"Listing s3://{bucket}/{prefix}...")
 
     paginator = s3.get_paginator("list_objects_v2")
     count = 0
-    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
             parts = key.split("/")
@@ -163,7 +164,7 @@ def main() -> None:
 
         print(f"\nCOMPLETE: {len(complete)} datasets")
         if len(complete) <= 10:
-            for dataset, count in complete:
+            for dataset, _count in complete:
                 print(f"  ✓ {dataset}")
 
 

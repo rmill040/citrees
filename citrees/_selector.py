@@ -208,7 +208,7 @@ def _ptest_multi(
     def compute_max_stat(x: np.ndarray, y: np.ndarray) -> float:
         """Compute max statistic across all selectors."""
         max_score = -np.inf
-        for func, arg, abs_flag in zip(funcs, func_args, take_abs):
+        for func, arg, abs_flag in zip(funcs, func_args, take_abs, strict=False):
             score = func(x, y, arg, random_state=random_state)
             if abs_flag:
                 score = abs(score)

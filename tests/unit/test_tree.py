@@ -534,7 +534,7 @@ class TestTreePredictions:
     def test_predict_before_fit_raises(self):
         """Test predict before fit raises error."""
         clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
-        with pytest.raises(Exception):  # NotFittedError or similar
+        with pytest.raises(ValueError):
             clf.predict(np.random.randn(10, 5))
 
     def test_predict_proba_sums_to_one(self):
@@ -554,6 +554,44 @@ class TestTreePredictions:
         proba = clf.predict_proba(X)
         preds_from_proba = clf.classes_[np.argmax(proba, axis=1)]
         assert np.array_equal(preds, preds_from_proba)
+
+
+class TestInputTypes:
+    """Tests for list/tuple input type handling."""
+
+    def test_fit_with_list_input(self):
+        """Test fit accepts list inputs for X and y."""
+        X_list = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        y_list = [0, 1, 0, 1]
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
+        clf.fit(X_list, y_list)
+        assert hasattr(clf, "tree_")
+
+    def test_fit_with_tuple_input(self):
+        """Test fit accepts tuple inputs for X and y."""
+        X_tuple = ((1.0, 2.0), (3.0, 4.0), (5.0, 6.0), (7.0, 8.0))
+        y_tuple = (0, 1, 0, 1)
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
+        clf.fit(X_tuple, y_tuple)
+        assert hasattr(clf, "tree_")
+
+    def test_predict_with_list_input(self):
+        """Test predict accepts list input."""
+        X, y = make_classification(n_samples=50, n_features=5, random_state=42)
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
+        clf.fit(X, y)
+        X_list = X.tolist()
+        preds = clf.predict(X_list)
+        assert preds.shape == (len(X_list),)
+
+    def test_predict_with_tuple_input(self):
+        """Test predict accepts tuple input."""
+        X, y = make_classification(n_samples=50, n_features=5, random_state=42)
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
+        clf.fit(X, y)
+        X_tuple = tuple(tuple(row) for row in X)
+        preds = clf.predict(X_tuple)
+        assert preds.shape == (len(X_tuple),)
 
 
 class TestTreePaths:
@@ -812,3 +850,357 @@ class TestBugFixes:
             assert 0 in features_used_muting, (
                 f"Expected feature 0 to be used with muting, got {features_used_muting}"
             )
+
+
+# =============================================================================
+# EXPANDED REGRESSOR TESTS
+# =============================================================================
+
+
+class TestRegressorNonlinear:
+    """Tests for regressor on nonlinear (Friedman) data."""
+
+    def test_friedman1_with_dc_selector(self, regression_data_friedman1):
+        """Test DC selector on nonlinear Friedman #1 data."""
+        X, y = regression_data_friedman1
+        reg = ConditionalInferenceTreeRegressor(
+            selector="dc",
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        preds = reg.predict(X)
+        assert preds.shape == y.shape
+
+        # R2 should be positive on training data
+        r2 = 1 - np.sum((y - preds) ** 2) / np.sum((y - y.mean()) ** 2)
+        assert r2 > 0, f"R2 on Friedman1 data should be positive, got {r2}"
+
+    def test_friedman1_with_rdc_selector(self, regression_data_friedman1):
+        """Test RDC selector on nonlinear Friedman #1 data."""
+        X, y = regression_data_friedman1
+        reg = ConditionalInferenceTreeRegressor(
+            selector="rdc",
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        preds = reg.predict(X)
+        assert preds.shape == y.shape
+
+        # R2 should be positive on training data
+        r2 = 1 - np.sum((y - preds) ** 2) / np.sum((y - y.mean()) ** 2)
+        assert r2 > 0, f"R2 on Friedman1 data should be positive, got {r2}"
+
+    def test_friedman1_with_pc_selector(self, regression_data_friedman1):
+        """Test PC selector on nonlinear Friedman #1 data.
+
+        PC (Pearson correlation) is linear and should perform less optimally
+        on nonlinear data, but should still work.
+        """
+        X, y = regression_data_friedman1
+        reg = ConditionalInferenceTreeRegressor(
+            selector="pc",
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        preds = reg.predict(X)
+        assert preds.shape == y.shape
+
+
+class TestRegressorCorrelated:
+    """Tests for regressor on correlated feature data."""
+
+    def test_correlated_features_basic(self, regression_data_correlated):
+        """Test regressor handles correlated features."""
+        X, y = regression_data_correlated
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
+        reg.fit(X, y)
+        preds = reg.predict(X)
+        assert preds.shape == y.shape
+
+    def test_correlated_with_feature_scanning(self, regression_data_correlated):
+        """Test feature scanning with correlated features."""
+        X, y = regression_data_correlated
+        reg = ConditionalInferenceTreeRegressor(
+            feature_scanning=True,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_correlated_with_feature_muting(self, regression_data_correlated):
+        """Test feature muting with correlated features."""
+        X, y = regression_data_correlated
+        reg = ConditionalInferenceTreeRegressor(
+            feature_muting=True,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+
+class TestRegressorHonesty:
+    """Tests for honest estimation in regressors."""
+
+    def test_honest_vs_non_honest_predictions_differ(self, regression_data_standard):
+        """Test that honest and non-honest regressors produce different predictions."""
+        X, y = regression_data_standard
+
+        # Non-honest regressor
+        reg_regular = ConditionalInferenceTreeRegressor(
+            honesty=False,
+            max_depth=5,
+            **FAST_PARAMS,
+        )
+        reg_regular.fit(X, y)
+
+        # Honest regressor
+        reg_honest = ConditionalInferenceTreeRegressor(
+            honesty=True,
+            honesty_fraction=0.5,
+            max_depth=5,
+            **FAST_PARAMS,
+        )
+        reg_honest.fit(X, y)
+
+        preds_regular = reg_regular.predict(X)
+        preds_honest = reg_honest.predict(X)
+
+        # Predictions should differ (honest uses estimation sample for leaf values)
+        assert not np.allclose(preds_regular, preds_honest), (
+            "Honest and non-honest predictions should differ"
+        )
+
+    def test_honest_regressor_different_fractions(self, regression_data_standard):
+        """Test honest regressor with different honesty fractions."""
+        X, y = regression_data_standard
+
+        for fraction in [0.3, 0.5, 0.7]:
+            reg = ConditionalInferenceTreeRegressor(
+                honesty=True,
+                honesty_fraction=fraction,
+                **FAST_PARAMS,
+            )
+            reg.fit(X, y)
+            assert reg.predict(X).shape == y.shape
+
+
+class TestRegressorListSelector:
+    """Tests for list-based selector in regressors."""
+
+    def test_two_way_combinations(self, regression_data_standard):
+        """Test all 2-way selector combinations for regression."""
+        X, y = regression_data_standard
+
+        for selector in [["pc", "dc"], ["pc", "rdc"], ["dc", "rdc"]]:
+            reg = ConditionalInferenceTreeRegressor(selector=selector, **FAST_PARAMS)
+            reg.fit(X, y)
+            assert reg.predict(X).shape == y.shape
+
+    def test_three_way_combination(self, regression_data_standard):
+        """Test 3-way selector combination for regression."""
+        X, y = regression_data_standard
+
+        reg = ConditionalInferenceTreeRegressor(
+            selector=["pc", "dc", "rdc"],
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_list_selector_no_ptest(self, regression_data_standard):
+        """Test list selector without permutation testing."""
+        X, y = regression_data_standard
+
+        reg = ConditionalInferenceTreeRegressor(
+            selector=["pc", "dc"],
+            n_resamples_selector=None,
+            n_resamples_splitter="minimum",
+            verbose=0,
+            random_state=42,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+
+class TestRegressorThresholdMethods:
+    """Tests for threshold methods in regressors."""
+
+    def test_threshold_exact(self, regression_data_standard):
+        """Test exact threshold method for regressor."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            threshold_method="exact",
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_threshold_random(self, regression_data_standard):
+        """Test random threshold method for regressor."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            threshold_method="random",
+            max_thresholds=10,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_threshold_percentile(self, regression_data_standard):
+        """Test percentile threshold method for regressor."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            threshold_method="percentile",
+            max_thresholds=10,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_threshold_histogram(self, regression_data_standard):
+        """Test histogram threshold method for regressor."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            threshold_method="histogram",
+            max_thresholds=10,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+
+class TestRegressorFeatureControl:
+    """Tests for feature control parameters in regressors."""
+
+    def test_feature_muting_enabled(self, regression_data_standard):
+        """Test regressor with feature muting enabled."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            feature_muting=True,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_feature_muting_disabled(self, regression_data_standard):
+        """Test regressor with feature muting disabled."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            feature_muting=False,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_feature_scanning_enabled(self, regression_data_standard):
+        """Test regressor with feature scanning enabled."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            feature_scanning=True,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_feature_scanning_disabled(self, regression_data_standard):
+        """Test regressor with feature scanning disabled."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            feature_scanning=False,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_max_features_sqrt(self, regression_data_standard):
+        """Test regressor with max_features='sqrt'."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            max_features="sqrt",
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_max_features_log2(self, regression_data_standard):
+        """Test regressor with max_features='log2'."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            max_features="log2",
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_max_features_int(self, regression_data_standard):
+        """Test regressor with max_features as integer."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            max_features=5,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+    def test_max_features_float(self, regression_data_standard):
+        """Test regressor with max_features as float."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(
+            max_features=0.5,
+            **FAST_PARAMS,
+        )
+        reg.fit(X, y)
+        assert reg.predict(X).shape == y.shape
+
+
+class TestRegressorAttributes:
+    """Tests for regressor attributes after fitting."""
+
+    def test_feature_importances(self, regression_data_standard):
+        """Test feature_importances_ attribute for regressor."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
+        reg.fit(X, y)
+
+        assert hasattr(reg, "feature_importances_")
+        assert reg.feature_importances_.shape == (X.shape[1],)
+        assert (reg.feature_importances_ >= 0).all()
+
+    def test_n_features_in(self, regression_data_standard):
+        """Test n_features_in_ attribute for regressor."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
+        reg.fit(X, y)
+
+        assert hasattr(reg, "n_features_in_")
+        assert reg.n_features_in_ == X.shape[1]
+
+    def test_tree_attribute(self, regression_data_standard):
+        """Test tree_ attribute for regressor."""
+        X, y = regression_data_standard
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
+        reg.fit(X, y)
+
+        assert hasattr(reg, "tree_")
+        assert reg.tree_ is not None
+
+
+class TestRegressorHeteroscedastic:
+    """Tests for regressor on heteroscedastic data."""
+
+    def test_basic_fit_predict(self, regression_data_heteroscedastic):
+        """Test regressor handles heteroscedastic data."""
+        X, y = regression_data_heteroscedastic
+        reg = ConditionalInferenceTreeRegressor(**FAST_PARAMS)
+        reg.fit(X, y)
+        preds = reg.predict(X)
+        assert preds.shape == y.shape
+
+    def test_different_selectors(self, regression_data_heteroscedastic):
+        """Test different selectors on heteroscedastic data."""
+        X, y = regression_data_heteroscedastic
+
+        for selector in ["pc", "dc", "rdc"]:
+            reg = ConditionalInferenceTreeRegressor(selector=selector, **FAST_PARAMS)
+            reg.fit(X, y)
+            assert reg.predict(X).shape == y.shape

@@ -15,6 +15,8 @@ Profiles:
   - huge: very large runs (slow; use with care)
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse
@@ -361,7 +363,7 @@ def plot_feature_selection_bars(df: pd.DataFrame, task: str, output_path: Path) 
 
     fig, axes = plt.subplots(1, len(methods), figsize=(15, 4), sharey=True)
 
-    for ax, method in zip(axes, methods):
+    for ax, method in zip(axes, methods, strict=False):
         method_df = df[df["method"] == method]
 
         # Aggregate across repeats
@@ -433,7 +435,7 @@ def plot_informative_ratio(df: pd.DataFrame, output_path: Path) -> None:
     ax.legend()
 
     # Add value labels on bars
-    for bar, ratio in zip(bars, ratios):
+    for bar, ratio in zip(bars, ratios, strict=False):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 2,
@@ -644,7 +646,7 @@ def plot_timing_bars(df: pd.DataFrame, output_path: Path) -> None:
     ax.set_title("CITree Training Time by Hyperparameter Configuration")
 
     # Add value labels
-    for bar, mean in zip(bars, agg["mean"]):
+    for bar, mean in zip(bars, agg["mean"], strict=False):
         ax.text(
             bar.get_width() + 0.1,
             bar.get_y() + bar.get_height() / 2,
@@ -677,7 +679,7 @@ def plot_timing_speedup(df: pd.DataFrame, output_path: Path) -> None:
     ax.set_ylabel("Configuration")
     ax.set_title("CITree Training Speedup by Configuration")
 
-    for bar, speedup in zip(bars, agg["speedup"]):
+    for bar, speedup in zip(bars, agg["speedup"], strict=False):
         ax.text(
             bar.get_width() + 0.05,
             bar.get_y() + bar.get_height() / 2,
@@ -812,8 +814,8 @@ def plot_correlated_features(df: pd.DataFrame, output_path: Path) -> None:
     width = 0.6
 
     # Stacked bars
-    bars1 = ax.bar(x, agg["informative_pct"], width, label="Informative (0-4)", color="#27ae60")
-    bars2 = ax.bar(
+    ax.bar(x, agg["informative_pct"], width, label="Informative (0-4)", color="#27ae60")
+    ax.bar(
         x,
         agg["correlated_pct"],
         width,
@@ -821,7 +823,7 @@ def plot_correlated_features(df: pd.DataFrame, output_path: Path) -> None:
         label="Correlated copies (5-9)",
         color="#f39c12",
     )
-    bars3 = ax.bar(
+    ax.bar(
         x,
         agg["noise_pct"],
         width,
@@ -1235,7 +1237,7 @@ def plot_redundant_features(df: pd.DataFrame, output_path: Path) -> None:
 
     fig, axes = plt.subplots(1, len(methods), figsize=(14, 5), sharey=True)
 
-    for ax, method in zip(axes, methods):
+    for ax, method in zip(axes, methods, strict=False):
         method_df = df[df["method"] == method]
         agg = (
             method_df.groupby("n_redundant")
@@ -1252,8 +1254,8 @@ def plot_redundant_features(df: pd.DataFrame, output_path: Path) -> None:
         x = np.arange(len(agg))
         width = 0.6
 
-        bars1 = ax.bar(x, agg["informative_pct"], width, label="Informative", color="#27ae60")
-        bars2 = ax.bar(
+        ax.bar(x, agg["informative_pct"], width, label="Informative", color="#27ae60")
+        ax.bar(
             x,
             agg["redundant_pct"],
             width,
@@ -1261,7 +1263,7 @@ def plot_redundant_features(df: pd.DataFrame, output_path: Path) -> None:
             label="Redundant",
             color="#f39c12",
         )
-        bars3 = ax.bar(
+        ax.bar(
             x,
             agg["noise_pct"],
             width,
@@ -1830,7 +1832,7 @@ def plot_regression_comparison(df: pd.DataFrame, output_path: Path) -> None:
     ax.set_title("Regression: Feature Selection Quality")
     ax.set_ylim(0, 100)
 
-    for bar, mean in zip(bars, agg["mean"]):
+    for bar, mean in zip(bars, agg["mean"], strict=False):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 3,
@@ -1859,7 +1861,7 @@ def plot_regression_comparison(df: pd.DataFrame, output_path: Path) -> None:
     ax.set_title("Regression: Prediction Quality")
     ax.set_ylim(0, 1)
 
-    for bar, mean in zip(bars, agg["mean"]):
+    for bar, mean in zip(bars, agg["mean"], strict=False):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.03,

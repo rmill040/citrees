@@ -18,6 +18,8 @@ Run
   UV_CACHE_DIR=$PWD/.uv-cache uv run python paper/scripts/theory/generate_selection_bias_demo.py
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

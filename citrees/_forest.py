@@ -90,9 +90,8 @@ def _parallel_fit_classifier(
     ConditionalInferenceTreeClassifier
         Fitted estimator.
     """
-    if verbose:
-        if estimator_idx % _PRINT_FACTOR[verbose] == 0:
-            print(f"Building tree {estimator_idx}/{n_estimators}")
+    if verbose and estimator_idx % _PRINT_FACTOR[verbose] == 0:
+        print(f"Building tree {estimator_idx}/{n_estimators}")
 
     # Bootstrap sample if specified
     if bootstrap_method:
@@ -162,9 +161,8 @@ def _parallel_fit_regressor(
     ConditionalInferenceTreeRegressor
         Fitted estimator.
     """
-    if verbose:
-        if estimator_idx % _PRINT_FACTOR[verbose] == 0:
-            print(f"Building tree {estimator_idx}/{n_estimators}")
+    if verbose and estimator_idx % _PRINT_FACTOR[verbose] == 0:
+        print(f"Building tree {estimator_idx}/{n_estimators}")
 
     # Bootstrap sample if specified
     if bootstrap_method:
@@ -296,7 +294,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         if flags:
             warnings.warn(
                 "Unused hyperparameter(s) detected: When bootstrap_method=None, hyperparameter(s) "
-                f"({', '.join(flags)}) should be None"
+                f"({', '.join(flags)}) should be None",
+                stacklevel=2,
             )
 
     @property
@@ -502,7 +501,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         if np.any(n_oob == 0):
             warnings.warn(
                 "Some inputs do not have OOB scores. This probably means too few trees were used "
-                "to compute any reliable OOB estimates."
+                "to compute any reliable OOB estimates.",
+                stacklevel=2,
             )
 
         mask = n_oob > 0

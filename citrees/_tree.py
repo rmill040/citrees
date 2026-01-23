@@ -112,7 +112,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             raise ValueError("selector list cannot be empty")
 
         for sel in selectors:
-            if sel not in sel_registry.keys():
+            if sel not in sel_registry:
                 raise ValueError(f"selector '{sel}' not in {sel_registry.keys()}")
 
         # Check for duplicate selectors
@@ -122,14 +122,17 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             )
 
         # Validate that mi is not in a list for classification (mi is not on [0,1] scale)
-        if self.estimator_type == EstimatorType.CLASSIFIER and len(selectors) > 1:
-            if "mi" in selectors:
-                raise ValueError(
-                    "selector 'mi' cannot be used in a list with other selectors because mutual information "
-                    "is not on the same [0,1] scale as 'mc' and 'rdc'. Use selector='mi' alone instead."
-                )
+        if (
+            self.estimator_type == EstimatorType.CLASSIFIER
+            and len(selectors) > 1
+            and "mi" in selectors
+        ):
+            raise ValueError(
+                "selector 'mi' cannot be used in a list with other selectors because mutual information "
+                "is not on the same [0,1] scale as 'mc' and 'rdc'. Use selector='mi' alone instead."
+            )
 
-        if self.splitter not in spl_registry.keys():
+        if self.splitter not in spl_registry:
             raise ValueError(f"splitter '{self.splitter}' not in {spl_registry.keys()}")
 
         for attr in ["n_resamples_selector", "n_resamples_splitter"]:
@@ -149,12 +152,10 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
             value = getattr(self, param)
             if isinstance(value, bool):
                 raise ValueError(f"{param} cannot be a bool, got {value!r}")
-            if isinstance(value, int):
-                if value <= 0:
-                    raise ValueError(f"{param} must be >= 1 when int, got {value}")
-            elif isinstance(value, float):
-                if not np.isfinite(value) or value <= 0.0 or value > 1.0:
-                    raise ValueError(f"{param} must be in (0, 1] when float, got {value}")
+            if isinstance(value, int) and value <= 0:
+                raise ValueError(f"{param} must be >= 1 when int, got {value}")
+            if isinstance(value, float) and (not np.isfinite(value) or value <= 0.0 or value > 1.0):
+                raise ValueError(f"{param} must be in (0, 1] when float, got {value}")
         return self
 
 
@@ -223,7 +224,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         """
         feature_names_in = None
         if not isinstance(X, np.ndarray):
-            if isinstance(X, (list, tuple)):
+            if isinstance(X, list | tuple):
                 X = np.array(X)
             elif hasattr(X, "values"):
                 if hasattr(X, "columns"):
@@ -246,7 +247,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         self.feature_names_in_ = np.array(feature_names_in, dtype=object)
 
         if not isinstance(y, np.ndarray):
-            if isinstance(y, (list, tuple)):
+            if isinstance(y, list | tuple):
                 y = np.array(y)
             elif hasattr(y, "values"):
                 y = y.values
@@ -266,11 +267,8 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             raise ValueError(f"Different number of samples between X ({len(X)}) and y ({len(y)})")
 
         X = X.astype(float)
-        if estimator_type == EstimatorType.CLASSIFIER:
-            # Keep labels as-is; LabelEncoder handles encoding during fit.
-            y = y
-        else:
-            y = y.astype(float)
+        # Keep labels as-is for classifiers; LabelEncoder handles encoding during fit.
+        y = y if estimator_type == EstimatorType.CLASSIFIER else y.astype(float)
 
         # Reject NaN/Inf values - required for fastmath optimizations in split_data
         if np.any(np.isnan(X)) or np.any(np.isinf(X)):
@@ -279,12 +277,11 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
                 "Please handle missing/infinite values before fitting."
             )
         # Check y only for numeric dtypes (string labels are valid for classifiers)
-        if np.issubdtype(y.dtype, np.number):
-            if np.any(np.isnan(y)) or np.any(np.isinf(y)):
-                raise ValueError(
-                    "Input y contains NaN or Inf values. "
-                    "Please handle missing/infinite values before fitting."
-                )
+        if np.issubdtype(y.dtype, np.number) and (np.any(np.isnan(y)) or np.any(np.isinf(y))):
+            raise ValueError(
+                "Input y contains NaN or Inf values. "
+                "Please handle missing/infinite values before fitting."
+            )
 
         return X, y
 
@@ -306,7 +303,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
 
         feature_names = None
         if not isinstance(X, np.ndarray):
-            if isinstance(X, (list, tuple)):
+            if isinstance(X, list | tuple):
                 X = np.array(X)
             elif hasattr(X, "values"):
                 if hasattr(X, "columns"):
@@ -329,19 +326,18 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
                 f"X should have ({len(self.feature_names_in_)}) features, got ({X.shape[1]})"
             )
 
-        if feature_names:
-            if not np.array_equal(feature_names, self.feature_names_in_):
-                missing = [name for name in self.feature_names_in_ if name not in feature_names]
-                extra = [name for name in feature_names if name not in self.feature_names_in_]
-                if missing or extra:
-                    raise ValueError(
-                        "Mismatch in feature names for X, missing "
-                        f"({len(missing)}) features: {missing}; extra ({len(extra)}) features: {extra}"
-                    )
+        if feature_names and not np.array_equal(feature_names, self.feature_names_in_):
+            missing = [name for name in self.feature_names_in_ if name not in feature_names]
+            extra = [name for name in feature_names if name not in self.feature_names_in_]
+            if missing or extra:
                 raise ValueError(
-                    "Feature names are out of order for X, expected "
-                    f"{self.feature_names_in_} but got {feature_names}"
+                    "Mismatch in feature names for X, missing "
+                    f"({len(missing)}) features: {missing}; extra ({len(extra)}) features: {extra}"
                 )
+            raise ValueError(
+                "Feature names are out of order for X, expected "
+                f"{self.feature_names_in_} but got {feature_names}"
+            )
 
         X = X.astype(float)
         return X
@@ -388,13 +384,15 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         if flags:
             warnings.warn(
                 "Unused hyperparameter(s) detected: When n_resamples_selector=None, hyperparameter(s) "
-                f"({', '.join(flags)}) should be False"
+                f"({', '.join(flags)}) should be False",
+                stacklevel=2,
             )
 
         if params["early_stopping_selector"] is None and params["feature_scanning"]:
             warnings.warn(
                 "Unused hyperparameter detected: When early_stopping_selector=None, hyperparameter "
-                "('feature_scanning') should be False"
+                "('feature_scanning') should be False",
+                stacklevel=2,
             )
 
         flags = []
@@ -405,13 +403,15 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         if flags:
             warnings.warn(
                 "Unused hyperparameter(s) detected: When n_resamples_splitter=None, hyperparameter(s) "
-                f"({', '.join(flags)}) should be False"
+                f"({', '.join(flags)}) should be False",
+                stacklevel=2,
             )
 
         if params["early_stopping_splitter"] is None and params["threshold_scanning"]:
             warnings.warn(
                 "Unused hyperparameters detected: When early_stopping_splitter=None, hyperparameter "
-                "('threshold_scanning') should be False"
+                "('threshold_scanning') should be False",
+                stacklevel=2,
             )
 
 
@@ -1208,7 +1208,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         if self.threshold_method != ThresholdMethod.EXACT and self.max_thresholds is None:
             warnings.warn(
                 f"Using threshold_method='{self.threshold_method}' with max_thresholds=None is not recommended, "
-                "consider reducing max_thresholds to speed up split selection."
+                "consider reducing max_thresholds to speed up split selection.",
+                stacklevel=2,
             )
         # Set rest of parameters as private attributes
         for param, value in self.get_params().items():

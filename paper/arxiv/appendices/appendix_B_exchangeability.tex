@@ -1,0 +1,38 @@
+\section{Monte Carlo permutation exchangeability}
+\label{app:permutation-exchangeability}
+
+This appendix isolates the exchangeability fact used by Monte Carlo permutation
+tests and clarifies why the common ``observed statistic + $B$ random
+permutations'' computation is covered by the same rank argument under the
+standard conditional-exchangeability null.
+
+Fix a node $t$, feature $j$, and a real-valued test statistic $T(\cdot, \cdot)$
+with a right-tail convention (larger is more extreme). Let
+$\Pi_0, \Pi_1, \dots, \Pi_B$ be i.i.d.\ uniform random permutations of
+$\{1,\dots,n_t\}$, independent of the data, and define
+%
+\begin{equation}
+  T_b := T(X_{t,j}, \Pi_b(Y_t)) \qquad (b=0,1,\dots,B).
+\end{equation}
+
+\begin{lemma}[Exchangeability of Monte Carlo permutation statistics]
+\label{lem:mc-exchangeability}
+Conditional on $(X_t, Y_t)$, the vector $(T_0, T_1, \dots, T_B)$ is exchangeable
+(hence exchangeable unconditionally).
+\end{lemma}
+
+\begin{proof}
+Conditional on $(X_t, Y_t)$, each $T_b$ is a measurable function of $\Pi_b$, and
+$(\Pi_0,\dots,\Pi_B)$ are i.i.d. Therefore any permutation of the indices
+$b \in \{0,\dots,B\}$ leaves the joint law unchanged.
+\end{proof}
+
+\begin{remark}[Why the usual ``unpermuted + $B$ permuted'' computation is covered]
+\label{rem:identity-vs-random}
+Implementations typically set $\Pi_0$ to be the identity permutation, i.e.,
+$T_0 = T(X_{t,j}, Y_t)$. Under A0.2--A0.3 (\cref{app:assumptions}), i.e.,
+conditional exchangeability of $Y_t$ given $(X_t,U)$ and label-independent
+resampling, the distribution of $T(X_{t,j}, Y_t)$ matches that of
+$T(X_{t,j}, \Pi_0(Y_t))$, so the rank-based argument for the +1 p-value applies
+to the standard implementation.
+\end{remark}

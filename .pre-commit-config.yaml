@@ -1,3 +1,6 @@
+default_language_version:
+  python: python3.12
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -32,6 +35,16 @@ repos:
 
   - repo: local
     hooks:
+      - id: block-aws-configs
+        name: block-aws-configs
+        language: system
+        entry: python tools/hooks/check_no_aws_configs.py
+        files: ^paper/scripts/infra/(config|ray/cluster)\.yaml$
+      - id: check-aws-templates
+        name: check-aws-templates
+        language: system
+        entry: python tools/hooks/validate_templates.py
+        files: ^paper/scripts/infra/(config\.example\.yaml|ray/cluster\.example\.yaml)$
       - id: prettier
         name: prettier
         language: node

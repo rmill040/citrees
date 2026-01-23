@@ -1,0 +1,34 @@
+\section{Discussion and limitations}
+\label{sec:discussion}
+
+\paragraph{What our p-values mean.}
+All p-values in \citrees are computed in a conditional inference framework: at a
+fixed node $t$, the permutation test operates conditionally on covariates
+treated as fixed by the permutation scheme. When exchangeability holds under the
+null given $(X_t, U)$, the +1 Monte Carlo p-value is super-uniform.
+
+\paragraph{What we do (and do not) claim.}
+Our clean inferential statements are deliberately narrow: fixed-node (especially
+root) Stage~A screening in fixed-$B$ mode. Stage~B tests thresholds after
+selecting a feature using the same labels, and internal nodes are adaptive
+because node membership depends on earlier label-dependent splits. Without
+additional selective-inference machinery or sample splitting, Stage~B p-values
+and internal-node p-values should be treated as algorithmic stopping statistics
+rather than classical post-selection p-values.
+
+\paragraph{Early stopping.}
+\citrees supports early stopping as a computational heuristic for Monte Carlo
+permutation testing. In this paper we do not attach fixed-$B$ optional-stopping
+validity claims to early-stopped outputs; if used, early stopping should be
+supported empirically (e.g., via calibration studies).
+
+\paragraph{Fixed-$B$ resolution and ties.}
+In fixed-$B$ Monte Carlo mode, the +1 p-value takes values on the discrete grid
+$\{1/(B+1),2/(B+1),\dots,1\}$. Consequently, if a nodewise threshold is set below
+$1/(B+1)$ (e.g., via Bonferroni with $\alpha_{\mathrm{sel}}/m_t < 1/(B+1)$),
+then rejection is impossible regardless of signal strength. Discreteness also
+implies ties can occur (multiple candidates achieving the same minimal p-value);
+when ties occur, the implementation must specify a deterministic or randomized
+tie-breaking policy.
+
+% TODO: add a short ``practitioner guidance'' subsection (recommended configs).

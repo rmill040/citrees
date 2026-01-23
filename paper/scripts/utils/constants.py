@@ -26,7 +26,8 @@ EVAL_STALE_TIMEOUT_MINUTES = 60  # Stage 2 (evaluation)
 # AWS Configuration
 # =============================================================================
 
-S3_BUCKET = os.environ.get("S3_BUCKET", "citrees-results")
+# S3_BUCKET: Set via cluster.yaml (citrees-{account_id}), required for distributed runs
+S3_BUCKET = os.environ.get("S3_BUCKET", "")
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
 # =============================================================================

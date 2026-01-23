@@ -115,7 +115,7 @@ def calculate_max_value(*, n_values: int, desired_max: str | float | int | None 
         total = ceil(np.sqrt(n_values))
     elif desired_max == MaxValuesMethod.LOG2:
         total = ceil(np.log2(n_values))
-    elif isinstance(desired_max, (float, np.floating)):
+    elif isinstance(desired_max, float | np.floating):
         total = ceil(n_values * desired_max)
     else:
         total = n_values

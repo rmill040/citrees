@@ -2,15 +2,72 @@
 \label{sec:experiments}
 
 We evaluate feature rankings produced by \citrees and baselines on synthetic
-ground-truth datasets and real tabular datasets using a two-stage
-rank-then-evaluate protocol:
-(i)~each method produces a feature ranking; and
-(ii)~downstream models are trained on the top-$k$ selected features for a fixed
-set of $k$ values.
+ground-truth datasets and real tabular datasets.
 
-All experiment orchestration and figure generation scripts live under
+\subsection{Benchmark protocol (rank-then-evaluate)}
+\label{sec:experiments-protocol}
+
+We treat each method as a \emph{ranker} and use a two-stage protocol:
+(i)~produce a feature ranking on a training split, and
+(ii)~train downstream models on the top-$k$ selected features and evaluate on
+held-out data. This protocol isolates ranking quality from downstream model
+choice and avoids leakage by fitting all preprocessing on the training portion
+only. We use 5-fold cross-validation repeated over 10 random seeds and evaluate
+$k \in \{5,10,25,50,100,p\}$ (clipped to $k \le p$). Details and notation are in
+\cref{app:methods-benchmark}.
+
+\subsection{Datasets}
+\label{sec:experiments-datasets}
+
+All datasets are stored as Parquet files under \texttt{paper/data/}.
+
+\paragraph{Synthetic ground truth.}
+We use curated synthetic suites with known informative feature sets:
+169 classification datasets (\texttt{paper/data/classification/synthetic/}) and
+163 regression datasets (\texttt{paper/data/regression/synthetic/}). The suites
+include regimes designed to probe selection bias (e.g., high-cardinality noise),
+nonlinear dependence, correlated feature blocks, redundancy, high-dimensional
+scaling, and weak-signal settings.
+
+\paragraph{Real datasets.}
+We evaluate on 24 real classification datasets
+(\texttt{paper/data/classification/real/}) and 8 real regression datasets
+(\texttt{paper/data/regression/real/}), emphasizing tabular feature selection
+regimes including $p \gg n$.
+
+\subsection{Methods}
+\label{sec:experiments-methods}
+
+We compare four families of feature selectors:
+(i)~\emph{filters} based on univariate dependence scores (e.g., correlation,
+mutual information, RDC, mRMR);
+(ii)~\emph{permutation-calibrated filters} that convert filter scores into
+permutation p-values;
+(iii)~\emph{embedded} selectors from tree and ensemble learners (including
+\citrees trees/forests and strong CART-style baselines); and
+(iv)~\emph{wrappers} such as Boruta, permutation importance variants, SHAP-based
+rankings, and RFE. Implementation-aligned definitions of the \citrees selector
+and splitter statistics are in \cref{app:methods-selectors,app:methods-splitters}.
+
+\subsection{Metrics}
+\label{sec:experiments-metrics}
+
+\paragraph{Synthetic ground truth.}
+We evaluate ranking quality against known informative-feature sets using metrics
+such as precision@k, recall@k, and F1@k (defined in \cref{app:methods-benchmark}).
+
+\paragraph{Real datasets.}
+We report downstream predictive performance as a function of $k$ using
+classification metrics (accuracy, balanced accuracy, weighted and macro F1, ROC
+AUC when defined) and regression metrics ($R^2$, MSE, RMSE, MAE), aggregated
+across folds and random seeds.
+
+\paragraph{Runtime.}
+We measure wall-clock time for Stage~1 ranking (feature selection) and report
+speedups from implementation optimizations such as early stopping and
+parallelism.
+
+\paragraph{Reproducibility.}
+Experiment orchestration and figure generation scripts live under
 \texttt{paper/scripts/}, and generated artifacts are written to
 \texttt{paper/results/}.
-
-% TODO: migrate the concrete benchmark suite + method list from paper/notes/notes.md.
-% TODO: add tables/figures (and keep arXiv bundle self-contained).

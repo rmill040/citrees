@@ -1,4 +1,4 @@
-# AGENTS.md - AI Assistant Guide for citrees
+# AI Assistant Guide for citrees
 
 ## Project Overview
 
@@ -11,13 +11,13 @@ CART-style decision trees.
 
 ```bash
 # Install dependencies
-uv sync
+UV_CACHE_DIR=./scratch/.uv_cache uv sync
 
 # Run tests
-uv run pytest tests/
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/
 
 # With pre-commit hooks
-uv run pre-commit install
+UV_CACHE_DIR=./scratch/.uv_cache uv run pre-commit install
 ```
 
 ## Repository Structure
@@ -26,8 +26,8 @@ uv run pre-commit install
 citrees/
 ├── pyproject.toml          # uv/pip config, dependencies, tool settings
 ├── uv.lock                 # Locked dependencies
-├── tox.ini                 # Tox test configuration
-├── .pre-commit-config.yaml # Pre-commit hooks (black, ruff, mypy)
+├── mkdocs.yml              # Documentation config
+├── .pre-commit-config.yaml # Pre-commit hooks (ruff, mypy)
 ├── citrees/                # Main package
 │   ├── __init__.py         # Exports main classes
 │   ├── _types.py           # Centralized StrEnums and type aliases
@@ -35,19 +35,25 @@ citrees/
 │   ├── _forest.py          # Forest ensembles
 │   ├── _selector.py        # Feature selection methods (mc, mi, rdc, pc, dc)
 │   ├── _splitter.py        # Split criteria (gini, entropy, mse, mae)
+│   ├── _sequential.py      # Sequential stopping logic
 │   ├── _threshold_method.py # Threshold calculation methods
 │   ├── _registry.py        # Registry pattern for selectors/splitters
 │   ├── _utils.py           # Utility functions
 │   └── py.typed            # PEP 561 marker
 ├── tests/                  # Pytest test suite
+│   ├── conftest.py         # Pytest fixtures and JIT control
 │   ├── data/               # Test datasets (parquet format)
 │   ├── integration/        # Integration tests
 │   └── unit/               # Unit tests
+├── docs/                   # MkDocs documentation source
+├── tools/                  # Development tools
+│   └── hooks/              # Pre-commit hook scripts
 └── paper/                  # Research paper experiments
     ├── data/               # Experiment datasets
     ├── results/            # Experiment outputs (parquet, figures, tables)
     └── scripts/
         ├── analysis/       # Statistical tests, visualizations, figures
+        ├── cli/            # CLI for running experiments
         ├── data_generation/# Synthetic dataset generation
         ├── experiments/    # Ray-based feature selection experiments
         ├── infra/          # AWS/Ray cluster setup and management
@@ -232,12 +238,12 @@ pydantic = ">=2.0"       # Validation
 ### Testing
 
 ```bash
-uv run pytest tests/ -v                           # Run all tests (JIT enabled, fast)
-uv run pytest tests/ -m "not slow" -v             # Skip slow tests
-uv run pytest tests/integration/ -v               # Run integration tests
-uv run pytest tests/unit/ -v                      # Run unit tests
-uv run pytest -k "classifier" -v                  # Run by keyword
-uv run pytest --cov=citrees --cov-report=term-missing  # With coverage (JIT disabled)
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/ -v                           # Run all tests (JIT enabled, fast)
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/ -m "not slow" -v             # Skip slow tests
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/integration/ -v               # Run integration tests
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/unit/ -v                      # Run unit tests
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest -k "classifier" -v                  # Run by keyword
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest --cov=citrees --cov-report=term-missing  # With coverage (JIT disabled)
 ```
 
 #### Two Test Modes: JIT On vs Off
@@ -257,14 +263,14 @@ The test suite supports two modes controlled by `tests/conftest.py`:
 
 ```bash
 # Fast tests (JIT enabled, validates compiled code)
-uv run pytest tests/
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/
 
 # Coverage tests (JIT disabled, slower but tracks coverage)
-uv run pytest tests/ --cov=citrees
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/ --cov=citrees
 
 # Explicitly control JIT
-NUMBA_DISABLE_JIT=1 uv run pytest tests/  # Force JIT off
-NUMBA_DISABLE_JIT=0 uv run pytest tests/  # Force JIT on
+NUMBA_DISABLE_JIT=1 UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/  # Force JIT off
+NUMBA_DISABLE_JIT=0 UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/  # Force JIT on
 ```
 
 #### Slow Test Marker
@@ -278,7 +284,7 @@ Tests that are computationally expensive are marked with `@pytest.mark.slow`:
 Skip slow tests for faster iteration:
 
 ```bash
-uv run pytest tests/ -m "not slow" -v
+UV_CACHE_DIR=./scratch/.uv_cache uv run pytest tests/ -m "not slow" -v
 ```
 
 #### Testing Numba Functions
@@ -364,11 +370,11 @@ and **do not claim results you did not run**.
    - The script must use **real code paths** and, when needed, **real models +
      real data** (prefer existing datasets under `tests/data/`).
    - Hard-require the expected failure (e.g., `assert`, explicit exception) so
-     it’s unambiguous.
+     it's unambiguous.
    - Print enough context to debug: library versions, random seeds, key params.
    - Run it and confirm it fails:
      ```bash
-     uv run python scratch/repro_<issue>.py
+     UV_CACHE_DIR=./scratch/.uv_cache uv run python scratch/repro_<issue>.py
      ```
 
 2. **Implement the fix (minimal + targeted)**
@@ -378,7 +384,7 @@ and **do not claim results you did not run**.
 3. **Verify the fix (re-run the same repro)**
    - Re-run the exact script and confirm it now passes:
      ```bash
-     uv run python scratch/repro_<issue>.py
+     UV_CACHE_DIR=./scratch/.uv_cache uv run python scratch/repro_<issue>.py
      ```
 
 4. **Backstop with tests (unit/integration/regression)**
@@ -390,7 +396,7 @@ and **do not claim results you did not run**.
      generated fixtures with fixed `random_state`.
    - Run the relevant test(s):
      ```bash
-     uv run pytest -k "<relevant_keyword>" -v
+     UV_CACHE_DIR=./scratch/.uv_cache uv run pytest -k "<relevant_keyword>" -v
      ```
 
 ---

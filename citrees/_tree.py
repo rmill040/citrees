@@ -748,25 +748,32 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         n_tests : int
             Number of hypothesis tests to perform.
         """
-        if n_tests > 1:
-            alpha = getattr(self, f"alpha_{adjust}")
-            n_resamples = getattr(self, f"n_resamples_{adjust}")
-            _alpha = alpha / n_tests
-            if isinstance(n_resamples, str):
-                lower_limit = ceil(1 / _alpha)
-                if n_resamples == NResamples.MINIMUM:
-                    _n_resamples = lower_limit
-                elif n_resamples == NResamples.MAXIMUM:
-                    _n_resamples = ceil(1 / (4 * _alpha * _alpha))
-                else:
-                    z = norm.ppf(1 - _alpha)
-                    upper_limit = ceil(z * z * (1 - _alpha) / _alpha)
-                    _n_resamples = max(lower_limit, upper_limit)
-            else:
-                _n_resamples = n_resamples * n_tests
+        alpha = getattr(self, f"alpha_{adjust}")
+        n_resamples = getattr(self, f"n_resamples_{adjust}")
 
-            setattr(self, f"_alpha_{adjust}", _alpha)
-            setattr(self, f"_n_resamples_{adjust}", _n_resamples)
+        # Bonferroni is a per-node adjustment. Even when n_tests=1 (no adjustment), we must
+        # reset the private per-node attributes to the unadjusted values to avoid leaking
+        # state across nodes.
+        n_tests = max(int(n_tests), 1)
+        _alpha = alpha / n_tests
+
+        if n_resamples is None:
+            _n_resamples = None
+        elif isinstance(n_resamples, str):
+            lower_limit = ceil(1 / _alpha)
+            if n_resamples == NResamples.MINIMUM:
+                _n_resamples = lower_limit
+            elif n_resamples == NResamples.MAXIMUM:
+                _n_resamples = ceil(1 / (4 * _alpha * _alpha))
+            else:
+                z = norm.ppf(1 - _alpha)
+                upper_limit = ceil(z * z * (1 - _alpha) / _alpha)
+                _n_resamples = max(lower_limit, upper_limit)
+        else:
+            _n_resamples = n_resamples * n_tests
+
+        setattr(self, f"_alpha_{adjust}", _alpha)
+        setattr(self, f"_n_resamples_{adjust}", _n_resamples)
 
     def _mute_feature(
         self,
@@ -1159,10 +1166,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self._selector_names = selectors
 
         if self._estimator_type == EstimatorType.CLASSIFIER:
-            self._selectors = {name: ClassifierSelectors[name] for name in selectors}
-            self._selector_tests = {name: ClassifierSelectorTests[name] for name in selectors}
-            self._splitter = ClassifierSplitters[self.splitter]
-            self._splitter_test = ClassifierSplitterTests[self.splitter]
+            self._selectors: dict[str, Any] = {
+                name: ClassifierSelectors[name] for name in selectors
+            }
+            self._selector_tests: dict[str, Any] = {
+                name: ClassifierSelectorTests[name] for name in selectors
+            }
+            self._splitter: Any = ClassifierSplitters[self.splitter]
+            self._splitter_test: Any = ClassifierSplitterTests[self.splitter]
 
             n_classes = len(np.unique(y))
             self._selector_kwargs = {

@@ -4,13 +4,12 @@ This directory contains generated artifacts from experiment/analysis scripts
 under `paper/scripts/`.
 
 Canonical subdirectories (used by scripts and referenced by
-`paper/notes/figures_plan.md`):
+`paper/docs/figures-plan.md`):
 
 - `paper/results/figures/`: PNG figures (paper-facing or diagnostic).
 - `paper/results/tables/`: tables (CSV/LaTeX).
-- `paper/results/cache/`: cached intermediate data (typically parquet) to speed
-  up figure regeneration.
-- `paper/results/theory/`: theory/calibration outputs (typically parquet).
+- `paper/results/cache/`: cached intermediate data and theory/calibration outputs
+  (typically parquet) to speed up figure regeneration.
 
 Notes:
 

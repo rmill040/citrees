@@ -1,6 +1,6 @@
-# arXiv preprint (LaTeX)
+# arXiv manuscript (LaTeX)
 
-Source of truth for the full preprint lives in this directory:
+Source of truth for the manuscript lives in this directory:
 
 - `main.tex` is the entrypoint.
 - `sections/` contains the main-paper content.
@@ -9,9 +9,9 @@ Source of truth for the full preprint lives in this directory:
 
 ## Workflow
 
-- Long-form scratch/theory notes live in `paper/notes/notes.md`.
+- Long-form scratch/theory notes live in `paper/docs/drafts.md`.
 - The arXiv manuscript lives in `paper/arxiv/` and is written in LaTeX.
-- As sections stabilize, migrate content from `paper/notes/notes.md` into:
+- As sections stabilize, migrate content from `paper/docs/drafts.md` into:
   - `paper/arxiv/sections/` (main paper), and
   - `paper/arxiv/appendices/` (proofs/technical details).
 
@@ -51,5 +51,5 @@ open main.pdf
 
 ## Notes
 
-- The old Markdown theory draft was renamed to `paper/notes/notes.md` and is
-  being migrated into this LaTeX preprint.
+- The old Markdown theory draft was renamed to `paper/docs/drafts.md` and is
+  being migrated into this LaTeX manuscript.

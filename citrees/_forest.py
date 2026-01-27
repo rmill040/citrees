@@ -102,12 +102,12 @@ def _parallel_fit_classifier(
         }
         if sampling_method in (SamplingMethod.BALANCED, SamplingMethod.STRATIFIED):
             boot_idx = (
-                balanced_bootstrap_sample(y=y, **kwargs)
+                balanced_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
                 if sampling_method == SamplingMethod.BALANCED
-                else stratified_bootstrap_sample(y=y, **kwargs)
+                else stratified_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
             )
         else:
-            boot_idx = classic_bootstrap_sample(y=y, **kwargs)
+            boot_idx = classic_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
         estimator.fit(X[boot_idx], y[boot_idx])
     else:
         estimator.fit(X, y)
@@ -170,7 +170,7 @@ def _parallel_fit_regressor(
             y=y,
             max_samples=max_samples,
             bayesian_bootstrap=bootstrap_method == BootstrapMethod.BAYESIAN,
-            random_state=estimator.random_state,
+            random_state=estimator.random_state,  # type: ignore[arg-type]
         )
         estimator.fit(X[boot_idx], y[boot_idx])
     else:

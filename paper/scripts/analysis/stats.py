@@ -551,9 +551,22 @@ def nemenyi_critical_difference(n_methods: int, n_datasets: int, alpha: float = 
         (9, 0.10): 2.855,
         (10, 0.05): 3.164,
         (10, 0.10): 2.920,
+        (11, 0.05): 3.219,
+        (11, 0.10): 2.978,
+        (12, 0.05): 3.268,
+        (12, 0.10): 3.030,
+        (15, 0.05): 3.399,
+        (15, 0.10): 3.160,
+        (20, 0.05): 3.578,
+        (20, 0.10): 3.329,
     }
 
-    q = q_values.get((n_methods, alpha), 2.728)  # Default to 5 methods
+    if (n_methods, alpha) not in q_values:
+        raise ValueError(
+            f"No critical value for n_methods={n_methods}, alpha={alpha}. "
+            f"Supported: n_methods in [3-12, 15, 20], alpha in [0.05, 0.10]"
+        )
+    q = q_values[(n_methods, alpha)]
     cd = q * np.sqrt(n_methods * (n_methods + 1) / (6 * n_datasets))
     return cd
 

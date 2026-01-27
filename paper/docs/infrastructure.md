@@ -2,31 +2,27 @@
 
 Run citrees feature selection experiments at scale on AWS using Ray.
 
+> **AWS Note:** All commands require AWS credentials. Set `AWS_PROFILE` if not
+> using your default profile.
+
 ## Quick Start
 
 ```bash
-# 1. One-time setup (IAM + S3 + ECR + Docker image + generate cluster.yaml)
-AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --setup
-
-# If you already have IAM + ECR image, regenerate cluster.yaml only:
-# AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
+# 1. One-time setup (IAM + S3 + ECR + Docker + cluster.yaml)
+citrees-exp infra setup
 
 # 2. Deploy cluster
-AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
+citrees-exp cluster up --yes
 
-# 3. Run feature selection (Stage 1)
-AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/experiments/ray_feature_selection.py
+# 3. Run experiments
+citrees-exp run classification --only-missing
 
-# 4. Run downstream evaluation (Stage 2)
-AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/experiments/ray_eval.py
+# 4. Monitor progress
+citrees-exp check
+citrees-exp watch  # live dashboard
 
-# 5. Monitor progress
-AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings
-
-# 6. Tear down when done
-AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
+# 5. Tear down when done
+citrees-exp cluster down --yes
 ```
 
 ## Architecture
@@ -66,27 +62,21 @@ AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
 
 ## Configuration
 
-### Setup Script (`paper/scripts/infra/ray/setup_cluster.py`)
+### Setup Script
 
 ```bash
-# Full setup (recommended): IAM + S3 + ECR + Docker image + generate cluster.yaml
-AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --setup
+# Full setup (recommended): IAM + S3 + ECR + Docker image + cluster.yaml
+citrees-exp infra setup
 
-# Regenerate cluster.yaml only (fills placeholders; creates S3 bucket if needed)
-AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
+# Regenerate cluster.yaml only
+citrees-exp infra generate
 
-# What it does:
-# --setup:
+# What setup does:
 # - Creates IAM role + instance profile for Ray autoscaling + S3/ECR access
 # - Creates S3 bucket (citrees-{account_id})
 # - Creates ECR repo (citrees-{account_id})
 # - Builds + pushes Docker image to ECR
 # - Generates cluster.yaml with your public IP + git provenance
-#
-# --generate:
-# - Fetches your public IP for security group rules
-# - Creates S3 bucket if needed
-# - Fills in __MY_IP__, __BRANCH__, __S3_BUCKET__, __AWS_ACCOUNT__, __GIT_SHA__ placeholders
 ```
 
 ### Cluster Config (`paper/scripts/infra/ray/cluster.yaml`)
@@ -137,7 +127,7 @@ MetadataOptions:
   HttpPutResponseHopLimit: 2
 ```
 
-### Experiment Config (`paper/scripts/infra/config.yaml`)
+### Experiment Config (`paper/scripts/infra/ray/cluster.yaml`)
 
 ```yaml
 aws_region: us-east-1
@@ -148,38 +138,27 @@ experiment:
   n_seeds: 10
 ```
 
-## Ray Commands
+## CLI Commands
 
 ### Cluster Management
 
 ```bash
-# Start cluster
-AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
-
-# Check cluster status
-AWS_PROFILE=personal uv run ray exec paper/scripts/infra/ray/cluster.yaml \
-    '/app/.venv/bin/ray status'
-
-# View dashboard (opens browser)
-AWS_PROFILE=personal uv run ray dashboard paper/scripts/infra/ray/cluster.yaml
-
-# SSH to head node
-AWS_PROFILE=personal uv run ray attach paper/scripts/infra/ray/cluster.yaml
-
-# Tear down cluster
-AWS_PROFILE=personal uv run ray down paper/scripts/infra/ray/cluster.yaml --yes
+citrees-exp cluster up --yes      # Start cluster
+citrees-exp cluster status        # Check cluster status
+citrees-exp cluster dashboard     # View dashboard (opens browser)
+citrees-exp cluster ssh           # SSH to head node
+citrees-exp cluster logs          # View logs
+citrees-exp cluster down --yes    # Tear down cluster
 ```
 
-### Running Jobs
+### Running Experiments
 
 ```bash
-# Submit feature selection job
-AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/experiments/ray_feature_selection.py
-
-# Submit evaluation job
-AWS_PROFILE=personal uv run ray submit paper/scripts/infra/ray/cluster.yaml \
-    paper/scripts/experiments/ray_eval.py
+citrees-exp run classification --only-missing   # Full pipeline
+citrees-exp run classification --stage stage1   # Stage 1 only
+citrees-exp run classification --stage stage2   # Stage 2 only
+citrees-exp run classification -m cit,rf        # Specific methods
+citrees-exp run classification --dry-run        # Preview what would run
 ```
 
 ## Worker Pools
@@ -249,17 +228,11 @@ Workers automatically fall back to S3 when local files don't exist:
 ### Check Progress
 
 ```bash
-# Stage 1 progress
-AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings
-
-# Stage 2 progress
-AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage metrics
-
-# By method
-AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-method
-
-# By dataset
-AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py --stage rankings --by-dataset
+citrees-exp check                     # Stage 1 (rankings) progress
+citrees-exp check --stage metrics     # Stage 2 progress
+citrees-exp check --by-method         # Grouped by method
+citrees-exp check --by-dataset        # Grouped by dataset
+citrees-exp watch                     # Live dashboard
 ```
 
 ### Ray Dashboard
@@ -267,7 +240,7 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/check_progress.py -
 Access at `http://<head-ip>:8265` or via:
 
 ```bash
-AWS_PROFILE=personal uv run ray dashboard paper/scripts/infra/ray/cluster.yaml
+citrees-exp cluster dashboard
 ```
 
 Features:
@@ -279,18 +252,15 @@ Features:
 
 ## Missing-only Runs (Recommended)
 
-The pipeline does **not** auto-skip inside each task. Instead, you filter the
-grid **before** submission using S3 listings. This gives you a deterministic,
-auditable list of configs that will run.
+The pipeline filters the grid **before** submission using S3 listings, giving
+you a deterministic, auditable list of configs that will run.
 
 ```bash
-# Preview the exact configs that will run (print full list)
-AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
-    --stage all --only-missing --dry-run --dry-run-limit 100000
+# Preview what would run
+citrees-exp run classification --only-missing --dry-run
 
 # Run only configs missing in S3
-AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
-    --stage all --only-missing
+citrees-exp run classification --only-missing
 ```
 
 **Reruns:** delete the relevant S3 objects (rankings/metrics) and re-run with
@@ -320,29 +290,20 @@ AWS_PROFILE=personal uv run python paper/scripts/experiments/run_pipeline.py \
 ### Workers not starting
 
 ```bash
-# Check cluster status
-AWS_PROFILE=personal uv run ray exec paper/scripts/infra/ray/cluster.yaml \
-    '$HOME/citrees/.venv/bin/ray status'
-
-# Check autoscaler logs
-AWS_PROFILE=personal uv run ray attach paper/scripts/infra/ray/cluster.yaml
-cat /tmp/ray/session_latest/logs/monitor.log
+citrees-exp cluster status    # Check cluster status
+citrees-exp cluster logs      # View logs
+citrees-exp cluster ssh       # SSH to head node and inspect
 ```
 
 ### Tasks failing
 
 ```bash
-# View task errors in dashboard
-AWS_PROFILE=personal uv run ray dashboard paper/scripts/infra/ray/cluster.yaml
-
-# Or check logs on head
-AWS_PROFILE=personal uv run ray attach paper/scripts/infra/ray/cluster.yaml
-cat /tmp/ray/session_latest/logs/raylet.out
+citrees-exp cluster dashboard   # View task errors in dashboard
+citrees-exp cluster logs -f     # Stream logs continuously
 ```
 
 ### AMI issues
 
 ```bash
-# Update to latest Ubuntu 22.04 AMI
-AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --update-ami
+citrees-exp infra update-ami    # Fetch current Ubuntu 22.04 AMI and update cluster.yaml
 ```

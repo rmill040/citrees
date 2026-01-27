@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy import stats
-from theoretical_predictions import (
+from paper.scripts.theory.theoretical_predictions import (
     find_gap_region,
     gate_power,
     root_power,
@@ -316,7 +316,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("paper/results/theory"),
+        default=Path("paper/results/cache"),
         help="Output directory for results",
     )
     parser.add_argument(

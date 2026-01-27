@@ -375,7 +375,7 @@ def run_type1_error_experiment(
 def run_power_experiment(
     n_simulations: int = 5000,
     n_samples: int = 100,
-    effect_sizes: list = None,
+    effect_sizes: list[float] | None = None,
     alpha: float = 0.05,
     confidence: float = 0.95,
     max_resamples: int = 1000,

@@ -1,28 +1,13 @@
 #!/usr/bin/env python3
 """Setup and validate Ray cluster configuration.
 
-Usage:
-    # Full setup: build Docker image + generate cluster.yaml (one command)
-    AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --setup
-
-    # Or step by step:
-    # Build and push Docker image to ECR
-    AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --build-image
-
-    # Generate cluster.yaml from template (uses current IP and branch)
-    AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate
-
-    # Generate with specific branch
-    AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --generate --branch main
-
-    # Update cluster.yaml with latest Ubuntu AMI
-    AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --update-ami
-
-    # Validate cluster config
-    AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --validate
-
-    # Show current config
-    AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --show
+Usage (via CLI):
+    citrees-exp infra setup           # Full setup: IAM + Docker + cluster.yaml
+    citrees-exp infra build           # Build and push Docker image to ECR
+    citrees-exp infra generate        # Generate cluster.yaml from template
+    citrees-exp infra validate        # Validate cluster config
+    citrees-exp infra show            # Show current config
+    citrees-exp infra update-ami      # Update AMI in cluster.yaml
 """
 
 from __future__ import annotations
@@ -39,6 +24,8 @@ from pathlib import Path
 
 import boto3
 import yaml
+
+from paper.scripts.cli._console import error, heading, info, step, success
 
 CLUSTER_YAML = Path(__file__).parent / "cluster.yaml"
 CLUSTER_EXAMPLE_YAML = Path(__file__).parent / "cluster.example.yaml"
@@ -70,11 +57,11 @@ def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
 
     try:
         s3.head_bucket(Bucket=bucket_name)
-        print(f"  S3 bucket exists: {bucket_name}")
+        step(f"S3 bucket exists: {bucket_name}")
     except s3.exceptions.ClientError as e:
         error_code = e.response.get("Error", {}).get("Code")
         if error_code in ("404", "NoSuchBucket"):
-            print(f"  Creating S3 bucket: {bucket_name}")
+            step(f"Creating S3 bucket: {bucket_name}")
             # us-east-1 doesn't need LocationConstraint
             if region == "us-east-1":
                 s3.create_bucket(Bucket=bucket_name)
@@ -82,7 +69,7 @@ def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
                 s3.create_bucket(
                     Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": region}
                 )
-            print(f"  Created S3 bucket: {bucket_name}")
+            success(f"Created S3 bucket: {bucket_name}")
         else:
             raise
 
@@ -127,16 +114,16 @@ def ensure_ecr_repo(region: str = DEFAULT_REGION) -> tuple[str, str]:
     try:
         response = ecr.describe_repositories(repositoryNames=[repo_name])
         repo_uri = response["repositories"][0]["repositoryUri"]
-        print(f"  ECR repository exists: {repo_name}")
+        step(f"ECR repository exists: {repo_name}")
     except ecr.exceptions.RepositoryNotFoundException:
-        print(f"  Creating ECR repository: {repo_name}")
+        step(f"Creating ECR repository: {repo_name}")
         response = ecr.create_repository(
             repositoryName=repo_name,
             imageScanningConfiguration={"scanOnPush": True},
             imageTagMutability="MUTABLE",
         )
         repo_uri = response["repository"]["repositoryUri"]
-        print(f"  Created ECR repository: {repo_uri}")
+        success(f"Created ECR repository: {repo_uri}")
 
     return repo_name, repo_uri
 
@@ -256,9 +243,9 @@ def ensure_iam_role(region: str = DEFAULT_REGION) -> str:
     # Create or update role
     try:
         iam.get_role(RoleName=IAM_ROLE_NAME)
-        print(f"  IAM role exists: {IAM_ROLE_NAME}")
+        step(f"IAM role exists: {IAM_ROLE_NAME}")
     except iam.exceptions.NoSuchEntityException:
-        print(f"  Creating IAM role: {IAM_ROLE_NAME}")
+        step(f"Creating IAM role: {IAM_ROLE_NAME}")
         iam.create_role(
             RoleName=IAM_ROLE_NAME,
             AssumeRolePolicyDocument=json.dumps(trust_policy),
@@ -271,28 +258,28 @@ def ensure_iam_role(region: str = DEFAULT_REGION) -> str:
         PolicyName="citrees-ray-policy",
         PolicyDocument=json.dumps(ray_policy),
     )
-    print("  IAM policy attached: citrees-ray-policy")
+    step("IAM policy attached: citrees-ray-policy")
 
     # Create or get instance profile
     try:
         response = iam.get_instance_profile(InstanceProfileName=IAM_ROLE_NAME)
-        print(f"  Instance profile exists: {IAM_ROLE_NAME}")
+        step(f"Instance profile exists: {IAM_ROLE_NAME}")
         # Check if role is attached
         roles = response["InstanceProfile"].get("Roles", [])
         if not any(r["RoleName"] == IAM_ROLE_NAME for r in roles):
-            print("  Attaching role to instance profile...")
+            step("Attaching role to instance profile...")
             iam.add_role_to_instance_profile(
                 InstanceProfileName=IAM_ROLE_NAME, RoleName=IAM_ROLE_NAME
             )
-            print("  Added role to instance profile")
+            success("Added role to instance profile")
     except iam.exceptions.NoSuchEntityException:
-        print(f"  Creating instance profile: {IAM_ROLE_NAME}")
+        step(f"Creating instance profile: {IAM_ROLE_NAME}")
         iam.create_instance_profile(InstanceProfileName=IAM_ROLE_NAME)
         # Add role to instance profile
         iam.add_role_to_instance_profile(InstanceProfileName=IAM_ROLE_NAME, RoleName=IAM_ROLE_NAME)
-        print("  Added role to instance profile")
+        success("Added role to instance profile")
         # IAM has eventual consistency - wait for propagation
-        print("  Waiting for IAM propagation (10s)...")
+        step("Waiting for IAM propagation (10s)...")
         time.sleep(10)
 
     return instance_profile_arn
@@ -311,17 +298,17 @@ def build_and_push_image(region: str = DEFAULT_REGION) -> str:
     if docker_check.returncode != 0:
         raise RuntimeError("Docker daemon not running. Start Docker and try again.")
 
-    print("\nEnsuring ECR repository...")
+    info("Ensuring ECR repository...")
     repo_name, repo_uri = ensure_ecr_repo(region)
 
-    print("\nGetting ECR login credentials...")
+    info("Getting ECR login credentials...")
     ecr = boto3.client("ecr", region_name=region)
     token = ecr.get_authorization_token()
     auth_data = token["authorizationData"][0]
     registry = auth_data["proxyEndpoint"]
 
     # Docker login to ECR
-    print(f"  Logging into ECR: {registry}")
+    step(f"Logging into ECR: {registry}")
     password = base64.b64decode(auth_data["authorizationToken"]).decode().split(":")[1]
     login_cmd = subprocess.run(
         ["docker", "login", "--username", "AWS", "--password-stdin", registry],
@@ -331,18 +318,18 @@ def build_and_push_image(region: str = DEFAULT_REGION) -> str:
     )
     if login_cmd.returncode != 0:
         raise RuntimeError(f"Docker login failed: {login_cmd.stderr}")
-    print("  ECR login successful")
+    success("ECR login successful")
 
     # Get git SHA for tagging
     git_sha = get_git_sha()[:12]
     image_tag_sha = f"{repo_uri}:{git_sha}"
     image_tag_latest = f"{repo_uri}:latest"
 
-    print("\nBuilding Docker image...")
-    print(f"  Context: {REPO_ROOT}")
-    print(f"  Dockerfile: {DOCKERFILE_DIR / 'Dockerfile'}")
-    print(f"  Tags: {git_sha}, latest")
-    print(f"  Platform: {DOCKER_PLATFORM}")
+    info("Building Docker image...")
+    step(f"Context: {REPO_ROOT}")
+    step(f"Dockerfile: {DOCKERFILE_DIR / 'Dockerfile'}")
+    step(f"Tags: {git_sha}, latest")
+    step(f"Platform: {DOCKER_PLATFORM}")
 
     # Build the image
     build_cmd = subprocess.run(
@@ -363,19 +350,19 @@ def build_and_push_image(region: str = DEFAULT_REGION) -> str:
     )
     if build_cmd.returncode != 0:
         raise RuntimeError("Docker build failed")
-    print("  Build successful")
+    success("Build successful")
 
     # Push both tags
-    print("\nPushing to ECR...")
+    info("Pushing to ECR...")
     for tag in [image_tag_sha, image_tag_latest]:
-        print(f"  Pushing: {tag}")
+        step(f"Pushing: {tag}")
         push_cmd = subprocess.run(["docker", "push", tag], capture_output=False)
         if push_cmd.returncode != 0:
             raise RuntimeError(f"Docker push failed for {tag}")
 
-    print("\nImage pushed successfully:")
-    print(f"  {image_tag_latest}")
-    print(f"  {image_tag_sha}")
+    success("Image pushed successfully")
+    step(image_tag_latest)
+    step(image_tag_sha)
 
     return image_tag_latest
 
@@ -396,29 +383,29 @@ def generate_config(branch: str | None = None) -> None:
     if not CLUSTER_EXAMPLE_YAML.exists():
         raise FileNotFoundError(f"Template not found: {CLUSTER_EXAMPLE_YAML}")
 
-    print("Fetching your public IP...")
+    info("Fetching your public IP...")
     ip = get_public_ip()
-    print(f"  Your IP: {ip}")
+    step(f"Your IP: {ip}")
 
     if branch is None:
         branch = get_current_branch()
-    print(f"  Branch: {branch}")
+    step(f"Branch: {branch}")
 
-    print("\nGetting AWS account ID...")
+    info("Getting AWS account ID...")
     account_id = get_aws_account_id()
-    print(f"  Account ID: {account_id}")
+    step(f"Account ID: {account_id}")
 
-    print("\nGetting git SHA...")
+    info("Getting git SHA...")
     git_sha = get_git_sha()
-    print(f"  Git SHA: {git_sha[:12]}")
+    step(f"Git SHA: {git_sha[:12]}")
 
-    print("\nEnsuring S3 bucket for results...")
+    info("Ensuring S3 bucket for results...")
     bucket_name = ensure_s3_bucket()
 
-    print(f"\nReading template: {CLUSTER_EXAMPLE_YAML}")
+    info(f"Reading template: {CLUSTER_EXAMPLE_YAML}")
     template = CLUSTER_EXAMPLE_YAML.read_text()
 
-    print("Replacing placeholders...")
+    step("Replacing placeholders...")
     config_content = (
         template.replace("__MY_IP__", ip)
         .replace("__BRANCH__", branch)
@@ -428,14 +415,11 @@ def generate_config(branch: str | None = None) -> None:
         .replace("__REGION__", DEFAULT_REGION)
     )
 
-    print(f"Writing: {CLUSTER_YAML}")
+    step(f"Writing: {CLUSTER_YAML}")
     CLUSTER_YAML.write_text(config_content)
 
-    print(f"\nGenerated {CLUSTER_YAML}")
-    print("\nNext steps:")
-    print(
-        "  1. Deploy: AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes"
-    )
+    success(f"Generated {CLUSTER_YAML}")
+    info("Next: citrees-exp cluster up --yes")
 
 
 def get_latest_ubuntu_ami(region: str) -> dict[str, str]:
@@ -516,20 +500,21 @@ def validate_config(config: dict) -> list[str]:
 def show_config(config: dict) -> None:
     """Display current cluster configuration."""
     region = config.get("provider", {}).get("region", "unknown")
-    print(f"Cluster: {config.get('cluster_name', 'unknown')}")
-    print(f"Region: {region}")
-    print("\nNode Types:")
+    heading("Cluster Configuration")
+    step(f"Name: {config.get('cluster_name', 'unknown')}")
+    step(f"Region: {region}")
+    info("Node Types:")
     for node_type, node_config in config.get("available_node_types", {}).items():
         nc = node_config.get("node_config", {})
-        print(f"  {node_type}:")
-        print(f"    Instance: {nc.get('InstanceType', 'N/A')}")
-        print(f"    AMI: {nc.get('ImageId', 'N/A')}")
+        step(f"{node_type}:")
+        step(f"  Instance: {nc.get('InstanceType', 'N/A')}")
+        step(f"  AMI: {nc.get('ImageId', 'N/A')}")
         if "InstanceMarketOptions" in nc:
-            print("    Spot: Yes")
+            step("  Spot: Yes")
         if "resources" in node_config:
-            print(f"    Resources: {node_config['resources']}")
-        print(
-            f"    Min/Max: {node_config.get('min_workers', 'N/A')}/{node_config.get('max_workers', 'N/A')}"
+            step(f"  Resources: {node_config['resources']}")
+        step(
+            f"  Min/Max: {node_config.get('min_workers', 'N/A')}/{node_config.get('max_workers', 'N/A')}"
         )
 
 
@@ -564,19 +549,15 @@ def main() -> int:
 
     # --setup: Full setup (IAM + ECR + Docker image + cluster config)
     if args.setup:
-        print("=" * 60)
-        print("FULL SETUP: IAM + Docker image + cluster.yaml")
-        print("=" * 60)
-        print("\n[1/3] Ensuring IAM role and instance profile...")
+        heading("Full Setup: IAM + Docker + cluster.yaml")
+        info("[1/3] Ensuring IAM role and instance profile...")
         ensure_iam_role()
-        print("\n[2/3] Building and pushing Docker image...")
+        info("[2/3] Building and pushing Docker image...")
         build_and_push_image()
-        print("\n[3/3] Generating cluster.yaml...")
+        info("[3/3] Generating cluster.yaml...")
         generate_config(branch=args.branch)
-        print("\n" + "=" * 60)
-        print("Setup complete! Next step:")
-        print("  AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes")
-        print("=" * 60)
+        success("Setup complete!")
+        info("Next: citrees-exp cluster up --yes")
         return 0
 
     # --build-image: Just build and push Docker image
@@ -596,24 +577,24 @@ def main() -> int:
         show_config(config)
 
     if args.update_ami:
-        print(f"\nFetching latest Ubuntu 22.04 AMI for {region}...")
+        info(f"Fetching Ubuntu 22.04 AMI for {region}...")
         ami = get_latest_ubuntu_ami(region)
-        print(f"  ID: {ami['id']}")
-        print(f"  Name: {ami['name']}")
-        print(f"  Created: {ami['created']}")
+        step(f"ID: {ami['id']}")
+        step(f"Name: {ami['name']}")
+        step(f"Created: {ami['created']}")
         config = update_ami(config, ami["id"])
         save_cluster_config(config)
-        print(f"\nUpdated {CLUSTER_YAML}")
+        success(f"Updated {CLUSTER_YAML}")
 
     if args.validate:
-        print("\nValidating cluster configuration...")
-        errors = validate_config(config)
-        if errors:
-            print("Errors found:")
-            for err in errors:
-                print(f"  - {err}")
+        info("Validating cluster configuration...")
+        validation_errors = validate_config(config)
+        if validation_errors:
+            error("Errors found:")
+            for err in validation_errors:
+                step(f"- {err}")
             return 1
-        print("Configuration valid.")
+        success("Configuration valid")
 
     return 0
 

@@ -2,25 +2,64 @@
 \label{sec:discussion}
 
 \paragraph{What our p-values mean.}
-All p-values in \citrees are computed in a conditional inference framework: at a
-fixed node $t$, the permutation test operates conditionally on covariates
-treated as fixed by the permutation scheme. When exchangeability holds under the
-null given $(X_t, U)$, the +1 Monte Carlo p-value is super-uniform.
+At a fixed node $t$, permutation tests are defined conditionally on covariates
+treated as fixed by the permutation scheme. For a fixed nodewise hypothesis
+(e.g., a pre-specified Stage~A feature test), when exchangeability holds under
+the null given $(X_t, U)$ (where $U$ denotes algorithmic randomness such as
+feature subsampling; \cref{app:assumptions}), the +1 Monte Carlo permutation p-value is
+super-uniform (conservative): under the null it falls below $\alpha$ with
+probability at most $\alpha$.
+See \cref{sec:pvalue-scope} for a compact scope summary.
+
+\paragraph{Exchangeability is a design choice.}
+If observations are clustered, longitudinal, or otherwise dependent, naive label
+permutations are generally invalid because exchangeability fails. In such
+settings, any inferential interpretation requires a restricted permutation
+scheme matched to the dependence structure (e.g., permuting within clusters or
+within blocks). \citrees does not implement restricted permutations by default,
+so p-values should not be interpreted as calibrated unless the permutation
+scheme matches the data's exchangeability structure.
+
+\paragraph{Conditional vs.\ marginal inference.}
+Permutation tests provide conditional inference based on the covariates treated
+as fixed by the permutation scheme. This differs from parametric/asymptotic
+tests (e.g., classical ANOVA or correlation tests), which can be more powerful
+under their modeling assumptions but require stronger distributional
+conditions.
 
 \paragraph{What we do (and do not) claim.}
 Our clean inferential statements are deliberately narrow: fixed-node (especially
 root) Stage~A screening in fixed-$B$ mode. Stage~B tests thresholds after
 selecting a feature using the same labels, and internal nodes are adaptive
 because node membership depends on earlier label-dependent splits. Without
-additional selective-inference machinery or sample splitting, Stage~B p-values
-and internal-node p-values should be treated as algorithmic stopping statistics
-rather than classical post-selection p-values.
+additional selective-inference machinery (post-selection corrections) or sample splitting, Stage~B p-values
+and internal-node p-values should be treated as heuristic algorithmic statistics
+rather than calibrated p-values
+\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,Fithian2014OptimalInferenceAfterModelSelection,Dwork2015ReusableHoldout,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
 
 \paragraph{Early stopping.}
 \citrees supports early stopping as a computational heuristic for Monte Carlo
 permutation testing. In this paper we do not attach fixed-$B$ optional-stopping
 validity claims to early-stopped outputs; if used, early stopping should be
 supported empirically (e.g., via calibration studies).
+
+\paragraph{Other error-control frameworks (out of scope).}
+Our results focus on nodewise Type~I error control for Stage~A screening at a
+fixed node under a permutation null. Alternative inferential targets for feature
+selection include global false discovery rate (FDR) control
+\citep{BenjaminiHochberg1995FDR}, knockoff-based FDR control
+\citep{BarberCandes2015Knockoffs}, and stability selection
+\citep{MeinshausenBuhlmann2010StabilitySelection}. These methods address
+different error metrics and typically rely on different assumptions than the
+fixed-node permutation-testing setup studied here; we do not pursue them in this
+manuscript.
+
+\paragraph{Sequential boundaries beyond our heuristics (out of scope).}
+More classical sequential-testing frameworks include group-sequential boundary
+families \citep{OBrienFleming1979MultipleTesting,Pocock1977GroupSequential} and
+alpha-spending functions \citep{LanDeMets1983DiscreteSequentialBoundaries}. We
+do not develop or claim any such sequential-validity guarantees for early-stopped
+Monte Carlo permutation tests in this paper.
 
 \paragraph{Fixed-$B$ resolution and ties.}
 In fixed-$B$ Monte Carlo mode, the +1 p-value takes values on the discrete grid
@@ -31,4 +70,28 @@ implies ties can occur (multiple candidates achieving the same minimal p-value);
 when ties occur, the implementation must specify a deterministic or randomized
 tie-breaking policy.
 
-% TODO: add a short ``practitioner guidance'' subsection (recommended configs).
+\paragraph{Design axes and ablations.}
+Beyond the fixed-node theory, \citrees is designed as a research harness for
+conditional inference trees: it exposes modular choices for selectors,
+splitters, threshold candidate generation, and resampling. Some configurations
+overlap qualitatively with widely used training heuristics (bagging, random
+threshold proposals, histogram grids); see
+\cref{app:methods-connections,tab:citrees-connections}. In this manuscript we
+treat these connections as orientation only and reserve empirical comparisons
+and ablations for \cref{sec:experiments}.
+
+\paragraph{Practitioner guidance (guarantees vs.\ heuristics).}
+To preserve the paper's fixed-node Stage~A p-value guarantees, use fixed-$B$
+permutation testing (\texttt{early\_stopping\_selector=None}) with a
+label-independent tested family (A0.3): avoid label-adaptive modifications of
+the tested set at the node of interest (e.g., disable subtree feature muting if
+you want to interpret p-values at a pre-specified internal node). Ensure the
+Monte Carlo resolution is compatible with the thresholding rule, i.e.,
+$\alpha_{\mathrm{sel}}/m_t \ge 1/(B+1)$ at the node.
+
+For performance-oriented runs, early stopping, feature/threshold scanning, and
+muting can reduce computation substantially, but they change the inferential
+object. In this manuscript we treat the resulting outputs (including
+early-stopped p-value estimates, Stage~B threshold tests, and internal-node
+tests) as algorithmic statistics and recommend empirical calibration studies if
+they are to be interpreted beyond ranking/optimization.

@@ -43,6 +43,20 @@ pip install -e .
 uv sync
 ```
 
+## Experiment CLI (`citrees-exp`)
+
+This repository includes a Typer-based CLI for running the paper experiments,
+managing AWS/Ray infrastructure, and monitoring progress.
+
+```bash
+# Install experiment CLI deps
+uv sync --group paper
+# or
+pip install -e '.[paper]'
+
+citrees-exp --help
+```
+
 ## Quick Start
 
 ```python

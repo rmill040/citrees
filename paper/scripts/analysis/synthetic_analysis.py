@@ -246,9 +246,10 @@ def summarize_by_method(df: pd.DataFrame) -> pd.DataFrame:
     # Flatten column names
     summary.columns = [f"{col[0]}_{col[1]}" for col in summary.columns]
 
-    return summary.sort_values(
-        f"precision@{df['n_informative'].mode().iloc[0]}_mean", ascending=False
-    )
+    # Get most common n_informative for sort key, default to 5
+    mode_values = df['n_informative'].mode()
+    k = mode_values.iloc[0] if len(mode_values) > 0 else 5
+    return summary.sort_values(f"precision@{k}_mean", ascending=False)
 
 
 def summarize_by_dataset_type(df: pd.DataFrame) -> pd.DataFrame:

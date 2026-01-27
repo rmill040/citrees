@@ -28,13 +28,22 @@ error-control statements.
 
 \paragraph{Contributions.}
 This paper presents:
-(i)~\citrees, a Python implementation of conditional inference trees and
-forests using Monte Carlo permutation tests with the Phipson--Smyth (+1)
-correction \citep{PhipsonSmyth2010PermutationPValues};
-(ii)~finite-sample, fixed-node (especially root) validity statements for Stage~A
-screening in fixed-$B$ mode, including Bonferroni-based bounds that do not
-depend on a feature's number of candidate thresholds; and
+(i)~finite-sample, fixed-node (pre-specified; especially root) validity statements for Stage~A
+permutation-based variable selection in fixed-$B$ mode, including +1 Monte Carlo
+p-value super-uniformity (conservative under the null) and Bonferroni-based bounds that do not depend on a
+feature's number of candidate thresholds;
+(ii)~a set of practical implementation optimizations for scaling conditional
+inference trees and forests, together with a clean scoping of which outputs are
+treated as classical p-values versus algorithmic stopping statistics; and
 (iii)~a benchmark suite evaluating feature rankings on synthetic ground-truth
 datasets and real datasets under a two-stage rank-then-evaluate protocol.
+For reproducibility, we provide a reference implementation in \citrees.
 
-% TODO: add a short ``paper roadmap'' paragraph once section contents settle.
+\paragraph{Roadmap.}
+\cref{sec:background} reviews selection bias in greedy trees and situates the
+conditional-inference framework. \cref{sec:method} defines the Stage~A/Stage~B
+procedure and the Monte Carlo p-values used throughout. \cref{sec:theory} states
+the fixed-node/root guarantees (with proofs in the appendices). \cref{sec:experiments}
+describes the rank-then-evaluate benchmark protocol and empirical comparisons.
+\cref{sec:discussion} clarifies scope and limitations, especially the
+post-selection/adaptive nature of Stage~B and internal-node tests.

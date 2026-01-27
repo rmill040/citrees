@@ -1,11 +1,8 @@
 # Ray Cluster Configuration Template
 #
 # Usage:
-#   1. Full setup (build Docker image + generate cluster.yaml):
-#      AWS_PROFILE=personal uv run python paper/scripts/infra/ray/setup_cluster.py --setup
-#
-#   2. Deploy:
-#      AWS_PROFILE=personal uv run ray up paper/scripts/infra/ray/cluster.yaml --yes
+#   1. Full setup: citrees-exp infra setup
+#   2. Deploy:     citrees-exp cluster up --yes
 #
 # Placeholders (replaced during --generate):
 #   __MY_IP__       - Your public IP for security group rules

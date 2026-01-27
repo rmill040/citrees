@@ -1,6 +1,6 @@
 import numpy as np
 
-from paper.scripts.experiments.ray_eval import evaluate_fold
+from paper.scripts.pipeline.stage2 import evaluate_fold
 
 
 def test_evaluate_fold_classification_metrics_schema():
@@ -20,7 +20,7 @@ def test_evaluate_fold_classification_metrics_schema():
         ranking,
         task_type="classification",
         random_state=0,
-        evaluation_cpus=1,
+        n_jobs=1,
     )
 
     row = results[0]
@@ -53,7 +53,7 @@ def test_evaluate_fold_regression_metrics_schema():
         ranking,
         task_type="regression",
         random_state=0,
-        evaluation_cpus=1,
+        n_jobs=1,
     )
 
     row = results[0]

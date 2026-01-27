@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-from paper.scripts.experiments.ray_eval import compute_roc_auc
+from paper.scripts.pipeline.stage2 import compute_roc_auc
 
 
 def test_compute_roc_auc_binary_labels():

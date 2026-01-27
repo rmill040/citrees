@@ -233,7 +233,7 @@ def _ptest_multi(
     if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
             rng.shuffle(y_)
-            theta_p = compute_max_stat(x, y_)
+            theta_p = compute_max_stat(x, y_)  # type: ignore[assignment]
             if theta_p >= theta:
                 extreme_count += 1
 
@@ -253,7 +253,7 @@ def _ptest_multi(
     else:  # simple
         for i in range(n_resamples):
             rng.shuffle(y_)
-            theta_p = compute_max_stat(x, y_)
+            theta_p = compute_max_stat(x, y_)  # type: ignore[assignment]
             if theta_p >= theta:
                 extreme_count += 1
 

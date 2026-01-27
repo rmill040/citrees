@@ -1,7 +1,9 @@
 # Local files
 metrics/
 scratch/
+.claude/
 .uv-cache/
+.ruff_cache/
 .pytest_cache/
 catboost_info/
 

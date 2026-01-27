@@ -1,6 +1,6 @@
 import numpy as np
 
-from paper.scripts.experiments.ray_feature_selection import filter_selector
+from paper.scripts.pipeline.stage1 import filter_selector
 
 
 def test_filter_selector_label_invariance():

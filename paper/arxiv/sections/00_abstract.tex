@@ -1,24 +1,34 @@
 Greedy decision trees and tree ensembles often select split variables by
 optimizing impurity reduction over many candidate thresholds. This creates a
-multiple-comparisons effect: under a global null, features with more candidate
+multiple-comparisons effect: under a global null (all features independent of
+the response), features with more candidate
 split points are more likely to appear optimal by chance, producing
-high-cardinality selection bias and unstable feature rankings. Conditional
+selection bias toward high-cardinality features and unstable feature rankings. Conditional
 inference trees address this issue by separating variable selection from
 split-point optimization via permutation-based hypothesis testing.
 
-We present \citrees, a Python library implementing conditional inference trees
-and forests with Monte Carlo permutation p-values using the Phipson--Smyth (+1)
-correction. We focus on the inferentially clean part of the algorithm: Stage~A
-feature screening at a fixed node (especially the root). Under a standard
-exchangeability assumption, the +1 Monte Carlo permutation p-value is
-super-uniform, and with Bonferroni correction we obtain finite-sample bounds on
-the probability of splitting under the global null and on splitting on any
-particular null feature. For motivation, we also give an idealized lemma
-showing that CART-style greedy selection chooses features in proportion to their
-number of candidate splits under an exchangeable null model
-(Appendix~\ref{app:cart-bias}). We benchmark
-feature rankings produced by \citrees and baselines on synthetic ground-truth
-datasets and real tabular datasets using a two-stage rank-then-evaluate
-protocol. We emphasize scope: internal-node tests and Stage~B split tests are
-post-selection/adaptive and are treated as algorithmic stopping statistics
-unless additional selective-inference machinery is used.
+We study conditional inference trees and forests that attach permutation-based
+hypothesis tests to the variable-selection step at a node (Stage~A; variable
+screening), and treat split-point selection (Stage~B; threshold optimization) as
+a downstream optimization step.
+We focus on the part of the procedure with standard validity guarantees: Stage~A
+screening at a fixed (pre-specified) node (especially the root) using Monte
+Carlo permutation p-values with the Phipson--Smyth (+1) correction. Under a
+standard exchangeability assumption (label permutation invariance under the
+null), the +1 Monte Carlo permutation p-value is super-uniform (conservative:
+$\Pr(p \le \alpha) \le \alpha$ under the null), and with
+Bonferroni correction we obtain finite-sample bounds on the probability of
+splitting under the global null and on splitting on any particular null
+feature. For motivation, we also give an idealized lemma showing that CART-style
+greedy selection chooses features in proportion to their number of candidate
+splits under an exchangeable null model (Appendix~\ref{app:cart-bias}).
+
+To support large-scale empirical evaluation, we describe practical
+implementation optimizations (e.g., approximate candidate sets and early-stopped
+permutation tests) and a two-stage rank-then-evaluate benchmark protocol (rank
+features, then evaluate downstream performance on the top-$k$ subset) on
+synthetic ground-truth datasets and real tabular datasets. For reproducibility,
+we provide a reference implementation in \citrees. We emphasize scope:
+internal-node tests and Stage~B split tests are post-selection/adaptive and are
+treated as heuristic algorithmic statistics unless additional selective-inference
+machinery is used.

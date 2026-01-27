@@ -1,16 +1,22 @@
-\section{Method and software overview}
+\section{Method overview}
 \label{sec:method}
 
-This section describes the core algorithmic structure implemented by \citrees
-and defines the quantities used in the theoretical statements.
-Implementation-aligned details and pseudocode are collected in
-\cref{app:methods}.
+This section describes the core algorithmic structure studied in this paper
+and defines the quantities used in the theoretical statements. Algorithm~\cref{alg:citree}
+gives the end-to-end overview. A reference implementation is provided in
+\citrees; implementation-aligned stage routines and additional details are
+collected in \cref{app:methods}.
 
 \subsection{Node expansion: Stage A and Stage B}
 \label{sec:stageA-stageB}
 
 Consider a fixed node $t$ with data $(X_t, Y_t)$ and a candidate feature set
 $F_t$ of size $m_t = |F_t|$.
+In the recursive algorithm we distinguish: the \emph{available} feature set
+$F_{\mathrm{avail}}$ passed down the recursion; the \emph{descendant-safe} subset
+$F_{\mathrm{desc}} \subseteq F_{\mathrm{avail}}$ of non-constant features at $t$;
+and the \emph{tested} subset $F_t \subseteq F_{\mathrm{desc}}$ after applying
+\texttt{max\_features}.
 
 \paragraph{Stage A (feature screening).}
 For each feature $j \in F_t$, \citrees computes a selector statistic
@@ -23,15 +29,91 @@ It selects
 \end{equation}
 %
 and proceeds to Stage~B only if $p_t^\star$ is below the configured significance
-level (optionally Bonferroni-adjusted by $m_t$).
+level $\alpha_{\mathrm{sel}}$ (optionally Bonferroni-adjusted by $m_t$, i.e.,
+compare to $\alpha_{\mathrm{sel}}/m_t$).
+Because $p_t^\star$ is a minimum over $m_t$ tests, it is not a
+selection-adjusted p-value for the selected feature. Under the nodewise global
+null, a conservative global-null p-value for the Stage~A \emph{decision} is
+$\tilde p_t^{\mathrm{sel}} := \min(1,\, m_t p_t^\star)$, which yields the same
+reject/accept rule as comparing $p_t^\star$ to $\alpha_{\mathrm{sel}}/m_t$.
+Under the nodewise global null at $t$ (all tested features are null), this
+Bonferroni rule controls the probability of rejecting any null feature at level
+$\alpha_{\mathrm{sel}}$ in fixed-$B$ mode under the assumptions in
+\cref{sec:theory} (see \cref{prop:stageA-global-null}).
+Implementation-aligned Stage~A pseudocode is given in
+Algorithm~\cref{alg:stageA} (\cref{app:methods-stageA}).
 
 \paragraph{Stage B (threshold screening).}
 Given $j_t^\star$, \citrees constructs a finite threshold set $C_{t,j_t^\star}$
 and evaluates split quality over candidates. When permutation testing is
 enabled for Stage~B, this is treated as a left-tail test over candidate
-thresholds. In this paper, we treat Stage~B p-values as post-selection/adaptive
-statistics unless additional selective-inference machinery or sample splitting
-is used.
+thresholds. Because $c_t^\star$ and the reported minimum p-value are selected
+over $C_{t,j_t^\star}$ (and because $j_t^\star$ itself is selected using the
+same labels), in this paper we treat Stage~B p-values as post-selection/adaptive
+statistics (computed after using the same labels to select $j_t^\star$) unless
+additional selective-inference machinery (post-selection corrections) or sample
+splitting is used.
+Implementation-aligned Stage~B pseudocode and threshold-set details are given in
+Algorithm~\cref{alg:stageB} and \cref{app:methods-thresholds}.
+
+\begin{algorithm}[t]
+  \caption{Conditional inference tree training (Stage A $\rightarrow$ Stage B)}
+  \label{alg:citree}
+  \begin{algorithmic}[1]
+    \Require Training data $(X,Y)$, hyperparameters $\theta$
+    \Ensure Trained tree $T$
+    \State $p \gets$ number of columns of $X$
+    \State \Return \Call{GrowNode}{$X,Y,1,\{1,\dots,p\},\theta$}
+	    \Procedure{GrowNode}{$X_t,Y_t,d,F_{\mathrm{avail}},\theta$}
+	      \If{\Call{Stop}{$X_t,Y_t,d,\theta$}}
+	        \State \Return \Call{Leaf}{$Y_t$}
+	      \EndIf
+	      \State $(j_t^\star, p_t^\star, m_t, F_{\mathrm{avail}}') \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\theta}$ \Comment{Algorithm~\cref{alg:stageA}}
+	      \If{$j_t^\star = \bot$} \Comment{e.g., no candidates, or $p_t^\star \ge \alpha_{\mathrm{sel}}/m_t$ if Bonferroni}
+	        \State \Return \Call{Leaf}{$Y_t$}
+	      \EndIf
+	      \State $(c_t^\star, p_t^{\mathrm{split}}) \gets \Call{StageB}{X_t,Y_t,j_t^\star,\theta}$ \Comment{Algorithm~\cref{alg:stageB}}
+      \If{$c_t^\star = \bot$}
+        \State \Return \Call{Leaf}{$Y_t$}
+      \EndIf
+      \State $(X_t^L,Y_t^L,X_t^R,Y_t^R) \gets$ \Call{Partition}{$X_t,Y_t,j_t^\star,c_t^\star$}
+      \If{\Call{ImpurityDecrease}{$Y_t,Y_t^L,Y_t^R,\theta$} $< \texttt{min\_impurity\_decrease}$}
+        \State \Return \Call{Leaf}{$Y_t$}
+      \EndIf
+      \State $u \gets$ internal node with split $(j_t^\star,c_t^\star)$ and stored $(p_t^\star,p_t^{\mathrm{split}})$
+      \State $u.\mathrm{left} \gets \Call{GrowNode}{X_t^L,Y_t^L,d+1,F_{\mathrm{avail}}',\theta}$
+      \State $u.\mathrm{right} \gets \Call{GrowNode}{X_t^R,Y_t^R,d+1,F_{\mathrm{avail}}',\theta}$
+      \State \Return $u$
+    \EndProcedure
+  \end{algorithmic}
+\end{algorithm}
+
+\subsection{Interpretation of reported p-values (scope summary)}
+\label{sec:pvalue-scope}
+
+We use the term ``p-value'' in two different roles: (i)~as a classical
+Monte Carlo permutation p-value for fixed-node Stage~A screening in fixed-$B$
+mode, and (ii)~as an algorithmic statistic for adaptive parts of tree growth.
+In particular:
+\begin{itemize}
+  \item \textbf{Stage A at a fixed node (fixed-$B$):} per-feature +1 Monte Carlo
+  permutation p-values are valid (super-uniform) under the exchangeability and
+  label-independence assumptions in \cref{sec:theory}. The selected-feature
+  minimum $p_t^\star$ is not selection-adjusted; the Bonferroni decision can be
+  summarized by the conservative global-null p-value
+  $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$.
+  \item \textbf{Stage B threshold p-values:} these are computed after selecting
+  $j_t^\star$ using the same labels, so they are post-selection/adaptive. We
+  treat them as split-selection scores unless additional post-selection
+  machinery or sample splitting is used.
+  \item \textbf{Internal-node p-values:} internal nodes are data-adaptive
+  because node membership depends on earlier label-dependent splits. Without
+  additional machinery, internal-node p-values should be treated as algorithmic
+  statistics rather than calibrated p-values.
+  \item \textbf{Early-stopped outputs:} sequential stopping changes the
+  distribution of the reported running estimate; in this manuscript we do not
+  claim optional-stopping validity for early-stopped values.
+\end{itemize}
 
 \subsection{Monte Carlo permutation p-values (+1 correction)}
 \label{sec:plusone}
@@ -58,7 +140,7 @@ screening when different selectors have complementary power.
 \label{sec:bootstrap}
 
 \citrees forests fit $M$ trees and aggregate their predictions. To induce
-diversity across trees, the library supports optional bootstrap resampling of
+diversity across trees, the method supports optional bootstrap resampling of
 rows. We distinguish:
 
 \paragraph{Classic bootstrap.}

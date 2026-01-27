@@ -7,6 +7,47 @@ greedy CART-style split selection \citep{Breiman1984ClassificationAndRegressionT
 This result is \emph{motivational} and is not
 used for any paper-facing p-value guarantees.
 
+\begin{lemma}[Threshold search amplifies null extremes (union bound)]
+\label{lem:cart-union-bound}
+Fix a node and a feature $j$ with a finite candidate threshold set $C_j$ of size
+$m_j := |C_j| \ge 1$. For each $c \in C_j$, let $\Delta_{j,c}$ be a split score
+for candidate split $(j,c)$, where larger values are better. Then for any
+$\delta \in \mathbb{R}$,
+%
+\begin{equation}
+  \PP\!\left(\max_{c \in C_j} \Delta_{j,c} \ge \delta\right)
+  \le \sum_{c \in C_j} \PP(\Delta_{j,c} \ge \delta)
+  \le m_j \cdot \max_{c \in C_j} \PP(\Delta_{j,c} \ge \delta).
+\end{equation}
+%
+If additionally $(\Delta_{j,c})_{c \in C_j}$ are i.i.d.\ and satisfy
+$\PP(\Delta_{j,c} \ge \delta) = p_\delta$, then
+%
+\begin{equation}
+  \PP\!\left(\max_{c \in C_j} \Delta_{j,c} \ge \delta\right) = 1-(1-p_\delta)^{m_j}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+The first inequality is the union bound:
+$\PP(\max_{c \in C_j}\Delta_{j,c} \ge \delta)
+= \PP(\cup_{c \in C_j}\{\Delta_{j,c} \ge \delta\})
+\le \sum_{c \in C_j}\PP(\Delta_{j,c} \ge \delta)$.
+The second inequality is immediate.
+If the scores are i.i.d.\ with tail probability $p_\delta$, then
+$\PP(\max_{c \in C_j}\Delta_{j,c} < \delta) = \prod_{c \in C_j} (1-p_\delta)
+  = (1-p_\delta)^{m_j}$, so taking complements yields the identity.
+\end{proof}
+
+\begin{remark}[Categorical split counts can be exponential]
+If a greedy method treats an unordered categorical feature with $L$ levels as
+allowing all binary partitions of the levels, the number of distinct candidate
+splits is $2^{L-1}-1$ (non-empty proper subsets, modulo swapping left/right).
+Many implementations avoid enumerating all such partitions, but this
+combinatorial explosion highlights why ``high-cardinality'' can create very
+large multiple-comparisons effects in greedy split optimization.
+\end{remark}
+
 \begin{lemma}[Proportional selection under an exchangeable null]
 \label{lem:cart-proportional-selection}
 Assume A0.6 (\cref{app:assumptions}). Consider a fixed node with candidate
@@ -15,8 +56,8 @@ $m_j := |C_j| \ge 1$. Let $S_{j,c}$ denote a split score for candidate split
 $(j,c)$, where smaller is better, and assume the collection
 $\{S_{j,c} : 1 \le j \le p,\ c \in C_j\}$ is exchangeable.
 
-Let $(U_{j,c})$ be i.i.d.\ $\mathrm{Unif}(0,1)$ independent of the scores and
-define tie-broken scores $\widetilde S_{j,c} := (S_{j,c}, U_{j,c})$ ordered
+Let $(V_{j,c})$ be i.i.d.\ $\mathrm{Unif}(0,1)$ independent of the scores and
+define tie-broken scores $\widetilde S_{j,c} := (S_{j,c}, V_{j,c})$ ordered
 lexicographically. Define the greedy CART choice
 %
 \begin{equation}
@@ -31,7 +72,7 @@ Then for each feature $j$,
 \end{lemma}
 
 \begin{proof}
-By construction, the augmented collection $\{(S_{j,c},U_{j,c})\}$ is
+By construction, the augmented collection $\{(S_{j,c},V_{j,c})\}$ is
 exchangeable and almost surely tie-free. Therefore the argmin is uniformly
 distributed over the $\sum_{k=1}^p m_k$ candidate splits, and it belongs to
 feature $j$ with probability $m_j/\sum_{k=1}^p m_k$.

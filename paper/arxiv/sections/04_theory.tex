@@ -19,6 +19,26 @@ exchangeability under the null, a label-independent tested family and resampling
 budget, fixed-$B$ p-values (no optional stopping), and a conservative or
 randomized tie convention.
 
+\paragraph{Conditioning convention.}
+Since the permutation null is stated conditionally on $(X_t,U)$, the cleanest
+way to read the results below is as conditional statements (e.g.,
+$\PP(\cdot \mid X_t,U)$). To keep notation light, we often suppress this
+conditioning; in particular, by A0.3 the tested family $F_t$ and its
+cardinality $m_t$ are treated as fixed when reasoning about Type~I error at a
+fixed node.
+
+\paragraph{Terminology (plain language).}
+In this paper, ``fixed node'' means the node $t$ is treated as pre-specified
+(not chosen based on the observed labels). ``Conditional exchangeability''
+means that under the null the joint distribution of $Y_t$ is invariant to
+permutations given $(X_t,U)$. A p-value is ``super-uniform'' if it is
+conservative under the null: $\PP(p \le \alpha \mid X_t,U) \le \alpha$ for all
+$\alpha \in [0,1]$. ``Label-independent tested family'' means the set of tested
+features/candidates and the resampling budget are functions of $(X_t,U)$ only,
+i.e., chosen without looking at the observed labels $Y_t$ (A0.3).
+``Fixed-$B$'' means the number of permutation resamples $B$ is set in advance
+and the reported p-values are computed after exactly $B$ resamples (no early stopping).
+
 \subsection{Validity of the +1 Monte Carlo permutation p-value}
 \label{sec:theory-plusone}
 
@@ -32,7 +52,7 @@ exchangeable (conditional on $(X_t, U)$). Define the +1 Monte Carlo p-value
   p := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
 \end{equation}
 %
-Then for all $\alpha \in [0,1]$, $\PP(p \le \alpha) \le \alpha$.
+Then for all $\alpha \in [0,1]$, $\PP(p \le \alpha \mid X_t,U) \le \alpha$.
 \end{theorem}
 
 \subsection{Stage A control via Bonferroni}
@@ -46,9 +66,17 @@ super-uniform. If Stage~A uses Bonferroni and rejects when
 $\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$, then
 %
 \begin{equation}
-  \PP\!\left(\exists j \in F_t : p_{t,j} \le \alpha_{\mathrm{sel}}/m_t\right) \le \alpha_{\mathrm{sel}}.
+  \PP\!\left(\exists j \in F_t : p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right) \le \alpha_{\mathrm{sel}}.
 \end{equation}
 \end{proposition}
+
+\paragraph{Interpretation (family-wise error at a node).}
+Under the nodewise global null (all $H^{\mathrm{sel}}_{t,j}$ are true), the
+event inside the probability is the family-wise error event that at least one
+null feature is flagged significant at node $t$. Thus Proposition~\ref{prop:stageA-global-null}
+can be read as nodewise family-wise error rate (FWER) control at level
+$\alpha_{\mathrm{sel}}$ (conditional on $(X_t,U)$), without any dependence
+assumptions across features.
 
 \begin{proposition}[Per-feature false selection bound (cardinality-free)]
 \label{prop:per-feature-bound}
@@ -58,12 +86,26 @@ $p_{t,j}$ is super-uniform. If Stage~A uses Bonferroni at level
 $\alpha_{\mathrm{sel}}/m_t$, then
 %
 \begin{equation}
-  \PP(\text{node $t$ splits on feature $j$}) \le \alpha_{\mathrm{sel}}/m_t.
+  \PP(\text{node $t$ splits on feature $j$} \mid X_t,U) \le \alpha_{\mathrm{sel}}/m_t.
 \end{equation}
 %
 In particular, the bound does not depend on the number of candidate thresholds
 available for feature $j$.
 \end{proposition}
+
+\begin{corollary}[Uniform per-feature bound under random feature subsampling]
+\label{cor:subsampling-per-feature}
+Assume A0.1--A0.5 (\cref{app:assumptions}). Suppose that at the fixed node $t$ the
+algorithm begins from a full candidate set $\bar F_t$ with $p_t := |\bar F_t|$
+and selects $F_t \subseteq \bar F_t$ by sampling $m_t$ features uniformly
+without replacement (as in \texttt{max\_features}), independently of $Y_t$.
+Fix a feature $j \in \bar F_t$ whose Stage~A null $H^{\mathrm{sel}}_{t,j}$ is
+true. If Stage~A uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$, then
+%
+\begin{equation}
+  \PP(\text{node $t$ splits on feature $j$} \mid X_t) \le \alpha_{\mathrm{sel}}/p_t.
+\end{equation}
+\end{corollary}
 
 \subsection{A root-level global statement}
 \label{sec:theory-root}
@@ -76,9 +118,33 @@ fitted tree can only contain any internal split if the root passes Stage~A.
 Consequently, under a complete global null over tested root features,
 %
 \begin{equation}
-  \PP(\text{the fitted tree has at least one internal split}) \le \alpha_{\mathrm{sel}}.
+  \PP(\text{the fitted tree has at least one internal split} \mid X_{\mathrm{root}},U) \le \alpha_{\mathrm{sel}}.
 \end{equation}
 \end{proposition}
+
+\begin{corollary}[Forest-level bounds under a complete root null]
+\label{cor:forest-level-root}
+Assume A0.1--A0.5 at the root for each tree. Consider a forest with $M$ trees,
+each trained with root Stage~A screening in fixed-$B$ mode at level
+$\alpha_{\mathrm{sel}}$ (Bonferroni). Let $N_{\mathrm{split}}$ denote the number
+of trees with at least one internal split. Under a complete global null over the
+tested root features of each tree,
+%
+\begin{equation}
+  \E[N_{\mathrm{split}}] \le M\,\alpha_{\mathrm{sel}},
+  \qquad
+  \PP(N_{\mathrm{split}} \ge 1) \le \min\{1,\, M\,\alpha_{\mathrm{sel}}\}.
+\end{equation}
+%
+If, in addition, each tree's root applies uniform feature subsampling as in
+\cref{cor:subsampling-per-feature} with $p$ available root features, then for
+any feature $j$ whose root Stage~A null is true,
+%
+\begin{equation}
+  \E\!\left[\sum_{m=1}^M \ind\{\text{tree $m$ splits at the root on $j$}\}\right]
+  \le M\,\alpha_{\mathrm{sel}}/p.
+\end{equation}
+\end{corollary}
 
 \subsection{Multi-selector mode}
 \label{sec:theory-multiselector}

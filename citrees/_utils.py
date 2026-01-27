@@ -110,7 +110,7 @@ def calculate_max_value(*, n_values: int, desired_max: str | float | int | None 
         Maximum value.
     """
     if type(desired_max) is int or np.issubdtype(type(desired_max), np.integer):
-        total = min(desired_max, n_values)
+        total = min(int(desired_max), n_values)  # type: ignore[arg-type]
     elif desired_max == MaxValuesMethod.SQRT:
         total = ceil(np.sqrt(n_values))
     elif desired_max == MaxValuesMethod.LOG2:
@@ -120,7 +120,7 @@ def calculate_max_value(*, n_values: int, desired_max: str | float | int | None 
     else:
         total = n_values
 
-    return min(n_values, total)
+    return min(n_values, total)  # type: ignore[return-value]
 
 
 @njit(cache=True, fastmath=True, nogil=True)

@@ -20,7 +20,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from theoretical_predictions import (
+from paper.scripts.theory.theoretical_predictions import (
     RHO_GATE,
     critical_depth,
     find_gap_region,
@@ -390,7 +390,7 @@ def main():
     plot_depth_propagation(n=args.n, output_path=args.output_dir / "muting_depth_propagation.png")
 
     # Validation plot (requires simulation data)
-    summary_path = Path("paper/results/theory/muting_power_gap_summary.parquet")
+    summary_path = Path("paper/results/cache/muting_power_gap_summary.parquet")
     if summary_path.exists():
         plot_validation(summary_path, output_path=args.output_dir / "muting_power_validation.png")
     else:

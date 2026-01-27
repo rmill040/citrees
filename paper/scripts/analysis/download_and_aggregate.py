@@ -27,8 +27,8 @@ from typing import Literal
 import pandas as pd
 from loguru import logger
 
-from paper.scripts.experiments._common import get_s3_bucket, get_s3_client
-from paper.scripts.infra.config import load_config
+from paper.scripts.adapters import get_s3_bucket, get_s3_client
+from paper.scripts.config import load_config
 
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "results"
 

@@ -4,12 +4,12 @@
 This appendix isolates the exchangeability fact used by Monte Carlo permutation
 tests and clarifies why the common ``observed statistic + $B$ random
 permutations'' computation is covered by the same rank argument under the
-standard conditional-exchangeability null.
+conditional-exchangeability null (A0.2).
 
 Fix a node $t$, feature $j$, and a real-valued test statistic $T(\cdot, \cdot)$
 with a right-tail convention (larger is more extreme). Let
 $\Pi_0, \Pi_1, \dots, \Pi_B$ be i.i.d.\ uniform random permutations of
-$\{1,\dots,n_t\}$, independent of the data, and define
+$\{1,\dots,n_t\}$, independent of the data (and of $U$), and define
 %
 \begin{equation}
   T_b := T(X_{t,j}, \Pi_b(Y_t)) \qquad (b=0,1,\dots,B).
@@ -27,12 +27,59 @@ $(\Pi_0,\dots,\Pi_B)$ are i.i.d. Therefore any permutation of the indices
 $b \in \{0,\dots,B\}$ leaves the joint law unchanged.
 \end{proof}
 
-\begin{remark}[Why the usual ``unpermuted + $B$ permuted'' computation is covered]
-\label{rem:identity-vs-random}
-Implementations typically set $\Pi_0$ to be the identity permutation, i.e.,
-$T_0 = T(X_{t,j}, Y_t)$. Under A0.2--A0.3 (\cref{app:assumptions}), i.e.,
-conditional exchangeability of $Y_t$ given $(X_t,U)$ and label-independent
-resampling, the distribution of $T(X_{t,j}, Y_t)$ matches that of
-$T(X_{t,j}, \Pi_0(Y_t))$, so the rank-based argument for the +1 p-value applies
-to the standard implementation.
-\end{remark}
+\begin{lemma}[Identity + $B$ random permutations is covered by the same rank argument]
+\label{lem:identity-vs-random}
+Assume A0.2--A0.3 (\cref{app:assumptions}). Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
+uniform random permutations of $\{1,\dots,n_t\}$, independent of $(X_t,Y_t,U)$.
+Define the observed statistic and permuted statistics by
+%
+\begin{equation}
+  T_{\mathrm{obs}} := T(X_{t,j}, Y_t),
+  \qquad
+  T_b := T(X_{t,j}, \Pi_b(Y_t)) \quad (b=1,\dots,B),
+\end{equation}
+%
+and the standard +1 Monte Carlo p-value (right tail) by
+%
+\begin{equation}
+  p_{\mathrm{id}}
+  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
+\end{equation}
+%
+Let $\Pi_0$ be an additional independent uniform random permutation and set
+$T_0 := T(X_{t,j}, \Pi_0(Y_t))$ (keeping $T_1,\dots,T_B$ as above), and define
+%
+\begin{equation}
+  p_{\mathrm{rnd}}
+  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
+\end{equation}
+%
+Under the null (conditional on $(X_t,U)$), $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$
+have the same distribution. Consequently, $p_{\mathrm{id}}$ is super-uniform by
+\cref{lem:mc-exchangeability} and the rank argument in
+\cref{them:plusone-superuniform} (with the tie convention A0.5).
+\end{lemma}
+
+\begin{proof}
+Fix $(X_t,U)$ and work under the null, so $Y_t$ is exchangeable conditional on
+$(X_t,U)$ (A0.2). Let $\Pi_0$ be an independent uniform permutation and define
+$Y_t' := \Pi_0(Y_t)$. Then $Y_t' \stackrel{d}{=} Y_t$ conditional on $(X_t,U)$.
+
+For $b=1,\dots,B$, define $\Pi_b' := \Pi_b \circ \Pi_0^{-1}$. Since
+$(\Pi_1,\dots,\Pi_B)$ are i.i.d.\ uniform and independent of $\Pi_0$, the vector
+$(\Pi_1',\dots,\Pi_B')$ is also i.i.d.\ uniform and independent of $(X_t,U,Y_t')$.
+Moreover, for each $b$ we have $\Pi_b(Y_t) = \Pi_b'(Y_t')$. Therefore,
+%
+\begin{equation}
+  \begin{aligned}
+    \big(T_{\mathrm{obs}}, T_1,\dots,T_B\big)
+    &= \big(T(X_{t,j},Y_t), T(X_{t,j},\Pi_1(Y_t)),\dots,T(X_{t,j},\Pi_B(Y_t))\big) \\
+    &\stackrel{d}{=} \big(T(X_{t,j},Y_t'), T(X_{t,j},\Pi_1'(Y_t')),\dots,T(X_{t,j},\Pi_B'(Y_t'))\big) \\
+    &= \big(T_0, T_1,\dots,T_B\big),
+  \end{aligned}
+\end{equation}
+%
+where $\stackrel{d}{=}$ is conditional on $(X_t,U)$. Since $p_{\mathrm{id}}$ and
+$p_{\mathrm{rnd}}$ are measurable functions of these vectors, they have the same
+conditional distribution.
+\end{proof}

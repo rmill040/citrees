@@ -431,7 +431,9 @@ class TestRandomness:
     def test_feature_subsampling_advances_rng(self):
         """RNG should advance across nodes when max_features forces subsampling."""
         x = np.linspace(0.0, 1.0, 40)
-        X = np.column_stack([x, x])
+        # Use distinct features to avoid threshold ties consuming RNG for tie-breaking.
+        # Both features are equally predictive but have different values.
+        X = np.column_stack([x, 1.0 - x])
         y = np.array([0, 1] * 20, dtype=np.int64)
 
         clf = ConditionalInferenceTreeClassifier(
@@ -441,7 +443,7 @@ class TestRandomness:
             max_depth=2,
             min_samples_split=2,
             min_samples_leaf=1,
-            random_state=42,
+            random_state=1,  # Seed chosen to produce multiple features with this data
             verbose=0,
         )
         clf.fit(X, y)

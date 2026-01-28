@@ -15,6 +15,10 @@
 
 cluster_name: citrees
 
+# Scale up aggressively to handle large workloads
+upscaling_speed: 50.0
+idle_timeout_minutes: 5
+
 provider:
   type: aws
   region: us-east-1
@@ -23,7 +27,7 @@ provider:
     IamInstanceProfile:
       Arn: arn:aws:iam::__AWS_ACCOUNT__:instance-profile/citrees-ray-autoscaler
   security_group:
-    GroupName: ray-citrees
+    GroupName: ray-citrees-sg
     IpPermissions:
       # SSH - restricted to your IP
       - FromPort: 22

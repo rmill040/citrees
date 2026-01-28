@@ -12,31 +12,30 @@ interpret results).
 
 \subsection{Registry pattern}
 
-\citrees registers selectors and splitters via decorators to keep the codebase
-extensible while preserving a small, stable public API. Registry entries map
-short string names (e.g., \texttt{"mc"}, \texttt{"gini"}) to implementation
-functions and their associated permutation-test adapters.
+\citrees uses a registry mechanism that maps short identifiers for association
+statistics and split criteria to their corresponding implementations and
+permutation-test adapters. This keeps the codebase extensible while preserving a
+small, stable external interface.
 
-\subsection{Testing modes (Numba JIT on/off)}
+\subsection{Testing modes (compiled/uncompiled)}
 
-Performance-critical routines are implemented with Numba. The test suite supports
-both JIT-enabled execution (to validate compiled code paths) and JIT-disabled
-execution (to enable line coverage in CI).
+Performance-critical routines are compiled for speed. The test suite supports
+both compiled execution (to validate optimized code paths) and an uncompiled
+execution mode (to enable line coverage measurement in CI).
 
 \subsection{Randomness and reproducibility}
 
-\citrees uses isolated RNG streams in pure Python code (via
-\texttt{np.random.default\_rng}) and a per-iteration seeding pattern inside
-Numba-parallel loops where necessary. In particular, within \texttt{prange}
-loops for permutation testing, \citrees uses the pattern
+\citrees supports reproducible randomness via a user-provided base seed. In
+parallel permutation testing, the implementation uses a per-resample seeding
+pattern inside parallel compiled loops. In particular, it uses
 %
 \begin{equation}
-  \texttt{np.random.seed(random\_state + i)}
+  s_i := s_0 + i
 \end{equation}
 %
-to ensure deterministic per-resample pseudo-randomness in compiled code.
-This convention is an implementation constraint (Numba's generator-based RNG is
-not fully supported in all parallel contexts).
+to ensure deterministic per-resample pseudo-randomness across parallel workers.
+This convention is an implementation constraint: generator-based RNG streams are
+not always supported in all parallel compiled contexts.
 
 \subsection{Bootstrap methods in forests}
 

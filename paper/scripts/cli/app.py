@@ -30,7 +30,6 @@ app = typer.Typer(
     name="citrees-exp",
     help="[bold cyan]citrees[/] experiment infrastructure CLI",
     rich_markup_mode="rich",
-    no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
@@ -65,6 +64,33 @@ app.add_typer(_get_config_app(), name="config", help="Configuration management")
 app.add_typer(_get_list_app(), name="list", help="List datasets and methods")
 app.add_typer(_get_infra_app(), name="infra", help="AWS infrastructure setup")
 app.add_typer(_get_cluster_app(), name="cluster", help="Ray cluster operations")
+
+
+def _resolve_ray_address(address: str) -> str:
+    """Resolve Ray address, auto-detecting cluster head if needed.
+
+    - "local": returns as-is (local Ray mode)
+    - "auto": gets head IP from cluster.yaml, returns ray://<ip>:10001
+    - other: returns as-is (user-specified address)
+    """
+    if address == "local":
+        return address
+
+    if address == "auto":
+        # Try to get head IP from cluster config
+        from paper.scripts.cli.cluster import _get_head_ip
+
+        head_ip = _get_head_ip()
+        if head_ip:
+            resolved = f"ray://{head_ip}:10001"
+            info(f"Auto-detected Ray address: {resolved}")
+            return resolved
+        else:
+            # Fall back to "auto" which lets Ray try to find a local cluster
+            warn("Could not get head IP from cluster config, using local auto-detection")
+            return "auto"
+
+    return address
 
 
 # Type aliases for common parameters
@@ -288,7 +314,7 @@ def run(
     if store is None:
         store = S3Store.from_config()
 
-    runner = RayRunner(address=ray_address)
+    runner = RayRunner(address=_resolve_ray_address(ray_address))
 
     with console.status("Initializing Ray..."):
         runner.init()
@@ -496,7 +522,7 @@ def smoke(
     info(f"S3: {store.bucket}")
     console.print()
 
-    runner = RayRunner(address=ray_address)
+    runner = RayRunner(address=_resolve_ray_address(ray_address))
 
     with console.status("Initializing Ray..."):
         runner.init()
@@ -679,24 +705,33 @@ def watch() -> None:
     run_watch()
 
 
-@app.callback()
+def _version_callback(value: bool) -> None:
+    """Print version and exit if --version flag is passed."""
+    if value:
+        import citrees
+
+        ver = getattr(citrees, "__version__", "unknown")
+        console.print(f"citrees-exp version: citrees {ver}")
+        raise typer.Exit()
+
+
+@app.callback(invoke_without_command=True)
 def main_callback(
+    ctx: typer.Context,
     version: Annotated[
         bool,
         typer.Option(
             "--version",
             "-V",
             help="Show version and exit",
+            callback=_version_callback,
             is_eager=True,
         ),
     ] = False,
 ) -> None:
     """citrees experiment infrastructure CLI."""
-    if version:
-        import citrees
-
-        ver = getattr(citrees, "__version__", "unknown")
-        console.print(f"citrees-exp version: citrees {ver}")
+    if ctx.invoked_subcommand is None and not version:
+        console.print(ctx.get_help())
         raise typer.Exit()
 
 

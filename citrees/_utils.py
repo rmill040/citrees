@@ -275,21 +275,27 @@ def stratified_bootstrap_unsampled_idx(
     return idx_unsampled
 
 
-def balanced_bootstrap_sample(
+def undersample_bootstrap_sample(
     *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
 ) -> np.ndarray:
-    """Indices for balanced bootstrap sampling in classification.
+    """Indices for class-balanced undersampling (bootstrap with per-class cap).
+
+    This method draws ``n_min`` samples *per class* with replacement, where
+    ``n_min`` is the minority class count in ``y``. The resulting bootstrap size
+    is ``K * n_min`` where ``K`` is the number of classes (and is therefore
+    <= ``len(y)``). If ``max_samples < K * n_min``, the sample is truncated to
+    exactly ``max_samples`` with class counts as equal as possible.
 
     Parameters
     ----------
     y : np.ndarray
-        Input data.
+        Input labels (assumed encoded as 0..K-1).
 
     max_samples : int
         Maximum number of samples in a bootstrap sample.
 
     bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap.
+        Whether to use Bayesian bootstrap probabilities within each class.
 
     random_state : int
         Random seed.
@@ -301,25 +307,27 @@ def balanced_bootstrap_sample(
     """
     prng = np.random.RandomState(random_state)
 
-    n = len(y)
     n_classes = len(np.unique(y))
     idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
+    class_counts = np.array([len(idx_class) for idx_class in idx_classes], dtype=int)
+    n_min = int(class_counts.min())
+
     idx = []
-    n_per_class = np.bincount(y).min()
     for j, idx_class in enumerate(idx_classes):
-        # Vary seed per class to ensure independent bootstrap probabilities
         p = (
             bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state + j)
             if bayesian_bootstrap
             else None
         )
-        idx.append(prng.choice(idx_class, size=n_per_class, p=p, replace=True))
+        idx.append(prng.choice(idx_class, size=n_min, p=p, replace=True))
 
-    # Subsample if needed (use proper integer allocation to guarantee sum = max_samples)
-    if max_samples < n:
-        # For balanced bootstrap, all classes have equal weight
-        class_sizes = np.array([len(idx[j]) for j in range(n_classes)])
-        allocation = _allocate_samples(class_sizes, max_samples)
+    total = n_classes * n_min
+    if max_samples < total:
+        base = max_samples // n_classes
+        remainder = max_samples - base * n_classes
+        allocation = np.full(n_classes, base, dtype=int)
+        if remainder:
+            allocation[prng.choice(np.arange(n_classes), size=remainder, replace=False)] += 1
         for j in range(n_classes):
             if allocation[j] < len(idx[j]):
                 idx[j] = prng.choice(idx[j], size=allocation[j], replace=False)
@@ -327,21 +335,42 @@ def balanced_bootstrap_sample(
     return np.concatenate(idx)
 
 
-def balanced_bootstrap_unsampled_idx(
+def undersample_bootstrap_unsampled_idx(
     *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
 ) -> np.ndarray:
-    """Unsampled indices for balanced bootstrap sampling in classification.
+    """Unsampled indices for class-balanced undersampling."""
+    idx_sampled = undersample_bootstrap_sample(
+        y=y,
+        max_samples=max_samples,
+        bayesian_bootstrap=bayesian_bootstrap,
+        random_state=random_state,
+    )
+    idx_all = np.arange(len(y), dtype=int)
+    idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
+
+    return idx_unsampled
+
+
+def oversample_bootstrap_sample(
+    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+) -> np.ndarray:
+    """Indices for class-balanced oversampling (fixed-size bootstrap).
+
+    This method produces a bootstrap sample of size ``max_samples`` whose class
+    counts are as equal as possible (difference at most 1), sampling with
+    replacement within each class. This can oversample minority classes relative
+    to their original frequency while keeping the total sample size fixed.
 
     Parameters
     ----------
     y : np.ndarray
-        Input data.
+        Input labels (assumed encoded as 0..K-1).
 
     max_samples : int
-        Maximum number of samples in a bootstrap sample.
+        Total number of samples in the bootstrap sample.
 
     bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap.
+        Whether to use Bayesian bootstrap probabilities within each class.
 
     random_state : int
         Random seed.
@@ -351,7 +380,36 @@ def balanced_bootstrap_unsampled_idx(
     np.ndarray
         Indices for bootstrap sample.
     """
-    idx_sampled = balanced_bootstrap_sample(
+    prng = np.random.RandomState(random_state)
+
+    n_classes = len(np.unique(y))
+    idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
+
+    base = max_samples // n_classes
+    remainder = max_samples - base * n_classes
+    allocation = np.full(n_classes, base, dtype=int)
+    if remainder:
+        allocation[prng.choice(np.arange(n_classes), size=remainder, replace=False)] += 1
+
+    idx = []
+    for j, idx_class in enumerate(idx_classes):
+        if allocation[j] == 0:
+            continue
+        p = (
+            bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state + j)
+            if bayesian_bootstrap
+            else None
+        )
+        idx.append(prng.choice(idx_class, size=int(allocation[j]), p=p, replace=True))
+
+    return np.concatenate(idx) if idx else np.empty(0, dtype=int)
+
+
+def oversample_bootstrap_unsampled_idx(
+    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+) -> np.ndarray:
+    """Unsampled indices for class-balanced oversampling."""
+    idx_sampled = oversample_bootstrap_sample(
         y=y,
         max_samples=max_samples,
         bayesian_bootstrap=bayesian_bootstrap,

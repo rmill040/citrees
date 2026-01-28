@@ -228,18 +228,21 @@ function BuildTree(X, y, depth):
 | Parameter          | Type                 | Default                     | Description                                   |
 | ------------------ | -------------------- | --------------------------- | --------------------------------------------- |
 | `n_estimators`     | int                  | 100                         | Number of trees                               |
-| `max_samples`      | int/float/None       | None                        | Bootstrap sample size (count or fraction)     |
+| `max_samples`      | int/float/None       | None                        | Bootstrap sample cap (count or fraction)      |
 | `bootstrap_method` | BootstrapMethod/None | `BootstrapMethod.BAYESIAN`  | Sampling method                               |
-| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to stratify samples                       |
+| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap        |
 | `n_jobs`           | int/None             | None                        | Parallel jobs (-1 for all cores)              |
 | `oob_score`        | bool                 | False                       | Compute out-of-bag score (requires bootstrap) |
 
 Notes:
 
-- `sampling_method` applies to classification forests only and is ignored when
-  `bootstrap_method=None`.
+- `sampling_method` applies to classification forests only and requires
+  `bootstrap_method` to be set.
+- `sampling_method` options: `stratified`, `undersample`, `oversample`.
 - `max_samples` is only used when `bootstrap_method` is not `None`.
 - `bootstrap_method=None` disables bootstrapping (and thus OOB).
+- Invalid combinations (e.g., `bootstrap_method=None` with `sampling_method` set)
+  raise a validation error.
 - Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
   `None`).
 - OOB scores are computed only for samples that receive at least one OOB

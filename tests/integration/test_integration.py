@@ -1,5 +1,7 @@
 """Integration tests for citrees classifiers and regressors."""
 
+import os
+
 import numpy as np
 import pytest
 from sklearn.base import clone
@@ -20,6 +22,13 @@ FAST_PARAMS = {
     "verbose": 0,
     "random_state": 42,
 }
+
+
+def _skip_if_loky_unavailable() -> None:
+    try:
+        os.sysconf("SC_SEM_NSEMS_MAX")
+    except PermissionError:
+        pytest.skip("loky backend is unavailable in this environment")
 
 
 # Fixtures
@@ -353,19 +362,22 @@ class TestConditionalInferenceForestClassifier:
         """Test different bootstrap methods."""
         X, y = classification_data
         for method in ["bayesian", "classic", None]:
-            clf = ConditionalInferenceForestClassifier(
-                n_estimators=5,
-                bootstrap_method=method,
-                check_for_unused_parameters=False,
+            kwargs = {
+                "n_estimators": 5,
+                "bootstrap_method": method,
+                "check_for_unused_parameters": False,
                 **FAST_PARAMS,
-            )
+            }
+            if method is None:
+                kwargs["sampling_method"] = None
+            clf = ConditionalInferenceForestClassifier(**kwargs)
             clf.fit(X, y)
             assert clf.predict(X).shape == y.shape
 
     def test_sampling_methods(self, classification_data):
         """Test different sampling methods."""
         X, y = classification_data
-        for method in ["stratified", "balanced", None]:
+        for method in ["stratified", "undersample", "oversample", None]:
             clf = ConditionalInferenceForestClassifier(
                 n_estimators=5,
                 sampling_method=method,
@@ -377,6 +389,7 @@ class TestConditionalInferenceForestClassifier:
 
     def test_parallel_training(self, classification_data):
         """Test parallel training with n_jobs."""
+        _skip_if_loky_unavailable()
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(n_estimators=10, n_jobs=2, **FAST_PARAMS)
         clf.fit(X, y)
@@ -419,6 +432,7 @@ class TestConditionalInferenceForestRegressor:
 
     def test_parallel_training(self, regression_data):
         """Test parallel training with n_jobs for regressor."""
+        _skip_if_loky_unavailable()
         X, y = regression_data
         reg = ConditionalInferenceForestRegressor(n_estimators=10, n_jobs=2, **FAST_PARAMS)
         reg.fit(X, y)
@@ -451,6 +465,7 @@ class TestConditionalInferenceForestRegressor:
 
     def test_n_jobs_minus_one(self, regression_data):
         """Test forest regressor with n_jobs=-1 (all cores)."""
+        _skip_if_loky_unavailable()
         X, y = regression_data
         reg = ConditionalInferenceForestRegressor(n_estimators=5, n_jobs=-1, **FAST_PARAMS)
         reg.fit(X, y)
@@ -1058,6 +1073,7 @@ class TestForestParallelTraining:
 
     def test_forest_classifier_parallel(self, classification_data):
         """Test forest classifier with parallel training."""
+        _skip_if_loky_unavailable()
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(n_estimators=10, n_jobs=2, **FAST_PARAMS)
         clf.fit(X, y)
@@ -1066,6 +1082,7 @@ class TestForestParallelTraining:
 
     def test_forest_regressor_parallel(self, regression_data):
         """Test forest regressor with parallel training."""
+        _skip_if_loky_unavailable()
         X, y = regression_data
         reg = ConditionalInferenceForestRegressor(n_estimators=10, n_jobs=2, **FAST_PARAMS)
         reg.fit(X, y)
@@ -1074,6 +1091,7 @@ class TestForestParallelTraining:
 
     def test_forest_n_jobs_minus_one(self, classification_data):
         """Test forest with n_jobs=-1 (all cores)."""
+        _skip_if_loky_unavailable()
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(n_estimators=5, n_jobs=-1, **FAST_PARAMS)
         clf.fit(X, y)
@@ -1163,6 +1181,7 @@ class TestForestSampling:
         clf = ConditionalInferenceForestClassifier(
             n_estimators=5,
             bootstrap_method=None,
+            sampling_method=None,
             check_for_unused_parameters=False,
             **FAST_PARAMS,
         )

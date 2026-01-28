@@ -155,9 +155,9 @@ All tree parameters plus:
 | Parameter          | Type                 | Default                     | Description                                                                             |
 | ------------------ | -------------------- | --------------------------- | --------------------------------------------------------------------------------------- |
 | `n_estimators`     | int                  | 100                         | Number of trees                                                                         |
-| `max_samples`      | int/float/None       | None                        | Bootstrap sample size (count or fraction)                                               |
+| `max_samples`      | int/float/None       | None                        | Bootstrap sample cap (count or fraction)                                                |
 | `bootstrap_method` | BootstrapMethod/None | `BootstrapMethod.BAYESIAN`  | Sampling method (or disable bootstrap)                                                  |
-| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to stratify samples                                                                 |
+| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap (classification only)                            |
 | `n_jobs`           | int or None          | None                        | Parallel jobs (-1 for all cores)                                                        |
 | `oob_score`        | bool                 | False                       | Compute out-of-bag score (requires bootstrap; scores only samples with OOB predictions) |
 
@@ -166,14 +166,14 @@ Options for `bootstrap_method`:
 - `BootstrapMethod.BAYESIAN`: Bayesian bootstrap with Dirichlet weights
   (recommended)
 - `BootstrapMethod.CLASSIC`: Standard bootstrap with replacement
-- `None`: Disable bootstrap (no OOB, no sampling_method, max_samples ignored)
+- `None`: Disable bootstrap (no OOB; `sampling_method` and `max_samples` must be `None`, and `oob_score` must be `False`)
 
 Options for `sampling_method`:
 
-- `SamplingMethod.STRATIFIED`: Maintain class proportions
-- `SamplingMethod.BALANCED`: Equal class weights
-- `None`: Unstratified bootstrap (classic or Bayesian depending on
-  `bootstrap_method`)
+- `SamplingMethod.STRATIFIED`: Sample within each class (expected proportions match training data)
+- `SamplingMethod.UNDERSAMPLE`: Sample `n_min` per class (minority count), so total size is `K*n_min` (then capped by `max_samples`)
+- `SamplingMethod.OVERSAMPLE`: Allocate a fixed total size (`max_samples` or `n`) as evenly as possible across classes (diff ≤ 1) and sample within class
+- `None`: Unstratified bootstrap (classic or Bayesian depending on `bootstrap_method`)
 
 Notes:
 
@@ -181,14 +181,15 @@ Notes:
 - Negative `n_jobs` values follow sklearn-style semantics (e.g., `-1` = all
   cores).
 - `n_jobs=0` is invalid; use `None` or `1` to disable parallelism.
-- `sampling_method` is only used when `bootstrap_method` is not `None`.
+- `sampling_method` requires `bootstrap_method` to be set (bootstrap enabled).
+- Invalid combinations (e.g., `bootstrap_method=None` with `sampling_method` set) raise a validation error.
 - Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
   `None`).
 
 Options for `max_samples`:
 
-- `None`: Use all samples for each tree
-- `int`: Exact number of samples (must be >= 1)
+- `None`: No cap (the sampler chooses the per-tree base sample size)
+- `int`: Maximum number of samples (must be >= 1)
 - `float` (0.0, 1.0]: Fraction of samples
 
 `max_samples` is only used when `bootstrap_method` is not `None`.

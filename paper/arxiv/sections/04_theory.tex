@@ -32,7 +32,7 @@ In this paper, ``fixed node'' means the node $t$ is treated as pre-specified
 (not chosen based on the observed labels). ``Conditional exchangeability''
 means that under the null the joint distribution of $Y_t$ is invariant to
 permutations given $(X_t,U)$. A p-value is ``super-uniform'' if it is
-conservative under the null: $\PP(p \le \alpha \mid X_t,U) \le \alpha$ for all
+conservative under the null: $\PP(P \le \alpha \mid X_t,U) \le \alpha$ for all
 $\alpha \in [0,1]$. ``Label-independent tested family'' means the set of tested
 features/candidates and the resampling budget are functions of $(X_t,U)$ only,
 i.e., chosen without looking at the observed labels $Y_t$ (A0.3).
@@ -46,13 +46,13 @@ and the reported p-values are computed after exactly $B$ resamples (no early sto
 \label{them:plusone-superuniform}
 Assume A0.1--A0.5 (\cref{app:assumptions}). In particular, under the null
 hypothesis being tested, the permutation statistics $(T_0, T_1, \dots, T_B)$ are
-exchangeable (conditional on $(X_t, U)$). Define the +1 Monte Carlo p-value
+exchangeable (conditional on $(X_t, U)$). Define the right-tail +1 Monte Carlo p-value
 %
 \begin{equation}
-  p := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
+  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
 \end{equation}
 %
-Then for all $\alpha \in [0,1]$, $\PP(p \le \alpha \mid X_t,U) \le \alpha$.
+Then for all $\alpha \in [0,1]$, $\PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha$.
 \end{theorem}
 
 \subsection{Stage A control via Bonferroni}
@@ -96,14 +96,16 @@ available for feature $j$.
 \begin{corollary}[Uniform per-feature bound under random feature subsampling]
 \label{cor:subsampling-per-feature}
 Assume A0.1--A0.5 (\cref{app:assumptions}). Suppose that at the fixed node $t$ the
-algorithm begins from a full candidate set $\bar F_t$ with $p_t := |\bar F_t|$
+algorithm begins from a full candidate set $\bar F_t$ with $\bar m_t := |\bar F_t|$
 and selects $F_t \subseteq \bar F_t$ by sampling $m_t$ features uniformly
 without replacement (as in \texttt{max\_features}), independently of $Y_t$.
 Fix a feature $j \in \bar F_t$ whose Stage~A null $H^{\mathrm{sel}}_{t,j}$ is
 true. If Stage~A uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$, then
+the bound below conditions on $X_t$ and averages over the feature-subsampling
+randomness (a component of $U$):
 %
 \begin{equation}
-  \PP(\text{node $t$ splits on feature $j$} \mid X_t) \le \alpha_{\mathrm{sel}}/p_t.
+  \PP(\text{node $t$ splits on feature $j$} \mid X_t) \le \alpha_{\mathrm{sel}}/\bar m_t.
 \end{equation}
 \end{corollary}
 
@@ -152,10 +154,10 @@ any feature $j$ whose root Stage~A null is true,
 \begin{proposition}[Multi-selector max-statistic validity]
 \label{prop:multiselector-validity}
 Assume A0.1--A0.5 (\cref{app:assumptions}). Fix a feature at a fixed node and
-let $T^{(1)}_b, \dots, T^{(K)}_b$ denote $K$ selector statistics computed on
-permutation $b$, and define $M_b := \max_k |T^{(k)}_b|$. If the joint vector of
-all selector statistics is exchangeable across permutations under the null,
-then the +1 p-value computed from $(M_b)$ is super-uniform.
+let $T^{(1)}_b, \dots, T^{(L)}_b$ denote $L$ selector statistics computed on
+permutation $b$ (with $L$ fixed), and define $M_b := \max_{\ell=1,\dots,L} T^{(\ell)}_b$. If the
+joint vector of all selector statistics is exchangeable across permutations
+under the null, then the +1 p-value computed from $(M_b)$ is super-uniform.
 \end{proposition}
 
 \noindent See \cref{app:multiselector} for details and a discussion of

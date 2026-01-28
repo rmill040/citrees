@@ -67,8 +67,9 @@ def _beta_cdf(x: float, a: float, b: float) -> float:
     return exp(log_prefix) * result
 
 
-# Note: Uses np.random.seed() because this function is compiled with @njit below,
-# and Numba doesn't support default_rng() inside @njit.
+# Note: Uses np.random.seed() for determinism and to mirror the Numba-safe RNG
+# pattern used elsewhere in the codebase (Numba doesn't support default_rng()
+# inside @njit).
 def _ptest_sequential_simple(
     *,
     func: Any,
@@ -115,14 +116,9 @@ def _ptest_sequential_simple(
 
     return (extreme_count + 1) / (n_resamples + 1)
 
-
-_ptest_sequential_simple_compiled = njit(cache=True, fastmath=True, nogil=True)(
-    _ptest_sequential_simple
-)
-
-
-# Note: Uses np.random.seed() because this function is compiled with @njit below,
-# and Numba doesn't support default_rng() inside @njit.
+# Note: Uses np.random.seed() for determinism and to mirror the Numba-safe RNG
+# pattern used elsewhere in the codebase (Numba doesn't support default_rng()
+# inside @njit).
 def _ptest_sequential_adaptive(
     *,
     func: Any,
@@ -170,8 +166,3 @@ def _ptest_sequential_adaptive(
                 return (extreme_count + 1) / (n + 1)
 
     return (extreme_count + 1) / (n_resamples + 1)
-
-
-_ptest_sequential_adaptive_compiled = njit(cache=True, fastmath=True, nogil=True)(
-    _ptest_sequential_adaptive
-)

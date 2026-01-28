@@ -4,8 +4,8 @@
 Feature selection is a central primitive in modern tabular machine learning:
 practitioners want rankings that are predictively useful, stable across
 resamples, and interpretable. These goals are especially sharp in regimes with
-many features and comparatively few samples ($p \gg n$), where naive selection
-rules can overfit to noise.
+many features and comparatively few samples (with $n$ samples and $p$ features;
+$p \gg n$), where naive selection rules can overfit to noise.
 
 Decision trees provide an appealing embedding feature selector: the split
 structure yields an implicit ranking, and tree-based ensembles scale well in
@@ -37,7 +37,7 @@ inference trees and forests, together with a clean scoping of which outputs are
 treated as classical p-values versus algorithmic stopping statistics; and
 (iii)~a benchmark suite evaluating feature rankings on synthetic ground-truth
 datasets and real datasets under a two-stage rank-then-evaluate protocol.
-For reproducibility, we provide a reference implementation in \citrees.
+For reproducibility, we provide a reference implementation.
 
 \paragraph{Roadmap.}
 \cref{sec:background} reviews selection bias in greedy trees and situates the

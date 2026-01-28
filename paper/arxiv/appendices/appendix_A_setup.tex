@@ -8,7 +8,7 @@ Let $(X_i, Y_i)_{i=1}^n$ be training data and consider a fixed node $t$ with
 index set $I_t$ (size $n_t$). Write $X_t := (X_i)_{i \in I_t}$ and
 $Y_t := (Y_i)_{i \in I_t}$.
 
-At node $t$, \citrees performs two (potential) hypothesis-testing steps:
+At node $t$, the procedure performs two (potential) hypothesis-testing steps:
 Stage~A screens features $j \in F_t$ for association with $Y_t$, and Stage~B
 tests candidate thresholds for the selected feature $j_t^\star$.
 
@@ -22,17 +22,25 @@ tests candidate thresholds for the selected feature $j_t^\star$.
     Symbol & Meaning \\
     \midrule
     $t$ & Node index (treated as fixed in ``fixed-node'' results). \\
+    $n,\ p$ & Global sample size and number of features. \\
     $I_t,\ n_t$ & Sample index set at node $t$ and its size $n_t := |I_t|$. \\
     $X_t,\ Y_t$ & Covariates and labels restricted to node $t$. \\
     $F_t,\ m_t$ & Tested feature set at node $t$ and its size $m_t := |F_t|$. \\
+    $F_{\mathrm{avail}},\ F_{\mathrm{desc}},\ F_{\mathrm{avail}}'$ &
+      Available features passed down the recursion, its descendant-safe non-constant subset at $t$, and the post-Stage~A set propagated to descendants. \\
     $T^{\mathrm{sel}}_j$ & Stage~A selector statistic for feature $j$ at node $t$. \\
     $p_{t,j}$ & +1 Monte Carlo permutation p-value for $T^{\mathrm{sel}}_j$ (fixed-$B$ mode). \\
+    $p_{\mathrm{MC}}^{\ge},\ p_{\mathrm{MC}}^{\le}$ & Right/left-tail +1 Monte Carlo p-values computed from $B$ random permutations. \\
     $\alpha_{\mathrm{sel}}$ & Stage~A nominal significance level (before Bonferroni adjustment). \\
-    $j_t^\star,\ p_t^\star$ & Best feature and its p-value: $j_t^\star := \argmin_{j\in F_t} p_{t,j}$,
+    $\alpha_{\mathrm{split}}$ & Stage~B nominal significance level (before Bonferroni adjustment). \\
+    $\operatorname{uargmin}$ & Uniform tie-breaking $\argmin$ (uniform draw from the set of minimizers). \\
+    $j_t^\star,\ p_t^\star$ & Best feature and its p-value: $j_t^\star := \operatorname{uargmin}_{j\in F_t} p_{t,j}$,
     $p_t^\star := \min_{j\in F_t} p_{t,j}$. \\
     $C_{t,j}$ & Candidate threshold set for feature $j$ at node $t$ (Stage~B). \\
+    $c_t^\star,\ p_t^{\mathrm{split}}$ & Best threshold and its Stage~B p-value for the selected feature. \\
+    $\pi$ & Bootstrap sampling probabilities over training indices. \\
     $B$ & Permutation resample budget (number of random permutations). \\
-    $U$ & Label-independent algorithmic randomness (e.g., feature subsampling). \\
+    $U$ & Label-independent algorithmic randomness (e.g., feature subsampling, threshold subsampling, tie-breaking randomness). \\
     \bottomrule
   \end{tabular}
   \caption{Compact notation used throughout the manuscript.}
@@ -78,7 +86,7 @@ When bounding expected impurity decreases under nulls, assume bounded root
 impurity (classification) or finite second moments as stated.
 
 \paragraph{A0.8 (Honest estimation).}\label{assump:honesty}
-For honest estimation statements, the sample split $(S, E)$ is independent of
+For honest estimation statements, the sample split $(I^{\mathrm{split}}, I^{\mathrm{est}})$ is independent of
 the observed data.
 
 \subsection{Result-to-assumption checklist (compact)}

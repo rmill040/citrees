@@ -17,9 +17,12 @@ Define the (right-tail) upper rank
 \begin{equation}
   R := 1 + \sum_{b=1}^B \ind\{T_b \ge T_0\},
   \qquad
-  p = \frac{R}{B+1}.
+  p_{\mathrm{MC}}^{\ge} = \frac{R}{B+1}.
 \end{equation}
 %
+The left-tail variant (used in Stage~B) replaces the exceedance check by
+$\ind\{T_b \le T_0\}$; equivalently, apply the right-tail argument below to
+$-T$.
 
 \paragraph{Tie-free case.}
 If the statistics are almost surely tie-free, then $R = 1 + \sum_{b=1}^B \ind\{T_b > T_0\}$
@@ -32,7 +35,7 @@ is the (descending) rank of $T_0$ among $(T_0,\dots,T_B)$. Exchangeability impli
 so for any $\alpha \in [0,1]$,
 %
 \begin{equation}
-  \PP(p \le \alpha \mid X_t,U)
+  \PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U)
   = \PP\!\big(R \le (B+1)\alpha \mid X_t,U\big)
   = \frac{\lfloor (B+1)\alpha \rfloor}{B+1}
   \le \alpha.
@@ -48,14 +51,15 @@ $(\tilde{T}_0,\dots,\tilde{T}_B)$ is exchangeable and almost surely tie-free, so
 the rank argument above gives a super-uniform p-value
 %
 \begin{equation}
-  \tilde{p} := \frac{1 + \sum_{b=1}^B \ind\{\tilde{T}_b \ge_{\mathrm{lex}} \tilde{T}_0\}}{B+1}.
+  \tilde{p}_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{\tilde{T}_b \ge_{\mathrm{lex}} \tilde{T}_0\}}{B+1}.
 \end{equation}
 %
 Moreover, for each $b$, $\ind\{\tilde{T}_b \ge_{\mathrm{lex}} \tilde{T}_0\} \le \ind\{T_b \ge T_0\}$,
-so $p \ge \tilde{p}$ and hence
+so $p_{\mathrm{MC}}^{\ge} \ge \tilde{p}_{\mathrm{MC}}^{\ge}$ and hence
 %
 \begin{equation}
-  \PP(p \le \alpha \mid X_t,U) \le \PP(\tilde{p} \le \alpha \mid X_t,U) \le \alpha.
+  \PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U)
+  \le \PP(\tilde{p}_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha.
 \end{equation}
 %
-Taking expectations over $(X_t,U)$ yields $\PP(p \le \alpha) \le \alpha$.
+Taking expectations over $(X_t,U)$ yields $\PP(p_{\mathrm{MC}}^{\ge} \le \alpha) \le \alpha$.

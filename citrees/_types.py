@@ -45,8 +45,9 @@ class BootstrapMethod(StrEnum):
 
 
 class SamplingMethod(StrEnum):
-    BALANCED = "balanced"
     STRATIFIED = "stratified"
+    UNDERSAMPLE = "undersample"
+    OVERSAMPLE = "oversample"
 
 
 class EstimatorType(StrEnum):

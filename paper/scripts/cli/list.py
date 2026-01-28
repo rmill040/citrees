@@ -157,17 +157,17 @@ def methods(
         citrees-exp list methods --category embedding --configs
     """
     from paper.scripts.pipeline import (
-        METHOD_VARIANTS,
         get_all_method_info,
-        get_methods,
     )
+    from paper.scripts.pipeline.methods import get_method_config_count
 
     # Determine which task types to show
     task_types = [task] if task else ["classification", "regression"]
 
     for task_type in task_types:
-        method_list = get_methods(task_type)
         method_infos = get_all_method_info(task_type, category)
+        method_names = [info.name for info in method_infos]
+        config_counts = get_method_config_count(method_names, task_type) if configs else {}
 
         # Build table
         columns = [
@@ -185,10 +185,6 @@ def methods(
         )
 
         for method_info in method_infos:
-            # Count variants for this method
-            variants = METHOD_VARIANTS.get(method_info.name, [])
-            n_configs = len(variants) if variants else 1
-
             row = [
                 method_info.name,
                 method_info.display_name,
@@ -196,6 +192,7 @@ def methods(
                 method_info.category,
             ]
             if configs:
+                n_configs = config_counts.get(method_info.name, 1)
                 row.append(format_number(n_configs))
 
             table.add_row(*row)
@@ -204,9 +201,7 @@ def methods(
 
         # Show total configs if requested
         if configs:
-            from paper.scripts.pipeline import expand_method_configs
-
-            all_configs = expand_method_configs(method_list)
-            console.print(f"  Total configurations: [number]{format_number(len(all_configs))}[/]")
+            total_configs = sum(config_counts.get(name, 1) for name in method_names)
+            console.print(f"  Total configurations: [number]{format_number(total_configs)}[/]")
 
         console.print()

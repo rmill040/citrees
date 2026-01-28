@@ -286,7 +286,7 @@ def _generate_cit_cif_configs(
                 product(
                     [None, 0.8],  # max_samples
                     ["bayesian", "classic"],  # bootstrap_method
-                    ["balanced", "stratified"],  # sampling_method
+                    [None, "stratified", "undersample", "oversample"],  # sampling_method
                 )
             )
         else:

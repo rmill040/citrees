@@ -21,8 +21,8 @@ impurity optimization. At a node, the conditional inference procedure first
 tests each feature for association with the response via permutation testing
 (variable screening) and only then searches for a split point (threshold
 selection). This separation is designed to reduce selection bias from differing
-numbers of candidate split points. The framework is widely used in R via the
-\texttt{party} / \texttt{partykit} ecosystems \citep{Hothorn2006UnbiasedRecursivePartitioning,HothornZeileis2015Partykit}.
+numbers of candidate split points. The framework is widely used via available
+implementations \citep{Hothorn2006UnbiasedRecursivePartitioning}.
 The permutation-statistics foundation for these linear-statistic tests is
 developed by \citet{StrasserWeber1999PermutationStatistics}.
 In this paper we focus on the inferentially clean part of the framework: fixed-node
@@ -38,9 +38,7 @@ survey \citep{BiauScornet2016RandomForestGuidedTour}.
 Modern gradient-boosting systems
 \citep{Friedman2001GBM,ChenGuestrin2016XGBoost,Ke2017LightGBM,Prokhorenkova2018CatBoost}
 further emphasize computational efficiency, often using approximate split
-search (e.g., histogram-based threshold grids). \citet{Pedregosa2011ScikitLearn}
-provides widely used reference implementations for many of these learners in
-Python.
+search (e.g., histogram-based threshold grids).
 Bayesian tree ensembles such as BART provide a complementary nonparametric
 alternative \citep{Chipman2010BART}.
 Extensions of tree ensembles to other outcomes include random survival forests

@@ -1,5 +1,7 @@
 """Tests for citrees._forest.py."""
 
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -215,6 +217,7 @@ class TestForestBootstrap:
         clf = ConditionalInferenceForestClassifier(
             n_estimators=5,
             bootstrap_method=None,
+            sampling_method=None,
             check_for_unused_parameters=False,
             **FAST_PARAMS,
         )
@@ -236,16 +239,44 @@ class TestForestSampling:
         clf.fit(X, y)
         assert len(clf.estimators_) == 5
 
-    def test_balanced_sampling(self, classification_data):
-        """Test balanced sampling."""
+    @pytest.mark.parametrize("sampling_method", ["undersample", "oversample"])
+    def test_resampling_methods(self, classification_data, sampling_method: str) -> None:
+        """Verify class-balancing sampling methods run end-to-end."""
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(
             n_estimators=5,
-            sampling_method="balanced",
+            sampling_method=sampling_method,
             **FAST_PARAMS,
         )
         clf.fit(X, y)
         assert len(clf.estimators_) == 5
+
+    def test_invalid_sampling_method_raises(self) -> None:
+        """Verify invalid sampling_method values are rejected at init."""
+        with pytest.raises(ValidationError):
+            ConditionalInferenceForestClassifier(
+                sampling_method="invalid",
+                **FAST_PARAMS,
+            )
+
+    def test_sampling_method_requires_bootstrap(self) -> None:
+        """sampling_method is only valid when bootstrap_method is enabled."""
+        with pytest.raises(ValidationError):
+            ConditionalInferenceForestClassifier(
+                bootstrap_method=None,
+                sampling_method="stratified",
+                **FAST_PARAMS,
+            )
+
+    def test_max_samples_requires_bootstrap(self) -> None:
+        """max_samples is only valid when bootstrap_method is enabled."""
+        with pytest.raises(ValidationError):
+            ConditionalInferenceForestClassifier(
+                bootstrap_method=None,
+                sampling_method=None,
+                max_samples=0.8,
+                **FAST_PARAMS,
+            )
 
 
 class TestForestMaxSamples:
@@ -388,18 +419,17 @@ class TestForestOOB:
 
     def test_oob_score_requires_bootstrap(self, classification_data):
         """oob_score should error when bootstrap is disabled."""
-        X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5,
-            bootstrap_method=None,
-            oob_score=True,
-            n_resamples_selector=None,
-            n_resamples_splitter=None,
-            random_state=42,
-            verbose=0,
-        )
-        with pytest.raises(ValueError, match="oob_score"):
-            clf.fit(X, y)
+        with pytest.raises(ValidationError, match="oob_score"):
+            ConditionalInferenceForestClassifier(
+                n_estimators=5,
+                bootstrap_method=None,
+                sampling_method=None,
+                oob_score=True,
+                n_resamples_selector=None,
+                n_resamples_splitter=None,
+                random_state=42,
+                verbose=0,
+            )
 
     def test_oob_score_classifier_attributes(self, classification_data):
         """oob_score should populate classifier OOB attributes."""
@@ -522,6 +552,10 @@ class TestForestNJobs:
 
     def test_n_jobs_2(self, classification_data):
         """Test n_jobs=2 (two cores)."""
+        try:
+            os.sysconf("SC_SEM_NSEMS_MAX")
+        except PermissionError:
+            pytest.skip("loky backend is unavailable in this environment")
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(n_estimators=5, n_jobs=2, **FAST_PARAMS)
         clf.fit(X, y)

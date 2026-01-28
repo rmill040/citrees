@@ -4,7 +4,7 @@ from multiprocessing import cpu_count
 
 import numpy as np
 from joblib import Parallel, delayed
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from scipy.sparse import csr_matrix, hstack
 from sklearn.base import ClassifierMixin, RegressorMixin, clone
 from sklearn.metrics import r2_score
@@ -26,10 +26,11 @@ from citrees._types import (
     SamplingMethodOption,
 )
 from citrees._utils import (
-    balanced_bootstrap_sample,
     calculate_max_value,
     classic_bootstrap_sample,
+    oversample_bootstrap_sample,
     stratified_bootstrap_sample,
+    undersample_bootstrap_sample,
 )
 
 # Defines how often to print status during parallel tree training
@@ -100,12 +101,12 @@ def _parallel_fit_classifier(
             "bayesian_bootstrap": bootstrap_method == BootstrapMethod.BAYESIAN,
             "random_state": estimator.random_state,
         }
-        if sampling_method in (SamplingMethod.BALANCED, SamplingMethod.STRATIFIED):
-            boot_idx = (
-                balanced_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
-                if sampling_method == SamplingMethod.BALANCED
-                else stratified_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
-            )
+        if sampling_method == SamplingMethod.STRATIFIED:
+            boot_idx = stratified_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
+        elif sampling_method == SamplingMethod.UNDERSAMPLE:
+            boot_idx = undersample_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
+        elif sampling_method == SamplingMethod.OVERSAMPLE:
+            boot_idx = oversample_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
         else:
             boot_idx = classic_bootstrap_sample(y=y, **kwargs)  # type: ignore[arg-type]
         estimator.fit(X[boot_idx], y[boot_idx])
@@ -188,11 +189,28 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
     n_jobs: int | None
     oob_score: bool
 
+    @model_validator(mode="after")
+    def validate_bootstrap_constraints(self) -> "BaseConditionalInferenceForestParameters":
+        if self.bootstrap_method is None:
+            if self.max_samples is not None:
+                raise ValueError("max_samples must be None when bootstrap_method=None")
+            if self.oob_score:
+                raise ValueError("oob_score requires bootstrap_method to be set (bootstrap enabled)")
+        return self
+
 
 class ConditionalInferenceForestClassifierParameters(BaseConditionalInferenceForestParameters):
     """Model for ConditionalInferenceForestClassifier parameters."""
 
     sampling_method: SamplingMethodOption
+
+    @model_validator(mode="after")
+    def validate_sampling_method_constraints(
+        self,
+    ) -> "ConditionalInferenceForestClassifierParameters":
+        if self.bootstrap_method is None and self.sampling_method is not None:
+            raise ValueError("sampling_method must be None when bootstrap_method=None")
+        return self
 
 
 class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, metaclass=ABCMeta):
@@ -470,10 +488,12 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     "bayesian_bootstrap": self._bootstrap_method == BootstrapMethod.BAYESIAN,
                     "random_state": self._random_state + j,
                 }
-                if self._sampling_method == SamplingMethod.BALANCED:
-                    boot_idx = balanced_bootstrap_sample(**kwargs)
-                elif self._sampling_method == SamplingMethod.STRATIFIED:
+                if self._sampling_method == SamplingMethod.STRATIFIED:
                     boot_idx = stratified_bootstrap_sample(**kwargs)
+                elif self._sampling_method == SamplingMethod.UNDERSAMPLE:
+                    boot_idx = undersample_bootstrap_sample(**kwargs)
+                elif self._sampling_method == SamplingMethod.OVERSAMPLE:
+                    boot_idx = oversample_bootstrap_sample(**kwargs)
                 else:
                     boot_idx = classic_bootstrap_sample(**kwargs)
             else:
@@ -772,7 +792,8 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         Type of bootstrap to use. Set to None to disable bootstrapping.
 
     max_samples : int or float, default=None
-        Number of samples to draw for each bootstrap sample.
+        Bootstrap sample cap (count or fraction). When set, each tree is fit on at most
+        max_samples rows after bootstrap resampling.
 
     oob_score : bool, default=False
         Whether to compute out-of-bag score (requires bootstrap).

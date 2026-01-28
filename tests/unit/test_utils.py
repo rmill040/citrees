@@ -6,17 +6,19 @@ import numpy as np
 import pytest
 
 from citrees._utils import (
-    balanced_bootstrap_sample,
-    balanced_bootstrap_unsampled_idx,
     bayesian_bootstrap_proba,
     calculate_max_value,
     classic_bootstrap_sample,
     classic_bootstrap_unsampled_idx,
     estimate_mean,
     estimate_proba,
+    oversample_bootstrap_sample,
+    oversample_bootstrap_unsampled_idx,
     split_data,
     stratified_bootstrap_sample,
     stratified_bootstrap_unsampled_idx,
+    undersample_bootstrap_sample,
+    undersample_bootstrap_unsampled_idx,
 )
 
 pytestmark = pytest.mark.other
@@ -264,49 +266,77 @@ class TestStratifiedBootstrapUnsampledIdx:
             assert i not in idx_sampled
 
 
-class TestBalancedBootstrapSample:
-    """Tests for balanced_bootstrap_sample function."""
+class TestUndersampleBootstrapSample:
+    """Tests for undersample_bootstrap_sample function."""
 
-    def test_balanced_classes(self):
-        """Test that classes are balanced."""
-        y = np.array([0, 0, 0, 0, 0, 1, 1])  # Imbalanced
-        idx = balanced_bootstrap_sample(
+    def test_balances_to_minority_count(self):
+        """Each class should have exactly n_min samples when not truncated."""
+        y = np.array([0, 0, 0, 0, 0, 1, 1])  # n_min = 2
+        idx = undersample_bootstrap_sample(
             y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42
         )
+        assert len(idx) == 4
         y_sampled = y[idx]
-        # Should be balanced now
-        assert (y_sampled == 0).sum() == (y_sampled == 1).sum()
+        assert (y_sampled == 0).sum() == (y_sampled == 1).sum() == 2
 
-    def test_with_max_samples(self):
-        """Test with max_samples constraint."""
-        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx = balanced_bootstrap_sample(
-            y=y, max_samples=4, bayesian_bootstrap=False, random_state=42
-        )
-        assert len(idx) <= 4
-
-    def test_multiclass_balanced(self):
-        """Test multiclass balancing."""
-        y = np.array([0, 0, 0, 0, 1, 1, 2])  # Imbalanced
-        idx = balanced_bootstrap_sample(
-            y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42
-        )
+    def test_truncates_to_max_samples(self):
+        """When max_samples < K*n_min, output size is exactly max_samples."""
+        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])  # n_min = 4, K*n_min = 8
+        idx = undersample_bootstrap_sample(y=y, max_samples=5, bayesian_bootstrap=False, random_state=42)
+        assert len(idx) == 5
         y_sampled = y[idx]
-        # Each class should have min_count samples
-        counts = [np.sum(y_sampled == c) for c in range(3)]
-        assert counts[0] == counts[1] == counts[2]
+        assert abs(int((y_sampled == 0).sum()) - int((y_sampled == 1).sum())) <= 1
 
 
-class TestBalancedBootstrapUnsampledIdx:
-    """Tests for balanced_bootstrap_unsampled_idx function."""
+class TestUndersampleBootstrapUnsampledIdx:
+    """Tests for undersample_bootstrap_unsampled_idx function."""
 
     def test_returns_unsampled(self):
-        """Test returns unsampled indices."""
+        """Returned indices should not appear in the sampled multiset."""
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx_unsampled = balanced_bootstrap_unsampled_idx(
+        idx_unsampled = undersample_bootstrap_unsampled_idx(
             y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42
         )
-        idx_sampled = balanced_bootstrap_sample(
+        idx_sampled = undersample_bootstrap_sample(
+            y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42
+        )
+        for i in idx_unsampled:
+            assert i not in idx_sampled
+
+
+class TestOversampleBootstrapSample:
+    """Tests for oversample_bootstrap_sample function."""
+
+    def test_fixed_size_balanced_classes(self):
+        """Output size should be max_samples and class counts differ by at most 1."""
+        y = np.array([0, 0, 0, 0, 0, 1, 1])  # imbalanced
+        idx = oversample_bootstrap_sample(y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42)
+        assert len(idx) == len(y)
+        y_sampled = y[idx]
+        assert abs(int((y_sampled == 0).sum()) - int((y_sampled == 1).sum())) <= 1
+        # Minority class should be oversampled relative to its original count here (2 -> 3 or 4)
+        assert int((y_sampled == 1).sum()) >= 3
+
+    def test_multiclass_balancing(self):
+        """Multiclass counts should be as equal as possible (diff <= 1)."""
+        y = np.array([0] * 10 + [1] * 2 + [2] * 5)
+        idx = oversample_bootstrap_sample(y=y, max_samples=9, bayesian_bootstrap=False, random_state=42)
+        y_sampled = y[idx]
+        counts = np.array([(y_sampled == c).sum() for c in [0, 1, 2]], dtype=int)
+        assert counts.sum() == 9
+        assert counts.max() - counts.min() <= 1
+
+
+class TestOversampleBootstrapUnsampledIdx:
+    """Tests for oversample_bootstrap_unsampled_idx function."""
+
+    def test_returns_unsampled(self):
+        """Returned indices should not appear in the sampled multiset."""
+        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        idx_unsampled = oversample_bootstrap_unsampled_idx(
+            y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42
+        )
+        idx_sampled = oversample_bootstrap_sample(
             y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42
         )
         for i in idx_unsampled:
@@ -480,28 +510,6 @@ class TestBugFixes:
         for n_per_class, n_classes, max_samples in test_cases:
             y = np.concatenate([np.full(n_per_class, j) for j in range(n_classes)])
             idx = stratified_bootstrap_sample(
-                y=y, max_samples=max_samples, bayesian_bootstrap=False, random_state=42
-            )
-            assert len(idx) == max_samples, (
-                f"Expected {max_samples} samples, got {len(idx)} "
-                f"for n_per_class={n_per_class}, n_classes={n_classes}"
-            )
-
-    def test_bug3_balanced_bootstrap_exact_sample_count(self):
-        """Bug 3: Verify balanced bootstrap returns exactly max_samples.
-
-        Same fix applied to balanced_bootstrap_sample.
-        """
-        test_cases = [
-            (5, 3, 4),
-            (3, 2, 3),
-            (3, 3, 4),
-            (10, 5, 7),
-        ]
-
-        for n_per_class, n_classes, max_samples in test_cases:
-            y = np.concatenate([np.full(n_per_class, j) for j in range(n_classes)])
-            idx = balanced_bootstrap_sample(
                 y=y, max_samples=max_samples, bayesian_bootstrap=False, random_state=42
             )
             assert len(idx) == max_samples, (

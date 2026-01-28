@@ -587,6 +587,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # to control overfitting.
         reject_H0 = self._n_resamples_selector is None
         best_metric = -np.inf
+        # Counters for reservoir sampling tie-breaking (uniform selection among ties)
+        n_best_pval = 0
+        n_best_metric = 0
 
         # Apply Bonferroni correction for multiple feature tests (matches R's partykit::ctree behavior)
         if self._adjust_alpha_selector and self._n_resamples_selector is not None:
@@ -627,15 +630,21 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 else:
                     pval_feature = self._selector_test(x=x, y=y, **self._selector_test_kwargs)
 
-                # Update best feature
+                # Update best feature with reservoir sampling for ties
                 if pval_feature < best_pval:
-                    best_feature = feature
+                    best_feature = int(feature)
                     best_pval = pval_feature
+                    n_best_pval = 1
                     reject_H0 = best_pval < self._alpha_selector
 
                     # Check for early stopping
                     if self._early_stopping_selector is not None and reject_H0:
                         break
+                elif pval_feature == best_pval:
+                    # Reservoir sampling: probability 1/k for k-th tie
+                    n_best_pval += 1
+                    if self._rng.random_sample() < 1.0 / n_best_pval:
+                        best_feature = int(feature)
 
                 # Check for feature muting: mute features that are not statistically significant
                 # (i.e., p-value >= alpha means we fail to reject H0 of no association)
@@ -653,9 +662,16 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             # Feature selection without permutation testing
             else:
                 metric, _ = self._compute_selector_score(x, y)
+                # Update best feature with reservoir sampling for ties
                 if metric > best_metric:
-                    best_feature = feature
+                    best_feature = int(feature)
                     best_metric = metric
+                    n_best_metric = 1
+                elif metric == best_metric:
+                    # Reservoir sampling: probability 1/k for k-th tie
+                    n_best_metric += 1
+                    if self._rng.random_sample() < 1.0 / n_best_metric:
+                        best_feature = int(feature)
 
         return best_feature, best_pval, reject_H0, available_features
 
@@ -695,6 +711,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # to control overfitting.
         reject_H0 = self._n_resamples_splitter is None
         best_metric = np.inf
+        # Counters for reservoir sampling tie-breaking (uniform selection among ties)
+        n_best_pval = 0
+        n_best_metric = 0
 
         if self._adjust_alpha_splitter and self._n_resamples_splitter is not None:
             self._bonferroni_correction(adjust="splitter", n_tests=len(thresholds))
@@ -714,22 +733,35 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     x=x, y=y, threshold=threshold, **self._splitter_test_kwargs
                 )
 
-                # Update best threshold
+                # Update best threshold with reservoir sampling for ties
                 if pval_threshold < best_pval:
-                    best_threshold = threshold
+                    best_threshold = float(threshold)
                     best_pval = pval_threshold
+                    n_best_pval = 1
                     reject_H0 = best_pval < self._alpha_splitter
 
                     # Check for early stopping
                     if self._early_stopping_splitter is not None and reject_H0:
                         break
+                elif pval_threshold == best_pval:
+                    # Reservoir sampling: probability 1/k for k-th tie
+                    n_best_pval += 1
+                    if self._rng.random_sample() < 1.0 / n_best_pval:
+                        best_threshold = float(threshold)
 
             # Split selection without permutation testing
             else:
                 metric = self._split_impurity(x=x, y=y, threshold=threshold)
+                # Update best threshold with reservoir sampling for ties
                 if metric < best_metric:
-                    best_threshold = threshold
+                    best_threshold = float(threshold)
                     best_metric = metric
+                    n_best_metric = 1
+                elif metric == best_metric:
+                    # Reservoir sampling: probability 1/k for k-th tie
+                    n_best_metric += 1
+                    if self._rng.random_sample() < 1.0 / n_best_metric:
+                        best_threshold = float(threshold)
 
         return best_threshold, best_pval, reject_H0
 

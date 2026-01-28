@@ -3,34 +3,46 @@
 
 This section describes the core algorithmic structure studied in this paper
 and defines the quantities used in the theoretical statements. Algorithm~\cref{alg:citree}
-gives the end-to-end overview. A reference implementation is provided in
-\citrees; implementation-aligned stage routines and additional details are
-collected in \cref{app:methods}.
+gives the end-to-end overview. Implementation-aligned stage routines and
+additional details are collected in \cref{app:methods}.
 
 \subsection{Node expansion: Stage A and Stage B}
 \label{sec:stageA-stageB}
 
 Consider a fixed node $t$ with data $(X_t, Y_t)$ and a candidate feature set
-$F_t$ of size $m_t = |F_t|$.
+$F_t$ of size $m_t = |F_t|$. Let $I_t \subseteq \{1,\dots,n\}$ denote the sample
+indices at node $t$ (size $n_t$) and write $X_t := (X_i)_{i \in I_t}$ and
+$Y_t := (Y_i)_{i \in I_t}$ (see \cref{app:setup} for a notation summary).
 In the recursive algorithm we distinguish: the \emph{available} feature set
 $F_{\mathrm{avail}}$ passed down the recursion; the \emph{descendant-safe} subset
 $F_{\mathrm{desc}} \subseteq F_{\mathrm{avail}}$ of non-constant features at $t$;
 and the \emph{tested} subset $F_t \subseteq F_{\mathrm{desc}}$ after applying
 \texttt{max\_features}.
+Stage~A returns an updated feature set $F_{\mathrm{avail}}'$ that is passed to
+descendants (Algorithm~\cref{alg:citree}); by default $F_{\mathrm{avail}}' =
+F_{\mathrm{desc}}$, while optional heuristics may further prune it
+(\cref{app:methods-heuristics}).
 
 \paragraph{Stage A (feature screening).}
-For each feature $j \in F_t$, \citrees computes a selector statistic
+For each feature $j \in F_t$, the procedure computes a selector statistic
 $T^{\mathrm{sel}}_j(X_{t,j}, Y_t)$ (larger indicates stronger association under a
 right-tail convention) and a Monte Carlo permutation p-value $p_{t,j}$.
 It selects
 %
 \begin{equation}
-  j_t^\star := \argmin_{j \in F_t} p_{t,j}, \qquad p_t^\star := \min_{j \in F_t} p_{t,j},
+  j_t^\star := \operatorname{uargmin}_{j \in F_t} p_{t,j}, \qquad
+  p_t^\star := \min_{j \in F_t} p_{t,j},
 \end{equation}
 %
+where $\operatorname{uargmin}$ breaks ties uniformly at random among minimizers.
 and proceeds to Stage~B only if $p_t^\star$ is below the configured significance
 level $\alpha_{\mathrm{sel}}$ (optionally Bonferroni-adjusted by $m_t$, i.e.,
 compare to $\alpha_{\mathrm{sel}}/m_t$).
+In fixed-$B$ mode without early stopping, this corresponds to evaluating all
+tested features in $F_t$ and selecting the (tie-broken) minimum. When early
+stopping is enabled, features may be tested in an ordered scan that can
+terminate once significance is achieved; in that case the selected feature need
+not be the global minimizer over all of $F_t$.
 Because $p_t^\star$ is a minimum over $m_t$ tests, it is not a
 selection-adjusted p-value for the selected feature. Under the nodewise global
 null, a conservative global-null p-value for the Stage~A \emph{decision} is
@@ -44,7 +56,7 @@ Implementation-aligned Stage~A pseudocode is given in
 Algorithm~\cref{alg:stageA} (\cref{app:methods-stageA}).
 
 \paragraph{Stage B (threshold screening).}
-Given $j_t^\star$, \citrees constructs a finite threshold set $C_{t,j_t^\star}$
+Given $j_t^\star$, the procedure constructs a finite threshold set $C_{t,j_t^\star}$
 and evaluates split quality over candidates. When permutation testing is
 enabled for Stage~B, this is treated as a left-tail test over candidate
 thresholds. Because $c_t^\star$ and the reported minimum p-value are selected
@@ -119,14 +131,21 @@ In particular:
 \label{sec:plusone}
 
 Let $T_0$ be the observed statistic and $T_1,\dots,T_B$ the statistics computed
-on $B$ i.i.d.\ random label permutations. \citrees uses the Phipson--Smyth (+1)
-Monte Carlo p-value
+on $B$ i.i.d.\ random label permutations. For a right-tail test (larger is more
+extreme), we use the Phipson--Smyth (+1) Monte Carlo p-value
 %
 \begin{equation}
-  p := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1},
+  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
 \end{equation}
 %
-with the inequality direction chosen to match the tail convention.
+For a left-tail test (smaller is more extreme), define
+%
+\begin{equation}
+  p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_0\}}{B+1}.
+\end{equation}
+%
+In \citrees, Stage~A uses the right-tail convention and Stage~B uses the left-tail
+convention.
 
 \subsection{Multi-selector mode (max-statistic)}
 \label{sec:multiselector}
@@ -139,32 +158,34 @@ screening when different selectors have complementary power.
 \subsection{Forests and bootstrap resampling (classic vs Bayesian)}
 \label{sec:bootstrap}
 
-\citrees forests fit $M$ trees and aggregate their predictions. To induce
+The forest procedure fits $M$ trees and aggregates their predictions. To induce
 diversity across trees, the method supports optional bootstrap resampling of
 rows. We distinguish:
 
 \paragraph{Classic bootstrap.}
 Each bootstrap sample draws $n$ indices with replacement from $\{1,\dots,n\}$
-with uniform probabilities $p_i = 1/n$ \citep{Efron1979Bootstrap}.
+with uniform probabilities $\pi_i = 1/n$ \citep{Efron1979Bootstrap}.
 
 \paragraph{Bayesian bootstrap.}
 The Bayesian bootstrap \citep{Rubin1981BayesianBootstrap} draws a random
-probability vector $p = (p_1,\dots,p_n)$ over the $n$ observations, then draws
-bootstrap indices with replacement according to $p$. A convenient construction
+probability vector $\pi = (\pi_1,\dots,\pi_n)$ over the $n$ observations, then draws
+bootstrap indices with replacement according to $\pi$. A convenient construction
 is
 %
 \begin{equation}
-  w_i \stackrel{\mathrm{i.i.d.}}{\sim} \mathrm{Exp}(1), \qquad p_i = \frac{w_i}{\sum_{j=1}^n w_j},
+  w_i \stackrel{\mathrm{i.i.d.}}{\sim} \mathrm{Exp}(1), \qquad \pi_i = \frac{w_i}{\sum_{j=1}^n w_j},
 \end{equation}
 %
-which yields $p \sim \mathrm{Dirichlet}(1,\dots,1)$. In \citrees, the ``Bayesian
+which yields $\pi \sim \mathrm{Dirichlet}(1,\dots,1)$. In \citrees, the ``Bayesian
 bootstrap'' option uses this normalized-exponential construction to generate
 sampling probabilities, and then samples indices with replacement.
 
-For classification forests, \citrees additionally supports stratified and
-balanced variants of bootstrapping to control the class proportions within each
-bootstrap sample.
-
-% TODO: add a short implementation-focused paragraph:
-% - registry of selectors/splitters
-% - Numba JIT and test modes (JIT on/off)
+For classification forests, we additionally support class-conditional bootstrap
+sampling to control class composition within each bootstrap sample: stratified
+sampling performs draws within each class so that expected proportions match
+the training data, undersampling draws $n_{\min}$ samples per class (where
+$n_{\min}$ is the minority class count), and oversampling draws a fixed total
+of $n$ (or a configured bootstrap sample cap) samples with per-class counts as
+equal as possible.
+These options are engineering heuristics and are not part of this manuscript's
+formal permutation-test guarantees.

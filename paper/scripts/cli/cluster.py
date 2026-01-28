@@ -5,6 +5,7 @@ Commands for managing Ray clusters on AWS.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import webbrowser
 from pathlib import Path
@@ -32,6 +33,22 @@ def _check_cluster_config() -> None:
         error(f"Cluster config not found: {CLUSTER_YAML}")
         error("Run 'citrees-exp infra generate' first.")
         raise typer.Exit(1)
+
+
+def _get_head_ip() -> str | None:
+    """Get the head node public IP address."""
+    result = subprocess.run(
+        ["ray", "get-head-ip", str(CLUSTER_YAML)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        # Ray CLI mixes verbose logging into stdout - extract the IP address
+        for line in result.stdout.strip().split("\n"):
+            line = line.strip()
+            if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", line):
+                return line
+    return None
 
 
 def _run_ray_command(
@@ -159,9 +176,17 @@ def status() -> None:
 
     heading("Cluster Status")
 
-    # Run ray status
+    head_ip = _get_head_ip()
+    if not head_ip:
+        warn("Could not get head node IP")
+        console.print("[dim]Cluster may not be running.[/]")
+        return
+
+    info(f"Head node: {head_ip}")
+
+    # Connect directly to Ray cluster via GCS port
     result = subprocess.run(
-        ["ray", "status", "--address", "auto"],
+        ["ray", "status", "--address", f"{head_ip}:6379"],
         capture_output=True,
         text=True,
     )
@@ -169,17 +194,10 @@ def status() -> None:
     if result.returncode == 0:
         console.print(result.stdout)
     else:
-        # Try to get status from cluster directly
-        result = _run_ray_command(
-            ["exec", "--", "ray", "status"],
-            "Getting cluster status",
-            capture=True,
-        )
-        if result.returncode == 0:
-            console.print(result.stdout)
-        else:
-            warn("Could not get cluster status")
-            console.print("[dim]Cluster may not be running or not accessible.[/]")
+        warn("Could not get cluster status")
+        console.print("[dim]Cluster may not be accessible from your IP.[/]")
+        if result.stderr:
+            console.print(f"[dim]{result.stderr}[/]")
 
 
 @app.command()
@@ -279,32 +297,14 @@ def logs(
 
     heading("Cluster Logs")
 
+    # Note: ray logs CLI doesn't work remotely, must use ray exec
     if follow:
-        # Tail logs continuously
         subprocess.run(
-            [
-                "ray",
-                "exec",
-                str(CLUSTER_YAML),
-                "--",
-                "tail",
-                "-f",
-                "/tmp/ray/session_latest/logs/raylet.out",
-            ]
+            ["ray", "exec", str(CLUSTER_YAML), "tail -f /tmp/ray/session_latest/logs/raylet.out"]
         )
     else:
-        # Show last N lines
         result = subprocess.run(
-            [
-                "ray",
-                "exec",
-                str(CLUSTER_YAML),
-                "--",
-                "tail",
-                "-n",
-                str(lines),
-                "/tmp/ray/session_latest/logs/raylet.out",
-            ],
+            ["ray", "exec", str(CLUSTER_YAML), f"tail -n {lines} /tmp/ray/session_latest/logs/raylet.out"],
             capture_output=True,
             text=True,
         )

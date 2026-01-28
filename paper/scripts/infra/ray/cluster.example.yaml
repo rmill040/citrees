@@ -5,19 +5,23 @@
 #   2. Deploy:     citrees-exp cluster up --yes
 #
 # Placeholders (replaced during --generate):
-#   __MY_IP__       - Your public IP for security group rules
-#   __S3_BUCKET__   - S3 bucket for results (citrees-{account_id})
-#   __AWS_ACCOUNT__ - AWS account ID
-#   __GIT_SHA__     - Current git commit SHA
-#   __REGION__      - AWS region (us-east-1)
+#   __MY_IP__               - Your public IP for security group rules
+#   __S3_BUCKET__           - S3 bucket for results (citrees-{account_id})
+#   __AWS_ACCOUNT__         - AWS account ID
+#   __GIT_SHA__             - Current git commit SHA
+#   __REGION__              - AWS region (us-east-1)
+#   __MAX_WORKERS__         - Max total workers (from config.yaml)
+#   __UPSCALING_SPEED__     - Autoscaler aggressiveness (from config.yaml)
+#   __IDLE_TIMEOUT_MINUTES__ - Idle worker timeout (from config.yaml)
 #
 # IAM: Created by --setup (citrees-ray-autoscaler role with EC2 + S3 + ECR permissions)
 
 cluster_name: citrees
 
-# Scale up aggressively to handle large workloads
-upscaling_speed: 50.0
-idle_timeout_minutes: 5
+# Cluster autoscaler settings (from config.yaml)
+max_workers: __MAX_WORKERS__
+upscaling_speed: __UPSCALING_SPEED__
+idle_timeout_minutes: __IDLE_TIMEOUT_MINUTES__
 
 provider:
   type: aws

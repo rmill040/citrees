@@ -19,10 +19,11 @@ from paper.scripts.config.constants import (
     S3_BUCKET,
     STALE_TIMEOUT_MINUTES,
 )
-from paper.scripts.config.settings import Config, SchedulingConfig, load_config
+from paper.scripts.config.settings import ClusterConfig, Config, SchedulingConfig, load_config
 
 __all__ = [
     # Settings
+    "ClusterConfig",
     "Config",
     "SchedulingConfig",
     "load_config",

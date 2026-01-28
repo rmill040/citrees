@@ -380,8 +380,14 @@ def get_current_branch() -> str:
 
 def generate_config(branch: str | None = None) -> None:
     """Generate cluster.yaml from template with user's current IP, branch, and Docker image."""
+    from paper.scripts.config import load_config
+
     if not CLUSTER_EXAMPLE_YAML.exists():
         raise FileNotFoundError(f"Template not found: {CLUSTER_EXAMPLE_YAML}")
+
+    info("Loading config.yaml...")
+    cfg = load_config()
+    step(f"Cluster: max_workers={cfg.cluster.max_workers}, upscaling_speed={cfg.cluster.upscaling_speed}")
 
     info("Fetching your public IP...")
     ip = get_public_ip()
@@ -413,6 +419,9 @@ def generate_config(branch: str | None = None) -> None:
         .replace("__AWS_ACCOUNT__", account_id)
         .replace("__GIT_SHA__", git_sha)
         .replace("__REGION__", DEFAULT_REGION)
+        .replace("__MAX_WORKERS__", str(cfg.cluster.max_workers))
+        .replace("__UPSCALING_SPEED__", str(cfg.cluster.upscaling_speed))
+        .replace("__IDLE_TIMEOUT_MINUTES__", str(cfg.cluster.idle_timeout_minutes))
     )
 
     step(f"Writing: {CLUSTER_YAML}")

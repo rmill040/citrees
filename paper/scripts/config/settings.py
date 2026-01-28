@@ -10,6 +10,15 @@ import yaml
 
 
 @dataclass
+class ClusterConfig:
+    """Ray cluster autoscaler configuration."""
+
+    max_workers: int = 500
+    upscaling_speed: float = 50.0
+    idle_timeout_minutes: int = 5
+
+
+@dataclass
 class SchedulingConfig:
     """Scheduling configuration for Ray CPU/memory allocation."""
 
@@ -42,6 +51,7 @@ class Config:
 
     aws_region: str = "us-east-1"
     s3_bucket: str | None = None
+    cluster: ClusterConfig = field(default_factory=ClusterConfig)
     experiment: SchedulingConfig = field(default_factory=SchedulingConfig)
 
 
@@ -78,6 +88,13 @@ def load_config(path: Path | None = None) -> Config:
         aws_region=data.get("aws_region", "us-east-1"),
         s3_bucket=s3_bucket,
     )
+
+    if cluster_data := data.get("cluster"):
+        config.cluster = ClusterConfig(
+            max_workers=cluster_data.get("max_workers", 500),
+            upscaling_speed=float(cluster_data.get("upscaling_speed", 50.0)),
+            idle_timeout_minutes=cluster_data.get("idle_timeout_minutes", 5),
+        )
 
     if exp_data := data.get("experiment"):
         cpu_overrides = exp_data.get("selection_cpus_overrides") or {}

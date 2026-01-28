@@ -5,6 +5,14 @@
 aws_region: us-east-1
 # Note: S3 bucket name is derived automatically as citrees-{account_id} by setup_cluster.py
 
+cluster:
+  # Global limit on total workers (Ray defaults to 2 if not set!)
+  max_workers: 500
+  # Scale up aggressively to handle large workloads
+  upscaling_speed: 50.0
+  # Terminate idle workers after this many minutes
+  idle_timeout_minutes: 5
+
 experiment:
   # "classification" or "regression"
   type: classification

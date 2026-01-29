@@ -97,7 +97,7 @@ class ExperimentGrid:
         datasets: str | None = None,
         seeds: str | None = None,
         source: Literal["all", "real", "synthetic"] = "all",
-        n_seeds: int = 10,
+        n_seeds: int = 5,
         get_datasets_fn: Callable[..., list[str]] | None = None,
         max_configs_per_method: int | None = None,
     ) -> ExperimentGrid:
@@ -115,7 +115,7 @@ class ExperimentGrid:
             Comma-separated list of seed indices to filter.
         source : {"all", "real", "synthetic"}, default "all"
             Dataset source filter.
-        n_seeds : int, default 10
+        n_seeds : int, default 5
             Total number of seeds (used when seeds not specified).
         get_datasets_fn : callable, optional
             Function to get dataset list. If None, uses adapters.data.get_datasets.

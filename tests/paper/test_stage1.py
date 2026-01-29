@@ -74,9 +74,7 @@ class TestFilterSelector:
         X = np.hstack([x0, x1])
         y = np.array([0] * n_per + [1] * n_per + [2] * n_per)
 
-        rank_base = module.filter_selector(
-            X, y, method="mc", task="classification", random_state=0
-        )
+        rank_base = module.filter_selector(X, y, method="mc", task="classification", random_state=0)
         rank_shift = module.filter_selector(
             X, y + 5, method="mc", task="classification", random_state=0
         )

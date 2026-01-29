@@ -1362,9 +1362,7 @@ class TestReservoirSamplingTieBreaking:
             assert proportion > 0.10, (
                 f"Feature {feature_idx} selected only {proportion:.1%} of the time"
             )
-            assert proportion < 0.35, (
-                f"Feature {feature_idx} selected {proportion:.1%} of the time"
-            )
+            assert proportion < 0.35, f"Feature {feature_idx} selected {proportion:.1%} of the time"
 
     def test_metric_tie_breaking_regressor_with_identical_features(self):
         """When features are identical copies, tie-breaking should be uniform (regressor)."""

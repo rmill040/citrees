@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from sklearn.datasets import make_classification, make_regression
-from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.model_selection import cross_val_score
 
 from citrees import (
     ConditionalInferenceForestClassifier,

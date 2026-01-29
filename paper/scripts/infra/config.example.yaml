@@ -16,7 +16,7 @@ cluster:
 experiment:
   # "classification" or "regression"
   type: classification
-  n_seeds: 10
+  n_seeds: 5
   stale_timeout_minutes: 30
 
   # Ray CPU scheduling (per config) - Stage 1 (feature selection)

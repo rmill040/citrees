@@ -486,7 +486,7 @@ def smoke(
         methods=method_str,
         datasets=chosen,
         seeds=str(seed),
-        n_seeds=10,
+        n_seeds=5,
         max_configs_per_method=max_configs_per_method,
     )
 

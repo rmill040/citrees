@@ -23,7 +23,7 @@ class SchedulingConfig:
     """Scheduling configuration for Ray CPU/memory allocation."""
 
     type: Literal["classification", "regression"] = "classification"
-    n_seeds: int = 10
+    n_seeds: int = 5
     stale_timeout_minutes: int = 30
     # Ray CPU scheduling for experiment tasks
     selection_cpus_default: int = 1
@@ -103,7 +103,7 @@ def load_config(path: Path | None = None) -> Config:
         eval_mem_overrides = exp_data.get("evaluation_memory_gb_overrides") or {}
         config.experiment = SchedulingConfig(
             type=exp_data.get("type", "classification"),
-            n_seeds=exp_data.get("n_seeds", 10),
+            n_seeds=exp_data.get("n_seeds", 5),
             stale_timeout_minutes=exp_data.get("stale_timeout_minutes", 30),
             selection_cpus_default=exp_data.get("selection_cpus_default", 1),
             selection_cpus_threaded=exp_data.get("selection_cpus_threaded", 8),

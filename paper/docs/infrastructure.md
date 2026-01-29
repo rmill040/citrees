@@ -135,7 +135,7 @@ aws_region: us-east-1
 
 experiment:
   type: classification # or "regression"
-  n_seeds: 10
+  n_seeds: 5
 ```
 
 ## CLI Commands

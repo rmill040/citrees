@@ -83,7 +83,7 @@ def _get_stats() -> Any:
     return _stats
 
 
-def _make_r_dataframe(X: np.ndarray, y: np.ndarray, task_type: str) -> Any:
+def _make_r_dataframe(X: np.ndarray, y: np.ndarray, task: str) -> Any:
     """Create an R data frame from numpy arrays."""
     ro, _importr = _import_rpy2()
     n_features = X.shape[1]
@@ -94,7 +94,7 @@ def _make_r_dataframe(X: np.ndarray, y: np.ndarray, task_type: str) -> Any:
         data_dict[f"X{i}"] = ro.FloatVector(X[:, i])
 
     # Add y - use FactorVector for classification, FloatVector for regression
-    if task_type == "classification":
+    if task == "classification":
         data_dict["y"] = ro.FactorVector(ro.IntVector(y.astype(np.int64)))
     else:
         data_dict["y"] = ro.FloatVector(y.astype(np.float64))
@@ -106,7 +106,7 @@ def r_ctree_ranking(
     X: np.ndarray,
     y: np.ndarray,
     *,
-    task_type: str = "classification",
+    task: str = "classification",
     teststat: str = "quadratic",
     testtype: str = "Bonferroni",
     alpha: float = 0.05,
@@ -126,7 +126,7 @@ def r_ctree_ranking(
         Feature matrix of shape (n_samples, n_features).
     y : np.ndarray
         Target vector.
-    task_type : str
+    task : str
         Either "classification" or "regression".
     teststat : str
         Test statistic type: "quadratic" or "maximum".
@@ -152,7 +152,7 @@ def r_ctree_ranking(
     n_features = X.shape[1]
 
     # Create R data frame
-    r_data = _make_r_dataframe(X, y, task_type)
+    r_data = _make_r_dataframe(X, y, task)
 
     # Build formula
     formula = stats.as_formula("y ~ .")
@@ -199,7 +199,7 @@ def r_cforest_ranking(
     X: np.ndarray,
     y: np.ndarray,
     *,
-    task_type: str = "classification",
+    task: str = "classification",
     teststat: str = "quadratic",
     testtype: str = "Univariate",
     mincriterion: float = 0.0,
@@ -223,7 +223,7 @@ def r_cforest_ranking(
         Feature matrix of shape (n_samples, n_features).
     y : np.ndarray
         Target vector.
-    task_type : str
+    task : str
         Either "classification" or "regression".
     teststat : str
         Test statistic type: "quadratic" or "maximum".
@@ -271,7 +271,7 @@ def r_cforest_ranking(
         mtry_val = int(np.ceil(np.sqrt(n_features)))
 
     # Create R data frame
-    r_data = _make_r_dataframe(X, y, task_type)
+    r_data = _make_r_dataframe(X, y, task)
 
     # Build formula
     formula = stats.as_formula("y ~ .")

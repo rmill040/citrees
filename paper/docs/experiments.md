@@ -68,7 +68,7 @@ from paper.scripts.pipeline.stage1 import filter_selector
 import numpy as np
 X = np.random.randn(100, 20)
 y = (X[:, 0] + X[:, 1] > 0).astype(int)
-ranking = filter_selector(X, y, method='mc', task_type='classification', random_state=0)
+ranking = filter_selector(X, y, method='mc', task='classification', random_state=0)
 print(f'Top 5 features: {ranking[:5]}')
 "
 ```
@@ -84,8 +84,8 @@ citrees-exp infra setup
 # Start Ray cluster
 citrees-exp cluster up --yes
 
-# Run experiments
-citrees-exp run classification --only-missing
+# Run experiments (skips existing results by default)
+citrees-exp run classification
 
 # Check progress
 citrees-exp check
@@ -112,7 +112,7 @@ MetadataOptions:
 │ Ray Workers ──→ S3 (rankings)                                           │
 │                                                                          │
 │ N configs = methods × datasets × seeds                                  │
-│ Output: s3://bucket/rankings/{task_type}/{dataset}/{method_id}_seed{s}.parquet  │
+│ Output: s3://bucket/rankings/{task}/{dataset}/{method_id}_seed{s}.parquet  │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -122,7 +122,7 @@ MetadataOptions:
 │ Ray Workers ──→ S3 (metrics)                                            │
 │                                                                          │
 │ Evaluates at k = [5, 10, 25, 50, 100, all]                             │
-│ Output: s3://bucket/metrics/{task_type}/{dataset}/{method_id}_seed{s}.parquet   │
+│ Output: s3://bucket/metrics/{task}/{dataset}/{method_id}_seed{s}.parquet   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -130,21 +130,21 @@ MetadataOptions:
 
 - Stage 1 (slow) runs independently from Stage 2 (fast)
 - Can re-run Stage 2 with different downstream models
-- Only-missing runs via S3 listings (submit only configs without artifacts)
+- Skips existing results by default (submit only configs without artifacts)
 - Spot instance fault tolerance via Ray
 
-**Only-missing workflow (recommended):**
+**Default workflow:**
 
 ```bash
-# Preview what would run
-citrees-exp run classification --only-missing --dry-run
+# Preview what would run (skips existing by default)
+citrees-exp run classification --dry-run
 
-# Run only configs missing in S3
-citrees-exp run classification --only-missing
+# Run only configs missing in S3 (default behavior)
+citrees-exp run classification
 ```
 
-**Reruns:** delete the specific S3 objects you want to recompute, then re-run
-with `--only-missing`.
+**Reruns:** use `--force` to re-run everything, or delete specific S3 objects
+then re-run.
 
 ## End-to-End Analysis Sequence (Ray → S3 → Local)
 
@@ -153,9 +153,10 @@ This is the **full** analysis flow for real‑data benchmarks.
 ### 1) Run experiments
 
 ```bash
-citrees-exp run classification --only-missing   # Stage 1 + 2
+citrees-exp run classification                   # Stage 1 + 2 (skips existing)
 citrees-exp run classification --stage stage1   # Stage 1 only
 citrees-exp run classification --stage stage2   # Stage 2 only
+citrees-exp run classification --force          # Re-run everything
 ```
 
 ### 2) Download + aggregate S3 artifacts to local parquet
@@ -165,7 +166,7 @@ This produces: `paper/results/clf_evaluation.parquet` and
 
 ```bash
 S3_BUCKET=your-bucket-name \
-uv run python paper/scripts/analysis/download_and_aggregate.py --stage all --task-type all
+uv run python paper/scripts/analysis/download_and_aggregate.py --stage all --task all
 ```
 
 ### 3) Run statistical analysis (tables/figures)
@@ -341,12 +342,12 @@ citrees-exp watch                     # Live dashboard
 ### Stage 1 Output (rankings)
 
 ```
-s3://bucket/rankings/{task_type}/{dataset}/{method_id}_seed{seed}.parquet
+s3://bucket/rankings/{task}/{dataset}/{method_id}_seed{seed}.parquet
 
 Columns:
 - fold_idx: int
 - feature_ranking: list[int]      # Full ranking [best → worst]
-- dataset, task_type, seed
+- dataset, task, seed
 - method_id, method, method_base
 - artifact_version
 - n_samples, n_features
@@ -360,13 +361,13 @@ Columns:
 ### Stage 2 Output (metrics)
 
 ```
-s3://bucket/metrics/{task_type}/{dataset}/{method_id}_seed{seed}.parquet
+s3://bucket/metrics/{task}/{dataset}/{method_id}_seed{seed}.parquet
 
 Columns:
 - fold_idx: int
 - k: int                          # Number of features used
 - downstream_model: str           # lr, svm, knn / ridge, svr, knn
-- dataset, task_type, seed
+- dataset, task, seed
 - method_id, method, method_base
 - artifact_version
 - n_samples, n_features
@@ -419,7 +420,7 @@ After experiments complete:
 
 ```bash
 # Download and aggregate from S3 (recommended)
-S3_BUCKET=my-bucket uv run python paper/scripts/analysis/download_and_aggregate.py --task-type all
+S3_BUCKET=my-bucket uv run python paper/scripts/analysis/download_and_aggregate.py --task all
 
 # Or manually download from S3
 aws s3 sync s3://bucket/rankings/ paper/results/rankings/

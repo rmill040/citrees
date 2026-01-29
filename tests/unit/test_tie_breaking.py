@@ -8,10 +8,9 @@ This is implemented via reservoir sampling in _select_best_feature() and
 _select_best_split().
 """
 
-import numpy as np
-import pytest
 from collections import Counter
-from unittest.mock import patch
+
+import numpy as np
 
 from citrees import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor
 
@@ -106,9 +105,7 @@ class TestReservoirSamplingTieBreaking:
             assert proportion > 0.10, (
                 f"Feature {feature_idx} selected only {proportion:.1%} of the time"
             )
-            assert proportion < 0.35, (
-                f"Feature {feature_idx} selected {proportion:.1%} of the time"
-            )
+            assert proportion < 0.35, f"Feature {feature_idx} selected {proportion:.1%} of the time"
 
     def test_tie_breaking_reproducible_with_fixed_seed(self):
         """Same random_state should produce identical tie-breaking decisions."""

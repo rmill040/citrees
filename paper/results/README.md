@@ -8,8 +8,8 @@ Canonical subdirectories (used by scripts and referenced by
 
 - `paper/results/figures/`: PNG figures (paper-facing or diagnostic).
 - `paper/results/tables/`: tables (CSV/LaTeX).
-- `paper/results/cache/`: cached intermediate data and theory/calibration outputs
-  (typically parquet) to speed up figure regeneration.
+- `paper/results/cache/`: cached intermediate data and theory/calibration
+  outputs (typically parquet) to speed up figure regeneration.
 
 Notes:
 

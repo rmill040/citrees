@@ -89,19 +89,19 @@ def filter_selector(
     X: np.ndarray,
     y: np.ndarray,
     method: str,
-    task_type: str,
+    task: str,
     random_state: int,
 ) -> np.ndarray:
     """Compute feature ranking using filter methods."""
     from citrees._selector import ClassifierSelectors, RegressorSelectors
 
     n_features = X.shape[1]
-    selectors = ClassifierSelectors if task_type == "classification" else RegressorSelectors
+    selectors = ClassifierSelectors if task == "classification" else RegressorSelectors
     selector_fn = selectors[method]
     scores = np.zeros(n_features)
     rng = np.random.default_rng(random_state)
 
-    if task_type == "classification":
+    if task == "classification":
         y_enc, classes = _encode_labels(y)
         n_classes = len(classes)
         for j in range(n_features):
@@ -154,7 +154,7 @@ def permutation_selector(
     X: np.ndarray,
     y: np.ndarray,
     method: str,
-    task_type: str,
+    task: str,
     random_state: int,
     params: dict[str, Any] | None = None,
 ) -> np.ndarray:
@@ -168,7 +168,7 @@ def permutation_selector(
         Target array.
     method : str
         Method name (e.g., "ptest_mc", "ptest_pc").
-    task_type : str
+    task : str
         "classification" or "regression".
     random_state : int
         Random seed.
@@ -193,10 +193,8 @@ def permutation_selector(
 
     base_method = method.replace("ptest_", "")
     n_features = X.shape[1]
-    selectors = ClassifierSelectors if task_type == "classification" else RegressorSelectors
-    selector_tests = (
-        ClassifierSelectorTests if task_type == "classification" else RegressorSelectorTests
-    )
+    selectors = ClassifierSelectors if task == "classification" else RegressorSelectors
+    selector_tests = ClassifierSelectorTests if task == "classification" else RegressorSelectorTests
     selector_fn = selectors[base_method]
     test_fn = selector_tests[base_method]
 
@@ -204,7 +202,7 @@ def permutation_selector(
     pvalues = np.ones(n_features)
     rng = np.random.default_rng(random_state)
 
-    if task_type == "classification":
+    if task == "classification":
         y_enc, classes = _encode_labels(y)
         n_classes = len(classes)
         for j in range(n_features):
@@ -244,7 +242,7 @@ def embedding_selector(
     X_test: np.ndarray,
     y_test: np.ndarray,
     method: str,
-    task_type: str,
+    task: str,
     random_state: int,
     params: dict[str, Any] | None = None,
     n_jobs: int = 1,
@@ -253,7 +251,7 @@ def embedding_selector(
     from paper.scripts.pipeline.selectors import get_embedding_model
 
     params = params or {}
-    model = get_embedding_model(method, task_type, random_state, n_jobs=n_jobs, params=params)
+    model = get_embedding_model(method, task, random_state, n_jobs=n_jobs, params=params)
     model.fit(X_train, y_train)
     return np.argsort(model.feature_importances_)[::-1]
 
@@ -262,7 +260,7 @@ def wrapper_selector(
     X_train: np.ndarray,
     y_train: np.ndarray,
     method: str,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = 1,
     params: dict[str, Any] | None = None,
@@ -277,7 +275,7 @@ def wrapper_selector(
         Training target array.
     method : str
         Method name: "boruta", "pi", "shap", "cpi", "mrmr", "rfe".
-    task_type : str
+    task : str
         "classification" or "regression".
     random_state : int
         Random seed.
@@ -298,17 +296,17 @@ def wrapper_selector(
     params = params or {}
 
     if method == "boruta":
-        return boruta_selector(X_train, y_train, task_type, random_state, n_jobs=n_jobs, params=params)
+        return boruta_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
     if method == "pi":
-        return pi_selector(X_train, y_train, task_type, random_state, n_jobs=n_jobs, params=params)
+        return pi_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
     if method == "shap":
-        return shap_selector(X_train, y_train, task_type, random_state, n_jobs=n_jobs, params=params)
+        return shap_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
     if method == "cpi":
-        return cpi_selector(X_train, y_train, task_type, random_state, n_jobs=n_jobs, params=params)
+        return cpi_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
     if method == "mrmr":
-        return mrmr_selector(X_train, y_train, task_type)
+        return mrmr_selector(X_train, y_train, task)
     if method == "rfe":
-        return rfe_selector(X_train, y_train, task_type, random_state, n_jobs=n_jobs)
+        return rfe_selector(X_train, y_train, task, random_state, n_jobs=n_jobs)
 
     raise ValueError(f"Unknown wrapper method: {method}")
 
@@ -317,7 +315,7 @@ def run_selection(
     X: np.ndarray,
     y: np.ndarray,
     method: str,
-    task_type: str,
+    task: str,
     seed: int,
     params: dict[str, Any] | None = None,
     n_jobs: int = 1,
@@ -329,7 +327,7 @@ def run_selection(
     - feature_ranking: list of feature indices in ranked order
     """
     params = params or {}
-    cv = get_cv_splitter(task_type, N_SPLITS, seed)
+    cv = get_cv_splitter(task, N_SPLITS, seed)
 
     results = []
     for fold_idx, (train_idx, test_idx) in enumerate(cv.split(X, y)):
@@ -345,9 +343,9 @@ def run_selection(
 
         # Select appropriate method
         if method in ["mc", "mi", "rdc", "pc", "dc"]:
-            ranking = filter_selector(X_train, y_train, method, task_type, rs)
+            ranking = filter_selector(X_train, y_train, method, task, rs)
         elif method.startswith("ptest_"):
-            ranking = permutation_selector(X_train, y_train, method, task_type, rs, params=params)
+            ranking = permutation_selector(X_train, y_train, method, task, rs, params=params)
         elif method in ["rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
             ranking = embedding_selector(
                 X_train,
@@ -355,21 +353,23 @@ def run_selection(
                 X_test,
                 y_test,
                 method,
-                task_type,
+                task,
                 rs,
                 params=params,
                 n_jobs=n_jobs,
             )
         elif method in ["boruta", "pi", "shap", "cpi", "mrmr", "rfe"]:
-            ranking = wrapper_selector(X_train, y_train, method, task_type, rs, n_jobs=n_jobs, params=params)
+            ranking = wrapper_selector(
+                X_train, y_train, method, task, rs, n_jobs=n_jobs, params=params
+            )
         elif method == "r_ctree":
             from paper.scripts.pipeline.r_methods import r_ctree_ranking
 
-            ranking = r_ctree_ranking(X_train, y_train, task_type=task_type, **params)
+            ranking = r_ctree_ranking(X_train, y_train, task=task, **params)
         elif method == "r_cforest":
             from paper.scripts.pipeline.r_methods import r_cforest_ranking
 
-            ranking = r_cforest_ranking(X_train, y_train, task_type=task_type, **params)
+            ranking = r_cforest_ranking(X_train, y_train, task=task, **params)
         else:
             raise ValueError(f"Unknown method: {method}")
 
@@ -419,7 +419,7 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
     params = cfg.method.params_dict
     dataset = cfg.dataset
     seed = cfg.seed
-    task_type = cfg.task
+    task = cfg.task
 
     hostname = socket.gethostname()
     git_sha = get_git_sha()
@@ -434,17 +434,17 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
 
     try:
         # Load dataset
-        X, y = load_dataset(dataset, task_type)
+        X, y = load_dataset(dataset, task)
         n_samples, n_features = int(X.shape[0]), int(X.shape[1])
         n_jobs = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
 
         # Get dataset metadata
-        dataset_meta = get_dataset_metadata(dataset, task_type)
+        dataset_meta = get_dataset_metadata(dataset, task)
 
         # Run selection
         created_at_utc = utc_now_iso()
         tic = time.perf_counter()
-        fold_results = run_selection(X, y, method, task_type, seed, params=params, n_jobs=n_jobs)
+        fold_results = run_selection(X, y, method, task, seed, params=params, n_jobs=n_jobs)
         elapsed = time.perf_counter() - tic
 
         # Enrich results with metadata
@@ -452,7 +452,7 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
             row.update(
                 {
                     "dataset": dataset,
-                    "task_type": task_type,
+                    "task": task,
                     "seed": seed,
                     "method_id": cfg.method.label,
                     "method": cfg.method.label,

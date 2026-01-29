@@ -32,4 +32,3 @@ def test_bonferroni_correction_resets_when_single_test() -> None:
     clf._bonferroni_correction(adjust="splitter", n_tests=1)
     assert clf._alpha_splitter == 0.05
     assert clf._n_resamples_splitter == 100
-

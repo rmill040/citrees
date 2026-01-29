@@ -37,7 +37,7 @@ _DEFAULT_N_JOBS = 1
 
 def get_embedding_model(
     method: str,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
     params: dict[str, Any] | None = None,
@@ -48,7 +48,7 @@ def get_embedding_model(
     ----------
     method : str
         Model name: rf, et, xgb, lgbm, cat, cit, cif.
-    task_type : str
+    task : str
         "classification" or "regression".
     random_state : int
         Random seed.
@@ -64,7 +64,7 @@ def get_embedding_model(
     """
     params = params or {}
 
-    if task_type == "classification":
+    if task == "classification":
         if method == "rf":
             base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
@@ -169,7 +169,7 @@ def get_embedding_model(
 def boruta_selector(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
     params: dict[str, Any] | None = None,
@@ -186,7 +186,7 @@ def boruta_selector(
     n_estimators = params.get("n_estimators", "auto")
     max_iter = params.get("max_iter", 100)
 
-    if task_type == "classification":
+    if task == "classification":
         base_model = RandomForestClassifier(
             n_estimators=100, n_jobs=n_jobs, random_state=random_state
         )
@@ -209,7 +209,7 @@ def boruta_selector(
 def pi_selector(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
     val_fraction: float = 0.2,
@@ -225,14 +225,14 @@ def pi_selector(
     params = params or {}
     n_repeats = params.get("n_repeats", 10)
 
-    if task_type == "classification":
+    if task == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
         scoring = "accuracy"
     else:
         model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
         scoring = "r2"
 
-    stratify = y_train if task_type == "classification" else None
+    stratify = y_train if task == "classification" else None
     X_fit, X_val, y_fit, y_val = train_test_split(
         X_train,
         y_train,
@@ -257,7 +257,7 @@ def pi_selector(
 def shap_selector(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
     params: dict[str, Any] | None = None,
@@ -272,7 +272,7 @@ def shap_selector(
     params = params or {}
     max_samples = params.get("max_samples", 1000)
 
-    if task_type == "classification":
+    if task == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
     else:
         model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
@@ -327,7 +327,7 @@ def _create_strata(X: np.ndarray, n_bins: int = 5) -> np.ndarray:
 def cpi_selector(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
     val_fraction: float = 0.2,
@@ -344,7 +344,7 @@ def cpi_selector(
     params = params or {}
     n_repeats = params.get("n_repeats", 10)
 
-    if task_type == "classification":
+    if task == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
 
         def scoring_fn(m, X, y):
@@ -356,7 +356,7 @@ def cpi_selector(
         def scoring_fn(m, X, y):
             return 1 - ((y - m.predict(X)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
 
-    stratify = y_train if task_type == "classification" else None
+    stratify = y_train if task == "classification" else None
     X_fit, X_val, y_fit, y_val = train_test_split(
         X_train,
         y_train,
@@ -393,7 +393,7 @@ def cpi_selector(
     return np.argsort(importances)[::-1]
 
 
-def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str) -> np.ndarray:
+def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task: str) -> np.ndarray:
     """Select features using mRMR (minimum Redundancy Maximum Relevance).
 
     Note: The mrmr library has no random_state parameter and is non-deterministic.
@@ -407,7 +407,7 @@ def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str) -> n
     y_series = pd.Series(y_train)
     n_features = X_train.shape[1]
 
-    if task_type == "classification":
+    if task == "classification":
         selected = mrmr_classif(df, y_series, K=n_features, show_progress=False)
     else:
         selected = mrmr_regression(df, y_series, K=n_features, show_progress=False)
@@ -427,12 +427,12 @@ def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task_type: str) -> n
 def rfe_selector(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
 ) -> np.ndarray:
     """Compute feature ranking using Recursive Feature Elimination."""
-    if task_type == "classification":
+    if task == "classification":
         base_model = RandomForestClassifier(
             n_estimators=100, n_jobs=n_jobs, random_state=random_state
         )

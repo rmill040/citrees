@@ -76,6 +76,71 @@ def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
     return bucket_name
 
 
+def upload_datasets(
+    task: str | None = None,
+    dry_run: bool = False,
+    force: bool = False,
+) -> dict[str, int]:
+    """Upload datasets from paper/data/ to S3.
+
+    Parameters
+    ----------
+    task : str, optional
+        Only upload for this task type ("classification" or "regression").
+        If None, uploads both.
+    dry_run : bool, default False
+        If True, show what would be uploaded without actually uploading.
+    force : bool, default False
+        If True, re-upload even if file already exists in S3.
+
+    Returns
+    -------
+    dict[str, int]
+        Counts: {"uploaded": N, "skipped": N}
+    """
+    from botocore.exceptions import ClientError
+
+    from paper.scripts.adapters.data import get_data_dir, get_data_s3_prefix
+
+    bucket = ensure_s3_bucket()
+    s3 = boto3.client("s3", region_name=DEFAULT_REGION)
+
+    tasks = [task] if task else ["classification", "regression"]
+    sources = ["real", "synthetic"]
+
+    uploaded = 0
+    skipped = 0
+
+    for tt in tasks:
+        for src in sources:
+            local_dir = get_data_dir(tt, src)
+            if not local_dir.exists():
+                continue
+            s3_prefix = get_data_s3_prefix(tt, src)
+
+            for parquet in local_dir.glob("*.parquet"):
+                s3_key = f"{s3_prefix}/{parquet.name}"
+
+                # Check if already exists in S3 (skip unless --force)
+                if not force:
+                    try:
+                        s3.head_object(Bucket=bucket, Key=s3_key)
+                        skipped += 1
+                        continue
+                    except ClientError as e:
+                        if e.response["Error"]["Code"] != "404":
+                            raise
+
+                if dry_run:
+                    step(f"Would upload: {parquet.name} -> s3://{bucket}/{s3_key}")
+                else:
+                    step(f"Uploading: {parquet.name}")
+                    s3.upload_file(str(parquet), bucket, s3_key)
+                uploaded += 1
+
+    return {"uploaded": uploaded, "skipped": skipped}
+
+
 def get_aws_account_id() -> str:
     """Get the current AWS account ID."""
     sts = boto3.client("sts")
@@ -387,7 +452,9 @@ def generate_config(branch: str | None = None) -> None:
 
     info("Loading config.yaml...")
     cfg = load_config()
-    step(f"Cluster: max_workers={cfg.cluster.max_workers}, upscaling_speed={cfg.cluster.upscaling_speed}")
+    step(
+        f"Cluster: max_workers={cfg.cluster.max_workers}, upscaling_speed={cfg.cluster.upscaling_speed}"
+    )
 
     info("Fetching your public IP...")
     ip = get_public_ip()

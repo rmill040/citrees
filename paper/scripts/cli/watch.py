@@ -29,13 +29,13 @@ def run_watch() -> None:
 
     config = load_config()
     n_seeds = config.experiment.n_seeds
-    task_type = config.experiment.type
+    task = config.experiment.type
     store = S3Store.from_config()
     bucket = store.bucket
 
     # Get expected counts
-    dataset_list = get_datasets(task_type)  # type: ignore
-    method_list = get_methods(task_type)
+    dataset_list = get_datasets(task)  # type: ignore
+    method_list = get_methods(task)
     method_configs = expand_method_configs(method_list)
     method_labels = [cfg.label for cfg in method_configs]
 
@@ -60,7 +60,7 @@ def run_watch() -> None:
         header = Text()
         header.append("citrees-exp", style="bold cyan")
         header.append(" | ", style="dim")
-        header.append(f"task={task_type}", style="green")
+        header.append(f"task={task}", style="green")
         header.append(" | ", style="dim")
         header.append(f"bucket={bucket}", style="yellow")
         return Panel(header, style="blue")
@@ -125,7 +125,7 @@ def run_watch() -> None:
 
         return table
 
-    def fetch_progress(stage: str, task_type: str) -> dict[str, set[tuple[str, int]]]:
+    def fetch_progress(stage: str, task: str) -> dict[str, set[tuple[str, int]]]:
         """Fetch progress from S3 (silently)."""
         import boto3
 
@@ -133,7 +133,7 @@ def run_watch() -> None:
 
         s3 = boto3.client("s3", region_name=AWS_REGION)
         completed: dict[str, set[tuple[str, int]]] = defaultdict(set)
-        prefix = f"{stage}/{task_type}/"
+        prefix = f"{stage}/{task}/"
 
         try:
             paginator = s3.get_paginator("list_objects_v2")
@@ -166,8 +166,8 @@ def run_watch() -> None:
                 layout["header"].update(make_header())
 
                 # Fetch progress
-                rankings = fetch_progress("rankings", task_type)
-                metrics = fetch_progress("metrics", task_type)
+                rankings = fetch_progress("rankings", task)
+                metrics = fetch_progress("metrics", task)
 
                 # Update progress panels
                 rankings_table = make_progress_table(

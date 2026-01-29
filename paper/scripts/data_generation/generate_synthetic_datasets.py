@@ -62,7 +62,7 @@ class SyntheticConfig:
     n_samples: int
     n_features: int
     n_informative: int
-    task_type: Literal["classification", "regression"] = "classification"
+    task: Literal["classification", "regression"] = "classification"
 
     # Classification-specific
     n_redundant: int = 0
@@ -426,8 +426,8 @@ def add_correlated_noise(
 
 def generate_dataset(config: SyntheticConfig) -> tuple[pa.Table, dict]:
     """Generate dataset and return as PyArrow table with metadata."""
-    # Generate base data based on task_type
-    if config.task_type == "regression":
+    # Generate base data based on task
+    if config.task == "regression":
         X, y, informative_indices, redundant_indices = _generate_regression_base(config)
     else:  # classification
         X, y, informative_indices, redundant_indices = _generate_classification_base(config)
@@ -466,7 +466,7 @@ def generate_dataset(config: SyntheticConfig) -> tuple[pa.Table, dict]:
 
     # Create DataFrame
     df = pd.DataFrame(X, columns=[f"x{i}" for i in range(X.shape[1])])
-    if config.task_type == "regression":
+    if config.task == "regression":
         df["y"] = y.astype(np.float64)
     else:
         df["y"] = y.astype(np.int64)
@@ -474,7 +474,7 @@ def generate_dataset(config: SyntheticConfig) -> tuple[pa.Table, dict]:
     # Metadata to store in parquet
     metadata = {
         "synthetic": "true",
-        "task_type": config.task_type,
+        "task": config.task,
         "config": json.dumps(asdict(config)),
         "informative_indices": json.dumps(informative_indices),
         "redundant_indices": json.dumps(redundant_indices),
@@ -697,7 +697,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                             n_samples=n_samples,
                             n_features=n_features,
                             n_informative=n_informative,
-                            task_type="regression",
+                            task="regression",
                             noise=noise,
                             seed=RANDOM_STATE,
                         )
@@ -717,7 +717,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                             n_samples=n_samples,
                             n_features=n_features,
                             n_informative=5 if variant == 1 else 4,  # Friedman1 has 5, others 4
-                            task_type="regression",
+                            task="regression",
                             friedman_variant=variant,
                             noise=noise,
                             seed=RANDOM_STATE,
@@ -736,7 +736,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                     n_samples=1000,
                     n_features=50,
                     n_informative=10,
-                    task_type="regression",
+                    task="regression",
                     n_correlated_blocks=n_corr,
                     correlation_strength=corr_strength,
                     noise=1.0,
@@ -756,7 +756,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                 n_features=50,
                 n_informative=10,
                 n_redundant=n_redundant,
-                task_type="regression",
+                task="regression",
                 noise=1.0,
                 seed=RANDOM_STATE,
             )
@@ -774,7 +774,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                     n_samples=1000,
                     n_features=50,
                     n_informative=10,
-                    task_type="regression",
+                    task="regression",
                     heteroscedastic=True,
                     heteroscedastic_scale=scale,
                     noise=noise,
@@ -796,7 +796,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                             n_samples=n_samples,
                             n_features=n_features,
                             n_informative=n_informative,
-                            task_type="regression",
+                            task="regression",
                             toeplitz_rho=rho,
                             noise=1.0,
                             seed=RANDOM_STATE,
@@ -814,7 +814,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                 n_samples=1000,
                 n_features=100,
                 n_informative=10,
-                task_type="regression",
+                task="regression",
                 noise=noise,
                 weak_signal=True,
                 seed=RANDOM_STATE,
@@ -832,7 +832,7 @@ def get_all_regression_configs() -> list[SyntheticConfig]:
                     n_samples=1000,
                     n_features=100,
                     n_informative=10,
-                    task_type="regression",
+                    task="regression",
                     n_correlated_noise=n_corr,
                     correlated_noise_strength=corr_strength,
                     noise=1.0,

@@ -138,14 +138,14 @@ class ExperimentGrid:
         ValueError
             If unknown methods, datasets, or invalid seeds are specified.
         """
-        task_type: TaskType = task  # type: ignore[assignment]
+        task: TaskType = task  # type: ignore[assignment]
 
         # Get method names for task
         method_names = get_methods(task)
 
         # Expand method configs based on grid mode
         if full_grid:
-            all_method_configs = get_full_method_configs(method_names, task_type)
+            all_method_configs = get_full_method_configs(method_names, task)
         else:
             all_method_configs = expand_method_configs(method_names)
 
@@ -155,7 +155,7 @@ class ExperimentGrid:
 
             get_datasets_fn = _get_datasets
 
-        all_datasets = get_datasets_fn(task_type, source=source)
+        all_datasets = get_datasets_fn(task, source=source)
 
         # Apply method filter
         if methods:
@@ -177,7 +177,7 @@ class ExperimentGrid:
                 by_method[cfg.name].append(cfg)
 
             limited: list[MethodConfig] = []
-            for method_name, configs in by_method.items():
+            for _method_name, configs in by_method.items():
                 limited.extend(configs[:max_configs_per_method])
             all_method_configs = limited
 
@@ -202,7 +202,7 @@ class ExperimentGrid:
             seed_list = list(range(n_seeds))
 
         return cls(
-            task=task_type,
+            task=task,
             methods=all_method_configs,
             datasets=all_datasets,
             seeds=seed_list,

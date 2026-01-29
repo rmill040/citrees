@@ -53,13 +53,13 @@ config = load_config()
 # =============================================================================
 
 
-def evaluation_num_cpus(task_type: str, *, downstream_models: list[str] | None = None) -> int:
+def evaluation_num_cpus(task: str, *, downstream_models: list[str] | None = None) -> int:
     """Return Ray CPU reservation for an evaluation task."""
     exp = config.experiment
 
     models = downstream_models
     if models is None:
-        models = CLF_DOWNSTREAM_MODELS if task_type == "classification" else REG_DOWNSTREAM_MODELS
+        models = CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
 
     cpus = int(exp.evaluation_cpus_default)
     for model_name in models:
@@ -70,13 +70,13 @@ def evaluation_num_cpus(task_type: str, *, downstream_models: list[str] | None =
     return cpus
 
 
-def evaluation_memory_bytes(task_type: str, *, downstream_models: list[str] | None = None) -> int:
+def evaluation_memory_bytes(task: str, *, downstream_models: list[str] | None = None) -> int:
     """Return Ray memory reservation (in bytes) for an evaluation task."""
     exp = config.experiment
 
     models = downstream_models
     if models is None:
-        models = CLF_DOWNSTREAM_MODELS if task_type == "classification" else REG_DOWNSTREAM_MODELS
+        models = CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
 
     memory_gb = exp.evaluation_memory_gb_default
     for model_name in models:
@@ -174,7 +174,7 @@ def evaluate_fold(
     X_test: np.ndarray,
     y_test: np.ndarray,
     ranking: np.ndarray,
-    task_type: str,
+    task: str,
     random_state: int,
     n_jobs: int = 1,
 ) -> list[dict[str, Any]]:
@@ -186,10 +186,8 @@ def evaluate_fold(
     k_values = [5, 10, 25, 50, 100, n_features]
     k_values = sorted(set(k for k in k_values if k <= n_features))
 
-    downstream_models = (
-        CLF_DOWNSTREAM_MODELS if task_type == "classification" else REG_DOWNSTREAM_MODELS
-    )
-    model_factory = get_clf_models if task_type == "classification" else get_reg_models
+    downstream_models = CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
+    model_factory = get_clf_models if task == "classification" else get_reg_models
 
     results = []
     for k in k_values:
@@ -207,7 +205,7 @@ def evaluate_fold(
             model.fit(X_train_scaled, y_train)
             y_pred = model.predict(X_test_scaled)
 
-            if task_type == "classification":
+            if task == "classification":
                 metrics = {
                     "accuracy": accuracy_score(y_test, y_pred),
                     "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0.0),
@@ -251,12 +249,12 @@ def run_evaluation(
 
     Uses the feature rankings from Stage 1 to evaluate downstream models.
     """
-    task_type = cfg.task
+    task = cfg.task
     seed = cfg.seed
     n_samples, n_features = int(X.shape[0]), int(X.shape[1])
 
     # Reconstruct deterministic CV splits
-    cv = get_cv_splitter(task_type, N_SPLITS, seed)
+    cv = get_cv_splitter(task, N_SPLITS, seed)
     splits = list(cv.split(X, y))
 
     results = []
@@ -278,7 +276,7 @@ def run_evaluation(
             X_test,
             y_test,
             ranking,
-            task_type,
+            task,
             rs,
             n_jobs,
         )
@@ -290,7 +288,7 @@ def run_evaluation(
                     "method_id": cfg.method.label,
                     "method": cfg.method.label,
                     "method_base": cfg.method.name,
-                    "task_type": task_type,
+                    "task": task,
                     "seed": seed,
                     "fold_idx": fold_idx,
                     "artifact_version": 2,
@@ -333,7 +331,7 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
 
     Can be called directly for local execution or wrapped in a Ray task.
     """
-    task_type = cfg.task
+    task = cfg.task
     hostname = socket.gethostname()
     git_sha = get_git_sha()
 
@@ -356,11 +354,11 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
     try:
         # Load rankings and dataset
         rankings_df = store.load("rankings", cfg)
-        X, y = load_dataset(cfg.dataset, task_type)
-        n_jobs = evaluation_num_cpus(task_type)
+        X, y = load_dataset(cfg.dataset, task)
+        n_jobs = evaluation_num_cpus(task)
 
         # Get dataset metadata
-        dataset_meta = get_dataset_metadata(cfg.dataset, task_type)
+        dataset_meta = get_dataset_metadata(cfg.dataset, task)
 
         # Run evaluation
         created_at_utc = utc_now_iso()

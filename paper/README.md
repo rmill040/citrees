@@ -54,7 +54,7 @@ cd paper/arxiv && latexmk -pdf main.tex && open main.pdf
 ```bash
 uv sync --group paper        # install dependencies
 citrees-exp smoke classification   # local smoke test
-citrees-exp run classification --only-missing   # full pipeline
+citrees-exp run classification   # full pipeline (skips existing)
 citrees-exp check            # check progress
 citrees-exp watch            # live dashboard
 ```

@@ -282,7 +282,9 @@ class TestUndersampleBootstrapSample:
     def test_truncates_to_max_samples(self):
         """When max_samples < K*n_min, output size is exactly max_samples."""
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])  # n_min = 4, K*n_min = 8
-        idx = undersample_bootstrap_sample(y=y, max_samples=5, bayesian_bootstrap=False, random_state=42)
+        idx = undersample_bootstrap_sample(
+            y=y, max_samples=5, bayesian_bootstrap=False, random_state=42
+        )
         assert len(idx) == 5
         y_sampled = y[idx]
         assert abs(int((y_sampled == 0).sum()) - int((y_sampled == 1).sum())) <= 1
@@ -310,7 +312,9 @@ class TestOversampleBootstrapSample:
     def test_fixed_size_balanced_classes(self):
         """Output size should be max_samples and class counts differ by at most 1."""
         y = np.array([0, 0, 0, 0, 0, 1, 1])  # imbalanced
-        idx = oversample_bootstrap_sample(y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42)
+        idx = oversample_bootstrap_sample(
+            y=y, max_samples=len(y), bayesian_bootstrap=False, random_state=42
+        )
         assert len(idx) == len(y)
         y_sampled = y[idx]
         assert abs(int((y_sampled == 0).sum()) - int((y_sampled == 1).sum())) <= 1
@@ -320,7 +324,9 @@ class TestOversampleBootstrapSample:
     def test_multiclass_balancing(self):
         """Multiclass counts should be as equal as possible (diff <= 1)."""
         y = np.array([0] * 10 + [1] * 2 + [2] * 5)
-        idx = oversample_bootstrap_sample(y=y, max_samples=9, bayesian_bootstrap=False, random_state=42)
+        idx = oversample_bootstrap_sample(
+            y=y, max_samples=9, bayesian_bootstrap=False, random_state=42
+        )
         y_sampled = y[idx]
         counts = np.array([(y_sampled == c).sum() for c in [0, 1, 2]], dtype=int)
         assert counts.sum() == 9

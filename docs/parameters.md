@@ -166,14 +166,19 @@ Options for `bootstrap_method`:
 - `BootstrapMethod.BAYESIAN`: Bayesian bootstrap with Dirichlet weights
   (recommended)
 - `BootstrapMethod.CLASSIC`: Standard bootstrap with replacement
-- `None`: Disable bootstrap (no OOB; `sampling_method` and `max_samples` must be `None`, and `oob_score` must be `False`)
+- `None`: Disable bootstrap (no OOB; `sampling_method` and `max_samples` must be
+  `None`, and `oob_score` must be `False`)
 
 Options for `sampling_method`:
 
-- `SamplingMethod.STRATIFIED`: Sample within each class (expected proportions match training data)
-- `SamplingMethod.UNDERSAMPLE`: Sample `n_min` per class (minority count), so total size is `K*n_min` (then capped by `max_samples`)
-- `SamplingMethod.OVERSAMPLE`: Allocate a fixed total size (`max_samples` or `n`) as evenly as possible across classes (diff ≤ 1) and sample within class
-- `None`: Unstratified bootstrap (classic or Bayesian depending on `bootstrap_method`)
+- `SamplingMethod.STRATIFIED`: Sample within each class (expected proportions
+  match training data)
+- `SamplingMethod.UNDERSAMPLE`: Sample `n_min` per class (minority count), so
+  total size is `K*n_min` (then capped by `max_samples`)
+- `SamplingMethod.OVERSAMPLE`: Allocate a fixed total size (`max_samples` or
+  `n`) as evenly as possible across classes (diff ≤ 1) and sample within class
+- `None`: Unstratified bootstrap (classic or Bayesian depending on
+  `bootstrap_method`)
 
 Notes:
 
@@ -182,7 +187,8 @@ Notes:
   cores).
 - `n_jobs=0` is invalid; use `None` or `1` to disable parallelism.
 - `sampling_method` requires `bootstrap_method` to be set (bootstrap enabled).
-- Invalid combinations (e.g., `bootstrap_method=None` with `sampling_method` set) raise a validation error.
+- Invalid combinations (e.g., `bootstrap_method=None` with `sampling_method`
+  set) raise a validation error.
 - Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
   `None`).
 

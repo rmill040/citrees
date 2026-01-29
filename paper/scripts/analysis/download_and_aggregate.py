@@ -8,7 +8,7 @@ This script:
 Usage:
     # Download both rankings and metrics for classification
     S3_BUCKET=my-bucket uv run python paper/scripts/analysis/download_and_aggregate.py \
-        --task-type classification
+        --task classification
 
     # Dry run (list files without downloading)
     S3_BUCKET=my-bucket uv run python paper/scripts/analysis/download_and_aggregate.py --dry-run
@@ -87,13 +87,13 @@ def download_and_concat(
 def aggregate_stage(
     bucket: str,
     stage: Literal["rankings", "metrics"],
-    task_type: Literal["classification", "regression"],
+    task: Literal["classification", "regression"],
     output_path: Path,
     *,
     region_name: str | None = None,
     dry_run: bool = False,
 ) -> int:
-    """Aggregate all S3 files for a stage/task_type to a single parquet file.
+    """Aggregate all S3 files for a stage/task to a single parquet file.
 
     Parameters
     ----------
@@ -101,7 +101,7 @@ def aggregate_stage(
         S3 bucket name.
     stage : {"rankings", "metrics"}
         Which stage to aggregate.
-    task_type : {"classification", "regression"}
+    task : {"classification", "regression"}
         Task type filter.
     output_path : Path
         Where to write the aggregated parquet file.
@@ -115,7 +115,7 @@ def aggregate_stage(
     int
         Number of files processed.
     """
-    prefix = f"{stage}/{task_type}/"
+    prefix = f"{stage}/{task}/"
     logger.info(f"Listing objects under s3://{bucket}/{prefix}")
 
     keys = list_s3_objects(bucket, prefix, region_name=region_name)
@@ -129,7 +129,7 @@ def aggregate_stage(
         return len(keys)
 
     if not keys:
-        logger.warning(f"No files found for {stage}/{task_type}")
+        logger.warning(f"No files found for {stage}/{task}")
         return 0
 
     logger.info(f"Downloading and concatenating {len(keys)} files...")
@@ -155,7 +155,7 @@ def main():
         help="Which stage to aggregate (default: all)",
     )
     parser.add_argument(
-        "--task-type",
+        "--task",
         choices=["classification", "regression", "all"],
         default="all",
         help="Task type filter (default: all)",
@@ -185,8 +185,8 @@ def main():
     stages: list[Literal["rankings", "metrics"]] = (
         ["rankings", "metrics"] if args.stage == "all" else [args.stage]
     )
-    task_types: list[Literal["classification", "regression"]] = (
-        ["classification", "regression"] if args.task_type == "all" else [args.task_type]
+    tasks: list[Literal["classification", "regression"]] = (
+        ["classification", "regression"] if args.task == "all" else [args.task]
     )
 
     # Output file naming convention
@@ -199,16 +199,16 @@ def main():
 
     total_files = 0
     for stage in stages:
-        for task_type in task_types:
-            output_path = args.output_dir / output_files[(stage, task_type)]
+        for task in tasks:
+            output_path = args.output_dir / output_files[(stage, task)]
             logger.info(f"\n{'=' * 60}")
-            logger.info(f"Processing {stage}/{task_type} -> {output_path.name}")
+            logger.info(f"Processing {stage}/{task} -> {output_path.name}")
             logger.info(f"{'=' * 60}")
 
             n_files = aggregate_stage(
                 bucket=bucket,
                 stage=stage,
-                task_type=task_type,
+                task=task,
                 output_path=output_path,
                 region_name=region_name,
                 dry_run=args.dry_run,

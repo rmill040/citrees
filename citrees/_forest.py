@@ -195,7 +195,9 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
             if self.max_samples is not None:
                 raise ValueError("max_samples must be None when bootstrap_method=None")
             if self.oob_score:
-                raise ValueError("oob_score requires bootstrap_method to be set (bootstrap enabled)")
+                raise ValueError(
+                    "oob_score requires bootstrap_method to be set (bootstrap enabled)"
+                )
         return self
 
 

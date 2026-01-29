@@ -247,7 +247,7 @@ def summarize_by_method(df: pd.DataFrame) -> pd.DataFrame:
     summary.columns = [f"{col[0]}_{col[1]}" for col in summary.columns]
 
     # Get most common n_informative for sort key, default to 5
-    mode_values = df['n_informative'].mode()
+    mode_values = df["n_informative"].mode()
     k = mode_values.iloc[0] if len(mode_values) > 0 else 5
     return summary.sort_values(f"precision@{k}_mean", ascending=False)
 

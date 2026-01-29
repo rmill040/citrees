@@ -304,7 +304,12 @@ def logs(
         )
     else:
         result = subprocess.run(
-            ["ray", "exec", str(CLUSTER_YAML), f"tail -n {lines} /tmp/ray/session_latest/logs/raylet.out"],
+            [
+                "ray",
+                "exec",
+                str(CLUSTER_YAML),
+                f"tail -n {lines} /tmp/ray/session_latest/logs/raylet.out",
+            ],
             capture_output=True,
             text=True,
         )

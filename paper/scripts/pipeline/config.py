@@ -16,8 +16,9 @@ Usage:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from itertools import product
-from typing import Any, Callable
+from typing import Any
 
 from paper.scripts.config.constants import RANDOM_STATE
 
@@ -810,14 +811,14 @@ REG_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
 # =============================================================================
 
 
-def get_method_configs(method: str, task_type: str) -> list[dict[str, Any]]:
+def get_method_configs(method: str, task: str) -> list[dict[str, Any]]:
     """Get all configs for a specific method.
 
     Parameters
     ----------
     method : str
         Method name (e.g., "xgb", "cit").
-    task_type : str
+    task : str
         Either "classification" or "regression".
 
     Returns
@@ -825,19 +826,19 @@ def get_method_configs(method: str, task_type: str) -> list[dict[str, Any]]:
     list[dict[str, Any]]
         List of configuration dictionaries for the method.
     """
-    generators = CLF_CONFIG_GENERATORS if task_type == "classification" else REG_CONFIG_GENERATORS
+    generators = CLF_CONFIG_GENERATORS if task == "classification" else REG_CONFIG_GENERATORS
     gen = generators.get(method)
     if gen is None:
-        raise ValueError(f"Unknown method '{method}' for task type '{task_type}'")
+        raise ValueError(f"Unknown method '{method}' for task type '{task}'")
     return gen()
 
 
-def get_configs(task_type: str) -> dict[str, list[dict[str, Any]]]:
+def get_configs(task: str) -> dict[str, list[dict[str, Any]]]:
     """Get all configs for a task type.
 
     Parameters
     ----------
-    task_type : str
+    task : str
         Either "classification" or "regression".
 
     Returns
@@ -845,16 +846,16 @@ def get_configs(task_type: str) -> dict[str, list[dict[str, Any]]]:
     dict[str, list[dict[str, Any]]]
         Dictionary mapping method names to lists of configurations.
     """
-    generators = CLF_CONFIG_GENERATORS if task_type == "classification" else REG_CONFIG_GENERATORS
+    generators = CLF_CONFIG_GENERATORS if task == "classification" else REG_CONFIG_GENERATORS
     return {method: gen() for method, gen in generators.items()}
 
 
-def grid_sizes(task_type: str) -> dict[str, int]:
+def grid_sizes(task: str) -> dict[str, int]:
     """Return the number of configs per method.
 
     Parameters
     ----------
-    task_type : str
+    task : str
         Either "classification" or "regression".
 
     Returns
@@ -862,16 +863,16 @@ def grid_sizes(task_type: str) -> dict[str, int]:
     dict[str, int]
         Dictionary mapping method names to config counts.
     """
-    configs = get_configs(task_type)
+    configs = get_configs(task)
     return {method: len(cfgs) for method, cfgs in configs.items()}
 
 
-def total_configs(task_type: str) -> int:
+def total_configs(task: str) -> int:
     """Return total number of configs for a task type.
 
     Parameters
     ----------
-    task_type : str
+    task : str
         Either "classification" or "regression".
 
     Returns
@@ -879,7 +880,7 @@ def total_configs(task_type: str) -> int:
     int
         Total number of configurations.
     """
-    return sum(grid_sizes(task_type).values())
+    return sum(grid_sizes(task).values())
 
 
 if __name__ == "__main__":

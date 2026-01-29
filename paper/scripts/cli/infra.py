@@ -292,3 +292,51 @@ def s3() -> None:
         bucket_name = ensure_s3_bucket()
 
     success(f"S3 bucket ready: {bucket_name}")
+
+
+@app.command(name="upload-data")
+def upload_data(
+    task: Annotated[
+        str | None,
+        typer.Option(
+            "--task",
+            "-t",
+            help="Only upload for this task type (classification/regression)",
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            "-n",
+            help="Show what would be uploaded without uploading",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            "-f",
+            help="Re-upload even if file already exists in S3",
+        ),
+    ] = False,
+) -> None:
+    """Upload datasets to S3 for Ray workers.
+
+    Uploads parquet files from paper/data/ to s3://{bucket}/data/
+    Skips files that already exist in S3 (use --force to re-upload).
+    """
+    from paper.scripts.infra.ray.setup_cluster import upload_datasets
+
+    heading("Uploading Datasets to S3")
+
+    if dry_run:
+        info("Dry run - no files will be uploaded")
+
+    with console.status("Scanning and uploading..."):
+        result = upload_datasets(task=task, dry_run=dry_run, force=force)
+
+    if dry_run:
+        info(f"Would upload {result['uploaded']} files, skip {result['skipped']} existing")
+    else:
+        success(f"Uploaded {result['uploaded']} files, skipped {result['skipped']} existing")

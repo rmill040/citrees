@@ -179,6 +179,15 @@ wheels = [
 ]
 
 [[package]]
+name = "array-api-compat"
+version = "1.13.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/68/36/f799b36d7025a92a23819f9f06541babdb84b6fd0bd4253f8be2eca348a4/array_api_compat-1.13.0.tar.gz", hash = "sha256:8b83a56aa8b9477472fee37f7731968dd213e20c198a05ac49caeff9b03f48a6", size = 103065, upload-time = "2025-12-28T11:26:57.734Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/5d/493b1b5528ab5072feae30821ff3a07b7a0474213d548efb1fdf135f85c1/array_api_compat-1.13.0-py3-none-any.whl", hash = "sha256:c15026a0ddec42815383f07da285472e1b1ff2e632eb7afbcfe9b08fcbad9bf1", size = 58585, upload-time = "2025-12-28T11:26:56.081Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "25.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -514,7 +523,7 @@ requires-dist = [
     { name = "boruta", specifier = ">=0.4.3" },
     { name = "boto3", specifier = ">=1.42.25" },
     { name = "catboost", marker = "extra == 'paper'", specifier = ">=1.2" },
-    { name = "dcor", specifier = ">=0.6" },
+    { name = "dcor", specifier = ">=0.7" },
     { name = "lightgbm", specifier = ">=4.6.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "matplotlib", marker = "extra == 'paper'", specifier = ">=3.8" },
@@ -773,17 +782,18 @@ wheels = [
 
 [[package]]
 name = "dcor"
-version = "0.6"
+version = "0.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "array-api-compat" },
     { name = "joblib" },
     { name = "numba" },
     { name = "numpy" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/a7/1d06e98f1b123be60ba5de004edba510025da689c8cfb501299a8f2ba1d1/dcor-0.6.tar.gz", hash = "sha256:f5d39776101db4787348e6be6cd9369341efeb40b070509a30d5c57185558431", size = 45509, upload-time = "2022-12-26T17:44:50.155Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/87/2a3141de80310e503d11d5f23d951c41a7f86aeae2045bbec54a480c748a/dcor-0.7.tar.gz", hash = "sha256:386d408596d7ec39af28b52c89e9fc438c4f13d8ed3d673e2c3b21029f57cbce", size = 69061, upload-time = "2026-01-17T18:01:58.04Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/f3/49770c523067d2179a600f236ea6d55f0a02909a424d055dbc50e04c4860/dcor-0.6-py3-none-any.whl", hash = "sha256:de306fc666668188749730fc803fc1d4d804d9886c92b622ba57b434fed395a2", size = 55545, upload-time = "2022-12-26T17:44:48.722Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/70/d82c194d53d684b6e75a228170a36f414cc86f5824693f6b0e443032461d/dcor-0.7-py3-none-any.whl", hash = "sha256:2a5875467d2b554a9d7673e574a26f9ba06fc53f3229d49cd9a18c90d7d25042", size = 44580, upload-time = "2026-01-17T18:01:56.926Z" },
 ]
 
 [[package]]

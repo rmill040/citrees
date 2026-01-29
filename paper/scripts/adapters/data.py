@@ -16,18 +16,19 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 from botocore.exceptions import ClientError
 from loguru import logger
 
-import pyarrow.parquet as pq
-
+from paper.scripts.adapters.store import get_s3_bucket as _get_s3_bucket
+from paper.scripts.adapters.store import get_s3_client as _get_s3_client
 from paper.scripts.utils.env import get_repo_root
 
 TaskType = Literal["classification", "regression"]
 DataSource = Literal["real", "synthetic"]
 
 
-def get_data_dir(task_type: TaskType, source: DataSource = "real") -> Path:
+def get_data_dir(task: TaskType, source: DataSource = "real") -> Path:
     """Return the location of dataset directory for the given task type and source.
 
     Directory structure:
@@ -36,7 +37,7 @@ def get_data_dir(task_type: TaskType, source: DataSource = "real") -> Path:
         paper/data/regression/real/          - real regression datasets
         paper/data/regression/synthetic/     - synthetic regression datasets
     """
-    return get_repo_root() / "paper" / "data" / task_type / source
+    return get_repo_root() / "paper" / "data" / task / source
 
 
 def get_data_cache_dir() -> Path:
@@ -50,14 +51,14 @@ def get_data_cache_dir() -> Path:
     return cache_dir
 
 
-def get_data_s3_prefix(task_type: TaskType, source: DataSource) -> str:
+def get_data_s3_prefix(task: TaskType, source: DataSource) -> str:
     """Return the S3 prefix for datasets."""
-    return f"data/{task_type}/{source}"
+    return f"data/{task}/{source}"
 
 
-def get_dataset_prefix(task_type: TaskType) -> str:
+def get_dataset_prefix(task: TaskType) -> str:
     """Return the filename prefix for datasets (clf_ or reg_)."""
-    return "clf_" if task_type == "classification" else "reg_"
+    return "clf_" if task == "classification" else "reg_"
 
 
 def _infer_source(name: str) -> DataSource:
@@ -66,7 +67,7 @@ def _infer_source(name: str) -> DataSource:
 
 
 def get_datasets(
-    task_type: TaskType,
+    task: TaskType,
     *,
     source: Literal["real", "synthetic", "all"] = "all",
     data_dir: Path | None = None,
@@ -75,7 +76,7 @@ def get_datasets(
 
     Parameters
     ----------
-    task_type : TaskType
+    task : TaskType
         Either "classification" or "regression".
     source : {"real", "synthetic", "all"}, default "all"
         Which datasets to include.
@@ -87,15 +88,12 @@ def get_datasets(
     list[str]
         Sorted list of dataset names (without prefix).
     """
-    prefix = get_dataset_prefix(task_type)
+    prefix = get_dataset_prefix(task)
     datasets: list[str] = []
 
     sources: list[DataSource] = ["real", "synthetic"] if source == "all" else [source]  # type: ignore[list-item]
     for src in sources:
-        if data_dir is not None:
-            search_dir = data_dir / task_type / src
-        else:
-            search_dir = get_data_dir(task_type, src)
+        search_dir = data_dir / task / src if data_dir is not None else get_data_dir(task, src)
         if not search_dir.exists():
             continue
         for f in search_dir.glob(f"{prefix}*.parquet"):
@@ -107,7 +105,7 @@ def get_datasets(
 
 def get_dataset_path(
     name: str,
-    task_type: TaskType,
+    task: TaskType,
     *,
     source: DataSource | None = None,
     data_dir: Path | None = None,
@@ -118,7 +116,7 @@ def get_dataset_path(
     ----------
     name : str
         Dataset name (without prefix).
-    task_type : TaskType
+    task : TaskType
         Either "classification" or "regression".
     source : {"real", "synthetic"}, optional
         If None, infers from name: "synthetic" if name contains "synthetic", else "real".
@@ -130,20 +128,20 @@ def get_dataset_path(
     Path
         Path to the parquet file.
     """
-    prefix = get_dataset_prefix(task_type)
+    prefix = get_dataset_prefix(task)
     resolved_source = source if source is not None else _infer_source(name)
 
     if data_dir is not None:
-        search_dir = data_dir / task_type / resolved_source
+        search_dir = data_dir / task / resolved_source
     else:
-        search_dir = get_data_dir(task_type, resolved_source)
+        search_dir = get_data_dir(task, resolved_source)
 
     return search_dir / f"{prefix}{name}.parquet"
 
 
 def _resolve_dataset_path(
     name: str,
-    task_type: TaskType,
+    task: TaskType,
     source: DataSource,
     data_dir: Path | None = None,
 ) -> Path:
@@ -151,33 +149,29 @@ def _resolve_dataset_path(
 
     Tries local path first, then downloads from S3 to cache.
     """
-    path = get_dataset_path(name, task_type, source=source, data_dir=data_dir)
+    path = get_dataset_path(name, task, source=source, data_dir=data_dir)
     if path.exists():
         return path
 
     # Fall back to S3 cache only when data_dir is not specified
     if data_dir is None:
-        return ensure_dataset_cached(name, task_type, source)
+        return ensure_dataset_cached(name, task, source)
 
     raise FileNotFoundError(f"Dataset not found: {path}")
 
 
-def _load_parquet_to_arrays(path: Path, task_type: TaskType) -> tuple[np.ndarray, np.ndarray]:
+def _load_parquet_to_arrays(path: Path, task: TaskType) -> tuple[np.ndarray, np.ndarray]:
     """Load a parquet file into (X, y) numpy arrays."""
     df = pd.read_parquet(path)
     y = df.pop("y").values
-    y = y.astype(np.int64) if task_type == "classification" else y.astype(np.float64)
+    y = y.astype(np.int64) if task == "classification" else y.astype(np.float64)
     X = df.values.astype(np.float64)
     return X, y
 
 
-from paper.scripts.adapters.store import get_s3_bucket as _get_s3_bucket
-from paper.scripts.adapters.store import get_s3_client as _get_s3_client
-
-
 def ensure_dataset_cached(
     name: str,
-    task_type: TaskType,
+    task: TaskType,
     source: DataSource,
     *,
     region_name: str | None = None,
@@ -191,7 +185,7 @@ def ensure_dataset_cached(
     ----------
     name : str
         Dataset name (without prefix).
-    task_type : TaskType
+    task : TaskType
         Either "classification" or "regression".
     source : DataSource
         Either "real" or "synthetic".
@@ -211,11 +205,11 @@ def ensure_dataset_cached(
     import fcntl
 
     cache_dir = get_data_cache_dir()
-    prefix = get_dataset_prefix(task_type)
+    prefix = get_dataset_prefix(task)
     filename = f"{prefix}{name}.parquet"
 
-    # Create subdirectory structure matching S3: data/{task_type}/{source}/
-    local_dir = cache_dir / task_type / source
+    # Create subdirectory structure matching S3: data/{task}/{source}/
+    local_dir = cache_dir / task / source
     local_dir.mkdir(parents=True, exist_ok=True)
     cache_path = local_dir / filename
 
@@ -234,7 +228,7 @@ def ensure_dataset_cached(
 
         # Download from S3
         bucket = _get_s3_bucket()
-        s3_key = f"{get_data_s3_prefix(task_type, source)}/{filename}"
+        s3_key = f"{get_data_s3_prefix(task, source)}/{filename}"
         s3_path = f"s3://{bucket}/{s3_key}"
 
         logger.info(f"Downloading dataset from S3: {s3_path} -> {cache_path}")
@@ -265,7 +259,7 @@ def ensure_dataset_cached(
 
 def load_dataset(
     name: str,
-    task_type: TaskType,
+    task: TaskType,
     *,
     source: DataSource | None = None,
     data_dir: Path | None = None,
@@ -280,7 +274,7 @@ def load_dataset(
     ----------
     name : str
         Dataset name (without prefix).
-    task_type : TaskType
+    task : TaskType
         Either "classification" or "regression".
     source : {"real", "synthetic"}, optional
         If None, infers from name: "synthetic" if name contains "synthetic", else "real".
@@ -293,20 +287,20 @@ def load_dataset(
         (X, y) arrays where X is float64 and y is int64 (classification) or float64 (regression).
     """
     resolved_source = source if source is not None else _infer_source(name)
-    path = _resolve_dataset_path(name, task_type, resolved_source, data_dir)
-    return _load_parquet_to_arrays(path, task_type)
+    path = _resolve_dataset_path(name, task, resolved_source, data_dir)
+    return _load_parquet_to_arrays(path, task)
 
 
 def get_dataset_shape(
     name: str,
-    task_type: TaskType,
+    task: TaskType,
     *,
     source: DataSource | None = None,
     data_dir: Path | None = None,
 ) -> tuple[int, int]:
     """Get (n_samples, n_features) from parquet metadata without loading full dataset."""
     resolved_source = source if source is not None else _infer_source(name)
-    path = _resolve_dataset_path(name, task_type, resolved_source, data_dir)
+    path = _resolve_dataset_path(name, task, resolved_source, data_dir)
 
     try:
         pf = pq.ParquetFile(path)
@@ -316,13 +310,13 @@ def get_dataset_shape(
     except Exception:
         pass
 
-    X, _y = load_dataset(name, task_type, source=resolved_source, data_dir=data_dir)
+    X, _y = load_dataset(name, task, source=resolved_source, data_dir=data_dir)
     return int(X.shape[0]), int(X.shape[1])
 
 
 def get_dataset_metadata(
     name: str,
-    task_type: TaskType,
+    task: TaskType,
     *,
     source: DataSource | None = None,
     data_dir: Path | None = None,
@@ -337,7 +331,7 @@ def get_dataset_metadata(
     """
     inferred_source = _infer_source(name)
     resolved_source = source if source is not None else inferred_source
-    path = _resolve_dataset_path(name, task_type, resolved_source, data_dir)
+    path = _resolve_dataset_path(name, task, resolved_source, data_dir)
 
     metadata: dict[str, Any] = {
         "dataset_source": inferred_source,
@@ -415,14 +409,12 @@ def get_dataset_metadata(
     return metadata
 
 
-def get_cv_splitter(
-    task_type: TaskType, n_splits: int, seed: int
-) -> "KFold | StratifiedKFold":
+def get_cv_splitter(task: TaskType, n_splits: int, seed: int):
     """Return a cross-validation splitter for the given task type.
 
     Parameters
     ----------
-    task_type : TaskType
+    task : TaskType
         Either "classification" or "regression".
     n_splits : int
         Number of CV folds.
@@ -436,6 +428,6 @@ def get_cv_splitter(
     """
     from sklearn.model_selection import KFold, StratifiedKFold
 
-    if task_type == "classification":
+    if task == "classification":
         return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
     return KFold(n_splits=n_splits, shuffle=True, random_state=seed)

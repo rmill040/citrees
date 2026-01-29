@@ -94,7 +94,7 @@ def _resolve_ray_address(address: str) -> str:
 
 
 # Type aliases for common parameters
-TaskType = Annotated[
+Task = Annotated[
     Literal["classification", "regression"],
     typer.Argument(
         help="Task type: classification or regression",
@@ -114,7 +114,7 @@ StageOption = Annotated[
 
 @app.command()
 def run(
-    task_type: TaskType,
+    task: Task,
     stage: StageOption = "all",
     methods: Annotated[
         str | None,
@@ -146,11 +146,12 @@ def run(
             help="Dataset source filter: real, synthetic, or all",
         ),
     ] = "all",
-    only_missing: Annotated[
+    force: Annotated[
         bool,
         typer.Option(
-            "--only-missing/--all",
-            help="Only run configurations missing from S3",
+            "--force",
+            "-f",
+            help="Re-run all configs, even if results already exist in S3",
         ),
     ] = False,
     dry_run: Annotated[
@@ -191,11 +192,15 @@ def run(
 ) -> None:
     """Run experiment pipeline (Stage 1 rankings + Stage 2 metrics).
 
+    By default, skips configs that already have results in S3.
+    Use --force to re-run all configs.
+
     \b
     Examples:
         citrees-exp run classification
-        citrees-exp run classification --stage stage1 --only-missing
+        citrees-exp run classification --stage stage1
         citrees-exp run regression -m cit,boruta --dry-run
+        citrees-exp run classification --force  # re-run everything
 
         # Full hyperparameter grid with limit for testing
         citrees-exp run classification --full-grid --max-configs-per-method 3 -m xgb --dry-run
@@ -209,7 +214,6 @@ def run(
     heading("Experiment Pipeline")
 
     cfg = load_config()
-    task = task_type
 
     info(f"Task: {task}")
     info(f"Stage: {stage}")
@@ -252,12 +256,12 @@ def run(
     console.print(table)
     console.print()
 
-    # Check S3 for completed items if --only-missing
+    # Check S3 for completed items (skip if --force)
     store: S3Store | None = None
     completed_rankings: set[tuple[str, str, int]] = set()
     completed_metrics: set[tuple[str, str, int]] = set()
 
-    if only_missing:
+    if not force:
         store = S3Store.from_config()
         with console.status("Checking S3 for completed items..."):
             if stage in {"all", "stage1", "stage2"}:
@@ -269,7 +273,7 @@ def run(
         console.print()
 
     # Get pending items
-    stage1_configs = grid.filter_pending(completed_rankings) if only_missing else grid.as_list()
+    stage1_configs = grid.filter_pending(completed_rankings) if not force else grid.as_list()
 
     # Dry run output
     if dry_run:
@@ -291,7 +295,7 @@ def run(
             console.print()
 
         if stage in {"all", "stage2"}:
-            if only_missing:
+            if not force:
                 available = completed_rankings | {cfg.key for cfg in stage1_configs}
                 stage2_configs = [
                     cfg for cfg in grid if cfg.key not in completed_metrics and cfg.key in available
@@ -356,7 +360,7 @@ def run(
     if stage in {"all", "stage2"}:
         heading("Stage 2: Evaluation")
 
-        if only_missing:
+        if not force:
             stage2_configs = [
                 cfg
                 for cfg in grid
@@ -403,10 +407,11 @@ def run(
 
 @app.command()
 def smoke(
-    task_type: Annotated[
+    task: Annotated[
         Literal["classification", "regression"],
         typer.Argument(
             help="Task type: classification or regression",
+            metavar="TASK",
         ),
     ] = "classification",
     methods: Annotated[
@@ -482,21 +487,21 @@ def smoke(
     heading("Smoke Test")
 
     # Pick dataset (smallest one)
-    all_datasets = get_datasets(task_type, source=cast(Literal["real", "synthetic", "all"], source))
+    all_datasets = get_datasets(task, source=cast(Literal["real", "synthetic", "all"], source))
     if not all_datasets:
-        error(f"No datasets for task={task_type}, source={source}")
+        error(f"No datasets for task={task}, source={source}")
         raise SystemExit(1)
 
     if dataset:
         chosen = dataset
     else:
-        shapes = {d: get_dataset_shape(d, task_type) for d in all_datasets}
+        shapes = {d: get_dataset_shape(d, task) for d in all_datasets}
         chosen = min(all_datasets, key=lambda d: shapes[d][0] * shapes[d][1])
 
     # Pick methods
-    method_str = methods or ("mc,rf" if task_type == "classification" else "pc,rf")
+    method_str = methods or ("mc,rf" if task == "classification" else "pc,rf")
 
-    info(f"Task: {task_type}")
+    info(f"Task: {task}")
     info(f"Dataset: {chosen}")
     info(f"Methods: {method_str}")
     info(f"Seed: {seed}")
@@ -504,7 +509,7 @@ def smoke(
 
     # Build minimal grid
     grid = ExperimentGrid.from_cli(
-        task=task_type,
+        task=task,
         methods=method_str,
         datasets=chosen,
         seeds=str(seed),

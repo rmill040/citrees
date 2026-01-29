@@ -119,7 +119,7 @@ available_node_types:
     resources:
       selection: 100
     min_workers: 0
-    max_workers: 250
+    max_workers: 25
 
   eval_worker:
     node_config:
@@ -141,7 +141,7 @@ available_node_types:
     resources:
       evaluation: 100
     min_workers: 0
-    max_workers: 250
+    max_workers: 25
 
 head_node_type: head
 

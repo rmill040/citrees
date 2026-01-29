@@ -383,7 +383,7 @@ def get_all_method_info(task: str | None = None, category: str | None = None) ->
 
 def get_full_method_configs(
     methods: list[str],
-    task_type: str,
+    task: str,
 ) -> list[MethodConfig]:
     """Generate MethodConfig objects from full parameter grids.
 
@@ -395,7 +395,7 @@ def get_full_method_configs(
     ----------
     methods : list[str]
         Base method names.
-    task_type : str
+    task : str
         "classification" or "regression".
 
     Returns
@@ -408,7 +408,7 @@ def get_full_method_configs(
     configs: list[MethodConfig] = []
     for method in methods:
         try:
-            method_configs = get_method_configs(method, task_type)
+            method_configs = get_method_configs(method, task)
         except ValueError:
             # Method not in config system, use default params
             configs.append(MethodConfig(name=method))
@@ -416,11 +416,7 @@ def get_full_method_configs(
 
         for cfg in method_configs:
             # Extract params (exclude metadata keys)
-            params = {
-                k: v
-                for k, v in cfg.items()
-                if k not in {"method", "random_state"}
-            }
+            params = {k: v for k, v in cfg.items() if k not in {"method", "random_state"}}
             configs.append(
                 MethodConfig(
                     name=method,
@@ -431,14 +427,14 @@ def get_full_method_configs(
     return configs
 
 
-def get_method_config_count(methods: list[str], task_type: str) -> dict[str, int]:
+def get_method_config_count(methods: list[str], task: str) -> dict[str, int]:
     """Get the number of configs that would be generated per method.
 
     Parameters
     ----------
     methods : list[str]
         Base method names.
-    task_type : str
+    task : str
         "classification" or "regression".
 
     Returns
@@ -451,7 +447,7 @@ def get_method_config_count(methods: list[str], task_type: str) -> dict[str, int
     counts: dict[str, int] = {}
     for method in methods:
         try:
-            configs = get_method_configs(method, task_type)
+            configs = get_method_configs(method, task)
             counts[method] = len(configs)
         except ValueError:
             # Method not in config system

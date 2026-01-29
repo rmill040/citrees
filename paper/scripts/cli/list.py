@@ -58,13 +58,13 @@ def datasets(
     from paper.scripts.adapters import get_dataset_shape, get_datasets
 
     # Determine which task types to show
-    task_types = [task] if task else ["classification", "regression"]
+    tasks = [task] if task else ["classification", "regression"]
 
-    for task_type in task_types:
-        dataset_names = get_datasets(task_type, source=source)  # type: ignore
+    for task in tasks:
+        dataset_names = get_datasets(task, source=source)  # type: ignore
 
         if not dataset_names:
-            info(f"No {task_type} datasets found for source={source}")
+            info(f"No {task} datasets found for source={source}")
             continue
 
         # Build table
@@ -78,13 +78,13 @@ def datasets(
             columns.append(("Type", "muted"))
 
         table = create_table(
-            title=f"{task_type.title()} Datasets ({len(dataset_names)})",
+            title=f"{task.title()} Datasets ({len(dataset_names)})",
             columns=columns,
         )
 
         for name in dataset_names:
             try:
-                n_samples, n_features = get_dataset_shape(name, task_type)  # type: ignore
+                n_samples, n_features = get_dataset_shape(name, task)  # type: ignore
                 ds_source = "synthetic" if "synthetic" in name else "real"
 
                 row = [
@@ -162,12 +162,12 @@ def methods(
     from paper.scripts.pipeline.methods import get_method_config_count
 
     # Determine which task types to show
-    task_types = [task] if task else ["classification", "regression"]
+    tasks = [task] if task else ["classification", "regression"]
 
-    for task_type in task_types:
-        method_infos = get_all_method_info(task_type, category)
+    for task in tasks:
+        method_infos = get_all_method_info(task, category)
         method_names = [info.name for info in method_infos]
-        config_counts = get_method_config_count(method_names, task_type) if configs else {}
+        config_counts = get_method_config_count(method_names, task) if configs else {}
 
         # Build table
         columns = [
@@ -180,7 +180,7 @@ def methods(
             columns.append(("Configs", "number"))
 
         table = create_table(
-            title=f"{task_type.title()} Methods ({len(method_infos)})",
+            title=f"{task.title()} Methods ({len(method_infos)})",
             columns=columns,
         )
 

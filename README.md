@@ -241,8 +241,8 @@ Notes:
 - `sampling_method` options: `stratified`, `undersample`, `oversample`.
 - `max_samples` is only used when `bootstrap_method` is not `None`.
 - `bootstrap_method=None` disables bootstrapping (and thus OOB).
-- Invalid combinations (e.g., `bootstrap_method=None` with `sampling_method` set)
-  raise a validation error.
+- Invalid combinations (e.g., `bootstrap_method=None` with `sampling_method`
+  set) raise a validation error.
 - Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
   `None`).
 - OOB scores are computed only for samples that receive at least one OOB

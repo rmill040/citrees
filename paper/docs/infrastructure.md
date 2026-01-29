@@ -14,8 +14,8 @@ citrees-exp infra setup
 # 2. Deploy cluster
 citrees-exp cluster up --yes
 
-# 3. Run experiments
-citrees-exp run classification --only-missing
+# 3. Run experiments (skips existing results by default)
+citrees-exp run classification
 
 # 4. Monitor progress
 citrees-exp check
@@ -154,11 +154,12 @@ citrees-exp cluster down --yes    # Tear down cluster
 ### Running Experiments
 
 ```bash
-citrees-exp run classification --only-missing   # Full pipeline
+citrees-exp run classification                   # Full pipeline (skips existing)
 citrees-exp run classification --stage stage1   # Stage 1 only
 citrees-exp run classification --stage stage2   # Stage 2 only
 citrees-exp run classification -m cit,rf        # Specific methods
 citrees-exp run classification --dry-run        # Preview what would run
+citrees-exp run classification --force          # Re-run everything
 ```
 
 ## Worker Pools
@@ -256,20 +257,21 @@ The pipeline filters the grid **before** submission using S3 listings, giving
 you a deterministic, auditable list of configs that will run.
 
 ```bash
-# Preview what would run
-citrees-exp run classification --only-missing --dry-run
+# Preview what would run (skips existing by default)
+citrees-exp run classification --dry-run
 
-# Run only configs missing in S3
-citrees-exp run classification --only-missing
+# Run only configs missing in S3 (default behavior)
+citrees-exp run classification
 ```
 
-**Reruns:** delete the relevant S3 objects (rankings/metrics) and re-run with
-`--only-missing`.
+**Reruns:** use `--force` to re-run everything, or delete specific S3 objects
+then re-run normally.
 
 ## Fault Tolerance
 
 - **Spot interruption**: Ray reschedules tasks from terminated workers.
-- **Crash recovery**: re-run with `--only-missing` to fill gaps.
+- **Crash recovery**: just re-run `citrees-exp run` - it skips completed
+  configs.
 
 ## Cost Estimates
 

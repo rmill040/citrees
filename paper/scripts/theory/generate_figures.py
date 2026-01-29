@@ -20,6 +20,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 from paper.scripts.theory.theoretical_predictions import (
     RHO_GATE,
     critical_depth,

@@ -116,6 +116,7 @@ def _ptest_sequential_simple(
 
     return (extreme_count + 1) / (n_resamples + 1)
 
+
 # Note: Uses np.random.seed() for determinism and to mirror the Numba-safe RNG
 # pattern used elsewhere in the codebase (Numba doesn't support default_rng()
 # inside @njit).

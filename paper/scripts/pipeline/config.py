@@ -208,7 +208,7 @@ def _generate_cit_cif_configs(
                             }
                         )
                     else:  # adaptive
-                        for conf_sel in [0.95, 0.99]:
+                        for conf_sel in [0.95]:
                             for feat_mut in [True, False]:
                                 for feat_scan in [True, False]:
                                     selector_side_combos.append(
@@ -251,7 +251,7 @@ def _generate_cit_cif_configs(
                             }
                         )
                     else:  # adaptive
-                        for conf_spl in [0.95, 0.99]:
+                        for conf_spl in [0.95]:
                             for thresh_scan in [True, False]:
                                 splitter_side_combos.append(
                                     {
@@ -285,15 +285,15 @@ def _generate_cit_cif_configs(
         if is_classifier:
             forest_combos = list(
                 product(
-                    [None, 0.8],  # max_samples
+                    [None],  # max_samples
                     ["bayesian", "classic"],  # bootstrap_method
-                    [None, "stratified", "undersample", "oversample"],  # sampling_method
+                    [None, "stratified"],  # sampling_method
                 )
             )
         else:
             forest_combos = list(
                 product(
-                    [None, 0.8],  # max_samples
+                    [None],  # max_samples
                     ["bayesian", "classic"],  # bootstrap_method
                 )
             )
@@ -303,8 +303,8 @@ def _generate_cit_cif_configs(
     # Generate all valid combinations
     for selector in selector_options:
         for splitter in splitter_options:
-            for alpha_sel in [0.05, 0.01]:
-                for alpha_spl in [0.05, 0.01]:
+            for alpha_sel in [0.05]:
+                for alpha_spl in [0.05]:
                     for sel_combo in selector_side_combos:
                         for spl_combo in splitter_side_combos:
                             for thresh_combo in threshold_combos:
@@ -366,7 +366,7 @@ def _generate_simple_grid(
 CLF_FILTER_GRID: dict[str, list[Any]] = {}  # No hyperparameters
 
 CLF_PTEST_GRID: dict[str, list[Any]] = {
-    "alpha": [0.05, 0.01],
+    "alpha": [0.05],
     "n_resamples": ["minimum", "maximum", "auto"],
     "early_stopping": ["adaptive", "simple", None],
 }
@@ -385,37 +385,37 @@ CLF_ET_GRID: dict[str, list[Any]] = {
 }
 
 CLF_XGB_GRID: dict[str, list[Any]] = {
-    "max_depth": [1, 2, 3, 4, 6, 8],
-    "learning_rate": [0.001, 0.01, 0.1],
-    "subsample": [0.8, 0.9, 1.0],
-    "colsample_bytree": [0.8, 0.9, 1.0],
-    "reg_alpha": [0.001, 0.01, None],
-    "reg_lambda": [0.001, 0.01, None],
+    "max_depth": [2, 4, 6],
+    "learning_rate": [0.01, 0.1],
+    "subsample": [1.0],
+    "colsample_bytree": [1.0],
+    "reg_alpha": [0.01, None],
+    "reg_lambda": [0.01, None],
     "importance_type": ["gain", "weight", "cover", "total_gain", "total_cover"],
-    "n_estimators": [100],
+    "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 CLF_LGBM_GRID: dict[str, list[Any]] = {
-    "max_depth": [1, 2, 3, 4, 6, 8],
-    "learning_rate": [0.001, 0.01, 0.1],
-    "subsample": [0.8, 0.9, 1.0],
-    "colsample_bytree": [0.8, 0.9, 1.0],
-    "reg_alpha": [0.001, 0.01, None],
-    "reg_lambda": [0.001, 0.01, None],
+    "max_depth": [2, 4, 6],
+    "learning_rate": [0.01, 0.1],
+    "subsample": [1.0],
+    "colsample_bytree": [1.0],
+    "reg_alpha": [0.01, None],
+    "reg_lambda": [0.01, None],
     "importance_type": ["split", "gain"],
     "class_weight": [None, "balanced"],
-    "n_estimators": [100],
+    "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 CLF_CAT_GRID: dict[str, list[Any]] = {
-    "depth": [1, 2, 3, 4, 6, 8],
-    "learning_rate": [0.001, 0.01, 0.1],
-    "l2_leaf_reg": [1, 3, 5, 7, 9],
-    "colsample_bylevel": [0.8, 0.9, 1.0],
+    "depth": [2, 4, 6],
+    "learning_rate": [0.01, 0.1],
+    "l2_leaf_reg": [1, 5],
+    "colsample_bylevel": [1.0],
     "auto_class_weights": [None, "Balanced"],
-    "n_estimators": [100],
+    "n_estimators": [500],
     "allow_writing_files": [False],
 }
 
@@ -446,7 +446,7 @@ CLF_RFE_GRID: dict[str, list[Any]] = {}
 REG_FILTER_GRID: dict[str, list[Any]] = {}  # No hyperparameters
 
 REG_PTEST_GRID: dict[str, list[Any]] = {
-    "alpha": [0.05, 0.01],
+    "alpha": [0.05],
     "n_resamples": ["minimum", "maximum", "auto"],
     "early_stopping": ["adaptive", "simple", None],
 }
@@ -463,35 +463,35 @@ REG_ET_GRID: dict[str, list[Any]] = {
 }
 
 REG_XGB_GRID: dict[str, list[Any]] = {
-    "max_depth": [1, 2, 4, 6, 8],
-    "learning_rate": [0.001, 0.01, 0.1],
-    "subsample": [0.8, 0.9, 1.0],
-    "colsample_bytree": [0.8, 0.9, 1.0],
-    "reg_alpha": [0.001, 0.01, None],
-    "reg_lambda": [0.001, 0.01, None],
+    "max_depth": [2, 4, 6],
+    "learning_rate": [0.01, 0.1],
+    "subsample": [1.0],
+    "colsample_bytree": [1.0],
+    "reg_alpha": [0.01, None],
+    "reg_lambda": [0.01, None],
     "importance_type": ["gain", "weight", "cover", "total_gain", "total_cover"],
-    "n_estimators": [100],
+    "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 REG_LGBM_GRID: dict[str, list[Any]] = {
-    "max_depth": [1, 2, 4, 6, 8],
-    "learning_rate": [0.001, 0.01, 0.1],
-    "subsample": [0.8, 0.9, 1.0],
-    "colsample_bytree": [0.8, 0.9, 1.0],
-    "reg_alpha": [0.001, 0.01, None],
-    "reg_lambda": [0.001, 0.01, None],
+    "max_depth": [2, 4, 6],
+    "learning_rate": [0.01, 0.1],
+    "subsample": [1.0],
+    "colsample_bytree": [1.0],
+    "reg_alpha": [0.01, None],
+    "reg_lambda": [0.01, None],
     "importance_type": ["split", "gain"],
-    "n_estimators": [100],
+    "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 REG_CAT_GRID: dict[str, list[Any]] = {
-    "depth": [1, 2, 4, 6, 8],
-    "learning_rate": [0.001, 0.01, 0.1],
-    "l2_leaf_reg": [1, 3, 5, 7, 9],
-    "colsample_bylevel": [0.8, 0.9, 1.0],
-    "n_estimators": [100],
+    "depth": [2, 4, 6],
+    "learning_rate": [0.01, 0.1],
+    "l2_leaf_reg": [1, 5],
+    "colsample_bylevel": [1.0],
+    "n_estimators": [500],
     "allow_writing_files": [False],
 }
 
@@ -522,7 +522,7 @@ REG_RFE_GRID: dict[str, list[Any]] = {}
 R_CTREE_GRID: dict[str, list[Any]] = {
     "teststat": ["quadratic", "maximum"],
     "testtype": ["Bonferroni", "MonteCarlo", "Univariate"],
-    "alpha": [0.05, 0.01],
+    "alpha": [0.05],
     "nresample": [1000, 9999],
     "minsplit": [20, 10],
     "minbucket": [7, 5],
@@ -531,7 +531,7 @@ R_CTREE_GRID: dict[str, list[Any]] = {
 R_CFOREST_GRID: dict[str, list[Any]] = {
     "teststat": ["quadratic", "maximum"],
     "testtype": ["Bonferroni", "MonteCarlo", "Univariate"],
-    "mincriterion": [0.95, 0.99, 0],
+    "mincriterion": [0.95],
     "nresample": [1000, 9999],
     "ntree": [100],
     "mtry": ["sqrt", "all"],

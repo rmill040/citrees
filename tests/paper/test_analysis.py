@@ -1,28 +1,21 @@
-"""Unit tests for paper/scripts/analysis.py statistical functions."""
+"""Tests for paper/scripts/analysis/* statistical functions."""
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import numpy as np
+import pandas as pd
 import pytest
 
-# Add paper/scripts to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "paper" / "scripts"))
-
-import pandas as pd
-from analysis.stats import (
+from paper.scripts.analysis.stats import (
     bootstrap_ci,
     cohens_d,
     compute_noise_selection_rate,
+    friedman_test,
     interpret_cohens_d,
     pairwise_wilcoxon_holm,
 )
 
-# ==============================================================================
-# Tests for compute_noise_selection_rate
-# ==============================================================================
+pytestmark = pytest.mark.paper
 
 
 class TestComputeNoiseSelectionRate:
@@ -30,28 +23,26 @@ class TestComputeNoiseSelectionRate:
 
     def test_perfect_selection_no_noise(self):
         """No noise in top-k should return 0.0."""
-        ranking = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  # Informative first
-        noise_indices = [10, 11, 12]  # Noise features
+        ranking = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        noise_indices = [10, 11, 12]
         assert compute_noise_selection_rate(ranking, noise_indices, k=5) == 0.0
 
     def test_worst_case_all_noise(self):
         """All noise in top-k should return 1.0."""
-        ranking = [10, 11, 12, 0, 1, 2]  # Noise first
+        ranking = [10, 11, 12, 0, 1, 2]
         noise_indices = [10, 11, 12]
         assert compute_noise_selection_rate(ranking, noise_indices, k=3) == 1.0
 
     def test_mixed_selection_half(self):
         """Mixed selection should return correct fraction."""
-        ranking = [0, 10, 1, 11, 2]  # Alternating
+        ranking = [0, 10, 1, 11, 2]
         noise_indices = [10, 11, 12]
-        # top-4 = {0, 10, 1, 11}, noise = {10, 11} → 2/4 = 0.5
         assert compute_noise_selection_rate(ranking, noise_indices, k=4) == 0.5
 
     def test_mixed_selection_one_third(self):
         """One noise feature in top-3 should return 1/3."""
         ranking = [0, 1, 10, 2, 3]
         noise_indices = [10, 11, 12]
-        # top-3 = {0, 1, 10}, noise = {10} → 1/3
         result = compute_noise_selection_rate(ranking, noise_indices, k=3)
         assert result == pytest.approx(1 / 3)
 
@@ -70,23 +61,19 @@ class TestComputeNoiseSelectionRate:
         """k larger than ranking length uses k as denominator."""
         ranking = [0, 10, 1]
         noise_indices = [10, 11, 12]
-        # ranking[:10] = [0, 10, 1], noise in that = {10} → 1 noise feature
-        # rate = 1/k = 1/10 = 0.1 (k is always the denominator)
         result = compute_noise_selection_rate(ranking, noise_indices, k=10)
         assert result == pytest.approx(0.1)
 
     def test_noise_not_in_ranking(self):
         """Noise indices not appearing in ranking should not be counted."""
         ranking = [0, 1, 2, 3, 4]
-        noise_indices = [100, 101, 102]  # Indices not in ranking
-        # No overlap → 0.0
+        noise_indices = [100, 101, 102]
         assert compute_noise_selection_rate(ranking, noise_indices, k=5) == 0.0
 
     def test_partial_noise_overlap(self):
         """Only noise indices that appear in top-k should be counted."""
-        ranking = [0, 10, 1, 2, 3]  # Only 10 is noise
-        noise_indices = [10, 11, 12]  # 11, 12 not in top-5
-        # top-5 = {0, 10, 1, 2, 3}, noise in top-5 = {10} → 1/5 = 0.2
+        ranking = [0, 10, 1, 2, 3]
+        noise_indices = [10, 11, 12]
         assert compute_noise_selection_rate(ranking, noise_indices, k=5) == 0.2
 
     def test_deterministic_output(self):
@@ -106,30 +93,19 @@ class TestComputeNoiseSelectionRate:
         informative_indices = list(range(n_informative))
         noise_indices = list(range(n_informative, n_features))
 
-        # RF: biased ranking with noise in top positions
         rf_ranking = (
             [30, 35, 40, 0, 1, 2, 3, 4, 5, 6]
             + list(range(7, 30))
             + [31, 32, 33, 34, 36, 37, 38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49]
         )
-
-        # citrees: unbiased ranking with informative first
         citrees_ranking = informative_indices + noise_indices
 
         rf_rate = compute_noise_selection_rate(rf_ranking, noise_indices, k=10)
         citrees_rate = compute_noise_selection_rate(citrees_ranking, noise_indices, k=10)
 
-        # citrees should have 0% noise (all informative in top-10)
         assert citrees_rate == 0.0
-        # RF should have noise (3 noise features in top-10)
         assert rf_rate > 0.0
-        # citrees should be strictly better
         assert citrees_rate < rf_rate
-
-
-# ==============================================================================
-# Tests for pairwise_wilcoxon_holm
-# ==============================================================================
 
 
 class TestPairwiseWilcoxonHolm:
@@ -162,7 +138,6 @@ class TestPairwiseWilcoxonHolm:
         )
         result = pairwise_wilcoxon_holm(data, ["A", "B"], "precision@10")
         if not result.empty:
-            # Similar distributions should have high p-value
             assert result.iloc[0]["p_value_corrected"] > 0.01
 
     def test_holm_correction_increases_pvalues(self):
@@ -184,7 +159,7 @@ class TestPairwiseWilcoxonHolm:
         """Should return empty DataFrame when n < 10."""
         data = pd.DataFrame(
             {
-                "A_precision@10": [0.8, 0.7, 0.9],  # Only 3 samples
+                "A_precision@10": [0.8, 0.7, 0.9],
                 "B_precision@10": [0.5, 0.6, 0.4],
             }
         )
@@ -225,13 +200,8 @@ class TestPairwiseWilcoxonHolm:
             }
         )
         result = pairwise_wilcoxon_holm(data, methods, "precision@10")
-        expected_pairs = len(methods) * (len(methods) - 1) // 2  # C(4,2) = 6
+        expected_pairs = len(methods) * (len(methods) - 1) // 2
         assert len(result) == expected_pairs
-
-
-# ==============================================================================
-# Tests for cohens_d
-# ==============================================================================
 
 
 class TestCohensD:
@@ -249,7 +219,6 @@ class TestCohensD:
         g1 = np.random.normal(0, 1, 1000)
         g2 = np.random.normal(1, 1, 1000)
         d = cohens_d(g1, g2)
-        # g1 < g2, so d should be negative and close to -1
         assert abs(d + 1.0) < 0.15
 
     def test_sign_direction(self):
@@ -258,21 +227,16 @@ class TestCohensD:
         g1 = np.random.normal(10, 1, 100)
         g2 = np.random.normal(5, 1, 100)
         d = cohens_d(g1, g2)
-        assert d > 0  # g1 > g2
+        assert d > 0
 
         d_reversed = cohens_d(g2, g1)
-        assert d_reversed < 0  # g2 < g1
+        assert d_reversed < 0
 
     def test_zero_variance_returns_zero(self):
         """Zero variance should return 0.0 to avoid division by zero."""
         g1 = np.array([5.0, 5.0, 5.0, 5.0])
         g2 = np.array([5.0, 5.0, 5.0, 5.0])
         assert cohens_d(g1, g2) == 0.0
-
-
-# ==============================================================================
-# Tests for interpret_cohens_d
-# ==============================================================================
 
 
 class TestInterpretCohensD:
@@ -305,11 +269,6 @@ class TestInterpretCohensD:
         assert interpret_cohens_d(1.0) == "large"
         assert interpret_cohens_d(2.5) == "large"
         assert interpret_cohens_d(-1.2) == "large"
-
-
-# ==============================================================================
-# Tests for bootstrap_ci
-# ==============================================================================
 
 
 class TestBootstrapCI:
@@ -358,3 +317,39 @@ class TestBootstrapCI:
         width_95 = hi_95 - lo_95
         width_99 = hi_99 - lo_99
         assert width_99 > width_95
+
+
+class TestFriedmanTest:
+    """Tests for Friedman test."""
+
+    @pytest.mark.filterwarnings("ignore:invalid value encountered in scalar divide")
+    def test_uses_complete_case_rows(self):
+        """Friedman test should use only complete cases."""
+        data = pd.DataFrame(
+            {
+                "a_m": [1.0, 2.0, np.nan, 4.0],
+                "b_m": [1.0, np.nan, 3.0, 4.0],
+                "c_m": [1.0, 2.0, 3.0, 4.0],
+            }
+        )
+        chi2, p, n_datasets, k_methods = friedman_test(data, ["a", "b", "c"], "m")
+        assert k_methods == 3
+        assert n_datasets == 2
+        assert np.isfinite(chi2) or np.isnan(chi2)
+
+    @pytest.mark.filterwarnings("ignore:invalid value encountered in scalar divide")
+    def test_pairwise_wilcoxon_uses_aligned_pairs(self):
+        """Pairwise Wilcoxon should use aligned pairs."""
+        n = 12
+        a = np.arange(n, dtype=float)
+        b = np.arange(n, dtype=float)
+        c = np.arange(n, dtype=float)
+        a[1] = np.nan
+        b[2] = np.nan
+        data = pd.DataFrame({"a_m": a, "b_m": b, "c_m": c})
+
+        results = pairwise_wilcoxon_holm(data, ["a", "b", "c"], "m")
+        assert not results.empty
+
+        ab = results[(results["method1"] == "a") & (results["method2"] == "b")].iloc[0]
+        assert ab["n_pairs"] == n - 2

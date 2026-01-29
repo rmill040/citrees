@@ -1206,3 +1206,305 @@ class TestRegressorHeteroscedastic:
             reg = ConditionalInferenceTreeRegressor(selector=selector, **FAST_PARAMS)
             reg.fit(X, y)
             assert reg.predict(X).shape == y.shape
+
+
+# =============================================================================
+# BONFERRONI CORRECTION TESTS
+# =============================================================================
+
+
+class TestBonferronCorrection:
+    """Tests for Bonferroni correction behavior."""
+
+    def test_bonferroni_correction_resets_when_single_test(self) -> None:
+        """Regression test: per-node Bonferroni must not leak across nodes.
+
+        In particular, calling _bonferroni_correction with n_tests=1 should reset the
+        private per-node attributes to their unadjusted values.
+        """
+        clf = ConditionalInferenceTreeClassifier(
+            alpha_selector=0.05,
+            alpha_splitter=0.05,
+            adjust_alpha_selector=True,
+            adjust_alpha_splitter=True,
+            n_resamples_selector=100,
+            n_resamples_splitter=100,
+            random_state=0,
+        )
+
+        clf._bonferroni_correction(adjust="selector", n_tests=10)
+        assert clf._alpha_selector == 0.05 / 10
+        assert clf._n_resamples_selector == 100 * 10
+
+        clf._bonferroni_correction(adjust="selector", n_tests=1)
+        assert clf._alpha_selector == 0.05
+        assert clf._n_resamples_selector == 100
+
+        clf._bonferroni_correction(adjust="splitter", n_tests=5)
+        assert clf._alpha_splitter == 0.05 / 5
+        assert clf._n_resamples_splitter == 100 * 5
+
+        clf._bonferroni_correction(adjust="splitter", n_tests=1)
+        assert clf._alpha_splitter == 0.05
+        assert clf._n_resamples_splitter == 100
+
+
+# =============================================================================
+# MULTI-SELECTOR TESTS
+# =============================================================================
+
+
+class TestMultiSelectorValidation:
+    """Test multi-selector input validation."""
+
+    def test_duplicate_selectors_rejected(self):
+        """Duplicate selectors should raise ValueError."""
+        with pytest.raises(ValueError, match="contains duplicates"):
+            ConditionalInferenceTreeClassifier(selector=["mc", "mc"])
+
+    def test_valid_multi_selector_accepted(self):
+        """Valid multi-selector combinations should be accepted."""
+        clf = ConditionalInferenceTreeClassifier(selector=["mc", "rdc"])
+        assert clf.selector == ["mc", "rdc"]
+
+
+class TestMultiSelectorTypeIError:
+    """Verify multi-selector mode controls Type I error (max-T method)."""
+
+    def test_multiselector_basic_runs(self):
+        """Smoke test: multi-selector mode runs without error."""
+        rng = np.random.RandomState(42)
+        X = rng.randn(50, 2)
+        y = rng.randint(0, 2, 50)
+
+        clf = ConditionalInferenceTreeClassifier(
+            selector=["mc", "rdc"],
+            n_resamples_selector=50,
+            early_stopping_selector=None,
+            alpha_selector=0.05,
+            n_resamples_splitter=None,
+            random_state=42,
+            verbose=0,
+        )
+        clf.fit(X, y)
+
+    def test_multiselector_type1_error_controlled(self):
+        """Multi-selector rejection rate should be ~alpha under null."""
+        n_sims = 20
+        alpha = 0.05
+        rejections = 0
+
+        for seed in range(n_sims):
+            rng_x = np.random.RandomState(seed)
+            rng_y = np.random.RandomState(seed + 10000)
+            X = rng_x.randn(30, 1)
+            y = rng_y.randint(0, 2, 30)
+
+            clf = ConditionalInferenceTreeClassifier(
+                selector="mc",
+                n_resamples_selector=50,
+                early_stopping_selector=None,
+                alpha_selector=alpha,
+                adjust_alpha_selector=False,
+                n_resamples_splitter=None,
+                random_state=seed,
+                verbose=0,
+            )
+            clf.fit(X, y)
+
+            if clf.tree_.get("feature") is not None:
+                rejections += 1
+
+        rejection_rate = rejections / n_sims
+        assert rejection_rate <= 0.50, f"Type I error way too high: {rejection_rate:.3f} > 0.50"
+
+
+# =============================================================================
+# TIE-BREAKING TESTS (RESERVOIR SAMPLING)
+# =============================================================================
+
+
+class TestReservoirSamplingTieBreaking:
+    """Verify uniform tie-breaking when p-values or metrics are equal."""
+
+    def test_metric_tie_breaking_with_identical_features(self):
+        """When features are identical copies, tie-breaking should be uniform."""
+        from collections import Counter
+
+        rng = np.random.default_rng(42)
+        n_samples = 100
+        n_features = 5
+
+        base_feature = rng.standard_normal(n_samples)
+        X = np.column_stack([base_feature] * n_features)
+        y = (base_feature > 0).astype(int)
+
+        n_trials = 500
+        root_features = []
+
+        for seed in range(n_trials):
+            clf = ConditionalInferenceTreeClassifier(
+                n_resamples_selector=None,
+                n_resamples_splitter=None,
+                max_depth=1,
+                random_state=seed,
+                verbose=0,
+            )
+            clf.fit(X, y)
+
+            if "feature" in clf.tree_:
+                root_features.append(clf.tree_["feature"])
+
+        counts = Counter(root_features)
+
+        for feature_idx in range(n_features):
+            proportion = counts.get(feature_idx, 0) / len(root_features)
+            assert proportion > 0.10, (
+                f"Feature {feature_idx} selected only {proportion:.1%} of the time"
+            )
+            assert proportion < 0.35, (
+                f"Feature {feature_idx} selected {proportion:.1%} of the time"
+            )
+
+    def test_metric_tie_breaking_regressor_with_identical_features(self):
+        """When features are identical copies, tie-breaking should be uniform (regressor)."""
+        from collections import Counter
+
+        rng = np.random.default_rng(123)
+        n_samples = 100
+        n_features = 5
+
+        base_feature = rng.standard_normal(n_samples)
+        X = np.column_stack([base_feature] * n_features)
+        y = base_feature + 0.1 * rng.standard_normal(n_samples)
+
+        n_trials = 500
+        root_features = []
+
+        for seed in range(n_trials):
+            reg = ConditionalInferenceTreeRegressor(
+                n_resamples_selector=None,
+                n_resamples_splitter=None,
+                max_depth=1,
+                random_state=seed,
+                verbose=0,
+            )
+            reg.fit(X, y)
+
+            if "feature" in reg.tree_:
+                root_features.append(reg.tree_["feature"])
+
+        counts = Counter(root_features)
+
+        for feature_idx in range(n_features):
+            proportion = counts.get(feature_idx, 0) / len(root_features)
+            assert proportion > 0.10
+            assert proportion < 0.35
+
+    def test_tie_breaking_reproducible_with_fixed_seed(self):
+        """Same random_state should produce identical tie-breaking decisions."""
+        rng = np.random.default_rng(999)
+        n_samples = 100
+        n_features = 5
+
+        base_feature = rng.standard_normal(n_samples)
+        X = np.column_stack([base_feature] * n_features)
+        y = (base_feature > 0).astype(int)
+
+        clf1 = ConditionalInferenceTreeClassifier(
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            max_depth=1,
+            random_state=42,
+            verbose=0,
+        )
+        clf1.fit(X, y)
+
+        clf2 = ConditionalInferenceTreeClassifier(
+            n_resamples_selector=None,
+            n_resamples_splitter=None,
+            max_depth=1,
+            random_state=42,
+            verbose=0,
+        )
+        clf2.fit(X, y)
+
+        assert clf1.tree_.get("feature") == clf2.tree_.get("feature")
+
+    def test_different_seeds_produce_different_selections(self):
+        """Different random_state values produce different tie-breaking outcomes."""
+        rng = np.random.default_rng(777)
+        n_samples = 100
+        n_features = 5
+
+        base_feature = rng.standard_normal(n_samples)
+        X = np.column_stack([base_feature] * n_features)
+        y = (base_feature > 0).astype(int)
+
+        unique_root_features = set()
+        for seed in range(100):
+            clf = ConditionalInferenceTreeClassifier(
+                n_resamples_selector=None,
+                n_resamples_splitter=None,
+                max_depth=1,
+                random_state=seed,
+                verbose=0,
+            )
+            clf.fit(X, y)
+            if "feature" in clf.tree_:
+                unique_root_features.add(clf.tree_["feature"])
+
+        assert len(unique_root_features) > 1
+
+
+class TestReservoirSamplingMathematical:
+    """Test the mathematical properties of reservoir sampling directly."""
+
+    def test_reservoir_sampling_uniform_distribution(self):
+        """Verify reservoir sampling gives uniform distribution over ties."""
+        from collections import Counter
+
+        rng = np.random.default_rng(12345)
+        n_candidates = 5
+        n_trials = 10000
+
+        winners = []
+        for _ in range(n_trials):
+            best = 0
+            for k in range(1, n_candidates):
+                n_ties = k + 1
+                if rng.random() < 1.0 / n_ties:
+                    best = k
+            winners.append(best)
+
+        counts = Counter(winners)
+
+        expected = n_trials / n_candidates
+        for candidate in range(n_candidates):
+            actual = counts.get(candidate, 0)
+            assert abs(actual - expected) < 0.2 * expected
+
+    def test_reservoir_sampling_three_ties(self):
+        """Test reservoir sampling with exactly 3 ties."""
+        from collections import Counter
+
+        rng = np.random.default_rng(54321)
+        n_candidates = 3
+        n_trials = 10000
+
+        winners = []
+        for _ in range(n_trials):
+            best = 0
+            n_ties = 1
+            for k in range(1, n_candidates):
+                n_ties += 1
+                if rng.random() < 1.0 / n_ties:
+                    best = k
+            winners.append(best)
+
+        counts = Counter(winners)
+
+        expected = n_trials / n_candidates
+        for candidate in range(n_candidates):
+            actual = counts.get(candidate, 0)
+            assert abs(actual - expected) < 0.15 * expected

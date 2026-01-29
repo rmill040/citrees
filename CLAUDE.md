@@ -43,8 +43,9 @@ citrees/
 ├── tests/                  # Pytest test suite
 │   ├── conftest.py         # Pytest fixtures and JIT control
 │   ├── data/               # Test datasets (parquet format)
-│   ├── integration/        # Integration tests
-│   └── unit/               # Unit tests
+│   ├── unit/               # Unit tests for citrees/* modules
+│   ├── integration/        # Integration tests for citrees/* (tree, forest, parameters, edge_cases)
+│   └── paper/              # Tests for paper/scripts/* (use -m "not paper" to skip)
 ├── docs/                   # MkDocs documentation source
 ├── tools/                  # Development tools
 │   └── hooks/              # Pre-commit hook scripts

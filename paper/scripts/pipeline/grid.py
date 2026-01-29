@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from paper.scripts.pipeline.methods import (
-    expand_method_configs,
     get_full_method_configs,
     get_methods,
 )
@@ -100,7 +99,6 @@ class ExperimentGrid:
         source: Literal["all", "real", "synthetic"] = "all",
         n_seeds: int = 10,
         get_datasets_fn: Callable[..., list[str]] | None = None,
-        full_grid: bool = False,
         max_configs_per_method: int | None = None,
     ) -> ExperimentGrid:
         """Build grid from CLI arguments.
@@ -121,12 +119,9 @@ class ExperimentGrid:
             Total number of seeds (used when seeds not specified).
         get_datasets_fn : callable, optional
             Function to get dataset list. If None, uses adapters.data.get_datasets.
-        full_grid : bool, default False
-            If True, use full hyperparameter grids from config.py instead of
-            simple variants. This can generate thousands of configs per method.
         max_configs_per_method : int, optional
-            Limit the number of configs per method (useful for testing with
-            full_grid=True). If None, all configs are used.
+            Limit the number of configs per method (useful for testing).
+            If None, all configs are used.
 
         Returns
         -------
@@ -143,11 +138,8 @@ class ExperimentGrid:
         # Get method names for task
         method_names = get_methods(task)
 
-        # Expand method configs based on grid mode
-        if full_grid:
-            all_method_configs = get_full_method_configs(method_names, task)
-        else:
-            all_method_configs = expand_method_configs(method_names)
+        # Get full hyperparameter grid for all methods
+        all_method_configs = get_full_method_configs(method_names, task)
 
         # Get all datasets for task
         if get_datasets_fn is None:
@@ -168,7 +160,7 @@ class ExperimentGrid:
                 )
             all_method_configs = [c for c in all_method_configs if c.name in method_filter]
 
-        # Apply max_configs_per_method limit (useful for testing full_grid mode)
+        # Apply max_configs_per_method limit (useful for testing)
         if max_configs_per_method is not None and max_configs_per_method > 0:
             from collections import defaultdict
 

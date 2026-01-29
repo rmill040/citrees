@@ -25,7 +25,7 @@ def run_watch() -> None:
     """
     from paper.scripts.adapters import S3Store, get_datasets
     from paper.scripts.config import load_config
-    from paper.scripts.pipeline import expand_method_configs, get_methods
+    from paper.scripts.pipeline import get_full_method_configs, get_methods
 
     config = load_config()
     n_seeds = config.experiment.n_seeds
@@ -36,7 +36,7 @@ def run_watch() -> None:
     # Get expected counts
     dataset_list = get_datasets(task)  # type: ignore
     method_list = get_methods(task)
-    method_configs = expand_method_configs(method_list)
+    method_configs = get_full_method_configs(method_list, task)
     method_labels = [cfg.label for cfg in method_configs]
 
     def make_layout() -> Layout:

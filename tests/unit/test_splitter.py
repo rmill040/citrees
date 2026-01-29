@@ -471,3 +471,110 @@ class TestParallelPtests:
         )
         # Should give reasonable p-value for random data
         assert 0 < pval <= 1
+
+
+# =============================================================================
+# RNG REPRODUCIBILITY TESTS
+# =============================================================================
+
+
+class TestSplitterRNGReproducibility:
+    """Test RNG reproducibility for splitter permutation tests."""
+
+    @pytest.fixture
+    def classification_data(self):
+        """Generate classification test data with a threshold."""
+        np.random.seed(42)
+        x = np.random.randn(100).astype(np.float64)
+        y = np.array([0] * 50 + [1] * 50, dtype=np.int64)
+        threshold = 0.0
+        return x, y, threshold
+
+    @pytest.fixture
+    def regression_data(self):
+        """Generate regression test data with a threshold."""
+        np.random.seed(42)
+        x = np.random.randn(100).astype(np.float64)
+        y = np.random.randn(100).astype(np.float64)
+        threshold = 0.0
+        return x, y, threshold
+
+    def test_splitter_ptest_same_seed_same_result(self, classification_data):
+        """Splitter _ptest with same seed should produce identical results."""
+        from citrees._splitter import _ptest as _ptest_splitter
+
+        x, y, threshold = classification_data
+
+        pval1 = _ptest_splitter(
+            func=gini,
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+        )
+
+        pval2 = _ptest_splitter(
+            func=gini,
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+        )
+
+        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+
+    def test_splitter_ptest_no_global_state_contamination(self, classification_data):
+        """Splitter _ptest should not contaminate global RNG state."""
+        from citrees._splitter import _ptest as _ptest_splitter
+
+        x, y, threshold = classification_data
+
+        np.random.seed(123)
+        before = np.random.random()
+
+        np.random.seed(123)
+        _ptest_splitter(
+            func=gini,
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=999,
+        )
+        after = np.random.random()
+
+        assert before == after, f"_ptest_splitter contaminated global state: {before} != {after}"
+
+    def test_ptest_gini_parallel_same_seed_same_result(self, classification_data):
+        """Parallel Gini test with same seed should produce identical results."""
+        from citrees._splitter import _ptest_gini_parallel
+
+        x, y, threshold = classification_data
+
+        pval1 = _ptest_gini_parallel(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
+        pval2 = _ptest_gini_parallel(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
+
+        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+
+    def test_ptest_mse_parallel_same_seed_same_result(self, regression_data):
+        """Parallel MSE test with same seed should produce identical results."""
+        from citrees._splitter import _ptest_mse_parallel
+
+        x, y, threshold = regression_data
+
+        pval1 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
+        pval2 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
+
+        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"

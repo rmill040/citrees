@@ -18,8 +18,8 @@ from paper.scripts.pipeline.methods import (
     REG_METHODS,
     THREADED_METHODS,
     MethodInfo,
-    expand_method_configs,
     get_all_method_info,
+    get_full_method_configs,
     get_method_info,
     get_methods,
 )
@@ -50,7 +50,7 @@ __all__ = [
     "THREADED_METHODS",
     "EMBEDDING_METHODS",
     "get_methods",
-    "expand_method_configs",
+    "get_full_method_configs",
     "get_method_info",
     "get_all_method_info",
 ]

@@ -175,18 +175,11 @@ def run(
             help="Ray cluster address (default: auto)",
         ),
     ] = "auto",
-    full_grid: Annotated[
-        bool,
-        typer.Option(
-            "--full-grid/--simple-variants",
-            help="Use full hyperparameter grids instead of simple variants",
-        ),
-    ] = False,
     max_configs_per_method: Annotated[
         int | None,
         typer.Option(
             "--max-configs-per-method",
-            help="Limit configs per method (useful for testing full-grid mode)",
+            help="Limit configs per method (useful for testing)",
         ),
     ] = None,
 ) -> None:
@@ -201,9 +194,6 @@ def run(
         citrees-exp run classification --stage stage1
         citrees-exp run regression -m cit,boruta --dry-run
         citrees-exp run classification --force  # re-run everything
-
-        # Full hyperparameter grid with limit for testing
-        citrees-exp run classification --full-grid --max-configs-per-method 3 -m xgb --dry-run
     """
     from paper.scripts.adapters import RayRunner, S3Store, get_dataset_shape
     from paper.scripts.config import load_config
@@ -230,18 +220,11 @@ def run(
             seeds=seeds,
             source=cast(Literal["all", "real", "synthetic"], source),
             n_seeds=cfg.experiment.n_seeds,
-            full_grid=full_grid,
             max_configs_per_method=max_configs_per_method,
         )
     except ValueError as e:
         error(str(e))
         raise SystemExit(1) from e
-
-    # Show grid mode info
-    if full_grid:
-        info("[bold yellow]Full grid mode:[/] Using comprehensive hyperparameter grids")
-        if max_configs_per_method:
-            info(f"[dim]Limited to {max_configs_per_method} configs per method[/]")
 
     # Show grid summary
     summary = grid.summary()
@@ -451,18 +434,11 @@ def smoke(
             help="Ray cluster address (use 'local' for local mode)",
         ),
     ] = "auto",
-    full_grid: Annotated[
-        bool,
-        typer.Option(
-            "--full-grid/--simple-variants",
-            help="Use full hyperparameter grids instead of simple variants",
-        ),
-    ] = False,
     max_configs_per_method: Annotated[
         int | None,
         typer.Option(
             "--max-configs-per-method",
-            help="Limit configs per method (useful for testing full-grid mode)",
+            help="Limit configs per method (useful for testing)",
         ),
     ] = None,
 ) -> None:
@@ -477,9 +453,6 @@ def smoke(
     Examples:
         citrees-exp smoke classification
         citrees-exp smoke regression --methods pc,rf --dataset cpu_act
-
-        # Test full hyperparameter grid with 2 configs per method
-        citrees-exp smoke classification --full-grid --max-configs-per-method 2 -m xgb
     """
     from paper.scripts.adapters import RayRunner, S3Store, get_dataset_shape, get_datasets
     from paper.scripts.pipeline import ExperimentGrid
@@ -514,14 +487,8 @@ def smoke(
         datasets=chosen,
         seeds=str(seed),
         n_seeds=10,
-        full_grid=full_grid,
         max_configs_per_method=max_configs_per_method,
     )
-
-    if full_grid:
-        info("[bold yellow]Full grid mode:[/] Using comprehensive hyperparameter grids")
-        if max_configs_per_method:
-            info(f"[dim]Limited to {max_configs_per_method} configs per method[/]")
 
     store = S3Store.from_config()
     info(f"S3: {store.bucket}")

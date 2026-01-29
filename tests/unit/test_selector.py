@@ -678,3 +678,222 @@ class TestSelectorDirect:
         y = np.array([1.0, 2.0])
         result = _rdc(x, y, k=_RDC_K, s=_RDC_S, seed=42)
         assert result == 0.0  # n < 3 returns 0
+
+
+# =============================================================================
+# RNG REPRODUCIBILITY TESTS
+# =============================================================================
+
+
+class TestSelectorRNGReproducibility:
+    """Test RNG reproducibility for selector permutation tests."""
+
+    @pytest.fixture
+    def classification_data(self):
+        """Generate classification test data."""
+        np.random.seed(42)
+        x = np.random.randn(100).astype(np.float64)
+        y = np.array([0] * 50 + [1] * 50, dtype=np.int64)
+        return x, y
+
+    @pytest.fixture
+    def regression_data(self):
+        """Generate regression test data."""
+        np.random.seed(42)
+        x = np.random.randn(100).astype(np.float64)
+        y = np.random.randn(100).astype(np.float64)
+        return x, y
+
+    def test_ptest_same_seed_same_result(self, classification_data):
+        """Same random_state should produce identical p-values."""
+        from citrees._selector import _ptest
+
+        x, y = classification_data
+
+        pval1 = _ptest(
+            func=mc,
+            func_arg=2,
+            x=x,
+            y=y,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+        )
+
+        pval2 = _ptest(
+            func=mc,
+            func_arg=2,
+            x=x,
+            y=y,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+        )
+
+        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+
+    def test_ptest_different_seed_different_result(self, classification_data):
+        """Different random_state should produce different p-values."""
+        from citrees._selector import _ptest
+
+        x, y = classification_data
+
+        pval1 = _ptest(
+            func=mc,
+            func_arg=2,
+            x=x,
+            y=y,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+        )
+
+        pval2 = _ptest(
+            func=mc,
+            func_arg=2,
+            x=x,
+            y=y,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=99,
+        )
+
+        assert pval1 != pval2, f"Different seeds should give different results: {pval1} == {pval2}"
+
+    def test_ptest_no_global_state_contamination(self, classification_data):
+        """_ptest should not contaminate global RNG state."""
+        from citrees._selector import _ptest
+
+        x, y = classification_data
+
+        np.random.seed(123)
+        before = np.random.random()
+
+        np.random.seed(123)
+        _ptest(
+            func=mc,
+            func_arg=2,
+            x=x,
+            y=y,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=999,
+        )
+        after = np.random.random()
+
+        assert before == after, f"_ptest contaminated global state: {before} != {after}"
+
+    def test_ptest_multi_same_seed_same_result(self, classification_data):
+        """_ptest_multi with same seed should produce identical results."""
+        from citrees._selector import _ptest_multi
+
+        x, y = classification_data
+
+        pval1 = _ptest_multi(
+            funcs=[mc],
+            func_args=[2],
+            take_abs=[True],
+            x=x,
+            y=y,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+        )
+
+        pval2 = _ptest_multi(
+            funcs=[mc],
+            func_args=[2],
+            take_abs=[True],
+            x=x,
+            y=y,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+        )
+
+        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+
+    def test_ptest_multi_no_global_state_contamination(self, classification_data):
+        """_ptest_multi should not contaminate global RNG state."""
+        from citrees._selector import _ptest_multi
+
+        x, y = classification_data
+
+        np.random.seed(123)
+        before = np.random.random()
+
+        np.random.seed(123)
+        _ptest_multi(
+            funcs=[mc],
+            func_args=[2],
+            take_abs=[True],
+            x=x,
+            y=y,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=999,
+        )
+        after = np.random.random()
+
+        assert before == after, f"_ptest_multi contaminated global state: {before} != {after}"
+
+
+class TestParallelSelectorRNGReproducibility:
+    """Test RNG reproducibility for parallel selector permutation tests."""
+
+    @pytest.fixture
+    def classification_data(self):
+        """Generate classification test data."""
+        np.random.seed(42)
+        x = np.random.randn(100).astype(np.float64)
+        y = np.array([0] * 50 + [1] * 50, dtype=np.int64)
+        return x, y
+
+    @pytest.fixture
+    def regression_data(self):
+        """Generate regression test data."""
+        np.random.seed(42)
+        x = np.random.randn(100).astype(np.float64)
+        y = np.random.randn(100).astype(np.float64)
+        return x, y
+
+    def test_ptest_mc_parallel_same_seed_same_result(self, classification_data):
+        """Parallel MC test with same seed should produce identical results."""
+        from citrees._selector import _ptest_mc_parallel
+
+        x, y = classification_data
+
+        pval1 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
+        pval2 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
+
+        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+
+    def test_ptest_mc_parallel_different_seed_different_result(self, classification_data):
+        """Parallel MC test with different seed should produce different results."""
+        from citrees._selector import _ptest_mc_parallel
+
+        x, y = classification_data
+
+        pval1 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
+        pval2 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=99)
+
+        assert pval1 != pval2, f"Different seeds should give different results: {pval1} == {pval2}"
+
+    def test_ptest_pc_parallel_same_seed_same_result(self, regression_data):
+        """Parallel PC test with same seed should produce identical results."""
+        from citrees._selector import _ptest_pc_parallel
+
+        x, y = regression_data
+
+        pval1 = _ptest_pc_parallel(x=x, y=y, n_resamples=500, random_state=42)
+        pval2 = _ptest_pc_parallel(x=x, y=y, n_resamples=500, random_state=42)
+
+        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"

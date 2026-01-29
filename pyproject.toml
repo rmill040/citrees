@@ -74,9 +74,7 @@ addopts = "-v --tb=short"
 testpaths = ["tests"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "tree: tests for tree classes",
-    "forest: tests for forest classes",
-    "other: other tests",
+    "paper: tests for paper pipeline (deselect with '-m \"not paper\"')",
 ]
 
 [tool.coverage.run]

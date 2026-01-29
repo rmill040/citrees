@@ -320,24 +320,6 @@ def get_methods(task: str) -> list[str]:
     return CLF_METHODS if task == "classification" else REG_METHODS
 
 
-def expand_method_configs(methods: list[str]) -> list[MethodConfig]:
-    """Expand a list of base methods into MethodConfig objects.
-
-    Creates one MethodConfig per method with default (empty) params.
-
-    Parameters
-    ----------
-    methods : list[str]
-        Base method names.
-
-    Returns
-    -------
-    list[MethodConfig]
-        Method configurations.
-    """
-    return [MethodConfig(name=method) for method in methods]
-
-
 def get_method_info(name: str) -> MethodInfo | None:
     """Get metadata for a method by name.
 

@@ -10,6 +10,7 @@ citrees.
 - Manuscript source: `paper/arxiv/` (LaTeX, build with `latexmk`)
 - Claims tracker: `paper/docs/claims-index.md`
 - Proof QA checklist: `paper/docs/writing-checklist.md`
+- Reviewer watchouts: `paper/docs/reviewer-watchouts.md`
 - Immediate actions: `paper/docs/next-steps.md`
 - Writing notes/drafts: `paper/docs/drafts.md`
 

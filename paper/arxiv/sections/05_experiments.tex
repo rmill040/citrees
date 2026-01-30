@@ -1,10 +1,12 @@
 \section{Experiments}
 \label{sec:experiments}
 
-We evaluate feature rankings produced by \citrees and baselines on synthetic
-ground-truth datasets and real tabular datasets.
+This section defines our benchmark protocol and (once experiments finish)
+summarizes empirical findings on synthetic ground-truth datasets and real tabular
+datasets. The empirical goal is to evaluate methods as \emph{feature rankers} in
+a way that separates ranking quality from downstream model choice.
 
-\subsection{Benchmark protocol (rank-then-evaluate)}
+\subsection{Protocol: rank-then-evaluate}
 \label{sec:experiments-protocol}
 
 We treat each method as a \emph{ranker} and use a two-stage protocol:
@@ -16,7 +18,35 @@ only. We use 5-fold cross-validation repeated over 10 random seeds and evaluate
 $k \in \{5,10,25,50,100,p\}$ (clipped to $k \le p$). Details and notation are in
 \cref{app:methods-benchmark}.
 
-\subsection{Datasets}
+\subsection{Primary endpoints and analysis plan (pre-specified)}
+\label{sec:experiments-analysis-plan}
+
+Because the protocol produces results across multiple $k$ values, downstream
+models, and metrics, we pre-specify primary endpoints to reduce degrees of
+freedom in the headline comparisons.
+
+\paragraph{Primary endpoints (real datasets).}
+For classification, the primary endpoint is balanced accuracy of logistic
+regression trained on the top-$k$ features with $k=25$. For regression, the
+primary endpoint is $R^2$ of ridge regression trained on the top-$k$ features
+with $k=25$. All other $k$ values, downstream models, and metrics are treated as
+secondary and reported as robustness checks.
+
+\paragraph{Aggregation.}
+For each dataset and method, we first average the primary endpoint across folds
+and random seeds. Cross-dataset summaries are computed from these dataset-level
+means. We report (i)~average ranks across datasets, and (ii)~paired, per-dataset
+differences versus \citrees (median and interquartile range). Formal multiple
+comparison procedures and uncertainty summaries are reported in the results
+tables (TODO: finalize based on the analysis script outputs).
+
+\paragraph{Synthetic ground truth.}
+For synthetic datasets with known informative feature sets, the primary ranking
+metrics are precision@k, recall@k, and F1@k at $k\in\{5,10,25,50,100\}$ (with
+$k$ clipped to $k\le p$), together with noise-selection diagnostics in
+null-style regimes. These definitions match \cref{app:methods-benchmark}.
+
+\subsection{Datasets and preprocessing}
 \label{sec:experiments-datasets}
 
 All datasets are stored as Parquet files under \texttt{paper/data/}.
@@ -35,7 +65,14 @@ We evaluate on 24 real classification datasets
 (\texttt{paper/data/regression/real/}), emphasizing tabular feature selection
 regimes including $p \gg n$.
 
-\subsection{Methods}
+\paragraph{Preprocessing and leakage prevention.}
+All preprocessing is fit on the training portion only within each fold and then
+applied to the held-out portion. We standardize features using training-fold
+means and variances; see \cref{app:methods-benchmark} for the code-aligned
+definition. (TODO: add a dataset summary table with provenance and $n/p$
+statistics in the appendix.)
+
+\subsection{Methods and fairness policy}
 \label{sec:experiments-methods}
 
 We compare four families of feature selectors:
@@ -51,26 +88,107 @@ rankings, and RFE. Implementation-aligned definitions of the selector and
 splitter statistics used in our experiments are in
 \cref{app:methods-selectors,app:methods-splitters}.
 
-\subsection{Metrics}
-\label{sec:experiments-metrics}
+\paragraph{Hyperparameters and compute budgets.}
+To avoid optimistic bias from unequal tuning effort, each baseline is evaluated
+under a pre-specified hyperparameter grid and compute budget (TODO: include the
+full method roster, grids, and failure/timeout policy; align with the experiment
+pipeline configuration).
 
-\paragraph{Synthetic ground truth.}
-We evaluate ranking quality against known informative-feature sets using metrics
-such as precision@k, recall@k, and F1@k (defined in \cref{app:methods-benchmark}).
+\subsection{Results (placeholders; populated after runs complete)}
+\label{sec:experiments-results}
 
-\paragraph{Real datasets.}
-We report downstream predictive performance as a function of $k$ using
-classification metrics (accuracy, balanced accuracy, weighted and macro F1, ROC
-AUC when defined) and regression metrics ($R^2$, MSE, RMSE, MAE), aggregated
-across folds and random seeds.
+This subsection describes the figures/tables produced by the benchmark suite
+and states the intended takeaways. Figure panels and tables will be inserted
+after the experiment runs complete.
 
-\paragraph{Runtime.}
-We measure wall-clock time for Stage~1 ranking (feature selection) and report
-speedups from implementation optimizations such as early stopping and
-parallelism.
+\subsubsection{Selection bias under an exchangeable global null}
+\label{sec:experiments-selection-bias}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\begin{minipage}[c]{0.95\linewidth}
+    \centering
+    \vspace{0.55in}
+    \textbf{Figure placeholder.}\par
+    TODO: Insert the selection-bias demo figure (global null; high-cardinality noise).\par
+    \vspace{0.55in}
+  \end{minipage}}
+  \caption{Selection bias in greedy split optimization under a global null and the effect of Stage~A screening at the root.
+  (TODO: replace placeholder with the generated figure and finalize caption details.)}
+  \label{fig:selection-bias-demo}
+\end{figure}
+
+\noindent\textbf{Intended takeaway.} Greedy threshold search can favor features
+with many candidate split points under a global null, while Stage~A screening
+reduces root-level false splits in this setting.
+
+\subsubsection{Synthetic ground-truth ranking quality}
+\label{sec:experiments-synthetic}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\begin{minipage}[c]{0.95\linewidth}
+    \centering
+    \vspace{0.55in}
+    \textbf{Figure placeholder.}\par
+    TODO: Insert synthetic ranking-quality summary (precision/recall/F1 vs $k$).\par
+    \vspace{0.55in}
+  \end{minipage}}
+  \caption{Ranking quality on synthetic datasets with known informative-feature sets.
+  (TODO: replace placeholder with the generated figure and finalize caption details.)}
+  \label{fig:synthetic-ranking}
+\end{figure}
+
+\noindent\textbf{Intended takeaway.} Compare methods by their ability to rank
+known informative features above noise across a range of $k$ values, including
+stress-test regimes (correlated blocks, redundancy, high-dimensional settings,
+and weak signals).
+
+\subsubsection{Runtime and scalability}
+\label{sec:experiments-runtime}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\begin{minipage}[c]{0.95\linewidth}
+    \centering
+    \vspace{0.55in}
+    \textbf{Figure placeholder.}\par
+    TODO: Insert runtime/speedup curves (fixed-$B$ vs heuristics; parallelism).\par
+    \vspace{0.55in}
+  \end{minipage}}
+  \caption{Runtime impact of permutation testing and practical speedups (early stopping, scanning, and parallelism).
+  (TODO: replace placeholder with the generated figure and finalize caption details.)}
+  \label{fig:runtime}
+\end{figure}
+
+\noindent\textbf{Intended takeaway.} Quantify the cost of permutation-based
+screening and identify which optimizations materially reduce runtime while
+preserving ranking quality.
+
+\subsubsection{Real-data performance (rank-then-evaluate)}
+\label{sec:experiments-real}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\begin{minipage}[c]{0.95\linewidth}
+    \centering
+    \vspace{0.55in}
+    \textbf{Figure placeholder.}\par
+    TODO: Insert real-data summary (primary endpoint + robustness across $k$/models).\par
+    \vspace{0.55in}
+  \end{minipage}}
+  \caption{Real-data downstream performance using top-$k$ features produced by each ranker.
+  (TODO: replace placeholder with the generated figure and finalize caption details.)}
+  \label{fig:real-data}
+\end{figure}
+
+\noindent\textbf{Intended takeaway.} Evaluate whether improved ranking behavior
+on synthetic ground truth translates to competitive downstream performance on
+real tabular datasets under the pre-specified primary endpoints.
 
 \paragraph{Reproducibility.}
-Experiment orchestration and figure generation scripts live under
+Experiment orchestration, analysis, and figure generation scripts live under
 \texttt{paper/scripts/}, and generated artifacts are written to
 \texttt{paper/results/}. The repository is available at
-\url{https://github.com/rmill040/citrees}.
+\url{https://github.com/rmill040/citrees}. (TODO: ensure all paper figures are
+vendored into the arXiv bundle directory before submission.)

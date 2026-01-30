@@ -24,7 +24,7 @@ from paper.scripts.adapters.data import (
 from paper.scripts.adapters.store import Store
 from paper.scripts.config import load_config
 from paper.scripts.config.constants import N_SPLITS
-from paper.scripts.pipeline.methods import THREADED_METHODS
+from paper.scripts.pipeline.methods import SELECTION_TIER_RESOURCES, SELECTION_TIERS, SelectionTier
 from paper.scripts.pipeline.types import ExperimentConfig, Result
 from paper.scripts.utils.env import get_git_sha, get_library_versions, utc_now_iso
 
@@ -36,41 +36,34 @@ config = load_config()
 # =============================================================================
 
 
-def selection_num_cpus(
-    method: str,
-    *,
-    n_samples: int | None = None,
-    n_features: int | None = None,
-) -> int:
+def selection_num_cpus(method: str) -> int:
     """Return Ray CPU reservation for a selection task."""
     exp = config.experiment
 
+    # Config override takes priority
     override = exp.selection_cpus_overrides.get(method)
     if override is not None:
         return int(override)
 
-    if method == "cif":
-        if n_samples is not None and n_features is not None:
-            complexity = n_samples * n_features
-            if complexity >= exp.selection_cif_large_threshold:
-                return exp.selection_cpus_cif_large
-        return exp.selection_cpus_cif
-
-    if method in THREADED_METHODS:
-        return exp.selection_cpus_threaded
-
-    return exp.selection_cpus_default
+    # Tier-based default (strip ptest_ prefix for lookup)
+    base = method.removeprefix("ptest_")
+    tier = SELECTION_TIERS.get(base, SelectionTier.STANDARD)
+    return SELECTION_TIER_RESOURCES[tier]["cpus"]
 
 
 def selection_memory_bytes(method: str) -> int:
     """Return Ray memory reservation (in bytes) for a selection task."""
     exp = config.experiment
 
+    # Config override takes priority
     override = exp.selection_memory_gb_overrides.get(method)
     if override is not None:
         return int(override * 1024 * 1024 * 1024)
 
-    return int(exp.selection_memory_gb_default * 1024 * 1024 * 1024)
+    # Tier-based default (strip ptest_ prefix for lookup)
+    base = method.removeprefix("ptest_")
+    tier = SELECTION_TIERS.get(base, SelectionTier.STANDARD)
+    return int(SELECTION_TIER_RESOURCES[tier]["memory_gb"] * 1024 * 1024 * 1024)
 
 
 # =============================================================================
@@ -391,7 +384,10 @@ def run_selection(
 # =============================================================================
 
 
-@ray.remote(resources={"selection": 1})
+@ray.remote(
+    resources={"selection": 1},
+    max_retries=3,
+)
 def run_selection_task(cfg: ExperimentConfig, store: Store) -> Result:
     """Ray task for feature selection.
 
@@ -436,7 +432,7 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
         # Load dataset
         X, y = load_dataset(dataset, task)
         n_samples, n_features = int(X.shape[0]), int(X.shape[1])
-        n_jobs = selection_num_cpus(method, n_samples=n_samples, n_features=n_features)
+        n_jobs = selection_num_cpus(method)
 
         # Get dataset metadata
         dataset_meta = get_dataset_metadata(dataset, task)

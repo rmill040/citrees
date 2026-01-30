@@ -55,6 +55,9 @@ class Runner(Protocol):
         configs: Iterable[ExperimentConfig],
         store: Store,
         on_complete: Callable[[ExperimentConfig, Result], None] | None = None,
+        *,
+        collect_results: bool = True,
+        get_options: Callable[[ExperimentConfig], dict[str, Any]] | None = None,
     ) -> list[Result]:
         """Run experiments for the given configurations.
 
@@ -68,6 +71,10 @@ class Runner(Protocol):
             Storage backend for saving results.
         on_complete : callable, optional
             Callback invoked for each completed task.
+        collect_results : bool, default True
+            Whether to accumulate and return results.
+        get_options : callable, optional
+            Callback that returns Ray .options() kwargs for a config.
 
         Returns
         -------
@@ -90,6 +97,8 @@ class RayRunner:
         "local" for local mode.
     batch_size : int, default 32
         Number of tasks to wait for at once.
+    max_in_flight : int, default 1024
+        Maximum number of Ray tasks to have pending at once (backpressure).
     progress_every_s : float, default 30.0
         Interval for progress logging.
 
@@ -105,10 +114,12 @@ class RayRunner:
         self,
         address: str = "auto",
         batch_size: int = 32,
+        max_in_flight: int = 1024,
         progress_every_s: float = 30.0,
     ):
         self.address = address
         self.batch_size = batch_size
+        self.max_in_flight = max_in_flight
         self.progress_every_s = progress_every_s
         self._initialized = False
 
@@ -163,11 +174,20 @@ class RayRunner:
         configs: Iterable[ExperimentConfig],
         store: Store,
         on_complete: Callable[[ExperimentConfig, Result], None] | None = None,
+        *,
+        collect_results: bool = True,
+        get_options: Callable[[ExperimentConfig], dict[str, Any]] | None = None,
     ) -> list[Result]:
         """Run experiments using Ray.
 
         Submits tasks to Ray and collects results with progress logging.
         Supports graceful shutdown on SIGINT/SIGTERM.
+
+        Parameters
+        ----------
+        get_options : callable, optional
+            Callback that returns Ray .options() kwargs for a config.
+            Used for dynamic resource scheduling (num_cpus, memory).
         """
 
         self.init()
@@ -182,31 +202,43 @@ class RayRunner:
 
             task_fn = run_evaluation_task
 
-        # Submit all tasks
-        config_list = list(configs)
-        futures = [task_fn.remote(cfg, store) for cfg in config_list]
+        return self._run_streaming(
+            task_fn=task_fn,
+            configs=configs,
+            store=store,
+            stage=stage,
+            on_complete=on_complete,
+            collect_results=collect_results,
+            get_options=get_options,
+        )
 
-        # Collect results with progress logging
-        return self._drain_futures(futures, stage, on_complete)
-
-    def _drain_futures(
+    def _run_streaming(
         self,
-        futures: list[Any],
+        *,
+        task_fn: Any,
+        configs: Iterable[ExperimentConfig],
+        store: Store,
         stage: StageType,
         on_complete: Callable[[ExperimentConfig, Result], None] | None,
+        collect_results: bool,
+        get_options: Callable[[ExperimentConfig], dict[str, Any]] | None = None,
     ) -> list[Result]:
-        """Drain Ray futures with progress logging."""
+        """Submit + drain Ray tasks with backpressure."""
         global _shutdown_requested
         import ray
 
-        pending = list(futures)
+        config_iter = iter(configs)
+        pending: list[Any] = []
         results: list[Result] = []
         status_counts: dict[str, int] = {}
+        n_submitted = 0
+        configs_exhausted = False
 
         start = time.perf_counter()
         last_log = start
 
-        while pending:
+        # Submit configs incrementally to avoid OOM/slow Ray Client messaging.
+        while True:
             # Check for shutdown request
             if _shutdown_requested:
                 logger.warning(
@@ -219,6 +251,25 @@ class RayRunner:
                         ray.cancel(future, force=False)
                 break
 
+            # Fill up to max_in_flight.
+            while len(pending) < self.max_in_flight and not configs_exhausted:
+                try:
+                    cfg = next(config_iter)
+                except StopIteration:
+                    configs_exhausted = True
+                    break
+
+                if get_options is not None:
+                    opts = get_options(cfg)
+                    pending.append(task_fn.options(**opts).remote(cfg, store))
+                else:
+                    pending.append(task_fn.remote(cfg, store))
+                n_submitted += 1
+
+            # No tasks in flight and no configs left to submit.
+            if not pending and configs_exhausted:
+                break
+
             ready, pending = ray.wait(
                 pending,
                 num_returns=min(self.batch_size, len(pending)),
@@ -228,7 +279,8 @@ class RayRunner:
             if ready:
                 batch: list[Result] = ray.get(ready)
                 for result in batch:
-                    results.append(result)
+                    if collect_results:
+                        results.append(result)
                     status_counts[result.status] = status_counts.get(result.status, 0) + 1
 
                     if on_complete:
@@ -241,8 +293,9 @@ class RayRunner:
                 failed = status_counts.get("failed", 0)
                 rate = done / elapsed if elapsed > 0 else 0.0
                 logger.info(
-                    "Progress [{}]: done={}, failed={}, pending={}, rate={:.3f} configs/s",
+                    "Progress [{}]: submitted={}, done={}, failed={}, in_flight={}, rate={:.3f} configs/s",
                     stage,
+                    n_submitted,
                     done,
                     failed,
                     len(pending),
@@ -274,6 +327,9 @@ class LocalRunner:
         configs: Iterable[ExperimentConfig],
         store: Store,
         on_complete: Callable[[ExperimentConfig, Result], None] | None = None,
+        *,
+        collect_results: bool = True,
+        get_options: Callable[[ExperimentConfig], dict[str, Any]] | None = None,
     ) -> list[Result]:
         """Run experiments sequentially."""
         from paper.scripts.pipeline.stage1 import _run_selection
@@ -284,7 +340,8 @@ class LocalRunner:
         results: list[Result] = []
         for cfg in configs:
             result = run_fn(cfg, store)
-            results.append(result)
+            if collect_results:
+                results.append(result)
             if on_complete:
                 on_complete(cfg, result)
 

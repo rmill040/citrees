@@ -23,12 +23,19 @@ from paper.scripts.adapters.data import (
     load_dataset,
 )
 from paper.scripts.adapters.runner import LocalRunner, RayRunner, Runner
-from paper.scripts.adapters.store import S3Store, Store, get_s3_bucket, get_s3_client
+from paper.scripts.adapters.store import (
+    IgnoreExistsStore,
+    S3Store,
+    Store,
+    get_s3_bucket,
+    get_s3_client,
+)
 
 __all__ = [
     # Store
     "Store",
     "S3Store",
+    "IgnoreExistsStore",
     "get_s3_client",
     "get_s3_bucket",
     # Runner

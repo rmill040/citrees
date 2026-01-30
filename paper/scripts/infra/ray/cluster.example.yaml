@@ -117,7 +117,7 @@ available_node_types:
       InstanceMarketOptions:
         MarketType: spot
     resources:
-      selection: 100
+      selection: 32 # Match vCPU count for backpressure
     min_workers: 0
     max_workers: 25
 
@@ -139,7 +139,7 @@ available_node_types:
       InstanceMarketOptions:
         MarketType: spot
     resources:
-      evaluation: 100
+      evaluation: 4 # Match vCPU count for backpressure
     min_workers: 0
     max_workers: 25
 

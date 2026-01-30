@@ -82,7 +82,17 @@ class ExperimentGrid:
         list[ExperimentConfig]
             List of pending configurations.
         """
-        return [cfg for cfg in self if cfg.key not in completed]
+        return list(self.iter_pending(completed))
+
+    def iter_pending(self, completed: set[tuple[str, str, int]]) -> Iterator[ExperimentConfig]:
+        """Iterate over configurations not in the completed set."""
+        for cfg in self:
+            if cfg.key not in completed:
+                yield cfg
+
+    def count_pending(self, completed: set[tuple[str, str, int]]) -> int:
+        """Count configurations not in the completed set (no materialization)."""
+        return sum(1 for cfg in self if cfg.key not in completed)
 
     def as_list(self) -> list[ExperimentConfig]:
         """Convert to a list of configurations."""

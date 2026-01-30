@@ -126,13 +126,7 @@ def validate() -> None:
         console.print(f"  [muted]Stale Timeout:[/] {config.experiment.stale_timeout_minutes} min")
 
         console.print("\n  [heading]Stage 1 (Selection) Resources:[/]")
-        console.print(f"    [muted]Default CPUs:[/] {config.experiment.selection_cpus_default}")
-        console.print(f"    [muted]Threaded CPUs:[/] {config.experiment.selection_cpus_threaded}")
-        console.print(f"    [muted]CIF CPUs:[/] {config.experiment.selection_cpus_cif}")
-        console.print(f"    [muted]CIF Large CPUs:[/] {config.experiment.selection_cpus_cif_large}")
-        console.print(
-            f"    [muted]Default Memory:[/] {config.experiment.selection_memory_gb_default} GB"
-        )
+        console.print("    [muted]Tiers:[/] LIGHT=1cpu/2GB, STANDARD=8cpu/4GB, HEAVY=16cpu/8GB")
 
         console.print("\n  [heading]Stage 2 (Evaluation) Resources:[/]")
         console.print(f"    [muted]Default CPUs:[/] {config.experiment.evaluation_cpus_default}")

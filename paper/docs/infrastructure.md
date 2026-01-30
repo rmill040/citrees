@@ -102,7 +102,7 @@ available_node_types:
       InstanceMarketOptions:
         MarketType: spot
     resources:
-      selection: 100
+      selection: 32
     max_workers: 250
 
   eval_worker:
@@ -111,7 +111,7 @@ available_node_types:
       InstanceMarketOptions:
         MarketType: spot
     resources:
-      evaluation: 100
+      evaluation: 4
     max_workers: 250
 ```
 
@@ -127,15 +127,33 @@ MetadataOptions:
   HttpPutResponseHopLimit: 2
 ```
 
-### Experiment Config (`paper/scripts/infra/ray/cluster.yaml`)
+### Experiment Config (`paper/scripts/infra/config.yaml`)
 
 ```yaml
 aws_region: us-east-1
-# Note: S3 bucket name is derived automatically as citrees-{account_id} by setup_cluster.py
+
+cluster:
+  max_workers: 50
+  upscaling_speed: 10.0
+  idle_timeout_minutes: 5
 
 experiment:
-  type: classification # or "regression"
+  type: classification
   n_seeds: 5
+  stale_timeout_minutes: 30
+
+  # Stage 1 resource tiers (LIGHT/STANDARD/HEAVY defined in code)
+  # Per-method overrides take priority over tier defaults
+  selection_cpus_overrides: {}
+  selection_memory_gb_overrides: {}
+
+  # Stage 2 (flat defaults)
+  evaluation_cpus_default: 1
+  evaluation_cpus_overrides: {}
+  evaluation_memory_gb_default: 2.0
+  evaluation_memory_gb_overrides: {}
+
+  s3_validate_uploads: true
 ```
 
 ## CLI Commands
@@ -166,16 +184,52 @@ citrees-exp run classification --force          # Re-run everything
 
 The cluster uses separate worker pools for each stage:
 
-| Pool               | Instance    | vCPUs | RAM  | Resource          | Purpose                   |
-| ------------------ | ----------- | ----- | ---- | ----------------- | ------------------------- |
-| `head`             | c6i.4xlarge | 16    | 32GB | -                 | Scheduler, dashboard      |
-| `selection_worker` | c6i.8xlarge | 32    | 64GB | `selection: 100`  | Feature selection (heavy) |
-| `eval_worker`      | c6i.xlarge  | 4     | 8GB  | `evaluation: 100` | Downstream eval (light)   |
+| Pool               | Instance    | vCPUs | RAM  | Resource        | Purpose              |
+| ------------------ | ----------- | ----- | ---- | --------------- | -------------------- |
+| `head`             | c6i.4xlarge | 16    | 32GB | -               | Scheduler, dashboard |
+| `selection_worker` | c6i.8xlarge | 32    | 64GB | `selection: 32` | Feature selection    |
+| `eval_worker`      | c6i.xlarge  | 4     | 8GB  | `evaluation: 4` | Downstream eval      |
 
-Tasks are routed via custom resources:
+Tasks are routed via **two resource dimensions**:
 
-- `@ray.remote(resources={"selection": 1})` → runs on selection_worker
-- `@ray.remote(resources={"evaluation": 1})` → runs on eval_worker
+- **Custom resource** (`selection` / `evaluation`): routes task to the correct
+  worker pool. Set to vCPU count to cap concurrency per node.
+- **`num_cpus` + `memory`**: set dynamically per-task via `.options()` based on
+  the method's tier. Ray uses these for bin-packing (e.g., two HEAVY tasks
+  requesting 16 CPUs each fill a 32-vCPU node).
+
+## Resource Scheduling
+
+### Selection Tiers
+
+Stage 1 tasks are assigned CPU and memory based on method complexity:
+
+| Tier         | CPUs | Memory | Methods                                             |
+| ------------ | ---- | ------ | --------------------------------------------------- |
+| **LIGHT**    | 1    | 2 GB   | `mc, pc, rdc, mi, dc, mrmr`, all `ptest_*` variants |
+| **STANDARD** | 8    | 4 GB   | `rf, et, xgb, lgbm, cat, pi, cpi, rfe, r_ctree`     |
+| **HEAVY**    | 16   | 8 GB   | `cit, cif, boruta, shap, r_cforest`                 |
+
+Stage 2 evaluation uses flat defaults: 1 CPU, 2 GB.
+
+### Dynamic Scheduling via `.options()`
+
+Resources are NOT hardcoded in `@ray.remote` decorators. Instead, the CLI
+computes per-task resource requirements and passes them at submission time:
+
+    app.py → _stage1_options(cfg) → {num_cpus, memory}
+                                          ↓
+    runner.py → task_fn.options(**opts).remote(cfg, store)
+
+This allows Ray to pack tasks efficiently — a LIGHT method (1 CPU) and a HEAVY
+method (16 CPUs) can share the same 32-vCPU worker node.
+
+### Override Hierarchy
+
+Resource resolution follows this priority (highest first):
+
+1. **Config per-method override** — `selection_cpus_overrides: {cif: 32}`
+2. **Tier default** — LIGHT / STANDARD / HEAVY lookup from `methods.py`
 
 ## S3 Structure
 
@@ -251,10 +305,16 @@ Features:
 - Error logs
 - Resource usage
 
-## Missing-only Runs (Recommended)
+## Skipping and Re-running
 
-The pipeline filters the grid **before** submission using S3 listings, giving
-you a deterministic, auditable list of configs that will run.
+### Default: skip completed configs
+
+The pipeline uses **two layers** of filtering:
+
+1. **Batch S3 listing** (before submission): `store.list_completed()` fetches
+   all existing keys and removes them from the grid.
+2. **Per-task check** (inside each Ray worker): `store.exists()` checks before
+   running, in case another worker completed the same config concurrently.
 
 ```bash
 # Preview what would run (skips existing by default)
@@ -264,8 +324,22 @@ citrees-exp run classification --dry-run
 citrees-exp run classification
 ```
 
-**Reruns:** use `--force` to re-run everything, or delete specific S3 objects
-then re-run normally.
+### `--force`: re-run everything
+
+When `--force` is passed, both layers are bypassed:
+
+- Batch listing is skipped.
+- Per-task checks are disabled via `IgnoreExistsStore`, a wrapper that returns
+  `False` for `exists()` on the forced stages while delegating all other
+  operations (save, load) to the real S3Store.
+
+```bash
+# Re-run all configs regardless of existing results
+citrees-exp run classification --force
+```
+
+You can also delete specific S3 objects and re-run normally to selectively
+re-execute individual configs.
 
 ## Fault Tolerance
 
@@ -302,6 +376,38 @@ citrees-exp cluster ssh       # SSH to head node and inspect
 ```bash
 citrees-exp cluster dashboard   # View task errors in dashboard
 citrees-exp cluster logs -f     # Stream logs continuously
+```
+
+### Local driver OOM (exit code 137) or Ray Client "large messages" warnings
+
+If you attempt to run a very large grid (millions of configs), submitting all
+tasks at once can overwhelm the local driver and/or the Ray Client control
+plane. The CLI now applies backpressure, but you can further reduce load by
+lowering the in-flight task cap and/or reducing the grid size.
+
+```bash
+# Reduce driver memory / Ray Client chatter
+citrees-exp run classification --max-in-flight 256
+
+# Reduce the experiment grid size (recommended for iteration)
+citrees-exp run classification -m cit,rf -d arcene --seeds 0 --max-configs-per-method 10
+```
+
+### Run from the head node (avoid Ray Client)
+
+For long-running cluster jobs, prefer submitting a driver to the head node.
+
+```bash
+# Run the CLI on the head node via Ray's SSH-based submit
+citrees-exp cluster submit paper/scripts/cli/run_cli.py run classification --stage all
+```
+
+If you are seeing stale dependencies or old Docker images on the head node,
+terminate the head node (not just restart it) and bring the cluster up again:
+
+```bash
+citrees-exp cluster down --yes
+citrees-exp cluster up --yes
 ```
 
 ### AMI issues

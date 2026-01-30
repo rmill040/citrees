@@ -7,7 +7,8 @@ experiments, checking progress, and managing infrastructure.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Annotated, Literal, cast
+from itertools import islice
+from typing import Annotated, Any, Literal, cast
 
 import typer
 from rich.progress import Progress, SpinnerColumn, TaskProgressColumn, TextColumn
@@ -70,7 +71,7 @@ def _resolve_ray_address(address: str) -> str:
     """Resolve Ray address, auto-detecting cluster head if needed.
 
     - "local": returns as-is (local Ray mode)
-    - "auto": gets head IP from cluster.yaml, returns ray://<ip>:10001
+    - "auto": gets head IP from cluster.yaml, returns <ip>:6379 (direct GCS connection; avoids Ray Client)
     - other: returns as-is (user-specified address)
     """
     if address == "local":
@@ -82,7 +83,9 @@ def _resolve_ray_address(address: str) -> str:
 
         head_ip = _get_head_ip()
         if head_ip:
-            resolved = f"ray://{head_ip}:10001"
+            # Use direct GCS connection instead of Ray Client to avoid flooding the head
+            # with client-side scheduling messages on large grids.
+            resolved = f"{head_ip}:6379"
             info(f"Auto-detected Ray address: {resolved}")
             return resolved
         else:
@@ -175,6 +178,13 @@ def run(
             help="Ray cluster address (default: auto)",
         ),
     ] = "auto",
+    max_in_flight: Annotated[
+        int,
+        typer.Option(
+            "--max-in-flight",
+            help="Max number of Ray tasks pending at once (prevents driver OOM / Ray Client flooding)",
+        ),
+    ] = 1024,
     max_configs_per_method: Annotated[
         int | None,
         typer.Option(
@@ -195,11 +205,12 @@ def run(
         citrees-exp run regression -m cit,boruta --dry-run
         citrees-exp run classification --force  # re-run everything
     """
-    from paper.scripts.adapters import RayRunner, S3Store, get_dataset_shape
+    from paper.scripts.adapters import IgnoreExistsStore, RayRunner, S3Store
     from paper.scripts.config import load_config
     from paper.scripts.pipeline import ExperimentGrid
-    from paper.scripts.pipeline.stage1 import selection_num_cpus
-    from paper.scripts.pipeline.stage2 import evaluation_num_cpus
+    from paper.scripts.pipeline.stage1 import selection_memory_bytes, selection_num_cpus
+    from paper.scripts.pipeline.stage2 import evaluation_memory_bytes, evaluation_num_cpus
+    from paper.scripts.pipeline.types import ExperimentConfig
 
     heading("Experiment Pipeline")
 
@@ -255,45 +266,84 @@ def run(
         info(f"Found {len(completed_metrics)} completed metrics")
         console.print()
 
-    # Get pending items
-    stage1_configs = grid.filter_pending(completed_rankings) if not force else grid.as_list()
+    # Precompute selection masks for fast counting/filtering (avoid materializing 10M+ configs).
+    selected_method_labels = {m.label for m in grid.methods}
+    selected_datasets = set(grid.datasets)
+    selected_seeds = set(grid.seeds)
+
+    def _count_in_grid(keys: set[tuple[str, str, int]]) -> int:
+        return sum(
+            1
+            for method_label, dataset, seed in keys
+            if method_label in selected_method_labels
+            and dataset in selected_datasets
+            and seed in selected_seeds
+        )
+
+    completed_rankings_in_grid = _count_in_grid(completed_rankings) if completed_rankings else 0
+    completed_metrics_in_grid = _count_in_grid(completed_metrics) if completed_metrics else 0
+    stage1_total = len(grid) if force else len(grid) - completed_rankings_in_grid
+
+    huge_grid_threshold = 1_000_000
+    if stage in {"all", "stage1"} and stage1_total > huge_grid_threshold:
+        warn(
+            f"Stage 1 is huge ({format_number(stage1_total)} configs). "
+            "This is supported, but it can take a long time and can stress the head node. "
+            "If you see scheduler pressure, lower --max-in-flight or run from the head node."
+        )
+
+    def _iter_stage1_configs():
+        return iter(grid) if force else grid.iter_pending(completed_rankings)
 
     # Dry run output
     if dry_run:
         heading("Dry Run")
 
-        # Precompute dataset shapes for resource estimation
-        dataset_shapes = {d: get_dataset_shape(d, task) for d in grid.datasets}
-
         if stage in {"all", "stage1"}:
-            console.print(f"[bold]Stage 1 (Rankings):[/] {len(stage1_configs)} configs")
-            for i, cfg in enumerate(stage1_configs[:dry_run_limit]):
-                n_samples, n_features = dataset_shapes[cfg.dataset]
-                cpus = selection_num_cpus(
-                    cfg.method.name, n_samples=n_samples, n_features=n_features
-                )
+            console.print(f"[bold]Stage 1 (Rankings):[/] {format_number(stage1_total)} configs")
+            for i, cfg in enumerate(islice(_iter_stage1_configs(), dry_run_limit)):
+                cpus = selection_num_cpus(cfg.method.name)
                 console.print(f"  {i + 1}. {cfg} (cpus={cpus})")
-            if len(stage1_configs) > dry_run_limit:
-                console.print(f"  [dim]... and {len(stage1_configs) - dry_run_limit} more[/]")
+            if stage1_total > dry_run_limit:
+                console.print(
+                    f"  [dim]... and {format_number(stage1_total - dry_run_limit)} more[/]"
+                )
             console.print()
 
         if stage in {"all", "stage2"}:
-            if not force:
-                available = completed_rankings | {cfg.key for cfg in stage1_configs}
-                stage2_configs = [
-                    cfg for cfg in grid if cfg.key not in completed_metrics and cfg.key in available
-                ]
+            if force:
+                stage2_total = len(grid)
+                stage2_iter = iter(grid)
+            elif stage == "stage2":
+                stage2_total = sum(
+                    1
+                    for key in completed_rankings
+                    if key not in completed_metrics
+                    and key[0] in selected_method_labels
+                    and key[1] in selected_datasets
+                    and key[2] in selected_seeds
+                )
+                stage2_iter = (
+                    cfg
+                    for cfg in grid
+                    if cfg.key in completed_rankings and cfg.key not in completed_metrics
+                )
             else:
-                stage2_configs = grid.as_list()
+                # In a full pipeline run, Stage 1 will generate missing rankings,
+                # so Stage 2 will attempt everything missing metrics.
+                stage2_total = len(grid) - completed_metrics_in_grid
+                stage2_iter = (cfg for cfg in grid if cfg.key not in completed_metrics)
 
             cpus = evaluation_num_cpus(task)
             console.print(
-                f"[bold]Stage 2 (Metrics):[/] {len(stage2_configs)} configs (cpus={cpus})"
+                f"[bold]Stage 2 (Metrics):[/] {format_number(stage2_total)} configs (cpus={cpus})"
             )
-            for i, cfg in enumerate(stage2_configs[:dry_run_limit]):
+            for i, cfg in enumerate(islice(stage2_iter, dry_run_limit)):
                 console.print(f"  {i + 1}. {cfg}")
-            if len(stage2_configs) > dry_run_limit:
-                console.print(f"  [dim]... and {len(stage2_configs) - dry_run_limit} more[/]")
+            if stage2_total > dry_run_limit:
+                console.print(
+                    f"  [dim]... and {format_number(stage2_total - dry_run_limit)} more[/]"
+                )
 
         return
 
@@ -301,64 +351,43 @@ def run(
     if store is None:
         store = S3Store.from_config()
 
-    runner = RayRunner(address=_resolve_ray_address(ray_address))
+    # When --force, wrap the store so per-task exists() checks are bypassed.
+    # Stage-specific wrapping ensures Stage 2 can still check for rankings.
+    stage1_store: S3Store | IgnoreExistsStore = (
+        IgnoreExistsStore(store, frozenset({"rankings"})) if force else store
+    )
+    stage2_store: S3Store | IgnoreExistsStore = (
+        IgnoreExistsStore(store, frozenset({"metrics"})) if force else store
+    )
+
+    # Resource callbacks for dynamic Ray scheduling via .options()
+    def _stage1_options(cfg: ExperimentConfig) -> dict[str, Any]:
+        return {
+            "num_cpus": selection_num_cpus(cfg.method.name),
+            "memory": selection_memory_bytes(cfg.method.name),
+        }
+
+    def _stage2_options(cfg: ExperimentConfig) -> dict[str, Any]:
+        return {
+            "num_cpus": evaluation_num_cpus(task),
+            "memory": evaluation_memory_bytes(task),
+        }
+
+    runner = RayRunner(address=_resolve_ray_address(ray_address), max_in_flight=max_in_flight)
 
     with console.status("Initializing Ray..."):
         runner.init()
     success("Ray initialized")
 
     # Stage 1: Feature Selection
-    if stage in {"all", "stage1"} and stage1_configs:
+    if stage in {"all", "stage1"}:
         heading("Stage 1: Feature Selection")
-        info(f"Running {len(stage1_configs)} tasks")
-
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            TaskProgressColumn(),
-            console=console,
-        ) as progress:
-            task_id = progress.add_task("Selecting features...", total=len(stage1_configs))
-
-            def on_complete_s1(cfg, result):
-                progress.advance(task_id)
-                if result.is_failure:
-                    console.print(f"[red]  x {cfg}[/]")
-
-            results = runner.run("rankings", stage1_configs, store, on_complete_s1)
-
-        done_count = sum(1 for r in results if r.status == "done")
-        skipped_count = sum(1 for r in results if r.status == "skipped")
-        failed_count = sum(1 for r in results if r.status == "failed")
-        if failed_count:
-            warn(f"Stage 1: {failed_count} failures")
-        success(f"Stage 1 complete: {done_count} done, {skipped_count} skipped")
-
-        # Track newly completed for stage2
-        for r in results:
-            if r.status in {"done", "skipped"}:
-                completed_rankings.add(r.config.key)
-
-    # Stage 2: Evaluation
-    if stage in {"all", "stage2"}:
-        heading("Stage 2: Evaluation")
-
-        if not force:
-            stage2_configs = [
-                cfg
-                for cfg in grid
-                if cfg.key not in completed_metrics and cfg.key in completed_rankings
-            ]
-        elif stage == "stage2":
-            stage2_configs = grid.as_list()
+        if stage1_total <= 0:
+            warn("No Stage 1 items to run")
         else:
-            # After stage1, run what we just completed
-            stage2_configs = [cfg for cfg in grid if cfg.key in completed_rankings]
+            info(f"Running {format_number(stage1_total)} tasks")
 
-        if not stage2_configs:
-            warn("No Stage 2 items to run")
-        else:
-            info(f"Running {len(stage2_configs)} tasks")
+            stage1_counts = {"done": 0, "skipped": 0, "failed": 0}
 
             with Progress(
                 SpinnerColumn(),
@@ -366,23 +395,104 @@ def run(
                 TaskProgressColumn(),
                 console=console,
             ) as progress:
-                task_id = progress.add_task("Evaluating...", total=len(stage2_configs))
+                task_id = progress.add_task("Selecting features...", total=stage1_total)
+
+                def on_complete_s1(cfg, result):
+                    stage1_counts[result.status] = stage1_counts.get(result.status, 0) + 1
+                    progress.advance(task_id)
+                    if result.is_failure:
+                        console.print(f"[red]  x {cfg}[/]")
+                    if result.status in {"done", "skipped"}:
+                        completed_rankings.add(result.config.key)
+
+                runner.run(
+                    "rankings",
+                    _iter_stage1_configs(),
+                    stage1_store,
+                    on_complete_s1,
+                    collect_results=False,
+                    get_options=_stage1_options,
+                )
+
+            failed_count = int(stage1_counts.get("failed", 0))
+            if failed_count:
+                warn(f"Stage 1: {failed_count} failures")
+            success(
+                "Stage 1 complete: "
+                f"{format_number(stage1_counts.get('done', 0))} done, "
+                f"{format_number(stage1_counts.get('skipped', 0))} skipped"
+            )
+
+    # Stage 2: Evaluation
+    if stage in {"all", "stage2"}:
+        heading("Stage 2: Evaluation")
+
+        method_by_label = {m.label: m for m in grid.methods}
+
+        if force and stage == "stage2":
+            stage2_total = len(grid)
+            stage2_iter = iter(grid)
+        else:
+            keys_to_run = (
+                (k for k in completed_rankings if k not in completed_metrics)
+                if not force
+                else iter(completed_rankings)
+            )
+            stage2_iter = (
+                ExperimentConfig(
+                    method=method_by_label[method_label], dataset=dataset, seed=seed, task=task
+                )
+                for method_label, dataset, seed in keys_to_run
+                if method_label in method_by_label
+                and dataset in selected_datasets
+                and seed in selected_seeds
+            )
+            stage2_total = sum(
+                1
+                for method_label, dataset, seed in completed_rankings
+                if (force or (method_label, dataset, seed) not in completed_metrics)
+                and method_label in method_by_label
+                and dataset in selected_datasets
+                and seed in selected_seeds
+            )
+
+        if stage2_total <= 0:
+            warn("No Stage 2 items to run")
+        else:
+            info(f"Running {format_number(stage2_total)} tasks")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                TaskProgressColumn(),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task("Evaluating...", total=stage2_total)
+                stage2_counts = {"done": 0, "skipped": 0, "no_rankings": 0, "failed": 0}
 
                 def on_complete_s2(cfg, result):
+                    stage2_counts[result.status] = stage2_counts.get(result.status, 0) + 1
                     progress.advance(task_id)
                     if result.is_failure:
                         console.print(f"[red]  x {cfg}[/]")
 
-                results = runner.run("metrics", stage2_configs, store, on_complete_s2)
+                runner.run(
+                    "metrics",
+                    stage2_iter,
+                    stage2_store,
+                    on_complete_s2,
+                    collect_results=False,
+                    get_options=_stage2_options,
+                )
 
-            done_count = sum(1 for r in results if r.status == "done")
-            skipped_count = sum(1 for r in results if r.status == "skipped")
-            no_rankings_count = sum(1 for r in results if r.status == "no_rankings")
-            failed_count = sum(1 for r in results if r.status == "failed")
+            failed_count = int(stage2_counts.get("failed", 0))
             if failed_count:
                 warn(f"Stage 2: {failed_count} failures")
             success(
-                f"Stage 2 complete: {done_count} done, {skipped_count} skipped, {no_rankings_count} no-rankings"
+                "Stage 2 complete: "
+                f"{format_number(stage2_counts.get('done', 0))} done, "
+                f"{format_number(stage2_counts.get('skipped', 0))} skipped, "
+                f"{format_number(stage2_counts.get('no_rankings', 0))} no-rankings"
             )
 
     success("Pipeline complete")

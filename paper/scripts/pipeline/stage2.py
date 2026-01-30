@@ -307,7 +307,10 @@ def run_evaluation(
 # =============================================================================
 
 
-@ray.remote(resources={"evaluation": 1})
+@ray.remote(
+    resources={"evaluation": 1},
+    max_retries=3,
+)
 def run_evaluation_task(cfg: ExperimentConfig, store: Store) -> Result:
     """Ray task for evaluation.
 

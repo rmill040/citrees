@@ -343,3 +343,49 @@ class S3Store:
             region=config.aws_region,
             validate_uploads=config.experiment.s3_validate_uploads,
         )
+
+
+class IgnoreExistsStore:
+    """Store wrapper that returns False from exists() for specified stages.
+
+    Used with --force to bypass per-task skip checks while preserving
+    cross-stage dependency checks (e.g., Stage 2 still verifies rankings exist).
+
+    Parameters
+    ----------
+    store : S3Store
+        The underlying store to delegate to.
+    ignore_stages : frozenset[str]
+        Stage names for which exists() should return False.
+    """
+
+    def __init__(self, store: S3Store, ignore_stages: frozenset[str]) -> None:
+        self._store = store
+        self._ignore_stages = ignore_stages
+
+    def exists(self, stage: StageType, config: ExperimentConfig) -> bool:
+        """Return False for ignored stages, delegate otherwise."""
+        if stage in self._ignore_stages:
+            return False
+        return self._store.exists(stage, config)
+
+    def save(self, stage: StageType, config: ExperimentConfig, df: pd.DataFrame) -> str:
+        """Delegate to inner store."""
+        return self._store.save(stage, config, df)
+
+    def load(self, stage: StageType, config: ExperimentConfig) -> pd.DataFrame:
+        """Delegate to inner store."""
+        return self._store.load(stage, config)
+
+    def list_completed(self, stage: StageType, task: TaskType) -> set[tuple[str, str, int]]:
+        """Delegate to inner store."""
+        return self._store.list_completed(stage, task)
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Support pickling for Ray serialization."""
+        return {"store": self._store, "ignore_stages": self._ignore_stages}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Restore state after unpickling."""
+        self._store = state["store"]
+        self._ignore_stages = state["ignore_stages"]

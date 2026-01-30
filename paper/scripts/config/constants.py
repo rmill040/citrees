@@ -50,7 +50,6 @@ EVALUATION_K_VALUES = [5, 10, 25, 50, 100]
 
 OPENML_IDS = {
     # Classification
-    "adult": 1590,
     "credit-g": 31,
     "diabetes": 37,
     "electricity": 44120,

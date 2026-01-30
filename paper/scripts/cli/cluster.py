@@ -459,6 +459,7 @@ def submit(
     \b
     Examples:
         citrees-exp cluster submit paper/scripts/pipeline/stage1.py --help
+        citrees-exp cluster submit paper/scripts/cli/run_cli.py run classification --stage stage1
     """
     _check_cluster_config()
 

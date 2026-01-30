@@ -252,9 +252,9 @@ where $\mathrm{Imp}(\cdot)$ is either Gini or Entropy.
 For regression, we set $\mathrm{Imp}(Y)$ to either MSE or MAE:
 %
 \begin{equation}
-  \mathrm{MSE}(Y) = \frac{1}{n}\sum_{i=1}^n (Y_i-\bar{Y})^2,
+  \mathrm{MSE}(Y) = \frac{1}{|Y|}\sum_{i=1}^{|Y|} (Y_i-\bar{Y})^2,
   \qquad
-  \mathrm{MAE}(Y) = \frac{1}{n}\sum_{i=1}^n \big|Y_i - \mathrm{median}(Y)\big|.
+  \mathrm{MAE}(Y) = \frac{1}{|Y|}\sum_{i=1}^{|Y|} \big|Y_i - \mathrm{median}(Y)\big|.
 \end{equation}
 
 \subsubsection{Threshold candidate sets}

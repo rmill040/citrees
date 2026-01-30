@@ -7,6 +7,7 @@ classification and regression tasks.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from paper.scripts.pipeline.types import MethodConfig
 
@@ -302,6 +303,49 @@ THREADED_METHODS = {
 
 # Embedding methods (have feature_importances_ and can make predictions)
 EMBEDDING_METHODS = {"cit", "cif", "rf", "et", "xgb", "lgbm", "cat"}
+
+
+# Resource tiers for Ray scheduling
+class SelectionTier(StrEnum):
+    """Resource tier for feature selection methods."""
+
+    LIGHT = "light"
+    STANDARD = "standard"
+    HEAVY = "heavy"
+
+
+SELECTION_TIERS: dict[str, SelectionTier] = {
+    # Filter — single-threaded, minimal memory
+    "mc": SelectionTier.LIGHT,
+    "pc": SelectionTier.LIGHT,
+    "rdc": SelectionTier.LIGHT,
+    "mi": SelectionTier.LIGHT,
+    "dc": SelectionTier.LIGHT,
+    "mrmr": SelectionTier.LIGHT,
+    # Embedding — tree ensembles using n_jobs
+    "rf": SelectionTier.STANDARD,
+    "et": SelectionTier.STANDARD,
+    "xgb": SelectionTier.STANDARD,
+    "lgbm": SelectionTier.STANDARD,
+    "cat": SelectionTier.STANDARD,
+    # Wrapper — iterative, threaded
+    "pi": SelectionTier.STANDARD,
+    "cpi": SelectionTier.STANDARD,
+    "rfe": SelectionTier.STANDARD,
+    "r_ctree": SelectionTier.STANDARD,
+    # Heavy — CIT/CIF (Numba parallel), Boruta (shadow features), SHAP, R cforest
+    "cit": SelectionTier.HEAVY,
+    "cif": SelectionTier.HEAVY,
+    "boruta": SelectionTier.HEAVY,
+    "shap": SelectionTier.HEAVY,
+    "r_cforest": SelectionTier.HEAVY,
+}
+
+SELECTION_TIER_RESOURCES: dict[SelectionTier, dict[str, int | float]] = {
+    SelectionTier.LIGHT: {"cpus": 1, "memory_gb": 2},
+    SelectionTier.STANDARD: {"cpus": 8, "memory_gb": 4},
+    SelectionTier.HEAVY: {"cpus": 16, "memory_gb": 8},
+}
 
 
 def get_methods(task: str) -> list[str]:

@@ -26,6 +26,16 @@ feature is significant does it proceed to optimize a split threshold (Stage~B).
 The test-based Stage~A step is the natural place to attach finite-sample
 error-control statements.
 
+\paragraph{Two roles: screening vs.\ embedding.}
+We use Stage~A in two complementary ways. First, we treat fixed-node Stage~A
+screening (especially at the root) as a standalone, permutation-calibrated
+feature screening rule with finite-sample guarantees in fixed-$B$ mode.
+Second, we use Stage~A inside a full recursive tree/forest learner whose split
+structure induces a feature ranking. In this second role, later-node and
+Stage~B quantities are data-adaptive and are evaluated empirically; the paper
+is explicit about which reported ``p-values'' are treated as calibrated versus
+algorithmic statistics (\cref{sec:pvalue-scope}).
+
 \paragraph{Contributions.}
 This paper presents:
 (i)~finite-sample, fixed-node (pre-specified; especially root) validity statements for Stage~A

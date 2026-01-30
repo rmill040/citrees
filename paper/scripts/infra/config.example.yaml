@@ -19,23 +19,13 @@ experiment:
   n_seeds: 5
   stale_timeout_minutes: 30
 
-  # Ray CPU scheduling (per config) - Stage 1 (feature selection)
-  # - Lightweight methods pack densely (default=1 CPU)
-  # - Threaded methods (rf/et/xgb/lgbm/cat/...) reserve more (threaded=8 CPUs)
-  # - CIF can scale more on large datasets: use `selection_cpus_cif_large` when
-  #   `n_samples * n_features >= selection_cif_large_threshold`
-  selection_cpus_default: 1
-  selection_cpus_threaded: 8
-  selection_cpus_cif: 16
-  selection_cpus_cif_large: 32
-  selection_cif_large_threshold: 10000000
+  # Stage 1 (feature selection) resource tiers (defined in code):
+  #   LIGHT  = 1 CPU, 2 GB  (mc, pc, rdc, mi, dc, mrmr, ptest_*)
+  #   STANDARD = 8 CPU, 4 GB  (rf, et, xgb, lgbm, cat, pi, cpi, rfe, r_ctree)
+  #   HEAVY  = 16 CPU, 8 GB (cit, cif, boruta, shap, r_cforest)
 
-  # Optional per-method CPU overrides (base method name -> CPU count)
-  # Overrides take precedence over the CIF size rule and threaded/default buckets.
+  # Per-method overrides (take priority over tier defaults)
   selection_cpus_overrides: {}
-
-  # Ray memory scheduling for Stage 1 (in GB)
-  selection_memory_gb_default: 4.0
   selection_memory_gb_overrides: {}
 
   # Ray CPU scheduling (per config) - Stage 2 (downstream evaluation)

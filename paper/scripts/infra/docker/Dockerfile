@@ -36,6 +36,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Install with paper dependencies
 RUN uv sync --frozen --group paper
 
+# Fix Numba/dcor LLVM cache issue - force fresh compilation at runtime
+ENV NUMBA_CACHE_DIR=/tmp/numba_cache
+
 ENV R_HOME=/usr/lib/R
 # S3_BUCKET is set at runtime via cluster.yaml (citrees-{account_id})
 

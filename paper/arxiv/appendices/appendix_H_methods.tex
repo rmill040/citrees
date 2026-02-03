@@ -103,9 +103,9 @@ become non-constant within the subtree rooted at $t$.
     \EndIf
     \State $\alpha_{\mathrm{eff}} \gets \alpha_{\mathrm{sel}}/|F_t|$ if Bonferroni enabled else $\alpha_{\mathrm{sel}}$
     \Statex \textit{Note:} when Bonferroni is enabled, the implementation also adjusts the per-node resample budget based on $\alpha_{\mathrm{eff}}$ and \texttt{n\_resamples\_selector}; see \cref{app:methods-permutation}.
-    \State $p_t^\star \gets 1$; $\mathcal{J}_t^\star \gets \emptyset$
+      \State $p_t^\star \gets 1$; $\mathcal{J}_t^\star \gets \emptyset$
     \For{$j \in F_t$}
-      \State Compute +1 permutation p-value $p_{t,j}$ for $H^{\mathrm{sel}}_{t,j}$ \Comment{right tail; max-$T$ if multi-selector; see \cref{sec:plusone}}
+      \State Compute +1 permutation p-value $p_{t,j}$ by permuting $Y_t$ \Comment{right tail; max-$T$ if multi-selector; see \cref{sec:plusone}}
       \If{$p_{t,j} < p_t^\star$}
         \State $p_t^\star \gets p_{t,j}$; $\mathcal{J}_t^\star \gets \{j\}$
       \ElsIf{$p_{t,j} = p_t^\star$}
@@ -126,16 +126,26 @@ become non-constant within the subtree rooted at $t$.
   \end{algorithmic}
 \end{algorithm}
 
-\subsubsection{Null hypothesis}
+\subsubsection{Permutation null (nodewise complete null)}
 \label{app:methods-stageA-null}
 
-For each feature $j \in F_t$,
+Stage~A uses the standard label-permutation scheme that treats $X_t$ as fixed
+and compares the observed association statistic to its distribution under
+random permutations of $Y_t$.
+The calibration target for this permutation scheme is the nodewise \emph{complete}
+(global) permutation null at the node,
 %
 \begin{equation}
-  H^{\mathrm{sel}}_{t,j}: X_{t,j} \perp Y_t.
+  H^{\mathrm{perm}}_t:\ (Y_t \mid X_t,U)\ \text{is exchangeable (permutation-invariant).}
 \end{equation}
 %
-We use this as a compact ``no association'' shorthand; the formal permutation-test requirement for calibration is the conditional exchangeability assumption in A0.2.
+This is the exchangeability assumption A0.2 (\cref{assump:exchangeability}).
+Under $H^{\mathrm{perm}}_t$ and fixed-$B$ Monte Carlo resampling, the +1
+permutation p-value is super-uniform (Theorem~\ref{them:plusone-superuniform}).
+In this manuscript, we interpret per-feature $p_{t,j}$ values as calibrated
+only in this fixed-node, complete-null setting; under alternatives, they are
+used as association scores, and $p_t^\star = \min_{j \in F_t} p_{t,j}$ is not a
+selection-adjusted p-value for the selected feature.
 
 \subsubsection{Selector statistics}
 \label{app:methods-selectors}
@@ -435,8 +445,8 @@ of permutation testing. These are useful engineering heuristics, but they change
 the inferential object: if the algorithm stops at a data-dependent time and then
 reports the running +1 estimate $(k+1)/(b+1)$, this value should not be treated
 as a classical fixed-$B$ Monte Carlo p-value without additional sequential
-analysis. For publication-grade p-value claims in this manuscript, use fixed-$B$
-mode (\texttt{early\_stopping\_* = None}) and report $B$ explicitly.
+analysis. For the fixed-$B$ p-value guarantees discussed in this manuscript, use
+fixed-$B$ mode (\texttt{early\_stopping\_* = None}) and report $B$ explicitly.
 
 \subsubsection{Simple sequential stopping (baseline)}
 \label{app:methods-sequential-simple}
@@ -645,8 +655,8 @@ estimation samples, \citrees retains the splitting-sample leaf value.
 \subsection{Connections and limiting cases (orientation; not theory)}
 \label{app:methods-connections}
 
-This manuscript's formal guarantees are intentionally narrow (fixed-node
-Stage~A screening in fixed-$B$ mode). Nevertheless, \citrees exposes a set of
+This manuscript's formal guarantees are scoped to fixed-node Stage~A screening
+in fixed-$B$ mode. Nevertheless, \citrees exposes a set of
 modular design axes that overlap with commonly used tree learners. The goal of
 this subsection is to orient the reader; it is \emph{not} a claim of exact
 equivalence.

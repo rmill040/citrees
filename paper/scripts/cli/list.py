@@ -49,7 +49,6 @@ def datasets(
 
     Shows dataset names, dimensions, and source information.
 
-    \b
     Examples:
         citrees-exp list datasets
         citrees-exp list datasets --task classification
@@ -150,7 +149,6 @@ def methods(
 
     Shows method names, descriptions, and categories.
 
-    \b
     Examples:
         citrees-exp list methods
         citrees-exp list methods --task classification

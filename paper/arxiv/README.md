@@ -20,6 +20,21 @@ Proof organization rule:
 - Each paper-facing claim has its **own appendix file** under `appendices/` (one
   appendix per claim).
 
+## Inferential scope (p-values)
+
+The manuscript is intentionally strict about what is (and is not) a calibrated
+p-value:
+
+- Only fixed-node/root Stage~A permutation p-values computed in **fixed-`B`**
+  mode under the **nodewise complete (global) permutation null** are treated as
+  calibrated.
+- Stage~B threshold tests, internal-node tests, and early-stopped permutation
+  outputs are treated as algorithmic statistics unless additional
+  selective-inference machinery or sample splitting is used.
+
+This contract is summarized in `paper/arxiv/sections/03_method.tex`
+(Table~`tab:pvalue-scope`) and reinforced in `paper/arxiv/sections/06_discussion.tex`.
+
 ## Build
 
 If you have `latexmk`:

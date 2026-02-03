@@ -39,12 +39,12 @@ repos:
         name: block-aws-configs
         language: system
         entry: python tools/hooks/check_no_aws_configs.py
-        files: ^paper/scripts/infra/(config|ray/cluster)\.yaml$
+        files: ^paper/scripts/infra/config\.yaml$
       - id: check-aws-templates
         name: check-aws-templates
         language: system
         entry: python tools/hooks/validate_templates.py
-        files: ^paper/scripts/infra/(config\.example\.yaml|ray/cluster\.example\.yaml)$
+        files: ^paper/scripts/infra/config\.example\.yaml$
       - id: prettier
         name: prettier
         language: node

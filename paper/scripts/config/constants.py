@@ -17,17 +17,10 @@ N_SEEDS = 5
 N_SPLITS = 5
 
 # =============================================================================
-# Timeouts
-# =============================================================================
-
-STALE_TIMEOUT_MINUTES = 30  # Stage 1 (feature selection)
-EVAL_STALE_TIMEOUT_MINUTES = 60  # Stage 2 (evaluation)
-
-# =============================================================================
 # AWS Configuration
 # =============================================================================
 
-# S3_BUCKET: Set via cluster.yaml (citrees-{account_id}), required for distributed runs
+# S3_BUCKET: Derived as citrees-{account_id} by aws.py, required for distributed runs
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
@@ -69,9 +62,9 @@ OPENML_IDS = {
 DEFAULT_PARAMS = {
     "rf": {"n_estimators": 100, "n_jobs": -1, "random_state": RANDOM_STATE},
     "et": {"n_estimators": 100, "n_jobs": -1, "random_state": RANDOM_STATE},
-    "xgb": {"n_estimators": 100, "n_jobs": -1, "random_state": RANDOM_STATE, "verbosity": 0},
-    "lgbm": {"n_estimators": 100, "n_jobs": -1, "random_state": RANDOM_STATE, "verbose": -1},
-    "cat": {"n_estimators": 100, "random_state": RANDOM_STATE, "verbose": 0},
+    "xgb": {"n_estimators": 500, "n_jobs": -1, "random_state": RANDOM_STATE, "verbosity": 0},
+    "lgbm": {"n_estimators": 500, "n_jobs": -1, "random_state": RANDOM_STATE, "verbose": -1},
+    "cat": {"n_estimators": 500, "random_state": RANDOM_STATE, "verbose": 0},
     "cit": {"random_state": RANDOM_STATE},
     "cif": {"n_estimators": 100, "n_jobs": -1, "random_state": RANDOM_STATE},
 }

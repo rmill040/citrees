@@ -7,7 +7,7 @@ This module provides the core domain logic for running experiments:
 - stage1: Feature selection logic
 - stage2: Downstream evaluation logic
 
-Ray workers import from this module directly (no CLI dependencies).
+Workers import from this module directly (no CLI dependencies).
 """
 
 from paper.scripts.pipeline.grid import ExperimentGrid

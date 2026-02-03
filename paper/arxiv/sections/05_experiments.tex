@@ -101,7 +101,7 @@ This subsection describes the figures/tables produced by the benchmark suite
 and states the intended takeaways. Figure panels and tables will be inserted
 after the experiment runs complete.
 
-\subsubsection{Selection bias under an exchangeable global null}
+\subsubsection{Selection bias under an exchangeable complete global null}
 \label{sec:experiments-selection-bias}
 
 \begin{figure}[t]
@@ -110,17 +110,17 @@ after the experiment runs complete.
     \centering
     \vspace{0.55in}
     \textbf{Figure placeholder.}\par
-    TODO: Insert the selection-bias demo figure (global null; high-cardinality noise).\par
+    TODO: Insert the selection-bias demo figure (complete global null; high-cardinality noise).\par
     \vspace{0.55in}
   \end{minipage}}
-  \caption{Selection bias in greedy split optimization under a global null and the effect of Stage~A screening at the root.
+  \caption{Selection bias in greedy split optimization under a complete global null (label exchangeability given covariates) and the effect of fixed-$B$ Stage~A screening at the root (Bonferroni).
   (TODO: replace placeholder with the generated figure and finalize caption details.)}
   \label{fig:selection-bias-demo}
 \end{figure}
 
-\noindent\textbf{Intended takeaway.} Greedy threshold search can favor features
-with many candidate split points under a global null, while Stage~A screening
-reduces root-level false splits in this setting.
+\noindent\textbf{Intended takeaway.} Under a complete global null, greedy
+threshold search can favor features with many candidate split points, while
+fixed-$B$ Stage~A screening reduces root-level false splits in this setting.
 
 \subsubsection{Synthetic ground-truth ranking quality}
 \label{sec:experiments-synthetic}

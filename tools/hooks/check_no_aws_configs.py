@@ -8,7 +8,6 @@ from pathlib import Path
 
 BLOCKED = {
     "paper/scripts/infra/config.yaml",
-    "paper/scripts/infra/ray/cluster.yaml",
 }
 
 
@@ -26,11 +25,7 @@ def main(argv: list[str]) -> int:
     blocked = []
     for arg in argv[1:]:
         norm = _normalize(arg)
-        if (
-            norm in BLOCKED
-            or norm.endswith("/paper/scripts/infra/config.yaml")
-            or norm.endswith("/paper/scripts/infra/ray/cluster.yaml")
-        ):
+        if norm in BLOCKED or norm.endswith("/paper/scripts/infra/config.yaml"):
             blocked.append(arg)
 
     if not blocked:
@@ -41,9 +36,7 @@ def main(argv: list[str]) -> int:
         + "".join(f"  - {path}\n" for path in blocked)
     )
     sys.stderr.write(
-        "Use the template files instead:\n"
-        "  - paper/scripts/infra/config.example.yaml\n"
-        "  - paper/scripts/infra/ray/cluster.example.yaml\n"
+        "Use the template file instead:\n" "  - paper/scripts/infra/config.example.yaml\n"
     )
     return 1
 

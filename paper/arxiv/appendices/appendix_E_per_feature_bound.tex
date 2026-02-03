@@ -13,7 +13,7 @@ Bonferroni threshold, hence $p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$. Therefore,
   \le \alpha_{\mathrm{sel}}/m_t,
 \end{equation}
 %
-by super-uniformity of $p_{t,j}$ under the null. Taking expectations over
+by super-uniformity of $p_{t,j}$ under the complete null. Taking expectations over
 $(X_t,U)$ yields the same bound unconditionally (interpreting $m_t$ as fixed by
 conditioning via A0.3).
 
@@ -22,10 +22,10 @@ conditioning via A0.3).
 
 \paragraph{Claim.} Corollary~\ref{cor:subsampling-per-feature}.
 \paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}) and uniform
-without-replacement feature subsampling from a full candidate set of size $p_t$.
+without-replacement feature subsampling from a full candidate set of size $\bar m_t$.
 
 Condition on $X_t$ and treat the full candidate set $\bar F_t$ and its size
-$p_t$ as fixed. Let $F_t$ be the tested subset obtained by sampling $m_t$
+$\bar m_t$ as fixed. Let $F_t$ be the tested subset obtained by sampling $m_t$
 features uniformly without replacement from $\bar F_t$, independently of $Y_t$.
 
 If $j \notin F_t$ then node $t$ cannot split on $j$. If $j \in F_t$, then
@@ -43,9 +43,9 @@ Taking expectations over $F_t$ conditional on $X_t$ yields
     \PP(\text{node $t$ splits on $j$} \mid X_t)
     &= \E\!\left[\PP(\text{node $t$ splits on $j$} \mid X_t,F_t)\,\middle|\, X_t\right] \\
     &\le \PP(j \in F_t \mid X_t)\cdot \alpha_{\mathrm{sel}}/m_t
-    = (m_t/p_t)\cdot \alpha_{\mathrm{sel}}/m_t
-    = \alpha_{\mathrm{sel}}/p_t,
+    = (m_t/\bar m_t)\cdot \alpha_{\mathrm{sel}}/m_t
+    = \alpha_{\mathrm{sel}}/\bar m_t,
   \end{aligned}
 \end{equation}
 %
-since under uniform subsampling $\PP(j \in F_t \mid X_t) = m_t/p_t$.
+since under uniform subsampling $\PP(j \in F_t \mid X_t) = m_t/\bar m_t$.

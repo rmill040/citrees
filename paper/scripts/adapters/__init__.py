@@ -2,11 +2,11 @@
 
 This module provides adapters for external services:
 - store: Store protocol + S3Store for artifact storage
-- runner: Runner protocol + RayRunner for distributed execution
+- runner: Runner protocol + LocalRunner for sequential execution
 - data: Dataset loading, discovery, and S3 caching
 
-These adapters implement the ports defined by the pipeline module,
-allowing different backends (S3, local, Ray, sequential) to be swapped.
+For distributed execution, use the API server (paper.scripts.api.server)
+and pull workers (paper.scripts.api.worker).
 """
 
 from paper.scripts.adapters.data import (
@@ -22,7 +22,7 @@ from paper.scripts.adapters.data import (
     get_repo_root,
     load_dataset,
 )
-from paper.scripts.adapters.runner import LocalRunner, RayRunner, Runner
+from paper.scripts.adapters.runner import LocalRunner, Runner
 from paper.scripts.adapters.store import (
     IgnoreExistsStore,
     S3Store,
@@ -40,7 +40,6 @@ __all__ = [
     "get_s3_bucket",
     # Runner
     "Runner",
-    "RayRunner",
     "LocalRunner",
     # Data
     "get_repo_root",

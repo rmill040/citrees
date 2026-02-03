@@ -7,7 +7,6 @@ classification and regression tasks.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 
 from paper.scripts.pipeline.types import MethodConfig
 
@@ -39,63 +38,11 @@ class MethodInfo:
 
 # Method metadata registry
 METHOD_INFO: dict[str, MethodInfo] = {
-    # Filter methods (classification)
-    "mc": MethodInfo(
-        name="mc",
-        display_name="Multiple Correlation",
-        description="ANOVA-based, [0,1] scale",
-        category="filter",
-        tasks=frozenset({"classification"}),
-    ),
-    "mi": MethodInfo(
-        name="mi",
-        display_name="Mutual Information",
-        description="Unbounded scale",
-        category="filter",
-        tasks=frozenset({"classification"}),
-    ),
-    # Filter methods (regression)
-    "pc": MethodInfo(
-        name="pc",
-        display_name="Pearson Correlation",
-        description="[0,1] scale after abs",
-        category="filter",
-        tasks=frozenset({"regression"}),
-    ),
-    "dc": MethodInfo(
-        name="dc",
-        display_name="Distance Correlation",
-        description="O(n^2), [0,1] scale",
-        category="filter",
-        tasks=frozenset({"regression"}),
-    ),
-    # Filter methods (both)
-    "rdc": MethodInfo(
-        name="rdc",
-        display_name="Randomized Dependence Coefficient",
-        description="O(n log n), [0,1] scale",
-        category="filter",
-        tasks=frozenset({"classification", "regression"}),
-    ),
-    "mrmr": MethodInfo(
-        name="mrmr",
-        display_name="Min Redundancy Max Relevance",
-        description="Greedy selection",
-        category="filter",
-        tasks=frozenset({"classification", "regression"}),
-    ),
     # Permutation test methods
     "ptest_mc": MethodInfo(
         name="ptest_mc",
         display_name="Permutation Test (MC)",
         description="ANOVA with permutation p-values",
-        category="ptest",
-        tasks=frozenset({"classification"}),
-    ),
-    "ptest_mi": MethodInfo(
-        name="ptest_mi",
-        display_name="Permutation Test (MI)",
-        description="MI with permutation p-values",
         category="ptest",
         tasks=frozenset({"classification"}),
     ),
@@ -224,16 +171,10 @@ METHOD_INFO: dict[str, MethodInfo] = {
 }
 
 
-# Classification methods (21 total)
+# Classification methods (18 total)
 CLF_METHODS = [
-    # Filter methods
-    "mc",
-    "mi",
-    "rdc",
-    "mrmr",
     # Permutation test methods
     "ptest_mc",
-    "ptest_mi",
     "ptest_rdc",
     # Embedding methods (tree-based)
     "cit",
@@ -255,13 +196,8 @@ CLF_METHODS = [
 ]
 
 
-# Regression methods (21 total)
+# Regression methods (18 total)
 REG_METHODS = [
-    # Filter methods
-    "pc",
-    "dc",
-    "rdc",
-    "mrmr",
     # Permutation test methods
     "ptest_pc",
     "ptest_dc",
@@ -305,47 +241,6 @@ THREADED_METHODS = {
 EMBEDDING_METHODS = {"cit", "cif", "rf", "et", "xgb", "lgbm", "cat"}
 
 
-# Resource tiers for Ray scheduling
-class SelectionTier(StrEnum):
-    """Resource tier for feature selection methods."""
-
-    LIGHT = "light"
-    STANDARD = "standard"
-    HEAVY = "heavy"
-
-
-SELECTION_TIERS: dict[str, SelectionTier] = {
-    # Filter — single-threaded, minimal memory
-    "mc": SelectionTier.LIGHT,
-    "pc": SelectionTier.LIGHT,
-    "rdc": SelectionTier.LIGHT,
-    "mi": SelectionTier.LIGHT,
-    "dc": SelectionTier.LIGHT,
-    "mrmr": SelectionTier.LIGHT,
-    # Embedding — tree ensembles using n_jobs
-    "rf": SelectionTier.STANDARD,
-    "et": SelectionTier.STANDARD,
-    "xgb": SelectionTier.STANDARD,
-    "lgbm": SelectionTier.STANDARD,
-    "cat": SelectionTier.STANDARD,
-    # Wrapper — iterative, threaded
-    "pi": SelectionTier.STANDARD,
-    "cpi": SelectionTier.STANDARD,
-    "rfe": SelectionTier.STANDARD,
-    "r_ctree": SelectionTier.STANDARD,
-    # Heavy — CIT/CIF (Numba parallel), Boruta (shadow features), SHAP, R cforest
-    "cit": SelectionTier.HEAVY,
-    "cif": SelectionTier.HEAVY,
-    "boruta": SelectionTier.HEAVY,
-    "shap": SelectionTier.HEAVY,
-    "r_cforest": SelectionTier.HEAVY,
-}
-
-SELECTION_TIER_RESOURCES: dict[SelectionTier, dict[str, int | float]] = {
-    SelectionTier.LIGHT: {"cpus": 1, "memory_gb": 2},
-    SelectionTier.STANDARD: {"cpus": 8, "memory_gb": 4},
-    SelectionTier.HEAVY: {"cpus": 16, "memory_gb": 8},
-}
 
 
 def get_methods(task: str) -> list[str]:

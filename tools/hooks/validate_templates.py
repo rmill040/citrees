@@ -6,14 +6,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-REQUIRED_CLUSTER_PLACEHOLDERS = [
-    "__MY_IP__",
-    "__S3_BUCKET__",
-    "__AWS_ACCOUNT__",
-    "__GIT_SHA__",
-    "__REGION__",
-]
-
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -25,15 +17,6 @@ def _read_text(path: Path) -> str:
     except FileNotFoundError:
         sys.stderr.write(f"ERROR: Missing template file: {path}\n")
         raise
-
-
-def _check_cluster_template(path: Path) -> list[str]:
-    text = _read_text(path)
-    missing = [token for token in REQUIRED_CLUSTER_PLACEHOLDERS if token not in text]
-    errors = []
-    if missing:
-        errors.append(f"{path}: missing required placeholders: {', '.join(missing)}")
-    return errors
 
 
 def _check_config_template(path: Path) -> list[str]:
@@ -55,12 +38,10 @@ def _check_config_template(path: Path) -> list[str]:
 
 def main() -> int:
     root = _repo_root()
-    cluster_path = root / "paper" / "scripts" / "infra" / "ray" / "cluster.example.yaml"
     config_path = root / "paper" / "scripts" / "infra" / "config.example.yaml"
 
     errors: list[str] = []
     try:
-        errors.extend(_check_cluster_template(cluster_path))
         errors.extend(_check_config_template(config_path))
     except FileNotFoundError:
         return 1

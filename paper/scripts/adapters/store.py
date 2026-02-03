@@ -45,8 +45,8 @@ def get_s3_bucket() -> str:
     if not bucket:
         raise RuntimeError(
             "S3_BUCKET is required but not set. "
-            "Set it explicitly (e.g., `export S3_BUCKET=...`) or use the Ray cluster setup "
-            "that exports S3_BUCKET on the head/workers."
+            "Set it explicitly (e.g., `export S3_BUCKET=...`) or use the infra setup "
+            "that exports S3_BUCKET on workers."
         )
     return bucket
 
@@ -188,7 +188,7 @@ class S3Store:
         return self._client
 
     def __getstate__(self) -> dict[str, Any]:
-        """Support pickling for Ray serialization (exclude non-serializable fields)."""
+        """Support pickling (exclude non-serializable fields)."""
         return {
             "bucket": self.bucket,
             "region": self.region,
@@ -314,7 +314,7 @@ class S3Store:
         bucket = os.environ.get("S3_BUCKET", "").strip()
         if not bucket:
             raise RuntimeError(
-                "S3_BUCKET is required but not set. Set it explicitly or use the Ray cluster setup."
+                "S3_BUCKET is required but not set. Set it explicitly or use the infra setup."
             )
         region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         return cls(bucket=bucket, region=region, validate_uploads=validate_uploads)
@@ -382,7 +382,7 @@ class IgnoreExistsStore:
         return self._store.list_completed(stage, task)
 
     def __getstate__(self) -> dict[str, Any]:
-        """Support pickling for Ray serialization."""
+        """Support pickling."""
         return {"store": self._store, "ignore_stages": self._ignore_stages}
 
     def __setstate__(self, state: dict[str, Any]) -> None:

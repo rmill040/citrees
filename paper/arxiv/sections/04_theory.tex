@@ -1,8 +1,8 @@
-\section{Theory (fixed-node / root guarantees)}
+\section{Theory (fixed-node/root guarantees under a complete null)}
 \label{sec:theory}
 
-This section states the inferential guarantees we use in the paper, in the
-strongest defensible form. Proofs are provided in the appendices.
+This section states the inferential guarantees used in the paper and the
+assumptions under which they hold. Proofs are provided in the appendices.
 
 \subsection{Setup and assumptions}
 \label{sec:theory-setup}
@@ -18,6 +18,18 @@ ledger in \cref{app:assumptions} and the compact checklist in
 exchangeability under the null, a label-independent tested family and resampling
 budget, fixed-$B$ p-values (no optional stopping), and a conservative or
 randomized tie convention.
+
+\paragraph{What null is being controlled.}
+Because the permutation null is stated conditionally on $(X_t,U)$ (treating the
+node covariates as fixed by the permutation scheme), the resulting calibration
+target is a nodewise \emph{complete} (global) permutation null: the labels are
+invariant to permutation given the full $X_t$ at the node.
+This is narrower than a partial-null claim of the form ``feature
+$j$ is null while other features may be associated with $Y_t$,'' which does not
+in general imply exchangeability conditional on the full $X_t$.
+It is the natural calibration target for controlling spurious splits in the
+no-signal regime at a node, which is where high-cardinality threshold-search
+bias is most transparent.
 
 \paragraph{Conditioning convention.}
 Since the permutation null is stated conditionally on $(X_t,U)$, the cleanest
@@ -58,11 +70,11 @@ Then for all $\alpha \in [0,1]$, $\PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,
 \subsection{Stage A control via Bonferroni}
 \label{sec:theory-stageA}
 
-\begin{proposition}[Stage A global-null bound at a fixed node]
+\begin{proposition}[Stage A complete-null bound at a fixed node]
 \label{prop:stageA-global-null}
-Assume A0.1--A0.5 (\cref{app:assumptions}).
-Assume $H^{\mathrm{sel}}_{t,j}$ is true for all $j \in F_t$ and each $p_{t,j}$ is
-super-uniform. If Stage~A uses Bonferroni and rejects when
+Assume A0.1--A0.5 (\cref{app:assumptions}). Under the nodewise complete null at
+$t$ (A0.2), the per-feature +1 Monte Carlo p-values $p_{t,j}$ are super-uniform.
+If Stage~A uses Bonferroni and rejects when
 $\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$, then
 %
 \begin{equation}
@@ -71,19 +83,19 @@ $\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$, then
 \end{proposition}
 
 \paragraph{Interpretation (family-wise error at a node).}
-Under the nodewise global null (all $H^{\mathrm{sel}}_{t,j}$ are true), the
-event inside the probability is the family-wise error event that at least one
-null feature is flagged significant at node $t$. Thus Proposition~\ref{prop:stageA-global-null}
+Under the nodewise complete null (all tested features are null), the event
+inside the probability is the family-wise error event that at least one tested
+feature is flagged significant at node $t$. Thus Proposition~\ref{prop:stageA-global-null}
 can be read as nodewise family-wise error rate (FWER) control at level
 $\alpha_{\mathrm{sel}}$ (conditional on $(X_t,U)$), without any dependence
 assumptions across features.
 
 \begin{proposition}[Per-feature false selection bound (cardinality-free)]
 \label{prop:per-feature-bound}
-Assume A0.1--A0.5 (\cref{app:assumptions}).
-Fix a feature $j \in F_t$ whose Stage~A null $H^{\mathrm{sel}}_{t,j}$ is true, so
-$p_{t,j}$ is super-uniform. If Stage~A uses Bonferroni at level
-$\alpha_{\mathrm{sel}}/m_t$, then
+Assume A0.1--A0.5 (\cref{app:assumptions}). Under the nodewise complete null at
+$t$ (A0.2), the per-feature +1 Monte Carlo p-values $p_{t,j}$ are super-uniform.
+If Stage~A uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$, then for any
+feature $j \in F_t$,
 %
 \begin{equation}
   \PP(\text{node $t$ splits on feature $j$} \mid X_t,U) \le \alpha_{\mathrm{sel}}/m_t.
@@ -99,9 +111,10 @@ Assume A0.1--A0.5 (\cref{app:assumptions}). Suppose that at the fixed node $t$ t
 algorithm begins from a full candidate set $\bar F_t$ with $\bar m_t := |\bar F_t|$
 and selects $F_t \subseteq \bar F_t$ by sampling $m_t$ features uniformly
 without replacement (as in \texttt{max\_features}), independently of $Y_t$.
-Fix a feature $j \in \bar F_t$ whose Stage~A null $H^{\mathrm{sel}}_{t,j}$ is
-true. If Stage~A uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$, then
-the bound below conditions on $X_t$ and averages over the feature-subsampling
+Assume the nodewise complete null at $t$ (A0.2) holds over the full candidate
+family $\bar F_t$. Fix any feature $j \in \bar F_t$. If Stage~A uses Bonferroni
+at level $\alpha_{\mathrm{sel}}/m_t$, then the bound below conditions on $X_t$
+and averages over the feature-subsampling
 randomness (a component of $U$):
 %
 \begin{equation}
@@ -140,7 +153,7 @@ tested root features of each tree,
 %
 If, in addition, each tree's root applies uniform feature subsampling as in
 \cref{cor:subsampling-per-feature} with $p$ available root features, then for
-any feature $j$ whose root Stage~A null is true,
+any feature $j$ under the complete root null,
 %
 \begin{equation}
   \E\!\left[\sum_{m=1}^M \ind\{\text{tree $m$ splits at the root on $j$}\}\right]

@@ -13,327 +13,44 @@ Usage:
     for method, size in grid_sizes("classification").items():
         print(f"{method}: {size}")
 """
-
-from __future__ import annotations
-
 from collections.abc import Callable
 from itertools import product
 from typing import Any
 
 from paper.scripts.config.constants import RANDOM_STATE
 
-# =============================================================================
-# PARAMETER DEPENDENCY DOCUMENTATION
-# =============================================================================
-#
-# CIT/CIF parameters form a dependency graph. Understanding these dependencies
-# is critical for generating valid configs and avoiding redundant experiments.
-#
-# CONFLICT RULES SUMMARY:
-#
-# Rule 1: n_resamples_selector = None
-#         -> adjust_alpha_selector, early_stopping_selector,
-#            early_stopping_confidence_selector, feature_muting have NO effect
-#
-# Rule 2: early_stopping_selector = None
-#         -> early_stopping_confidence_selector, feature_scanning have NO effect
-#
-# Rule 3: early_stopping_selector = "simple"
-#         -> early_stopping_confidence_selector has NO effect
-#
-# Rule 4: n_resamples_splitter = None
-#         -> adjust_alpha_splitter, early_stopping_splitter,
-#            early_stopping_confidence_splitter have NO effect
-#
-# Rule 5: early_stopping_splitter = None
-#         -> early_stopping_confidence_splitter, threshold_scanning have NO effect
-#
-# Rule 6: early_stopping_splitter = "simple"
-#         -> early_stopping_confidence_splitter has NO effect
-#
-# Rule 7: honesty = False
-#         -> honesty_fraction has NO effect
-#
-# Rule 8: threshold_method = "exact"
-#         -> max_thresholds has NO effect
-#
-# Rule 9: threshold_method + max_thresholds must be compatible:
-#         - exact: max_thresholds must be None
-#         - random: max_thresholds in [0.5, 0.8] (fraction)
-#         - percentile: max_thresholds in [10, 50] (num percentiles)
-#         - histogram: max_thresholds in [128, 256] (num bins)
-#
-# =============================================================================
 
-
-def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
-    """Normalize config by setting irrelevant params to defaults.
-
-    When a parameter has no effect (due to dependency rules), we set it to
-    a canonical default value. This allows detection of functionally
-    identical configs that differ only in irrelevant parameters.
-    """
-    c = config.copy()
-
-    # Rule 1: n_resamples_selector = None
-    if c.get("n_resamples_selector") is None:
-        c["adjust_alpha_selector"] = True
-        c["early_stopping_selector"] = None
-        c["early_stopping_confidence_selector"] = 0.95
-        c["feature_muting"] = True
-
-    # Rule 2: early_stopping_selector = None
-    if c.get("early_stopping_selector") is None:
-        c["early_stopping_confidence_selector"] = 0.95
-        c["feature_scanning"] = True
-
-    # Rule 3: early_stopping_selector = "simple"
-    if c.get("early_stopping_selector") == "simple":
-        c["early_stopping_confidence_selector"] = 0.95
-
-    # Rule 4: n_resamples_splitter = None
-    if c.get("n_resamples_splitter") is None:
-        c["adjust_alpha_splitter"] = True
-        c["early_stopping_splitter"] = None
-        c["early_stopping_confidence_splitter"] = 0.95
-
-    # Rule 5: early_stopping_splitter = None
-    if c.get("early_stopping_splitter") is None:
-        c["early_stopping_confidence_splitter"] = 0.95
-        c["threshold_scanning"] = True
-
-    # Rule 6: early_stopping_splitter = "simple"
-    if c.get("early_stopping_splitter") == "simple":
-        c["early_stopping_confidence_splitter"] = 0.95
-
-    # Rule 7: honesty = False
-    if not c.get("honesty"):
-        c["honesty_fraction"] = 0.5
-
-    # Rule 8: threshold_method = "exact"
-    if c.get("threshold_method") == "exact":
-        c["max_thresholds"] = None
-
-    return c
-
-
-def _make_hashable(v: Any) -> Any:
-    """Convert value to hashable type (lists become tuples)."""
-    if isinstance(v, list):
-        return tuple(v)
-    return v
-
-
-def _filter_param_conflicts(configs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Filter out functionally identical configs based on dependency rules."""
-    seen: set[tuple[tuple[str, Any], ...]] = set()
-    unique: list[dict[str, Any]] = []
-
-    for config in configs:
-        normalized = _normalize_config(config)
-        key = tuple(sorted((k, _make_hashable(v)) for k, v in normalized.items()))
-        if key not in seen:
-            seen.add(key)
-            unique.append(config)
-
-    return unique
-
-
-# Valid threshold_method + max_thresholds combinations (Rule 9)
+# Valid threshold_method + max_thresholds combinations
 VALID_THRESHOLD_COMBOS: dict[str, list[Any]] = {
     "exact": [None],
-    "random": [0.8],
-    "percentile": [50],
     "histogram": [256],
 }
 
 
-def _is_valid_threshold_combo(threshold_method: str, max_thresholds: Any) -> bool:
-    """Check if threshold_method and max_thresholds are compatible."""
-    return max_thresholds in VALID_THRESHOLD_COMBOS.get(threshold_method, [])
+def _is_valid_threshold_combo(config: dict[str, Any]) -> bool:
+    """Check that threshold_method and max_thresholds are a valid pair."""
+    method = config.get("threshold_method")
+    if method is None:
+        return True
+    return config.get("max_thresholds") in VALID_THRESHOLD_COMBOS.get(method, [])
 
 
-def _generate_cit_cif_configs(
-    selector_options: list[str | list[str]],
-    splitter_options: list[str],
+def _generate_filtered_grid(
+    param_grid: dict[str, list[Any]],
     method: str,
-    is_forest: bool = False,
-    is_classifier: bool = True,
+    filter_fn: Callable[[dict[str, Any]], bool],
 ) -> list[dict[str, Any]]:
-    """Generate CIT/CIF configs efficiently by only creating valid combinations.
-
-    This avoids generating millions of redundant configs by respecting
-    parameter dependencies during generation.
-    """
+    """Generate combinations from a param grid, excluding invalid ones via filter_fn."""
+    keys = list(param_grid.keys())
+    values = list(param_grid.values())
     params: list[dict[str, Any]] = []
-
-    # Selector-side effective combinations (respecting Rules 1-3)
-    selector_side_combos: list[dict[str, Any]] = []
-    for n_res_sel in ["auto", None]:
-        if n_res_sel is None:
-            # Rule 1: All dependent params fixed to defaults
-            selector_side_combos.append(
-                {
-                    "n_resamples_selector": None,
-                    "adjust_alpha_selector": True,
-                    "early_stopping_selector": None,
-                    "early_stopping_confidence_selector": 0.95,
-                    "feature_muting": True,
-                    "feature_scanning": True,
-                }
-            )
-        else:
-            for adj_alpha_sel in [True, False]:
-                for es_sel in ["adaptive", None]:
-                    if es_sel is None:
-                        # Rule 2: confidence and scanning fixed
-                        selector_side_combos.append(
-                            {
-                                "n_resamples_selector": n_res_sel,
-                                "adjust_alpha_selector": adj_alpha_sel,
-                                "early_stopping_selector": None,
-                                "early_stopping_confidence_selector": 0.95,
-                                "feature_muting": True,
-                                "feature_scanning": True,
-                            }
-                        )
-                        selector_side_combos.append(
-                            {
-                                "n_resamples_selector": n_res_sel,
-                                "adjust_alpha_selector": adj_alpha_sel,
-                                "early_stopping_selector": None,
-                                "early_stopping_confidence_selector": 0.95,
-                                "feature_muting": False,
-                                "feature_scanning": True,
-                            }
-                        )
-                    else:  # adaptive
-                        for conf_sel in [0.95]:
-                            for feat_mut in [True, False]:
-                                for feat_scan in [True, False]:
-                                    selector_side_combos.append(
-                                        {
-                                            "n_resamples_selector": n_res_sel,
-                                            "adjust_alpha_selector": adj_alpha_sel,
-                                            "early_stopping_selector": "adaptive",
-                                            "early_stopping_confidence_selector": conf_sel,
-                                            "feature_muting": feat_mut,
-                                            "feature_scanning": feat_scan,
-                                        }
-                                    )
-
-    # Splitter-side effective combinations (respecting Rules 4-6)
-    splitter_side_combos: list[dict[str, Any]] = []
-    for n_res_spl in ["auto", None]:
-        if n_res_spl is None:
-            # Rule 4: All dependent params fixed
-            splitter_side_combos.append(
-                {
-                    "n_resamples_splitter": None,
-                    "adjust_alpha_splitter": True,
-                    "early_stopping_splitter": None,
-                    "early_stopping_confidence_splitter": 0.95,
-                    "threshold_scanning": True,
-                }
-            )
-        else:
-            for adj_alpha_spl in [True, False]:
-                for es_spl in ["adaptive", None]:
-                    if es_spl is None:
-                        # Rule 5: confidence and scanning fixed
-                        splitter_side_combos.append(
-                            {
-                                "n_resamples_splitter": n_res_spl,
-                                "adjust_alpha_splitter": adj_alpha_spl,
-                                "early_stopping_splitter": None,
-                                "early_stopping_confidence_splitter": 0.95,
-                                "threshold_scanning": True,
-                            }
-                        )
-                    else:  # adaptive
-                        for conf_spl in [0.95]:
-                            for thresh_scan in [True, False]:
-                                splitter_side_combos.append(
-                                    {
-                                        "n_resamples_splitter": n_res_spl,
-                                        "adjust_alpha_splitter": adj_alpha_spl,
-                                        "early_stopping_splitter": "adaptive",
-                                        "early_stopping_confidence_splitter": conf_spl,
-                                        "threshold_scanning": thresh_scan,
-                                    }
-                                )
-
-    # Threshold combos (Rule 8-9)
-    threshold_combos: list[dict[str, Any]] = []
-    for thresh_method, max_thresh_opts in VALID_THRESHOLD_COMBOS.items():
-        for max_thresh in max_thresh_opts:
-            threshold_combos.append(
-                {
-                    "threshold_method": thresh_method,
-                    "max_thresholds": max_thresh,
-                }
-            )
-
-    # Honesty combos (Rule 7)
-    honesty_combos: list[dict[str, Any]] = [
-        {"honesty": False, "honesty_fraction": 0.5},
-        {"honesty": True, "honesty_fraction": 0.5},
-    ]
-
-    # Forest-specific combos
-    if is_forest:
-        if is_classifier:
-            forest_combos = list(
-                product(
-                    [None],  # max_samples
-                    ["bayesian", "classic"],  # bootstrap_method
-                    [None, "stratified"],  # sampling_method
-                )
-            )
-        else:
-            forest_combos = list(
-                product(
-                    [None],  # max_samples
-                    ["bayesian", "classic"],  # bootstrap_method
-                )
-            )
-    else:
-        forest_combos = [None]
-
-    # Generate all valid combinations
-    for selector in selector_options:
-        for splitter in splitter_options:
-            for alpha_sel in [0.05]:
-                for alpha_spl in [0.05]:
-                    for sel_combo in selector_side_combos:
-                        for spl_combo in splitter_side_combos:
-                            for thresh_combo in threshold_combos:
-                                for hon_combo in honesty_combos:
-                                    for forest_combo in forest_combos:
-                                        config = {
-                                            "selector": selector,
-                                            "splitter": splitter,
-                                            "alpha_selector": alpha_sel,
-                                            "alpha_splitter": alpha_spl,
-                                            **sel_combo,
-                                            **spl_combo,
-                                            **thresh_combo,
-                                            **hon_combo,
-                                            "method": method,
-                                            "random_state": RANDOM_STATE,
-                                        }
-                                        if is_forest:
-                                            if is_classifier:
-                                                config["max_samples"] = forest_combo[0]
-                                                config["bootstrap_method"] = forest_combo[1]
-                                                config["sampling_method"] = forest_combo[2]
-                                            else:
-                                                config["max_samples"] = forest_combo[0]
-                                                config["bootstrap_method"] = forest_combo[1]
-                                            config["n_estimators"] = 100
-                                            config["n_jobs"] = -1
-                                        params.append(config)
-
+    for combo in product(*values):
+        config = dict(zip(keys, combo, strict=False))
+        if not filter_fn(config):
+            continue
+        config["method"] = method
+        config["random_state"] = RANDOM_STATE
+        params.append(config)
     return params
 
 
@@ -363,96 +80,129 @@ def _generate_simple_grid(
 # CLASSIFICATION PARAMETER GRIDS
 # =============================================================================
 
-CLF_FILTER_GRID: dict[str, list[Any]] = {}  # No hyperparameters
-
 CLF_PTEST_GRID: dict[str, list[Any]] = {
     "alpha": [0.05],
-    "n_resamples": ["minimum", "maximum", "auto"],
-    "early_stopping": ["adaptive", "simple", None],
+    "n_resamples": ["auto"],
+    "early_stopping": ["adaptive"],
 }
 
 CLF_RF_GRID: dict[str, list[Any]] = {
-    "max_samples": [None, 0.8],
-    "class_weight": [None, "balanced"],
+    "max_samples": [None],
+    "class_weight": ["balanced"],
     "n_estimators": [100],
     "n_jobs": [-1],
 }
 
 CLF_ET_GRID: dict[str, list[Any]] = {
-    "class_weight": [None, "balanced"],
+    "class_weight": ["balanced"],
     "n_estimators": [100],
     "n_jobs": [-1],
 }
 
 CLF_XGB_GRID: dict[str, list[Any]] = {
-    "max_depth": [2, 4, 6],
-    "learning_rate": [0.01, 0.1],
-    "subsample": [1.0],
-    "colsample_bytree": [1.0],
-    "reg_alpha": [0.01, None],
-    "reg_lambda": [0.01, None],
+    "max_depth": [6],
+    "learning_rate": [0.1],
     "importance_type": ["gain", "weight", "cover", "total_gain", "total_cover"],
     "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 CLF_LGBM_GRID: dict[str, list[Any]] = {
-    "max_depth": [2, 4, 6],
-    "learning_rate": [0.01, 0.1],
-    "subsample": [1.0],
-    "colsample_bytree": [1.0],
-    "reg_alpha": [0.01, None],
-    "reg_lambda": [0.01, None],
+    "max_depth": [6],
+    "learning_rate": [0.1],
     "importance_type": ["split", "gain"],
-    "class_weight": [None, "balanced"],
     "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 CLF_CAT_GRID: dict[str, list[Any]] = {
-    "depth": [2, 4, 6],
-    "learning_rate": [0.01, 0.1],
-    "l2_leaf_reg": [1, 5],
-    "colsample_bylevel": [1.0],
-    "auto_class_weights": [None, "Balanced"],
+    "depth": [6],
+    "learning_rate": [0.1],
+    "l2_leaf_reg": [1],
     "n_estimators": [500],
     "allow_writing_files": [False],
 }
 
 CLF_BORUTA_GRID: dict[str, list[Any]] = {
-    "n_estimators": ["auto", 100, 200],
-    "max_iter": [100, 200],
+    "n_estimators": ["auto"],
+    "max_iter": [200],
 }
 
 CLF_PI_GRID: dict[str, list[Any]] = {
-    "n_repeats": [5, 10, 20],
+    "n_repeats": [10],
 }
 
 CLF_CPI_GRID: dict[str, list[Any]] = {
-    "n_repeats": [5, 10, 20],
+    "n_repeats": [10],
 }
 
 CLF_SHAP_GRID: dict[str, list[Any]] = {
-    "max_samples": [100, 500, 1000],
+    "max_samples": [500],
 }
 
 CLF_RFE_GRID: dict[str, list[Any]] = {}
 
 
 # =============================================================================
+# CIT/CIF PARAMETER GRIDS (shared base + task-specific overrides)
+# =============================================================================
+
+_CIT_CIF_BASE: dict[str, list[Any]] = {
+    "alpha_selector": [0.05],
+    "alpha_splitter": [0.05],
+    # Selector
+    "n_resamples_selector": ["minimum", "auto"],
+    "adjust_alpha_selector": [True],
+    "early_stopping_selector": ["adaptive"],
+    "early_stopping_confidence_selector": [0.95],
+    "feature_muting": [True],
+    "feature_scanning": [True],
+    # Splitter
+    "n_resamples_splitter": ["minimum", "auto"],
+    "adjust_alpha_splitter": [True],
+    "early_stopping_splitter": ["adaptive"],
+    "early_stopping_confidence_splitter": [0.95],
+    "threshold_scanning": [True],
+    # Threshold (filtered: exact→None, histogram→256)
+    "threshold_method": ["exact", "histogram"],
+    "max_thresholds": [None, 256],
+    # Honesty
+    "honesty": [False, True],
+    "honesty_fraction": [0.5],
+}
+
+CLF_CIT_GRID: dict[str, list[Any]] = {"selector": ["mc", "rdc"], "splitter": ["gini"], **_CIT_CIF_BASE}
+CLF_CIF_GRID: dict[str, list[Any]] = {
+    **CLF_CIT_GRID,
+    "max_samples": [None],
+    "bootstrap_method": ["bayesian", "classic"],
+    "sampling_method": ["stratified"],
+    "n_estimators": [100],
+    "n_jobs": [-1],
+}
+
+REG_CIT_GRID: dict[str, list[Any]] = {"selector": ["pc", "dc", "rdc"], "splitter": ["mse"], **_CIT_CIF_BASE}
+REG_CIF_GRID: dict[str, list[Any]] = {
+    **REG_CIT_GRID,
+    "max_samples": [None],
+    "bootstrap_method": ["bayesian", "classic"],
+    "n_estimators": [100],
+    "n_jobs": [-1],
+}
+
+
+# =============================================================================
 # REGRESSION PARAMETER GRIDS
 # =============================================================================
 
-REG_FILTER_GRID: dict[str, list[Any]] = {}  # No hyperparameters
-
 REG_PTEST_GRID: dict[str, list[Any]] = {
     "alpha": [0.05],
-    "n_resamples": ["minimum", "maximum", "auto"],
-    "early_stopping": ["adaptive", "simple", None],
+    "n_resamples": ["auto"],
+    "early_stopping": ["adaptive"],
 }
 
 REG_RF_GRID: dict[str, list[Any]] = {
-    "max_samples": [None, 0.8],
+    "max_samples": [None],
     "n_estimators": [100],
     "n_jobs": [-1],
 }
@@ -463,53 +213,44 @@ REG_ET_GRID: dict[str, list[Any]] = {
 }
 
 REG_XGB_GRID: dict[str, list[Any]] = {
-    "max_depth": [2, 4, 6],
-    "learning_rate": [0.01, 0.1],
-    "subsample": [1.0],
-    "colsample_bytree": [1.0],
-    "reg_alpha": [0.01, None],
-    "reg_lambda": [0.01, None],
+    "max_depth": [6],
+    "learning_rate": [0.1],
     "importance_type": ["gain", "weight", "cover", "total_gain", "total_cover"],
     "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 REG_LGBM_GRID: dict[str, list[Any]] = {
-    "max_depth": [2, 4, 6],
-    "learning_rate": [0.01, 0.1],
-    "subsample": [1.0],
-    "colsample_bytree": [1.0],
-    "reg_alpha": [0.01, None],
-    "reg_lambda": [0.01, None],
+    "max_depth": [6],
+    "learning_rate": [0.1],
     "importance_type": ["split", "gain"],
     "n_estimators": [500],
     "n_jobs": [-1],
 }
 
 REG_CAT_GRID: dict[str, list[Any]] = {
-    "depth": [2, 4, 6],
-    "learning_rate": [0.01, 0.1],
-    "l2_leaf_reg": [1, 5],
-    "colsample_bylevel": [1.0],
+    "depth": [6],
+    "learning_rate": [0.1],
+    "l2_leaf_reg": [1],
     "n_estimators": [500],
     "allow_writing_files": [False],
 }
 
 REG_BORUTA_GRID: dict[str, list[Any]] = {
-    "n_estimators": ["auto", 100, 200],
-    "max_iter": [100, 200],
+    "n_estimators": ["auto"],
+    "max_iter": [200],
 }
 
 REG_PI_GRID: dict[str, list[Any]] = {
-    "n_repeats": [5, 10, 20],
+    "n_repeats": [10],
 }
 
 REG_CPI_GRID: dict[str, list[Any]] = {
-    "n_repeats": [5, 10, 20],
+    "n_repeats": [10],
 }
 
 REG_SHAP_GRID: dict[str, list[Any]] = {
-    "max_samples": [100, 500, 1000],
+    "max_samples": [500],
 }
 
 REG_RFE_GRID: dict[str, list[Any]] = {}
@@ -520,25 +261,25 @@ REG_RFE_GRID: dict[str, list[Any]] = {}
 # =============================================================================
 
 R_CTREE_GRID: dict[str, list[Any]] = {
-    "teststat": ["quadratic", "maximum"],
-    "testtype": ["Bonferroni", "MonteCarlo", "Univariate"],
+    "teststat": ["quadratic"],
+    "testtype": ["Bonferroni", "MonteCarlo"],
     "alpha": [0.05],
-    "nresample": [1000, 9999],
-    "minsplit": [20, 10],
-    "minbucket": [7, 5],
+    "nresample": [9999],
+    "minsplit": [20],
+    "minbucket": [7],
 }
 
 R_CFOREST_GRID: dict[str, list[Any]] = {
-    "teststat": ["quadratic", "maximum"],
-    "testtype": ["Bonferroni", "MonteCarlo", "Univariate"],
+    "teststat": ["quadratic"],
+    "testtype": ["Bonferroni", "MonteCarlo"],
     "mincriterion": [0.95],
-    "nresample": [1000, 9999],
+    "nresample": [9999],
     "ntree": [100],
     "mtry": ["sqrt", "all"],
     "replace": [False, True],
-    "fraction": [0.632, 0.8],
-    "varimp_conditional": [False, True],
-    "varimp_nperm": [1, 5],
+    "fraction": [0.632],
+    "varimp_conditional": [False],
+    "varimp_nperm": [1],
 }
 
 
@@ -547,30 +288,8 @@ R_CFOREST_GRID: dict[str, list[Any]] = {
 # =============================================================================
 
 
-def clf_mc() -> list[dict[str, Any]]:
-    return _generate_simple_grid(CLF_FILTER_GRID, "mc")
-
-
-def clf_mi() -> list[dict[str, Any]]:
-    return _generate_simple_grid(CLF_FILTER_GRID, "mi")
-
-
-def clf_rdc() -> list[dict[str, Any]]:
-    return _generate_simple_grid(CLF_FILTER_GRID, "rdc")
-
-
-def clf_mrmr() -> list[dict[str, Any]]:
-    return _generate_simple_grid(CLF_FILTER_GRID, "mrmr")
-
-
 def clf_ptest_mc() -> list[dict[str, Any]]:
     return _generate_simple_grid(CLF_PTEST_GRID, "ptest_mc")
-
-
-def clf_ptest_mi() -> list[dict[str, Any]]:
-    # MI permutation test uses fewer alpha values (computationally expensive)
-    grid = {**CLF_PTEST_GRID, "alpha": [0.05]}
-    return _generate_simple_grid(grid, "ptest_mi")
 
 
 def clf_ptest_rdc() -> list[dict[str, Any]]:
@@ -598,23 +317,11 @@ def clf_cat() -> list[dict[str, Any]]:
 
 
 def clf_cit() -> list[dict[str, Any]]:
-    return _generate_cit_cif_configs(
-        selector_options=["mc", "mi", "rdc"],
-        splitter_options=["gini"],
-        method="cit",
-        is_forest=False,
-        is_classifier=True,
-    )
+    return _generate_filtered_grid(CLF_CIT_GRID, "cit", _is_valid_threshold_combo)
 
 
 def clf_cif() -> list[dict[str, Any]]:
-    return _generate_cit_cif_configs(
-        selector_options=["mc", "mi", "rdc"],
-        splitter_options=["gini"],
-        method="cif",
-        is_forest=True,
-        is_classifier=True,
-    )
+    return _generate_filtered_grid(CLF_CIF_GRID, "cif", _is_valid_threshold_combo)
 
 
 def clf_boruta() -> list[dict[str, Any]]:
@@ -645,30 +352,12 @@ def clf_r_cforest() -> list[dict[str, Any]]:
     return _generate_simple_grid(R_CFOREST_GRID, "r_cforest")
 
 
-def reg_pc() -> list[dict[str, Any]]:
-    return _generate_simple_grid(REG_FILTER_GRID, "pc")
-
-
-def reg_dc() -> list[dict[str, Any]]:
-    return _generate_simple_grid(REG_FILTER_GRID, "dc")
-
-
-def reg_rdc() -> list[dict[str, Any]]:
-    return _generate_simple_grid(REG_FILTER_GRID, "rdc")
-
-
-def reg_mrmr() -> list[dict[str, Any]]:
-    return _generate_simple_grid(REG_FILTER_GRID, "mrmr")
-
-
 def reg_ptest_pc() -> list[dict[str, Any]]:
     return _generate_simple_grid(REG_PTEST_GRID, "ptest_pc")
 
 
 def reg_ptest_dc() -> list[dict[str, Any]]:
-    # DC permutation test uses fewer alpha values (computationally expensive)
-    grid = {**REG_PTEST_GRID, "alpha": [0.05]}
-    return _generate_simple_grid(grid, "ptest_dc")
+    return _generate_simple_grid(REG_PTEST_GRID, "ptest_dc")
 
 
 def reg_ptest_rdc() -> list[dict[str, Any]]:
@@ -696,23 +385,11 @@ def reg_cat() -> list[dict[str, Any]]:
 
 
 def reg_cit() -> list[dict[str, Any]]:
-    return _generate_cit_cif_configs(
-        selector_options=["pc", "dc", "rdc"],
-        splitter_options=["mse"],
-        method="cit",
-        is_forest=False,
-        is_classifier=False,
-    )
+    return _generate_filtered_grid(REG_CIT_GRID, "cit", _is_valid_threshold_combo)
 
 
 def reg_cif() -> list[dict[str, Any]]:
-    return _generate_cit_cif_configs(
-        selector_options=["pc", "dc", "rdc"],
-        splitter_options=["mse"],
-        method="cif",
-        is_forest=True,
-        is_classifier=False,
-    )
+    return _generate_filtered_grid(REG_CIF_GRID, "cif", _is_valid_threshold_combo)
 
 
 def reg_boruta() -> list[dict[str, Any]]:
@@ -748,14 +425,8 @@ def reg_r_cforest() -> list[dict[str, Any]]:
 # =============================================================================
 
 CLF_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
-    # Filter methods
-    "mc": clf_mc,
-    "mi": clf_mi,
-    "rdc": clf_rdc,
-    "mrmr": clf_mrmr,
     # Permutation tests
     "ptest_mc": clf_ptest_mc,
-    "ptest_mi": clf_ptest_mi,
     "ptest_rdc": clf_ptest_rdc,
     # Tree-based
     "rf": clf_rf,
@@ -777,11 +448,6 @@ CLF_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
 }
 
 REG_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
-    # Filter methods
-    "pc": reg_pc,
-    "dc": reg_dc,
-    "rdc": reg_rdc,
-    "mrmr": reg_mrmr,
     # Permutation tests
     "ptest_pc": reg_ptest_pc,
     "ptest_dc": reg_ptest_dc,

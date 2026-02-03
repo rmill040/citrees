@@ -11,8 +11,8 @@ Decision trees provide an appealing embedding feature selector: the split
 structure yields an implicit ranking, and tree-based ensembles scale well in
 practice. However, classical CART-style trees choose split variables by
 maximizing a data-dependent objective over many candidate thresholds. This
-creates a systematic selection bias: even under a global null where all
-features are unrelated to the response, features with more candidate split
+creates a systematic selection bias: even under a complete global null where the
+response is unrelated to the covariates, features with more candidate split
 points are more likely to produce extreme impurity improvements by chance.
 This ``high-cardinality'' selection bias has been documented for variable
 importance in random forests and related models \citep{Strobl2007BiasRFVariableImportance},
@@ -38,10 +38,12 @@ algorithmic statistics (\cref{sec:pvalue-scope}).
 
 \paragraph{Contributions.}
 This paper presents:
-(i)~finite-sample, fixed-node (pre-specified; especially root) validity statements for Stage~A
-permutation-based variable selection in fixed-$B$ mode, including +1 Monte Carlo
-p-value super-uniformity (conservative under the null) and Bonferroni-based bounds that do not depend on a
-feature's number of candidate thresholds;
+(i)~finite-sample, fixed-node (pre-specified; especially root) guarantees for
+Stage~A screening in fixed-$B$ mode under a nodewise \emph{complete} (global)
+permutation null, including +1 Monte Carlo p-value super-uniformity and
+Bonferroni-based bounds on the probability of splitting and on splitting on any
+particular tested feature, without any dependence on a feature's number of
+candidate thresholds;
 (ii)~a set of practical implementation optimizations for scaling conditional
 inference trees and forests, together with a clean scoping of which outputs are
 treated as classical p-values versus algorithmic stopping statistics; and

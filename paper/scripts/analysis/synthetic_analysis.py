@@ -35,14 +35,16 @@ def dataset_type_from_config(config: dict) -> str:
         return "toeplitz"
     if config.get("weak_signal", False):
         return "weak_signal"
+    if config.get("friedman_variant") is not None:
+        return "friedman"
     if config.get("nonlinear", False):
         return "nonlinear"
+    if config.get("heteroscedastic", False):
+        return "heteroscedastic"
     if config.get("n_high_cardinality_noise", 0) > 0:
         return "bias"
     if config.get("n_correlated_noise", 0) > 0:
         return "confounder"
-    if config.get("n_correlated_blocks", 0) > 0:
-        return "correlated"
     if config.get("n_redundant", 0) > 0:
         return "redundant"
     return "standard"
@@ -63,18 +65,22 @@ def load_synthetic_metadata(data_dir: Path) -> dict[str, dict]:
     """
     metadata = {}
 
-    for filepath in data_dir.glob("clf_synthetic_*.parquet"):
+    for filepath in data_dir.glob("*_synthetic_*.parquet"):
         table = pq.read_table(filepath, columns=[])  # Just read schema
         schema_meta = table.schema.metadata
 
         if schema_meta and schema_meta.get(b"synthetic") == b"true":
-            name = filepath.stem.replace("clf_", "")
-            metadata[name] = {
+            # Strip clf_ or reg_ prefix
+            stem = filepath.stem
+            for prefix in ("clf_", "reg_"):
+                if stem.startswith(prefix):
+                    stem = stem[len(prefix) :]
+                    break
+            metadata[stem] = {
                 "config": json.loads(schema_meta[b"config"]),
                 "informative_indices": json.loads(schema_meta[b"informative_indices"]),
                 "redundant_indices": json.loads(schema_meta.get(b"redundant_indices", b"[]")),
                 "noise_indices": json.loads(schema_meta.get(b"noise_indices", b"[]")),
-                "correlated_indices": json.loads(schema_meta.get(b"correlated_indices", b"[]")),
                 "correlated_noise_indices": json.loads(
                     schema_meta.get(b"correlated_noise_indices", b"[]")
                 ),
@@ -146,9 +152,7 @@ def analyze_results(
         redundant_indices = meta.get("redundant_indices", [])
         config = meta["config"]
         informative_plus_redundant = sorted(set(true_indices) | set(redundant_indices))
-        confounder_indices = meta.get("correlated_noise_indices") or meta.get(
-            "correlated_indices", []
-        )
+        confounder_indices = meta.get("correlated_noise_indices", [])
         n_features_final = meta.get("n_features_final", 0)
 
         # Determine k values
@@ -181,7 +185,6 @@ def analyze_results(
                 "flip_y": config.get("flip_y", 0.0),
                 "nonlinear": config.get("nonlinear", False),
                 "n_high_cardinality_noise": config.get("n_high_cardinality_noise", 0),
-                "n_correlated_blocks": config.get("n_correlated_blocks", 0),
                 "n_correlated_noise": config.get("n_correlated_noise", 0),
                 "n_redundant": config.get("n_redundant", 0),
                 "toeplitz_rho": config.get("toeplitz_rho", 0.0),
@@ -231,7 +234,6 @@ def summarize_by_method(df: pd.DataFrame) -> pd.DataFrame:
                 "precision@",
                 "recall@",
                 "f1@",
-                "f1@",
                 "precision_ir@",
                 "recall_ir@",
                 "f1_ir@",
@@ -269,6 +271,7 @@ def summarize_by_dataset_type(df: pd.DataFrame) -> pd.DataFrame:
             (
                 "precision@",
                 "recall@",
+                "f1@",
                 "precision_ir@",
                 "recall_ir@",
                 "f1_ir@",

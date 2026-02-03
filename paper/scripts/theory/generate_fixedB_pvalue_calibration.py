@@ -1,6 +1,7 @@
 """Fixed-B permutation p-value calibration (Theorem 1 backstop).
 
-This script empirically checks that the +1 Monte Carlo permutation p-value is (super-)uniform under the null.
+This script empirically checks that the +1 Monte Carlo permutation p-value is (super-)uniform under the null
+(exchangeability target of the permutation scheme; in the paper this corresponds to the nodewise complete permutation null).
 
 We use the regressor selector test `ptest_pc` (Pearson correlation permutation test) as an example, but the calibration
 is a consequence of exchangeability (Theorem 1), not of this particular statistic.

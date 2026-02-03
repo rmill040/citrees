@@ -5,6 +5,21 @@ Scripts and data for reproducing the citrees paper experiments.
 > **AWS Note:** Commands that access S3 or Ray clusters require AWS credentials.
 > Set `AWS_PROFILE` if not using your default profile.
 
+## Inferential scope note (p-values)
+
+This experiments pipeline produces many quantities that are colloquially called
+``p-values'' (e.g., permutation-test outputs during tree growth). In the arXiv
+manuscript, only **fixed-node/root Stage A** permutation p-values computed in
+**fixed-$B$** mode under the **nodewise complete permutation null**
+(exchangeability target of the permutation scheme) are treated as calibrated.
+Stage~B threshold tests, internal-node tests, and early-stopped outputs are
+treated as algorithmic statistics unless additional selective-inference
+machinery or sample splitting is used.
+
+When generating any calibration figure/table, make the simulated null explicit
+in captions (e.g., **complete global null**) and ensure it matches the paper’s
+scope table and assumptions.
+
 ## Directory Structure
 
 ```
@@ -23,24 +38,32 @@ paper/
 ├── scripts/
 │   ├── adapters/                     # External system adapters
 │   │   ├── data.py                   # Dataset loading and S3 caching
-│   │   ├── runner.py                 # Ray runner abstraction
+│   │   ├── runner.py                 # Execution interface (LocalRunner)
 │   │   └── store.py                  # S3 artifact storage
+│   ├── api/                          # Distributed execution
+│   │   ├── server.py                 # FastAPI queue server
+│   │   └── worker.py                 # Pull-based worker process
 │   ├── cli/                          # CLI commands
 │   │   ├── app.py                    # Main CLI application
-│   │   ├── cluster.py                # Ray cluster operations
-│   │   └── ...                       # Other CLI modules
+│   │   ├── cluster.py                # API server + worker operations
+│   │   ├── infra.py                  # AWS infrastructure commands
+│   │   ├── config.py                 # Configuration management
+│   │   ├── list.py                   # Dataset/method discovery
+│   │   └── watch.py                  # Interactive dashboard
 │   ├── config/                       # Configuration
 │   │   ├── settings.py               # Config dataclasses
 │   │   └── constants.py              # Static constants
 │   ├── pipeline/                     # Core experiment pipeline
 │   │   ├── stage1.py                 # Stage 1: Feature selection
 │   │   ├── stage2.py                 # Stage 2: Downstream evaluation
-│   │   ├── methods.py                # Method definitions
+│   │   ├── methods.py                # Method definitions and categories
 │   │   ├── grid.py                   # Experiment grid builder
+│   │   ├── config.py                 # Method hyperparameter grids
 │   │   └── types.py                  # Type definitions
 │   ├── analysis/                     # Analysis and visualization
 │   │   ├── stats.py                  # Statistical tests + tables
 │   │   ├── synthetic_analysis.py     # Precision/recall@k analysis
+│   │   ├── download_and_aggregate.py # S3 download + aggregation
 │   │   └── generate_figures.py       # Paper figure generation
 │   ├── data_generation/              # Dataset generation
 │   │   └── generate_synthetic_datasets.py
@@ -48,9 +71,10 @@ paper/
 │   │   ├── env.py                    # Environment helpers
 │   │   └── metrics.py                # Evaluation metrics
 │   └── infra/                        # Infrastructure
-│       └── ray/
-│           ├── cluster.yaml          # Ray cluster config
-│           └── setup_cluster.py      # Cluster config generator
+│       ├── aws.py                    # AWS account helpers (IAM, S3, ECR)
+│       ├── ec2.py                    # EC2 instance management
+│       ├── config.example.yaml       # Infra config template
+│       └── docker/                   # Docker build files
 └── results/                          # Local cache (S3 is source of truth)
 ```
 
@@ -78,24 +102,27 @@ print(f'Top 5 features: {ranking[:5]}')
 See [infrastructure.md](infrastructure.md) for full AWS setup.
 
 ```bash
-# One-time setup (IAM + S3 + ECR + Docker + cluster.yaml)
+# One-time setup (IAM + Docker image + S3 bucket + datasets)
 citrees-exp infra setup
+citrees-exp infra s3
+citrees-exp infra upload-data
 
-# Start Ray cluster
-citrees-exp cluster up --yes
+# Launch API server + workers on EC2
+citrees-exp infra launch-api
+citrees-exp infra launch-workers --count 5   # auto-discovers API private IP
 
-# Run experiments (skips existing results by default)
-citrees-exp run classification
-
-# Check progress
-citrees-exp check
+# Monitor progress
+citrees-exp run                        # poll queue status
+citrees-exp check                      # S3 progress check
+citrees-exp watch                      # interactive dashboard
 
 # Tear down
-citrees-exp cluster down --yes
+citrees-exp infra terminate-workers
+citrees-exp infra terminate-api
 ```
 
-Note: The Ray cluster runs inside Docker on EC2. To allow containers to fetch
-instance profile credentials via IMDSv2, the cluster config sets hop limit 2:
+Note: Workers run inside Docker on EC2. To allow containers to fetch instance
+profile credentials via IMDSv2, the EC2 instances set hop limit 2:
 
 ```yaml
 MetadataOptions:
@@ -109,7 +136,7 @@ MetadataOptions:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ STAGE 1: Feature Selection (pipeline/stage1.py)                         │
 │                                                                          │
-│ Ray Workers ──→ S3 (rankings)                                           │
+│ Workers pull configs from API ──→ S3 (rankings)                         │
 │                                                                          │
 │ N configs = methods × datasets × seeds                                  │
 │ Output: s3://bucket/rankings/{task}/{dataset}/{method_id}_seed{s}.parquet  │
@@ -119,7 +146,7 @@ MetadataOptions:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ STAGE 2: Downstream Evaluation (pipeline/stage2.py)                     │
 │                                                                          │
-│ Ray Workers ──→ S3 (metrics)                                            │
+│ Workers pull configs from API ──→ S3 (metrics)                          │
 │                                                                          │
 │ Evaluates at k = [5, 10, 25, 50, 100, all]                             │
 │ Output: s3://bucket/metrics/{task}/{dataset}/{method_id}_seed{s}.parquet   │
@@ -130,33 +157,37 @@ MetadataOptions:
 
 - Stage 1 (slow) runs independently from Stage 2 (fast)
 - Can re-run Stage 2 with different downstream models
-- Skips existing results by default (submit only configs without artifacts)
-- Spot instance fault tolerance via Ray
+- API server auto-skips completed S3 artifacts on startup
+- Workers self-terminate when queues drain
 
-**Default workflow:**
+**How it works:**
 
-```bash
-# Preview what would run (skips existing by default)
-citrees-exp run classification --dry-run
+The API server (`paper/scripts/api/server.py`) builds the full experiment grid
+on startup, checks S3 for completed work, and serves remaining configs via
+`POST /next`. Workers (`paper/scripts/api/worker.py`) pull one config at a time,
+execute it, save to S3, and repeat.
 
-# Run only configs missing in S3 (default behavior)
-citrees-exp run classification
-```
+**Reruns:** Delete specific S3 objects and restart the API server, which will
+re-discover the gaps.
 
-**Reruns:** use `--force` to re-run everything, or delete specific S3 objects
-then re-run.
-
-## End-to-End Analysis Sequence (Ray → S3 → Local)
+## End-to-End Analysis Sequence (API + Workers → S3 → Local)
 
 This is the **full** analysis flow for real‑data benchmarks.
 
 ### 1) Run experiments
 
 ```bash
-citrees-exp run classification                   # Stage 1 + 2 (skips existing)
-citrees-exp run classification --stage stage1   # Stage 1 only
-citrees-exp run classification --stage stage2   # Stage 2 only
-citrees-exp run classification --force          # Re-run everything
+# Start API server (locally or on EC2)
+citrees-exp cluster api-start                    # local
+citrees-exp infra launch-api                     # EC2
+
+# Start workers
+citrees-exp cluster worker-start                 # local (single worker)
+citrees-exp infra launch-workers --count 5       # EC2 (N workers)
+
+# Monitor progress
+citrees-exp run                                  # poll queue until empty
+citrees-exp check                                # S3 progress snapshot
 ```
 
 ### 2) Download + aggregate S3 artifacts to local parquet
@@ -188,16 +219,13 @@ uv run python paper/scripts/analysis/generate_figures.py --profile paper
 
 ## Methods
 
-### Classification (21 methods)
+### Classification (18 methods)
 
 | Method      | Type        | Description                               |
 | ----------- | ----------- | ----------------------------------------- |
 | `mc`        | filter      | Multiple correlation (ANOVA-based)        |
-| `mi`        | filter      | Mutual information                        |
 | `rdc`       | filter      | Randomized dependence coefficient         |
-| `mrmr`      | filter      | Minimum Redundancy Maximum Relevance      |
 | `ptest_mc`  | permutation | MC with permutation test                  |
-| `ptest_mi`  | permutation | MI with permutation test                  |
 | `ptest_rdc` | permutation | RDC with permutation test                 |
 | `cit`       | embedding   | Conditional Inference Tree (citrees)      |
 | `cif`       | embedding   | Conditional Inference Forest (citrees)    |
@@ -216,14 +244,13 @@ uv run python paper/scripts/analysis/generate_figures.py --profile paper
 
 **Downstream models:** LogisticRegression, SVM, kNN
 
-### Regression (21 methods)
+### Regression (18 methods)
 
 | Method      | Type        | Description                               |
 | ----------- | ----------- | ----------------------------------------- |
 | `pc`        | filter      | Pearson correlation                       |
 | `dc`        | filter      | Distance correlation                      |
 | `rdc`       | filter      | Randomized dependence coefficient         |
-| `mrmr`      | filter      | Minimum Redundancy Maximum Relevance      |
 | `ptest_pc`  | permutation | PC with permutation test                  |
 | `ptest_dc`  | permutation | DC with permutation test                  |
 | `ptest_rdc` | permutation | RDC with permutation test                 |
@@ -286,46 +313,38 @@ Generate datasets with known ground truth for precision/recall@k:
 uv run python paper/scripts/data_generation/generate_synthetic_datasets.py
 ```
 
-**Dataset types (169 total):**
+**Classification (8 datasets):**
 
-| Type        | Count | Description                                        |
-| ----------- | ----- | -------------------------------------------------- |
-| STANDARD    | 108   | Varying features, informative, samples, separation |
-| BIAS        | 9     | High-cardinality noise (selection bias test)       |
-| NONLINEAR   | 6     | Friedman #1 (tests nonlinear methods)              |
-| CORRELATED  | 6     | Correlated feature blocks                          |
-| REDUNDANT   | 3     | Linear combinations of informative features        |
-| CORR_NOISE  | 4     | Correlated noise features (confounders)            |
-| TOEPLITZ    | 24    | Toeplitz covariance structure                      |
-| WEAK_SIGNAL | 9     | Low class separation + label noise                 |
+| Dataset | Phenomenon | Paper claim |
+| --- | --- | --- |
+| `synthetic_toeplitz_p100_k10_n1000_r0.95` | Correlated features | Unbiased selection (Strobl et al.) |
+| `synthetic_corr_noise_p100_k10_n1000_noise20_r0.9` | Confounded noise | Variable importance bias |
+| `synthetic_nonlinear_p100_n1000` | Nonlinear (Friedman #1) | RDC beats MC |
+| `synthetic_weak_p100_k10_n1000_sep0.1_flip0.1` | Weak signal | Type I error control |
+| `synthetic_bias_noise50_levels500` | High-cardinality | ctree advantage over CART |
+| `synthetic_redundant20` | Redundant features | Feature muting validation |
+| `synthetic_p100_k10_n1000_sep2.0` | Ground truth (easy) | Metrics pipeline validation |
+| `synthetic_p1000_k5_n200_sep0.5` | Ground truth (hard) | High-p, small-n ranking |
 
-Ground truth stored in parquet schema metadata.
+**Regression (8 datasets):**
 
-### Flat File Naming (Synthetic)
+| Dataset | Phenomenon | Paper claim |
+| --- | --- | --- |
+| `synthetic_toeplitz_p100_k10_n1000_r0.95` | Correlated features | Unbiased selection |
+| `synthetic_corr_noise_p100_k10_n1000_noise20_r0.9` | Confounded noise | Variable importance bias |
+| `synthetic_friedman1_p100_n1000_noise1.0` | Nonlinear (Friedman #1) | DC/RDC beat PC |
+| `synthetic_weak_p100_k10_n1000_noise50.0` | Weak signal | Type I error control |
+| `synthetic_heteroscedastic_scale4.0_noise5.0` | Heteroscedastic | Robustness |
+| `synthetic_redundant20` | Redundant features | Feature muting validation |
+| `synthetic_p100_k10_n1000_noise1.0` | Ground truth (easy) | Metrics pipeline validation |
+| `synthetic_p500_k5_n200_noise10.0` | Ground truth (hard) | High-p, small-n ranking |
 
-All synthetic **classification** datasets are saved under
-`paper/data/classification/synthetic/` with the prefix `clf_synthetic_`:
+Datasets saved as `clf_synthetic_*.parquet` and `reg_synthetic_*.parquet`
+under `paper/data/{classification,regression}/synthetic/`.
 
-```
-clf_synthetic_{name}.parquet
-```
-
-Name patterns by dataset type:
-
-```
-synthetic_p{p}_k{k}_n{n}_sep{sep}
-synthetic_bias_noise{n_noise}_levels{n_levels}
-synthetic_nonlinear_p{p}_n{n}
-synthetic_corr_blocks{n_corr}_r{rho}
-synthetic_redundant{n_redundant}
-synthetic_corr_noise_p{p}_k{k}_n{n}_noise{n_corr}_r{rho}
-synthetic_toeplitz_p{p}_k{k}_n{n}_r{rho}
-synthetic_weak_p{p}_k{k}_n{n}_sep{sep}_flip{flip}
-```
-
-Metadata fields stored in parquet schema include `config`,
-`informative_indices`, `redundant_indices`, `correlated_indices`,
-`correlated_noise_indices`, and `noise_indices`.
+Ground truth stored in parquet schema metadata: `config`,
+`informative_indices`, `redundant_indices`, `correlated_noise_indices`,
+and `noise_indices`.
 
 ## Check Progress
 
@@ -454,17 +473,14 @@ requires bootstrap to be enabled.
 
 ## Config Calculation
 
-**Classification:** 21 methods × N datasets × 10 seeds **Regression:** 21
-methods × N datasets × 10 seeds
+Each method has its own hyperparameter grid (see
+`paper/scripts/pipeline/config.py`). Total unique method configs:
 
-Example with 169 synthetic + 7 real datasets = 176 datasets:
+- Classification: 11,645 configs (CIT: 2,184, CIF: 8,736, other: 725)
+- Regression: 7,214 configs (CIT: 2,184, CIF: 4,368, other: 662)
 
-- Classification: 21 × 176 × 10 = **36,960 configs**
-- Regression: 21 × 176 × 10 = **36,960 configs**
+Queue size = method_configs × datasets × 5 seeds:
 
-Note: Each method has its own hyperparameter grid (see
-`paper/scripts/pipeline/methods.py`). Total unique configurations including
-hyperparameters:
-
-- Classification: ~214,000 configs
-- Regression: ~120,000 configs
+- Classification: 11,645 × 32 datasets (24 real + 8 synthetic) × 5 = **1,863,200**
+- Regression: 7,214 × 16 datasets (8 real + 8 synthetic) × 5 = **577,120**
+- **Total: ~2.4M tasks**

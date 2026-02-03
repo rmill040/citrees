@@ -7,7 +7,7 @@ optimizing an impurity objective over a large set of candidates
 \citep{Breiman1984ClassificationAndRegressionTrees}. For a continuous feature
 with many unique values, the candidate set of midpoints can be large; when the
 tree compares the best candidate across many features, the procedure resembles
-an extreme-value search. Under global null models, this creates a
+an extreme-value search. Under a complete global null, this creates a
 multiple-comparisons effect: features with more candidate thresholds are more
 likely to look best by chance. This mechanism has been analyzed in the context
 of random-forest importance measures \citep{Strobl2007BiasRFVariableImportance},
@@ -67,5 +67,5 @@ Phipson--Smyth ``+1'' correction yields p-values that are finite-sample
 super-uniform (conservative under the null) under exchangeability \citep{PhipsonSmyth2010PermutationPValues}.
 There is also a large literature on sequential Monte Carlo tests and optional
 stopping \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests};
-we treat early stopping as a computational heuristic and do not make
-optional-stopping validity claims for early-stopped outputs in this paper.
+we treat early stopping as a computational heuristic and do not claim
+optional-stopping validity for early-stopped outputs in this paper.

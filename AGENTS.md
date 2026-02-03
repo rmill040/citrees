@@ -43,22 +43,28 @@ citrees/
 ├── tests/                  # Pytest test suite
 │   ├── conftest.py         # Pytest fixtures and JIT control
 │   ├── data/               # Test datasets (parquet format)
-│   ├── integration/        # Integration tests
-│   └── unit/               # Unit tests
+│   ├── unit/               # Unit tests for citrees/* modules
+│   ├── integration/        # Integration tests for citrees/* (tree, forest, parameters, edge_cases)
+│   └── paper/              # Tests for paper/scripts/* (use -m "not paper" to skip)
 ├── docs/                   # MkDocs documentation source
 ├── tools/                  # Development tools
 │   └── hooks/              # Pre-commit hook scripts
 └── paper/                  # Research paper experiments
-    ├── data/               # Experiment datasets
+    ├── arxiv/              # LaTeX manuscript (arXiv source)
+    ├── docs/               # Experiment runbook, infra guide, claims tracker
+    ├── data/               # Experiment datasets (parquet)
     ├── results/            # Experiment outputs (parquet, figures, tables)
     └── scripts/
+        ├── adapters/       # External system adapters (S3, data loading, runner)
+        ├── api/            # FastAPI queue server and pull-based worker
         ├── analysis/       # Statistical tests, visualizations, figures
-        ├── cli/            # CLI for running experiments
+        ├── cli/            # Typer CLI (citrees-exp entry point)
+        ├── config/         # Configuration (settings, constants)
         ├── data_generation/# Synthetic dataset generation
-        ├── experiments/    # Ray-based feature selection experiments
-        ├── infra/          # AWS/Ray cluster setup and management
+        ├── infra/          # AWS setup (IAM, S3, ECR, EC2, Docker)
+        ├── pipeline/       # Core experiment pipeline (stage1, stage2, grid, methods)
         ├── theory/         # Sequential stopping analysis scripts
-        └── utils/          # Shared utilities, configs, metrics
+        └── utils/          # Shared utilities (env, metrics)
 ```
 
 ## Core Classes
@@ -398,6 +404,191 @@ and **do not claim results you did not run**.
      ```bash
      UV_CACHE_DIR=./scratch/.uv_cache uv run pytest -k "<relevant_keyword>" -v
      ```
+
+---
+
+# Experiment CLI (`citrees-exp`)
+
+The `citrees-exp` CLI manages the research paper's experiment infrastructure.
+Defined in `pyproject.toml` as:
+
+```toml
+[project.scripts]
+citrees-exp = "paper.scripts.cli.entrypoint:main"
+```
+
+Install with the `paper` dependency group:
+
+```bash
+UV_CACHE_DIR=./scratch/.uv_cache uv sync --group paper
+```
+
+## CLI Command Reference
+
+### Top-Level Commands
+
+| Command               | Description                                |
+| --------------------- | ------------------------------------------ |
+| `citrees-exp run`     | Poll API server for live queue progress    |
+| `citrees-exp smoke`   | Quick local smoke test (no API needed)     |
+| `citrees-exp check`   | Check S3 experiment progress               |
+| `citrees-exp watch`   | Interactive Rich dashboard with key nav    |
+
+### `config` Subgroup
+
+| Command                    | Description                        |
+| -------------------------- | ---------------------------------- |
+| `citrees-exp config show`  | Display current config             |
+| `citrees-exp config init`  | Initialize config from template    |
+| `citrees-exp config validate` | Validate config schema          |
+| `citrees-exp config path`  | Show config file paths             |
+
+### `list` Subgroup
+
+| Command                     | Description                       |
+| --------------------------- | --------------------------------- |
+| `citrees-exp list datasets` | List available datasets           |
+| `citrees-exp list methods`  | List feature selection methods    |
+
+### `infra` Subgroup (AWS)
+
+| Command                          | Description                            |
+| -------------------------------- | -------------------------------------- |
+| `citrees-exp infra setup`        | Full setup (IAM + Docker)              |
+| `citrees-exp infra iam`          | Create IAM role + instance profile     |
+| `citrees-exp infra s3`           | Create S3 bucket                       |
+| `citrees-exp infra upload-data`  | Upload datasets to S3                  |
+| `citrees-exp infra ecr create`   | Create ECR repository                  |
+| `citrees-exp infra ecr build`    | Build + push Docker image to ECR       |
+| `citrees-exp infra ecr clean`    | Delete all ECR images                  |
+| `citrees-exp infra launch-api`   | Launch API server on EC2               |
+| `citrees-exp infra api-url`      | Print running API server URL           |
+| `citrees-exp infra terminate-api`| Terminate API server instance          |
+| `citrees-exp infra launch-workers` | Launch EC2 worker instances          |
+| `citrees-exp infra list-workers` | List running worker instances          |
+| `citrees-exp infra terminate-workers` | Terminate all workers             |
+| `citrees-exp infra logs`         | Fetch CloudWatch logs (api/worker)     |
+
+### `cluster` Subgroup (Local Processes)
+
+| Command                            | Description                      |
+| ---------------------------------- | -------------------------------- |
+| `citrees-exp cluster api-start`    | Start API queue server locally   |
+| `citrees-exp cluster api-status`   | Show API queue status            |
+| `citrees-exp cluster worker-start` | Start worker process locally     |
+
+## Two-Stage Pipeline
+
+```
+Stage 1: Feature Selection (pipeline/stage1.py)
+  Input:  dataset + method config
+  Output: s3://bucket/rankings/{task}/{dataset}/{method_id}_seed{s}.parquet
+
+Stage 2: Downstream Evaluation (pipeline/stage2.py)
+  Input:  rankings from Stage 1
+  Output: s3://bucket/metrics/{task}/{dataset}/{method_id}_seed{s}.parquet
+  Evaluates at k = [5, 10, 25, 50, 100, all]
+  Downstream models: LR, SVM, KNN (clf) / Ridge, SVR, KNN (reg)
+```
+
+## Distributed Architecture (API Server + EC2 Workers)
+
+The experiment infrastructure uses a pull-based API server model (not Ray):
+
+```
+┌─────────────────────┐      ┌───────────────────────────────┐
+│   API Server (EC2)  │◄────►│      S3 Bucket                │
+│   FastAPI + queues  │      │  rankings/ + metrics/         │
+│   POST /next        │      └───────────────────────────────┘
+│   GET  /status      │
+└──────────┬──────────┘
+           │  HTTP
+    ┌──────┴──────┐
+    ▼             ▼
+┌────────┐  ┌────────┐
+│Worker 1│  │Worker N│   EC2 instances (m5.8xlarge)
+│ Docker │  │ Docker │   Pull config → execute → save to S3
+└────────┘  └────────┘
+```
+
+**API server** (`paper/scripts/api/server.py`): FastAPI app with 4 lazy queues
+(rankings/classification, rankings/regression, metrics/classification,
+metrics/regression). On startup it builds the full experiment grid and subtracts
+completed S3 artifacts. Workers call `POST /next` to get work.
+
+**Worker** (`paper/scripts/api/worker.py`): Pull-based loop. Gets config from
+API, runs `_run_selection()` or `_run_evaluation()`, saves result to S3, repeats
+until queues drain or idle timeout.
+
+## Adapters
+
+| Module              | Purpose                                           |
+| ------------------- | ------------------------------------------------- |
+| `adapters/data.py`  | Dataset loading (local filesystem, S3 fallback)   |
+| `adapters/runner.py`| Execution interface (`LocalRunner` for smoke tests) |
+| `adapters/store.py` | S3 artifact storage (save/load/exists/list)       |
+
+## Pipeline Types
+
+| Type               | Location               | Description                        |
+| ------------------ | ---------------------- | ---------------------------------- |
+| `MethodConfig`     | `pipeline/types.py`    | Frozen dataclass: method + params  |
+| `ExperimentConfig` | `pipeline/types.py`    | Frozen dataclass: method + dataset + seed + task |
+| `Result`           | `pipeline/types.py`    | Mutable dataclass: config + status + data |
+| `ExperimentGrid`   | `pipeline/grid.py`     | Grid builder from CLI args         |
+
+## Method Categories
+
+Methods are defined in `paper/scripts/pipeline/methods.py`:
+
+| Category    | Classification                                        | Regression                                            |
+| ----------- | ----------------------------------------------------- | ----------------------------------------------------- |
+| Perm. test  | `ptest_mc`, `ptest_rdc`                              | `ptest_pc`, `ptest_dc`, `ptest_rdc`                  |
+| Embedding   | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` |
+| Wrapper     | `boruta`, `pi`, `cpi`, `shap`, `rfe`                 | `boruta`, `pi`, `cpi`, `shap`, `rfe`                 |
+
+## Configuration
+
+**Config file**: `paper/scripts/infra/config.yaml` (created via
+`citrees-exp config init` from `config.example.yaml`)
+
+**Key settings** (`paper/scripts/config/settings.py`):
+
+- `aws_region`: Default `us-east-1`
+- `s3_bucket`: Auto-derived as `citrees-{account_id}`
+- `experiment.n_seeds`: Default 5
+- `experiment.s3_validate_uploads`: Default True
+
+**Constants** (`paper/scripts/config/constants.py`):
+
+- `RANDOM_STATE`: 1718
+- `N_SEEDS`: 5, `N_SPLITS`: 5
+- `CLF_DOWNSTREAM_MODELS`: `["lr", "svm", "knn"]`
+- `REG_DOWNSTREAM_MODELS`: `["ridge", "svr", "knn"]`
+- `EVALUATION_K_VALUES`: `[5, 10, 25, 50, 100]`
+
+## Typical Workflow
+
+```bash
+# 1. Setup infrastructure (one-time)
+citrees-exp config init
+citrees-exp infra setup           # IAM + Docker
+citrees-exp infra s3              # Create S3 bucket
+citrees-exp infra upload-data     # Upload datasets
+
+# 2. Launch API server + workers on EC2
+citrees-exp infra launch-api
+citrees-exp infra launch-workers --count 5   # auto-discovers API private IP
+
+# 3. Monitor progress
+citrees-exp run                       # poll queue status
+citrees-exp watch                     # interactive dashboard
+citrees-exp check --by-method         # S3 progress check
+
+# 4. Tear down
+citrees-exp infra terminate-workers
+citrees-exp infra terminate-api
+```
 
 ---
 

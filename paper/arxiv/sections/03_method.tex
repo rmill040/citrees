@@ -47,12 +47,13 @@ testing to stop drawing permutations early). Unless stated otherwise, the
 formal guarantees in \cref{sec:theory} are limited to fixed-$B$ testing and a
 label-independent tested family at a fixed node.
 Because $p_t^\star$ is a minimum over $m_t$ tests, it is not a
-selection-adjusted p-value for the selected feature. Under the nodewise global
-null, a conservative global-null p-value for the Stage~A \emph{decision} is
+selection-adjusted p-value for the selected feature. Under the nodewise
+\emph{complete} (global) null at $t$, a conservative global-null p-value for the
+Stage~A \emph{decision} is
 $\tilde p_t^{\mathrm{sel}} := \min(1,\, m_t p_t^\star)$, which yields the same
 reject/accept rule as comparing $p_t^\star$ to $\alpha_{\mathrm{sel}}/m_t$.
-Under the nodewise global null at $t$ (all tested features are null), this
-Bonferroni rule controls the probability of rejecting any null feature at level
+Under the nodewise complete null at $t$ (all tested features are null), this
+Bonferroni rule controls the probability of rejecting any tested feature at level
 $\alpha_{\mathrm{sel}}$ in fixed-$B$ mode under the assumptions in
 \cref{sec:theory} (see \cref{prop:stageA-global-null}).
 Implementation-aligned Stage~A pseudocode is given in
@@ -115,11 +116,11 @@ computational heuristics (e.g., sequential permutation testing and early-termina
 In particular:
 \begin{itemize}
   \item \textbf{Stage A at a fixed node (fixed-$B$, exhaustive scan):} per-feature +1 Monte Carlo
-  permutation p-values are valid (super-uniform) under the exchangeability and
-  label-independence assumptions in \cref{sec:theory}. The selected-feature
+  permutation p-values are valid (super-uniform) under the nodewise complete-null
+  exchangeability and label-independence assumptions in \cref{sec:theory}. The selected-feature
   minimum $p_t^\star$ is not selection-adjusted; the Bonferroni decision can be
   summarized by the conservative global-null p-value
-  $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$ under the nodewise global null.
+  $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$ under the nodewise complete null.
   \item \textbf{Stage B threshold p-values:} these are computed after selecting
   $j_t^\star$ using the same labels, so they are post-selection/adaptive. We
   treat them as split-selection scores unless additional post-selection
@@ -146,10 +147,10 @@ In particular:
     \midrule
     $p_{t,j}$ (+1 MC) &
     Stage~A, fixed node, fixed-$B$ &
-    Classical permutation p-value; super-uniform under A0.1--A0.5. \\
+    Classical permutation p-value; super-uniform under A0.1--A0.5 (complete-null exchangeability). \\
     $p_t^\star = \min_{j\in F_t} p_{t,j}$ &
     Stage~A feature selection &
-    Not selection-adjusted; Bonferroni decision at a node can be summarized by $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$ under the nodewise global null. \\
+    Not selection-adjusted; Bonferroni decision at a node can be summarized by $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$ under the nodewise complete null. \\
     $p_t^{\mathrm{split}}$ &
     Stage~B threshold selection &
     Post-selection/adaptive (computed after selecting $j_t^\star$ using the same labels); treated as a split-selection score unless additional machinery is used. \\

@@ -21,15 +21,12 @@ def get_repo_root() -> Path:
     """Return the repository root path.
 
     Resolution order:
-    1) CITREES_REPO_ROOT env var (set by init_ray for local mode workers)
-    2) /home/ubuntu/citrees (Ray EC2 cluster setup)
-    3) Relative to this file (development fallback)
+    1) CITREES_REPO_ROOT env var
+    2) Relative to this file (development fallback)
     """
     env_root = os.environ.get("CITREES_REPO_ROOT")
     if env_root:
         return Path(env_root)
-    if Path("/home/ubuntu/citrees").exists():
-        return Path("/home/ubuntu/citrees")
     return Path(__file__).resolve().parents[3]
 
 
@@ -78,7 +75,7 @@ def get_git_sha() -> str:
     repo_root = get_repo_root()
     try:
         return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True, stderr=subprocess.DEVNULL
         ).strip()
     except Exception:
         return "unknown"

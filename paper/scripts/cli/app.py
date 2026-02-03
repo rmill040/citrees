@@ -6,12 +6,12 @@ experiments, checking progress, and managing infrastructure.
 
 from __future__ import annotations
 
+import time
 from collections import defaultdict
-from itertools import islice
 from typing import Annotated, Any, Literal, cast
 
+import httpx
 import typer
-from rich.progress import Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from paper.scripts.cli._console import (
     console,
@@ -64,438 +64,87 @@ def _get_cluster_app() -> typer.Typer:
 app.add_typer(_get_config_app(), name="config", help="Configuration management")
 app.add_typer(_get_list_app(), name="list", help="List datasets and methods")
 app.add_typer(_get_infra_app(), name="infra", help="AWS infrastructure setup")
-app.add_typer(_get_cluster_app(), name="cluster", help="Ray cluster operations")
+app.add_typer(_get_cluster_app(), name="cluster", help="API server and worker operations")
 
 
-def _resolve_ray_address(address: str) -> str:
-    """Resolve Ray address, auto-detecting cluster head if needed.
-
-    - "local": returns as-is (local Ray mode)
-    - "auto": gets head IP from cluster.yaml, returns <ip>:6379 (direct GCS connection; avoids Ray Client)
-    - other: returns as-is (user-specified address)
-    """
-    if address == "local":
-        return address
-
-    if address == "auto":
-        # Try to get head IP from cluster config
-        from paper.scripts.cli.cluster import _get_head_ip
-
-        head_ip = _get_head_ip()
-        if head_ip:
-            # Use direct GCS connection instead of Ray Client to avoid flooding the head
-            # with client-side scheduling messages on large grids.
-            resolved = f"{head_ip}:6379"
-            info(f"Auto-detected Ray address: {resolved}")
-            return resolved
-        else:
-            # Fall back to "auto" which lets Ray try to find a local cluster
-            warn("Could not get head IP from cluster config, using local auto-detection")
-            return "auto"
-
-    return address
-
-
-# Type aliases for common parameters
-Task = Annotated[
-    Literal["classification", "regression"],
-    typer.Argument(
-        help="Task type: classification or regression",
-        metavar="TASK",
-    ),
-]
-
-StageOption = Annotated[
-    Literal["all", "stage1", "stage2"],
-    typer.Option(
-        "--stage",
-        "-s",
-        help="Stage to run: all, stage1, or stage2",
-    ),
-]
+def _poll_status(api_url: str) -> dict[str, Any]:
+    """Get full queue status from the API."""
+    client = httpx.Client(base_url=api_url, timeout=10.0)
+    try:
+        resp = client.get("/status")
+        resp.raise_for_status()
+        return resp.json()
+    finally:
+        client.close()
 
 
 @app.command()
 def run(
-    task: Task,
-    stage: StageOption = "all",
-    methods: Annotated[
-        str | None,
-        typer.Option(
-            "--methods",
-            "-m",
-            help="Comma-separated list of methods to run",
-        ),
-    ] = None,
-    datasets: Annotated[
-        str | None,
-        typer.Option(
-            "--datasets",
-            "-d",
-            help="Comma-separated list of datasets to run",
-        ),
-    ] = None,
-    seeds: Annotated[
-        str | None,
-        typer.Option(
-            "--seeds",
-            help="Comma-separated list of seed indices to run",
-        ),
-    ] = None,
-    source: Annotated[
-        Literal["all", "real", "synthetic"],
-        typer.Option(
-            "--source",
-            help="Dataset source filter: real, synthetic, or all",
-        ),
-    ] = "all",
-    force: Annotated[
-        bool,
-        typer.Option(
-            "--force",
-            "-f",
-            help="Re-run all configs, even if results already exist in S3",
-        ),
-    ] = False,
-    dry_run: Annotated[
-        bool,
-        typer.Option(
-            "--dry-run",
-            help="Show what would be run without executing",
-        ),
-    ] = False,
-    dry_run_limit: Annotated[
-        int,
-        typer.Option(
-            "--dry-run-limit",
-            help="Max items to show in dry run",
-        ),
-    ] = 20,
-    ray_address: Annotated[
+    api_url: Annotated[
         str,
         typer.Option(
-            "--ray-address",
-            help="Ray cluster address (default: auto)",
+            "--api-url",
+            help="API server URL (default: $CITREES_API_URL or http://localhost:8000)",
+            envvar="CITREES_API_URL",
         ),
-    ] = "auto",
-    max_in_flight: Annotated[
-        int,
+    ] = "http://localhost:8000",
+    poll_interval: Annotated[
+        float,
         typer.Option(
-            "--max-in-flight",
-            help="Max number of Ray tasks pending at once (prevents driver OOM / Ray Client flooding)",
+            "--poll-interval",
+            help="Seconds between status polls",
         ),
-    ] = 1024,
-    max_configs_per_method: Annotated[
-        int | None,
-        typer.Option(
-            "--max-configs-per-method",
-            help="Limit configs per method (useful for testing)",
-        ),
-    ] = None,
+    ] = 10.0,
 ) -> None:
-    """Run experiment pipeline (Stage 1 rankings + Stage 2 metrics).
+    """Poll the API server and display queue progress until all queues are empty.
 
-    By default, skips configs that already have results in S3.
-    Use --force to re-run all configs.
+    The server auto-populates its queues on startup from S3. This command
+    just connects and shows live progress. Press Ctrl+C to stop polling.
 
-    \b
     Examples:
-        citrees-exp run classification
-        citrees-exp run classification --stage stage1
-        citrees-exp run regression -m cit,boruta --dry-run
-        citrees-exp run classification --force  # re-run everything
+        citrees-exp run
+        citrees-exp run --api-url http://api-host:8000
+        citrees-exp run --poll-interval 5
     """
-    from paper.scripts.adapters import IgnoreExistsStore, RayRunner, S3Store
-    from paper.scripts.config import load_config
-    from paper.scripts.pipeline import ExperimentGrid
-    from paper.scripts.pipeline.stage1 import selection_memory_bytes, selection_num_cpus
-    from paper.scripts.pipeline.stage2 import evaluation_memory_bytes, evaluation_num_cpus
-    from paper.scripts.pipeline.types import ExperimentConfig
-
-    heading("Experiment Pipeline")
-
-    cfg = load_config()
-
-    info(f"Task: {task}")
-    info(f"Stage: {stage}")
-    if dry_run:
-        info("[dim](dry run mode)[/]")
+    heading("Experiment Pipeline — Status Poller")
+    info(f"API: {api_url}")
     console.print()
 
-    # Build the experiment grid
-    try:
-        grid = ExperimentGrid.from_cli(
-            task=task,
-            methods=methods,
-            datasets=datasets,
-            seeds=seeds,
-            source=cast(Literal["all", "real", "synthetic"], source),
-            n_seeds=cfg.experiment.n_seeds,
-            max_configs_per_method=max_configs_per_method,
+    while True:
+        try:
+            data = _poll_status(api_url)
+        except httpx.ConnectError:
+            warn(f"Cannot reach API at {api_url}, retrying...")
+            time.sleep(poll_interval)
+            continue
+
+        queues = data.get("queues", {})
+        total_pending = sum(q.get("pending", 0) for q in queues.values())
+
+        table = create_table(
+            title="Queue Status",
+            columns=[
+                ("Queue", ""),
+                ("Pending", "number"),
+                ("Initial", "number"),
+                ("Progress", ""),
+            ],
         )
-    except ValueError as e:
-        error(str(e))
-        raise SystemExit(1) from e
+        for name, counts in queues.items():
+            pending = counts.get("pending", 0)
+            initial = counts.get("initial", 0)
+            done = initial - pending
+            bar = progress_bar(done, initial) if initial > 0 else ""
+            table.add_row(name, str(pending), str(initial), bar)
+        console.print(table)
 
-    # Show grid summary
-    summary = grid.summary()
-    table = create_table(
-        title="Experiment Grid",
-        columns=[("Parameter", ""), ("Value", "number")],
-    )
-    table.add_row("Methods", format_number(summary["methods"]))
-    table.add_row("Datasets", format_number(summary["datasets"]))
-    table.add_row("Seeds", format_number(summary["seeds"]))
-    table.add_row("Total configs", format_number(summary["total"]))
-    console.print(table)
-    console.print()
+        if total_pending == 0:
+            success("All queues empty")
+            break
 
-    # Check S3 for completed items (skip if --force)
-    store: S3Store | None = None
-    completed_rankings: set[tuple[str, str, int]] = set()
-    completed_metrics: set[tuple[str, str, int]] = set()
-
-    if not force:
-        store = S3Store.from_config()
-        with console.status("Checking S3 for completed items..."):
-            if stage in {"all", "stage1", "stage2"}:
-                completed_rankings = store.list_completed("rankings", task)
-            if stage in {"all", "stage2"}:
-                completed_metrics = store.list_completed("metrics", task)
-        info(f"Found {len(completed_rankings)} completed rankings")
-        info(f"Found {len(completed_metrics)} completed metrics")
+        info(f"Total pending: {format_number(total_pending)}")
         console.print()
-
-    # Precompute selection masks for fast counting/filtering (avoid materializing 10M+ configs).
-    selected_method_labels = {m.label for m in grid.methods}
-    selected_datasets = set(grid.datasets)
-    selected_seeds = set(grid.seeds)
-
-    def _count_in_grid(keys: set[tuple[str, str, int]]) -> int:
-        return sum(
-            1
-            for method_label, dataset, seed in keys
-            if method_label in selected_method_labels
-            and dataset in selected_datasets
-            and seed in selected_seeds
-        )
-
-    completed_rankings_in_grid = _count_in_grid(completed_rankings) if completed_rankings else 0
-    completed_metrics_in_grid = _count_in_grid(completed_metrics) if completed_metrics else 0
-    stage1_total = len(grid) if force else len(grid) - completed_rankings_in_grid
-
-    huge_grid_threshold = 1_000_000
-    if stage in {"all", "stage1"} and stage1_total > huge_grid_threshold:
-        warn(
-            f"Stage 1 is huge ({format_number(stage1_total)} configs). "
-            "This is supported, but it can take a long time and can stress the head node. "
-            "If you see scheduler pressure, lower --max-in-flight or run from the head node."
-        )
-
-    def _iter_stage1_configs():
-        return iter(grid) if force else grid.iter_pending(completed_rankings)
-
-    # Dry run output
-    if dry_run:
-        heading("Dry Run")
-
-        if stage in {"all", "stage1"}:
-            console.print(f"[bold]Stage 1 (Rankings):[/] {format_number(stage1_total)} configs")
-            for i, cfg in enumerate(islice(_iter_stage1_configs(), dry_run_limit)):
-                cpus = selection_num_cpus(cfg.method.name)
-                console.print(f"  {i + 1}. {cfg} (cpus={cpus})")
-            if stage1_total > dry_run_limit:
-                console.print(
-                    f"  [dim]... and {format_number(stage1_total - dry_run_limit)} more[/]"
-                )
-            console.print()
-
-        if stage in {"all", "stage2"}:
-            if force:
-                stage2_total = len(grid)
-                stage2_iter = iter(grid)
-            elif stage == "stage2":
-                stage2_total = sum(
-                    1
-                    for key in completed_rankings
-                    if key not in completed_metrics
-                    and key[0] in selected_method_labels
-                    and key[1] in selected_datasets
-                    and key[2] in selected_seeds
-                )
-                stage2_iter = (
-                    cfg
-                    for cfg in grid
-                    if cfg.key in completed_rankings and cfg.key not in completed_metrics
-                )
-            else:
-                # In a full pipeline run, Stage 1 will generate missing rankings,
-                # so Stage 2 will attempt everything missing metrics.
-                stage2_total = len(grid) - completed_metrics_in_grid
-                stage2_iter = (cfg for cfg in grid if cfg.key not in completed_metrics)
-
-            cpus = evaluation_num_cpus(task)
-            console.print(
-                f"[bold]Stage 2 (Metrics):[/] {format_number(stage2_total)} configs (cpus={cpus})"
-            )
-            for i, cfg in enumerate(islice(stage2_iter, dry_run_limit)):
-                console.print(f"  {i + 1}. {cfg}")
-            if stage2_total > dry_run_limit:
-                console.print(
-                    f"  [dim]... and {format_number(stage2_total - dry_run_limit)} more[/]"
-                )
-
-        return
-
-    # Actual execution
-    if store is None:
-        store = S3Store.from_config()
-
-    # When --force, wrap the store so per-task exists() checks are bypassed.
-    # Stage-specific wrapping ensures Stage 2 can still check for rankings.
-    stage1_store: S3Store | IgnoreExistsStore = (
-        IgnoreExistsStore(store, frozenset({"rankings"})) if force else store
-    )
-    stage2_store: S3Store | IgnoreExistsStore = (
-        IgnoreExistsStore(store, frozenset({"metrics"})) if force else store
-    )
-
-    # Resource callbacks for dynamic Ray scheduling via .options()
-    def _stage1_options(cfg: ExperimentConfig) -> dict[str, Any]:
-        return {
-            "num_cpus": selection_num_cpus(cfg.method.name),
-            "memory": selection_memory_bytes(cfg.method.name),
-        }
-
-    def _stage2_options(cfg: ExperimentConfig) -> dict[str, Any]:
-        return {
-            "num_cpus": evaluation_num_cpus(task),
-            "memory": evaluation_memory_bytes(task),
-        }
-
-    runner = RayRunner(address=_resolve_ray_address(ray_address), max_in_flight=max_in_flight)
-
-    with console.status("Initializing Ray..."):
-        runner.init()
-    success("Ray initialized")
-
-    # Stage 1: Feature Selection
-    if stage in {"all", "stage1"}:
-        heading("Stage 1: Feature Selection")
-        if stage1_total <= 0:
-            warn("No Stage 1 items to run")
-        else:
-            info(f"Running {format_number(stage1_total)} tasks")
-
-            stage1_counts = {"done": 0, "skipped": 0, "failed": 0}
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                TaskProgressColumn(),
-                console=console,
-            ) as progress:
-                task_id = progress.add_task("Selecting features...", total=stage1_total)
-
-                def on_complete_s1(cfg, result):
-                    stage1_counts[result.status] = stage1_counts.get(result.status, 0) + 1
-                    progress.advance(task_id)
-                    if result.is_failure:
-                        console.print(f"[red]  x {cfg}[/]")
-                    if result.status in {"done", "skipped"}:
-                        completed_rankings.add(result.config.key)
-
-                runner.run(
-                    "rankings",
-                    _iter_stage1_configs(),
-                    stage1_store,
-                    on_complete_s1,
-                    collect_results=False,
-                    get_options=_stage1_options,
-                )
-
-            failed_count = int(stage1_counts.get("failed", 0))
-            if failed_count:
-                warn(f"Stage 1: {failed_count} failures")
-            success(
-                "Stage 1 complete: "
-                f"{format_number(stage1_counts.get('done', 0))} done, "
-                f"{format_number(stage1_counts.get('skipped', 0))} skipped"
-            )
-
-    # Stage 2: Evaluation
-    if stage in {"all", "stage2"}:
-        heading("Stage 2: Evaluation")
-
-        method_by_label = {m.label: m for m in grid.methods}
-
-        if force and stage == "stage2":
-            stage2_total = len(grid)
-            stage2_iter = iter(grid)
-        else:
-            keys_to_run = (
-                (k for k in completed_rankings if k not in completed_metrics)
-                if not force
-                else iter(completed_rankings)
-            )
-            stage2_iter = (
-                ExperimentConfig(
-                    method=method_by_label[method_label], dataset=dataset, seed=seed, task=task
-                )
-                for method_label, dataset, seed in keys_to_run
-                if method_label in method_by_label
-                and dataset in selected_datasets
-                and seed in selected_seeds
-            )
-            stage2_total = sum(
-                1
-                for method_label, dataset, seed in completed_rankings
-                if (force or (method_label, dataset, seed) not in completed_metrics)
-                and method_label in method_by_label
-                and dataset in selected_datasets
-                and seed in selected_seeds
-            )
-
-        if stage2_total <= 0:
-            warn("No Stage 2 items to run")
-        else:
-            info(f"Running {format_number(stage2_total)} tasks")
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                TaskProgressColumn(),
-                console=console,
-            ) as progress:
-                task_id = progress.add_task("Evaluating...", total=stage2_total)
-                stage2_counts = {"done": 0, "skipped": 0, "no_rankings": 0, "failed": 0}
-
-                def on_complete_s2(cfg, result):
-                    stage2_counts[result.status] = stage2_counts.get(result.status, 0) + 1
-                    progress.advance(task_id)
-                    if result.is_failure:
-                        console.print(f"[red]  x {cfg}[/]")
-
-                runner.run(
-                    "metrics",
-                    stage2_iter,
-                    stage2_store,
-                    on_complete_s2,
-                    collect_results=False,
-                    get_options=_stage2_options,
-                )
-
-            failed_count = int(stage2_counts.get("failed", 0))
-            if failed_count:
-                warn(f"Stage 2: {failed_count} failures")
-            success(
-                "Stage 2 complete: "
-                f"{format_number(stage2_counts.get('done', 0))} done, "
-                f"{format_number(stage2_counts.get('skipped', 0))} skipped, "
-                f"{format_number(stage2_counts.get('no_rankings', 0))} no-rankings"
-            )
-
-    success("Pipeline complete")
+        time.sleep(poll_interval)
 
 
 @app.command()
@@ -537,13 +186,6 @@ def smoke(
             help="Seed index",
         ),
     ] = 0,
-    ray_address: Annotated[
-        str,
-        typer.Option(
-            "--ray-address",
-            help="Ray cluster address (use 'local' for local mode)",
-        ),
-    ] = "auto",
     max_configs_per_method: Annotated[
         int | None,
         typer.Option(
@@ -554,17 +196,17 @@ def smoke(
 ) -> None:
     """Run a minimal smoke test of the experiment pipeline.
 
+    Uses LocalRunner for direct sequential execution (no API server needed).
     Validates:
-    - Ray scheduling works
+    - Pipeline execution works
     - S3 read/write paths are correct
     - Artifact schemas are valid
 
-    \b
     Examples:
         citrees-exp smoke classification
         citrees-exp smoke regression --methods pc,rf --dataset cpu_act
     """
-    from paper.scripts.adapters import RayRunner, S3Store, get_dataset_shape, get_datasets
+    from paper.scripts.adapters import LocalRunner, S3Store, get_dataset_shape, get_datasets
     from paper.scripts.pipeline import ExperimentGrid
 
     heading("Smoke Test")
@@ -604,11 +246,7 @@ def smoke(
     info(f"S3: {store.bucket}")
     console.print()
 
-    runner = RayRunner(address=_resolve_ray_address(ray_address))
-
-    with console.status("Initializing Ray..."):
-        runner.init()
-    success("Ray initialized")
+    runner = LocalRunner()
 
     # Stage 1
     heading("Stage 1: Rankings")
@@ -637,11 +275,11 @@ def smoke(
 
     # Validate
     heading("Validating Artifacts")
-    for cfg in configs:
-        with console.status(f"Checking {cfg.method.label}..."):
-            rdf = store.load("rankings", cfg)
-            mdf = store.load("metrics", cfg)
-        success(f"{cfg.method.label}: {len(rdf)} rankings, {len(mdf)} metrics")
+    for cfg_item in configs:
+        with console.status(f"Checking {cfg_item.method.label}..."):
+            rdf = store.load("rankings", cfg_item)
+            mdf = store.load("metrics", cfg_item)
+        success(f"{cfg_item.method.label}: {len(rdf)} rankings, {len(mdf)} metrics")
 
     success("Smoke test passed")
 
@@ -688,7 +326,6 @@ def check(
 ) -> None:
     """Check experiment progress from S3.
 
-    \b
     Examples:
         citrees-exp check
         citrees-exp check --stage metrics --by-method
@@ -777,10 +414,13 @@ def check(
 
 @app.command()
 def watch() -> None:
-    """Live dashboard showing experiment progress.
+    """Interactive live dashboard showing experiment progress.
 
-    Updates every second with progress bars for each method and dataset.
-    Press Ctrl+C to exit.
+    Shows both tasks by default with keyboard-driven filtering.
+    Press [t] to cycle task, [c] category, [s] stage, [n] top-N, [q] quit.
+
+    Examples:
+        citrees-exp watch
     """
     from paper.scripts.cli.watch import run_watch
 

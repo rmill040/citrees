@@ -121,29 +121,8 @@ def validate() -> None:
 
         console.print(f"  [muted]AWS Region:[/] {config.aws_region}")
         console.print(f"  [muted]S3 Bucket:[/] {config.s3_bucket or '(auto-derived)'}")
-        console.print(f"  [muted]Experiment Type:[/] {config.experiment.type}")
         console.print(f"  [muted]Number of Seeds:[/] {config.experiment.n_seeds}")
-        console.print(f"  [muted]Stale Timeout:[/] {config.experiment.stale_timeout_minutes} min")
-
-        console.print("\n  [heading]Stage 1 (Selection) Resources:[/]")
-        console.print("    [muted]Tiers:[/] LIGHT=1cpu/2GB, STANDARD=8cpu/4GB, HEAVY=16cpu/8GB")
-
-        console.print("\n  [heading]Stage 2 (Evaluation) Resources:[/]")
-        console.print(f"    [muted]Default CPUs:[/] {config.experiment.evaluation_cpus_default}")
-        console.print(
-            f"    [muted]Default Memory:[/] {config.experiment.evaluation_memory_gb_default} GB"
-        )
-
-        if config.experiment.selection_cpus_overrides:
-            console.print("\n  [heading]Selection CPU Overrides:[/]")
-            for method, cpus in config.experiment.selection_cpus_overrides.items():
-                console.print(f"    [muted]{method}:[/] {cpus}")
-
-        if config.experiment.evaluation_cpus_overrides:
-            console.print("\n  [heading]Evaluation CPU Overrides:[/]")
-            for method, cpus in config.experiment.evaluation_cpus_overrides.items():
-                console.print(f"    [muted]{method}:[/] {cpus}")
-
+        console.print(f"  [muted]S3 Validate Uploads:[/] {config.experiment.s3_validate_uploads}")
         console.print()
         success("Configuration is valid")
 

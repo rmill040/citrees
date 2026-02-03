@@ -1,17 +1,15 @@
 """Infrastructure commands for AWS setup and management.
 
-Commands for setting up IAM, ECR, Docker images, and cluster configuration.
+Commands for setting up IAM, ECR, Docker images, S3, and EC2 workers.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.syntax import Syntax
 
-from paper.scripts.cli._console import console, error, heading, info, success
+from paper.scripts.cli._console import console, create_table, error, heading, info, success, warn
 
 app = typer.Typer(
     name="infra",
@@ -19,240 +17,122 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Path constants
-RAY_DIR = Path(__file__).parent.parent / "infra" / "ray"
-CLUSTER_YAML = RAY_DIR / "cluster.yaml"
-CLUSTER_EXAMPLE_YAML = RAY_DIR / "cluster.example.yaml"
+
+# ---------------------------------------------------------------------------
+# ECR subcommand group
+# ---------------------------------------------------------------------------
+ecr_app = typer.Typer(
+    name="ecr",
+    help="ECR repository and Docker image management",
+    no_args_is_help=True,
+)
+app.add_typer(ecr_app, name="ecr")
 
 
-@app.command()
-def setup(
-    branch: Annotated[
-        str | None,
-        typer.Option(
-            "--branch",
-            "-b",
-            help="Git branch to use (default: current branch)",
-        ),
-    ] = None,
-) -> None:
-    """Full infrastructure setup: IAM + Docker + cluster.yaml.
+@ecr_app.command()
+def create() -> None:
+    """Create ECR repository for Docker images.
 
-    This performs all setup steps in sequence:
-    1. Create IAM role and instance profile
-    2. Build and push Docker image to ECR
-    3. Generate cluster.yaml with current settings
-
-    \b
-    Example:
-        citrees-exp infra setup
-        citrees-exp infra setup --branch feat/paper
+    Creates ECR repository: citrees-{account_id}
     """
-    from paper.scripts.infra.ray.setup_cluster import (
-        build_and_push_image,
-        ensure_iam_role,
-        generate_config,
-    )
+    from paper.scripts.infra.aws import ensure_ecr_repo
 
-    heading("Full Setup: IAM + Docker + cluster.yaml")
+    heading("Creating ECR repository")
 
-    console.print("\n[1/3] Ensuring IAM role and instance profile...")
-    with console.status("Creating IAM resources..."):
-        ensure_iam_role()
-    success("IAM role ready")
+    with console.status("Creating ECR repository..."):
+        _repo_name, repo_uri = ensure_ecr_repo()
 
-    console.print("\n[2/3] Building and pushing Docker image...")
-    image_uri = build_and_push_image()
-    success(f"Docker image pushed: {image_uri}")
-
-    console.print("\n[3/3] Generating cluster.yaml...")
-    generate_config(branch=branch)
-    success(f"Created {CLUSTER_YAML}")
-
-    heading("Setup Complete")
-    console.print("\nNext step:")
-    console.print("  [cyan]citrees-exp cluster up --yes[/]")
+    success(f"ECR repository ready: {repo_uri}")
 
 
-@app.command()
+@ecr_app.command()
 def build() -> None:
     """Build and push Docker image to ECR.
 
     Builds the Docker image from paper/scripts/infra/docker/Dockerfile
     and pushes it to ECR with both :latest and :{git_sha} tags.
+
+    Example:
+        citrees-exp infra ecr build
     """
-    from paper.scripts.infra.ray.setup_cluster import build_and_push_image
+    from paper.scripts.infra.aws import build_and_push_image
 
     heading("Building Docker Image")
 
-    with console.status("Building and pushing..."):
-        image_uri = build_and_push_image()
+    image_uri = build_and_push_image()
 
     success(f"Image pushed: {image_uri}")
 
 
-@app.command()
-def generate(
-    branch: Annotated[
-        str | None,
-        typer.Option(
-            "--branch",
-            "-b",
-            help="Git branch to use (default: current branch)",
-        ),
-    ] = None,
-) -> None:
-    """Generate cluster.yaml from template.
+@ecr_app.command()
+def clean() -> None:
+    """Clear all images from the ECR repository.
 
-    Creates cluster.yaml with:
-    - Your current public IP for SSH access
-    - Current git branch for code sync
-    - Auto-derived S3 bucket name
+    Two-stage cleanup:
+    1. Delete tagged images (:latest, :{sha}, etc.)
+    2. Delete remaining untagged manifests (orphaned layers)
+
+    The repository itself is preserved.
+
+    Example:
+        citrees-exp infra ecr clean
     """
-    from paper.scripts.infra.ray.setup_cluster import generate_config
+    from paper.scripts.infra.aws import clean_ecr
 
-    heading("Generating cluster.yaml")
+    heading("Cleaning ECR Repository")
 
-    generate_config(branch=branch)
-    success(f"Created {CLUSTER_YAML}")
+    with console.status("Deleting images..."):
+        counts = clean_ecr()
+
+    total = counts["tagged"] + counts["untagged"]
+    if total == 0:
+        info("Repository already empty")
+    else:
+        success(f"Deleted {counts['tagged']} tagged images, {counts['untagged']} untagged manifests")
 
 
-@app.command()
-def validate() -> None:
-    """Validate cluster configuration.
-
-    Checks that:
-    - AMI IDs exist and are valid
-    - Instance types are available
-    - Region settings are correct
-    """
-    if not CLUSTER_YAML.exists():
-        error(f"Cluster config not found: {CLUSTER_YAML}")
-        error("Run 'citrees-exp infra generate' first.")
-        raise typer.Exit(1)
-
-    from paper.scripts.infra.ray.setup_cluster import load_cluster_config, validate_config
-
-    heading("Validating cluster configuration")
-
-    config = load_cluster_config()
-    region = config.get("provider", {}).get("region", "us-east-1")
-
-    with console.status(f"Validating against AWS ({region})..."):
-        errors = validate_config(config)
-
-    if errors:
-        error("Validation failed:")
-        for err in errors:
-            console.print(f"  [error]\u2717[/] {err}")
-        raise typer.Exit(1)
-
-    success("Configuration is valid")
+# ---------------------------------------------------------------------------
+# Top-level infra commands
+# ---------------------------------------------------------------------------
 
 
 @app.command()
-def show(
-    raw: Annotated[
-        bool,
-        typer.Option(
-            "--raw",
-            help="Print raw YAML without syntax highlighting",
-        ),
-    ] = False,
-) -> None:
-    """Display cluster configuration.
+def setup() -> None:
+    """Full infrastructure setup: IAM + Docker image.
 
-    Shows current cluster.yaml with syntax highlighting.
+    This performs all setup steps in sequence:
+    1. Create IAM role and instance profile
+    2. Build and push Docker image to ECR
+
+    Example:
+        citrees-exp infra setup
     """
-    if not CLUSTER_YAML.exists():
-        error(f"Cluster config not found: {CLUSTER_YAML}")
-        error("Run 'citrees-exp infra generate' first.")
-        raise typer.Exit(1)
+    from paper.scripts.infra.aws import build_and_push_image, ensure_iam_role
 
-    content = CLUSTER_YAML.read_text()
-    if raw:
-        console.print(content, markup=False)
-        return
+    heading("Full Setup: IAM + Docker")
 
-    syntax = Syntax(content, "yaml", theme="monokai", line_numbers=True)
-    console.print(syntax)
+    console.print("\n[1/2] Ensuring IAM role and instance profile...")
+    with console.status("Creating IAM resources..."):
+        ensure_iam_role()
+    success("IAM role ready")
 
+    console.print("\n[2/2] Building and pushing Docker image...")
+    image_uri = build_and_push_image()
+    success(f"Docker image pushed: {image_uri}")
 
-@app.command(name="find-ami")
-def find_ami(
-    region: Annotated[
-        str,
-        typer.Option(
-            "--region",
-            "-r",
-            help="AWS region",
-        ),
-    ] = "us-east-1",
-) -> None:
-    """Find latest Ubuntu 22.04 AMI for a region.
-
-    This is a read-only command that queries AWS for the latest
-    Ubuntu 22.04 AMI without modifying any files.
-    """
-    from paper.scripts.infra.ray.setup_cluster import get_latest_ubuntu_ami
-
-    heading(f"Finding latest Ubuntu 22.04 AMI ({region})")
-
-    with console.status("Querying AWS..."):
-        ami = get_latest_ubuntu_ami(region)
-
-    console.print(f"  [muted]AMI ID:[/] [highlight]{ami['id']}[/]")
-    console.print(f"  [muted]Name:[/] {ami['name']}")
-    console.print(f"  [muted]Created:[/] {ami['created']}")
-
-
-@app.command(name="update-ami")
-def update_ami() -> None:
-    """Update AMI IDs in cluster.yaml to latest Ubuntu 22.04.
-
-    Fetches the latest Ubuntu 22.04 AMI for the configured region
-    and updates all node types in cluster.yaml.
-    """
-    if not CLUSTER_YAML.exists():
-        error(f"Cluster config not found: {CLUSTER_YAML}")
-        error("Run 'citrees-exp infra generate' first.")
-        raise typer.Exit(1)
-
-    from paper.scripts.infra.ray.setup_cluster import (
-        get_latest_ubuntu_ami,
-        load_cluster_config,
-        save_cluster_config,
-    )
-    from paper.scripts.infra.ray.setup_cluster import (
-        update_ami as do_update_ami,
-    )
-
-    config = load_cluster_config()
-    region = config.get("provider", {}).get("region", "us-east-1")
-
-    heading(f"Updating AMI ({region})")
-
-    with console.status("Fetching latest AMI..."):
-        ami = get_latest_ubuntu_ami(region)
-
-    info(f"Latest AMI: {ami['id']} ({ami['name']})")
-
-    config = do_update_ami(config, ami["id"])
-    save_cluster_config(config)
-
-    success(f"Updated {CLUSTER_YAML}")
+    heading("Setup Complete")
 
 
 @app.command()
 def iam() -> None:
-    """Create IAM role and instance profile for Ray.
+    """Create IAM role and instance profile for workers.
 
     Creates:
-    - IAM role: citrees-ray-autoscaler
-    - Instance profile: citrees-ray-autoscaler
-    - Attached policies for EC2, S3, and ECR access
+    - IAM role: citrees-worker
+    - Instance profile: citrees-worker
+    - Attached policies for S3 and ECR access
     """
-    from paper.scripts.infra.ray.setup_cluster import ensure_iam_role
+    from paper.scripts.infra.aws import ensure_iam_role
 
     heading("Creating IAM resources")
 
@@ -263,28 +143,12 @@ def iam() -> None:
 
 
 @app.command()
-def ecr() -> None:
-    """Create ECR repository for Docker images.
-
-    Creates ECR repository: citrees-{account_id}
-    """
-    from paper.scripts.infra.ray.setup_cluster import ensure_ecr_repo
-
-    heading("Creating ECR repository")
-
-    with console.status("Creating ECR repository..."):
-        repo_name, repo_uri = ensure_ecr_repo()
-
-    success(f"ECR repository ready: {repo_uri}")
-
-
-@app.command()
 def s3() -> None:
     """Create S3 bucket for experiment results.
 
     Creates S3 bucket: citrees-{account_id}
     """
-    from paper.scripts.infra.ray.setup_cluster import ensure_s3_bucket
+    from paper.scripts.infra.aws import ensure_s3_bucket
 
     heading("Creating S3 bucket")
 
@@ -321,12 +185,12 @@ def upload_data(
         ),
     ] = False,
 ) -> None:
-    """Upload datasets to S3 for Ray workers.
+    """Upload datasets to S3 for workers.
 
     Uploads parquet files from paper/data/ to s3://{bucket}/data/
     Skips files that already exist in S3 (use --force to re-upload).
     """
-    from paper.scripts.infra.ray.setup_cluster import upload_datasets
+    from paper.scripts.infra.aws import upload_datasets
 
     heading("Uploading Datasets to S3")
 
@@ -340,3 +204,262 @@ def upload_data(
         info(f"Would upload {result['uploaded']} files, skip {result['skipped']} existing")
     else:
         success(f"Uploaded {result['uploaded']} files, skipped {result['skipped']} existing")
+
+
+# ---------------------------------------------------------------------------
+# EC2 API server commands
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="launch-api")
+def launch_api_cmd(
+    instance_type: Annotated[
+        str,
+        typer.Option(
+            "--instance-type",
+            "-i",
+            help="EC2 instance type",
+        ),
+    ] = "m5.large",
+    image_uri: Annotated[
+        str,
+        typer.Option(
+            "--image-uri",
+            help="ECR image URI",
+        ),
+    ] = "",
+) -> None:
+    """Launch the API server on an EC2 instance.
+
+    Starts a single instance running the FastAPI queue server on port 8000.
+    Workers connect to this server to pull and report experiment configs.
+    """
+    from paper.scripts.infra.ec2 import launch_api
+
+    if not image_uri:
+        from paper.scripts.infra.aws import ensure_ecr_repo
+
+        _name, repo_uri = ensure_ecr_repo()
+        image_uri = f"{repo_uri}:latest"
+        info(f"Using image: {image_uri}")
+
+    heading("Launching API Server")
+
+    result = launch_api(instance_type=instance_type, image_uri=image_uri)
+
+    if result["api_url"]:
+        console.print(f"\n  API URL: [bold cyan]{result['api_url']}[/]")
+        console.print("  Instance: " + result["instance_id"])
+
+
+@app.command(name="api-url")
+def api_url_cmd() -> None:
+    """Print the running API server URL (public IP for external access).
+
+    Finds the EC2 instance tagged as the API server and prints its URL.
+    Useful for scripting: $(citrees-exp infra api-url)
+    """
+    import boto3
+
+    from paper.scripts.infra.aws import DEFAULT_REGION
+    from paper.scripts.infra.ec2 import API_TAG_VALUE, TAG_KEY
+
+    ec2 = boto3.client("ec2", region_name=DEFAULT_REGION)
+    response = ec2.describe_instances(
+        Filters=[
+            {"Name": f"tag:{TAG_KEY}", "Values": [API_TAG_VALUE]},
+            {"Name": "instance-state-name", "Values": ["pending", "running"]},
+        ]
+    )
+    for reservation in response.get("Reservations", []):
+        for inst in reservation.get("Instances", []):
+            ip = inst.get("PublicIpAddress")
+            if ip:
+                console.print(f"http://{ip}:8000")
+                return
+
+    error("No running API server found")
+    raise typer.Exit(1)
+
+
+@app.command(name="terminate-api")
+def terminate_api_cmd() -> None:
+    """Terminate the API server instance."""
+    from paper.scripts.infra.ec2 import terminate_api
+
+    heading("Terminating API Server")
+
+    result = terminate_api()
+    if result:
+        success(f"Terminated: {result}")
+    else:
+        info("No API server to terminate")
+
+
+# ---------------------------------------------------------------------------
+# EC2 worker commands
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="launch-workers")
+def launch_workers_cmd(
+    n: Annotated[
+        int,
+        typer.Option(
+            "--count",
+            "-n",
+            help="Number of worker instances to launch",
+        ),
+    ] = 1,
+    instance_type: Annotated[
+        str,
+        typer.Option(
+            "--instance-type",
+            "-i",
+            help="EC2 instance type",
+        ),
+    ] = "c6a.8xlarge",
+    spot: Annotated[
+        bool,
+        typer.Option(
+            "--spot/--no-spot",
+            help="Use spot instances (default: spot)",
+        ),
+    ] = True,
+    image_uri: Annotated[
+        str,
+        typer.Option(
+            "--image-uri",
+            help="ECR image URI",
+        ),
+    ] = "",
+) -> None:
+    """Launch EC2 worker instances.
+
+    Each instance pulls a Docker image from ECR and runs a worker process
+    that gets work assignments from the API server. The API server's private
+    IP is auto-discovered from EC2.
+    """
+    from paper.scripts.infra.ec2 import launch_workers
+
+    if not image_uri:
+        from paper.scripts.infra.aws import ensure_ecr_repo
+
+        _name, repo_uri = ensure_ecr_repo()
+        image_uri = f"{repo_uri}:latest"
+        info(f"Using image: {image_uri}")
+
+    heading(f"Launching {n} Workers")
+
+    launch_workers(
+        n=n,
+        instance_type=instance_type,
+        image_uri=image_uri,
+        spot=spot,
+    )
+
+
+@app.command(name="list-workers")
+def list_workers_cmd() -> None:
+    """List running worker instances."""
+    from paper.scripts.infra.ec2 import list_workers
+
+    heading("Worker Instances")
+
+    workers = list_workers()
+    if not workers:
+        info("No worker instances found")
+        return
+
+    table = create_table(
+        title=f"Workers ({len(workers)})",
+        columns=[
+            ("Instance ID", ""),
+            ("State", ""),
+            ("Type", ""),
+            ("Launched", ""),
+        ],
+    )
+    for w in workers:
+        table.add_row(
+            w["instance_id"],
+            w["state"],
+            w["instance_type"],
+            w["launch_time"],
+        )
+    console.print(table)
+
+
+@app.command(name="terminate-workers")
+def terminate_workers_cmd() -> None:
+    """Terminate all running worker instances."""
+    from paper.scripts.infra.ec2 import terminate_workers
+
+    heading("Terminating Workers")
+
+    terminated = terminate_workers()
+    if terminated:
+        success(f"Terminated {len(terminated)} instances")
+    else:
+        info("No workers to terminate")
+
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def logs(
+    role: Annotated[
+        str,
+        typer.Argument(
+            help="Role to fetch logs for: api or worker",
+            metavar="ROLE",
+        ),
+    ] = "api",
+    instance_id: Annotated[
+        str | None,
+        typer.Option(
+            "--instance",
+            "-i",
+            help="Instance ID to filter by (default: all instances)",
+        ),
+    ] = None,
+    tail: Annotated[
+        int,
+        typer.Option(
+            "--tail",
+            "-n",
+            help="Number of log events to show",
+        ),
+    ] = 100,
+) -> None:
+    """Fetch recent CloudWatch logs for API or worker instances.
+
+    Container stdout/stderr is streamed to CloudWatch via the awslogs
+    Docker log driver. Log groups: /citrees/api and /citrees/worker.
+
+    Examples:
+        citrees-exp infra logs api
+        citrees-exp infra logs worker --instance i-0abc123
+        citrees-exp infra logs api --tail 50
+    """
+    from paper.scripts.infra.ec2 import get_logs
+
+    if role not in ("api", "worker"):
+        error("Role must be 'api' or 'worker'")
+        raise typer.Exit(1)
+
+    heading(f"CloudWatch Logs: /citrees/{role}")
+    if instance_id:
+        info(f"Instance: {instance_id}")
+
+    events = get_logs(role, instance_id=instance_id, tail=tail)
+
+    if not events:
+        warn("No log events found")
+        return
+
+    for event in events:
+        console.print(event["message"], highlight=False)

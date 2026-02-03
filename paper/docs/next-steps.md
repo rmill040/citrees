@@ -6,10 +6,15 @@ experiment writeup. Supporting trackers:
 - `paper/docs/claims-index.md` (one row per formal claim)
 - `paper/docs/writing-checklist.md` (proof QA checklist)
 
-## A) Scope decision (Stage B + internal nodes)
+## A) Scope lock (Stage B + internal nodes)
 
-- Decide whether we pursue any modified inference setting for Stage~B/internal
-  nodes (future work vs new paper scope). If yes, pick one:
+- For this arXiv paper, do **not** claim calibrated p-values beyond fixed-node
+  (especially root) Stage~A screening in fixed-$B$ mode.
+- Treat Stage~B threshold tests, internal-node tests, and early-stopped
+  permutation outputs as algorithmic statistics; ensure plots/tables/captions
+  use consistent naming (avoid implying calibration).
+- Optional future work (separate scope): if we ever extend inference to Stage~B
+  / internal nodes, pick one:
   - fixed feature chosen label-independently (not Stage~A selected), or
   - sample splitting / honesty (Stage~A selects on one split, Stage~B tests on
     an independent split), or
@@ -36,6 +41,9 @@ experiment writeup. Supporting trackers:
   figures/tables).
 - Decide the minimum viable figure/table set for arXiv using
   `paper/docs/figures-plan.md`.
+- Ensure every calibration figure/caption states the null being simulated (e.g.,
+  **complete global null** / exchangeability target) and matches the fixed-node,
+  fixed-$B$ scope of the Stage~A theory.
 - Ensure final manuscript figures live under `paper/arxiv/` for a self-contained
   arXiv bundle.
 

@@ -56,12 +56,16 @@ adaptively selected by the data).
 \paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
 The node $t$ is fixed, not data-adaptively selected.
 
-\paragraph{A0.2 (Conditional exchangeability).}\label{assump:exchangeability}
-Under the null being tested, $Y_t$ is exchangeable conditional on $(X_t, U)$,
-where $U$ denotes label-independent algorithmic randomness that can affect which
-hypotheses are tested (e.g., \texttt{max\_features}, threshold subsampling). The
-Monte Carlo permutation draws used to compute p-values are treated as additional
-randomization independent of the data and are not included in $U$.
+\paragraph{A0.2 (Nodewise complete permutation null / conditional exchangeability).}\label{assump:exchangeability}
+Under the (nodewise) complete permutation null at the fixed node $t$, $Y_t$ is
+exchangeable conditional on $(X_t, U)$, where $U$ denotes label-independent
+algorithmic randomness that can affect which hypotheses are tested (e.g.,
+\texttt{max\_features}, threshold subsampling). This assumption targets a
+complete (global) null at the node: it generally does \emph{not} hold under a
+``featurewise'' partial null in which one feature is null while other features
+remain associated with $Y_t$. The Monte Carlo permutation draws used to compute
+p-values are treated as additional randomization independent of the data and
+are not included in $U$.
 
 \paragraph{A0.3 (Label-independent tested family).}\label{assump:label-independence}
 The tested feature family $F_t$, candidate thresholds, and the resample budget
@@ -100,7 +104,7 @@ the observed data.
     Result & Minimal assumptions \\
     \midrule
     +1 p-value super-uniformity (Theorem~\ref{them:plusone-superuniform}) & A0.1--A0.5 \\
-    Stage A global-null bound (Proposition~\ref{prop:stageA-global-null}) & A0.1--A0.5 \\
+    Stage A complete-null bound (Proposition~\ref{prop:stageA-global-null}) & A0.1--A0.5 \\
     Per-feature bound (Proposition~\ref{prop:per-feature-bound}) & A0.1--A0.5 \\
     Root ``any split'' bound (Proposition~\ref{prop:any-split-implies-root-rejection}) & A0.1--A0.5 at root \\
     Multi-selector validity (Proposition~\ref{prop:multiselector-validity}) & A0.1--A0.5 (exchangeability) \\

@@ -23,9 +23,16 @@ This file maps each paper-facing figure/table to:
   - `paper/results/cache/selection_bias_demo_data.parquet`
 - Script: `paper/scripts/theory/generate_selection_bias_demo.py`
 - Claim/story:
-  - Greedy split optimization can favor “high-cardinality” noise under the
-    global null; Stage A permutation screening prevents “split unless
-    significant” at the root.
+  - Greedy split optimization can favor “high-cardinality” noise under a
+    complete global null; Stage A permutation screening (fixed node, fixed-`B`)
+    prevents “split unless significant” at the root.
+  - Also reports $\Pr(\text{root splits})$ under the complete null (should be
+    $\le \alpha_{\mathrm{sel}}$ with Bonferroni in fixed-`B` mode).
+  - Caption requirements (avoid scope creep):
+    - State the simulated null is a **complete global null** (label
+      exchangeability under the permutation scheme).
+    - Note the inferential claim is **fixed-node/root Stage A in fixed-`B`**
+      mode; the Stage B/internal-node adaptivity caveats do not apply here.
 - Status:
   - Should be kept in main text (motivation figure).
   - Generated on 2026-01-20 (older defaults). Defaults were increased on
@@ -40,6 +47,10 @@ This file maps each paper-facing figure/table to:
 - Claim/story:
   - Empirical backstop for Theorem 1 (super-uniformity of the +1 Monte Carlo
     permutation p-value).
+  - Caption requirements:
+    - Explicitly state the permutation-calibration target (exchangeability under
+      the permutation scheme) and that this is **fixed-`B`** (no optional
+      stopping).
 - Status:
   - Appendix figure (calibration/sanity check).
   - Generated on 2026-01-20 (older defaults). Defaults were increased on

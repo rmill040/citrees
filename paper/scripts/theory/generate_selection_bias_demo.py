@@ -2,8 +2,8 @@
 
 Goal
 ----
-Show the classic CART variable-selection bias toward high-cardinality features under the global null, and contrast with
-citrees' Stage A, which uses permutation p-values + Bonferroni at the root.
+Show the classic CART variable-selection bias toward high-cardinality features under a complete global null, and
+contrast with citrees' root Stage A, which uses fixed-`B` permutation p-values + Bonferroni.
 
 This script does **not** modify any algorithm. It runs a controlled simulation and writes a table/figure.
 
@@ -104,7 +104,7 @@ def main() -> None:
     citrees_no_split = 0
 
     for i in range(cfg.n_sims):
-        # Global null: y independent of all X
+        # Complete global null: y independent of all X
         y = rng.integers(0, 2, size=cfg.n, dtype=np.int64)
         x_cont = rng.standard_normal(cfg.n).astype(np.float64)
         x_bin = rng.integers(0, 2, size=cfg.n).astype(np.float64)
@@ -198,7 +198,7 @@ def main() -> None:
     axes[1].set_xticks(x, feature_names, rotation=20, ha="right")
 
     fig.suptitle(
-        f"Selection bias under global null (alpha={cfg.alpha}, Bonferroni alpha/m={alpha_per_feature:.4f})",
+        f"Selection bias under complete global null (alpha={cfg.alpha}, Bonferroni alpha/m={alpha_per_feature:.4f})",
         y=1.02,
     )
     fig.tight_layout()

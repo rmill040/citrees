@@ -1,40 +1,13 @@
 # citrees Experiment Configuration
 #
-# Ray scheduling and S3 settings for distributed experiments.
+# Experiment scheduling and S3 settings for distributed experiments.
 
 aws_region: us-east-1
-# Note: S3 bucket name is derived automatically as citrees-{account_id} by setup_cluster.py
-
-cluster:
-  # Global limit on total workers (Ray defaults to 2 if not set!)
-  max_workers: 500
-  # Scale up aggressively to handle large workloads
-  upscaling_speed: 50.0
-  # Terminate idle workers after this many minutes
-  idle_timeout_minutes: 5
+# Note: S3 bucket name is derived automatically as citrees-{account_id} by aws.py
 
 experiment:
-  # "classification" or "regression"
-  type: classification
   n_seeds: 5
-  stale_timeout_minutes: 30
 
-  # Stage 1 (feature selection) resource tiers (defined in code):
-  #   LIGHT  = 1 CPU, 2 GB  (mc, pc, rdc, mi, dc, mrmr, ptest_*)
-  #   STANDARD = 8 CPU, 4 GB  (rf, et, xgb, lgbm, cat, pi, cpi, rfe, r_ctree)
-  #   HEAVY  = 16 CPU, 8 GB (cit, cif, boruta, shap, r_cforest)
-
-  # Per-method overrides (take priority over tier defaults)
-  selection_cpus_overrides: {}
-  selection_memory_gb_overrides: {}
-
-  # Ray CPU scheduling (per config) - Stage 2 (downstream evaluation)
-  evaluation_cpus_default: 1
-  evaluation_cpus_overrides: {}
-
-  # Ray memory scheduling for Stage 2 (in GB)
-  evaluation_memory_gb_default: 2.0
-  evaluation_memory_gb_overrides: {}
 
   # Validate each parquet upload with an extra S3 `head_object` call.
   s3_validate_uploads: true

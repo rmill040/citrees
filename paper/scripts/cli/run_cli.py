@@ -1,7 +1,7 @@
-"""Script entrypoint for running the citrees-exp CLI under `ray submit`/Ray Jobs.
+"""Script entrypoint for running the citrees-exp CLI.
 
 Example:
-    citrees-exp cluster submit paper/scripts/cli/run_cli.py run classification --stage stage1
+    python paper/scripts/cli/run_cli.py run classification --stage stage1
 """
 
 from __future__ import annotations

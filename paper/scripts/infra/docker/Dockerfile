@@ -28,7 +28,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 COPY . .
 
-# Ensure uv installs into a predictable venv and Ray is on PATH.
+# Ensure uv installs into a predictable venv and tools are on PATH.
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
@@ -36,10 +36,16 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Install with paper dependencies
 RUN uv sync --frozen --group paper
 
-# Fix Numba/dcor LLVM cache issue - force fresh compilation at runtime
-ENV NUMBA_CACHE_DIR=/tmp/numba_cache
+# Pre-compile Numba/dcor caches at build time so workers load cached
+# artifacts instead of racing to JIT-compile simultaneously (LLVM SIGABRT).
+ENV NUMBA_CACHE_DIR=/app/.numba_cache
+RUN python paper/scripts/infra/docker/warmup_numba.py
 
 ENV R_HOME=/usr/lib/R
-# S3_BUCKET is set at runtime via cluster.yaml (citrees-{account_id})
+# S3_BUCKET is set at runtime via env vars
+# CITREES_API_URL is set at runtime for workers
 
-CMD ["uv", "run", "python", "-c", "print('citrees container ready')"]
+# Default: worker mode (override CMD at runtime for API server)
+# Worker: docker run citrees python -m paper.scripts.api.worker --api-url http://api:8000 --stage rankings
+# API:    docker run -p 8000:8000 citrees uvicorn paper.scripts.api.server:app --host 0.0.0.0
+CMD ["python", "-m", "paper.scripts.api.worker", "--help"]

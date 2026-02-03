@@ -54,24 +54,24 @@ why should I care about the full tree/forest ranking outputs?”
 Table~\ref{tab:pvalue-scope}).
 
 **Reviewer question to anticipate:** “Are your per-feature permutation p-values
-valid only under a nodewise global null, or also under feature-specific nulls
+valid only under a nodewise complete (global) permutation null, or also under feature-specific nulls
 when other features are associated with Y?”
 
 **Risk:** Readers may incorrectly infer broad per-feature validity even when the
 permutation scheme conditions on all X and exchangeability only holds under a
-complete/global null.
+complete (global) null.
 
 **What to check once results arrive:**
 
 - Any language in results/captions implying “Type I error control per feature”
-  outside a complete nodewise global null.
+  outside the nodewise complete (global) null.
 - Any plots that look like “feature-level calibration” but were generated under
   a setting where other features have signal.
 
 **Mitigations / manuscript actions (if needed):**
 
 - Make the null being simulated explicit in every calibration plot caption:
-  “complete nodewise global null” vs “single-feature null with restricted
+  “nodewise complete (global) null” vs “single-feature null with restricted
   permutations” (if implemented).
 - If showing non-global-null simulations, phrase them as empirical behavior
   studies, not calibration claims.

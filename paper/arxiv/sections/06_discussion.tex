@@ -4,11 +4,15 @@
 \paragraph{What our p-values mean.}
 At a fixed node $t$, permutation tests are defined conditionally on covariates
 treated as fixed by the permutation scheme. For a fixed nodewise hypothesis
-(e.g., a pre-specified Stage~A feature test), when exchangeability holds under
-the null given $(X_t, U)$ (where $U$ denotes algorithmic randomness such as
-feature subsampling; \cref{app:assumptions}), the +1 Monte Carlo permutation p-value is
-super-uniform (conservative): under the null it falls below $\alpha$ with
-probability at most $\alpha$.
+(in this manuscript, the nodewise \emph{complete} permutation null in A0.2),
+when exchangeability holds under the null given $(X_t, U)$ (where $U$ denotes
+algorithmic randomness such as feature subsampling; \cref{app:assumptions}), the
+fixed-$B$ +1 Monte Carlo permutation p-value is super-uniform (conservative):
+under the null it falls below $\alpha$ with probability at most $\alpha$. This
+interpretation targets complete-null calibration at a pre-specified node.
+Interpreting Stage~A p-values under featurewise partial nulls (some covariates
+associated with $Y_t$) requires a different randomization scheme and is not
+pursued here.
 See \cref{sec:pvalue-scope} for a compact scope summary.
 
 \paragraph{Exchangeability is a design choice.}
@@ -17,8 +21,8 @@ permutations are generally invalid because exchangeability fails. In such
 settings, any inferential interpretation requires a restricted permutation
 scheme matched to the dependence structure (e.g., permuting within clusters or
 within blocks). \citrees does not implement restricted permutations by default,
-so p-values should not be interpreted as calibrated unless the permutation
-scheme matches the data's exchangeability structure.
+so calibrated interpretation requires a permutation scheme that matches the
+data's exchangeability structure.
 
 \paragraph{Conditional vs.\ marginal inference.}
 Permutation tests provide conditional inference based on the covariates treated
@@ -28,22 +32,22 @@ under their modeling assumptions but require stronger distributional
 conditions.
 
 \paragraph{What we do (and do not) claim.}
-Our clean inferential statements are deliberately narrow: fixed-node (especially
-root) Stage~A screening in fixed-$B$ mode. Stage~B tests thresholds after
-selecting a feature using the same labels, and internal nodes are adaptive
+Our clean inferential statements are scoped to fixed-node
+(especially root) Stage~A screening in fixed-$B$ mode. Stage~B tests thresholds
+after selecting a feature using the same labels, and internal nodes are adaptive
 because node membership depends on earlier label-dependent splits. Without
-additional selective-inference machinery (post-selection corrections) or sample splitting, Stage~B p-values
-and internal-node p-values should be treated as heuristic algorithmic statistics
-rather than calibrated p-values
+additional selective-inference machinery (post-selection corrections) or sample
+splitting, we report Stage~B and internal-node ``p-values'' as algorithmic
+statistics rather than calibrated p-values
 \citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,Fithian2014OptimalInferenceAfterModelSelection,Dwork2015ReusableHoldout,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
 
 \paragraph{Early stopping.}
 \citrees supports early stopping as a computational heuristic for Monte Carlo
-permutation testing. In this paper we do not attach fixed-$B$ optional-stopping
-validity claims to early-stopped outputs; if used, early stopping should be
-supported empirically (e.g., via calibration studies).
+permutation testing. In this paper we do not claim optional-stopping validity
+for early-stopped outputs; if used, early stopping should be supported
+empirically (e.g., via calibration studies).
 
-\paragraph{Other error-control frameworks (out of scope).}
+\paragraph{Other error-control frameworks.}
 Our results focus on nodewise Type~I error control for Stage~A screening at a
 fixed node under a permutation null. Alternative inferential targets for feature
 selection include global false discovery rate (FDR) control
@@ -54,7 +58,7 @@ different error metrics and typically rely on different assumptions than the
 fixed-node permutation-testing setup studied here; we do not pursue them in this
 manuscript.
 
-\paragraph{Sequential boundaries beyond our heuristics (out of scope).}
+\paragraph{Sequential boundaries beyond our heuristics.}
 More classical sequential-testing frameworks include group-sequential boundary
 families \citep{OBrienFleming1979MultipleTesting,Pocock1977GroupSequential} and
 alpha-spending functions \citep{LanDeMets1983DiscreteSequentialBoundaries}. We

@@ -14,7 +14,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import ray
 from loguru import logger
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
@@ -52,39 +51,6 @@ config = load_config()
 # Resource allocation
 # =============================================================================
 
-
-def evaluation_num_cpus(task: str, *, downstream_models: list[str] | None = None) -> int:
-    """Return Ray CPU reservation for an evaluation task."""
-    exp = config.experiment
-
-    models = downstream_models
-    if models is None:
-        models = CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
-
-    cpus = int(exp.evaluation_cpus_default)
-    for model_name in models:
-        override = exp.evaluation_cpus_overrides.get(model_name)
-        if override is not None:
-            cpus = max(cpus, int(override))
-
-    return cpus
-
-
-def evaluation_memory_bytes(task: str, *, downstream_models: list[str] | None = None) -> int:
-    """Return Ray memory reservation (in bytes) for an evaluation task."""
-    exp = config.experiment
-
-    models = downstream_models
-    if models is None:
-        models = CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
-
-    memory_gb = exp.evaluation_memory_gb_default
-    for model_name in models:
-        override = exp.evaluation_memory_gb_overrides.get(model_name)
-        if override is not None:
-            memory_gb = max(memory_gb, override)
-
-    return int(memory_gb * 1024 * 1024 * 1024)
 
 
 # =============================================================================
@@ -302,38 +268,8 @@ def run_evaluation(
     return results
 
 
-# =============================================================================
-# Ray task
-# =============================================================================
-
-
-@ray.remote(
-    resources={"evaluation": 1},
-    max_retries=3,
-)
-def run_evaluation_task(cfg: ExperimentConfig, store: Store) -> Result:
-    """Ray task for evaluation.
-
-    Parameters
-    ----------
-    cfg : ExperimentConfig
-        Experiment configuration.
-    store : Store
-        Storage backend.
-
-    Returns
-    -------
-    Result
-        Execution result.
-    """
-    return _run_evaluation(cfg, store)
-
-
 def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
-    """Synchronous evaluation for a single configuration.
-
-    Can be called directly for local execution or wrapped in a Ray task.
-    """
+    """Run evaluation for a single configuration."""
     task = cfg.task
     hostname = socket.gethostname()
     git_sha = get_git_sha()
@@ -358,7 +294,7 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
         # Load rankings and dataset
         rankings_df = store.load("rankings", cfg)
         X, y = load_dataset(cfg.dataset, task)
-        n_jobs = evaluation_num_cpus(task)
+        n_jobs = -1
 
         # Get dataset metadata
         dataset_meta = get_dataset_metadata(cfg.dataset, task)

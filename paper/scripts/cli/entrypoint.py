@@ -1,7 +1,7 @@
 """Console-script entrypoint for the citrees experiment CLI.
 
 This module exists so `citrees-exp` can fail with a clear message when the
-optional experiment dependencies (Typer/Rich/Ray/etc.) are not installed.
+optional experiment dependencies (Typer/Rich/etc.) are not installed.
 """
 
 from __future__ import annotations

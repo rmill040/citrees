@@ -4,36 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
 
 import yaml
 
 
 @dataclass
-class ClusterConfig:
-    """Ray cluster autoscaler configuration."""
+class ExperimentConfig:
+    """Experiment configuration."""
 
-    max_workers: int = 500
-    upscaling_speed: float = 50.0
-    idle_timeout_minutes: int = 5
-
-
-@dataclass
-class SchedulingConfig:
-    """Scheduling configuration for Ray CPU/memory allocation."""
-
-    type: Literal["classification", "regression"] = "classification"
     n_seeds: int = 5
-    stale_timeout_minutes: int = 30
-    # Per-method overrides (take priority over tier defaults)
-    selection_cpus_overrides: dict[str, int] = field(default_factory=dict)
-    selection_memory_gb_overrides: dict[str, float] = field(default_factory=dict)
-    # Stage 2 (evaluation) scheduling
-    evaluation_cpus_default: int = 1
-    evaluation_cpus_overrides: dict[str, int] = field(default_factory=dict)
-    evaluation_memory_gb_default: float = 2.0
-    evaluation_memory_gb_overrides: dict[str, float] = field(default_factory=dict)
-    # S3 robustness
     s3_validate_uploads: bool = True
 
 
@@ -43,8 +22,7 @@ class Config:
 
     aws_region: str = "us-east-1"
     s3_bucket: str | None = None
-    cluster: ClusterConfig = field(default_factory=ClusterConfig)
-    experiment: SchedulingConfig = field(default_factory=SchedulingConfig)
+    experiment: ExperimentConfig = field(default_factory=ExperimentConfig)
 
 
 def load_config(path: Path | None = None) -> Config:
@@ -81,30 +59,9 @@ def load_config(path: Path | None = None) -> Config:
         s3_bucket=s3_bucket,
     )
 
-    if cluster_data := data.get("cluster"):
-        config.cluster = ClusterConfig(
-            max_workers=cluster_data.get("max_workers", 500),
-            upscaling_speed=float(cluster_data.get("upscaling_speed", 50.0)),
-            idle_timeout_minutes=cluster_data.get("idle_timeout_minutes", 5),
-        )
-
     if exp_data := data.get("experiment"):
-        cpu_overrides = exp_data.get("selection_cpus_overrides") or {}
-        eval_cpu_overrides = exp_data.get("evaluation_cpus_overrides") or {}
-        mem_overrides = exp_data.get("selection_memory_gb_overrides") or {}
-        eval_mem_overrides = exp_data.get("evaluation_memory_gb_overrides") or {}
-        config.experiment = SchedulingConfig(
-            type=exp_data.get("type", "classification"),
+        config.experiment = ExperimentConfig(
             n_seeds=exp_data.get("n_seeds", 5),
-            stale_timeout_minutes=exp_data.get("stale_timeout_minutes", 30),
-            selection_cpus_overrides={str(k): int(v) for k, v in cpu_overrides.items()},
-            selection_memory_gb_overrides={str(k): float(v) for k, v in mem_overrides.items()},
-            evaluation_cpus_default=exp_data.get("evaluation_cpus_default", 1),
-            evaluation_cpus_overrides={str(k): int(v) for k, v in eval_cpu_overrides.items()},
-            evaluation_memory_gb_default=float(exp_data.get("evaluation_memory_gb_default", 2.0)),
-            evaluation_memory_gb_overrides={
-                str(k): float(v) for k, v in eval_mem_overrides.items()
-            },
             s3_validate_uploads=bool(exp_data.get("s3_validate_uploads", True)),
         )
 

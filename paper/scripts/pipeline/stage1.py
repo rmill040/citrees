@@ -13,7 +13,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import ray
 from sklearn.preprocessing import StandardScaler
 
 from paper.scripts.adapters.data import (
@@ -24,46 +23,10 @@ from paper.scripts.adapters.data import (
 from paper.scripts.adapters.store import Store
 from paper.scripts.config import load_config
 from paper.scripts.config.constants import N_SPLITS
-from paper.scripts.pipeline.methods import SELECTION_TIER_RESOURCES, SELECTION_TIERS, SelectionTier
 from paper.scripts.pipeline.types import ExperimentConfig, Result
 from paper.scripts.utils.env import get_git_sha, get_library_versions, utc_now_iso
 
 config = load_config()
-
-
-# =============================================================================
-# Resource allocation
-# =============================================================================
-
-
-def selection_num_cpus(method: str) -> int:
-    """Return Ray CPU reservation for a selection task."""
-    exp = config.experiment
-
-    # Config override takes priority
-    override = exp.selection_cpus_overrides.get(method)
-    if override is not None:
-        return int(override)
-
-    # Tier-based default (strip ptest_ prefix for lookup)
-    base = method.removeprefix("ptest_")
-    tier = SELECTION_TIERS.get(base, SelectionTier.STANDARD)
-    return SELECTION_TIER_RESOURCES[tier]["cpus"]
-
-
-def selection_memory_bytes(method: str) -> int:
-    """Return Ray memory reservation (in bytes) for a selection task."""
-    exp = config.experiment
-
-    # Config override takes priority
-    override = exp.selection_memory_gb_overrides.get(method)
-    if override is not None:
-        return int(override * 1024 * 1024 * 1024)
-
-    # Tier-based default (strip ptest_ prefix for lookup)
-    base = method.removeprefix("ptest_")
-    tier = SELECTION_TIERS.get(base, SelectionTier.STANDARD)
-    return int(SELECTION_TIER_RESOURCES[tier]["memory_gb"] * 1024 * 1024 * 1024)
 
 
 # =============================================================================
@@ -379,38 +342,8 @@ def run_selection(
     return results
 
 
-# =============================================================================
-# Ray task
-# =============================================================================
-
-
-@ray.remote(
-    resources={"selection": 1},
-    max_retries=3,
-)
-def run_selection_task(cfg: ExperimentConfig, store: Store) -> Result:
-    """Ray task for feature selection.
-
-    Parameters
-    ----------
-    cfg : ExperimentConfig
-        Experiment configuration.
-    store : Store
-        Storage backend.
-
-    Returns
-    -------
-    Result
-        Execution result.
-    """
-    return _run_selection(cfg, store)
-
-
 def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
-    """Synchronous feature selection for a single configuration.
-
-    Can be called directly for local execution or wrapped in a Ray task.
-    """
+    """Run feature selection for a single configuration."""
     method = cfg.method.name
     params = cfg.method.params_dict
     dataset = cfg.dataset
@@ -432,7 +365,7 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
         # Load dataset
         X, y = load_dataset(dataset, task)
         n_samples, n_features = int(X.shape[0]), int(X.shape[1])
-        n_jobs = selection_num_cpus(method)
+        n_jobs = -1
 
         # Get dataset metadata
         dataset_meta = get_dataset_metadata(dataset, task)
@@ -490,3 +423,5 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
             traceback=traceback.format_exc(),
             hostname=hostname,
         )
+
+

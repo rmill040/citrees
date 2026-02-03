@@ -9,7 +9,6 @@ from paper.scripts.config.constants import (
     AWS_REGION,
     CLF_DOWNSTREAM_MODELS,
     DEFAULT_PARAMS,
-    EVAL_STALE_TIMEOUT_MINUTES,
     EVALUATION_K_VALUES,
     N_SEEDS,
     N_SPLITS,
@@ -17,22 +16,18 @@ from paper.scripts.config.constants import (
     RANDOM_STATE,
     REG_DOWNSTREAM_MODELS,
     S3_BUCKET,
-    STALE_TIMEOUT_MINUTES,
 )
-from paper.scripts.config.settings import ClusterConfig, Config, SchedulingConfig, load_config
+from paper.scripts.config.settings import Config, ExperimentConfig, load_config
 
 __all__ = [
     # Settings
-    "ClusterConfig",
     "Config",
-    "SchedulingConfig",
+    "ExperimentConfig",
     "load_config",
     # Constants
     "RANDOM_STATE",
     "N_SEEDS",
     "N_SPLITS",
-    "STALE_TIMEOUT_MINUTES",
-    "EVAL_STALE_TIMEOUT_MINUTES",
     "S3_BUCKET",
     "AWS_REGION",
     "CLF_DOWNSTREAM_MODELS",

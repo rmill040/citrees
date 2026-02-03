@@ -66,6 +66,33 @@ def _infer_source(name: str) -> DataSource:
     return "synthetic" if "synthetic" in name else "real"
 
 
+def _list_datasets_from_s3(task: TaskType, source: DataSource) -> list[str]:
+    """List dataset names from S3 when local data directory is unavailable.
+
+    Used on the cluster head node where paper/data/ is not baked into the
+    Docker image.
+    """
+    prefix = get_dataset_prefix(task)
+    s3_prefix = f"{get_data_s3_prefix(task, source)}/"
+
+    try:
+        bucket = _get_s3_bucket()
+        client = _get_s3_client()
+        paginator = client.get_paginator("list_objects_v2")
+        names: list[str] = []
+        for page in paginator.paginate(Bucket=bucket, Prefix=s3_prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                filename = key.rsplit("/", 1)[-1]
+                if filename.startswith(prefix) and filename.endswith(".parquet"):
+                    name = filename.replace(prefix, "").replace(".parquet", "")
+                    names.append(name)
+        return names
+    except Exception as e:
+        logger.warning(f"Failed to list datasets from S3 for {task}/{source}: {e}")
+        return []
+
+
 def get_datasets(
     task: TaskType,
     *,
@@ -73,6 +100,10 @@ def get_datasets(
     data_dir: Path | None = None,
 ) -> list[str]:
     """List dataset names for the given task type and source.
+
+    Scans the local filesystem first.  When no local data directories exist
+    (e.g. on the cluster head node where ``paper/data/`` is excluded from the
+    Docker image), falls back to listing datasets from S3.
 
     Parameters
     ----------
@@ -92,13 +123,21 @@ def get_datasets(
     datasets: list[str] = []
 
     sources: list[DataSource] = ["real", "synthetic"] if source == "all" else [source]  # type: ignore[list-item]
+    any_local_dir_exists = False
     for src in sources:
         search_dir = data_dir / task / src if data_dir is not None else get_data_dir(task, src)
         if not search_dir.exists():
             continue
+        any_local_dir_exists = True
         for f in search_dir.glob(f"{prefix}*.parquet"):
             name = f.stem.replace(prefix, "")
             datasets.append(name)
+
+    # Fall back to S3 discovery when no local data directories exist
+    if not any_local_dir_exists and data_dir is None:
+        logger.info(f"No local data directory found for {task}, discovering datasets from S3")
+        for src in sources:
+            datasets.extend(_list_datasets_from_s3(task, src))
 
     return sorted(datasets)
 
@@ -268,7 +307,7 @@ def load_dataset(
 
     Resolution order:
     1. Local path (for local development or custom data_dir)
-    2. S3 download to /tmp/citrees-data/ cache (for Ray workers)
+    2. S3 download to /tmp/citrees-data/ cache (for workers)
 
     Parameters
     ----------
@@ -352,12 +391,14 @@ def get_dataset_metadata(
             # Extract dataset type from name
             if "bias" in name:
                 metadata["dataset_type"] = "bias"
+            elif "friedman" in name:
+                metadata["dataset_type"] = "friedman"
             elif "nonlinear" in name:
                 metadata["dataset_type"] = "nonlinear"
+            elif "heteroscedastic" in name:
+                metadata["dataset_type"] = "heteroscedastic"
             elif "corr_noise" in name:
-                metadata["dataset_type"] = "corr_noise"
-            elif "corr_blocks" in name or "corr" in name and "noise" not in name:
-                metadata["dataset_type"] = "correlated"
+                metadata["dataset_type"] = "confounder"
             elif "redundant" in name:
                 metadata["dataset_type"] = "redundant"
             elif "toeplitz" in name:
@@ -368,29 +409,34 @@ def get_dataset_metadata(
                 metadata["dataset_type"] = "standard"
 
             # Extract informative indices
+            import json
+
             info_json = schema_meta.get(b"informative_indices")
             if info_json:
-                import json
-
                 info_indices = json.loads(info_json.decode())
                 metadata["n_informative"] = len(info_indices)
 
             # Extract family from config
             config_json = schema_meta.get(b"config")
             if config_json:
-                import json
-
                 config_dict = json.loads(config_json.decode())
-                if config_dict.get("n_high_cardinality_noise", 0) > 0:
-                    metadata["dataset_family"] = "high_cardinality"
-                elif config_dict.get("nonlinear"):
-                    metadata["dataset_family"] = "friedman"
-                elif config_dict.get("toeplitz_rho", 0) > 0:
+                # Order matches synthetic_analysis.py:dataset_type_from_config
+                if config_dict.get("toeplitz_rho", 0) > 0:
                     metadata["dataset_family"] = "toeplitz"
-                elif config_dict.get("n_correlated_noise", 0) > 0:
-                    metadata["dataset_family"] = "confounded"
                 elif config_dict.get("weak_signal"):
-                    metadata["dataset_family"] = "weak"
+                    metadata["dataset_family"] = "weak_signal"
+                elif config_dict.get("friedman_variant") is not None:
+                    metadata["dataset_family"] = "friedman"
+                elif config_dict.get("nonlinear"):
+                    metadata["dataset_family"] = "nonlinear"
+                elif config_dict.get("heteroscedastic"):
+                    metadata["dataset_family"] = "heteroscedastic"
+                elif config_dict.get("n_high_cardinality_noise", 0) > 0:
+                    metadata["dataset_family"] = "bias"
+                elif config_dict.get("n_correlated_noise", 0) > 0:
+                    metadata["dataset_family"] = "confounder"
+                elif config_dict.get("n_redundant", 0) > 0:
+                    metadata["dataset_family"] = "redundant"
                 else:
                     metadata["dataset_family"] = "standard"
         else:

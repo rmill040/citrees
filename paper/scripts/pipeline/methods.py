@@ -154,13 +154,6 @@ METHOD_INFO: dict[str, MethodInfo] = {
         category="wrapper",
         tasks=frozenset({"classification", "regression"}),
     ),
-    "shap": MethodInfo(
-        name="shap",
-        display_name="SHAP",
-        description="TreeSHAP values",
-        category="wrapper",
-        tasks=frozenset({"classification", "regression"}),
-    ),
     "rfe": MethodInfo(
         name="rfe",
         display_name="Recursive Feature Elimination",
@@ -171,7 +164,7 @@ METHOD_INFO: dict[str, MethodInfo] = {
 }
 
 
-# Classification methods (18 total)
+# Classification methods (15 total)
 CLF_METHODS = [
     # Permutation test methods
     "ptest_mc",
@@ -191,12 +184,11 @@ CLF_METHODS = [
     "boruta",
     "pi",
     "cpi",
-    "shap",
     "rfe",
 ]
 
 
-# Regression methods (18 total)
+# Regression methods (16 total)
 REG_METHODS = [
     # Permutation test methods
     "ptest_pc",
@@ -217,7 +209,6 @@ REG_METHODS = [
     "boruta",
     "pi",
     "cpi",
-    "shap",
     "rfe",
 ]
 
@@ -232,15 +223,12 @@ THREADED_METHODS = {
     "boruta",
     "pi",
     "cpi",
-    "shap",
     "rfe",
 }
 
 
 # Embedding methods (have feature_importances_ and can make predictions)
 EMBEDDING_METHODS = {"cit", "cif", "rf", "et", "xgb", "lgbm", "cat"}
-
-
 
 
 def get_methods(task: str) -> list[str]:

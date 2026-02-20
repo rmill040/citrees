@@ -36,7 +36,7 @@ def main(argv: list[str]) -> int:
         + "".join(f"  - {path}\n" for path in blocked)
     )
     sys.stderr.write(
-        "Use the template file instead:\n" "  - paper/scripts/infra/config.example.yaml\n"
+        "Use the template file instead:\n  - paper/scripts/infra/config.example.yaml\n"
     )
     return 1
 

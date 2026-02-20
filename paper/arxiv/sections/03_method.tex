@@ -2,7 +2,7 @@
 \label{sec:method}
 
 This section describes the core algorithmic structure studied in this paper
-and defines the quantities used in the theoretical statements. Algorithm~\cref{alg:citree}
+and defines the quantities used in the theoretical statements. \cref{alg:citree}
 gives the end-to-end overview. Implementation-aligned stage routines and
 additional details are collected in \cref{app:methods}.
 
@@ -19,7 +19,7 @@ $F_{\mathrm{desc}} \subseteq F_{\mathrm{avail}}$ of non-constant features at $t$
 and the \emph{tested} subset $F_t \subseteq F_{\mathrm{desc}}$ after applying
 \texttt{max\_features}.
 Stage~A returns an updated feature set $F_{\mathrm{avail}}'$ that is passed to
-descendants (Algorithm~\cref{alg:citree}); by default $F_{\mathrm{avail}}' =
+descendants (\cref{alg:citree}); by default $F_{\mathrm{avail}}' =
 F_{\mathrm{desc}}$, while optional heuristics may further prune it
 (\cref{app:methods-heuristics}).
 
@@ -56,8 +56,11 @@ Under the nodewise complete null at $t$ (all tested features are null), this
 Bonferroni rule controls the probability of rejecting any tested feature at level
 $\alpha_{\mathrm{sel}}$ in fixed-$B$ mode under the assumptions in
 \cref{sec:theory} (see \cref{prop:stageA-global-null}).
+In this manuscript, the inferential claim is for the Stage~A decision event at
+the fixed node; we do not interpret $p_t^\star$ as a calibrated p-value for the
+selected feature.
 Implementation-aligned Stage~A pseudocode is given in
-Algorithm~\cref{alg:stageA} (\cref{app:methods-stageA}).
+\cref{alg:stageA} (\cref{app:methods-stageA}).
 
 \paragraph{Stage B (threshold screening).}
 Given $j_t^\star$, the procedure constructs a finite threshold set $C_{t,j_t^\star}$
@@ -70,7 +73,7 @@ statistics (computed after using the same labels to select $j_t^\star$) unless
 additional selective-inference machinery (post-selection corrections) or sample
 splitting is used.
 Implementation-aligned Stage~B pseudocode and threshold-set details are given in
-Algorithm~\cref{alg:stageB} and \cref{app:methods-thresholds}.
+\cref{alg:stageB} and \cref{app:methods-thresholds}.
 
 \begin{algorithm}[t]
   \caption{Conditional inference tree training (Stage A $\rightarrow$ Stage B)}
@@ -80,15 +83,15 @@ Algorithm~\cref{alg:stageB} and \cref{app:methods-thresholds}.
     \Ensure Trained tree $T$
     \State $p \gets$ number of columns of $X$
     \State \Return \Call{GrowNode}{$X,Y,1,\{1,\dots,p\},\theta$}
-	    \Procedure{GrowNode}{$X_t,Y_t,d,F_{\mathrm{avail}},\theta$}
-	      \If{\Call{Stop}{$X_t,Y_t,d,\theta$}}
-	        \State \Return \Call{Leaf}{$Y_t$}
-	      \EndIf
-	      \State $(j_t^\star, p_t^\star, m_t, F_{\mathrm{avail}}') \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\theta}$ \Comment{Algorithm~\cref{alg:stageA}}
-	      \If{$j_t^\star = \bot$} \Comment{e.g., no candidates, or $p_t^\star \ge \alpha_{\mathrm{sel}}/m_t$ if Bonferroni}
-	        \State \Return \Call{Leaf}{$Y_t$}
-	      \EndIf
-	      \State $(c_t^\star, p_t^{\mathrm{split}}) \gets \Call{StageB}{X_t,Y_t,j_t^\star,\theta}$ \Comment{Algorithm~\cref{alg:stageB}}
+    \Procedure{GrowNode}{$X_t,Y_t,d,F_{\mathrm{avail}},\theta$}
+      \If{\Call{Stop}{$X_t,Y_t,d,\theta$}}
+        \State \Return \Call{Leaf}{$Y_t$}
+      \EndIf
+      \State $(j_t^\star, p_t^\star, m_t, F_{\mathrm{avail}}') \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\theta}$ \Comment{see \cref{alg:stageA}}
+      \If{$j_t^\star = \bot$} \Comment{e.g., no candidates, or $p_t^\star \ge \alpha_{\mathrm{sel}}/m_t$ if Bonferroni}
+        \State \Return \Call{Leaf}{$Y_t$}
+      \EndIf
+      \State $(c_t^\star, p_t^{\mathrm{split}}) \gets \Call{StageB}{X_t,Y_t,j_t^\star,\theta}$ \Comment{see \cref{alg:stageB}}
       \If{$c_t^\star = \bot$}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf

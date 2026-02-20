@@ -78,7 +78,8 @@ def _make_worker_user_data(
 
         # Pull and run the worker image
         docker pull {image_uri}
-        docker run --rm \\
+        docker run -d --restart unless-stopped \\
+            --name citrees-worker \\
             --log-driver=awslogs \\
             --log-opt awslogs-region={region} \\
             --log-opt awslogs-group={LOG_GROUP_WORKER} \\
@@ -92,7 +93,8 @@ def _make_worker_user_data(
                 --api-url {api_url} \\
                 --max-idle-polls 60
 
-        # Container exited (queue drained) — terminate this instance
+        # Wait for container to finish (queue drained or idle timeout)
+        docker wait citrees-worker
         echo "Worker container exited, shutting down instance"
         shutdown -h now
     """)
@@ -369,7 +371,7 @@ def launch_workers(
     run_kwargs: dict[str, Any] = {
         "ImageId": ami_id,
         "InstanceType": instance_type,
-        "MinCount": n,
+        "MinCount": 1,
         "MaxCount": n,
         "IamInstanceProfile": {"Name": IAM_ROLE_NAME},
         "UserData": base64.b64encode(user_data.encode()).decode(),

@@ -147,10 +147,10 @@ Outputs:
 - [ ] Ranking stability: Kendall tau / Jaccard@k (define exactly).
 - [ ] Calibration: fixed-B permutation p-value calibration plots at the root.
 - [ ] Runtime: scaling vs (n, p, B), plus wall-clock comparisons.
-- [ ] Figure/caption scope QA: every “calibration” plot states the simulated null
-      (e.g., complete global null) and matches the fixed-node, fixed-B Stage~A
-      scope; early-stopped outputs are labeled as algorithmic statistics (not
-      calibrated p-values).
+- [ ] Figure/caption scope QA: every “calibration” plot states the simulated
+      null (e.g., complete global null) and matches the fixed-node, fixed-B
+      Stage~A scope; early-stopped outputs are labeled as algorithmic statistics
+      (not calibrated p-values).
 
 Artifacts:
 

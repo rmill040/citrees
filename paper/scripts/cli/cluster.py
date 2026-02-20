@@ -85,7 +85,7 @@ def api_status(
         resp.raise_for_status()
     except httpx.ConnectError:
         error(f"Cannot reach API at {api_url}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     data = resp.json()
     queues = data.get("queues", {})

@@ -1,38 +1,22 @@
-Greedy decision trees and tree ensembles often select split variables by
-optimizing impurity reduction over many candidate thresholds. This creates a
-multiple-comparisons effect: under a complete global null (label permutation invariance
-given the covariates), features with more candidate
-split points are more likely to appear optimal by chance, producing
-selection bias toward high-cardinality features and unstable feature rankings. Conditional
-inference trees address this issue by separating variable selection from
-split-point optimization via permutation-based hypothesis testing.
+Greedy decision trees select split variables by optimizing impurity over many
+candidate thresholds, creating a multiple-comparisons effect: under a global null,
+high-cardinality features are more likely to appear informative by chance,
+producing selection bias and unstable rankings. Conditional inference trees
+address this by separating variable selection from split-point optimization via
+permutation-based hypothesis testing.
 
-We study conditional inference trees and forests that attach permutation-based
-hypothesis tests to the variable-selection step at a node (Stage~A; variable
-screening), and treat split-point selection (Stage~B; threshold optimization) as
-a downstream optimization step.
-We focus on the part of the procedure with standard validity guarantees: Stage~A
-screening at a fixed (pre-specified) node (especially the root) in fixed-$B$
-mode using Monte Carlo permutation p-values with the Phipson--Smyth (+1)
-correction. Our inferential target is the nodewise \emph{complete} (global)
-permutation null at the node: label exchangeability given the node covariates
-and label-independent algorithmic randomness.
-Under this exchangeability assumption, the +1 Monte Carlo permutation p-value
-is super-uniform (conservative: $\Pr(p \le \alpha) \le \alpha$ under the null),
-and with Bonferroni correction we obtain finite-sample bounds on (i) the
-probability that Stage~A triggers any split under the complete null and (ii)
-the probability of splitting on any particular tested feature. For motivation,
-we also give an idealized lemma showing that CART-style greedy selection chooses
-features in proportion to their number of candidate splits under an exchangeable
-null model (Appendix~\ref{app:cart-bias}).
+We study conditional inference trees and forests that screen features with Monte
+Carlo permutation tests before optimizing split points. For this screening step
+at a fixed node, we prove finite-sample guarantees: the $+1$ corrected
+permutation p-value is super-uniform under an exchangeability null, and
+Bonferroni correction yields bounds on both the probability of any false split
+and of splitting on any particular feature---without dependence on the number of
+candidate thresholds. We also show that, by contrast, CART-style greedy
+selection favors features in proportion to their candidate split count under the
+same null.
 
-To support large-scale empirical evaluation, we describe practical
-implementation optimizations (e.g., approximate candidate sets and early-stopped
-permutation tests) and a two-stage rank-then-evaluate benchmark protocol (rank
-features, then evaluate downstream performance on the top-$k$ subset) on
-synthetic ground-truth datasets and real tabular datasets. For reproducibility,
-we provide a reference implementation. We explicitly distinguish fixed-node
-Stage~A p-values (calibrated in fixed-$B$ mode under the complete null) from
-adaptive quantities (Stage~B and internal nodes), which are reported as
-algorithmic statistics unless additional selective-inference machinery is used
-(see \cref{tab:pvalue-scope} for a compact scope summary).
+To scale permutation-based trees in practice, we describe implementation
+optimizations including adaptive early stopping of permutation tests and
+feature scanning. We evaluate feature rankings via a two-stage
+rank-then-evaluate benchmark on synthetic ground-truth and real tabular
+datasets. A reference implementation is publicly available.

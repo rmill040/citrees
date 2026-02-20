@@ -88,7 +88,12 @@ def run_worker(
 
         if resp.status_code == 204:
             idle_count += 1
-            logger.debug("Queue empty ({}/{}), sleeping {}s", idle_count, max_idle_polls or "∞", poll_interval)
+            logger.debug(
+                "Queue empty ({}/{}), sleeping {}s",
+                idle_count,
+                max_idle_polls or "∞",
+                poll_interval,
+            )
             if max_idle_polls is not None and idle_count >= max_idle_polls:
                 logger.info("Reached max idle polls ({}), exiting", max_idle_polls)
                 break
@@ -127,7 +132,10 @@ def main() -> None:
         "--poll-interval", type=float, default=5.0, help="Seconds between polls when queue is empty"
     )
     parser.add_argument(
-        "--max-idle-polls", type=int, default=None, help="Exit after N consecutive empty polls (default: run forever)"
+        "--max-idle-polls",
+        type=int,
+        default=None,
+        help="Exit after N consecutive empty polls (default: run forever)",
     )
     args = parser.parse_args()
     run_worker(args.api_url, poll_interval=args.poll_interval, max_idle_polls=args.max_idle_polls)

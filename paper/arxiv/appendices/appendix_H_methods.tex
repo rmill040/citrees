@@ -16,19 +16,19 @@ design choice relative to CART-style trees is to separate variable screening
 (Stage~A) from split-point optimization (Stage~B) and to attach p-values to the
 screening step at a fixed node (especially the root).
 The main text presents the end-to-end recursive training loop
-(Algorithm~\cref{alg:citree} in \cref{sec:method}); this appendix focuses on
+(\cref{alg:citree} in \cref{sec:method}); this appendix focuses on
 node-level routines and implementation-aligned details.
 
 \subsection{Stage routines and supporting algorithms}
 \label{app:methods-tree}
 
 \paragraph{High level.}
-Algorithm~\cref{alg:citree} in the main text gives a compact overview of the
+\cref{alg:citree} in the main text gives a compact overview of the
 recursive training loop. This appendix records implementation-aligned
-node-level routines: Stage~A feature screening in Algorithm~\cref{alg:stageA}
-and Stage~B split selection in Algorithm~\cref{alg:stageB}. Permutation-test
-subroutines are given in Algorithms~\cref{alg:simple-sequential,alg:adaptive-sequential},
-and forest training is summarized in Algorithm~\cref{alg:forest}.
+node-level routines: Stage~A feature screening in \cref{alg:stageA}
+and Stage~B split selection in \cref{alg:stageB}. Permutation-test
+subroutines are given in \cref{alg:simple-sequential,alg:adaptive-sequential},
+and forest training is summarized in \cref{alg:forest}.
 
 \paragraph{Notes.}
 If \texttt{adjust\_alpha\_selector} / \texttt{adjust\_alpha\_splitter} are
@@ -343,7 +343,7 @@ consistency but not used).
       \State \Return $(\bot, p_t^{\mathrm{split}})$
     \EndIf
     \State $c_t^\star \gets$ a uniform element of $\mathcal{M}_t^\star$ \Comment{uniform tie-breaking among evaluated minimizers}
-    \Statex \textit{Note:} caller enforces \texttt{min\_impurity\_decrease} using weighted impurity decrease (Algorithm~\cref{alg:citree}).
+    \Statex \textit{Note:} caller enforces \texttt{min\_impurity\_decrease} using weighted impurity decrease (\cref{alg:citree}).
     \State \Return $(c_t^\star, p_t^{\mathrm{split}})$
   \end{algorithmic}
 \end{algorithm}
@@ -574,6 +574,13 @@ $\min_{j\in F_t} p_{t,j}$ to $\alpha_{\mathrm{sel}}/m_t$ when
 \texttt{adjust\_alpha\_selector} is enabled. Stage~B analogously compares the
 best split p-value to $\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
 \texttt{adjust\_alpha\_splitter} is enabled.
+
+\paragraph{Across-feature max-$T$ (not in the current theorem chain).}
+A natural extension of Stage~A is to apply a Westfall--Young-style max-$T$
+calibration across features at a node (using shared label permutations across
+all tested features) instead of Bonferroni. This can be less conservative under
+feature dependence. In this manuscript we use Bonferroni as the default across
+features for simplicity and assumption transparency in the fixed-node results.
 
 \paragraph{Within-feature max-statistic (multi-selector mode).}
 When combining multiple selector statistics, \citrees supports a max-statistic

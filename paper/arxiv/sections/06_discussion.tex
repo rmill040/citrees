@@ -40,6 +40,15 @@ additional selective-inference machinery (post-selection corrections) or sample
 splitting, we report Stage~B and internal-node ``p-values'' as algorithmic
 statistics rather than calibrated p-values
 \citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,Fithian2014OptimalInferenceAfterModelSelection,Dwork2015ReusableHoldout,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
+Accordingly, the theory contribution focuses on scope-precise finite-sample
+guarantees and explicit assumption tracking for this training pipeline.
+
+\paragraph{What this contribution is.}
+The inferential contribution is primarily scope-clarifying and
+assumption-explicit: under A0.1--A0.5 we provide fixed-node complete-null
+calibration statements for Stage~A in fixed-$B$ mode, and we separate those
+from adaptive algorithmic outputs. We do not claim a new general selective-inference
+framework for recursive tree growth.
 
 \paragraph{Early stopping.}
 \citrees supports early stopping as a computational heuristic for Monte Carlo
@@ -57,6 +66,13 @@ selection include global false discovery rate (FDR) control
 different error metrics and typically rely on different assumptions than the
 fixed-node permutation-testing setup studied here; we do not pursue them in this
 manuscript.
+
+\paragraph{Bonferroni vs.\ resampling-based multiplicity correction.}
+At Stage~A we use Bonferroni across tested features as a conservative default
+that does not require modeling cross-feature dependence. A Westfall--Young
+max-$T$ correction across features (using shared permutations over all tested
+features at the node) is a natural extension that can be less conservative; we
+leave this as future work.
 
 \paragraph{Sequential boundaries beyond our heuristics.}
 More classical sequential-testing frameworks include group-sequential boundary

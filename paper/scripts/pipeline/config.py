@@ -13,12 +13,12 @@ Usage:
     for method, size in grid_sizes("classification").items():
         print(f"{method}: {size}")
 """
+
 from collections.abc import Callable
 from itertools import product
 from typing import Any
 
 from paper.scripts.config.constants import RANDOM_STATE
-
 
 # Valid threshold_method + max_thresholds combinations
 VALID_THRESHOLD_COMBOS: dict[str, list[Any]] = {
@@ -136,10 +136,6 @@ CLF_CPI_GRID: dict[str, list[Any]] = {
     "n_repeats": [10],
 }
 
-CLF_SHAP_GRID: dict[str, list[Any]] = {
-    "max_samples": [500],
-}
-
 CLF_RFE_GRID: dict[str, list[Any]] = {}
 
 
@@ -171,7 +167,11 @@ _CIT_CIF_BASE: dict[str, list[Any]] = {
     "honesty_fraction": [0.5],
 }
 
-CLF_CIT_GRID: dict[str, list[Any]] = {"selector": ["mc", "rdc"], "splitter": ["gini"], **_CIT_CIF_BASE}
+CLF_CIT_GRID: dict[str, list[Any]] = {
+    "selector": ["mc", "rdc"],
+    "splitter": ["gini"],
+    **_CIT_CIF_BASE,
+}
 CLF_CIF_GRID: dict[str, list[Any]] = {
     **CLF_CIT_GRID,
     "max_samples": [None],
@@ -181,7 +181,11 @@ CLF_CIF_GRID: dict[str, list[Any]] = {
     "n_jobs": [-1],
 }
 
-REG_CIT_GRID: dict[str, list[Any]] = {"selector": ["pc", "dc", "rdc"], "splitter": ["mse"], **_CIT_CIF_BASE}
+REG_CIT_GRID: dict[str, list[Any]] = {
+    "selector": ["pc", "dc", "rdc"],
+    "splitter": ["mse"],
+    **_CIT_CIF_BASE,
+}
 REG_CIF_GRID: dict[str, list[Any]] = {
     **REG_CIT_GRID,
     "max_samples": [None],
@@ -249,10 +253,6 @@ REG_CPI_GRID: dict[str, list[Any]] = {
     "n_repeats": [10],
 }
 
-REG_SHAP_GRID: dict[str, list[Any]] = {
-    "max_samples": [500],
-}
-
 REG_RFE_GRID: dict[str, list[Any]] = {}
 
 
@@ -275,7 +275,7 @@ R_CFOREST_GRID: dict[str, list[Any]] = {
     "mincriterion": [0.95],
     "nresample": [9999],
     "ntree": [100],
-    "mtry": ["sqrt", "all"],
+    "mtry": ["sqrt"],
     "replace": [False, True],
     "fraction": [0.632],
     "varimp_conditional": [False],
@@ -334,10 +334,6 @@ def clf_pi() -> list[dict[str, Any]]:
 
 def clf_cpi() -> list[dict[str, Any]]:
     return _generate_simple_grid(CLF_CPI_GRID, "cpi")
-
-
-def clf_shap() -> list[dict[str, Any]]:
-    return _generate_simple_grid(CLF_SHAP_GRID, "shap")
 
 
 def clf_rfe() -> list[dict[str, Any]]:
@@ -404,10 +400,6 @@ def reg_cpi() -> list[dict[str, Any]]:
     return _generate_simple_grid(REG_CPI_GRID, "cpi")
 
 
-def reg_shap() -> list[dict[str, Any]]:
-    return _generate_simple_grid(REG_SHAP_GRID, "shap")
-
-
 def reg_rfe() -> list[dict[str, Any]]:
     return _generate_simple_grid(REG_RFE_GRID, "rfe")
 
@@ -443,7 +435,6 @@ CLF_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
     "boruta": clf_boruta,
     "pi": clf_pi,
     "cpi": clf_cpi,
-    "shap": clf_shap,
     "rfe": clf_rfe,
 }
 
@@ -467,7 +458,6 @@ REG_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
     "boruta": reg_boruta,
     "pi": reg_pi,
     "cpi": reg_cpi,
-    "shap": reg_shap,
     "rfe": reg_rfe,
 }
 

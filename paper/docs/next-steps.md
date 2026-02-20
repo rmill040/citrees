@@ -5,6 +5,8 @@ experiment writeup. Supporting trackers:
 
 - `paper/docs/claims-index.md` (one row per formal claim)
 - `paper/docs/writing-checklist.md` (proof QA checklist)
+- `paper/docs/analysis-lockdown-plan.md` (statistical contract, simulations, and
+  benchmark runbook)
 
 ## A) Scope lock (Stage B + internal nodes)
 
@@ -44,6 +46,9 @@ experiment writeup. Supporting trackers:
 - Ensure every calibration figure/caption states the null being simulated (e.g.,
   **complete global null** / exchangeability target) and matches the fixed-node,
   fixed-$B$ scope of the Stage~A theory.
+- Ensure the final arXiv PDF contains at least one explicit fixed-node/root
+  Stage~A calibration/sanity figure under the complete global null (a stats
+  reviewer will expect to see this even if the theory is correct).
 - Ensure final manuscript figures live under `paper/arxiv/` for a self-contained
   arXiv bundle.
 
@@ -65,3 +70,22 @@ experiment writeup. Supporting trackers:
   `sections/05_experiments.tex` promises only what the pipeline produces).
 - Confirm author list/order and affiliation formatting in
   `paper/arxiv/main.tex`.
+
+## G) Data cleaning before analysis
+
+- **Remove `mtry="all"` r_cforest configs from analysis.** The `r_cforest` grid
+  included `mtry: ["sqrt", "all"]`. The `mtry="all"` variants are intractable on
+  mid/large datasets (isolet, gisette, comm_violence, community_crime) — single
+  tasks ran 15+ hours without completing on c6a.8xlarge instances. Drop these
+  configs (`r_cforest__4c600a4a16bac398`, `r_cforest__2775412ac549973e`) from
+  all downstream analysis; only keep `mtry="sqrt"` variants. The grid has
+  already been patched in `paper/scripts/pipeline/config.py`.
+
+## H) Analysis lock + simulations
+
+- Use `paper/docs/analysis-lockdown-plan.md` as the canonical tracker for:
+  - confirmatory endpoint lock and multiplicity policy,
+  - method identity policy (`method_base` vs config-level),
+  - attrition/missingness reporting,
+  - theory-linked simulation set (S1-S6),
+  - benchmark data freeze and final runbook.

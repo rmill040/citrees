@@ -230,7 +230,7 @@ def wrapper_selector(
     y_train : np.ndarray
         Training target array.
     method : str
-        Method name: "boruta", "pi", "shap", "cpi", "mrmr", "rfe".
+        Method name: "boruta", "pi", "cpi", "mrmr", "rfe".
     task : str
         "classification" or "regression".
     random_state : int
@@ -246,7 +246,6 @@ def wrapper_selector(
         mrmr_selector,
         pi_selector,
         rfe_selector,
-        shap_selector,
     )
 
     params = params or {}
@@ -255,8 +254,6 @@ def wrapper_selector(
         return boruta_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
     if method == "pi":
         return pi_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
-    if method == "shap":
-        return shap_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
     if method == "cpi":
         return cpi_selector(X_train, y_train, task, random_state, n_jobs=n_jobs, params=params)
     if method == "mrmr":
@@ -314,7 +311,7 @@ def run_selection(
                 params=params,
                 n_jobs=n_jobs,
             )
-        elif method in ["boruta", "pi", "shap", "cpi", "mrmr", "rfe"]:
+        elif method in ["boruta", "pi", "cpi", "mrmr", "rfe"]:
             ranking = wrapper_selector(
                 X_train, y_train, method, task, rs, n_jobs=n_jobs, params=params
             )
@@ -423,5 +420,3 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
             traceback=traceback.format_exc(),
             hostname=hostname,
         )
-
-

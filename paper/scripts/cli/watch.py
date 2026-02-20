@@ -1,7 +1,7 @@
 """Live progress dashboard for experiments with interactive keyboard controls.
 
 Uses Rich Live display with a daemon input thread for real-time filtering.
-Keyboard controls: [t]ask, [c]ategory, [s]tage, [q]uit.
+Keyboard controls: [t]ask, [c]category, [s]tage, [q]uit.
 """
 
 from __future__ import annotations
@@ -289,7 +289,7 @@ def _build_output(
     footer.append("[c]", style="bold")
     footer.append(f"at={_CATEGORY_LABELS[state.category]}  ", style="dim")
     footer.append("[s]", style="bold")
-    footer.append(f"tage={_STAGE_LABELS[state.stage]}  ", style="dim")
+    footer.append(f"stage={_STAGE_LABELS[state.stage]}  ", style="dim")
     footer.append("[q]", style="bold")
     footer.append("uit", style="dim")
 
@@ -344,7 +344,12 @@ def run_watch() -> None:
                 if state.dirty:
                     progress_data = fetcher.progress_data
                     output = _build_output(
-                        state, bucket, progress_data, method_configs_by_task, datasets_by_task, n_seeds
+                        state,
+                        bucket,
+                        progress_data,
+                        method_configs_by_task,
+                        datasets_by_task,
+                        n_seeds,
                     )
                     live.update(output)
                     with state._lock:

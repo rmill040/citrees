@@ -3,6 +3,9 @@
 
 This section states the inferential guarantees used in the paper and the
 assumptions under which they hold. Proofs are provided in the appendices.
+Unless explicitly stated otherwise, probability statements are interpreted
+conditional on $(X_t,U)$ at a fixed node, and the calibration target is the
+nodewise \emph{complete} (global) permutation null in A0.2.
 
 \subsection{Setup and assumptions}
 \label{sec:theory-setup}
@@ -39,6 +42,12 @@ conditioning; in particular, by A0.3 the tested family $F_t$ and its
 cardinality $m_t$ are treated as fixed when reasoning about Type~I error at a
 fixed node.
 
+\paragraph{Scope note (what these results do not cover).}
+The theorem chain below does not provide partial-null featurewise inference
+when other covariates carry signal, does not provide post-selection validity for
+Stage~B after selecting $j_t^\star$ with the same labels, and does not provide
+optional-stopping validity for early-stopped outputs.
+
 \paragraph{Terminology (plain language).}
 In this paper, ``fixed node'' means the node $t$ is treated as pre-specified
 (not chosen based on the observed labels). ``Conditional exchangeability''
@@ -66,6 +75,20 @@ exchangeable (conditional on $(X_t, U)$). Define the right-tail +1 Monte Carlo p
 %
 Then for all $\alpha \in [0,1]$, $\PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha$.
 \end{theorem}
+
+\paragraph{Remark (alternative-side consistency in Monte Carlo budget).}
+Fix a node, feature, and right-tail statistic. Conditional on $(X_t,Y_t,U)$,
+let
+$T_0 := T(X_{t,j},Y_t)$ and
+$q := \PP(T(X_{t,j},\Pi(Y_t)) \ge T_0 \mid X_t,Y_t,U)$,
+where $\Pi$ is a uniform random permutation independent of the data.
+Define $I_b := \ind\{T_b \ge T_0\}$ for Monte Carlo draws
+$b=1,\dots,B$. If $q < \alpha$, then in fixed-$B$ mode
+$p_{\mathrm{MC}}^{\ge} = (1 + \sum_{b=1}^B I_b)/(B+1)$ converges almost surely
+to $q$ by the strong law for Bernoulli exceedance indicators, so
+$\PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,Y_t,U) \to 1$ as $B \to \infty$.
+This is a conditional Monte Carlo approximation statement for a fixed observed
+dataset, not a uniform power guarantee across data-generating alternatives.
 
 \subsection{Stage A control via Bonferroni}
 \label{sec:theory-stageA}
@@ -160,6 +183,24 @@ any feature $j$ under the complete root null,
   \le M\,\alpha_{\mathrm{sel}}/p.
 \end{equation}
 \end{corollary}
+
+\paragraph{Scope note (bootstrap and A0.2).}
+The corollary assumes A0.2 at the root for each tree. This assumption can fail
+under with-replacement bootstrap sampling because duplicated training indices at
+the root induce equality constraints among positions in the bootstrap label
+vector that are not permutation-invariant. The bound therefore applies exactly
+when root-level exchangeability under A0.2 is satisfied (e.g., full-data roots
+or root subsampling without replacement).
+
+\paragraph{Interpretation.}
+The expectation statement in Corollary~\ref{cor:forest-level-root} is typically
+the operational bound for standard forests. The at-least-one probability bound
+is informative only when $M\alpha_{\mathrm{sel}} < 1$ (small $M$ or very small
+$\alpha_{\mathrm{sel}}$). Otherwise truncation at $1$ makes
+\begin{equation}
+  \PP(N_{\mathrm{split}} \ge 1) \le \min\{1,\,M\alpha_{\mathrm{sel}}\}
+\end{equation}
+vacuous.
 
 \subsection{Multi-selector mode}
 \label{sec:theory-multiselector}

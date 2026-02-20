@@ -9,6 +9,9 @@ calibrated claims, and defensible experimental comparisons).
 artifact to keep us from (i) overclaiming beyond what we prove, and (ii)
 post-hoc changing evaluation choices after seeing results.
 
+**Execution companion:** For the concrete analysis contract, simulation specs,
+and benchmark runbook, use `paper/docs/analysis-lockdown-plan.md`.
+
 ---
 
 ## 0) “Paper contract” checks (do these before inspecting results)
@@ -42,6 +45,19 @@ why should I care about the full tree/forest ranking outputs?”
 - at least one root/fixed-node screening view (clean interpretability), and
 - full tree/forest ranking views (empirical performance/stability).
 
+### 0.3 Novelty framing is honest
+
+**Risk:** A stats reviewer may view the formal p-value bounds as “standard”
+(exchangeability + +1 permutation p-values + Bonferroni/union bound) and react
+negatively if the paper reads like a major new inferential theory contribution.
+
+**Action:**
+
+- Ensure the paper’s main value proposition reads as: _a strict scope contract +
+  a scalable, reproducible implementation + empirical ranking behavior_.
+- Avoid language that implies calibrated inference for Stage~B, internal nodes,
+  or early-stopped outputs.
+
 ---
 
 ## 1) Inferential scope / p-value calibration (most common stats-reviewer pushback)
@@ -54,8 +70,8 @@ why should I care about the full tree/forest ranking outputs?”
 Table~\ref{tab:pvalue-scope}).
 
 **Reviewer question to anticipate:** “Are your per-feature permutation p-values
-valid only under a nodewise complete (global) permutation null, or also under feature-specific nulls
-when other features are associated with Y?”
+valid only under a nodewise complete (global) permutation null, or also under
+feature-specific nulls when other features are associated with Y?”
 
 **Risk:** Readers may incorrectly infer broad per-feature validity even when the
 permutation scheme conditions on all X and exchangeability only holds under a
@@ -101,6 +117,18 @@ early-stopped values as p-values in a way that implies calibration.
   do not claim Type I error guarantees.
 - Consider a separate appendix subsection: “Early stopping as a speed/accuracy
   tradeoff” with empirical calibration diagnostics only.
+
+### 1.4 Calibration evidence exists in the final PDF
+
+**Risk:** Even if the theory is correct, reviewers often want a visible sanity
+check that the implementation produces the advertised null behavior.
+
+**Action:**
+
+- Include at least one explicit fixed-node/root Stage~A calibration plot under a
+  complete global null (exchangeability target of the permutation scheme).
+- Ensure the caption states the null explicitly (avoid featurewise/partial-null
+  language unless a restricted permutation scheme is used).
 
 ### 1.3 Distinguish two “early stopping” mechanisms (scan termination vs sequential resampling)
 

@@ -33,8 +33,13 @@ DOCKER_PLATFORM = "linux/amd64"  # AWS EC2 instances are amd64
 
 def get_public_ip() -> str:
     """Get the user's current public IP address."""
-    with urllib.request.urlopen("https://ifconfig.me", timeout=10) as response:
-        return response.read().decode("utf-8").strip()
+    for url in ["https://checkip.amazonaws.com", "https://ifconfig.me", "https://api.ipify.org"]:
+        try:
+            with urllib.request.urlopen(url, timeout=10) as response:
+                return response.read().decode("utf-8").strip()
+        except Exception:
+            continue
+    raise RuntimeError("Could not determine public IP from any service")
 
 
 def get_aws_account_id() -> str:
@@ -256,9 +261,7 @@ def ensure_security_group(region: str = DEFAULT_REGION) -> str:
     sg_name = "citrees-sg"
 
     # Check if it already exists
-    resp = ec2.describe_security_groups(
-        Filters=[{"Name": "group-name", "Values": [sg_name]}]
-    )
+    resp = ec2.describe_security_groups(Filters=[{"Name": "group-name", "Values": [sg_name]}])
     if resp["SecurityGroups"]:
         sg_id = resp["SecurityGroups"][0]["GroupId"]
         step(f"Security group exists: {sg_name} ({sg_id})")
@@ -281,8 +284,7 @@ def ensure_security_group(region: str = DEFAULT_REGION) -> str:
                 continue
             # Revoke old IP-based rules for this port (keep group-internal rules)
             old_ip_rules = [
-                r for r in existing_rules
-                if r.get("FromPort") == port and r.get("IpRanges")
+                r for r in existing_rules if r.get("FromPort") == port and r.get("IpRanges")
             ]
             if old_ip_rules:
                 ec2.revoke_security_group_ingress(GroupId=sg_id, IpPermissions=old_ip_rules)
@@ -319,7 +321,9 @@ def ensure_security_group(region: str = DEFAULT_REGION) -> str:
                 "IpProtocol": "tcp",
                 "FromPort": 8000,
                 "ToPort": 8000,
-                "UserIdGroupPairs": [{"GroupId": sg_id, "Description": "API from citrees instances"}],
+                "UserIdGroupPairs": [
+                    {"GroupId": sg_id, "Description": "API from citrees instances"}
+                ],
             },
             # API port: allow from caller's IP (CLI access)
             {

@@ -192,7 +192,7 @@ class TestPairwiseWilcoxonHolm:
         """Should generate C(n,2) pairs for n methods."""
         np.random.seed(42)
         n = 30
-        methods = ["rf", "cif", "boruta", "shap"]
+        methods = ["rf", "cif", "boruta", "pi"]
         data = pd.DataFrame(
             {
                 f"{m}_precision@10": np.random.normal(0.5 + 0.1 * i, 0.05, n)

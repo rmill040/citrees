@@ -8,6 +8,5 @@ aws_region: us-east-1
 experiment:
   n_seeds: 5
 
-
   # Validate each parquet upload with an extra S3 `head_object` call.
   s3_validate_uploads: true

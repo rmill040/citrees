@@ -98,7 +98,6 @@ citrees paper on conditional inference trees.
 | Kursa & Rudnicki (2010) | JSS                | Boruta feature selection                               |
 | Peng et al. (2005)      | IEEE TPAMI         | mRMR feature selection                                 |
 | Guyon et al. (2002)     | Machine Learning   | RFE for gene selection                                 |
-| Lundberg & Lee (2017)   | NeurIPS            | SHAP values                                            |
 
 ### Nice-to-Have
 
@@ -246,8 +245,7 @@ This section is well-covered.
   (1995); Barber \& Cand{\`e}s (2015); Meinshausen \& B{\"u}hlmann (2010);
   O'Brien \& Fleming (1979); Pocock (1977); Lan \& DeMets (1983); and the
   feature-selection baselines used in experiments (e.g., Strobl et al. (2007,
-  2008), Guyon et al. (2002), Peng et al. (2005), Kursa \& Rudnicki (2010),
-  Lundberg \& Lee (2017)).
+  2008), Guyon et al. (2002), Peng et al. (2005), Kursa \& Rudnicki (2010)).
 - Keep the remaining entries above as a backlog; only promote them into the
   manuscript when they directly support text/claims we actually make (avoid
   expanding scope unintentionally).

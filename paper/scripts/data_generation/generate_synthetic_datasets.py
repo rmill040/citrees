@@ -97,7 +97,11 @@ def _shuffle_columns(
     X = X[:, perm]
     inv = np.argsort(perm)
     informative = [int(inv[i]) for i in range(n_informative)]
-    redundant = [int(inv[i]) for i in range(n_informative, n_informative + n_redundant)] if n_redundant else []
+    redundant = (
+        [int(inv[i]) for i in range(n_informative, n_informative + n_redundant)]
+        if n_redundant
+        else []
+    )
     return X, informative, redundant
 
 
@@ -223,7 +227,9 @@ def generate_redundant(
         signal = X[:, : config.n_informative] @ beta
         y = (signal >= np.median(signal)).astype(int)
     else:
-        y = X[:, : config.n_informative] @ beta + rng.normal(scale=config.noise, size=config.n_samples)
+        y = X[:, : config.n_informative] @ beta + rng.normal(
+            scale=config.noise, size=config.n_samples
+        )
 
     perm = rng.permutation(X.shape[1])
     X = X[:, perm]
@@ -249,7 +255,9 @@ def add_correlated_noise(
     cols = []
     for i in range(n_noise):
         base_idx = informative_indices[i % len(informative_indices)]
-        cols.append((corr * X[:, base_idx] + rng.randn(X.shape[0]) * np.sqrt(1 - corr**2)).reshape(-1, 1))
+        cols.append(
+            (corr * X[:, base_idx] + rng.randn(X.shape[0]) * np.sqrt(1 - corr**2)).reshape(-1, 1)
+        )
     noise_indices = list(range(X.shape[1], X.shape[1] + n_noise))
     return np.hstack([X, *cols]), noise_indices
 
@@ -290,7 +298,11 @@ def generate_dataset(config: SyntheticConfig) -> pa.Table:
 
     if config.n_correlated_noise > 0:
         X, corr_noise_indices = add_correlated_noise(
-            X, informative_indices, config.n_correlated_noise, config.correlated_noise_strength, config.seed + 3
+            X,
+            informative_indices,
+            config.n_correlated_noise,
+            config.correlated_noise_strength,
+            config.seed + 3,
         )
 
     df = pd.DataFrame(X, columns=[f"x{i}" for i in range(X.shape[1])])
@@ -321,49 +333,72 @@ def get_classification_configs() -> list[SyntheticConfig]:
         # Correlated features — Strobl et al. unbiased selection
         SyntheticConfig(
             name="synthetic_toeplitz_p100_k10_n1000_r0.95",
-            n_samples=1000, n_features=100, n_informative=10,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
             toeplitz_rho=0.95,
         ),
         # Confounded noise — variable importance bias
         SyntheticConfig(
             name="synthetic_corr_noise_p100_k10_n1000_noise20_r0.9",
-            n_samples=1000, n_features=100, n_informative=10,
-            class_sep=1.0, n_correlated_noise=20, correlated_noise_strength=0.9,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
+            class_sep=1.0,
+            n_correlated_noise=20,
+            correlated_noise_strength=0.9,
         ),
         # Nonlinear — RDC should beat MC
         SyntheticConfig(
             name="synthetic_nonlinear_p100_n1000",
-            n_samples=1000, n_features=100, n_informative=5,
+            n_samples=1000,
+            n_features=100,
+            n_informative=5,
             nonlinear=True,
         ),
         # Weak signal — Type I error control
         SyntheticConfig(
             name="synthetic_weak_p100_k10_n1000_sep0.1_flip0.1",
-            n_samples=1000, n_features=100, n_informative=10,
-            class_sep=0.1, flip_y=0.1, weak_signal=True,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
+            class_sep=0.1,
+            flip_y=0.1,
+            weak_signal=True,
         ),
         # High-cardinality bias — known ctree advantage
         SyntheticConfig(
             name="synthetic_bias_noise50_levels500",
-            n_samples=1000, n_features=50, n_informative=10,
-            class_sep=1.0, n_high_cardinality_noise=50, high_cardinality_levels=500,
+            n_samples=1000,
+            n_features=50,
+            n_informative=10,
+            class_sep=1.0,
+            n_high_cardinality_noise=50,
+            high_cardinality_levels=500,
         ),
         # Redundant features — feature muting
         SyntheticConfig(
             name="synthetic_redundant20",
-            n_samples=1000, n_features=50, n_informative=10,
-            n_redundant=20, class_sep=1.0,
+            n_samples=1000,
+            n_features=50,
+            n_informative=10,
+            n_redundant=20,
+            class_sep=1.0,
         ),
         # Ground truth easy — validates metrics pipeline
         SyntheticConfig(
             name="synthetic_p100_k10_n1000_sep2.0",
-            n_samples=1000, n_features=100, n_informative=10,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
             class_sep=2.0,
         ),
         # Ground truth hard — high-p, small-n, low separation
         SyntheticConfig(
             name="synthetic_p1000_k5_n200_sep0.5",
-            n_samples=200, n_features=1000, n_informative=5,
+            n_samples=200,
+            n_features=1000,
+            n_informative=5,
             class_sep=0.5,
         ),
     ]
@@ -374,50 +409,79 @@ def get_regression_configs() -> list[SyntheticConfig]:
         # Correlated features
         SyntheticConfig(
             name="synthetic_toeplitz_p100_k10_n1000_r0.95",
-            n_samples=1000, n_features=100, n_informative=10,
-            task="regression", toeplitz_rho=0.95,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
+            task="regression",
+            toeplitz_rho=0.95,
         ),
         # Confounded noise
         SyntheticConfig(
             name="synthetic_corr_noise_p100_k10_n1000_noise20_r0.9",
-            n_samples=1000, n_features=100, n_informative=10,
-            task="regression", n_correlated_noise=20, correlated_noise_strength=0.9,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
+            task="regression",
+            n_correlated_noise=20,
+            correlated_noise_strength=0.9,
         ),
         # Nonlinear — Friedman #1
         SyntheticConfig(
             name="synthetic_friedman1_p100_n1000_noise1.0",
-            n_samples=1000, n_features=100, n_informative=5,
-            task="regression", friedman_variant=1, noise=1.0,
+            n_samples=1000,
+            n_features=100,
+            n_informative=5,
+            task="regression",
+            friedman_variant=1,
+            noise=1.0,
         ),
         # Weak signal — low SNR
         SyntheticConfig(
             name="synthetic_weak_p100_k10_n1000_noise50.0",
-            n_samples=1000, n_features=100, n_informative=10,
-            task="regression", noise=50.0, weak_signal=True,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
+            task="regression",
+            noise=50.0,
+            weak_signal=True,
         ),
         # Heteroscedastic — non-constant variance
         SyntheticConfig(
             name="synthetic_heteroscedastic_scale4.0_noise5.0",
-            n_samples=1000, n_features=50, n_informative=10,
-            task="regression", heteroscedastic=True, heteroscedastic_scale=4.0, noise=5.0,
+            n_samples=1000,
+            n_features=50,
+            n_informative=10,
+            task="regression",
+            heteroscedastic=True,
+            heteroscedastic_scale=4.0,
+            noise=5.0,
         ),
         # Redundant features
         SyntheticConfig(
             name="synthetic_redundant20",
-            n_samples=1000, n_features=50, n_informative=10,
-            n_redundant=20, task="regression",
+            n_samples=1000,
+            n_features=50,
+            n_informative=10,
+            n_redundant=20,
+            task="regression",
         ),
         # Ground truth easy
         SyntheticConfig(
             name="synthetic_p100_k10_n1000_noise1.0",
-            n_samples=1000, n_features=100, n_informative=10,
-            task="regression", noise=1.0,
+            n_samples=1000,
+            n_features=100,
+            n_informative=10,
+            task="regression",
+            noise=1.0,
         ),
         # Ground truth hard
         SyntheticConfig(
             name="synthetic_p500_k5_n200_noise10.0",
-            n_samples=200, n_features=500, n_informative=5,
-            task="regression", noise=10.0,
+            n_samples=200,
+            n_features=500,
+            n_informative=5,
+            task="regression",
+            noise=10.0,
         ),
     ]
 
@@ -442,7 +506,9 @@ def main() -> None:
         pq.write_table(table, path)
         logger.info(f"  {config.name} ({path.stat().st_size / 1024:.0f} KB)")
 
-    logger.info(f"Done: {len(clf_configs)} clf + {len(reg_configs)} reg = {len(clf_configs) + len(reg_configs)} total")
+    logger.info(
+        f"Done: {len(clf_configs)} clf + {len(reg_configs)} reg = {len(clf_configs) + len(reg_configs)} total"
+    )
 
 
 if __name__ == "__main__":

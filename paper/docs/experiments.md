@@ -20,6 +20,12 @@ When generating any calibration figure/table, make the simulated null explicit
 in captions (e.g., **complete global null**) and ensure it matches the paper’s
 scope table and assumptions.
 
+**Reviewer-critical reminder:** include at least one explicit Stage~A
+fixed-node/root calibration/sanity figure under a complete global null (e.g.,
+empirical $\Pr(\text{root splits})$ under the null, and/or a +1 p-value ECDF
+backstop). A stats reviewer will expect to see this even if the theory is
+correct.
+
 ## Directory Structure
 
 ```
@@ -219,7 +225,7 @@ uv run python paper/scripts/analysis/generate_figures.py --profile paper
 
 ## Methods
 
-### Classification (18 methods)
+### Classification (15 methods)
 
 | Method      | Type        | Description                               |
 | ----------- | ----------- | ----------------------------------------- |
@@ -239,12 +245,11 @@ uv run python paper/scripts/analysis/generate_figures.py --profile paper
 | `boruta`    | wrapper     | Boruta feature selection                  |
 | `pi`        | wrapper     | Permutation importance                    |
 | `cpi`       | wrapper     | Conditional permutation importance        |
-| `shap`      | wrapper     | SHAP importance                           |
 | `rfe`       | wrapper     | Recursive Feature Elimination             |
 
 **Downstream models:** LogisticRegression, SVM, kNN
 
-### Regression (18 methods)
+### Regression (16 methods)
 
 | Method      | Type        | Description                               |
 | ----------- | ----------- | ----------------------------------------- |
@@ -266,7 +271,6 @@ uv run python paper/scripts/analysis/generate_figures.py --profile paper
 | `boruta`    | wrapper     | Boruta feature selection                  |
 | `pi`        | wrapper     | Permutation importance                    |
 | `cpi`       | wrapper     | Conditional permutation importance        |
-| `shap`      | wrapper     | SHAP importance                           |
 | `rfe`       | wrapper     | Recursive Feature Elimination             |
 
 **Downstream models:** Ridge, SVR, kNN
@@ -315,36 +319,35 @@ uv run python paper/scripts/data_generation/generate_synthetic_datasets.py
 
 **Classification (8 datasets):**
 
-| Dataset | Phenomenon | Paper claim |
-| --- | --- | --- |
-| `synthetic_toeplitz_p100_k10_n1000_r0.95` | Correlated features | Unbiased selection (Strobl et al.) |
-| `synthetic_corr_noise_p100_k10_n1000_noise20_r0.9` | Confounded noise | Variable importance bias |
-| `synthetic_nonlinear_p100_n1000` | Nonlinear (Friedman #1) | RDC beats MC |
-| `synthetic_weak_p100_k10_n1000_sep0.1_flip0.1` | Weak signal | Type I error control |
-| `synthetic_bias_noise50_levels500` | High-cardinality | ctree advantage over CART |
-| `synthetic_redundant20` | Redundant features | Feature muting validation |
-| `synthetic_p100_k10_n1000_sep2.0` | Ground truth (easy) | Metrics pipeline validation |
-| `synthetic_p1000_k5_n200_sep0.5` | Ground truth (hard) | High-p, small-n ranking |
+| Dataset                                            | Phenomenon              | Paper claim                        |
+| -------------------------------------------------- | ----------------------- | ---------------------------------- |
+| `synthetic_toeplitz_p100_k10_n1000_r0.95`          | Correlated features     | Unbiased selection (Strobl et al.) |
+| `synthetic_corr_noise_p100_k10_n1000_noise20_r0.9` | Confounded noise        | Variable importance bias           |
+| `synthetic_nonlinear_p100_n1000`                   | Nonlinear (Friedman #1) | RDC beats MC                       |
+| `synthetic_weak_p100_k10_n1000_sep0.1_flip0.1`     | Weak signal             | Type I error control               |
+| `synthetic_bias_noise50_levels500`                 | High-cardinality        | ctree advantage over CART          |
+| `synthetic_redundant20`                            | Redundant features      | Feature muting validation          |
+| `synthetic_p100_k10_n1000_sep2.0`                  | Ground truth (easy)     | Metrics pipeline validation        |
+| `synthetic_p1000_k5_n200_sep0.5`                   | Ground truth (hard)     | High-p, small-n ranking            |
 
 **Regression (8 datasets):**
 
-| Dataset | Phenomenon | Paper claim |
-| --- | --- | --- |
-| `synthetic_toeplitz_p100_k10_n1000_r0.95` | Correlated features | Unbiased selection |
-| `synthetic_corr_noise_p100_k10_n1000_noise20_r0.9` | Confounded noise | Variable importance bias |
-| `synthetic_friedman1_p100_n1000_noise1.0` | Nonlinear (Friedman #1) | DC/RDC beat PC |
-| `synthetic_weak_p100_k10_n1000_noise50.0` | Weak signal | Type I error control |
-| `synthetic_heteroscedastic_scale4.0_noise5.0` | Heteroscedastic | Robustness |
-| `synthetic_redundant20` | Redundant features | Feature muting validation |
-| `synthetic_p100_k10_n1000_noise1.0` | Ground truth (easy) | Metrics pipeline validation |
-| `synthetic_p500_k5_n200_noise10.0` | Ground truth (hard) | High-p, small-n ranking |
+| Dataset                                            | Phenomenon              | Paper claim                 |
+| -------------------------------------------------- | ----------------------- | --------------------------- |
+| `synthetic_toeplitz_p100_k10_n1000_r0.95`          | Correlated features     | Unbiased selection          |
+| `synthetic_corr_noise_p100_k10_n1000_noise20_r0.9` | Confounded noise        | Variable importance bias    |
+| `synthetic_friedman1_p100_n1000_noise1.0`          | Nonlinear (Friedman #1) | DC/RDC beat PC              |
+| `synthetic_weak_p100_k10_n1000_noise50.0`          | Weak signal             | Type I error control        |
+| `synthetic_heteroscedastic_scale4.0_noise5.0`      | Heteroscedastic         | Robustness                  |
+| `synthetic_redundant20`                            | Redundant features      | Feature muting validation   |
+| `synthetic_p100_k10_n1000_noise1.0`                | Ground truth (easy)     | Metrics pipeline validation |
+| `synthetic_p500_k5_n200_noise10.0`                 | Ground truth (hard)     | High-p, small-n ranking     |
 
-Datasets saved as `clf_synthetic_*.parquet` and `reg_synthetic_*.parquet`
-under `paper/data/{classification,regression}/synthetic/`.
+Datasets saved as `clf_synthetic_*.parquet` and `reg_synthetic_*.parquet` under
+`paper/data/{classification,regression}/synthetic/`.
 
-Ground truth stored in parquet schema metadata: `config`,
-`informative_indices`, `redundant_indices`, `correlated_noise_indices`,
-and `noise_indices`.
+Ground truth stored in parquet schema metadata: `config`, `informative_indices`,
+`redundant_indices`, `correlated_noise_indices`, and `noise_indices`.
 
 ## Check Progress
 
@@ -437,6 +440,10 @@ Then point `stats.py` at the filtered parquet files.
 
 After experiments complete:
 
+Use `paper/docs/analysis-lockdown-plan.md` as the canonical analysis contract
+and execution checklist (confirmatory endpoints, multiplicity, attrition, and
+theory-linked simulation requirements).
+
 ```bash
 # Download and aggregate from S3 (recommended)
 S3_BUCKET=my-bucket uv run python paper/scripts/analysis/download_and_aggregate.py --task all
@@ -481,6 +488,7 @@ Each method has its own hyperparameter grid (see
 
 Queue size = method_configs × datasets × 5 seeds:
 
-- Classification: 11,645 × 32 datasets (24 real + 8 synthetic) × 5 = **1,863,200**
+- Classification: 11,645 × 32 datasets (24 real + 8 synthetic) × 5 =
+  **1,863,200**
 - Regression: 7,214 × 16 datasets (8 real + 8 synthetic) × 5 = **577,120**
 - **Total: ~2.4M tasks**

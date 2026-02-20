@@ -405,17 +405,11 @@ and **do not claim results you did not run**.
 
 ## Current Limitations vs State of the Art
 
-| Area               | citrees Now  | SOTA (2024-2025)         | Priority |
-| ------------------ | ------------ | ------------------------ | -------- |
-| Feature Importance | MDI          | SHAP/TreeSHAP            | N/A      |
-| Causal Inference   | Honesty      | Honest Estimation, GRF   | DONE     |
-| Speed              | CPU/Numba    | GPU (cuML 20-45x faster) | MEDIUM   |
-| Tree Structure     | Axis-aligned | Oblique, Neural Trees    | LOW      |
-
-**Note on SHAP**: citrees uses a custom tree structure not compatible with
-SHAP's TreeExplainer. For benchmarking, SHAP TreeExplainer is used with
-sklearn/XGBoost/ LightGBM models in `paper/scripts/`. This is intentional - SHAP
-is a benchmark comparison tool, not a core library feature.
+| Area             | citrees Now  | SOTA (2024-2025)         | Priority |
+| ---------------- | ------------ | ------------------------ | -------- |
+| Causal Inference | Honesty      | Honest Estimation, GRF   | DONE     |
+| Speed            | CPU/Numba    | GPU (cuML 20-45x faster) | MEDIUM   |
+| Tree Structure   | Axis-aligned | Oblique, Neural Trees    | LOW      |
 
 ---
 

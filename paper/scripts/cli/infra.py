@@ -88,7 +88,9 @@ def clean() -> None:
     if total == 0:
         info("Repository already empty")
     else:
-        success(f"Deleted {counts['tagged']} tagged images, {counts['untagged']} untagged manifests")
+        success(
+            f"Deleted {counts['tagged']} tagged images, {counts['untagged']} untagged manifests"
+        )
 
 
 # ---------------------------------------------------------------------------

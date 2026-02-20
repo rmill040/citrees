@@ -117,8 +117,7 @@ experiment:
   s3_validate_uploads: true
 ```
 
-View config: `citrees-exp config show`
-Validate: `citrees-exp config validate`
+View config: `citrees-exp config show` Validate: `citrees-exp config validate`
 
 ## CLI Commands
 

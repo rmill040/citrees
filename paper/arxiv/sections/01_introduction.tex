@@ -47,9 +47,16 @@ candidate thresholds;
 (ii)~a set of practical implementation optimizations for scaling conditional
 inference trees and forests, together with a clean scoping of which outputs are
 treated as classical p-values versus algorithmic stopping statistics; and
-(iii)~a benchmark suite evaluating feature rankings on synthetic ground-truth
-datasets and real datasets under a two-stage rank-then-evaluate protocol.
+(iii)~a pre-specified benchmark and analysis protocol for evaluating feature
+rankings on synthetic ground-truth datasets and real datasets under a two-stage
+rank-then-evaluate workflow.
 For reproducibility, we provide a reference implementation.
+The theoretical contribution is scope-clarifying and assumption-tracked:
+we make explicit exactly which fixed-node quantities admit classical
+finite-sample p-value guarantees in this workflow, and which adaptive outputs
+should be treated as algorithmic statistics. We do not claim calibrated
+post-selection inference for Stage~B/internal-node outputs or partial-null
+per-feature validity in this manuscript.
 
 \paragraph{Roadmap.}
 \cref{sec:background} reviews selection bias in greedy trees and situates the

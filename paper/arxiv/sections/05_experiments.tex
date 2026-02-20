@@ -1,10 +1,12 @@
 \section{Experiments}
 \label{sec:experiments}
 
-This section defines our benchmark protocol and (once experiments finish)
-summarizes empirical findings on synthetic ground-truth datasets and real tabular
-datasets. The empirical goal is to evaluate methods as \emph{feature rankers} in
-a way that separates ranking quality from downstream model choice.
+This section defines our benchmark protocol and analysis-plan contract for
+synthetic ground-truth datasets and real tabular datasets. The empirical goal is
+to evaluate methods as \emph{feature rankers} in a way that separates ranking
+quality from downstream model choice. Until the results tables/figures are
+populated, this section should be read as a pre-results specification rather than
+as evidence for method superiority.
 
 \subsection{Protocol: rank-then-evaluate}
 \label{sec:experiments-protocol}
@@ -37,8 +39,9 @@ For each dataset and method, we first average the primary endpoint across folds
 and random seeds. Cross-dataset summaries are computed from these dataset-level
 means. We report (i)~average ranks across datasets, and (ii)~paired, per-dataset
 differences versus \citrees (median and interquartile range). Formal multiple
-comparison procedures and uncertainty summaries are reported in the results
-tables (TODO: finalize based on the analysis script outputs).
+comparison procedures and uncertainty summaries will be locked to the final
+analysis script configuration and reported in the results tables before any
+headline empirical claim is made.
 
 \paragraph{Synthetic ground truth.}
 For synthetic datasets with known informative feature sets, the primary ranking
@@ -69,8 +72,8 @@ regimes including $p \gg n$.
 All preprocessing is fit on the training portion only within each fold and then
 applied to the held-out portion. We standardize features using training-fold
 means and variances; see \cref{app:methods-benchmark} for the code-aligned
-definition. (TODO: add a dataset summary table with provenance and $n/p$
-statistics in the appendix.)
+definition. A dataset summary table (provenance and $n/p$ statistics) will be
+added in the finalized version.
 
 \subsection{Methods and fairness policy}
 \label{sec:experiments-methods}
@@ -83,23 +86,23 @@ permutation p-values;
 (iii)~\emph{embedded} selectors from tree and ensemble learners (including
 \emph{conditional-inference} trees/forests (the procedure studied here) and
 strong CART-style baselines); and
-(iv)~\emph{wrappers} such as Boruta, permutation importance variants, SHAP-based
-rankings, and RFE. Implementation-aligned definitions of the selector and
+(iv)~\emph{wrappers} such as Boruta, permutation importance variants, and RFE. Implementation-aligned definitions of the selector and
 splitter statistics used in our experiments are in
 \cref{app:methods-selectors,app:methods-splitters}.
 
 \paragraph{Hyperparameters and compute budgets.}
 To avoid optimistic bias from unequal tuning effort, each baseline is evaluated
-under a pre-specified hyperparameter grid and compute budget (TODO: include the
-full method roster, grids, and failure/timeout policy; align with the experiment
-pipeline configuration).
+under a pre-specified hyperparameter grid and compute budget. The final version
+will include the full method roster, grids, and failure/timeout policy aligned
+to the experiment pipeline configuration.
 
 \subsection{Results (placeholders; populated after runs complete)}
 \label{sec:experiments-results}
 
 This subsection describes the figures/tables produced by the benchmark suite
-and states the intended takeaways. Figure panels and tables will be inserted
-after the experiment runs complete.
+and states the pre-specified analysis questions. Figure panels and tables will
+be inserted after the experiment runs complete. Empirical-effect and
+significance claims are deferred until those artifacts are populated.
 
 \subsubsection{Selection bias under an exchangeable complete global null}
 \label{sec:experiments-selection-bias}
@@ -118,9 +121,9 @@ after the experiment runs complete.
   \label{fig:selection-bias-demo}
 \end{figure}
 
-\noindent\textbf{Intended takeaway.} Under a complete global null, greedy
-threshold search can favor features with many candidate split points, while
-fixed-$B$ Stage~A screening reduces root-level false splits in this setting.
+\noindent\textbf{Planned analysis question.} Under a complete global null, do
+greedy threshold-search baselines favor high-cardinality features, and does
+fixed-$B$ Stage~A screening reduce root-level false splits in this setting?
 
 \subsubsection{Synthetic ground-truth ranking quality}
 \label{sec:experiments-synthetic}
@@ -139,10 +142,9 @@ fixed-$B$ Stage~A screening reduces root-level false splits in this setting.
   \label{fig:synthetic-ranking}
 \end{figure}
 
-\noindent\textbf{Intended takeaway.} Compare methods by their ability to rank
-known informative features above noise across a range of $k$ values, including
-stress-test regimes (correlated blocks, redundancy, high-dimensional settings,
-and weak signals).
+\noindent\textbf{Planned analysis question.} How do methods compare in ranking
+known informative features above noise across $k$ values and stress-test regimes
+(correlated blocks, redundancy, high-dimensional settings, weak signals)?
 
 \subsubsection{Runtime and scalability}
 \label{sec:experiments-runtime}
@@ -161,9 +163,9 @@ and weak signals).
   \label{fig:runtime}
 \end{figure}
 
-\noindent\textbf{Intended takeaway.} Quantify the cost of permutation-based
-screening and identify which optimizations materially reduce runtime while
-preserving ranking quality.
+\noindent\textbf{Planned analysis question.} What is the runtime cost of
+permutation-based screening, and which optimizations reduce runtime with minimal
+loss in ranking quality?
 
 \subsubsection{Real-data performance (rank-then-evaluate)}
 \label{sec:experiments-real}
@@ -182,13 +184,13 @@ preserving ranking quality.
   \label{fig:real-data}
 \end{figure}
 
-\noindent\textbf{Intended takeaway.} Evaluate whether improved ranking behavior
-on synthetic ground truth translates to competitive downstream performance on
-real tabular datasets under the pre-specified primary endpoints.
+\noindent\textbf{Planned analysis question.} Does ranking behavior on synthetic
+ground truth translate to competitive downstream performance on real tabular
+datasets under the pre-specified primary endpoints?
 
 \paragraph{Reproducibility.}
 Experiment orchestration, analysis, and figure generation scripts live under
 \texttt{paper/scripts/}, and generated artifacts are written to
 \texttt{paper/results/}. The repository is available at
-\url{https://github.com/rmill040/citrees}. (TODO: ensure all paper figures are
-vendored into the arXiv bundle directory before submission.)
+\url{https://github.com/rmill040/citrees}. The final arXiv bundle will vendor
+all paper figures/tables used for empirical claims.

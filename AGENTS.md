@@ -427,55 +427,55 @@ UV_CACHE_DIR=./scratch/.uv_cache uv sync --group paper
 
 ### Top-Level Commands
 
-| Command               | Description                                |
-| --------------------- | ------------------------------------------ |
-| `citrees-exp run`     | Poll API server for live queue progress    |
-| `citrees-exp smoke`   | Quick local smoke test (no API needed)     |
-| `citrees-exp check`   | Check S3 experiment progress               |
-| `citrees-exp watch`   | Interactive Rich dashboard with key nav    |
+| Command             | Description                             |
+| ------------------- | --------------------------------------- |
+| `citrees-exp run`   | Poll API server for live queue progress |
+| `citrees-exp smoke` | Quick local smoke test (no API needed)  |
+| `citrees-exp check` | Check S3 experiment progress            |
+| `citrees-exp watch` | Interactive Rich dashboard with key nav |
 
 ### `config` Subgroup
 
-| Command                    | Description                        |
-| -------------------------- | ---------------------------------- |
-| `citrees-exp config show`  | Display current config             |
-| `citrees-exp config init`  | Initialize config from template    |
+| Command                       | Description                     |
+| ----------------------------- | ------------------------------- |
+| `citrees-exp config show`     | Display current config          |
+| `citrees-exp config init`     | Initialize config from template |
 | `citrees-exp config validate` | Validate config schema          |
-| `citrees-exp config path`  | Show config file paths             |
+| `citrees-exp config path`     | Show config file paths          |
 
 ### `list` Subgroup
 
-| Command                     | Description                       |
-| --------------------------- | --------------------------------- |
-| `citrees-exp list datasets` | List available datasets           |
-| `citrees-exp list methods`  | List feature selection methods    |
+| Command                     | Description                    |
+| --------------------------- | ------------------------------ |
+| `citrees-exp list datasets` | List available datasets        |
+| `citrees-exp list methods`  | List feature selection methods |
 
 ### `infra` Subgroup (AWS)
 
-| Command                          | Description                            |
-| -------------------------------- | -------------------------------------- |
-| `citrees-exp infra setup`        | Full setup (IAM + Docker)              |
-| `citrees-exp infra iam`          | Create IAM role + instance profile     |
-| `citrees-exp infra s3`           | Create S3 bucket                       |
-| `citrees-exp infra upload-data`  | Upload datasets to S3                  |
-| `citrees-exp infra ecr create`   | Create ECR repository                  |
-| `citrees-exp infra ecr build`    | Build + push Docker image to ECR       |
-| `citrees-exp infra ecr clean`    | Delete all ECR images                  |
-| `citrees-exp infra launch-api`   | Launch API server on EC2               |
-| `citrees-exp infra api-url`      | Print running API server URL           |
-| `citrees-exp infra terminate-api`| Terminate API server instance          |
-| `citrees-exp infra launch-workers` | Launch EC2 worker instances          |
-| `citrees-exp infra list-workers` | List running worker instances          |
-| `citrees-exp infra terminate-workers` | Terminate all workers             |
-| `citrees-exp infra logs`         | Fetch CloudWatch logs (api/worker)     |
+| Command                               | Description                        |
+| ------------------------------------- | ---------------------------------- |
+| `citrees-exp infra setup`             | Full setup (IAM + Docker)          |
+| `citrees-exp infra iam`               | Create IAM role + instance profile |
+| `citrees-exp infra s3`                | Create S3 bucket                   |
+| `citrees-exp infra upload-data`       | Upload datasets to S3              |
+| `citrees-exp infra ecr create`        | Create ECR repository              |
+| `citrees-exp infra ecr build`         | Build + push Docker image to ECR   |
+| `citrees-exp infra ecr clean`         | Delete all ECR images              |
+| `citrees-exp infra launch-api`        | Launch API server on EC2           |
+| `citrees-exp infra api-url`           | Print running API server URL       |
+| `citrees-exp infra terminate-api`     | Terminate API server instance      |
+| `citrees-exp infra launch-workers`    | Launch EC2 worker instances        |
+| `citrees-exp infra list-workers`      | List running worker instances      |
+| `citrees-exp infra terminate-workers` | Terminate all workers              |
+| `citrees-exp infra logs`              | Fetch CloudWatch logs (api/worker) |
 
 ### `cluster` Subgroup (Local Processes)
 
-| Command                            | Description                      |
-| ---------------------------------- | -------------------------------- |
-| `citrees-exp cluster api-start`    | Start API queue server locally   |
-| `citrees-exp cluster api-status`   | Show API queue status            |
-| `citrees-exp cluster worker-start` | Start worker process locally     |
+| Command                            | Description                    |
+| ---------------------------------- | ------------------------------ |
+| `citrees-exp cluster api-start`    | Start API queue server locally |
+| `citrees-exp cluster api-status`   | Show API queue status          |
+| `citrees-exp cluster worker-start` | Start worker process locally   |
 
 ## Two-Stage Pipeline
 
@@ -522,30 +522,30 @@ until queues drain or idle timeout.
 
 ## Adapters
 
-| Module              | Purpose                                           |
-| ------------------- | ------------------------------------------------- |
-| `adapters/data.py`  | Dataset loading (local filesystem, S3 fallback)   |
-| `adapters/runner.py`| Execution interface (`LocalRunner` for smoke tests) |
-| `adapters/store.py` | S3 artifact storage (save/load/exists/list)       |
+| Module               | Purpose                                             |
+| -------------------- | --------------------------------------------------- |
+| `adapters/data.py`   | Dataset loading (local filesystem, S3 fallback)     |
+| `adapters/runner.py` | Execution interface (`LocalRunner` for smoke tests) |
+| `adapters/store.py`  | S3 artifact storage (save/load/exists/list)         |
 
 ## Pipeline Types
 
-| Type               | Location               | Description                        |
-| ------------------ | ---------------------- | ---------------------------------- |
-| `MethodConfig`     | `pipeline/types.py`    | Frozen dataclass: method + params  |
-| `ExperimentConfig` | `pipeline/types.py`    | Frozen dataclass: method + dataset + seed + task |
-| `Result`           | `pipeline/types.py`    | Mutable dataclass: config + status + data |
-| `ExperimentGrid`   | `pipeline/grid.py`     | Grid builder from CLI args         |
+| Type               | Location            | Description                                      |
+| ------------------ | ------------------- | ------------------------------------------------ |
+| `MethodConfig`     | `pipeline/types.py` | Frozen dataclass: method + params                |
+| `ExperimentConfig` | `pipeline/types.py` | Frozen dataclass: method + dataset + seed + task |
+| `Result`           | `pipeline/types.py` | Mutable dataclass: config + status + data        |
+| `ExperimentGrid`   | `pipeline/grid.py`  | Grid builder from CLI args                       |
 
 ## Method Categories
 
 Methods are defined in `paper/scripts/pipeline/methods.py`:
 
-| Category    | Classification                                        | Regression                                            |
-| ----------- | ----------------------------------------------------- | ----------------------------------------------------- |
-| Perm. test  | `ptest_mc`, `ptest_rdc`                              | `ptest_pc`, `ptest_dc`, `ptest_rdc`                  |
-| Embedding   | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` |
-| Wrapper     | `boruta`, `pi`, `cpi`, `shap`, `rfe`                 | `boruta`, `pi`, `cpi`, `shap`, `rfe`                 |
+| Category   | Classification                                                         | Regression                                                             |
+| ---------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Perm. test | `ptest_mc`, `ptest_rdc`                                                | `ptest_pc`, `ptest_dc`, `ptest_rdc`                                    |
+| Embedding  | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` |
+| Wrapper    | `boruta`, `pi`, `cpi`, `rfe`                                           | `boruta`, `pi`, `cpi`, `rfe`                                           |
 
 ## Configuration
 
@@ -596,17 +596,11 @@ citrees-exp infra terminate-api
 
 ## Current Limitations vs State of the Art
 
-| Area               | citrees Now  | SOTA (2024-2025)         | Priority |
-| ------------------ | ------------ | ------------------------ | -------- |
-| Feature Importance | MDI          | SHAP/TreeSHAP            | N/A      |
-| Causal Inference   | Honesty      | Honest Estimation, GRF   | DONE     |
-| Speed              | CPU/Numba    | GPU (cuML 20-45x faster) | MEDIUM   |
-| Tree Structure     | Axis-aligned | Oblique, Neural Trees    | LOW      |
-
-**Note on SHAP**: citrees uses a custom tree structure not compatible with
-SHAP's TreeExplainer. For benchmarking, SHAP TreeExplainer is used with
-sklearn/XGBoost/ LightGBM models in `paper/scripts/`. This is intentional - SHAP
-is a benchmark comparison tool, not a core library feature.
+| Area             | citrees Now  | SOTA (2024-2025)         | Priority |
+| ---------------- | ------------ | ------------------------ | -------- |
+| Causal Inference | Honesty      | Honest Estimation, GRF   | DONE     |
+| Speed            | CPU/Numba    | GPU (cuML 20-45x faster) | MEDIUM   |
+| Tree Structure   | Axis-aligned | Oblique, Neural Trees    | LOW      |
 
 ---
 

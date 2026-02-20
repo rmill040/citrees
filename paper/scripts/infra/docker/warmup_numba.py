@@ -23,8 +23,8 @@ def warmup_dcor() -> None:
 def warmup_citrees() -> None:
     """Import citrees modules to trigger @njit(cache=True) compilation."""
     import citrees._selector  # noqa: F401
-    import citrees._splitter  # noqa: F401
     import citrees._sequential  # noqa: F401
+    import citrees._splitter  # noqa: F401
     import citrees._threshold_method  # noqa: F401
     import citrees._utils  # noqa: F401
 

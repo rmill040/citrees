@@ -150,8 +150,23 @@ def _build_queues() -> None:
         logger.info("{}: {} completed metrics", task, len(completed_metrics))
 
         # Rankings queue: grid items not yet in S3 (materialized + shuffled)
-        rankings_initial = grid_size - len(completed_rankings)
         rankings_list = list(grid.iter_pending(completed_rankings))
+
+        # TODO: DELETE ABOVE THIS — temporary filter to skip CIT configs that
+        # are computationally infeasible on high-dimensional datasets.
+        _SKIP_METHODS = {"cit"}
+        pre_filter = len(rankings_list)
+        rankings_list = [c for c in rankings_list if c.method.name not in _SKIP_METHODS]
+        if pre_filter != len(rankings_list):
+            logger.warning(
+                "{}: filtered out {} CIT configs ({} -> {})",
+                task,
+                pre_filter - len(rankings_list),
+                pre_filter,
+                len(rankings_list),
+            )
+
+        rankings_initial = len(rankings_list)
         random.shuffle(rankings_list)
         _queues[_key("rankings", task)] = QueueState(
             _iter=iter(rankings_list),
@@ -163,7 +178,8 @@ def _build_queues() -> None:
         metrics_need = completed_rankings - metrics_done
         metrics_initial = len(metrics_need)
         metrics_list = [
-            cfg for cfg in grid
+            cfg
+            for cfg in grid
             if cfg.key in completed_rankings and cfg.key not in completed_metrics
         ]
         random.shuffle(metrics_list)
@@ -174,7 +190,9 @@ def _build_queues() -> None:
 
         logger.info(
             "{}: ~{} rankings pending, ~{} metrics pending",
-            task, rankings_initial, metrics_initial,
+            task,
+            rankings_initial,
+            metrics_initial,
         )
 
     logger.info("All queues built. Server ready.")
@@ -207,7 +225,8 @@ def _refresh_metrics() -> dict[str, int]:
             completed_metrics = _store.list_completed("metrics", task)
 
             metrics_list = [
-                cfg for cfg in grid
+                cfg
+                for cfg in grid
                 if cfg.key in completed_rankings and cfg.key not in completed_metrics
             ]
             random.shuffle(metrics_list)
@@ -224,7 +243,9 @@ def _refresh_metrics() -> dict[str, int]:
 
             logger.info(
                 "metrics/{}: {} pending (was ~{})",
-                task, len(metrics_list), old_pending,
+                task,
+                len(metrics_list),
+                old_pending,
             )
 
         logger.info("Metrics refresh complete.")

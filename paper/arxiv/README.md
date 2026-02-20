@@ -33,7 +33,8 @@ p-value:
   selective-inference machinery or sample splitting is used.
 
 This contract is summarized in `paper/arxiv/sections/03_method.tex`
-(Table~`tab:pvalue-scope`) and reinforced in `paper/arxiv/sections/06_discussion.tex`.
+(Table~`tab:pvalue-scope`) and reinforced in
+`paper/arxiv/sections/06_discussion.tex`.
 
 ## Build
 

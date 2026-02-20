@@ -9,9 +9,9 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import shap
 from boruta import BorutaPy
 from catboost import CatBoostClassifier, CatBoostRegressor
+from joblib import Parallel, delayed
 from lightgbm import LGBMClassifier, LGBMRegressor
 from mrmr import mrmr_classif, mrmr_regression
 from sklearn.ensemble import (
@@ -254,48 +254,6 @@ def pi_selector(
     return np.argsort(result.importances_mean)[::-1]
 
 
-def shap_selector(
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    task: str,
-    random_state: int,
-    n_jobs: int = _DEFAULT_N_JOBS,
-    params: dict[str, Any] | None = None,
-) -> np.ndarray:
-    """Compute feature ranking using SHAP values.
-
-    Parameters
-    ----------
-    params : dict, optional
-        - max_samples: max samples for SHAP computation (default 1000)
-    """
-    params = params or {}
-    max_samples = params.get("max_samples", 1000)
-
-    if task == "classification":
-        model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
-    else:
-        model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
-
-    model.fit(X_train, y_train)
-    explainer = shap.TreeExplainer(model)
-
-    if X_train.shape[0] > max_samples:
-        rng = np.random.default_rng(random_state)
-        idx = rng.choice(X_train.shape[0], max_samples, replace=False)
-        X_sample = X_train[idx]
-    else:
-        X_sample = X_train
-
-    shap_values = explainer.shap_values(X_sample)
-    if isinstance(shap_values, list):
-        importances = np.mean([np.abs(sv).mean(axis=0) for sv in shap_values], axis=0)
-    else:
-        importances = np.abs(shap_values).mean(axis=0)
-
-    return np.argsort(importances)[::-1]
-
-
 def _find_correlated(X: np.ndarray, j: int, threshold: float) -> list[int]:
     """Find features correlated with feature j above threshold."""
     correlated = []
@@ -366,12 +324,11 @@ def cpi_selector(
     )
 
     model.fit(X_fit, y_fit)
-    rng = np.random.default_rng(random_state)
     n_features = X_val.shape[1]
     baseline = scoring_fn(model, X_val, y_val)
-    importances = np.zeros(n_features)
 
-    for j in range(n_features):
+    def _importance_for_feature(j: int, seed: int) -> float:
+        rng = np.random.default_rng(seed)
         scores = []
         for _rep in range(n_repeats):
             X_perm = X_val.copy()
@@ -388,7 +345,11 @@ def cpi_selector(
                 X_perm[:, j] = rng.permutation(X_perm[:, j])
 
             scores.append(scoring_fn(model, X_perm, y_val))
-        importances[j] = baseline - np.mean(scores)
+        return baseline - np.mean(scores)
+
+    importances = Parallel(n_jobs=n_jobs)(
+        delayed(_importance_for_feature)(j, random_state + j) for j in range(n_features)
+    )
 
     return np.argsort(importances)[::-1]
 
@@ -441,6 +402,6 @@ def rfe_selector(
             n_estimators=100, n_jobs=n_jobs, random_state=random_state
         )
 
-    rfe = RFE(base_model, n_features_to_select=1, step=1)
+    rfe = RFE(base_model, n_features_to_select=1, step=0.1)
     rfe.fit(X_train, y_train)
     return np.argsort(rfe.ranking_)

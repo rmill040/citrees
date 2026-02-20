@@ -210,6 +210,7 @@ def r_cforest_ranking(
     fraction: float = 0.632,
     varimp_conditional: bool = False,
     varimp_nperm: int = 1,
+    cores: int = -1,
     **kwargs: Any,
 ) -> np.ndarray:
     """Fit R cforest and return feature ranking based on variable importance.
@@ -247,6 +248,9 @@ def r_cforest_ranking(
         Whether to compute conditional variable importance.
     varimp_nperm : int
         Number of permutations for variable importance.
+    cores : int
+        Number of CPU cores for parallel tree growing and varimp.
+        -1 means use all available cores (via os.cpu_count()).
 
     Returns
     -------
@@ -288,7 +292,10 @@ def r_cforest_ranking(
     # Build perturb list
     perturb = ro.ListVector({"replace": replace, "fraction": fraction})
 
-    # Fit cforest
+    # Resolve cores (-1 means all available)
+    n_cores = os.cpu_count() if cores == -1 else cores
+
+    # Fit cforest (parallel tree growing)
     forest = partykit.cforest(
         formula,
         data=r_data,
@@ -296,13 +303,15 @@ def r_cforest_ranking(
         ntree=ntree,
         mtry=mtry_val,
         perturb=perturb,
+        cores=n_cores,
     )
 
-    # Get variable importance
+    # Get variable importance (parallel per-tree computation)
     varimp = partykit.varimp(
         forest,
         conditional=varimp_conditional,
         nperm=varimp_nperm,
+        cores=n_cores,
     )
 
     # Convert to numpy and rank (descending importance)

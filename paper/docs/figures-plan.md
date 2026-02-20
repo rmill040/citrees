@@ -16,6 +16,20 @@ This file maps each paper-facing figure/table to:
 
 ## A. Theory / calibration figures (p-values)
 
+**Reviewer-critical guardrails (do not skip):**
+
+- Include at least one **fixed-node/root Stage A** calibration/sanity figure
+  under a **complete global null** (label exchangeability target of the
+  permutation scheme). Without this, a stats reviewer will worry the paper is
+  “all theory, no calibration”.
+- Keep terminology consistent with the manuscript’s scope contract:
+  - Stage~A fixed-node, fixed-`B`: “permutation p-value / calibrated”.
+  - Stage~B, internal nodes, early-stopped outputs: “algorithmic statistic /
+    score” (do not imply calibration in titles/captions).
+- Do not oversell theoretical novelty: the formal guarantees are intentionally
+  simple; the paper’s value is the _scope contract + implementation + empirical
+  behavior_.
+
 ### A1. Selection bias demo (why testing matters)
 
 - Outputs:

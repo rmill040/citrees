@@ -5,16 +5,19 @@
 \paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}).
 
 Stage~A rejects the complete (global) null only if
-$\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$. Under the complete (global) null,
+$\min_{j \in F_t} p_{t,j} < \alpha_{\mathrm{sel}}/m_t$. Under the complete (global) null,
 each $p_{t,j}$ is super-uniform. By A0.3, the tested family $F_t$ and its
 cardinality $m_t$ are measurable with respect to $(X_t,U)$, so we can condition
 on $(X_t,U)$ and treat $(F_t,m_t)$ as fixed. The union bound gives
 %
 \begin{equation}
-  \PP\!\left(\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \mid X_t,U\right)
-  \le \sum_{j \in F_t} \PP(p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \mid X_t,U)
-  \le m_t \cdot \frac{\alpha_{\mathrm{sel}}}{m_t}
-  = \alpha_{\mathrm{sel}}.
+  \begin{aligned}
+    \PP\!\left(\min_{j \in F_t} p_{t,j} < \alpha_{\mathrm{sel}}/m_t \mid X_t,U\right)
+    &\le \sum_{j \in F_t} \PP(p_{t,j} < \alpha_{\mathrm{sel}}/m_t \mid X_t,U) \\
+    &\le \sum_{j \in F_t} \PP(p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \mid X_t,U) \\
+    &\le m_t \cdot \frac{\alpha_{\mathrm{sel}}}{m_t}
+    = \alpha_{\mathrm{sel}}.
+  \end{aligned}
 \end{equation}
 %
 Taking expectations over $(X_t,U)$ yields the stated unconditional bound.

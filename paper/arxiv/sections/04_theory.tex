@@ -98,10 +98,10 @@ dataset, not a uniform power guarantee across data-generating alternatives.
 Assume A0.1--A0.5 (\cref{app:assumptions}). Under the nodewise complete null at
 $t$ (A0.2), the per-feature +1 Monte Carlo p-values $p_{t,j}$ are super-uniform.
 If Stage~A uses Bonferroni and rejects when
-$\min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$, then
+$\min_{j \in F_t} p_{t,j} < \alpha_{\mathrm{sel}}/m_t$, then
 %
 \begin{equation}
-  \PP\!\left(\exists j \in F_t : p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right) \le \alpha_{\mathrm{sel}}.
+  \PP\!\left(\exists j \in F_t : p_{t,j} < \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right) \le \alpha_{\mathrm{sel}}.
 \end{equation}
 \end{proposition}
 

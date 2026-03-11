@@ -1,3 +1,4 @@
+import os
 from math import ceil
 from typing import Any
 
@@ -95,22 +96,26 @@ def _ptest(
     extreme_count = 0
 
     if early_stopping == EarlyStopping.ADAPTIVE:
-        for i in range(n_resamples):
-            rng.shuffle(y_)
-            theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
-            if theta_p >= theta:
-                extreme_count += 1
+        batch_size = os.cpu_count() or 1
+        m = 0
+        while m < n_resamples:
+            batch_end = min(m + batch_size, n_resamples)
+            for _ in range(batch_end - m):
+                rng.shuffle(y_)
+                theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
+                if theta_p >= theta:
+                    extreme_count += 1
+            m = batch_end
 
-            n = i + 1
-            if n >= min_resamples:
+            if m >= min_resamples:
                 a = 1.0 + extreme_count
-                b = 1.0 + n - extreme_count
+                b = 1.0 + m - extreme_count
                 prob_sig = _beta_cdf(alpha, a, b)
 
                 if prob_sig >= confidence:
-                    return (extreme_count + 1) / (n + 1)
+                    return (extreme_count + 1) / (m + 1)
                 if (1.0 - prob_sig) >= confidence:
-                    return (extreme_count + 1) / (n + 1)
+                    return (extreme_count + 1) / (m + 1)
 
         return (extreme_count + 1) / (n_resamples + 1)
 
@@ -231,22 +236,26 @@ def _ptest_multi(
     extreme_count = 0
 
     if early_stopping == EarlyStopping.ADAPTIVE:
-        for i in range(n_resamples):
-            rng.shuffle(y_)
-            theta_p = compute_max_stat(x, y_)  # type: ignore[assignment]
-            if theta_p >= theta:
-                extreme_count += 1
+        batch_size = os.cpu_count() or 1
+        m = 0
+        while m < n_resamples:
+            batch_end = min(m + batch_size, n_resamples)
+            for _ in range(batch_end - m):
+                rng.shuffle(y_)
+                theta_p = compute_max_stat(x, y_)  # type: ignore[assignment]
+                if theta_p >= theta:
+                    extreme_count += 1
+            m = batch_end
 
-            n = i + 1
-            if n >= min_resamples:
+            if m >= min_resamples:
                 a = 1.0 + extreme_count
-                b = 1.0 + n - extreme_count
+                b = 1.0 + m - extreme_count
                 prob_sig = _beta_cdf(alpha, a, b)
 
                 if prob_sig >= confidence:
-                    return (extreme_count + 1) / (n + 1)
+                    return (extreme_count + 1) / (m + 1)
                 if (1.0 - prob_sig) >= confidence:
-                    return (extreme_count + 1) / (n + 1)
+                    return (extreme_count + 1) / (m + 1)
 
         return (extreme_count + 1) / (n_resamples + 1)
 
@@ -366,6 +375,492 @@ def _ptest_pc_parallel(
 
     # +1 correction (Phipson & Smyth 2010)
     return (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
+
+
+# Batched parallel permutation test for multiple correlation (classifier) with adaptive stopping.
+# Runs K=32 permutations in parallel via prange, then checks Beta CDF stopping criterion.
+# Validated in paper/scripts/theory/batched_stopping_analysis.py: K=32 preserves Type I error.
+_BATCH_SIZE_PARALLEL = 32
+
+
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_mc_parallel_batched(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> float:
+    """Parallel batched permutation test for multiple correlation with adaptive stopping."""
+    # Compute observed statistic
+    mu = x.mean()
+    sst = np.sum((x - mu) ** 2)
+    if sst == 0:
+        return 1.0
+    ssb = 0.0
+    for j in range(n_classes):
+        x_j = x[y == j]
+        n_j = len(x_j)
+        if n_j > 0:
+            mu_j = x_j.mean()
+            ssb += n_j * (mu_j - mu) ** 2
+    theta = np.sqrt(ssb / sst)
+
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+
+    while m < n_resamples:
+        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        # Run batch in parallel
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+
+            ssb_perm = 0.0
+            for j in range(n_classes):
+                x_j = x[y_perm == j]
+                n_j = len(x_j)
+                if n_j > 0:
+                    mu_j = x_j.mean()
+                    ssb_perm += n_j * (mu_j - mu) ** 2
+            theta_p = np.sqrt(ssb_perm / sst)
+            if np.abs(theta_p) >= theta:
+                batch_extreme[i] = 1
+
+        extreme_count += int(np.sum(batch_extreme))
+        m += batch_size
+
+        # Check stopping criterion at batch boundary
+        if m >= min_resamples:
+            a = 1.0 + extreme_count
+            b = 1.0 + m - extreme_count
+            prob_sig = _beta_cdf(alpha, a, b)
+
+            if prob_sig >= confidence:
+                return (extreme_count + 1) / (m + 1)
+            if (1.0 - prob_sig) >= confidence:
+                return (extreme_count + 1) / (m + 1)
+
+    # +1 correction (Phipson & Smyth 2010)
+    return (extreme_count + 1) / (n_resamples + 1)
+
+
+# Batched parallel permutation test for pearson correlation (regressor) with adaptive stopping.
+# Same pattern as _ptest_mc_parallel_batched.
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_pc_parallel_batched(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> float:
+    """Parallel batched permutation test for pearson correlation with adaptive stopping."""
+    n = len(x)
+    sx = x.sum()
+    sx2 = np.sum(x * x)
+    sy = y.sum()
+    sy2 = np.sum(y * y)
+    sxy = np.sum(x * y)
+
+    cov = n * sxy - sx * sy
+    ssx = n * sx2 - sx * sx
+    ssy = n * sy2 - sy * sy
+    denom = np.sqrt(ssx * ssy)
+    if denom == 0:
+        return 1.0
+    theta = np.abs(cov / denom)
+
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+
+    while m < n_resamples:
+        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        # Run batch in parallel
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+
+            sy_perm = y_perm.sum()
+            sy2_perm = np.sum(y_perm * y_perm)
+            sxy_perm = np.sum(x * y_perm)
+
+            cov_perm = n * sxy_perm - sx * sy_perm
+            ssy_perm = n * sy2_perm - sy_perm * sy_perm
+            denom_perm = np.sqrt(ssx * ssy_perm)
+            if denom_perm == 0:
+                theta_p = 0.0
+            else:
+                theta_p = np.abs(cov_perm / denom_perm)
+            if theta_p >= theta:
+                batch_extreme[i] = 1
+
+        extreme_count += int(np.sum(batch_extreme))
+        m += batch_size
+
+        # Check stopping criterion at batch boundary
+        if m >= min_resamples:
+            a = 1.0 + extreme_count
+            b = 1.0 + m - extreme_count
+            prob_sig = _beta_cdf(alpha, a, b)
+
+            if prob_sig >= confidence:
+                return (extreme_count + 1) / (m + 1)
+            if (1.0 - prob_sig) >= confidence:
+                return (extreme_count + 1) / (m + 1)
+
+    # +1 correction (Phipson & Smyth 2010)
+    return (extreme_count + 1) / (n_resamples + 1)
+
+
+# Parallel permutation test for RDC (regressor), no early stopping.
+# Precomputes X features and Y projection weights once, then runs permutations in parallel.
+# Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
+# Per-iteration seeding with (random_state + i) in prange is the recommended pattern
+# for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_rdc_regressor_parallel(
+    x: np.ndarray,
+    y: np.ndarray,
+    k: int,
+    s: float,
+    rdc_seed: int,
+    n_resamples: int,
+    random_state: int,
+) -> float:
+    """Full parallel permutation test for RDC (regression), no early stopping."""
+    n = len(x)
+    X_feat = _rdc_features(x, k, s, rdc_seed)
+
+    # Precompute Y projection weights (deterministic from rdc_seed + 1000)
+    np.random.seed(rdc_seed + 1000)
+    wy0 = np.empty(k, dtype=np.float64)
+    wy1 = np.empty(k, dtype=np.float64)
+    for j in range(k):
+        wy0[j] = np.random.randn() * s
+        wy1[j] = np.random.randn() * s
+
+    # Observed statistic
+    Y_feat_obs = _rdc_features(y, k, s, rdc_seed + 1000)
+    theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
+
+    # Full parallel permutation
+    theta_p = np.empty(n_resamples, dtype=np.float64)
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)
+        y_perm = y.copy()
+        np.random.shuffle(y_perm)
+
+        ecdf_y = _rdc_ecdf(y_perm)
+        Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
+        for ii in range(n):
+            for jj in range(k):
+                proj = ecdf_y[ii] * wy0[jj] + wy1[jj]
+                Y_feat_perm[ii, jj] = np.cos(proj)
+                Y_feat_perm[ii, k + jj] = np.sin(proj)
+
+        rdc_val = _rdc_cancor(X_feat.copy(), Y_feat_perm)
+        theta_p[i] = rdc_val
+
+    # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+
+
+# Batched parallel permutation test for RDC (regressor) with adaptive stopping.
+# Same pattern as _ptest_pc_parallel_batched.
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_rdc_regressor_parallel_batched(
+    x: np.ndarray,
+    y: np.ndarray,
+    k: int,
+    s: float,
+    rdc_seed: int,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> float:
+    """Parallel batched permutation test for RDC (regression) with adaptive stopping."""
+    n = len(x)
+
+    # Precompute X features (x never changes across permutations)
+    X_feat = _rdc_features(x, k, s, rdc_seed)
+
+    # Precompute Y projection weights (deterministic from rdc_seed + 1000)
+    np.random.seed(rdc_seed + 1000)
+    wy0 = np.empty(k, dtype=np.float64)
+    wy1 = np.empty(k, dtype=np.float64)
+    for j in range(k):
+        wy0[j] = np.random.randn() * s
+        wy1[j] = np.random.randn() * s
+
+    # Observed statistic
+    Y_feat_obs = _rdc_features(y, k, s, rdc_seed + 1000)
+    theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
+    if theta <= 0.0:
+        return 1.0
+
+    # Parallel batched permutation
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+
+    while m < n_resamples:
+        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+
+            ecdf_y = _rdc_ecdf(y_perm)
+            Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
+            for ii in range(n):
+                for jj in range(k):
+                    proj = ecdf_y[ii] * wy0[jj] + wy1[jj]
+                    Y_feat_perm[ii, jj] = np.cos(proj)
+                    Y_feat_perm[ii, k + jj] = np.sin(proj)
+
+            rdc_val = _rdc_cancor(X_feat.copy(), Y_feat_perm)
+            if rdc_val >= theta:
+                batch_extreme[i] = 1
+
+        extreme_count += int(np.sum(batch_extreme))
+        m += batch_size
+
+        # Check adaptive stopping criterion
+        if m >= min_resamples:
+            a = 1.0 + extreme_count
+            b = 1.0 + m - extreme_count
+            prob_sig = _beta_cdf(alpha, a, b)
+            if prob_sig >= confidence:
+                return (extreme_count + 1) / (m + 1)
+            if (1.0 - prob_sig) >= confidence:
+                return (extreme_count + 1) / (m + 1)
+
+    # +1 correction (Phipson & Smyth 2010)
+    return (extreme_count + 1) / (n_resamples + 1)
+
+
+# Parallel permutation test for RDC (classifier), no early stopping.
+# Handles multi-class via max RDC over one-vs-all binary encodings.
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_rdc_classifier_parallel(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    k: int,
+    s: float,
+    rdc_seed: int,
+    n_resamples: int,
+    random_state: int,
+) -> float:
+    """Full parallel permutation test for RDC (classification), no early stopping."""
+    n = len(x)
+    X_feat = _rdc_features(x, k, s, rdc_seed)
+
+    # Observed statistic
+    if n_classes == 2:
+        y_float = y.astype(np.float64)
+        Y_feat_obs = _rdc_features(y_float, k, s, rdc_seed + 1000)
+        theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
+    else:
+        theta = 0.0
+        for c in range(n_classes):
+            y_bin = np.zeros(n, dtype=np.float64)
+            for i in range(n):
+                if y[i] == c:
+                    y_bin[i] = 1.0
+            Y_feat_c = _rdc_features(y_bin, k, s, rdc_seed + 1000 + c)
+            rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
+            if rdc_c > theta:
+                theta = rdc_c
+
+    # Precompute Y projection weights per class
+    if n_classes == 2:
+        n_weight_sets = 1
+    else:
+        n_weight_sets = n_classes
+    wy0_all = np.empty((n_weight_sets, k), dtype=np.float64)
+    wy1_all = np.empty((n_weight_sets, k), dtype=np.float64)
+    for c in range(n_weight_sets):
+        seed_c = rdc_seed + 1000 + c if n_classes > 2 else rdc_seed + 1000
+        np.random.seed(seed_c)
+        for j in range(k):
+            wy0_all[c, j] = np.random.randn() * s
+            wy1_all[c, j] = np.random.randn() * s
+
+    # Full parallel permutation
+    theta_p = np.empty(n_resamples, dtype=np.float64)
+    for i in prange(n_resamples):
+        np.random.seed(random_state + i)
+        y_perm = y.copy()
+        np.random.shuffle(y_perm)
+
+        if n_classes == 2:
+            y_float_perm = y_perm.astype(np.float64)
+            ecdf_y = _rdc_ecdf(y_float_perm)
+            Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
+            for ii in range(n):
+                for jj in range(k):
+                    proj = ecdf_y[ii] * wy0_all[0, jj] + wy1_all[0, jj]
+                    Y_feat_perm[ii, jj] = np.cos(proj)
+                    Y_feat_perm[ii, k + jj] = np.sin(proj)
+            theta_p[i] = _rdc_cancor(X_feat.copy(), Y_feat_perm)
+        else:
+            rdc_perm = 0.0
+            for c in range(n_classes):
+                y_bin = np.zeros(n, dtype=np.float64)
+                for idx in range(n):
+                    if y_perm[idx] == c:
+                        y_bin[idx] = 1.0
+                ecdf_y = _rdc_ecdf(y_bin)
+                Y_feat_c = np.empty((n, 2 * k), dtype=np.float64)
+                for ii in range(n):
+                    for jj in range(k):
+                        proj = ecdf_y[ii] * wy0_all[c, jj] + wy1_all[c, jj]
+                        Y_feat_c[ii, jj] = np.cos(proj)
+                        Y_feat_c[ii, k + jj] = np.sin(proj)
+                rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
+                if rdc_c > rdc_perm:
+                    rdc_perm = rdc_c
+            theta_p[i] = rdc_perm
+
+    # +1 correction (Phipson & Smyth 2010)
+    return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+
+
+# Batched parallel permutation test for RDC (classifier) with adaptive stopping.
+# Handles multi-class via max RDC over one-vs-all binary encodings.
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_rdc_classifier_parallel_batched(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    k: int,
+    s: float,
+    rdc_seed: int,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> float:
+    """Parallel batched permutation test for RDC (classification) with adaptive stopping."""
+    n = len(x)
+    X_feat = _rdc_features(x, k, s, rdc_seed)
+
+    # Observed statistic
+    if n_classes == 2:
+        y_float = y.astype(np.float64)
+        Y_feat_obs = _rdc_features(y_float, k, s, rdc_seed + 1000)
+        theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
+    else:
+        theta = 0.0
+        for c in range(n_classes):
+            y_bin = np.zeros(n, dtype=np.float64)
+            for i in range(n):
+                if y[i] == c:
+                    y_bin[i] = 1.0
+            Y_feat_c = _rdc_features(y_bin, k, s, rdc_seed + 1000 + c)
+            rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
+            if rdc_c > theta:
+                theta = rdc_c
+
+    if theta <= 0.0:
+        return 1.0
+
+    # Precompute Y projection weights per class
+    if n_classes == 2:
+        n_weight_sets = 1
+    else:
+        n_weight_sets = n_classes
+    wy0_all = np.empty((n_weight_sets, k), dtype=np.float64)
+    wy1_all = np.empty((n_weight_sets, k), dtype=np.float64)
+    for c in range(n_weight_sets):
+        seed_c = rdc_seed + 1000 + c if n_classes > 2 else rdc_seed + 1000
+        np.random.seed(seed_c)
+        for j in range(k):
+            wy0_all[c, j] = np.random.randn() * s
+            wy1_all[c, j] = np.random.randn() * s
+
+    # Parallel batched permutation
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+
+    while m < n_resamples:
+        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+
+            if n_classes == 2:
+                y_float_perm = y_perm.astype(np.float64)
+                ecdf_y = _rdc_ecdf(y_float_perm)
+                Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
+                for ii in range(n):
+                    for jj in range(k):
+                        proj = ecdf_y[ii] * wy0_all[0, jj] + wy1_all[0, jj]
+                        Y_feat_perm[ii, jj] = np.cos(proj)
+                        Y_feat_perm[ii, k + jj] = np.sin(proj)
+                rdc_perm = _rdc_cancor(X_feat.copy(), Y_feat_perm)
+            else:
+                rdc_perm = 0.0
+                for c in range(n_classes):
+                    y_bin = np.zeros(n, dtype=np.float64)
+                    for idx in range(n):
+                        if y_perm[idx] == c:
+                            y_bin[idx] = 1.0
+                    ecdf_y = _rdc_ecdf(y_bin)
+                    Y_feat_c = np.empty((n, 2 * k), dtype=np.float64)
+                    for ii in range(n):
+                        for jj in range(k):
+                            proj = ecdf_y[ii] * wy0_all[c, jj] + wy1_all[c, jj]
+                            Y_feat_c[ii, jj] = np.cos(proj)
+                            Y_feat_c[ii, k + jj] = np.sin(proj)
+                    rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
+                    if rdc_c > rdc_perm:
+                        rdc_perm = rdc_c
+
+            if rdc_perm >= theta:
+                batch_extreme[i] = 1
+
+        extreme_count += int(np.sum(batch_extreme))
+        m += batch_size
+
+        # Check adaptive stopping criterion
+        if m >= min_resamples:
+            a = 1.0 + extreme_count
+            b = 1.0 + m - extreme_count
+            prob_sig = _beta_cdf(alpha, a, b)
+            if prob_sig >= confidence:
+                return (extreme_count + 1) / (m + 1)
+            if (1.0 - prob_sig) >= confidence:
+                return (extreme_count + 1) / (m + 1)
+
+    # +1 correction (Phipson & Smyth 2010)
+    return (extreme_count + 1) / (n_resamples + 1)
 
 
 @ClassifierSelectors.register("mc")
@@ -835,14 +1330,25 @@ def ptest_mc(
     float
         Estimated achieved significance level.
     """
-    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
-        return _ptest_mc_parallel(
-            x=x,
-            y=y,
-            n_classes=n_classes,
-            n_resamples=n_resamples,
-            random_state=random_state,
-        )
+    if n_resamples >= _PARALLEL_THRESHOLD:
+        if early_stopping is None:
+            return _ptest_mc_parallel(
+                x=x,
+                y=y,
+                n_classes=n_classes,
+                n_resamples=n_resamples,
+                random_state=random_state,
+            )
+        elif early_stopping == EarlyStopping.ADAPTIVE:
+            return _ptest_mc_parallel_batched(
+                x=x,
+                y=y,
+                n_classes=n_classes,
+                n_resamples=n_resamples,
+                random_state=random_state,
+                alpha=alpha,
+                confidence=confidence,
+            )
 
     return _ptest(
         func=mc,
@@ -960,13 +1466,23 @@ def ptest_pc(
     float
         Estimated achieved significance level.
     """
-    if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
-        return _ptest_pc_parallel(
-            x=x,
-            y=y,
-            n_resamples=n_resamples,
-            random_state=random_state,
-        )
+    if n_resamples >= _PARALLEL_THRESHOLD:
+        if early_stopping is None:
+            return _ptest_pc_parallel(
+                x=x,
+                y=y,
+                n_resamples=n_resamples,
+                random_state=random_state,
+            )
+        elif early_stopping == EarlyStopping.ADAPTIVE:
+            return _ptest_pc_parallel_batched(
+                x=x,
+                y=y,
+                n_resamples=n_resamples,
+                random_state=random_state,
+                alpha=alpha,
+                confidence=confidence,
+            )
 
     return _ptest(
         func=pc,
@@ -1089,6 +1605,32 @@ def ptest_rdc_classifier(
     float
         Estimated achieved significance level.
     """
+    if n_resamples >= _PARALLEL_THRESHOLD:
+        if early_stopping is None:
+            return _ptest_rdc_classifier_parallel(
+                x=x,
+                y=y,
+                n_classes=n_classes,
+                k=_RDC_K,
+                s=_RDC_S,
+                rdc_seed=random_state,
+                n_resamples=n_resamples,
+                random_state=random_state,
+            )
+        elif early_stopping == EarlyStopping.ADAPTIVE:
+            return _ptest_rdc_classifier_parallel_batched(
+                x=x,
+                y=y,
+                n_classes=n_classes,
+                k=_RDC_K,
+                s=_RDC_S,
+                rdc_seed=random_state,
+                n_resamples=n_resamples,
+                random_state=random_state,
+                alpha=alpha,
+                confidence=confidence,
+            )
+
     return _ptest(
         func=rdc_classifier,
         func_arg=n_classes,
@@ -1147,6 +1689,30 @@ def ptest_rdc_regressor(
     float
         Estimated achieved significance level.
     """
+    if n_resamples >= _PARALLEL_THRESHOLD:
+        if early_stopping is None:
+            return _ptest_rdc_regressor_parallel(
+                x=x,
+                y=y,
+                k=_RDC_K,
+                s=_RDC_S,
+                rdc_seed=random_state,
+                n_resamples=n_resamples,
+                random_state=random_state,
+            )
+        elif early_stopping == EarlyStopping.ADAPTIVE:
+            return _ptest_rdc_regressor_parallel_batched(
+                x=x,
+                y=y,
+                k=_RDC_K,
+                s=_RDC_S,
+                rdc_seed=random_state,
+                n_resamples=n_resamples,
+                random_state=random_state,
+                alpha=alpha,
+                confidence=confidence,
+            )
+
     return _ptest(
         func=rdc_regressor,
         func_arg=standardize,

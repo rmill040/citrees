@@ -164,32 +164,8 @@ def split_data(
     return X[idx], y[idx], X[~idx], y[~idx]
 
 
-# Note: Uses np.random.seed() because Numba doesn't support default_rng() inside @njit.
-@njit(cache=True, fastmath=True, nogil=True)
-def bayesian_bootstrap_proba(*, n: int, random_state: int) -> np.ndarray:
-    """Generate Bayesian bootstrap probabilities for a sample of size n.
-
-    Parameters
-    ----------
-    n : int
-        Number of samples.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    np.ndarray
-        Bootstrap probabilities associated with each sample.
-    """
-    np.random.seed(random_state)
-
-    p = np.random.exponential(scale=1.0, size=n)
-    return p / p.sum()
-
-
 def stratified_bootstrap_sample(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Indices for stratified bootstrap sampling in classification.
 
@@ -200,9 +176,6 @@ def stratified_bootstrap_sample(
 
     max_samples : int
         Maximum number of samples in a bootstrap sample.
-
-    bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap.
 
     random_state : int
         Random seed.
@@ -220,13 +193,7 @@ def stratified_bootstrap_sample(
     idx = []
     for j, idx_class in enumerate(idx_classes):
         n_class = len(idx_class)
-        # Vary seed per class to ensure independent bootstrap probabilities
-        p = (
-            bayesian_bootstrap_proba(n=n_class, random_state=random_state + j)
-            if bayesian_bootstrap
-            else None
-        )
-        idx.append(prng.choice(idx_class, size=n_class, p=p, replace=True))
+        idx.append(prng.choice(idx_class, size=n_class, replace=True))
 
     # Subsample if needed (use proper integer allocation to guarantee sum = max_samples)
     if max_samples < n:
@@ -240,7 +207,7 @@ def stratified_bootstrap_sample(
 
 
 def stratified_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Unsampled indices for stratified bootstrap sampling in classification.
 
@@ -251,9 +218,6 @@ def stratified_bootstrap_unsampled_idx(
 
     max_samples : int
         Maximum number of samples in a bootstrap sample.
-
-    bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap.
 
     random_state : int
         Random seed.
@@ -266,7 +230,6 @@ def stratified_bootstrap_unsampled_idx(
     idx_sampled = stratified_bootstrap_sample(
         y=y,
         max_samples=max_samples,
-        bayesian_bootstrap=bayesian_bootstrap,
         random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
@@ -276,7 +239,7 @@ def stratified_bootstrap_unsampled_idx(
 
 
 def undersample_bootstrap_sample(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Indices for class-balanced undersampling (bootstrap with per-class cap).
 
@@ -293,9 +256,6 @@ def undersample_bootstrap_sample(
 
     max_samples : int
         Maximum number of samples in a bootstrap sample.
-
-    bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap probabilities within each class.
 
     random_state : int
         Random seed.
@@ -314,12 +274,7 @@ def undersample_bootstrap_sample(
 
     idx = []
     for j, idx_class in enumerate(idx_classes):
-        p = (
-            bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state + j)
-            if bayesian_bootstrap
-            else None
-        )
-        idx.append(prng.choice(idx_class, size=n_min, p=p, replace=True))
+        idx.append(prng.choice(idx_class, size=n_min, replace=True))
 
     total = n_classes * n_min
     if max_samples < total:
@@ -336,13 +291,12 @@ def undersample_bootstrap_sample(
 
 
 def undersample_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Unsampled indices for class-balanced undersampling."""
     idx_sampled = undersample_bootstrap_sample(
         y=y,
         max_samples=max_samples,
-        bayesian_bootstrap=bayesian_bootstrap,
         random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
@@ -352,7 +306,7 @@ def undersample_bootstrap_unsampled_idx(
 
 
 def oversample_bootstrap_sample(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Indices for class-balanced oversampling (fixed-size bootstrap).
 
@@ -368,9 +322,6 @@ def oversample_bootstrap_sample(
 
     max_samples : int
         Total number of samples in the bootstrap sample.
-
-    bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap probabilities within each class.
 
     random_state : int
         Random seed.
@@ -395,24 +346,18 @@ def oversample_bootstrap_sample(
     for j, idx_class in enumerate(idx_classes):
         if allocation[j] == 0:
             continue
-        p = (
-            bayesian_bootstrap_proba(n=len(idx_class), random_state=random_state + j)
-            if bayesian_bootstrap
-            else None
-        )
-        idx.append(prng.choice(idx_class, size=int(allocation[j]), p=p, replace=True))
+        idx.append(prng.choice(idx_class, size=int(allocation[j]), replace=True))
 
     return np.concatenate(idx) if idx else np.empty(0, dtype=int)
 
 
 def oversample_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Unsampled indices for class-balanced oversampling."""
     idx_sampled = oversample_bootstrap_sample(
         y=y,
         max_samples=max_samples,
-        bayesian_bootstrap=bayesian_bootstrap,
         random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)
@@ -422,7 +367,7 @@ def oversample_bootstrap_unsampled_idx(
 
 
 def classic_bootstrap_sample(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Indices for classic bootstrapping.
 
@@ -433,9 +378,6 @@ def classic_bootstrap_sample(
 
     max_samples : int
         Maximum number of samples in a bootstrap sample.
-
-    bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap.
 
     random_state : int
         Random seed.
@@ -448,8 +390,7 @@ def classic_bootstrap_sample(
     prng = np.random.RandomState(random_state)
 
     n = len(y)
-    p = bayesian_bootstrap_proba(n=n, random_state=random_state) if bayesian_bootstrap else None
-    idx = prng.choice(range(n), size=n, p=p, replace=True)
+    idx = prng.choice(range(n), size=n, replace=True)
 
     if max_samples < n:
         idx = prng.choice(idx, size=max_samples, replace=False)
@@ -457,7 +398,7 @@ def classic_bootstrap_sample(
 
 
 def classic_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, bayesian_bootstrap: bool, random_state: int
+    *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
     """Unsampled indices for classic bootstrapping.
 
@@ -468,9 +409,6 @@ def classic_bootstrap_unsampled_idx(
 
     max_samples : int
         Maximum number of samples in a bootstrap sample.
-
-    bayesian_bootstrap : bool
-        Whether to use Bayesian bootstrap.
 
     random_state : int
         Random seed.
@@ -483,7 +421,6 @@ def classic_bootstrap_unsampled_idx(
     idx_sampled = classic_bootstrap_sample(
         y=y,
         max_samples=max_samples,
-        bayesian_bootstrap=bayesian_bootstrap,
         random_state=random_state,
     )
     idx_all = np.arange(len(y), dtype=int)

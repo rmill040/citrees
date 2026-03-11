@@ -5,17 +5,19 @@
 \paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}).
 
 If node $t$ splits on feature $j$, then Stage~A must have rejected for $j$ at the
-Bonferroni threshold, hence $p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$. Therefore,
+strict Bonferroni threshold, hence $p_{t,j} < \alpha_{\mathrm{sel}}/m_t$. Therefore,
 %
 \begin{equation}
   \PP(\text{node $t$ splits on $j$} \mid X_t,U)
+  \le \PP(p_{t,j} < \alpha_{\mathrm{sel}}/m_t \mid X_t,U)
   \le \PP(p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \mid X_t,U)
   \le \alpha_{\mathrm{sel}}/m_t,
 \end{equation}
 %
-by super-uniformity of $p_{t,j}$ under the complete null. Taking expectations over
-$(X_t,U)$ yields the same bound unconditionally (interpreting $m_t$ as fixed by
-conditioning via A0.3).
+by super-uniformity of $p_{t,j}$ under the complete null. This proves the
+conditional claim in Proposition~\ref{prop:per-feature-bound}. We do not collapse
+the bound to the same scalar form after averaging over $(X_t,U)$, because
+$m_t$ is itself $(X_t,U)$-measurable under A0.3.
 
 \subsection{Proof of Corollary~\ref{cor:subsampling-per-feature}}
 \label{app:proof-subsampling-per-feature}

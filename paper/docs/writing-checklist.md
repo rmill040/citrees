@@ -118,7 +118,7 @@ Migration plan:
       resample budgets, tails).
 - [ ] Add a dedicated appendix for early stopping mechanics and clearly mark
       which theory excludes it.
-- [ ] Add/finish bootstrap appendix section: classic vs Bayesian bootstrap, and
+- [ ] Add/finish bootstrap appendix section: current bootstrap behavior, and
       how it interacts (or does not) with fixed-node guarantees.
 
 ## 6) Background / “state of the field” (make comparisons explicit)

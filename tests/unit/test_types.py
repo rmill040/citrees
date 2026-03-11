@@ -4,7 +4,6 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from citrees._types import (
-    BootstrapMethod,
     ConfidenceFloat,
     EarlyStopping,
     EstimatorType,
@@ -83,15 +82,6 @@ class TestThresholdMethod:
         """Test all methods are present."""
         methods = [e.value for e in ThresholdMethod]
         assert len(methods) == 4
-
-
-class TestBootstrapMethod:
-    """Tests for BootstrapMethod enum."""
-
-    def test_values(self):
-        """Test enum values."""
-        assert BootstrapMethod.BAYESIAN == "bayesian"
-        assert BootstrapMethod.CLASSIC == "classic"
 
 
 class TestSamplingMethod:

@@ -39,9 +39,11 @@ not always supported in all parallel compiled contexts.
 
 \subsection{Bootstrap methods in forests}
 
-Forests can optionally resample training rows per tree. In classic bootstrap
-mode, rows are sampled with replacement uniformly. In Bayesian bootstrap mode,
-rows are sampled with replacement using a random probability vector drawn via
-normalized exponential weights (equivalently a Dirichlet$(1,\dots,1)$ draw).
-This affects only the per-tree resampling distribution; it does not change the
-fixed-node permutation-test validity statements in \cref{sec:theory}.
+Forests can optionally resample training rows per tree. In bootstrap mode,
+rows are sampled with replacement uniformly. This affects only the per-tree
+resampling distribution, and it can invalidate the root-level exchangeability
+assumption A0.2 used in \cref{sec:theory} because duplicated indices induce
+non-permutation-invariant equality constraints in the bootstrap sample.
+Accordingly, the fixed-node/root validity statements apply only to trees or
+nodes for which A0.2 still holds after resampling (for example, full-data roots
+or subsampling without replacement).

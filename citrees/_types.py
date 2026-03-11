@@ -39,10 +39,6 @@ class ThresholdMethod(StrEnum):
     HISTOGRAM = "histogram"
 
 
-class BootstrapMethod(StrEnum):
-    BAYESIAN = "bayesian"
-    CLASSIC = "classic"
-
 
 class SamplingMethod(StrEnum):
     STRATIFIED = "stratified"
@@ -59,5 +55,4 @@ class EstimatorType(StrEnum):
 type EarlyStoppingOption = EarlyStopping | None
 type NResamplesOption = NResamples | NonNegativeInt | None
 type MaxValuesOption = MaxValuesMethod | float | int | None
-type BootstrapMethodOption = BootstrapMethod | None
 type SamplingMethodOption = SamplingMethod | None

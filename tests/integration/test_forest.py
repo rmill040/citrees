@@ -109,17 +109,17 @@ class TestForestClassifier:
         assert proba.shape == (X.shape[0], 2)
         assert np.allclose(proba.sum(axis=1), 1.0)
 
-    def test_bootstrap_methods(self, classification_data):
-        """Test different bootstrap methods."""
+    def test_bootstrap_configurations(self, classification_data):
+        """Test bootstrap enabled and disabled configurations."""
         X, y = classification_data
-        for method in ["bayesian", "classic", None]:
+        for method in [True, False]:
             kwargs = {
                 "n_estimators": 5,
-                "bootstrap_method": method,
+                "bootstrap": method,
                 "check_for_unused_parameters": False,
                 **FAST_PARAMS,
             }
-            if method is None:
+            if not method:
                 kwargs["sampling_method"] = None
             clf = ConditionalInferenceForestClassifier(**kwargs)
             clf.fit(X, y)
@@ -180,13 +180,13 @@ class TestForestRegressor:
         r2 = 1 - np.sum((y_test - y_pred) ** 2) / np.sum((y_test - y_test.mean()) ** 2)
         assert r2 > 0
 
-    def test_bootstrap_methods(self, regression_data):
-        """Test different bootstrap methods."""
+    def test_bootstrap_configurations(self, regression_data):
+        """Test bootstrap enabled and disabled configurations."""
         X, y = regression_data
-        for method in ["bayesian", "classic", None]:
+        for method in [True, False]:
             reg = ConditionalInferenceForestRegressor(
                 n_estimators=5,
-                bootstrap_method=method,
+                bootstrap=method,
                 check_for_unused_parameters=False,
                 **FAST_PARAMS,
             )
@@ -257,7 +257,7 @@ class TestForestSampling:
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(
             n_estimators=5,
-            bootstrap_method=None,
+            bootstrap=False,
             sampling_method=None,
             check_for_unused_parameters=False,
             **FAST_PARAMS,
@@ -269,16 +269,7 @@ class TestForestSampling:
         """Test forest with classic bootstrap."""
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, bootstrap_method="classic", **FAST_PARAMS
-        )
-        clf.fit(X, y)
-        assert clf.predict(X).shape == y.shape
-
-    def test_bayesian_bootstrap(self, classification_data):
-        """Test forest with Bayesian bootstrap."""
-        X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, bootstrap_method="bayesian", **FAST_PARAMS
+            n_estimators=5, bootstrap=True, **FAST_PARAMS
         )
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
@@ -286,10 +277,10 @@ class TestForestSampling:
     def test_regressor_sampling(self, regression_data):
         """Test regressor forest sampling configurations."""
         X, y = regression_data
-        for method in ["bayesian", "classic", None]:
+        for method in [True, False]:
             reg = ConditionalInferenceForestRegressor(
                 n_estimators=5,
-                bootstrap_method=method,
+                bootstrap=method,
                 check_for_unused_parameters=False,
                 **FAST_PARAMS,
             )

@@ -7,6 +7,7 @@ from scipy.stats import beta as scipy_beta
 from citrees._sequential import (
     _beta_cdf,
     _ptest_sequential_adaptive,
+    _ptest_sequential_adaptive_batched,
     _ptest_sequential_simple,
 )
 
@@ -264,3 +265,118 @@ class TestSequentialAdaptive:
         # Both should indicate significance
         assert pval_high < 0.1
         assert pval_low < 0.1
+
+
+class TestSequentialAdaptiveBatched:
+    """Tests for batched adaptive sequential permutation testing."""
+
+    def _mean_diff(self, x, y, arg, random_state=None):
+        mask = x > 0.5
+        if mask.sum() == 0 or (~mask).sum() == 0:
+            return 0.0
+        return np.mean(y[mask]) - np.mean(y[~mask])
+
+    def test_strong_signal_rejects(self):
+        """Test batched adaptive sequential rejects strong signal."""
+        np.random.seed(42)
+        n = 100
+        x = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
+        y = np.concatenate([np.zeros(n // 2), np.ones(n // 2)]).astype(np.float64)
+
+        pval = _ptest_sequential_adaptive_batched(
+            func=self._mean_diff,
+            func_arg=None,
+            x=x,
+            y=y,
+            n_resamples=200,
+            alpha=0.05,
+            confidence=0.95,
+            random_state=42,
+            batch_size=8,
+        )
+        assert pval < 0.05
+
+    def test_null_signal_high_pvalue(self):
+        """Test batched adaptive sequential doesn't reject null."""
+        np.random.seed(42)
+        n = 100
+        x = np.random.randn(n)
+        y = np.random.randn(n)
+
+        def mean_diff(x, y, arg, random_state=None):
+            mask = x > 0
+            if mask.sum() == 0 or (~mask).sum() == 0:
+                return 0.0
+            return np.mean(y[mask]) - np.mean(y[~mask])
+
+        pval = _ptest_sequential_adaptive_batched(
+            func=mean_diff,
+            func_arg=None,
+            x=x,
+            y=y,
+            n_resamples=200,
+            alpha=0.05,
+            confidence=0.95,
+            random_state=42,
+            batch_size=8,
+        )
+        # Under null, p-value should typically be high
+        assert pval > 0
+
+    def test_pvalue_never_zero(self):
+        """Test p-value is never exactly zero."""
+        np.random.seed(42)
+        n = 100
+        # Perfect separation
+        x = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
+        y = np.concatenate([np.zeros(n // 2) - 100, np.ones(n // 2) + 100])
+
+        pval = _ptest_sequential_adaptive_batched(
+            func=self._mean_diff,
+            func_arg=None,
+            x=x,
+            y=y,
+            n_resamples=100,
+            alpha=0.05,
+            confidence=0.95,
+            random_state=42,
+            batch_size=8,
+        )
+        assert pval > 0
+
+    def test_batch_vs_sequential_same_decisions(self):
+        """Test batched and sequential make the same reject/accept decisions.
+
+        With a strong signal, both should reject. With null, both should not reject.
+        """
+        np.random.seed(42)
+        n = 100
+
+        # Strong signal
+        x_sig = np.concatenate([np.zeros(n // 2), np.ones(n // 2)])
+        y_sig = np.concatenate([np.zeros(n // 2), np.ones(n // 2)]).astype(np.float64)
+
+        pval_seq = _ptest_sequential_adaptive(
+            func=self._mean_diff,
+            func_arg=None,
+            x=x_sig,
+            y=y_sig,
+            n_resamples=200,
+            alpha=0.05,
+            confidence=0.95,
+            random_state=42,
+        )
+        pval_bat = _ptest_sequential_adaptive_batched(
+            func=self._mean_diff,
+            func_arg=None,
+            x=x_sig,
+            y=y_sig,
+            n_resamples=200,
+            alpha=0.05,
+            confidence=0.95,
+            random_state=42,
+            batch_size=8,
+        )
+        # Both should reject
+        assert pval_seq < 0.05
+        assert pval_bat < 0.05

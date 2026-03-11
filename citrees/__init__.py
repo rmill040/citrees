@@ -7,7 +7,6 @@ from citrees._forest import (
 )
 from citrees._tree import ConditionalInferenceTreeClassifier, ConditionalInferenceTreeRegressor
 from citrees._types import (
-    BootstrapMethod,
     EarlyStopping,
     EstimatorType,
     MaxValuesMethod,
@@ -31,7 +30,6 @@ __all__ = [
     "NResamples",
     "MaxValuesMethod",
     "ThresholdMethod",
-    "BootstrapMethod",
     "SamplingMethod",
     "EstimatorType",
 ]

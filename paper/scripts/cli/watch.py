@@ -289,7 +289,7 @@ def _build_output(
     footer.append("[c]", style="bold")
     footer.append(f"at={_CATEGORY_LABELS[state.category]}  ", style="dim")
     footer.append("[s]", style="bold")
-    footer.append(f"stage={_STAGE_LABELS[state.stage]}  ", style="dim")
+    footer.append(f"tage={_STAGE_LABELS[state.stage]}  ", style="dim")
     footer.append("[q]", style="bold")
     footer.append("uit", style="dim")
 

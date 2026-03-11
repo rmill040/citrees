@@ -228,7 +228,6 @@ This section is well-covered.
 | Reference    | Venue         | Relevance          |
 | ------------ | ------------- | ------------------ |
 | Efron (1979) | Ann. Statist. | Original bootstrap |
-| Rubin (1981) | Ann. Statist. | Bayesian bootstrap |
 
 This section is well-covered.
 

@@ -9,6 +9,7 @@ from citrees._selector import (
     _RDC_S,
     _correlation,
     _covariance,
+    _ptest_multi,
     _rdc,
     _rdc_cancor,
     _rdc_ecdf,
@@ -497,6 +498,127 @@ class TestPtestRDC:
         )
         assert 0 < pval <= 1
 
+    def test_regressor_parallel_strong_signal(self):
+        """Test parallel RDC regressor gives low p-value for strong signal."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        # n_resamples >= 200 triggers parallel path
+        pval = ptest_rdc_regressor(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping=None, alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_regressor_parallel_batched_strong_signal(self):
+        """Test parallel batched RDC regressor gives low p-value for strong signal."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        pval = ptest_rdc_regressor(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_classifier_parallel_binary_strong_signal(self):
+        """Test parallel RDC classifier (binary) gives low p-value for strong signal."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval = ptest_rdc_classifier(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping=None, alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_classifier_parallel_batched_binary(self):
+        """Test parallel batched RDC classifier (binary) gives low p-value."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval = ptest_rdc_classifier(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_classifier_parallel_multiclass(self):
+        """Test parallel RDC classifier (multiclass) gives low p-value."""
+        x = np.concatenate([np.zeros(30) + i for i in range(3)])
+        y = np.concatenate([np.full(30, i, dtype=np.int64) for i in range(3)])
+        pval = ptest_rdc_classifier(
+            x=x, y=y, n_classes=3, n_resamples=250,
+            early_stopping=None, alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_classifier_parallel_batched_multiclass(self):
+        """Test parallel batched RDC classifier (multiclass) gives low p-value."""
+        x = np.concatenate([np.zeros(30) + i for i in range(3)])
+        y = np.concatenate([np.full(30, i, dtype=np.int64) for i in range(3)])
+        pval = ptest_rdc_classifier(
+            x=x, y=y, n_classes=3, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_regressor_parallel_null_feature(self):
+        """Test parallel RDC regressor gives large p-value for null feature."""
+        rng = np.random.default_rng(42)
+        x = rng.standard_normal(100)
+        y = rng.standard_normal(100)
+        pval = ptest_rdc_regressor(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping=None, alpha=0.05, random_state=42,
+        )
+        assert pval > 0.05
+
+    def test_classifier_parallel_null_feature(self):
+        """Test parallel RDC classifier gives large p-value for null feature."""
+        rng = np.random.default_rng(42)
+        x = rng.standard_normal(100)
+        y = rng.integers(0, 2, size=100).astype(np.int64)
+        pval = ptest_rdc_classifier(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping=None, alpha=0.05, random_state=42,
+        )
+        assert pval > 0.05
+
+    def test_regressor_parallel_reproducible(self):
+        """Test parallel RDC regressor is reproducible with same seed."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + 1.0
+        pval1 = ptest_rdc_regressor(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        pval2 = ptest_rdc_regressor(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval1 == pval2
+
+    def test_classifier_parallel_reproducible(self):
+        """Test parallel RDC classifier is reproducible with same seed."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval1 = ptest_rdc_classifier(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        pval2 = ptest_rdc_classifier(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval1 == pval2
+
+    def test_regressor_parallel_pvalue_never_zero(self):
+        """Test parallel RDC regressor p-value is never exactly zero."""
+        x = np.linspace(0, 10, 200)
+        y = 100 * x  # extreme signal
+        pval = ptest_rdc_regressor(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval > 0
+
 
 class TestEarlyStopping:
     """Tests for early stopping in permutation tests."""
@@ -525,6 +647,169 @@ class TestEarlyStopping:
             y=y,
             standardize=True,
             n_resamples=1000,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_batched_parallel_mc_strong_signal(self):
+        """Test batched parallel path is taken for mc with adaptive + n_resamples >= 200."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        # n_resamples >= 200 + adaptive triggers batched parallel
+        pval = ptest_mc(
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_batched_parallel_pc_strong_signal(self):
+        """Test batched parallel path is taken for pc with adaptive + n_resamples >= 200."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        # n_resamples >= 200 + adaptive triggers batched parallel
+        pval = ptest_pc(
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_batched_parallel_mc_no_signal(self):
+        """Test batched parallel mc doesn't reject null."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randint(0, 2, 100).astype(np.int64)
+        pval = ptest_mc(
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval > 0
+
+    def test_batched_parallel_pc_no_signal(self):
+        """Test batched parallel pc doesn't reject null."""
+        np.random.seed(42)
+        x = np.random.randn(100)
+        y = np.random.randn(100)
+        pval = ptest_pc(
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval > 0
+
+    def test_batched_parallel_mc_pvalue_never_zero(self):
+        """Test batched parallel mc p-value is never exactly zero."""
+        rng = np.random.RandomState(42)
+        n = 200
+        x = np.concatenate([rng.randn(n // 2) - 10, rng.randn(n // 2) + 10])
+        y = np.concatenate([np.zeros(n // 2), np.ones(n // 2)]).astype(np.int64)
+        pval = ptest_mc(
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval > 0
+
+    def test_batched_parallel_mc_reproducible(self):
+        """Test batched parallel mc gives same result with same seed."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval1 = ptest_mc(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        pval2 = ptest_mc(
+            x=x, y=y, n_classes=2, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval1 == pval2
+
+    def test_batched_parallel_pc_reproducible(self):
+        """Test batched parallel pc gives same result with same seed."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + 1.0
+        pval1 = ptest_pc(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        pval2 = ptest_pc(
+            x=x, y=y, standardize=True, n_resamples=250,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval1 == pval2
+
+    def test_batched_parallel_pc_pvalue_never_zero(self):
+        """Test batched parallel pc p-value is never exactly zero."""
+        x = np.linspace(0, 10, 200)
+        y = 100 * x  # extreme signal
+        pval = ptest_pc(
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
+        )
+        assert pval > 0
+
+    def test_ptest_adaptive_small_resamples_mc(self):
+        """Test _ptest() adaptive branch with n_resamples < parallel threshold."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        # n_resamples < 200 routes to _ptest() Python adaptive branch
+        pval = ptest_mc(
+            x=x, y=y, n_classes=2, n_resamples=100,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_ptest_adaptive_small_resamples_pc(self):
+        """Test _ptest() adaptive branch for pc with n_resamples < parallel threshold."""
+        x = np.linspace(0, 10, 100)
+        y = 2 * x + np.random.randn(100) * 0.1
+        # n_resamples < 200 routes to _ptest() Python adaptive branch
+        pval = ptest_pc(
+            x=x, y=y, standardize=True, n_resamples=100,
+            early_stopping="adaptive", alpha=0.05, random_state=42,
+        )
+        assert pval < 0.05
+
+    def test_ptest_multi_adaptive_batched(self):
+        """Test _ptest_multi() adaptive batched branch."""
+        x = np.concatenate([np.zeros(50), np.ones(50)])
+        y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
+        pval = _ptest_multi(
+            funcs=[mc],
+            func_args=[2],
+            take_abs=[True],
+            x=x,
+            y=y,
+            n_resamples=100,
             early_stopping="adaptive",
             alpha=0.05,
             random_state=42,

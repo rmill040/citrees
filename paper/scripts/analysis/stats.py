@@ -564,7 +564,8 @@ def nemenyi_critical_difference(n_methods: int, n_datasets: int, alpha: float = 
     if (n_methods, alpha) not in q_values:
         raise ValueError(
             f"No critical value for n_methods={n_methods}, alpha={alpha}. "
-            f"Supported: n_methods in [3-12, 15, 20], alpha in [0.05, 0.10]"
+            f"Supported: n_methods in {{3-12, 15, 20}}, alpha in {{0.05, 0.10}}. "
+            f"Hint: use method_base (family-level) instead of config-hash-level method_id."
         )
     q = q_values[(n_methods, alpha)]
     cd = q * np.sqrt(n_methods * (n_methods + 1) / (6 * n_datasets))
@@ -956,11 +957,12 @@ def analyze_stratified_results(
         return
 
     # Work with a copy to avoid modifying original
-    df = data.copy()
+    df = _ensure_method_base(data.copy())
+    method_col = "method_base"
 
     # 1. By synthetic type
     if "dataset_type" in df.columns:
-        stratified = df.groupby(["dataset_type", "method"])[metric].agg(["mean", "std"])
+        stratified = df.groupby(["dataset_type", method_col])[metric].agg(["mean", "std"])
         out_path = tables_dir / f"stratified_by_type_{metric.replace('@', '_at_')}.csv"
         stratified.to_csv(out_path)
         print(f"Saved: {out_path}")
@@ -968,7 +970,7 @@ def analyze_stratified_results(
         # Fallback: extract type from dataset name
         df["synthetic_type"] = df["dataset"].str.extract(r"synthetic_(\w+)_")[0]
         if df["synthetic_type"].notna().any():
-            stratified = df.groupby(["synthetic_type", "method"])[metric].agg(["mean", "std"])
+            stratified = df.groupby(["synthetic_type", method_col])[metric].agg(["mean", "std"])
             out_path = tables_dir / f"stratified_by_type_{metric.replace('@', '_at_')}.csv"
             stratified.to_csv(out_path)
             print(f"Saved: {out_path}")
@@ -978,7 +980,7 @@ def analyze_stratified_results(
         df["size_bin"] = pd.cut(
             df["n_samples"], bins=[0, 500, 1000, np.inf], labels=["small", "medium", "large"]
         )
-        stratified_size = df.groupby(["size_bin", "method"])[metric].agg(["mean", "std"])
+        stratified_size = df.groupby(["size_bin", method_col])[metric].agg(["mean", "std"])
         out_path = tables_dir / f"stratified_by_size_{metric.replace('@', '_at_')}.csv"
         stratified_size.to_csv(out_path)
         print(f"Saved: {out_path}")
@@ -993,7 +995,7 @@ def analyze_stratified_results(
         df["dim_bin"] = pd.cut(
             df["on_ratio"], bins=[0, 0.5, 1.0, np.inf], labels=["low", "medium", "high"]
         )
-        stratified_dim = df.groupby(["dim_bin", "method"])[metric].agg(["mean", "std"])
+        stratified_dim = df.groupby(["dim_bin", method_col])[metric].agg(["mean", "std"])
         out_path = tables_dir / f"stratified_by_dim_{metric.replace('@', '_at_')}.csv"
         stratified_dim.to_csv(out_path)
         print(f"Saved: {out_path}")
@@ -1029,8 +1031,9 @@ def compute_stability_analysis(
 
     results = []
 
+    rankings_data = _ensure_method_base(rankings_data)
     for method in methods:
-        method_data = rankings_data[rankings_data["method"] == method]
+        method_data = rankings_data[rankings_data["method_base"] == method]
 
         for dataset in method_data["dataset"].unique():
             dataset_method = method_data[method_data["dataset"] == dataset]
@@ -1061,7 +1064,7 @@ def compute_stability_analysis(
 
     if results:
         df = pd.DataFrame(results)
-        # Summary by method
+        # Summary by method family
         summary = df.groupby("method")[f"stability@{top_k}"].agg(["mean", "std"])
         out_path = tables_dir / f"stability_at_{top_k}.csv"
         summary.to_csv(out_path)
@@ -1087,9 +1090,10 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     data = pd.read_parquet(input_path)
     print(f"Loaded {len(data)} result rows")
 
-    # Get methods from the 'method' column
-    methods = sorted(data["method"].unique())
-    print(f"Methods: {methods}")
+    # Derive method_base for family-level analysis (per lockdown plan sec 2.3)
+    data = _ensure_method_base(data)
+    methods = sorted(data["method_base"].unique())
+    print(f"Method families ({len(methods)}): {methods}")
 
     # Find available metrics
     metric_cols = [
@@ -1112,29 +1116,28 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     tables_dir.mkdir(parents=True, exist_ok=True)
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    # Aggregate by dataset and method (mean across folds)
-    agg_cols = ["dataset", "method", "n_features", "n_informative", "n_samples"]
+    # Aggregate by dataset and method_base (mean across configs/folds)
+    agg_cols = ["dataset", "method_base", "n_features", "n_informative", "n_samples"]
     if "class_sep" in data.columns:
         agg_cols.append("class_sep")
 
     data_agg = data.groupby(agg_cols)[metric_cols].mean().reset_index()
 
-    # Pivot to wide format for analysis (method as columns)
-    # This matches the format expected by generate_friedman_table, etc.
+    # Pivot to wide format for analysis (method_base as columns)
     data_wide = data_agg.pivot(
         index=["dataset", "n_features", "n_informative", "n_samples"],
-        columns="method",
+        columns="method_base",
         values=metric_cols,
     )
-    # Flatten column names: (precision@10, method) -> method_precision@10
+    # Flatten column names: (precision@10, method_base) -> method_precision@10
     data_wide.columns = [f"{col[1]}_{col[0]}" for col in data_wide.columns]
     data_wide = data_wide.reset_index()
 
     # === TABLES ===
     print("\n--- Generating Summary Tables ---")
 
-    # Summary by method
-    summary = data.groupby("method")[metric_cols].agg(["mean", "std"])
+    # Summary by method family
+    summary = data.groupby("method_base")[metric_cols].agg(["mean", "std"])
     summary_path = tables_dir / "summary_synthetic.csv"
     summary.to_csv(summary_path)
     print(f"Saved: {summary_path}")
@@ -1145,7 +1148,7 @@ def analyze_synthetic_results(input_path: Path, tables_dir: Path, figures_dir: P
     # Box plots by method for precision@10
     if "precision@10" in data.columns:
         fig, ax = plt.subplots(figsize=(12, 6))
-        data.boxplot(column="precision@10", by="method", ax=ax)
+        data.boxplot(column="precision@10", by="method_base", ax=ax)
         ax.set_title("Precision@10 by Method (Synthetic Datasets)")
         ax.set_xlabel("Method")
         ax.set_ylabel("Precision@10")
@@ -1381,17 +1384,35 @@ def run_statistical_analysis(
     return results
 
 
+def _ensure_method_base(data: pd.DataFrame) -> pd.DataFrame:
+    """Ensure data has a method_base column for family-level analysis.
+
+    If method_base already exists, return as-is. Otherwise derive it from the
+    method column by splitting on '__' (e.g., 'cif__cd8aebe78f98853d' -> 'cif').
+
+    Per the analysis lockdown plan (section 2.3), confirmatory analysis uses
+    method_base (family-level), not config-hash-level method_id.
+    """
+    if "method_base" not in data.columns:
+        data = data.copy()
+        data["method_base"] = data["method"].str.split("__").str[0]
+    return data
+
+
 def _aggregate_and_pivot(
     data: pd.DataFrame, methods: list[str], metric_cols: list[str]
 ) -> pd.DataFrame:
     """Aggregate results and pivot to wide format for statistical analysis.
+
+    Uses method_base (family-level) for aggregation. Multi-config families
+    (e.g., CIF with 64 configs) are averaged within each family per dataset.
 
     Parameters
     ----------
     data : pd.DataFrame
         Results dataframe.
     methods : list[str]
-        Method names to include.
+        Method family names (method_base values) to include.
     metric_cols : list[str]
         Metric column names to include.
 
@@ -1401,8 +1422,10 @@ def _aggregate_and_pivot(
         Wide-format DataFrame with columns: {method}_{metric}.
         One row per dataset.
     """
-    # Aggregate by dataset and method (mean across folds/seeds)
-    agg_cols = ["dataset", "method"]
+    data = _ensure_method_base(data)
+
+    # Aggregate by dataset and method_base (mean across configs/folds/seeds)
+    agg_cols = ["dataset", "method_base"]
     for col in ["n_features", "n_informative", "n_samples", "class_sep"]:
         if col in data.columns:
             agg_cols.append(col)
@@ -1411,10 +1434,10 @@ def _aggregate_and_pivot(
     data_agg = data.groupby(agg_cols)[available_metrics].mean().reset_index()
 
     # Pivot to wide format (one row per dataset, columns = {method}_{metric})
-    index_cols = [c for c in agg_cols if c != "method"]
+    index_cols = [c for c in agg_cols if c != "method_base"]
     data_wide = data_agg.pivot(
         index=index_cols,
-        columns="method",
+        columns="method_base",
         values=available_metrics,
     )
     # Flatten column names: (precision@10, rf) -> rf_precision@10
@@ -1732,7 +1755,8 @@ def main():
 
         # Then run the generic statistical analysis for standardized outputs
         data = pd.read_parquet(synthetic_path)
-        methods = sorted(data["method"].unique())
+        data = _ensure_method_base(data)
+        methods = sorted(data["method_base"].unique())
         metric_cols = [c for c in data.columns if c.startswith(("precision@", "recall@", "f1@"))]
         data_wide = load_and_pivot_results(synthetic_path, methods, metric_cols)
 
@@ -1754,7 +1778,8 @@ def main():
         print("CLASSIFICATION EVALUATION")
         print("=" * 60)
         data = pd.read_parquet(clf_eval_path)
-        methods = sorted(data["method"].unique())
+        data = _ensure_method_base(data)
+        methods = sorted(data["method_base"].unique())
         metric_cols = [
             c for c in data.columns if c in ["accuracy", "f1_macro", "auc", "balanced_accuracy"]
         ]
@@ -1809,7 +1834,8 @@ def main():
         print("REGRESSION EVALUATION")
         print("=" * 60)
         data = pd.read_parquet(reg_eval_path)
-        methods = sorted(data["method"].unique())
+        data = _ensure_method_base(data)
+        methods = sorted(data["method_base"].unique())
         metric_cols = [c for c in data.columns if c in ["r2", "mse", "mae", "rmse"]]
         data_wide = load_and_pivot_results(reg_eval_path, methods, metric_cols)
 

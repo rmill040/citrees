@@ -147,21 +147,21 @@ _CIT_CIF_BASE: dict[str, list[Any]] = {
     "alpha_selector": [0.05],
     "alpha_splitter": [0.05],
     # Selector
-    "n_resamples_selector": ["minimum", "auto"],
+    "n_resamples_selector": ["minimum"],
     "adjust_alpha_selector": [True],
     "early_stopping_selector": ["adaptive"],
     "early_stopping_confidence_selector": [0.95],
     "feature_muting": [True],
     "feature_scanning": [True],
     # Splitter
-    "n_resamples_splitter": ["minimum", "auto"],
+    "n_resamples_splitter": ["minimum"],
     "adjust_alpha_splitter": [True],
     "early_stopping_splitter": ["adaptive"],
     "early_stopping_confidence_splitter": [0.95],
     "threshold_scanning": [True],
-    # Threshold (filtered: exact→None, histogram→256)
-    "threshold_method": ["exact", "histogram"],
-    "max_thresholds": [None, 256],
+    # Threshold
+    "threshold_method": ["histogram"],
+    "max_thresholds": [256],
     # Honesty
     "honesty": [False, True],
     "honesty_fraction": [0.5],
@@ -175,21 +175,21 @@ CLF_CIT_GRID: dict[str, list[Any]] = {
 CLF_CIF_GRID: dict[str, list[Any]] = {
     **CLF_CIT_GRID,
     "max_samples": [None],
-    "bootstrap_method": ["bayesian", "classic"],
+    "bootstrap": [True],
     "sampling_method": ["stratified"],
     "n_estimators": [100],
     "n_jobs": [-1],
 }
 
 REG_CIT_GRID: dict[str, list[Any]] = {
-    "selector": ["pc", "dc", "rdc"],
+    "selector": ["pc", "rdc"],
     "splitter": ["mse"],
     **_CIT_CIF_BASE,
 }
 REG_CIF_GRID: dict[str, list[Any]] = {
     **REG_CIT_GRID,
     "max_samples": [None],
-    "bootstrap_method": ["bayesian", "classic"],
+    "bootstrap": [True],
     "n_estimators": [100],
     "n_jobs": [-1],
 }

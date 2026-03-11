@@ -82,7 +82,16 @@ def run_worker(
         try:
             resp = client.post("/next")
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout):
-            logger.warning("Cannot reach API at {}, retrying...", api_url)
+            idle_count += 1
+            logger.warning(
+                "Cannot reach API at {} ({}/{}), retrying...",
+                api_url,
+                idle_count,
+                max_idle_polls or "∞",
+            )
+            if max_idle_polls is not None and idle_count >= max_idle_polls:
+                logger.info("Reached max idle polls ({}), exiting", max_idle_polls)
+                break
             time.sleep(poll_interval)
             continue
 

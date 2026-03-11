@@ -346,20 +346,24 @@ def check(
         all_datasets = [d for d in all_datasets if "synthetic" in d]
 
     method_labels = [m.label for m in grid.methods]
-    total_expected = len(all_datasets) * len(method_labels) * n_seeds
+    total_expected = len(grid)
 
     heading(f"Progress: {stage.upper()} ({task})")
 
     store = S3Store.from_config()
     info(f"S3: {store.bucket}")
     console.print(
-        f"  Expected: {len(all_datasets)} datasets x {len(method_labels)} methods x {n_seeds} seeds = {format_number(total_expected)}"
+        f"  Expected: {format_number(total_expected)} configs ({len(all_datasets)} datasets x {len(method_labels)} methods x {n_seeds} seeds, minus exclusions)"
     )
     console.print()
 
     # Fetch completed from S3
     with console.status(f"Listing s3://{store.bucket}/{stage}/{task}/..."):
-        completed = store.list_completed(stage, task)
+        all_completed = store.list_completed(stage, task)
+
+    # Filter to only artifacts matching the current grid
+    grid_keys = {cfg.key for cfg in grid}
+    completed = all_completed & grid_keys
 
     # Organize by dataset
     completed_by_dataset: dict[str, set[tuple[str, int]]] = defaultdict(set)
@@ -380,9 +384,14 @@ def check(
         for method_label, _ds, _seed in completed:
             method_counts[method_label] += 1
 
-        expected_per = len(all_datasets) * n_seeds
         table = create_table(columns=[("Method", ""), ("Progress", ""), ("Done", "number")])
+        # Count expected per method from the grid itself
+        method_expected: dict[str, int] = defaultdict(int)
+        for cfg in grid:
+            method_expected[cfg.method.label] += 1
+
         for m in method_labels:
+            expected_per = method_expected.get(m, 0)
             cnt = method_counts.get(m, 0)
             table.add_row(m[:30], progress_bar(cnt, expected_per), f"{cnt}/{expected_per}")
         console.print(table)

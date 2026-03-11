@@ -16,6 +16,13 @@ from paper.scripts.pipeline.methods import (
 )
 from paper.scripts.pipeline.types import ExperimentConfig, MethodConfig, TaskType
 
+# R methods crash with "protect(): protection stack overflow" on high-dimensional
+# datasets. These (method_name, dataset) pairs are excluded from the grid.
+_EXCLUDED: set[tuple[str, str]] = {
+    ("r_ctree", "dexter"),
+    ("r_cforest", "dexter"),
+}
+
 
 @dataclass
 class ExperimentGrid:
@@ -57,6 +64,8 @@ class ExperimentGrid:
         """Iterate over all experiment configurations."""
         for method in self.methods:
             for dataset in self.datasets:
+                if (method.name, dataset) in _EXCLUDED:
+                    continue
                 for seed in self.seeds:
                     yield ExperimentConfig(
                         method=method,
@@ -67,7 +76,10 @@ class ExperimentGrid:
 
     def __len__(self) -> int:
         """Total number of configurations in the grid."""
-        return len(self.methods) * len(self.datasets) * len(self.seeds)
+        excluded = sum(
+            1 for m in self.methods for d in self.datasets if (m.name, d) in _EXCLUDED
+        )
+        return (len(self.methods) * len(self.datasets) - excluded) * len(self.seeds)
 
     def filter_pending(self, completed: set[tuple[str, str, int]]) -> list[ExperimentConfig]:
         """Get list of configurations not in the completed set.

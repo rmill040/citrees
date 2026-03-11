@@ -83,8 +83,9 @@ Monte Carlo permutation tests in this paper.
 
 \paragraph{Fixed-$B$ resolution and ties.}
 In fixed-$B$ Monte Carlo mode, the +1 p-value takes values on the discrete grid
-$\{1/(B+1),2/(B+1),\dots,1\}$. Consequently, if a nodewise threshold is set below
-$1/(B+1)$ (e.g., via Bonferroni with $\alpha_{\mathrm{sel}}/m_t < 1/(B+1)$),
+$\{1/(B+1),2/(B+1),\dots,1\}$. Consequently, under the implementation's strict
+decision rule, if a nodewise threshold is set at or below
+$1/(B+1)$ (e.g., via Bonferroni with $\alpha_{\mathrm{sel}}/m_t \le 1/(B+1)$),
 then rejection is impossible regardless of signal strength. Discreteness also
 implies ties can occur (multiple candidates achieving the same minimal p-value);
 when ties occur, the implementation must specify a deterministic or randomized
@@ -107,7 +108,7 @@ label-independent tested family (A0.3): avoid label-adaptive modifications of
 the tested set at the node of interest (e.g., disable subtree feature muting if
 you want to interpret p-values at a pre-specified internal node). Ensure the
 Monte Carlo resolution is compatible with the thresholding rule, i.e.,
-$\alpha_{\mathrm{sel}}/m_t \ge 1/(B+1)$ at the node.
+$\alpha_{\mathrm{sel}}/m_t > 1/(B+1)$ at the node.
 
 For performance-oriented runs, early stopping, feature/threshold scanning, and
 muting can reduce computation substantially, but they change the inferential

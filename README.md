@@ -229,7 +229,7 @@ function BuildTree(X, y, depth):
 | ------------------ | -------------------- | --------------------------- | --------------------------------------------- |
 | `n_estimators`     | int                  | 100                         | Number of trees                               |
 | `max_samples`      | int/float/None       | None                        | Bootstrap sample cap (count or fraction)      |
-| `bootstrap_method` | BootstrapMethod/None | `BootstrapMethod.BAYESIAN`  | Sampling method                               |
+| `bootstrap`        | bool                 | `True`                      | Whether to use bootstrap sampling              |
 | `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap        |
 | `n_jobs`           | int/None             | None                        | Parallel jobs (-1 for all cores)              |
 | `oob_score`        | bool                 | False                       | Compute out-of-bag score (requires bootstrap) |
@@ -237,11 +237,11 @@ function BuildTree(X, y, depth):
 Notes:
 
 - `sampling_method` applies to classification forests only and requires
-  `bootstrap_method` to be set.
+  `bootstrap=True`.
 - `sampling_method` options: `stratified`, `undersample`, `oversample`.
-- `max_samples` is only used when `bootstrap_method` is not `None`.
-- `bootstrap_method=None` disables bootstrapping (and thus OOB).
-- Invalid combinations (e.g., `bootstrap_method=None` with `sampling_method`
+- `max_samples` is only used when `bootstrap=True`.
+- `bootstrap=False` disables bootstrapping (and thus OOB).
+- Invalid combinations (e.g., `bootstrap=False` with `sampling_method`
   set) raise a validation error.
 - Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
   `None`).

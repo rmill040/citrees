@@ -378,11 +378,12 @@ calibrated p-values.
 
 \paragraph{Resolution in fixed-$B$ mode.}
 Because +1 Monte Carlo p-values lie on the grid
-$\{1/(B+1),2/(B+1),\dots,1\}$, any configured significance threshold below
-$1/(B+1)$ is unattainable. In particular, if Stage~A uses Bonferroni at level
-$\alpha_{\mathrm{sel}}/m_t$, then a necessary condition for any rejection is
-$\alpha_{\mathrm{sel}}/m_t \ge 1/(B+1)$ (equivalently
-$B \ge \lceil m_t/\alpha_{\mathrm{sel}} \rceil - 1$). Discreteness can also
+$\{1/(B+1),2/(B+1),\dots,1\}$, any configured significance threshold at or below
+$1/(B+1)$ is unattainable under the implementation's strict decision rule. In
+particular, if Stage~A uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$,
+then rejection is possible only when $\alpha_{\mathrm{sel}}/m_t > 1/(B+1)$.
+Equivalently, the exact integer attainability condition is
+$B \ge \lfloor m_t/\alpha_{\mathrm{sel}} \rfloor$. Discreteness can also
 create ties (many candidates achieving the same minimal p-value), so a
 tie-breaking convention must be specified. Throughout, when multiple candidates
 attain the same minimum p-value (or score), ties are broken uniformly at random
@@ -420,9 +421,14 @@ $B = B_{\mathrm{max}}(\alpha_{\mathrm{eff}})$ for \texttt{maximum}. If
 \texttt{n\_resamples} is an integer $R$, the implementation uses $B=R$ when
 Bonferroni is disabled and $B=R\,n_{\mathrm{tests}}$ when Bonferroni is enabled.
 
-The \texttt{minimum} preset comes from the grid constraint: since +1 Monte Carlo
-p-values take values in $\{1/(B+1),\dots,1\}$, having $1/(B+1) \le \alpha_{\mathrm{eff}}$
-is necessary for rejection, so we choose $B$ on the order of $1/\alpha_{\mathrm{eff}}$.
+The \texttt{minimum} preset is a slightly conservative implementation choice
+motivated by the grid constraint: since +1 Monte Carlo p-values take values in
+$\{1/(B+1),\dots,1\}$ and the implementation rejects only when
+$p_{\mathrm{MC}} < \alpha_{\mathrm{eff}}$, one needs $1/(B+1) < \alpha_{\mathrm{eff}}$
+for any rejection to be attainable. The implementation sets
+$B_{\mathrm{min}}(\alpha_{\mathrm{eff}})=\lceil 1/\alpha_{\mathrm{eff}} \rceil$,
+which guarantees this strict inequality and differs from the exact integer
+attainability threshold by at most one extra permutation.
 The \texttt{auto} and \texttt{maximum} presets target Monte Carlo precision of
 the exceedance rate. Ignoring the +1 correction for intuition,
 %
@@ -569,10 +575,11 @@ ordering is irrelevant.
 \label{app:methods-multipletesting}
 
 \paragraph{Bonferroni (default).}
-At a fixed node $t$, Stage~A tests $m_t=|F_t|$ features and compares
-$\min_{j\in F_t} p_{t,j}$ to $\alpha_{\mathrm{sel}}/m_t$ when
-\texttt{adjust\_alpha\_selector} is enabled. Stage~B analogously compares the
-best split p-value to $\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
+At a fixed node $t$, Stage~A tests $m_t=|F_t|$ features and declares significance
+only when $\min_{j\in F_t} p_{t,j}$ is strictly smaller than
+$\alpha_{\mathrm{sel}}/m_t$ when \texttt{adjust\_alpha\_selector} is enabled.
+Stage~B analogously uses a strict comparison against
+$\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
 \texttt{adjust\_alpha\_splitter} is enabled.
 
 \paragraph{Across-feature max-$T$ (not in the current theorem chain).}
@@ -595,18 +602,17 @@ closely related to the max-$T$ resampling principle \citep{WestfallYoung1993Resa
 
 The forest procedure fits $M$ trees and aggregates their predictions. Each tree is a
 conditional inference tree trained on either the full dataset or a resampled
-dataset (bootstrap). Classic and Bayesian bootstrap are described in
-\cref{sec:bootstrap}.
+dataset (bootstrap). Bootstrap resampling is described in \cref{sec:bootstrap}.
 
 \begin{algorithm}[t]
   \caption{Forest training (bagging with optional bootstrap)}
   \label{alg:forest}
   \begin{algorithmic}[1]
     \Require Training data $(X,Y)$ with $n$ rows, number of trees $M$, tree hyperparameters $\theta_{\mathrm{tree}}$
-    \Require Optional bootstrap method, optional \texttt{max\_samples}
+    \Require Optional bootstrap flag, optional \texttt{max\_samples}
     \For{$m = 1,\dots,M$}
       \If{bootstrap enabled}
-        \State Draw bootstrap indices $I_m$ by the chosen method (with replacement)
+        \State Draw bootstrap indices $I_m$ by the configured sampler (with replacement)
         \If{\texttt{max\_samples} is set and \texttt{max\_samples} $< \lvert I_m \rvert$}
           \State Subsample $I_m$ without replacement down to \texttt{max\_samples}
         \EndIf
@@ -624,8 +630,8 @@ Forest prediction is standard bagging: average class probability vectors for
 classification and average scalar predictions for regression.
 
 \paragraph{Bootstrap variants for classification.}
-In addition to the classic and Bayesian bootstraps, classification forests may
-use class-conditional bootstrap sampling to control the class composition of
+Classification forests may use class-conditional bootstrap sampling to control
+the class composition of
 each bootstrap sample. In stratified mode, bootstrap draws are performed within
 each class so that expected class proportions match the training data. In
 \texttt{undersample} mode, the bootstrap draws $n_{\min}$ samples per class (with
@@ -693,7 +699,7 @@ equivalence.
     Stage~A still selects variables via association scores (not impurity gain), so this is ``CART-like'' but not CART. \\
     \addlinespace
     Bagging + random subspace &
-    Forest + classic bootstrap + \texttt{max\_features} &
+    Forest + bootstrap + \texttt{max\_features} &
     Random Forests &
     By default, \citrees uses conditional-inference screening unless permutation tests are disabled. \\
     \addlinespace
@@ -707,11 +713,6 @@ equivalence.
     \texttt{threshold\_method=histogram} &
     Histogram split search &
     The binning policy is implementation-specific; this is a computational approximation to the full midpoint set. \\
-    \addlinespace
-    Bayesian bootstrap bagging &
-    \texttt{bootstrap\_method=bayesian} &
-    Bayesian bootstrap ensembles &
-    This is a resampling distribution for bagging, not a fully Bayesian posterior over trees. \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -765,10 +766,12 @@ resulting importance vector is typically normalized to sum to $1$ before
 ranking.
 
 \paragraph{Cross-validation and leakage prevention.}
-We use $V=5$ folds and $N_{\mathrm{seeds}}=10$ random seeds. For seed index
-$s \in \{1,\dots,N_{\mathrm{seeds}}\}$ we generate a random partition into $V$
-folds (stratified by class for classification). For each fold
-$f \in \{1,\dots,V\}$, all ranking and preprocessing steps are fit on the
+We use $V=5$ folds and $N_{\mathrm{seeds}}=5$ random seeds. In the executable
+pipeline, seed indices are 0-based: for seed index
+$s \in \{0,\dots,N_{\mathrm{seeds}}-1\}$ we generate a random partition into $V$
+folds (stratified by class for classification). Fold indices are likewise
+0-based, so for each fold
+$f \in \{0,\dots,V-1\}$, all ranking and preprocessing steps are fit on the
 training portion only, and evaluation is performed on the held-out portion. In
 particular, Stage~1 computes rankings on features standardized using training-fold
 means and variances only, and applies the resulting affine transformation to the
@@ -799,8 +802,9 @@ regression (RBF kernel with $C=1$ and $\epsilon=0.1$), and $k$-nearest-neighbors
 regression (with $k_{\mathrm{NN}}=5$ and distance-weighted averaging).
 
 For classification, we report accuracy, balanced accuracy, weighted and macro
-F1, and ROC AUC when defined (returning ``undefined'' for degenerate folds with
-only one class). For regression, we report $R^2$, MSE, RMSE, and MAE. Reported
+F1, and ROC AUC when defined (recording \texttt{NaN} for undefined cases, including
+degenerate folds with only one class and other class/probability-shape mismatches).
+For regression, we report $R^2$, MSE, RMSE, and MAE. Reported
 results are aggregated across folds and seeds.
 
 \paragraph{Synthetic ground truth.}
@@ -820,6 +824,8 @@ We also report F1@k,
 \end{equation}
 %
 with the convention $\mathrm{F1@k}=0$ when the denominator is zero.
+In the current analysis script, the default synthetic evaluation grid is
+$k \in \{5,10,20,|S^\star|\}$, with clipping when needed to ensure $k \le p$.
 
 \paragraph{Redundancy and confounding (synthetic).}
 For datasets with redundant features (proxies that are deterministic functions

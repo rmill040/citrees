@@ -1,11 +1,14 @@
 """Sequential permutation testing with early stopping.
 
-Two methods:
+Three methods:
 1. Simple: Futility + significance stopping (can inflate Type I error)
 2. Adaptive: Bayesian Beta CDF posterior-confidence stopping (speed-oriented; the returned value is a Monte Carlo
    estimate evaluated at a stopping time, not a fixed-B permutation p-value)
+3. Adaptive Batched: Same as adaptive, but checks the stopping criterion every `batch_size` permutations instead of
+   every single permutation. Eliminates ~97% of Beta CDF evaluations with negligible effect on Type I error.
 """
 
+import os
 from math import ceil, exp, lgamma, log
 from typing import Any
 
@@ -165,5 +168,69 @@ def _ptest_sequential_adaptive(
                 return (extreme_count + 1) / (n + 1)
             if (1.0 - prob_sig) >= confidence:
                 return (extreme_count + 1) / (n + 1)
+
+    return (extreme_count + 1) / (n_resamples + 1)
+
+
+# Note: Uses np.random.seed() for determinism and to mirror the Numba-safe RNG
+# pattern used elsewhere in the codebase (Numba doesn't support default_rng()
+# inside @njit).
+def _ptest_sequential_adaptive_batched(
+    *,
+    func: Any,
+    func_arg: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    n_resamples: int,
+    alpha: float,
+    confidence: float,
+    random_state: int,
+    batch_size: int | None = None,
+) -> float:
+    """Sequential permutation test with Bayesian adaptive stopping (batched).
+
+    Same as _ptest_sequential_adaptive, but checks the Beta CDF stopping
+    criterion every `batch_size` permutations instead of after every single
+    permutation. This eliminates ~97% of Beta CDF evaluations with negligible
+    effect on Type I error (validated in paper/scripts/theory/batched_stopping_analysis.py).
+
+    Parameters
+    ----------
+    batch_size : int or None
+        Number of permutations between stopping criterion checks.
+        If None, defaults to os.cpu_count() or 1.
+    """
+    np.random.seed(random_state)
+    min_resamples = ceil(1.0 / alpha)
+    n_resamples = max(n_resamples, min_resamples)
+
+    if batch_size is None:
+        batch_size = os.cpu_count() or 1
+
+    theta = np.abs(func(x, y, func_arg, random_state=random_state))
+    y_ = y.copy()
+    extreme_count = 0
+    m = 0
+
+    while m < n_resamples:
+        # Run a batch of permutations
+        batch_end = min(m + batch_size, n_resamples)
+        for _ in range(batch_end - m):
+            np.random.shuffle(y_)
+            theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
+            if theta_p >= theta:
+                extreme_count += 1
+        m = batch_end
+
+        # Check stopping criterion at batch boundary
+        if m >= min_resamples:
+            a = 1.0 + extreme_count
+            b = 1.0 + m - extreme_count
+            prob_sig = _beta_cdf(alpha, a, b)
+
+            if prob_sig >= confidence:
+                return (extreme_count + 1) / (m + 1)
+            if (1.0 - prob_sig) >= confidence:
+                return (extreme_count + 1) / (m + 1)
 
     return (extreme_count + 1) / (n_resamples + 1)

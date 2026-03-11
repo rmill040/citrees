@@ -35,7 +35,7 @@ It selects
 \end{equation}
 %
 where $\operatorname{uargmin}$ breaks ties uniformly at random among minimizers, and proceeds to Stage~B only if
-$p_t^\star$ is below the configured significance
+$p_t^\star$ is strictly below the configured significance
 level $\alpha_{\mathrm{sel}}$ (optionally Bonferroni-adjusted by $m_t$, i.e.,
 compare to $\alpha_{\mathrm{sel}}/m_t$).
 In fixed-$B$ mode with an exhaustive scan over $F_t$, this corresponds to
@@ -51,7 +51,7 @@ selection-adjusted p-value for the selected feature. Under the nodewise
 \emph{complete} (global) null at $t$, a conservative global-null p-value for the
 Stage~A \emph{decision} is
 $\tilde p_t^{\mathrm{sel}} := \min(1,\, m_t p_t^\star)$, which yields the same
-reject/accept rule as comparing $p_t^\star$ to $\alpha_{\mathrm{sel}}/m_t$.
+strict reject/accept rule as checking whether $p_t^\star < \alpha_{\mathrm{sel}}/m_t$.
 Under the nodewise complete null at $t$ (all tested features are null), this
 Bonferroni rule controls the probability of rejecting any tested feature at level
 $\alpha_{\mathrm{sel}}$ in fixed-$B$ mode under the assumptions in
@@ -144,7 +144,11 @@ In particular:
   \centering
   \small
   \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}p{0.22\linewidth}p{0.30\linewidth}p{0.40\linewidth}@{}}
+  \begin{tabular}{@{}
+    >{\raggedright\arraybackslash}p{0.22\linewidth}
+    >{\raggedright\arraybackslash}p{0.30\linewidth}
+    >{\raggedright\arraybackslash}p{0.40\linewidth}
+  @{}}
     \toprule
     Quantity & Where it arises & Interpretation in this manuscript \\
     \midrule
@@ -197,30 +201,14 @@ feature by taking a maximum across selector statistics inside each permutation.
 This yields a single permutation p-value per feature and supports robust
 screening when different selectors have complementary power.
 
-\subsection{Forests and bootstrap resampling (classic vs Bayesian)}
+\subsection{Forests and bootstrap resampling}
 \label{sec:bootstrap}
 
 The forest procedure fits $M$ trees and aggregates their predictions. To induce
 diversity across trees, the method supports optional bootstrap resampling of
-rows. We distinguish:
-
-\paragraph{Classic bootstrap.}
-Each bootstrap sample draws $n$ indices with replacement from $\{1,\dots,n\}$
-with uniform probabilities $\pi_i = 1/n$ \citep{Efron1979Bootstrap}.
-
-\paragraph{Bayesian bootstrap.}
-The Bayesian bootstrap \citep{Rubin1981BayesianBootstrap} draws a random
-probability vector $\pi = (\pi_1,\dots,\pi_n)$ over the $n$ observations, then draws
-bootstrap indices with replacement according to $\pi$. A convenient construction
-is
-%
-\begin{equation}
-  w_i \stackrel{\mathrm{i.i.d.}}{\sim} \mathrm{Exp}(1), \qquad \pi_i = \frac{w_i}{\sum_{j=1}^n w_j},
-\end{equation}
-%
-which yields $\pi \sim \mathrm{Dirichlet}(1,\dots,1)$. In \citrees, the ``Bayesian
-bootstrap'' option uses this normalized-exponential construction to generate
-sampling probabilities, and then samples indices with replacement.
+rows. When bootstrap is enabled, each tree draws $n$ indices with replacement
+from $\{1,\dots,n\}$ with uniform probabilities $\pi_i = 1/n$
+\citep{Efron1979Bootstrap}.
 
 For classification forests, we additionally support class-conditional bootstrap
 sampling to control class composition within each bootstrap sample: stratified

@@ -80,7 +80,6 @@ from citrees import (
     NResamples,
     ThresholdMethod,
     MaxValuesMethod,
-    BootstrapMethod,
     SamplingMethod,
 )
 ```

@@ -91,7 +91,7 @@ class TestForestLabelHandling:
 
         clf = ConditionalInferenceForestClassifier(
             n_estimators=3,
-            bootstrap_method=None,
+            bootstrap=False,
             sampling_method=None,
             n_resamples_selector=None,
             n_resamples_splitter=None,
@@ -111,7 +111,7 @@ class TestForestLabelHandling:
 
         clf = ConditionalInferenceForestClassifier(
             n_estimators=3,
-            bootstrap_method=None,
+            bootstrap=False,
             sampling_method=None,
             n_resamples_selector=None,
             n_resamples_splitter=None,
@@ -155,18 +155,13 @@ class TestForestParameterValidation:
         with pytest.raises(ValidationError):
             ConditionalInferenceForestClassifier(n_estimators=-1)
 
-    def test_invalid_bootstrap_method(self):
-        """Test that invalid bootstrap_method raises error."""
-        with pytest.raises(ValidationError):
-            ConditionalInferenceForestClassifier(bootstrap_method="invalid")
-
     def test_invalid_sampling_method(self):
         """Test that invalid sampling_method raises error."""
         with pytest.raises(ValidationError):
             ConditionalInferenceForestClassifier(sampling_method="invalid")
 
     def test_regressor_check_for_unused_parameters(self):
-        """Test regressor with check_for_unused_parameters=True and bootstrap_method=None.
+        """Test regressor with check_for_unused_parameters=True and bootstrap=False.
 
         Previously, this raised KeyError because the regressor doesn't have
         sampling_method but _validate_parameter_combinations tried to access it.
@@ -175,7 +170,7 @@ class TestForestParameterValidation:
         reg = ConditionalInferenceForestRegressor(
             n_estimators=2,
             check_for_unused_parameters=True,
-            bootstrap_method=None,
+            bootstrap=False,
             random_state=42,
             verbose=0,
         )
@@ -189,23 +184,12 @@ class TestForestParameterValidation:
 class TestForestBootstrap:
     """Tests for forest bootstrap functionality."""
 
-    def test_bayesian_bootstrap(self, classification_data):
-        """Test Bayesian bootstrap."""
-        X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5,
-            bootstrap_method="bayesian",
-            **FAST_PARAMS,
-        )
-        clf.fit(X, y)
-        assert len(clf.estimators_) == 5
-
     def test_classic_bootstrap(self, classification_data):
         """Test classic bootstrap."""
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(
             n_estimators=5,
-            bootstrap_method="classic",
+            bootstrap=True,
             **FAST_PARAMS,
         )
         clf.fit(X, y)
@@ -216,7 +200,7 @@ class TestForestBootstrap:
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(
             n_estimators=5,
-            bootstrap_method=None,
+            bootstrap=False,
             sampling_method=None,
             check_for_unused_parameters=False,
             **FAST_PARAMS,
@@ -260,19 +244,19 @@ class TestForestSampling:
             )
 
     def test_sampling_method_requires_bootstrap(self) -> None:
-        """sampling_method is only valid when bootstrap_method is enabled."""
+        """sampling_method is only valid when bootstrap is enabled."""
         with pytest.raises(ValidationError):
             ConditionalInferenceForestClassifier(
-                bootstrap_method=None,
+                bootstrap=False,
                 sampling_method="stratified",
                 **FAST_PARAMS,
             )
 
     def test_max_samples_requires_bootstrap(self) -> None:
-        """max_samples is only valid when bootstrap_method is enabled."""
+        """max_samples is only valid when bootstrap is enabled."""
         with pytest.raises(ValidationError):
             ConditionalInferenceForestClassifier(
-                bootstrap_method=None,
+                bootstrap=False,
                 sampling_method=None,
                 max_samples=0.8,
                 **FAST_PARAMS,
@@ -397,7 +381,7 @@ class TestForestPredictProbaAlignment:
 
         clf = ConditionalInferenceForestClassifier(
             n_estimators=5,
-            bootstrap_method="classic",
+            bootstrap=True,
             sampling_method=None,
             max_samples=1,
             n_resamples_selector=None,
@@ -422,7 +406,7 @@ class TestForestOOB:
         with pytest.raises(ValidationError, match="oob_score"):
             ConditionalInferenceForestClassifier(
                 n_estimators=5,
-                bootstrap_method=None,
+                bootstrap=False,
                 sampling_method=None,
                 oob_score=True,
                 n_resamples_selector=None,
@@ -436,7 +420,7 @@ class TestForestOOB:
         X, y = classification_data
         clf = ConditionalInferenceForestClassifier(
             n_estimators=6,
-            bootstrap_method="classic",
+            bootstrap=True,
             sampling_method=None,
             oob_score=True,
             n_resamples_selector=None,
@@ -455,7 +439,7 @@ class TestForestOOB:
         X, y = regression_data
         reg = ConditionalInferenceForestRegressor(
             n_estimators=6,
-            bootstrap_method="classic",
+            bootstrap=True,
             oob_score=True,
             n_resamples_selector=None,
             n_resamples_splitter=None,

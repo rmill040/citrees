@@ -17,8 +17,6 @@ from citrees._tree import (
     ConditionalInferenceTreeRegressor,
 )
 from citrees._types import (
-    BootstrapMethod,
-    BootstrapMethodOption,
     EstimatorType,
     PositiveInt,
     ProbabilityFloat,
@@ -49,7 +47,7 @@ def _parallel_fit_classifier(
     max_samples: int,
     estimator_idx: int,
     n_estimators: int,
-    bootstrap_method: str | None,
+    bootstrap: bool,
     sampling_method: str | None,
     verbose: int,
 ) -> ConditionalInferenceTreeClassifier:
@@ -77,8 +75,8 @@ def _parallel_fit_classifier(
     n_estimators : int
         Number of parallel trees to grow.
 
-    bootstrap_method : str or None
-        Type of bootstrap to use.
+    bootstrap : bool
+        Whether to use bootstrap sampling.
 
     sampling_method : str or None
         Type of sampling to use during bootstrap.
@@ -95,10 +93,9 @@ def _parallel_fit_classifier(
         print(f"Building tree {estimator_idx}/{n_estimators}")
 
     # Bootstrap sample if specified
-    if bootstrap_method:
+    if bootstrap:
         kwargs = {
             "max_samples": max_samples,
-            "bayesian_bootstrap": bootstrap_method == BootstrapMethod.BAYESIAN,
             "random_state": estimator.random_state,
         }
         if sampling_method == SamplingMethod.STRATIFIED:
@@ -124,7 +121,7 @@ def _parallel_fit_regressor(
     max_samples: int,
     estimator_idx: int,
     n_estimators: int,
-    bootstrap_method: str | None,
+    bootstrap: bool,
     verbose: int,
 ) -> ConditionalInferenceTreeRegressor:
     """Build regression trees in parallel.
@@ -151,8 +148,8 @@ def _parallel_fit_regressor(
     n_estimators : int
         Number of parallel trees to grow.
 
-    bootstrap_method : str or None
-        Type of bootstrap to use.
+    bootstrap : bool
+        Whether to use bootstrap sampling.
 
     verbose : int
         Controls verbosity of fitting.
@@ -166,11 +163,10 @@ def _parallel_fit_regressor(
         print(f"Building tree {estimator_idx}/{n_estimators}")
 
     # Bootstrap sample if specified
-    if bootstrap_method:
+    if bootstrap:
         boot_idx = classic_bootstrap_sample(
             y=y,
             max_samples=max_samples,
-            bayesian_bootstrap=bootstrap_method == BootstrapMethod.BAYESIAN,
             random_state=estimator.random_state,  # type: ignore[arg-type]
         )
         estimator.fit(X[boot_idx], y[boot_idx])
@@ -184,19 +180,19 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
     """Model for BaseConditionalInferenceForest parameters."""
 
     n_estimators: PositiveInt
-    bootstrap_method: BootstrapMethodOption
+    bootstrap: bool
     max_samples: PositiveInt | ProbabilityFloat | None
     n_jobs: int | None
     oob_score: bool
 
     @model_validator(mode="after")
     def validate_bootstrap_constraints(self) -> "BaseConditionalInferenceForestParameters":
-        if self.bootstrap_method is None:
+        if not self.bootstrap:
             if self.max_samples is not None:
-                raise ValueError("max_samples must be None when bootstrap_method=None")
+                raise ValueError("max_samples must be None when bootstrap=False")
             if self.oob_score:
                 raise ValueError(
-                    "oob_score requires bootstrap_method to be set (bootstrap enabled)"
+                    "oob_score requires bootstrap to be set (bootstrap enabled)"
                 )
         return self
 
@@ -210,8 +206,8 @@ class ConditionalInferenceForestClassifierParameters(BaseConditionalInferenceFor
     def validate_sampling_method_constraints(
         self,
     ) -> "ConditionalInferenceForestClassifierParameters":
-        if self.bootstrap_method is None and self.sampling_method is not None:
-            raise ValueError("sampling_method must be None when bootstrap_method=None")
+        if not self.bootstrap and self.sampling_method is not None:
+            raise ValueError("sampling_method must be None when bootstrap=False")
         return self
 
 
@@ -250,7 +246,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         min_impurity_decrease: float,
         honesty: bool,
         honesty_fraction: float,
-        bootstrap_method: str | None,
+        bootstrap: bool,
         max_samples: int | float | None,
         n_jobs: int | None,
         oob_score: bool,
@@ -283,7 +279,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.min_impurity_decrease = min_impurity_decrease
         self.honesty = honesty
         self.honesty_fraction = honesty_fraction
-        self.bootstrap_method = bootstrap_method
+        self.bootstrap = bootstrap
         self.max_samples = max_samples
         self.n_jobs = n_jobs
         self.oob_score = oob_score
@@ -299,7 +295,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         """Runtime check to determine if any hyperparameters are unused due to constraints.
 
         Bootstrap constraints:
-        1. If bootstrap_method is None =>
+        1. If bootstrap is None =>
             - sampling_method = None
             - max_samples = None
         """
@@ -308,12 +304,12 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         params = self.get_params()
 
         flags = []
-        if params["bootstrap_method"] is None:
+        if not params["bootstrap"]:
             # Use .get() to handle regressor which doesn't have sampling_method
             flags = [key for key in ["sampling_method", "max_samples"] if params.get(key)]
         if flags:
             warnings.warn(
-                "Unused hyperparameter(s) detected: When bootstrap_method=None, hyperparameter(s) "
+                "Unused hyperparameter(s) detected: When bootstrap=False, hyperparameter(s) "
                 f"({', '.join(flags)}) should be None",
                 stacklevel=2,
             )
@@ -418,7 +414,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     max_samples=self._max_samples,
                     estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
-                    bootstrap_method=self._bootstrap_method,
+                    bootstrap=self._bootstrap,
                     sampling_method=self._sampling_method,
                     verbose=self._verbose,
                 )
@@ -433,7 +429,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     max_samples=self._max_samples,
                     estimator_idx=estimator_idx,
                     n_estimators=self._n_estimators,
-                    bootstrap_method=self._bootstrap_method,
+                    bootstrap=self._bootstrap,
                     verbose=self._verbose,
                 )
                 for estimator_idx, estimator in enumerate(self.estimators_, 1)
@@ -447,9 +443,9 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             self.feature_importances_ /= fi_sum
 
         if self.oob_score:
-            if self._bootstrap_method is None:
+            if self._bootstrap is None:
                 raise ValueError(
-                    "oob_score requires bootstrap_method to be set (bootstrap enabled)."
+                    "oob_score requires bootstrap to be set (bootstrap enabled)."
                 )
             self._compute_oob_score(X, y)
 
@@ -487,7 +483,6 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                 kwargs = {
                     "y": y,
                     "max_samples": self._max_samples,
-                    "bayesian_bootstrap": self._bootstrap_method == BootstrapMethod.BAYESIAN,
                     "random_state": self._random_state + j,
                 }
                 if self._sampling_method == SamplingMethod.STRATIFIED:
@@ -502,7 +497,6 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                 boot_idx = classic_bootstrap_sample(
                     y=y,
                     max_samples=self._max_samples,
-                    bayesian_bootstrap=self._bootstrap_method == BootstrapMethod.BAYESIAN,
                     random_state=self._random_state + j,
                 )
 
@@ -614,7 +608,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         min_impurity_decrease: float = 0.0,
         honesty: bool = False,
         honesty_fraction: float = 0.5,
-        bootstrap_method: str | None = "bayesian",
+        bootstrap: bool = True,
         sampling_method: str | None = "stratified",
         max_samples: int | float | None = None,
         oob_score: bool = False,
@@ -648,7 +642,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         self.min_impurity_decrease = min_impurity_decrease
         self.honesty = honesty
         self.honesty_fraction = honesty_fraction
-        self.bootstrap_method = bootstrap_method
+        self.bootstrap = bootstrap
         self.sampling_method = sampling_method
         self.max_samples = max_samples
         self.oob_score = oob_score
@@ -790,8 +784,8 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
     min_impurity_decrease : float, default=0.0
         Minimum impurity decrease required for a valid binary split.
 
-    bootstrap_method : {"bayesian", "classic"} or None, default="bayesian"
-        Type of bootstrap to use. Set to None to disable bootstrapping.
+    bootstrap : bool, default=True
+        Whether to use bootstrap sampling.
 
     max_samples : int or float, default=None
         Bootstrap sample cap (count or fraction). When set, each tree is fit on at most
@@ -863,7 +857,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         min_impurity_decrease: float = 0.0,
         honesty: bool = False,
         honesty_fraction: float = 0.5,
-        bootstrap_method: str | None = "bayesian",
+        bootstrap: bool = True,
         max_samples: int | float | None = None,
         oob_score: bool = False,
         n_jobs: int | None = None,
@@ -897,7 +891,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
             min_impurity_decrease=min_impurity_decrease,
             honesty=honesty,
             honesty_fraction=honesty_fraction,
-            bootstrap_method=bootstrap_method,
+            bootstrap=bootstrap,
             max_samples=max_samples,
             oob_score=oob_score,
             n_jobs=n_jobs,

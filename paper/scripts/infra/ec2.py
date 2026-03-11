@@ -78,7 +78,7 @@ def _make_worker_user_data(
 
         # Pull and run the worker image
         docker pull {image_uri}
-        docker run -d --restart unless-stopped \\
+        docker run -d --restart on-failure \\
             --name citrees-worker \\
             --log-driver=awslogs \\
             --log-opt awslogs-region={region} \\
@@ -94,7 +94,8 @@ def _make_worker_user_data(
                 --max-idle-polls 60
 
         # Wait for container to finish (queue drained or idle timeout)
-        docker wait citrees-worker
+        # Always terminate even if docker wait fails (e.g. daemon restart)
+        docker wait citrees-worker || true
         echo "Worker container exited, shutting down instance"
         shutdown -h now
     """)

@@ -11,9 +11,9 @@ at a fixed node, we prove finite-sample guarantees: the $+1$ corrected
 permutation p-value is super-uniform under an exchangeability null, and
 Bonferroni correction yields bounds on both the probability of any false split
 and of splitting on any particular feature---without dependence on the number of
-candidate thresholds. We also show that, by contrast, CART-style greedy
-selection favors features in proportion to their candidate split count under the
-same null.
+candidate thresholds. We also show, via an idealized exchangeable-score
+symmetry model for CART threshold search, that CART-style greedy selection
+favors features in proportion to their candidate split count.
 
 To scale permutation-based trees in practice, we describe implementation
 optimizations including adaptive early stopping of permutation tests and

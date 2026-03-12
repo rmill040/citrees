@@ -6,7 +6,11 @@ informative indices. Also reports informative+redundant variants and
 confounder selection rates when available in metadata.
 
 Usage:
-    # After running experiments and downloading results from S3:
+    # From local data directory (processes both tasks):
+    uv run python paper/scripts/analysis/synthetic_analysis.py \
+        --local-dir ../data --task all
+
+    # Single task with explicit paths:
     uv run python paper/scripts/analysis/synthetic_analysis.py \
         --results-dir paper/results/rankings/classification \
         --data-dir paper/data/classification/synthetic
@@ -99,6 +103,7 @@ def analyze_results(
     results_dir: Path,
     data_dir: Path,
     k_values: list[int] | None = None,
+    grid_ids: set[str] | None = None,
 ) -> pd.DataFrame:
     """Analyze synthetic experiment results.
 
@@ -110,6 +115,9 @@ def analyze_results(
         Directory containing synthetic datasets with ground truth.
     k_values : list[int] | None
         Values of k for precision/recall@k. Default: [5, 10, 20, k_informative].
+    grid_ids : set[str] | None
+        If provided, only include methods in this set. Files whose method_id
+        is not in this set are skipped.
 
     Returns
     -------
@@ -125,6 +133,7 @@ def analyze_results(
         return pd.DataFrame()
 
     results = []
+    skipped = 0
 
     # Find ranking files
     for ranking_file in results_dir.glob("**/*.parquet"):
@@ -135,6 +144,11 @@ def analyze_results(
 
         method = parts[0]
         seed = int(parts[1])
+
+        # Filter to grid
+        if grid_ids is not None and method not in grid_ids:
+            skipped += 1
+            continue
 
         # Dataset name from parent directory
         dataset = ranking_file.parent.name
@@ -205,6 +219,9 @@ def analyze_results(
                 row_data[f"confounder_rate@{k}"] = precision_at_k(ranking, confounder_indices, k)
 
             results.append(row_data)
+
+    if skipped > 0:
+        logger.info(f"Skipped {skipped} files not in grid")
 
     return pd.DataFrame(results)
 
@@ -290,48 +307,96 @@ def summarize_by_dataset_type(df: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     """Run synthetic analysis."""
+    from paper.scripts.analysis.download_and_aggregate import _build_grid_method_ids
+
     parser = argparse.ArgumentParser(description="Analyze synthetic experiment results")
     parser.add_argument(
         "--results-dir",
         type=Path,
-        default=Path("paper/results/rankings/classification"),
-        help="Directory with ranking results",
+        default=None,
+        help="Directory with ranking results (overrides --local-dir for a single task)",
     )
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("paper/data/classification/synthetic"),
-        help="Directory with synthetic datasets",
+        default=None,
+        help="Directory with synthetic datasets (overrides --local-dir for a single task)",
+    )
+    parser.add_argument(
+        "--local-dir",
+        type=Path,
+        default=None,
+        help="Root data directory with rankings/ and data/ subdirs (processes both tasks)",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("paper/results/synthetic_analysis.parquet"),
-        help="Output file for full results",
+        default=None,
+        help="Output file (only used with --results-dir/--data-dir)",
+    )
+    parser.add_argument(
+        "--task",
+        choices=["classification", "regression", "all"],
+        default="all",
+        help="Task type (default: all)",
     )
     args = parser.parse_args()
 
-    logger.info(f"Analyzing results from {args.results_dir}")
+    output_dir = Path("paper/results")
 
-    df = analyze_results(args.results_dir, args.data_dir)
+    if args.results_dir and args.data_dir:
+        task = "classification" if "classification" in str(args.results_dir) else "regression"
+        grid_ids = _build_grid_method_ids(task)
 
-    if df.empty:
-        logger.warning("No results to analyze!")
-        return
+        logger.info(f"Analyzing {task} from {args.results_dir} ({len(grid_ids)} methods)")
+        df = analyze_results(args.results_dir, args.data_dir, grid_ids=grid_ids)
 
-    logger.info(f"Analyzed {len(df)} result rows")
+        if df.empty:
+            logger.warning("No results to analyze!")
+            return
 
-    # Save full results
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(args.output)
-    logger.info(f"Saved results to {args.output}")
+        out = args.output or output_dir / "synthetic_analysis.parquet"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(out, index=False)
+        logger.info(f"Saved {len(df)} rows to {out} ({df['method'].nunique()} methods)")
+    elif args.local_dir:
+        local = args.local_dir.resolve()
+        tasks = ["classification", "regression"] if args.task == "all" else [args.task]
+        all_dfs = []
 
-    # Print summaries
-    print("\n=== SUMMARY BY METHOD ===")
-    print(summarize_by_method(df).to_string())
+        for task in tasks:
+            prefix = "clf" if task == "classification" else "reg"
+            results_dir = local / "rankings" / task
+            data_dir = local / "data" / task / "synthetic"
+            grid_ids = _build_grid_method_ids(task)
 
-    print("\n=== SUMMARY BY DATASET TYPE ===")
-    print(summarize_by_dataset_type(df).to_string())
+            if not results_dir.exists():
+                logger.warning(f"Rankings dir not found: {results_dir}")
+                continue
+            if not data_dir.exists():
+                logger.warning(f"Synthetic data dir not found: {data_dir}")
+                continue
+
+            logger.info(f"\nAnalyzing {task} ({len(grid_ids)} methods)")
+            df = analyze_results(results_dir, data_dir, grid_ids=grid_ids)
+
+            if df.empty:
+                logger.warning(f"No results for {task}")
+                continue
+
+            out = output_dir / f"synthetic_analysis_{prefix}.parquet"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            df.to_parquet(out, index=False)
+            logger.info(f"Saved {len(df):,} rows to {out} ({df['method'].nunique()} methods)")
+            all_dfs.append(df)
+
+        if all_dfs:
+            combined = pd.concat(all_dfs, ignore_index=True)
+            out = output_dir / "synthetic_analysis.parquet"
+            combined.to_parquet(out, index=False)
+            logger.info(f"Saved combined {len(combined):,} rows to {out}")
+    else:
+        parser.error("Provide either --local-dir or both --results-dir and --data-dir")
 
 
 if __name__ == "__main__":

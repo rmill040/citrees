@@ -530,44 +530,11 @@ def nemenyi_critical_difference(n_methods: int, n_datasets: int, alpha: float = 
     CD = q_alpha * sqrt(k(k+1) / (6*n))
 
     where k = number of methods, n = number of datasets.
+    Uses scipy's Studentized Range distribution (df -> inf for Nemenyi).
     """
-    # Critical values for Nemenyi test (q_alpha for two-tailed test)
-    # From: https://www.itl.nist.gov/div898/handbook/prc/section4/prc453.htm
-    q_values = {
-        # (n_methods, alpha): q_value
-        (3, 0.05): 2.343,
-        (3, 0.10): 2.052,
-        (4, 0.05): 2.569,
-        (4, 0.10): 2.291,
-        (5, 0.05): 2.728,
-        (5, 0.10): 2.459,
-        (6, 0.05): 2.850,
-        (6, 0.10): 2.589,
-        (7, 0.05): 2.949,
-        (7, 0.10): 2.693,
-        (8, 0.05): 3.031,
-        (8, 0.10): 2.780,
-        (9, 0.05): 3.102,
-        (9, 0.10): 2.855,
-        (10, 0.05): 3.164,
-        (10, 0.10): 2.920,
-        (11, 0.05): 3.219,
-        (11, 0.10): 2.978,
-        (12, 0.05): 3.268,
-        (12, 0.10): 3.030,
-        (15, 0.05): 3.399,
-        (15, 0.10): 3.160,
-        (20, 0.05): 3.578,
-        (20, 0.10): 3.329,
-    }
+    from scipy.stats import studentized_range
 
-    if (n_methods, alpha) not in q_values:
-        raise ValueError(
-            f"No critical value for n_methods={n_methods}, alpha={alpha}. "
-            f"Supported: n_methods in {{3-12, 15, 20}}, alpha in {{0.05, 0.10}}. "
-            f"Hint: use method_base (family-level) instead of config-hash-level method_id."
-        )
-    q = q_values[(n_methods, alpha)]
+    q = studentized_range.ppf(1 - alpha, k=n_methods, df=1e8) / np.sqrt(2)
     cd = q * np.sqrt(n_methods * (n_methods + 1) / (6 * n_datasets))
     return cd
 

@@ -170,18 +170,23 @@ def r_ctree_ranking(
     # Fit ctree
     tree = partykit.ctree(formula, data=r_data, control=control)
 
-    # Extract variable usage from the tree using R code
+    # Extract variable usage via nodeapply + split_node + varid_split.
+    # NOTE: tree[[id]]$split returns NULL because tree[[id]] yields a
+    # constparty subtree, not the raw node.  The correct partykit API is
+    # nodeapply(tree, FUN = function(n) varid_split(split_node(n))).
     r_code = """
     function(tree, n_features) {
         var_counts <- rep(0, n_features)
-        nodes <- nodeids(tree)
-        for (id in nodes) {
-            node <- tree[[id]]
-            if (!is.null(node$split)) {
-                varid <- node$split$varid
-                if (!is.null(varid) && varid >= 1 && varid <= n_features) {
-                    var_counts[varid] <- var_counts[varid] + 1
-                }
+        all_ids  <- nodeids(tree)
+        term_ids <- nodeids(tree, terminal = TRUE)
+        inner_ids <- setdiff(all_ids, term_ids)
+        if (length(inner_ids) == 0) return(var_counts)
+        varids <- nodeapply(tree, ids = inner_ids, FUN = function(n) {
+            varid_split(split_node(n))
+        })
+        for (vid in unlist(varids)) {
+            if (!is.na(vid) && vid >= 1 && vid <= n_features) {
+                var_counts[vid] <- var_counts[vid] + 1
             }
         }
         return(var_counts)

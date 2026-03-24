@@ -4,7 +4,9 @@
 This appendix isolates the exchangeability fact used by Monte Carlo permutation
 tests and clarifies why the common ``observed statistic + $B$ random
 permutations'' computation is covered by the same rank argument under the
-conditional-exchangeability null (A0.2).
+conditional-exchangeability null (A0.2); see also
+\citet{HemerikGoeman2018ExactTestingRandomPermutations} for a broader treatment
+of exact random-permutation testing.
 
 Fix a node $t$, feature $j$, and a real-valued test statistic $T(\cdot, \cdot)$
 with a right-tail convention (larger is more extreme). Let
@@ -55,9 +57,10 @@ $T_0 := T(X_{t,j}, \Pi_0(Y_t))$ (keeping $T_1,\dots,T_B$ as above), and define
 \end{equation}
 %
 Under the null (conditional on $(X_t,U)$), $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$
-have the same distribution. Consequently, $p_{\mathrm{id}}$ is super-uniform by
-\cref{lem:mc-exchangeability} and the rank argument in
-\cref{them:plusone-superuniform} (with the tie convention A0.5).
+have the same distribution. This reduction lets the proof of
+Theorem~\ref{them:plusone-superuniform} analyze the exchangeable construction
+$p_{\mathrm{rnd}}$ and then transfer the conclusion back to the standard
+``observed statistic + $B$ random permutations'' computation.
 \end{lemma}
 
 \begin{proof}
@@ -66,8 +69,14 @@ $(X_t,U)$ (A0.2). Let $\Pi_0$ be an independent uniform permutation and define
 $Y_t' := \Pi_0(Y_t)$. Then $Y_t' \stackrel{d}{=} Y_t$ conditional on $(X_t,U)$.
 
 For $b=1,\dots,B$, define $\Pi_b' := \Pi_b \circ \Pi_0^{-1}$. Since
-$(\Pi_1,\dots,\Pi_B)$ are i.i.d.\ uniform and independent of $\Pi_0$, the vector
-$(\Pi_1',\dots,\Pi_B')$ is also i.i.d.\ uniform and independent of $(X_t,U,Y_t')$.
+composition by the fixed permutation $\Pi_0^{-1}$ is a bijection of the
+permutation group, each $\Pi_b'$ is uniform on the symmetric group conditional
+on $\Pi_0$. Since $(\Pi_1,\dots,\Pi_B)$ are i.i.d.\ and independent of
+$(X_t,U,\Pi_0)$, the vector $(\Pi_1',\dots,\Pi_B')$ is also i.i.d.\ uniform.
+Moreover, $(\Pi_1',\dots,\Pi_B')$ depends only on $(\Pi_1,\dots,\Pi_B,\Pi_0)$,
+while $Y_t'=\Pi_0(Y_t)$ depends only on $(Y_t,\Pi_0)$; because
+$(\Pi_1,\dots,\Pi_B)$ are independent of $(X_t,U,Y_t,\Pi_0)$, the transformed
+vector $(\Pi_1',\dots,\Pi_B')$ is independent of $(X_t,U,Y_t')$.
 Moreover, for each $b$ we have $\Pi_b(Y_t) = \Pi_b'(Y_t')$. Therefore,
 %
 \begin{equation}

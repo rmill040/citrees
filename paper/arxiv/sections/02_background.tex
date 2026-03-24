@@ -1,70 +1,123 @@
 \section{Background and related work}
 \label{sec:background}
 
-\paragraph{Greedy trees and selection bias.}
-Classical CART-style decision trees choose a split variable and split point by
-optimizing an impurity objective over a large set of candidates
-\citep{Breiman1984ClassificationAndRegressionTrees}. For a continuous feature
-with many unique values, the candidate set of midpoints can be large; when the
-tree compares the best candidate across many features, the procedure resembles
-an extreme-value search. Under a complete global null, this creates a
-multiple-comparisons effect: features with more candidate thresholds are more
-likely to look best by chance. This mechanism has been analyzed in the context
-of random-forest importance measures \citep{Strobl2007BiasRFVariableImportance},
-and motivates both test-based variable selection and alternative split-selection
-procedures designed to reduce selection bias \citep{LohShih1997SplitSelectionMethods}.
+\paragraph{Why greedy split selection is statistically delicate.}
+At a tree node, a split rule compares many candidate variables and, for each
+variable, many candidate thresholds. In CART this is a direct optimization of
+an impurity objective over the union of all candidates
+\citep{Breiman1984ClassificationAndRegressionTrees}. If feature $j$ has
+$|C_j|$ admissible thresholds, then the best score for that feature is an
+extreme order statistic over $|C_j|$ opportunities. Even under a complete null
+where labels are unrelated to covariates, features with larger candidate sets
+tend to achieve more favorable impurity improvements by chance. That is the
+core mechanism behind the well-known high-cardinality bias in greedy trees.
+The issue predates random forests and motivated alternative split-selection
+rules such as QUEST, CRUISE, and GUIDE
+\citep{LohShih1997SplitSelectionMethods,Shih2004NoteOnSplitSelectionBiasClassificationTrees,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection};
+closely related work also studied unbiased split selection directly for
+Gini-based classification trees
+\citep{StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini}. The same bias
+mechanism reappears in the analysis of random-forest importance measures
+\citep{Strobl2007BiasRFVariableImportance}.
 
-\paragraph{Conditional inference trees and forests.}
-Conditional inference trees were introduced by
-\citet{Hothorn2006UnbiasedRecursivePartitioning} as an alternative to greedy
-impurity optimization. At a node, the conditional inference procedure first
-tests each feature for association with the response via permutation testing
-(variable screening) and only then searches for a split point (threshold
-selection). This separation is designed to reduce selection bias from differing
-numbers of candidate split points. The framework is widely used via available
-implementations \citep{Hothorn2006UnbiasedRecursivePartitioning}.
-The permutation-statistics foundation for these linear-statistic tests is
-developed by \citet{StrasserWeber1999PermutationStatistics}.
-In this paper we focus on the inferentially clean part of the framework: fixed-node
-(pre-specified; especially root) feature screening with Monte Carlo permutation p-values.
+\paragraph{Conditional inference as a separation principle.}
+Conditional inference trees \citep{Hothorn2006UnbiasedRecursivePartitioning}
+replace the single greedy optimization with a two-stage procedure. Stage~A asks
+which features are associated with the response at the current node; Stage~B
+asks where to split within the chosen feature. The original framework uses
+linear test statistics with a permutation-statistics foundation due to
+\citet{StrasserWeber1999PermutationStatistics}, and is implemented in widely
+used software ecosystems such as the original \texttt{coin}/\texttt{party}
+framework and later
+\texttt{partykit}
+\citep{HothornHornikVandeWielZeileis2006LegoSystemConditionalInference,HothornZeileis2015Partykit}.
+The important conceptual point is that the separation changes the object being
+analyzed: instead of studying the winner of a large impurity search, one can
+study a nodewise screening test. In this paper, that is the inferential anchor.
 
-\paragraph{Tree ensembles and scalable split search.}
-Random forests \citep{Breiman2001RandomForests} and extremely randomized trees
-\citep{Geurts2006ExtraTrees} add algorithmic randomness (row bootstrap,
-feature subsampling, and/or randomized threshold proposals) to reduce variance
-and improve scalability. Random forest theory and consistency have also been
-studied in depth; see, e.g., \citep{Scornet2015ConsistencyRandomForests} and the
-survey \citep{BiauScornet2016RandomForestGuidedTour}.
-Modern gradient-boosting systems
-\citep{Friedman2001GBM,ChenGuestrin2016XGBoost,Ke2017LightGBM,Prokhorenkova2018CatBoost}
-further emphasize computational efficiency, often using approximate split
-search (e.g., histogram-based threshold grids).
-Bayesian tree ensembles such as BART provide a complementary nonparametric
-alternative \citep{Chipman2010BART}.
-Extensions of tree ensembles to other outcomes include random survival forests
-for right-censored data \citep{Ishwaran2008RandomSurvivalForests}.
+\paragraph{From the original framework to an implementation-oriented one.}
+The present library keeps the conditional-inference separation but broadens the
+set of Stage~A statistics and practical execution modes. In addition to the
+classical conditional-inference perspective, it supports dependence scores such
+as mutual information, distance correlation, and randomized dependence
+coefficients \citep{Kraskov2004EstimatingMutualInformation,Szekely2007DistanceCorrelation,LopezPaz2013RDC},
+multi-selector aggregation via a max-statistic, tree ensembles, and several
+runtime-oriented heuristics. This broader implementation is useful for
+benchmarking and deployment, but it also makes it essential to distinguish the
+fixed-node object that permutation theory calibrates from the adaptive tree that
+practitioners actually run.
 
-\paragraph{Feature selection baselines.}
-The feature-selection literature includes \emph{filter} methods based on
-univariate dependence scores (e.g., correlation, mutual information, distance
-correlation \citep{Kraskov2004EstimatingMutualInformation,Szekely2007DistanceCorrelation},
-and randomized dependence coefficients \citep{LopezPaz2013RDC}), as well as
-redundancy-aware filters such as mRMR \citep{Peng2005MRMR}. It also includes
-\emph{wrapper} and \emph{embedded} approaches that use model refits to assess
-importance, such as recursive feature elimination \citep{Guyon2002RFE},
-Boruta-style all-relevant selection \citep{Kursa2010Boruta}, permutation
-importance \citep{Breiman2001RandomForests,Strobl2008ConditionalVIM}. In our experiments, we
-evaluate methods primarily as rankers using a two-stage rank-then-evaluate
-protocol rather than focusing only on in-sample impurity objectives.
+\paragraph{Which inferential target is under discussion?}
+Several distinct targets are easy to conflate.
+One target is \emph{fixed-node screening}: at a pre-specified node, test
+whether any of the currently tested features is associated with the response.
+That is the target addressed by the theory in this paper.
+A second target is \emph{post-selection inference} for the selected feature or
+selected threshold after the tree has already adapted to the same data. A third
+target is \emph{global feature-selection control} for an end-to-end ranking or
+subset-selection workflow.
+These latter targets are substantially harder and belong to different
+literatures, including selective inference after model selection
+\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection},
+false-discovery control \citep{BenjaminiHochberg1995FDR,BarberCandes2015Knockoffs},
+and stability-based selection \citep{MeinshausenBuhlmann2010StabilitySelection}.
+We cite them here not to claim those guarantees, but to make clear that our
+paper addresses a narrower inferential object.
+
+\paragraph{Multiplicity correction at a node.}
+Once Stage~A is viewed as a family of feature-wise tests at a fixed node,
+classical multiple-testing tools become relevant. Bonferroni is conservative
+but assumption-light and yields immediate complete-null control for the nodewise
+decision event. Resampling-based alternatives such as Westfall--Young max-$T$
+\citep{WestfallYoung1993ResamplingBasedMultipleTesting} can be less
+conservative when dependence across tested features is exploited. In this
+manuscript, Bonferroni is the main theorem-backed correction across features,
+while multi-selector aggregation within a feature uses the same max-statistic
+principle in a narrower setting.
+
+\paragraph{Engineering pressure in modern tree systems.}
+The original statistical motivation for conditional inference sits inside a
+broader ecosystem of tree learners optimized for predictive performance and
+throughput. Random forests and extra trees introduce bootstrap resampling,
+feature subsampling, and threshold randomization
+\citep{Breiman2001RandomForests,Geurts2006ExtraTrees}; modern boosting systems
+use approximate split search and histogram methods at scale
+\citep{Friedman2001GBM,ChenGuestrin2016XGBoost,Ke2017LightGBM,Prokhorenkova2018CatBoost}.
+These developments matter for this paper because they explain why a practical
+conditional-inference implementation accumulates heuristics such as early
+stopping, scan ordering, threshold subsampling, and forest resampling. Those
+choices are central to runtime and predictive utility, but they should not be
+silently conflated with the fixed-$B$ permutation regime.
+
+\paragraph{Feature-selection baselines and evaluation target.}
+The broader feature-selection literature spans simple filters, redundancy-aware
+filters, wrappers, and embedded methods. Relevant comparators include
+correlation- or dependence-based filters, mRMR \citep{Peng2005MRMR}, recursive
+feature elimination \citep{Guyon2002RFE}, Boruta \citep{Kursa2010Boruta},
+random-forest-based variable-selection heuristics
+\citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, and
+permutation-importance variants, including conditional-permutation ideas
+\citep{Breiman2001RandomForests,Strobl2008ConditionalVIM,DebeerStrobl2020ConditionalPermutationImportanceRevisited,Pedregosa2011ScikitLearn}.
+Because different methods optimize different internal objectives, we evaluate
+them primarily as \emph{rankers}: each method outputs an ordering of features,
+and that ordering is judged through a downstream rank-then-evaluate protocol
+rather than by in-sample impurity alone.
 
 \paragraph{Permutation testing and Monte Carlo p-values.}
-Permutation tests provide a nonparametric route to calibration under an
-exchangeability assumption (invariance of the joint label distribution to
-permutations, conditional on covariates treated as fixed by the permutation
-scheme). In Monte Carlo permutation testing, the
-Phipson--Smyth ``+1'' correction yields p-values that are finite-sample
-super-uniform (conservative under the null) under exchangeability \citep{PhipsonSmyth2010PermutationPValues}.
-There is also a large literature on sequential Monte Carlo tests and optional
-stopping \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests};
-we treat early stopping as a computational heuristic and do not claim
-optional-stopping validity for early-stopped outputs in this paper.
+Permutation tests provide a nonparametric route to calibration when the labels
+are exchangeable under the null relative to the permutation scheme. In the
+Monte Carlo setting, the exactness logic behind permutation reference
+distributions is classical \citep{Ernst2004PermutationMethodsExactInference},
+while empirical p-value estimation from random Monte Carlo draws has its own
+calibration issues \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo}. When
+only random permutations are used, exactness requires care; recent treatments
+make precise when identity-plus-random-permutation schemes retain finite-sample
+validity \citep{HemerikGoeman2018ExactTestingRandomPermutations}. The
+Phipson--Smyth ``+1'' correction then yields finite-sample super-uniform
+p-values under exchangeability
+\citep{PhipsonSmyth2010PermutationPValues}. There is also a substantial
+literature on sequential Monte Carlo testing and bounded resampling risk
+\citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
+Our implementation includes early-stopping heuristics for speed, but this paper
+does not invoke that literature to claim optional-stopping validity for the
+default engineering outputs.

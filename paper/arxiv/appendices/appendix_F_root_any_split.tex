@@ -6,15 +6,15 @@
 
 The tree can only contain any internal split if the root passes Stage~A, so the
 event ``tree has at least one internal split'' is a subset of ``root Stage~A
-rejects.'' Under a complete global null at the root, \cref{prop:stageA-global-null}
+rejects.'' Under the nodewise complete null at the root, \cref{prop:stageA-global-null}
 applies at $t = \mathrm{root}$, yielding the stated bound.
 
 \subsection{Proof of Corollary~\ref{cor:forest-level-root}}
 \label{app:proof-forest-level-root}
 
 \paragraph{Claim.} Corollary~\ref{cor:forest-level-root}.
-\paragraph{Assumptions used.} A0.1--A0.5 at the root for each tree, a complete
-global null over tested root features (per tree), and (for the final bound)
+\paragraph{Assumptions used.} A0.1--A0.5 at the root for each tree, the nodewise
+complete null at the root over tested root features (per tree), and (for the final bound)
 uniform feature subsampling as in \cref{cor:subsampling-per-feature}.
 
 Let $S_m := \ind\{\text{tree $m$ has at least one internal split}\}$ and
@@ -45,7 +45,8 @@ and the upper bound can be truncated at $1$.
 For the per-feature statement, let
 $R_{m,j} := \ind\{\text{tree $m$ splits at the root on feature $j$}\}$. Under
 uniform root feature subsampling from $p$ available features and the complete
-root null, Corollary~\ref{cor:subsampling-per-feature} gives
+root null, the event $\{R_{m,j}=1\}$ implies that tree $m$ accepted a root split
+on $j$, so Corollary~\ref{cor:subsampling-per-feature} gives
 $\PP(R_{m,j}=1) \le \alpha_{\mathrm{sel}}/p$ for each tree $m$. Hence
 %
 \begin{equation}

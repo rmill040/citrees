@@ -1,0 +1,8 @@
+test,mode,B,rejection_rate
+ptest_mc,fixed-B,199,0.0553
+ptest_pc,fixed-B,199,0.0491
+ptest_mc,adaptive,199,0.0468
+ptest_mc,fixed-B=49,49,0.0409
+ptest_mc,fixed-B=99,99,0.0463
+ptest_mc,fixed-B=499,499,0.0503
+ptest_mc,fixed-B=999,999,0.0495

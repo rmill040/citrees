@@ -5,7 +5,7 @@ benchmarking against the original ctree (Hothorn et al., 2006) implementation.
 
 The R_HOME environment variable is set dynamically based on the platform:
 - macOS (homebrew): /opt/homebrew/Cellar/r/*/lib/R
-- Docker/Linux: /usr/lib/R
+- Docker/Linux: /usr/lib/R or /usr/lib64/R (Amazon Linux)
 """
 
 from __future__ import annotations
@@ -22,10 +22,11 @@ def _setup_r_home() -> None:
     if os.environ.get("R_HOME"):
         return
 
-    # Docker/Linux path
-    if Path("/usr/lib/R").exists():
-        os.environ["R_HOME"] = "/usr/lib/R"
-        return
+    # Linux paths (Debian/Ubuntu: /usr/lib/R, Amazon Linux: /usr/lib64/R)
+    for r_path in ("/usr/lib/R", "/usr/lib64/R"):
+        if Path(r_path).exists():
+            os.environ["R_HOME"] = r_path
+            return
 
     # macOS homebrew path - find the latest version
     homebrew_r = Path("/opt/homebrew/Cellar/r")
@@ -118,7 +119,8 @@ def r_ctree_ranking(
     """Fit R ctree and return feature ranking based on variable usage.
 
     For a single tree, we rank features by how often they appear in splits.
-    Features used more frequently (especially near the root) are ranked higher.
+    Features used more frequently are ranked higher; ties are broken by feature
+    index.
 
     Parameters
     ----------
@@ -220,8 +222,8 @@ def r_cforest_ranking(
 ) -> np.ndarray:
     """Fit R cforest and return feature ranking based on variable importance.
 
-    Uses partykit's varimp() function which implements permutation-based
-    variable importance (mean decrease in accuracy).
+    Uses partykit's ``varimp()`` function for permutation-based variable
+    importance.
 
     Parameters
     ----------

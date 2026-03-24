@@ -1,22 +1,26 @@
 Greedy decision trees select split variables by optimizing impurity over many
-candidate thresholds, creating a multiple-comparisons effect: under a global null,
-high-cardinality features are more likely to appear informative by chance,
-producing selection bias and unstable rankings. Conditional inference trees
-address this by separating variable selection from split-point optimization via
-permutation-based hypothesis testing.
+candidate thresholds, creating a multiple-comparisons effect: under a complete
+null, high-cardinality features are more likely to appear informative by chance.
+Conditional inference trees address this by separating variable screening from
+split-point optimization via permutation-based hypothesis testing.
 
-We study conditional inference trees and forests that screen features with Monte
-Carlo permutation tests before optimizing split points. For this screening step
-at a fixed node, we prove finite-sample guarantees: the $+1$ corrected
-permutation p-value is super-uniform under an exchangeability null, and
-Bonferroni correction yields bounds on both the probability of any false split
-and of splitting on any particular feature---without dependence on the number of
-candidate thresholds. We also show, via an idealized exchangeable-score
-symmetry model for CART threshold search, that CART-style greedy selection
-favors features in proportion to their candidate split count.
+We study conditional inference trees and forests at two levels. First, we analyze
+a fixed-$B$ reference regime that the implementation can run: a fixed node,
+label-independent tested family, exhaustive Stage~A screening, and conservative
++1 Monte Carlo permutation p-values. In this regime, the Stage~A per-feature
+p-values are super-uniform under a nodewise complete permutation null, and
+Bonferroni yields complete-null bounds on the probability of any Stage~A
+rejection at the fixed node and on the probability that the node accepts a
+split on any particular tested feature, without dependence on the number of
+candidate thresholds. We also show, via an idealized
+exchangeable-score symmetry model for CART threshold search, that greedy CART
+selection favors features in proportion to their candidate split count.
 
-To scale permutation-based trees in practice, we describe implementation
-optimizations including adaptive early stopping of permutation tests and
-feature scanning. We evaluate feature rankings via a two-stage
-rank-then-evaluate benchmark on synthetic ground-truth and real tabular
-datasets. A reference implementation is publicly available.
+Second, we document the practical engineering optimizations used in the software,
+including adaptive early stopping, candidate scanning, feature muting, threshold
+subsampling, and forest resampling. These optimizations are important for speed
+and scalability, but they are treated as algorithmic heuristics or empirical
+design choices rather than as part of the fixed-$B$ theorem chain. We evaluate
+feature rankings via a two-stage rank-then-evaluate benchmark on synthetic
+ground-truth and real tabular datasets. A reference implementation is publicly
+available.

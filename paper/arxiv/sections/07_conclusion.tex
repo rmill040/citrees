@@ -3,8 +3,10 @@
 
 We studied conditional inference trees and forests that use Monte Carlo
 permutation tests as the inferential backbone for Stage~A variable selection.
-This paper emphasizes finite-sample, fixed-node (especially root) guarantees
-in fixed-$B$ mode and a reproducible benchmark protocol for evaluating feature
-rankings. We also discuss practical optimization strategies for scaling
-permutation-based variable selection in trees and forests. For reproducibility,
-we provide a reference implementation.
+This paper separates two layers of the method: a fixed-$B$, fixed-node
+reference regime that supports scoped Stage~A finite-sample guarantees, and a
+default engineering regime that adds adaptive stopping, scanning, muting, and
+resampling for practical speed and scalability. We use the first layer for the
+paper's formal theory and the second for implementation and empirical study. We
+also provide a reproducible benchmark protocol for evaluating feature rankings
+and a reference implementation.

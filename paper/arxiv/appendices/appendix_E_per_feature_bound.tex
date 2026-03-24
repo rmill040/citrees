@@ -4,14 +4,17 @@
 \paragraph{Claim.} Proposition~\ref{prop:per-feature-bound}.
 \paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}).
 
-If node $t$ splits on feature $j$, then Stage~A must have rejected for $j$ at the
-strict Bonferroni threshold, hence $p_{t,j} < \alpha_{\mathrm{sel}}/m_t$. Therefore,
+If node $t$ accepts a split on feature $j$, then Stage~A must have rejected for
+$j$ at the strict Bonferroni threshold, hence
+$p_{t,j} < \alpha_{\mathrm{sel}}/m_t$. Therefore,
 %
 \begin{equation}
-  \PP(\text{node $t$ splits on $j$} \mid X_t,U)
-  \le \PP(p_{t,j} < \alpha_{\mathrm{sel}}/m_t \mid X_t,U)
-  \le \PP(p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \mid X_t,U)
-  \le \alpha_{\mathrm{sel}}/m_t,
+  \begin{aligned}
+    \PP(\text{node $t$ accepts a split on $j$} \mid X_t,U)
+    &\le \PP(p_{t,j} < \alpha_{\mathrm{sel}}/m_t \mid X_t,U) \\
+    &\le \PP(p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \mid X_t,U) \\
+    &\le \alpha_{\mathrm{sel}}/m_t,
+  \end{aligned}
 \end{equation}
 %
 by super-uniformity of $p_{t,j}$ under the complete null. This proves the
@@ -30,20 +33,20 @@ Condition on $X_t$ and treat the full candidate set $\bar F_t$ and its size
 $\bar m_t$ as fixed. Let $F_t$ be the tested subset obtained by sampling $m_t$
 features uniformly without replacement from $\bar F_t$, independently of $Y_t$.
 
-If $j \notin F_t$ then node $t$ cannot split on $j$. If $j \in F_t$, then
+If $j \notin F_t$ then node $t$ cannot accept a split on $j$. If $j \in F_t$, then
 Proposition~\ref{prop:per-feature-bound} applied to the tested family $F_t$
 implies
 %
 \begin{equation}
-  \PP(\text{node $t$ splits on $j$} \mid X_t,F_t) \le \alpha_{\mathrm{sel}}/m_t.
+  \PP(\text{node $t$ accepts a split on $j$} \mid X_t,F_t) \le \alpha_{\mathrm{sel}}/m_t.
 \end{equation}
 %
 Taking expectations over $F_t$ conditional on $X_t$ yields
 %
 \begin{equation}
   \begin{aligned}
-    \PP(\text{node $t$ splits on $j$} \mid X_t)
-    &= \E\!\left[\PP(\text{node $t$ splits on $j$} \mid X_t,F_t)\,\middle|\, X_t\right] \\
+    \PP(\text{node $t$ accepts a split on $j$} \mid X_t)
+    &= \E\!\left[\PP(\text{node $t$ accepts a split on $j$} \mid X_t,F_t)\,\middle|\, X_t\right] \\
     &\le \PP(j \in F_t \mid X_t)\cdot \alpha_{\mathrm{sel}}/m_t
     = (m_t/\bar m_t)\cdot \alpha_{\mathrm{sel}}/m_t
     = \alpha_{\mathrm{sel}}/\bar m_t,

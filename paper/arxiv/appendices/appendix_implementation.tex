@@ -25,25 +25,34 @@ execution mode (to enable line coverage measurement in CI).
 
 \subsection{Randomness and reproducibility}
 
-\citrees supports reproducible randomness via a user-provided base seed. In
-parallel permutation testing, the implementation uses a per-resample seeding
-pattern inside parallel compiled loops. In particular, it uses
+\citrees supports reproducible randomness via a user-provided base seed, but the
+implementation uses two RNG patterns depending on the execution path.
+Pure-Python permutation-test routines initialize a local
+\texttt{np.random.default\_rng(random\_state)} stream, while compiled parallel
+Numba routines use per-resample seeding inside parallel loops,
 %
 \begin{equation}
-  s_i := s_0 + i
+  s_i := s_0 + i,
 \end{equation}
 %
-to ensure deterministic per-resample pseudo-randomness across parallel workers.
-This convention is an implementation constraint: generator-based RNG streams are
-not always supported in all parallel compiled contexts.
+because generator-based RNG streams are not uniformly supported in those
+contexts. The result is deterministic across runs given the same base seed.
+
+At a fixed node, the same base seed is reused across candidate-wise tests
+unless the caller changes it. Thus different per-feature or per-threshold tests
+are reproducible but not generated from independent candidate-indexed RNG
+streams. This is an implementation choice rather than a theorem assumption.
 
 \subsection{Bootstrap methods in forests}
 
-Forests can optionally resample training rows per tree. In bootstrap mode,
-rows are sampled with replacement uniformly. This affects only the per-tree
-resampling distribution, and it can invalidate the root-level exchangeability
-assumption A0.2 used in \cref{sec:theory} because duplicated indices induce
-non-permutation-invariant equality constraints in the bootstrap sample.
+Forests can optionally resample training rows per tree. In bootstrap mode, the
+implementation uses with-replacement resampling, either via classical uniform
+bootstrap or, for classification forests, via class-conditional variants such
+as stratified, undersampling, and oversampling bootstraps. These choices affect
+the per-tree resampling distribution, and they can invalidate the root-level
+exchangeability assumption A0.2 used in \cref{sec:theory} because duplicated
+indices induce non-permutation-invariant equality constraints in the bootstrap
+sample.
 Accordingly, the fixed-node/root validity statements apply only to trees or
 nodes for which A0.2 still holds after resampling (for example, full-data roots
 or subsampling without replacement).

@@ -9,7 +9,6 @@ from paper.scripts.config.constants import (
     AWS_REGION,
     CLF_DOWNSTREAM_MODELS,
     DEFAULT_PARAMS,
-    EVALUATION_K_VALUES,
     N_SEEDS,
     N_SPLITS,
     OPENML_IDS,
@@ -32,7 +31,6 @@ __all__ = [
     "AWS_REGION",
     "CLF_DOWNSTREAM_MODELS",
     "REG_DOWNSTREAM_MODELS",
-    "EVALUATION_K_VALUES",
     "OPENML_IDS",
     "DEFAULT_PARAMS",
 ]

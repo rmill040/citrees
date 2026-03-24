@@ -23,6 +23,18 @@ _EXCLUDED: set[tuple[str, str]] = {
     ("r_cforest", "dexter"),
 }
 
+# Specific (method_label, dataset, seed) combos that consistently fail after
+# multiple retries across different instance types (c6a, r5). These are excluded
+# from the grid so the API queue reports 0 pending when everything else is done.
+# See paper/docs/skipped-experiments.md for details.
+_SKIPPED: set[tuple[str, str, int]] = {
+    # r_ctree MonteCarlo (testtype="MonteCarlo") hangs/OOMs on high-dim datasets.
+    # The Bonferroni config (9d1ca9c27dfc7f5e) completes fine for these same datasets.
+    ("r_ctree__b6e09ceb0eb26367", "gisette", 3),
+    ("r_ctree__b6e09ceb0eb26367", "isolet", 2),
+    ("r_ctree__b6e09ceb0eb26367", "isolet", 3),
+}
+
 
 @dataclass
 class ExperimentGrid:
@@ -67,6 +79,8 @@ class ExperimentGrid:
                 if (method.name, dataset) in _EXCLUDED:
                     continue
                 for seed in self.seeds:
+                    if (method.label, dataset, seed) in _SKIPPED:
+                        continue
                     yield ExperimentConfig(
                         method=method,
                         dataset=dataset,
@@ -79,7 +93,16 @@ class ExperimentGrid:
         excluded = sum(
             1 for m in self.methods for d in self.datasets if (m.name, d) in _EXCLUDED
         )
-        return (len(self.methods) * len(self.datasets) - excluded) * len(self.seeds)
+        base = (len(self.methods) * len(self.datasets) - excluded) * len(self.seeds)
+        skipped = sum(
+            1
+            for m in self.methods
+            for d in self.datasets
+            if (m.name, d) not in _EXCLUDED
+            for s in self.seeds
+            if (m.label, d, s) in _SKIPPED
+        )
+        return base - skipped
 
     def filter_pending(self, completed: set[tuple[str, str, int]]) -> list[ExperimentConfig]:
         """Get list of configurations not in the completed set.

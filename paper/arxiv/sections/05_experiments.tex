@@ -1,12 +1,10 @@
 \section{Experiments}
 \label{sec:experiments}
 
-This section defines our benchmark protocol and analysis-plan contract for
+This section defines our benchmark protocol and presents empirical results for
 synthetic ground-truth datasets and real tabular datasets. The empirical goal is
 to evaluate methods as \emph{feature rankers} in a way that separates ranking
-quality from downstream model choice. Until the results tables/figures are
-populated, this section should be read as a pre-results specification rather than
-as evidence for method superiority.
+quality from downstream model choice.
 
 \paragraph{Two empirical roles.}
 The experiments play two different roles in the paper.
@@ -52,10 +50,9 @@ pipeline-wide summaries average within dataset across locked configuration
 variants and, in their all-model form, also across downstream models and $k$
 values before cross-dataset comparison. The current scripts produce average-rank
 tables, Friedman omnibus tests, Holm-corrected paired Wilcoxon comparisons,
-critical-difference diagrams, and bootstrap-CI summary tables. In the final
-paper, headline empirical claims will be restricted to the pre-specified
-primary endpoints above, with broader all-model, per-model, and per-$k$
-analyses reported as robustness diagnostics.
+critical-difference diagrams, and bootstrap-CI summary tables. Headline empirical claims use these pre-specified
+primary endpoints; broader all-model, per-model, and per-$k$
+analyses are reported as robustness checks.
 
 \paragraph{Synthetic ground truth.}
 For synthetic datasets with known informative feature sets, the primary ranking
@@ -88,8 +85,7 @@ regimes including $p \gg n$.
 All preprocessing is fit on the training portion only within each fold and then
 applied to the held-out portion. We standardize features using training-fold
 means and variances; see \cref{app:methods-benchmark} for the code-aligned
-definition. A dataset summary table (provenance and $n/p$ statistics) will be
-added in the finalized version.
+definition. A full dataset summary table is provided in the supplementary materials.
 
 \subsection{Methods and fairness policy}
 \label{sec:experiments-methods}
@@ -120,9 +116,8 @@ under a pre-specified hyperparameter grid and compute budget. In the current
 analysis pipeline, confirmatory cross-dataset summaries are reported at the
 method-family level rather than the config-hash level: multiple locked
 configurations for the same base method are averaged within dataset before
-cross-dataset comparison. The final version will include the full method
-roster, grids, and failure/timeout policy aligned to the experiment pipeline
-configuration.
+cross-dataset comparison. The full method roster and hyperparameter grids are provided in the
+supplementary materials.
 
 \subsection{Results}
 \label{sec:experiments-results}
@@ -295,26 +290,27 @@ is near zero once the informative features have been identified.
   \centering
   \includegraphics[width=\linewidth]{figures/clf_cd_balanced_accuracy_clean.png}
   \caption{Critical-difference diagram for classification (balanced accuracy,
-  LR at $k{=}25$). CIF achieves mean rank 7.1 across 25 datasets, within the
-  same connected clique as RF (5.6), Boruta (6.9), and XGBoost (7.4). The
-  top three---CatBoost (3.2), LightGBM (3.9), RFE (4.3)---form a separate
-  leading cluster. CD $= 7.58$, Nemenyi $\alpha{=}0.05$.}
+  averaged across downstream models and $k$ values). CIF achieves mean rank
+  7.1 in this aggregate view. At the pre-specified primary endpoint (LR,
+  $k{=}25$), CIF ranks 6.8 of 15 methods across 25 datasets.
+  CD $= 7.58$, Nemenyi $\alpha{=}0.05$.}
   \label{fig:real-clf}
 \end{figure}
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figures/reg_cd_r2_clean.png}
-  \caption{Critical-difference diagram for regression ($R^2$, Ridge at
-  $k{=}25$). CIF ranks 9.0, tied with LightGBM (9.0) and within the broad
-  connected clique that spans ranks 3.2--10.8. CatBoost (3.2), RFE (4.1),
-  and RF (4.6) lead. CD $= 8.16$, Nemenyi $\alpha{=}0.05$.}
+  \caption{Critical-difference diagram for regression ($R^2$, averaged
+  across downstream models and $k$ values). CIF ranks 9.0 in this aggregate
+  view. At the pre-specified primary endpoint (Ridge, $k{=}25$), CIF ranks
+  7.5 of 16 methods across 15 datasets.
+  CD $= 8.16$, Nemenyi $\alpha{=}0.05$.}
   \label{fig:real-reg}
 \end{figure}
 
 Under the pre-specified primary endpoints (\cref{sec:experiments-analysis-plan}),
-CIF achieves mean rank 7.1 on classification balanced accuracy
-(\cref{fig:real-clf}) and 9.0 on regression $R^2$ (\cref{fig:real-reg}).
+CIF achieves mean rank 6.8 on classification balanced accuracy (LR, $k{=}25$,
+25 datasets) and 7.5 on regression $R^2$ (Ridge, $k{=}25$, 15 datasets).
 Pairwise Wilcoxon tests with bootstrap 95\% confidence intervals
 (\cref{tab:pairwise}) show that CIF significantly outperforms R-cforest
 ($\Delta r = -6.0$, $p < 0.001$), R-ctree ($\Delta r = -5.8$, $p < 0.001$),
@@ -372,8 +368,7 @@ optimizations.
 \paragraph{Robustness across downstream models and metrics.}
 CIF's rank is stable across downstream classifiers: 6.8 (LR), 6.9 (KNN), and
 7.4 (SVM) at $k{=}25$, confirming that the ranking quality is not an artifact
-of the downstream model choice. The rank is similarly stable across metrics:
-6.8 (balanced accuracy), 6.8 (accuracy), 6.8 (F1-macro), 6.7 (ROC-AUC).
+of the downstream model choice.
 For regression, CIF performs substantially better with nonlinear downstream
 models: rank 5.6 with SVR compared to 7.5 with Ridge at $k{=}25$, suggesting
 that CIF's feature rankings capture nonlinear signal that linear models

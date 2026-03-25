@@ -69,6 +69,18 @@ feature muting, threshold subsampling, and forest resampling are reasonable
 engineering choices, but their outputs should be justified empirically rather
 than presented as covered by the fixed-node theory.
 
+\paragraph{Ranking stability.}
+Like all forest-based importance methods, CIF's top-$k$ feature set is unstable
+across random seeds, especially in high dimensions. On datasets with $p > 1000$,
+the top-10 Jaccard overlap between seeds drops to ${\sim}0.08$, compared to
+${\sim}0.60$ for the univariate MC-ptest filter. The full ranking (measured by
+Kendall $\tau$) is more stable (${\sim}0.87$ on high-dimensional data), meaning
+the bulk ordering is consistent but the specific top-$k$ set varies. This is
+inherent to ensemble importance: each tree sees a different bootstrap sample and
+feature subsample, so the aggregated importance has high variance in the tail.
+For applications requiring reproducible feature sets, the MC-ptest filter or a
+stability-selection wrapper may be preferable.
+
 \paragraph{When to use CIF.}
 Based on the empirical results, CIF is most competitive when: (i)~the number of
 selected features is moderate to large ($k \geq 25$), where CIF's deep rankings

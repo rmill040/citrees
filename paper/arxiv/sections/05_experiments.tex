@@ -207,9 +207,11 @@ near-identical power under the alternative. At weak signal strength
 (class separation $= 0.1$), rejection rate reaches 0.66--0.71 depending on $B$;
 at moderate signal ($\geq 0.5$), power saturates at 1.0 for all
 configurations. A noteworthy edge case: at $\alpha{=}0.01$ with $B{=}49$, the
-fixed-$B$ test has zero power because the minimum achievable p-value
-$(0{+}1)/(49{+}1) = 0.02$ exceeds $\alpha$. Adaptive stopping resolves this
-resolution barrier by reporting a Bayesian posterior estimate.
+fixed-$B$ test has zero power at \emph{all} signal strengths because the
+minimum achievable p-value $(0{+}1)/(49{+}1) = 0.02$ exceeds $\alpha$. This
+resolution barrier is inherent to fixed-$B$ permutation tests and requires
+either increasing $B$ or using adaptive stopping, which resolves it by
+reporting a Bayesian posterior estimate.
 
 \begin{figure}[t]
   \centering
@@ -274,9 +276,10 @@ At larger sample sizes ($n{=}5000$), runtime grows to ${\sim}143$\,s, scaling
 roughly linearly in $n$ (\cref{fig:runtime}a). By comparison, RF and ET
 complete in under 0.25\,s at all tested scales; the gap reflects the
 permutation-test overhead rather than an algorithmic inefficiency in the
-tree-building itself. Adaptive early stopping reduces this cost by approximately $2.5\times$
-compared to full permutation tests (e.g., 55\,s vs.\ 141\,s on the easy
-dataset with $\alpha{=}0.20$).
+tree-building itself. Adaptive early stopping reduces this cost substantially: on the
+classification easy dataset ($n{=}1000$, $p{=}100$), disabling early stopping
+increases runtime from ${\sim}37$\,s to ${\sim}141$\,s (based on the
+strictness-continuum ablation with $\alpha{=}0.20$, no Bonferroni).
 
 CIF's runtime is remarkably insensitive to the number of features
 (\cref{fig:runtime}b). Across a $50\times$ range from $p{=}20$ to $p{=}1000$
@@ -437,13 +440,17 @@ on clf\_weak\_signal) at the cost of admitting more noise features.
 \end{figure}
 
 \paragraph{Forest size saturation.}
-The number of estimators exhibits diminishing returns (\cref{fig:ablation-nest}).
+The number of estimators exhibits diminishing returns on most datasets
+(\cref{fig:ablation-nest}).
 On Toeplitz-correlated data, a single tree achieves 0.44 precision@10;
 $n_{\text{est}}{=}25$ saturates at 0.90, with no improvement through
-$n_{\text{est}}{=}100$. On weaker-signal and confounder datasets, the marginal
-gain from 25 to 100 trees is ${\leq}0.04$ precision while runtime nearly
-quadruples. We recommend $n_{\text{est}}{=}100$ as the default for robustness,
-with 25 as a practical budget-constrained alternative.
+$n_{\text{est}}{=}100$. A notable exception is the weak-signal regime, where
+precision is non-monotone: it peaks at $n_{\text{est}}{=}25$ (0.26) and
+declines to 0.12 at $n_{\text{est}}{=}100$, suggesting that averaging over
+many trees can dilute sparse signals when individual trees disagree on which
+features are informative. We recommend $n_{\text{est}}{=}100$ as the default
+for robustness on typical data, with the caveat that fewer trees may be
+preferable under very weak signal.
 
 \begin{figure}[t]
   \centering
@@ -458,7 +465,7 @@ with 25 as a practical budget-constrained alternative.
 \Cref{fig:ablation-nresamples} shows that $B{=}99$ permutations with adaptive
 stopping achieves virtually identical ranking quality to $B{=}999$.
 On clf\_toeplitz: 0.90 at $B{=}49$ vs.\ 0.92 at $B{=}99$ and 0.90 at
-$B{=}999$. On reg\_weak\_signal: 0.76 across all $B$ values. The adaptive
+$B{=}999$. On reg\_weak\_signal: 0.76--0.78 across all $B$ values. The adaptive
 stopping rule extracts sufficient information from small permutation budgets,
 making the ``minimum'' preset ($B{=}49$--$99$) a practical default.
 

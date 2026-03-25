@@ -366,14 +366,49 @@ adaptive stopping, which compensate for the sample-size reduction. This
 robustness to subsampling is itself a practical contribution of the engineering
 optimizations.
 
+\paragraph{Robustness across downstream models and metrics.}
+CIF's rank is stable across downstream classifiers: 6.8 (LR), 6.9 (KNN), and
+7.4 (SVM) at $k{=}25$, confirming that the ranking quality is not an artifact
+of the downstream model choice. The rank is similarly stable across metrics:
+6.8 (balanced accuracy), 6.8 (accuracy), 6.8 (F1-macro), 6.7 (ROC-AUC).
+For regression, CIF performs substantially better with nonlinear downstream
+models: rank 5.6 with SVR compared to 7.5 with Ridge at $k{=}25$, suggesting
+that CIF's feature rankings capture nonlinear signal that linear models
+underutilize. Variance decomposition confirms that dataset identity explains
+50.6\% of performance variance, $k$ explains 7.3\%, and method choice explains
+only 4.5\%---the choice of which features to select matters less than which
+dataset you are working with.
+
 \paragraph{Performance at varying $k$.}
 CIF's ranking quality improves with the number of selected features. At
 $k{=}5$, CIF ranks 6.8; by $k{=}50$, CIF narrows the gap to RF (5.9 vs.\
-5.9). At $k{=}100$, CIF (6.3) overtakes RF (6.9). This crossover reflects the
-value of deep permutation-tested trees: features discovered at deeper nodes
-contribute meaningful signal at larger $k$, whereas RF's impurity-based
-importance concentrates on the strongest signals and adds diminishing value in
-the tail.
+5.9). At $k{=}100$, CIF (6.3) overtakes RF (6.9). This pattern holds across
+all three downstream models (LR, SVM, KNN), confirming it is a property of
+the ranking itself rather than an interaction with the downstream learner.
+The crossover reflects the value of deep permutation-tested trees: features
+discovered at deeper nodes contribute meaningful signal at larger $k$, whereas
+RF's impurity-based importance concentrates on the strongest signals and adds
+diminishing value in the tail.
+
+\paragraph{Dimensionality stratification.}
+CIF is most competitive on low-dimensional datasets ($p \leq 100$, rank 6.3)
+and mid-dimensional datasets ($100 < p \leq 1000$, rank 5.6), but degrades on
+high-dimensional data ($p > 1000$, rank 7.5 vs.\ RF at 4.0 and CatBoost at
+3.6). The high-dimensional penalty reflects Bonferroni correction: with $p >
+1000$ features and $\alpha = 0.05$, the effective per-feature threshold drops
+below $5 \times 10^{-5}$, stunting tree depth and limiting the number of
+features that enter the ranking.
+
+\paragraph{CIF configuration sensitivity.}
+The benchmark evaluates four CIF configurations spanning two selectors
+(MC, RDC) and honesty (on, off). MC-based selection outperforms RDC by $+0.03$
+balanced accuracy on average; honesty has a marginal negative effect ($-0.007$).
+The best single configuration (MC, no honesty) achieves a mean rank of
+${\sim}3$ per dataset, comparable to the top methods. However, the benchmark
+reports method-family averages across configurations, which costs CIF
+approximately 3.5 rank positions. This averaging penalty is by design---it
+prevents cherry-picking configurations---but means that the headline rank of
+6.8 understates the performance of CIF under its best settings.
 
 % -------------------------------------------------------------------------
 \subsubsection{Ablation study}

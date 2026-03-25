@@ -176,8 +176,8 @@ permutations, the $+1$ corrected MC p-value is super-uniform
 (\cref{fig:pvalue-calibration}). \Cref{tab:calibration} reports empirical
 rejection rates at $\alpha{=}0.05$ across permutation budgets and stopping
 rules. The fixed-$B$ MC test achieves rejection rates ranging from 0.041
-($B{=}49$) to 0.050 ($B{=}499$), all within the binomial fluctuation band
-around the nominal 0.05 level. Adaptive early stopping is marginally
+($B{=}49$) to 0.055 ($B{=}199$), all within the expected binomial fluctuation
+band around the nominal 0.05 level. Adaptive early stopping is marginally
 conservative: 0.047 at $B{=}199$, consistent with the Beta-CDF posterior
 concentrating slightly below the frequentist p-value.
 
@@ -274,8 +274,9 @@ At larger sample sizes ($n{=}5000$), runtime grows to ${\sim}143$\,s, scaling
 roughly linearly in $n$ (\cref{fig:runtime}a). By comparison, RF and ET
 complete in under 0.25\,s at all tested scales; the gap reflects the
 permutation-test overhead rather than an algorithmic inefficiency in the
-tree-building itself. Adaptive early stopping reduces this cost by
-approximately $4\times$ compared to full permutation tests.
+tree-building itself. Adaptive early stopping reduces this cost by approximately $2.5\times$
+compared to full permutation tests (e.g., 55\,s vs.\ 141\,s on the easy
+dataset with $\alpha{=}0.20$).
 
 CIF's runtime is remarkably insensitive to the number of features
 (\cref{fig:runtime}b). Across a $50\times$ range from $p{=}20$ to $p{=}1000$
@@ -291,7 +292,7 @@ is near zero once the informative features have been identified.
   \centering
   \includegraphics[width=\linewidth]{figures/clf_cd_balanced_accuracy_clean.png}
   \caption{Critical-difference diagram for classification (balanced accuracy,
-  LR at $k{=}25$). CIF achieves mean rank 7.1 across 16 datasets, within the
+  LR at $k{=}25$). CIF achieves mean rank 7.1 across 25 datasets, within the
   same connected clique as RF (5.6), Boruta (6.9), and XGBoost (7.4). The
   top three---CatBoost (3.2), LightGBM (3.9), RFE (4.3)---form a separate
   leading cluster. CD $= 7.58$, Nemenyi $\alpha{=}0.05$.}
@@ -366,13 +367,13 @@ robustness to subsampling is itself a practical contribution of the engineering
 optimizations.
 
 \paragraph{Performance at varying $k$.}
-CIF's ranking quality improves substantially with the number of selected
-features. At $k{=}5$, CIF ranks 6.8 (mid-field); at $k{=}50$, CIF improves to
-rank 5.9, overtaking RF (5.9) for the first time. At $k{=}100$, CIF (6.3)
-ranks ahead of RF (6.9). This crossover reflects the value of deep
-permutation-tested trees: features discovered at deeper nodes contribute
-meaningful signal at larger $k$, whereas RF's impurity-based importance
-concentrates on the strongest signals and adds diminishing value in the tail.
+CIF's ranking quality improves with the number of selected features. At
+$k{=}5$, CIF ranks 6.8; by $k{=}50$, CIF narrows the gap to RF (5.9 vs.\
+5.9). At $k{=}100$, CIF (6.3) overtakes RF (6.9). This crossover reflects the
+value of deep permutation-tested trees: features discovered at deeper nodes
+contribute meaningful signal at larger $k$, whereas RF's impurity-based
+importance concentrates on the strongest signals and adds diminishing value in
+the tail.
 
 % -------------------------------------------------------------------------
 \subsubsection{Ablation study}

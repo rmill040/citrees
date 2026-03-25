@@ -50,8 +50,8 @@ helps single trees but hurts forests. For a single tree (e.g., R's
 prevents wasting them on noise features, leading to precise but sparse
 rankings. For a forest, Bonferroni suppresses tree depth---the primary
 mechanism by which forests discover features beyond the strongest signals. On
-weak-signal data, removing Bonferroni doubles tree depth (from 1.4 to 2.2) and
-more than doubles precision@10. The forest's averaging naturally controls for
+weak-signal data, removing Bonferroni increases tree depth by 57\% (from 1.4 to
+2.2) and more than doubles precision@10 (from 0.12 to 0.26). The forest's averaging naturally controls for
 the individual-tree noise that Bonferroni guards against, making the correction
 redundant. This suggests that the optimal strictness level depends on whether
 the downstream use is a single tree (keep Bonferroni) or a forest (relax or

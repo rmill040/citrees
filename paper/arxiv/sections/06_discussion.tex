@@ -43,6 +43,20 @@ and stability selection \citep{MeinshausenBuhlmann2010StabilitySelection}
 address different inferential goals than the fixed-node screening target studied
 here.
 
+\paragraph{Bonferroni has opposite effects for single trees vs.\ forests.}
+An unexpected finding from the ablation study is that Bonferroni correction
+helps single trees but hurts forests. For a single tree (e.g., R's
+\texttt{ctree}), the few available split opportunities are precious: Bonferroni
+prevents wasting them on noise features, leading to precise but sparse
+rankings. For a forest, Bonferroni suppresses tree depth---the primary
+mechanism by which forests discover features beyond the strongest signals. On
+weak-signal data, removing Bonferroni doubles tree depth (from 1.4 to 2.2) and
+more than doubles precision@10. The forest's averaging naturally controls for
+the individual-tree noise that Bonferroni guards against, making the correction
+redundant. This suggests that the optimal strictness level depends on whether
+the downstream use is a single tree (keep Bonferroni) or a forest (relax or
+remove it).
+
 \paragraph{Practical guidance.}
 If the goal is to stay inside the paper's theorem-backed regime, use fixed-$B$
 Stage~A testing with a label-independent tested family, and ensure the Monte
@@ -54,3 +68,14 @@ performance or ranking quality at scale, then early stopping, scan ordering,
 feature muting, threshold subsampling, and forest resampling are reasonable
 engineering choices, but their outputs should be justified empirically rather
 than presented as covered by the fixed-node theory.
+
+\paragraph{When to use CIF.}
+Based on the empirical results, CIF is most competitive when: (i)~the number of
+selected features is moderate to large ($k \geq 25$), where CIF's deep rankings
+overtake RF; (ii)~features exhibit correlation structure (e.g., image pixels,
+genomic probes), where the permutation test naturally conditions on correlated
+features; and (iii)~calibrated p-values are needed for downstream
+interpretation. CIF is less competitive on sparse, high-dimensional data with
+independent features (e.g., text), weak-signal settings where the permutation
+test aggressively rejects marginal features, and applications requiring
+sub-second feature selection.

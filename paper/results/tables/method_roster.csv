@@ -1,0 +1,16 @@
+method,category,key_params,source
+CIF,Embedded (CI),"selector=mc, n_est=100, alpha=0.05, Bonferroni",citrees
+CIT,Embedded (CI),"selector=mc, alpha=0.05, Bonferroni",citrees
+RF,Embedded,"n_est=100, max_features=sqrt",scikit-learn
+ExtraTrees,Embedded,"n_est=100, max_features=sqrt",scikit-learn
+XGBoost,Embedded,"n_est=100, importance=total_gain",xgboost
+LightGBM,Embedded,"n_est=100, importance=gain",lightgbm
+CatBoost,Embedded,"n_est=100, importance=PredictionValuesChange",catboost
+Boruta,Wrapper,"RF-based, max_iter=100",boruta
+RFE,Wrapper,"RF estimator, step=0.1",scikit-learn
+PI,Wrapper,"RF permutation importance, n_repeats=10",scikit-learn
+CPI,Wrapper,Conditional permutation importance,scikit-learn
+MC-ptest,Filter (perm),Multiple correlation + permutation test,citrees
+RDC-ptest,Filter (perm),Randomized dependence coefficient + perm,citrees
+R-ctree,Embedded (CI),"partykit::ctree, Bonferroni",R partykit
+R-cforest,Embedded (CI),"partykit::cforest, ntree=100, varimp",R partykit

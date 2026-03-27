@@ -6,6 +6,7 @@ scratch/
 .ruff_cache/
 .pytest_cache/
 catboost_info/
+paper/data/s3_sync/
 
 # Generated Ray cluster config (contains user's IP)
 paper/scripts/infra/ray/cluster.yaml

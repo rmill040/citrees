@@ -25,17 +25,11 @@ See also: `paper/docs/writing-checklist.md`.
 | `lem:identity-vs-random`                | `paper/arxiv/appendices/appendix_B_exchangeability.tex` | Lemma                | A0.2--A0.3                         | `paper/arxiv/appendices/appendix_B_exchangeability.tex`                                | QA     | Bridges the standard implementation ($T_{\mathrm{obs}}$ + $B$ random permutations) to the i.i.d.-permutation setup used by the rank argument. |
 | `them:plusone-superuniform`             | `paper/arxiv/sections/04_theory.tex`                    | Theorem              | A0.1–A0.5                          | `paper/arxiv/appendices/appendix_C_plusone_pvalue.tex` (`app:proof-plusone`)           | QA     | Rank argument for +1 Monte Carlo permutation p-values; includes explicit tie-handling and conditioning.                                       |
 | `prop:stageA-global-null`               | `paper/arxiv/sections/04_theory.tex`                    | Proposition          | A0.1–A0.5 + super-uniform p-values | `paper/arxiv/appendices/appendix_D_stageA_global_null.tex` (`app:proof-stageA-global`) | QA     | Union bound (no dependence assumptions). Uses A0.3 to condition on $(X_t,U)$ so $F_t,m_t$ are fixed.                                          |
-| `prop:per-feature-bound`                | `paper/arxiv/sections/04_theory.tex`                    | Proposition          | A0.1–A0.5 + super-uniform p-values | `paper/arxiv/appendices/appendix_E_per_feature_bound.tex` (`app:proof-per-feature`)    | QA     | Uses the algorithm implication: splitting on $j$ implies $p_{t,j} \le \alpha_{\mathrm{sel}}/m_t$.                                             |
 | `prop:any-split-implies-root-rejection` | `paper/arxiv/sections/04_theory.tex`                    | Proposition          | A0.1–A0.5 (at root)                | `paper/arxiv/appendices/appendix_F_root_any_split.tex` (`app:proof-root`)              | QA     | Structural implication: any split in the tree implies root Stage~A rejection.                                                                 |
-| `prop:multiselector-validity`           | `paper/arxiv/sections/04_theory.tex`                    | Proposition          | A0.1–A0.5                          | `paper/arxiv/appendices/appendix_G_multiselector.tex` (`app:multiselector`)            | QA     | Validity requires exchangeability of the joint selector vector across permutations.                                                           |
 | `lem:cart-proportional-selection`       | `paper/arxiv/appendices/appendix_I_cart_bias.tex`       | Lemma (motivational) | A0.6                               | `paper/arxiv/appendices/appendix_I_cart_bias.tex` (`app:cart-bias`)                    | QA     | Idealized symmetry result explaining proportional selection under an exchangeable null (not a guarantee).                                     |
 
 ## Planned near-term additions (from notes migration)
 
-These items are expected when migrating theory/methods from
-`paper/docs/drafts.md`:
-
-- Formal multi-selector max-T statement (Westfall–Young style) + label.
 - Clear “non-claims” section for:
   - Stage B p-values,
   - internal nodes/adaptivity,

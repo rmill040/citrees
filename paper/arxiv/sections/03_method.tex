@@ -1,97 +1,71 @@
-\section{Method overview}
+\section{Algorithmic framework}
 \label{sec:method}
 
-This section describes the core algorithmic structure studied in this paper
-and defines the quantities used in the theoretical statements. \cref{alg:citree}
-gives the end-to-end overview. Implementation-aligned stage routines and
-additional details are collected in \cref{app:methods}.
+This section fixes the algorithmic objects used in the rest of the paper.
+\Cref{alg:citree} gives the end-to-end tree procedure; appendix material
+collects stage-level pseudocode and implementation-aligned details. We
+distinguish two execution regimes. The \emph{reference regime}, used only in
+\cref{sec:theory}, fixes the permutation budget in advance and exhaustively
+evaluates Stage~A at a pre-specified node. The \emph{default engineering
+regime} may additionally use early stopping, candidate ordering, feature
+muting, threshold subsampling, and forest resampling. Those choices improve
+throughput but change the inferential object.
 
-\paragraph{Reference mode vs.\ default engineering mode.}
-The manuscript distinguishes two execution regimes. The \emph{reference mode}
-used by the theorem chain fixes the resampling budget in advance, exhaustively
-evaluates the tested Stage~A family at the node of interest, and interprets the
-resulting Stage~A p-values only at fixed nodes under the complete permutation
-null. The \emph{default engineering mode} used by the software may additionally
-enable adaptive early stopping, candidate-order heuristics, subtree feature
-muting, threshold subsampling, and forest bootstrap resampling. These options
-can improve runtime substantially, but they change the inferential object and
-are treated below as algorithmic or empirical rather than as part of the
-fixed-$B$ theorem chain.
-
-\subsection{Node expansion: Stage A and Stage B}
+\subsection{Tree growth: Stage~A then Stage~B}
 \label{sec:stageA-stageB}
 
-Consider a fixed node $t$ with data $(X_t, Y_t)$ and a candidate feature set
-$F_t$ of size $m_t = |F_t|$. Let $I_t \subseteq \{1,\dots,n\}$ denote the sample
-indices at node $t$ (size $n_t$) and write $X_t := (X_i)_{i \in I_t}$ and
-$Y_t := (Y_i)_{i \in I_t}$ (see \cref{app:setup} for a notation summary).
-In the recursive algorithm we distinguish: the \emph{available} feature set
-$F_{\mathrm{avail}}$ passed down the recursion; the \emph{descendant-safe} subset
-$F_{\mathrm{desc}} \subseteq F_{\mathrm{avail}}$ of non-constant features at $t$;
-and the \emph{tested} subset $F_t \subseteq F_{\mathrm{desc}}$ after applying
-\texttt{max\_features}.
-Stage~A returns an updated feature set $F_{\mathrm{avail}}'$ that is passed to
-descendants (\cref{alg:citree}); by default $F_{\mathrm{avail}}' =
-F_{\mathrm{desc}}$, while optional heuristics may further prune it
-(\cref{app:methods-heuristics}).
+Consider a node $t$ with data $(X_t, Y_t)$ and tested feature family
+$F_t \subseteq \{1,\dots,p\}$ of size $m_t$. In the recursive algorithm we
+distinguish the \emph{available} feature set passed to the node, the
+\emph{descendant-safe} subset of non-constant features at the node, and the
+\emph{tested} subset after any \texttt{max\_features} subsampling. Stage~A may
+also return an updated feature set to descendants if a pruning heuristic is
+enabled.
 
-\paragraph{Stage A (feature screening).}
+\paragraph{Stage~A (feature screening).}
 For each feature $j \in F_t$, the procedure computes a selector statistic
-$T^{\mathrm{sel}}_j(X_{t,j}, Y_t)$ (larger indicates stronger association under a
-right-tail convention) and a Monte Carlo permutation p-value $p_{t,j}$.
-It selects
+$T^{\mathrm{sel}}_j(X_{t,j}, Y_t)$ and a Monte Carlo permutation p-value
+$p_{t,j}$. It then selects
 %
 \begin{equation}
   j_t^\star := \operatorname{uargmin}_{j \in F_t} p_{t,j}, \qquad
   p_t^\star := \min_{j \in F_t} p_{t,j},
 \end{equation}
 %
-where $\operatorname{uargmin}$ breaks ties uniformly at random among minimizers, and proceeds to Stage~B only if
-$p_t^\star$ is strictly below the configured significance
-level $\alpha_{\mathrm{sel}}$ (optionally Bonferroni-adjusted by $m_t$, i.e.,
-compare to $\alpha_{\mathrm{sel}}/m_t$).
-In the fixed-$B$ reference mode with an exhaustive scan over $F_t$, this corresponds to
-evaluating all tested features and selecting the (tie-broken) minimum. In
-the default engineering configuration, the implementation may instead order
-candidates by a cheap score and stop the scan once a significant feature has
-been found, so the selected feature is then the first sufficiently significant
-candidate in the scan order rather than necessarily the global minimizer over
-all tested features. Sequential permutation testing can also stop drawing
-permutations early. Unless stated otherwise, the formal guarantees in
-\cref{sec:theory} are limited to fixed-$B$ testing with an exhaustive tested
-family at a fixed node.
-Because $p_t^\star$ is a minimum over $m_t$ tests, it is not a
-selection-adjusted p-value for the selected feature. Under the nodewise
-\emph{complete} null at $t$, a conservative complete-null decision-p-value
-summary for the Stage~A \emph{decision} is
-$\tilde p_t^{\mathrm{sel}} := \min(1,\, m_t p_t^\star)$. If this summary is
-thresholded using the same strict comparison, i.e., $\tilde p_t^{\mathrm{sel}} < \alpha_{\mathrm{sel}}$,
-it yields the same reject/accept rule as checking whether
-$p_t^\star < \alpha_{\mathrm{sel}}/m_t$.
-Under the nodewise complete null at $t$ (all tested features are null), this
-Bonferroni rule controls the probability of making any Stage~A rejection at level
-$\alpha_{\mathrm{sel}}$ in fixed-$B$ mode under the assumptions in
-\cref{sec:theory} (see \cref{prop:stageA-global-null}).
-In this manuscript, the inferential claim is for the Stage~A decision event at
-the fixed node; we do not interpret $p_t^\star$ as a calibrated p-value for the
-selected feature.
-Implementation-aligned Stage~A pseudocode is given in
-\cref{alg:stageA} (\cref{app:methods-stageA}).
+where $\operatorname{uargmin}$ breaks ties uniformly among minimizers. Stage~B
+is entered only if the screening threshold is passed, either at
+$\alpha_{\mathrm{sel}}$ or at $\alpha_{\mathrm{sel}}/m_t$ when Bonferroni is
+enabled. In the reference regime, the scan over $F_t$ is exhaustive. In the
+engineering regime, candidate ordering and early termination may stop the scan
+once a significant feature is found, so the selected feature need not be the
+global minimum over all tested candidates.
 
-\paragraph{Stage B (threshold screening).}
-Given $j_t^\star$, the procedure constructs a finite threshold set $C_{t,j_t^\star}$
-and evaluates split quality over candidates. When permutation testing is
-enabled for Stage~B, this is treated as a left-tail test over candidate
-thresholds. In the implementation, the permutation-tested Stage~B statistic is
-the \emph{unweighted} sum of child impurities, while deterministic threshold
-ordering heuristics and the final \texttt{min\_impurity\_decrease} check use
-weighted impurity. Because $c_t^\star$ and the reported minimum p-value are
-selected over $C_{t,j_t^\star}$ (and because $j_t^\star$ itself is selected
-using the same labels), in this paper we treat Stage~B p-values as
-post-selection/adaptive statistics unless additional selective-inference
-machinery or sample splitting is used.
-Implementation-aligned Stage~B pseudocode and threshold-set details are given in
-\cref{alg:stageB} and \cref{app:methods-thresholds}.
+The minimum $p_t^\star$ is not a selection-adjusted p-value for the selected
+feature. Under the nodewise complete null, a conservative decision summary for
+the Stage~A event is
+%
+\begin{equation}
+  \tilde p_t^{\mathrm{sel}} := \min(1, m_t p_t^\star),
+\end{equation}
+%
+and the Bonferroni rule is equivalently
+%
+\begin{equation}
+  p_t^\star < \alpha_{\mathrm{sel}}/m_t
+  \qquad\Longleftrightarrow\qquad
+  \tilde p_t^{\mathrm{sel}} < \alpha_{\mathrm{sel}}.
+\end{equation}
+%
+We use $\tilde p_t^{\mathrm{sel}}$ only as a summary of the nodewise
+reject/accept decision, not as a calibrated selected-feature p-value.
+
+\paragraph{Stage~B (threshold search).}
+Given $j_t^\star$, the procedure constructs a finite threshold set
+$C_{t,j_t^\star}$ and evaluates split quality over those candidates. When
+permutation testing is enabled for Stage~B, the search is written as a
+left-tail test over candidate thresholds. Because the feature and threshold are
+selected using the same labels, the reported Stage~B minimum is treated in
+this paper as a split-selection score rather than as a calibrated p-value.
 
 \begin{algorithm}[t]
   \caption{Conditional inference tree training (Stage A $\rightarrow$ Stage B)}
@@ -105,11 +79,11 @@ Implementation-aligned Stage~B pseudocode and threshold-set details are given in
       \If{\Call{Stop}{$X_t,Y_t,d,\theta$}}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
-      \State $(j_t^\star, p_t^\star, m_t, F_{\mathrm{avail}}') \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\theta}$ \Comment{see \cref{alg:stageA}}
-      \If{$j_t^\star = \bot$} \Comment{e.g., no candidates, or $p_t^\star \ge \alpha_{\mathrm{sel}}/m_t$ if Bonferroni}
+      \State $(j_t^\star, p_t^\star, m_t, F_{\mathrm{avail}}') \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\theta}$
+      \If{$j_t^\star = \bot$}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
-      \State $(c_t^\star, p_t^{\mathrm{split}}) \gets \Call{StageB}{X_t,Y_t,j_t^\star,\theta}$ \Comment{see \cref{alg:stageB}}
+      \State $(c_t^\star, p_t^{\mathrm{split}}) \gets \Call{StageB}{X_t,Y_t,j_t^\star,\theta}$
       \If{$c_t^\star = \bot$}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
@@ -125,120 +99,109 @@ Implementation-aligned Stage~B pseudocode and threshold-set details are given in
   \end{algorithmic}
 \end{algorithm}
 
-\subsection{Interpretation of reported p-values (scope summary)}
-\label{sec:pvalue-scope}
-
-We use the term ``p-value'' in two different roles: (i)~as a classical
-Monte Carlo permutation p-value for fixed-node Stage~A screening in fixed-$B$
-mode, and (ii)~as an algorithmic statistic for adaptive parts of tree growth.
-Adaptivity enters both through the recursive training procedure (internal nodes
-and Stage~B after selecting a feature using the same labels) and through
-computational heuristics (e.g., sequential permutation testing and early-terminated scans over candidates).
-In particular:
-\begin{itemize}
-  \item \textbf{Stage A at a fixed node (fixed-$B$, exhaustive scan):} per-feature +1 Monte Carlo
-  permutation p-values are super-uniform under the nodewise complete-null
-  exchangeability and label-independence assumptions in \cref{sec:theory}. The selected-feature
-  minimum $p_t^\star$ is not selection-adjusted; the Bonferroni decision can be
-  summarized by the conservative complete-null decision-p-value summary
-  $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$ under the nodewise complete null.
-  \item \textbf{Stage B threshold p-values:} these are computed after selecting
-  $j_t^\star$ using the same labels, so they are post-selection/adaptive. We
-  treat them as split-selection scores unless additional post-selection
-  machinery or sample splitting is used.
-  \item \textbf{Internal-node p-values:} internal nodes are data-adaptive
-  because node membership depends on earlier label-dependent splits. Without
-  additional machinery, internal-node p-values should be treated as algorithmic
-  statistics rather than calibrated p-values.
-  \item \textbf{Early-stopped outputs:} sequential permutation testing changes the
-  distribution of the reported running estimate; in this manuscript we do not
-  claim optional-stopping validity for early-stopped values.
-  \item \textbf{Early-terminated scans:} when candidate scans terminate early (e.g., after finding a
-  significant candidate), the selected feature/threshold need not be the global minimizer over all candidates, even if
-  each per-candidate p-value is computed with a fixed resampling budget.
-\end{itemize}
-
-\begin{table}[t]
-  \centering
-  \small
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}
-    >{\raggedright\arraybackslash}p{0.22\linewidth}
-    >{\raggedright\arraybackslash}p{0.30\linewidth}
-    >{\raggedright\arraybackslash}p{0.40\linewidth}
-  @{}}
-    \toprule
-    Quantity & Where it arises & Interpretation in this manuscript \\
-    \midrule
-    $p_{t,j}$ (+1 MC) &
-    Stage~A, fixed node, fixed-$B$ &
-    Fixed-node permutation p-value; super-uniform under A0.1--A0.5 (complete-null exchangeability). \\
-    $p_t^\star = \min_{j\in F_t} p_{t,j}$ &
-    Stage~A feature selection &
-    Not selection-adjusted; the nodewise Bonferroni decision can be summarized by $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$ under the nodewise complete null. \\
-    $p_t^{\mathrm{split}}$ &
-    Stage~B threshold selection &
-    Post-selection/adaptive (computed after selecting $j_t^\star$ using the same labels); treated as a split-selection score unless additional machinery is used. \\
-    Internal-node p-values &
-    Recursive tree growth &
-    Algorithmic statistics (node membership depends on previous label-dependent splits). \\
-    Early-stopped $\widehat p$ &
-    Sequential permutation testing &
-    Algorithmic statistic; no optional-stopping validity claims in this manuscript. \\
-    \bottomrule
-  \end{tabular}
-  \caption{Scope of p-value interpretations used in this manuscript.}
-  \label{tab:pvalue-scope}
-\end{table}
-
-\subsection{Monte Carlo permutation p-values (+1 correction)}
+\subsection{Monte Carlo permutation p-values}
 \label{sec:plusone}
 
-Let $T_0$ be the observed statistic and $T_1,\dots,T_B$ the statistics computed
-on $B$ i.i.d.\ random label permutations. For a right-tail test (larger is more
-extreme), we use the Phipson--Smyth (+1) Monte Carlo p-value
+Let $T_0$ be the observed statistic and $T_1,\dots,T_B$ the statistics
+computed on $B$ random label permutations. For a right-tail test we use the
+Phipson--Smyth $+1$ p-value
 \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues}
 %
 \begin{equation}
   p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
 \end{equation}
 %
-For a left-tail test (smaller is more extreme), define
+For a left-tail test we analogously define
 %
 \begin{equation}
   p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_0\}}{B+1}.
 \end{equation}
 %
-In \citrees, Stage~A uses the right-tail convention and Stage~B uses the
-left-tail convention. In both cases, the implementation uses the conservative
-tie rule that counts ties as exceedances.
+Stage~A uses the right-tail convention, while Stage~B uses the left-tail
+convention. The procedure counts ties as exceedances in both cases.
 
-\subsection{Multi-selector mode (max-statistic)}
+\subsection{How reported p-values are interpreted}
+\label{sec:pvalue-scope}
+
+The manuscript uses the term ``p-value'' in two different senses: as a
+classical Monte Carlo permutation p-value for fixed-node Stage~A screening, and
+as an algorithmic score elsewhere in the tree-growing process.
+\Cref{tab:pvalue-scope} summarizes the distinction. Only the first row belongs
+to the theorem chain in \cref{sec:theory}.
+
+\begin{table}[t]
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}p{0.20\linewidth}p{0.22\linewidth}p{0.48\linewidth}@{}}
+    \toprule
+    Quantity & Where it arises & Interpretation in this manuscript \\
+    \midrule
+    $p_{t,j}$ ($+1$ MC) &
+    Stage~A, fixed node, fixed-$B$ &
+    Calibrated Monte Carlo permutation p-value under the complete-null
+    exchangeability assumptions in \cref{sec:theory}. \\
+    $p_t^\star = \min_{j\in F_t} p_{t,j}$ &
+    Stage~A feature choice &
+    Not selection-adjusted; the nodewise decision can be summarized
+    conservatively by $\tilde p_t^{\mathrm{sel}}=\min(1,m_t p_t^\star)$ under
+    the complete null. \\
+    $p_t^{\mathrm{split}}$ &
+    Stage~B threshold choice &
+    Post-selection score, not a calibrated p-value, because the feature was
+    already selected using the same labels. \\
+    Internal-node p-values &
+    Recursive tree growth &
+    Adaptive statistics; node membership depends on earlier label-dependent
+    decisions. \\
+    Early-stopped $\widehat p$ &
+    Sequential permutation testing &
+    Algorithmic estimate used for speed; no optional-stopping validity claim is
+    made here. \\
+    \bottomrule
+  \end{tabular}
+  \caption{Interpretation of reported p-values in the main text.}
+  \label{tab:pvalue-scope}
+\end{table}
+
+\subsection{Multi-selector mode}
 \label{sec:multiselector}
 
-In multi-selector mode, multiple association scores are combined within a
-feature by taking a maximum across selector statistics inside each permutation.
-This yields a single permutation p-value per feature and supports robust
-screening when different selectors have complementary power.
+When multiple Stage~A selector statistics are assigned to the same feature,
+the procedure aggregates them through a max-statistic inside each permutation.
+This yields a single permutation p-value per feature and supports selector
+combinations with complementary power while keeping the screening decision
+feature-level.
 
-\subsection{Forests and bootstrap resampling}
+\subsection{Forests and engineering choices}
 \label{sec:bootstrap}
 
-The forest procedure fits $M$ trees and aggregates their predictions. To induce
-diversity across trees, the method supports optional bootstrap resampling of
-rows. In the simplest case this is the classical bootstrap, where each tree
-draws $n$ indices with replacement from $\{1,\dots,n\}$ with uniform
-probabilities $\pi_i = 1/n$ \citep{Efron1979Bootstrap}.
+The forest procedure fits multiple trees and aggregates their predictions or
+feature-importance summaries. To induce diversity across trees, it supports row
+resampling, feature subsampling, and related heuristics. For classification, it
+can also use class-conditional bootstrap schemes to control class composition
+within a tree's resample.
 
-For classification forests, we additionally support class-conditional bootstrap
-sampling to control class composition within each bootstrap sample: stratified
-sampling performs draws within each class so that expected proportions match
-the training data, undersampling draws $n_{\min}$ samples per class (where
-$n_{\min}$ is the minority class count), and oversampling draws a fixed total
-of $n$ (or a configured bootstrap sample cap) samples with per-class counts as
-equal as possible.
-These options are engineering heuristics and are not part of this manuscript's
-formal permutation-test guarantees. In particular, the root-level theorem chain
-in \cref{sec:theory} should be read as applying to trees or forests only when
-the root resampling scheme preserves the required permutation exchangeability
-assumption.
+These options are part of the practical algorithm, not part of the fixed-node
+calibration theory. In particular, the root-level guarantee in
+\cref{sec:theory} should be read as applying only when the root resampling
+scheme preserves the relevant exchangeability assumptions.
+
+\subsection{Practical cost drivers}
+\label{sec:complexity}
+
+The runtime experiments are easiest to interpret through four counts at a node:
+the number of features carried into the node, the number actually tested in
+Stage~A, the number of thresholds generated in Stage~B, and the number of
+permutations actually evaluated before any early termination. These counts make
+the major tuning knobs easy to read:
+\texttt{max\_features} caps Stage~A search width, threshold subsampling caps
+Stage~B search width, early stopping and candidate ordering reduce realized
+work, and Bonferroni increases the minimum resampling budget needed for
+rejection.
+
+The main-text point is qualitative rather than asymptotic: most engineering
+knobs reduce realized work without changing the underlying inferential target,
+while Bonferroni changes both the decision rule and the computational burden.
+\Cref{app:complexity-details} gives the implementation-aligned complexity and
+memory formulas.

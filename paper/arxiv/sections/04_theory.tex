@@ -1,231 +1,100 @@
-\section{Theory (fixed-node Stage~A guarantees in the fixed-B reference regime)}
+\section{Theoretical guarantees}
 \label{sec:theory}
 
-This section states the inferential guarantees used in the paper and the
-assumptions under which they hold. Proofs are provided in the appendices.
-Unless explicitly stated otherwise, probability statements are interpreted
-conditional on $(X_t,U)$ at a fixed node, and the calibration target is the
-nodewise \emph{complete} permutation null in A0.2.
+The formal results in this paper concern only fixed-node Stage~A screening in
+the fixed-$B$ reference regime. The node is pre-specified, the tested feature
+family is label-independent, and p-values are computed with the $+1$ Monte
+Carlo correction and the procedure's conservative tie rule. We do not claim a
+general inference theory for the fully adaptive tree or forest.
 
-\paragraph{What configuration is being analyzed.}
-The theorem chain below is for the fixed-$B$ \emph{reference regime} that the
-implementation can run: a fixed node, a label-independent tested Stage~A family,
-an exhaustive Stage~A scan over that family, and conservative +1 Monte Carlo
-p-values computed after exactly $B$ permutations. The default software
-configuration additionally enables adaptive stopping and other heuristics for
-speed; those behaviors are discussed in \cref{sec:pvalue-scope,sec:discussion}
-but are not the subject of the formal claims in this section.
-
-\subsection{Setup and assumptions}
+\subsection{Setup}
 \label{sec:theory-setup}
 
-We state results for a \emph{fixed} node $t$ with index set $I_t$ and data
-$(X_t, Y_t)$. Let $F_t$ be the tested feature set at node $t$, with
-$m_t := |F_t|$.
+Fix a node $t$ with data $(X_t,Y_t)$ and tested feature family $F_t$, where
+$m_t := |F_t|$. All probability statements below are read conditional on
+$(X_t,U)$, with $U$ denoting label-independent algorithmic randomness as in
+\cref{app:assumptions}. The relevant null is the nodewise \emph{complete}
+permutation null A0.2: conditional on $(X_t,U)$, the label vector $Y_t$ is
+exchangeable under the permutation scheme used by Stage~A.
 
-Our guarantees are finite-sample and fixed-node: they are most directly
-interpretable at the root.
-We keep all assumptions explicit and aligned across results; see the assumptions
-ledger in \cref{app:assumptions} and the compact checklist in
-\cref{app:assumption-checklist}. The core requirements are conditional
-exchangeability under the null, a label-independent tested family and resampling
-budget, fixed-$B$ p-values (no optional stopping), and the conservative tie
-convention used by the implementation.
+This target is intentionally narrow. It is a calibration statement for one
+pre-specified screening problem, not a partial-null featurewise claim when
+other covariates carry signal. It is also not a selective-inference result for
+Stage~B thresholds, internal nodes, or early-stopped outputs; those are
+treated elsewhere in the manuscript as adaptive statistics.
 
-\paragraph{What null is being controlled.}
-Because the permutation null is stated conditionally on $(X_t,U)$ (treating the
-node covariates as fixed by the permutation scheme), the resulting calibration
-target is a nodewise \emph{complete} permutation null: the labels are
-invariant to permutation given the full $X_t$ at the node.
-This is narrower than a partial-null claim of the form ``feature
-$j$ is null while other features may be associated with $Y_t$,'' which does not
-in general imply exchangeability conditional on the full $X_t$.
-It is an appropriate calibration target for controlling spurious splits in the
-no-signal regime at a node, which is where high-cardinality threshold-search
-bias is most transparent.
-
-\paragraph{Conditioning convention.}
-Since the permutation null is stated conditionally on $(X_t,U)$, the most direct
-way to read the results below is as conditional statements (e.g.,
-$\PP(\cdot \mid X_t,U)$). To keep notation light, we often suppress this
-conditioning; in particular, by A0.3 the tested family $F_t$ and its
-cardinality $m_t$ are treated as fixed when reasoning about Type~I error at a
-fixed node.
-
-\paragraph{Scope note (what these results do not cover).}
-The theorem chain below does not provide partial-null featurewise inference
-when other covariates carry signal, does not provide post-selection validity for
-Stage~B after selecting $j_t^\star$ with the same labels, and does not provide
-optional-stopping validity for early-stopped outputs.
-
-\paragraph{Terminology (plain language).}
-In this paper, ``fixed node'' means the node $t$ is treated as pre-specified
-(not chosen based on the observed labels). ``Conditional exchangeability''
-means that under the null the joint distribution of $Y_t$ is invariant to
-permutations given $(X_t,U)$. A p-value is ``super-uniform'' if it is
-conservative under the null: $\PP(P \le \alpha \mid X_t,U) \le \alpha$ for all
-$\alpha \in [0,1]$. ``Label-independent tested family'' means the set of tested
-features/candidates and the resampling budget are functions of $(X_t,U)$ only,
-i.e., chosen without looking at the observed labels $Y_t$ (A0.3).
-``Fixed-$B$'' means the number of permutation resamples $B$ is set in advance
-and the reported p-values are computed after exactly $B$ resamples (no early
-stopping). ``Conservative ties'' means ties are counted as exceedances in the
-+1 Monte Carlo p-value.
-
-\subsection{Validity of the +1 Monte Carlo permutation p-value}
+\subsection{Super-uniformity of fixed-B permutation p-values}
 \label{sec:theory-plusone}
 
-\begin{theorem}[+1 permutation p-values are super-uniform]
+\begin{theorem}[$+1$ permutation p-values are super-uniform]
 \label{them:plusone-superuniform}
-Assume A0.1--A0.5 (\cref{app:assumptions}). In particular, under the null
-hypothesis being tested, the permutation statistics $(T_0, T_1, \dots, T_B)$ are
-exchangeable (conditional on $(X_t, U)$). Define the right-tail +1 Monte Carlo p-value
+Assume A0.1--A0.5 (\cref{app:assumptions}). In particular, under the null being
+tested, the permutation statistics $(T_0,T_1,\dots,T_B)$ are exchangeable
+conditional on $(X_t,U)$. Define the right-tail $+1$ Monte Carlo p-value
 %
 \begin{equation}
-  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
+  p_{\mathrm{MC}}^{\ge}
+  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
 \end{equation}
 %
-Then for all $\alpha \in [0,1]$, $\PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha$.
+Then for every $\alpha \in [0,1]$,
+%
+\begin{equation}
+  \PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha.
+\end{equation}
 \end{theorem}
 
-\paragraph{Remark (alternative-side consistency in Monte Carlo budget).}
-Fix a node, feature, and right-tail statistic. Conditional on $(X_t,Y_t,U)$,
-let
-$T_0 := T(X_{t,j},Y_t)$ and
-$q := \PP(T(X_{t,j},\Pi(Y_t)) \ge T_0 \mid X_t,Y_t,U)$,
-where $\Pi$ is a uniform random permutation independent of the data.
-Define $I_b := \ind\{T_b \ge T_0\}$ for Monte Carlo draws
-$b=1,\dots,B$. If $q < \alpha$, then in fixed-$B$ mode
-$p_{\mathrm{MC}}^{\ge} = (1 + \sum_{b=1}^B I_b)/(B+1)$ converges almost surely
-to $q$ by the strong law for Bernoulli exceedance indicators, so
-$\PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,Y_t,U) \to 1$ as $B \to \infty$.
-This is a conditional Monte Carlo approximation statement for a fixed observed
-dataset, not a uniform power guarantee across data-generating alternatives.
+\paragraph{Interpretation.}
+This is the calibration backbone for fixed-$B$ Stage~A screening. It is the
+classical exchangeable-rank argument for Monte Carlo permutation tests,
+adapted to the ``identity plus $B$ random permutations'' computation used in
+the procedure. The left-tail version follows by applying the same statement to
+$-T$; see \cref{app:permutation-exchangeability,app:proof-plusone}.
 
-\subsection{Stage A control via Bonferroni}
+\subsection{Immediate decision-level consequences}
 \label{sec:theory-stageA}
 
-\begin{proposition}[Stage A complete-null bound at a fixed node]
-\label{prop:stageA-global-null}
+\begin{corollary}[Stage~A complete-null control at a fixed node]
+\label{cor:stageA-global-null}
 Assume A0.1--A0.5 (\cref{app:assumptions}). Under the nodewise complete null at
-$t$ (A0.2), the per-feature +1 Monte Carlo p-values $p_{t,j}$ are super-uniform.
-If Stage~A uses Bonferroni and rejects when
-$\min_{j \in F_t} p_{t,j} < \alpha_{\mathrm{sel}}/m_t$, then
+$t$ (A0.2), let Stage~A reject when
 %
 \begin{equation}
-  \PP\!\left(\exists j \in F_t : p_{t,j} < \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right) \le \alpha_{\mathrm{sel}}.
-\end{equation}
-\end{proposition}
-
-\paragraph{Interpretation (complete-null family-wise rejection at a node).}
-Under the nodewise complete null (all tested features are null), the event
-inside the probability is the family-wise error event that at least one tested
-feature crosses the Bonferroni threshold at node $t$. Thus Proposition~\ref{prop:stageA-global-null}
-can be read as a nodewise \emph{complete-null} family-wise rejection bound at
-level $\alpha_{\mathrm{sel}}$ (conditional on $(X_t,U)$), without any
-dependence assumptions across features. We do not claim strong partial-null
-FWER control.
-
-\begin{proposition}[Per-feature accepted-split bound (cardinality-free)]
-\label{prop:per-feature-bound}
-Assume A0.1--A0.5 (\cref{app:assumptions}). Under the nodewise complete null at
-$t$ (A0.2), the per-feature +1 Monte Carlo p-values $p_{t,j}$ are super-uniform.
-If Stage~A uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$, then for any
-feature $j \in F_t$,
-%
-\begin{equation}
-  \PP(\text{node $t$ accepts a split on feature $j$} \mid X_t,U) \le \alpha_{\mathrm{sel}}/m_t.
+  \min_{j \in F_t} p_{t,j} < \alpha_{\mathrm{sel}}/m_t.
 \end{equation}
 %
-In particular, the bound does not depend on the number of candidate thresholds
-available for feature $j$.
-\end{proposition}
-
-\begin{corollary}[Uniform per-feature bound under random feature subsampling]
-\label{cor:subsampling-per-feature}
-Assume A0.1--A0.5 (\cref{app:assumptions}). Suppose that at the fixed node $t$ the
-algorithm begins from a full candidate set $\bar F_t$ with $\bar m_t := |\bar F_t|$
-and selects $F_t \subseteq \bar F_t$ by sampling $m_t$ features uniformly
-without replacement (as in \texttt{max\_features}), independently of $Y_t$.
-Assume the nodewise complete null at $t$ (A0.2) holds over the full candidate
-family $\bar F_t$. Fix any feature $j \in \bar F_t$. If Stage~A uses Bonferroni
-at level $\alpha_{\mathrm{sel}}/m_t$, then the bound below conditions on $X_t$
-and averages over the feature-subsampling
-randomness (a component of $U$):
+Then
 %
 \begin{equation}
-  \PP(\text{node $t$ accepts a split on feature $j$} \mid X_t) \le \alpha_{\mathrm{sel}}/\bar m_t.
+  \PP\!\left(\exists j \in F_t : p_{t,j} < \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right)
+  \le \alpha_{\mathrm{sel}}.
 \end{equation}
 \end{corollary}
-
-\subsection{A root-level global statement}
-\label{sec:theory-root}
-
-\begin{proposition}[Any split implies root Stage A rejection]
-\label{prop:any-split-implies-root-rejection}
-Assume A0.1--A0.5 at the root (\cref{app:assumptions}).
-Consider a tree grown with Stage~A screening at the root in fixed-$B$ mode. The
-fitted tree can only contain any internal split if the root passes Stage~A.
-Consequently, under the nodewise complete null at the root over the tested root features,
-%
-\begin{equation}
-  \PP(\text{the fitted tree has at least one internal split} \mid X_{\mathrm{root}},U) \le \alpha_{\mathrm{sel}}.
-\end{equation}
-\end{proposition}
-
-\begin{corollary}[Forest-level bounds under a complete root null]
-\label{cor:forest-level-root}
-Assume A0.1--A0.5 at the root for each tree. Consider a forest with $M$ trees,
-each trained with root Stage~A screening in fixed-$B$ mode at level
-$\alpha_{\mathrm{sel}}$ (Bonferroni). Let $N_{\mathrm{split}}$ denote the number
-of trees with at least one internal split. Under the nodewise complete null at the root over the
-tested root features of each tree,
-%
-\begin{equation}
-  \E[N_{\mathrm{split}}] \le M\,\alpha_{\mathrm{sel}},
-  \qquad
-  \PP(N_{\mathrm{split}} \ge 1) \le \min\{1,\, M\,\alpha_{\mathrm{sel}}\}.
-\end{equation}
-%
-If, in addition, each tree's root applies uniform feature subsampling as in
-\cref{cor:subsampling-per-feature} with $p$ available root features, then for
-any feature $j$ under the complete root null,
-%
-\begin{equation}
-  \E\!\left[\sum_{m=1}^M \ind\{\text{tree $m$ splits at the root on $j$}\}\right]
-  \le M\,\alpha_{\mathrm{sel}}/p.
-\end{equation}
-\end{corollary}
-
-\paragraph{Scope note (bootstrap and A0.2).}
-The corollary assumes A0.2 at the root for each tree. This assumption can fail
-under with-replacement bootstrap sampling because duplicated training indices at
-the root induce equality constraints among positions in the bootstrap label
-vector that are not permutation-invariant. The bound therefore applies exactly
-when root-level exchangeability under A0.2 is satisfied (e.g., full-data roots
-or root subsampling without replacement).
 
 \paragraph{Interpretation.}
-The expectation statement in Corollary~\ref{cor:forest-level-root} is typically
-the operational bound for standard forests. The at-least-one probability bound
-is informative only when $M\alpha_{\mathrm{sel}} < 1$ (small $M$ or very small
-$\alpha_{\mathrm{sel}}$). Otherwise truncation at $1$ makes
+This corollary controls the probability of any Stage~A rejection at the fixed
+node under the complete permutation null. It is a statement about the nodewise
+decision event, not a calibrated p-value for the selected feature
+$j_t^\star$, and it does not imply strong partial-null FWER control when some
+features are truly associated with $Y_t$.
+
+\subsection{A root-level consequence}
+\label{sec:theory-root}
+
+\begin{remark}[Optional structural consequence]
+If a tree grown in fixed-$B$ mode contains at least one internal split, then
+the root must have rejected in Stage~A. Combining this event inclusion with
+\cref{cor:stageA-global-null} at the root yields
+%
 \begin{equation}
-  \PP(N_{\mathrm{split}} \ge 1) \le \min\{1,\,M\alpha_{\mathrm{sel}}\}
+  \PP(\text{the fitted tree has at least one internal split} \mid X_{\mathrm{root}},U)
+  \le \alpha_{\mathrm{sel}}.
 \end{equation}
-vacuous.
+\end{remark}
 
-\subsection{Multi-selector mode}
-\label{sec:theory-multiselector}
-
-\begin{proposition}[Multi-selector max-statistic validity]
-\label{prop:multiselector-validity}
-Assume A0.1--A0.5 (\cref{app:assumptions}). Fix a feature at a fixed node and
-let $T^{(1)}_b, \dots, T^{(L)}_b$ denote $L$ selector statistics computed on
-permutation $b$ (with $L$ fixed), and define $M_b := \max_{\ell=1,\dots,L} T^{(\ell)}_b$. If the
-joint vector of all selector statistics is exchangeable across permutations
-under the null, then the +1 p-value computed from $(M_b)$ is super-uniform.
-\end{proposition}
-
-\noindent See \cref{app:multiselector} for details and a discussion of
-scale/normalization considerations when mixing selectors.
+\paragraph{Interpretation.}
+This is the cleanest whole-tree consequence available from the fixed-node
+theory. Under a complete root null, the tree cannot split at all without first
+passing the root Stage~A screen. The statement still stops at the root: it does
+not calibrate internal-node quantities, Stage~B threshold searches, or forest
+behavior under resampling schemes that break exchangeability.

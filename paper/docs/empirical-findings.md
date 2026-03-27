@@ -2002,9 +2002,9 @@ measurement artifact**:
 Run on 4× c5.24xlarge (96 vCPUs each). All use MC selector (clf) / PC selector
 (reg), never RDC. 5 seeds, 100 estimators, n_resamples="minimum".
 
-Script: `paper/scripts/analysis/comprehensive_ablation.py`
+Script: `paper/scripts/analysis/experiments/optimization_ablation.py`
 
-### Block 1: Optimization Ablation (8 CLF synthetic × 12 variants)
+### Optimization Ablation (8 CLF synthetic × 12 variants)
 
 **Key finding: BOOTSTRAP is the largest knob.**
 
@@ -2031,7 +2031,7 @@ rejects confounders; ensembling averages them back in.
 negative elsewhere. Muting: no effect on any dataset. Adaptive stopping:
 4× speedup, no accuracy cost.
 
-### Block 2: Alpha Threshold Sweep (14 datasets × 6 alpha levels)
+### Alpha Threshold Sweep (14 datasets × 6 alpha levels)
 
 | Dataset | α=0.001 | α=0.01 | α=0.05 | α=0.10 | α=0.20 | α=0.50 |
 |---------|---------|--------|--------|--------|--------|--------|
@@ -2044,32 +2044,32 @@ CLF weak signal: permissive alpha (0.20) helps modestly (0.120→0.200).
 REG weak signal: strict alpha (0.001) is BEST (0.780) — opposite direction.
 The PC selector has more power than MC on continuous data.
 
-### Block 3: n_estimators Sweep
+### n_estimators Sweep
 
 Confounder rate does NOT improve with more trees — plateaus at n=5.
 Toeplitz: clear improvement 1→100 (0.440→0.900, saturation at n=25).
 CLF weak_signal: non-monotonic — peaks at n=25 (0.260), DROPS at n=100 (0.120).
 REG weak_signal: monotonic improvement (0.420→0.740).
 
-### Block 4: Scaling Curves (CIF vs RF vs ET)
+### Scaling Curves (CIF vs RF vs ET)
 
 CIF is 150-700× slower than RF/ET. CIF scales linearly with n (3s at n=200,
 143s at n=5000). CIF is CONSTANT with p (30s at p=20, 32s at p=1000) —
 permutation tests dominate, and they're O(n×B) per feature.
 
-### Block 5: Noise Injection (3 base datasets × 3 methods)
+### Noise Robustness (3 base datasets × 3 methods)
 
 RF/ET maintain 1.000 precision up to 100 noise features. CIF breaks at 50
 noise features (drops to 0.880). At 1000 noise features: CIF 0.680, RF 0.880,
 ET 0.800. CIF degrades earlier but doesn't collapse.
 
-### Block 6: Sample Size Curves (3 base datasets × 3 methods)
+### Sample Size Curves (3 base datasets × 3 methods)
 
 RF/ET hit perfect precision at n=500. CIF needs n=2000 for 0.920.
 At n=50: CIF 0.500, ET 0.560, RF 0.480 — CIF competitive at tiny n.
 CIF needs ~4× more samples than RF/ET for same precision.
 
-### Block 7: Bootstrap vs Feature Subsampling (8 variants × 6 datasets)
+### Bootstrap vs Feature Subsampling (8 variants × 6 datasets)
 
 | Variant | easy P@10 | hard P@10 | weak P@10 | conf P@10 | conf_rate |
 |---------|-----------|-----------|-----------|-----------|-----------|
@@ -2085,7 +2085,7 @@ Feature subsampling (sqrt, log2) doesn't help — same precision as default.
 noboot+sqrt gives perfect precision on easy but collapses on weak signal
 (spread=0.091 — all trees identical).
 
-### Block 8: n_resamples + Honesty
+### Resamples and Honesty
 
 B=199 ("minimum") is sufficient — no meaningful gain from B=499 or B=999.
 
@@ -2109,7 +2109,7 @@ zero power but adaptive gets 0.52 (adaptive is strictly better).
 Power at class_sep=0.1 (weak signal): 0.66-0.80 depending on α. At
 class_sep≥0.5: power=1.000 regardless of B or stopping method.
 
-### Block 10: CIF Strictness Continuum (THE KEY EXPERIMENT)
+### CIF Strictness Continuum (THE KEY EXPERIMENT)
 
 **Removing Bonferroni correction is the single most impactful improvement.**
 
@@ -2157,7 +2157,7 @@ directly determined by how deep the trees grow, which is controlled by how
 permissive the hypothesis test is. Alpha and Bonferroni are the primary
 regulators of tree depth.
 
-### Block 11: Real Dataset Ablation
+### Real Dataset Ablation
 
 | Dataset (p) | cif_default | cif_no_boot | cif_no_bonf | cif_optimized | rf | et | cit |
 |-------------|------------|------------|------------|--------------|-----|-----|-----|

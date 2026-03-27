@@ -34,7 +34,7 @@ p-value:
 
 This contract is summarized in `paper/arxiv/sections/03_method.tex`
 (Table~`tab:pvalue-scope`) and reinforced in
-`paper/arxiv/sections/06_discussion.tex`.
+`paper/arxiv/sections/07_discussion.tex`.
 
 ## Build
 

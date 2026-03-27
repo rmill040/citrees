@@ -1,508 +1,81 @@
-\section{Experiments}
+\section{Experimental design}
 \label{sec:experiments}
 
-This section defines our benchmark protocol and presents empirical results for
-synthetic ground-truth datasets and real tabular datasets. The empirical goal is
-to evaluate methods as \emph{feature rankers} in a way that separates ranking
-quality from downstream model choice.
+The benchmark treats every method as a feature ranker. The design goal is to
+separate ranking quality from downstream model choice while keeping
+confirmatory claims tied to a small set of pre-specified endpoints. Broader
+summaries are still useful, but they are reported as descriptive robustness
+checks rather than as headline evidence.
 
-\paragraph{Two empirical roles.}
-The experiments play two different roles in the paper.
-First, we run calibration and selection-bias diagnostics for quantities that
-are directly tied to the fixed-node theory, namely Stage~A screening in fixed-$B$
-mode under complete-null designs.
-Second, we evaluate the full tree/forest implementation in its practical
-engineering modes, where adaptive stopping and related heuristics are judged by
-ranking quality and runtime rather than by theorem-backed p-value validity.
-
-\subsection{Protocol: rank-then-evaluate}
+\subsection{Rank-then-evaluate protocol}
 \label{sec:experiments-protocol}
 
-We treat each method as a \emph{ranker} and use a two-stage protocol:
-(i)~produce a feature ranking on a training split, and
-(ii)~train downstream models on the top-$k$ selected features and evaluate on
-held-out data. This protocol isolates ranking quality from downstream model
-choice and avoids leakage by fitting all preprocessing on the training portion
-only. We use 5-fold cross-validation repeated over 5 random seeds and evaluate
-$k \in \{5,10,25,50,100,p\}$ (clipped to $k \le p$). Details and notation are in
-\cref{app:methods-benchmark}.
+Each method first produces a feature ranking on the training split. We then
+train downstream predictors on the top-$k$ features and evaluate them on
+held-out data. This rank-then-evaluate protocol isolates the quality of the
+ranking itself rather than rewarding methods for a particular internal
+training objective. We use 5-fold cross-validation repeated over 5 random
+seeds and evaluate $k \in \{5,10,25,50,100,p\}$, clipped to $k \le p$. All
+preprocessing is fit on the training portion of each fold only.
 
-\subsection{Primary endpoints and analysis plan (pre-specified)}
+\subsection{Primary endpoints and aggregation}
 \label{sec:experiments-analysis-plan}
 
-Because the protocol produces results across multiple $k$ values, downstream
-models, and metrics, we pre-specify primary endpoints to reduce degrees of
-freedom in the headline comparisons.
+The benchmark produces many numbers across tasks, downstream models, and
+values of $k$, so the paper distinguishes \emph{confirmatory} endpoints from
+\emph{descriptive} summaries. For classification, the primary real-data
+endpoint is balanced accuracy of logistic regression at $k=25$. For
+regression, it is $R^2$ of ridge regression at $k=25$. Dataset-level
+summaries average across folds and random seeds after fixing the downstream
+model and $k$.
 
-\paragraph{Primary endpoints (real datasets).}
-For classification, the primary endpoint is balanced accuracy of logistic
-regression trained on the top-$k$ features with $k=25$. For regression, the
-primary endpoint is $R^2$ of ridge regression trained on the top-$k$ features
-with $k=25$. All other $k$ values, downstream models, and metrics are treated as
-secondary and reported as robustness checks.
+Broader summaries that average across multiple downstream models or multiple
+values of $k$ are reported separately and labeled as exploratory. They help
+show whether a qualitative pattern is stable, but they are not used for exact
+headline claims.
 
-\paragraph{Aggregation.}
-For the pre-specified headline endpoints above, dataset-level summaries are
-formed by averaging across folds and random seeds after fixing the relevant
-downstream model and $k$. The current generic analysis scripts also emit
-broader diagnostic summaries at the \texttt{method\_base} family level; those
-pipeline-wide summaries average within dataset across locked configuration
-variants and, in their all-model form, also across downstream models and $k$
-values before cross-dataset comparison. The current scripts produce average-rank
-tables, Friedman omnibus tests, Holm-corrected paired Wilcoxon comparisons,
-critical-difference diagrams, and bootstrap-CI summary tables. Headline empirical claims use these pre-specified
-primary endpoints; broader all-model, per-model, and per-$k$
-analyses are reported as robustness checks.
-
-\paragraph{Synthetic ground truth.}
-For synthetic datasets with known informative feature sets, the primary ranking
-metrics are precision@k, recall@k, and F1@k at
-$k\in\{5,10,20,|S^\star|\}$ (with $k$ clipped to $k\le p$). In dedicated
-selection-bias analyses on null-style regimes with known noise features, we
-also examine noise-selection diagnostics. These definitions match the
-current analysis script configuration in \cref{app:methods-benchmark}.
+For synthetic datasets with known informative sets $S^\star$, the primary
+ranking metrics are precision@k, recall@k, and F1@k at
+$k \in \{5,10,20,|S^\star|\}$, again clipped to $k \le p$. In null-style
+diagnostics we additionally report rejection rates and noise-selection
+behavior.
 
 \subsection{Datasets and preprocessing}
 \label{sec:experiments-datasets}
 
-All datasets are stored as Parquet files under \texttt{paper/data/}.
+We evaluate on curated synthetic suites with known signal structure and on
+real tabular datasets spanning moderate-dimensional and $p \gg n$ regimes. The
+synthetic suites are designed to isolate distinct failure modes:
+high-cardinality null features, nonlinear dependence, correlated blocks,
+redundancy, weak signal, and high-dimensional noise injection. The real-data
+benchmark is used to assess whether the same qualitative patterns persist
+outside controlled designs.
 
-\paragraph{Synthetic ground truth.}
-We use curated synthetic suites with known informative feature sets:
-8 classification datasets (\texttt{paper/data/classification/synthetic/}) and
-8 regression datasets (\texttt{paper/data/regression/synthetic/}). The suites
-include regimes designed to probe selection bias (e.g., high-cardinality noise),
-nonlinear dependence, correlated feature blocks, redundancy, high-dimensional
-scaling, and weak-signal settings.
+Within each fold, preprocessing is learned on the training portion only and
+applied unchanged to the held-out portion. Features are standardized using
+training-fold means and variances. Dataset inventories and code-aligned
+preprocessing details are collected in the supplement.
 
-\paragraph{Real datasets.}
-We evaluate on 23 real classification datasets
-(\path{paper/data/classification/real/}) and 8 real regression datasets
-(\path{paper/data/regression/real/}), emphasizing tabular feature selection
-regimes including $p \gg n$.
-
-\paragraph{Preprocessing and leakage prevention.}
-All preprocessing is fit on the training portion only within each fold and then
-applied to the held-out portion. We standardize features using training-fold
-means and variances; see \cref{app:methods-benchmark} for the code-aligned
-definition. A full dataset summary table is provided in the supplementary materials.
-
-\subsection{Methods and fairness policy}
+\subsection{Compared methods and compute budgets}
 \label{sec:experiments-methods}
 
-The current executable benchmark roster compares three families of feature
-rankers.
-First, \emph{permutation-calibrated univariate selectors} convert dependence
-scores into permutation p-values (currently
-\texttt{ptest\_mc}, \texttt{ptest\_rdc}, \texttt{ptest\_pc}, and
-\texttt{ptest\_dc}).
-Second, \emph{embedded} selectors from tree and ensemble learners (including
-\emph{conditional-inference} trees/forests
-\citep{Hothorn2006UnbiasedRecursivePartitioning,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles,HothornZeileis2015Partykit}
-and common CART-style baselines
-\citep{Breiman1984ClassificationAndRegressionTrees,Breiman2001RandomForests,Geurts2006ExtraTrees,Pedregosa2011ScikitLearn}); and
-third, \emph{wrappers} such as Boruta, RF-based permutation-importance
-baselines, an approximate conditional-permutation variant, and RF-based RFE
-\citep{Kursa2010Boruta,Guyon2002RFE,DebeerStrobl2020ConditionalPermutationImportanceRevisited}.
-The broader feature-selection literature also includes raw filters such as
-mutual information and mRMR, but those are background comparators rather than
-part of the current locked benchmark grid. Implementation-aligned definitions
-of the selector and splitter statistics used in our experiments are in
-\cref{app:methods-selectors,app:methods-splitters}.
+The benchmark includes three families of rankers.
+\emph{Permutation-calibrated filters} turn univariate dependence scores into
+permutation p-values. \emph{Embedded methods} derive rankings from trees and
+ensemble learners, including conditional-inference forests and common
+CART-style baselines. \emph{Wrappers} include recursive elimination and
+permutation-importance style procedures. Implementation-aligned definitions of
+the selector and splitter statistics used by the conditional-inference models
+are given in \cref{app:methods-selectors,app:methods-splitters}.
 
-\paragraph{Hyperparameters and compute budgets.}
-To avoid optimistic bias from unequal tuning effort, each baseline is evaluated
-under a pre-specified hyperparameter grid and compute budget. In the current
-analysis pipeline, confirmatory cross-dataset summaries are reported at the
-method-family level rather than the config-hash level: multiple locked
-configurations for the same base method are averaged within dataset before
-cross-dataset comparison. The full method roster and hyperparameter grids are provided in the
-supplementary materials.
-
-\subsection{Results}
-\label{sec:experiments-results}
-
-We first validate the statistical machinery (calibration, selection bias), then
-evaluate ranking quality on synthetic and real datasets, and finally report
-ablation experiments isolating the contribution of each design choice.
-
-% -------------------------------------------------------------------------
-\subsubsection{Selection bias under a complete global null}
-\label{sec:experiments-selection-bias}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.95\linewidth]{figures/selection_bias_demo.png}
-  \caption{Selection bias under a complete global null
-  ($\alpha{=}0.05$, Bonferroni-adjusted $\alpha/m{=}0.0167$).
-  Left: CART-style greedy split selection favors high-cardinality features
-  (continuous selected ${\sim}60\%$, categorical-$50$ selected ${\sim}33\%$).
-  Right: conditional-inference Stage~A screening rejects all features
-  ($\Pr(\text{split}){=}0.000$), correctly returning a stump.}
-  \label{fig:selection-bias-demo}
-\end{figure}
-
-\Cref{fig:selection-bias-demo} demonstrates the selection-bias problem under a
-complete global null ($X \perp\!\!\!\perp Y$) with three feature types:
-continuous, binary, and categorical with 50 levels. CART-style greedy split
-optimization selects the continuous feature at the root roughly 60\% of the
-time, because more candidate thresholds yield more opportunities to find a
-spuriously good split. The conditional-inference framework eliminates this bias
-entirely: the Stage~A permutation test rejects all features at the
-Bonferroni-adjusted level, producing a stump in every replication.
-
-% -------------------------------------------------------------------------
-\subsubsection{P-value calibration under the null}
-\label{sec:experiments-calibration}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.95\linewidth]{figures/calibration_pvalue_ecdf.png}
-  \caption{Empirical CDF (left) and histogram (right) of Stage~A $+1$
-  permutation p-values under a complete global null
-  ($n{=}200$, $B{=}199$, 10\,000 simulations). Both
-  fixed-$B$ selectors (MC, PC) and the adaptive-stopping variant lie at or
-  below the Uniform$(0,1)$ diagonal, confirming super-uniformity.}
-  \label{fig:pvalue-calibration}
-\end{figure}
-
-Under a complete global null with $n{=}200$ observations and $B{=}199$
-permutations, the $+1$ corrected MC p-value is super-uniform
-(\cref{fig:pvalue-calibration}). \Cref{tab:calibration} reports empirical
-rejection rates at $\alpha{=}0.05$ across permutation budgets and stopping
-rules. The fixed-$B$ MC test achieves rejection rates ranging from 0.041
-($B{=}49$) to 0.055 ($B{=}199$), all within the expected binomial fluctuation
-band around the nominal 0.05 level. Adaptive early stopping is marginally
-conservative: 0.047 at $B{=}199$, consistent with the Beta-CDF posterior
-concentrating slightly below the frequentist p-value.
-
-\begin{table}[t]
-  \centering
-  \caption{Empirical rejection rate under a complete global null at
-  $\alpha{=}0.05$, across permutation budgets $B$ and stopping rules.}
-  \label{tab:calibration}
-  \small
-  \begin{tabular}{llcc}
-    \toprule
-    Selector & Stopping & $B$ & Rejection rate \\
-    \midrule
-    MC & fixed-$B$ & 49  & 0.041 \\
-    MC & fixed-$B$ & 99  & 0.046 \\
-    MC & fixed-$B$ & 199 & 0.055 \\
-    MC & fixed-$B$ & 499 & 0.050 \\
-    MC & fixed-$B$ & 999 & 0.050 \\
-    PC & fixed-$B$ & 199 & 0.049 \\
-    MC & adaptive  & 199 & 0.047 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-The power analysis (\cref{fig:power}) shows that both stopping rules achieve
-near-identical power under the alternative. At weak signal strength
-(class separation $= 0.1$), rejection rate reaches 0.66--0.71 depending on $B$;
-at moderate signal ($\geq 0.5$), power saturates at 1.0 for all
-configurations. A noteworthy edge case: at $\alpha{=}0.01$ with $B{=}49$, the
-fixed-$B$ test has zero power at \emph{all} signal strengths because the
-minimum achievable p-value $(0{+}1)/(49{+}1) = 0.02$ exceeds $\alpha$. This
-resolution barrier is inherent to fixed-$B$ permutation tests and requires
-either increasing $B$ or using adaptive stopping, which resolves it by
-reporting a Bayesian posterior estimate.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.48\linewidth]{figures/ablation_power.png}
-  \caption{Power curve: rejection rate vs.\ signal strength (class separation)
-  at $\alpha{=}0.05$. Both adaptive and full (fixed-$B$) stopping rules
-  maintain Type~I error at or below 0.05 under the null (class separation $=0$)
-  and achieve identical power under the alternative.}
-  \label{fig:power}
-\end{figure}
-
-% -------------------------------------------------------------------------
-\subsubsection{Synthetic ground-truth ranking quality}
-\label{sec:experiments-synthetic}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/synthetic_cd_precision_at_10_clean.png}
-  \caption{Critical-difference diagram for precision@10 on synthetic datasets
-  with known informative features. Methods connected by a gray bar are not
-  significantly different (Nemenyi test, $\alpha{=}0.05$, CD $= 6.85$).
-  CIF achieves mean rank 7.0, within the top clique alongside CatBoost (5.0),
-  RFE (5.7), and RF (6.3).}
-  \label{fig:synthetic-ranking}
-\end{figure}
-
-On synthetic datasets with known informative feature sets,
-\cref{fig:synthetic-ranking} shows the Nemenyi critical-difference diagram for
-precision@10. CIF achieves mean rank 7.0, tied with the permutation-test
-baselines (MC-ptest 6.3, PC-ptest 7.0, DC-ptest 7.0) and not significantly
-different from the top-ranked CatBoost (5.0) or RFE (5.7). The R
-implementations of conditional inference perform substantially worse:
-R-cforest ranks 14.0 and R-ctree 17.0 (last), reflecting the performance gap
-between our optimized implementation and the original R packages.
-
-CIF's synthetic performance is regime-dependent: on Toeplitz-correlated
-features, CIF achieves 0.90 precision@10, close to the best (ptest\_mc at
-1.00). On weak-signal data (class separation $= 0.3$), CIF drops to 0.12--0.26
-precision@10, below RF (0.14--0.16) and ExtraTrees (0.16), because the
-permutation test correctly but aggressively rejects weak-but-real features. This
-trade-off between Type~I error control and power is further analyzed in the
-ablation (\cref{sec:experiments-ablation}).
-
-% -------------------------------------------------------------------------
-\subsubsection{Runtime and scalability}
-\label{sec:experiments-runtime}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.75\linewidth]{figures/ablation_scaling.png}
-  \caption{Runtime scaling of CIF vs.\ RF and ExtraTrees. (a)~Varying
-  $n$ at $p{=}100$: CIF scales roughly linearly in $n$.
-  (b)~Varying $p$ at $n{=}1000$: CIF runtime is nearly independent of $p$
-  thanks to feature muting and adaptive stopping.}
-  \label{fig:runtime}
-\end{figure}
-
-Permutation testing adds a fixed computational overhead per dataset.
-At typical feature-selection scales ($n{=}1000$, $p{=}100$), CIF completes in
-${\sim}34$\,s---practical for the offline, one-time nature of feature selection.
-At larger sample sizes ($n{=}5000$), runtime grows to ${\sim}143$\,s, scaling
-roughly linearly in $n$ (\cref{fig:runtime}a). By comparison, RF and ET
-complete in under 0.25\,s at all tested scales; the gap reflects the
-permutation-test overhead rather than an algorithmic inefficiency in the
-tree-building itself. Adaptive early stopping reduces this cost substantially: on the
-classification easy dataset ($n{=}1000$, $p{=}100$), disabling early stopping
-increases runtime from ${\sim}37$\,s to ${\sim}141$\,s (based on the
-strictness-continuum ablation with $\alpha{=}0.20$, no Bonferroni).
-
-CIF's runtime is remarkably insensitive to the number of features
-(\cref{fig:runtime}b). Across a $50\times$ range from $p{=}20$ to $p{=}1000$
-at $n{=}1000$, CIF runtime stays within 29--35\,s. Feature muting and adaptive
-stopping prune uninformative features quickly, so the per-feature marginal cost
-is near zero once the informative features have been identified.
-
-% -------------------------------------------------------------------------
-\subsubsection{Real-data downstream performance}
-\label{sec:experiments-real}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/clf_cd_balanced_accuracy_clean.png}
-  \caption{Critical-difference diagram for classification (balanced accuracy,
-  averaged across downstream models and $k$ values). CIF achieves mean rank
-  7.1 in this aggregate view. At the pre-specified primary endpoint (LR,
-  $k{=}25$), CIF ranks 6.8 of 15 methods across 25 datasets.
-  CD $= 7.58$, Nemenyi $\alpha{=}0.05$.}
-  \label{fig:real-clf}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/reg_cd_r2_clean.png}
-  \caption{Critical-difference diagram for regression ($R^2$, averaged
-  across downstream models and $k$ values). CIF ranks 9.0 in this aggregate
-  view. At the pre-specified primary endpoint (Ridge, $k{=}25$), CIF ranks
-  7.5 of 16 methods across 15 datasets.
-  CD $= 8.16$, Nemenyi $\alpha{=}0.05$.}
-  \label{fig:real-reg}
-\end{figure}
-
-Under the pre-specified primary endpoints (\cref{sec:experiments-analysis-plan}),
-CIF achieves mean rank 6.8 on classification balanced accuracy (LR, $k{=}25$,
-25 datasets) and 7.5 on regression $R^2$ (Ridge, $k{=}25$, 15 datasets).
-Pairwise Wilcoxon tests with bootstrap 95\% confidence intervals
-(\cref{tab:pairwise}) show that CIF significantly outperforms R-cforest
-($\Delta r = -6.0$, $p < 0.001$), R-ctree ($\Delta r = -5.8$, $p < 0.001$),
-CPI, PI, and CIT. CIF is not significantly different from MC-ptest, Boruta,
-or XGBoost ($p > 0.2$). CIF ranks significantly below RF ($\Delta r = +2.1$,
-$p = 0.002$), CatBoost, LightGBM, ExtraTrees, and RFE.
-
-\begin{table}[t]
-  \centering
-  \caption{Pairwise rank differences: CIF minus competitor (negative = CIF
-  better). Bootstrap 95\% CIs and Wilcoxon signed-rank $p$-values. Based on
-  Friedman ranks of balanced accuracy (LR, $k{=}25$) across datasets.}
-  \label{tab:pairwise}
-  \small
-  \begin{tabular}{lcccc}
-    \toprule
-    Competitor & $\Delta$ rank & 95\% CI & $p$ & \\
-    \midrule
-    R-cforest  & $-$6.0 & [$-$7.0, $-$4.9] & $<$0.001 & *** \\
-    R-ctree    & $-$5.8 & [$-$7.4, $-$4.3] & $<$0.001 & *** \\
-    CPI        & $-$5.9 & [$-$7.6, $-$4.0] & $<$0.001 & *** \\
-    PI         & $-$3.8 & [$-$5.5, $-$1.9] & 0.002 & ** \\
-    CIT        & $-$3.1 & [$-$4.7, $-$1.3] & 0.003 & ** \\
-    RDC-ptest  & $-$2.4 & [$-$4.5, $-$0.2] & 0.029 & * \\
-    \midrule
-    MC-ptest   & $-$1.7 & [$-$3.7, +0.6] & 0.225 &  \\
-    Boruta     & $-$0.4 & [$-$2.4, +1.7] & 0.562 &  \\
-    XGBoost    & +0.5 & [$-$1.1, +2.2] & 0.598 &  \\
-    \midrule
-    RFE        & +1.5 & [+0.3, +2.7] & 0.030 & * \\
-    LightGBM   & +1.9 & [+0.3, +3.5] & 0.035 & * \\
-    ExtraTrees & +1.9 & [+0.5, +3.4] & 0.021 & * \\
-    CatBoost   & +2.1 & [+0.2, +3.8] & 0.045 & * \\
-    RF         & +2.1 & [+0.9, +3.2] & 0.002 & ** \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\paragraph{CIF vs.\ R implementations.}
-The R implementations rank significantly below CIF (R-ctree at 14.9,
-R-cforest at 14.0) despite using the same underlying conditional-inference
-framework. CIF wins 22 of 23 real classification datasets against both R-ctree
-and R-cforest, with a mean balanced-accuracy gap of $+0.09$. We investigated
-whether this gap reflects an unfair comparison: the R configs in our grid
-include both Bonferroni and MonteCarlo test types, matching the ablation
-settings where R-ctree achieves strong precision on full data.
-The key difference is that R-ctree's strict Bonferroni test is fragile to sample
-reduction: under 5-fold cross-validation (80\% training data), the reduced
-sample size makes the permutation test too conservative, collapsing trees to
-near-empty rankings. CIF avoids this through feature muting, scanning, and
-adaptive stopping, which compensate for the sample-size reduction. This
-robustness to subsampling is itself a practical contribution of the engineering
-optimizations.
-
-\paragraph{Robustness across downstream models and metrics.}
-CIF's rank is stable across downstream classifiers: 6.8 (LR), 6.9 (KNN), and
-7.4 (SVM) at $k{=}25$, confirming that the ranking quality is not an artifact
-of the downstream model choice.
-For regression, CIF performs substantially better with nonlinear downstream
-models: rank 5.6 with SVR compared to 7.5 with Ridge at $k{=}25$, suggesting
-that CIF's feature rankings capture nonlinear signal that linear models
-underutilize. Variance decomposition confirms that dataset identity explains
-50.6\% of performance variance, $k$ explains 7.3\%, and method choice explains
-only 4.5\%---the choice of which features to select matters less than which
-dataset you are working with.
-
-\paragraph{Performance at varying $k$.}
-CIF's ranking quality improves with the number of selected features. At
-$k{=}5$, CIF ranks 6.8; by $k{=}50$, CIF narrows the gap to RF (5.9 vs.\
-5.9). At $k{=}100$, CIF (6.3) overtakes RF (6.9). This pattern holds across
-all three downstream models (LR, SVM, KNN), confirming it is a property of
-the ranking itself rather than an interaction with the downstream learner.
-The crossover reflects the value of deep permutation-tested trees: features
-discovered at deeper nodes contribute meaningful signal at larger $k$, whereas
-RF's impurity-based importance concentrates on the strongest signals and adds
-diminishing value in the tail.
-
-\paragraph{Dimensionality stratification.}
-CIF is most competitive on low-dimensional datasets ($p \leq 100$, rank 6.3)
-and mid-dimensional datasets ($100 < p \leq 1000$, rank 5.6), but degrades on
-high-dimensional data ($p > 1000$, rank 7.5 vs.\ RF at 4.0 and CatBoost at
-3.6). The high-dimensional penalty reflects Bonferroni correction: with $p >
-1000$ features and $\alpha = 0.05$, the effective per-feature threshold drops
-below $5 \times 10^{-5}$, stunting tree depth and limiting the number of
-features that enter the ranking.
-
-\paragraph{CIF configuration sensitivity.}
-The benchmark evaluates four CIF configurations spanning two selectors
-(MC, RDC) and honesty (on, off). MC-based selection outperforms RDC by $+0.03$
-balanced accuracy on average; honesty has a marginal negative effect ($-0.007$).
-The best single configuration (MC, no honesty) achieves a mean rank of
-${\sim}3$ per dataset, comparable to the top methods. However, the benchmark
-reports method-family averages across configurations, which costs CIF
-approximately 3.5 rank positions. This averaging penalty is by design---it
-prevents cherry-picking configurations---but means that the headline rank of
-6.8 understates the performance of CIF under its best settings.
-
-% -------------------------------------------------------------------------
-\subsubsection{Ablation study}
-\label{sec:experiments-ablation}
-
-We systematically vary each design parameter of the conditional-inference forest
-to isolate its effect on ranking quality and runtime.
-
-\paragraph{Sensitivity to $\alpha$.}
-\Cref{fig:ablation-alpha} shows precision@10 across $\alpha_{\text{selector}}
-\in \{10^{-3}, 10^{-2}, 0.05, 0.1, 0.2, 0.5\}$ on synthetic datasets. On
-strong-signal data (Toeplitz, easy), precision is essentially flat across all
-$\alpha$ values (0.86--0.92), confirming that the permutation test is
-informative enough to identify strong features regardless of the threshold. On
-weak-signal and high-dimensional data, a more permissive $\alpha$ marginally
-improves precision (e.g., 0.10 at $\alpha{=}0.01$ vs.\ 0.20 at $\alpha{=}0.2$
-on clf\_weak\_signal) at the cost of admitting more noise features.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/ablation_alpha_depth.png}
-  \caption{Precision@10 vs.\ $\alpha_{\text{selector}}$ across synthetic
-  datasets. Strong-signal datasets are insensitive to $\alpha$; weak-signal
-  datasets benefit marginally from more permissive thresholds.}
-  \label{fig:ablation-alpha}
-\end{figure}
-
-\paragraph{Forest size saturation.}
-The number of estimators exhibits diminishing returns on most datasets
-(\cref{fig:ablation-nest}).
-On Toeplitz-correlated data, a single tree achieves 0.44 precision@10;
-$n_{\text{est}}{=}25$ saturates at 0.90, with no improvement through
-$n_{\text{est}}{=}100$. A notable exception is the weak-signal regime, where
-precision is non-monotone: it peaks at $n_{\text{est}}{=}25$ (0.26) and
-declines to 0.12 at $n_{\text{est}}{=}100$, suggesting that averaging over
-many trees can dilute sparse signals when individual trees disagree on which
-features are informative. We recommend $n_{\text{est}}{=}100$ as the default
-for robustness on typical data, with the caveat that fewer trees may be
-preferable under very weak signal.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/ablation_n_estimators.png}
-  \caption{Precision@10 vs.\ number of estimators. Performance saturates
-  by $n_{\text{est}}{=}25$ on correlated data and shows diminishing returns
-  on harder datasets.}
-  \label{fig:ablation-nest}
-\end{figure}
-
-\paragraph{Permutation budget.}
-\Cref{fig:ablation-nresamples} shows that $B{=}99$ permutations with adaptive
-stopping achieves virtually identical ranking quality to $B{=}999$.
-On clf\_toeplitz: 0.90 at $B{=}49$ vs.\ 0.92 at $B{=}99$ and 0.90 at
-$B{=}999$. On reg\_weak\_signal: 0.76--0.78 across all $B$ values. The adaptive
-stopping rule extracts sufficient information from small permutation budgets,
-making the ``minimum'' preset ($B{=}49$--$99$) a practical default.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/ablation_nresamples.png}
-  \caption{Precision@10 vs.\ permutation budget $B$. Results are essentially
-  flat beyond $B{=}99$, confirming that adaptive stopping makes large
-  permutation budgets unnecessary.}
-  \label{fig:ablation-nresamples}
-\end{figure}
-
-\paragraph{Bootstrap and feature subsampling.}
-\Cref{fig:ablation-bootstrap} reveals that bootstrap sampling and
-feature subsampling interact with dataset structure. Disabling bootstrap
-yields perfect precision (1.00) on the easy dataset compared to 0.84 with
-bootstrap, because bagging introduces ranking variability. However, on the
-confounder dataset, half-feature subsampling ($p/2$) improves precision from
-0.38 to 0.60 and reduces the confounder rate in the top-5 from 0.64 to 0.24,
-because forcing each tree to evaluate different feature subsets breaks the
-correlation that allows confounders to dominate.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/ablation_bootstrap.png}
-  \caption{Precision@10 across bootstrap and feature subsampling
-  strategies. No-bootstrap is better on easy/strong-signal data; $p/2$
-  subsampling substantially helps on confounder-contaminated data.}
-  \label{fig:ablation-bootstrap}
-\end{figure}
-
-\paragraph{Noise robustness.}
-When 1000 pure-noise features are injected (100:1 noise-to-signal ratio), CIF
-achieves 0.70 precision@10 on strong-signal data, behind RF (0.80) and ET
-(0.80) but still identifying 7 of 10 informative features. On moderate signal
-CIF drops to 0.50 precision. When the number of informative features is
-increased to 20, all three methods achieve perfect precision@10. CIF's runtime
-remains near-constant at ${\sim}31$\,s regardless of difficulty, consistent with
-the feature-muting mechanism rapidly pruning noise features from consideration.
+To reduce optimistic bias from unequal tuning effort, every method is run
+under a locked hyperparameter grid and compute budget. Cross-dataset
+confirmatory summaries are reported at the method-family level rather than at
+the individual configuration-hash level, so small within-method configuration
+changes do not dominate the paper story.
 
 \paragraph{Reproducibility.}
 Experiment orchestration, analysis, and figure generation scripts live under
 \texttt{paper/scripts/}, and generated artifacts are written to
-\texttt{paper/results/}. The repository is available at
-\url{https://github.com/rmill040/citrees}.
+\texttt{paper/results/}. The full benchmark is designed to be reproducible
+from the repository.

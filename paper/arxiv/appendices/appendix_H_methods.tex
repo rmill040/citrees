@@ -90,7 +90,9 @@ For a leaf containing indices $L$, the leaf prediction is the mean response,
 At node $t$ with sample indices $I_t$ and data $(X_t, Y_t)$, Stage~A tests each
 candidate feature $X_{t,j}$ for association with $Y_t$. Features that are
 constant at the node are removed from the candidate set since they cannot
-become non-constant within the subtree rooted at $t$.
+become non-constant within the subtree rooted at $t$. In the implementation
+this descendant-safe pruning happens \emph{before} any
+\texttt{max\_features} subsampling at the current node.
 
 \begin{algorithm}[t]
   \caption{Stage A feature screening at a node (implementation-aligned)}
@@ -608,7 +610,7 @@ Stage~B analogously uses a strict comparison against
 $\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
 \texttt{adjust\_alpha\_splitter} is enabled.
 
-\paragraph{Across-feature max-$T$ (not in the current theorem chain).}
+\paragraph{Across-feature max-$T$ (not part of the main calibration results).}
 One possible extension of Stage~A is to apply a Westfall--Young-style max-$T$
 calibration across features at a node (using shared label permutations across
 all tested features) instead of Bonferroni. This can be less conservative under
@@ -620,7 +622,7 @@ When combining multiple selector statistics, \citrees supports a max-statistic
 construction: within each permutation, take the maximum across selectors for a
 fixed feature (and then compute a single p-value from the max-statistics).
 Under exchangeability, the resulting +1 p-value remains super-uniform (see
-\cref{prop:multiselector-validity} and \cref{app:multiselector}). This is
+\cref{sec:multiselector}). This is
 closely related to the max-$T$ resampling principle \citep{WestfallYoung1993ResamplingBasedMultipleTesting}.
 
 \subsection{Forests and resampling}
@@ -707,7 +709,7 @@ Each method produces a permutation of the $p$ feature indices,
 %
 ordered so that smaller $k$ indicates higher importance. For tree and forest
 methods, rankings are derived from model-specific variable-importance or
-variable-usage summaries. Most Python tree/forest baselines use a
+variable-usage summaries. Most tree and forest baselines use a
 feature-importance vector (e.g., impurity decrease), while the
 \texttt{r\_ctree} baseline is ranked by split-usage counts extracted from the
 fitted tree and \texttt{r\_cforest} uses \texttt{partykit::varimp}. For

@@ -27,7 +27,7 @@ execution mode (to enable line coverage measurement in CI).
 
 \citrees supports reproducible randomness via a user-provided base seed, but the
 implementation uses two RNG patterns depending on the execution path.
-Pure-Python permutation-test routines initialize a local
+Non-JIT permutation-test routines initialize a local
 \texttt{np.random.default\_rng(random\_state)} stream, while compiled parallel
 Numba routines use per-resample seeding inside parallel loops,
 %

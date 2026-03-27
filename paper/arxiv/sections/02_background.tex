@@ -1,123 +1,64 @@
-\section{Background and related work}
-\label{sec:background}
+\section{Problem setting and inferential scope}
+\label{sec:scope}
 
-\paragraph{Why greedy split selection is statistically delicate.}
-At a tree node, a split rule compares many candidate variables and, for each
-variable, many candidate thresholds. In CART this is a direct optimization of
-an impurity objective over the union of all candidates
-\citep{Breiman1984ClassificationAndRegressionTrees}. If feature $j$ has
-$|C_j|$ admissible thresholds, then the best score for that feature is an
-extreme order statistic over $|C_j|$ opportunities. Even under a complete null
-where labels are unrelated to covariates, features with larger candidate sets
-tend to achieve more favorable impurity improvements by chance. That is the
-core mechanism behind the well-known high-cardinality bias in greedy trees.
-The issue predates random forests and motivated alternative split-selection
-rules such as QUEST, CRUISE, and GUIDE
-\citep{LohShih1997SplitSelectionMethods,Shih2004NoteOnSplitSelectionBiasClassificationTrees,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection};
-closely related work also studied unbiased split selection directly for
-Gini-based classification trees
-\citep{StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini}. The same bias
-mechanism reappears in the analysis of random-forest importance measures
-\citep{Strobl2007BiasRFVariableImportance}.
+At a tree node, split selection compares both variables and thresholds. In a
+CART-style learner, if feature $j$ has $|C_j|$ admissible thresholds, then the
+best observed score for that feature is an extreme statistic over $|C_j|$
+opportunities \citep{Breiman1984ClassificationAndRegressionTrees}. Under a
+complete null, features with larger candidate sets therefore look more
+favorable by chance, which is the core high-cardinality bias documented in the
+tree-induction and random-forest importance literature
+\citep{LohShih1997SplitSelectionMethods,Shih2004NoteOnSplitSelectionBiasClassificationTrees,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini,Strobl2007BiasRFVariableImportance}.
+Schematically, the greedy rule is
+%
+\begin{equation}
+  (\widehat j,\widehat c) \in \argmax_{j,\ c \in C_j} S_{j,c},
+\end{equation}
+%
+so variables with larger candidate sets receive more chances to attain an
+extreme null score.
 
-\paragraph{Conditional inference as a separation principle.}
-Conditional inference trees \citep{Hothorn2006UnbiasedRecursivePartitioning}
-replace the single greedy optimization with a two-stage procedure. Stage~A asks
-which features are associated with the response at the current node; Stage~B
-asks where to split within the chosen feature. The original framework uses
-linear test statistics with a permutation-statistics foundation due to
-\citet{StrasserWeber1999PermutationStatistics}, and is implemented in widely
-used software ecosystems such as the original \texttt{coin}/\texttt{party}
-framework and later
-\texttt{partykit}
-\citep{HothornHornikVandeWielZeileis2006LegoSystemConditionalInference,HothornZeileis2015Partykit}.
-The important conceptual point is that the separation changes the object being
-analyzed: instead of studying the winner of a large impurity search, one can
-study a nodewise screening test. In this paper, that is the inferential anchor.
+Conditional inference changes the object being analyzed
+\citep{Hothorn2006UnbiasedRecursivePartitioning}. Stage~A asks whether any
+candidate feature is associated with the response at the current node; Stage~B
+then searches for a split within the selected feature. The underlying
+permutation-statistics viewpoint traces to \citet{StrasserWeber1999PermutationStatistics}.
+For this paper, the important point is the separation itself: once variable
+screening is isolated from threshold optimization, one can formulate a
+fixed-node screening problem that is distinct from the full adaptive tree.
+The corresponding two-stage schematic is
+%
+\begin{equation}
+  \widehat j \in \argmin_{j \in F_t} p_{t,j},
+  \qquad
+  \widehat c \in \argmax_{c \in C_{t,\widehat j}} S_{\widehat j,c},
+\end{equation}
+%
+which separates the inferential question ``is any feature associated with the
+response at this node?'' from the downstream optimization over thresholds.
 
-\paragraph{From the original framework to an implementation-oriented one.}
-The present library keeps the conditional-inference separation but broadens the
-set of Stage~A statistics and practical execution modes. In addition to the
-classical conditional-inference perspective, it supports dependence scores such
-as mutual information, distance correlation, and randomized dependence
-coefficients \citep{Kraskov2004EstimatingMutualInformation,Szekely2007DistanceCorrelation,LopezPaz2013RDC},
-multi-selector aggregation via a max-statistic, tree ensembles, and several
-runtime-oriented heuristics. This broader implementation is useful for
-benchmarking and deployment, but it also makes it essential to distinguish the
-fixed-node object that permutation theory calibrates from the adaptive tree that
-practitioners actually run.
+That fixed-node screening problem is the inferential target studied here. At a
+pre-specified node, Stage~A tests whether any feature in the tested family is
+associated with the response under a nodewise complete permutation null. This
+is narrower than post-selection inference for the selected feature or
+threshold, and narrower than global error control for an end-to-end ranking
+workflow \citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection,BenjaminiHochberg1995FDR,BarberCandes2015Knockoffs,MeinshausenBuhlmann2010StabilitySelection}.
+Once Stage~A is embedded in a tree or forest, later nodes and Stage~B become
+adaptive because they reuse labels after earlier data-dependent decisions.
 
-\paragraph{Which inferential target is under discussion?}
-Several distinct targets are easy to conflate.
-One target is \emph{fixed-node screening}: at a pre-specified node, test
-whether any of the currently tested features is associated with the response.
-That is the target addressed by the theory in this paper.
-A second target is \emph{post-selection inference} for the selected feature or
-selected threshold after the tree has already adapted to the same data. A third
-target is \emph{global feature-selection control} for an end-to-end ranking or
-subset-selection workflow.
-These latter targets are substantially harder and belong to different
-literatures, including selective inference after model selection
-\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection},
-false-discovery control \citep{BenjaminiHochberg1995FDR,BarberCandes2015Knockoffs},
-and stability-based selection \citep{MeinshausenBuhlmann2010StabilitySelection}.
-We cite them here not to claim those guarantees, but to make clear that our
-paper addresses a narrower inferential object.
+Within that fixed-node target, multiplicity is handled conservatively with
+Bonferroni across features. The same broad max-statistic idea also appears in
+the paper's multi-selector mode, where multiple Stage~A scores are aggregated
+within a feature \citep{WestfallYoung1993ResamplingBasedMultipleTesting}. The
+paper uses these tools only for the fixed-node decision event; it does not
+claim partial-null featurewise inference for the selected variable.
 
-\paragraph{Multiplicity correction at a node.}
-Once Stage~A is viewed as a family of feature-wise tests at a fixed node,
-classical multiple-testing tools become relevant. Bonferroni is conservative
-but assumption-light and yields immediate complete-null control for the nodewise
-decision event. Resampling-based alternatives such as Westfall--Young max-$T$
-\citep{WestfallYoung1993ResamplingBasedMultipleTesting} can be less
-conservative when dependence across tested features is exploited. In this
-manuscript, Bonferroni is the main theorem-backed correction across features,
-while multi-selector aggregation within a feature uses the same max-statistic
-principle in a narrower setting.
-
-\paragraph{Engineering pressure in modern tree systems.}
-The original statistical motivation for conditional inference sits inside a
-broader ecosystem of tree learners optimized for predictive performance and
-throughput. Random forests and extra trees introduce bootstrap resampling,
-feature subsampling, and threshold randomization
-\citep{Breiman2001RandomForests,Geurts2006ExtraTrees}; modern boosting systems
-use approximate split search and histogram methods at scale
-\citep{Friedman2001GBM,ChenGuestrin2016XGBoost,Ke2017LightGBM,Prokhorenkova2018CatBoost}.
-These developments matter for this paper because they explain why a practical
-conditional-inference implementation accumulates heuristics such as early
-stopping, scan ordering, threshold subsampling, and forest resampling. Those
-choices are central to runtime and predictive utility, but they should not be
-silently conflated with the fixed-$B$ permutation regime.
-
-\paragraph{Feature-selection baselines and evaluation target.}
-The broader feature-selection literature spans simple filters, redundancy-aware
-filters, wrappers, and embedded methods. Relevant comparators include
-correlation- or dependence-based filters, mRMR \citep{Peng2005MRMR}, recursive
-feature elimination \citep{Guyon2002RFE}, Boruta \citep{Kursa2010Boruta},
-random-forest-based variable-selection heuristics
-\citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, and
-permutation-importance variants, including conditional-permutation ideas
-\citep{Breiman2001RandomForests,Strobl2008ConditionalVIM,DebeerStrobl2020ConditionalPermutationImportanceRevisited,Pedregosa2011ScikitLearn}.
-Because different methods optimize different internal objectives, we evaluate
-them primarily as \emph{rankers}: each method outputs an ordering of features,
-and that ordering is judged through a downstream rank-then-evaluate protocol
-rather than by in-sample impurity alone.
-
-\paragraph{Permutation testing and Monte Carlo p-values.}
-Permutation tests provide a nonparametric route to calibration when the labels
-are exchangeable under the null relative to the permutation scheme. In the
-Monte Carlo setting, the exactness logic behind permutation reference
-distributions is classical \citep{Ernst2004PermutationMethodsExactInference},
-while empirical p-value estimation from random Monte Carlo draws has its own
-calibration issues \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo}. When
-only random permutations are used, exactness requires care; recent treatments
-make precise when identity-plus-random-permutation schemes retain finite-sample
-validity \citep{HemerikGoeman2018ExactTestingRandomPermutations}. The
-Phipson--Smyth ``+1'' correction then yields finite-sample super-uniform
-p-values under exchangeability
-\citep{PhipsonSmyth2010PermutationPValues}. There is also a substantial
-literature on sequential Monte Carlo testing and bounded resampling risk
-\citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
-Our implementation includes early-stopping heuristics for speed, but this paper
-does not invoke that literature to claim optional-stopping validity for the
-default engineering outputs.
+The broader systems context still matters because a usable tree learner needs
+more than a calibrated screening rule. Random forests, extra trees, and modern
+boosting systems all rely on resampling, subsampling, or approximate search to
+stay practical at scale
+\citep{Breiman2001RandomForests,Geurts2006ExtraTrees,Friedman2001GBM,ChenGuestrin2016XGBoost,Ke2017LightGBM,Prokhorenkova2018CatBoost}.
+Conditional-inference trees face the same pressure. Early stopping, candidate
+ordering, threshold subsampling, feature muting, and forest resampling are
+therefore part of the practical algorithm, but they should not be conflated
+with the fixed-$B$ calibration target.

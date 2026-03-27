@@ -1,0 +1,109 @@
+\section{Detailed runtime and space complexity}
+\label{app:complexity-details}
+
+This appendix collects the implementation-aligned complexity discussion so the
+main paper can stay focused on the algorithmic flow and the inferential scope.
+
+At node $t$, let $a_t$ be the number of features still available to the
+subtree before the current node removes constant features, let $m_t$ be the
+number of Stage~A features actually tested after any \texttt{max\_features}
+subsampling, and let $q_t$ be the number of Stage~B thresholds generated for
+the selected feature after threshold generation and
+\texttt{min\_samples\_leaf} filtering. When early stopping is enabled, let
+$r_t \le m_t$ and $s_t \le q_t$ denote the numbers of features and thresholds
+whose permutation tests are actually evaluated before the stage terminates.
+
+Let $C_{\mathrm{sel}}(n_t)$ be the cost of one selector evaluation on $n_t$
+samples and $C_{\mathrm{split}}(n_t)$ the cost of one split-quality
+evaluation. For the default MC/Gini or PC/MSE configurations these costs are
+linear in $n_t$; RDC is $O(n_t \log n_t)$ because it uses sorting-based
+empirical-CDF transforms, and distance correlation is $O(n_t^2)$.
+
+\paragraph{Reference-mode node cost.}
+In the fixed-$B$ exhaustive regime, every tested Stage~A feature and every
+generated Stage~B threshold is evaluated. Up to constant factors, one internal
+node therefore costs
+%
+\begin{equation}
+  T_t^{\mathrm{ref}}
+  =
+  O\!\Bigl(
+    a_t n_t
+    +
+    m_t B_t^{\mathrm{sel}} C_{\mathrm{sel}}(n_t)
+    + n_t \log n_t
+    + q_t B_t^{\mathrm{split}} C_{\mathrm{split}}(n_t)
+    + n_t p
+  \Bigr).
+\end{equation}
+%
+The $a_t n_t$ term comes from the descendant-safe preprocessing pass that
+scans all currently available features and removes those that are constant at
+the node before any \texttt{max\_features} subsampling. The $n_t \log n_t$
+term comes from extracting unique values, sorting for
+\texttt{min\_samples\_leaf} filtering, and building threshold candidates. The
+$n_t p$ term comes from materializing dense left/right child matrices after an
+accepted split. Approximate threshold methods cap $q_t$, but they do not
+remove the initial unique-value pass.
+
+\paragraph{Engineering mode.}
+Early stopping and candidate scanning do not change the worst-case order
+above, but they can reduce realized work substantially. In practice, the fixed
+counts $m_t$, $q_t$, $B_t^{\mathrm{sel}}$, and $B_t^{\mathrm{split}}$ are
+replaced by smaller realized quantities $r_t$, $s_t$,
+$\bar B_t^{\mathrm{sel}}$, and $\bar B_t^{\mathrm{split}}$. The initial
+$a_t n_t$ preprocessing pass is still paid at each nonterminal node. When
+scanning is enabled, the procedure adds one cheap prescan pass plus sorting,
+contributing roughly
+$O(m_t C_{\mathrm{sel}}(n_t) + m_t \log m_t)$ for features and
+$O(q_t C_{\mathrm{split}}(n_t) + q_t \log q_t)$ for thresholds. The practical
+speedup from the engineering knobs therefore comes from reducing how many
+permutation tests are actually run, not from changing the worst-case
+asymptotics.
+
+\paragraph{From nodes to trees and forests.}
+Tree training cost is the sum of node costs over internal nodes,
+%
+\begin{equation}
+  T_{\mathrm{tree}} = \sum_{t \in \mathcal{I}(T)} T_t.
+\end{equation}
+%
+A depth cap $D$ gives the crude bound $|\mathcal{I}(T)| \le 2^D - 1$, but in
+practice both $n_t$ and the candidate counts usually shrink with depth. For a
+forest of $M$ trees, total arithmetic work scales linearly in $M$, while
+\texttt{n\_jobs} mainly affects wall-clock time rather than total work.
+
+\paragraph{Which knobs matter most.}
+\begin{itemize}
+  \item \textbf{\texttt{max\_features}.} This caps $m_t$ directly and therefore
+  the Stage~A search width. It does \emph{not} cap the initial descendant-safe
+  constant-feature pass over the full currently available set $a_t$.
+  \item \textbf{\texttt{feature\_muting}.} This mainly helps future nodes by
+  shrinking descendant candidate sets. Its effect is therefore on future $a_t$
+  and $m_t$, not on the current node's dense data-copy cost.
+  \item \textbf{\texttt{threshold\_method} and \texttt{max\_thresholds}.} These
+  cap $q_t$ and therefore the dominant Stage~B evaluation loop, but they do
+  not eliminate the initial unique-value preprocessing.
+  \item \textbf{\texttt{early\_stopping\_\*}, \texttt{feature\_scanning}, and
+  \texttt{threshold\_scanning}.} These are expected-work optimizations: they
+  can reduce $r_t$, $s_t$, and realized permutation budgets, but they do not
+  change the worst-case order.
+  \item \textbf{Bonferroni correction.} With Stage~A threshold
+  $\alpha_{\mathrm{sel}}/m_t$, the minimum fixed-$B$ resampling floor
+  increases from $\lceil 1/\alpha_{\mathrm{sel}} \rceil$ to
+  $\lceil m_t/\alpha_{\mathrm{sel}} \rceil$. Under the ``maximum'' resampling
+  mode, the implied ceiling grows quadratically in $m_t$.
+  \item \textbf{\texttt{max\_samples}, \texttt{n\_estimators}, and
+  \texttt{n\_jobs}.} These control forest scaling: per-tree sample size, total
+  arithmetic work, and the wall-clock versus memory trade-off.
+\end{itemize}
+
+\paragraph{Space complexity.}
+Per node, the auxiliary arrays for candidate scores, thresholds, and
+permutation buffers cost $O(m_t + q_t + n_t + B_t)$ space, where $B_t$ is the
+active permutation budget for the current test. In parallel permutation
+kernels, thread-local label copies add transient memory on the order of
+$O(C n_t)$ for $C$ workers. The largest temporary allocation during tree
+growth is usually the dense child data materialized after an accepted split,
+which costs $O(n_t p)$ at that node. Persistent model storage is $O(|T|)$ per
+tree and therefore scales linearly with the number of trees in a forest.

@@ -1,26 +1,22 @@
-Greedy decision trees select split variables by optimizing impurity over many
-candidate thresholds, creating a multiple-comparisons effect: under a complete
-null, high-cardinality features are more likely to appear informative by chance.
-Conditional inference trees address this by separating variable screening from
-split-point optimization via permutation-based hypothesis testing.
+Conditional inference trees decouple feature screening from threshold
+optimization through permutation testing, reducing the high-cardinality bias
+of greedy CART-style split search. This paper is organized around two
+questions that are often blurred together: which part of the procedure admits
+finite-sample calibration, and how the full tree or forest should be evaluated
+as a feature-ranking system.
 
-We study conditional inference trees and forests at two levels. First, we analyze
-a fixed-$B$ reference regime that the implementation can run: a fixed node,
-label-independent tested family, exhaustive Stage~A screening, and conservative
-+1 Monte Carlo permutation p-values. In this regime, the Stage~A per-feature
-p-values are super-uniform under a nodewise complete permutation null, and
-Bonferroni yields complete-null bounds on the probability of any Stage~A
-rejection at the fixed node and on the probability that the node accepts a
-split on any particular tested feature, without dependence on the number of
-candidate thresholds. We also show, via an idealized
-exchangeable-score symmetry model for CART threshold search, that greedy CART
-selection favors features in proportion to their candidate split count.
+Our theoretical analysis is intentionally narrow. In fixed-$B$ mode at a
+pre-specified node, the $+1$ Monte Carlo permutation p-value used in Stage~A
+is super-uniform under the complete permutation null, and Bonferroni controls
+the probability of any Stage~A rejection at that node. These guarantees do not
+automatically extend to adaptive internal nodes, Stage~B threshold searches,
+or early-stopped permutation outputs.
 
-Second, we document the practical engineering optimizations used in the software,
-including adaptive early stopping, candidate scanning, feature muting, threshold
-subsampling, and forest resampling. These optimizations are important for speed
-and scalability, but they are treated as algorithmic heuristics or empirical
-design choices rather than as part of the fixed-$B$ theorem chain. We evaluate
-feature rankings via a two-stage rank-then-evaluate benchmark on synthetic
-ground-truth and real tabular datasets. A reference implementation is publicly
-available.
+The empirical sections are structured around a rank-then-evaluate benchmark on
+synthetic and real tabular datasets, with confirmatory claims tied to
+pre-specified primary endpoints and broader summaries treated descriptively.
+The main practical theme is a strictness--depth tradeoff: conservative
+nodewise screening improves calibration but can reduce the depth by which a
+forest discovers weaker signals. The manuscript is organized to keep that
+tradeoff, and the boundary between calibrated and adaptive quantities, easy to
+read.

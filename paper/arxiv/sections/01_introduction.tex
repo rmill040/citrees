@@ -1,106 +1,69 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Feature selection in tabular learning serves at least two distinct goals:
-improving downstream prediction by removing noise variables, and producing a
-ranking that domain users can inspect, audit, and compare across datasets.
-Tree-based methods are attractive for both goals because they can capture
-nonlinearity and interactions while yielding an embedded notion of variable
-importance through the split structure. But that same recursive search makes
-statistical interpretation difficult: the chosen variable at a node is the
-winner of many data-dependent comparisons, and later nodes are conditioned on
-earlier random splits.
+Feature selection in tabular learning has two jobs: improve downstream
+prediction by removing noise variables, and produce a ranking that users can
+inspect and compare across datasets. Tree-based methods are attractive for
+both because they capture nonlinearity and interactions while yielding an
+embedded notion of variable importance. The statistical difficulty is that
+split selection is itself an adaptive search: a chosen variable wins many
+data-dependent comparisons, and later nodes depend on earlier
+label-dependent splits.
 
-This tension is already visible at the root. Classical CART-style trees choose
-a variable and threshold by optimizing an impurity objective over a large set
-of candidate cutpoints \citep{Breiman1984ClassificationAndRegressionTrees}. For
-continuous or high-cardinality features, the number of candidate thresholds can
-be much larger than for coarse or categorical features, so the greedy search
-implicitly favors variables with more opportunities to attain an extreme score
-by chance. This selection mechanism has long been recognized as a source of
-bias in tree-based methods and random-forest importance measures
+That difficulty appears already at the root. CART-style trees optimize an
+impurity criterion over the union of all variable-threshold pairs
+\citep{Breiman1984ClassificationAndRegressionTrees}. Features with many
+admissible cutpoints therefore have more opportunities to attain an extreme
+score by chance, which induces the well-known high-cardinality bias in tree
+induction and random-forest importance measures
 \citep{LohShih1997SplitSelectionMethods,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,Strobl2007BiasRFVariableImportance}.
 
-Conditional inference trees were introduced precisely to break that coupling
-\citep{Hothorn2006UnbiasedRecursivePartitioning}. Instead of searching over all
-split thresholds at once, they first screen features for association with the
-response via hypothesis testing (Stage~A), and only then optimize a threshold
-within the selected feature (Stage~B). That separation is statistically useful
-because it creates a well-defined fixed-node screening object on which finite-sample
-permutation arguments can be stated. It is also practically useful because the
-same Stage~A machinery can be embedded inside trees and forests to induce a
-feature ranking.
+Conditional inference trees address that bias by separating \emph{which
+variable} to split from \emph{where} to split it
+\citep{Hothorn2006UnbiasedRecursivePartitioning}. Stage~A screens candidate
+features with hypothesis tests; Stage~B then optimizes the threshold within
+the selected feature. That separation gives a clean fixed-node screening
+object to which classical permutation arguments apply. The same Stage~A
+machinery also yields an embedded feature ranker when it is used inside a tree
+or forest.
 
-The difficulty is that this screening object is not the whole algorithm.
-Modern tree software is expected to behave like an engineering system: it must
-scale to many features, support forests, and keep runtime competitive with
-high-throughput baselines such as random forests, extra trees, and boosted-tree
-systems \citep{Breiman2001RandomForests,Geurts2006ExtraTrees,ChenGuestrin2016XGBoost,Ke2017LightGBM,Prokhorenkova2018CatBoost}.
-Practical implementations therefore add adaptive stopping, candidate-ordering
-heuristics, threshold subsampling, and bootstrap-based ensemble randomness.
-These choices are often sensible computationally, but they alter the inferential
-object. A paper on conditional inference methods has to distinguish clearly
-between theorem-backed nodewise screening and algorithmic heuristics used in a
-full tree learner.
+The fixed-node screening object, however, is not the whole learner. A modern
+implementation also needs early stopping, candidate ordering, threshold
+subsampling, feature muting, and forest resampling to stay computationally
+usable. Those choices are often sensible, but they change the inferential
+object. The organizing principle of this paper is therefore simple: we
+separate the \emph{calibrated screening claims} that hold for fixed-node
+Stage~A in fixed-$B$ mode from the \emph{engineering behavior} of the full
+adaptive tree or forest.
 
-\paragraph{Two roles: screening vs.\ embedding.}
-This manuscript studies Stage~A in both roles. First, we treat fixed-node
-Stage~A screening, especially at the root, as a standalone permutation-based
-feature screening rule. In that role, the target is a nodewise complete-null
-decision event, and the theorem-backed object is the fixed-$B$ Monte Carlo
-permutation p-value. Second, we study Stage~A as a component inside a recursive
-tree/forest feature ranker. In that role, the tree is an adaptive embedding
-procedure, and later-node quantities are best viewed as algorithmic statistics
-unless additional selective-inference machinery is introduced. This distinction
-is central to the paper and is summarized explicitly in \cref{sec:pvalue-scope}.
-
-\paragraph{Two operating regimes in the implementation.}
-The software therefore supports two conceptually different regimes. The
-\emph{reference regime} disables early stopping and uses an exhaustive fixed-$B$
-Stage~A scan at a fixed node; this is the regime analyzed in
-\cref{sec:theory}. The \emph{default engineering regime} enables adaptive
-stopping and additional heuristics such as candidate scanning, feature muting,
-threshold subsampling, and forest bootstrap resampling. Those behaviors are
-important for practical ranking performance and runtime, but they are not all
-covered by the fixed-node theorem chain.
-
-\paragraph{What this paper is and is not.}
-This is not a general post-selection inference paper for fully adaptive trees,
-nor a global false-discovery-control paper for arbitrary feature-selection
-workflows. Those are different inferential targets with their own literatures,
-including selective inference after model selection
-\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection},
-stability-based variable selection \citep{MeinshausenBuhlmann2010StabilitySelection},
-and knockoff-style FDR control \citep{BarberCandes2015Knockoffs}. Our target is
-more specific: to make precise which parts of a conditional-inference tree
-workflow admit classical finite-sample permutation guarantees, and how those
-parts interact with an implementation that also contains pragmatic heuristics.
+Our scope is deliberately narrower than general post-selection inference for
+recursive trees, and narrower than global FDR/FWER control for end-to-end
+feature-selection workflows. Those are important but different targets
+\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection,MeinshausenBuhlmann2010StabilitySelection,BarberCandes2015Knockoffs}.
+Here we focus on fixed-node Stage~A screening under the complete permutation
+null, and on the empirical consequences of embedding that screening rule
+inside a practical feature-ranking system.
 
 \paragraph{Contributions.}
-This paper makes three contributions.
-First, it gives finite-sample, fixed-node guarantees for Stage~A screening in a
-fixed-$B$ reference regime under a nodewise \emph{complete} permutation null,
-including +1 Monte Carlo p-value super-uniformity and Bonferroni-based
-complete-null bounds on Stage~A rejections at the node and on the probability
-that the node accepts a split on any particular tested feature. These
-guarantees do not depend on the number of candidate thresholds available to a
-feature.
-Second, it presents a software-aligned account of the engineering optimizations
-used to scale conditional inference trees and forests, while drawing a hard
-line between theorem-backed fixed-node quantities and adaptive/default outputs
-that should be interpreted empirically rather than inferentially.
-Third, it evaluates the method as a feature ranker under a pre-specified
-rank-then-evaluate benchmark on synthetic and real datasets, so the practical
-value of the engineering heuristics is assessed where theory is intentionally
-not claimed.
+First, we give a clean statement of what is and is not calibrated in a
+conditional-inference workflow: fixed-node Stage~A p-values in the fixed-$B$
+reference regime admit classical finite-sample permutation guarantees,
+whereas Stage~B threshold searches, internal-node quantities, and early-stopped
+outputs are treated as adaptive statistics. Second, we present an
+implementation-oriented conditional-inference tree and forest library that
+adds modern runtime optimizations while keeping the reference regime explicit.
+Third, we evaluate the method as a feature ranker on synthetic and real
+tabular datasets and show that its main practical bottleneck is conservative
+nodewise screening: Bonferroni correction suppresses tree depth, which in turn
+limits the forest's ability to recover weaker signals in high-dimensional
+settings.
 
-\paragraph{Roadmap.}
-\cref{sec:background} sharpens the motivation by reviewing selection bias in
-greedy trees, the original conditional-inference framework, and the distinct
-inferential targets that arise once such screening is embedded in a full tree
-learner. \cref{sec:method} defines the Stage~A/Stage~B procedure and the Monte
-Carlo p-values used throughout. \cref{sec:theory} states the fixed-node/root
-guarantees, with proofs in the appendices. \cref{sec:experiments} evaluates the
-method as a feature-ranking procedure and studies the practical behavior of the
-engineering heuristics. \cref{sec:discussion} returns to scope, limitations, and
-open methodological directions.
+\paragraph{Paper layout.}
+\Cref{sec:scope} frames the split-selection problem and the inferential target
+studied here. \Cref{sec:method} defines the Stage~A/Stage~B algorithm, the
+Monte Carlo p-values, and the implementation choices that matter for
+interpretation. \Cref{sec:theory} states the fixed-node guarantees.
+\Cref{sec:experiments} describes the benchmark design, and
+\Cref{sec:results} presents null diagnostics, synthetic and real-data results,
+runtime behavior, and ablations. \Cref{sec:discussion} closes with the
+practical implications and limitations of the approach.

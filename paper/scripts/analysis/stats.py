@@ -1392,9 +1392,12 @@ def _aggregate_and_pivot(
     data = _ensure_method_base(data)
 
     # Aggregate by dataset and method_base (mean across configs/folds/seeds)
+    # Only include optional metadata columns if they have no NaN values;
+    # otherwise groupby silently drops rows with NaN keys (e.g. real datasets
+    # lack n_informative, causing them to be excluded from the analysis).
     agg_cols = ["dataset", "method_base"]
     for col in ["n_features", "n_informative", "n_samples", "class_sep"]:
-        if col in data.columns:
+        if col in data.columns and data[col].notna().all():
             agg_cols.append(col)
 
     available_metrics = [m for m in metric_cols if m in data.columns]

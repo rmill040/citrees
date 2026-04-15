@@ -20,18 +20,18 @@ strong generic ensembles.
     Primary fixed-panel classification &
     14 datasets, 15 methods &
     5/15, balanced accuracy 0.798 &
-    Better on 14/14 datasets versus \mbox{r\_ctree}, 13/14 versus
+    Higher score on 14/14 datasets versus \mbox{r\_ctree}, 13/14 versus
     \mbox{r\_cforest}, and 13/14 versus CIT &
-    Clear separation from the historical conditional inference baselines \\
+    Clear separation from the historical baselines \\
     Additional classification trajectory &
     22$\rightarrow$14 datasets across $k$ &
     4/15, mean rank 5.48, mean balanced accuracy 0.819 &
-    Better on 22/22 datasets versus \mbox{r\_ctree}, 19/22 versus \mbox{r\_cforest}, and 21/22 versus CIT &
+    Higher score on 22/22 datasets versus \mbox{r\_ctree}, 19/22 versus \mbox{r\_cforest}, and 21/22 versus CIT &
     Similar pattern across budgets \\
     Additional regression trajectory &
     8$\rightarrow$6 datasets across $k$, 16 methods &
     2/16, mean rank 6.23, mean $R^2$ 0.329 &
-    Better on 7/8 datasets versus \mbox{r\_ctree}, 7/8 versus \mbox{r\_cforest}, and 6/8 versus CIT &
+    Higher score on 7/8 datasets versus \mbox{r\_ctree}, 7/8 versus \mbox{r\_cforest}, and 6/8 versus CIT &
     Similar pattern on the regression benchmark \\
     \bottomrule
   \end{tabularx}
@@ -61,12 +61,12 @@ strongest generic ensembles.
 
 \Cref{fig:k-trajectory} shows how CIF's mean rank changes with feature budget. CIF is
 not strongest at the smallest budgets; its mean rank improves as the budget expands
-toward the intermediate budgets. The benchmark over changing feature budgets complements the
+toward the intermediate budgets. The changing-support classification results complement the
 fixed panel by showing that CIF benefits from moving beyond the smallest
 budgets.
 
 \Cref{tab:cif-breadth} summarizes CIF dataset-level consistency across both
-benchmarks over changing feature budgets.
+changing-support surfaces.
 
 \begin{table}[t]
   \centering
@@ -85,10 +85,10 @@ benchmarks over changing feature budgets.
 \end{table}
 
 \paragraph{Regression benchmark.}
-On the regression benchmark, CIF places 2nd of 16 on the changing-support
-benchmark, stays in the top half on
+On the regression surface, CIF places 2nd of 16 on the changing-support
+results, stays in the top half on
 all 8 datasets, and outperforms the historical conditional-inference baselines
-and CIT. The regression benchmark shows the same overall pattern.
+and CIT. The regression benchmark points in the same direction.
 
 \subsection{Practical controls}
 \label{sec:results-practical}
@@ -188,12 +188,12 @@ Using all features usually does not help. On average, moving from $k{=}100$ to $
 
 \paragraph{Synthetic subset construction.}
 Across the classification synthetic datasets, CIF ranks 8th of 15 by the share
-of informative features selected. Its top-1 hit rate is 0.64. Its rank by top-1
-hit rate is 11.5. CIF is better at building a useful top-$k$ set than
+of informative features selected. Its top-1 hit rate is 0.64. Its mean top-1
+rank position is 11.5. CIF is better at building a useful top-$k$ set than
 at finding the exact top-ranked feature. \Cref{tab:synthetic-head}
 summarizes this contrast, and \Cref{fig:synthetic-topk-curves}
 shows how the selected set changes as $k$ grows. The share of
-informative features in the selected set falls as $k$ grows. On the redundant synthetic datasets, 83\% of the selected
+informative features in the selected set falls as $k$ grows. On the redundant classification synthetic datasets, 83\% of the selected
 features are still signal or redundant rather than pure noise.
 
 \begin{table}[t]
@@ -202,7 +202,7 @@ features are still signal or redundant rather than pure noise.
   \setlength{\tabcolsep}{5pt}
   \begin{tabular}{@{}l r r r@{}}
     \toprule
-    Task & Rank by share of informative features selected & Top-1 hit rate & Rank by top-1 hit rate \\
+    Task & Rank by share of informative features selected & Top-1 hit rate & Mean top-1 rank position \\
     \midrule
     Classification & 8/15 & 0.64 & 11.5/15 \\
     Regression & 10/15 & 0.81 & 13.0/15 \\
@@ -228,10 +228,10 @@ informative splits at rates of 1.000 on classification and 0.935 on regression. 
 all features are available. Most of the loss in informative-split selection appears after forest subsampling. On
 the 1000-tree classification grid, default CIF selects informative splits 33.2\%
 of the time, while \texttt{cif\_all} reaches 91.7\%, RF reaches 8.4\%, and ET reaches 6.5\%.
-Default CIF also selects an average of 265 false features, versus 93 for
+Default CIF also uses an average of 265 distinct false features, versus 93 for
 \texttt{cif\_all}. In regression,
 \texttt{cif\_all} selects informative splits 42.3\% of the time, versus 27.8\%
-for default CIF. It also selects more false features:
+for default CIF. It also uses more distinct false features:
 528.8 versus 367.7. Conditional-inference feature selection works when
-informative features are sampled often enough. In sparse high-$p$ settings,
+informative features enter the candidate set often enough. In sparse high-$p$ settings,
 forest subsampling can leave them out of the candidate set too often at a node.

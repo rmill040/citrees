@@ -1,13 +1,13 @@
 \section{Discussion}
 \label{sec:discussion}
 
-With these practical changes, CIF is a strong feature ranker. The theorem gives a
-clean fixed-node feature-selection guarantee, the practical ablations show how
-to preserve useful ranking behavior without much extra computation, and the benchmark shows
-that CIF is the strongest conditional-inference method we
-tested while remaining competitive with strong generic ensembles.
+CIF performs well as a feature ranker on the real-data benchmarks. The theorem gives a
+clean fixed-node feature-selection guarantee. The practical ablations show how
+to preserve that ranking behavior without much extra computation. The benchmark
+results show that CIF is the strongest conditional-inference method and remains
+competitive with strong generic ensembles.
 
-The diagnostics show where the method weakens. The limit is not the basic Stage~A feature-selection rule; when all
+The diagnostics also show where the method weakens. The basic Stage~A feature-selection rule is not the problem; when all
 features are visible, CIT is highly selective. The problem appears after forest
 subsampling in sparse high-dimensional settings, where informative features do
 not enter the candidate set often enough. That is why CIF often improves as
@@ -17,25 +17,24 @@ building useful top-$k$ sets than at identifying the exact top-ranked feature.
 \paragraph{Practical guidance.}
 Use CIF when the task is feature ranking or feature selection, when nonlinear
 or interaction structure matters, and when a statistically grounded feature-selection
-step is part of why the method is used. The benchmark defaults keep adaptive stopping as the main runtime control,
-keep histogram thresholding for threshold search, and keep Bonferroni
-when the goal is a stricter, more selective learner rather than a faster but
-much less selective one. Feature scanning should also stay on by default: with adaptive
+step is part of why the method is used. The default benchmark configuration
+keeps adaptive stopping, histogram thresholding for threshold search, and
+Bonferroni when the goal is a stricter, more selective learner rather than a
+faster but much less selective one. Feature scanning should also stay on by default: with adaptive
 stopping already enabled, it adds a modest extra runtime gain with only small
 and mixed score changes. Threshold scanning has mixed effects, so it is not a
 practical priority. Muting has little effect on
 runtime, and bootstrap changes the forest behavior without yielding a
 consistent speedup. If pure predictive accuracy is the only objective, boosting
-ensembles such as LightGBM and XGBoost remain stronger choices on these
-benchmarks.
+ensembles are often strong alternatives on the classification benchmark.
 
 \paragraph{Boundaries.}
 The fixed classification panel covers 14 of the 23 datasets, so the most
 controlled benchmark is narrower than the full benchmark. Regression
-evidence is useful but still limited at 8 datasets. The mechanism study points
-to candidate exposure as the main explanation for CIF's high-$p$ limit,
-but it does not directly manipulate that mechanism.
-The next step is to improve candidate exposure inside
+evidence is useful but still limited at 8 datasets. The mechanism study suggests
+that informative features enter the candidate set too rarely in high-$p$
+forests, but it does not directly manipulate that process.
+The next step is to improve how features enter the candidate set inside
 forests through deterministic cycling, stratified candidate sampling, or other
 ways of making informative features visible more often without discarding the
 conditional-inference feature-selection rule.

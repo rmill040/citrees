@@ -1,13 +1,12 @@
 \section{Algorithmic framework}
 \label{sec:method}
 
-CIT/CIF use the same nodewise procedure: Stage~A performs feature selection, then
-Stage~B optimizes a threshold within the selected feature. The theory studies
-the exhaustive fixed-$B$ Stage~A rule at a fixed node. The recursive learner
-keeps that selection logic. It adds adaptive stopping,
-feature and threshold scanning when sequential stopping is active,
-histogram thresholding, feature subsampling, and forest
-aggregation.
+CIT and CIF use the same nodewise procedure: Stage~A performs feature
+selection, and Stage~B optimizes a threshold within the selected feature. The
+theory studies the exhaustive fixed-$B$ Stage~A rule at a fixed node. The
+recursive learner keeps that structure. It adds adaptive stopping, feature and
+threshold scanning when sequential stopping is active, histogram thresholding,
+feature subsampling, and forest aggregation.
 
 \subsection{Stage~A and Stage~B}
 \label{sec:stageA-stageB}
@@ -107,7 +106,7 @@ ties count as exceedances in both cases.
 
 CIF aggregates bootstrap trees and averages their predictions. These forests
 reuse the same Stage~A feature-selection rule outside the fixed-node theorem
-setting. The benchmark defaults keep Bonferroni correction, adaptive stopping,
+setting. The default benchmark configuration keeps Bonferroni correction, adaptive stopping,
 feature muting, and histogram thresholding fixed. Feature and threshold
 scanning remain on when early stopping is active to rank features and
 thresholds. Selector family, honesty, resampling mode, and whether the method

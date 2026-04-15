@@ -5,18 +5,17 @@ permutation budget $B$, the $+1$ Monte Carlo Stage~A p-value is super-uniform
 under the complete null, so Bonferroni controls the Stage~A rejection
 probability at that node. The practical question is then which expensive parts
 of conditional-inference trees and forests can be approximated without materially
-changing ranking behavior. In matched within-CIF ablations, adaptive stopping
-provides 5--12$\times$ speedup with near-zero score loss, and histogram
+changing ranking behavior. In matched ablations within CIF, adaptive stopping
+provides a 5--12$\times$ speedup with near-zero score change, and histogram
 thresholding provides another 1.9--10.7$\times$ speedup. We evaluate CIF in a
 benchmark of 23 classification and 8 regression
 datasets, with one selected configuration per method family and task. Empirically, CIF is the strongest conditional-inference method
 in the benchmark, clearly improves on the historical conditional-inference
-baselines, and remains competitive with strong generic ensembles in the real-data
-benchmark. On the primary 14-dataset fixed-panel classification benchmark,
-CIF outperforms \texttt{ctree}, \texttt{cforest}, and CIT on nearly every dataset;
-the broader classification aggregate and the regression benchmark point
+baselines, and remains competitive with strong generic ensembles. On the primary 14-dataset fixed-panel classification benchmark,
+CIF has a higher score than \texttt{ctree} on 14/14 datasets, than
+\texttt{cforest} on 13/14, and than CIT on 13/14. The broader classification aggregate and the regression benchmark point
 in the same direction. High-$p$, synthetic, and fixed-design diagnostics show
 where the method weakens: in classification, CIF often improves beyond tiny
 feature budgets without usually needing the full feature set, is better at
 building useful top-$k$ sets than at identifying the exact top-ranked feature, and weakens
-when forest subsampling leaves informative features underexposed.
+when forest subsampling leaves informative features out of the candidate set too often.

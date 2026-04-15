@@ -1,22 +1,22 @@
 Conditional inference trees and forests separate feature selection from
 threshold optimization. We make that separation explicit and study its
-fixed-node feature-selection core. For a pre-specified node, tested feature family, and
+fixed-node feature-selection core. For a pre-specified node, a tested feature family, and
 permutation budget $B$, the $+1$ Monte Carlo Stage~A p-value is super-uniform
 under the complete null, so Bonferroni controls the Stage~A rejection
 probability at that node. The practical question is then which expensive parts
-of classical conditional inference can be approximated without materially
+of conditional-inference trees and forests can be approximated without materially
 changing ranking behavior. In matched within-CIF ablations, adaptive stopping
-provides 5--12$\times$ speedup with near-zero quality loss, and histogram
-thresholding provides another 1.9--10.7$\times$ speedup. We evaluate CIT/CIF on 23
-classification and 8 regression datasets with one selected configuration per
-method family. Empirically, CIF is the strongest conditional-inference method
-in the benchmark, clearly improves on the classical conditional-inference
-baselines, and remains competitive with strong generic ensembles on real
-tabular tasks. On the primary 14-dataset fixed-panel classification benchmark,
+provides 5--12$\times$ speedup with near-zero score loss, and histogram
+thresholding provides another 1.9--10.7$\times$ speedup. We evaluate CIF in a
+benchmark of 23 classification and 8 regression
+datasets, with one selected configuration per method family and task. Empirically, CIF is the strongest conditional-inference method
+in the benchmark, clearly improves on the historical conditional-inference
+baselines, and remains competitive with strong generic ensembles in the real-data
+benchmark. On the primary 14-dataset fixed-panel classification benchmark,
 CIF outperforms \texttt{ctree}, \texttt{cforest}, and CIT on nearly every dataset;
-the broader classification aggregate and the smaller regression benchmark point
+the broader classification aggregate and the regression benchmark point
 in the same direction. High-$p$, synthetic, and fixed-design diagnostics show
 where the method weakens: in classification, CIF often improves beyond tiny
 feature budgets without usually needing the full feature set, is better at
-useful subset construction than at identifying the exact top-ranked feature, and weakens
+building useful top-$k$ sets than at identifying the exact top-ranked feature, and weakens
 when forest subsampling leaves informative features underexposed.

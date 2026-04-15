@@ -3,9 +3,9 @@
 
 CIT/CIF use the same nodewise procedure: Stage~A performs feature selection, then
 Stage~B optimizes a threshold within the selected feature. The theory studies
-the exhaustive fixed-$B$ Stage~A reference regime at a pre-specified node. The
-benchmarked learner keeps that selection logic but adds adaptive stopping,
-candidate ordering used only when sequential stopping is active,
+the exhaustive fixed-$B$ Stage~A rule at a fixed node. The recursive learner
+keeps that selection logic. It adds adaptive stopping,
+feature and threshold scanning when sequential stopping is active,
 histogram thresholding, feature subsampling, and forest
 aggregation.
 
@@ -17,7 +17,7 @@ $F_t \subseteq \{1,\dots,p\}$ of size $m_t$ after constant-feature removal and
 any \texttt{max\_features} subsampling.
 
 \paragraph{Stage~A (feature selection).}
-In the exhaustive fixed-$B$ reference regime, Stage~A computes a selector
+In the exhaustive fixed-$B$ setting, Stage~A computes a selector
 statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and permutation p-value $p_{t,j}$
 for every feature $j \in F_t$, then selects
 %
@@ -30,23 +30,23 @@ for every feature $j \in F_t$, then selects
 where $\operatorname{uargmin}$ breaks ties uniformly among minimizers. The
 procedure enters Stage~B once the Stage~A threshold is passed, either at
 $\alpha_{\mathrm{sel}}$ or at $\alpha_{\mathrm{sel}}/m_t$ when Bonferroni is
-enabled. In the recursive learner, Stage~A may inspect only an ordered subset
-of candidates and may stop early, so the stored Stage~A quantity is the best
-returned score $s_t^\star$ among the candidates actually examined. Only the
-fixed-node exhaustive quantity $p_t^{\star,\mathrm{ref}}$ retains the
-calibrated permutation interpretation proved in \cref{sec:theory}.
+enabled. In the recursive learner, Stage~A may inspect only part of the feature
+set and may stop early. The stored Stage~A quantity is the best
+score $s_t^\star$ found among the examined features. Only the
+fixed-node exhaustive quantity $p_t^{\star,\mathrm{ref}}$ has the
+calibrated permutation meaning proved in \cref{sec:theory}.
 
 \paragraph{Stage~B (threshold search).}
 Given the selected feature $j_t^\star$, the procedure constructs a finite
-threshold set $C_{t,j_t^\star}$ and evaluates split quality over those
-candidates. When permutation testing is enabled for Stage~B, the tested
+threshold set $C_{t,j_t^\star}$ and evaluates split scores over those
+thresholds. When permutation testing is enabled for Stage~B, the tested
 statistic at threshold $c$ is the unweighted sum of child impurities
-$\mathrm{Imp}(Y_t^L(c)) + \mathrm{Imp}(Y_t^R(c))$, treated as a left-tail test.
-The deterministic split-search pass over that chosen threshold set and the
+$\mathrm{Imp}(Y_t^L(c)) + \mathrm{Imp}(Y_t^R(c))$, used in a left-tail test.
+The deterministic split-search pass over that threshold set and the
 final \texttt{min\_impurity\_decrease} check instead use the usual weighted
-impurity decrease. Because the same labels drive both feature choice and threshold
-choice, the returned split statistic
-$s_t^{\mathrm{split}}$ is an algorithmic score, not a calibrated
+impurity decrease. Because the same labels determine both the feature and threshold
+choices, the returned split statistic
+$s_t^{\mathrm{split}}$ is a split score, not a calibrated
 post-selection p-value.
 
 \begin{algorithm}[t]
@@ -106,19 +106,18 @@ ties count as exceedances in both cases.
 \label{sec:bootstrap}
 
 CIF aggregates bootstrap trees and averages their predictions. These forests
-extend the theorem-backed Stage~A feature-selection rule beyond the fixed-node
-setting. The
-benchmarked defaults keep Bonferroni correction, adaptive stopping, feature
-muting, and histogram thresholding fixed; feature and threshold scanning remain
-on as lightweight candidate orderings when early stopping is active, while
-selector family, honesty, resampling mode, and tree-versus-forest structure
-vary across method families.
+reuse the same Stage~A feature-selection rule outside the fixed-node theorem
+setting. The benchmark defaults keep Bonferroni correction, adaptive stopping,
+feature muting, and histogram thresholding fixed. Feature and threshold
+scanning remain on when early stopping is active to rank features and
+thresholds. Selector family, honesty, resampling mode, and whether the method
+is a tree or forest vary across method families.
 
 Runtime is governed by four per-node counts: features tested in Stage~A,
 thresholds generated in Stage~B, permutations evaluated before early
 termination, and features carried into the node. Adaptive stopping and
-histogram thresholding are the two main runtime levers: adaptive stopping cuts
-realized permutation work, while histogram thresholding separately bounds the
-Stage~B threshold set. Feature and threshold scanning only help early stopping
-encounter promising candidates sooner; \cref{app:complexity-details} gives the
+histogram thresholding provide the two main speedups: adaptive stopping cuts
+the number of permutations evaluated, while histogram thresholding separately bounds the
+Stage~B threshold set. Feature and threshold scanning only help by changing the
+testing order under early stopping. \cref{app:complexity-details} gives the
 implementation-level complexity formulas.

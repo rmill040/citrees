@@ -1,13 +1,13 @@
-\section{Theoretical guarantees}
+\section{Fixed-node Stage~A guarantees}
 \label{sec:theory}
 
-The theorem-backed object in this paper is the exhaustive fixed-$B$ Stage~A
-feature-selection rule at a pre-specified node. All probability statements below are
+The theorem studies the exhaustive fixed-$B$ Stage~A
+feature-selection rule at a fixed node. All probabilities below are
 conditional on $(X_t,U)$.
 
 \begin{theorem}[$+1$ permutation p-values are super-uniform]
 \label{thm:plusone-superuniform}
-Assume A0.1--A0.5 as listed in the supplement, so that under the tested null the
+Assume A0.1--A0.5 from the supplement, so that under the tested null the
 permutation statistics $(T_0,T_1,\dots,T_B)$ are exchangeable conditional on
 $(X_t,U)$. Define the right-tail $+1$ Monte Carlo p-value
 %
@@ -24,12 +24,12 @@ Then for every $\alpha \in [0,1]$,
 \end{theorem}
 
 This is the standard exchangeable-rank result for Monte Carlo permutation
-tests. The supplement gives the proof. The left-tail version follows by
-negating $T$.
+tests; the supplement gives the proof. The left-tail version follows by
+applying the same result to $-T$.
 
 \begin{corollary}[Stage~A complete-null control at a fixed node]
 \label{cor:stageA-global-null}
-Assume A0.1--A0.5 as listed in the supplement. Under the nodewise complete null
+Assume A0.1--A0.5 from the supplement. Under the nodewise complete null
 at $t$, let Stage~A reject when
 %
 \begin{equation}
@@ -44,18 +44,17 @@ Then
 \end{equation}
 \end{corollary}
 
-This is an immediate union-bound consequence of
+This follows immediately from
 \cref{thm:plusone-superuniform}. It controls fixed-node Stage~A feature
-selection under
-the complete null; partial-null FWER, post-selection calibration of
-$j_t^\star$, and end-to-end guarantees for the full adaptive learner are
-separate targets.
+selection under the complete null. It does not cover partial-null FWER,
+post-selection calibration of $j_t^\star$, or end-to-end guarantees for the
+full adaptive learner.
 
-\begin{remark}[Root-level structural consequence]
+\begin{remark}[Root-level implication]
 \label{rem:root-null}
-If a tree grown in fixed-$B$ mode contains at least one internal split, then the
-root must have rejected in Stage~A. Under the complete root null,
-\cref{cor:stageA-global-null} therefore gives
+If a fixed-$B$ tree has at least one internal split, then the root must have
+passed the Stage~A threshold. Under the complete root null,
+\cref{cor:stageA-global-null} gives
 %
 \begin{equation}
   \PP(\text{the fitted tree has at least one internal split} \mid X_{\mathrm{root}},U)

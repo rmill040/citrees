@@ -1,43 +1,41 @@
 \section{Discussion}
 \label{sec:discussion}
 
-The paper supports a clear claim. Conditional inference becomes much more
-useful once its expensive defaults are modernized, and the resulting CIF is an
-effective feature-ranking method. The theorem gives a
+With these practical changes, CIF is a strong feature ranker. The theorem gives a
 clean fixed-node feature-selection guarantee, the practical ablations show how
-to preserve useful ranking behavior without paying unnecessary cost, and the benchmark shows
-that the resulting learner is the strongest conditional-inference method we
-tested while remaining competitive with standard tree ensembles.
+to preserve useful ranking behavior without much extra computation, and the benchmark shows
+that CIF is the strongest conditional-inference method we
+tested while remaining competitive with strong generic ensembles.
 
-The diagnostic results explain these limits without changing that
-claim. The weak point is not the basic Stage~A feature-selection rule; when all
-features are visible, CIT is highly selective. The weak point is forest
+The diagnostics show where the method weakens. The limit is not the basic Stage~A feature-selection rule; when all
+features are visible, CIT is highly selective. The problem appears after forest
 subsampling in sparse high-dimensional settings, where informative features do
-not enter the candidate set often enough. That is why CIF performs best at
-intermediate feature budgets and why the synthetic datasets favor subset
-construction over identifying the exact top-ranked feature.
+not enter the candidate set often enough. That is why CIF often improves as
+feature budgets move beyond the smallest settings and why it is better at
+building useful top-$k$ sets than at identifying the exact top-ranked feature.
 
 \paragraph{Practical guidance.}
 Use CIF when the task is feature ranking or feature selection, when nonlinear
 or interaction structure matters, and when a statistically grounded feature-selection
-step is part of why the method is used. The benchmarked defaults are: keep adaptive stopping as the main runtime control,
-keep histogram thresholding as the threshold-search approximation, and keep Bonferroni
+step is part of why the method is used. The benchmark defaults keep adaptive stopping as the main runtime control,
+keep histogram thresholding for threshold search, and keep Bonferroni
 when the goal is a stricter, more selective learner rather than a faster but
 much less selective one. Feature scanning should also stay on by default: with adaptive
 stopping already enabled, it adds a modest extra runtime gain with only small
-and mixed quality changes. Threshold scanning has mixed effects, so it should be viewed as an internal
-ordering heuristic, not a practical priority. Muting has little effect on
+and mixed score changes. Threshold scanning has mixed effects, so it is not a
+practical priority. Muting has little effect on
 runtime, and bootstrap changes the forest behavior without yielding a
 consistent speedup. If pure predictive accuracy is the only objective, boosting
-ensembles such as LightGBM and XGBoost remain the stronger default choice.
+ensembles such as LightGBM and XGBoost remain stronger choices on these
+benchmarks.
 
 \paragraph{Boundaries.}
 The fixed classification panel covers 14 of the 23 datasets, so the most
 controlled benchmark is narrower than the full benchmark. Regression
-evidence is useful but still limited at 8 datasets. The mechanism study supports
-candidate-set exposure as the leading explanation for CIF's high-$p$ boundary,
-but it does not directly manipulate feature exposure.
-The next step is algorithmic: improve feature exposure inside
+evidence is useful but still limited at 8 datasets. The mechanism study points
+to candidate exposure as the main explanation for CIF's high-$p$ limit,
+but it does not directly manipulate that mechanism.
+The next step is to improve candidate exposure inside
 forests through deterministic cycling, stratified candidate sampling, or other
 ways of making informative features visible more often without discarding the
 conditional-inference feature-selection rule.

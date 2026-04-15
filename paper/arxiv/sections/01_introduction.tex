@@ -1,8 +1,8 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Conditional inference got an important idea right: separate feature selection
-from threshold optimization to reduce split-selection bias. Classical
+Conditional inference introduced an important separation between feature
+selection and threshold optimization to reduce split-selection bias. Classical
 CART-style trees choose both a feature and a threshold from the same
 label-dependent search, which helps explain the well-documented preference for
 features with many admissible cutpoints
@@ -21,25 +21,25 @@ with a well-defined permutation reference distribution. It is not post-selection
 inference for the chosen feature or threshold, and it is not end-to-end
 calibration for the full adaptive ranking workflow.
 
-The practical question is then which computations are essential, which are
-overbuilt, and which preserve useful ranking behavior in practice. The
-resulting learner keeps the Stage~A /
-Stage~B separation while reallocating computation within it. Adaptive stopping is the
-main runtime lever; histogram thresholding is a separate Stage~B approximation
-that shrinks the threshold set itself; candidate ordering plays only a smaller
-supporting role inside the early-stopping regime. This is
+The practical question is then which computations are essential, which add
+extra computation, and which preserve useful ranking behavior in practice. The
+CIF keeps the Stage~A/Stage~B separation while reallocating computation
+within it. Adaptive stopping is the
+main runtime lever; histogram thresholding separately shrinks the threshold set;
+feature scanning and threshold scanning play a smaller role when early
+stopping is active. This is
 therefore an optimization-first paper: the benchmark matters here as validation
-of the resulting learner, not as the paper's primary object.
+of CIF, not as the paper's main question.
 
-We evaluate the resulting learner as a feature ranker. We
+We evaluate CIF as a feature ranker. We
 ask whether, once paired with these practical approximations, CIF remains
 useful on real classification rank-then-evaluate benchmarks, whether a similar
 directional pattern appears on a smaller regression panel, and where the
-operating regime breaks down. On sparse high-dimensional problems, one failure
+method weakens. On sparse high-dimensional problems, one failure
 mode can appear
 before threshold search begins: an informative feature may never enter the
 sampled candidate set. High-$p$, synthetic, and fixed-design diagnostics
-therefore explain the operating boundary, while the real-data benchmark
+therefore explain these limits, while the real-data benchmark
 remains the primary validation layer.
 
 \paragraph{Contributions.}
@@ -48,25 +48,26 @@ guarantee (\cref{thm:plusone-superuniform,cor:stageA-global-null}): at a
 pre-specified node under the complete permutation null, the Stage~A $+1$ Monte
 Carlo p-value is super-uniform and Bonferroni controls the probability of any
 Stage~A rejection in the tested family. Second, it identifies which practical
-controls matter most for the speed-quality tradeoff: adaptive stopping is the main runtime
-win, histogram thresholding is a separate second Stage~B lever, and candidate
-ordering adds only a smaller supporting gain inside the early-stopping regime.
-The remaining toggles behave as background controls rather than central
-findings. Third, it uses real-data benchmarks to validate the optimized CIF
-package, with classification as the primary empirical anchor and regression as a
-smaller supporting regression panel. On real classification rank-then-evaluate
+controls matter most for speed and score: adaptive stopping provides the largest
+speedup, histogram thresholding provides a separate second speedup, and feature
+scanning and threshold scanning provide smaller additional speedups when early
+stopping is active.
+The remaining ablations have smaller effects. Third, it uses real-data
+benchmarks to validate CIF, with classification as the
+primary benchmark and regression evaluated on fewer datasets. On real
+classification rank-then-evaluate
 benchmarks, CIF is the strongest conditional-inference method we test, clearly
 improves on the historical conditional-inference baselines and CIT, and is
 competitive with strong generic ensembles.
-Fourth, it uses high-$p$, synthetic, and fixed-design diagnostics to map the
-operating boundary: CIF often benefits beyond tiny budgets without usually
-needing the full feature set, is better at useful subset construction than
-at identifying the exact top-ranked feature, and weakens when sparse candidate exposure
-limits forest growth.
+Fourth, it uses high-$p$, synthetic, and fixed-design diagnostics to map these
+limits: CIF often benefits beyond tiny budgets without usually
+needing the full feature set, is better at building useful top-$k$ sets than
+at identifying the exact top-ranked feature, and weakens when forest
+subsampling leaves informative features out too often.
 
 Section~2 defines the algorithmic framework, \cref{sec:theory} states the
-fixed-node guarantee, \cref{sec:experiments} defines the benchmark and
-practical-control setup, \cref{sec:results,sec:boundary} validate the resulting
-learner and explain its operating boundary, and
+fixed-node guarantee, \cref{sec:experiments} defines the benchmark and ablation
+setup, \cref{sec:results,sec:boundary} validate CIF and
+explain its limits, and
 \cref{sec:discussion,sec:conclusion} close with practical guidance and
 limits.

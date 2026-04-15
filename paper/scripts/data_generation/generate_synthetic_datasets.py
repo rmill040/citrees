@@ -10,7 +10,7 @@ Classification (8 datasets):
   toeplitz       — Correlated features (Strobl et al. unbiased selection)
   corr_noise     — Confounded noise (variable importance bias)
   nonlinear      — Friedman #1 binarized (RDC vs linear selectors)
-  weak_signal    — Low separation + label noise (Type I error control)
+  weak_signal    — Low separation + label noise
   bias           — High-cardinality noise (known ctree advantage)
   redundant      — Multicollinearity (feature muting validation)
   standard_easy  — Ground-truth ranking (validates metrics pipeline)
@@ -356,7 +356,7 @@ def get_classification_configs() -> list[SyntheticConfig]:
             n_informative=5,
             nonlinear=True,
         ),
-        # Weak signal — Type I error control
+        # Weak signal — low separation + label noise
         SyntheticConfig(
             name="synthetic_weak_p100_k10_n1000_sep0.1_flip0.1",
             n_samples=1000,

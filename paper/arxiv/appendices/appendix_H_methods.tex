@@ -1,864 +1,143 @@
-\section{Detailed methods (implementation-aligned)}
+\section{Algorithmic and reproducibility notes}
 \label{app:methods}
 
-This appendix records implementation-aligned algorithmic details for \citrees.
-It is intended to make the manuscript reproducible and to keep the main text
-readable. Proofs for the paper's fixed-node/root claims are given in
-Appendices~A--G.
-
-\paragraph{Scope within the paper.}
-As in the main text, it is useful to distinguish the fixed-$B$ \emph{reference
-regime} from the \emph{default engineering regime}. The reference regime is the
-fixed-node, exhaustive Stage~A configuration analyzed in \cref{sec:theory}. The
-default engineering regime includes additional heuristics such as early
-stopping, scan ordering, muting, threshold subsampling, and bootstrap
-resampling; this appendix documents those behaviors, but their outputs are not
-all given theorem-backed p-value interpretations in the manuscript.
-
-\subsection{Overview and placement}
-\label{app:methods-overview}
-
-\citrees implements conditional inference trees and forests that use
-permutation-based hypothesis testing for variable selection (Stage~A), and
-optionally permutation-based threshold screening (Stage~B). The core
-design choice relative to CART-style trees is to separate variable screening
-(Stage~A) from split-point optimization (Stage~B) and to attach p-values to the
-screening step at a fixed node (especially the root).
-The main text presents the end-to-end recursive training loop
-(\cref{alg:citree} in \cref{sec:method}); this appendix focuses on
-node-level routines and implementation-aligned details.
-
-\subsection{Stage routines and supporting algorithms}
-\label{app:methods-tree}
-
-\paragraph{High level.}
-\cref{alg:citree} in the main text gives a compact overview of the
-recursive training loop. This appendix records implementation-aligned
-node-level routines: Stage~A feature screening in \cref{alg:stageA}
-and Stage~B split selection in \cref{alg:stageB}. Permutation-test
-subroutines are given in \cref{alg:simple-sequential,alg:adaptive-sequential},
-and forest training is summarized in \cref{alg:forest}.
-
-\paragraph{Notes.}
-If \texttt{adjust\_alpha\_selector} / \texttt{adjust\_alpha\_splitter} are
-disabled, compare to $\alpha_{\mathrm{sel}}$ / $\alpha_{\mathrm{split}}$ rather
-than Bonferroni-adjusted levels. If permutation testing is disabled for a stage
-(e.g., \texttt{n\_resamples\_selector = None}), that stage uses raw
-selector/splitter scores without p-values and proceeds score-first rather than
-test-first. In that configuration, regularization comes from structural
-constraints such as depth, leaf size, and impurity-decrease thresholds rather
-than from permutation calibration. The implementation also validates some
-parameter combinations, for example disabling selector permutation tests makes
-\texttt{feature\_muting} and selector-side alpha adjustment inapplicable.
-
-\subsection{Stopping criteria}
-\label{app:methods-stopping}
-
-At a node $t$, tree growth stops when any of the following conditions hold:
-\begin{enumerate}
-  \item $n_t < \texttt{min\_samples\_split}$,
-  \item depth exceeds \texttt{max\_depth},
-  \item the node is pure (classification) or otherwise terminal per configuration,
-  \item when Stage~A permutation testing is enabled, Stage~A fails to reject the nodewise screening null (no feature passes the configured threshold),
-  \item when Stage~B permutation testing is enabled, Stage~B fails to validate any split (e.g., no threshold passes the configured criterion),
-  \item impurity decrease is below \texttt{min\_impurity\_decrease},
-  \item a candidate split would violate \texttt{min\_samples\_leaf}.
-\end{enumerate}
-
-\subsection{Leaf values}
-\label{app:methods-leaves}
-
-\paragraph{Classification.}
-For a leaf containing indices $L$, the predicted class probabilities are
-%
-\begin{equation}
-  \hat{\pi}_k(L) = \frac{1}{|L|} \sum_{i \in L} \ind\{Y_i = k\}, \qquad k=1,\dots,K.
-\end{equation}
-%
-where $K$ is the number of classes.
-
-\paragraph{Regression.}
-For a leaf containing indices $L$, the leaf prediction is the mean response,
-%
-\begin{equation}
-  \hat{\mu}(L) = \frac{1}{|L|} \sum_{i \in L} Y_i.
-\end{equation}
-
-\subsection{Stage A: feature screening}
-\label{app:methods-stageA}
-
-At node $t$ with sample indices $I_t$ and data $(X_t, Y_t)$, Stage~A tests each
-candidate feature $X_{t,j}$ for association with $Y_t$. Features that are
-constant at the node are removed from the candidate set since they cannot
-become non-constant within the subtree rooted at $t$. In the implementation
-this descendant-safe pruning happens \emph{before} any
-\texttt{max\_features} subsampling at the current node.
-
-\begin{algorithm}[t]
-  \caption{Stage A feature screening at a node (implementation-aligned)}
-  \label{alg:stageA}
-  \begin{algorithmic}[1]
-    \Require Node data $(X_t,Y_t)$, available features $F_{\mathrm{avail}}$, level $\alpha_{\mathrm{sel}}$
-    \Require \texttt{max\_features}, \texttt{adjust\_alpha\_selector}, \texttt{n\_resamples\_selector}, optional early stopping
-    \Require Optional heuristics: \texttt{feature\_scanning}, \texttt{feature\_muting}
-    \Ensure Selected feature $j_t^\star$ and p-value $p_t^\star$ (or $j_t^\star=\bot$), tested-feature count $m_t$, updated descendant feature set $F_{\mathrm{avail}}'$
-    \State $F_{\mathrm{avail}}' \gets \{j \in F_{\mathrm{avail}} : X_{t,j}\ \text{is non-constant over}\ t\}$ \Comment{safe to propagate}
-    \If{$|F_{\mathrm{avail}}'| = 0$}
-      \State \Return $(\bot, 1, 0, F_{\mathrm{avail}}')$
-    \EndIf
-    \State $F_t \gets$ uniform subset of $F_{\mathrm{avail}}'$ of size \texttt{max\_features} (or $F_{\mathrm{avail}}'$ if unset)
-    \State $m_t \gets |F_t|$
-    \If{early stopping enabled and \texttt{feature\_scanning} and $m_t>1$}
-      \State Order $F_t$ by a cheap (non-permutation) association score (descending)
-    \ElsIf{early stopping enabled and $m_t>1$}
-      \State Iterate $F_t$ in a random order \Comment{affects early stopping and tie-breaking under discrete p-values}
-    \EndIf
-    \If{\texttt{n\_resamples\_selector} is \texttt{None}}
-      \State $j_t^\star \gets \argmax_{j \in F_t} T^{\mathrm{sel}}_j(X_{t,j},Y_t)$
-      \State \Return $(j_t^\star, \texttt{NA}, m_t, F_{\mathrm{avail}}')$ \Comment{score-based selection; implementation stores $+\infty$ and proceeds without a significance filter}
-    \EndIf
-    \State $\alpha_{\mathrm{eff}} \gets \alpha_{\mathrm{sel}}/|F_t|$ if Bonferroni enabled else $\alpha_{\mathrm{sel}}$
-    \Statex \textit{Note:} when Bonferroni is enabled, the implementation also adjusts the per-node resample budget based on $\alpha_{\mathrm{eff}}$ and \texttt{n\_resamples\_selector}; see \cref{app:methods-permutation}.
-      \State $p_t^\star \gets 1$; $\mathcal{J}_t^\star \gets \emptyset$
-    \For{$j \in F_t$}
-      \State Compute +1 permutation p-value $p_{t,j}$ by permuting $Y_t$ \Comment{right tail; max-$T$ if multi-selector; see \cref{sec:plusone}}
-      \If{$p_{t,j} < p_t^\star$}
-        \State $p_t^\star \gets p_{t,j}$; $\mathcal{J}_t^\star \gets \{j\}$
-      \ElsIf{$p_{t,j} = p_t^\star$}
-        \State $\mathcal{J}_t^\star \gets \mathcal{J}_t^\star \cup \{j\}$
-      \EndIf
-      \If{\texttt{feature\_muting} and $p_{t,j} \ge \alpha_{\mathrm{eff}}$ and $|F_{\mathrm{avail}}'|>1$}
-        \State $F_{\mathrm{avail}}' \gets F_{\mathrm{avail}}' \setminus \{j\}$ \Comment{subtree-local muting heuristic}
-      \EndIf
-      \If{early stopping enabled and $p_t^\star < \alpha_{\mathrm{eff}}$}
-        \State \textbf{break}
-      \EndIf
-    \EndFor
-    \If{$p_t^\star \ge \alpha_{\mathrm{eff}}$}
-      \State \Return $(\bot, p_t^\star, m_t, F_{\mathrm{avail}}')$
-    \EndIf
-    \State $j_t^\star \gets \operatorname{uargmin}_{j \in \mathcal{J}_t^\star} p_{t,j}$ \Comment{uniform tie-breaking among evaluated minimizers}
-    \State \Return $(j_t^\star, p_t^\star, m_t, F_{\mathrm{avail}}')$
-  \end{algorithmic}
-\end{algorithm}
-
-\subsubsection{Permutation null (nodewise complete null)}
-\label{app:methods-stageA-null}
-
-Stage~A uses the standard label-permutation scheme that treats $X_t$ as fixed
-and compares the observed association statistic to its distribution under
-random permutations of $Y_t$.
-The calibration target for this permutation scheme is the nodewise \emph{complete}
-(global) permutation null at the node,
-%
-\begin{equation}
-  H^{\mathrm{perm}}_t:\ (Y_t \mid X_t,U)\ \text{is exchangeable (permutation-invariant).}
-\end{equation}
-%
-This is the exchangeability assumption A0.2 (\cref{assump:exchangeability}).
-Under $H^{\mathrm{perm}}_t$ and fixed-$B$ Monte Carlo resampling, the +1
-permutation p-value is super-uniform (Theorem~\ref{them:plusone-superuniform}).
-In this manuscript, we interpret per-feature $p_{t,j}$ values as calibrated
-only in this fixed-node, complete-null setting; under alternatives, they are
-reported and used as ranking statistics, and
-$p_t^\star = \min_{j \in F_t} p_{t,j}$ is not a selection-adjusted p-value for
-the selected feature.
-
-\subsubsection{Selector statistics}
-\label{app:methods-selectors}
-
-All selector statistics below are evaluated on the node-local sample. For a
-tested feature $j$, write $x := (X_{i,j})_{i\in I_t}$ and $Y := (Y_i)_{i\in I_t}$.
-
-\paragraph{Multiple correlation (mc; classification).}
-Define
-%
-\begin{equation}
-  \mathrm{mc}(x,Y) := \sqrt{\frac{\mathrm{SSB}}{\mathrm{SST}}},
-\end{equation}
-%
-where $\mathrm{SST} = \sum_{i\in I_t} (x_i - \bar{x})^2$ and
-$\mathrm{SSB} = \sum_{k:\,n_{t,k}>0} n_{t,k}(\bar{x}_k - \bar{x})^2$, with
-$n_{t,k} := |\{i\in I_t : Y_i=k\}|$, $\bar{x} := \frac{1}{n_t}\sum_{i\in I_t} x_i$,
-and $\bar{x}_k := \frac{1}{n_{t,k}}\sum_{i\in I_t:\,Y_i=k} x_i$.
-This score lies in $[0,1]$ and is a monotone transform of the one-way ANOVA $F$
-statistic at fixed $(n_t,K)$, so fixed-$B$ permutation p-values (with the same tie
-convention) agree under either statistic.
-
-\paragraph{Mutual information (mi; classification).}
-Mutual information satisfies $I(X;Y)\ge 0$ with $I(X;Y)=0$ iff $X \perp Y$.
-In the implementation used for experiments, MI is estimated via a $k$-nearest-neighbor estimator \citep{Kraskov2004EstimatingMutualInformation}.
-Because MI is not bounded on $[0,1]$, it is not mixed with bounded selectors in
-max-statistic mode without an explicit normalization policy.
-
-\paragraph{Pearson correlation (pc; regression).}
-Define
-%
-\begin{equation}
-  \mathrm{pc}(x,Y) := \left|\frac{\sum_{i\in I_t} (x_i-\bar{x})(Y_i-\bar{Y})}
-  {\sqrt{\sum_{i\in I_t} (x_i-\bar{x})^2}\sqrt{\sum_{i\in I_t} (Y_i-\bar{Y})^2}}\right|.
-\end{equation}
-%
-This lies in $[0,1]$ and is a monotone transform of the usual correlation $t$
-statistic at fixed $n$, so it yields the same fixed-$B$ permutation p-values
-under the same tail/tie conventions.
-
-\paragraph{Distance correlation (dc; regression).}
-Distance correlation detects both linear and nonlinear dependence and satisfies
-$\mathrm{dCor}(X,Y)=0$ iff $X \perp Y$ under mild moment conditions
-\citep{Szekely2007DistanceCorrelation}.
-In the implementation used for experiments, we evaluate the distance correlation statistic as defined in \citet{Szekely2007DistanceCorrelation}.
-
-\paragraph{Randomized dependence coefficient (rdc; classification and regression).}
-RDC is a computationally efficient nonlinear dependence score based on random
-nonlinear projections of rank-transformed data \citep{LopezPaz2013RDC}. In
-\citrees, RDC is used as a bounded score in $[0,1]$ and can be combined with
-other bounded selectors in multi-selector mode.
-
-\subsubsection{Permutation p-values}
-\label{app:methods-stageA-pvalues}
-
-For each feature $j \in F_t$, Stage~A computes a Monte Carlo permutation p-value
-using the Phipson--Smyth (+1) correction as described in \cref{sec:plusone}. The
-paper's formal validity claims for these p-values are limited to fixed nodes
-and fixed-$B$ testing (see \cref{sec:theory} and Appendices~A--G).
-
-\subsection{Stage B: threshold screening (scope note)}
-\label{app:methods-stageB}
-
-Given the selected feature $j_t^\star$, \citrees considers a finite threshold
-set $C_{t,j_t^\star}$ and chooses a split point by optimizing split quality
-over candidates (and optionally performing a permutation test over thresholds).
-Because Stage~B is applied after selecting $j_t^\star$ using the same labels,
-we treat Stage~B p-values as post-selection/adaptive statistics (see
-\cref{sec:pvalue-scope}) unless additional selective-inference machinery or
-sample splitting is used.
-
-\subsubsection{Null hypothesis (conceptual)}
-\label{app:methods-stageB-null}
-
-For a fixed threshold $c \in C_{t,j_t^\star}$, define the induced partition
-$I_t^L(c) := \{i \in I_t : X_{i,j_t^\star} \le c\}$ and
-$I_t^R(c) := I_t \setminus I_t^L(c)$. The conceptual null for a split-quality
-test at threshold $c$ is that, conditional on the covariates treated as fixed by
-the permutation scheme (and any external randomness used to generate
-$C_{t,j_t^\star}$), the labels are exchangeable (permutation-invariant) with
-respect to this partition---equivalently, there is no association between $Y_t$
-and the left/right child assignment induced by $c$. In the adaptive tree
-algorithm, this is tested only after choosing
-$j_t^\star$ using the same $Y_t$, so the resulting p-values are post-selection.
-
-\subsubsection{Split quality statistics (splitters)}
-\label{app:methods-splitters}
-
-\paragraph{Convention (implementation-aligned).}
-For permutation testing of split quality, \citrees uses the \emph{unweighted}
-sum of child impurities, $\mathrm{Imp}(Y_L) + \mathrm{Imp}(Y_R)$, with a left-tail convention (smaller
-is better). Weighted impurity is used for deterministic threshold scanning and
-for the \texttt{min\_impurity\_decrease} constraint.
-
-\paragraph{Classification impurities.}
-For a label vector $Y$ of length $|Y|$ and empirical class proportions
-$\hat{\pi}_k(Y) := \frac{1}{|Y|}\sum_{i=1}^{|Y|}\ind\{Y_i=k\}$,
-%
-\begin{equation}
-  \mathrm{Gini}(Y) = 1 - \sum_{k=1}^K \hat{\pi}_k(Y)^2,
-  \qquad
-  \mathrm{Entropy}(Y) = -\sum_{k=1}^K \hat{\pi}_k(Y)\, \log_2(\hat{\pi}_k(Y)).
-\end{equation}
-%
-For a threshold $c$ inducing children $(Y_L,Y_R)$, the tested split statistic is
-%
-\begin{equation}
-  T^{\mathrm{split}}(c) := \mathrm{Imp}(Y_L) + \mathrm{Imp}(Y_R),
-\end{equation}
-%
-where $\mathrm{Imp}(\cdot)$ is either Gini or Entropy.
-
-\paragraph{Regression impurities.}
-For regression, we set $\mathrm{Imp}(Y)$ to either MSE or MAE:
-%
-\begin{equation}
-  \mathrm{MSE}(Y) = \frac{1}{|Y|}\sum_{i=1}^{|Y|} (Y_i-\bar{Y})^2,
-  \qquad
-  \mathrm{MAE}(Y) = \frac{1}{|Y|}\sum_{i=1}^{|Y|} \big|Y_i - \mathrm{median}(Y)\big|.
-\end{equation}
-
-\subsubsection{Threshold candidate sets}
-\label{app:methods-thresholds}
-
-\citrees generates candidate thresholds from the set of midpoints between
-consecutive unique feature values. Let $x_{(1)} < \cdots < x_{(u)}$ denote the
-sorted unique values of a feature at node $t$; the full midpoint set is
-%
-\begin{equation}
-  \mathrm{Midpoints}(x) := \left\{\frac{x_{(i)} + x_{(i+1)}}{2} : i=1,\dots,u-1\right\}.
-\end{equation}
-
-\paragraph{Threshold methods.}
-\citrees supports several threshold selection policies:
-\begin{enumerate}
-  \item \textbf{Exact (default):} use all midpoints,
-  \item \textbf{Random:} subsample midpoints without replacement,
-  \item \textbf{Percentile:} choose evenly spaced percentiles of the midpoint set,
-  \item \textbf{Histogram:} choose histogram-based bin edges of the midpoint set.
-\end{enumerate}
-
-\paragraph{Small-sample fallback.}
-If a feature has very few unique values (implementation default: $\le 4$),
-\citrees uses all midpoints regardless of the configured threshold method.
-
-\paragraph{\texttt{max\_thresholds} semantics.}
-When \texttt{max\_thresholds} is set, the requested count is computed by the
-same integer/float/\texttt{sqrt}/\texttt{log2} rules used by \texttt{max\_features},
-using the number of unique values at the node (and then clamping to the
-available midpoints). When \texttt{threshold\_method="exact"}, all midpoints are
-returned regardless of \texttt{max\_thresholds} (accepted for interface
-consistency but not used).
-
-\subsubsection{Split selection procedure (pseudocode)}
-\label{app:methods-stageB-alg}
-
-\begin{algorithm}[t]
-  \caption{Stage B split selection at a node (implementation-aligned)}
-  \label{alg:stageB}
-  \begin{algorithmic}[1]
-    \Require Feature vector $x = X_{t,j_t^\star}$, labels $Y_t$, level $\alpha_{\mathrm{split}}$
-    \Require \texttt{threshold\_method}, \texttt{max\_thresholds}, \texttt{min\_samples\_leaf}
-    \Require \texttt{adjust\_alpha\_splitter}, \texttt{n\_resamples\_splitter}, optional early stopping
-    \Require Optional heuristic: \texttt{threshold\_scanning}
-    \Ensure Selected threshold $c_t^\star$ and p-value $p_t^{\mathrm{split}}$ (or $c_t^\star=\bot$)
-    \State $C_{t,j_t^\star} \gets$ candidate thresholds from midpoints (per \cref{app:methods-thresholds})
-    \State $C \gets$ filter $C_{t,j_t^\star}$ to enforce \texttt{min\_samples\_leaf}
-    \If{$|C| = 0$}
-      \State \Return $(\bot, 1)$
-    \EndIf
-    \If{\texttt{n\_resamples\_splitter} is \texttt{None}}
-      \State $c_t^\star \gets \operatorname{uargmin}_{c \in C}$ weighted child impurity \Comment{deterministic split search + uniform tie-breaking}
-      \State \Return $(c_t^\star, \texttt{NA})$ \Comment{score-based threshold choice; implementation stores $+\infty$ and proceeds without a significance filter}
-    \EndIf
-    \State $\alpha_{\mathrm{eff}} \gets \alpha_{\mathrm{split}}/|C|$ if Bonferroni enabled else $\alpha_{\mathrm{split}}$ \Comment{$|C|$ is post-filtered}
-    \Statex \textit{Note:} when Bonferroni is enabled, the implementation also adjusts the per-node resample budget based on $\alpha_{\mathrm{eff}}$ and \texttt{n\_resamples\_splitter}; see \cref{app:methods-permutation}.
-    \If{early stopping enabled and \texttt{threshold\_scanning}}
-      \State Order $C$ by weighted child impurity (ascending) \Comment{ordering heuristic; differs from $T^{\mathrm{split}}$}
-    \ElsIf{early stopping enabled and $|C|>1$}
-      \State Randomly permute $C$ \Comment{affects early stopping and tie-breaking under discrete p-values}
-    \EndIf
-    \State $p_t^{\mathrm{split}} \gets 1$; $\mathcal{M}_t^\star \gets \emptyset$
-    \For{$c \in C$}
-      \State Compute +1 permutation p-value $p_t^{\mathrm{split}}(c)$ for $T^{\mathrm{split}}(c)$ \Comment{left tail; see \cref{sec:plusone}}
-      \If{$p_t^{\mathrm{split}}(c) < p_t^{\mathrm{split}}$}
-        \State $p_t^{\mathrm{split}} \gets p_t^{\mathrm{split}}(c)$; $\mathcal{M}_t^\star \gets \{c\}$
-      \ElsIf{$p_t^{\mathrm{split}}(c) = p_t^{\mathrm{split}}$}
-        \State $\mathcal{M}_t^\star \gets \mathcal{M}_t^\star \cup \{c\}$
-      \EndIf
-      \If{early stopping enabled and $p_t^{\mathrm{split}} < \alpha_{\mathrm{eff}}$}
-        \State \textbf{break}
-      \EndIf
-    \EndFor
-    \If{$p_t^{\mathrm{split}} \ge \alpha_{\mathrm{eff}}$}
-      \State \Return $(\bot, p_t^{\mathrm{split}})$
-    \EndIf
-    \State $c_t^\star \gets$ a uniform element of $\mathcal{M}_t^\star$ \Comment{uniform tie-breaking among evaluated minimizers}
-    \Statex \textit{Note:} caller enforces \texttt{min\_impurity\_decrease} using weighted impurity decrease (\cref{alg:citree}).
-    \State \Return $(c_t^\star, p_t^{\mathrm{split}})$
-  \end{algorithmic}
-\end{algorithm}
-
-\subsection{Permutation testing (fixed-B baseline)}
-\label{app:methods-permutation}
-
-For a scalar test statistic $T(\cdot,\cdot)$ with a right-tail convention, let
-$T_0$ denote the observed statistic and let $T_1,\dots,T_B$ denote the statistic
-computed on $B$ i.i.d.\ random permutations of the labels. \citrees uses the
-Phipson--Smyth (+1) Monte Carlo permutation p-value \citep{PhipsonSmyth2010PermutationPValues},
-%
-\begin{equation}
-  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1},
-\end{equation}
-%
-and for a left-tail test,
-%
-\begin{equation}
-  p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_0\}}{B+1}.
-\end{equation}
-%
-Stage~A uses the right-tail convention and Stage~B uses the left-tail convention.
-Under the
-fixed-node assumptions in \cref{app:assumptions}---most importantly, when the
-tested hypothesis family is label-independent (as in Stage~A screening at a
-fixed node)---the right-tail +1 p-value is super-uniform in fixed-$B$ mode
-(\cref{sec:theory}), and the left-tail version follows by the same
-exchangeability/rank argument applied to $-T$. In adaptive uses (e.g., Stage~B after selecting a feature
-using the same labels, or at internal nodes), we treat early-stopped outputs and
-post-selection p-values as algorithmic statistics rather than fixed-node
-calibrated p-values.
-
-\paragraph{Seed reuse across candidate tests.}
-At a given node, the implementation passes the same base \texttt{random\_state}
-into each per-feature Stage~A test and each per-threshold Stage~B test. Each
-test then initializes its own RNG stream from that seed. Consequently, the
-candidate-wise permutation draws are reproducible but not independent streams
-indexed by candidate. The fixed-node Bonferroni arguments in \cref{sec:theory}
-do not require cross-candidate independence, so this implementation choice does
-not affect the theorem-backed Stage~A complete-null bounds.
-
-\paragraph{Resolution in fixed-$B$ mode.}
-Because +1 Monte Carlo p-values lie on the grid
-$\{1/(B+1),2/(B+1),\dots,1\}$, any configured significance threshold at or below
-$1/(B+1)$ is unattainable under the implementation's strict decision rule. In
-particular, if Stage~A uses Bonferroni at level $\alpha_{\mathrm{sel}}/m_t$,
-then rejection is possible only when $\alpha_{\mathrm{sel}}/m_t > 1/(B+1)$.
-Equivalently, the exact integer attainability condition is
-$B \ge \lfloor m_t/\alpha_{\mathrm{sel}} \rfloor$. Discreteness can also
-create ties (many candidates achieving the same minimal p-value), so a
-tie-breaking convention must be specified. Throughout, when multiple candidates
-attain the same minimum p-value (or score), ties are broken uniformly at random
-among minimizers using label-independent randomness.
-
-\paragraph{Permutation-budget presets (\texttt{n\_resamples}).}
-The library exposes a per-stage resample budget parameter \texttt{n\_resamples\_*}
-that can be an integer $R$ or one of the string presets
-\texttt{minimum}, \texttt{auto}, \texttt{maximum}. Let $n_{\mathrm{tests}}$ denote
-the number of hypotheses tested at the node ($n_{\mathrm{tests}} = m_t$ in
-Stage~A; $n_{\mathrm{tests}} = |C|$ in Stage~B after filtering), and let
-$\alpha_{\mathrm{eff}}$ denote the effective level at the node (equal to
-$\alpha/n_{\mathrm{tests}}$ under Bonferroni, else $\alpha$ as in
-Algorithms~\cref{alg:stageA,alg:stageB}). In fixed-$B$ mode, the implementation
-sets the permutation budget $B$ using the following functions of
-$\alpha_{\mathrm{eff}}$:
-%
-\begin{align}
-  B_{\mathrm{min}}(\alpha_{\mathrm{eff}})
-    &:= \left\lceil 1/\alpha_{\mathrm{eff}} \right\rceil, \\
-  B_{\mathrm{auto}}(\alpha_{\mathrm{eff}})
-    &:= \max\!\left\{
-      B_{\mathrm{min}}(\alpha_{\mathrm{eff}}),\;
-      \left\lceil z_{1-\alpha_{\mathrm{eff}}}^2 \frac{1-\alpha_{\mathrm{eff}}}{\alpha_{\mathrm{eff}}} \right\rceil
-    \right\}, \\
-  B_{\mathrm{max}}(\alpha_{\mathrm{eff}})
-    &:= \left\lceil 1/(4\alpha_{\mathrm{eff}}^2) \right\rceil,
-\end{align}
-%
-where $z_{1-\alpha} := \Phi^{-1}(1-\alpha)$ is a standard normal quantile.
-If \texttt{n\_resamples} is one of the string presets, the implementation uses
-$B = B_{\mathrm{min}}(\alpha_{\mathrm{eff}})$ for \texttt{minimum},
-$B = B_{\mathrm{auto}}(\alpha_{\mathrm{eff}})$ for \texttt{auto}, and
-$B = B_{\mathrm{max}}(\alpha_{\mathrm{eff}})$ for \texttt{maximum}. If
-\texttt{n\_resamples} is an integer $R$, the implementation uses $B=R$ when
-Bonferroni is disabled and $B=R\,n_{\mathrm{tests}}$ when Bonferroni is enabled.
-
-The \texttt{minimum} preset is a slightly conservative implementation choice
-motivated by the grid constraint: since +1 Monte Carlo p-values take values in
-$\{1/(B+1),\dots,1\}$ and the implementation rejects only when
-$p_{\mathrm{MC}} < \alpha_{\mathrm{eff}}$, one needs $1/(B+1) < \alpha_{\mathrm{eff}}$
-for any rejection to be attainable. The implementation sets
-$B_{\mathrm{min}}(\alpha_{\mathrm{eff}})=\lceil 1/\alpha_{\mathrm{eff}} \rceil$,
-which guarantees this strict inequality and differs from the exact integer
-attainability threshold by at most one extra permutation.
-The \texttt{auto} and \texttt{maximum} presets target Monte Carlo precision of
-the exceedance rate. Ignoring the +1 correction for intuition,
-%
-\begin{equation}
-  E := \sum_{b=1}^B \ind\{T_b \ge T_0\} \sim \mathrm{Binomial}(B,q), \qquad
-  SE(\hat{q}) \approx \sqrt{\frac{q(1-q)}{B}},
-\end{equation}
-%
-for $\hat{q} := E/B$. For \texttt{auto}, we plug in $q=\alpha_{\mathrm{eff}}$ and
-require $z_{1-\alpha_{\mathrm{eff}}}SE(\hat{q}) \le \alpha_{\mathrm{eff}}$, which
-gives $B \ge z_{1-\alpha_{\mathrm{eff}}}^2(1-\alpha_{\mathrm{eff}})/\alpha_{\mathrm{eff}}$.
-For \texttt{maximum}, we use the worst-case bound $q(1-q) \le 1/4$, require
-$SE(\hat{q}) \le \alpha_{\mathrm{eff}}$, and obtain $B \ge 1/(4\alpha_{\mathrm{eff}}^2)$.
-
-\subsection{Sequential permutation testing (early stopping; scope note)}
-\label{app:methods-sequential}
-
-\citrees implements sequential stopping rules to reduce the computational cost
-of permutation testing. These are useful engineering heuristics, but they change
-the inferential object: if the algorithm stops at a data-dependent time and then
-reports the running +1 estimate $(k+1)/(b+1)$, this value should not be treated
-as a classical fixed-$B$ Monte Carlo p-value without additional sequential
-analysis. For the fixed-$B$ p-value guarantees discussed in this manuscript, use
-fixed-$B$ mode (\texttt{early\_stopping\_* = None}) and report $B$ explicitly.
-
-\subsubsection{Simple sequential stopping (baseline)}
-\label{app:methods-sequential-simple}
-
-The ``simple'' rule stops early either when the running estimate is already
-below the relevant threshold (significance) or when rejection is impossible
-given the remaining budget (futility). This rule is fast but can inflate Type I
-error by repeatedly checking the running estimate without a sequential
-adjustment.
-
-\begin{algorithm}[t]
-  \caption{Simple sequential permutation test (heuristic)}
-  \label{alg:simple-sequential}
-  \begin{algorithmic}[1]
-    \Require Statistic $T$, observed value $T_0$, max resamples $B$, threshold $\alpha$
-    \State $\texttt{min\_resamples} \gets \lceil 1/\alpha \rceil$; $B \gets \max(B,\texttt{min\_resamples})$; $k \gets 0$
-    \For{$b = 1,\dots,B$}
-      \State Sample a random permutation and compute $T_b$
-      \If{$T_b \ge T_0$} \State $k \gets k+1$ \EndIf
-      \State $p_{\mathrm{cur}} \gets (k+1)/(b+1)$
-      \If{$b \ge \texttt{min\_resamples}$}
-        \If{$p_{\mathrm{cur}} < \alpha$} \State \Return $p_{\mathrm{cur}}$ \EndIf
-        \State $p_{\mathrm{best}} \gets (k+1)/(B+1)$
-        \If{$p_{\mathrm{best}} \ge \alpha$ and $k \ge 3$} \State \Return $p_{\mathrm{cur}}$ \EndIf
-      \EndIf
-    \EndFor
-    \State \Return $(k+1)/(B+1)$
-  \end{algorithmic}
-\end{algorithm}
-
-\subsubsection{Adaptive sequential stopping (Bayesian)}
-\label{app:methods-sequential-adaptive}
-
-The ``adaptive'' rule uses a Beta--Binomial model to stop once the algorithm is
-confident that the (latent) tail probability (exceedance rate) is either below
-or above the threshold. Let
-$k$ be the number of exceedances after $b$ permutations (right tail), model
-%
-\begin{equation}
-  k \mid q \sim \mathrm{Binomial}(b,q), \qquad q \sim \mathrm{Beta}(1,1),
-  \qquad q \mid k,b \sim \mathrm{Beta}(1+k, 1+b-k).
-\end{equation}
-%
-Given a confidence parameter $\gamma$ (default: $0.95$), stop if
-$\PP(q < \alpha \mid k,b) \ge \gamma$ or $\PP(q \ge \alpha \mid k,b) \ge \gamma$.
-
-\begin{algorithm}[t]
-  \caption{Adaptive sequential permutation test (heuristic)}
-  \label{alg:adaptive-sequential}
-  \begin{algorithmic}[1]
-    \Require Statistic $T$, observed value $T_0$, max resamples $B$, threshold $\alpha$, confidence $\gamma$
-    \State $\texttt{min\_resamples} \gets \lceil 1/\alpha \rceil$; $B \gets \max(B,\texttt{min\_resamples})$; $k \gets 0$
-    \For{$b = 1,\dots,B$}
-      \State Sample a random permutation and compute $T_b$
-      \If{$T_b \ge T_0$} \State $k \gets k+1$ \EndIf
-      \If{$b \ge \texttt{min\_resamples}$}
-        \State $r \gets \PP(q < \alpha \mid k,b)$ under $q \mid k,b \sim \mathrm{Beta}(1+k,1+b-k)$
-        \If{$r \ge \gamma$ or $1-r \ge \gamma$} \State \Return $(k+1)/(b+1)$ \EndIf
-      \EndIf
-    \EndFor
-    \State \Return $(k+1)/(B+1)$
-  \end{algorithmic}
-\end{algorithm}
-
-\paragraph{Left-tail variant (Stage B).}
-For split testing, replace the exceedance check by $T_b \le T_0$.
-
-\subsection{Computational heuristics (scope note)}
-\label{app:methods-heuristics}
-
-\citrees includes several heuristics intended to reduce computation. Some of
-these can change the algorithm's behavior and can break the ``fixed
-hypothesis family'' assumptions used by the paper's fixed-node theory. For
-paper-facing p-value guarantees, use fixed-$B$ testing and avoid adaptive
-hypothesis-family modifications (in particular, disable feature muting).
-
-\subsubsection{Feature muting}
-\label{app:methods-feature-muting}
-
-Feature muting removes features deemed uninformative at a node from future
-consideration within the subtree. Because muting decisions depend on observed
-labels via Stage~A p-values, it can violate the label-independence condition
-(A0.3) needed for fixed-node calibration statements when treated across
-multiple nodes.
-
-\paragraph{Implementation sketch (subtree-local muting).}
-In \citrees, muting is applied within a subtree: after a feature is tested at a
-node, if its Stage~A p-value is non-significant at the nodewise threshold, the
-feature can be removed from the candidate sets of \emph{descendants} of that
-node (provided at least one other candidate remains). Candidate sets are kept
-subtree-local to avoid traversal-order dependence (muting in one child should
-not affect its sibling).
-
-\paragraph{Scope note.}
-Muting is an engineering heuristic and is not used for any paper-facing p-value
-guarantees. Heuristically, muting can miss features whose effects are
-conditional on earlier splits (interaction/gating effects): a feature can look
-uninformative at a higher node but become informative within a descendant
-subpopulation. For inferential statements in this manuscript, we recommend
-disabling muting; for practical use, it can be helpful to compare runs with
-\texttt{feature\_muting=True} versus \texttt{False} as a sensitivity check.
-
-\subsubsection{Feature scanning}
-\label{app:methods-feature-scanning}
-
-When early stopping is enabled, feature scanning tests ``promising'' features
-first by sorting candidates using a cheap, non-permutation score. This can
-substantially reduce computation when a strong signal exists. When early
-stopping is disabled and the tested family is exhausted (fixed-$B$ reference
-mode), ordering does not affect the selected minimum over the tested family.
-
-\subsubsection{Threshold scanning}
-\label{app:methods-threshold-scanning}
-
-Analogous to feature scanning, threshold scanning orders candidate thresholds
-using a cheap deterministic score (e.g., weighted impurity) so that early
-stopping can terminate quickly if a good split exists. In fixed-$B$ mode, the
-ordering is irrelevant for the minimum over the evaluated threshold family.
-
-\subsection{Multiple testing correction}
-\label{app:methods-multipletesting}
-
-\paragraph{Bonferroni (default).}
-At a fixed node $t$, Stage~A tests $m_t=|F_t|$ features and declares significance
-only when $\min_{j\in F_t} p_{t,j}$ is strictly smaller than
-$\alpha_{\mathrm{sel}}/m_t$ when \texttt{adjust\_alpha\_selector} is enabled.
-Stage~B analogously uses a strict comparison against
-$\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
-\texttt{adjust\_alpha\_splitter} is enabled.
-
-\paragraph{Across-feature max-$T$ (not part of the main calibration results).}
-One possible extension of Stage~A is to apply a Westfall--Young-style max-$T$
-calibration across features at a node (using shared label permutations across
-all tested features) instead of Bonferroni. This can be less conservative under
-feature dependence. In this manuscript we use Bonferroni as the default across
-features for simplicity and assumption transparency in the fixed-node results.
-
-\paragraph{Within-feature max-statistic (multi-selector mode).}
-When combining multiple selector statistics, \citrees supports a max-statistic
-construction: within each permutation, take the maximum across selectors for a
-fixed feature (and then compute a single p-value from the max-statistics).
-Under exchangeability, the resulting +1 p-value remains super-uniform (see
-\cref{sec:multiselector}). This is
-closely related to the max-$T$ resampling principle \citep{WestfallYoung1993ResamplingBasedMultipleTesting}.
-
-\subsection{Forests and resampling}
-\label{app:methods-forests}
-
-The forest procedure fits $M$ trees and aggregates their predictions. Each tree is a
-conditional inference tree trained on either the full dataset or a resampled
-dataset (bootstrap). Bootstrap resampling is described in \cref{sec:bootstrap}.
-
-\begin{algorithm}[t]
-  \caption{Forest training (bagging with optional bootstrap)}
-  \label{alg:forest}
-  \begin{algorithmic}[1]
-    \Require Training data $(X,Y)$ with $n$ rows, number of trees $M$, tree hyperparameters $\theta_{\mathrm{tree}}$
-    \Require Optional bootstrap flag, optional \texttt{max\_samples}
-    \For{$m = 1,\dots,M$}
-      \If{bootstrap enabled}
-        \State Draw bootstrap indices $I_m$ by the configured sampler, passing \texttt{max\_samples} into that sampler
-        \Statex \Comment{implementation detail: classical bootstrap may draw $n$ with replacement and then truncate; class-conditional samplers may allocate \texttt{max\_samples} directly}
-        \State Fit $T_m \gets \textsc{FitTree}(X[I_m], Y[I_m]; \theta_{\mathrm{tree}})$
-      \Else
-        \State Fit $T_m \gets \textsc{FitTree}(X, Y; \theta_{\mathrm{tree}})$
-      \EndIf
-    \EndFor
-    \State \Return $\{T_1,\dots,T_M\}$
-  \end{algorithmic}
-\end{algorithm}
-
-\paragraph{Prediction.}
-Forest prediction is standard bagging: average class probability vectors for
-classification and average scalar predictions for regression.
-
-\paragraph{Bootstrap variants for classification.}
-Classification forests may use class-conditional bootstrap sampling to control
-the class composition of
-each bootstrap sample. In stratified mode, bootstrap draws are performed within
-each class so that expected class proportions match the training data. In
-\texttt{undersample} mode, the bootstrap draws $n_{\min}$ samples per class (with
-replacement), where $n_{\min}$ is the minority class count, producing a
-per-tree sample of size $K n_{\min}$ (possibly further capped by
-\texttt{max\_samples}). In \texttt{oversample} mode, the per-tree sample size is
-fixed ($n$ or \texttt{max\_samples}) and allocated as evenly as possible across
-classes (difference at most $1$), sampling within each class with replacement.
-These options are empirical engineering heuristics and are not covered by this
-manuscript's fixed-node permutation-test guarantees.
-
-\paragraph{Out-of-bag (OOB) scoring.}
-When bootstrapping is enabled, the out-of-bag set for tree $m$ is the set of
-training indices not included in its per-tree training index multiset (after
-any \texttt{max\_samples} truncation). OOB prediction for a training point
-averages predictions over the subset of trees for which that point is OOB, and
-OOB performance evaluates the resulting predictions against the training labels.
-When bootstrapping is disabled, OOB prediction is not defined.
-
-\subsection{Honest estimation (optional; algorithmic)}
-\label{app:methods-honest}
-
-\citrees optionally supports sample splitting (``honesty'') to decouple tree
-structure learning from leaf-value estimation. In honesty mode, the algorithm
-learns the tree structure on a splitting subsample and then re-estimates leaf
-values on a disjoint estimation subsample. This is a training heuristic aimed
-at reducing adaptive bias in leaf estimation; variants of this idea are central
-in causal trees/forests and generalized random forests
-\citep{AtheyImbens2016RecursivePartitioningCausalEffects,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
-It is not used in any of this
-manuscript's fixed-node permutation-test guarantees. If a leaf receives zero
-estimation samples, \citrees retains the splitting-sample leaf value.
-
-\subsection{Benchmark protocol (rank-then-evaluate)}
-\label{app:methods-benchmark}
-
-The benchmark suite evaluates methods as feature rankers using a two-stage
-protocol:
-(i)~produce a feature ranking on a training split, and
-(ii)~train downstream models on the top-$k$ features and evaluate on held-out
-data.
-
-\paragraph{Rankings.}
-Each method produces a permutation of the $p$ feature indices,
-%
-\begin{equation}
-  r = (r_1,\dots,r_p), \qquad r_k \in \{1,\dots,p\},
-\end{equation}
-%
-ordered so that smaller $k$ indicates higher importance. For tree and forest
-methods, rankings are derived from model-specific variable-importance or
-variable-usage summaries. Most tree and forest baselines use a
-feature-importance vector (e.g., impurity decrease), while the
-\texttt{r\_ctree} baseline is ranked by split-usage counts extracted from the
-fitted tree and \texttt{r\_cforest} uses \texttt{partykit::varimp}. For
-univariate-selector baselines, rankings are derived from association scores or
-their permutation-calibrated variants. In the current locked benchmark roster,
-the executable univariate baselines are the permutation-calibrated variants
-(\texttt{ptest\_*}) rather than raw filters.
-
-\paragraph{Tree/ensemble importances (embedding baselines).}
-For embedding methods that expose a feature-importance score per feature, we
-derive rankings by sorting those scores in descending order. For a fitted
-\citrees tree, the stored \texttt{feature\_importances\_} vector is the
-normalized sum of weighted impurity decreases accumulated over accepted splits.
-For a fitted \citrees forest, the stored \texttt{feature\_importances\_} vector
-is obtained by summing the already-normalized per-tree importance vectors and
-renormalizing the result. Tree baselines that do not expose a direct
-feature-importance vector are handled by the model-specific ranking rule used
-in the executable pipeline (e.g., split-usage counts for \texttt{r\_ctree}).
-
-\paragraph{Wrapper baselines (implementation-specific).}
-The executable wrapper baselines are more specific than their family labels may
-suggest. \texttt{boruta} uses \texttt{BorutaPy} with a random-forest base model
-and ranks features via the library's returned rank scores
-\citep{Kursa2010Boruta}. In the locked grid, \texttt{pi} fits a random forest
-on an 80/20 train/validation split within the
-training fold and ranks features by scikit-learn permutation importance with
-$10$ permutation repeats on the held-out validation split (classification
-scored by accuracy; regression by $R^2$).
-\texttt{cpi} uses the same hold-out random-forest template but permutes a
-feature either globally or within strata formed from features whose absolute
-correlation with that feature exceeds the fixed threshold $0.5$; it is
-therefore an approximate conditional-permutation baseline rather than an exact
-reproduction of \texttt{partykit}'s conditional variable-importance procedure
-\citep{Strobl2008ConditionalVIM,DebeerStrobl2020ConditionalPermutationImportanceRevisited}.
-\texttt{rfe} uses scikit-learn recursive feature elimination with a
-random-forest base estimator, selecting down to one feature with a fixed
-fractional elimination step \citep{Guyon2002RFE}. These implementation details matter when
-interpreting the benchmark roster.
-
-\paragraph{Impurity-decrease importances (MDI-style; common special case).}
-For impurity-based tree learners, feature importance is often computed as a
-normalized sum of impurity decreases. For an internal node $v$ with parent
-labels $Y_v$ and children labels $(Y_v^L,Y_v^R)$ and sizes $(n_v,n_v^L,n_v^R)$,
-define the (per-node) impurity decrease
-%
-\begin{equation}
-  \Delta \mathrm{Imp}_v := \mathrm{Imp}(Y_v) - \left(\frac{n_v^L}{n_v} \mathrm{Imp}(Y_v^L) + \frac{n_v^R}{n_v} \mathrm{Imp}(Y_v^R)\right),
-\end{equation}
-%
-where $\mathrm{Imp}(\cdot)$ is the configured impurity (classification: Gini or entropy;
-regression: MSE or MAE). A generic MDI-style importance for feature $j$ is
-%
-\begin{equation}
-  \mathrm{MDI}_j := \sum_{v:\ \text{node $v$ splits on feature $j$}} w_v\,\Delta \mathrm{Imp}_v,
-\end{equation}
-%
-where $w_v \ge 0$ is an implementation-specific node weight (e.g., some
-implementations weight by node sample size, while the implementation used in
-our experiments accumulates per-node decreases and normalizes at the end). The
-resulting importance vector is typically normalized to sum to $1$ before
-ranking.
-
-\paragraph{Cross-validation and leakage prevention.}
-We use $V=5$ folds and $N_{\mathrm{seeds}}=5$ random seeds. In the executable
-pipeline, seed indices are 0-based: for seed index
-$s \in \{0,\dots,N_{\mathrm{seeds}}-1\}$ we generate a random partition into $V$
-folds (stratified by class for classification). Fold indices are likewise
-0-based, so for each fold
-$f \in \{0,\dots,V-1\}$, all ranking and preprocessing steps are fit on the
-training portion only, and evaluation is performed on the held-out portion. In
-particular, Stage~1 computes rankings on features standardized using training-fold
-means and variances only, and applies the resulting affine transformation to the
-held-out fold. Stage~2 then re-standardizes the selected top-$k$ training
-features (using training-fold moments computed on those $k$ features) and
-applies the corresponding transformation to the held-out fold, preventing
-leakage while keeping downstream models on comparable scales across $k$.
-
-\paragraph{Seed schedule.}
-For a given seed index $s$ and fold index $f$, methods and downstream models use
-the derived seed
-%
-\begin{equation}
-  \eta_{s,f} := 1000\,s + f,
-\end{equation}
-%
-which avoids accidental reuse of the same pseudo-random stream across folds.
-
-\paragraph{Top-$k$ sweep and downstream models.}
-Given a ranking $r$ for a fold, we evaluate downstream models trained on the
-top-$k$ features $r_{1:k}$ for $k \in \{5,10,25,50,100,p\}$, with $k$ clipped to
-$k \le p$ and duplicates removed. Classification uses three downstream models:
-logistic regression (iteration cap $1000$ with class-balanced loss), an RBF-kernel
-support vector machine (class-balanced loss with Platt-scaling probability calibration; $C=1$), and
-$k$-nearest neighbors (with $k_{\mathrm{NN}}=5$ and distance-weighted voting).
-Regression uses ridge regression (regularization strength $1$), support vector
-regression (RBF kernel with $C=1$ and $\epsilon=0.1$), and $k$-nearest-neighbors
-regression (with $k_{\mathrm{NN}}=5$ and distance-weighted averaging).
-
-For classification, we report accuracy, balanced accuracy, weighted and macro
-F1, and ROC AUC when defined (recording \texttt{NaN} for undefined cases, including
-degenerate folds with only one class and other class/probability-shape mismatches).
-For regression, we report $R^2$, MSE, RMSE, and MAE. Reported
-results are aggregated across folds and seeds. In the current confirmatory
-analysis pipeline, if a method family has multiple locked configurations, those
-configuration-level results are additionally averaged within dataset at the
-\texttt{method\_base} level before cross-dataset statistical comparison. The
-generic all-model statistical summaries also average across downstream models
-and $k$ values unless the analysis is explicitly filtered to a specific model
-or top-$k$ slice.
-
-\paragraph{Synthetic ground truth.}
-For synthetic datasets with known informative feature indices $S^\star$, we
-compute ranking quality metrics such as precision@k and recall@k,
-%
-\begin{equation}
-  \mathrm{precision@k} = \frac{| \{r_1,\dots,r_k\} \cap S^\star |}{k},
-  \qquad
-  \mathrm{recall@k} = \frac{| \{r_1,\dots,r_k\} \cap S^\star |}{|S^\star|}.
-\end{equation}
-
-We also report F1@k,
-%
-\begin{equation}
-  \mathrm{F1@k} = 2\cdot \frac{\mathrm{precision@k}\cdot \mathrm{recall@k}}{\mathrm{precision@k} + \mathrm{recall@k}},
-\end{equation}
-%
-with the convention $\mathrm{F1@k}=0$ when the denominator is zero.
-In the current analysis script, the default synthetic evaluation grid is
-$k \in \{5,10,20,|S^\star|\}$, with clipping when needed to ensure $k \le p$.
-
-\paragraph{Redundancy and confounding (synthetic).}
-For datasets with redundant features (proxies that are deterministic functions
-of informative features), we optionally evaluate against an expanded ground
-truth $S^\star_{\mathrm{IR}} := S^\star \cup S_{\mathrm{red}}$, where
-$S_{\mathrm{red}}$ are redundant indices. For correlated-noise ``confounder''
-datasets, we track the rate at which a method ranks confounders in the top-$k$,
-%
-\begin{equation}
-  \mathrm{ConfounderRate@k} = \frac{| \{r_1,\dots,r_k\} \cap S_{\mathrm{conf}} |}{k}.
-\end{equation}
-
-\paragraph{Noise selection rate (synthetic).}
-To quantify selection bias under null-style synthetic regimes, we also consider
-the fraction of top-$k$ features that are known noise variables,
-%
-\begin{equation}
-  \mathrm{NSR@k} = \frac{| \{r_1,\dots,r_k\} \cap S_{\mathrm{noise}} |}{k},
-\end{equation}
-%
-where $S_{\mathrm{noise}}$ is the set of noise indices. In the current codebase,
-this is implemented in a separate selection-bias analysis path rather than in
-the default synthetic ranking-summary script.
+This appendix keeps only the implementation details that materially affect how
+the main results should be read. Section~\ref{sec:method} gives the algorithmic
+loop, Appendices~A--C give the fixed-node proofs, and Appendix~\ref{app:complexity-details}
+gives the detailed complexity formulas.
+
+\subsection{Scope relative to the theory}
+
+The theorem-backed object is narrow: exhaustive fixed-$B$ Stage~A feature selection at a
+pre-specified node under the complete permutation null. The benchmarked learner
+adds several practical controls that are useful algorithmically but fall outside
+that theorem package:
+\begin{itemize}
+  \item early stopping,
+  \item feature and threshold candidate ordering inside early stopping,
+  \item feature muting,
+  \item approximate threshold sets,
+  \item bootstrap resampling and forest aggregation,
+  \item optional honesty.
+\end{itemize}
+Accordingly, only the fixed-node exhaustive Stage~A p-values retain the
+calibrated Monte Carlo interpretation from \cref{sec:theory}. The remaining
+reported Stage~A or split scores are algorithmic quantities.
+
+\subsection{Node-level implementation choices}
+
+\paragraph{Stage~A.}
+At each node, \citrees removes features that are constant on the node before any
+\texttt{max\_features} subsampling. If permutation testing is enabled, Stage~A
+computes $+1$ Monte Carlo p-values, can order candidates before testing so the
+sequential stopping rule sees promising features earlier, and may stop early
+once a sufficiently strong candidate has been found. When feature muting is
+enabled, features with non-significant Stage~A scores can be removed from
+descendant candidate sets within the same subtree. These choices reduce
+computation, but they also make the returned score $s_t^\star$ an algorithmic
+Stage~A score rather than an exhaustive fixed-family p-value.
+
+\paragraph{Stage~B.}
+Given the selected feature, \citrees builds threshold candidates from midpoints
+between consecutive unique feature values. Exact search uses all such
+midpoints; random, percentile, and histogram rules choose the threshold set
+itself, with a small-sample fallback to the full midpoint set. When sequential
+stopping is enabled, threshold scanning may then reorder that chosen set before
+testing. Because Stage~B is run only after choosing a feature with the same
+labels, its returned quantity $s_t^{\mathrm{split}}$ is read as a post-selection
+split score rather than as a calibrated p-value.
+
+\paragraph{Split statistics.}
+For permutation-based split testing, the implementation uses the unweighted sum
+of child impurities as the tested statistic and a left-tail convention. The
+deterministic split search and the final
+\texttt{min\_impurity\_decrease} filter instead use the usual weighted impurity
+decrease. This distinction matters only for interpreting the Stage~B score; it
+does not change the main paper's benchmark summaries, which are all based on the
+final rankings produced by the fitted learners.
+
+\subsection{Permutation budgets and early stopping}
+
+\citrees uses Phipson--Smyth $+1$ Monte Carlo permutation p-values
+\citep{PhipsonSmyth2010PermutationPValues} for both stages: right-tail in
+Stage~A and left-tail in Stage~B. The library exposes integer resampling budgets
+and three presets:
+\begin{itemize}
+  \item \texttt{minimum}: the smallest budget that makes rejection attainable on
+  the discrete $+1$ p-value grid,
+  \item \texttt{auto}: a larger budget intended to stabilize Monte Carlo error
+  near the decision threshold,
+  \item \texttt{maximum}: a conservative high-precision setting.
+\end{itemize}
+When Bonferroni is enabled, the effective threshold depends on the number of
+tests at the node, so the realized per-node permutation budget increases with
+search width.
+
+\paragraph{Sequential stopping.}
+The benchmarked defaults use adaptive sequential stopping. The implementation
+tracks exceedances inside batches and stops once a Beta--Binomial posterior is
+confident that the latent exceedance rate is either below or above the nodewise
+threshold. A simpler futility/significance rule is also available. Both are
+practical heuristics: once a stage stops at a data-dependent time, the returned
+value is no longer a classical fixed-$B$ Monte Carlo p-value. This is exactly
+why the main paper separates the fixed-node guarantee from the empirical
+practical-controls result.
+
+\subsection{Forests, resampling, and honesty}
+
+CIF averages predictions from bootstrap trees. These forests are empirical
+extensions of the theorem-backed Stage~A rule, not objects covered by the
+fixed-node result itself. The classification implementation also supports
+class-conditional bootstrap variants, and both trees and forests optionally
+support honest estimation via sample splitting. These settings are useful
+algorithmically, but they change the training distribution or the estimation
+target and should therefore be read as empirical design choices rather than as
+parts of the theorem package.
+
+\subsection{Benchmark protocol summary}
+
+All benchmark methods are treated as feature rankers. A method first produces a
+ranking on the training split; downstream models are then fit on the top-$k$
+selected features and evaluated on held-out data. The real-data benchmark uses
+5-fold cross-validation over 5 random seeds, standard budgets
+$k \in \{5,10,25,50,100\}$, and larger endpoint budgets only for the separate
+high-$p$ saturation check. If a method family has multiple configurations, the
+analysis uses one selected configuration per task, chosen by mean score on the
+same benchmark surface reported in the paper. The resulting tables are therefore
+descriptive post-selection summaries rather than nested external validation
+estimates.
+
+\subsection{Persistent benchmark skips}
+
+The packaged benchmark contains a small number of documented persistent skips
+that affect complete-case support and fixed-panel membership.
+
+\begin{table}[t]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Method/config & Dataset & Seeds \\
+    \midrule
+    \texttt{r\_ctree} MonteCarlo & \texttt{gisette} & 3 \\
+    \texttt{r\_ctree} MonteCarlo & \texttt{isolet} & 2, 3 \\
+    \texttt{cit} with selector \texttt{rdc} & \texttt{gisette} & 0, 1, 3 \\
+    \texttt{cit} with selector \texttt{rdc} & \texttt{orlraws10P} & 1 \\
+    \texttt{r\_ctree}, \texttt{r\_cforest} & \texttt{dexter} & method-level exclusion \\
+    \bottomrule
+  \end{tabular}
+  \caption{Documented persistent skips in the packaged benchmark. These cells
+  remain missing rather than imputed.}
+  \label{tab:implementation-skips}
+\end{table}
+
+\subsection{Randomness and reproducibility}
+
+The implementation is deterministic given the same base seed. Pure Python
+permutation routines use local \texttt{numpy} generators, while compiled
+parallel routines use per-resample seeded streams because generator-based RNGs
+are not uniformly supported in those contexts. This affects how random streams
+are constructed in code, but not the substantive reading of the results: the
+benchmark is reproducible from the saved artifacts and the reported rankings are
+deterministic given the stored configuration and seed schedule.

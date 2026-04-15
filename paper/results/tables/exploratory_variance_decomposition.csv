@@ -1,0 +1,6 @@
+analysis_scope,factor,pct_variance
+exploratory_lr_only_all_configs,dataset,50.96898346422903
+exploratory_lr_only_all_configs,k,7.613584685457911
+exploratory_lr_only_all_configs,method_base,4.692248176982701
+exploratory_lr_only_all_configs,seed,0.0021973688407299287
+exploratory_lr_only_all_configs,downstream_model,3.90467698473545e-29

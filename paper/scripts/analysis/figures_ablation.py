@@ -34,8 +34,8 @@ plt.style.use("seaborn-v0_8-whitegrid")
 CIF_DEFAULT = "#2563EB"  # blue-600
 CIF_LIGHT = "#93C5FD"  # blue-300
 CIF_DARK = "#1E40AF"  # blue-800
-RF_COLOR = "#6B7280"  # gray-500
-ET_COLOR = "#9CA3AF"  # gray-400
+
+
 R_PRIMARY = "#F97316"  # orange-500
 R_SECONDARY = "#FB923C"  # orange-400
 
@@ -244,31 +244,29 @@ def fig_n_estimators() -> None:
 # Figure 3: Scaling — runtime vs n_samples and n_features
 # ===================================================================
 def fig_scaling() -> None:
+    """CIF-only scaling: runtime vs n and runtime vs p."""
     print("Figure 3: ablation_scaling.png")
     df = _read_csv("scaling_curves.csv")
     if df is None:
         return
 
-    method_colors = {"cif": CIF_DEFAULT, "rf": RF_COLOR, "et": ET_COLOR}
-    method_markers = {"cif": "o", "rf": "s", "et": "^"}
-    method_labels = {"cif": "CIF", "rf": "RF", "et": "ET"}
+    # Only show CIF — cross-method runtime comparisons are invalid
+    # (different languages, libraries, hardware).
+    cif = df[df["method"] == "cif"].copy()
 
     fig, axes = plt.subplots(1, 2, figsize=(7, 3))
 
     # (a) Runtime vs n_samples (sweep == "n")
     ax = axes[0]
     _apply_style(ax)
-    sub_n = df[df["sweep"] == "n"].copy()
-    for method in ["cif", "rf", "et"]:
-        dd = sub_n[sub_n["method"] == method].sort_values("n_samples")
-        if dd.empty:
-            continue
+    sub_n = cif[cif["sweep"] == "n"].sort_values("n_samples")
+    if not sub_n.empty:
         ax.plot(
-            dd["n_samples"],
-            dd["elapsed_median"],
-            marker=method_markers[method],
-            color=method_colors[method],
-            label=method_labels[method],
+            sub_n["n_samples"],
+            sub_n["elapsed_median"],
+            marker="o",
+            color=CIF_DEFAULT,
+            label="CIF",
             markersize=5,
             linewidth=1.5,
         )
@@ -281,17 +279,14 @@ def fig_scaling() -> None:
     # (b) Runtime vs n_features (sweep == "p")
     ax = axes[1]
     _apply_style(ax)
-    sub_p = df[df["sweep"] == "p"].copy()
-    for method in ["cif", "rf", "et"]:
-        dd = sub_p[sub_p["method"] == method].sort_values("n_features")
-        if dd.empty:
-            continue
+    sub_p = cif[cif["sweep"] == "p"].sort_values("n_features")
+    if not sub_p.empty:
         ax.plot(
-            dd["n_features"],
-            dd["elapsed_median"],
-            marker=method_markers[method],
-            color=method_colors[method],
-            label=method_labels[method],
+            sub_p["n_features"],
+            sub_p["elapsed_median"],
+            marker="o",
+            color=CIF_DEFAULT,
+            label="CIF",
             markersize=5,
             linewidth=1.5,
         )

@@ -41,6 +41,7 @@ from starlette.responses import Response
 if TYPE_CHECKING:
     from paper.scripts.adapters.store import S3Store
     from paper.scripts.pipeline.grid import ExperimentGrid
+    from paper.scripts.pipeline.types import ExperimentConfig
 
 
 # ---------------------------------------------------------------------------
@@ -65,9 +66,9 @@ def _serialize_config(cfg: Any) -> dict[str, Any]:
 # Internal state
 # ---------------------------------------------------------------------------
 
-_TASKS = ("classification", "regression")
-
 _REFRESH_INTERVAL_SECONDS = int(os.environ.get("CITREES_REFRESH_INTERVAL", "300"))
+
+_TASKS = ("classification", "regression")
 
 # Queue key: "{stage}/{task}" -> e.g. "rankings/classification"
 QueueKey = str
@@ -114,6 +115,27 @@ def _key(stage: str, task: str) -> QueueKey:
     return f"{stage}/{task}"
 
 
+def _needs_metrics_work(
+    store: S3Store,
+    cfg: ExperimentConfig,
+    completed_metrics: set[tuple[str, str, int]],
+) -> bool:
+    """Return True when Stage 2 is missing required k coverage for a config."""
+    if cfg.key not in completed_metrics:
+        return True
+
+    from paper.scripts.pipeline.stage2 import (
+        get_requested_evaluation_k_values,
+        infer_n_features_from_rankings,
+        metrics_cover_requested_k_values,
+    )
+
+    rankings_df = store.load("rankings", cfg)
+    metrics_df = store.load("metrics", cfg)
+    required_k_values = get_requested_evaluation_k_values(infer_n_features_from_rankings(rankings_df))
+    return not metrics_cover_requested_k_values(metrics_df, required_k_values)
+
+
 def _build_queues() -> None:
     """Build all 4 queues by checking S3 for completed work.
 
@@ -134,6 +156,8 @@ def _build_queues() -> None:
     logger.info("Connecting to S3...")
     store = _S3Store.from_config()
     _store = store
+    _queues.clear()
+    _grids.clear()
 
     for task in _TASKS:
         logger.info("Building queues for {}...", task)
@@ -159,11 +183,11 @@ def _build_queues() -> None:
             initial=rankings_initial,
         )
 
-        # Metrics queue: items that have rankings but no metrics yet (materialized + shuffled)
+        # Metrics queue: items that have rankings but are missing required k coverage.
         metrics_list = [
             cfg
             for cfg in grid
-            if cfg.key in completed_rankings and cfg.key not in completed_metrics
+            if cfg.key in completed_rankings and _needs_metrics_work(store, cfg, completed_metrics)
         ]
         metrics_initial = len(metrics_list)
         random.shuffle(metrics_list)
@@ -211,7 +235,7 @@ def _refresh_metrics() -> dict[str, int]:
             metrics_list = [
                 cfg
                 for cfg in grid
-                if cfg.key in completed_rankings and cfg.key not in completed_metrics
+                if cfg.key in completed_rankings and _needs_metrics_work(_store, cfg, completed_metrics)
             ]
             random.shuffle(metrics_list)
 

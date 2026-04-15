@@ -9,12 +9,16 @@
 \usepackage{mathtools}
 
 \usepackage{graphicx}
-\graphicspath{{../results/}}
+\graphicspath{{figures/}}
 \usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
 \usepackage{siunitx}
+\usepackage[font=small,labelfont=bf]{caption}
 
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage[titletoc,title]{appendix}
 \usepackage[section]{placeins}
 
 \usepackage{hyperref}
@@ -28,15 +32,15 @@
 \makeatother
 
 \input{macros}
+\hypersetup{hidelinks}
 
-\title{Conditional Inference Trees and Forests: Practical Optimizations and Benchmarks}
-% \author{%
-%   Robert Milletich, Steve Goley, Justin Downes, Newel Hirst\\
-%   Amazon Web Services\\
-%   \texttt{rmilleti@amazon.com, sgoley@amazon.com, jusdow@amazon.com, nhirst@amazon.com}\\
-%   Repository: \url{https://github.com/rmill040/citrees}
-% }
-\date{\today}
+\title{Conditional Inference Trees and Forests as Feature Rankers}
+\author{%
+  Robert Milletich, Justin Downes, Steve Goley, Newel Hirst\\
+  Amazon Web Services\\
+  \texttt{\char`\{rmilleti,jusdow,sgoley,nhirst\char`\}@amazon.com}
+}
+\date{}
 
 \begin{document}
 \maketitle
@@ -46,22 +50,22 @@
 \end{abstract}
 
 \input{sections/01_introduction}
-\input{sections/02_background}
-\input{sections/03_method}
-\input{sections/04_theory}
-\input{sections/05_experiments}
-\input{sections/06_results}
-\input{sections/07_discussion}
-\input{sections/08_conclusion}
+\input{sections/02_method}
+\input{sections/03_theory}
+\input{sections/04_experiments}
+\input{sections/05_results}
+\input{sections/06_discussion}
+\input{sections/07_conclusion}
 
-\appendix
+\clearpage
+\begin{appendices}
+\crefalias{section}{appendix}
 \input{appendices/appendix_A_setup}
 \input{appendices/appendix_B_exchangeability}
 \input{appendices/appendix_C_plusone_pvalue}
 \input{appendices/appendix_H_methods}
-\input{appendices/appendix_I_cart_bias}
-\input{appendices/appendix_implementation}
 \input{appendices/appendix_J_complexity}
+\end{appendices}
 
 \bibliographystyle{plainnat}
 \bibliography{references}

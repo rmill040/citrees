@@ -1,14 +1,62 @@
 \section{Implementation notes (aligned to \citrees)}
 \label{app:implementation}
 
-This appendix records implementation details that matter for reproducibility and
-for interpreting the scope of the theoretical statements in
-\cref{sec:theory}.
+This appendix collects implementation details relevant to reproducibility and
+to the scope of the theoretical statements in \cref{sec:theory}.
 
-This appendix complements Appendix~\ref{app:methods}: the methods appendix
-records algorithmic details, while this appendix focuses on reproducibility
-details (RNG, compilation modes, and implementation choices that affect how to
-interpret results).
+It complements Appendix~\ref{app:methods}: Appendix~\ref{app:methods} gives
+the algorithmic details, while this appendix turns to reproducibility
+details such as RNG behavior, compilation modes, and implementation choices
+that affect how the results should be read.
+
+\subsection{Benchmark tables and selected-config audit}
+
+The paper-facing benchmark summaries in Sections~\ref{sec:experiments} and
+\ref{sec:results} are regenerated from the saved experiment artifacts by
+\texttt{paper/scripts/analysis/build\_paper\_benchmark\_tables.py}. For the
+real-data benchmark, the canonical outputs include:
+\begin{itemize}
+  \item \texttt{paper\_benchmark\_best\_configs.csv} for the selected method IDs,
+  \item \texttt{paper\_benchmark\_selected\_config\_details.csv} for resolved
+    parameter settings, candidate grid sizes, and runner-up gaps within each
+    method family,
+  \item \texttt{paper\_benchmark\_complete\_case\_membership.csv} for the
+    changing standard-budget support, and
+  \item \texttt{paper\_benchmark\_fixed\_panel\_aggregate.csv} for the stricter
+    common-dataset sensitivity summary, and
+  \item \texttt{paper\_benchmark\_fixed\_panel\_membership.csv} for the
+    underlying fixed-panel dataset inventory.
+\end{itemize}
+These tables are the reproducibility surface for the benchmark numbers quoted
+in the main text.
+
+\subsection{Documented benchmark skips}
+\label{app:implementation-skips}
+
+The packaged benchmark includes a small number of documented skips that persist
+in the saved artifact tree and therefore affect complete-case support. The main
+text refers to them collectively; the concrete inventory is:
+
+\begin{table}[t]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Method/config & Dataset & Seeds \\
+    \midrule
+    \texttt{r\_ctree} MonteCarlo & \texttt{gisette} & 3 \\
+    \texttt{r\_ctree} MonteCarlo & \texttt{isolet} & 2, 3 \\
+    \texttt{cit} with selector \texttt{rdc} & \texttt{gisette} & 0, 1, 3 \\
+    \texttt{cit} with selector \texttt{rdc} & \texttt{orlraws10P} & 1 \\
+    \texttt{r\_ctree}, \texttt{r\_cforest} & \texttt{dexter} & method-level exclusion \\
+    \bottomrule
+  \end{tabular}
+  \caption{Documented persistent skips in the packaged benchmark. These cells
+  are retained as missing rather than imputed, so they affect complete-case
+  support and fixed-panel membership.}
+  \label{tab:implementation-skips}
+\end{table}
 
 \subsection{Registry pattern}
 
@@ -41,7 +89,7 @@ contexts. The result is deterministic across runs given the same base seed.
 At a fixed node, the same base seed is reused across candidate-wise tests
 unless the caller changes it. Thus different per-feature or per-threshold tests
 are reproducible but not generated from independent candidate-indexed RNG
-streams. This is an implementation choice rather than a theorem assumption.
+streams. This is an implementation choice, not a theorem assumption.
 
 \subsection{Bootstrap methods in forests}
 

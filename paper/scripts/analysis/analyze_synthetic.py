@@ -35,6 +35,8 @@ from paper.scripts.utils.metrics import f1_at_k, precision_at_k, recall_at_k
 
 def dataset_type_from_config(config: dict) -> str:
     """Map synthetic config to a dataset type label."""
+    name = str(config.get("name", ""))
+
     if config.get("toeplitz_rho", 0.0) > 0:
         return "toeplitz"
     if config.get("weak_signal", False):
@@ -51,6 +53,10 @@ def dataset_type_from_config(config: dict) -> str:
         return "confounder"
     if config.get("n_redundant", 0) > 0:
         return "redundant"
+    if name in {"synthetic_p100_k10_n1000_sep2.0", "synthetic_p100_k10_n1000_noise1.0"}:
+        return "standard_easy"
+    if name in {"synthetic_p1000_k5_n200_sep0.5", "synthetic_p500_k5_n200_noise10.0"}:
+        return "standard_hard"
     return "standard"
 
 

@@ -1,8 +1,8 @@
 \section{Monte Carlo permutation exchangeability}
 \label{app:permutation-exchangeability}
 
-This appendix isolates the exchangeability fact used by Monte Carlo permutation
-tests and clarifies why the common ``observed statistic + $B$ random
+This appendix states the exchangeability fact used by Monte Carlo permutation
+tests and explains why the common ``observed statistic + $B$ random
 permutations'' computation is covered by the same rank argument under the
 conditional-exchangeability null (A0.2); see also
 \citet{HemerikGoeman2018ExactTestingRandomPermutations} for a broader treatment
@@ -56,11 +56,11 @@ $T_0 := T(X_{t,j}, \Pi_0(Y_t))$ (keeping $T_1,\dots,T_B$ as above), and define
   := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
 \end{equation}
 %
-Under the null (conditional on $(X_t,U)$), $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$
-have the same distribution. This reduction lets the proof of
-Theorem~\ref{them:plusone-superuniform} analyze the exchangeable construction
-$p_{\mathrm{rnd}}$ and then transfer the conclusion back to the standard
-``observed statistic + $B$ random permutations'' computation.
+Under the null (conditional on $(X_t,U)$), $p_{\mathrm{id}}$ and
+$p_{\mathrm{rnd}}$ have the same distribution. This reduction lets the proof
+of Theorem~\ref{thm:plusone-superuniform} analyze the exchangeable
+construction $p_{\mathrm{rnd}}$ and then transfer the conclusion back to the
+standard ``observed statistic + $B$ random permutations'' computation.
 \end{lemma}
 
 \begin{proof}

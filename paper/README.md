@@ -1,96 +1,147 @@
 # Paper Directory
 
-This directory contains the **arXiv manuscript** and **experiment pipeline** for
-citrees.
+This directory now has a deliberately small documentation stack.
 
-## Quick Navigation
+If you are drafting or editing the paper, do not wander through every markdown
+file. Start from the consolidated brief and only drop to the lower-level docs
+when you need the governing rule or a locked number.
 
-**Working on the manuscript?**
+## Read These
 
-- Manuscript source: `paper/arxiv/` (LaTeX, build with `latexmk`)
-- Claims tracker: `paper/docs/claims-index.md`
-- Proof QA checklist: `paper/docs/writing-checklist.md`
-- Reviewer watchouts: `paper/docs/reviewer-watchouts.md`
-- Immediate actions: `paper/docs/next-steps.md`
-- Writing notes/drafts: `paper/docs/drafts.md`
+1. `paper/README.md`
+2. `paper/docs/analysis-contract.md`
+3. `paper/docs/results-finalization.md`
+4. `../STORY.md`
 
-**Running experiments?**
+Authority still flows in that order:
 
-- Experiment runbook: `paper/docs/experiments.md`
-- Infrastructure (AWS/Ray): `paper/docs/infrastructure.md`
-- Figures/tables map: `paper/docs/figures-plan.md`
+1. `analysis-contract.md`
+2. `results-finalization.md`
+3. `STORY.md`
 
-## Inferential scope (p-values)
+Use them this way:
 
-To avoid accidental overclaiming in figures, captions, and analysis scripts, the
-arXiv manuscript follows a strict “scope contract”:
+- `analysis-contract.md`: decides whether a claim is headline-eligible.
+- `results-finalization.md`: decides which numbers, figures, and tables are
+  locked.
+- `STORY.md`: decides the motivation, hierarchy, and compression of those
+  locked results.
 
-- **Calibrated p-values:** only fixed-node/root Stage~A permutation p-values
-  computed in **fixed-`B`** mode under the **nodewise complete (global)
-  permutation null** (exchangeability target of the permutation scheme).
-- **Algorithmic statistics:** Stage~B threshold tests, internal-node tests, and
-  early-stopped permutation outputs (unless additional selective-inference
-  machinery or sample splitting is used).
-- **Caption rule:** any calibration plot must state the simulated null (e.g.,
-  “complete global null”) and avoid featurewise/partial-null language unless a
-  restricted permutation scheme is implemented.
+## Support-Only Docs
 
-See the manuscript scope table (`paper/arxiv/sections/03_method.tex`,
-Table~`tab:pvalue-scope`) and the figure map (`paper/docs/figures-plan.md`) for
-the “do/don’t” wording.
+- `paper/docs/experiments.md`
+  Rebuild path and manuscript-facing caveats only.
+- `paper/results/tables/README.md`
+  Canonical vs supporting vs superseded table manifest.
 
-## Directory Structure
+These can support drafting, but they should not drive the paper's story.
 
-```
-paper/
-├── README.md              # you are here
-├── docs/                  # all documentation
-│   ├── experiments.md     # experiment pipeline runbook
-│   ├── infrastructure.md  # AWS/EC2 infra
-│   ├── claims-index.md    # theory claims tracker
-│   ├── next-steps.md      # immediate actions
-│   ├── writing-checklist.md # proof QA checklist
-│   ├── drafts.md          # writing notes (staging)
-│   └── figures-plan.md    # scripts → figures → claims
-├── arxiv/                 # LaTeX manuscript (arXiv source)
-│   ├── main.tex           # entrypoint
-│   ├── sections/          # main paper content
-│   ├── appendices/        # proofs + technical details
-│   └── references.bib     # BibTeX database
-├── joss/                  # JOSS submission (future)
-├── scripts/               # experiments + analysis + theory
-│   ├── adapters/          # S3, data loading, runner
-│   ├── api/               # FastAPI queue server + worker
-│   ├── analysis/          # stats, figures, synthetic analysis
-│   ├── cli/               # citrees-exp CLI commands
-│   ├── config/            # settings + constants
-│   ├── data_generation/   # synthetic dataset generation
-│   ├── infra/             # AWS (IAM, S3, ECR, EC2, Docker)
-│   ├── pipeline/          # stage1, stage2, grid, methods
-│   ├── theory/            # sequential stopping analysis
-│   └── utils/             # env, metrics
-├── data/                  # datasets (parquet)
-└── results/               # generated outputs (figures/tables/cache)
-```
+## Operational-Only Docs
 
-## Build Manuscript
+- `paper/docs/infrastructure.md`
+- `paper/arxiv/README.md`
+- `paper/results/README.md`
+
+These are workflow notes, not paper authorities.
+
+## Not Authority
+
+- archived planning logs and verification ledgers under
+  `scratch/paper_doc_archive/`
+
+Treat those as history, not as source of truth for claims, structure, or
+numbers.
+
+## Current Paper In One Paragraph
+
+This is an optimization-first paper about conditional inference. The principled
+core is a narrow fixed-node Stage A screening guarantee. The practical result
+is that adaptive stopping and bounded histogram thresholding make the method
+usable without materially changing quality. The empirical result is that CIF is
+the strongest conditional-inference method in the benchmark and remains
+competitive with common tree ensembles, while clearly improving on the classic
+conditional-inference baselines. High-`p`, synthetic, and mechanism diagnostics
+then explain the operating boundary.
+
+## Tone
+
+The paper should be assertive but bounded.
+
+- state the positive claim first, then the boundary
+- keep caveats in the limitations paragraph instead of scattering them through
+  every result paragraph
+- do not narrate the paper as an apology for not being `1st/15`
+- use rank positions as table support, not as the voice of the paper
+
+The empirical headline is:
+
+- CIF is the strongest conditional-inference method in the benchmark,
+- it clearly improves on the classic conditional-inference baselines,
+- and it remains competitive with the common tree ensembles people actually use.
+
+## Main-Text Package
+
+The main paper should be small.
+
+Keep in main text:
+
+- one compact introduction with background folded in
+- one lean method section
+- one short theory section
+- one experimental-design section
+- one benchmark-and-controls section
+- one boundary-diagnostics section
+- one discussion
+- one short conclusion
+
+Main-text figures:
+
+- `paper/results/figures/k_trajectory.png`
+- `paper/results/figures/synthetic_topk_focus_curves.png`
+- `paper/results/figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png`
+
+Main-text tables:
+
+- dataset / benchmark design table
+- `paper/results/tables/paper_presentation_benchmark_summary.csv`
+- `paper/results/tables/paper_presentation_practical_controls_summary.csv`
+- compact high-`p` table built from:
+  `paper_high_p_cif_endpoint_summary.csv` and
+  `paper_high_p_cif_best_observed_k_summary.csv`
+
+Do not let the paper regrow:
+
+- composite figures
+- calibration in main text
+- CIF-vs-R as a headline layer
+- long method-by-method prose
+- detailed regression displays
+- regime-by-regime synthetic walkthroughs
+
+## Build The Manuscript
 
 ```bash
-cd paper/arxiv && latexmk -pdf main.tex && open main.pdf
+cd paper/arxiv
+latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 ```
 
-## Run Experiments
+## Rebuild Paper-Facing Tables
 
 ```bash
-uv sync --group paper              # install dependencies
-citrees-exp smoke classification   # local smoke test (no API needed)
-citrees-exp cluster api-start      # start API server locally
-citrees-exp cluster worker-start   # start worker locally
-citrees-exp run                    # poll queue progress
-citrees-exp check                  # check S3 progress
-citrees-exp watch                  # live dashboard
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_inventory.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_paper_benchmark_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_heterogeneity_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_endpoint_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_diagnostics.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_composition.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mirrored_knob_ablation_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_presentation_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_screening_mechanism_tables.py
 ```
 
-> **Note:** AWS operations require credentials. Set `AWS_PROFILE` if not using
-> default profile. See `paper/docs/experiments.md` for full setup and
-> `paper/docs/infrastructure.md` for distributed EC2 deployment.
+After rebuilding, reconcile against:
+
+- `paper/docs/results-finalization.md`
+- `paper/results/tables/README.md`
+- this README

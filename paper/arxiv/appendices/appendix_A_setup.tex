@@ -9,7 +9,7 @@ index set $I_t$ (size $n_t$). Write $X_t := (X_i)_{i \in I_t}$ and
 $Y_t := (Y_i)_{i \in I_t}$.
 
 At node $t$, the procedure performs two (potential) hypothesis-testing steps:
-Stage~A screens features $j \in F_t$ for association with $Y_t$, and Stage~B
+Stage~A performs feature selection over features $j \in F_t$ by testing association with $Y_t$, and Stage~B
 tests candidate thresholds for the selected feature $j_t^\star$.
 
 \paragraph{Notation summary (quick reference).}
@@ -21,7 +21,7 @@ tests candidate thresholds for the selected feature $j_t^\star$.
     \toprule
     Symbol & Meaning \\
     \midrule
-    $t$ & Node index (treated as fixed in ``fixed-node'' results). \\
+    $t$ & Node index (held fixed in ``fixed-node'' results). \\
     $n,\ p$ & Global sample size and number of features. \\
     $I_t,\ n_t$ & Sample index set at node $t$ and its size $n_t := |I_t|$. \\
     $X_t,\ Y_t$ & Covariates and labels restricted to node $t$. \\
@@ -43,15 +43,15 @@ tests candidate thresholds for the selected feature $j_t^\star$.
     $U$ & Label-independent algorithmic randomness (e.g., feature subsampling, threshold subsampling, tie-breaking randomness). \\
     \bottomrule
   \end{tabular}
-  \caption{Compact notation used throughout the manuscript.}
+  \caption{Compact notation used throughout the paper.}
 \end{table}
 
 \subsection{Assumptions and scope ledger}
 \label{app:assumptions}
 
 We label assumptions to keep statements and proofs aligned. When a result below
-is described as ``fixed-node,'' it means the node $t$ is treated as fixed (not
-adaptively selected by the data).
+is described as ``fixed-node,'' the node $t$ is held fixed rather than chosen
+adaptively from the data.
 Unless stated otherwise, theorem/proposition statements in
 \cref{sec:theory} are read under A0.2 (nodewise complete-null exchangeability)
 and A0.4 (fixed-$B$ mode).
@@ -66,9 +66,8 @@ algorithmic randomness that can affect which hypotheses are tested (e.g.,
 \texttt{max\_features}, threshold subsampling). This assumption targets a
 complete null at the node: it generally does \emph{not} hold under a
 ``featurewise'' partial null in which one feature is null while other features
-remain associated with $Y_t$. The Monte Carlo permutation draws used to compute
-p-values are treated as additional randomization independent of the data and
-are not included in $U$.
+remain associated with $Y_t$. Monte Carlo permutation draws are additional
+randomization independent of the data and are not included in $U$.
 
 \paragraph{A0.3 (Label-independent tested family).}\label{assump:label-independence}
 The tested feature family $F_t$, candidate thresholds, and the resample budget
@@ -86,7 +85,8 @@ respectively. Random tie-breaking among equal best features or thresholds is
 treated separately as label-independent algorithmic randomness.
 
 \paragraph{A0.6 (Idealized symmetry model for CART lemmas).}\label{assump:cart-symmetry}
-In idealized CART-bias lemmas (not used for paper-facing guarantees), candidate
+In idealized CART-bias lemmas (not used for the fixed-node guarantees stated
+here), candidate
 split scores are assumed exchangeable across all $(j,c)$ pairs (and tie-free, or
 tie-broken at random).
 
@@ -108,10 +108,10 @@ the observed data.
     \toprule
     Result & Minimal assumptions \\
     \midrule
-    +1 p-value super-uniformity (Theorem~\ref{them:plusone-superuniform}) & A0.1--A0.5 \\
+    +1 p-value super-uniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1--A0.5 \\
     Stage~A complete-null control (Corollary~\ref{cor:stageA-global-null}) & A0.1--A0.5 \\
-    Root ``any split'' consequence (\cref{sec:theory-root}) & A0.1--A0.5 at root \\
+    Root ``any split'' consequence (\cref{rem:root-null}) & A0.1--A0.5 at root \\
     \bottomrule
   \end{tabular}
-  \caption{Assumptions used by the main calibration results in \cref{sec:theory}.}
+  \caption{Assumptions used by the main fixed-node results in \cref{sec:theory}.}
 \end{table}

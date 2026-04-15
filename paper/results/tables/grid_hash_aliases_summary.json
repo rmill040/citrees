@@ -1,0 +1,16 @@
+{
+  "classification": {
+    "mapped_aliases": 4,
+    "unmapped_old_configs": 88,
+    "aliases_with_raw_presence": 4,
+    "aliases_that_fill_current_rank_gaps": 0,
+    "aliases_that_fill_current_metric_gaps": 0
+  },
+  "regression": {
+    "mapped_aliases": 4,
+    "unmapped_old_configs": 136,
+    "aliases_with_raw_presence": 4,
+    "aliases_that_fill_current_rank_gaps": 0,
+    "aliases_that_fill_current_metric_gaps": 0
+  }
+}

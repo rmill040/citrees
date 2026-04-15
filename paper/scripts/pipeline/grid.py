@@ -26,13 +26,19 @@ _EXCLUDED: set[tuple[str, str]] = {
 # Specific (method_label, dataset, seed) combos that consistently fail after
 # multiple retries across different instance types (c6a, r5). These are excluded
 # from the grid so the API queue reports 0 pending when everything else is done.
-# See paper/docs/skipped-experiments.md for details.
+# See paper/docs/experiments.md for the documented skip policy.
 _SKIPPED: set[tuple[str, str, int]] = {
     # r_ctree MonteCarlo (testtype="MonteCarlo") hangs/OOMs on high-dim datasets.
     # The Bonferroni config (9d1ca9c27dfc7f5e) completes fine for these same datasets.
     ("r_ctree__b6e09ceb0eb26367", "gisette", 3),
     ("r_ctree__b6e09ceb0eb26367", "isolet", 2),
     ("r_ctree__b6e09ceb0eb26367", "isolet", 3),
+    # CIT-RDC on these specific splits never finished reliably in repeated runs.
+    # We treat them as known skipped cells rather than open missing work.
+    ("cit__2f00ba06d3fd6444", "gisette", 0),
+    ("cit__2f00ba06d3fd6444", "gisette", 1),
+    ("cit__2f00ba06d3fd6444", "gisette", 3),
+    ("cit__2f00ba06d3fd6444", "orlraws10P", 1),
 }
 
 

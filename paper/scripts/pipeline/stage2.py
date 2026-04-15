@@ -38,6 +38,10 @@ from paper.scripts.adapters.store import Store
 from paper.scripts.config import load_config
 from paper.scripts.config.constants import (
     CLF_DOWNSTREAM_MODELS,
+    EVALUATION_K_VALUES,
+    HIGH_P_EVALUATION_EXTRA_K_FRACTIONS,
+    HIGH_P_EVALUATION_EXTRA_K_VALUES,
+    HIGH_P_EVALUATION_P_THRESHOLD,
     N_SPLITS,
     REG_DOWNSTREAM_MODELS,
 )
@@ -133,6 +137,66 @@ def compute_roc_auc(
 # =============================================================================
 
 
+def resolve_evaluation_k_values(
+    n_features: int,
+    *,
+    base_k_values: list[int] | None = None,
+    extra_k_values: list[int] | None = None,
+    extra_k_fractions: list[float] | None = None,
+    include_endpoint: bool = True,
+) -> list[int]:
+    """Build the feature-budget schedule for Stage 2 evaluation."""
+    if n_features <= 0:
+        raise ValueError(f"n_features must be positive, got {n_features}")
+
+    resolved_base_k_values = base_k_values or EVALUATION_K_VALUES
+    high_p_floor = max(resolved_base_k_values)
+    k_values = set(resolved_base_k_values)
+    for k in extra_k_values or []:
+        if k > high_p_floor:
+            k_values.add(k)
+
+    for frac in extra_k_fractions or []:
+        frac_k = max(1, int(np.ceil(frac * n_features)))
+        if frac_k > high_p_floor:
+            k_values.add(frac_k)
+
+    if include_endpoint:
+        k_values.add(n_features)
+
+    return sorted(k for k in k_values if k <= n_features)
+
+
+def get_requested_evaluation_k_values(n_features: int) -> list[int]:
+    """Resolve the Stage 2 k schedule from the benchmark defaults."""
+    extra_k_values: list[int] = []
+    extra_k_fractions: list[float] = []
+    if n_features > HIGH_P_EVALUATION_P_THRESHOLD:
+        extra_k_values = list(HIGH_P_EVALUATION_EXTRA_K_VALUES)
+        extra_k_fractions = list(HIGH_P_EVALUATION_EXTRA_K_FRACTIONS)
+    return resolve_evaluation_k_values(
+        n_features,
+        extra_k_values=extra_k_values,
+        extra_k_fractions=extra_k_fractions,
+    )
+
+
+def metrics_cover_requested_k_values(metrics_df: pd.DataFrame, required_k_values: list[int]) -> bool:
+    """Return True when an existing metrics artifact already covers the active k schedule."""
+    if "k" not in metrics_df.columns:
+        return False
+    observed = set(pd.to_numeric(metrics_df["k"], errors="coerce").dropna().astype(int))
+    return set(required_k_values).issubset(observed)
+
+
+def infer_n_features_from_rankings(rankings_df: pd.DataFrame) -> int:
+    """Infer the ranking length from a Stage 1 rankings artifact."""
+    if rankings_df.empty:
+        raise ValueError("rankings_df is empty; cannot infer n_features")
+    ranking = rankings_df.iloc[0]["feature_ranking"]
+    return int(len(ranking))
+
+
 def evaluate_fold(
     X_train: np.ndarray,
     y_train: np.ndarray,
@@ -141,6 +205,7 @@ def evaluate_fold(
     ranking: np.ndarray,
     task: str,
     random_state: int,
+    k_values: list[int] | None = None,
     n_jobs: int = 1,
 ) -> list[dict[str, Any]]:
     """Evaluate downstream models for a single fold.
@@ -148,8 +213,8 @@ def evaluate_fold(
     Tests models at various feature subset sizes (k values).
     """
     n_features = X_train.shape[1]
-    k_values = [5, 10, 25, 50, 100, n_features]
-    k_values = sorted(set(k for k in k_values if k <= n_features))
+    if k_values is None:
+        k_values = get_requested_evaluation_k_values(n_features)
 
     downstream_models = CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
     model_factory = get_clf_models if task == "classification" else get_reg_models
@@ -217,6 +282,7 @@ def run_evaluation(
     task = cfg.task
     seed = cfg.seed
     n_samples, n_features = int(X.shape[0]), int(X.shape[1])
+    k_values = get_requested_evaluation_k_values(n_features)
 
     # Reconstruct deterministic CV splits
     cv = get_cv_splitter(task, N_SPLITS, seed)
@@ -243,6 +309,7 @@ def run_evaluation(
             ranking,
             task,
             rs,
+            k_values,
             n_jobs,
         )
 
@@ -273,14 +340,6 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
     hostname = socket.gethostname()
     git_sha = get_git_sha()
 
-    # Check if output exists
-    if store.exists("metrics", cfg):
-        return Result(
-            config=cfg,
-            status="skipped",
-            hostname=hostname,
-        )
-
     # Check if rankings exist
     if not store.exists("rankings", cfg):
         return Result(
@@ -290,11 +349,23 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
         )
 
     try:
-        # Load rankings and dataset
+        # Load rankings first so the active k schedule can be checked without
+        # assuming the current metrics artifact is complete.
         rankings_df = store.load("rankings", cfg)
+        ranking_n_features = infer_n_features_from_rankings(rankings_df)
+        requested_k_values = get_requested_evaluation_k_values(ranking_n_features)
+
+        if store.exists("metrics", cfg):
+            existing_metrics = store.load("metrics", cfg)
+            if metrics_cover_requested_k_values(existing_metrics, requested_k_values):
+                return Result(
+                    config=cfg,
+                    status="skipped",
+                    hostname=hostname,
+                )
+
         X, y = load_dataset(cfg.dataset, task)
         n_jobs = -1
-
         # Get dataset metadata
         dataset_meta = get_dataset_metadata(cfg.dataset, task)
 

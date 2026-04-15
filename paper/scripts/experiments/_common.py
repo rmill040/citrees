@@ -35,6 +35,7 @@ from sklearn.metrics import balanced_accuracy_score, r2_score
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC, SVR
 
 from citrees import (
     ConditionalInferenceForestClassifier,
@@ -155,6 +156,37 @@ def build_baseline(method: str, task: str, seed: int) -> BaseEstimator:
         return build_cit(task, seed)
     else:
         raise ValueError(f"Unknown baseline: {method}")
+
+
+# =============================================================================
+# Downstream model factories (matches Stage 2 canonical params exactly)
+# =============================================================================
+
+
+def make_clf_downstream(seed: int, *, n_jobs: int = 1) -> dict[str, BaseEstimator]:
+    """Downstream classifiers matching Stage 2 canonical params."""
+    return {
+        "lr": LogisticRegression(
+            max_iter=1000, class_weight="balanced", random_state=seed,
+        ),
+        "svm": SVC(
+            class_weight="balanced", probability=True, random_state=seed,
+        ),
+        "knn": KNeighborsClassifier(
+            n_neighbors=5, weights="distance", n_jobs=n_jobs,
+        ),
+    }
+
+
+def make_reg_downstream(seed: int, *, n_jobs: int = 1) -> dict[str, BaseEstimator]:
+    """Downstream regressors matching Stage 2 canonical params."""
+    return {
+        "ridge": Ridge(alpha=1.0, random_state=seed),
+        "svr": SVR(),
+        "knn": KNeighborsRegressor(
+            n_neighbors=5, weights="distance", n_jobs=n_jobs,
+        ),
+    }
 
 
 # =============================================================================
@@ -456,15 +488,15 @@ def compute_confounder_rate(
 def downstream_clf(
     X: np.ndarray, y: np.ndarray, ranking: list[int], k: int, seed: int
 ) -> dict[str, float]:
-    """Evaluate classification downstream accuracy (LR and KNN) on top-k features."""
+    """Evaluate classification downstream accuracy (LR, SVM, KNN) on top-k features."""
     top_k = ranking[:k]
+    models = make_clf_downstream(seed)
     if len(top_k) == 0:
-        return {"lr_ba": np.nan, "knn_ba": np.nan}
+        return {f"{name}_ba": np.nan for name in models}
     X_sel = X[:, top_k]
     results: dict[str, float] = {}
     skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=seed)
-    for name, clf in [("lr", LogisticRegression(max_iter=500, random_state=seed)),
-                      ("knn", KNeighborsClassifier(n_neighbors=5))]:
+    for name, clf in models.items():
         scores = []
         for tr, te in skf.split(X_sel, y):
             clf.fit(X_sel[tr], y[tr])
@@ -476,15 +508,15 @@ def downstream_clf(
 def downstream_reg(
     X: np.ndarray, y: np.ndarray, ranking: list[int], k: int, seed: int
 ) -> dict[str, float]:
-    """Evaluate regression downstream accuracy (Ridge and KNN) on top-k features."""
+    """Evaluate regression downstream accuracy (Ridge, SVR, KNN) on top-k features."""
     top_k = ranking[:k]
+    models = make_reg_downstream(seed)
     if len(top_k) == 0:
-        return {"ridge_r2": np.nan, "knn_r2": np.nan}
+        return {f"{name}_r2": np.nan for name in models}
     X_sel = X[:, top_k]
     results: dict[str, float] = {}
     kf = KFold(n_splits=3, shuffle=True, random_state=seed)
-    for name, est in [("ridge", Ridge(alpha=1.0)),
-                      ("knn", KNeighborsRegressor(n_neighbors=5))]:
+    for name, est in models.items():
         scores = []
         for tr, te in kf.split(X_sel, y):
             est.fit(X_sel[tr], y[tr])
@@ -581,7 +613,7 @@ def fit_and_evaluate_with_structure(
 
 _ALL_METRICS = [
     "precision_at_10", "recall_at_10", "f1_at_10", "spread_at_10",
-    "lr_ba", "knn_ba", "ridge_r2", "knn_r2", "elapsed_seconds",
+    "lr_ba", "svm_ba", "knn_ba", "ridge_r2", "svr_r2", "knn_r2", "elapsed_seconds",
     "confounder_rate_at_5", "confounder_rate_at_10",
     "mean_depth", "max_depth", "mean_features_used",
 ]

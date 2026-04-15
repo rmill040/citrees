@@ -1,17 +1,17 @@
-\section{Proof of Theorem~\ref{them:plusone-superuniform}}
+\section{Proof of Theorem~\ref{thm:plusone-superuniform}}
 \label{app:proof-plusone}
 
-\paragraph{Claim.} Theorem~\ref{them:plusone-superuniform}.
-\paragraph{Assumptions used.} A0.1--A0.5 (\cref{app:assumptions}).
+We prove Theorem~\ref{thm:plusone-superuniform} under A0.1--A0.5
+(\cref{app:assumptions}).
 
 Fix $(X_t,U)$ and work under the null hypothesis at the fixed node $t$. Under
 A0.2--A0.3 (\cref{app:assumptions}), the standard computation
 ``$T_{\mathrm{obs}}$ + $B$ random permutations'' is covered by the same rank
 argument as the i.i.d.\ permutation construction; see
 \cref{lem:identity-vs-random} in \cref{app:permutation-exchangeability} and
-\citet{HemerikGoeman2018ExactTestingRandomPermutations}. In this
-proof, it therefore suffices to analyze the exchangeable construction in which
-the vector $(T_0,T_1,\dots,T_B)$ is exchangeable conditional on $(X_t,U)$.
+\citet{HemerikGoeman2018ExactTestingRandomPermutations}. It therefore
+suffices to analyze the exchangeable construction in which the vector
+$(T_0,T_1,\dots,T_B)$ is exchangeable conditional on $(X_t,U)$.
 
 Define the (right-tail) upper rank
 %
@@ -21,7 +21,7 @@ Define the (right-tail) upper rank
   p_{\mathrm{MC}}^{\ge} = \frac{R}{B+1}.
 \end{equation}
 %
-The left-tail variant (used in Stage~B) replaces the exceedance check by
+The left-tail variant used in Stage~B replaces the exceedance check by
 $\ind\{T_b \le T_0\}$; equivalently, apply the right-tail argument below to
 $-T$.
 

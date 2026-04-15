@@ -23,9 +23,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import io
-import json
 import sys
 from pathlib import Path
 from typing import Literal
@@ -33,7 +31,7 @@ from typing import Literal
 import pandas as pd
 from loguru import logger
 
-from paper.scripts.pipeline.config import get_configs
+from paper.scripts.pipeline.grid import ExperimentGrid
 
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "results"
 
@@ -43,16 +41,10 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "results"
 # =============================================================================
 
 
-def _build_grid_method_ids(task: str) -> set[str]:
-    """Build the set of method_ids from the current config grid."""
-    grid = get_configs(task)
-    ids: set[str] = set()
-    for method_name, config_list in grid.items():
-        for params in config_list:
-            p = {k: v for k, v in sorted(params.items()) if k not in ("method", "random_state")}
-            h = hashlib.md5(json.dumps(p, sort_keys=True, default=str).encode()).hexdigest()[:16]
-            ids.add(f"{method_name}__{h}")
-    return ids
+def _build_grid_config_keys(task: str) -> set[tuple[str, str, int]]:
+    """Build the full set of expected (method_id, dataset, seed) tuples."""
+    grid = ExperimentGrid.from_cli(task, source="all")
+    return {cfg.key for cfg in grid}
 
 
 def _method_id_from_filename(filename: str) -> str | None:
@@ -64,57 +56,104 @@ def _method_id_from_filename(filename: str) -> str | None:
     return None
 
 
-def _filter_files_to_grid(files: list[Path], grid_ids: set[str]) -> list[Path]:
-    """Keep only files whose method_id is in the grid."""
+def _seed_from_filename(filename: str) -> int | None:
+    """Extract seed from a parquet filename like '{method_id}_seed{n}.parquet'."""
+    stem = Path(filename).stem
+    parts = stem.rsplit("_seed", 1)
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
+
+
+def _artifact_key_from_path(path: Path) -> tuple[str, str, int] | None:
+    """Extract (method_id, dataset, seed) from a local artifact path."""
+    method_id = _method_id_from_filename(path.name)
+    seed = _seed_from_filename(path.name)
+    dataset = path.parent.name
+    if method_id is None or seed is None or not dataset:
+        return None
+    return (method_id, dataset, seed)
+
+
+def _artifact_key_from_s3_key(key: str) -> tuple[str, str, int] | None:
+    """Extract (method_id, dataset, seed) from an S3 key."""
+    parts = key.strip("/").split("/")
+    if len(parts) < 4:
+        return None
+    method_id = _method_id_from_filename(parts[-1])
+    seed = _seed_from_filename(parts[-1])
+    dataset = parts[-2]
+    if method_id is None or seed is None or not dataset:
+        return None
+    return (method_id, dataset, seed)
+
+
+def _filter_files_to_grid(
+    files: list[Path], grid_keys: set[tuple[str, str, int]]
+) -> list[Path]:
+    """Keep only files whose (method_id, dataset, seed) tuple is in the grid."""
     kept: list[Path] = []
     for f in files:
-        mid = _method_id_from_filename(f.name)
-        if mid is not None and mid in grid_ids:
+        artifact_key = _artifact_key_from_path(f)
+        if artifact_key is not None and artifact_key in grid_keys:
             kept.append(f)
     return kept
 
 
-def _filter_keys_to_grid(keys: list[str], grid_ids: set[str]) -> list[str]:
-    """Keep only S3 keys whose method_id is in the grid."""
+def _filter_keys_to_grid(
+    keys: list[str], grid_keys: set[tuple[str, str, int]]
+) -> list[str]:
+    """Keep only S3 keys whose (method_id, dataset, seed) tuple is in the grid."""
     kept: list[str] = []
     for key in keys:
-        filename = key.rsplit("/", 1)[-1]
-        mid = _method_id_from_filename(filename)
-        if mid is not None and mid in grid_ids:
+        artifact_key = _artifact_key_from_s3_key(key)
+        if artifact_key is not None and artifact_key in grid_keys:
             kept.append(key)
     return kept
 
 
 def _validate(
     df: pd.DataFrame,
-    grid_ids: set[str],
+    grid_keys: set[tuple[str, str, int]],
     stage: str,
     task: str,
 ) -> pd.DataFrame:
-    """Validate that all method IDs in the DataFrame match the grid.
+    """Validate that all artifact keys in the DataFrame match the grid.
 
     Raises
     ------
     SystemExit
-        If unexpected method_ids are found.
+        If unexpected artifact keys are found.
     """
-    id_col = "method_id" if "method_id" in df.columns else "method"
-
-    data_ids = set(df[id_col].unique())
-    unexpected = data_ids - grid_ids
-    missing = grid_ids - data_ids
+    key_col = "method_id" if "method_id" in df.columns else "method"
+    data_keys = {
+        (str(method_id), str(dataset), int(seed))
+        for method_id, dataset, seed in df[[key_col, "dataset", "seed"]]
+        .drop_duplicates()
+        .itertuples(index=False, name=None)
+    }
+    unexpected = data_keys - grid_keys
+    missing = grid_keys - data_keys
 
     if unexpected:
-        logger.error(f"  UNEXPECTED method_ids in {stage}/{task}: {unexpected}")
-        logger.error("  Data contains configs not in the current grid. Aborting.")
+        sample = sorted(unexpected)[:10]
+        logger.error(f"  UNEXPECTED artifact keys in {stage}/{task}: {sample}")
+        logger.error("  Data contains dataset/config/seed tuples not in the current grid. Aborting.")
         sys.exit(1)
 
     if missing:
-        logger.warning(f"  Missing method_ids in {stage}/{task} ({len(missing)}):")
-        for mid in sorted(missing):
-            logger.warning(f"    {mid}")
+        logger.warning(f"  Missing artifact keys in {stage}/{task} ({len(missing)}):")
+        for artifact_key in sorted(missing)[:20]:
+            logger.warning(f"    {artifact_key}")
+        if len(missing) > 20:
+            logger.warning(f"    ... and {len(missing) - 20} more")
 
-    logger.info(f"  Validated: {len(data_ids)} method_ids, {len(missing)} missing from grid of {len(grid_ids)}")
+    logger.info(
+        f"  Validated: {len(data_keys)} artifact keys, {len(missing)} missing from grid of {len(grid_keys)}"
+    )
     return df
 
 
@@ -128,7 +167,7 @@ def aggregate_local(
     stage: Literal["rankings", "metrics"],
     task: Literal["classification", "regression"],
     output_path: Path,
-    grid_ids: set[str],
+    grid_keys: set[tuple[str, str, int]],
     *,
     dry_run: bool = False,
 ) -> int:
@@ -139,7 +178,7 @@ def aggregate_local(
         return 0
 
     all_files = sorted(search_dir.rglob("*.parquet"))
-    grid_files = _filter_files_to_grid(all_files, grid_ids)
+    grid_files = _filter_files_to_grid(all_files, grid_keys)
     n_stale = len(all_files) - len(grid_files)
     logger.info(f"Found {len(all_files)} files, {len(grid_files)} match grid (filtered {n_stale} stale)")
 
@@ -174,7 +213,7 @@ def aggregate_local(
         return 0
 
     df = pd.concat(dfs, ignore_index=True)
-    df = _validate(df, grid_ids, stage, task)
+    df = _validate(df, grid_keys, stage, task)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
@@ -248,7 +287,7 @@ def aggregate_stage(
     stage: Literal["rankings", "metrics"],
     task: Literal["classification", "regression"],
     output_path: Path,
-    grid_ids: set[str],
+    grid_keys: set[tuple[str, str, int]],
     *,
     region_name: str | None = None,
     dry_run: bool = False,
@@ -258,29 +297,29 @@ def aggregate_stage(
     logger.info(f"Listing objects under s3://{bucket}/{prefix}")
 
     all_keys = list_s3_objects(bucket, prefix, region_name=region_name)
-    grid_keys = _filter_keys_to_grid(all_keys, grid_ids)
-    n_stale = len(all_keys) - len(grid_keys)
-    logger.info(f"Found {len(all_keys)} files, {len(grid_keys)} match grid (filtered {n_stale} stale)")
+    matching_keys = _filter_keys_to_grid(all_keys, grid_keys)
+    n_stale = len(all_keys) - len(matching_keys)
+    logger.info(f"Found {len(all_keys)} files, {len(matching_keys)} match grid (filtered {n_stale} stale)")
 
     if dry_run:
-        for key in grid_keys[:20]:
+        for key in matching_keys[:20]:
             logger.info(f"  {key}")
-        if len(grid_keys) > 20:
-            logger.info(f"  ... and {len(grid_keys) - 20} more")
-        return len(grid_keys)
+        if len(matching_keys) > 20:
+            logger.info(f"  ... and {len(matching_keys) - 20} more")
+        return len(matching_keys)
 
-    if not grid_keys:
+    if not matching_keys:
         logger.warning(f"No grid files found for {stage}/{task}")
         return 0
 
-    logger.info(f"Downloading {len(grid_keys)} files...")
-    df = download_and_concat(bucket, grid_keys, region_name=region_name)
+    logger.info(f"Downloading {len(matching_keys)} files...")
+    df = download_and_concat(bucket, matching_keys, region_name=region_name)
 
     if df.empty:
         logger.warning("No data after concatenation")
         return 0
 
-    df = _validate(df, grid_ids, stage, task)
+    df = _validate(df, grid_keys, stage, task)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
@@ -344,8 +383,8 @@ def main():
     total_files = 0
 
     for task in tasks:
-        grid_ids = _build_grid_method_ids(task)
-        logger.info(f"Grid for {task}: {len(grid_ids)} method_ids")
+        grid_keys = _build_grid_config_keys(task)
+        logger.info(f"Grid for {task}: {len(grid_keys)} artifact keys")
 
         for stage in stages:
             output_path = args.output_dir / output_files[(stage, task)]
@@ -359,7 +398,7 @@ def main():
                     stage=stage,
                     task=task,
                     output_path=output_path,
-                    grid_ids=grid_ids,
+                    grid_keys=grid_keys,
                     dry_run=args.dry_run,
                 )
             else:
@@ -374,7 +413,7 @@ def main():
                     stage=stage,
                     task=task,
                     output_path=output_path,
-                    grid_ids=grid_ids,
+                    grid_keys=grid_keys,
                     region_name=config.aws_region,
                     dry_run=args.dry_run,
                 )

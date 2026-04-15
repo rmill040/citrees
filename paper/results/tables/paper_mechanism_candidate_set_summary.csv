@@ -1,0 +1,8 @@
+study,dataset,case,max_features,sampled_features_per_node,bootstrap,n_estimators,root_informative_coverage_probability,n_seeds,top1_hit_rate,mean_true_top2,mean_true_top10,mean_nonzero_features,nonzero_contains_true_rate
+candidate_set,easy_shuffled_classification,sqrt_bootstrap_1tree,sqrt,10,True,1,0.19090909090909092,2,0.0,0.0,0.0,0.0,0.0
+candidate_set,easy_shuffled_classification,20_bootstrap_1tree,20,20,True,1,0.3616161616161616,2,0.5,0.5,0.5,1.0,0.5
+candidate_set,easy_shuffled_classification,50_bootstrap_1tree,50,50,True,1,0.7525252525252525,2,0.5,0.5,0.5,1.0,0.5
+candidate_set,easy_shuffled_classification,all_bootstrap_1tree,,100,True,1,1.0,2,1.0,1.0,1.0,1.0,1.0
+candidate_set,easy_shuffled_classification,all_no_bootstrap_1tree,,100,False,1,1.0,2,1.0,1.0,1.0,1.0,1.0
+candidate_set,easy_shuffled_classification,sqrt_bootstrap_5tree,sqrt,10,True,5,0.19090909090909092,2,0.0,0.0,0.0,1.5,0.0
+candidate_set,easy_shuffled_classification,all_bootstrap_5tree,,100,True,5,1.0,2,1.0,1.0,1.0,1.0,1.0

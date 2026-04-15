@@ -1,11 +1,11 @@
 \section{CART high-cardinality selection bias (idealized)}
 \label{app:cart-bias}
 
-This appendix provides a simple symmetry calculation that formalizes the
-multiple-comparisons mechanism behind ``high-cardinality'' selection bias in
-greedy CART-style split selection \citep{Breiman1984ClassificationAndRegressionTrees}.
-This result is \emph{motivational} and is not
-used for any paper-facing p-value guarantees.
+The following symmetry calculation formalizes the multiple-comparisons
+mechanism behind ``high-cardinality'' selection bias in greedy CART-style
+split selection \citep{Breiman1984ClassificationAndRegressionTrees}. It is
+\emph{motivational} and is not used for any of the fixed-node p-value
+guarantees stated here.
 
 \begin{lemma}[Threshold search amplifies null extremes (union bound)]
 \label{lem:cart-union-bound}

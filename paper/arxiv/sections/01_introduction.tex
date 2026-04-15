@@ -1,69 +1,72 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Feature selection in tabular learning has two jobs: improve downstream
-prediction by removing noise variables, and produce a ranking that users can
-inspect and compare across datasets. Tree-based methods are attractive for
-both because they capture nonlinearity and interactions while yielding an
-embedded notion of variable importance. The statistical difficulty is that
-split selection is itself an adaptive search: a chosen variable wins many
-data-dependent comparisons, and later nodes depend on earlier
-label-dependent splits.
+Conditional inference got an important idea right: separate feature selection
+from threshold optimization to reduce split-selection bias. Classical
+CART-style trees choose both a feature and a threshold from the same
+label-dependent search, which helps explain the well-documented preference for
+features with many admissible cutpoints
+\citep{Breiman1984ClassificationAndRegressionTrees,LohShih1997SplitSelectionMethods,Strobl2007BiasRFVariableImportance}.
+In the conditional-inference framework \citep{Hothorn2006UnbiasedRecursivePartitioning},
+Stage~A tests candidate features for association with the response at the
+current node and selects among them; Stage~B then optimizes a threshold within
+the selected feature. That separation is the right statistical idea, but the
+classical implementation can overspend computation when large permutation
+budgets and exhaustive threshold scans are applied too uniformly.
 
-That difficulty appears already at the root. CART-style trees optimize an
-impurity criterion over the union of all variable-threshold pairs
-\citep{Breiman1984ClassificationAndRegressionTrees}. Features with many
-admissible cutpoints therefore have more opportunities to attain an extreme
-score by chance, which induces the well-known high-cardinality bias in tree
-induction and random-forest importance measures
-\citep{LohShih1997SplitSelectionMethods,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,Strobl2007BiasRFVariableImportance}.
+This paper takes that narrow fixed-node Stage~A feature-selection object as its
+principled core. At a pre-specified node, Stage~A feature selection under the
+nodewise complete permutation null defines a local feature-selection object
+with a well-defined permutation reference distribution. It is not post-selection
+inference for the chosen feature or threshold, and it is not end-to-end
+calibration for the full adaptive ranking workflow.
 
-Conditional inference trees address that bias by separating \emph{which
-variable} to split from \emph{where} to split it
-\citep{Hothorn2006UnbiasedRecursivePartitioning}. Stage~A screens candidate
-features with hypothesis tests; Stage~B then optimizes the threshold within
-the selected feature. That separation gives a clean fixed-node screening
-object to which classical permutation arguments apply. The same Stage~A
-machinery also yields an embedded feature ranker when it is used inside a tree
-or forest.
+The practical question is then which computations are essential, which are
+overbuilt, and which preserve useful ranking behavior in practice. The
+resulting learner keeps the Stage~A /
+Stage~B separation while reallocating computation within it. Adaptive stopping is the
+main runtime lever; histogram thresholding is a separate Stage~B approximation
+that shrinks the threshold set itself; candidate ordering plays only a smaller
+supporting role inside the early-stopping regime. This is
+therefore an optimization-first paper: the benchmark matters here as validation
+of the resulting learner, not as the paper's primary object.
 
-The fixed-node screening object, however, is not the whole learner. A modern
-implementation also needs early stopping, candidate ordering, threshold
-subsampling, feature muting, and forest resampling to stay computationally
-usable. Those choices are often sensible, but they change the inferential
-object. The organizing principle of this paper is therefore simple: we
-separate the \emph{calibrated screening claims} that hold for fixed-node
-Stage~A in fixed-$B$ mode from the \emph{engineering behavior} of the full
-adaptive tree or forest.
-
-Our scope is deliberately narrower than general post-selection inference for
-recursive trees, and narrower than global FDR/FWER control for end-to-end
-feature-selection workflows. Those are important but different targets
-\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection,MeinshausenBuhlmann2010StabilitySelection,BarberCandes2015Knockoffs}.
-Here we focus on fixed-node Stage~A screening under the complete permutation
-null, and on the empirical consequences of embedding that screening rule
-inside a practical feature-ranking system.
+We evaluate the resulting learner as a feature ranker. We
+ask whether, once paired with these practical approximations, CIF remains
+useful on real classification rank-then-evaluate benchmarks, whether a similar
+directional pattern appears on a smaller regression panel, and where the
+operating regime breaks down. On sparse high-dimensional problems, one failure
+mode can appear
+before threshold search begins: an informative feature may never enter the
+sampled candidate set. High-$p$, synthetic, and fixed-design diagnostics
+therefore explain the operating boundary, while the real-data benchmark
+remains the primary validation layer.
 
 \paragraph{Contributions.}
-First, we give a clean statement of what is and is not calibrated in a
-conditional-inference workflow: fixed-node Stage~A p-values in the fixed-$B$
-reference regime admit classical finite-sample permutation guarantees,
-whereas Stage~B threshold searches, internal-node quantities, and early-stopped
-outputs are treated as adaptive statistics. Second, we present an
-implementation-oriented conditional-inference tree and forest library that
-adds modern runtime optimizations while keeping the reference regime explicit.
-Third, we evaluate the method as a feature ranker on synthetic and real
-tabular datasets and show that its main practical bottleneck is conservative
-nodewise screening: Bonferroni correction suppresses tree depth, which in turn
-limits the forest's ability to recover weaker signals in high-dimensional
-settings.
+This paper makes four contributions. First, it proves the fixed-$B$ nodewise
+guarantee (\cref{thm:plusone-superuniform,cor:stageA-global-null}): at a
+pre-specified node under the complete permutation null, the Stage~A $+1$ Monte
+Carlo p-value is super-uniform and Bonferroni controls the probability of any
+Stage~A rejection in the tested family. Second, it identifies which practical
+controls matter most for the speed-quality tradeoff: adaptive stopping is the main runtime
+win, histogram thresholding is a separate second Stage~B lever, and candidate
+ordering adds only a smaller supporting gain inside the early-stopping regime.
+The remaining toggles behave as background controls rather than central
+findings. Third, it uses real-data benchmarks to validate the optimized CIF
+package, with classification as the primary empirical anchor and regression as a
+smaller supporting regression panel. On real classification rank-then-evaluate
+benchmarks, CIF is the strongest conditional-inference method we test, clearly
+improves on the historical conditional-inference baselines and CIT, and is
+competitive with strong generic ensembles.
+Fourth, it uses high-$p$, synthetic, and fixed-design diagnostics to map the
+operating boundary: CIF often benefits beyond tiny budgets without usually
+needing the full feature set, is better at useful subset construction than
+at identifying the exact top-ranked feature, and weakens when sparse candidate exposure
+limits forest growth.
 
-\paragraph{Paper layout.}
-\Cref{sec:scope} frames the split-selection problem and the inferential target
-studied here. \Cref{sec:method} defines the Stage~A/Stage~B algorithm, the
-Monte Carlo p-values, and the implementation choices that matter for
-interpretation. \Cref{sec:theory} states the fixed-node guarantees.
-\Cref{sec:experiments} describes the benchmark design, and
-\Cref{sec:results} presents null diagnostics, synthetic and real-data results,
-runtime behavior, and ablations. \Cref{sec:discussion} closes with the
-practical implications and limitations of the approach.
+Section~2 defines the algorithmic framework, \cref{sec:theory} states the
+fixed-node guarantee, \cref{sec:experiments} defines the benchmark and
+practical-control setup, \cref{sec:results,sec:boundary} validate the resulting
+learner and explain its operating boundary, and
+\cref{sec:discussion,sec:conclusion} close with practical guidance and
+limits.

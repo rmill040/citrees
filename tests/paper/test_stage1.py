@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from types import SimpleNamespace
 
 from citrees._selector import (
     ClassifierSelectors,
@@ -88,6 +89,116 @@ class TestPermutationSelector:
 
         ranking = permutation_selector(X, y, method="ptest_kw", task="regression", random_state=0)
         assert ranking.shape == (X.shape[1],)
+
+
+class TestWrapperSelectors:
+    """Tests for wrapper selector scoring behavior."""
+
+    def test_pi_selector_uses_balanced_accuracy_for_classification(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PI should align its internal scorer with the benchmark headline metric."""
+        from paper.scripts.pipeline import selectors
+
+        X = np.array(
+            [
+                [0.0, 1.0],
+                [1.0, 0.0],
+                [0.2, 0.8],
+                [0.8, 0.2],
+                [0.1, 0.9],
+                [0.9, 0.1],
+            ],
+            dtype=float,
+        )
+        y = np.array([0, 1, 0, 1, 0, 1], dtype=int)
+        captured: dict[str, object] = {}
+
+        def fake_permutation_importance(model, X_val, y_val, **kwargs):
+            captured["scoring"] = kwargs["scoring"]
+            return SimpleNamespace(importances_mean=np.array([0.2, 0.1], dtype=float))
+
+        monkeypatch.setattr(selectors, "permutation_importance", fake_permutation_importance)
+
+        ranking = selectors.pi_selector(
+            X,
+            y,
+            task="classification",
+            random_state=0,
+            n_jobs=1,
+            val_fraction=0.5,
+            params={"n_repeats": 1},
+        )
+
+        assert ranking.tolist() == [0, 1]
+        assert captured["scoring"] == "balanced_accuracy"
+
+    def test_cpi_selector_uses_balanced_accuracy_for_classification(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CPI should rank minority-recall signal ahead of majority-only signal."""
+        from paper.scripts.pipeline import selectors
+
+        class DummyParallel:
+            def __init__(self, n_jobs: int):
+                self.n_jobs = n_jobs
+
+            def __call__(self, tasks):
+                return [fn(*args, **kwargs) for fn, args, kwargs in tasks]
+
+        def dummy_delayed(fn):
+            def wrapped(*args, **kwargs):
+                return fn, args, kwargs
+
+            return wrapped
+
+        class DummyRF:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def fit(self, X, y):
+                return self
+
+            def predict(self, X):
+                x0 = X[:, 0]
+                x1 = X[:, 1]
+                return np.where(x0 > 0.5, 0, np.where(x1 > 0.5, 1, 0)).astype(int)
+
+        class DummyRng:
+            def __init__(self, seed: int):
+                self.seed = seed
+
+            def permutation(self, values):
+                if self.seed == 1718:
+                    return np.array([0, 0, 1, 1, 1, 1, 1, 1, 0, 1], dtype=values.dtype)
+                if self.seed == 1719:
+                    return np.array([1, 1, 1, 1, 1, 1, 1, 1, 0, 0], dtype=values.dtype)
+                raise AssertionError(f"Unexpected seed {self.seed}")
+
+        X_fit = np.zeros((4, 2), dtype=float)
+        y_fit = np.array([0, 0, 1, 1], dtype=int)
+        X_val = np.array([[1.0, 1.0]] * 8 + [[0.0, 1.0], [0.0, 1.0]], dtype=float)
+        y_val = np.array([0] * 8 + [1, 1], dtype=int)
+
+        def fake_train_test_split(X, y, **kwargs):
+            return X_fit.copy(), X_val.copy(), y_fit.copy(), y_val.copy()
+
+        monkeypatch.setattr(selectors, "RandomForestClassifier", DummyRF)
+        monkeypatch.setattr(selectors, "Parallel", DummyParallel)
+        monkeypatch.setattr(selectors, "delayed", dummy_delayed)
+        monkeypatch.setattr(selectors, "train_test_split", fake_train_test_split)
+        monkeypatch.setattr(selectors.np.random, "default_rng", lambda seed: DummyRng(seed))
+
+        ranking = selectors.cpi_selector(
+            np.zeros((1, 2), dtype=float),
+            np.array([0], dtype=int),
+            task="classification",
+            random_state=1718,
+            n_jobs=1,
+            params={"n_repeats": 1},
+        )
+
+        assert ranking.tolist() == [1, 0]
 
 
 # ---------------------------------------------------------------------------

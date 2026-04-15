@@ -1,0 +1,103 @@
+\section{Experimental design}
+\label{sec:experiments}
+
+Every method is treated as a feature ranker: it produces an ordering on the
+training split, and downstream predictors are evaluated on the top-$k$ features.
+
+\subsection{Benchmark protocol}
+\label{sec:experiments-protocol}
+
+All real-data comparisons use 5-fold cross-validation over 5 random seeds. The
+standard budgets are $k \in \{5,10,25,50,100\}$. Datasets with $p>100$ also
+evaluate larger budgets up to $k=p$, but those endpoint budgets are used only
+for the separate high-$p$ saturation check. The classification benchmark
+compares 15 methods and the regression benchmark 16. Classification uses
+balanced accuracy with logistic regression, SVM, and KNN as downstream models;
+regression uses $R^2$ with ridge, SVR, and KNN.
+
+\subsection{Primary endpoint and sensitivity checks}
+\label{sec:experiments-analysis-plan}
+
+The main comparison is the fixed-panel classification benchmark, which holds
+dataset membership constant across downstream models and budgets. The broader
+classification benchmark over changing feature budgets is secondary because dataset support
+shrinks as $k$ grows. The high-$p$ analysis asks whether CIF improves once
+$k$ exceeds 100, and the synthetic analyses ask how well the ranking
+matches known signal rather than downstream prediction.
+
+Dataset support shrinks as $k$ grows: classification retains
+$22, 21, 15, 15, 14$ datasets at $k = 5, 10, 25, 50, 100$; regression retains
+$8, 8, 7, 7, 6$.
+
+Within each $(\text{dataset}, \text{downstream model}, k)$ cell, scores are
+first averaged across folds and seeds. Cross-method summaries then rank methods
+within each cell and average those ranks over the supported cells. The fixed
+panel also reports paired CIF-versus-baseline intervals and a Friedman omnibus
+test. The fixed classification panel retains 14 of the 23 datasets. The
+benchmark tables report the support counts.
+
+\subsection{Metric definitions}
+\label{sec:experiments-metrics}
+
+Several metrics recur in the results. The \emph{share of informative features selected} is the
+fraction of informative features in the top-$k$ set. \emph{Top-1 hit rate} is
+the fraction of synthetic datasets where the first ranked feature is informative.
+\emph{Informative split share} is the fraction of a tree's splits that use
+informative features. \emph{First budget that reaches the best score} is the smallest $k$ at
+which a method reaches its peak downstream score. \emph{Kendall's $W$} is the
+Friedman-test effect size.
+
+\subsection{Datasets and preprocessing}
+\label{sec:experiments-datasets}
+
+The packaged real-data benchmark contains 23 classification datasets and 8
+regression datasets under \texttt{paper/data/}. Classification is the primary
+benchmark because 23 datasets support a stronger cross-method comparison than 8.
+The high-$p$ saturation check restricts attention to the 15 classification and
+6 regression datasets with more than 100 features.
+
+The synthetic benchmark contains 8 classification and 8 regression datasets
+with known informative features and controlled nuisance structure. A separate
+mechanism study fixes $n=250$ and varies
+$p \in \{100, 500, 1000\}$ and
+$n_{\mathrm{informative}} \in \{1,2,5,10\}$. Tree methods include CIT, DT, and
+RT; forest methods include CIF, CIF-all, RF, and ET with 1000 trees.
+
+Features are standardized using training-fold statistics and the same transform
+is applied to the held-out split.
+
+\subsection{Compared methods}
+\label{sec:experiments-methods}
+
+The benchmark compares three method families. Permutation-calibrated filters
+rank features from univariate dependence scores: MC and RDC for classification,
+and PC, DC, and RDC for regression. Embedded methods derive rankings from tree
+or ensemble importance scores: CIT, CIF, RF, ExtraTrees, XGBoost, LightGBM,
+CatBoost, and the historical \texttt{partykit}/\texttt{party} references
+\texttt{ctree} and \texttt{cforest} \citep{HothornZeileis2015Partykit}. Wrapper
+baselines use a downstream estimator to score subsets: Boruta, PI, CPI
+\citep{DebeerStrobl2020ConditionalPermutationImportanceRevisited}, and RFE
+\citep{Guyon2002RFE}.
+
+\subsection{Config selection and implementation defaults}
+\label{sec:experiments-repro}
+
+Several families, including CIT, CIF, and the permutation-test filters, are
+evaluated under multiple configurations. For each method family and task, the benchmark
+selects the configuration with the highest mean score across downstream models
+and the standard budget set $\{5,10,25,50,100\}$. The reported benchmark ranks
+therefore summarize the tuned surface. They are not tuning-free external
+estimates. The leave-one-dataset-out analysis on the fixed
+classification panel checks that CIF's placement is not driven by a single
+dataset. It is still not external validation.
+
+For the conditional-inference methods, the benchmark uses the following
+defaults: adaptive sequential stopping as the main runtime control, Bonferroni
+correction for stricter selection, feature muting, feature and threshold
+ordering for early stopping, and histogram thresholding with
+256 bins as the threshold-search approximation. Selector family, honesty, forest
+resampling, and tree-versus-forest structure vary across the selected CIT/CIF
+configurations (justified by the ablation analysis in \cref{sec:results}). The
+dedicated within-CIF timing studies then perturb that package one control at a
+time: adaptive stopping, Bonferroni correction, feature scanning, threshold
+scanning, muting, bootstrap, and threshold-search budgets.

@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -415,65 +417,108 @@ def build_and_push_image(region: str = DEFAULT_REGION) -> str:
     token = ecr.get_authorization_token()
     auth_data = token["authorizationData"][0]
     registry = auth_data["proxyEndpoint"]
-
-    # Docker login to ECR
-    step(f"Logging into ECR: {registry}")
     password = base64.b64decode(auth_data["authorizationToken"]).decode().split(":")[1]
-    login_cmd = subprocess.run(
-        ["docker", "login", "--username", "AWS", "--password-stdin", registry],
-        input=password,
-        capture_output=True,
-        text=True,
-    )
-    if login_cmd.returncode != 0:
-        raise RuntimeError(f"Docker login failed: {login_cmd.stderr}")
-    success("ECR login successful")
+    registry_host = registry.removeprefix("https://").removeprefix("http://")
+    auth_value = base64.b64encode(f"AWS:{password}".encode()).decode()
 
-    # Get git SHA for tagging
-    git_sha = get_git_sha()[:12]
-    image_tag_sha = f"{repo_uri}:{git_sha}"
-    image_tag_latest = f"{repo_uri}:latest"
+    # Use an isolated Docker config to avoid local credential-helper failures.
+    with tempfile.TemporaryDirectory(prefix="citrees-docker-") as docker_config_dir:
+        config_path = Path(docker_config_dir) / "config.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "auths": {
+                        registry_host: {"auth": auth_value},
+                        registry: {"auth": auth_value},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        docker_env = os.environ.copy()
+        docker_env["DOCKER_CONFIG"] = docker_config_dir
+        buildx_binary = Path.home() / ".docker" / "cli-plugins" / "docker-buildx"
+        if buildx_binary.exists():
+            plugin_dir = Path(docker_config_dir) / "cli-plugins"
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(buildx_binary, plugin_dir / "docker-buildx")
 
-    info("Building Docker image...")
-    step(f"Context: {REPO_ROOT}")
-    step(f"Dockerfile: {DOCKERFILE_DIR / 'Dockerfile'}")
-    step(f"Tags: {git_sha}, latest")
-    step(f"Platform: {DOCKER_PLATFORM}")
+        step(f"Using isolated Docker auth for ECR: {registry_host}")
 
-    # Build the image
-    build_cmd = subprocess.run(
-        [
-            "docker",
-            "build",
-            "--platform",
-            DOCKER_PLATFORM,
-            "-t",
-            image_tag_sha,
-            "-t",
-            image_tag_latest,
-            "-f",
-            str(DOCKERFILE_DIR / "Dockerfile"),
-            str(REPO_ROOT),
-        ],
-        capture_output=False,  # Show build output
-    )
-    if build_cmd.returncode != 0:
-        raise RuntimeError("Docker build failed")
-    success("Build successful")
+        # Get git SHA for tagging
+        git_sha = get_git_sha()[:12]
+        image_tag_sha = f"{repo_uri}:{git_sha}"
+        image_tag_latest = f"{repo_uri}:latest"
 
-    # Push both tags
-    info("Pushing to ECR...")
-    for tag in [image_tag_sha, image_tag_latest]:
-        step(f"Pushing: {tag}")
-        push_cmd = subprocess.run(["docker", "push", tag], capture_output=False)
-        if push_cmd.returncode != 0:
-            raise RuntimeError(f"Docker push failed for {tag}")
+        info("Building Docker image...")
+        step(f"Context: {REPO_ROOT}")
+        step(f"Dockerfile: {DOCKERFILE_DIR / 'Dockerfile'}")
+        step(f"Tags: {git_sha}, latest")
+        step(f"Platform: {DOCKER_PLATFORM}")
 
-    success("Image pushed successfully")
-    step(image_tag_latest)
-    step(image_tag_sha)
+        buildx_check = subprocess.run(
+            ["docker", "buildx", "version"],
+            capture_output=True,
+            text=True,
+            env=docker_env,
+        )
+        if buildx_check.returncode == 0:
+            step("Using docker buildx for cross-platform amd64 build")
+            build_cmd = subprocess.run(
+                [
+                    "docker",
+                    "buildx",
+                    "build",
+                    "--platform",
+                    DOCKER_PLATFORM,
+                    "--push",
+                    "-t",
+                    image_tag_sha,
+                    "-t",
+                    image_tag_latest,
+                    "-f",
+                    str(DOCKERFILE_DIR / "Dockerfile"),
+                    str(REPO_ROOT),
+                ],
+                capture_output=False,
+                env=docker_env,
+            )
+            if build_cmd.returncode != 0:
+                raise RuntimeError("Docker buildx build failed")
+        else:
+            step("docker buildx unavailable, falling back to docker build + push")
+            build_cmd = subprocess.run(
+                [
+                    "docker",
+                    "build",
+                    "--platform",
+                    DOCKER_PLATFORM,
+                    "-t",
+                    image_tag_sha,
+                    "-t",
+                    image_tag_latest,
+                    "-f",
+                    str(DOCKERFILE_DIR / "Dockerfile"),
+                    str(REPO_ROOT),
+                ],
+                capture_output=False,
+                env=docker_env,
+            )
+            if build_cmd.returncode != 0:
+                raise RuntimeError("Docker build failed")
 
-    return image_tag_latest
+            info("Pushing to ECR...")
+            for tag in [image_tag_sha, image_tag_latest]:
+                step(f"Pushing: {tag}")
+                push_cmd = subprocess.run(["docker", "push", tag], capture_output=False, env=docker_env)
+                if push_cmd.returncode != 0:
+                    raise RuntimeError(f"Docker push failed for {tag}")
+
+        success("Image pushed successfully")
+        step(image_tag_latest)
+        step(image_tag_sha)
+
+        return image_tag_latest
 
 
 def upload_datasets(

@@ -22,6 +22,7 @@ from sklearn.ensemble import (
 )
 from sklearn.feature_selection import RFE
 from sklearn.inspection import permutation_importance
+from sklearn.metrics import balanced_accuracy_score
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier, XGBRegressor
 
@@ -227,7 +228,7 @@ def pi_selector(
 
     if task == "classification":
         model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
-        scoring = "accuracy"
+        scoring = "balanced_accuracy"
     else:
         model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
         scoring = "r2"
@@ -306,7 +307,7 @@ def cpi_selector(
         model = RandomForestClassifier(n_estimators=100, n_jobs=n_jobs, random_state=random_state)
 
         def scoring_fn(m, X, y):
-            return (m.predict(X) == y).mean()
+            return float(balanced_accuracy_score(y, m.predict(X)))
 
     else:
         model = RandomForestRegressor(n_estimators=100, n_jobs=n_jobs, random_state=random_state)

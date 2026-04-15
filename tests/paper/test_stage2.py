@@ -4,7 +4,13 @@ import numpy as np
 import pytest
 from sklearn.metrics import roc_auc_score
 
-from paper.scripts.pipeline.stage2 import compute_roc_auc, evaluate_fold
+from paper.scripts.pipeline.stage2 import (
+    compute_roc_auc,
+    evaluate_fold,
+    get_requested_evaluation_k_values,
+    metrics_cover_requested_k_values,
+    resolve_evaluation_k_values,
+)
 
 pytestmark = pytest.mark.paper
 
@@ -113,3 +119,51 @@ class TestEvaluateFold:
         required = {"r2", "mse", "rmse", "mae"}
         missing = required - set(row.keys())
         assert not missing, f"Missing metrics: {missing}"
+
+    def test_custom_k_values_are_honored(self):
+        """Evaluation should use the requested k schedule rather than the hard-coded defaults."""
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(40, 8))
+        y = (X[:, 0] + rng.normal(scale=0.1, size=40) > 0).astype(int)
+
+        results = evaluate_fold(
+            X[:30],
+            y[:30],
+            X[30:],
+            y[30:],
+            np.arange(X.shape[1]),
+            task="classification",
+            random_state=0,
+            k_values=[3, 8],
+            n_jobs=1,
+        )
+
+        observed_k = sorted({row["k"] for row in results})
+        assert observed_k == [3, 8]
+
+
+class TestEvaluationKBudgets:
+    """Tests for Stage 2 k-budget scheduling helpers."""
+
+    def test_resolve_k_values_clips_deduplicates_and_adds_endpoint(self):
+        """The k schedule should merge defaults, extras, fractions, and endpoint cleanly."""
+        result = resolve_evaluation_k_values(
+            80,
+            base_k_values=[5, 10, 25],
+            extra_k_values=[10, 40, 120],
+            extra_k_fractions=[0.5, 1.0],
+        )
+        assert result == [5, 10, 25, 40, 80]
+
+    def test_metrics_cover_requested_k_values_detects_missing_budget(self):
+        """Existing metrics should be considered incomplete when any requested k is absent."""
+        import pandas as pd
+
+        metrics = pd.DataFrame({"k": [5, 10, 25, 50, 100]})
+        assert metrics_cover_requested_k_values(metrics, [5, 10, 25])
+        assert not metrics_cover_requested_k_values(metrics, [5, 10, 250])
+
+    def test_high_p_defaults_add_bridge_without_manual_overrides(self):
+        """High-p datasets should automatically add bridge budgets above the standard schedule."""
+        assert get_requested_evaluation_k_values(80) == [5, 10, 25, 50, 80]
+        assert get_requested_evaluation_k_values(1200) == [5, 10, 25, 50, 100, 150, 200, 300, 500, 600, 750, 900, 1000, 1200]

@@ -1,0 +1,11 @@
+task,k,n_methods,n_datasets,n_cells,mean_score_minus_endpoint,median_score_minus_endpoint,support_type
+classification,5,15,15,669,-0.19731480576231164,-0.17054112092162366,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+classification,10,15,15,669,-0.12721708362554815,-0.1120000000000001,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+classification,25,15,15,669,-0.06024576961628002,-0.0615,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+classification,50,15,15,669,-0.02804197947814484,-0.032400000000000095,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+classification,100,15,15,669,-0.006101136760678615,-0.014600000000000057,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+regression,5,16,6,288,0.050425484488245104,0.03959846026648946,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+regression,10,16,6,288,0.09884111954833369,0.0821957697998891,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+regression,25,16,6,288,0.05406004885172991,0.05402402671572035,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+regression,50,16,6,288,0.09065203212148998,0.04077668737904707,dataset_downstream_mean_over_high_p_with_endpoint_all_methods
+regression,100,16,6,288,0.08642130049613435,0.025673974157019913,dataset_downstream_mean_over_high_p_with_endpoint_all_methods

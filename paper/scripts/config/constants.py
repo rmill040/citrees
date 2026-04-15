@@ -30,6 +30,10 @@ AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
 CLF_DOWNSTREAM_MODELS = ["lr", "svm", "knn"]
 REG_DOWNSTREAM_MODELS = ["ridge", "svr", "knn"]
+EVALUATION_K_VALUES = [5, 10, 25, 50, 100]
+HIGH_P_EVALUATION_P_THRESHOLD = max(EVALUATION_K_VALUES)
+HIGH_P_EVALUATION_EXTRA_K_VALUES = [150, 200, 300, 500, 750, 1000]
+HIGH_P_EVALUATION_EXTRA_K_FRACTIONS = [0.25, 0.5, 0.75]
 
 # =============================================================================
 # OpenML Dataset IDs

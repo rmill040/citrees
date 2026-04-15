@@ -1764,35 +1764,9 @@ def main():
             figures_dir=FIGURES_DIR,
         )
 
-        # Per-model, per-k analyses (more granular)
-        if "downstream_model" in data.columns and "k" in data.columns:
-            models = sorted(data["downstream_model"].dropna().unique())
-            ks = sorted(data["k"].dropna().unique())
-            for model in models:
-                data_model = data[data["downstream_model"] == model]
-                data_wide_model = _aggregate_and_pivot(data_model, methods, metric_cols)
-                run_statistical_analysis(
-                    data_wide=data_wide_model,
-                    methods=methods,
-                    metrics=["accuracy", "f1_macro", "balanced_accuracy"],
-                    output_prefix=f"clf_{model}",
-                    tables_dir=TABLES_DIR,
-                    figures_dir=FIGURES_DIR,
-                )
-                for k in ks:
-                    data_k = data_model[data_model["k"] == k]
-                    data_wide_k = _aggregate_and_pivot(data_k, methods, metric_cols)
-                    run_statistical_analysis(
-                        data_wide=data_wide_k,
-                        methods=methods,
-                        metrics=["accuracy", "f1_macro", "balanced_accuracy"],
-                        output_prefix=f"clf_{model}_k{k}",
-                        tables_dir=TABLES_DIR,
-                        figures_dir=FIGURES_DIR,
-                    )
-
-        # Runtime analysis (overall)
-        analyze_runtime(data, methods, "clf", TABLES_DIR, FIGURES_DIR)
+        # NOTE: Per-model×per-k analyses were removed. The paper's methodology
+        # is k-trajectory TRENDS, not per-k snapshots. Aggregate-level outputs
+        # (clf_ranking_*, clf_pairwise_*, clf_cd_*) are sufficient.
     else:
         print(f"\nSkipping classification analysis: {clf_eval_path} not found")
         print("  (Run evaluation experiments first to generate this file)")
@@ -1819,37 +1793,7 @@ def main():
             higher_is_better={"r2": True, "mse": False, "mae": False},
         )
 
-        # Per-model, per-k analyses (more granular)
-        if "downstream_model" in data.columns and "k" in data.columns:
-            models = sorted(data["downstream_model"].dropna().unique())
-            ks = sorted(data["k"].dropna().unique())
-            for model in models:
-                data_model = data[data["downstream_model"] == model]
-                data_wide_model = _aggregate_and_pivot(data_model, methods, metric_cols)
-                run_statistical_analysis(
-                    data_wide=data_wide_model,
-                    methods=methods,
-                    metrics=["r2", "mse", "mae"],
-                    output_prefix=f"reg_{model}",
-                    tables_dir=TABLES_DIR,
-                    figures_dir=FIGURES_DIR,
-                    higher_is_better={"r2": True, "mse": False, "mae": False},
-                )
-                for k in ks:
-                    data_k = data_model[data_model["k"] == k]
-                    data_wide_k = _aggregate_and_pivot(data_k, methods, metric_cols)
-                    run_statistical_analysis(
-                        data_wide=data_wide_k,
-                        methods=methods,
-                        metrics=["r2", "mse", "mae"],
-                        output_prefix=f"reg_{model}_k{k}",
-                        tables_dir=TABLES_DIR,
-                        figures_dir=FIGURES_DIR,
-                        higher_is_better={"r2": True, "mse": False, "mae": False},
-                    )
-
-        # Runtime analysis (overall)
-        analyze_runtime(data, methods, "reg", TABLES_DIR, FIGURES_DIR)
+        # NOTE: Per-model×per-k analyses were removed. See CLF comment above.
     else:
         print(f"\nSkipping regression analysis: {reg_eval_path} not found")
         print("  (Run evaluation experiments first to generate this file)")

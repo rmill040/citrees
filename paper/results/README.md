@@ -1,18 +1,21 @@
-# Results artifacts (generated)
+# Results Artifacts
 
-This directory contains generated artifacts from experiment/analysis scripts
-under `paper/scripts/`.
+This directory contains generated outputs from the paper analysis pipeline.
 
-Canonical subdirectories (used by scripts and referenced by
-`paper/docs/figures-plan.md`):
+Treat these as outputs, not prose authority.
 
-- `paper/results/figures/`: PNG figures (paper-facing or diagnostic).
-- `paper/results/tables/`: tables (CSV/LaTeX).
-- `paper/results/cache/`: cached intermediate data and theory/calibration
-  outputs (typically parquet) to speed up figure regeneration.
+For paper-facing status:
 
-Notes:
+- use `paper/docs/results-finalization.md` for locked numbers and package
+  decisions
+- use `paper/results/tables/README.md` for canonical vs supporting vs
+  superseded table status
 
-- Treat these as **outputs**, not source-of-truth prose or theory.
-- The arXiv manuscript should eventually include only the final figures it needs
-  under `paper/arxiv/` for a self-contained arXiv bundle.
+Subdirectories:
+
+- `figures/`: analysis-generated figures
+- `tables/`: CSV and LaTeX tables
+- `cache/`: cached intermediates and theory/calibration outputs
+
+Exploratory artifacts should not drive manuscript claims unless a paper-facing
+doc explicitly promotes them.

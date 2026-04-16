@@ -1,17 +1,16 @@
 \section{Discussion}
 \label{sec:discussion}
 
-On the real-data benchmarks, CIF consistently outperforms the historical
-conditional-inference baselines, with the clearest evidence on classification.
-The theorem gives a
-clean fixed-node feature-selection guarantee. The practical ablations show
-where computation can be reduced while keeping the ranking behavior largely
-intact. The benchmark
-results show that CIF is the strongest conditional-inference method and remains
-competitive with strong generic ensembles.
+On the real-data benchmarks, CIF is the strongest conditional-inference method,
+with the clearest evidence on classification. The fixed-node theorem isolates
+the feature-selection object that remains calibrated, and the practical
+ablations show where computation can be reduced without materially changing
+ranking behavior. Together, those results support CIF as a feature ranker that
+remains competitive with strong generic ensembles.
 
-The diagnostics also show where the method weakens. The basic Stage~A feature-selection rule is not the problem; when all
-features are visible, CIT is highly selective. The problem appears after forest
+The diagnostics also clarify where the method weakens. The basic Stage~A
+feature-selection rule is not the problem: when all features are visible, CIT
+is highly selective. The problem appears after forest
 subsampling in sparse high-dimensional settings, where informative features do
 not enter the candidate set often enough. That is why CIF often improves as
 feature budgets move beyond the smallest settings and why it is better at
@@ -23,19 +22,30 @@ or interaction structure matters, and when a statistically grounded feature-sele
 step is part of why the method is used. The default benchmark configuration
 keeps adaptive stopping, histogram thresholding for threshold search, and
 Bonferroni when the goal is a stricter, more selective learner rather than a
-faster but much less selective one. Feature scanning should also stay on by default: with adaptive
-stopping already enabled, it adds a modest extra runtime gain with only small
-and mixed score changes. Threshold scanning has mixed effects, so it is not a
-practical priority. Muting has little effect on
-runtime, and bootstrap changes the forest behavior without yielding a
-consistent speedup. If pure predictive accuracy is the only objective, strong
-generic ensembles are often competitive alternatives on the classification benchmark.
+faster but much less selective one. That choice also fixes the paper's
+multiplicity target: we use Bonferroni because the focus is strict family-wise
+control for Stage~A, whereas
+dependence-aware resampling adjustments such as Westfall--Young
+\citep{WestfallYoung1993ResamplingBasedMultipleTesting} or discovery-oriented
+FDR rules such as Benjamini--Hochberg
+\citep{BenjaminiHochberg1995FDR} would define different operating points and are
+outside the present benchmark. Feature scanning should also stay on by default:
+once adaptive stopping is enabled, it adds a modest runtime gain with only
+small and mixed score changes. Threshold scanning has mixed effects and is not
+a practical priority. Muting has little effect on runtime, and bootstrap
+changes forest behavior without yielding a consistent speedup. If pure
+predictive accuracy is the only objective, strong generic ensembles remain
+competitive alternatives on the classification benchmark.
+When the objective is variable screening or ranking rather than final prediction,
+CIF should also be read against forest-based variable-selection procedures
+\citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, not only
+against end-to-end predictive ensembles.
 
 \paragraph{Boundaries.}
 The fixed classification panel covers 14 of the 23 datasets, so the most
 controlled benchmark is narrower than the full benchmark. Regression
-evidence is useful but still limited at 8 datasets. The mechanism study suggests
-that informative features enter the candidate set too rarely in high-$p$
-forests, but it does not directly manipulate that process.
+evidence is useful but still limited at 8 datasets. The mechanism study
+suggests that informative features enter the candidate set too rarely in
+high-$p$ forests, but it does not manipulate that process directly.
 Improving candidate-set exposure inside forests is therefore the clearest next
 step.

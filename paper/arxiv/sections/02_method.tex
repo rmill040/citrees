@@ -16,9 +16,11 @@ $F_t \subseteq \{1,\dots,p\}$ of size $m_t$ after constant-feature removal and
 any \texttt{max\_features} subsampling.
 
 \paragraph{Stage~A (feature selection).}
-In the exhaustive fixed-$B$ setting, Stage~A computes a selector
-statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and permutation p-value $p_{t,j}$
-for every feature $j \in F_t$, then selects
+In the exhaustive fixed-$B$ setting, following the conditional-inference test
+construction of \citet{Hothorn2006UnbiasedRecursivePartitioning} and its
+permutation-statistic foundation \citep{StrasserWeber1999PermutationStatistics},
+Stage~A computes a selector statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and
+permutation p-value $p_{t,j}$ for every feature $j \in F_t$, then selects
 %
 \begin{equation}
   j_t^{\star,\mathrm{ref}} := \operatorname{uargmin}_{j \in F_t} p_{t,j},
@@ -106,7 +108,7 @@ ties count as exceedances in both cases.
 
 CIF aggregates bootstrap trees and averages their predictions. These forests
 reuse the same Stage~A feature-selection rule outside the fixed-node theorem
-setting. In the benchmark, the conditional-inference methods keep Bonferroni
+setting \citep{Breiman2001RandomForests,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles}. In the benchmark, the conditional-inference methods keep Bonferroni
 correction, adaptive stopping, feature muting, and histogram thresholding
 fixed. Feature and threshold scanning remain on when early stopping is active
 to rank features and thresholds. Selector family, honesty, resampling mode,
@@ -116,7 +118,8 @@ Runtime is governed by four per-node counts: features tested in Stage~A,
 thresholds generated in Stage~B, permutations evaluated before early
 termination, and features carried into the node. Adaptive stopping and
 histogram thresholding provide the two main speedups: adaptive stopping cuts
-the number of permutations evaluated, while histogram thresholding separately bounds the
+the number of permutations evaluated, in the spirit of sequential Monte Carlo
+testing \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}, while histogram thresholding separately bounds the
 Stage~B threshold set. Feature and threshold scanning only help by changing the
 testing order under early stopping. \cref{app:complexity-details} gives the
 implementation-level complexity formulas.

@@ -3,23 +3,22 @@ threshold optimization. We make that separation explicit and study its
 fixed-node feature-selection core. For a pre-specified node, a tested feature family, and
 permutation budget $B$, the $+1$ Monte Carlo Stage~A p-value is super-uniform
 under the complete null, so Bonferroni controls the Stage~A rejection
-probability at that node. The practical question is then which expensive parts
+probability at that node. The practical question is which expensive parts
 of conditional-inference trees and forests can be approximated without materially
 changing ranking behavior. In matched ablations within CIF, adaptive stopping
 provides a 5.1--11.7$\times$ speedup with near-zero score change, and histogram
 thresholding provides a separate 1.9--10.6$\times$ speedup relative to exact
-threshold search. We evaluate CIF in a
-benchmark of 23 classification and 8 regression
-datasets, with one selected configuration per method family and task. On the
+threshold search. We evaluate CIF on 23 classification and 8 regression
+datasets, using one selected configuration per method family and task. On the
 broader classification benchmark, CIF is the strongest conditional-inference
 method, clearly improves on the historical conditional-inference baselines, and
-is competitive with several strong generic ensembles on the classification
-benchmark. A stricter 14-dataset
+remains competitive with several strong generic ensembles. A stricter 14-dataset
 fixed-panel sensitivity check points in the same direction: CIF has a higher
 score than \texttt{ctree} on 14/14 datasets, than \texttt{cforest} on 13/14,
 and than CIT on 13/14. The smaller regression benchmark is supportive but more
 limited. High-$p$, synthetic, and fixed-design diagnostics show
 where the method weakens: in classification, CIF often improves beyond tiny
-feature budgets without usually needing the full feature set, is better at
-building useful top-$k$ sets than at identifying the exact top-ranked feature, and weakens
-when forest subsampling leaves informative features out of the candidate set too often.
+feature budgets without usually needing the full feature set; it is better at
+building useful top-$k$ sets than at identifying the exact top-ranked feature;
+and it weakens when forest subsampling leaves informative features out of the
+candidate set too often.

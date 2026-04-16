@@ -6,19 +6,19 @@ to make it computationally practical. At a pre-specified node, the exhaustive fi
 $+1$ Monte Carlo p-value is super-uniform, and Bonferroni controls the
 probability of any Stage~A rejection in the tested family. In CIF,
 adaptive stopping provides the largest speedup with near-zero
-score change, histogram thresholding provides a second speedup by bounding threshold search,
-feature scanning provides a smaller additional speedup inside early stopping, and
-threshold scanning, muting, and bootstrap have smaller or less consistent effects on speed.
+score change; histogram thresholding adds a second speedup by bounding
+threshold search; feature scanning adds a smaller gain once early stopping is
+active; and threshold scanning, muting, and bootstrap have smaller or less
+consistent effects on speed.
 
 Empirically, CIF is the strongest conditional-inference method in the benchmark.
 It clearly improves on the historical conditional-inference baselines and
-is competitive with several strong generic ensembles on the classification
-benchmark. The
-boundary diagnostics show where that pattern weakens: in classification, CIF
-often improves beyond the smallest budgets, is better at building useful
-top-$k$ sets than at identifying the exact top-ranked feature, and weakens
-in sparse high-$p$ settings when forest subsampling makes informative features
-too rare in the candidate set.
-Further improvement likely depends on how features enter the candidate set
-inside forests while retaining the nodewise feature-selection rule that makes
-the method distinctive.
+remains competitive with several strong generic ensembles on the classification
+benchmark. The boundary diagnostics clarify where that pattern weakens: in
+classification, CIF often benefits from moving beyond the smallest feature
+budgets, is better at building useful top-$k$ sets than at identifying the
+exact top-ranked feature, and weakens in sparse high-$p$ settings when forest
+subsampling makes informative features too rare in the candidate set. Further
+progress likely depends on improving candidate-set exposure inside forests
+while preserving the nodewise feature-selection rule that makes the method
+distinctive.

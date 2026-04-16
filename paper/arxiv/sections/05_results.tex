@@ -98,13 +98,12 @@ classification benchmark.
 \label{sec:results-practical}
 
 The practical ablations show that adaptive stopping provides the
-largest speedup and histogram thresholding adds a second speedup. Feature scanning provides a smaller additional gain once
-adaptive stopping is already enabled. We vary adaptive stopping,
-threshold budgets, feature scanning, Bonferroni correction,
-threshold scanning, muting, and bootstrap. These matched comparisons
-isolate changes within CIF rather than compare different methods.
-These are smaller follow-up ablations within CIF, not reruns of the full
-benchmark.
+largest speedup and that histogram thresholding adds a second. Feature
+scanning provides a smaller additional gain once adaptive stopping is already
+enabled. We vary adaptive stopping, threshold budgets, feature scanning,
+Bonferroni correction, threshold scanning, muting, and bootstrap in matched
+CIF-only comparisons. These ablations isolate changes within CIF rather than
+rerun the full benchmark.
 
 \begin{table}[t]
   \centering
@@ -184,7 +183,7 @@ Using all features usually does not help. On average, moving from $k{=}100$ to $
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figures/synthetic_topk_focus_curves.png}
-  \caption{Synthetic top-$k$ composition curves for CIF, RF, and ET on the
+  \caption{Synthetic top-$k$ composition curves for CIF, CIT, RF, and ET on the
   classification and regression synthetic datasets. As $k$ grows, the share of informative features falls
   and the share of pure-noise features rises. On redundant datasets, CIF still selects
   signal or redundant features rather than pure noise.}
@@ -194,7 +193,7 @@ Using all features usually does not help. On average, moving from $k{=}100$ to $
 \paragraph{Synthetic subset construction.}
 Across the classification synthetic datasets, CIF ranks 8th of 15 by the share
 of informative features selected. Its top-1 hit rate is 0.64, which places it
-at an average rank of 11.5 among 15 methods by top-1 hit rate. CIF is better at building a useful top-$k$ set than
+11th of 15 by top-1 hit rate. CIF is better at building a useful top-$k$ set than
 at finding the exact top-ranked feature. \Cref{tab:synthetic-head}
 summarizes this contrast, and \Cref{fig:synthetic-topk-curves}
 shows how the selected set changes as $k$ grows. The share of
@@ -209,7 +208,7 @@ features are still signal or redundant rather than pure noise.
     \toprule
     Task & Rank by share of informative features selected & Top-1 hit rate & \shortstack{Avg. rank \\ by top-1 hit rate} \\
     \midrule
-    Classification & 8/15 & 0.64 & 11.5/15 \\
+    Classification & 8/15 & 0.64 & 11.0/15 \\
     Regression & 10/16 & 0.81 & 13.0/16 \\
     \bottomrule
   \end{tabular}

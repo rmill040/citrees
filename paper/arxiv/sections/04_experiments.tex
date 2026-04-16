@@ -76,11 +76,18 @@ is applied to the held-out split.
 
 The benchmark includes three method families. Permutation-calibrated filters
 use univariate dependence scores to rank features: MC and RDC for classification,
-and PC, DC, and RDC for regression. Embedded methods use tree
-or ensemble importance scores: CIT, CIF, RF, ExtraTrees, XGBoost, LightGBM,
-CatBoost, and the historical \texttt{partykit}/\texttt{party} references
-\texttt{ctree} and \texttt{cforest} \citep{HothornZeileis2015Partykit}. Wrapper
-baselines use a downstream estimator to score feature subsets: Boruta, PI, CPI
+and PC, DC, and RDC for regression, with RDC following
+\citet{LopezPaz2013RDC} and distance correlation following
+\citet{Szekely2007DistanceCorrelation}. Embedded methods use tree
+or ensemble importance scores: CIT, CIF, RF \citep{Breiman2001RandomForests},
+ExtraTrees \citep{Geurts2006ExtraTrees}, XGBoost
+\citep{ChenGuestrin2016XGBoost}, LightGBM \citep{Ke2017LightGBM},
+CatBoost \citep{Prokhorenkova2018CatBoost}, and the historical
+\texttt{partykit}/\texttt{party} references \texttt{ctree} and
+\texttt{cforest}
+\citep{Hothorn2006UnbiasedRecursivePartitioning,HothornZeileis2015Partykit}.
+Wrapper baselines use a downstream estimator to score feature subsets: Boruta
+\citep{Kursa2010Boruta}, PI, CPI
 \citep{DebeerStrobl2020ConditionalPermutationImportanceRevisited}, and RFE
 \citep{Guyon2002RFE}.
 

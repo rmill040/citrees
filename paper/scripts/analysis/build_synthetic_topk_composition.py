@@ -56,6 +56,7 @@ class FeatureGroups(TypedDict):
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
 FIGURES_DIR = RESULTS_DIR / "figures"
+ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 
 TASK_CONFIG: Final[dict[str, TopKTaskConfig]] = {
     "classification": {
@@ -450,22 +451,30 @@ def _build_focus_table(summary: pd.DataFrame) -> pd.DataFrame:
 
 
 def _setup_style() -> None:
-    plt.style.use("seaborn-v0_8-whitegrid")
-    plt.rcParams.update({
-        "font.family": "sans-serif",
-        "font.size": 9,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.grid": True,
-        "grid.alpha": 0.3,
-        "grid.linewidth": 0.5,
-        "figure.facecolor": "white",
-        "axes.facecolor": "white",
-        "figure.dpi": 300,
-        "savefig.dpi": 300,
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.1,
-    })
+    plt.style.use("default")
+    plt.rcParams.update(
+        {
+            "font.family": "DejaVu Sans",
+            "font.size": 10,
+            "axes.titlesize": 12,
+            "axes.labelsize": 11,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
+            "legend.fontsize": 10,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "grid.color": "#E5E7EB",
+            "grid.linewidth": 0.8,
+            "grid.alpha": 1.0,
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+            "figure.dpi": 300,
+            "savefig.dpi": 300,
+            "savefig.bbox": "tight",
+            "savefig.pad_inches": 0.08,
+        }
+    )
 
 
 def _plot_metric(
@@ -489,28 +498,31 @@ def _plot_metric(
             method_df["k"],
             method_df[metric],
             color=METHOD_COLORS[method_base],
-            linewidth=2.4 if is_cif else 1.5,
-            alpha=1.0 if is_cif else 0.85,
-            marker="o" if is_cif else "s",
-            markersize=7 if is_cif else 5,
+            linewidth=2.6 if is_cif else 1.8,
+            alpha=1.0 if is_cif else 0.9,
+            marker="o" if method_base in {"cif", "cit"} else "s",
+            markersize=6.5 if is_cif else 5.0,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
             label=DISPLAY_NAMES[method_base],
             zorder=10 if is_cif else 5,
         )
 
-    ax.set_title(f"{TASK_TITLES[task]}: {title}", fontsize=11, fontweight="medium")
-    ax.set_xlabel("Top-k budget", fontsize=9)
-    ax.set_ylabel(ylabel, fontsize=9)
+    ax.set_title(f"{TASK_TITLES[task]}: {title}", pad=6)
+    ax.set_xlabel("Feature budget k")
+    ax.set_ylabel(ylabel)
     ax.set_xscale("symlog", linthresh=10)
     ax.set_xticks(FOCUS_PLOT_K)
     ax.set_xticklabels([str(k) for k in FOCUS_PLOT_K])
     ax.set_ylim(-0.02, 1.02)
+    ax.grid(True, axis="both")
 
 
 def _save_focus_figure(focus: pd.DataFrame) -> None:
     """Render the CIF/RF/ET/CIT focus curves for informative and noise shares."""
     _setup_style()
 
-    fig, axes = plt.subplots(2, 2, figsize=(11, 7), sharex=True, sharey="col")
+    fig, axes = plt.subplots(2, 2, figsize=(9.2, 6.8), sharex=True, sharey="col")
 
     _plot_metric(
         axes[0, 0],
@@ -551,24 +563,29 @@ def _save_focus_figure(focus: pd.DataFrame) -> None:
         labels,
         loc="upper center",
         ncol=4,
-        framealpha=0.9,
-        edgecolor="#D1D5DB",
-        fontsize=8,
+        bbox_to_anchor=(0.5, 0.955),
+        frameon=False,
+        handlelength=2.0,
+        columnspacing=1.5,
     )
     fig.suptitle(
-        "Synthetic top-k recovery: CIF vs RF / ExtraTrees / CIT",
-        fontsize=12,
-        fontweight="bold",
-        y=0.98,
+        "Synthetic Top-k Recovery: CIF vs RF / ExtraTrees / CIT",
+        fontsize=13,
+        fontweight="semibold",
+        y=0.99,
     )
-    fig.subplots_adjust(top=0.88, hspace=0.30, wspace=0.18)
-    fig.savefig(FIGURES_DIR / "synthetic_topk_focus_curves.png")
+    fig.subplots_adjust(top=0.84, hspace=0.28, wspace=0.16, bottom=0.10)
+    for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
+        out_path = out_dir / "synthetic_topk_focus_curves.png"
+        fig.savefig(out_path)
+        print(f"Saved {out_path}")
     plt.close(fig)
 
 
 def main() -> None:
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     all_rows: list[pd.DataFrame] = []
     all_best: list[pd.DataFrame] = []

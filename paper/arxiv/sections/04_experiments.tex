@@ -51,8 +51,8 @@ Friedman-test effect size.
 \label{sec:experiments-datasets}
 
 The real-data benchmark contains 23 classification datasets and 8
-regression datasets under \texttt{paper/data/}. Classification receives more
-attention because the empirical coverage is much broader: 23 datasets rather
+regression datasets under \texttt{paper/data/}. Classification is the primary
+benchmark and also provides broader real-data coverage: 23 datasets rather
 than 8.
 The high-$p$ saturation check restricts attention to the 15 classification and
 6 regression datasets with more than 100 features.
@@ -87,8 +87,7 @@ Several families, including CIT, CIF, and the permutation-test filters, are
 run under multiple configurations. For each method family and task, the benchmark
 selects the configuration with the highest mean score across downstream models
 and the standard budget set $\{5,10,25,50,100\}$. The benchmark summaries
-therefore use the selected settings. The leave-one-dataset-out analysis on the fixed classification panel
-checks whether the selected configuration changes when one dataset is held out.
+therefore use the selected settings.
 
 For the conditional-inference methods, the benchmark uses the following
 defaults: adaptive sequential stopping, Bonferroni correction, feature muting,

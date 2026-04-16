@@ -21,15 +21,13 @@ with a well-defined permutation reference distribution. It is not post-selection
 inference for the chosen feature or threshold, and it is not end-to-end
 calibration for the full adaptive ranking workflow.
 
-The practical question is then which computations are essential, which add
-extra computation, and which preserve useful ranking behavior in practice. CIF
-keeps the Stage~A/Stage~B separation while reallocating computation
-within it. Adaptive stopping is the
-main runtime lever; histogram thresholding separately limits the threshold set;
-feature scanning plays a smaller role when early
-stopping is active. The remaining ablations are mixed. This is
-therefore an optimization-first paper: the benchmark matters here as validation
-of CIF, not as the paper's main question.
+The practical question is then which computations are necessary to preserve
+useful ranking behavior. CIF keeps the Stage~A/Stage~B separation
+while reallocating computation within it. Adaptive stopping is the main runtime
+lever; histogram thresholding separately limits the threshold set; feature
+scanning plays a smaller role when early stopping is active. The remaining
+ablations are mixed. The empirical analysis then asks whether this faster CIF
+procedure remains useful as a feature ranker.
 
 We evaluate CIF as a feature ranker. We
 ask whether, once paired with these practical approximations, CIF remains

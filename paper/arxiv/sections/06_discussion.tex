@@ -1,9 +1,10 @@
 \section{Discussion}
 \label{sec:discussion}
 
-CIF performs well as a feature ranker on the real-data benchmarks. The theorem gives a
-clean fixed-node feature-selection guarantee. The practical ablations show how
-to preserve that ranking behavior without much extra computation. The benchmark
+On the real-data benchmarks, CIF consistently outperforms the historical conditional-inference baselines. The theorem gives a
+clean fixed-node feature-selection guarantee. The practical ablations show
+where computation can be reduced while keeping the ranking behavior largely
+intact. The benchmark
 results show that CIF is the strongest conditional-inference method and remains
 competitive with strong generic ensembles.
 
@@ -25,8 +26,8 @@ stopping already enabled, it adds a modest extra runtime gain with only small
 and mixed score changes. Threshold scanning has mixed effects, so it is not a
 practical priority. Muting has little effect on
 runtime, and bootstrap changes the forest behavior without yielding a
-consistent speedup. If pure predictive accuracy is the only objective, boosting
-ensembles are often strong alternatives on the classification benchmark.
+consistent speedup. If pure predictive accuracy is the only objective, strong
+generic ensembles are often competitive alternatives on the classification benchmark.
 
 \paragraph{Boundaries.}
 The fixed classification panel covers 14 of the 23 datasets, so the most

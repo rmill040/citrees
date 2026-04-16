@@ -20,18 +20,20 @@ strong generic ensembles.
     Primary fixed-panel classification &
     14 datasets, 15 methods &
     5/15, balanced accuracy 0.798 &
-    Higher score on 14/14 datasets versus \mbox{r\_ctree}, 13/14 versus
-    \mbox{r\_cforest}, and 13/14 versus CIT &
+    Higher score than \mbox{r\_ctree} on 14/14 datasets, \mbox{r\_cforest} on 13/14,
+    and CIT on 13/14 &
     Clear separation from the historical baselines \\
     Additional classification trajectory &
     22$\rightarrow$14 datasets across $k$ &
     4/15, mean rank 5.48, mean balanced accuracy 0.819 &
-    Higher score on 22/22 datasets versus \mbox{r\_ctree}, 19/22 versus \mbox{r\_cforest}, and 21/22 versus CIT &
+    Higher score than \mbox{r\_ctree} on 22/22 datasets, \mbox{r\_cforest} on 19/22,
+    and CIT on 21/22 &
     Similar pattern across budgets \\
     Additional regression trajectory &
     8$\rightarrow$6 datasets across $k$, 16 methods &
     2/16, mean rank 6.23, mean $R^2$ 0.329 &
-    Higher score on 7/8 datasets versus \mbox{r\_ctree}, 7/8 versus \mbox{r\_cforest}, and 6/8 versus CIT &
+    Higher score than \mbox{r\_ctree} on 7/8 datasets, \mbox{r\_cforest} on 7/8, and
+    CIT on 6/8 &
     Similar pattern on the regression benchmark \\
     \bottomrule
   \end{tabularx}
@@ -71,7 +73,7 @@ changing-support surfaces.
 \begin{table}[t]
   \centering
   \small
-  \setlength{\tabcolsep}{5pt}
+  \setlength{\tabcolsep}{4pt}
   \begin{tabular}{@{}l r r r r r@{}}
     \toprule
     Task & Top half & Top 3 & Wins vs.\ \mbox{r\_ctree} & Wins vs.\ \mbox{r\_cforest} & Wins vs.\ CIT \\
@@ -85,8 +87,8 @@ changing-support surfaces.
 \end{table}
 
 \paragraph{Regression benchmark.}
-On the regression surface, CIF places 2nd of 16 on the changing-support
-results, stays in the top half on
+On the regression surface, CIF is 2nd of 16 on the changing-support
+benchmark, stays in the top half on
 all 8 datasets, and outperforms the historical conditional-inference baselines
 and CIT. The regression benchmark points in the same direction.
 
@@ -126,7 +128,6 @@ isolate changes within CIF rather than compare different methods.
   \label{tab:practical-controls}
 \end{table}
 
-The largest speedups come from adaptive stopping and histogram thresholding.
 Adaptive stopping gives the largest speedup with near-zero downstream score
 change, and histogram thresholding adds a second speedup with similarly small
 downstream score changes. With adaptive stopping
@@ -146,7 +147,7 @@ The histogram-256 default remains much faster than exact threshold search.
 \section{Boundary diagnostics}
 \label{sec:boundary}
 
-The boundary diagnostics identify three patterns. On the classification benchmarks,
+The boundary diagnostics identify three patterns. On the high-$p$ classification datasets,
 CIF often performs best at intermediate feature budgets. It is better at building useful top-$k$
 sets than at identifying the exact top-ranked feature, and it weakens when
 forest subsampling keeps informative features out of the candidate set too often.
@@ -188,8 +189,8 @@ Using all features usually does not help. On average, moving from $k{=}100$ to $
 
 \paragraph{Synthetic subset construction.}
 Across the classification synthetic datasets, CIF ranks 8th of 15 by the share
-of informative features selected. Its top-1 hit rate is 0.64. Its mean top-1
-rank position is 11.5. CIF is better at building a useful top-$k$ set than
+of informative features selected. Its top-1 hit rate is 0.64, which places it
+at an average rank of 11.5 among 15 methods by top-1 hit rate. CIF is better at building a useful top-$k$ set than
 at finding the exact top-ranked feature. \Cref{tab:synthetic-head}
 summarizes this contrast, and \Cref{fig:synthetic-topk-curves}
 shows how the selected set changes as $k$ grows. The share of
@@ -202,10 +203,10 @@ features are still signal or redundant rather than pure noise.
   \setlength{\tabcolsep}{5pt}
   \begin{tabular}{@{}l r r r@{}}
     \toprule
-    Task & Rank by share of informative features selected & Top-1 hit rate & Mean top-1 rank position \\
+    Task & Rank by share of informative features selected & Top-1 hit rate & \shortstack{Avg. rank \\ by top-1 hit rate} \\
     \midrule
     Classification & 8/15 & 0.64 & 11.5/15 \\
-    Regression & 10/15 & 0.81 & 13.0/15 \\
+    Regression & 10/16 & 0.81 & 13.0/16 \\
     \bottomrule
   \end{tabular}
   \caption{Compact head-of-list summary for CIF on the synthetic datasets. The first column ranks methods by the mean share of informative features selected across the standard synthetic feature budgets.}

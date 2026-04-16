@@ -15,6 +15,8 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_benchmark_complete_case_membership.csv`
 - `paper_benchmark_fixed_panel_membership.csv`
 - `paper_benchmark_fixed_panel_aggregate.csv`
+- `paper_benchmark_fixed_panel_pairwise_ci.csv`
+- `paper_benchmark_fixed_panel_omnibus.csv`
 - `paper_benchmark_spread.csv`
 - `paper_benchmark_pairwise_aggregate.csv`
 - `paper_presentation_benchmark_summary.csv`

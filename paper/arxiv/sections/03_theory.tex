@@ -8,7 +8,7 @@ when conditioning.
 
 \begin{theorem}[$+1$ permutation p-values are super-uniform]
 \label{thm:plusone-superuniform}
-Assume A0.1--A0.5 from the supplement, so that under the tested null the
+Assume A0.1--A0.5 from \cref{app:assumptions}, so that under the tested null the
 permutation statistics $(T_0,T_1,\dots,T_B)$ are exchangeable conditional on
 $(X_t,U)$. Define the right-tail $+1$ Monte Carlo p-value
 %
@@ -25,12 +25,13 @@ Then for every $\alpha \in [0,1]$,
 \end{theorem}
 
 This is the standard exchangeable-rank result for Monte Carlo permutation
-tests; the supplement gives the proof. The left-tail version follows by
+tests; \cref{app:permutation-exchangeability,app:proof-plusone} give the
+exchangeability statement and proof. The left-tail version follows by
 applying the same result to $-T$.
 
 \begin{corollary}[Stage~A complete-null control at a fixed node]
 \label{cor:stageA-global-null}
-Assume A0.1--A0.5 from the supplement. Under the nodewise complete null
+Assume A0.1--A0.5 from \cref{app:assumptions}. Under the nodewise complete null
 at $t$, let Stage~A reject when
 %
 \begin{equation}

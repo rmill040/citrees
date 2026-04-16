@@ -1,7 +1,9 @@
 \section{Discussion}
 \label{sec:discussion}
 
-On the real-data benchmarks, CIF consistently outperforms the historical conditional-inference baselines. The theorem gives a
+On the real-data benchmarks, CIF consistently outperforms the historical
+conditional-inference baselines, with the clearest evidence on classification.
+The theorem gives a
 clean fixed-node feature-selection guarantee. The practical ablations show
 where computation can be reduced while keeping the ranking behavior largely
 intact. The benchmark
@@ -35,7 +37,5 @@ controlled benchmark is narrower than the full benchmark. Regression
 evidence is useful but still limited at 8 datasets. The mechanism study suggests
 that informative features enter the candidate set too rarely in high-$p$
 forests, but it does not directly manipulate that process.
-The next step is to improve how features enter the candidate set inside
-forests through deterministic cycling, stratified candidate sampling, or other
-ways of making informative features visible more often without discarding the
-conditional-inference feature-selection rule.
+Improving candidate-set exposure inside forests is therefore the clearest next
+step.

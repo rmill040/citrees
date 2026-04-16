@@ -96,7 +96,7 @@ def test_experiments_doc_demotes_non_packaged_outputs():
 
 def test_readmes_and_appendices_do_not_reference_stale_appendix_layout():
     """Paper-facing docs should reflect the current appendix structure."""
-    appendix_methods = _read("paper/arxiv/appendices/appendix_H_methods.tex")
+    appendix_methods = _read("paper/arxiv/appendices/appendix_D_methods.tex")
     arxiv_readme = _read("paper/arxiv/README.md")
     paper_readme = _read("paper/README.md")
 

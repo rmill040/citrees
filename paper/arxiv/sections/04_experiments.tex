@@ -18,10 +18,10 @@ regression uses $R^2$ with ridge, SVR, and KNN.
 \subsection{Primary endpoint and sensitivity checks}
 \label{sec:experiments-analysis-plan}
 
-The main comparison is the fixed-panel classification benchmark, which holds
-dataset membership constant across downstream models and budgets. The broader
-classification analysis over changing feature budgets is secondary because
-fewer datasets remain available as $k$ grows. The high-$p$ analysis asks
+The main real-data comparison is the broader classification benchmark over the
+standard feature budgets. Because support shrinks as $k$ grows, we also report
+a stricter fixed-panel classification sensitivity check that holds dataset
+membership constant across downstream models and budgets. The high-$p$ analysis asks
 whether CIF benefits beyond $k{=}100$ and whether it usually needs all features.
 The synthetic analyses measure how well the ranking tracks
 known signal rather than downstream prediction.
@@ -31,10 +31,14 @@ $22, 21, 15, 15, 14$ datasets at $k = 5, 10, 25, 50, 100$; regression includes
 $8, 8, 7, 7, 6$.
 
 Within each $(\text{dataset}, \text{downstream model}, k)$ cell, scores are
-averaged across folds and seeds. Cross-method summaries then rank methods
-within each cell and average those ranks over the dataset-model-budget combinations included in each summary. The fixed
-panel also reports paired CIF-versus-baseline intervals and a Friedman omnibus
-test. The fixed classification panel includes 14 of the 23 datasets.
+averaged across folds and seeds. We then average those cell-level scores and
+ranks within each dataset over the downstream models and budgets available for
+that dataset. The benchmark tables average those dataset summaries over the
+datasets included in each surface. The fixed panel also reports paired
+CIF-versus-baseline intervals and a Friedman omnibus summary on the same
+dataset-mean surface. The fixed classification panel includes 14 of the 23
+datasets. These are the classification datasets with complete support across
+all downstream models and the standard feature budgets.
 
 \subsection{Metric definitions}
 \label{sec:experiments-metrics}
@@ -87,7 +91,11 @@ Several families, including CIT, CIF, and the permutation-test filters, are
 run under multiple configurations. For each method family and task, the benchmark
 selects the configuration with the highest mean score across downstream models
 and the standard budget set $\{5,10,25,50,100\}$. The benchmark summaries
-therefore use the selected settings.
+therefore report one final configuration per method family within each task
+across all datasets, downstream models, and feature budgets.
+The synthetic ranking diagnostics use a separate per-family synthetic-best
+configuration, chosen by informative-feature recovery over the standard
+synthetic budgets.
 
 For the conditional-inference methods, the benchmark uses the following
 defaults: adaptive sequential stopping, Bonferroni correction, feature muting,

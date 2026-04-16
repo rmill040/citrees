@@ -4,7 +4,7 @@
 \subsection{Real-data benchmark}
 \label{sec:experiments-real}
 
-The real-data benchmark shows that CIF is the strongest
+On the broader classification benchmark, CIF is the strongest
 conditional-inference method, clearly improves on the
 historical conditional-inference baselines and CIT, and is competitive with
 strong generic ensembles.
@@ -17,39 +17,40 @@ strong generic ensembles.
     \toprule
     Surface & Support & CIF result & Classic CI comparisons & Summary \\
     \midrule
-    Primary fixed-panel classification &
+    Primary classification benchmark &
+    22$\rightarrow$14 datasets across $k$ &
+    4/15, mean rank 5.47, mean balanced accuracy 0.819 &
+    Higher score than \mbox{r\_ctree} on 22/22 datasets, \mbox{r\_cforest} on 19/22,
+    and CIT on 21/22 &
+    Broad wins over the historical baselines \\
+    Fixed-panel classification sensitivity &
     14 datasets, 15 methods &
     5/15, balanced accuracy 0.798 &
     Higher score than \mbox{r\_ctree} on 14/14 datasets, \mbox{r\_cforest} on 13/14,
     and CIT on 13/14 &
-    Clear separation from the historical baselines \\
-    Additional classification trajectory &
-    22$\rightarrow$14 datasets across $k$ &
-    4/15, mean rank 5.48, mean balanced accuracy 0.819 &
-    Higher score than \mbox{r\_ctree} on 22/22 datasets, \mbox{r\_cforest} on 19/22,
-    and CIT on 21/22 &
-    Similar pattern across budgets \\
-    Additional regression trajectory &
+    Stricter same-dataset check points in the same direction \\
+    Regression benchmark &
     8$\rightarrow$6 datasets across $k$, 16 methods &
     2/16, mean rank 6.23, mean $R^2$ 0.329 &
     Higher score than \mbox{r\_ctree} on 7/8 datasets, \mbox{r\_cforest} on 7/8, and
     CIT on 6/8 &
-    Similar pattern on the regression benchmark \\
+    Smaller supporting benchmark \\
     \bottomrule
   \end{tabularx}
-  \caption{Benchmark summary with the fixed-panel classification results as the
-  primary benchmark and the broader classification and regression results
-  as additional context.}
+  \caption{Benchmark summary with the broader classification results as the
+  main real-data benchmark, the stricter fixed-panel classification sensitivity
+  check, and the smaller regression benchmark.}
   \label{tab:benchmark-summary}
 \end{table}
 
 On the fixed classification panel, the paired 95\% bootstrap intervals for the
 mean CIF-minus-baseline deltas are [0.068, 0.154] for \mbox{r\_ctree},
 [0.067, 0.161] for \mbox{r\_cforest}, and [0.023, 0.060] for CIT. This
-panel shows clear method separation
-($\chi^2(14)=125.73$, $p=4.7\times 10^{-20}$, Kendall's $W=0.64$). CIF consistently outperforms the
-conditional-inference baselines on this panel and remains competitive with the
-strongest generic ensembles.
+same panel also favors CIF overall
+($\chi^2(14)=125.73$, $p=4.7\times 10^{-20}$, Kendall's $W=0.64$).
+CIF consistently outperforms the
+conditional-inference baselines on this panel and is competitive with several
+strong generic ensembles.
 
 \begin{figure}[t]
   \centering
@@ -90,7 +91,8 @@ changing-support surfaces.
 On the regression surface, CIF is 2nd of 16 on the changing-support
 benchmark, stays in the top half on
 all 8 datasets, and outperforms the historical conditional-inference baselines
-and CIT. The regression benchmark points in the same direction.
+and CIT. This smaller benchmark is supportive but more limited than the
+classification benchmark.
 
 \subsection{Practical controls}
 \label{sec:results-practical}
@@ -101,6 +103,8 @@ adaptive stopping is already enabled. We vary adaptive stopping,
 threshold budgets, feature scanning, Bonferroni correction,
 threshold scanning, muting, and bootstrap. These matched comparisons
 isolate changes within CIF rather than compare different methods.
+These are smaller follow-up ablations within CIF, not reruns of the full
+benchmark.
 
 \begin{table}[t]
   \centering
@@ -111,11 +115,11 @@ isolate changes within CIF rather than compare different methods.
     Ablation & Runtime effect & Effect on score / tree shape & Summary \\
     \midrule
     Disable adaptive stopping &
-    5.0--11.8$\times$ slower &
+    5.1--11.7$\times$ slower &
     Downstream score change at most 0.0052 in every matched comparison &
     Adaptive stopping provides the largest speedup \\
     Replace histogram-256 with exact threshold search &
-    1.9--10.7$\times$ slower &
+    1.9--10.6$\times$ slower &
     Downstream score change at most 0.011; synthetic recovery change at most 0.017 &
     Histogram thresholding provides the second speedup \\
     Disable feature scanning &

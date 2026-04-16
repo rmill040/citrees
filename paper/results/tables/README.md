@@ -55,7 +55,7 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_mechanism_grid_forest_classification_cif_vs_cif_all_deltas_1000trees.csv`
 - `paper_mechanism_grid_forest_regression_cif_vs_cif_all_deltas_1000trees.csv`
 
-## Supporting-Only
+## Supporting-Only (Refreshed)
 
 These remain outside the closed main-text table package:
 

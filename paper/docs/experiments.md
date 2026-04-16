@@ -6,6 +6,8 @@ This is the short paper-facing experiment runbook. Use it for:
 - remembering the inferential boundary on p-values,
 - remembering the runtime boundary on ablation and wall-clock claims.
 
+This file intentionally omits the old EC2 launcher cookbook.
+
 ## Closed Rebuild Path
 
 For manuscript numbers, rebuild the paper-facing analysis layer from the saved
@@ -55,6 +57,8 @@ The current support package includes:
 
 Those studies are allowed to support the paper, but they are not all canonical
 reruns of the main benchmark. Keep that distinction explicit in prose.
+When in doubt, treat anything outside those locked outputs as exploratory or historical by
+default.
 
 ## Inferential Scope
 

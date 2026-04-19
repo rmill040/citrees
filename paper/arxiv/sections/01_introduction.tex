@@ -7,6 +7,8 @@ CART-style trees choose both a feature and a threshold from the same
 label-dependent search, which helps explain the well-documented preference for
 features with many admissible cutpoints
 \citep{Breiman1984ClassificationAndRegressionTrees,LohShih1997SplitSelectionMethods,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,Shih2004NoteOnSplitSelectionBiasClassificationTrees,StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini,Strobl2007BiasRFVariableImportance}.
+\Cref{app:cart-bias} formalizes this mechanism via an idealized
+union-bound and a proportional-selection argument.
 In the conditional-inference framework \citep{Hothorn2006UnbiasedRecursivePartitioning,HothornHornikVandeWielZeileis2006LegoSystemConditionalInference},
 Stage~A tests candidate features for association with the response at the
 current node and selects among them; Stage~B then optimizes a threshold within
@@ -31,54 +33,37 @@ calibration for the full adaptive ranking workflow.
 
 The practical question is then which computations are necessary to preserve
 useful ranking behavior. CIF keeps the Stage~A/Stage~B separation
-while reallocating computation within it. Adaptive stopping is the main runtime
-lever; histogram thresholding separately limits the threshold set; feature
-scanning plays a smaller role when early stopping is active. The remaining
+while reallocating computation within it. In within-CIF ablations on the
+collected setup, most runtime savings come from adaptive stopping and from
+histogram thresholding, a separate Stage~B approximation. Feature scanning
+mainly refines the fast regime once early stopping is active. The remaining
 ablations are mixed. The empirical analysis then asks whether this faster CIF
-procedure remains useful as a feature ranker.
+procedure remains useful in downstream ranking.
 
 That question is narrower than the broader tree and forest literature on direct
 prediction or causal estimation
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
-Here the object of study is CIF as a feature ranker under a shared downstream
+Here the object of study is CIF under a shared downstream
 evaluation protocol.
 
-We evaluate CIF as a feature ranker. We
-ask whether, once paired with these practical approximations, CIF remains
+We therefore ask whether, once paired with these practical approximations, CIF remains
 useful on real classification rank-then-evaluate benchmarks, whether a similar
 pattern appears on a smaller regression panel, and where the
 method weakens. On sparse high-dimensional problems, one failure
 mode can appear
-before threshold search begins: an informative feature may never enter the
-candidate set. High-$p$, synthetic, and fixed-design diagnostics
+before threshold search begins: an informative feature may never be screened at
+a node. High-$p$, synthetic, and fixed-design diagnostics
 therefore explain these limits, while the real-data benchmark
 remains the primary validation layer.
 
 \paragraph{Contributions.}
-This paper makes four contributions. First, it proves the fixed-$B$ nodewise
-guarantee (\cref{thm:plusone-superuniform,cor:stageA-global-null}): at a
-pre-specified node under the complete permutation null, the Stage~A $+1$ Monte
-Carlo p-value is super-uniform and Bonferroni controls the probability of any
-Stage~A rejection in the tested family. Second, it identifies which practical
-controls matter most for speed and score: adaptive stopping provides the largest
-speedup, histogram thresholding provides a separate second speedup, and feature
-scanning provides a smaller additional speedup when early stopping is active.
-The remaining ablations have smaller or less consistent effects. Third, it uses real-data
-benchmarks to validate CIF, with classification as the
-primary benchmark and regression evaluated on fewer datasets. On real
-classification rank-then-evaluate
-benchmarks, CIF is the strongest conditional-inference method. It clearly
-improves on the historical conditional-inference baselines and CIT, and is
-competitive with strong generic ensembles.
-Fourth, it uses high-$p$, synthetic, and fixed-design diagnostics to map these
-limits: CIF often benefits beyond tiny budgets without usually
-needing the full feature set, is better at building useful top-$k$ sets than
-at identifying the exact top-ranked feature, and weakens when forest
-subsampling leaves informative features out too often.
+This paper contributes a fixed-$B$ nodewise guarantee
+(\cref{thm:plusone-superuniform,cor:stageA-global-null}), a within-CIF
+optimization study identifying which approximations matter most for runtime and
+score, a real-data validation layer with
+classification as the main benchmark and regression as a smaller mirror, and
+boundary diagnostics that map where the method weakens (\cref{sec:boundary}).
 
-Section~2 defines the algorithmic framework, \cref{sec:theory} states the
-fixed-node guarantee, \cref{sec:experiments} defines the benchmark and ablation
-setup, \cref{sec:results,sec:boundary} validate CIF and
-explain its limits, and
-\cref{sec:discussion,sec:conclusion} close with practical guidance and
-limits.
+The next sections define the algorithmic framework, state the fixed-node
+guarantee, describe the benchmark and ablation setup, and then map the
+method's validation, practical guidance, and limits.

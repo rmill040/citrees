@@ -23,12 +23,12 @@ Stage~A computes a selector statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and
 permutation p-value $p_{t,j}$ for every feature $j \in F_t$, then selects
 %
 \begin{equation}
-  j_t^{\star,\mathrm{ref}} := \operatorname{uargmin}_{j \in F_t} p_{t,j},
+  j_t^{\star,\mathrm{ref}} := \uargmin_{j \in F_t} p_{t,j},
   \qquad
   p_t^{\star,\mathrm{ref}} := \min_{j \in F_t} p_{t,j},
 \end{equation}
 %
-where $\operatorname{uargmin}$ breaks ties uniformly among minimizers. The
+where $\uargmin$ breaks ties uniformly among minimizers. The
 procedure enters Stage~B once the Stage~A threshold is passed, either at
 $\alpha_{\mathrm{sel}}$ or at $\alpha_{\mathrm{sel}}/m_t$ when Bonferroni is
 enabled. In the recursive learner, Stage~A may inspect only part of the feature
@@ -55,7 +55,7 @@ post-selection p-value.
   \label{alg:citree}
   \begin{algorithmic}[1]
     \Require Training data $(X,Y)$, hyperparameters $\theta$
-    \Ensure Trained tree $T$
+    \Ensure Trained tree $\mathcal{T}$
     \State $p \gets$ number of columns of $X$
     \State \Return \Call{GrowNode}{$X,Y,1,\{1,\dots,p\},\theta$}
     \Procedure{GrowNode}{$X_t,Y_t,d,F_{\mathrm{avail}},\theta$}
@@ -85,19 +85,19 @@ post-selection p-value.
 \subsection{Monte Carlo permutation p-values}
 \label{sec:plusone}
 
-Let $T_0$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
+Let $T_{\mathrm{obs}}$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
 computed on $B$ random label permutations. For a right-tail test we use the
 Phipson--Smyth $+1$ p-value
 \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues}
 %
 \begin{equation}
-  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
+  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
 \end{equation}
 %
 For a left-tail test we analogously define
 %
 \begin{equation}
-  p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_0\}}{B+1}.
+  p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_{\mathrm{obs}}\}}{B+1}.
 \end{equation}
 %
 Stage~A uses the right-tail convention and Stage~B the left-tail convention;
@@ -116,10 +116,13 @@ and whether the method is a tree or forest vary across method families.
 
 Runtime is governed by four per-node counts: features tested in Stage~A,
 thresholds generated in Stage~B, permutations evaluated before early
-termination, and features carried into the node. Adaptive stopping and
-histogram thresholding provide the two main speedups: adaptive stopping cuts
-the number of permutations evaluated, in the spirit of sequential Monte Carlo
-testing \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}, while histogram thresholding separately bounds the
-Stage~B threshold set. Feature and threshold scanning only help by changing the
-testing order under early stopping. \cref{app:complexity-details} gives the
+termination, and features carried into the node. In within-CIF ablations on the
+collected setup, adaptive stopping and histogram thresholding provide the two
+main speedups, acting on different parts of the computation. Adaptive stopping cuts the number of permutations
+evaluated for each p-value
+\citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
+Histogram thresholding is a Stage~B approximation that shrinks the candidate
+threshold set itself, replacing exhaustive cutpoints with binned thresholds.
+Feature and threshold scanning only help by changing the testing order under
+early stopping. \cref{app:complexity-details} gives the
 implementation-level complexity formulas.

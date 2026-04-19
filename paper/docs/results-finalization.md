@@ -136,7 +136,7 @@ What the canonical aggregate says:
 - CIF mean rank is `5.4758`
 - CIF mean score is `0.8194`
 - the top three are `lgbm = 4.6750`, `xgb = 5.0386`, `cat = 5.2606`
-- on the stricter 14-dataset fixed-panel sensitivity, CIF is `5th/15` with
+- on the 14-dataset classification benchmark, CIF is `5th/15` with
   mean rank `5.6286`
 
 What the CIF trajectory says:
@@ -152,14 +152,18 @@ Support accounting:
 
 - complete-case support is `22, 21, 15, 15, 14` across `k = 5, 10, 25, 50, 100`
 - the exact dataset membership behind those shrinking supports is now exposed in
-  `paper_benchmark_complete_case_membership.csv`, so fixed-panel sensitivity is
+  `paper_benchmark_complete_case_membership.csv`, so the 14-dataset benchmark is
   auditable even though it is still not the primary estimand
 - `paper_benchmark_fixed_panel_membership.csv` and
-  `paper_benchmark_fixed_panel_aggregate.csv` make the stricter common-dataset
-  sensitivity explicit rather than leaving it implicit in prose
-- `paper_benchmark_fixed_panel_omnibus.csv` adds the shared-panel Friedman
+  `paper_benchmark_fixed_panel_aggregate.csv` make the 14-dataset benchmark
+  explicit rather than leaving it implicit in prose
+- `paper_benchmark_fixed_panel_omnibus.csv` adds the 14-dataset Friedman
   summary, so the manuscript can cite one omnibus test on the same
-  dataset-mean fixed-panel surface
+  dataset-mean 14-dataset surface
+- the leave-one-dataset-out config-selection summaries show that the
+  classification CIF headline is not coming from unstable config choice:
+  CIF remains essentially in the same position and the same CIF config is
+  selected on all `14/14` held-out 14-dataset benchmark datasets
 - `paper_benchmark_selected_config_details.csv` records each selected config's
   resolved parameters, candidate grid size, and runner-up gap within family
 
@@ -178,7 +182,7 @@ Paper-safe interpretation:
 
 - CIF is competitive, not the leader
 - CIF often becomes more competitive as `k` grows, especially for LR and KNN
-- this is a benchmark-level trajectory over changing support, not a fixed-panel
+- this is a benchmark-level trajectory over changing support, not a 14-dataset
   same-dataset longitudinal claim
 
 Do not say:

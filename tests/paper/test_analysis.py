@@ -7,34 +7,34 @@ import pandas as pd
 import pytest
 
 from paper.scripts.analysis.benchmark_common import select_best_task_configs
-from paper.scripts.analysis.build_high_p_endpoint_tables import (
+from paper.scripts.analysis.build_high_p_saturation_tables import (
     build_cif_best_observed_k_summary,
     build_delta_vs_endpoint_cells,
     build_endpoint_method_presence,
 )
-from paper.scripts.analysis.build_mirrored_knob_ablation_tables import build_knob_ablation_summary
-from paper.scripts.analysis.build_paper_benchmark_tables import (
+from paper.scripts.analysis.build_knob_ablation_summary_tables import build_knob_ablation_summary
+from paper.scripts.analysis.build_benchmark_package_tables import (
     _build_benchmark_spread,
     _build_config_selection_audit,
     _build_complete_case_membership,
     _build_fixed_panel_aggregate,
     _build_fixed_panel_membership,
 )
-from paper.scripts.analysis.build_presentation_summary_tables import (
+from paper.scripts.analysis.build_manuscript_summary_tables import (
     build_benchmark_presentation_summary,
     build_practical_controls_presentation_summary,
 )
-from paper.scripts.analysis.build_synthetic_topk_composition import (
+from paper.scripts.analysis.build_synthetic_topk_tables import (
     _build_row_metrics as build_topk_row_metrics,
 )
-from paper.scripts.analysis.build_synthetic_topk_composition import (
+from paper.scripts.analysis.build_synthetic_topk_tables import (
     _summarize_curve_over_k as summarize_topk_curve_over_k,
 )
-from paper.scripts.analysis.build_threshold_ablation_tables import build_threshold_ablation_summary
-from paper.scripts.analysis.build_top_ranking_diagnostics import (
+from paper.scripts.analysis.build_threshold_ablation_summary_tables import build_threshold_ablation_summary
+from paper.scripts.analysis.build_top_ranking_tables import (
     _summarize_curve_over_k as summarize_top_ranking_curve_over_k,
 )
-from paper.scripts.analysis.build_screening_mechanism_tables import (
+from paper.scripts.analysis.build_mechanism_summary_tables import (
     FixedDesignSpec,
     build_single_tree_split_model,
     collect_cit_split_features,
@@ -43,8 +43,8 @@ from paper.scripts.analysis.build_screening_mechanism_tables import (
     make_fixed_dataset,
     resolve_max_features_count,
 )
-from paper.scripts.analysis.run_mechanism_dimension_shard import _build_specs as build_mechanism_shard_specs
-from paper.scripts.analysis.analyze_synthetic import dataset_type_from_config
+from paper.scripts.analysis.run_mechanism_dimension_sweep_shard import _build_specs as build_mechanism_shard_specs
+from paper.scripts.analysis.analyze_synthetic_ground_truth import dataset_type_from_config
 from paper.scripts.analysis.stats import (
     bootstrap_ci,
     cohens_d,

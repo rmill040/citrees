@@ -39,6 +39,7 @@ These can support drafting, but they should not drive the paper's story.
 ## Operational-Only Docs
 
 - `paper/docs/infrastructure.md`
+- `paper/docs/script-cleanup-backlog.md`
 - `paper/arxiv/README.md`
 - `paper/results/README.md`
 
@@ -128,16 +129,16 @@ latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 ## Rebuild Paper-Facing Tables
 
 ```bash
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_inventory.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_paper_benchmark_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_heterogeneity_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_endpoint_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_diagnostics.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_composition.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mirrored_knob_ablation_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_presentation_summary_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_screening_mechanism_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_characteristics_table.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_package_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_heterogeneity_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_knob_ablation_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_manuscript_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 ```
 
 After rebuilding, reconcile against:

@@ -1,8 +1,8 @@
 \section{Experimental design}
 \label{sec:experiments}
 
-Every method is treated as a feature ranker: it produces an ordering on the
-training split, and downstream predictors are evaluated on the top-$k$ features.
+Each method produces an ordering on the training split, and downstream
+predictors are evaluated on the top-$k$ features.
 
 \subsection{Benchmark protocol}
 \label{sec:experiments-protocol}
@@ -13,15 +13,18 @@ evaluate larger budgets up to $k=p$, but those endpoint budgets are used only
 for the separate high-$p$ saturation check. The classification benchmark
 includes 15 methods; the regression benchmark includes 16. Classification uses
 balanced accuracy with logistic regression, SVM, and KNN as downstream models;
-regression uses $R^2$ with ridge, SVR, and KNN.
+regression uses $R^2$ with ridge, SVR, and KNN. Within each task, the paper
+reports one selected configuration per method family on the shared benchmark
+surface, so the paper compares method families rather than multiple tuned
+variants from the same family.
 
 \subsection{Primary endpoint and sensitivity checks}
 \label{sec:experiments-analysis-plan}
 
 The main real-data comparison is the broader classification benchmark over the
 standard feature budgets. Because support shrinks as $k$ grows, we also report
-a stricter fixed-panel classification sensitivity check that holds dataset
-membership constant across downstream models and budgets. The high-$p$ analysis asks
+a 14-dataset classification benchmark with complete coverage across downstream
+models and standard feature budgets. The high-$p$ analysis asks
 whether CIF benefits beyond $k{=}100$ and whether it usually needs all features.
 The synthetic analyses measure how well the ranking tracks
 known signal rather than downstream prediction.
@@ -34,11 +37,20 @@ Within each $(\text{dataset}, \text{downstream model}, k)$ cell, scores are
 averaged across folds and seeds. We then average those cell-level scores and
 ranks within each dataset over the downstream models and budgets available for
 that dataset. The benchmark tables average those dataset summaries over the
-datasets included in each surface. The fixed panel also reports paired
+datasets included in each surface. The 14-dataset benchmark also reports paired
 CIF-versus-baseline intervals and a Friedman omnibus summary on the same
-dataset-mean surface. The fixed classification panel includes 14 of the 23
-datasets. These are the classification datasets with complete support across
-all downstream models and the standard feature budgets.
+dataset-mean surface. The 14-dataset classification benchmark includes 14 of
+the 23 datasets. These are the classification datasets with complete support
+across all downstream models and the standard feature budgets. As a separate
+config-selection sensitivity check, we rerun the one-config-per-family
+selection in leave-one-dataset-out form on this 14-dataset panel: for each
+held-out dataset, configurations are selected on the other 13 datasets and
+then evaluated on the held-out dataset. This sensitivity uses the same
+cell-level metric and the same within-dataset averaging over downstream models
+and standard feature budgets as the 14-dataset benchmark; only the
+config-selection split changes. We summarize it by the mean held-out score and
+mean held-out rank across the 14 datasets, along with how often the global
+benchmark-selected configuration is reselected.
 
 \subsection{Metric definitions}
 \label{sec:experiments-metrics}
@@ -55,7 +67,7 @@ Friedman-test effect size.
 \label{sec:experiments-datasets}
 
 The real-data benchmark contains 23 classification datasets and 8
-regression datasets under \texttt{paper/data/}. Classification is the primary
+regression datasets. Classification is the primary
 benchmark and also provides broader real-data coverage: 23 datasets rather
 than 8.
 The high-$p$ saturation check restricts attention to the 15 classification and

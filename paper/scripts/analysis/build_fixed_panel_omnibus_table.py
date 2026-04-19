@@ -1,7 +1,7 @@
-"""Build fixed-panel omnibus test summaries for the paper benchmark.
+"""Build omnibus test summaries for the 14-dataset paper benchmark.
 
 This script evaluates the already-selected paper-facing benchmark surface on the
-shared fixed-panel datasets. For each task it:
+shared 14-dataset benchmark datasets. For each task it:
 
 1. filters to datasets that are complete across every standard downstream x k
    cell,
@@ -37,7 +37,7 @@ def _kendalls_w(chi2_friedman: float, n_datasets: int, k_methods: int) -> float:
 
 
 def build_fixed_panel_omnibus() -> pd.DataFrame:
-    """Compute Friedman omnibus summaries on the fixed-panel dataset surface."""
+    """Compute Friedman omnibus summaries on the 14-dataset benchmark surface."""
     membership = pd.read_csv(FIXED_PANEL_MEMBERSHIP_PATH)
     surface = pd.read_csv(DATASET_SURFACE_PATH)
     rows: list[dict[str, object]] = []

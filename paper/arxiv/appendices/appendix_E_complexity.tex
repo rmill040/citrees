@@ -70,10 +70,10 @@ by adaptive stopping rather than by scanning alone.
 Tree training cost is the sum of node costs over internal nodes,
 %
 \begin{equation}
-  T_{\mathrm{tree}} = \sum_{t \in \mathcal{I}(T)} T_t.
+  T_{\mathrm{tree}} = \sum_{t \in \mathcal{I}(\mathcal{T})} T_t.
 \end{equation}
 %
-A depth cap $D$ gives the crude bound $|\mathcal{I}(T)| \le 2^D - 1$, but both
+A depth cap $D$ gives the crude bound $|\mathcal{I}(\mathcal{T})| \le 2^D - 1$, but both
 $n_t$ and the candidate counts usually shrink with depth. For a
 forest of $M$ trees, total arithmetic work scales linearly in $M$, while
 \texttt{n\_jobs} mainly affects wall-clock time rather than total work.
@@ -110,7 +110,7 @@ Per node, the auxiliary arrays for candidate scores, thresholds, and
 permutation buffers cost $O(m_t + q_t + n_t + B_t)$ space, where $B_t$ is the
 active permutation budget for the current test. In parallel permutation
 kernels, thread-local label copies add transient memory on the order of
-$O(C n_t)$ for $C$ workers. The largest temporary allocation during tree
+$O(W n_t)$ for $W$ workers. The largest temporary allocation during tree
 growth is usually the dense child data materialized after an accepted split,
-which costs $O(n_t p)$ at that node. Persistent model storage is $O(|T|)$ per
+which costs $O(n_t p)$ at that node. Persistent model storage is $O(|\mathcal{T}|)$ per
 tree and therefore scales linearly with the number of trees in a forest.

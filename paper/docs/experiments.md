@@ -14,16 +14,16 @@ For manuscript numbers, rebuild the paper-facing analysis layer from the saved
 artifacts already under `paper/results/`.
 
 ```bash
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_inventory.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_paper_benchmark_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_heterogeneity_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_endpoint_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_diagnostics.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_composition.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mirrored_knob_ablation_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_presentation_summary_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_screening_mechanism_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_characteristics_table.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_package_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_heterogeneity_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_knob_ablation_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_manuscript_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 ```
 
 After rebuilding:
@@ -50,6 +50,8 @@ not the main benchmark surface.
 The current support package includes:
 
 - fixed-node/root calibration refresh
+- 14-dataset paired and omnibus benchmark summaries
+- leave-one-dataset-out config-selection sensitivity summaries
 - mirrored practical-knob ablations
 - threshold-search ablation
 - synthetic top-`k` composition diagnostics
@@ -59,6 +61,15 @@ Those studies are allowed to support the paper, but they are not all canonical
 reruns of the main benchmark. Keep that distinction explicit in prose.
 When in doubt, treat anything outside those locked outputs as exploratory or historical by
 default.
+
+Support-only rebuilds, when those locked outputs need to be refreshed:
+
+```bash
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_fixed_panel_omnibus_table.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_fixed_panel_pairwise_ci_table.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_lodo_config_sensitivity_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/theory/generate_calibration_support_package.py
+```
 
 ## Inferential Scope
 

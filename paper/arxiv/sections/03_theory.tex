@@ -9,12 +9,12 @@ when conditioning.
 \begin{theorem}[$+1$ permutation p-values are super-uniform]
 \label{thm:plusone-superuniform}
 Assume A0.1--A0.5 from \cref{app:assumptions}, so that under the tested null the
-permutation statistics $(T_0,T_1,\dots,T_B)$ are exchangeable conditional on
+permutation statistics $(T_{\mathrm{obs}},T_1,\dots,T_B)$ are exchangeable conditional on
 $(X_t,U)$. Define the right-tail $+1$ Monte Carlo p-value
 %
 \begin{equation}
   p_{\mathrm{MC}}^{\ge}
-  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
+  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
 \end{equation}
 %
 Then for every $\alpha \in [0,1]$,

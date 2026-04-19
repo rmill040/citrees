@@ -192,7 +192,7 @@ def _ptest_sequential_adaptive_batched(
     Same as _ptest_sequential_adaptive, but checks the Beta CDF stopping
     criterion every `batch_size` permutations instead of after every single
     permutation. This eliminates ~97% of Beta CDF evaluations with negligible
-    effect on Type I error (validated in paper/scripts/theory/batched_stopping_analysis.py).
+    effect on Type I error (validated in paper/scripts/theory/study_batched_adaptive_stopping.py).
 
     Parameters
     ----------

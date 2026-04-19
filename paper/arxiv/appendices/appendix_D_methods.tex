@@ -96,9 +96,10 @@ parts of the theorem package.
 
 \subsection{Benchmark protocol summary}
 
-All benchmark methods are treated as feature rankers. A method first produces a
-ranking on the training split; downstream models are then fit on the top-$k$
-selected features and evaluated on held-out data. The real-data benchmark uses
+The appendix tables use the same rank-then-evaluate protocol as
+\cref{sec:experiments-protocol}: a method first produces a ranking on the
+training split, and downstream models are then fit on the top-$k$ selected
+features and evaluated on held-out data. The real-data benchmark uses
 5-fold cross-validation over 5 random seeds, standard budgets
 $k \in \{5,10,25,50,100\}$, and larger endpoint budgets only for the separate
 high-$p$ saturation check. If a method family has multiple configurations, the
@@ -108,7 +109,7 @@ same benchmark surface reported in the paper.
 \subsection{Persistent benchmark skips}
 
 The packaged benchmark contains a small number of documented persistent skips
-that affect complete-case support and fixed-panel membership.
+that affect complete-case support and membership in the 14-dataset benchmark.
 
 \begin{table}[t]
   \centering

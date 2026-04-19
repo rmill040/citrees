@@ -10,7 +10,7 @@ This module provides tools for:
 - Tree depth propagation analysis
 """
 
-from .theoretical_predictions import (
+from .muting_power_theory import (
     # Constants
     RHO_GATE,
     RHO_ROOT_COEF,

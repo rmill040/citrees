@@ -379,7 +379,7 @@ def _ptest_pc_parallel(
 
 # Batched parallel permutation test for multiple correlation (classifier) with adaptive stopping.
 # Runs K=32 permutations in parallel via prange, then checks Beta CDF stopping criterion.
-# Validated in paper/scripts/theory/batched_stopping_analysis.py: K=32 preserves Type I error.
+# Validated in paper/scripts/theory/study_batched_adaptive_stopping.py: K=32 preserves Type I error.
 _BATCH_SIZE_PARALLEL = 32
 
 

@@ -7,9 +7,9 @@ surface later summarized.
 Contract:
   - real datasets only,
   - standard k values only,
-  - fixed-panel datasets only,
+  - 14-dataset benchmark datasets only,
   - for each held-out dataset, select one config per family using the
-    remaining fixed-panel datasets,
+    remaining 14-dataset benchmark datasets,
   - evaluate the selected configs on the held-out dataset only.
 
 Outputs:

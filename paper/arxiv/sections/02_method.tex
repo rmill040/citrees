@@ -1,7 +1,8 @@
 \section{Algorithmic framework}
 \label{sec:method}
 
-CIT and CIF share the same nodewise procedure. Stage~A performs feature
+Conditional inference trees (CIT) and CIF use the same nodewise procedure.
+Stage~A performs feature
 selection, and Stage~B optimizes a threshold within the selected feature. The
 theory studies the exhaustive fixed-$B$ Stage~A rule at a fixed node. The
 recursive learner keeps that structure. It adds practical controls for
@@ -28,7 +29,7 @@ permutation p-value $p_{t,j}$ for every feature $j \in F_t$, then selects
   p_t^{\star,\mathrm{ref}} := \min_{j \in F_t} p_{t,j},
 \end{equation}
 %
-where $\uargmin$ breaks ties uniformly among minimizers. The
+where $\uargmin$ breaks ties uniformly using reservoir sampling. The
 procedure enters Stage~B once the Stage~A threshold is passed, either at
 $\alpha_{\mathrm{sel}}$ or at $\alpha_{\mathrm{sel}}/m_t$ when Bonferroni is
 enabled. In the recursive learner, Stage~A may inspect only part of the feature
@@ -111,8 +112,8 @@ reuse the same Stage~A feature-selection rule outside the fixed-node theorem
 setting \citep{Breiman2001RandomForests,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles}. In the benchmark, the conditional-inference methods keep Bonferroni
 correction, adaptive stopping, feature muting, and histogram thresholding
 fixed. Feature and threshold scanning remain on when early stopping is active
-to rank features and thresholds. Selector family, honesty, resampling mode,
-and whether the method is a tree or forest vary across method families.
+to rank features and thresholds. Choice of selector, honesty, resampling mode,
+and whether the method is a tree or forest vary across methods.
 
 Runtime is governed by four per-node counts: features tested in Stage~A,
 thresholds generated in Stage~B, permutations evaluated before early

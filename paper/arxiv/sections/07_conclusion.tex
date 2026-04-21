@@ -1,7 +1,7 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper isolates a principled core of conditional inference and shows how
+This paper isolates a narrow fixed-node result for conditional inference and shows how
 to make it computationally practical. The theory gives a nodewise Stage~A
 guarantee for fixed-$B$ feature selection rather than end-to-end calibration
 for the adaptive learner. Across the within-CIF ablations, most runtime savings come
@@ -12,9 +12,9 @@ effects on speed.
 
 Empirically, the classification benchmark shows that CIF remains a useful
 screening-and-ranking method after approximation and clearly improves on the historical
-conditional-inference baselines. The boundary diagnostics clarify where that
-pattern weakens: selected subsets are stronger than the exact head of the
-ranking, and the
+conditional-inference baselines. The additional analyses clarify where that
+pattern weakens: the selected top-$k$ sets are stronger than the single
+top-ranked feature, and the
 main sparse high-$p$ limit is forest-level exposure. Further progress likely
 depends on improving that exposure
 while preserving the nodewise feature-selection rule that makes the method

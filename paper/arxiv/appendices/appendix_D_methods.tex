@@ -3,15 +3,15 @@
 
 This appendix keeps only the implementation details that materially affect how
 the main results should be read. Section~\ref{sec:method} gives the algorithmic
-loop, Appendices~A--C give the fixed-node proofs, and Appendix~\ref{app:complexity-details}
+loop, the setup and proof appendices give the fixed-node results, and Appendix~\ref{app:complexity-details}
 gives the detailed complexity formulas.
 
 \subsection{Scope relative to the theory}
 
-The theorem-backed object is narrow: exhaustive fixed-$B$ Stage~A feature selection at a
-pre-specified node under the complete permutation null. The benchmarked learner
-adds several practical controls that are useful algorithmically but fall outside
-that theorem package:
+The theory covers a narrow setting: exhaustive fixed-$B$ Stage~A feature
+selection at a pre-specified node under the complete permutation null. The
+benchmarked learner adds several practical controls that are useful
+algorithmically but fall outside that theorem:
 \begin{itemize}
   \item early stopping,
   \item feature and threshold candidate ordering inside early stopping,
@@ -35,7 +35,8 @@ once a sufficiently strong candidate has been found. When feature muting is
 enabled, features with non-significant Stage~A scores can be removed from
 descendant candidate sets within the same subtree. These choices reduce
 computation, but they also make the returned score $s_t^\star$ an algorithmic
-Stage~A score rather than an exhaustive fixed-family p-value.
+Stage~A score rather than a full Stage~A p-value over the complete candidate
+set.
 
 \paragraph{Stage~B.}
 Given the selected feature, \citrees builds threshold candidates from midpoints
@@ -80,19 +81,19 @@ confident that the latent exceedance rate is either below or above the nodewise
 threshold. A simpler futility/significance rule is also available. Both are
 practical heuristics: once a stage stops at a data-dependent time, the returned
 value is no longer a classical fixed-$B$ Monte Carlo p-value. This is exactly
-why the main paper separates the fixed-node guarantee from the empirical
-practical-controls result.
+why the main paper separates the fixed-node guarantee from the runtime
+ablations.
 
 \subsection{Forests, resampling, and honesty}
 
 CIF averages predictions from bootstrap trees. These forests are empirical
-extensions of the theorem-backed Stage~A rule, not objects covered by the
-fixed-node result itself. The classification implementation also supports
+extensions of the Stage~A rule, not settings covered by the fixed-node result
+itself. The classification implementation also supports
 class-conditional bootstrap variants, and both trees and forests optionally
 support honest estimation via sample splitting. These settings are useful
 algorithmically, but they change the training distribution or the estimation
 target and should therefore be read as empirical design choices rather than as
-parts of the theorem package.
+parts of the theorem.
 
 \subsection{Benchmark protocol summary}
 
@@ -102,9 +103,9 @@ training split, and downstream models are then fit on the top-$k$ selected
 features and evaluated on held-out data. The real-data benchmark uses
 5-fold cross-validation over 5 random seeds, standard budgets
 $k \in \{5,10,25,50,100\}$, and larger endpoint budgets only for the separate
-high-$p$ saturation check. If a method family has multiple configurations, the
-analysis uses one selected configuration per task, chosen by mean score on the
-same benchmark surface reported in the paper.
+high-$p$ saturation check. If a method has multiple settings, the
+analysis uses one chosen setting per method and task, chosen by mean score on the
+same benchmark setup reported in the paper.
 
 \subsection{Persistent benchmark skips}
 

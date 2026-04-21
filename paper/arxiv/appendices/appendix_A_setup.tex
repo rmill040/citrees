@@ -33,7 +33,7 @@ tests candidate thresholds for the selected feature $j_t^\star$.
     $p_{\mathrm{MC}}^{\ge},\ p_{\mathrm{MC}}^{\le}$ & Right/left-tail +1 Monte Carlo p-values computed from $B$ random permutations. \\
     $\alpha_{\mathrm{sel}}$ & Stage~A nominal significance level (before Bonferroni adjustment). \\
     $\alpha_{\mathrm{split}}$ & Stage~B nominal significance level (before Bonferroni adjustment). \\
-    $\uargmin$ & Uniform tie-breaking $\argmin$ (uniform draw from the set of minimizers). \\
+    $\uargmin$ & $\argmin$ with uniform tie-breaking using reservoir sampling. \\
     $j_t^\star,\ p_t^\star$ & Best feature and its p-value: $j_t^\star := \uargmin_{j\in F_t} p_{t,j}$,
     $p_t^\star := \min_{j\in F_t} p_{t,j}$. \\
     $C_{t,j}$ & Candidate threshold set for feature $j$ at node $t$ (Stage~B). \\

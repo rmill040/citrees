@@ -1,77 +1,60 @@
 \section{Experimental design}
 \label{sec:experiments}
 
-Each method produces an ordering on the training split, and downstream
-predictors are evaluated on the top-$k$ features.
-
-\subsection{Benchmark protocol}
+\subsection{Benchmark setup}
 \label{sec:experiments-protocol}
 
-All real-data comparisons use 5-fold cross-validation over 5 random seeds. The
-standard budgets are $k \in \{5,10,25,50,100\}$. Datasets with $p>100$ also
-evaluate larger budgets up to $k=p$, but those endpoint budgets are used only
-for the separate high-$p$ saturation check. The classification benchmark
-includes 15 methods; the regression benchmark includes 16. Classification uses
-balanced accuracy with logistic regression, SVM, and KNN as downstream models;
-regression uses $R^2$ with ridge, SVR, and KNN. Within each task, the paper
-reports one selected configuration per method family on the shared benchmark
-surface, so the paper compares method families rather than multiple tuned
-variants from the same family.
+All real-data results use 5 random seeds and 5-fold cross-validation within
+each seed. Classification uses logistic regression, SVM, and KNN as downstream
+models and reports balanced accuracy, the mean recall across classes.
+Regression uses ridge regression, SVR, and KNN and reports $R^2$. The main
+benchmark evaluates feature budgets $k \in \{5,10,25,50,100\}$.
 
-\subsection{Primary endpoint and sensitivity checks}
+For each seed-fold split, the ranking method is fit on the training fold only
+and produces an ordered list of features. The held-out fold is then evaluated
+using the top-$k$ features from that training-fold ranking. For each feature
+budget $k$, feature standardization is refit on the selected training-fold
+features, the same transform is applied to the held-out fold, and a downstream
+model is fit on that selected feature set.
+
+Datasets with more than 100 features are also evaluated at larger feature
+budgets for a separate high-$p$ analysis. Those larger budgets are not part of
+the main benchmark summary.
+
+\subsection{Benchmark summaries}
 \label{sec:experiments-analysis-plan}
 
-The main real-data comparison is the broader classification benchmark over the
-standard feature budgets. Because support shrinks as $k$ grows, we also report
-a 14-dataset classification benchmark with complete coverage across downstream
-models and standard feature budgets. The high-$p$ analysis asks
-whether CIF benefits beyond $k{=}100$ and whether it usually needs all features.
-The synthetic analyses measure how well the ranking tracks
-known signal rather than downstream prediction.
+The benchmark uses three averaging steps. First, within each
+$(\text{dataset}, \text{downstream model}, k)$ cell, scores are averaged over
+folds and seeds. Second, for pooled benchmark summaries, those cell-level
+scores are averaged within each dataset over downstream models and the standard
+feature budgets available for that dataset. Third, the pooled tables average
+those dataset-level summaries over datasets.
 
-Dataset support shrinks as $k$ grows: classification includes
+The main real-data summary is the full classification benchmark over the
+standard feature budgets. Because dataset support decreases as $k$ grows, the
+paper also reports a 14-dataset classification benchmark that retains the same
+datasets across all downstream models and standard feature budgets. That
+smaller benchmark is used for paired comparisons and omnibus testing.
+Regression is reported separately as a smaller benchmark.
+
+Classification results are also reported separately by downstream model and
+feature budget before those within-dataset averages are taken. Dataset
+support shrinks as $k$ grows: classification includes
 $22, 21, 15, 15, 14$ datasets at $k = 5, 10, 25, 50, 100$; regression includes
-$8, 8, 7, 7, 6$.
+$8, 8, 7, 7, 6$. The 14-dataset classification benchmark consists of the
+classification datasets with complete support across all downstream models and
+standard feature budgets.
 
-Within each $(\text{dataset}, \text{downstream model}, k)$ cell, scores are
-averaged across folds and seeds. We then average those cell-level scores and
-ranks within each dataset over the downstream models and budgets available for
-that dataset. The benchmark tables average those dataset summaries over the
-datasets included in each surface. The 14-dataset benchmark also reports paired
-CIF-versus-baseline intervals and a Friedman omnibus summary on the same
-dataset-mean surface. The 14-dataset classification benchmark includes 14 of
-the 23 datasets. These are the classification datasets with complete support
-across all downstream models and the standard feature budgets. As a separate
-config-selection sensitivity check, we rerun the one-config-per-family
-selection in leave-one-dataset-out form on this 14-dataset panel: for each
-held-out dataset, configurations are selected on the other 13 datasets and
-then evaluated on the held-out dataset. This sensitivity uses the same
-cell-level metric and the same within-dataset averaging over downstream models
-and standard feature budgets as the 14-dataset benchmark; only the
-config-selection split changes. We summarize it by the mean held-out score and
-mean held-out rank across the 14 datasets, along with how often the global
-benchmark-selected configuration is reselected.
-
-\subsection{Metric definitions}
-\label{sec:experiments-metrics}
-
-The following metrics recur in the results. The \emph{share of informative features selected} is the
-fraction of informative features in the top-$k$ set. \emph{Top-1 hit rate} is
-the fraction of synthetic datasets where the first ranked feature is informative.
-\emph{Informative split share} is the fraction of a tree's splits that use
-informative features. \emph{First budget that reaches the best score} is the smallest $k$
-at which a method reaches its peak downstream score. \emph{Kendall's $W$} is the
-Friedman-test effect size.
-
-\subsection{Datasets and preprocessing}
+\subsection{Datasets}
 \label{sec:experiments-datasets}
 
-The real-data benchmark contains 23 classification datasets and 8
-regression datasets. Classification is the primary
-benchmark and also provides broader real-data coverage: 23 datasets rather
-than 8.
-The high-$p$ saturation check restricts attention to the 15 classification and
-6 regression datasets with more than 100 features.
+The real-data benchmark includes 23 classification datasets and 8 regression
+datasets. The separate high-$p$ analysis restricts attention to the 15
+classification datasets and 6 regression datasets with more than 100 features.
+The full real-data and synthetic dataset inventories are listed in
+\Cref{app:dataset-inventory}, which also summarizes the synthetic designs and
+their parameter choices.
 
 The synthetic benchmark contains 8 classification and 8 regression datasets
 with known informative features and controlled noise structure. A separate
@@ -80,13 +63,10 @@ $p \in \{100, 500, 1000\}$ and
 $n_{\mathrm{informative}} \in \{1,2,5,10\}$. Tree methods include CIT, DT, and
 RT; forest methods include CIF, CIF-all, RF, and ET with 1000 trees.
 
-Features are standardized using training-fold statistics and the same transform
-is applied to the held-out split.
-
 \subsection{Compared methods}
 \label{sec:experiments-methods}
 
-The benchmark includes three method families. Permutation-calibrated filters
+The benchmark includes three types of feature selectors. Permutation-test filters
 use univariate dependence scores to rank features: MC and RDC for classification,
 and PC, DC, and RDC for regression, with RDC following
 \citet{LopezPaz2013RDC} and distance correlation following
@@ -103,25 +83,30 @@ Wrapper baselines use a downstream estimator to score feature subsets: Boruta
 \citep{DebeerStrobl2020ConditionalPermutationImportanceRevisited}, and RFE
 \citep{Guyon2002RFE}.
 
-\subsection{Config selection and implementation defaults}
+\subsection{Configuration selection}
 \label{sec:experiments-repro}
 
-Several families, including CIT, CIF, and the permutation-test filters, are
-run under multiple configurations. For each method family and task, the benchmark
-selects the configuration with the highest mean score across downstream models
-and the standard budget set $\{5,10,25,50,100\}$. The benchmark summaries
-therefore report one final configuration per method family within each task
-across all datasets, downstream models, and feature budgets.
-The synthetic ranking diagnostics use a separate per-family synthetic-best
-configuration, chosen by informative-feature recovery over the standard
-synthetic budgets.
+Some methods, including CIT, CIF, and the permutation-test filters, were run
+under multiple settings. For each task, the paper reports one chosen setting
+for each method. That choice is based on mean
+real-data performance over datasets, downstream models, and the standard
+feature budgets $k \in \{5,10,25,50,100\}$. The choice is made once per task;
+it is not redone separately within each dataset.
 
-For the conditional-inference methods, the benchmark uses the following
-defaults: adaptive sequential stopping, Bonferroni correction, feature muting,
-and feature and threshold scanning when early stopping is active. Histogram
-thresholding with 256 bins is used for threshold search. The CIT/CIF
-configurations in the benchmark differ in selector family, honesty, forest resampling,
-and whether the method is a tree or forest. The CIF timing
-studies change one setting at a time. They cover adaptive stopping,
-Bonferroni correction, feature scanning, threshold scanning, muting,
-bootstrap, and threshold-search budgets.
+As a sensitivity check, we repeat this choice in leave-one-dataset-out form on
+the 14-dataset classification benchmark. For each held-out dataset,
+configurations are selected on the other 13 datasets and then evaluated on the
+held-out dataset. This check changes only which datasets are used to choose the
+configuration. The downstream models, feature budgets, and within-dataset
+averaging stay the same.
+
+For the synthetic analysis, each method gets its own chosen setting. We choose
+it by average recovery of the true informative
+features over $k = 5, 10, 25, 50,$ and $100$.
+
+For the conditional-inference methods, the default benchmark settings use
+adaptive sequential stopping, Bonferroni correction, feature muting, feature
+scanning, threshold scanning, and histogram thresholding with 256 bins. The
+benchmarked CIT and CIF variants then differ in choice of selector, honesty,
+forest resampling, and whether the method is a tree or a forest. The CIF timing
+study changes one setting at a time.

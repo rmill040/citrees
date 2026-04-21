@@ -1,0 +1,119 @@
+\section{Benchmark stability and configuration sensitivity}
+\label{app:benchmark-stability}
+
+This appendix reports two additional analyses for the real-data benchmark in
+the main text. It gives the paired CIF-versus-baseline results on the
+14-dataset classification benchmark and the leave-one-dataset-out
+configuration check.
+
+\subsection{14-dataset classification benchmark}
+
+\Cref{tab:fixed-panel-cif-ci} gives the paired CIF-versus-baseline comparisons
+for the three historical conditional-inference baselines on the 14-dataset
+classification benchmark, using the same 14 datasets for all downstream
+models and for $k = 5, 10, 25, 50$, and $100$.
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}l r l c c@{}}
+    \toprule
+    Baseline & Mean $\Delta$ & 95\% CI & W--L--T & Sign-test $p$ \\
+    \midrule
+    \texttt{r\_ctree} & 0.109 & [0.068, 0.154] & 14--0--0 & $<0.001$ \\
+    \texttt{r\_cforest} & 0.111 & [0.067, 0.161] & 13--1--0 & $<0.001$ \\
+    \texttt{cit} & 0.041 & [0.023, 0.060] & 13--1--0 & $<0.001$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Paired CIF-minus-baseline balanced-accuracy deltas on the
+  14-dataset classification benchmark. The confidence intervals are percentile
+  bootstrap intervals from 20{,}000 replicates.}
+  \label{tab:fixed-panel-cif-ci}
+\end{table}
+
+The same 14-dataset classification benchmark yields a Friedman test statistic
+of
+$\chi^2(14)=125.73$ with $p<0.001$ and Kendall's
+$W=0.64$. For the smaller 6-dataset regression benchmark with complete
+coverage, the
+corresponding omnibus summary is $\chi^2(15)=29.22$, $p=0.0150$, and
+Kendall's $W=0.32$, which is why the paper reports regression only as a
+smaller secondary result.
+
+\subsection{Leave-one-dataset-out configuration sensitivity}
+
+\Cref{tab:lodo-config-sensitivity} summarizes the leave-one-dataset-out
+analysis on the 14-dataset classification benchmark. For each
+held-out dataset, configurations are selected on the other 13 datasets and
+evaluated on the held-out dataset using the same within-dataset averaging over
+downstream models and standard feature budgets as the main benchmark.
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}l r r r c@{}}
+    \toprule
+    Method & Held-out rank & Held-out BA & Different settings & Global setting reselected \\
+    \midrule
+    \texttt{lgbm} & 3.00 & 0.816 & 1 & 14/14 \\
+    \texttt{cat} & 4.07 & 0.805 & 1 & 14/14 \\
+    \texttt{rf} & 4.29 & 0.802 & 1 & 14/14 \\
+    \texttt{xgb} & 4.50 & 0.809 & 2 & 6/14 \\
+    \texttt{cif} & 5.21 & 0.798 & 1 & 14/14 \\
+    \texttt{et} & 5.21 & 0.789 & 1 & 14/14 \\
+    \texttt{rfe} & 6.21 & 0.795 & 1 & 14/14 \\
+    \texttt{boruta} & 8.14 & 0.747 & 1 & 14/14 \\
+    \texttt{cit} & 9.57 & 0.757 & 1 & 14/14 \\
+    \texttt{ptest\_mc} & 10.07 & 0.734 & 1 & 14/14 \\
+    \texttt{ptest\_rdc} & 10.36 & 0.707 & 1 & 14/14 \\
+    \texttt{r\_cforest} & 11.43 & 0.687 & 1 & 14/14 \\
+    \texttt{pi} & 11.89 & 0.689 & 1 & 14/14 \\
+    \texttt{r\_ctree} & 11.93 & 0.689 & 1 & 14/14 \\
+    \texttt{cpi} & 14.11 & 0.598 & 1 & 14/14 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Leave-one-dataset-out configuration sensitivity on the 14-dataset
+  classification benchmark. Held-out balanced accuracy (BA) and held-out rank
+  are averaged over the 14 held-out datasets. The different-settings column
+  gives the number of distinct settings selected across the 14
+  leave-one-dataset-out runs.}
+  \label{tab:lodo-config-sensitivity}
+\end{table}
+
+For CIF, the LODO analysis preserves the same selected configuration on all 14
+held-out datasets and moves the method only from 5th of 15 on the global
+classification benchmark to tied 5th--6th of 15 on mean held-out rank. The
+only method that changes settings often is XGBoost, which alternates between
+two configurations and reselects the global benchmark choice on 6 of the 14
+held-out datasets.
+
+\subsection{Mechanism scaling by number of features}
+
+\Cref{fig:mechanism-dimension-curves} extends the main-text mechanism figure
+from one sparse classification setting to $p = 100, 500$, and $1000$ at 1000
+trees. For each method and number of features, the point marks the mean over
+$n_{\mathrm{informative}} \in \{1,2,5,10\}$ and the vertical segment shows the
+range over those four sparse settings.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}
+  \caption{Classification forest mechanism scaling by number of features at
+  1000 trees. Points are means over
+  $n_{\mathrm{informative}} \in \{1,2,5,10\}$ and vertical segments show the
+  min--max range over those sparse designs.}
+  \label{fig:mechanism-dimension-curves}
+\end{figure}
+
+The gap between CIF and \texttt{cif\_all} widens as the number of features
+grows and is largest in the sparsest settings. With two informative features,
+the difference in informative split share is 0.600 at $p{=}100$, 0.780 at
+$p{=}500$, and 0.910 at $p{=}1000$, while the corresponding reductions in the
+number of different false features used by the forest are 70, 264, and 439.
+The same pattern persists when the signal is less sparse: with five
+informative features, the difference in informative split share is still
+0.251, 0.564, and 0.543 as $p$ increases from 100 to 500 to 1000. These
+curves support the main-text conclusion that, in sparse high-$p$ forests,
+subsampling often keeps informative features out of CIF's candidate set.

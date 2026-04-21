@@ -21,49 +21,34 @@ A related line of work uses forests directly for variable screening and ranking,
 rather than only for final prediction
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}.
 
-This paper takes that narrow fixed-node Stage~A feature-selection object as its
-principled core. At a pre-specified node, Stage~A feature selection under the
-nodewise complete permutation null defines a local feature-selection object
-with a well-defined permutation reference distribution. It is not post-selection
-inference for the chosen feature or threshold in the sense of the selective-inference
+We focus on the fixed-node version of Stage~A. At a pre-specified node,
+Stage~A tests candidate features for association with the response under the
+nodewise complete permutation null, so the resulting p-values have a clear
+permutation reference distribution. This is a local statement about feature
+screening at that node. It is not post-selection inference for the chosen
+feature or threshold in the sense of the selective-inference
 literature
 \citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection},
-and it is not end-to-end
-calibration for the full adaptive ranking workflow.
+and it does not imply that the full adaptive ranking procedure has the same
+valid p-value interpretation.
 
-The practical question is then which computations are necessary to preserve
-useful ranking behavior. CIF keeps the Stage~A/Stage~B separation
-while reallocating computation within it. In within-CIF ablations on the
-collected setup, most runtime savings come from adaptive stopping and from
-histogram thresholding, a separate Stage~B approximation. Feature scanning
-mainly refines the fast regime once early stopping is active. The remaining
-ablations are mixed. The empirical analysis then asks whether this faster CIF
-procedure remains useful in downstream ranking.
-
+This paper asks whether conditional inference forests (CIF) can be made more
+efficient without reducing the quality of the feature rankings they produce.
 That question is narrower than the broader tree and forest literature on direct
 prediction or causal estimation
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
-Here the object of study is CIF under a shared downstream
-evaluation protocol.
-
-We therefore ask whether, once paired with these practical approximations, CIF remains
-useful on real classification rank-then-evaluate benchmarks, whether a similar
-pattern appears on a smaller regression panel, and where the
-method weakens. On sparse high-dimensional problems, one failure
-mode can appear
-before threshold search begins: an informative feature may never be screened at
-a node. High-$p$, synthetic, and fixed-design diagnostics
-therefore explain these limits, while the real-data benchmark
-remains the primary validation layer.
+Specifically, we ask which changes deliver the runtime savings, whether the
+resulting method still gives useful rankings on benchmark classification and
+regression tasks, and where its limits appear.
 
 \paragraph{Contributions.}
 This paper contributes a fixed-$B$ nodewise guarantee
 (\cref{thm:plusone-superuniform,cor:stageA-global-null}), a within-CIF
 optimization study identifying which approximations matter most for runtime and
-score, a real-data validation layer with
-classification as the main benchmark and regression as a smaller mirror, and
-boundary diagnostics that map where the method weakens (\cref{sec:boundary}).
+score, a real-data benchmark with classification as the main benchmark and
+regression as a smaller supporting analysis, and additional analyses that show
+where the method weakens (\cref{sec:boundary}).
 
 The next sections define the algorithmic framework, state the fixed-node
-guarantee, describe the benchmark and ablation setup, and then map the
-method's validation, practical guidance, and limits.
+guarantee, describe the benchmark and ablation setup, and then present the
+results, practical guidance, and limits.

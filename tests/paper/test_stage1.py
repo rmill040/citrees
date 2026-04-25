@@ -91,6 +91,56 @@ class TestPermutationSelector:
         assert ranking.shape == (X.shape[1],)
 
 
+class TestEmbeddingSelector:
+    """Tests for tree-based embedding selector wiring."""
+
+    def test_single_tree_factories_use_sklearn_tree_estimators(self) -> None:
+        """dt and rt should be single sklearn trees, not ensemble estimators."""
+        from sklearn.tree import (
+            DecisionTreeClassifier,
+            DecisionTreeRegressor,
+            ExtraTreeClassifier,
+            ExtraTreeRegressor,
+        )
+
+        from paper.scripts.pipeline.selectors import get_embedding_model
+
+        clf_dt = get_embedding_model("dt", "classification", random_state=1718)
+        clf_rt = get_embedding_model("rt", "classification", random_state=1718)
+        reg_dt = get_embedding_model("dt", "regression", random_state=1718)
+        reg_rt = get_embedding_model("rt", "regression", random_state=1718)
+
+        assert isinstance(clf_dt, DecisionTreeClassifier)
+        assert isinstance(clf_rt, ExtraTreeClassifier)
+        assert isinstance(reg_dt, DecisionTreeRegressor)
+        assert isinstance(reg_rt, ExtraTreeRegressor)
+        assert clf_dt.splitter == "best"
+        assert clf_rt.splitter == "random"
+        assert not hasattr(clf_rt, "n_estimators")
+        assert not hasattr(reg_rt, "n_estimators")
+
+    def test_run_selection_accepts_dt_and_rt(self) -> None:
+        """Stage 1 should route dt and rt through embedding selection."""
+        from paper.scripts.pipeline.stage1 import run_selection
+
+        rng = np.random.default_rng(1718)
+        X = rng.normal(size=(30, 4))
+        y = np.array([0, 1] * 15, dtype=int)
+
+        for method in ("dt", "rt"):
+            results = run_selection(
+                X,
+                y,
+                method=method,
+                task="classification",
+                seed=0,
+                n_jobs=1,
+            )
+
+            assert len(results) == 5
+            assert all(row["feature_ranking"] for row in results)
+
+
 class TestWrapperSelectors:
     """Tests for wrapper selector scoring behavior."""
 

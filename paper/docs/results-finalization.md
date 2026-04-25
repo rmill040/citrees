@@ -10,6 +10,8 @@ paper.
 Locked source of truth for the closed layers in this document:
 
 - `paper/results/tables/dataset_characteristics.csv`
+- `paper/results/paper_real_evaluation.parquet`
+- `paper/results/synthetic_topk_composition.parquet`
 - `paper/results/tables/paper_benchmark_best_configs.csv`
 - `paper/results/tables/paper_benchmark_selected_config_details.csv`
 - `paper/results/tables/paper_benchmark_method_aggregate.csv`
@@ -49,6 +51,7 @@ Locked source of truth for the closed layers in this document:
 - `paper/results/tables/synthetic_topk_composition_by_dataset.csv`
 - `paper/results/tables/paper_mirrored_knob_ablation_summary.csv`
 - `paper/results/tables/paper_threshold_ablation_summary.csv`
+- `paper/results/tables/paper_cit_runtime_ablation_summary.csv`
 - `paper/results/tables/paper_presentation_practical_controls_summary.csv`
 - `paper/results/tables/paper_mechanism_candidate_set_summary.csv`
 - `paper/results/tables/paper_mechanism_frequency_summary.csv`
@@ -64,11 +67,25 @@ Locked source of truth for the closed layers in this document:
 Supporting-only source outside the closed main-text package:
 
 - `paper/results/tables/calibration_summary.csv`
+- `paper/results/tables/cit_runtime_ablation_raw.csv`
+- `paper/results/tables/cit_runtime_ablation_dataset_summary.csv`
 
 Important note:
 
 - `paper/results/tables/calibration_summary.csv` remains appendix/supporting-only
   by design.
+- `paper/results/tables/cit_runtime_ablation_raw.csv` and
+  `paper/results/tables/cit_runtime_ablation_dataset_summary.csv` are
+  provenance/supporting tables; use
+  `paper/results/tables/paper_cit_runtime_ablation_summary.csv` for the
+  paper-facing CIT runtime summary.
+- `paper/results/tables/paper_mirrored_knob_ablation_summary.csv` reports CIF
+  runtime ratios as dataset-level mean ratios against `cif_default`, because
+  the mirrored CIF source table is already aggregated over seeds.
+- `paper/results/paper_real_evaluation.parquet` is the joined real-data
+  downstream evaluation surface used by benchmark builders.
+- `paper/results/synthetic_topk_composition.parquet` is the joined synthetic
+  top-k recovery surface used by the synthetic recovery tables and Figure 4.
 - file names and some table column names still use `endpoint`; paper-facing
   prose should prefer `full feature set`, `full-feature budget`, or `k=p`
 
@@ -132,18 +149,18 @@ What the experiment is:
 
 What the canonical aggregate says:
 
-- CIF is `4th/15` by mean rank on the complete-case classification aggregate
-- CIF mean rank is `5.4758`
+- CIF is `4th/17` by mean rank on the complete-case classification aggregate
+- CIF mean rank is `6.0826`
 - CIF mean score is `0.8194`
-- the top three are `lgbm = 4.6750`, `xgb = 5.0386`, `cat = 5.2606`
-- on the 14-dataset classification benchmark, CIF is `5th/15` with
-  mean rank `5.6286`
+- the top three are `lgbm = 5.1667`, `xgb = 5.5803`, `cat = 5.8485`
+- on the 14-dataset classification benchmark, CIF is `5th/17` with
+  mean rank `6.2548`
 
 What the CIF trajectory says:
 
-- LR: `6.4545` at `k=5` to `4.6786` at `k=100`
-- SVM: `5.2955` at `k=5` to `5.0000` at `k=100`
-- KNN: `4.9773` at `k=5` to `4.0714` at `k=100`
+- LR: `7.2045` at `k=5` to `5.1786` at `k=100`
+- SVM: `5.8409` at `k=5` to `5.4643` at `k=100`
+- KNN: `5.5455` at `k=5` to `4.2143` at `k=100`
 - KNN is `1st` at `k=100`
 - the complete-case spread surface tightens as `k` grows:
   mean cross-method range drops from `0.2560` at `k=5` to `0.1837` at `k=100`
@@ -194,42 +211,46 @@ Do not say:
 
 What the experiment is:
 
-- paired CIF-vs-baseline dataset summaries over all supported downstream-model
+- directed all-vs-all dataset summaries over all supported downstream-model
   and standard-`k` cells
 - plus dataset-level heterogeneity summaries
 
 What the canonical pairwise aggregate says on the looser all-supported layer:
 
-- CIF is positive against `10/14` classification baselines by mean delta
+- CIF is positive against `12/16` classification baselines by mean delta
 - strongest positive deltas:
-  - `cpi +0.1285` on `23` datasets
+  - `cpi +0.1282` on `23` datasets
   - `r_ctree +0.0876` on `22` datasets
   - `r_cforest +0.0715` on `22` datasets
-  - `pi +0.0694` on `23` datasets
   - `ptest_rdc +0.0689` on `23` datasets
+  - `pi +0.0682` on `23` datasets
   - `boruta +0.0574` on `23` datasets
-  - `ptest_mc +0.0428` on `23` datasets
-  - `cit +0.0315` on `23` datasets
+  - `ptest_mc +0.0431` on `23` datasets
+  - `rt +0.0346` on `23` datasets
+  - `cit +0.0318` on `23` datasets
+  - `dt +0.0155` on `23` datasets
 - near-zero or negative versus stronger ensembles:
-  - `et +0.0059`
   - `rfe +0.0062`
-  - `rf -0.0043`
-  - `cat -0.0056`
-  - `xgb -0.0097`
-  - `lgbm -0.0114`
+  - `et +0.0061`
+  - `rf -0.0040`
+  - `cat -0.0053`
+  - `xgb -0.0095`
+  - `lgbm -0.0111`
 
 What the stricter `22`-dataset breadth layer says:
 
-- CIF is positive against `10/14` classification baselines by mean delta
+- CIF is positive against `12/16` classification baselines by mean delta
 - strongest positive deltas:
-  - `cpi +0.1305`, `20/22` wins
+  - `cpi +0.1303`, `20/22` wins
   - `r_ctree +0.0876`, `22/22` wins
   - `r_cforest +0.0715`, `19/22` wins
   - `ptest_rdc +0.0706`, `20/22` wins
-  - `pi +0.0700`, `16/22` wins
+  - `pi +0.0687`, `16/22` wins
   - `boruta +0.0615`, `16/22` wins
   - `ptest_mc +0.0453`, `21/22` wins
+  - `rt +0.0315`, `20/22` wins
   - `cit +0.0301`, `21/22` wins
+  - `dt +0.0157`, `13/22` wins
 - near-zero or negative versus stronger ensembles:
   - `et +0.0063`, `13/22` wins
   - `rfe +0.0018`, `15/22` wins
@@ -241,7 +262,7 @@ What the stricter `22`-dataset breadth layer says:
 What the stricter heterogeneity layer says:
 
 - CIF is top-half on `21/22` classification datasets
-- CIF is top-3 on `7/22`
+- CIF is top-3 on `5/22`
 - CIF is top-1 on `3/22`
 - dataset means are computed over each dataset's available all-method
   complete-case downstream-by-`k` cells, not over a perfectly rectangular
@@ -362,9 +383,9 @@ What the canonical summary says:
 - the primary synthetic ranking surface is the across-`k` curve, not any single
   budget slice
 - CIF classification mean informative recovery over `k = 5, 10, 25, 50, 100`
-  is `0.3443`, rank `8/15`
+  is `0.3443`, rank `8/17`
 - CIF regression mean informative recovery over the same budget curve is
-  `0.3901`, rank `10/16`
+  `0.3901`, rank `10/18`
 
 What the CIF regime split says:
 
@@ -738,21 +759,21 @@ What the canonical summary says:
 
 - CIF classification:
   - mean precision over `k = 1, 2`: `0.6500`, head-of-list rank `11/15`
-  - mean precision over `k = 5, 10, 25, 50, 100`: `0.3443`, rank `8/15`
+  - mean precision over `k = 5, 10, 25, 50, 100`: `0.3443`, rank `8/17`
   - `top1_hit_rate = 0.640`
   - `any_hit_at_2_rate = 0.795`
   - `MRR = 0.7616`
   - `mean_first_true_rank = 3.085`
-  - top1 rank position `11/15`
+  - top1 rank position `12/17`
   - MRR rank position `10/15`
 - CIF regression:
   - mean precision over `k = 1, 2`: `0.8163`, head-of-list rank `12/16`
-  - mean precision over `k = 5, 10, 25, 50, 100`: `0.3901`, rank `10/16`
+  - mean precision over `k = 5, 10, 25, 50, 100`: `0.3901`, rank `10/18`
   - `top1_hit_rate = 0.810`
   - `any_hit_at_2_rate = 0.945`
   - `MRR = 0.8935`
   - `mean_first_true_rank = 1.275`
-  - top1 rank position `13/16`
+  - top1 rank position `15/18`
   - MRR rank position `11/16`
 
 What the CIF regime split adds:
@@ -889,20 +910,20 @@ What the experiment is:
 
 What the canonical aggregate says:
 
-- CIF is `2nd/16` by mean rank on the main regression aggregate
-- CIF mean rank is `6.2313`
+- CIF is `3rd/18` by mean rank on the main regression aggregate
+- CIF mean rank is `7.0688`
 - CIF mean score is `0.3294`
 - support is only `8, 8, 7, 7, 6` across the standard `k` values
 - on the looser all-supported pairwise layer, CIF has positive mean deltas
-  against `14/15` regression baselines
-- pairwise aggregate deltas are positive against `14/15` regression baselines,
+  against `15/17` regression baselines
+- pairwise aggregate deltas are positive against `15/17` regression baselines,
   but that layer is descriptive only because of the small dataset count
 - the complete-case spread surface widens with `k`:
-  mean cross-method range grows from `1.0571` at `k=5` to `1.8834` at `k=100`
+  mean cross-method range grows from `1.0720` at `k=5` to `1.8934` at `k=100`
 
 What the regression pairwise breadth says:
 
-- CIF has positive mean deltas against `14/15` regression baselines on the
+- CIF has positive mean deltas against `15/17` regression baselines on the
   all-supported layer
 - largest positive deltas:
   - `r_cforest +0.7211`
@@ -912,14 +933,15 @@ What the regression pairwise breadth says:
 - closest comparisons:
   - `cat +0.0251`
   - `rf +0.0026`
+  - `rt -0.0007`
   - `et -0.0238`
   - `xgb +0.0598`
 
 What the heterogeneity summary says:
 
-- CIF is top-half on `8/8`
+- CIF is top-half on `6/8`
 - CIF is top-3 on `2/8`
-- CIF is top-1 on `1/8`
+- CIF is top-1 on `0/8`
 
 Paper-safe interpretation:
 

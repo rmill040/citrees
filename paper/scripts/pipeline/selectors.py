@@ -24,6 +24,12 @@ from sklearn.feature_selection import RFE
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.tree import (
+    DecisionTreeClassifier,
+    DecisionTreeRegressor,
+    ExtraTreeClassifier,
+    ExtraTreeRegressor,
+)
 from xgboost import XGBClassifier, XGBRegressor
 
 from citrees import (
@@ -48,7 +54,7 @@ def get_embedding_model(
     Parameters
     ----------
     method : str
-        Model name: rf, et, xgb, lgbm, cat, cit, cif.
+        Model name: dt, rt, rf, et, xgb, lgbm, cat, cit, cif.
     task : str
         "classification" or "regression".
     random_state : int
@@ -66,6 +72,12 @@ def get_embedding_model(
     params = params or {}
 
     if task == "classification":
+        if method == "dt":
+            model_params = {**params, "random_state": random_state}
+            return DecisionTreeClassifier(**model_params)
+        if method == "rt":
+            model_params = {**params, "random_state": random_state}
+            return ExtraTreeClassifier(**model_params)
         if method == "rf":
             base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}
@@ -115,6 +127,12 @@ def get_embedding_model(
             model_params["random_state"] = random_state
             return CatBoostClassifier(**model_params)
     else:
+        if method == "dt":
+            model_params = {**params, "random_state": random_state}
+            return DecisionTreeRegressor(**model_params)
+        if method == "rt":
+            model_params = {**params, "random_state": random_state}
+            return ExtraTreeRegressor(**model_params)
         if method == "rf":
             base = {"n_estimators": 100, "n_jobs": n_jobs, "random_state": random_state}
             model_params = {**base, **params}

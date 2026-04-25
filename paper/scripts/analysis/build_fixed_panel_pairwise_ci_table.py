@@ -18,8 +18,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Final
 
 import numpy as np
@@ -30,8 +30,12 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from paper.scripts.analysis.benchmark_common import STANDARD_K, TABLES_DIR, TASK_CONFIG, load_real_task_frame
-
+from paper.scripts.analysis.benchmark_common import (  # noqa: E402
+    STANDARD_K,
+    TABLES_DIR,
+    TASK_CONFIG,
+    load_real_task_frame,
+)
 
 BEST_CONFIGS_PATH: Final[Path] = TABLES_DIR / "paper_benchmark_best_configs.csv"
 FIXED_PANEL_MEMBERSHIP_PATH: Final[Path] = TABLES_DIR / "paper_benchmark_fixed_panel_membership.csv"
@@ -40,7 +44,9 @@ BOOTSTRAP_SEED: Final[int] = 1718
 DEFAULT_N_BOOT: Final[int] = 20_000
 
 
-def _bootstrap_mean_ci(values: np.ndarray, *, n_boot: int, rng: np.random.Generator) -> tuple[float, float]:
+def _bootstrap_mean_ci(
+    values: np.ndarray, *, n_boot: int, rng: np.random.Generator
+) -> tuple[float, float]:
     """Percentile bootstrap CI for the mean of a paired delta vector."""
     n = len(values)
     draws = np.empty(n_boot, dtype=float)
@@ -68,7 +74,7 @@ def _dataset_mean_scores(task: str) -> pd.DataFrame:
     selected = _selected_method_ids(task)
     fixed_panel_datasets = _load_fixed_panel_datasets(task)
 
-    frame = load_real_task_frame(task_cfg["path"])
+    frame = load_real_task_frame(task=task)
     frame = frame[
         frame["dataset"].isin(fixed_panel_datasets)
         & frame["k"].isin(STANDARD_K)
@@ -77,12 +83,16 @@ def _dataset_mean_scores(task: str) -> pd.DataFrame:
 
     metric = task_cfg["metric"]
     cell_scores = (
-        frame.groupby(["dataset", "downstream_model", "k", "method_base", "method_id"], as_index=False)[metric]
+        frame.groupby(
+            ["dataset", "downstream_model", "k", "method_base", "method_id"], as_index=False
+        )[metric]
         .mean()
         .rename(columns={metric: "dataset_mean_score"})
     )
     dataset_scores = (
-        cell_scores.groupby(["dataset", "method_base", "method_id"], as_index=False)["dataset_mean_score"]
+        cell_scores.groupby(["dataset", "method_base", "method_id"], as_index=False)[
+            "dataset_mean_score"
+        ]
         .mean()
         .sort_values(["dataset", "method_base"])
         .reset_index(drop=True)
@@ -98,7 +108,9 @@ def build_fixed_panel_pairwise_ci(*, n_boot: int = DEFAULT_N_BOOT) -> pd.DataFra
     for task, task_cfg in TASK_CONFIG.items():
         dataset_scores = _dataset_mean_scores(task)
         focus_method = task_cfg["focus_method"]
-        wide = dataset_scores.pivot(index="dataset", columns="method_base", values="dataset_mean_score")
+        wide = dataset_scores.pivot(
+            index="dataset", columns="method_base", values="dataset_mean_score"
+        )
         if focus_method not in wide.columns:
             continue
 
@@ -114,7 +126,9 @@ def build_fixed_panel_pairwise_ci(*, n_boot: int = DEFAULT_N_BOOT) -> pd.DataFra
             non_ties = wins + losses
             ci_lower, ci_upper = _bootstrap_mean_ci(delta.to_numpy(), n_boot=n_boot, rng=rng)
             sign_pvalue = (
-                float(binomtest(wins, non_ties, 0.5, alternative="greater").pvalue) if non_ties else np.nan
+                float(binomtest(wins, non_ties, 0.5, alternative="greater").pvalue)
+                if non_ties
+                else np.nan
             )
 
             rows.append(
@@ -137,7 +151,9 @@ def build_fixed_panel_pairwise_ci(*, n_boot: int = DEFAULT_N_BOOT) -> pd.DataFra
                 }
             )
 
-    return pd.DataFrame(rows).sort_values(["task", "focus_method", "baseline"]).reset_index(drop=True)
+    return (
+        pd.DataFrame(rows).sort_values(["task", "focus_method", "baseline"]).reset_index(drop=True)
+    )
 
 
 def main() -> None:

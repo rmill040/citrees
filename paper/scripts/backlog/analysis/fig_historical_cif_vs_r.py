@@ -27,7 +27,13 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from paper.scripts.analysis.benchmark_common import STANDARD_K, TASK_CONFIG, dataset_scores, load_real_task_frame, select_best_task_configs
+from paper.scripts.analysis.benchmark_common import (
+    STANDARD_K,
+    TASK_CONFIG,
+    dataset_scores,
+    load_real_task_frame,
+    select_best_task_configs,
+)
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -74,7 +80,7 @@ def _setup_style() -> None:
 def _load_and_prepare() -> pd.DataFrame:
     """Load the broad classification benchmark surface for CIF-vs-R."""
     config = TASK_CONFIG["classification"]
-    raw = load_real_task_frame(config["path"])
+    raw = load_real_task_frame(task="classification")
     standard_raw = raw[raw["k"].isin(K_VALUES)].copy()
 
     _, best_configs = select_best_task_configs(standard_raw, config["metric"])
@@ -168,8 +174,8 @@ def _plot_panel(
     pvals = [results[k]["pval"] for k in ks]
     n_ds = [results[k]["n_datasets"] for k in ks]
 
-    yerr_lo = [m - lo for m, lo in zip(means, ci_los)]
-    yerr_hi = [hi - m for m, hi in zip(means, ci_his)]
+    yerr_lo = [m - lo for m, lo in zip(means, ci_los, strict=True)]
+    yerr_hi = [hi - m for m, hi in zip(means, ci_his, strict=True)]
 
     # Determine if all deltas are positive
     all_positive = all(m > 0 for m in means)
@@ -201,7 +207,7 @@ def _plot_panel(
     ax.plot(ks, means, color=point_color, linewidth=1.0, alpha=0.4, zorder=2)
 
     # Annotate p-values and n_datasets
-    for idx, (k_val, m, p, n) in enumerate(zip(ks, means, pvals, n_ds)):
+    for idx, (k_val, _mean, p, n) in enumerate(zip(ks, means, pvals, n_ds, strict=True)):
         ci_top = ci_his[idx]
         ci_bottom = ci_los[idx]
 
@@ -260,7 +266,7 @@ def main() -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
 
-    for ax, (opp_base, opp_display) in zip(axes, opponents):
+    for ax, (opp_base, opp_display) in zip(axes, opponents, strict=True):
         results = _compute_deltas(dataset_means, opp_base)
         _plot_panel(ax, results, opp_display)
 

@@ -25,8 +25,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Final
 
 import numpy as np
@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from paper.scripts.analysis.benchmark_common import (
+from paper.scripts.analysis.benchmark_common import (  # noqa: E402
     STANDARD_K,
     TABLES_DIR,
     TASK_CONFIG,
@@ -49,14 +49,18 @@ HIGH_P_MIN_ENDPOINT: Final[int] = max(STANDARD_K)
 SCORE_TOL: Final[float] = 1e-12
 
 
-def build_task_scores(task: str, path: Path, metric: str) -> pd.DataFrame:
+def build_task_scores(task: str, metric: str) -> pd.DataFrame:
     """Load one task and keep the task-wide best config for each method family."""
-    raw = load_real_task_frame(path)
+    raw = load_real_task_frame(task=task)
     standard_raw = raw[raw["k"].isin(STANDARD_K)].copy()
     _, best_configs = select_best_task_configs(standard_raw, metric)
-    best_full = raw.merge(best_configs[["method_base", "method_id"]], on=["method_base", "method_id"], how="inner")
+    best_full = raw.merge(
+        best_configs[["method_base", "method_id"]], on=["method_base", "method_id"], how="inner"
+    )
     scores = dataset_scores(best_full, metric)
-    endpoint = scores.groupby("dataset", as_index=False)["k"].max().rename(columns={"k": "endpoint_k"})
+    endpoint = (
+        scores.groupby("dataset", as_index=False)["k"].max().rename(columns={"k": "endpoint_k"})
+    )
     scores = scores.merge(endpoint, on="dataset", how="inner")
     scores.insert(0, "task", task)
     return scores
@@ -133,12 +137,16 @@ def build_endpoint_method_presence(scores: pd.DataFrame) -> pd.DataFrame:
     )
     methods = pd.DataFrame({"method_base": expected_methods})
     grid = base_cells.merge(methods, how="cross")
-    ep = endpoint_rows(scores)[["task", "dataset", "downstream_model", "method_base", "method_id"]].copy()
+    ep = endpoint_rows(scores)[
+        ["task", "dataset", "downstream_model", "method_base", "method_id"]
+    ].copy()
     ep["has_endpoint_row"] = True
     merged = grid.merge(ep, on=["task", "dataset", "downstream_model", "method_base"], how="left")
     merged["has_endpoint_row"] = merged["method_id"].notna()
     merged["missing_endpoint_row"] = ~merged["has_endpoint_row"]
-    return merged.sort_values(["task", "dataset", "downstream_model", "method_base"]).reset_index(drop=True)
+    return merged.sort_values(["task", "dataset", "downstream_model", "method_base"]).reset_index(
+        drop=True
+    )
 
 
 def build_delta_vs_endpoint_cells(scores: pd.DataFrame) -> pd.DataFrame:
@@ -146,10 +154,12 @@ def build_delta_vs_endpoint_cells(scores: pd.DataFrame) -> pd.DataFrame:
     ep = endpoint_rows(scores)[
         ["task", "dataset", "downstream_model", "method_base", "method_id", "dataset_mean_score"]
     ].rename(columns={"dataset_mean_score": "endpoint_score"})
-    merged = scores.merge(ep, on=["task", "dataset", "downstream_model", "method_base", "method_id"], how="inner")
-    best_observed = merged.groupby(["task", "dataset", "downstream_model", "method_base", "method_id"])[
-        "dataset_mean_score"
-    ].transform("max")
+    merged = scores.merge(
+        ep, on=["task", "dataset", "downstream_model", "method_base", "method_id"], how="inner"
+    )
+    best_observed = merged.groupby(
+        ["task", "dataset", "downstream_model", "method_base", "method_id"]
+    )["dataset_mean_score"].transform("max")
     merged["score_minus_endpoint"] = merged["dataset_mean_score"] - merged["endpoint_score"]
     merged["is_endpoint"] = merged["k"] == merged["endpoint_k"]
     merged["is_standard_k"] = merged["k"].isin(STANDARD_K)
@@ -178,9 +188,13 @@ def build_delta_vs_endpoint_cells(scores: pd.DataFrame) -> pd.DataFrame:
 
 def build_delta_vs_endpoint_method(scores: pd.DataFrame) -> pd.DataFrame:
     """Summarize how each standard budget compares to endpoint on high-p datasets."""
-    ep = endpoint_rows(scores)[["task", "dataset", "downstream_model", "method_base", "method_id", "dataset_mean_score"]]
+    ep = endpoint_rows(scores)[
+        ["task", "dataset", "downstream_model", "method_base", "method_id", "dataset_mean_score"]
+    ]
     ep = ep.rename(columns={"dataset_mean_score": "endpoint_score"})
-    merged = scores.merge(ep, on=["task", "dataset", "downstream_model", "method_base", "method_id"], how="inner")
+    merged = scores.merge(
+        ep, on=["task", "dataset", "downstream_model", "method_base", "method_id"], how="inner"
+    )
     merged["score_minus_endpoint"] = merged["dataset_mean_score"] - merged["endpoint_score"]
     merged = merged[merged["k"].isin(STANDARD_K)].copy()
 
@@ -201,9 +215,13 @@ def build_delta_vs_endpoint_method(scores: pd.DataFrame) -> pd.DataFrame:
 
 def build_delta_vs_endpoint_overall(scores: pd.DataFrame) -> pd.DataFrame:
     """Summarize average standard-budget performance relative to endpoint across all methods."""
-    ep = endpoint_rows(scores)[["task", "dataset", "downstream_model", "method_base", "method_id", "dataset_mean_score"]]
+    ep = endpoint_rows(scores)[
+        ["task", "dataset", "downstream_model", "method_base", "method_id", "dataset_mean_score"]
+    ]
     ep = ep.rename(columns={"dataset_mean_score": "endpoint_score"})
-    merged = scores.merge(ep, on=["task", "dataset", "downstream_model", "method_base", "method_id"], how="inner")
+    merged = scores.merge(
+        ep, on=["task", "dataset", "downstream_model", "method_base", "method_id"], how="inner"
+    )
     merged["score_minus_endpoint"] = merged["dataset_mean_score"] - merged["endpoint_score"]
     merged = merged[merged["k"].isin(STANDARD_K)].copy()
 
@@ -226,17 +244,18 @@ def build_delta_vs_endpoint_overall(scores: pd.DataFrame) -> pd.DataFrame:
 def build_endpoint_aggregate(scores: pd.DataFrame, metric: str) -> pd.DataFrame:
     """Aggregate complete-case endpoint ranks over high-p datasets."""
     complete = complete_case_endpoint(scores).copy()
-    complete["rank"] = complete.groupby(["task", "dataset", "downstream_model"])["dataset_mean_score"].rank(
+    complete["rank"] = complete.groupby(["task", "dataset", "downstream_model"])[
+        "dataset_mean_score"
+    ].rank(
         ascending=False,
         method="average",
     )
-    by_dataset = (
-        complete.groupby(["task", "dataset", "method_base", "method_id"], as_index=False)
-        .agg(
-            n_cells=("rank", "size"),
-            mean_rank=("rank", "mean"),
-            mean_score=("dataset_mean_score", "mean"),
-        )
+    by_dataset = complete.groupby(
+        ["task", "dataset", "method_base", "method_id"], as_index=False
+    ).agg(
+        n_cells=("rank", "size"),
+        mean_rank=("rank", "mean"),
+        mean_score=("dataset_mean_score", "mean"),
     )
     aggregate = (
         by_dataset.groupby(["task", "method_base", "method_id"], as_index=False)
@@ -252,11 +271,15 @@ def build_endpoint_aggregate(scores: pd.DataFrame, metric: str) -> pd.DataFrame:
     )
     aggregate.insert(1, "metric", metric)
     aggregate["support_type"] = "dataset_mean_over_high_p_endpoint_complete_case"
-    aggregate["rank_position"] = aggregate.groupby("task")["mean_rank"].rank(ascending=True, method="average")
+    aggregate["rank_position"] = aggregate.groupby("task")["mean_rank"].rank(
+        ascending=True, method="average"
+    )
     return aggregate
 
 
-def build_cif_endpoint_summary(scores: pd.DataFrame, focus_method: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_cif_endpoint_summary(
+    scores: pd.DataFrame, focus_method: str
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Summarize CIF score and rank movement from `k=100` to endpoint."""
     k100 = k100_rows(scores)
     ep = endpoint_rows(scores)
@@ -267,16 +290,22 @@ def build_cif_endpoint_summary(scores: pd.DataFrame, focus_method: str) -> tuple
     focus_ep = ep[ep["method_base"] == focus_method][
         ["task", "dataset", "downstream_model", "dataset_mean_score", "endpoint_k"]
     ].rename(columns={"dataset_mean_score": "score_endpoint"})
-    examples = focus_100.merge(focus_ep, on=["task", "dataset", "downstream_model", "endpoint_k"], how="inner")
+    examples = focus_100.merge(
+        focus_ep, on=["task", "dataset", "downstream_model", "endpoint_k"], how="inner"
+    )
     examples["score_endpoint_minus_k100"] = examples["score_endpoint"] - examples["score_k100"]
 
     complete_100 = complete_case_k100(scores).copy()
     complete_ep = complete_case_endpoint(scores).copy()
-    complete_100["rank_k100"] = complete_100.groupby(["task", "dataset", "downstream_model"])["dataset_mean_score"].rank(
+    complete_100["rank_k100"] = complete_100.groupby(["task", "dataset", "downstream_model"])[
+        "dataset_mean_score"
+    ].rank(
         ascending=False,
         method="average",
     )
-    complete_ep["rank_endpoint"] = complete_ep.groupby(["task", "dataset", "downstream_model"])["dataset_mean_score"].rank(
+    complete_ep["rank_endpoint"] = complete_ep.groupby(["task", "dataset", "downstream_model"])[
+        "dataset_mean_score"
+    ].rank(
         ascending=False,
         method="average",
     )
@@ -292,8 +321,12 @@ def build_cif_endpoint_summary(scores: pd.DataFrame, focus_method: str) -> tuple
     examples["rank_change_endpoint_minus_k100"] = examples["rank_endpoint"] - examples["rank_k100"]
 
     focus_all = scores[scores["method_base"] == focus_method].copy()
-    best_observed = focus_all.groupby(["task", "dataset", "downstream_model"])["dataset_mean_score"].transform("max")
-    focus_all["is_best_over_observed_k"] = focus_all["dataset_mean_score"] >= best_observed - SCORE_TOL
+    best_observed = focus_all.groupby(["task", "dataset", "downstream_model"])[
+        "dataset_mean_score"
+    ].transform("max")
+    focus_all["is_best_over_observed_k"] = (
+        focus_all["dataset_mean_score"] >= best_observed - SCORE_TOL
+    )
     endpoint_best = focus_all[focus_all["k"] == focus_all["endpoint_k"]][
         ["task", "dataset", "downstream_model", "is_best_over_observed_k"]
     ]
@@ -308,10 +341,22 @@ def build_cif_endpoint_summary(scores: pd.DataFrame, focus_method: str) -> tuple
             median_score_endpoint_minus_k100=("score_endpoint_minus_k100", "median"),
             mean_rank_change_endpoint_minus_k100=("rank_change_endpoint_minus_k100", "mean"),
             median_rank_change_endpoint_minus_k100=("rank_change_endpoint_minus_k100", "median"),
-            score_improved_cells=("score_endpoint_minus_k100", lambda s: int((s > SCORE_TOL).sum())),
-            score_degraded_cells=("score_endpoint_minus_k100", lambda s: int((s < -SCORE_TOL).sum())),
-            rank_improved_cells=("rank_change_endpoint_minus_k100", lambda s: int((s < -SCORE_TOL).sum())),
-            rank_worsened_cells=("rank_change_endpoint_minus_k100", lambda s: int((s > SCORE_TOL).sum())),
+            score_improved_cells=(
+                "score_endpoint_minus_k100",
+                lambda s: int((s > SCORE_TOL).sum()),
+            ),
+            score_degraded_cells=(
+                "score_endpoint_minus_k100",
+                lambda s: int((s < -SCORE_TOL).sum()),
+            ),
+            rank_improved_cells=(
+                "rank_change_endpoint_minus_k100",
+                lambda s: int((s < -SCORE_TOL).sum()),
+            ),
+            rank_worsened_cells=(
+                "rank_change_endpoint_minus_k100",
+                lambda s: int((s > SCORE_TOL).sum()),
+            ),
             endpoint_best_cells=("is_best_over_observed_k", "sum"),
         )
         .sort_values(["task", "downstream_model"])
@@ -328,10 +373,22 @@ def build_cif_endpoint_summary(scores: pd.DataFrame, focus_method: str) -> tuple
             median_score_endpoint_minus_k100=("score_endpoint_minus_k100", "median"),
             mean_rank_change_endpoint_minus_k100=("rank_change_endpoint_minus_k100", "mean"),
             median_rank_change_endpoint_minus_k100=("rank_change_endpoint_minus_k100", "median"),
-            score_improved_cells=("score_endpoint_minus_k100", lambda s: int((s > SCORE_TOL).sum())),
-            score_degraded_cells=("score_endpoint_minus_k100", lambda s: int((s < -SCORE_TOL).sum())),
-            rank_improved_cells=("rank_change_endpoint_minus_k100", lambda s: int((s < -SCORE_TOL).sum())),
-            rank_worsened_cells=("rank_change_endpoint_minus_k100", lambda s: int((s > SCORE_TOL).sum())),
+            score_improved_cells=(
+                "score_endpoint_minus_k100",
+                lambda s: int((s > SCORE_TOL).sum()),
+            ),
+            score_degraded_cells=(
+                "score_endpoint_minus_k100",
+                lambda s: int((s < -SCORE_TOL).sum()),
+            ),
+            rank_improved_cells=(
+                "rank_change_endpoint_minus_k100",
+                lambda s: int((s < -SCORE_TOL).sum()),
+            ),
+            rank_worsened_cells=(
+                "rank_change_endpoint_minus_k100",
+                lambda s: int((s > SCORE_TOL).sum()),
+            ),
             endpoint_best_cells=("is_best_over_observed_k", "sum"),
         )
         .sort_values("task")
@@ -347,20 +404,28 @@ def build_cif_endpoint_summary(scores: pd.DataFrame, focus_method: str) -> tuple
     ).reset_index(drop=True)
 
 
-def build_cif_best_observed_k_summary(scores: pd.DataFrame, focus_method: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_cif_best_observed_k_summary(
+    scores: pd.DataFrame, focus_method: str
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Summarize where the first best observed CIF budget occurs on the high-p surface."""
     focus = scores[scores["method_base"] == focus_method].copy()
-    best_observed = focus.groupby(["task", "dataset", "downstream_model"])["dataset_mean_score"].transform("max")
+    best_observed = focus.groupby(["task", "dataset", "downstream_model"])[
+        "dataset_mean_score"
+    ].transform("max")
     best_rows = focus[focus["dataset_mean_score"] >= best_observed - SCORE_TOL].copy()
     best_rows = best_rows.sort_values(["task", "dataset", "downstream_model", "k"])
     first_best = best_rows.groupby(["task", "dataset", "downstream_model"], as_index=False).first()
 
-    first_best = first_best.rename(columns={"k": "first_best_k", "dataset_mean_score": "first_best_score"})
-    first_best["best_k_fraction_of_endpoint"] = first_best["first_best_k"] / first_best["endpoint_k"]
+    first_best = first_best.rename(
+        columns={"k": "first_best_k", "dataset_mean_score": "first_best_score"}
+    )
+    first_best["best_k_fraction_of_endpoint"] = (
+        first_best["first_best_k"] / first_best["endpoint_k"]
+    )
     first_best["first_best_under_100"] = first_best["first_best_k"] < HIGH_P_MIN_ENDPOINT
     first_best["first_best_at_100"] = first_best["first_best_k"] == HIGH_P_MIN_ENDPOINT
-    first_best["first_best_intermediate"] = (
-        (first_best["first_best_k"] > HIGH_P_MIN_ENDPOINT) & (first_best["first_best_k"] < first_best["endpoint_k"])
+    first_best["first_best_intermediate"] = (first_best["first_best_k"] > HIGH_P_MIN_ENDPOINT) & (
+        first_best["first_best_k"] < first_best["endpoint_k"]
     )
     first_best["first_best_at_endpoint"] = first_best["first_best_k"] == first_best["endpoint_k"]
     first_best["best_k_bucket"] = np.select(
@@ -428,9 +493,11 @@ def build_cif_best_observed_k_summary(scores: pd.DataFrame, focus_method: str) -
 
 
 def build_endpoint_pairwise(scores: pd.DataFrame, focus_method: str) -> pd.DataFrame:
-    """Summarize high-p endpoint CIF-versus-baseline deltas."""
+    """Summarize high-p endpoint differences against compared methods."""
     ep = endpoint_rows(scores)
-    focus = ep[ep["method_base"] == focus_method][["task", "dataset", "downstream_model", "dataset_mean_score"]]
+    focus = ep[ep["method_base"] == focus_method][
+        ["task", "dataset", "downstream_model", "dataset_mean_score"]
+    ]
     focus = focus.rename(columns={"dataset_mean_score": "focus_score"})
     others = ep[ep["method_base"] != focus_method][
         ["task", "dataset", "downstream_model", "method_base", "dataset_mean_score"]
@@ -438,12 +505,9 @@ def build_endpoint_pairwise(scores: pd.DataFrame, focus_method: str) -> pd.DataF
     merged = others.merge(focus, on=["task", "dataset", "downstream_model"], how="inner")
     merged["delta"] = merged["focus_score"] - merged["baseline_score"]
 
-    by_dataset = (
-        merged.groupby(["task", "method_base", "dataset"], as_index=False)
-        .agg(
-            n_cells=("delta", "size"),
-            mean_delta=("delta", "mean"),
-        )
+    by_dataset = merged.groupby(["task", "method_base", "dataset"], as_index=False).agg(
+        n_cells=("delta", "size"),
+        mean_delta=("delta", "mean"),
     )
     summary = (
         by_dataset.groupby(["task", "method_base"], as_index=False)
@@ -469,9 +533,14 @@ def build_endpoint_spread(scores: pd.DataFrame) -> pd.DataFrame:
     """Summarize how much method spread compresses from `k=100` to endpoint."""
     frames: list[pd.DataFrame] = []
 
-    for label, frame in [("k100", complete_case_k100(scores)), ("endpoint", complete_case_endpoint(scores))]:
+    for label, frame in [
+        ("k100", complete_case_k100(scores)),
+        ("endpoint", complete_case_endpoint(scores)),
+    ]:
         spread = (
-            frame.groupby(["task", "dataset", "downstream_model"], as_index=False)["dataset_mean_score"]
+            frame.groupby(["task", "dataset", "downstream_model"], as_index=False)[
+                "dataset_mean_score"
+            ]
             .agg(["std", "min", "max"])
             .reset_index()
         )
@@ -522,7 +591,7 @@ def main() -> None:
     endpoint_spread_frames: list[pd.DataFrame] = []
 
     for task, config in TASK_CONFIG.items():
-        scores = filter_high_p(build_task_scores(task, config["path"], config["metric"]))
+        scores = filter_high_p(build_task_scores(task, config["metric"]))
         if scores.empty:
             continue
 
@@ -535,7 +604,9 @@ def main() -> None:
         cif_summary, cif_examples = build_cif_endpoint_summary(scores, config["focus_method"])
         cif_summary_frames.append(cif_summary)
         cif_example_frames.append(cif_examples)
-        cif_best_k_summary, cif_best_k_examples = build_cif_best_observed_k_summary(scores, config["focus_method"])
+        cif_best_k_summary, cif_best_k_examples = build_cif_best_observed_k_summary(
+            scores, config["focus_method"]
+        )
         cif_best_k_summary_frames.append(cif_best_k_summary)
         cif_best_k_example_frames.append(cif_best_k_examples)
         endpoint_pairwise_frames.append(build_endpoint_pairwise(scores, config["focus_method"]))
@@ -543,16 +614,30 @@ def main() -> None:
 
     outputs = {
         "paper_high_p_endpoint_inventory.csv": pd.concat(inventory_frames, ignore_index=True),
-        "paper_high_p_endpoint_method_presence.csv": pd.concat(endpoint_presence_frames, ignore_index=True),
+        "paper_high_p_endpoint_method_presence.csv": pd.concat(
+            endpoint_presence_frames, ignore_index=True
+        ),
         "paper_high_p_delta_vs_endpoint_cells.csv": pd.concat(delta_cell_frames, ignore_index=True),
-        "paper_high_p_delta_vs_endpoint_method.csv": pd.concat(delta_method_frames, ignore_index=True),
-        "paper_high_p_delta_vs_endpoint_overall.csv": pd.concat(delta_overall_frames, ignore_index=True),
-        "paper_high_p_endpoint_aggregate.csv": pd.concat(endpoint_aggregate_frames, ignore_index=True),
+        "paper_high_p_delta_vs_endpoint_method.csv": pd.concat(
+            delta_method_frames, ignore_index=True
+        ),
+        "paper_high_p_delta_vs_endpoint_overall.csv": pd.concat(
+            delta_overall_frames, ignore_index=True
+        ),
+        "paper_high_p_endpoint_aggregate.csv": pd.concat(
+            endpoint_aggregate_frames, ignore_index=True
+        ),
         "paper_high_p_cif_endpoint_summary.csv": pd.concat(cif_summary_frames, ignore_index=True),
         "paper_high_p_cif_endpoint_examples.csv": pd.concat(cif_example_frames, ignore_index=True),
-        "paper_high_p_cif_best_observed_k_summary.csv": pd.concat(cif_best_k_summary_frames, ignore_index=True),
-        "paper_high_p_cif_best_observed_k_examples.csv": pd.concat(cif_best_k_example_frames, ignore_index=True),
-        "paper_high_p_endpoint_pairwise.csv": pd.concat(endpoint_pairwise_frames, ignore_index=True),
+        "paper_high_p_cif_best_observed_k_summary.csv": pd.concat(
+            cif_best_k_summary_frames, ignore_index=True
+        ),
+        "paper_high_p_cif_best_observed_k_examples.csv": pd.concat(
+            cif_best_k_example_frames, ignore_index=True
+        ),
+        "paper_high_p_endpoint_pairwise.csv": pd.concat(
+            endpoint_pairwise_frames, ignore_index=True
+        ),
         "paper_high_p_endpoint_spread.csv": pd.concat(endpoint_spread_frames, ignore_index=True),
     }
 

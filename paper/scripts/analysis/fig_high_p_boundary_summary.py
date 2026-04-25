@@ -80,7 +80,7 @@ def main() -> None:
     best = best.set_index("downstream_model").loc[DOWNSTREAMS].reset_index()
     endpoint = endpoint.set_index("downstream_model").loc[DOWNSTREAMS].reset_index()
 
-    fig, axes = plt.subplots(1, 2, figsize=(8.7, 3.7))
+    fig, axes = plt.subplots(1, 2, figsize=(8.9, 3.8))
     x = np.arange(len(DOWNSTREAMS))
 
     bottoms = np.zeros(len(DOWNSTREAMS))
@@ -97,7 +97,7 @@ def main() -> None:
         )
         bottoms += values
 
-    axes[0].set_title("A. First best CIF budget", pad=2)
+    axes[0].set_title("First best CIF budget", pad=14)
     axes[0].set_xticks(x)
     axes[0].set_xticklabels([DISPLAY_NAMES[d] for d in DOWNSTREAMS])
     axes[0].set_ylabel("Share of high-$p$ cells")
@@ -107,30 +107,57 @@ def main() -> None:
     bar_colors = ["#15803D" if val > 0 else "#B45309" for val in score_values]
     axes[1].bar(x, score_values, width=0.62, color=bar_colors, edgecolor="white", linewidth=0.8)
     axes[1].axhline(0.0, color="#9CA3AF", linestyle="--", linewidth=1.0)
-    axes[1].set_title(r"B. Mean score change: $k=p$ minus $k=100$", pad=2)
+    axes[1].set_title(r"Mean score change: $k=p$ minus $k=100$", pad=14)
     axes[1].set_xticks(x)
     axes[1].set_xticklabels([DISPLAY_NAMES[d] for d in DOWNSTREAMS])
     axes[1].set_ylabel("Balanced-accuracy change")
     axes[1].grid(True, axis="y")
-    axes[1].set_ylim(float(score_values.min()) - 0.006, float(score_values.max()) + 0.012)
+    axes[1].set_ylim(float(score_values.min()) - 0.018, float(score_values.max()) + 0.014)
 
     for xpos, val in zip(x, score_values, strict=True):
-        offset = 0.004 if val >= 0 else -0.004
-        va = "bottom" if val >= 0 else "top"
-        axes[1].text(xpos, val + offset, f"{val:+.3f}", ha="center", va=va, fontsize=9)
+        if val >= 0:
+            axes[1].text(xpos, val + 0.004, f"{val:+.3f}", ha="center", va="bottom", fontsize=10)
+        else:
+            axes[1].text(
+                xpos,
+                val - 0.004,
+                f"{val:+.3f}",
+                ha="center",
+                va="top",
+                fontsize=10,
+                color="#111827",
+                bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.9},
+            )
 
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="upper left",
+    axes[0].legend(
+        loc="lower center",
         ncol=2,
         frameon=False,
-        bbox_to_anchor=(0.12, 1.02),
-        columnspacing=1.2,
+        bbox_to_anchor=(0.5, 1.34),
+        columnspacing=1.0,
+        handlelength=1.4,
     )
 
-    fig.subplots_adjust(top=0.76, wspace=0.28)
+    axes[0].text(
+        0.5,
+        -0.18,
+        r"(A)",
+        transform=axes[0].transAxes,
+        ha="center",
+        va="top",
+        fontsize=11,
+    )
+    axes[1].text(
+        0.5,
+        -0.18,
+        r"(B)",
+        transform=axes[1].transAxes,
+        ha="center",
+        va="top",
+        fontsize=11,
+    )
+
+    fig.subplots_adjust(top=0.68, bottom=0.24, wspace=0.28)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "high_p_boundary_summary.png"

@@ -21,18 +21,34 @@ FIGURES_DIR = RESULTS_DIR / "figures"
 ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 
 FOCUS_K = [5, 10, 25, 50, 100]
-FOCUS_METHODS = ["cif", "rf", "et", "cit"]
+FOCUS_K_POSITIONS = {k: i for i, k in enumerate(FOCUS_K)}
+FOCUS_METHODS = ["cit", "dt", "rt", "cif", "rf", "et", "xgb", "lgbm", "cat"]
+FAMILY_PANELS = (
+    ("Single trees", ("cit", "dt", "rt")),
+    ("Forests", ("cif", "rf", "et")),
+    ("Boosted trees", ("cif", "xgb", "lgbm", "cat")),
+)
 DISPLAY_NAMES = {
     "cif": "CIF",
+    "cit": "CIT",
+    "dt": "DT",
+    "rt": "RT",
     "rf": "RF",
     "et": "ExtraTrees",
-    "cit": "CIT",
+    "xgb": "XGBoost",
+    "lgbm": "LightGBM",
+    "cat": "CatBoost",
 }
 METHOD_COLORS = {
     "cif": "#2563EB",
-    "rf": "#EA580C",
-    "et": "#CA8A04",
     "cit": "#60A5FA",
+    "dt": "#6B7280",
+    "rt": "#F59E0B",
+    "rf": "#15803D",
+    "et": "#0F766E",
+    "xgb": "#EA580C",
+    "lgbm": "#7C3AED",
+    "cat": "#B91C1C",
 }
 TASK_TITLES = {
     "classification": "Classification",
@@ -69,46 +85,43 @@ def _setup_style() -> None:
     )
 
 
-def _plot_metric(
+def _plot_family(
     ax: plt.Axes,
     df: pd.DataFrame,
     task: str,
-    metric: str,
+    methods: tuple[str, ...],
     title: str,
-    ylabel: str | None = None,
 ) -> None:
     task_df = df[(df["task"] == task) & (df["k"].isin(FOCUS_K))].copy()
 
-    for method in FOCUS_METHODS:
+    for method in methods:
         method_df = task_df[task_df["method_base"] == method].sort_values("k")
         if method_df.empty:
             continue
 
-        is_cif = method == "cif"
+        is_focus = method in {"cit", "cif"}
+        x = method_df["k"].map(FOCUS_K_POSITIONS)
         ax.plot(
-            method_df["k"],
-            method_df[metric],
+            x,
+            method_df["informative_share"],
             color=METHOD_COLORS[method],
-            linewidth=2.6 if is_cif else 1.8,
-            alpha=1.0 if is_cif else 0.9,
+            linewidth=2.6 if is_focus else 1.8,
+            alpha=1.0 if is_focus else 0.9,
             marker="o" if method in {"cif", "cit"} else "s",
-            markersize=6.5 if is_cif else 5.0,
+            markersize=6.5 if is_focus else 5.0,
             markeredgecolor="white",
             markeredgewidth=0.7,
             label=DISPLAY_NAMES[method],
-            zorder=10 if is_cif else 5,
+            zorder=10 if is_focus else 5,
         )
 
-    ax.set_title(f"{TASK_TITLES[task]}: {title}", pad=6)
-    ax.set_xlabel(r"Feature budget $k$")
-    if ylabel is not None:
-        ax.set_ylabel(ylabel)
-    ax.set_xscale("symlog", linthresh=10)
-    ax.set_xticks(FOCUS_K)
+    ax.set_title(title, pad=6)
+    ax.set_xticks(range(len(FOCUS_K)))
     ax.set_xticklabels([str(k) for k in FOCUS_K])
     ax.set_ylim(0.0, 1.0)
-    ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.grid(True, axis="both")
+    ax.legend(loc="upper right", frameon=False, fontsize=8, handlelength=1.6)
 
 
 def main() -> None:
@@ -121,56 +134,17 @@ def main() -> None:
     if focus.empty:
         raise RuntimeError("No focus rows available for the synthetic top-k figure.")
 
-    fig, axes = plt.subplots(2, 2, figsize=(9.2, 6.8), sharex=True, sharey="col")
+    fig, axes = plt.subplots(2, 3, figsize=(10.2, 6.2), sharex=True, sharey=True)
+    for row_idx, task in enumerate(("classification", "regression")):
+        for col_idx, (family_title, methods) in enumerate(FAMILY_PANELS):
+            title = family_title if row_idx == 0 else ""
+            _plot_family(axes[row_idx, col_idx], focus, task=task, methods=methods, title=title)
+            if col_idx == 0:
+                axes[row_idx, col_idx].set_ylabel(f"{TASK_TITLES[task]}\nInformative share")
+            if row_idx == 1:
+                axes[row_idx, col_idx].set_xlabel(r"Number of selected features ($k$)")
 
-    _plot_metric(
-        axes[0, 0],
-        focus,
-        task="classification",
-        metric="informative_share",
-        title="Informative Share",
-        ylabel="Share of top-k",
-    )
-    _plot_metric(
-        axes[0, 1],
-        focus,
-        task="classification",
-        metric="pure_noise_share",
-        title="Pure-Noise Share",
-    )
-    _plot_metric(
-        axes[1, 0],
-        focus,
-        task="regression",
-        metric="informative_share",
-        title="Informative Share",
-        ylabel="Share of top-k",
-    )
-    _plot_metric(
-        axes[1, 1],
-        focus,
-        task="regression",
-        metric="pure_noise_share",
-        title="Pure-Noise Share",
-    )
-
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="upper center",
-        ncol=4,
-        bbox_to_anchor=(0.5, 0.955),
-        frameon=False,
-        handlelength=2.0,
-        columnspacing=1.5,
-    )
-    fig.suptitle(
-        "Synthetic Top-k Recovery: CIF vs RF / ExtraTrees / CIT",
-        fontsize=13,
-        y=0.99,
-    )
-    fig.subplots_adjust(top=0.84, hspace=0.28, wspace=0.16, bottom=0.10)
+    fig.subplots_adjust(top=0.92, hspace=0.18, wspace=0.16, bottom=0.12)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "synthetic_topk_focus_curves.png"

@@ -4,41 +4,42 @@
 This appendix states the exchangeability fact used by Monte Carlo permutation
 tests and explains why the common ``observed statistic + $B$ random
 permutations'' computation is covered by the same rank argument under the
-conditional-exchangeability null (A0.2); see also
+conditional exchangeability null (A0.2); see also
 \citet{HemerikGoeman2018ExactTestingRandomPermutations} for a broader treatment
-of exact random-permutation testing.
+of exact random permutation testing.
 
-Fix a node $t$, feature $j$, and a real-valued test statistic $T(\cdot, \cdot)$
-with a right-tail convention (larger is more extreme). Let
+Fix a node $t$, feature $j$, and a real valued test statistic
+$T(\cdot, \cdot; U)$ with a right tail convention (larger is more extreme),
+where $U$ denotes label independent auxiliary randomness. Let
 $\Pi_0, \Pi_1, \dots, \Pi_B$ be i.i.d.\ uniform random permutations of
 $\{1,\dots,n_t\}$, independent of the data (and of $U$), and define
 %
 \begin{equation}
-  T_b := T(X_{t,j}, \Pi_b(Y_t)) \qquad (b=0,1,\dots,B).
+  T_b := T(X_{t,j}, \Pi_b(Y_t); U) \qquad (b=0,1,\dots,B).
 \end{equation}
 
 \begin{lemma}[Exchangeability of Monte Carlo permutation statistics]
 \label{lem:mc-exchangeability}
-Conditional on $(X_t, Y_t)$, the vector $(T_0, T_1, \dots, T_B)$ is exchangeable
+Conditional on $(X_t, Y_t, U)$, the vector $(T_0, T_1, \dots, T_B)$ is exchangeable
 (hence exchangeable unconditionally).
 \end{lemma}
 
 \begin{proof}
-Conditional on $(X_t, Y_t)$, each $T_b$ is a measurable function of $\Pi_b$, and
+Conditional on $(X_t, Y_t, U)$, each $T_b$ is a measurable function of $\Pi_b$, and
 $(\Pi_0,\dots,\Pi_B)$ are i.i.d. Therefore any permutation of the indices
 $b \in \{0,\dots,B\}$ leaves the joint law unchanged.
 \end{proof}
 
 \begin{lemma}[Identity + $B$ random permutations is covered by the same rank argument]
 \label{lem:identity-vs-random}
-Assume A0.2--A0.3 (\cref{app:assumptions}). Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
+Assume A0.2 through A0.3 (\cref{app:assumptions}). Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
 uniform random permutations of $\{1,\dots,n_t\}$, independent of $(X_t,Y_t,U)$.
 Define the observed statistic and permuted statistics by
 %
 \begin{equation}
-  T_{\mathrm{obs}} := T(X_{t,j}, Y_t),
+  T_{\mathrm{obs}} := T(X_{t,j}, Y_t; U),
   \qquad
-  T_b := T(X_{t,j}, \Pi_b(Y_t)) \quad (b=1,\dots,B),
+  T_b := T(X_{t,j}, \Pi_b(Y_t); U) \quad (b=1,\dots,B),
 \end{equation}
 %
 and the standard +1 Monte Carlo p-value (right tail) by
@@ -49,7 +50,7 @@ and the standard +1 Monte Carlo p-value (right tail) by
 \end{equation}
 %
 Let $\Pi_0$ be an additional independent uniform random permutation and set
-$T_0 := T(X_{t,j}, \Pi_0(Y_t))$ (keeping $T_1,\dots,T_B$ as above), and define
+$T_0 := T(X_{t,j}, \Pi_0(Y_t); U)$ (keeping $T_1,\dots,T_B$ as above), and define
 %
 \begin{equation}
   p_{\mathrm{rnd}}
@@ -82,8 +83,8 @@ Moreover, for each $b$ we have $\Pi_b(Y_t) = \Pi_b'(Y_t')$. Therefore,
 \begin{equation}
   \begin{aligned}
     \big(T_{\mathrm{obs}}, T_1,\dots,T_B\big)
-    &= \big(T(X_{t,j},Y_t), T(X_{t,j},\Pi_1(Y_t)),\dots,T(X_{t,j},\Pi_B(Y_t))\big) \\
-    &\stackrel{d}{=} \big(T(X_{t,j},Y_t'), T(X_{t,j},\Pi_1'(Y_t')),\dots,T(X_{t,j},\Pi_B'(Y_t'))\big) \\
+    &= \big(T(X_{t,j},Y_t;U), T(X_{t,j},\Pi_1(Y_t);U),\dots,T(X_{t,j},\Pi_B(Y_t);U)\big) \\
+    &\stackrel{d}{=} \big(T(X_{t,j},Y_t';U), T(X_{t,j},\Pi_1'(Y_t');U),\dots,T(X_{t,j},\Pi_B'(Y_t');U)\big) \\
     &= \big(T_0, T_1,\dots,T_B\big),
   \end{aligned}
 \end{equation}

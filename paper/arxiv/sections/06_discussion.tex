@@ -1,50 +1,53 @@
 \section{Discussion}
 \label{sec:discussion}
 
-On the real-data benchmarks, the clearest empirical signal is on classification,
-where CIF consistently improves on the historical conditional-inference
-baselines. The fixed-node theorem isolates
-the fixed-node Stage~A result that remains valid at that node, and the
-practical
-ablations show where computation can be reduced without materially changing
-feature-ranking performance. Together, those results support CIF as a screening-and-ranking method on
-the classification benchmark.
+The classification benchmark gives the clearest empirical result: CIF improves
+on ctree and cforest. The fixed node theorem gives Stage~A rejection control at
+a node specified in advance. The ablations then show which controls reduce
+runtime without reducing ranking quality. Together, these
+results support CIF as a feature selection method on the classification
+benchmark.
 
-The additional analyses also clarify where the method weakens. The basic Stage~A
-feature-selection rule is not the problem: when all features are visible, CIT
-is highly selective. The problem appears after forest
-subsampling in sparse high-dimensional settings, where exposure to informative
-features becomes too limited. This mechanism explains the
-boundary patterns reported in \cref{sec:boundary}.
+The high-$p$ and synthetic results identify a different failure mode. In the
+candidate feature sampling simulation, single tree CIT selects informative splits
+frequently when all features are visible. The problem appears when the forest
+samples candidate features in sparse settings with many features, where
+informative features are available at too few split decisions. This pattern is
+consistent with the results reported in
+\cref{sec:boundary}.
 
 \paragraph{Practical guidance.}
-Use CIF when the task is feature ranking or feature selection, when nonlinear
-or interaction structure matters, and when a statistically grounded feature-selection
-step is part of why the method is used. The default benchmark configuration
-keeps adaptive stopping, histogram thresholding for threshold search, and
-Bonferroni when the goal is a stricter, more selective learner rather than a
-faster but much less selective one. We use Bonferroni because the focus is
-strict family-wise control for Stage~A, whereas
-dependence-aware resampling adjustments such as Westfall--Young
-\citep{WestfallYoung1993ResamplingBasedMultipleTesting} or discovery-oriented
-FDR rules such as Benjamini--Hochberg
-\citep{BenjaminiHochberg1995FDR} would answer a different question and are
-outside this benchmark. Feature scanning should also stay on by default:
-once adaptive stopping is enabled, it adds a modest runtime gain with only
-small and mixed score changes. Threshold scanning has mixed effects and is not
-a practical priority. Muting has little effect on runtime, and bootstrap
-changes forest behavior without yielding a consistent speedup. If pure
-predictive accuracy is the only objective, strong generic ensembles remain
-competitive alternatives on the classification benchmark.
-When the objective is variable screening or ranking rather than final prediction,
-CIF should also be read against forest-based variable-selection procedures
+CIF is most relevant when the task is feature ranking or feature selection,
+when nonlinear or interaction structure matters, and when a statistically
+grounded feature selection step is part of why the method is used. If
+prediction accuracy is the only objective, boosted trees and random forest
+baselines should remain in the comparison set. When the objective is variable
+screening or ranking rather than final prediction, CIF should also be read
+against variable selection procedures based on forests
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, not only
-against end-to-end predictive ensembles.
+against ensembles designed primarily for prediction.
+
+The default benchmark configuration keeps adaptive stopping, histogram
+thresholding for threshold search, and Bonferroni when the goal is a stricter,
+more selective learner rather than a faster but much less selective one. We use
+Bonferroni because it is the simplest fixed node complete null correction for
+Stage~A. Resampling methods that account for dependence, such as
+Westfall--Young \citep{WestfallYoung1993ResamplingBasedMultipleTesting}, and
+false discovery rate control, such as Benjamini--Hochberg
+\citep{BenjaminiHochberg1995FDR}, answer different questions and are natural
+next targets. Feature scanning should also stay on by default: once adaptive
+stopping is enabled, it adds a modest runtime gain with only small and mixed
+score changes. Threshold scanning has mixed effects and is not a practical
+priority. Muting has little effect on runtime, and bootstrap changes the fitted
+forests without yielding a consistent speedup.
 
 \paragraph{Boundaries.}
-The 14-dataset classification benchmark covers 14 of the 23 datasets, so the most
-controlled benchmark is narrower than the full benchmark. Regression
-evidence is useful but still limited at 8 datasets. The simulation study
-sheds light on exposure limits in high-$p$ forests, but it does not manipulate
-that process directly. Improving candidate-set exposure inside forests is therefore the clearest next
-step.
+The classification benchmark with complete results covers 14 datasets, narrower
+than the 22 classification datasets used for matched comparisons against
+ctree and cforest.
+Regression evidence is useful but still limited at 8 datasets.
+The simulation study suggests that high-$p$ forests can miss informative
+features because those features are not available at enough split decisions,
+but it does not manipulate that process directly. The clearest next step is to
+make informative features available as split candidates more often inside
+forests.

@@ -3,7 +3,7 @@
 This script answers two related questions:
   1. How much ground-truth signal appears in the top-k ranked features?
   2. What fills the rest of the top-k: redundant proxies, correlated-noise
-     confounders, pure noise, or simply missing/unreturned positions?
+     confounders, noise variables, or simply missing/unreturned positions?
 
 The analysis uses the canonical aggregated synthetic ranking parquets and
 selects one best configuration per method family within task by mean
@@ -60,6 +60,7 @@ RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
 FIGURES_DIR = RESULTS_DIR / "figures"
 ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
+EXISTING_DIAGNOSTICS_PATH = RESULTS_DIR / "synthetic_topk_composition.parquet"
 
 TASK_CONFIG: Final[dict[str, TopKTaskConfig]] = {
     "classification": {
@@ -75,20 +76,35 @@ TASK_CONFIG: Final[dict[str, TopKTaskConfig]] = {
 TOP_K_VALUES: Final[tuple[int, ...]] = (1, 2, 5, 10, 20, 25, 50, 100)
 SELECTION_K_VALUES: Final[tuple[int, ...]] = (5, 10, 25, 50, 100)
 FOCUS_PLOT_K: Final[tuple[int, ...]] = (5, 10, 25, 50, 100)
-FOCUS_METHODS: Final[tuple[str, ...]] = ("cif", "rf", "et", "cit")
+FOCUS_METHODS: Final[tuple[str, ...]] = ("cit", "dt", "rt", "cif", "rf", "et", "xgb", "lgbm", "cat")
+FAMILY_PANELS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
+    ("single_tree", "Single trees", ("cit", "dt", "rt")),
+    ("forest", "Forests", ("cif", "rf", "et")),
+    ("boosted_tree", "Boosted trees", ("cif", "xgb", "lgbm", "cat")),
+)
 
 DISPLAY_NAMES: Final[dict[str, str]] = {
     "cif": "CIF",
     "cit": "CIT",
+    "dt": "DT",
+    "rt": "RT",
     "rf": "RF",
     "et": "ExtraTrees",
+    "xgb": "XGBoost",
+    "lgbm": "LightGBM",
+    "cat": "CatBoost",
 }
 
 METHOD_COLORS: Final[dict[str, str]] = {
     "cif": "#2563EB",
-    "rf": "#EA580C",
-    "et": "#CA8A04",
     "cit": "#60A5FA",
+    "dt": "#6B7280",
+    "rt": "#F59E0B",
+    "rf": "#15803D",
+    "et": "#0F766E",
+    "xgb": "#EA580C",
+    "lgbm": "#7C3AED",
+    "cat": "#B91C1C",
 }
 
 TASK_TITLES: Final[dict[str, str]] = {
@@ -165,9 +181,22 @@ def _build_row_metrics(ranking: list[int], groups: FeatureGroups, k: int) -> dic
     }
 
 
-def _compute_task_rows(task: str, rankings_path: Path, data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return row-level metrics and best-config table for one task."""
-    rankings = pd.read_parquet(rankings_path)
+def _select_best_configs(diagnostics: pd.DataFrame) -> pd.DataFrame:
+    """Select one synthetic configuration per method family and task."""
+    perf = (
+        diagnostics[diagnostics["k"].isin(SELECTION_K_VALUES)]
+        .groupby(["task", "method_base", "method_id"], as_index=False)["informative_share"]
+        .mean()
+        .rename(columns={"informative_share": "selection_score"})
+    )
+    best_idx = perf.groupby(["task", "method_base"])["selection_score"].idxmax()
+    best = perf.loc[best_idx].copy()
+    best["config_selection_metric"] = "mean_informative_share_over_k_5_10_25_50_100"
+    return best
+
+
+def _compute_task_rows_from_rankings(task: str, rankings: pd.DataFrame, data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return row-level metrics and best-config table for one task from rankings."""
     rankings = rankings[rankings["dataset_source"] == "synthetic"].copy()
 
     metadata = load_synthetic_metadata(data_dir)
@@ -209,15 +238,7 @@ def _compute_task_rows(task: str, rankings_path: Path, data_dir: Path) -> tuple[
     if diagnostics.empty:
         return diagnostics, pd.DataFrame()
 
-    perf = (
-        diagnostics[diagnostics["k"].isin(SELECTION_K_VALUES)]
-        .groupby(["task", "method_base", "method_id"], as_index=False)["informative_share"]
-        .mean()
-        .rename(columns={"informative_share": "selection_score"})
-    )
-    best_idx = perf.groupby(["task", "method_base"])["selection_score"].idxmax()
-    best = perf.loc[best_idx].copy()
-    best["config_selection_metric"] = "mean_informative_share_over_k_5_10_25_50_100"
+    best = _select_best_configs(diagnostics)
 
     diagnostics = diagnostics.merge(
         best[["task", "method_base", "method_id"]],
@@ -226,6 +247,14 @@ def _compute_task_rows(task: str, rankings_path: Path, data_dir: Path) -> tuple[
     )
 
     return diagnostics, best
+
+
+def _compute_task_rows(task: str, rankings_path: Path, data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return row-level metrics and best-config table for one task."""
+    if not rankings_path.exists():
+        return pd.DataFrame(), pd.DataFrame()
+    rankings = pd.read_parquet(rankings_path)
+    return _compute_task_rows_from_rankings(task, rankings, data_dir)
 
 
 def _summarize_overall(df: pd.DataFrame) -> pd.DataFrame:
@@ -446,7 +475,7 @@ def _summarize_curve_over_k(df: pd.DataFrame, group_cols: list[str]) -> pd.DataF
 
 
 def _build_focus_table(summary: pd.DataFrame) -> pd.DataFrame:
-    """Filter the overall summary to the core CIF/RF/ET/CIT comparison."""
+    """Filter the overall summary to method-family comparisons used in Figure 4."""
     focus = summary[summary["method_base"].isin(FOCUS_METHODS)].copy()
     return focus.sort_values(["task", "k", "informative_share"], ascending=[True, True, False]).reset_index(
         drop=True
@@ -480,104 +509,61 @@ def _setup_style() -> None:
     )
 
 
-def _plot_metric(
+def _plot_family(
     ax: plt.Axes,
     df: pd.DataFrame,
     task: str,
-    metric: str,
+    methods: tuple[str, ...],
     title: str,
-    ylabel: str,
 ) -> None:
-    """Plot one top-k metric for the focus methods within a task."""
+    """Plot informative-share curves for one method family within a task."""
     task_df = df[(df["task"] == task) & (df["k"].isin(FOCUS_PLOT_K))].copy()
 
-    for method_base in FOCUS_METHODS:
+    for method_base in methods:
         method_df = task_df[task_df["method_base"] == method_base].sort_values("k")
         if method_df.empty:
             continue
 
-        is_cif = method_base == "cif"
+        is_focus = method_base in {"cit", "cif"}
         ax.plot(
             method_df["k"],
-            method_df[metric],
+            method_df["informative_share"],
             color=METHOD_COLORS[method_base],
-            linewidth=2.6 if is_cif else 1.8,
-            alpha=1.0 if is_cif else 0.9,
+            linewidth=2.6 if is_focus else 1.8,
+            alpha=1.0 if is_focus else 0.9,
             marker="o" if method_base in {"cif", "cit"} else "s",
-            markersize=6.5 if is_cif else 5.0,
+            markersize=6.5 if is_focus else 5.0,
             markeredgecolor="white",
             markeredgewidth=0.7,
             label=DISPLAY_NAMES[method_base],
-            zorder=10 if is_cif else 5,
+            zorder=10 if is_focus else 5,
         )
 
-    ax.set_title(f"{TASK_TITLES[task]}: {title}", pad=6)
-    ax.set_xlabel("Feature budget k")
-    ax.set_ylabel(ylabel)
+    ax.set_title(title, pad=6)
     ax.set_xscale("symlog", linthresh=10)
     ax.set_xticks(FOCUS_PLOT_K)
     ax.set_xticklabels([str(k) for k in FOCUS_PLOT_K])
     ax.set_ylim(-0.02, 1.02)
+    ax.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.grid(True, axis="both")
+    ax.legend(loc="upper right", frameon=False, fontsize=8, handlelength=1.6)
 
 
 def _save_focus_figure(focus: pd.DataFrame) -> None:
-    """Render the CIF/RF/ET/CIT focus curves for informative and noise shares."""
+    """Render synthetic recovery curves by method family."""
     _setup_style()
 
-    fig, axes = plt.subplots(2, 2, figsize=(9.2, 6.8), sharex=True, sharey="col")
+    fig, axes = plt.subplots(2, 3, figsize=(10.2, 6.2), sharex=True, sharey=True)
+    for row_idx, task in enumerate(("classification", "regression")):
+        for col_idx, (_, family_title, methods) in enumerate(FAMILY_PANELS):
+            title = family_title if row_idx == 0 else ""
+            _plot_family(axes[row_idx, col_idx], focus, task=task, methods=methods, title=title)
+            if col_idx == 0:
+                axes[row_idx, col_idx].set_ylabel(f"{TASK_TITLES[task]}\nInformative share")
+            if row_idx == 1:
+                axes[row_idx, col_idx].set_xlabel(r"Number of selected features ($k$)")
 
-    _plot_metric(
-        axes[0, 0],
-        focus,
-        task="classification",
-        metric="informative_share",
-        title="Informative share in top-k",
-        ylabel="Share of top-k",
-    )
-    _plot_metric(
-        axes[0, 1],
-        focus,
-        task="classification",
-        metric="pure_noise_share",
-        title="Pure-noise share in top-k",
-        ylabel="Share of top-k",
-    )
-    _plot_metric(
-        axes[1, 0],
-        focus,
-        task="regression",
-        metric="informative_share",
-        title="Informative share in top-k",
-        ylabel="Share of top-k",
-    )
-    _plot_metric(
-        axes[1, 1],
-        focus,
-        task="regression",
-        metric="pure_noise_share",
-        title="Pure-noise share in top-k",
-        ylabel="Share of top-k",
-    )
-
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="upper center",
-        ncol=4,
-        bbox_to_anchor=(0.5, 0.955),
-        frameon=False,
-        handlelength=2.0,
-        columnspacing=1.5,
-    )
-    fig.suptitle(
-        "Synthetic Top-k Recovery: CIF vs RF / ExtraTrees / CIT",
-        fontsize=13,
-        fontweight="semibold",
-        y=0.99,
-    )
-    fig.subplots_adjust(top=0.84, hspace=0.28, wspace=0.16, bottom=0.10)
+    fig.subplots_adjust(top=0.92, hspace=0.18, wspace=0.16, bottom=0.12)
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "synthetic_topk_focus_curves.png"
         fig.savefig(out_path)
@@ -591,24 +577,28 @@ def main() -> None:
     ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     all_rows: list[pd.DataFrame] = []
-    all_best: list[pd.DataFrame] = []
 
-    for task, config in TASK_CONFIG.items():
-        diagnostics, best = _compute_task_rows(
-            task=task,
-            rankings_path=config["rankings_path"],
-            data_dir=config["data_dir"],
-        )
-        if diagnostics.empty:
-            continue
-        all_rows.append(diagnostics)
-        all_best.append(best)
+    rankings_available = all(config["rankings_path"].exists() for config in TASK_CONFIG.values())
+    if not rankings_available and EXISTING_DIAGNOSTICS_PATH.exists():
+        all_rows.append(pd.read_parquet(EXISTING_DIAGNOSTICS_PATH))
+        print(f"Using joined synthetic top-k diagnostics from {EXISTING_DIAGNOSTICS_PATH}")
+    else:
+        for task, config in TASK_CONFIG.items():
+            diagnostics, _ = _compute_task_rows(
+                task=task,
+                rankings_path=config["rankings_path"],
+                data_dir=config["data_dir"],
+            )
+            if diagnostics.empty:
+                continue
+            all_rows.append(diagnostics)
 
     if not all_rows:
         raise RuntimeError("No synthetic top-k diagnostics were generated.")
 
     diagnostics = pd.concat(all_rows, ignore_index=True)
-    best_configs = pd.concat(all_best, ignore_index=True)
+
+    best_configs = _select_best_configs(diagnostics)
     best_config_details = resolve_method_config_details(best_configs)
 
     summary = _summarize_overall(diagnostics)

@@ -1,21 +1,20 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper isolates a narrow fixed-node result for conditional inference and shows how
-to make it computationally practical. The theory gives a nodewise Stage~A
-guarantee for fixed-$B$ feature selection rather than end-to-end calibration
-for the adaptive learner. Across the within-CIF ablations, most runtime savings come
-from adaptive stopping, with histogram thresholding as the main secondary
-lever; feature scanning matters less once early stopping is active, and
-threshold scanning, muting, and bootstrap have smaller or less consistent
-effects on speed.
+This paper studies whether the runtime of CIT and CIF can be reduced without
+reducing ranking quality. At a fixed node with a fixed permutation budget, the
+Stage~A result gives Bonferroni control of the nodewise rejection probability.
+That p-value interpretation applies to the local test; the full adaptive tree
+and forest are evaluated empirically. In the CIF ablations, the clearest
+runtime controls are adaptive stopping and histogram thresholding. The CIT
+timing results are mixed and are therefore reported separately from the CIF
+runtime and downstream score results.
 
-Empirically, the classification benchmark shows that CIF remains a useful
-screening-and-ranking method after approximation and clearly improves on the historical
-conditional-inference baselines. The additional analyses clarify where that
-pattern weakens: the selected top-$k$ sets are stronger than the single
-top-ranked feature, and the
-main sparse high-$p$ limit is forest-level exposure. Further progress likely
-depends on improving that exposure
-while preserving the nodewise feature-selection rule that makes the method
-distinctive.
+On the classification benchmark, CIF remains useful for feature ranking after
+the runtime reductions studied here and improves on ctree, cforest, and CIT.
+The high-$p$ and synthetic results show two patterns: CIF is stronger at
+enriching the selected top-$k$ feature set with informative features than at
+placing an informative feature first, and the main sparse high-$p$ limit is
+feature sampling inside the forest. Further progress likely depends on making
+informative features available at split decisions more often while preserving
+the nodewise feature selection rule that makes the method distinctive.

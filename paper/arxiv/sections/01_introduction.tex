@@ -2,53 +2,70 @@
 \label{sec:introduction}
 
 Conditional inference introduced an important separation between feature
-selection and threshold optimization to reduce split-selection bias. Classical
-CART-style trees choose both a feature and a threshold from the same
-label-dependent search, which helps explain the well-documented preference for
+selection and threshold optimization to reduce split selection bias. Classical
+CART trees choose both a feature and a threshold from the same
+label dependent search, which helps explain the well documented preference for
 features with many admissible cutpoints
 \citep{Breiman1984ClassificationAndRegressionTrees,LohShih1997SplitSelectionMethods,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,Shih2004NoteOnSplitSelectionBiasClassificationTrees,StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini,Strobl2007BiasRFVariableImportance}.
-\Cref{app:cart-bias} formalizes this mechanism via an idealized
-union-bound and a proportional-selection argument.
-In the conditional-inference framework \citep{Hothorn2006UnbiasedRecursivePartitioning,HothornHornikVandeWielZeileis2006LegoSystemConditionalInference},
+\Cref{app:cart-bias} formalizes this mechanism with an idealized
+union bound and a proportional selection argument.
+In the conditional inference framework \citep{Hothorn2006UnbiasedRecursivePartitioning,HothornHornikVandeWielZeileis2006LegoSystemConditionalInference},
 Stage~A tests candidate features for association with the response at the
 current node and selects among them; Stage~B then optimizes a threshold within
-the selected feature. That separation is the right statistical idea, but the
-classical implementation can use more computation than necessary when large permutation
-budgets and exhaustive threshold scans are applied too uniformly.
-That same conditional-inference program also motivated later work on
+the selected feature. That separation addresses split selection bias, but the
+classical implementation can spend unnecessary computation on large permutation
+budgets and exhaustive threshold scans at every node.
+That same conditional inference program also motivated later work on
 conditional variable importance \citep{Strobl2008ConditionalVIM}.
 A related line of work uses forests directly for variable screening and ranking,
 rather than only for final prediction
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}.
 
-We focus on the fixed-node version of Stage~A. At a pre-specified node,
-Stage~A tests candidate features for association with the response under the
-nodewise complete permutation null, so the resulting p-values have a clear
-permutation reference distribution. This is a local statement about feature
-screening at that node. It is not post-selection inference for the chosen
-feature or threshold in the sense of the selective-inference
-literature
-\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection},
-and it does not imply that the full adaptive ranking procedure has the same
-valid p-value interpretation.
+This paper evaluates CIT and CIF as feature selection methods. For each seed
+and cross-validation fold, a method produces a ranking from the training fold.
+Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
+evaluated on held out data, with results summarized across datasets. This
+rank-then-evaluate design connects the split selection bias problem to feature
+selection quality: the tree procedure matters here when its accepted splits put
+useful variables early enough for downstream models.
 
-This paper asks whether conditional inference forests (CIF) can be made more
-efficient without reducing the quality of the feature rankings they produce.
-That question is narrower than the broader tree and forest literature on direct
-prediction or causal estimation
+This paper asks whether the runtime of conditional inference trees (CIT) and
+conditional inference forests (CIF) can be reduced without reducing ranking
+quality.
+That question is distinct from the broader tree and forest literature on direct
+prediction and causal estimation
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
 Specifically, we ask which changes deliver the runtime savings, whether the
 resulting method still gives useful rankings on benchmark classification and
-regression tasks, and where its limits appear.
+regression tasks, and where the rankings become less reliable.
+
+The fixed node theory calibrates the Stage~A testing primitive. In that
+setting, Stage~A tests candidate features for association with the response
+under the nodewise complete permutation null, giving exhaustive fixed-$B$
+p-values a clear permutation reference distribution. Its scope is the testing
+primitive: the adaptive tree and forest, and the feature rankings they produce,
+are evaluated empirically. Selected-feature p-values, final split p-values,
+partial-null familywise error control, and forest-level error control remain
+outside this theorem
+\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
+
+Because several method families have tunable configurations, the benchmark
+chooses one setting per method family and task. A leave-one-dataset-out (LODO)
+classification analysis checks the stability of that choice for the conditional
+inference comparisons.
 
 \paragraph{Contributions.}
-This paper contributes a fixed-$B$ nodewise guarantee
-(\cref{thm:plusone-superuniform,cor:stageA-global-null}), a within-CIF
-optimization study identifying which approximations matter most for runtime and
-score, a real-data benchmark with classification as the main benchmark and
-regression as a smaller supporting analysis, and additional analyses that show
-where the method weakens (\cref{sec:boundary}).
+This paper contributes a broad real-dataset benchmark of feature selection
+methods, matched comparisons against classical conditional inference references,
+classification trajectory and sensitivity checks, runtime ablations for the
+main practical controls, and high-$p$, synthetic recovery, and mechanism checks
+(\cref{sec:boundary}). Regression is summarized mainly through aggregate and
+matched comparisons because the regression benchmark has smaller support, while
+the detailed trajectory and sensitivity figures focus on classification. The
+paper also states the fixed-$B$ nodewise Stage~A guarantee
+(\cref{thm:plusone-superuniform,cor:stageA-global-null}) that motivates the
+testing primitive.
 
-The next sections define the algorithmic framework, state the fixed-node
+The next sections define the algorithmic framework, state the fixed node
 guarantee, describe the benchmark and ablation setup, and then present the
-results, practical guidance, and limits.
+results, practical guidance, and failure cases.

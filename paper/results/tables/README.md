@@ -15,10 +15,11 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_benchmark_complete_case_membership.csv`
 - `paper_benchmark_fixed_panel_membership.csv` - membership for the 14-dataset benchmark
 - `paper_benchmark_fixed_panel_aggregate.csv` - aggregate summary for the 14-dataset benchmark
-- `paper_benchmark_fixed_panel_pairwise_ci.csv` - paired uncertainty summaries for the 14-dataset benchmark
+- `paper_benchmark_fixed_panel_pairwise_ci.csv` - matched-dataset uncertainty summaries for the 14-dataset benchmark
 - `paper_benchmark_fixed_panel_omnibus.csv` - omnibus test summaries for the 14-dataset benchmark
 - `paper_benchmark_spread.csv`
-- `paper_benchmark_pairwise_aggregate.csv`
+- `paper_benchmark_pairwise_aggregate.csv` - directed all-vs-all method comparisons; the `baseline` column is the compared method, not a restricted baseline set
+- `paper_benchmark_pairwise_stratified.csv` - directed all-vs-all comparisons by downstream model and number of selected features; the `baseline` column is the compared method
 - `paper_presentation_benchmark_summary.csv`
 - `paper_heterogeneity_method_summary.csv`
 - `paper_heterogeneity_cif_pairwise_breadth.csv`
@@ -44,6 +45,7 @@ These are the tables intended for current manuscript and support-doc use:
 - `synthetic_topk_composition_by_dataset.csv`
 - `paper_mirrored_knob_ablation_summary.csv`
 - `paper_threshold_ablation_summary.csv`
+- `paper_cit_runtime_ablation_summary.csv`
 - `paper_presentation_practical_controls_summary.csv`
 - `paper_mechanism_candidate_set_summary.csv`
 - `paper_mechanism_frequency_summary.csv`
@@ -60,6 +62,8 @@ These are the tables intended for current manuscript and support-doc use:
 These remain outside the closed main-text table package:
 
 - `calibration_summary.csv`
+- `cit_runtime_ablation_raw.csv`
+- `cit_runtime_ablation_dataset_summary.csv`
 
 ## Superseded Or Supporting-Only Examples
 

@@ -13,7 +13,14 @@ This file intentionally omits the old EC2 launcher cookbook.
 For manuscript numbers, rebuild the paper-facing analysis layer from the saved
 artifacts already under `paper/results/`.
 
+The paper-facing analysis layer reads joined surfaces under `paper/results/`,
+not method-specific sidecar files. `paper/results/paper_real_evaluation.parquet`
+contains the real-data downstream evaluations used by the benchmark scripts.
+`paper/results/synthetic_topk_composition.parquet` contains the joined synthetic
+top-k recovery diagnostics used by Figure 4.
+
 ```bash
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_paper_data_surfaces.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_characteristics_table.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_package_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_heterogeneity_tables.py
@@ -22,6 +29,7 @@ UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_knob_ablation_summary_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_cit_runtime_ablation_summary_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_manuscript_summary_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 ```
@@ -37,6 +45,8 @@ The packaged benchmark used by the current paper is:
 - real-data classification: `23` datasets
 - real-data regression: `8` datasets
 - standard budgets: `k = 5, 10, 25, 50, 100`
+- classification methods: `17`, including DT and RT
+- regression methods: `18`, including DT and RT
 - all-downstream reporting:
   - classification: `lr`, `svm`, `knn`
   - regression: `ridge`, `svr`, `knn`
@@ -113,6 +123,7 @@ The current support package includes:
 - leave-one-dataset-out config-selection sensitivity summaries
 - mirrored practical-knob ablations
 - threshold-search ablation
+- CIT runtime ablation
 - synthetic top-`k` composition diagnostics
 - fixed-design mechanism diagnostics
 
@@ -141,17 +152,20 @@ Main artifacts:
 - `paper/results/tables/paper_presentation_benchmark_summary.csv`
 - `paper/results/tables/paper_benchmark_method_aggregate.csv`
 - `paper/results/tables/paper_benchmark_pairwise_aggregate.csv`
+  - directed all-vs-all method comparisons on the joined benchmark surface
 
 What this layer says:
 
-- CIF is `4th/15` on the broader classification benchmark.
-- CIF mean rank is about `5.47`.
+- CIF is `4th/17` on the broader classification benchmark.
+- CIF mean rank is about `6.08`.
 - CIF mean balanced accuracy is about `0.819`.
 - CIF is positive against the historical conditional-inference
-  references:
+  references and the added single-tree references:
   - `r_ctree`: `22/22` datasets, mean delta `+0.0876`
   - `r_cforest`: `19/22` datasets, mean delta `+0.0715`
-  - `CIT`: `21/22` datasets, mean delta `+0.0301`
+  - `CIT`: `22/23` datasets, mean delta `+0.0318`
+  - `DT`: `14/23` datasets, mean delta `+0.0155`
+  - `RT`: `21/23` datasets, mean delta `+0.0346`
 - The strongest generic ensembles rank above CIF in the pooled classification
   summary.
 
@@ -171,8 +185,9 @@ What this layer says:
 - This layer keeps the same dataset membership across all downstream models and
   standard budgets.
 - The omnibus summary is:
-  - classification: `Kendall's W = 0.64`
-- CIF remains positive against the historical baselines on this layer.
+  - classification: `Kendall's W = 0.63` across `17` methods
+- CIF remains positive against CIT, DT, RT, and the historical baselines on
+  this layer.
 
 ### Downstream-model × k sensitivity
 
@@ -184,8 +199,8 @@ What this layer says:
 
 - The broader classification benchmark can be broken out by downstream model
   and standard feature budget.
-- CIF stays positive against `CIT`, `r_ctree`, and `r_cforest` across the
-  classification cells, not just after pooling.
+- The table contains all directed method-vs-method comparisons. The manuscript
+  figure focuses on CIF against `CIT`, `r_ctree`, and `r_cforest`.
 
 ### Heterogeneity / consistency
 
@@ -199,10 +214,10 @@ What this layer says:
 
 - On classification:
   - top half on `21/22` datasets
-  - top 3 on `7/22`
+  - top 3 on `5/22`
   - top 1 on `3/22`
 - CIF's broadest clean wins are again against the historical
-  conditional-inference baselines and CIT.
+  conditional-inference baselines, CIT, and RT.
 
 ### High-p boundary
 

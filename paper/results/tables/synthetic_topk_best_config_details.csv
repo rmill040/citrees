@@ -4,6 +4,7 @@ classification,cat,cat__024a0842d4337711,0.3829,mean_informative_share_over_k_5_
 classification,cif,cif__4ee6725d43ec8e5a,0.34434000000000003,mean_informative_share_over_k_5_10_25_50_100,True,100,,,,,,rdc,gini,0.05,0.05,minimum,True,adaptive,0.95,True,True,minimum,True,adaptive,0.95,True,histogram,256.0,False,0.5,,True,stratified,-1.0,,,,,,,,,,,,,,,,,,,
 classification,cit,cit__bc8d0ddbb26c15b5,0.26964,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,mc,gini,0.05,0.05,minimum,True,adaptive,0.95,True,True,minimum,True,adaptive,0.95,True,histogram,256.0,False,0.5,,,,,,,,,,,,,,,,,,,,,,,
 classification,cpi,cpi__6e89acc5e72da5a8,0.2338,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,10.0,,,,,,,,,,,,,,,,,,
+classification,dt,dt__99914b932bd37a50,0.32455,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 classification,et,et__f5580a1865f967c8,0.38303000000000004,mean_informative_share_over_k_5_10_25_50_100,True,100,,,,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,balanced,,,,,,,,,,,,,,,,,
 classification,lgbm,lgbm__71ba9ba402678146,0.3839,mean_informative_share_over_k_5_10_25_50_100,True,500,,,0.1,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,,6.0,gain,,,,,,,,,,,,,,,
 classification,pi,pi__6e89acc5e72da5a8,0.28253,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,10.0,,,,,,,,,,,,,,,,,,
@@ -13,12 +14,14 @@ classification,r_cforest,r_cforest__37be32340835a93b,0.31819,mean_informative_sh
 classification,r_ctree,r_ctree__b6e09ceb0eb26367,0.06286,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,0.05,,,quadratic,MonteCarlo,,9999.0,,,,,,,20.0,7.0
 classification,rf,rf__27caa3a0a3b84fd9,0.37691,mean_informative_share_over_k_5_10_25_50_100,True,100,,,,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,balanced,,,,,,,,,,,,,,,,,
 classification,rfe,rfe__99914b932bd37a50,0.39224000000000003,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+classification,rt,rt__99914b932bd37a50,0.27193,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 classification,xgb,xgb__1c62fadfc5e2988f,0.38793,mean_informative_share_over_k_5_10_25_50_100,True,500,,,0.1,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,,6.0,total_gain,,,,,,,,,,,,,,,
 regression,boruta,boruta__7f986516a1727870,0.3971,mean_informative_share_over_k_5_10_25_50_100,True,auto,200.0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 regression,cat,cat__024a0842d4337711,0.40590000000000004,mean_informative_share_over_k_5_10_25_50_100,True,500,,6.0,0.1,1.0,False,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 regression,cif,cif__f996d20e25e412cc,0.39014,mean_informative_share_over_k_5_10_25_50_100,True,100,,,,,,pc,mse,0.05,0.05,minimum,True,adaptive,0.95,True,True,minimum,True,adaptive,0.95,True,histogram,256.0,False,0.5,,True,,-1.0,,,,,,,,,,,,,,,,,,,
 regression,cit,cit__2cd925b5323e9208,0.31325,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,pc,mse,0.05,0.05,minimum,True,adaptive,0.95,True,True,minimum,True,adaptive,0.95,True,histogram,256.0,False,0.5,,,,,,,,,,,,,,,,,,,,,,,
 regression,cpi,cpi__6e89acc5e72da5a8,0.35194,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,10.0,,,,,,,,,,,,,,,,,,
+regression,dt,dt__99914b932bd37a50,0.35536,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 regression,et,et__f09eb85fc7f75870,0.41088,mean_informative_share_over_k_5_10_25_50_100,True,100,,,,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,,,,,,,,,,,,,,,,,,
 regression,lgbm,lgbm__71ba9ba402678146,0.41187999999999997,mean_informative_share_over_k_5_10_25_50_100,True,500,,,0.1,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,,6.0,gain,,,,,,,,,,,,,,,
 regression,pi,pi__6e89acc5e72da5a8,0.37879,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,10.0,,,,,,,,,,,,,,,,,,
@@ -29,4 +32,5 @@ regression,r_cforest,r_cforest__37be32340835a93b,0.3409,mean_informative_share_o
 regression,r_ctree,r_ctree__b6e09ceb0eb26367,0.08754,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,0.05,,,quadratic,MonteCarlo,,9999.0,,,,,,,20.0,7.0
 regression,rf,rf__aed17443e3db937d,0.40638,mean_informative_share_over_k_5_10_25_50_100,True,100,,,,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,,,,,,,,,,,,,,,,,,
 regression,rfe,rfe__99914b932bd37a50,0.34094,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+regression,rt,rt__99914b932bd37a50,0.347,mean_informative_share_over_k_5_10_25_50_100,True,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 regression,xgb,xgb__1c62fadfc5e2988f,0.39488999999999996,mean_informative_share_over_k_5_10_25_50_100,True,500,,,0.1,,,,,,,,,,,,,,,,,,,,,,,,,-1.0,,,6.0,total_gain,,,,,,,,,,,,,,,

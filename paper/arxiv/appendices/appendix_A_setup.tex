@@ -8,12 +8,13 @@ Let $(X_i, Y_i)_{i=1}^n$ be training data and consider a fixed node $t$ with
 index set $I_t$ (size $n_t$). Write $X_t := (X_i)_{i \in I_t}$ and
 $Y_t := (Y_i)_{i \in I_t}$.
 
-At node $t$, the procedure performs two (potential) hypothesis-testing steps:
-Stage~A performs feature selection over features $j \in F_t$ by testing association with $Y_t$, and Stage~B
-tests candidate thresholds for the selected feature $j_t^\star$.
+At node $t$, the procedure performs two potential hypothesis testing steps:
+Stage~A performs feature selection over features $j \in F_t$ by testing
+association with $Y_t$, and Stage~B tests candidate thresholds for the selected
+feature $j_t^\star$.
 
-\paragraph{Notation summary (quick reference).}
-\begin{table}[t]
+\subsubsection*{Notation summary}
+\begin{table}[H]
   \centering
   \small
   \setlength{\tabcolsep}{5pt}
@@ -21,47 +22,55 @@ tests candidate thresholds for the selected feature $j_t^\star$.
     \toprule
     Symbol & Meaning \\
     \midrule
-    $t$ & Node index (held fixed in ``fixed-node'' results). \\
+    $t$ & Node index (held fixed in ``fixed node'' results). \\
     $n,\ p$ & Global sample size and number of features. \\
     $I_t,\ n_t$ & Sample index set at node $t$ and its size $n_t := |I_t|$. \\
     $X_t,\ Y_t$ & Covariates and labels restricted to node $t$. \\
     $F_t,\ m_t$ & Tested feature set at node $t$ and its size $m_t := |F_t|$. \\
-    $F_{\mathrm{avail}},\ F_{\mathrm{desc}},\ F_{\mathrm{avail}}'$ &
-      Available features passed down the recursion, its descendant-safe non-constant subset at $t$, and the post-Stage~A set propagated to descendants. \\
+    $F_{\mathrm{avail}}$ & Features available when node $t$ is reached. \\
+    $F_{\mathrm{desc}}$ & Nonconstant features at node $t$ that can be passed to child nodes. \\
+    $F_{\mathrm{avail}}'$ & Feature set passed to descendants after Stage~A and any feature muting. \\
     $T^{\mathrm{sel}}_j$ & Stage~A selector statistic for feature $j$ at node $t$. \\
     $p_{t,j}$ & +1 Monte Carlo permutation p-value for $T^{\mathrm{sel}}_j$ (fixed-$B$ mode). \\
-    $p_{\mathrm{MC}}^{\ge},\ p_{\mathrm{MC}}^{\le}$ & Right/left-tail +1 Monte Carlo p-values computed from $B$ random permutations. \\
+    $p_{\mathrm{MC}}^{\ge},\ p_{\mathrm{MC}}^{\le}$ & Right/left tail +1 Monte Carlo p-values computed from $B$ random permutations. \\
     $\alpha_{\mathrm{sel}}$ & Stage~A nominal significance level (before Bonferroni adjustment). \\
     $\alpha_{\mathrm{split}}$ & Stage~B nominal significance level (before Bonferroni adjustment). \\
-    $\uargmin$ & $\argmin$ with uniform tie-breaking using reservoir sampling. \\
-    $j_t^\star,\ p_t^\star$ & Best feature and its p-value: $j_t^\star := \uargmin_{j\in F_t} p_{t,j}$,
-    $p_t^\star := \min_{j\in F_t} p_{t,j}$. \\
+    $M_t^\star$ & Features attaining the minimum fixed-$B$ Stage~A p-value:
+    $M_t^\star := \{j \in F_t : p_{t,j}=p_t^{\star,\mathrm{ref}}\}$. \\
+    $j_t^{\star,\mathrm{ref}},\ p_t^{\star,\mathrm{ref}}$ & Fixed-$B$
+    selected feature and minimum p-value:
+    $p_t^{\star,\mathrm{ref}} := \min_{j\in F_t} p_{t,j}$;
+    $j_t^{\star,\mathrm{ref}}$ is drawn uniformly from $M_t^\star$ using
+    reservoir sampling. \\
+    $j_t^\star,\ s_t^\star$ & Feature and Stage~A score stored by the recursive
+    implementation, which may inspect only part of the feature set and may stop
+    early. \\
     $C_{t,j}$ & Candidate threshold set for feature $j$ at node $t$ (Stage~B). \\
     $c_t^\star,\ s_t^{\mathrm{split}}$ & Best threshold and its Stage~B split score for the selected feature. \\
     $\pi$ & Bootstrap sampling probabilities over training indices. \\
     $B$ & Permutation resample budget (number of random permutations). \\
-    $U$ & Label-independent algorithmic randomness (e.g., feature subsampling, threshold subsampling, tie-breaking randomness). \\
+    $U$ & Label independent algorithmic randomness (e.g., feature subsampling, threshold subsampling, tie breaking randomness). \\
     \bottomrule
   \end{tabular}
   \caption{Compact notation used throughout the paper.}
 \end{table}
 
-\subsection{Assumptions and scope ledger}
+\subsection{Assumptions and theorem scope}
 \label{app:assumptions}
 
 We label assumptions to keep statements and proofs aligned. When a result below
-is described as ``fixed-node,'' the node $t$ is held fixed rather than chosen
+is described as ``fixed node,'' the node $t$ is held fixed rather than chosen
 adaptively from the data.
 Unless stated otherwise, theorem/proposition statements in
-\cref{sec:theory} are read under A0.2 (nodewise complete-null exchangeability)
+\cref{sec:theory} are read under A0.2 (nodewise complete null exchangeability)
 and A0.4 (fixed-$B$ mode).
 
 \paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
-The node $t$ is fixed, not data-adaptively selected.
+The node $t$ is fixed, not selected from the data.
 
 \paragraph{A0.2 (Nodewise complete permutation null / conditional exchangeability).}\label{assump:exchangeability}
 Under the (nodewise) complete permutation null at the fixed node $t$, $Y_t$ is
-exchangeable conditional on $(X_t, U)$, where $U$ denotes label-independent
+exchangeable conditional on $(X_t, U)$, where $U$ denotes label independent
 algorithmic randomness that can affect which hypotheses are tested (e.g.,
 \texttt{max\_features}, threshold subsampling). This assumption targets a
 complete null at the node: it generally does \emph{not} hold under a
@@ -69,10 +78,11 @@ complete null at the node: it generally does \emph{not} hold under a
 remain associated with $Y_t$. Monte Carlo permutation draws are additional
 randomization independent of the data and are not included in $U$.
 
-\paragraph{A0.3 (Label-independent tested family).}\label{assump:label-independence}
-The tested feature family $F_t$, candidate thresholds, and the resample budget
-$B$ are measurable functions of $(X_t, U)$ and do \emph{not} depend on the
-observed labels $Y_t$ (or on permutation outcomes).
+\paragraph{A0.3 (Label independent Stage~A tested family).}\label{assump:label-independence}
+For Stage~A results, the tested feature family $F_t$ and resample budget $B$ are
+measurable functions of $(X_t, U)$ and do \emph{not} depend on the observed
+labels $Y_t$ (or on permutation outcomes). A separate fixed feature Stage~B
+statement would require its threshold set to be label independent.
 
 \paragraph{A0.4 (Fixed-$B$ p-values).}\label{assump:fixed-b}
 Permutation p-values are computed with a fixed number of resamples $B$ (no
@@ -80,38 +90,30 @@ optional stopping).
 
 \paragraph{A0.5 (Conservative tie handling in the Monte Carlo p-value).}\label{assump:ties}
 The +1 Monte Carlo p-value uses the implementation's conservative tie rule:
-ties are counted as exceedances (right tail) or as left-tail exceedances,
-respectively. Random tie-breaking among equal best features or thresholds is
-treated separately as label-independent algorithmic randomness.
+ties are counted as exceedances (right tail) or as left tail exceedances,
+respectively. Random tie breaking among equal best features or thresholds is
+treated separately as label independent algorithmic randomness.
 
 \paragraph{A0.6 (Idealized symmetry model for CART lemmas).}\label{assump:cart-symmetry}
-In idealized CART-bias lemmas (not used for the fixed-node guarantees stated
+In idealized CART bias lemmas (not used for the fixed node guarantees stated
 here), candidate
-split scores are assumed exchangeable across all $(j,c)$ pairs (and tie-free, or
-tie-broken at random).
+split scores are assumed exchangeable across all $(j,c)$ pairs (and with no
+ties, or with ties broken at random).
 
-\paragraph{A0.7 (Impurity moment bounds).}\label{assump:impurity-moments}
-When bounding expected impurity decreases under nulls, assume bounded root
-impurity (classification) or finite second moments as stated.
-
-\paragraph{A0.8 (Honest estimation).}\label{assump:honesty}
-For honest estimation statements, the sample split $(I^{\mathrm{split}}, I^{\mathrm{est}})$ is independent of
-the observed data.
-
-\subsection{Result-to-assumption checklist (compact)}
+\subsection{Result and assumption checklist}
 \label{app:assumption-checklist}
 
-\begin{table}[t]
+\begin{table}[H]
   \centering
   \small
   \begin{tabular}{p{0.52\linewidth} p{0.42\linewidth}}
     \toprule
     Result & Minimal assumptions \\
     \midrule
-    +1 p-value super-uniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1--A0.5 \\
-    Stage~A complete-null control (Corollary~\ref{cor:stageA-global-null}) & A0.1--A0.5 \\
-    Root ``any split'' consequence (\cref{rem:root-null}) & A0.1--A0.5 at root \\
+    +1 p-value superuniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1 through A0.5 \\
+    Stage~A complete null control (Corollary~\ref{cor:stageA-global-null}) & A0.1 through A0.5 \\
+    Root ``any split'' consequence (\cref{rem:root-null}) & A0.1 through A0.5 at root \\
     \bottomrule
   \end{tabular}
-  \caption{Assumptions used by the main fixed-node results in \cref{sec:theory}.}
+  \caption{Assumptions used by the main fixed node results in \cref{sec:theory}.}
 \end{table}

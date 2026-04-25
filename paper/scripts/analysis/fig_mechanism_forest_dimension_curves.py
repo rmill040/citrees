@@ -131,7 +131,7 @@ def main() -> None:
         axes[0],
         split_agg,
         ylabel="Informative split share",
-        title="A. Informative split share across sparse designs",
+        title="Informative split share across sparse designs",
     )
     axes[0].set_ylim(0.0, 1.05)
 
@@ -139,12 +139,30 @@ def main() -> None:
         axes[1],
         false_agg,
         ylabel="Distinct false features used",
-        title="B. Noise spread across sparse designs",
+        title="Noise spread across sparse designs",
     )
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.98))
-    fig.subplots_adjust(top=0.78, wspace=0.26)
+    axes[0].text(
+        0.5,
+        -0.18,
+        r"(A)",
+        transform=axes[0].transAxes,
+        ha="center",
+        va="top",
+        fontsize=11,
+    )
+    axes[1].text(
+        0.5,
+        -0.18,
+        r"(B)",
+        transform=axes[1].transAxes,
+        ha="center",
+        va="top",
+        fontsize=11,
+    )
+    fig.subplots_adjust(top=0.78, bottom=0.22, wspace=0.26)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png"

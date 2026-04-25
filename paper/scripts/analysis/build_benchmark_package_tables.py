@@ -58,15 +58,14 @@ def _build_stratified_summary(
     support_type: str,
 ) -> pd.DataFrame:
     """Summarize complete-case scores by downstream and k."""
-    summary = (
-        ranked.groupby(["downstream_model", "k", "method_base", "method_id"], as_index=False)
-        .agg(
-            n_complete_datasets=("dataset", "nunique"),
-            mean_score=("dataset_mean_score", "mean"),
-            median_score=("dataset_mean_score", "median"),
-            mean_rank=("rank", "mean"),
-            median_rank=("rank", "median"),
-        )
+    summary = ranked.groupby(
+        ["downstream_model", "k", "method_base", "method_id"], as_index=False
+    ).agg(
+        n_complete_datasets=("dataset", "nunique"),
+        mean_score=("dataset_mean_score", "mean"),
+        median_score=("dataset_mean_score", "median"),
+        mean_rank=("rank", "mean"),
+        median_rank=("rank", "median"),
     )
     summary.insert(0, "task", task)
     summary.insert(1, "metric", metric)
@@ -75,9 +74,9 @@ def _build_stratified_summary(
         ascending=True,
         method="average",
     )
-    return summary.sort_values(["task", "downstream_model", "k", "rank_position", "method_base"]).reset_index(
-        drop=True
-    )
+    return summary.sort_values(
+        ["task", "downstream_model", "k", "rank_position", "method_base"]
+    ).reset_index(drop=True)
 
 
 def _build_method_aggregate(
@@ -86,24 +85,18 @@ def _build_method_aggregate(
     metric: str,
 ) -> pd.DataFrame:
     """Aggregate complete-case ranks over all downstreams and standard k values."""
-    by_dataset = (
-        ranked.groupby(["dataset", "method_base", "method_id"], as_index=False)
-        .agg(
-            n_cells=("rank", "size"),
-            mean_rank=("rank", "mean"),
-            mean_score=("dataset_mean_score", "mean"),
-        )
+    by_dataset = ranked.groupby(["dataset", "method_base", "method_id"], as_index=False).agg(
+        n_cells=("rank", "size"),
+        mean_rank=("rank", "mean"),
+        mean_score=("dataset_mean_score", "mean"),
     )
 
-    aggregate = (
-        by_dataset.groupby(["method_base", "method_id"], as_index=False)
-        .agg(
-            n_datasets=("dataset", "nunique"),
-            mean_dataset_cells=("n_cells", "mean"),
-            mean_rank=("mean_rank", "mean"),
-            median_rank=("mean_rank", "median"),
-            mean_score=("mean_score", "mean"),
-        )
+    aggregate = by_dataset.groupby(["method_base", "method_id"], as_index=False).agg(
+        n_datasets=("dataset", "nunique"),
+        mean_dataset_cells=("n_cells", "mean"),
+        mean_rank=("mean_rank", "mean"),
+        median_rank=("mean_rank", "median"),
+        mean_score=("mean_score", "mean"),
     )
     aggregate.insert(0, "task", task)
     aggregate.insert(1, "metric", metric)
@@ -196,100 +189,97 @@ def _build_benchmark_spread(scores: pd.DataFrame, task: str) -> pd.DataFrame:
     return pd.concat([by_k, pooled], ignore_index=True)
 
 
-def _build_pairwise_stratified(
-    scores: pd.DataFrame,
-    task: str,
-    focus_method: str,
-) -> pd.DataFrame:
-    """Summarize CIF-vs-baseline deltas for each downstream and k."""
+def _build_pairwise_stratified(scores: pd.DataFrame, task: str) -> pd.DataFrame:
+    """Summarize directed method-vs-method differences for each downstream and k."""
     rows: list[dict[str, object]] = []
 
     for (downstream_model, k), cell in scores.groupby(["downstream_model", "k"]):
         pivot = cell.pivot(index="dataset", columns="method_base", values="dataset_mean_score")
-        if focus_method not in pivot.columns:
-            continue
 
-        for baseline in sorted(col for col in pivot.columns if col != focus_method):
-            common = pivot[[focus_method, baseline]].dropna()
-            if common.empty:
-                continue
+        for focus_method in sorted(pivot.columns):
+            for baseline in sorted(col for col in pivot.columns if col != focus_method):
+                common = pivot[[focus_method, baseline]].dropna()
+                if common.empty:
+                    continue
 
-            delta = common[focus_method] - common[baseline]
-            rows.append(
-                {
-                    "task": task,
-                    "downstream_model": downstream_model,
-                    "k": int(k),
-                    "focus_method": focus_method,
-                    "baseline": baseline,
-                    "support_type": "pairwise_available_standard_k",
-                    "n_datasets": int(len(common)),
-                    "mean_delta": float(delta.mean()),
-                    "median_delta": float(delta.median()),
-                    "wins": int((delta > 0).sum()),
-                    "losses": int((delta < 0).sum()),
-                    "ties": int((delta == 0).sum()),
-                    "win_share": float((delta > 0).mean()),
-                    "nonloss_share": float((delta >= 0).mean()),
-                }
-            )
+                delta = common[focus_method] - common[baseline]
+                rows.append(
+                    {
+                        "task": task,
+                        "downstream_model": downstream_model,
+                        "k": int(k),
+                        "focus_method": focus_method,
+                        "baseline": baseline,
+                        "support_type": "pairwise_available_standard_k",
+                        "n_datasets": int(len(common)),
+                        "mean_delta": float(delta.mean()),
+                        "median_delta": float(delta.median()),
+                        "wins": int((delta > 0).sum()),
+                        "losses": int((delta < 0).sum()),
+                        "ties": int((delta == 0).sum()),
+                        "win_share": float((delta > 0).mean()),
+                        "nonloss_share": float((delta >= 0).mean()),
+                    }
+                )
 
-    return pd.DataFrame(rows).sort_values(
-        ["task", "downstream_model", "k", "baseline"]
-    ).reset_index(drop=True)
+    return (
+        pd.DataFrame(rows)
+        .sort_values(["task", "downstream_model", "k", "focus_method", "baseline"])
+        .reset_index(drop=True)
+    )
 
 
-def _build_pairwise_aggregate(
-    scores: pd.DataFrame,
-    task: str,
-    focus_method: str,
-) -> pd.DataFrame:
-    """Aggregate CIF-vs-baseline deltas over all downstreams and supported k values."""
+def _build_pairwise_aggregate(scores: pd.DataFrame, task: str) -> pd.DataFrame:
+    """Aggregate directed method-vs-method differences over downstreams and k values."""
     rows: list[dict[str, object]] = []
 
-    for baseline in sorted(m for m in scores["method_base"].unique() if m != focus_method):
-        focus = scores[scores["method_base"] == focus_method][["dataset", "downstream_model", "k", "dataset_mean_score"]]
-        focus = focus.rename(columns={"dataset_mean_score": "focus_score"})
-        base = scores[scores["method_base"] == baseline][["dataset", "downstream_model", "k", "dataset_mean_score"]]
-        base = base.rename(columns={"dataset_mean_score": "baseline_score"})
+    for focus_method in sorted(scores["method_base"].unique()):
+        for baseline in sorted(m for m in scores["method_base"].unique() if m != focus_method):
+            focus = scores[scores["method_base"] == focus_method][
+                ["dataset", "downstream_model", "k", "dataset_mean_score"]
+            ]
+            focus = focus.rename(columns={"dataset_mean_score": "focus_score"})
+            base = scores[scores["method_base"] == baseline][
+                ["dataset", "downstream_model", "k", "dataset_mean_score"]
+            ]
+            base = base.rename(columns={"dataset_mean_score": "baseline_score"})
 
-        merged = focus.merge(base, on=["dataset", "downstream_model", "k"], how="inner")
-        if merged.empty:
-            continue
+            merged = focus.merge(base, on=["dataset", "downstream_model", "k"], how="inner")
+            if merged.empty:
+                continue
 
-        merged["delta"] = merged["focus_score"] - merged["baseline_score"]
+            merged["delta"] = merged["focus_score"] - merged["baseline_score"]
 
-        by_dataset = (
-            merged.groupby("dataset", as_index=False)
-            .agg(
+            by_dataset = merged.groupby("dataset", as_index=False).agg(
                 n_cells=("delta", "size"),
                 mean_delta=("delta", "mean"),
                 win_share=("delta", lambda x: float((x > 0).mean())),
                 nonloss_share=("delta", lambda x: float((x >= 0).mean())),
             )
-        )
 
-        rows.append(
-            {
-                "task": task,
-                "focus_method": focus_method,
-                "baseline": baseline,
-                "support_type": "dataset_mean_over_all_supported_downstream_standard_k",
-                "n_datasets": int(by_dataset["dataset"].nunique()),
-                "mean_dataset_cells": float(by_dataset["n_cells"].mean()),
-                "mean_delta": float(by_dataset["mean_delta"].mean()),
-                "median_delta": float(by_dataset["mean_delta"].median()),
-                "wins": int((by_dataset["mean_delta"] > 0).sum()),
-                "losses": int((by_dataset["mean_delta"] < 0).sum()),
-                "ties": int((by_dataset["mean_delta"] == 0).sum()),
-                "win_share": float((by_dataset["mean_delta"] > 0).mean()),
-                "nonloss_share": float((by_dataset["mean_delta"] >= 0).mean()),
-                "mean_cell_win_share": float(by_dataset["win_share"].mean()),
-                "mean_cell_nonloss_share": float(by_dataset["nonloss_share"].mean()),
-            }
-        )
+            rows.append(
+                {
+                    "task": task,
+                    "focus_method": focus_method,
+                    "baseline": baseline,
+                    "support_type": "dataset_mean_over_all_supported_downstream_standard_k",
+                    "n_datasets": int(by_dataset["dataset"].nunique()),
+                    "mean_dataset_cells": float(by_dataset["n_cells"].mean()),
+                    "mean_delta": float(by_dataset["mean_delta"].mean()),
+                    "median_delta": float(by_dataset["mean_delta"].median()),
+                    "wins": int((by_dataset["mean_delta"] > 0).sum()),
+                    "losses": int((by_dataset["mean_delta"] < 0).sum()),
+                    "ties": int((by_dataset["mean_delta"] == 0).sum()),
+                    "win_share": float((by_dataset["mean_delta"] > 0).mean()),
+                    "nonloss_share": float((by_dataset["mean_delta"] >= 0).mean()),
+                    "mean_cell_win_share": float(by_dataset["win_share"].mean()),
+                    "mean_cell_nonloss_share": float(by_dataset["nonloss_share"].mean()),
+                }
+            )
 
-    return pd.DataFrame(rows).sort_values(["task", "baseline"]).reset_index(drop=True)
+    return (
+        pd.DataFrame(rows).sort_values(["task", "focus_method", "baseline"]).reset_index(drop=True)
+    )
 
 
 def _build_config_selection_audit(df: pd.DataFrame, task: str, metric: str) -> pd.DataFrame:
@@ -299,7 +289,9 @@ def _build_config_selection_audit(df: pd.DataFrame, task: str, metric: str) -> p
     rows: list[dict[str, object]] = []
 
     for method_base, family in perf.groupby("method_base"):
-        family = family.sort_values(["task_global_mean_metric", "method_id"], ascending=[False, True]).reset_index(drop=True)
+        family = family.sort_values(
+            ["task_global_mean_metric", "method_id"], ascending=[False, True]
+        ).reset_index(drop=True)
         best = family.iloc[0]
         runner_up = family.iloc[1] if len(family) > 1 else None
         family_mean = float(family["task_global_mean_metric"].mean())
@@ -318,11 +310,17 @@ def _build_config_selection_audit(df: pd.DataFrame, task: str, metric: str) -> p
                 "selected_minus_runner_up": (
                     None
                     if runner_up is None
-                    else float(best["task_global_mean_metric"] - runner_up["task_global_mean_metric"])
+                    else float(
+                        best["task_global_mean_metric"] - runner_up["task_global_mean_metric"]
+                    )
                 ),
                 "family_mean_task_global_metric": family_mean,
-                "selected_minus_family_mean_task_global_metric": float(best["task_global_mean_metric"] - family_mean),
-                "family_task_global_metric_std": float(family["task_global_mean_metric"].std(ddof=0)),
+                "selected_minus_family_mean_task_global_metric": float(
+                    best["task_global_mean_metric"] - family_mean
+                ),
+                "family_task_global_metric_std": float(
+                    family["task_global_mean_metric"].std(ddof=0)
+                ),
             }
         )
 
@@ -371,7 +369,9 @@ def _build_fixed_panel_aggregate(
 
 def main() -> None:
     """Build and save the paper-facing benchmark summary tables."""
-    parser = argparse.ArgumentParser(description="Build contract-compliant benchmark summary tables")
+    parser = argparse.ArgumentParser(
+        description="Build contract-compliant benchmark summary tables"
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -397,10 +397,9 @@ def main() -> None:
     pairwise_aggregate_frames: list[pd.DataFrame] = []
 
     for task, config in TASK_CONFIG.items():
-        raw = load_real_task_frame(config["path"])
+        raw = load_real_task_frame(task=task)
         standard_raw = raw[raw["k"].isin(STANDARD_K)].copy()
         metric = config["metric"]
-        focus_method = config["focus_method"]
 
         _, best_configs = select_best_task_configs(standard_raw, metric)
         best_configs.insert(0, "task", task)
@@ -411,7 +410,9 @@ def main() -> None:
         # Apply the same task-wide best configs to the full observed real-data
         # k surface so the endpoint / dataset-specific summaries use the same
         # config contract as the standard benchmark layer.
-        best_full = raw.merge(best_configs[["method_base", "method_id"]], on=["method_base", "method_id"], how="inner")
+        best_full = raw.merge(
+            best_configs[["method_base", "method_id"]], on=["method_base", "method_id"], how="inner"
+        )
         full_scores = dataset_scores(best_full, metric)
         standard_scores = full_scores[full_scores["k"].isin(STANDARD_K)].copy()
         membership_frames.append(_build_complete_case_membership(standard_scores, task))
@@ -459,8 +460,8 @@ def main() -> None:
         )
         fixed_panel_membership_frames.append(fixed_panel_membership)
         fixed_panel_aggregate_frames.append(fixed_panel_aggregate)
-        pairwise_stratified_frames.append(_build_pairwise_stratified(standard_scores, task, focus_method))
-        pairwise_aggregate_frames.append(_build_pairwise_aggregate(standard_scores, task, focus_method))
+        pairwise_stratified_frames.append(_build_pairwise_stratified(standard_scores, task))
+        pairwise_aggregate_frames.append(_build_pairwise_aggregate(standard_scores, task))
 
     best_configs = pd.concat(best_config_frames, ignore_index=True)
     selection_audit = pd.concat(selection_audit_frames, ignore_index=True)
@@ -473,15 +474,29 @@ def main() -> None:
         "paper_benchmark_best_configs.csv": best_configs,
         "paper_benchmark_selected_config_details.csv": selected_config_details,
         "paper_benchmark_observed_k_values.csv": pd.concat(observed_k_frames, ignore_index=True),
-        "paper_benchmark_complete_case_membership.csv": pd.concat(membership_frames, ignore_index=True),
-        "paper_benchmark_fixed_panel_membership.csv": pd.concat(fixed_panel_membership_frames, ignore_index=True),
-        "paper_benchmark_fixed_panel_aggregate.csv": pd.concat(fixed_panel_aggregate_frames, ignore_index=True),
+        "paper_benchmark_complete_case_membership.csv": pd.concat(
+            membership_frames, ignore_index=True
+        ),
+        "paper_benchmark_fixed_panel_membership.csv": pd.concat(
+            fixed_panel_membership_frames, ignore_index=True
+        ),
+        "paper_benchmark_fixed_panel_aggregate.csv": pd.concat(
+            fixed_panel_aggregate_frames, ignore_index=True
+        ),
         "paper_benchmark_spread.csv": pd.concat(spread_frames, ignore_index=True),
         "paper_benchmark_stratified.csv": pd.concat(stratified_frames, ignore_index=True),
-        "paper_benchmark_extended_stratified.csv": pd.concat(extended_stratified_frames, ignore_index=True),
-        "paper_benchmark_method_aggregate.csv": pd.concat(method_aggregate_frames, ignore_index=True),
-        "paper_benchmark_pairwise_stratified.csv": pd.concat(pairwise_stratified_frames, ignore_index=True),
-        "paper_benchmark_pairwise_aggregate.csv": pd.concat(pairwise_aggregate_frames, ignore_index=True),
+        "paper_benchmark_extended_stratified.csv": pd.concat(
+            extended_stratified_frames, ignore_index=True
+        ),
+        "paper_benchmark_method_aggregate.csv": pd.concat(
+            method_aggregate_frames, ignore_index=True
+        ),
+        "paper_benchmark_pairwise_stratified.csv": pd.concat(
+            pairwise_stratified_frames, ignore_index=True
+        ),
+        "paper_benchmark_pairwise_aggregate.csv": pd.concat(
+            pairwise_aggregate_frames, ignore_index=True
+        ),
     }
 
     for filename, frame in outputs.items():

@@ -2,7 +2,9 @@ task,focus_method,baseline,n_datasets,mean_dataset_cells,mean_delta,median_delta
 classification,cif,r_cforest,14,3.0,0.035954972990608215,0.023142195767195804,12,0,2,dataset_mean_over_high_p_endpoint_pairwise_available
 classification,cif,r_ctree,14,3.0,1.8489925294536597e-05,0.0,2,1,11,dataset_mean_over_high_p_endpoint_pairwise_available
 classification,cif,rf,15,3.0,5.55204160517242e-06,0.0,1,0,14,dataset_mean_over_high_p_endpoint_pairwise_available
+classification,cif,dt,15,3.0,5.1537938950962925e-06,0.0,1,0,14,dataset_mean_over_high_p_endpoint_pairwise_available
 classification,cif,cat,15,3.0,2.97514465762304e-06,0.0,1,0,14,dataset_mean_over_high_p_endpoint_pairwise_available
+classification,cif,rt,15,3.0,2.97514465762304e-06,0.0,1,0,14,dataset_mean_over_high_p_endpoint_pairwise_available
 classification,cif,cit,15,3.0,2.965125461994332e-06,0.0,1,0,14,dataset_mean_over_high_p_endpoint_pairwise_available
 classification,cif,et,15,3.0,2.57689694754938e-06,0.0,1,0,14,dataset_mean_over_high_p_endpoint_pairwise_available
 classification,cif,ptest_rdc,15,3.0,2.57689694754938e-06,0.0,1,0,14,dataset_mean_over_high_p_endpoint_pairwise_available
@@ -14,6 +16,7 @@ classification,cif,lgbm,15,3.0,-4.0862343901881816e-07,0.0,0,1,14,dataset_mean_o
 classification,cif,rfe,15,3.0,-8.072276824064615e-07,0.0,0,1,14,dataset_mean_over_high_p_endpoint_pairwise_available
 classification,cif,xgb,15,3.0,-1.7907772563373492e-06,0.0,0,1,14,dataset_mean_over_high_p_endpoint_pairwise_available
 regression,cif,r_cforest,6,3.0,0.846321519976515,-0.1990508888020745,2,4,0,dataset_mean_over_high_p_endpoint_pairwise_available
+regression,cif,dt,6,3.0,1.6974423410075367e-13,-8.789265611615823e-17,1,0,5,dataset_mean_over_high_p_endpoint_pairwise_available
 regression,cif,r_ctree,6,3.0,1.4709925021887888e-14,1.4749775475072134e-14,0,0,6,dataset_mean_over_high_p_endpoint_pairwise_available
 regression,cif,ptest_pc,6,3.0,1.4194374842180224e-14,3.5862516660027195e-15,0,0,6,dataset_mean_over_high_p_endpoint_pairwise_available
 regression,cif,ptest_dc,6,3.0,8.73760940144229e-15,3.1491013500565637e-15,0,0,6,dataset_mean_over_high_p_endpoint_pairwise_available
@@ -28,3 +31,4 @@ regression,cif,cpi,6,3.0,-1.058807748267733e-14,-2.6599093298311044e-16,0,0,6,da
 regression,cif,lgbm,6,3.0,-1.0661610483353456e-14,-9.020562075079397e-17,0,0,6,dataset_mean_over_high_p_endpoint_pairwise_available
 regression,cif,pi,6,3.0,-2.2664403147453092e-14,-1.0757598515690839e-14,0,0,6,dataset_mean_over_high_p_endpoint_pairwise_available
 regression,cif,xgb,6,3.0,-2.524292503420295e-14,-4.3946328058079115e-16,0,0,6,dataset_mean_over_high_p_endpoint_pairwise_available
+regression,cif,rt,6,3.0,-2.2533407431635235e-13,-1.2721305490496587e-16,1,1,4,dataset_mean_over_high_p_endpoint_pairwise_available

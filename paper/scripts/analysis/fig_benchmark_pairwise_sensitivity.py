@@ -1,14 +1,14 @@
 """Build the paper-facing classification downstream x k sensitivity heatmap.
 
-The figure exposes the classification benchmark surface that the headline table
-partly pools away. It is intentionally narrow:
+The figure shows the classification comparisons before the headline table
+averages over downstream models and feature budgets. It is intentionally narrow:
   - focus method: CIF
-  - baselines: the historical conditional-inference references and CIT
+  - compared methods: the historical conditional-inference references and CIT
   - cells: downstream model x standard feature budget
 
-Each cell shows the mean CIF-minus-baseline balanced-accuracy delta on the
-classification benchmark before within-dataset pooling over downstream models
-and budgets.
+Each cell shows the mean balanced-accuracy difference between CIF and the
+compared method before within-dataset pooling over downstream models and
+budgets.
 """
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 
 BASELINES = ["r_ctree", "r_cforest", "cit"]
 BASELINE_TITLES = {
-    "r_ctree": r"CIF vs \texttt{r\_ctree}",
-    "r_cforest": r"CIF vs \texttt{r\_cforest}",
+    "r_ctree": r"CIF vs \texttt{ctree}",
+    "r_cforest": r"CIF vs \texttt{cforest}",
     "cit": "CIF vs CIT",
 }
 DOWNSTREAMS = ["lr", "svm", "knn"]

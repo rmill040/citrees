@@ -1,0 +1,133 @@
+\section{Dataset inventories}
+\label{app:dataset-inventory}
+
+This appendix lists the datasets used in the benchmark and synthetic
+recovery analyses. Tables~\ref{tab:real-dataset-inventory-clf}
+and~\ref{tab:real-dataset-inventory-reg} list the classification and
+regression benchmark datasets. Tables~\ref{tab:synthetic-dataset-inventory-clf}
+and~\ref{tab:synthetic-dataset-inventory-reg} list the synthetic classification
+and regression designs.
+
+\subsection{Benchmark datasets}
+
+These tables report the number of samples $n$ and features $p$ for each
+dataset used in the benchmark.
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    \midrule
+    \nolinkurl{gamma} & 19,020 & 9 \\
+    \nolinkurl{glass} & 214 & 10 \\
+    \nolinkurl{page-blocks} & 5,473 & 10 \\
+    \nolinkurl{vowel-context} & 990 & 10 \\
+    \nolinkurl{wine} & 178 & 13 \\
+    \nolinkurl{letter} & 20,000 & 16 \\
+    \nolinkurl{pendigits} & 10,992 & 16 \\
+    \nolinkurl{spam} & 4,601 & 57 \\
+    \nolinkurl{musk} & 6,597 & 166 \\
+    \nolinkurl{madelon} & 2,000 & 500 \\
+    \nolinkurl{isolet} & 7,797 & 616 \\
+    \nolinkurl{ORL} & 400 & 1,024 \\
+    \nolinkurl{Yale} & 165 & 1,024 \\
+    \nolinkurl{warpAR10P} & 130 & 2,400 \\
+    \nolinkurl{warpPIE10P} & 210 & 2,420 \\
+    \nolinkurl{gisette} & 6,000 & 5,000 \\
+    \nolinkurl{TOX_171} & 171 & 5,748 \\
+    \nolinkurl{ALLAML} & 72 & 7,129 \\
+    \nolinkurl{arcene} & 100 & 10,000 \\
+    \nolinkurl{pixraw10P} & 100 & 10,000 \\
+    \nolinkurl{orlraws10P} & 100 & 10,304 \\
+    \nolinkurl{CLL_SUB_111} & 111 & 11,340 \\
+    \nolinkurl{dexter} & 300 & 20,000 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Classification benchmark datasets.}
+  \label{tab:real-dataset-inventory-clf}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    \midrule
+    \nolinkurl{facebook} & 500 & 21 \\
+    \nolinkurl{imports-85} & 205 & 76 \\
+    \nolinkurl{residential} & 372 & 107 \\
+    \nolinkurl{community_crime} & 1,994 & 1,954 \\
+    \nolinkurl{comm_violence} & 2,215 & 2,210 \\
+    \nolinkurl{coepra2} & 76 & 5,144 \\
+    \nolinkurl{coepra1} & 89 & 5,787 \\
+    \nolinkurl{coepra3} & 133 & 5,787 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Regression benchmark datasets.}
+  \label{tab:real-dataset-inventory-reg}
+\end{table}
+
+\subsection{Synthetic datasets}
+
+These tables report the number of samples $n$ and features $p$ for each
+synthetic design used in the recovery analysis. The Design column gives a short
+design label, and the Setting column records the remaining simulation
+parameters.
+
+The synthetic datasets were chosen as small controlled examples where the
+informative features are known. Each design targets one issue that can matter
+for feature ranking: correlated predictors, correlated noise, nonlinear signal,
+weak signal, high cardinality noise, redundant features, and an easier and a
+harder baseline problem. The same idea is used for the regression datasets,
+which also include Friedman~1 and a heteroscedastic design. The parameter
+values were set by hand to keep the examples compact and to include one harder
+high dimensional, small sample case in each task.
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}p{0.28\linewidth}p{0.43\linewidth}rr@{}}
+    \toprule
+    Design & Setting & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    \midrule
+    Redundant features & 20 redundant features & 1,000 & 50 \\
+    High cardinality bias & 50 noise features, 500 levels & 1,000 & 100 \\
+    Nonlinear signal & nonlinear decision boundary & 1,000 & 100 \\
+    Standard classification & 10 informative, sep $= 2.0$ & 1,000 & 100 \\
+    Toeplitz correlation & 10 informative, $\rho = 0.95$ & 1,000 & 100 \\
+    Weak signal classification & 10 informative, sep $= 0.1$, flip $= 0.1$ & 1,000 & 100 \\
+    Correlated noise & 10 informative, 20 noise, $\rho = 0.9$ & 1,000 & 120 \\
+    Sparse high-$p$ classification & 5 informative, sep $= 0.5$ & 200 & 1,000 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Synthetic classification designs.}
+  \label{tab:synthetic-dataset-inventory-clf}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}p{0.28\linewidth}p{0.43\linewidth}rr@{}}
+    \toprule
+    Design & Setting & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    \midrule
+    Heteroscedastic regression & scale $= 4.0$, noise $= 5.0$ & 1,000 & 50 \\
+    Redundant features & 20 redundant features & 1,000 & 50 \\
+    Friedman 1 & noise $= 1.0$ & 1,000 & 100 \\
+    Standard regression & 10 informative, noise $= 1.0$ & 1,000 & 100 \\
+    Toeplitz correlation & 10 informative, $\rho = 0.95$ & 1,000 & 100 \\
+    Weak signal regression & 10 informative, noise $= 50.0$ & 1,000 & 100 \\
+    Correlated noise & 10 informative, 20 noise, $\rho = 0.9$ & 1,000 & 120 \\
+    Sparse high-$p$ regression & 5 informative, noise $= 10.0$ & 200 & 500 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Synthetic regression designs.}
+  \label{tab:synthetic-dataset-inventory-reg}
+\end{table}

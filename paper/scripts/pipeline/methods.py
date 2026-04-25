@@ -82,6 +82,20 @@ METHOD_INFO: dict[str, MethodInfo] = {
         category="embedding",
         tasks=frozenset({"classification", "regression"}),
     ),
+    "dt": MethodInfo(
+        name="dt",
+        display_name="Decision Tree",
+        description="Single CART-style tree importance",
+        category="embedding",
+        tasks=frozenset({"classification", "regression"}),
+    ),
+    "rt": MethodInfo(
+        name="rt",
+        display_name="Randomized Tree",
+        description="Single randomized tree importance",
+        category="embedding",
+        tasks=frozenset({"classification", "regression"}),
+    ),
     "rf": MethodInfo(
         name="rf",
         display_name="Random Forest",
@@ -164,7 +178,7 @@ METHOD_INFO: dict[str, MethodInfo] = {
 }
 
 
-# Classification methods (15 total)
+# Classification methods (17 total)
 CLF_METHODS = [
     # Permutation test methods
     "ptest_mc",
@@ -172,6 +186,8 @@ CLF_METHODS = [
     # Embedding methods (tree-based)
     "cit",
     "cif",
+    "dt",
+    "rt",
     "rf",
     "et",
     "xgb",
@@ -188,7 +204,7 @@ CLF_METHODS = [
 ]
 
 
-# Regression methods (16 total)
+# Regression methods (18 total)
 REG_METHODS = [
     # Permutation test methods
     "ptest_pc",
@@ -197,6 +213,8 @@ REG_METHODS = [
     # Embedding methods (tree-based)
     "cit",
     "cif",
+    "dt",
+    "rt",
     "rf",
     "et",
     "xgb",
@@ -228,7 +246,7 @@ THREADED_METHODS = {
 
 
 # Embedding methods (have feature_importances_ and can make predictions)
-EMBEDDING_METHODS = {"cit", "cif", "rf", "et", "xgb", "lgbm", "cat"}
+EMBEDDING_METHODS = {"cit", "cif", "dt", "rt", "rf", "et", "xgb", "lgbm", "cat"}
 
 
 def get_methods(task: str) -> list[str]:

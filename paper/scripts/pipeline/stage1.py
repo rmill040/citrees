@@ -299,7 +299,7 @@ def run_selection(
             ranking = filter_selector(X_train, y_train, method, task, rs)
         elif method.startswith("ptest_"):
             ranking = permutation_selector(X_train, y_train, method, task, rs, params=params)
-        elif method in ["rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
+        elif method in ["dt", "rt", "rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
             ranking = embedding_selector(
                 X_train,
                 y_train,

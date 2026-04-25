@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Final
 
 import pandas as pd
@@ -13,17 +13,16 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from paper.scripts.analysis.benchmark_common import TABLES_DIR
+from paper.scripts.analysis.benchmark_common import TABLES_DIR  # noqa: E402
 
 BENCHMARK_AGG_PATH: Final[Path] = TABLES_DIR / "paper_benchmark_method_aggregate.csv"
 BENCHMARK_MEMBERSHIP_PATH: Final[Path] = TABLES_DIR / "paper_benchmark_complete_case_membership.csv"
 BENCHMARK_SPREAD_PATH: Final[Path] = TABLES_DIR / "paper_benchmark_spread.csv"
 HETEROGENEITY_PATH: Final[Path] = TABLES_DIR / "paper_heterogeneity_method_summary.csv"
-PAIRWISE_BREADTH_PATH: Final[Path] = TABLES_DIR / "paper_heterogeneity_cif_pairwise_breadth.csv"
+BENCHMARK_PAIRWISE_PATH: Final[Path] = TABLES_DIR / "paper_benchmark_pairwise_aggregate.csv"
 MIRRORED_ABLATION_PATH: Final[Path] = TABLES_DIR / "paper_mirrored_knob_ablation_summary.csv"
 THRESHOLD_ABLATION_PATH: Final[Path] = TABLES_DIR / "paper_threshold_ablation_summary.csv"
 
-BENCHMARK_PAIR_BASELINES: Final[tuple[str, ...]] = ("r_ctree", "r_cforest", "cit")
 PRACTICAL_VARIANTS: Final[dict[str, tuple[str, str]]] = {
     "cif_no_adaptive": ("mirrored", "cif_default"),
     "cif_no_bonferroni": ("mirrored", "cif_default"),
@@ -41,13 +40,15 @@ def _complete_case_dataset_count(membership: pd.DataFrame, task: str, k: int) ->
 
 def _support_counts_by_k(membership: pd.DataFrame, task: str) -> tuple[int, int]:
     """Return dataset support at the smallest and largest standard budgets."""
-    return _complete_case_dataset_count(membership, task, 5), _complete_case_dataset_count(membership, task, 100)
+    return _complete_case_dataset_count(membership, task, 5), _complete_case_dataset_count(
+        membership, task, 100
+    )
 
 
 def build_benchmark_presentation_summary(
     aggregate: pd.DataFrame,
     heterogeneity: pd.DataFrame,
-    pairwise_breadth: pd.DataFrame,
+    pairwise_aggregate: pd.DataFrame,
     membership: pd.DataFrame,
     spread: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -56,11 +57,15 @@ def build_benchmark_presentation_summary(
 
     for task in ("classification", "regression"):
         agg_task = aggregate[aggregate["task"] == task].sort_values("mean_rank")
-        het_task = heterogeneity[(heterogeneity["task"] == task) & (heterogeneity["method_base"] == "cif")].iloc[0]
+        het_task = heterogeneity[
+            (heterogeneity["task"] == task) & (heterogeneity["method_base"] == "cif")
+        ].iloc[0]
         cif_agg = agg_task[agg_task["method_base"] == "cif"].iloc[0]
         best_agg = agg_task.iloc[0]
         support_k5, support_k100 = _support_counts_by_k(membership, task)
-        spread_task = spread[(spread["task"] == task) & (spread["comparison_scope"] == "standard_k")]
+        spread_task = spread[
+            (spread["task"] == task) & (spread["comparison_scope"] == "standard_k")
+        ]
         range_k5 = float(spread_task[spread_task["k"] == 5]["mean_range"].iloc[0])
         range_k100 = float(spread_task[spread_task["k"] == 100]["mean_range"].iloc[0])
 
@@ -73,18 +78,29 @@ def build_benchmark_presentation_summary(
             "best_method_mean_rank": float(best_agg["mean_rank"]),
             "n_complete_case_datasets_k5": support_k5,
             "n_complete_case_datasets_k100": support_k100,
-            "cif_top1_datasets": int(round(float(het_task["top1_share"]) * int(het_task["n_datasets"]))),
-            "cif_top3_datasets": int(round(float(het_task["top3_share"]) * int(het_task["n_datasets"]))),
-            "cif_top_half_datasets": int(round(float(het_task["top_half_share"]) * int(het_task["n_datasets"]))),
+            "cif_top1_datasets": int(
+                round(float(het_task["top1_share"]) * int(het_task["n_datasets"]))
+            ),
+            "cif_top3_datasets": int(
+                round(float(het_task["top3_share"]) * int(het_task["n_datasets"]))
+            ),
+            "cif_top_half_datasets": int(
+                round(float(het_task["top_half_share"]) * int(het_task["n_datasets"]))
+            ),
             "mean_cross_method_range_k5": range_k5,
             "mean_cross_method_range_k100": range_k100,
         }
 
-        breadth_task = pairwise_breadth[pairwise_breadth["task"] == task]
-        for baseline in BENCHMARK_PAIR_BASELINES:
-            baseline_row = breadth_task[breadth_task["baseline"] == baseline].iloc[0]
-            row[f"cif_positive_vs_{baseline}_datasets"] = int(baseline_row["wins"])
-            row[f"cif_mean_delta_vs_{baseline}"] = float(baseline_row["mean_delta"])
+        cif_comparisons = pairwise_aggregate[
+            (pairwise_aggregate["task"] == task) & (pairwise_aggregate["focus_method"] == "cif")
+        ].sort_values("baseline")
+        for _, comparison_row in cif_comparisons.iterrows():
+            compared_method = str(comparison_row["baseline"])
+            row[f"cif_matched_vs_{compared_method}_datasets"] = int(
+                comparison_row["n_datasets"]
+            )
+            row[f"cif_positive_vs_{compared_method}_datasets"] = int(comparison_row["wins"])
+            row[f"cif_mean_delta_vs_{compared_method}"] = float(comparison_row["mean_delta"])
 
         rows.append(row)
 
@@ -116,7 +132,7 @@ def build_practical_controls_presentation_summary(
                 "task": row["task"],
                 "dataset_group": row["dataset_group"],
                 "variant": row["variant"],
-                "runtime_ratio_vs_default": float(row["elapsed_seconds_ratio"]),
+                "runtime_ratio_vs_default": float(row["runtime_ratio_vs_default_median"]),
                 "downstream_delta_vs_default": float(row["delta_downstream_score"]),
                 "curve_recovery_delta_vs_default": float(row["delta_precision_over_standard_k"])
                 if pd.notna(row["delta_precision_over_standard_k"])
@@ -137,7 +153,9 @@ def build_practical_controls_presentation_summary(
                 "variant": row["variant"],
                 "runtime_ratio_vs_default": float(row["elapsed_seconds_ratio_vs_default"]),
                 "downstream_delta_vs_default": float(row["delta_real_downstream_vs_default"]),
-                "curve_recovery_delta_vs_default": float(row["delta_precision_over_standard_k_vs_default"])
+                "curve_recovery_delta_vs_default": float(
+                    row["delta_precision_over_standard_k_vs_default"]
+                )
                 if pd.notna(row["delta_precision_over_standard_k_vs_default"])
                 else pd.NA,
                 "depth_delta_vs_default": float(row["delta_depth_vs_default"]),
@@ -170,7 +188,7 @@ def main() -> None:
     benchmark_summary = build_benchmark_presentation_summary(
         pd.read_csv(BENCHMARK_AGG_PATH),
         pd.read_csv(HETEROGENEITY_PATH),
-        pd.read_csv(PAIRWISE_BREADTH_PATH),
+        pd.read_csv(BENCHMARK_PAIRWISE_PATH),
         pd.read_csv(BENCHMARK_MEMBERSHIP_PATH),
         pd.read_csv(BENCHMARK_SPREAD_PATH),
     )
@@ -180,7 +198,9 @@ def main() -> None:
         pd.read_csv(MIRRORED_ABLATION_PATH),
         pd.read_csv(THRESHOLD_ABLATION_PATH),
     )
-    practical_summary.to_csv(output_dir / "paper_presentation_practical_controls_summary.csv", index=False)
+    practical_summary.to_csv(
+        output_dir / "paper_presentation_practical_controls_summary.csv", index=False
+    )
 
 
 if __name__ == "__main__":

@@ -88,14 +88,18 @@ def _build_method_summary(surface: pd.DataFrame) -> pd.DataFrame:
         .sort_values(["task", "mean_rank", "method_base"])
         .reset_index(drop=True)
     )
-    summary["rank_position"] = summary.groupby("task")["mean_rank"].rank(ascending=True, method="average")
+    summary["rank_position"] = summary.groupby("task")["mean_rank"].rank(
+        ascending=True, method="average"
+    )
     return summary
 
 
 def _build_cif_dataset_profile(surface: pd.DataFrame, focus_method: str) -> pd.DataFrame:
     """Profile where the focus method wins, contends, or trails by dataset."""
     leaders = (
-        surface.sort_values(["task", "dataset", "dataset_rank_position", "mean_rank", "method_base"])
+        surface.sort_values(
+            ["task", "dataset", "dataset_rank_position", "mean_rank", "method_base"]
+        )
         .groupby(["task", "dataset"], as_index=False)
         .first()
         .rename(
@@ -127,17 +131,23 @@ def _build_cif_dataset_profile(surface: pd.DataFrame, focus_method: str) -> pd.D
     )
     profile["rank_gap_to_leader"] = profile["mean_rank"] - profile["leader_mean_rank"]
     profile["score_gap_to_leader"] = profile["mean_score"] - profile["leader_mean_score"]
-    return profile.sort_values(["task", "dataset_rank_position", "mean_rank", "dataset"]).reset_index(drop=True)
+    return profile.sort_values(
+        ["task", "dataset_rank_position", "mean_rank", "dataset"]
+    ).reset_index(drop=True)
 
 
 def _build_pairwise_by_dataset(scores: pd.DataFrame, task: str, focus_method: str) -> pd.DataFrame:
-    """Aggregate focus-method deltas against each baseline within each dataset."""
+    """Aggregate focus-method differences against each compared method by dataset."""
     rows: list[dict[str, object]] = []
-    focus = scores[scores["method_base"] == focus_method][["dataset", "downstream_model", "k", "dataset_mean_score"]]
+    focus = scores[scores["method_base"] == focus_method][
+        ["dataset", "downstream_model", "k", "dataset_mean_score"]
+    ]
     focus = focus.rename(columns={"dataset_mean_score": "focus_score"})
 
     for baseline in sorted(m for m in scores["method_base"].unique() if m != focus_method):
-        base = scores[scores["method_base"] == baseline][["dataset", "downstream_model", "k", "dataset_mean_score"]]
+        base = scores[scores["method_base"] == baseline][
+            ["dataset", "downstream_model", "k", "dataset_mean_score"]
+        ]
         base = base.rename(columns={"dataset_mean_score": "baseline_score"})
         merged = focus.merge(base, on=["dataset", "downstream_model", "k"], how="inner")
         if merged.empty:
@@ -195,7 +205,9 @@ def _build_pairwise_breadth(pairwise_by_dataset: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     """Build and save dataset-heterogeneity tables for the paper benchmark."""
-    parser = argparse.ArgumentParser(description="Build dataset heterogeneity tables for the paper benchmark")
+    parser = argparse.ArgumentParser(
+        description="Build dataset heterogeneity tables for the paper benchmark"
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -211,13 +223,15 @@ def main() -> None:
     pairwise_frames: list[pd.DataFrame] = []
 
     for task, config in TASK_CONFIG.items():
-        raw = load_real_task_frame(config["path"])
+        raw = load_real_task_frame(task=task)
         raw = raw[raw["k"].isin(STANDARD_K)].copy()
         metric = config["metric"]
         focus_method = config["focus_method"]
 
         _, best_configs = select_best_task_configs(raw, metric)
-        best_full = raw.merge(best_configs[["method_base", "method_id"]], on=["method_base", "method_id"], how="inner")
+        best_full = raw.merge(
+            best_configs[["method_base", "method_id"]], on=["method_base", "method_id"], how="inner"
+        )
         scores = dataset_scores(best_full, metric)
         complete = complete_case_scores(scores)
         ranked = rank_complete_case_scores(complete)
@@ -231,9 +245,13 @@ def main() -> None:
     outputs = {
         "paper_heterogeneity_dataset_method_surface.csv": dataset_surface,
         "paper_heterogeneity_method_summary.csv": _build_method_summary(dataset_surface),
-        "paper_heterogeneity_cif_dataset_profile.csv": _build_cif_dataset_profile(dataset_surface, focus_method="cif"),
+        "paper_heterogeneity_cif_dataset_profile.csv": _build_cif_dataset_profile(
+            dataset_surface, focus_method="cif"
+        ),
         "paper_heterogeneity_cif_pairwise_by_dataset.csv": pairwise_by_dataset,
-        "paper_heterogeneity_cif_pairwise_breadth.csv": _build_pairwise_breadth(pairwise_by_dataset),
+        "paper_heterogeneity_cif_pairwise_breadth.csv": _build_pairwise_breadth(
+            pairwise_by_dataset
+        ),
     }
 
     for filename, frame in outputs.items():

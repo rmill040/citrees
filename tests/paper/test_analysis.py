@@ -6,33 +6,25 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from paper.scripts.analysis.analyze_synthetic_ground_truth import dataset_type_from_config
 from paper.scripts.analysis.benchmark_common import select_best_task_configs
+from paper.scripts.analysis.build_benchmark_package_tables import (
+    _build_benchmark_spread,
+    _build_complete_case_membership,
+    _build_config_selection_audit,
+    _build_fixed_panel_aggregate,
+    _build_fixed_panel_membership,
+    _build_pairwise_aggregate,
+)
 from paper.scripts.analysis.build_high_p_saturation_tables import (
     build_cif_best_observed_k_summary,
     build_delta_vs_endpoint_cells,
     build_endpoint_method_presence,
 )
 from paper.scripts.analysis.build_knob_ablation_summary_tables import build_knob_ablation_summary
-from paper.scripts.analysis.build_benchmark_package_tables import (
-    _build_benchmark_spread,
-    _build_config_selection_audit,
-    _build_complete_case_membership,
-    _build_fixed_panel_aggregate,
-    _build_fixed_panel_membership,
-)
 from paper.scripts.analysis.build_manuscript_summary_tables import (
     build_benchmark_presentation_summary,
     build_practical_controls_presentation_summary,
-)
-from paper.scripts.analysis.build_synthetic_topk_tables import (
-    _build_row_metrics as build_topk_row_metrics,
-)
-from paper.scripts.analysis.build_synthetic_topk_tables import (
-    _summarize_curve_over_k as summarize_topk_curve_over_k,
-)
-from paper.scripts.analysis.build_threshold_ablation_summary_tables import build_threshold_ablation_summary
-from paper.scripts.analysis.build_top_ranking_tables import (
-    _summarize_curve_over_k as summarize_top_ranking_curve_over_k,
 )
 from paper.scripts.analysis.build_mechanism_summary_tables import (
     FixedDesignSpec,
@@ -43,8 +35,22 @@ from paper.scripts.analysis.build_mechanism_summary_tables import (
     make_fixed_dataset,
     resolve_max_features_count,
 )
-from paper.scripts.analysis.run_mechanism_dimension_sweep_shard import _build_specs as build_mechanism_shard_specs
-from paper.scripts.analysis.analyze_synthetic_ground_truth import dataset_type_from_config
+from paper.scripts.analysis.build_synthetic_topk_tables import (
+    _build_row_metrics as build_topk_row_metrics,
+)
+from paper.scripts.analysis.build_synthetic_topk_tables import (
+    _summarize_curve_over_k as summarize_topk_curve_over_k,
+)
+from paper.scripts.analysis.build_threshold_ablation_summary_tables import (
+    build_threshold_ablation_summary,
+)
+from paper.scripts.analysis.build_top_ranking_tables import (
+    _summarize_curve_over_k as summarize_top_ranking_curve_over_k,
+)
+from paper.scripts.analysis.config_resolution import resolve_method_config_details
+from paper.scripts.analysis.run_mechanism_dimension_sweep_shard import (
+    _build_specs as build_mechanism_shard_specs,
+)
 from paper.scripts.analysis.stats import (
     bootstrap_ci,
     cohens_d,
@@ -53,7 +59,6 @@ from paper.scripts.analysis.stats import (
     interpret_cohens_d,
     pairwise_wilcoxon_holm,
 )
-from paper.scripts.analysis.config_resolution import resolve_method_config_details
 
 pytestmark = pytest.mark.paper
 
@@ -195,14 +200,62 @@ class TestBenchmarkCommon:
         """The benchmark spread surface should expose standard-k and pooled dispersion."""
         scores = pd.DataFrame(
             [
-                {"dataset": "d1", "downstream_model": "lr", "k": 5, "method_base": "cif", "dataset_mean_score": 0.8},
-                {"dataset": "d1", "downstream_model": "lr", "k": 5, "method_base": "rf", "dataset_mean_score": 0.6},
-                {"dataset": "d2", "downstream_model": "lr", "k": 5, "method_base": "cif", "dataset_mean_score": 0.7},
-                {"dataset": "d2", "downstream_model": "lr", "k": 5, "method_base": "rf", "dataset_mean_score": 0.5},
-                {"dataset": "d1", "downstream_model": "lr", "k": 10, "method_base": "cif", "dataset_mean_score": 0.9},
-                {"dataset": "d1", "downstream_model": "lr", "k": 10, "method_base": "rf", "dataset_mean_score": 0.4},
-                {"dataset": "d2", "downstream_model": "lr", "k": 10, "method_base": "cif", "dataset_mean_score": 0.8},
-                {"dataset": "d2", "downstream_model": "lr", "k": 10, "method_base": "rf", "dataset_mean_score": 0.3},
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "cif",
+                    "dataset_mean_score": 0.8,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "rf",
+                    "dataset_mean_score": 0.6,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "cif",
+                    "dataset_mean_score": 0.7,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "rf",
+                    "dataset_mean_score": 0.5,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "cif",
+                    "dataset_mean_score": 0.9,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "rf",
+                    "dataset_mean_score": 0.4,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "cif",
+                    "dataset_mean_score": 0.8,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "rf",
+                    "dataset_mean_score": 0.3,
+                },
             ]
         )
 
@@ -215,16 +268,119 @@ class TestBenchmarkCommon:
         assert pooled["n_dataset_downstream_cells"] == 4
         assert pooled["mean_range"] == pytest.approx(0.35)
 
+    def test_build_pairwise_aggregate_compares_all_methods_to_all_methods(self):
+        """The canonical pairwise benchmark surface should not be CIF-only."""
+        scores = pd.DataFrame(
+            [
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "cif",
+                    "dataset_mean_score": 0.80,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "cit",
+                    "dataset_mean_score": 0.70,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "dt",
+                    "dataset_mean_score": 0.75,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "cif",
+                    "dataset_mean_score": 0.60,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "cit",
+                    "dataset_mean_score": 0.65,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "dt",
+                    "dataset_mean_score": 0.55,
+                },
+            ]
+        )
+
+        pairwise = _build_pairwise_aggregate(scores, "classification")
+        pairs = set(zip(pairwise["focus_method"], pairwise["baseline"], strict=False))
+
+        assert pairs == {
+            ("cif", "cit"),
+            ("cif", "dt"),
+            ("cit", "cif"),
+            ("cit", "dt"),
+            ("dt", "cif"),
+            ("dt", "cit"),
+        }
+
     def test_build_config_selection_audit_reports_runner_up_gap(self):
         """Selected-config details should expose family grid size and runner-up separation."""
         df = pd.DataFrame(
             [
-                {"method_base": "cif", "method_id": "cif__a", "dataset": "d1", "downstream_model": "lr", "k": 5, "balanced_accuracy": 0.80},
-                {"method_base": "cif", "method_id": "cif__a", "dataset": "d2", "downstream_model": "lr", "k": 5, "balanced_accuracy": 0.70},
-                {"method_base": "cif", "method_id": "cif__b", "dataset": "d1", "downstream_model": "lr", "k": 5, "balanced_accuracy": 0.76},
-                {"method_base": "cif", "method_id": "cif__b", "dataset": "d2", "downstream_model": "lr", "k": 5, "balanced_accuracy": 0.75},
-                {"method_base": "rf", "method_id": "rf__a", "dataset": "d1", "downstream_model": "lr", "k": 5, "balanced_accuracy": 0.65},
-                {"method_base": "rf", "method_id": "rf__a", "dataset": "d2", "downstream_model": "lr", "k": 5, "balanced_accuracy": 0.66},
+                {
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "balanced_accuracy": 0.80,
+                },
+                {
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "balanced_accuracy": 0.70,
+                },
+                {
+                    "method_base": "cif",
+                    "method_id": "cif__b",
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "balanced_accuracy": 0.76,
+                },
+                {
+                    "method_base": "cif",
+                    "method_id": "cif__b",
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "balanced_accuracy": 0.75,
+                },
+                {
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "balanced_accuracy": 0.65,
+                },
+                {
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "balanced_accuracy": 0.66,
+                },
             ]
         )
 
@@ -274,56 +430,186 @@ class TestBenchmarkCommon:
         """Fixed-panel aggregate should report deltas relative to the headline surface."""
         scores = pd.DataFrame(
             [
-                {"downstream_model": "lr", "k": 5, "dataset": "d1", "method_base": "cif", "method_id": "cif__a", "dataset_mean_score": 0.9},
-                {"downstream_model": "lr", "k": 5, "dataset": "d1", "method_base": "rf", "method_id": "rf__a", "dataset_mean_score": 0.7},
-                {"downstream_model": "lr", "k": 5, "dataset": "d1", "method_base": "et", "method_id": "et__a", "dataset_mean_score": 0.6},
-                {"downstream_model": "lr", "k": 10, "dataset": "d1", "method_base": "cif", "method_id": "cif__a", "dataset_mean_score": 0.8},
-                {"downstream_model": "lr", "k": 10, "dataset": "d1", "method_base": "rf", "method_id": "rf__a", "dataset_mean_score": 0.6},
-                {"downstream_model": "lr", "k": 10, "dataset": "d1", "method_base": "et", "method_id": "et__a", "dataset_mean_score": 0.5},
-                {"downstream_model": "svm", "k": 5, "dataset": "d1", "method_base": "cif", "method_id": "cif__a", "dataset_mean_score": 0.85},
-                {"downstream_model": "svm", "k": 5, "dataset": "d1", "method_base": "rf", "method_id": "rf__a", "dataset_mean_score": 0.65},
-                {"downstream_model": "svm", "k": 5, "dataset": "d1", "method_base": "et", "method_id": "et__a", "dataset_mean_score": 0.55},
-                {"downstream_model": "svm", "k": 10, "dataset": "d1", "method_base": "cif", "method_id": "cif__a", "dataset_mean_score": 0.75},
-                {"downstream_model": "svm", "k": 10, "dataset": "d1", "method_base": "rf", "method_id": "rf__a", "dataset_mean_score": 0.55},
-                {"downstream_model": "svm", "k": 10, "dataset": "d1", "method_base": "et", "method_id": "et__a", "dataset_mean_score": 0.45},
-                {"downstream_model": "lr", "k": 5, "dataset": "d2", "method_base": "cif", "method_id": "cif__a", "dataset_mean_score": 0.6},
-                {"downstream_model": "lr", "k": 5, "dataset": "d2", "method_base": "rf", "method_id": "rf__a", "dataset_mean_score": 0.8},
-                {"downstream_model": "lr", "k": 5, "dataset": "d2", "method_base": "et", "method_id": "et__a", "dataset_mean_score": 0.7},
-                {"downstream_model": "lr", "k": 10, "dataset": "d2", "method_base": "cif", "method_id": "cif__a", "dataset_mean_score": 0.5},
-                {"downstream_model": "lr", "k": 10, "dataset": "d2", "method_base": "rf", "method_id": "rf__a", "dataset_mean_score": 0.7},
-                {"downstream_model": "lr", "k": 10, "dataset": "d2", "method_base": "et", "method_id": "et__a", "dataset_mean_score": 0.6},
+                {
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "dataset": "d1",
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset_mean_score": 0.9,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "dataset": "d1",
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset_mean_score": 0.7,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "dataset": "d1",
+                    "method_base": "et",
+                    "method_id": "et__a",
+                    "dataset_mean_score": 0.6,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "dataset": "d1",
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset_mean_score": 0.8,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "dataset": "d1",
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset_mean_score": 0.6,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "dataset": "d1",
+                    "method_base": "et",
+                    "method_id": "et__a",
+                    "dataset_mean_score": 0.5,
+                },
+                {
+                    "downstream_model": "svm",
+                    "k": 5,
+                    "dataset": "d1",
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset_mean_score": 0.85,
+                },
+                {
+                    "downstream_model": "svm",
+                    "k": 5,
+                    "dataset": "d1",
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset_mean_score": 0.65,
+                },
+                {
+                    "downstream_model": "svm",
+                    "k": 5,
+                    "dataset": "d1",
+                    "method_base": "et",
+                    "method_id": "et__a",
+                    "dataset_mean_score": 0.55,
+                },
+                {
+                    "downstream_model": "svm",
+                    "k": 10,
+                    "dataset": "d1",
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset_mean_score": 0.75,
+                },
+                {
+                    "downstream_model": "svm",
+                    "k": 10,
+                    "dataset": "d1",
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset_mean_score": 0.55,
+                },
+                {
+                    "downstream_model": "svm",
+                    "k": 10,
+                    "dataset": "d1",
+                    "method_base": "et",
+                    "method_id": "et__a",
+                    "dataset_mean_score": 0.45,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "dataset": "d2",
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset_mean_score": 0.6,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "dataset": "d2",
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset_mean_score": 0.8,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "dataset": "d2",
+                    "method_base": "et",
+                    "method_id": "et__a",
+                    "dataset_mean_score": 0.7,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "dataset": "d2",
+                    "method_base": "cif",
+                    "method_id": "cif__a",
+                    "dataset_mean_score": 0.5,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "dataset": "d2",
+                    "method_base": "rf",
+                    "method_id": "rf__a",
+                    "dataset_mean_score": 0.7,
+                },
+                {
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "dataset": "d2",
+                    "method_base": "et",
+                    "method_id": "et__a",
+                    "dataset_mean_score": 0.6,
+                },
             ]
         )
 
         headline_ranked = scores.copy()
-        headline_ranked["rank"] = headline_ranked.groupby(["downstream_model", "k", "dataset"])["dataset_mean_score"].rank(
+        headline_ranked["rank"] = headline_ranked.groupby(["downstream_model", "k", "dataset"])[
+            "dataset_mean_score"
+        ].rank(
             ascending=False,
             method="average",
         )
-        headline_by_dataset = (
-            headline_ranked.groupby(["dataset", "method_base", "method_id"], as_index=False)
-            .agg(
-                n_cells=("rank", "size"),
-                mean_rank=("rank", "mean"),
-                mean_score=("dataset_mean_score", "mean"),
-            )
+        headline_by_dataset = headline_ranked.groupby(
+            ["dataset", "method_base", "method_id"], as_index=False
+        ).agg(
+            n_cells=("rank", "size"),
+            mean_rank=("rank", "mean"),
+            mean_score=("dataset_mean_score", "mean"),
         )
-        headline_aggregate = (
-            headline_by_dataset.groupby(["method_base", "method_id"], as_index=False)
-            .agg(
-                n_datasets=("dataset", "nunique"),
-                mean_dataset_cells=("n_cells", "mean"),
-                mean_rank=("mean_rank", "mean"),
-                median_rank=("mean_rank", "median"),
-                mean_score=("mean_score", "mean"),
-            )
+        headline_aggregate = headline_by_dataset.groupby(
+            ["method_base", "method_id"], as_index=False
+        ).agg(
+            n_datasets=("dataset", "nunique"),
+            mean_dataset_cells=("n_cells", "mean"),
+            mean_rank=("mean_rank", "mean"),
+            median_rank=("mean_rank", "median"),
+            mean_score=("mean_score", "mean"),
         )
         headline_aggregate.insert(0, "task", "classification")
         headline_aggregate.insert(1, "metric", "balanced_accuracy")
         headline_aggregate["support_type"] = "dataset_mean_over_all_complete_case_downstream_k"
-        headline_aggregate["rank_position"] = headline_aggregate["mean_rank"].rank(ascending=True, method="average")
+        headline_aggregate["rank_position"] = headline_aggregate["mean_rank"].rank(
+            ascending=True, method="average"
+        )
 
-        _, fixed = _build_fixed_panel_aggregate(scores, "classification", "balanced_accuracy", headline_aggregate)
+        _, fixed = _build_fixed_panel_aggregate(
+            scores, "classification", "balanced_accuracy", headline_aggregate
+        )
         cif = fixed[fixed["method_base"] == "cif"].iloc[0]
 
         assert cif["n_datasets"] == 1
@@ -1365,36 +1651,148 @@ class TestPresentationSummaryTables:
         )
         pairwise = pd.DataFrame(
             [
-                {"task": "classification", "baseline": "r_ctree", "wins": 22, "mean_delta": 0.0876},
-                {"task": "classification", "baseline": "r_cforest", "wins": 19, "mean_delta": 0.0715},
-                {"task": "classification", "baseline": "cit", "wins": 21, "mean_delta": 0.0301},
-                {"task": "regression", "baseline": "r_ctree", "wins": 7, "mean_delta": 0.2265},
-                {"task": "regression", "baseline": "r_cforest", "wins": 7, "mean_delta": 0.7211},
-                {"task": "regression", "baseline": "cit", "wins": 6, "mean_delta": 0.3598},
+                {
+                    "task": "classification",
+                    "focus_method": "cif",
+                    "baseline": "r_ctree",
+                    "n_datasets": 22,
+                    "wins": 22,
+                    "mean_delta": 0.0876,
+                },
+                {
+                    "task": "classification",
+                    "focus_method": "cif",
+                    "baseline": "r_cforest",
+                    "n_datasets": 22,
+                    "wins": 19,
+                    "mean_delta": 0.0715,
+                },
+                {
+                    "task": "classification",
+                    "focus_method": "cif",
+                    "baseline": "cit",
+                    "n_datasets": 23,
+                    "wins": 21,
+                    "mean_delta": 0.0301,
+                },
+                {
+                    "task": "regression",
+                    "focus_method": "cif",
+                    "baseline": "r_ctree",
+                    "n_datasets": 8,
+                    "wins": 7,
+                    "mean_delta": 0.2265,
+                },
+                {
+                    "task": "regression",
+                    "focus_method": "cif",
+                    "baseline": "r_cforest",
+                    "n_datasets": 8,
+                    "wins": 7,
+                    "mean_delta": 0.7211,
+                },
+                {
+                    "task": "regression",
+                    "focus_method": "cif",
+                    "baseline": "cit",
+                    "n_datasets": 8,
+                    "wins": 6,
+                    "mean_delta": 0.3598,
+                },
             ]
         )
         membership = pd.DataFrame(
             [
-                {"task": "classification", "downstream_model": "lr", "k": 5, "dataset": "d1", "is_complete_case": True},
-                {"task": "classification", "downstream_model": "svm", "k": 5, "dataset": "d1", "is_complete_case": True},
-                {"task": "classification", "downstream_model": "lr", "k": 100, "dataset": "d1", "is_complete_case": True},
-                {"task": "classification", "downstream_model": "svm", "k": 100, "dataset": "d1", "is_complete_case": False},
-                {"task": "regression", "downstream_model": "ridge", "k": 5, "dataset": "r1", "is_complete_case": True},
-                {"task": "regression", "downstream_model": "svr", "k": 5, "dataset": "r1", "is_complete_case": True},
-                {"task": "regression", "downstream_model": "ridge", "k": 100, "dataset": "r1", "is_complete_case": True},
-                {"task": "regression", "downstream_model": "svr", "k": 100, "dataset": "r1", "is_complete_case": True},
+                {
+                    "task": "classification",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "dataset": "d1",
+                    "is_complete_case": True,
+                },
+                {
+                    "task": "classification",
+                    "downstream_model": "svm",
+                    "k": 5,
+                    "dataset": "d1",
+                    "is_complete_case": True,
+                },
+                {
+                    "task": "classification",
+                    "downstream_model": "lr",
+                    "k": 100,
+                    "dataset": "d1",
+                    "is_complete_case": True,
+                },
+                {
+                    "task": "classification",
+                    "downstream_model": "svm",
+                    "k": 100,
+                    "dataset": "d1",
+                    "is_complete_case": False,
+                },
+                {
+                    "task": "regression",
+                    "downstream_model": "ridge",
+                    "k": 5,
+                    "dataset": "r1",
+                    "is_complete_case": True,
+                },
+                {
+                    "task": "regression",
+                    "downstream_model": "svr",
+                    "k": 5,
+                    "dataset": "r1",
+                    "is_complete_case": True,
+                },
+                {
+                    "task": "regression",
+                    "downstream_model": "ridge",
+                    "k": 100,
+                    "dataset": "r1",
+                    "is_complete_case": True,
+                },
+                {
+                    "task": "regression",
+                    "downstream_model": "svr",
+                    "k": 100,
+                    "dataset": "r1",
+                    "is_complete_case": True,
+                },
             ]
         )
         spread = pd.DataFrame(
             [
-                {"task": "classification", "comparison_scope": "standard_k", "k": 5, "mean_range": 0.25},
-                {"task": "classification", "comparison_scope": "standard_k", "k": 100, "mean_range": 0.18},
-                {"task": "regression", "comparison_scope": "standard_k", "k": 5, "mean_range": 1.05},
-                {"task": "regression", "comparison_scope": "standard_k", "k": 100, "mean_range": 1.88},
+                {
+                    "task": "classification",
+                    "comparison_scope": "standard_k",
+                    "k": 5,
+                    "mean_range": 0.25,
+                },
+                {
+                    "task": "classification",
+                    "comparison_scope": "standard_k",
+                    "k": 100,
+                    "mean_range": 0.18,
+                },
+                {
+                    "task": "regression",
+                    "comparison_scope": "standard_k",
+                    "k": 5,
+                    "mean_range": 1.05,
+                },
+                {
+                    "task": "regression",
+                    "comparison_scope": "standard_k",
+                    "k": 100,
+                    "mean_range": 1.88,
+                },
             ]
         )
 
-        summary = build_benchmark_presentation_summary(aggregate, heterogeneity, pairwise, membership, spread)
+        summary = build_benchmark_presentation_summary(
+            aggregate, heterogeneity, pairwise, membership, spread
+        )
 
         clf = summary[summary["task"] == "classification"].iloc[0]
         reg = summary[summary["task"] == "regression"].iloc[0]
@@ -1416,7 +1814,7 @@ class TestPresentationSummaryTables:
                     "task": "classification",
                     "dataset_group": "synthetic",
                     "variant": "cif_no_adaptive",
-                    "elapsed_seconds_ratio": 6.2,
+                    "runtime_ratio_vs_default_median": 6.2,
                     "delta_downstream_score": -0.005,
                     "delta_precision_over_standard_k": -0.001,
                     "delta_max_depth": 2.0,
@@ -1426,7 +1824,7 @@ class TestPresentationSummaryTables:
                     "task": "regression",
                     "dataset_group": "real",
                     "variant": "cif_no_bonferroni",
-                    "elapsed_seconds_ratio": 0.02,
+                    "runtime_ratio_vs_default_median": 0.02,
                     "delta_downstream_score": 0.001,
                     "delta_precision_over_standard_k": pd.NA,
                     "delta_max_depth": 3.0,
@@ -1461,7 +1859,12 @@ class TestPresentationSummaryTables:
 
         summary = build_practical_controls_presentation_summary(mirrored, threshold)
 
-        assert set(summary["variant"]) == {"cif_no_adaptive", "cif_no_bonferroni", "histogram_32", "exact_all"}
+        assert set(summary["variant"]) == {
+            "cif_no_adaptive",
+            "cif_no_bonferroni",
+            "histogram_32",
+            "exact_all",
+        }
         adaptive = summary[summary["variant"] == "cif_no_adaptive"].iloc[0]
         exact = summary[summary["variant"] == "exact_all"].iloc[0]
         assert adaptive["family"] == "mirrored"

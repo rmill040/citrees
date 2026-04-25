@@ -2,15 +2,16 @@
 \label{sec:theory}
 
 The theorem studies the exhaustive fixed-$B$ Stage~A
-feature-selection rule at a fixed node. All probabilities below are
+feature selection rule at a fixed node. All probabilities below are
 conditional on $(X_t,U)$, where $U$ denotes any auxiliary randomness held fixed
 when conditioning.
 
-\begin{theorem}[$+1$ permutation p-values are super-uniform]
+\begin{theorem}[$+1$ permutation p-values are superuniform]
 \label{thm:plusone-superuniform}
-Assume A0.1--A0.5 from \cref{app:assumptions}, so that under the tested null the
+Assume A0.1 through A0.5 from \cref{app:assumptions}, so that under the nodewise
+complete permutation null at the fixed node $t$ the
 permutation statistics $(T_{\mathrm{obs}},T_1,\dots,T_B)$ are exchangeable conditional on
-$(X_t,U)$. Define the right-tail $+1$ Monte Carlo p-value
+$(X_t,U)$. Define the right tail $+1$ Monte Carlo p-value
 %
 \begin{equation}
   p_{\mathrm{MC}}^{\ge}
@@ -24,38 +25,42 @@ Then for every $\alpha \in [0,1]$,
 \end{equation}
 \end{theorem}
 
-This is the standard exchangeable-rank result for Monte Carlo permutation
+This is the standard exchangeable rank result for Monte Carlo permutation
 tests \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,Ernst2004PermutationMethodsExactInference,HemerikGoeman2018ExactTestingRandomPermutations}; \cref{app:permutation-exchangeability,app:proof-plusone} give the
-exchangeability statement and proof. The left-tail version follows by
+exchangeability statement and proof. The left tail version follows by
 applying the same result to $-T$.
 
-\begin{corollary}[Stage~A complete-null control at a fixed node]
+\begin{corollary}[Stage~A complete null control at a fixed node]
 \label{cor:stageA-global-null}
-Assume A0.1--A0.5 from \cref{app:assumptions}. Under the nodewise complete null
+Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise complete null
 at $t$, let Stage~A reject when
 %
 \begin{equation}
-  \min_{j \in F_t} p_{t,j} < \alpha_{\mathrm{sel}}/m_t.
+  \min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t.
 \end{equation}
+%
+The implementation's strict comparison defines a subset of this nonstrict
+rejection event, so it is no less conservative.
 %
 Then
 %
 \begin{equation}
-  \PP\!\left(\exists j \in F_t : p_{t,j} < \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right)
+  \PP\!\left(\exists j \in F_t : p_{t,j} \le \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right)
   \le \alpha_{\mathrm{sel}}.
 \end{equation}
 \end{corollary}
 
 This follows immediately from
-\cref{thm:plusone-superuniform}. It controls fixed-node Stage~A feature
-selection under the complete null. It does not cover partial-null FWER,
-post-selection calibration of $j_t^\star$, or end-to-end guarantees for the
-full adaptive learner.
+\cref{thm:plusone-superuniform}. It controls fixed node Stage~A feature
+selection under the complete null. Partial-null familywise error control,
+p-values for the selected feature, and guarantees for the full adaptive learner
+are separate inferential targets.
 
-\begin{remark}[Root-level implication]
+\begin{remark}[Root implication]
 \label{rem:root-null}
-If a fixed-$B$ tree has at least one internal split, then the root must have
-passed the Stage~A threshold. Under the complete root null,
+If a fixed-$B$ tree using the Bonferroni Stage~A threshold has at least one
+internal split, then the root must have passed the Stage~A threshold. Under the
+complete root null,
 \cref{cor:stageA-global-null} gives
 %
 \begin{equation}

@@ -1,261 +1,336 @@
 \section{Benchmark results and ablations}
 \label{sec:results}
 
-\subsection{Real-data benchmark}
+\subsection{Benchmark on Real Datasets}
 \label{sec:experiments-real}
 
-\Cref{tab:benchmark-summary} summarizes the real-data benchmark results.
+\Cref{tab:method-aggregate} reports the full method aggregate on real datasets. This
+is the broad feature selection comparison set used to evaluate the improved
+conditional inference rankings against filters, wrappers, single trees, forests,
+and boosted models. Lower mean rank is better.
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.08}
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcc lcc@{}}
+    \toprule
+    \multicolumn{3}{c}{Classification} &
+    \multicolumn{3}{c}{Regression} \\
+    \cmidrule(lr){1-3}\cmidrule(l){4-6}
+    Method & Mean rank & Bal. acc. & Method & Mean rank & $R^2$ \\
+    \midrule
+    LightGBM & 5.17 & 0.830 & ExtraTrees & 6.56 & 0.353 \\
+    XGBoost & 5.58 & 0.828 & CatBoost & 6.97 & 0.304 \\
+    CatBoost & 5.85 & 0.823 & CIF & 7.07 & 0.329 \\
+    CIF & 6.08 & 0.819 & RF & 8.09 & 0.327 \\
+    RF & 6.27 & 0.822 & RT & 8.37 & 0.330 \\
+    RFE & 6.98 & 0.818 & DT & 8.68 & 0.225 \\
+    ExtraTrees & 7.45 & 0.813 & LightGBM & 8.76 & -0.028 \\
+    DT & 7.67 & 0.804 & RDC filter & 8.83 & 0.104 \\
+    RT & 10.05 & 0.788 & CIT & 9.19 & -0.030 \\
+    CIT & 10.34 & 0.789 & PC filter & 9.35 & 0.207 \\
+    Boruta & 10.51 & 0.758 & DC filter & 9.77 & 0.126 \\
+    MC filter & 10.65 & 0.774 & XGBoost & 9.96 & 0.270 \\
+    PI & 10.76 & 0.751 & Boruta & 10.00 & 0.213 \\
+    cforest & 11.36 & 0.748 & PI & 10.19 & 0.105 \\
+    RDC filter & 12.29 & 0.749 & RFE & 10.41 & 0.214 \\
+    ctree & 12.86 & 0.732 & cforest & 12.20 & -0.392 \\
+    CPI & 13.13 & 0.689 & ctree & 12.99 & 0.103 \\
+    & & & CPI & 13.61 & -0.290 \\
+    \bottomrule
+  \end{tabular*}
+  \caption{Full benchmark aggregate on real datasets. Scores are averaged within
+  dataset over downstream models and standard numbers of selected features
+  before aggregating across datasets.}
+  \label{tab:method-aggregate}
+\end{table}
+
+CIF ranks 4th of 17 in classification and 3rd of 18 in regression. This puts
+the improved conditional inference forest among the stronger feature selection
+methods in the broad comparison, while still preserving the more targeted
+conditional inference comparison that motivates the paper.
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \renewcommand{\arraystretch}{1.08}
+  \begin{tabular}{@{}llccc@{}}
+    \toprule
+    Task & Compared with & Datasets & Mean diff. & W--L--T \\
+    \midrule
+    Classification & ctree & 22 & +0.088 & 22--0--0 \\
+    Classification & cforest & 22 & +0.072 & 19--3--0 \\
+    Classification & CIT & 23 & +0.032 & 22--1--0 \\
+    Regression & ctree & 8 & +0.226 & 7--1--0 \\
+    Regression & cforest & 8 & +0.721 & 7--1--0 \\
+    Regression & CIT & 8 & +0.360 & 6--2--0 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Matched CIF comparisons against conditional inference references.
+  Mean differences are CIF minus the compared method in balanced accuracy for
+  classification and $R^2$ for regression. Positive values favor CIF.
+  Regression differences can exceed CIF's mean $R^2$ when the compared method
+  has negative mean $R^2$.}
+  \label{tab:conditional-inference-comparisons}
+\end{table}
+
+On the classification benchmark with 14 datasets, the 95\% bootstrap intervals
+for the mean CIF differences, computed after averaging within each dataset, are
+[0.068, 0.154] for ctree,
+[0.067, 0.161] for cforest, and [0.023, 0.060] for CIT. On the same
+benchmark with 14 datasets, the Friedman test rejects equality of method ranks
+overall ($\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$).
+The chosen CIF configuration outperforms ctree,
+cforest, and CIT on this benchmark. The LODO check
+gives nearly the same result: CIF ranks 5th of 17 under the full benchmark
+configuration choice and 5th of 17 by mean held out rank, with the
+same CIF configuration reselected for all 14 held out datasets.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/k_trajectory.png}
+  \caption{Classification mean rank by number of selected features. Rows show
+  all 17 feature selection methods in the classification benchmark, averaged
+  across downstream models at each value of $k$. Lower ranks are better. The
+  parenthesized counts show the number of complete datasets at each $k$.}
+  \label{fig:k-trajectory}
+\end{figure}
+
+\Cref{fig:k-trajectory} shows the full classification rank trajectory instead
+of comparing CIF with a selected subset of methods. CIF is not strongest when
+models use only the first 5 or 10 ranked features, but its mean rank improves as
+they use larger selected feature sets. The results on the 22 classification
+datasets with matched comparisons against ctree and cforest therefore add
+information beyond the comparison restricted to 14 datasets with complete
+results.
+
+\FloatBarrier
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figures/benchmark_pairwise_sensitivity.png}
+  \caption{Classification sensitivity by downstream learner and number of
+  selected features. Cells show differences in balanced accuracy between CIF and
+  each compared method for
+  ctree, cforest, and CIT before averaging within datasets.
+  For each compared method, all 15 cells are positive.}
+  \label{fig:benchmark-pairwise-sensitivity}
+\end{figure}
+
+For those 22 classification datasets,
+\Cref{fig:benchmark-pairwise-sensitivity} reports differences between CIF and
+each compared method by downstream learner and number of selected features.
+CIF margins are positive for every compared method, learner, and value of $k$.
+The margin over CIT is smallest when downstream models use the first 5 or 10 ranked features and
+grows for larger selected feature sets, while the margins against ctree
+and cforest are already positive throughout and are usually largest
+from $k=25$ onward.
+
+Ranks by dataset align with the matched dataset comparisons. Across those 22
+classification datasets, CIF lands in the top half on 21 datasets and in the
+top 3 on 5, with positions ranging from 1st to tied 9th--10th. Against the
+historical references, it beats ctree and cforest on 22/22
+and 19/22 classification datasets, and it beats CIT on 22/23 datasets. The
+regression benchmark is smaller, with 8 datasets, but CIF ranks 3rd of 18
+overall, stays in the top half on 6 of 8 datasets, and beats ctree,
+cforest, and CIT on 7/8, 7/8, and 6/8 datasets.
+
+\subsection{Runtime ablations}
+\label{sec:results-practical}
+
+These comparisons change one setting at a time and compare runtime to the
+corresponding default method. All timing entries below are ratios: values above
+1 mean slower than the default, and values below 1 mean faster. CIT and CIF are
+reported separately because they have different measurements. The CIT timing run
+records fit/ranking time and synthetic top-10 recovery, but does not rerun
+downstream classifiers or regressors. The CIF ablations include both scores on
+real datasets and synthetic recovery summaries.
 
 \begin{table}[H]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \renewcommand{\arraystretch}{1.12}
-  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcccccccc@{}}
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}X c c@{}}
     \toprule
-    Benchmark & Datasets & CIF score &
-    \multicolumn{3}{c}{Mean delta vs. baseline} &
-    \multicolumn{3}{c}{Wins vs. baseline} \\
-    \cmidrule(lr){4-6}\cmidrule(l){7-9}
-    & & & \mbox{r\_ctree} & \mbox{r\_cforest} & CIT &
-    \mbox{r\_ctree} & \mbox{r\_cforest} & CIT \\
+    CIT change & Runtime ratio & Synthetic top-10 F1 change \\
     \midrule
-    Full classification & 22 & BA 0.819 & +0.088 & +0.072 & +0.030 &
-    22/22 & 19/22 & 21/22 \\
-    14-dataset classification & 14 & BA 0.798 & +0.109 & +0.111 & +0.041 &
-    14/14 & 13/14 & 13/14 \\
-    Regression & 8 & $R^2$ 0.329 & +0.226 & +0.721 & +0.360 &
-    7/8 & 7/8 & 6/8 \\
+    Disable adaptive stopping & 0.18--1.14$\times$ & $\le 0.026$ \\
+    Exact threshold search & 0.98--2.51$\times$ & $\le 0.008$ \\
+    Disable feature scanning & 0.69--1.46$\times$ & $\le 0.017$ \\
     \bottomrule
-  \end{tabular*}
-  \caption{Real-data benchmark summary. Deltas are CIF minus baseline in
-  balanced accuracy for classification and $R^2$ for regression. Positive
-  deltas favor CIF.}
-  \label{tab:benchmark-summary}
+  \end{tabularx}
+  \caption{CIT runtime ablations. Runtime ratios are paired by seed and dataset
+  against the default CIT setting and summarized across the real and synthetic
+  classification and regression runs. Synthetic top-10 F1 changes are absolute
+  changes on datasets with known informative features. Values are rounded for
+  display.}
+  \label{tab:cit-runtime-controls}
 \end{table}
 
-On the 14-dataset classification benchmark, the paired
-95\% bootstrap intervals for the
-mean CIF-minus-baseline deltas are [0.068, 0.154] for \mbox{r\_ctree},
-[0.067, 0.161] for \mbox{r\_cforest}, and [0.023, 0.060] for CIT. This
-same 14-dataset benchmark also favors CIF overall
-($\chi^2(14)=125.73$, $p<0.001$, Kendall's $W=0.64$).
-CIF consistently outperforms the
-conditional-inference baselines on this benchmark. Under the same 14-dataset classification
-aggregation, leave-one-dataset-out reselection moves CIF only from 5th of 15 to
-tied 5th--6th of 15 methods and reselects the same CIF configuration on all 14
-held-out datasets, indicating that the main classification result is not an
-artifact of a single global CIF configuration choice.
+\paragraph{CIT timing.}
+\Cref{tab:cit-runtime-controls} shows that the CIT timing effects are mixed.
+Disabling adaptive stopping is faster in the synthetic runs but not consistently
+faster on real datasets, where the median ratios span both sides of 1. Exact
+threshold search is sometimes slower and sometimes close to the default. Feature
+scanning also does not give a clean runtime and recovery tradeoff. Because this run
+did not refit downstream models, these rows should be read as timing and
+synthetic recovery evidence, not as downstream performance evidence.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/k_trajectory.png}
-  \caption{CIF mean-rank trajectory across feature budgets on the
-  classification benchmark. Rank improves as $k$ grows into the intermediate
-  budgets, while complete-case support shrinks from 22 datasets at $k{=}5$ to 14
-  at $k{=}100$.}
-  \label{fig:k-trajectory}
-\end{figure}
-
-\Cref{fig:k-trajectory} shows how CIF's mean rank changes with feature budget. CIF is
-not strongest at the smallest budgets; its mean rank improves as the budget expands
-toward the intermediate budgets. The full classification benchmark complements the
-14-dataset benchmark by showing that CIF benefits from moving beyond the smallest
-budgets.
-
-\FloatBarrier
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/benchmark_pairwise_sensitivity.png}
-  \caption{Classification downstream-model $\times$ $k$ sensitivity for CIF
-  against the historical conditional-inference references and CIT. Each cell
-  is the mean CIF-minus-baseline balanced-accuracy delta for one
-  downstream-model and feature-budget combination before within-dataset
-  pooling. All 15 classification cells are positive.}
-  \label{fig:benchmark-pairwise-sensitivity}
-\end{figure}
-
-\Cref{fig:benchmark-pairwise-sensitivity} breaks the full classification
-benchmark out by downstream model and feature budget for the three historical
-conditional-inference references. CIF is
-positive against \mbox{r\_ctree}, \mbox{r\_cforest}, and CIT in all 15
-classification downstream-model $\times$ $k$ cells. The CIF-versus-CIT margin
-is small at $k \in \{5,10\}$ and grows at the intermediate budgets, while the
-CIF-versus-\mbox{r\_ctree} and CIF-versus-\mbox{r\_cforest} margins are
-already positive throughout and are usually largest from $k=25$ onward. This
-is the main evidence behind the pooled classification benchmark summary.
-
-CIF's dataset-level positions remain broad and stable. On the full
-classification benchmark, CIF lands in the top
-half on 21 of 22 datasets and in the top 3 on 7 of 22, with per-dataset
-positions ranging from 1st to tied 8th--9th. On regression, it stays in the
-top half on all 8 datasets and in the top 3 on 2 of 8, ranging from 1st to
-8th. These breadth summaries match the pairwise picture: CIF beats
-\mbox{r\_ctree}, \mbox{r\_cforest}, and CIT on 22/22, 19/22, and 21/22
-classification datasets and on 7/8, 7/8, and 6/8 regression datasets.
-
-\paragraph{Regression benchmark.}
-On the regression benchmark, CIF is 2nd of 16 overall, stays in the top half on
-all 8 datasets, and outperforms the historical conditional-inference baselines
-and CIT. This smaller benchmark supports the same overall direction as the
-classification results, but on a thinner evidence base.
-
-\subsection{CIF hyperparameter ablations}
-\label{sec:results-practical}
-
-These comparisons change one CIF hyperparameter at a time to show how each
-choice affects runtime and scores. Adaptive stopping and histogram
-thresholding have the largest effect on runtime. Once adaptive stopping is
-enabled, feature scanning adds only a modest further gain. We vary adaptive
-stopping, histogram thresholding, feature scanning, Bonferroni correction,
-threshold scanning, muting, and bootstrap in matched CIF-only comparisons.
-These ablations compare CIF against itself rather than rerun the full
-benchmark.
+\paragraph{CIF timing and quality.}
+The CIF ablation table combines timing ratios with score changes on real
+datasets and synthetic recovery changes.
 
 \begin{table}[H]
   \centering
-  \small
+  \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{0.34\linewidth} >{\raggedright\arraybackslash}p{0.16\linewidth} >{\raggedright\arraybackslash}p{0.17\linewidth} >{\raggedright\arraybackslash}X@{}}
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}X c c c@{}}
     \toprule
-    Ablation & Slowdown & Max score change & Max recovery change \\
+    CIF change & Runtime ratio & Real dataset score change & Synthetic recovery change \\
     \midrule
-    Disable adaptive stopping &
-    5.1--11.7$\times$ &
-    $\le 0.0051$ &
-    $\le 0.0052$ \\
-    Histogram-256 $\rightarrow$ exact threshold search &
-    1.9--10.6$\times$ &
-    $\le 0.010$ &
-    $\le 0.017$ \\
-    Disable feature scanning &
-    1.02--1.22$\times$ &
-    $\le 0.0055$ &
-    $\le 0.0095$ \\
+    Disable adaptive stopping & 4.0--8.4$\times$ & $\le 0.006$ & $\le 0.005$ \\
+    Histogram-256 $\rightarrow$ exact threshold search & 1.9--10.8$\times$ & $\le 0.011$ & $\le 0.017$ \\
+    Disable feature scanning & 0.89--1.83$\times$ & $\le 0.006$ & $\le 0.010$ \\
     \bottomrule
   \end{tabularx}
-  \caption{Main CIF hyperparameter ablations. Slowdowns are relative to the
-  default CIF setting. Score changes use downstream balanced accuracy or
-  $R^2$. Recovery changes use synthetic informative-feature recovery. Each
-  change is the largest absolute difference seen when one CIF hyperparameter
-  is changed and the rest of the setup is kept the same.}
-  \label{tab:practical-controls}
+  \caption{CIF runtime and quality ablations. Runtime ratios are medians of
+  ratios computed within each dataset against the default CIF setting. Real
+  dataset score changes are balanced accuracy changes for classification and
+  $R^2$ changes for regression. Synthetic recovery changes use mean
+  informative feature precision over the standard numbers of selected features.
+  Values are rounded for display.}
+  \label{tab:cif-runtime-controls}
 \end{table}
 
-Numerically, disabling adaptive stopping is 5.1--11.7$\times$ slower with
-near-zero downstream score change. Replacing histogram-256 with exact
-threshold search is 1.9--10.6$\times$ slower with similarly small downstream
-score changes. With adaptive stopping held fixed, removing feature scanning is
-1.02--1.22$\times$ slower across the matched datasets, while downstream score
-changes stay between about $-0.0055$ and $+0.0006$. Removing Bonferroni correction speeds up CIF
-but makes trees much deeper. The other ablations are less
-consistent. Removing threshold scanning changes runtime by
-0.69--1.07$\times$. Its downstream score changes are small. Muting has
-almost no effect on runtime: 0.97--1.00$\times$. Its downstream
-score changes are negligible. Removing bootstrap changes depth and feature use
-without a consistent speed change. Runtime ranges from 0.89--1.36$\times$, and downstream
-score changes are mixed. A smaller histogram budget can reduce runtime further.
-The histogram-256 default remains much faster than exact threshold search.
+\Cref{tab:cif-runtime-controls} shows a cleaner practical pattern for CIF.
+Adaptive stopping is the main runtime control: disabling it makes fits
+4.0--8.4$\times$ slower by the median ratio across datasets, while downstream
+score and synthetic recovery changes remain small. Exact threshold search is
+also slower than histogram-256, with ratios from 1.9--10.8$\times$. Feature
+scanning is not a large standalone speed lever once adaptive stopping is
+enabled.
+Removing Bonferroni correction is faster for both CIT and CIF, but it changes
+the statistical rule and grows broader trees, so it is a boundary diagnostic
+rather than a practical recommendation.
 
-\section{Where CIF Weakens}
+\section{High dimensional and synthetic limits}
 \label{sec:boundary}
 
-The additional analyses identify three patterns. On the high-$p$ classification
-datasets,
-CIF often performs best at intermediate feature budgets. Its selected top-$k$
-sets are stronger than its single top-ranked feature, and it weakens when
-forest subsampling keeps informative features out of the candidate set too often.
+We next check three boundary cases: where CIF scores peak in high-$p$ data,
+whether synthetic recovery improves beyond the first ranked feature, and how
+sampling candidate features inside the forest affects informative split
+selection.
 
-\paragraph{High-$p$ real-data results.}
+\paragraph{High-$p$ results on real datasets.}
 Across the 15 classification datasets with more than 100 features, CIF first
 reaches its best score between 100 and $p$ in 30 of 45 dataset and model
-combinations. Only 5 of 45 first do so at $k{=}p$. \Cref{fig:high-p-boundary}
-makes the classification boundary explicit by downstream learner. Intermediate
-budgets dominate for all three downstream models: 11 of 15 LR cells, 9 of 15
-SVM cells, and 10 of 15 KNN cells first reach their best score at
-$100 < k < p$. Endpoint budgets are mainly an LR exception. For LR, moving
-from $k{=}100$ to $k{=}p$ improves CIF on average by $+0.022$ and the endpoint
-matches the best observed score in 6 of 15 cells. For SVM and KNN, the
-corresponding mean changes are $-0.058$ and $-0.075$, and the endpoint is best
-in only 1 of 15 cells each.
+combinations. The first best score occurs at $k{=}p$ in only 5 of those 45
+combinations. \Cref{fig:high-p-boundary}
+shows this pattern separately by downstream learner. Scores most often peak at
+intermediate values of $k$: 11 of 15 LR cells, 9 of 15 SVM cells, and 10 of 15
+KNN cells first reach their best score at $100 < k < p$. The full feature set
+$k=p$ is mainly an LR exception. For LR, moving from $k{=}100$ to $k{=}p$
+improves CIF on average by $+0.022$, and $k=p$ matches the best observed score
+in 6 of 15 cells. For SVM and KNN, the corresponding mean changes are
+$-0.058$ and $-0.075$, and $k=p$ is best in only 1 of 15 cells each.
 
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/high_p_boundary_summary.png}
   \caption{Classification high-$p$ boundary for CIF by downstream learner.
-  Left: share of high-$p$ classification cells where the first best observed
-  CIF budget falls below 100, at 100, between 100 and $p$, or at the endpoint.
-  Right: mean balanced-accuracy change from $k{=}100$ to $k{=}p$.}
+  Each cell is one high-$p$ classification dataset and one downstream model.
+  (A) Share of cells where the first evaluated $k$ attaining the best
+  observed CIF score falls below 100, at 100, between 100 and $p$, or at
+  $k{=}p$. (B) Mean balanced accuracy change from $k{=}100$ to $k{=}p$.}
   \label{fig:high-p-boundary}
 \end{figure}
 
 The regression results are smaller and less favorable. Across the 6
 regression datasets with more than 100 features, 11 of 18 dataset and model
-combinations peak at or below $k{=}100$, only 2 peak at the endpoint, and the
-mean endpoint-minus-$k{=}100$ score change is $-0.308$. Using all features is
-therefore usually not helpful, and the endpoint exception is mainly a
-classification-LR phenomenon rather than a general CIF pattern.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/synthetic_topk_focus_curves.png}
-  \caption{Synthetic top-$k$ composition curves for CIF, CIT, RF, and ET on the
-  classification and regression synthetic datasets. As $k$ grows, the share of informative features falls
-  and the share of pure-noise features rises. On redundant datasets, CIF still selects
-  signal or redundant features rather than pure noise.}
-  \label{fig:synthetic-topk-curves}
-\end{figure}
+combinations peak at or below $k{=}100$, only 2 peak at $k=p$, and the mean
+$k{=}p$ minus $k{=}100$ score change is $-0.308$. Using all features is
+therefore usually not helpful, and the $k=p$ exception is mainly a
+classification LR phenomenon rather than a general CIF pattern.
 
 \paragraph{Synthetic feature recovery.}
-Across the classification synthetic datasets, CIF ranks 8th of 15 by the share
+Across the classification synthetic datasets, CIF ranks 8th of 17 by the share
 of informative features selected. Its top-1 hit rate is 0.64, which places it
-tied 11th--12th of 15 by top-1 hit rate. CIF is better at building a useful top-$k$ set than
-at finding the exact top-ranked feature. \Cref{tab:synthetic-head}
+12th of 17 by top-1 hit rate. CIF is therefore stronger at enriching the
+selected top-$k$ feature set with informative features than at placing an
+informative feature first.
+\Cref{tab:synthetic-head}
 summarizes this contrast, and \Cref{fig:synthetic-topk-curves}
 shows how the selected set changes as $k$ grows. The share of
 informative features in the selected set falls as $k$ grows. On the redundant classification synthetic datasets, 83\% of the selected
-features are still signal or redundant rather than pure noise.
+features are still signal variables or redundant proxies rather than noise
+features.
 
-\begin{table}[t]
+\begin{table}[H]
   \centering
   \small
-  \setlength{\tabcolsep}{8pt}
-  \begin{tabular}{@{}l r r l@{}}
+  \setlength{\tabcolsep}{14pt}
+  \begin{tabular}{@{}lcc@{}}
     \toprule
-    Task & Mean informative-share rank & Top-1 hit rate & Top-1 hit-rate rank \\
+    Metric & Classification & Regression \\
     \midrule
-    Classification & 8 of 15 & 0.64 & tied 11--12 of 15 \\
-    Regression & 10 of 16 & 0.81 & 13 of 16 \\
+    Mean informative share rank & 8/17 & 10/18 \\
+    Top-1 hit rate & 0.64 & 0.81 \\
+    Top-1 hit rate rank & 12/17 & 15/18 \\
     \bottomrule
   \end{tabular}
-  \caption{Synthetic feature-recovery summary for CIF. The informative-share
+  \caption{Synthetic feature recovery summary for CIF. The informative share
   rank orders methods by the mean share of true informative features selected
   over $k = 5, 10, 25, 50$, and $100$. The top-1 hit rate is the fraction of
-  synthetic runs where the first-ranked feature is truly informative.}
+  synthetic runs where the first ranked feature is truly informative.}
   \label{tab:synthetic-head}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figures/synthetic_topk_focus_curves.png}
+  \caption{Synthetic top-$k$ recovery curves by method family. The single tree
+  panels compare CIT with DT and RT; the forest panels compare CIF with RF and
+  ExtraTrees; the boosted tree panels compare CIF with XGBoost, LightGBM, and
+  CatBoost. Panels show the share of selected top-$k$ features that are
+  informative; higher values are better.}
+  \label{fig:synthetic-topk-curves}
+\end{figure}
+
+\FloatBarrier
+
+\paragraph{Candidate feature sampling limit.}
+This simulation asks whether the forest step that samples candidate features,
+rather than Stage~A itself, explains missed informative splits.
+\Cref{fig:mechanism-forest-counts} shows one sparse classification design where
+default CIF samples candidate features and the CIF variant with all features
+available makes every feature available at each split.
+
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
-  \caption{Feature-count distribution in the forest on the fixed sparse
-  classification design with $n{=}250$, $p{=}1000$, two informative features,
-  and 1000 trees. Default CIF spreads splits over many false features,
-  while \texttt{cif\_all} recovers the informative pair more cleanly.}
+  \caption{Feature use counts in the forest on the fixed sparse
+  classification design with $n{=}250$, $p{=}1{,}000$, two informative features,
+  and 1,000 trees. Each count is the number of internal splits using a feature.
+  Default CIF samples candidate features; the CIF variant with all features
+  available makes all features available at each split. Vertical scales differ
+  by panel.}
   \label{fig:mechanism-forest-counts}
 \end{figure}
 
-\paragraph{Candidate-set exposure.}
-The simulation study helps explain this limit. In single trees, CIT selects
-informative splits at rates of 1.000 on classification and 0.935 on regression. Stage~A works well when
-all features are available. Most of the loss in informative-split selection appears after forest subsampling. On
-the 1000-tree classification simulations, default CIF selects informative splits 33.2\%
-of the time, while \texttt{cif\_all} reaches 91.7\%, RF reaches 8.4\%, and ET reaches 6.5\%.
-Default CIF also uses an average of 265 distinct false features, versus 93 for
-\texttt{cif\_all}. In regression,
-\texttt{cif\_all} selects informative splits 42.3\% of the time, versus 27.8\%
-for default CIF. It also uses more distinct false features:
-528.8 versus 367.7. Conditional-inference feature selection works when
-informative features enter the candidate set often enough. In sparse high-$p$ settings,
-forest subsampling can leave them out of the candidate set too often at a node.
+In single trees, CIT selects informative splits at rates of 1.000 on
+classification and 0.935 on regression. This indicates that Stage~A can identify
+informative features when all features are available. The drop appears after
+the forest samples candidate features. On the classification simulations with
+1,000 trees, default CIF selects informative splits 33.2\% of the time, while
+CIF with all features available reaches 91.7\%, RF reaches 8.4\%, and ET reaches 6.5\%. Default CIF
+also uses an average of 265 distinct uninformative features, versus 93 for
+the CIF variant with all features available. In regression,
+the CIF variant with all features available selects informative splits 42.3\% of the time, versus 27.8\% for
+default CIF. It also uses more distinct uninformative features: 528.8 versus
+367.7. These results suggest that conditional inference feature selection is
+most reliable when informative features are included among the candidate split
+features often enough. In sparse high-$p$ settings, sampling candidate features
+inside the forest can leave them out too often at a node.

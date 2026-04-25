@@ -1,58 +1,91 @@
 \section{Algorithmic framework}
 \label{sec:method}
 
-Conditional inference trees (CIT) and CIF use the same nodewise procedure.
-Stage~A performs feature
-selection, and Stage~B optimizes a threshold within the selected feature. The
-theory studies the exhaustive fixed-$B$ Stage~A rule at a fixed node. The
-recursive learner keeps that structure. It adds practical controls for
-adaptive stopping, feature and threshold scanning when sequential stopping is
-active, histogram thresholding, feature subsampling, and forest aggregation.
+At each internal node, conditional inference trees make two decisions. Stage~A
+tests candidate features for association with the response and chooses a feature
+to split. Stage~B then searches thresholds only for that selected feature and
+either returns a valid split or makes the node terminal. In this paper, CIT
+denotes the resulting single-tree feature selection method. CIF denotes a
+bootstrap ensemble of such trees with candidate feature sampling at each node
+and feature rankings formed by aggregating split importances across trees. The
+CIF-all variant is used only as a diagnostic control in the mechanism study: it
+disables candidate feature sampling so every nonconstant available feature can
+enter Stage~A at each node.
 
 \subsection{Stage~A and Stage~B}
 \label{sec:stageA-stageB}
 
-Consider a node $t$ with data $(X_t,Y_t)$ and tested feature set
-$F_t \subseteq \{1,\dots,p\}$ of size $m_t$ after constant-feature removal and
-any \texttt{max\_features} subsampling.
+Consider a node $t$ with data $(X_t,Y_t)$. Let
+$F_{t,\mathrm{avail}}$ be the features available when the node is reached,
+including any feature-muting decisions inherited from ancestors. Let
+$F_{t,\mathrm{nonconst}} \subseteq F_{t,\mathrm{avail}}$ be the features that
+are nonconstant on the node samples. The tested set
+$F_t \subseteq F_{t,\mathrm{nonconst}}$ is the set remaining after any
+\texttt{max\_features} subsampling, and $m_t=|F_t|$ is the Stage~A Bonferroni
+denominator. The examined set $E_t \subseteq F_t$ is the subset whose tests are
+actually evaluated by the implemented learner. In the exhaustive fixed-$B$
+reference procedure, $E_t=F_t$.
 
 \paragraph{Stage~A (feature selection).}
-In the exhaustive fixed-$B$ setting, following the conditional-inference test
-construction of \citet{Hothorn2006UnbiasedRecursivePartitioning} and its
-permutation-statistic foundation \citep{StrasserWeber1999PermutationStatistics},
-Stage~A computes a selector statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and
-permutation p-value $p_{t,j}$ for every feature $j \in F_t$, then selects
+In the exhaustive fixed-$B$ setting, Stage~A follows the conditional inference
+tests of \citet{Hothorn2006UnbiasedRecursivePartitioning} and uses the
+permutation statistics of \citet{StrasserWeber1999PermutationStatistics}. It computes a selector
+statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and permutation p-value $p_{t,j}$
+for every feature $j \in F_t$, then selects
 %
 \begin{equation}
-  j_t^{\star,\mathrm{ref}} := \uargmin_{j \in F_t} p_{t,j},
-  \qquad
   p_t^{\star,\mathrm{ref}} := \min_{j \in F_t} p_{t,j},
+  \qquad
+  M_t^\star := \{j \in F_t : p_{t,j}=p_t^{\star,\mathrm{ref}}\}.
 \end{equation}
 %
-where $\uargmin$ breaks ties uniformly using reservoir sampling. The
-procedure enters Stage~B once the Stage~A threshold is passed, either at
-$\alpha_{\mathrm{sel}}$ or at $\alpha_{\mathrm{sel}}/m_t$ when Bonferroni is
-enabled. In the recursive learner, Stage~A may inspect only part of the feature
-set and may stop early. The stored Stage~A quantity is the best
-score $s_t^\star$ found among the examined features. Only the
-fixed-node exhaustive quantity $p_t^{\star,\mathrm{ref}}$ has the
-calibrated permutation meaning proved in \cref{sec:theory}.
+Let $\tau_t=\alpha_{\mathrm{sel}}/m_t$ when Bonferroni is enabled and
+$\tau_t=\alpha_{\mathrm{sel}}$ otherwise. If
+$p_t^{\star,\mathrm{ref}} \ge \tau_t$, Stage~A returns no feature and the node
+becomes terminal. If $p_t^{\star,\mathrm{ref}} < \tau_t$, the selected feature
+$j_t^{\star,\mathrm{ref}}$ is drawn uniformly from $M_t^\star$ using reservoir
+sampling and the procedure enters Stage~B.
+
+The implemented learner uses the same Stage~A decision structure but may scan
+features into a promising order and may stop after examining only $E_t$. It
+stores the best score $s_t^\star$ found among the examined features. Those
+early-stopped stored values are algorithmic quantities, not the exhaustive
+fixed-$B$ p-values covered by \cref{thm:plusone-superuniform}. Under the
+reference procedure and Bonferroni correction,
+$\min(1,m_t p_t^{\star,\mathrm{ref}})$ is a conservative complete-null
+p-value for the fixed-node Stage~A test. When feature muting is enabled,
+nonsignificant Stage~A features can also be removed from descendant candidate
+sets; otherwise, apart from deterministic constant-feature pruning,
+$F'_{\mathrm{avail}}=F_{t,\mathrm{avail}}$.
 
 \paragraph{Stage~B (threshold search).}
-Given the selected feature $j_t^\star$, the procedure constructs a finite
-threshold set $C_{t,j_t^\star}$ and evaluates split scores over those
-thresholds. When permutation testing is enabled for Stage~B, the tested
-statistic at threshold $c$ is the unweighted sum of child impurities
-$\mathrm{Imp}(Y_t^L(c)) + \mathrm{Imp}(Y_t^R(c))$, used in a left-tail test.
-The deterministic split-search pass over that threshold set and the
-final \texttt{min\_impurity\_decrease} check instead use the usual weighted
-impurity decrease. Because the same labels determine both the feature and threshold
-choices, the returned split statistic
-$s_t^{\mathrm{split}}$ is a split score, not a calibrated
-post-selection p-value.
+Given a selected feature $j_t^\star$, Stage~B first constructs candidate
+thresholds from midpoints between ordered unique values of $X_{t,j_t^\star}$.
+The exact method uses all such midpoints; the random, percentile, and histogram
+methods choose bounded subsets of that midpoint set, with a full-midpoint
+fallback on very small node supports. Candidates that would violate
+\texttt{min\_samples\_leaf} are filtered out. If no candidate remains, Stage~B
+returns no split.
+
+For the remaining finite threshold set $C_{t,j_t^\star}$, Stage~B selects the
+best threshold over the candidates. When permutation testing is enabled, the
+tested statistic at threshold $c$ is the unweighted sum of child impurities
+$\mathrm{Imp}(Y_t^L(c)) + \mathrm{Imp}(Y_t^R(c))$, where $\mathrm{Imp}$ is the
+chosen node impurity measure. This statistic is used in a left-tail test, and
+the chosen threshold is the candidate with the smallest Stage~B p-value, with
+uniform tie breaking. Let
+$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
+Bonferroni is enabled for Stage~B and
+$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. If the best
+Stage~B p-value is at least $\tau_t^{\mathrm{split}}$, the node becomes
+terminal. When Stage~B permutation testing is disabled, the chosen threshold
+minimizes the usual weighted child impurity. The final
+\texttt{min\_impurity\_decrease} check also uses weighted impurity decrease.
+Stage~B therefore chooses a split for the algorithm; it is not used here as a
+post-selection inference claim.
 
 \begin{algorithm}[t]
-  \caption{Conditional inference tree training (Stage~A $\rightarrow$ Stage~B)}
+  \caption{Conditional inference tree training skeleton (Stage~A $\rightarrow$ Stage~B)}
   \label{alg:citree}
   \begin{algorithmic}[1]
     \Require Training data $(X,Y)$, hyperparameters $\theta$
@@ -87,7 +120,7 @@ post-selection p-value.
 \label{sec:plusone}
 
 Let $T_{\mathrm{obs}}$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
-computed on $B$ random label permutations. For a right-tail test we use the
+computed on $B$ random label permutations. For a right tail test we use the
 Phipson--Smyth $+1$ p-value
 \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues}
 %
@@ -95,35 +128,64 @@ Phipson--Smyth $+1$ p-value
   p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
 \end{equation}
 %
-For a left-tail test we analogously define
+For a left tail test we analogously define
 %
 \begin{equation}
   p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_{\mathrm{obs}}\}}{B+1}.
 \end{equation}
 %
-Stage~A uses the right-tail convention and Stage~B the left-tail convention;
+Stage~A uses the right tail convention and Stage~B the left tail convention;
 ties count as exceedances in both cases.
 
-\subsection{Forests and practical controls}
+\subsection{Forests and runtime controls}
 \label{sec:bootstrap}
 
-CIF aggregates bootstrap trees and averages their predictions. These forests
-reuse the same Stage~A feature-selection rule outside the fixed-node theorem
-setting \citep{Breiman2001RandomForests,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles}. In the benchmark, the conditional-inference methods keep Bonferroni
-correction, adaptive stopping, feature muting, and histogram thresholding
-fixed. Feature and threshold scanning remain on when early stopping is active
-to rank features and thresholds. Choice of selector, honesty, resampling mode,
-and whether the method is a tree or forest vary across methods.
+CIF aggregates bootstrap trees and averages their predictions. For feature
+selection, it sums each fitted tree's normalized split importances and
+renormalizes the forest vector. CIF applies the same Stage~A and Stage~B rules
+node by node, while the formal guarantee isolates a single fixed-node Stage~A
+test
+\citep{Breiman2001RandomForests,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles}.
+In the benchmark, the conditional inference methods keep Bonferroni correction,
+adaptive stopping, feature muting, and histogram thresholding fixed. Choice of
+selector, honesty, resampling mode, and whether the method is a tree or forest
+vary across methods.
 
-Runtime is governed by four per-node counts: features tested in Stage~A,
-thresholds generated in Stage~B, permutations evaluated before early
-termination, and features carried into the node. In within-CIF ablations on the
-collected setup, adaptive stopping and histogram thresholding provide the two
-main speedups, acting on different parts of the computation. Adaptive stopping cuts the number of permutations
-evaluated for each p-value
+Runtime is governed by realized counts at each node: features tested in
+Stage~A, thresholds generated and retained in Stage~B, permutations evaluated
+before termination, and features carried into the node. Adaptive stopping
+changes the number of permutations evaluated for each test
 \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
-Histogram thresholding is a Stage~B approximation that shrinks the candidate
-threshold set itself, replacing exhaustive cutpoints with binned thresholds.
-Feature and threshold scanning only help by changing the testing order under
-early stopping. \cref{app:complexity-details} gives the
-implementation-level complexity formulas.
+Histogram thresholding changes the Stage~B threshold-set size by replacing
+exhaustive cutpoints with binned thresholds. Feature and threshold scanning
+change only the order in which candidates are examined under early stopping.
+Feature muting can reduce the candidate set inherited by descendants.
+\Cref{app:complexity-details} gives the implementation complexity formulas,
+and \cref{sec:results-practical} reports the measured runtime effects.
+
+\subsection{Feature rankings}
+\label{sec:feature-rankings}
+
+The experiments evaluate each method through the ranking it produces on the
+training fold. CIT and CIF rankings are fitted split-importance rankings, not
+rankings of Stage~A p-values. For a fitted CIT, feature $j$ receives the sum of
+the weighted impurity decreases from internal nodes that split on $j$; the
+vector is normalized to sum to one when the sum is positive. CIF sums these tree
+importance vectors over trees and then normalizes the forest vector in the same
+way. This ranking is compatible with the conditional-inference setup because
+Stage~A gates feature entry before threshold optimization, while weighted
+impurity decrease weights accepted splits by effect size and node support.
+Larger importances are ranked earlier, and features never used by a split
+receive zero importance.
+
+The other embedded tree and ensemble methods use their fitted importance
+vectors in decreasing order: DT, RT, RF, ExtraTrees, XGBoost, LightGBM, and
+CatBoost. Filter methods rank features by decreasing dependence score.
+Permutation test filters rank by increasing p-value and use the dependence
+score as the secondary key. The R ctree reference ranks features by split-use
+counts, and cforest ranks by partykit variable importance. Boruta and recursive
+feature elimination rank by their fitted rank variables, with smaller ranks
+first. Permutation importance and conditional permutation importance rank by
+decreasing importance. When the pipeline constructs a ranking from scores or
+rank variables, ties follow the deterministic order returned by the method and
+are kept only for reproducibility, not interpretation.

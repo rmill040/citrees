@@ -1,26 +1,25 @@
-Conditional inference trees and forests separate feature selection from
-threshold optimization. We make that separation explicit and study its
-fixed-node Stage~A setting. For a pre-specified node and permutation budget
-$B$, the $+1$ Monte Carlo Stage~A p-value is super-uniform under the complete
-null, so Bonferroni controls the Stage~A rejection probability at that node.
-This guarantee applies only to fixed-node Stage~A, not to the full adaptive
-learner. The practical question is which expensive parts
-of conditional-inference trees and forests can be approximated without materially
-changing feature-ranking performance. In matched ablations within conditional inference
-forests (CIF), most runtime
-savings come from adaptive stopping, which provides a 5.1--11.7$\times$
-speedup with near-zero score change; histogram thresholding adds a separate
-1.9--10.6$\times$ speedup relative to exact threshold search. We evaluate CIF
-on 23 classification and 8 regression datasets, using one chosen setting for
-each method and task. On the full classification benchmark, CIF performs best
-among the
-conditional-inference methods and remains in the range of several strong
-generic ensembles. The 14-dataset
-classification benchmark points in the same direction: CIF has a higher score
-than \texttt{ctree} on 14/14 datasets, than \texttt{cforest} on 13/14, and
-than conditional inference trees (CIT) on 13/14. Regression evidence points in
-the same direction but is limited. High-$p$ results, synthetic datasets, and
-controlled simulations show
-where the method weakens: scores often peak at intermediate feature budgets,
-the selected top-$k$ sets are better than the single top-ranked feature, and
-sparse forests weaken when informative features are screened too rarely.
+Conditional inference trees (CIT) and conditional inference forests (CIF)
+reduce split selection bias by testing candidate split features before choosing
+split thresholds, but repeated permutation tests and threshold searches make
+that separation computationally expensive. We study CIT and CIF as feature
+selection methods and ask which computations can be reduced without reducing
+ranking quality. For the exhaustive fixed-$B$ Stage~A test at a fixed node, the
+$+1$ Monte Carlo feature p-values are superuniform under the complete null,
+giving Bonferroni control of the nodewise rejection probability.
+Empirically, adaptive stopping and bounded threshold search are the main
+runtime controls. Disabling adaptive stopping makes CIF fits
+4.0--8.4$\times$ slower by the median ratio across datasets, and exact threshold
+search is 1.9--10.8$\times$ slower than histogram thresholding, with small
+changes in downstream score and synthetic recovery. We then benchmark 17
+classification and 18 regression feature selection methods on 23 classification
+and 8 regression datasets, including permutation test filters, wrappers, single
+trees, forests, and gradient boosted models. CIF ranks
+4th of 17 on classification and 3rd of 18 on regression, and improves over
+classical conditional inference tree and forest references in matched
+comparisons. Additional analyses show that CIF often becomes more competitive
+as downstream models use larger selected feature sets, while controlled sparse
+high-$p$ simulations show that candidate sampling in forests can hide
+informative features before testing sees them. Overall, conditional inference
+can be used as a practical feature selection strategy: the split selection
+rationale is retained, and the dominant runtime costs are controlled without
+large changes in downstream benchmark scores or synthetic recovery.

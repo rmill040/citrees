@@ -83,7 +83,8 @@ def main() -> None:
     noise_color = "#94A3B8"
     signal_color = "#1F2937"
 
-    fig, axes = plt.subplots(1, 4, figsize=(13.6, 3.6), sharex=True)
+    fig, axes_grid = plt.subplots(2, 2, figsize=(8.8, 6.3), sharex=True)
+    axes = axes_grid.ravel()
 
     for ax, method in zip(axes, METHOD_ORDER, strict=True):
         sub = counts[counts["method"] == method].sort_values("feature_idx")
@@ -121,11 +122,13 @@ def main() -> None:
         ax.set_title(DISPLAY_NAMES[method], pad=6)
         ax.set_xlim(-5, 1005)
         ax.set_xticks([0, 250, 500, 750, 1000])
-        ax.set_xlabel("Feature index")
         ax.grid(axis="y")
         ax.grid(axis="x", alpha=0.15)
 
-    axes[0].set_ylabel("Tree-use count")
+    for ax in axes_grid[-1, :]:
+        ax.set_xlabel("Feature index")
+    for ax in axes_grid[:, 0]:
+        ax.set_ylabel("Split-use count")
 
     fig.legend(
         handles=[
@@ -139,7 +142,7 @@ def main() -> None:
         columnspacing=1.6,
         handlelength=1.5,
     )
-    fig.subplots_adjust(top=0.78, wspace=0.22, bottom=0.16)
+    fig.subplots_adjust(top=0.88, wspace=0.24, hspace=0.38, bottom=0.10)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / OUTPUT_NAME

@@ -1,15 +1,9 @@
-"""Build a cleaner paper-facing benchmark k-trajectory figure.
+"""Build the paper-facing classification rank-by-k figure.
 
-The figure answers one question: where does CIF sit on the standard-budget
-classification benchmark as the feature budget increases?
-
-Design choices:
-  - One panel instead of three downstream-specific panels.
-  - Only the methods needed to tell the benchmark story are plotted:
-    CIF, the strongest generic ensembles, and the conditional-inference
-    references.
-  - Support counts are moved into the subtitle and caption rather than printed
-    above every point.
+The figure uses the canonical stratified benchmark table and includes every
+classification method in that table. The heatmap avoids the visual clutter of
+seventeen overlaid lines while still showing how mean rank changes with the
+number of selected features.
 """
 
 from __future__ import annotations
@@ -17,125 +11,116 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+TABLES_DIR = RESULTS_DIR / "tables"
 FIGURES_DIR = RESULTS_DIR / "figures"
 ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 
 STANDARD_K = [5, 10, 25, 50, 100]
-ALL_CLF_METHODS = [
-    "lgbm",
-    "xgb",
-    "cat",
-    "cif",
-    "rf",
-    "rfe",
-    "et",
-    "cit",
-    "boruta",
-    "pi",
-    "cpi",
-    "ptest_mc",
-    "ptest_rdc",
-    "r_ctree",
-    "r_cforest",
-]
-PLOT_METHODS = ["lgbm", "xgb", "cat", "cif", "cit", "r_cforest", "r_ctree"]
+EXPECTED_N_METHODS = 17
 
 DISPLAY_NAMES = {
-    "lgbm": "LightGBM",
-    "xgb": "XGBoost",
+    "boruta": "Boruta",
     "cat": "CatBoost",
     "cif": "CIF",
     "cit": "CIT",
-    "r_cforest": "R cforest",
-    "r_ctree": "R ctree",
+    "cpi": "CPI",
+    "dt": "DT",
+    "et": "ExtraTrees",
+    "lgbm": "LightGBM",
+    "pi": "PI",
+    "ptest_mc": "MC filter",
+    "ptest_rdc": "RDC filter",
+    "r_cforest": "cforest",
+    "r_ctree": "ctree",
+    "rf": "RF",
+    "rfe": "RFE",
+    "rt": "RT",
+    "xgb": "XGBoost",
 }
 
-METHOD_STYLE = {
-    "cif": {"color": "#2563EB", "linewidth": 2.8, "linestyle": "-", "marker": "o", "zorder": 5},
-    "lgbm": {"color": "#166534", "linewidth": 2.0, "linestyle": "-", "marker": "s", "zorder": 4},
-    "xgb": {"color": "#B91C1C", "linewidth": 2.0, "linestyle": "-", "marker": "^", "zorder": 4},
-    "cat": {"color": "#D97706", "linewidth": 2.0, "linestyle": "-", "marker": "D", "zorder": 4},
-    "cit": {"color": "#7FB3FF", "linewidth": 1.8, "linestyle": "--", "marker": "o", "zorder": 3},
-    "r_cforest": {"color": "#64748B", "linewidth": 1.8, "linestyle": "--", "marker": "o", "zorder": 2},
-    "r_ctree": {"color": "#94A3B8", "linewidth": 1.8, "linestyle": ":", "marker": "o", "zorder": 1},
-}
 
+def _load_classification_ranks() -> tuple[pd.DataFrame, dict[int, int]]:
+    path = TABLES_DIR / "paper_benchmark_stratified.csv"
+    df = pd.read_csv(path)
+    df = df[
+        (df["task"] == "classification")
+        & (df["metric"] == "balanced_accuracy")
+        & (df["support_type"] == "all_method_complete_case_standard_k")
+        & (df["k"].isin(STANDARD_K))
+    ].copy()
 
-def _select_task_best_configs(df: pd.DataFrame) -> pd.DataFrame:
-    perf = df.groupby(["method_base", "method_id"], as_index=False)["balanced_accuracy"].mean()
-    best_idx = perf.groupby("method_base")["balanced_accuracy"].idxmax()
-    return perf.loc[best_idx, ["method_base", "method_id"]]
+    methods = sorted(df["method_base"].unique())
+    if len(methods) != EXPECTED_N_METHODS:
+        raise ValueError(f"Expected {EXPECTED_N_METHODS} classification methods, found {len(methods)}: {methods}")
 
+    missing_names = sorted(set(methods) - set(DISPLAY_NAMES))
+    if missing_names:
+        raise ValueError(f"Missing display names for methods: {missing_names}")
 
-def _compute_mean_ranks(df: pd.DataFrame, best_ids: pd.DataFrame) -> tuple[pd.DataFrame, dict[int, int]]:
-    best = df.merge(best_ids, on=["method_base", "method_id"], how="inner")
-    agg = (
-        best.groupby(["method_base", "dataset", "downstream_model", "k"], as_index=False)["balanced_accuracy"]
+    support = df.groupby("k")["n_complete_datasets"].first().to_dict()
+    if set(support) != set(STANDARD_K):
+        raise ValueError(f"Missing support counts for k values: {sorted(set(STANDARD_K) - set(support))}")
+
+    ranks = (
+        df.groupby(["method_base", "k"], as_index=False)["mean_rank"]
         .mean()
+        .pivot(index="method_base", columns="k", values="mean_rank")
+        .reindex(columns=STANDARD_K)
     )
+    ranks["mean_over_k"] = ranks.mean(axis=1)
+    ranks = ranks.sort_values("mean_over_k")
+    ranks = ranks.drop(columns=["mean_over_k"])
+    return ranks, {int(k): int(v) for k, v in support.items()}
 
-    parts: list[pd.DataFrame] = []
-    support: dict[int, int] = {}
 
-    for k_value in STANDARD_K:
-        kdata = agg[agg["k"] == k_value].copy()
-        cell_counts = (
-            kdata.groupby(["dataset", "downstream_model"], as_index=False)["method_base"]
-            .nunique()
-            .rename(columns={"method_base": "n_methods"})
-        )
-        complete_cells = cell_counts[cell_counts["n_methods"] == len(ALL_CLF_METHODS)][["dataset", "downstream_model"]]
-        kdata = kdata.merge(complete_cells, on=["dataset", "downstream_model"], how="inner")
-        support[k_value] = int(kdata["dataset"].nunique())
+def _write_rank_table(ranks: pd.DataFrame) -> None:
+    out = ranks.reset_index().rename(columns={"index": "method_base"})
+    out.insert(1, "display_name", out["method_base"].map(DISPLAY_NAMES))
+    out.columns = [str(column) for column in out.columns]
+    out.to_csv(TABLES_DIR / "k_trajectory_ranks.csv", index=False)
 
-        if kdata.empty:
-            continue
 
-        kdata["rank"] = kdata.groupby(["dataset", "downstream_model"])["balanced_accuracy"].rank(
-            ascending=False,
-            method="average",
-        )
-        parts.append(kdata)
-
-    combined = pd.concat(parts, ignore_index=True)
-    mean_ranks = combined.groupby(["method_base", "k"], as_index=False)["rank"].mean()
-    return mean_ranks, support
+def _annotate_heatmap(ax: plt.Axes, values: np.ndarray) -> None:
+    midpoint = (np.nanmin(values) + np.nanmax(values)) / 2
+    for row_idx in range(values.shape[0]):
+        for col_idx in range(values.shape[1]):
+            value = values[row_idx, col_idx]
+            color = "white" if value > midpoint else "#111827"
+            ax.text(
+                col_idx,
+                row_idx,
+                f"{value:.1f}",
+                ha="center",
+                va="center",
+                color=color,
+                fontsize=7.5,
+            )
 
 
 def main() -> None:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    df = pd.read_parquet(RESULTS_DIR / "clf_evaluation.parquet")
-    df = df[df["dataset_source"] == "real"].copy()
-    df = df[df["k"].isin(STANDARD_K)]
-    df = df[df["method_base"].isin(ALL_CLF_METHODS)]
-
-    best_ids = _select_task_best_configs(df)
-    mean_ranks, support = _compute_mean_ranks(df, best_ids)
+    ranks, support = _load_classification_ranks()
+    _write_rank_table(ranks)
 
     plt.style.use("default")
     plt.rcParams.update(
         {
             "text.usetex": True,
             "font.family": "serif",
-            "font.size": 10,
-            "axes.titlesize": 12,
-            "axes.labelsize": 11,
-            "xtick.labelsize": 10,
-            "ytick.labelsize": 10,
-            "legend.fontsize": 10,
+            "font.size": 9,
+            "axes.titlesize": 11,
+            "axes.labelsize": 10,
+            "xtick.labelsize": 9,
+            "ytick.labelsize": 8.5,
             "mathtext.fontset": "cm",
             "axes.spines.top": False,
             "axes.spines.right": False,
-            "axes.grid": True,
-            "grid.color": "#E5E7EB",
-            "grid.linewidth": 0.8,
-            "grid.alpha": 1.0,
-            "axes.facecolor": "white",
             "figure.facecolor": "white",
             "figure.dpi": 300,
             "savefig.dpi": 300,
@@ -144,40 +129,30 @@ def main() -> None:
         }
     )
 
-    fig, ax = plt.subplots(figsize=(8.8, 4.9))
+    values = ranks.to_numpy(dtype=float)
+    fig, ax = plt.subplots(figsize=(7.4, 5.6))
+    image = ax.imshow(values, cmap="viridis_r", aspect="auto", vmin=1, vmax=EXPECTED_N_METHODS)
+    _annotate_heatmap(ax, values)
 
-    for method in PLOT_METHODS:
-        method_rows = mean_ranks[mean_ranks["method_base"] == method].sort_values("k")
-        style = METHOD_STYLE[method]
-        ax.plot(
-            method_rows["k"],
-            method_rows["rank"],
-            label=DISPLAY_NAMES[method],
-            color=style["color"],
-            linewidth=style["linewidth"],
-            linestyle=style["linestyle"],
-            marker=style["marker"],
-            markersize=6.5 if method == "cif" else 5.5,
-            markerfacecolor=style["color"],
-            markeredgecolor="white",
-            markeredgewidth=0.7,
-            zorder=style["zorder"],
-        )
+    x_labels = [f"{k}\n(n={support[k]})" for k in STANDARD_K]
+    y_labels = [DISPLAY_NAMES[method] for method in ranks.index]
+    ax.set_xticks(np.arange(len(STANDARD_K)), labels=x_labels)
+    ax.set_yticks(np.arange(len(ranks.index)), labels=y_labels)
+    ax.set_xlabel("Number of selected features $k$")
+    ax.set_ylabel("")
+    ax.tick_params(axis="both", length=0)
+    ax.set_xticks(np.arange(-0.5, len(STANDARD_K), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(ranks.index), 1), minor=True)
+    ax.grid(which="minor", color="white", linestyle="-", linewidth=0.9)
+    ax.tick_params(which="minor", bottom=False, left=False)
 
-    ax.set_xlabel("Feature budget $k$")
-    ax.set_ylabel("Mean rank (lower is better)")
-    ax.set_xticks(STANDARD_K)
-    ax.set_ylim(15.0, 0.0)
-    ax.set_yticks([0, 3, 6, 9, 12, 15])
+    for label in ax.get_yticklabels():
+        if label.get_text() == "CIF":
+            label.set_fontweight("bold")
 
-    legend = ax.legend(
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.16),
-        ncol=4,
-        frameon=False,
-        columnspacing=1.2,
-        handlelength=2.6,
-    )
+    cbar = fig.colorbar(image, ax=ax, fraction=0.035, pad=0.02)
+    cbar.set_label("Mean rank")
+    cbar.ax.invert_yaxis()
 
     fig.tight_layout()
 

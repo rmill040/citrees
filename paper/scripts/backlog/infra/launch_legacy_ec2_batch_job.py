@@ -18,13 +18,12 @@ import tempfile
 import textwrap
 import time
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_PROFILE = os.environ.get("AWS_PROFILE", "mm")
 DEFAULT_REGION = "us-east-1"
 DEFAULT_INSTANCE_TYPE = "c7i.24xlarge"
@@ -128,7 +127,9 @@ def _run(
     )
 
 
-def _aws(config: LaunchConfig, *args: str, capture_output: bool = True) -> subprocess.CompletedProcess[str]:
+def _aws(
+    config: LaunchConfig, *args: str, capture_output: bool = True
+) -> subprocess.CompletedProcess[str]:
     """Run one AWS CLI command with the configured profile and region."""
     return _run(
         ["aws", "--profile", config.profile, "--region", config.region, *args],
@@ -433,7 +434,15 @@ def _wait_for_instance(config: LaunchConfig, instance_id: str) -> InstanceDetail
     to be running, but _wait_for_ssh handles transient SSH failures caused by
     this reboot transparently.
     """
-    _aws(config, "ec2", "wait", "instance-running", "--instance-ids", instance_id, capture_output=False)
+    _aws(
+        config,
+        "ec2",
+        "wait",
+        "instance-running",
+        "--instance-ids",
+        instance_id,
+        capture_output=False,
+    )
     describe = _aws(
         config,
         "ec2",
@@ -473,7 +482,9 @@ def _should_include_repo_member(path: Path) -> bool:
     return False
 
 
-def _build_archive(source_dir: Path, *, arcname: str, include_filter: Callable[[Path], bool]) -> Path:
+def _build_archive(
+    source_dir: Path, *, arcname: str, include_filter: Callable[[Path], bool]
+) -> Path:
     """Create a gzip tar archive for one directory tree."""
     fd, tmp_name = tempfile.mkstemp(prefix=f"{arcname}-", suffix=".tar.gz")
     os.close(fd)
@@ -490,7 +501,9 @@ def _build_archive(source_dir: Path, *, arcname: str, include_filter: Callable[[
 
 def _build_repo_archive() -> Path:
     """Create the repo sync archive with a conservative exclude set."""
-    return _build_archive(REPO_ROOT, arcname=REPO_ROOT.name, include_filter=_should_include_repo_member)
+    return _build_archive(
+        REPO_ROOT, arcname=REPO_ROOT.name, include_filter=_should_include_repo_member
+    )
 
 
 def _build_data_archive() -> Path:
@@ -502,7 +515,13 @@ def _build_data_archive() -> Path:
 
 def _ssh_base_args(details: InstanceDetails) -> list[str]:
     """Return the shared SSH arguments for this host."""
-    return ["ssh", *SSH_OPTIONS, "-i", str(details.key_path), f"{details.remote_user}@{details.public_ip}"]
+    return [
+        "ssh",
+        *SSH_OPTIONS,
+        "-i",
+        str(details.key_path),
+        f"{details.remote_user}@{details.public_ip}",
+    ]
 
 
 def _scp_base_args(details: InstanceDetails) -> list[str]:
@@ -517,7 +536,15 @@ def _ssh(details: InstanceDetails, command: str) -> None:
 
 def _scp(details: InstanceDetails, local_path: Path, remote_path: str) -> None:
     """Copy one local file to the instance with SCP."""
-    _run([*_scp_base_args(details), str(local_path), f"{details.remote_user}@{details.public_ip}:{remote_path}"], capture_output=False, check=True)
+    _run(
+        [
+            *_scp_base_args(details),
+            str(local_path),
+            f"{details.remote_user}@{details.public_ip}:{remote_path}",
+        ],
+        capture_output=False,
+        check=True,
+    )
 
 
 def _wait_for_ssh(details: InstanceDetails, *, timeout_seconds: int = 480) -> None:
@@ -590,6 +617,8 @@ def _remote_launcher_script(config: LaunchConfig) -> str:
 
         export PATH="$HOME/.local/bin:$PATH"
         export AWS_DEFAULT_REGION={shlex.quote(config.region)}
+        export EC2_INSTANCE_ID="$INSTANCE_ID"
+        export EC2_INSTANCE_TYPE={shlex.quote(config.instance_type)}
         export S3_BUCKET={shlex.quote(config.s3_bucket or "")}
         export RPY2_CFFI_MODE=ABI
         export UV_PYTHON=3.13
@@ -707,15 +736,21 @@ def parse_args() -> LaunchConfig:
     parser.add_argument("--profile", default=DEFAULT_PROFILE, help="AWS CLI profile to use")
     parser.add_argument("--region", default=DEFAULT_REGION, help="AWS region")
     parser.add_argument("--instance-type", default=DEFAULT_INSTANCE_TYPE, help="EC2 instance type")
-    parser.add_argument("--volume-size-gb", type=int, default=DEFAULT_VOLUME_SIZE_GB, help="Root EBS volume size")
+    parser.add_argument(
+        "--volume-size-gb", type=int, default=DEFAULT_VOLUME_SIZE_GB, help="Root EBS volume size"
+    )
     parser.add_argument("--key-name", default=DEFAULT_KEY_NAME, help="EC2 key pair name")
-    parser.add_argument("--key-dir", type=Path, default=DEFAULT_KEY_DIR, help="Local directory for PEM files")
+    parser.add_argument(
+        "--key-dir", type=Path, default=DEFAULT_KEY_DIR, help="Local directory for PEM files"
+    )
     parser.add_argument(
         "--iam-instance-profile",
         default=DEFAULT_INSTANCE_PROFILE,
         help="EC2 instance profile name used for S3 access",
     )
-    parser.add_argument("--security-group-name", default=DEFAULT_SECURITY_GROUP, help="SSH security group name")
+    parser.add_argument(
+        "--security-group-name", default=DEFAULT_SECURITY_GROUP, help="SSH security group name"
+    )
     parser.add_argument("--instance-name", default=DEFAULT_INSTANCE_NAME, help="EC2 Name tag")
     parser.add_argument("--remote-user", default=DEFAULT_REMOTE_USER, help="Remote SSH username")
     parser.add_argument(

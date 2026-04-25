@@ -1,119 +1,129 @@
-\section{Benchmark stability and configuration sensitivity}
+\section{Benchmark stability and candidate feature sampling}
 \label{app:benchmark-stability}
 
-This appendix reports two additional analyses for the real-data benchmark in
-the main text. It gives the paired CIF-versus-baseline results on the
-14-dataset classification benchmark and the leave-one-dataset-out
-configuration check.
+This appendix reports additional results that support the main text: matched
+CIF comparisons on the classification benchmark with 14 datasets, the
+leave-one-dataset-out (LODO) configuration check, and a candidate feature
+sampling analysis by number of features.
 
-\subsection{14-dataset classification benchmark}
+\subsection{Classification benchmark with 14 datasets}
 
-\Cref{tab:fixed-panel-cif-ci} gives the paired CIF-versus-baseline comparisons
-for the three historical conditional-inference baselines on the 14-dataset
-classification benchmark, using the same 14 datasets for all downstream
-models and for $k = 5, 10, 25, 50$, and $100$.
+\Cref{tab:fixed-panel-cif-ci} gives the matched CIF comparisons
+against ctree, cforest, and CIT. All comparisons use the same 14 datasets, the
+same downstream models, and $k \in \{5,10,25,50,100\}$.
 
-\begin{table}[t]
+\begin{table}[H]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{5pt}
   \begin{tabular}{@{}l r l c c@{}}
     \toprule
-    Baseline & Mean $\Delta$ & 95\% CI & W--L--T & Sign-test $p$ \\
+    Compared method & Mean $\Delta$ & 95\% CI & W--L--T & Sign test $p$ \\
     \midrule
-    \texttt{r\_ctree} & 0.109 & [0.068, 0.154] & 14--0--0 & $<0.001$ \\
-    \texttt{r\_cforest} & 0.111 & [0.067, 0.161] & 13--1--0 & $<0.001$ \\
-    \texttt{cit} & 0.041 & [0.023, 0.060] & 13--1--0 & $<0.001$ \\
+    ctree & 0.109 & [0.068, 0.154] & 14--0--0 & $<0.001$ \\
+    cforest & 0.111 & [0.067, 0.161] & 13--1--0 & $<0.001$ \\
+    CIT & 0.041 & [0.023, 0.060] & 13--1--0 & $<0.001$ \\
     \bottomrule
   \end{tabular}
-  \caption{Paired CIF-minus-baseline balanced-accuracy deltas on the
-  14-dataset classification benchmark. The confidence intervals are percentile
-  bootstrap intervals from 20{,}000 replicates.}
+  \caption{Matched balanced accuracy differences between CIF and the compared
+  method on the classification benchmark with 14 datasets. The confidence intervals
+  are percentile bootstrap intervals from 20{,}000 replicates. Positive
+  differences favor CIF.
+  W--L--T gives the number of datasets where CIF wins, loses, or ties against
+  the compared method.}
   \label{tab:fixed-panel-cif-ci}
 \end{table}
 
-The same 14-dataset classification benchmark yields a Friedman test statistic
+The same classification benchmark with 14 datasets yields a Friedman test statistic
 of
-$\chi^2(14)=125.73$ with $p<0.001$ and Kendall's
-$W=0.64$. For the smaller 6-dataset regression benchmark with complete
+$\chi^2(16)=141.32$ with $p<0.001$ and Kendall's
+$W=0.63$. For the smaller regression benchmark with 6 datasets and complete
 coverage, the
-corresponding omnibus summary is $\chi^2(15)=29.22$, $p=0.0150$, and
-Kendall's $W=0.32$, which is why the paper reports regression only as a
+corresponding omnibus summary is $\chi^2(17)=33.79$, $p=0.0089$, and
+Kendall's $W=0.33$, which is why the paper reports regression only as a
 smaller secondary result.
 
-\subsection{Leave-one-dataset-out configuration sensitivity}
+\subsection{LODO configuration sensitivity}
 
-\Cref{tab:lodo-config-sensitivity} summarizes the leave-one-dataset-out
-analysis on the 14-dataset classification benchmark. For each
-held-out dataset, configurations are selected on the other 13 datasets and
-evaluated on the held-out dataset using the same within-dataset averaging over
-downstream models and standard feature budgets as the main benchmark.
+\Cref{tab:lodo-config-sensitivity} summarizes the LODO analysis on the
+classification benchmark with 14 datasets. For each held out dataset,
+configurations are selected on the other 13 datasets and evaluated on the held
+out dataset using the same averaging within each dataset over
+downstream models and standard $k$ values as the main benchmark.
 
-\begin{table}[t]
+\begin{table}[H]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
   \begin{tabular}{@{}l r r r c@{}}
     \toprule
-    Method & Held-out rank & Held-out BA & Different settings & Global setting reselected \\
+    Method &
+    \multicolumn{1}{c}{Held out rank} &
+    \multicolumn{1}{c}{Held out BA} &
+    \multicolumn{1}{c}{Distinct settings} &
+    Global setting reselected \\
     \midrule
-    \texttt{lgbm} & 3.00 & 0.816 & 1 & 14/14 \\
-    \texttt{cat} & 4.07 & 0.805 & 1 & 14/14 \\
-    \texttt{rf} & 4.29 & 0.802 & 1 & 14/14 \\
-    \texttt{xgb} & 4.50 & 0.809 & 2 & 6/14 \\
-    \texttt{cif} & 5.21 & 0.798 & 1 & 14/14 \\
-    \texttt{et} & 5.21 & 0.789 & 1 & 14/14 \\
-    \texttt{rfe} & 6.21 & 0.795 & 1 & 14/14 \\
-    \texttt{boruta} & 8.14 & 0.747 & 1 & 14/14 \\
-    \texttt{cit} & 9.57 & 0.757 & 1 & 14/14 \\
-    \texttt{ptest\_mc} & 10.07 & 0.734 & 1 & 14/14 \\
-    \texttt{ptest\_rdc} & 10.36 & 0.707 & 1 & 14/14 \\
-    \texttt{r\_cforest} & 11.43 & 0.687 & 1 & 14/14 \\
-    \texttt{pi} & 11.89 & 0.689 & 1 & 14/14 \\
-    \texttt{r\_ctree} & 11.93 & 0.689 & 1 & 14/14 \\
-    \texttt{cpi} & 14.11 & 0.598 & 1 & 14/14 \\
+    LightGBM & 3.14 & 0.816 & 1 & 14/14 \\
+    CatBoost & 4.29 & 0.805 & 1 & 14/14 \\
+    RF & 4.79 & 0.802 & 1 & 14/14 \\
+    XGBoost & 4.79 & 0.809 & 2 & 6/14 \\
+    CIF & 5.64 & 0.798 & 1 & 14/14 \\
+    ExtraTrees & 5.79 & 0.789 & 1 & 14/14 \\
+    RFE & 6.57 & 0.795 & 1 & 14/14 \\
+    DT & 7.43 & 0.774 & 1 & 14/14 \\
+    Boruta & 9.14 & 0.747 & 1 & 14/14 \\
+    RT & 10.64 & 0.752 & 1 & 14/14 \\
+    CIT & 10.79 & 0.757 & 1 & 14/14 \\
+    MC filter & 11.43 & 0.734 & 1 & 14/14 \\
+    RDC filter & 11.86 & 0.707 & 1 & 14/14 \\
+    cforest & 13.29 & 0.687 & 1 & 14/14 \\
+    ctree & 13.64 & 0.689 & 1 & 14/14 \\
+    PI & 13.75 & 0.689 & 1 & 14/14 \\
+    CPI & 16.04 & 0.598 & 1 & 14/14 \\
     \bottomrule
   \end{tabular}
-  \caption{Leave-one-dataset-out configuration sensitivity on the 14-dataset
-  classification benchmark. Held-out balanced accuracy (BA) and held-out rank
-  are averaged over the 14 held-out datasets. The different-settings column
-  gives the number of distinct settings selected across the 14
-  leave-one-dataset-out runs.}
+  \caption{LODO configuration sensitivity on the classification benchmark with
+  14 datasets. Held out balanced accuracy (BA) and held out rank
+  are averaged over the 14 held out datasets; lower rank is better. The
+  distinct settings column gives the number of settings selected across the 14
+  LODO runs. The last column reports how often the setting
+  selected on the full benchmark with 14 datasets is selected again.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
 For CIF, the LODO analysis preserves the same selected configuration on all 14
-held-out datasets and moves the method only from 5th of 15 on the global
-classification benchmark to tied 5th--6th of 15 on mean held-out rank. The
+held out datasets and leaves the method 5th of 17 by mean held out rank. The
 only method that changes settings often is XGBoost, which alternates between
-two configurations and reselects the global benchmark choice on 6 of the 14
-held-out datasets.
+two configurations and reselects the full benchmark choice on 6 of the 14
+held out datasets.
 
-\subsection{Mechanism scaling by number of features}
+\subsection{Candidate feature sampling by number of features}
 
-\Cref{fig:mechanism-dimension-curves} extends the main-text mechanism figure
-from one sparse classification setting to $p = 100, 500$, and $1000$ at 1000
-trees. For each method and number of features, the point marks the mean over
-$n_{\mathrm{informative}} \in \{1,2,5,10\}$ and the vertical segment shows the
-range over those four sparse settings.
+\Cref{fig:mechanism-dimension-curves} extends the main text candidate feature
+sampling figure from one sparse classification setting to $p = 100, 500$, and
+$1{,}000$ at 1,000 trees. For each method and number of features, the point
+marks the mean over $n_{\mathrm{informative}} \in \{1,2,5,10\}$ and the
+vertical segment shows the range over those four sparse settings.
 
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}
-  \caption{Classification forest mechanism scaling by number of features at
-  1000 trees. Points are means over
+  \caption{Classification forest candidate feature sampling by number of
+  features at 1,000 trees. Points are means over
   $n_{\mathrm{informative}} \in \{1,2,5,10\}$ and vertical segments show the
   min--max range over those sparse designs.}
   \label{fig:mechanism-dimension-curves}
 \end{figure}
 
-The gap between CIF and \texttt{cif\_all} widens as the number of features
-grows and is largest in the sparsest settings. With two informative features,
+The gap between CIF and CIF with all features available widens as the number of
+features grows and is largest in the sparsest settings. With two informative features,
 the difference in informative split share is 0.600 at $p{=}100$, 0.780 at
-$p{=}500$, and 0.910 at $p{=}1000$, while the corresponding reductions in the
-number of different false features used by the forest are 70, 264, and 439.
+$p{=}500$, and 0.910 at $p{=}1{,}000$, while the corresponding reductions in the
+number of different uninformative features used by the forest are 70, 264,
+and 439.
 The same pattern persists when the signal is less sparse: with five
 informative features, the difference in informative split share is still
-0.251, 0.564, and 0.543 as $p$ increases from 100 to 500 to 1000. These
-curves support the main-text conclusion that, in sparse high-$p$ forests,
-subsampling often keeps informative features out of CIF's candidate set.
+0.251, 0.564, and 0.543 as $p$ increases from 100 to 500 to 1,000. These
+curves support the main text conclusion that, in sparse high-$p$ forests,
+subsampling can make informative features unavailable at too many split
+decisions.

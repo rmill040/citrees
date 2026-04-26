@@ -17,6 +17,11 @@ Locked source of truth for the closed layers in this document:
 - `paper/results/tables/paper_benchmark_method_aggregate.csv`
 - `paper/results/tables/paper_benchmark_stratified.csv`
 - `paper/results/tables/paper_benchmark_complete_case_membership.csv`
+- `paper/results/tables/paper_benchmark_sensitivity_support.csv`
+- `paper/results/tables/paper_benchmark_downstream_sensitivity.csv`
+- `paper/results/tables/paper_benchmark_learner_k_sensitivity.csv`
+- `paper/results/tables/paper_benchmark_seed_sensitivity.csv`
+- `paper/results/tables/paper_benchmark_seed_complete_membership.csv`
 - `paper/results/tables/paper_benchmark_fixed_panel_membership.csv`
 - `paper/results/tables/paper_benchmark_fixed_panel_aggregate.csv`
 - `paper/results/tables/paper_benchmark_fixed_panel_pairwise_ci.csv`
@@ -27,6 +32,7 @@ Locked source of truth for the closed layers in this document:
 - `paper/results/tables/paper_benchmark_spread.csv`
 - `paper/results/tables/paper_presentation_benchmark_summary.csv`
 - `paper/results/tables/paper_benchmark_pairwise_aggregate.csv`
+- `paper/results/tables/paper_benchmark_pairwise_stratified.csv`
 - `paper/results/tables/paper_heterogeneity_method_summary.csv`
 - `paper/results/tables/paper_heterogeneity_cif_pairwise_breadth.csv`
 - `paper/results/tables/paper_high_p_delta_vs_endpoint_overall.csv`
@@ -149,7 +155,7 @@ What the experiment is:
 
 What the canonical aggregate says:
 
-- CIF is `4th/17` by mean rank on the complete-case classification aggregate
+- CIF is `4th/17` by mean rank on the broader classification benchmark aggregate
 - CIF mean rank is `6.0826`
 - CIF mean score is `0.8194`
 - the top three are `lgbm = 5.1667`, `xgb = 5.5803`, `cat = 5.8485`
@@ -162,12 +168,12 @@ What the CIF trajectory says:
 - SVM: `5.8409` at `k=5` to `5.4643` at `k=100`
 - KNN: `5.5455` at `k=5` to `4.2143` at `k=100`
 - KNN is `1st` at `k=100`
-- the complete-case spread surface tightens as `k` grows:
+- the support-aware trajectory surface tightens as `k` grows:
   mean cross-method range drops from `0.2560` at `k=5` to `0.1837` at `k=100`
 
 Support accounting:
 
-- complete-case support is `22, 21, 15, 15, 14` across `k = 5, 10, 25, 50, 100`
+- trajectory support is `22, 21, 15, 15, 14` across `k = 5, 10, 25, 50, 100`
 - the exact dataset membership behind those shrinking supports is now exposed in
   `paper_benchmark_complete_case_membership.csv`, so the 14-dataset benchmark is
   auditable even though it is still not the primary estimand
@@ -918,7 +924,7 @@ What the canonical aggregate says:
   against `15/17` regression baselines
 - pairwise aggregate deltas are positive against `15/17` regression baselines,
   but that layer is descriptive only because of the small dataset count
-- the complete-case spread surface widens with `k`:
+- the support-aware trajectory surface widens with `k`:
   mean cross-method range grows from `1.0720` at `k=5` to `1.8934` at `k=100`
 
 What the regression pairwise breadth says:

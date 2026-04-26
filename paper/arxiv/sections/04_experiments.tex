@@ -8,55 +8,57 @@ The benchmark protocol uses 5 random seeds and fivefold cross validation within
 each seed. Classification uses logistic regression, support vector machine
 (SVM), and k-nearest neighbors (KNN) as downstream models and reports balanced
 accuracy, the mean recall across classes. Regression uses ridge regression,
-support vector regression (SVR), and KNN and reports $R^2$. The main
-benchmark evaluates the top $k$ ranked features for
-$k \in \{5,10,25,50,100\}$.
+support vector regression (SVR), and KNN and reports $R^2$. The main tables use
+the standard budgets $k \in \{5,10,25,50,100\}$.
 Downstream learner settings are fixed: logistic regression uses balanced class
-weights and 1,000 maximum iterations; SVM uses balanced class weights; KNN uses
-5 distance weighted neighbors; ridge uses $\alpha=1$; and SVR uses an RBF
-kernel with $C=1.0$, $\epsilon=0.1$, and \texttt{gamma=scale}.
+weights and 1,000 maximum iterations; SVM uses an RBF kernel with $C=1$,
+\texttt{gamma=scale}, and balanced class weights; KNN uses 5 distance-weighted
+neighbors; ridge uses $\alpha=1$; and SVR uses an RBF kernel with $C=1.0$,
+$\epsilon=0.1$, and \texttt{gamma=scale}.
 
-For each seed and fold, the ranking method is fit on the training fold only
-and produces an ordered list of features as described in
-\cref{sec:feature-rankings}. The held out fold is then evaluated
-using the top-$k$ features from that training fold ranking. For each $k$,
-feature standardization is refit on the selected training fold
-features, the same transform is applied to the held out fold, and a downstream
-model is fit on that selected feature set.
+For each seed and fold, feature standardization is fit on the training fold and
+applied to the held-out fold before ranking. The ranking method is then fit on
+the standardized training fold only and produces an ordered list of features as
+described in \cref{sec:feature-rankings}. The held-out fold is evaluated using
+the top-$k$ features from that training fold ranking. For each $k$, a second
+standardization is fit on the selected training fold features, the same transform
+is applied to the held-out fold, and a downstream model is fit on that selected
+feature set.
 
-Datasets with more than 100 features are also evaluated for a separate
-high-$p$ analysis. That analysis uses the standard $k$ values plus fixed values
-$150,200,300,500,750,1{,}000$, fractional values
-$\lceil 0.25p\rceil,\lceil 0.5p\rceil,\lceil 0.75p\rceil$, and the full
-feature set $k=p$, retaining only values that are at most $p$. These larger
-$k$ values are not part of the main benchmark summary.
+The downstream-evaluation pipeline also records the full feature set $k=p$ for
+every dataset. For datasets with more than 100 features, the separate high-$p$
+analysis adds fixed budgets $k \in \{150,200,300,500,750,1{,}000\}$ and
+fractional budgets
+$\lceil 0.25p\rceil,\lceil 0.5p\rceil,\lceil 0.75p\rceil$, retaining only
+values that are at most $p$. The main tables average only the standard budgets.
 
-\subsection{Benchmark summaries}
+\subsection{Benchmark comparisons}
 \label{sec:experiments-analysis-plan}
 
 The benchmark uses three averaging steps. First, within each
-$(\text{dataset}, \text{downstream model}, k)$ cell, scores are averaged over
-folds and seeds. Second, for pooled benchmark summaries, scores in those cells
-are averaged within each dataset over downstream models and the standard
-$k$ values available for that dataset. Third, the pooled tables average those
-dataset summaries over datasets.
+$(\text{dataset}, \text{downstream model}, k)$ combination, scores are averaged
+over folds and seeds. Second, each dataset score averages those fold-and-seed
+means over downstream models and the standard $k$ values shared by the methods
+being compared. Third, the tables average dataset scores over datasets.
 
-The main classification comparison uses all matched datasets available for each
-method pair. ctree and cforest were not run for
-\texttt{dexter}, so comparisons involving those two methods use 22
-classification datasets; comparisons among methods available on \texttt{dexter}
-use 23. The paper also reports a classification benchmark with 14 datasets restricted
-to datasets with complete results for all downstream models and standard
-$k$ values; that smaller comparison is used for bootstrap intervals and
-omnibus rank testing. Regression is reported separately as a smaller benchmark.
+The real-data classification benchmark contains 23 datasets. Comparisons
+involving the partykit ctree and cforest references use 22 datasets because
+those references were not run on \texttt{dexter};
+comparisons among methods with \texttt{dexter} results use all 23. The
+14-dataset classification analysis requires all 17 methods, all three downstream
+learners, and all five standard values of $k$; it is used for bootstrap
+intervals and omnibus rank testing. Regression has 8 datasets; the analogous
+rank test uses the 6 datasets with all methods, learners, and standard $k$
+values present.
 
-Classification results are also reported separately by downstream model and by
-$k$ before taking those averages within each dataset. The number of
-available datasets decreases as $k$ grows: classification includes
-$22, 21, 15, 15, 14$ datasets at $k = 5, 10, 25, 50, 100$; regression includes
-$8, 8, 7, 7, 6$. The classification benchmark with 14 datasets consists of the
-classification datasets with complete results for all downstream models and
-standard $k$ values.
+The $k$-trajectory analyses do not average over selected-feature budgets; they
+report results separately at each standard $k$. At
+$k = 5, 10, 25, 50, 100$, these trajectory analyses use
+$22, 21, 15, 15, 14$ classification datasets and $8, 8, 7, 7, 6$ regression
+datasets. Pairwise CIF comparisons stratified by $k$ use the dataset counts
+reported with the corresponding rows. The 14- and 6-dataset analyses retain
+only datasets with every method, every downstream learner, and every standard
+value of $k$.
 
 \subsection{Datasets}
 \label{sec:experiments-datasets}
@@ -86,15 +88,16 @@ randomized dependence coefficient (RDC) for classification, and Pearson
 correlation (PC), distance correlation (DC), and RDC for regression. RDC follows
 \citet{LopezPaz2013RDC}, and distance correlation follows
 \citet{Szekely2007DistanceCorrelation}. Embedded methods use tree
-or ensemble importance scores: CIT, CIF, random forests (RF)
+or ensemble importance scores: CART decision trees (DT), randomized trees (RT),
+CIT, CIF, random forests (RF)
 \citep{Breiman2001RandomForests},
 ExtraTrees \citep{Geurts2006ExtraTrees}, XGBoost
 \citep{ChenGuestrin2016XGBoost}, LightGBM \citep{Ke2017LightGBM},
-CatBoost \citep{Prokhorenkova2018CatBoost}, and the R package reference
-implementations ctree and cforest from
-\texttt{partykit}/\texttt{party}
-\citep{RPartykitPackage,RPartyPackage,Hothorn2006UnbiasedRecursivePartitioning,HothornZeileis2015Partykit}.
-Wrapper baselines use a downstream estimator to score feature subsets: Boruta
+CatBoost \citep{Prokhorenkova2018CatBoost}, and the reference
+conditional-inference implementations ctree and cforest from
+\texttt{partykit}
+\citep{RPartykitPackage,Hothorn2006UnbiasedRecursivePartitioning,HothornZeileis2015Partykit}.
+Wrapper baselines use auxiliary random-forest fits to score feature subsets: Boruta
 \citep{Kursa2010Boruta}, permutation importance (PI), conditional permutation
 importance (CPI)
 \citep{DebeerStrobl2020ConditionalPermutationImportanceRevisited}, and
@@ -104,30 +107,30 @@ recursive feature elimination (RFE)
 \subsection{Configuration selection}
 \label{sec:experiments-repro}
 
-Some methods, including CIT, CIF, and the permutation test filters, were run
-under multiple settings. For each task, the paper reports one chosen setting
-for each method. That choice is based on mean score over real datasets,
-downstream models, and the standard values
-$k \in \{5,10,25,50,100\}$. The choice is made once per task;
-it is not redone separately within each dataset. Because the settings are chosen
-from the same benchmark on real datasets summarized below, the pooled scores,
-intervals, and rank tests describe settings chosen on this benchmark rather than
-configurations fixed before seeing the benchmark.
+Some methods, including CIT, CIF, XGBoost, LightGBM, ctree, and cforest, were
+run under multiple settings. Permutation test filters used one setting per
+statistic. For each task, the paper reports one selected configuration per
+method family, chosen by mean score over real datasets, downstream models, and
+the standard values $k \in \{5,10,25,50,100\}$. Methods with only one run
+configuration are treated as fixed. The selected setting is then held fixed
+across datasets for that task. Because selection uses the same real-data
+benchmark reported below, the scores, intervals, and rank tests evaluate
+settings chosen from this benchmark rather than configurations fixed before the
+benchmark.
 
 As a sensitivity check, we repeat the configuration choice in
-leave-one-dataset-out (LODO) form on the classification benchmark with 14
-datasets. For each held out dataset, configurations are selected on the other 13
-datasets and then evaluated on the held out dataset. This check changes only which datasets are
-used to choose the configuration. The downstream models, $k$ values, and
-averaging within each dataset stay the same.
+leave-one-dataset-out (LODO) form on the 14-dataset classification check. Each
+held-out dataset is evaluated under settings chosen from the other 13 datasets.
+The downstream models, $k$ values, and averaging within each dataset stay the
+same.
 
 For the synthetic analysis, configuration choice is separate from the benchmark
 on real datasets. Each method is assigned the setting with the highest average
 recovery of the true informative features over $k = 5, 10, 25, 50,$ and $100$.
 
-For the conditional inference methods, the default benchmark settings use
+For CIT and CIF, the default benchmark settings use
 adaptive sequential stopping, Bonferroni correction, feature muting, feature
 scanning, threshold scanning, and histogram thresholding with 256 bins. The
-benchmarked CIT and CIF variants then differ in choice of selector, honesty,
-forest resampling, and whether the method is a tree or a forest. The CIF
-hyperparameter ablation changes one setting at a time.
+benchmarked CIT and CIF variants differ in selector and honesty; CIF uses the
+forest form with bootstrap sampling held fixed. The CIF hyperparameter ablation
+changes one setting at a time.

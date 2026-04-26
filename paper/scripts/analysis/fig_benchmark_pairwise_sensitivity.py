@@ -18,6 +18,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import PowerNorm
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
@@ -91,13 +92,22 @@ def main() -> None:
             .pivot(index="downstream_model", columns="k", values="mean_delta")
             .reindex(index=DOWNSTREAMS, columns=K_VALUES)
         )
-        image = ax.imshow(grid.to_numpy(), cmap="Blues", vmin=0.0, vmax=vmax, aspect="auto")
+        image = ax.imshow(
+            grid.to_numpy(),
+            cmap="Blues",
+            norm=PowerNorm(gamma=0.7, vmin=0.0, vmax=vmax),
+            aspect="auto",
+        )
         ax.set_title(BASELINE_TITLES[baseline], pad=8)
         ax.set_xticks(np.arange(len(K_VALUES)))
         ax.set_xticklabels([str(k) for k in K_VALUES])
         ax.set_xlabel(r"Feature budget $k$")
         ax.set_yticks(np.arange(len(DOWNSTREAMS)))
         ax.set_yticklabels([DOWNSTREAM_TITLES[d] for d in DOWNSTREAMS])
+        ax.set_xticks(np.arange(-0.5, len(K_VALUES), 1), minor=True)
+        ax.set_yticks(np.arange(-0.5, len(DOWNSTREAMS), 1), minor=True)
+        ax.grid(which="minor", color="white", linewidth=0.8)
+        ax.tick_params(which="minor", bottom=False, left=False)
 
         for i, downstream in enumerate(DOWNSTREAMS):
             for j, k_value in enumerate(K_VALUES):

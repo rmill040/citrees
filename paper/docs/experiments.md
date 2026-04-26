@@ -121,6 +121,7 @@ The current support package includes:
 - fixed-node/root calibration refresh
 - 14-dataset paired and omnibus benchmark summaries
 - leave-one-dataset-out config-selection sensitivity summaries
+- downstream-learner/budget and seed sensitivity summaries
 - mirrored practical-knob ablations
 - threshold-search ablation
 - CIT runtime ablation
@@ -191,9 +192,13 @@ What this layer says:
 
 ### Downstream-model × k sensitivity
 
-Main artifact:
+Main artifacts:
 
+- `paper/results/tables/paper_benchmark_sensitivity_support.csv`
+- `paper/results/tables/paper_benchmark_downstream_sensitivity.csv`
+- `paper/results/tables/paper_benchmark_learner_k_sensitivity.csv`
 - `paper/results/tables/paper_benchmark_pairwise_stratified.csv`
+- `paper/results/figures/benchmark_pairwise_sensitivity.png`
 
 What this layer says:
 
@@ -208,7 +213,6 @@ Main artifacts:
 
 - `paper/results/tables/paper_heterogeneity_method_summary.csv`
 - `paper/results/tables/paper_heterogeneity_cif_pairwise_breadth.csv`
-- `paper/results/tables/paper_heterogeneity_cif_pairwise_by_dataset.csv`
 
 What this layer says:
 
@@ -226,7 +230,6 @@ Main artifacts:
 - `paper/results/tables/paper_high_p_cif_endpoint_summary.csv`
 - `paper/results/tables/paper_high_p_cif_best_observed_k_summary.csv`
 - `paper/results/tables/paper_high_p_endpoint_pairwise.csv`
-- `paper/results/tables/paper_high_p_endpoint_inventory.csv`
 
 What this layer says:
 
@@ -286,16 +289,16 @@ Main artifacts:
 
 - `paper/results/tables/paper_benchmark_lodo_aggregate.csv`
 - `paper/results/tables/paper_benchmark_lodo_config_stability.csv`
-- `paper/results/tables/variance_decomposition.csv`
+- `paper/results/tables/paper_benchmark_seed_sensitivity.csv`
+- `paper/results/tables/paper_benchmark_seed_complete_membership.csv`
 
 What this layer says:
 
 - CIF's global benchmark-selected config is reselected on all `14/14`
   held-out datasets in the 14-dataset classification check.
-- Most variance sits at the dataset level.
-- `k` contributes some variation.
-- `seed` is tiny:
-  - about `0.0024%` in `variance_decomposition.csv`
+- The seed sensitivity tables use the fixed dataset support documented in
+  `paper_benchmark_seed_complete_membership.csv`.
+- These tables are descriptive stability checks, not headline rank replacements.
 
 ## Inferential Scope
 

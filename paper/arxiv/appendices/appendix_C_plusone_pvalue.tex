@@ -47,7 +47,9 @@ If ties can occur, we use the tie convention A0.5. Under conservative tie
 handling, p-values are computed with the indicator $\ind\{T_b \ge T_{\mathrm{obs}}\}$, which
 counts ties as exceedances. Let $V_{\mathrm{obs}},V_1,\dots,V_B \stackrel{\mathrm{i.i.d.}}{\sim}
 \mathrm{Unif}(0,1)$ be independent of all other randomness and define augmented
-statistics $\tilde{T}_b := (T_b, V_b)$ ordered lexicographically. Then
+statistics $\tilde{T}_{\mathrm{obs}} := (T_{\mathrm{obs}}, V_{\mathrm{obs}})$
+and $\tilde{T}_b := (T_b, V_b)$ for $b=1,\dots,B$, ordered
+lexicographically. Then
 $(\tilde{T}_{\mathrm{obs}},\tilde{T}_1,\dots,\tilde{T}_B)$ is exchangeable and almost surely has no ties, so
 the rank argument above gives a superuniform p-value
 %
@@ -63,4 +65,5 @@ so $p_{\mathrm{MC}}^{\ge} \ge \tilde{p}_{\mathrm{MC}}^{\ge}$ and hence
   \le \PP(\tilde{p}_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha.
 \end{equation}
 %
-Taking expectations over $(X_t,U)$ yields $\PP(p_{\mathrm{MC}}^{\ge} \le \alpha) \le \alpha$.
+Integrating over $(X_t,U)$ gives the corresponding unconditional inequality,
+$\PP(p_{\mathrm{MC}}^{\ge} \le \alpha) \le \alpha$.

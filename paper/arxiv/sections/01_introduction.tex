@@ -4,7 +4,7 @@
 Conditional inference introduced an important separation between feature
 selection and threshold optimization to reduce split selection bias. Classical
 CART trees choose both a feature and a threshold from the same
-label dependent search, which helps explain the well documented preference for
+label-dependent search, which helps explain the well-documented preference for
 features with many admissible cutpoints
 \citep{Breiman1984ClassificationAndRegressionTrees,LohShih1997SplitSelectionMethods,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,Shih2004NoteOnSplitSelectionBiasClassificationTrees,StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini,Strobl2007BiasRFVariableImportance}.
 \Cref{app:cart-bias} formalizes this mechanism with an idealized
@@ -24,22 +24,22 @@ rather than only for final prediction
 This paper evaluates CIT and CIF as feature selection methods. For each seed
 and cross-validation fold, a method produces a ranking from the training fold.
 Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
-evaluated on held out data, with results summarized across datasets. This
+evaluated on held-out data, with results summarized across datasets. This
 rank-then-evaluate design connects the split selection bias problem to feature
 selection quality: the tree procedure matters here when its accepted splits put
 useful variables early enough for downstream models.
 
-This paper asks whether the runtime of conditional inference trees (CIT) and
-conditional inference forests (CIF) can be reduced without reducing ranking
-quality.
+This paper asks which runtime controls matter for conditional inference trees
+(CIT) and conditional inference forests (CIF) when they are used to produce
+feature rankings.
 That question is distinct from the broader tree and forest literature on direct
 prediction and causal estimation
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
-Specifically, we ask which changes deliver the runtime savings, whether the
+Specifically, we ask which controls reduce runtime, whether the
 resulting method still gives useful rankings on benchmark classification and
 regression tasks, and where the rankings become less reliable.
 
-The fixed node theory calibrates the Stage~A testing primitive. In that
+The fixed-node theory calibrates the Stage~A testing primitive. In that
 setting, Stage~A tests candidate features for association with the response
 under the nodewise complete permutation null, giving exhaustive fixed-$B$
 p-values a clear permutation reference distribution. Its scope is the testing
@@ -51,21 +51,21 @@ outside this theorem
 
 Because several method families have tunable configurations, the benchmark
 chooses one setting per method family and task. A leave-one-dataset-out (LODO)
-classification analysis checks the stability of that choice for the conditional
-inference comparisons.
+classification analysis repeats the setting choice after holding out each
+dataset in the 14-dataset panel.
 
 \paragraph{Contributions.}
 This paper contributes a broad real-dataset benchmark of feature selection
 methods, matched comparisons against classical conditional inference references,
-classification trajectory and sensitivity checks, runtime ablations for the
-main practical controls, and high-$p$, synthetic recovery, and mechanism checks
-(\cref{sec:boundary}). Regression is summarized mainly through aggregate and
-matched comparisons because the regression benchmark has smaller support, while
-the detailed trajectory and sensitivity figures focus on classification. The
-paper also states the fixed-$B$ nodewise Stage~A guarantee
+classification trajectory and sensitivity analyses, runtime ablations for the
+main practical controls, and high-$p$, synthetic recovery, and mechanism diagnostics
+(\cref{sec:boundary}). Regression is reported mainly through the 8-dataset
+real-data comparison and matched conditional-inference comparisons, while the
+detailed trajectory and sensitivity figures focus on classification. The paper
+also states the fixed-$B$ nodewise Stage~A guarantee
 (\cref{thm:plusone-superuniform,cor:stageA-global-null}) that motivates the
 testing primitive.
 
-The next sections define the algorithmic framework, state the fixed node
+The next sections define the algorithmic framework, state the fixed-node
 guarantee, describe the benchmark and ablation setup, and then present the
-results, practical guidance, and failure cases.
+results, practical guidance, and boundary cases.

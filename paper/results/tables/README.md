@@ -13,10 +13,18 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_benchmark_method_aggregate.csv`
 - `paper_benchmark_stratified.csv`
 - `paper_benchmark_complete_case_membership.csv`
+- `paper_benchmark_sensitivity_support.csv` - dataset counts for the main, learner-by-k, matched-rank, and seed-sensitivity benchmark checks
+- `paper_benchmark_downstream_sensitivity.csv` - all-method downstream-learner sensitivity summary used by the appendix
+- `paper_benchmark_learner_k_sensitivity.csv` - all-method learner-by-k sensitivity summary used by the appendix
+- `paper_benchmark_seed_sensitivity.csv` - all-method seed sensitivity summary used by the appendix
+- `paper_benchmark_seed_complete_membership.csv` - dataset membership for the shared-support seed sensitivity checks
 - `paper_benchmark_fixed_panel_membership.csv` - membership for the 14-dataset benchmark
 - `paper_benchmark_fixed_panel_aggregate.csv` - aggregate summary for the 14-dataset benchmark
 - `paper_benchmark_fixed_panel_pairwise_ci.csv` - matched-dataset uncertainty summaries for the 14-dataset benchmark
 - `paper_benchmark_fixed_panel_omnibus.csv` - omnibus test summaries for the 14-dataset benchmark
+- `paper_benchmark_lodo_selected_configs.csv` - leave-one-dataset-out selected configurations
+- `paper_benchmark_lodo_aggregate.csv` - leave-one-dataset-out aggregate sensitivity summary
+- `paper_benchmark_lodo_config_stability.csv` - leave-one-dataset-out selected-config stability summary
 - `paper_benchmark_spread.csv`
 - `paper_benchmark_pairwise_aggregate.csv` - directed all-vs-all method comparisons; the `baseline` column is the compared method, not a restricted baseline set
 - `paper_benchmark_pairwise_stratified.csv` - directed all-vs-all comparisons by downstream model and number of selected features; the `baseline` column is the compared method

@@ -1,10 +1,10 @@
-\section{CART high cardinality selection bias (idealized)}
+\section{CART high-cardinality selection bias (idealized)}
 \label{app:cart-bias}
 
 The following symmetry calculation formalizes the multiple comparisons
-mechanism behind ``high cardinality'' selection bias in greedy CART
+mechanism behind ``high-cardinality'' selection bias in greedy CART
 split selection \citep{Breiman1984ClassificationAndRegressionTrees}. It is
-\emph{motivational} and is not used for any of the fixed node p-value
+\emph{motivational} and is not used for any of the fixed-node p-value
 guarantees stated here.
 
 \begin{lemma}[Threshold search amplifies null extremes (union bound)]
@@ -44,7 +44,7 @@ If a greedy method treats an unordered categorical feature with $L$ levels as
 allowing all binary partitions of the levels, the number of distinct candidate
 splits is $2^{L-1}-1$ (nonempty proper subsets, modulo swapping left/right).
 Many implementations avoid enumerating all such partitions, but this
-combinatorial explosion highlights why ``high cardinality'' can create very
+combinatorial explosion highlights why ``high-cardinality'' can create very
 large multiple comparisons effects in greedy split optimization.
 \end{remark}
 
@@ -88,5 +88,5 @@ on $F$,
   \PP(\widehat j = j \mid F) = \frac{q_j}{\sum_{k \in F} q_k} \qquad (j \in F).
 \end{equation}
 %
-Thus high cardinality features remain favored \emph{within} the tested subset.
+Thus high-cardinality features remain favored \emph{within} the tested subset.
 \end{remark}

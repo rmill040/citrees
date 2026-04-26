@@ -11,21 +11,21 @@ when you need the governing rule or a locked number.
 1. `paper/README.md`
 2. `paper/docs/analysis-contract.md`
 3. `paper/docs/results-finalization.md`
-4. `../STORY.md`
+4. `paper/docs/motivation.md`
 
 Authority still flows in that order:
 
 1. `analysis-contract.md`
 2. `results-finalization.md`
-3. `STORY.md`
+3. `paper/docs/motivation.md`
 
 Use them this way:
 
 - `analysis-contract.md`: decides whether a claim is headline-eligible.
 - `results-finalization.md`: decides which numbers, figures, and tables are
   locked.
-- `STORY.md`: decides the motivation, hierarchy, and compression of those
-  locked results.
+- `paper/docs/motivation.md`: decides the motivation, hierarchy, and
+  compression of those locked results.
 
 ## Support-Only Docs
 
@@ -39,7 +39,7 @@ These can support drafting, but they should not drive the paper's story.
 ## Operational-Only Docs
 
 - `paper/docs/infrastructure.md`
-- `paper/docs/script-cleanup-backlog.md`
+- `paper/scripts/backlog/README.md`
 - `paper/arxiv/README.md`
 - `paper/results/README.md`
 
@@ -47,11 +47,9 @@ These are workflow notes, not paper authorities.
 
 ## Not Authority
 
-- archived planning logs and verification ledgers under
-  `scratch/paper_doc_archive/`
-
-Treat those as history, not as source of truth for claims, structure, or
-numbers.
+Anything outside the authority and support lists above is history, workflow
+support, or generated output. Do not use it as source of truth for claims,
+structure, or numbers.
 
 ## Current Paper In One Paragraph
 
@@ -98,17 +96,22 @@ Keep in main text:
 Main-text figures:
 
 - `paper/results/figures/k_trajectory.png`
+- `paper/results/figures/high_p_boundary_summary.png`
 - `paper/results/figures/synthetic_topk_focus_curves.png`
 - `paper/results/figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png`
 
 Main-text tables:
 
-- dataset / benchmark design table
-- `paper/results/tables/paper_presentation_benchmark_summary.csv`
-- `paper/results/tables/paper_presentation_practical_controls_summary.csv`
-- compact high-`p` table built from:
-  `paper_high_p_cif_endpoint_summary.csv` and
-  `paper_high_p_cif_best_observed_k_summary.csv`
+- main real-data rank table from `paper_benchmark_method_aggregate.csv`
+- matched conditional-inference comparison table from
+  `paper_benchmark_pairwise_aggregate.csv`
+- CIF breadth table from `paper_heterogeneity_method_summary.csv` and
+  `paper_heterogeneity_cif_pairwise_breadth.csv`
+- CIT runtime table from `paper_cit_runtime_ablation_summary.csv`
+- CIF runtime table from `paper_mirrored_knob_ablation_summary.csv`,
+  `paper_threshold_ablation_summary.csv`, and
+  `paper_presentation_practical_controls_summary.csv`
+- synthetic recovery table from `synthetic_topk_composition_summary.csv`
 
 Do not let the paper regrow:
 

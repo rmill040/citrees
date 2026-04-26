@@ -46,7 +46,8 @@ dataset used in the benchmark.
     \nolinkurl{dexter} & 300 & 20,000 \\
     \bottomrule
   \end{tabular}
-  \caption{Classification benchmark datasets.}
+  \caption{Classification benchmark datasets. Here $n$ is the number of samples
+  and $p$ is the number of features.}
   \label{tab:real-dataset-inventory-clf}
 \end{table}
 
@@ -68,7 +69,8 @@ dataset used in the benchmark.
     \nolinkurl{coepra3} & 133 & 5,787 \\
     \bottomrule
   \end{tabular}
-  \caption{Regression benchmark datasets.}
+  \caption{Regression benchmark datasets. Here $n$ is the number of samples and
+  $p$ is the number of features.}
   \label{tab:real-dataset-inventory-reg}
 \end{table}
 
@@ -82,11 +84,11 @@ parameters.
 The synthetic datasets were chosen as small controlled examples where the
 informative features are known. Each design targets one issue that can matter
 for feature ranking: correlated predictors, correlated noise, nonlinear signal,
-weak signal, high cardinality noise, redundant features, and an easier and a
+weak signal, high-cardinality noise, redundant features, and an easier and a
 harder baseline problem. The same idea is used for the regression datasets,
 which also include Friedman~1 and a heteroscedastic design. The parameter
 values were set by hand to keep the examples compact and to include one harder
-high dimensional, small sample case in each task.
+high-dimensional, small-sample case in each task.
 
 \begin{table}[H]
   \centering
@@ -97,7 +99,7 @@ high dimensional, small sample case in each task.
     Design & Setting & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
     \midrule
     Redundant features & 20 redundant features & 1,000 & 50 \\
-    High cardinality bias & 50 noise features, 500 levels & 1,000 & 100 \\
+    High-cardinality bias & 50 noise features, 500 levels & 1,000 & 100 \\
     Nonlinear signal & nonlinear decision boundary & 1,000 & 100 \\
     Standard classification & 10 informative, sep $= 2.0$ & 1,000 & 100 \\
     Toeplitz correlation & 10 informative, $\rho = 0.95$ & 1,000 & 100 \\

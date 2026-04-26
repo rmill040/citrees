@@ -1,10 +1,12 @@
 \section{Fixed-node Stage~A guarantees}
 \label{sec:theory}
 
-The theorem studies the exhaustive fixed-$B$ Stage~A
-feature selection rule at a fixed node. All probabilities below are
-conditional on $(X_t,U)$, where $U$ denotes any auxiliary randomness held fixed
-when conditioning.
+This section isolates the exhaustive fixed-$B$ Stage~A feature selection rule
+at a fixed node. The theorem proves superuniformity for one $+1$ Monte Carlo
+permutation p-value, and the corollary applies Bonferroni correction to the
+fixed-node Stage~A family. All probabilities below are conditional on
+$(X_t,U)$, where $U$ denotes any auxiliary randomness held fixed when
+conditioning.
 
 \begin{theorem}[$+1$ permutation p-values are superuniform]
 \label{thm:plusone-superuniform}
@@ -33,14 +35,15 @@ applying the same result to $-T$.
 \begin{corollary}[Stage~A complete null control at a fixed node]
 \label{cor:stageA-global-null}
 Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise complete null
-at $t$, let Stage~A reject when
+at $t$, and for a nonempty tested feature set $F_t$ with $m_t = |F_t| \ge 1$,
+let Stage~A reject when
 %
 \begin{equation}
   \min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t.
 \end{equation}
 %
 The implementation's strict comparison defines a subset of this nonstrict
-rejection event, so it is no less conservative.
+rejection event, so it is at least as conservative.
 %
 Then
 %
@@ -50,11 +53,12 @@ Then
 \end{equation}
 \end{corollary}
 
-This follows immediately from
-\cref{thm:plusone-superuniform}. It controls fixed node Stage~A feature
-selection under the complete null. Partial-null familywise error control,
-p-values for the selected feature, and guarantees for the full adaptive learner
-are separate inferential targets.
+This combines the $+1$ p-value superuniformity in
+\cref{thm:plusone-superuniform} with the Bonferroni union bound over the $m_t$
+Stage~A tests. It controls fixed-node Stage~A feature selection under the
+complete null. Partial-null familywise error control, p-values for the selected
+feature, and guarantees for the full adaptive learner are separate inferential
+targets.
 
 \begin{remark}[Root implication]
 \label{rem:root-null}

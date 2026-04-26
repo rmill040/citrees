@@ -2,24 +2,25 @@ Conditional inference trees (CIT) and conditional inference forests (CIF)
 reduce split selection bias by testing candidate split features before choosing
 split thresholds, but repeated permutation tests and threshold searches make
 that separation computationally expensive. We study CIT and CIF as feature
-selection methods and ask which computations can be reduced without reducing
-ranking quality. For the exhaustive fixed-$B$ Stage~A test at a fixed node, the
+selection methods and ask how selected runtime controls affect the resulting
+rankings. For the exhaustive fixed-$B$ Stage~A test at a fixed node, the
 $+1$ Monte Carlo feature p-values are superuniform under the complete null,
 giving Bonferroni control of the nodewise rejection probability.
-Empirically, adaptive stopping and bounded threshold search are the main
+Empirically, adaptive stopping and histogram thresholding are the main
 runtime controls. Disabling adaptive stopping makes CIF fits
 4.0--8.4$\times$ slower by the median ratio across datasets, and exact threshold
 search is 1.9--10.8$\times$ slower than histogram thresholding, with small
-changes in downstream score and synthetic recovery. We then benchmark 17
-classification and 18 regression feature selection methods on 23 classification
-and 8 regression datasets, including permutation test filters, wrappers, single
-trees, forests, and gradient boosted models. CIF ranks
-4th of 17 on classification and 3rd of 18 on regression, and improves over
-classical conditional inference tree and forest references in matched
-comparisons. Additional analyses show that CIF often becomes more competitive
-as downstream models use larger selected feature sets, while controlled sparse
-high-$p$ simulations show that candidate sampling in forests can hide
-informative features before testing sees them. Overall, conditional inference
-can be used as a practical feature selection strategy: the split selection
-rationale is retained, and the dominant runtime costs are controlled without
-large changes in downstream benchmark scores or synthetic recovery.
+changes in downstream metrics and synthetic recovery. We
+then benchmark 17 classification and 18 regression feature selection methods on
+23 classification and 8 regression datasets, including permutation test filters,
+wrappers, single trees, forests, and gradient boosted models. In the main
+real-data table, CIF ranks 4th of 17 on the 22 classification datasets where the
+ctree and cforest references were run and 3rd of 18 on the 8 regression
+datasets. It also improves over the classical conditional inference tree and
+forest references in matched comparisons. Classification diagnostics show that
+CIF's mean rank improves at larger selected-feature budgets, while controlled
+sparse high-$p$ simulations show that forest candidate sampling can exclude
+informative features from many node-level tests. Overall, CIT and CIF remain
+practical feature-ranking tools in this benchmark: the split selection rationale
+is retained, and the dominant runtime costs are controlled with small score
+changes in the CIF ablations and synthetic recovery checks.

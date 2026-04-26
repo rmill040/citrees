@@ -1,8 +1,8 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper studies whether the runtime of CIT and CIF can be reduced without
-reducing ranking quality. At a fixed node with a fixed permutation budget, the
+This paper studies how CIT and CIF runtime controls affect feature rankings. At a
+fixed node with a fixed permutation budget, the
 Stage~A result gives Bonferroni control of the nodewise rejection probability.
 That p-value interpretation applies to the local test; the full adaptive tree
 and forest are evaluated empirically. In the CIF ablations, the clearest
@@ -10,11 +10,13 @@ runtime controls are adaptive stopping and histogram thresholding. The CIT
 timing results are mixed and are therefore reported separately from the CIF
 runtime and downstream score results.
 
-On the classification benchmark, CIF remains useful for feature ranking after
-the runtime reductions studied here and improves on ctree, cforest, and CIT.
+On the classification benchmark, CIF remains competitive for feature ranking
+with the runtime controls studied here and improves on ctree, cforest, and CIT.
 The high-$p$ and synthetic results show two patterns: CIF is stronger at
 enriching the selected top-$k$ feature set with informative features than at
-placing an informative feature first, and the main sparse high-$p$ limit is
-feature sampling inside the forest. Further progress likely depends on making
-informative features available at split decisions more often while preserving
-the nodewise feature selection rule that makes the method distinctive.
+placing an informative feature first, and the classification simulations point
+to candidate sampling inside the forest as the main sparse high-$p$ limitation.
+The regression evidence is smaller and more mixed. Further progress likely
+depends on making informative features available at split decisions more often
+while preserving the nodewise feature selection rule that makes the method
+distinctive.

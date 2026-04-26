@@ -1,4 +1,4 @@
-# Script Cleanup Backlog
+# Backlog Script Inventory
 
 This file tracks paper-side scripts that are not on the current arXiv
 submission path. The goal is to archive them later, not delete them blindly.

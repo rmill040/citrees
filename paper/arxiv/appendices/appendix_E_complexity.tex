@@ -6,7 +6,7 @@ the main exposition to focus on algorithmic flow and inferential scope.
 
 At node $t$, let $a_t$ be the number of features still available to the
 subtree before the current node removes constant features, let $m_t$ be the
-number of Stage~A features actually tested after any \texttt{max\_features}
+number of features in the Stage~A tested family after any \texttt{max\_features}
 subsampling, and let $q_t$ be the number of Stage~B thresholds generated for
 the selected feature after threshold generation and
 \texttt{min\_samples\_leaf} filtering. When early stopping is enabled, let
@@ -19,7 +19,7 @@ used at node $t$.
 Let $C_{\mathrm{sel}}(n_t)$ be the cost of one selector evaluation on $n_t$
 samples and $C_{\mathrm{split}}(n_t)$ the cost of one split quality
 evaluation. For the default MC/Gini or PC/MSE configurations these costs are
-linear in $n_t$; RDC is $O(n_t \log n_t)$ because it uses sorting based
+linear in $n_t$; RDC is $O(n_t \log n_t)$ because it uses sorting-based
 empirical CDF transforms, and distance correlation is $O(n_t^2)$.
 
 \paragraph{Fixed-$B$ reference node cost.}
@@ -41,7 +41,7 @@ node therefore costs
 \end{equation}
 %
 The $a_t n_t$ term comes from the preprocessing pass that prepares descendant
-feature sets by scanning all currently available features and removing those
+feature sets by scanning the $a_t$ currently available features and removing those
 that are constant at the node before any \texttt{max\_features} subsampling. The $n_t \log n_t$
 term comes from extracting unique values, sorting for
 \texttt{min\_samples\_leaf} filtering, and building threshold candidates. The
@@ -50,20 +50,21 @@ accepted split in the current dense implementation. Threshold generation
 controls cap $q_t$, but they do not remove the initial unique value pass.
 
 \paragraph{Implemented mode.}
-Adaptive stopping is the main expected work optimization. Feature and
-threshold scanning are used to make early stopping trigger sooner. Together they
-do not change the worst case order above, but they can reduce realized work
-substantially. The fixed counts $m_t$, $q_t$, $B_t^{\mathrm{sel}}$, and
-$B_t^{\mathrm{split}}$ are replaced by smaller realized quantities $r_t$,
-$\ell_t$, $\bar B_t^{\mathrm{sel}}$, and $\bar B_t^{\mathrm{split}}$. The initial
+Adaptive stopping primarily reduces realized work by shortening permutation
+tests. Feature and threshold scanning are ordering heuristics intended to make
+those stopping rules trigger earlier. Together they do not change the
+worst-case order above, but they can reduce realized work substantially. The
+fixed counts $m_t$, $q_t$, $B_t^{\mathrm{sel}}$, and $B_t^{\mathrm{split}}$ are
+replaced by smaller realized quantities $r_t$, $\ell_t$,
+$\bar B_t^{\mathrm{sel}}$, and $\bar B_t^{\mathrm{split}}$. The initial
 $a_t n_t$ preprocessing pass is still paid at each nonterminal node. When
-scanning is enabled, the procedure adds one cheap prescan pass plus sorting,
-contributing roughly
+scanning is enabled, the procedure adds one lower-cost prescan pass plus
+sorting, contributing roughly
 $O(m_t C_{\mathrm{sel}}(n_t) + m_t \log m_t)$ for features and
 $O(q_t C_{\mathrm{split}}(n_t) + q_t \log q_t)$ for thresholds. The practical
 runtime reduction from the search controls therefore comes primarily from
 reducing how many permutation tests are actually run, not from changing the
-worst case asymptotics. In the collected ablations, that observed reduction is
+worst-case asymptotics. In the collected ablations, that observed reduction is
 dominated by adaptive stopping rather than by scanning alone.
 
 \paragraph{From nodes to trees and forests.}
@@ -76,13 +77,13 @@ Tree training cost is the sum of node costs over internal nodes,
 A depth cap $D$ gives the crude bound $|\mathcal{I}(\mathcal{T})| \le 2^D - 1$, but both
 $n_t$ and the candidate counts usually shrink with depth. For a
 forest of $M$ trees, total arithmetic work scales linearly in $M$, while
-\texttt{n\_jobs} mainly affects wall clock time rather than total work.
+\texttt{n\_jobs} mainly affects wall-clock time rather than total work.
 
 \paragraph{Which hyperparameters matter most.}
 \begin{itemize}
   \item \textbf{\texttt{max\_features}.} This caps $m_t$ directly and therefore
   the Stage~A search width. It does \emph{not} cap the initial pass over
-  constant features in the full currently available set $a_t$.
+  constant features among all $a_t$ currently available features.
   \item \textbf{\texttt{feature\_muting}.} This mainly helps future nodes by
   shrinking descendant candidate sets. Its effect is therefore on future $a_t$
   and $m_t$, not on the current node's dense data copy cost.
@@ -92,18 +93,18 @@ forest of $M$ trees, total arithmetic work scales linearly in $M$, while
   \item \textbf{\texttt{early\_stopping\_\*}, \texttt{feature\_scanning}, and
   \texttt{threshold\_scanning}.} These are expected work optimizations: they
   can reduce $r_t$, $\ell_t$, and realized permutation budgets, but they do not
-  change the worst case order. In the collected ablations,
-  \texttt{early\_stopping\_\*} accounts for the largest observed runtime change,
-  while the scanning controls do not show comparably clean standalone gains.
+	  change the worst-case order. In the collected ablations,
+	  \texttt{early\_stopping\_\*} accounts for the largest observed runtime change,
+	  while the scanning controls do not show comparably clear separate runtime gains.
   \item \textbf{Bonferroni correction.} With Stage~A threshold
   $\alpha_{\mathrm{sel}}/m_t$, the implementation's strict rejection comparison
   and conservative minimum budget rule increase the lower budget from
   $\lceil 1/\alpha_{\mathrm{sel}} \rceil$ to
   $\lceil m_t/\alpha_{\mathrm{sel}} \rceil$. Under the ``maximum'' resampling
-  mode, the implied ceiling grows quadratically in $m_t$.
+  setting, the implied ceiling grows quadratically in $m_t$.
   \item \textbf{\texttt{max\_samples}, \texttt{n\_estimators}, and
   \texttt{n\_jobs}.} These control forest scaling: sample size per tree, total
-  arithmetic work, and the wall clock versus memory tradeoff.
+  arithmetic work, and the wall-clock versus memory tradeoff.
 \end{itemize}
 
 \paragraph{Space complexity.}

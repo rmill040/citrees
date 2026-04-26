@@ -46,8 +46,8 @@ becomes terminal. If $p_t^{\star,\mathrm{ref}} < \tau_t$, the selected feature
 $j_t^{\star,\mathrm{ref}}$ is drawn uniformly from $M_t^\star$ using reservoir
 sampling and the procedure enters Stage~B.
 
-The implemented learner uses the same Stage~A decision structure but may scan
-features into a promising order and may stop after examining only $E_t$. It
+The implemented learner uses the same Stage~A decision structure but may order
+features by a preliminary score before testing and may stop after examining only $E_t$. It
 stores the best score $s_t^\star$ found among the examined features. Those
 early-stopped stored values are algorithmic quantities, not the exhaustive
 fixed-$B$ p-values covered by \cref{thm:plusone-superuniform}. Under the
@@ -59,11 +59,12 @@ sets; otherwise, apart from deterministic constant-feature pruning,
 $F'_{\mathrm{avail}}=F_{t,\mathrm{avail}}$.
 
 \paragraph{Stage~B (threshold search).}
-Given a selected feature $j_t^\star$, Stage~B first constructs candidate
-thresholds from midpoints between ordered unique values of $X_{t,j_t^\star}$.
-The exact method uses all such midpoints; the random, percentile, and histogram
-methods choose bounded subsets of that midpoint set, with a full-midpoint
-fallback on very small node supports. Candidates that would violate
+Given a selected feature $j_t^\star$, Stage~B starts from midpoints between
+ordered unique values of $X_{t,j_t^\star}$. The exact method uses all such
+midpoints. The random method samples a bounded subset of midpoints, while the
+percentile and histogram methods choose bounded representative thresholds
+derived from the midpoint distribution, with a full-midpoint fallback on very
+small nodes. Candidates that would violate
 \texttt{min\_samples\_leaf} are filtered out. If no candidate remains, Stage~B
 returns no split.
 
@@ -140,16 +141,16 @@ ties count as exceedances in both cases.
 \subsection{Forests and runtime controls}
 \label{sec:bootstrap}
 
-CIF aggregates bootstrap trees and averages their predictions. For feature
+CIF combines bootstrap trees and averages their predictions. For feature
 selection, it sums each fitted tree's normalized split importances and
 renormalizes the forest vector. CIF applies the same Stage~A and Stage~B rules
 node by node, while the formal guarantee isolates a single fixed-node Stage~A
 test
 \citep{Breiman2001RandomForests,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles}.
-In the benchmark, the conditional inference methods keep Bonferroni correction,
-adaptive stopping, feature muting, and histogram thresholding fixed. Choice of
-selector, honesty, resampling mode, and whether the method is a tree or forest
-vary across methods.
+In the CIT/CIF benchmark grid, Bonferroni correction, adaptive stopping,
+feature muting, feature scanning, threshold scanning, histogram-256
+thresholding, and CIF bootstrap sampling are fixed. Selector and honesty vary
+in the CIT/CIF grid.
 
 Runtime is governed by realized counts at each node: features tested in
 Stage~A, thresholds generated and retained in Stage~B, permutations evaluated
@@ -168,24 +169,23 @@ and \cref{sec:results-practical} reports the measured runtime effects.
 
 The experiments evaluate each method through the ranking it produces on the
 training fold. CIT and CIF rankings are fitted split-importance rankings, not
-rankings of Stage~A p-values. For a fitted CIT, feature $j$ receives the sum of
-the weighted impurity decreases from internal nodes that split on $j$; the
-vector is normalized to sum to one when the sum is positive. CIF sums these tree
-importance vectors over trees and then normalizes the forest vector in the same
-way. This ranking is compatible with the conditional-inference setup because
-Stage~A gates feature entry before threshold optimization, while weighted
-impurity decrease weights accepted splits by effect size and node support.
-Larger importances are ranked earlier, and features never used by a split
-receive zero importance.
+rankings of Stage~A p-values. For a fitted CIT, feature $j$ receives the sum,
+over internal nodes that split on $j$, of the node impurity decrease: parent
+impurity minus the child-size-weighted impurity within that node. The vector is
+normalized to sum to one when the sum is positive. CIF sums these tree importance
+vectors over trees and then normalizes the forest vector in the same way. Stage~A
+determines which features enter threshold optimization, while impurity decrease
+scores only the accepted splits by their local reduction in impurity. Larger
+importances are ranked earlier, and features never used by a split receive zero
+importance.
 
 The other embedded tree and ensemble methods use their fitted importance
 vectors in decreasing order: DT, RT, RF, ExtraTrees, XGBoost, LightGBM, and
 CatBoost. Filter methods rank features by decreasing dependence score.
-Permutation test filters rank by increasing p-value and use the dependence
-score as the secondary key. The R ctree reference ranks features by split-use
-counts, and cforest ranks by partykit variable importance. Boruta and recursive
-feature elimination rank by their fitted rank variables, with smaller ranks
-first. Permutation importance and conditional permutation importance rank by
-decreasing importance. When the pipeline constructs a ranking from scores or
-rank variables, ties follow the deterministic order returned by the method and
-are kept only for reproducibility, not interpretation.
+Permutation test filters rank by increasing p-value and use the dependence score
+as the secondary key. The R ctree reference ranks features by split-use counts,
+and cforest ranks by unconditional \texttt{partykit::varimp}. Boruta and
+recursive feature elimination rank by their fitted rank variables, with smaller
+ranks first. Permutation importance and conditional permutation importance rank
+by decreasing importance. When scores or rank variables tie, the within-tie order
+is deterministic but method-specific and is used only for reproducibility.

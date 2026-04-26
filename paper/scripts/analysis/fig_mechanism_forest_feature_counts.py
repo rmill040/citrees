@@ -80,7 +80,7 @@ def main() -> None:
     ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     counts = _load_counts()
-    noise_color = "#94A3B8"
+    noise_color = "#64748B"
     signal_color = "#1F2937"
 
     fig, axes_grid = plt.subplots(2, 2, figsize=(8.8, 6.3), sharex=True)
@@ -96,8 +96,8 @@ def main() -> None:
             0,
             noise["tree_use_count"],
             color=noise_color,
-            linewidth=0.55,
-            alpha=0.55,
+            linewidth=0.65,
+            alpha=0.78,
             zorder=1,
         )
         ax.vlines(

@@ -1,19 +1,21 @@
 \section{Discussion}
 \label{sec:discussion}
 
-The classification benchmark gives the clearest empirical result: CIF improves
-on ctree and cforest. The fixed node theorem gives Stage~A rejection control at
-a node specified in advance. The ablations then show which controls reduce
-runtime without reducing ranking quality. Together, these
-results support CIF as a feature selection method on the classification
-benchmark.
+The classification benchmark gives the main empirical support for CIF as a
+feature selection method. On the datasets where the reference conditional
+inference implementations ran, CIF improves on ctree and cforest. The
+fixed-node theorem gives Stage~A rejection control at a node specified in
+advance, while the adaptive tree and forest rankings are evaluated empirically.
+The ablations identify the largest observed runtime effects and corresponding
+score changes; for CIF, adaptive stopping and histogram thresholding give the
+main practical tradeoff.
 
-The high-$p$ and synthetic results identify a different failure mode. In the
-candidate feature sampling simulation, single tree CIT selects informative splits
-frequently when all features are visible. The problem appears when the forest
-samples candidate features in sparse settings with many features, where
-informative features are available at too few split decisions. This pattern is
-consistent with the results reported in
+The high-$p$ and synthetic results identify where candidate sampling can limit
+CIF. In the candidate feature sampling simulation, single-tree CIT selects
+informative splits frequently when all features are visible. The limitation
+appears when the forest samples candidate features in sparse settings with many
+features, where informative features are available at too few split decisions.
+This pattern is consistent with the results reported in
 \cref{sec:boundary}.
 
 \paragraph{Practical guidance.}
@@ -28,26 +30,25 @@ against variable selection procedures based on forests
 against ensembles designed primarily for prediction.
 
 The default benchmark configuration keeps adaptive stopping, histogram
-thresholding for threshold search, and Bonferroni when the goal is a stricter,
-more selective learner rather than a faster but much less selective one. We use
-Bonferroni because it is the simplest fixed node complete null correction for
-Stage~A. Resampling methods that account for dependence, such as
+thresholding, and Bonferroni correction. Bonferroni makes this the stricter,
+more selective benchmark setting; removing it is better read as a diagnostic
+sensitivity check. Resampling methods that account for dependence, such as
 Westfall--Young \citep{WestfallYoung1993ResamplingBasedMultipleTesting}, and
 false discovery rate control, such as Benjamini--Hochberg
 \citep{BenjaminiHochberg1995FDR}, answer different questions and are natural
-next targets. Feature scanning should also stay on by default: once adaptive
-stopping is enabled, it adds a modest runtime gain with only small and mixed
-score changes. Threshold scanning has mixed effects and is not a practical
-priority. Muting has little effect on runtime, and bootstrap changes the fitted
-forests without yielding a consistent speedup.
+extensions. Feature scanning is reasonable to keep on by default, but the
+ablations show mixed runtime effects once adaptive stopping is enabled and only
+small score changes. Threshold scanning also has mixed effects and is not a
+practical priority. Supporting ablations for feature muting and bootstrap changes
+do not show consistent runtime benefits.
 
 \paragraph{Boundaries.}
-The classification benchmark with complete results covers 14 datasets, narrower
-than the 22 classification datasets used for matched comparisons against
-ctree and cforest.
-Regression evidence is useful but still limited at 8 datasets.
+The 14-dataset classification analysis includes all 17 methods, all
+three downstream learners, and all five standard values of $k$. The ctree and
+cforest comparisons use 22 classification datasets. Regression uses 8 datasets
+in the main table and 6 in the analogous rank test, so it remains secondary.
 The simulation study suggests that high-$p$ forests can miss informative
-features because those features are not available at enough split decisions,
-but it does not manipulate that process directly. The clearest next step is to
-make informative features available as split candidates more often inside
-forests.
+features because those features are not available at enough split decisions. The
+CIF-all variant manipulates candidate availability directly, but the experiment
+is still a fixed-design diagnostic. The clearest next step is to make
+informative features available as split candidates more often inside forests.

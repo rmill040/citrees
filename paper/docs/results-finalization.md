@@ -90,10 +90,10 @@ Important note:
 - `paper/results/tables/paper_mirrored_knob_ablation_summary.csv` reports CIF
   runtime ratios as dataset-level mean ratios against `cif_default`, because
   the mirrored CIF source table is already aggregated over seeds.
-- `paper/results/paper_real_evaluation.parquet` is the joined real-data
+- `paper/results/paper_real_evaluation.parquet` is the joined real data
   downstream evaluation surface used by benchmark builders.
 - `paper/results/synthetic_topk_composition.parquet` is the joined synthetic
-  top-k recovery surface used by the synthetic recovery tables and Figure 4.
+  top-k recovery surface used by the feature recovery tables and Figure 4.
 - file names and some table column names still use `endpoint`; paper-facing
   prose should prefer `full feature set` or `k=p`
 
@@ -131,7 +131,7 @@ Paper-safe interpretation:
 
 - the refreshed fixed-`B` Stage A calibration is broadly theorem-aligned on the
   current authored script
-- the selection-bias demonstration is a qualitative motivating figure, not a
+- the selection-bias demonstration is a motivating figure, not a
   separate numeric benchmark
 - adaptive stopping can be shown descriptively, but not as a theorem-backed
   calibration statement
@@ -146,11 +146,11 @@ Do not say:
 - adaptive stopping is formally calibrated
 - these diagnostics establish end-to-end tree or forest validity
 
-### 2.2 Main real-data classification benchmark
+### 2.2 Main real data classification benchmark
 
 What the experiment is:
 
-- real-data rank-then-evaluate benchmark on `23` classification datasets
+- real data benchmark on `23` classification datasets
 - standard `k` values `5, 10, 25, 50, 100`
 - downstreams `lr`, `svm`, `knn`
 - one best global config per method family within task
@@ -170,13 +170,14 @@ What the CIF trajectory says:
 - SVM: `5.8409` at `k=5` to `5.4643` at `k=100`
 - KNN: `5.5455` at `k=5` to `4.2143` at `k=100`
 - KNN is `1st` at `k=100`
-- the support-aware trajectory surface tightens as `k` grows:
+- the dataset-count trajectory surface tightens as `k` grows:
   mean cross-method range drops from `0.2560` at `k=5` to `0.1837` at `k=100`
 
-Support accounting:
+Dataset and cell accounting:
 
-- trajectory support is `22, 21, 15, 15, 14` across `k = 5, 10, 25, 50, 100`
-- the exact dataset membership behind those shrinking supports is now exposed in
+- trajectory dataset counts are `22, 21, 15, 15, 14` across
+  `k = 5, 10, 25, 50, 100`
+- the exact dataset membership behind those shrinking counts is now exposed in
   `paper_benchmark_complete_case_membership.csv`, so the 14-dataset benchmark is
   auditable even though it is still not the primary estimand
 - `paper_benchmark_fixed_panel_membership.csv` and
@@ -196,7 +197,7 @@ Important caveats:
 
 - config selection is benchmark-internal family-level tuning, not an external
   meta-selection guarantee
-- small amounts of documented skip logic affect support on a few
+- small amounts of documented skip logic affect availability on a few
   high-dimensional cells, especially for `r_ctree`, `r_cforest`, and some
   CIT-RDC runs
 - `dexter` is still retained for non-R methods; it only drops out of the
@@ -207,7 +208,7 @@ Paper-safe interpretation:
 
 - CIF is fourth of 17, not the leader
 - CIF's mean rank often improves as `k` grows, especially for LR and KNN
-- this is a benchmark-level trajectory over changing support, not a 14-dataset
+- this is a benchmark-level trajectory over changing dataset counts, not a 14-dataset
   same-dataset longitudinal claim
 
 Do not say:
@@ -219,14 +220,14 @@ Do not say:
 
 What the experiment is:
 
-- directed all-vs-all dataset summaries over all supported downstream-model
+- directed all-vs-all dataset summaries over all available downstream model
   and standard-`k` cells
 - plus dataset-level heterogeneity summaries
 
-What the canonical pairwise aggregate says on the looser all-supported layer:
+What the canonical pairwise aggregate says on the looser available-cell layer:
 
 - CIF is positive against `12/16` classification baselines by mean delta
-- strongest positive deltas:
+- largest positive deltas:
   - `cpi +0.1282` on `23` datasets
   - `r_ctree +0.0876` on `22` datasets
   - `r_cforest +0.0715` on `22` datasets
@@ -237,7 +238,7 @@ What the canonical pairwise aggregate says on the looser all-supported layer:
   - `rt +0.0346` on `23` datasets
   - `cit +0.0318` on `23` datasets
   - `dt +0.0155` on `23` datasets
-- near-zero or negative versus stronger ensembles:
+- near-zero or negative versus higher-ranked ensembles:
   - `rfe +0.0062`
   - `et +0.0061`
   - `rf -0.0040`
@@ -248,7 +249,7 @@ What the canonical pairwise aggregate says on the looser all-supported layer:
 What the stricter `22`-dataset breadth layer says:
 
 - CIF is positive against `12/16` classification baselines by mean delta
-- strongest positive deltas:
+- largest positive deltas:
   - `cpi +0.1303`, `20/22` wins
   - `r_ctree +0.0876`, `22/22` wins
   - `r_cforest +0.0715`, `19/22` wins
@@ -259,7 +260,7 @@ What the stricter `22`-dataset breadth layer says:
   - `rt +0.0315`, `20/22` wins
   - `cit +0.0301`, `21/22` wins
   - `dt +0.0157`, `13/22` wins
-- near-zero or negative versus stronger ensembles:
+- near-zero or negative versus higher-ranked ensembles:
   - `et +0.0063`, `13/22` wins
   - `rfe +0.0018`, `15/22` wins
   - `rf -0.0030`, `7/22` wins and `1` tie
@@ -275,18 +276,18 @@ What the stricter heterogeneity layer says:
 - dataset means are computed over each dataset's available all-method
   complete-case downstream-by-`k` cells, not over a perfectly rectangular
   `3 x 5` cell panel
-- mean classification support at that layer is `11.86` cells per dataset, not
+- mean classification cell count at that layer is `11.86` cells per dataset, not
   `15`
 
 Paper-safe interpretation:
 
-- CIF is broadly reliable across datasets, but not a dominant winner
-- its clearest broad wins are over historical or inference-style baselines
+- CIF is often positive across datasets, but it is not the overall winner
+- its largest broad wins are over historical or inference-style baselines
 - the ensemble comparison is materially tighter
 
 Do not say:
 
-- CIF broadly beats the strongest ensemble baselines
+- CIF beats the highest-ranked ensemble baselines across datasets
 - CIF is the dataset-by-dataset leader
 
 ### 2.4 High-p saturation and full-feature checks
@@ -352,8 +353,8 @@ What the full-feature-only aggregate says:
   at `k=100` to `0.0393` at `k=p`
 - full-feature pairwise comparisons are mostly ties in classification, with
   `r_cforest` the only clearly separated baseline
-- full-feature pairwise comparisons in regression are too degenerate and
-  small-support to support strong pairwise claims
+- full-feature pairwise comparisons in regression are too degenerate and have
+  too few datasets for strong pairwise claims
 
 What the full-feature pairwise surface says:
 
@@ -425,7 +426,7 @@ Paper-safe interpretation:
 
 Do not say:
 
-- synthetic recovery makes CIF a clear winner
+- feature recovery on synthetic datasets makes CIF a clear winner
 - pooled `standard` is a homogeneous synthetic regime
 
 ### 2.6 Synthetic top-k feature composition
@@ -533,7 +534,7 @@ What the experiment is:
 - not a new benchmark layer; these are diagnostic mechanism studies
 - separates:
   - candidate-set coverage under different CIF `max_features` regimes
-  - full-support feature-count behavior on simple fixed designs
+  - full-candidate feature-count behavior on simple fixed designs
 - completed grid with `n=250` fixed, `p ∈ {100, 500, 1000}`,
   `n_informative ∈ {1, 2, 5, 10}`
 - completed tree methods:
@@ -611,7 +612,7 @@ What the completed fixed-`n=250` grids say:
     `distinct_false_features_used = 93.4` for `cif_all`,
     `265.1` for `cif`,
     `528.8` for both `rf` and `et`
-  - the `cif` degradation is strongest in sparse high-`p` settings:
+  - the `cif` degradation is largest in sparse high-`p` settings:
     - `p=1000, i=1`: `cif = 0.099`, `cif_all = 1.000`
     - `p=1000, i=2`: `cif = 0.090`, `cif_all = 1.000`
     - `p=500, i=1`: `cif = 0.093`, `cif_all = 0.989`
@@ -670,7 +671,7 @@ Paper-safe interpretation:
 - `cif_all` is a mechanism control, not an automatic recommendation that the
   production default should be `max_features=None`
 - the concentration / diffusion studies still add useful context, but the
-  completed fixed-`n=250` grids are the stronger mechanism evidence
+  completed fixed-`n=250` grids are the more direct mechanism evidence
 - the forest story is task-dependent:
   - in classification, `cif_all` is much cleaner than default `cif`
   - in regression, `cif_all` still improves informative split share
@@ -692,7 +693,7 @@ Recommended displays:
   - x-axis: feature index
   - y-axis: split count or tree-use count
   - highlight the 10 informative features
-  - why: this is the cleanest "pure vs mixed vs spray-noise" panel
+  - why: this is the simplest "pure vs mixed vs spray-noise" panel
 
 - Figure: forest classification feature-count bar chart on
   `make_classification_n250_p1000_i2` at `1000` trees
@@ -820,7 +821,7 @@ What the experiment is:
 - targeted threshold-search ablation
 - in the locked CIT/CIF benchmark grid, only selector family and honesty varied;
   the other practical controls were fixed by design
-- the real-data side of this layer uses a small proxy panel rather than the
+- the real data side of this layer uses a small proxy panel rather than the
   full canonical benchmark surface
 
 What the canonical mirrored ablation says:
@@ -853,7 +854,7 @@ What the strictness comparison says:
 - but it also makes trees deeper and less sparse:
   - depth increases by about `3.14` / `5.95` / `3.00` / `7.00`
   - features used increase by about `20.64` / `13.28` / `1.62` / `35.27`
-- the synthetic recovery curve moves only modestly relative to that structural
+- the feature recovery curve on synthetic datasets moves only modestly relative to that structural
   shift:
   - classification `+0.0213`
   - regression `+0.0009`
@@ -893,7 +894,7 @@ What the threshold ablation says:
   - `0.0393x` on synthetic classification
   - `0.0912x` on real regression
   - `0.0371x` on synthetic regression
-- its curve-based synthetic recovery shifts are small and favorable:
+- its curve-based feature recovery shifts on synthetic datasets are small and favorable:
   - classification `+0.0150`
   - regression `+0.0033`
 - `exact_all` is mixed even on the same curve-based synthetic summary:
@@ -904,8 +905,8 @@ What the threshold ablation says:
 
 Paper-safe interpretation:
 
-- adaptive stopping is the clearest practical win
-- bounded histogram thresholding is the second clearest practical win
+- adaptive stopping is the largest practical runtime win
+- bounded histogram thresholding is the second largest practical runtime win
 - dropping Bonferroni changes the procedure, not just the runtime
 - scan, mute, and bootstrap should remain background controls rather than
   primary discoveries
@@ -929,22 +930,22 @@ What the canonical aggregate says:
 - CIF is `3rd/18` by mean rank on the main regression aggregate
 - CIF mean rank is `7.0688`
 - CIF mean score is `0.3294`
-- support is only `8, 8, 7, 7, 6` across the standard `k` values
+- dataset counts are only `8, 8, 7, 7, 6` across the standard `k` values
 - the regression trajectory matrix is now rendered as
   `paper/results/figures/regression_k_trajectory.png`
 - CIF has mean rank `8.8750` at `k=5`, `5.6190` at `k=50`, and `7.2778` at
   `k=100`; its lowest displayed regression mean rank is at `k=50`
-- on the looser all-supported pairwise layer, CIF has positive mean deltas
+- on the looser available-cell pairwise layer, CIF has positive mean deltas
   against `15/17` regression baselines
 - pairwise aggregate deltas are positive against `15/17` regression baselines,
   but that layer is descriptive only because of the small dataset count
-- the support-aware trajectory surface widens with `k`:
+- the dataset-count trajectory surface widens with `k`:
   mean cross-method range grows from `1.0720` at `k=5` to `1.8934` at `k=100`
 
 What the regression pairwise breadth says:
 
 - CIF has positive mean deltas against `15/17` regression baselines on the
-  all-supported layer
+  available-cell layer
 - largest positive deltas:
   - `r_cforest +0.7211`
   - `cpi +0.6198`
@@ -966,7 +967,7 @@ What the heterogeneity summary says:
 Paper-safe interpretation:
 
 - regression broadens the picture, but it is not the main benchmark focus
-- CIF is third of 18 there, but the support ceiling is too low for stronger
+- CIF is third of 18 there, but the dataset-count ceiling is too low for broader
   claims
 
 Do not say:

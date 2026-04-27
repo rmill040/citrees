@@ -15,7 +15,7 @@ artifacts already under `paper/results/`.
 
 The paper-facing analysis layer reads joined surfaces under `paper/results/`,
 not method-specific sidecar files. `paper/results/paper_real_evaluation.parquet`
-contains the real-data downstream evaluations used by the benchmark scripts.
+contains the real data downstream evaluations used by the benchmark scripts.
 `paper/results/synthetic_topk_composition.parquet` contains the joined synthetic
 top-k recovery diagnostics used by Figure 4.
 
@@ -43,8 +43,8 @@ After rebuilding:
 
 The packaged benchmark used by the current paper is:
 
-- real-data classification: `23` datasets
-- real-data regression: `8` datasets
+- real data classification: `23` datasets
+- real data regression: `8` datasets
 - standard `k` values: `k = 5, 10, 25, 50, 100`
 - classification methods: `17`, including DT and RT
 - regression methods: `18`, including DT and RT
@@ -91,14 +91,15 @@ This is the plain-English version of what the code actually does.
   ranking, re-standardizes those selected features on the training fold, then
   fits a fresh downstream model.
 
-This means the real-data benchmark is a fold-wise rank-then-evaluate design.
+This means the real data benchmark ranks features on each training fold and
+evaluates downstream models on the matching held-out fold.
 
 ### Config selection
 
 - Several families are run under multiple configs.
 - The benchmark does not report every config.
 - Instead, for each method family and task, the analysis picks one global
-  config using the real-data benchmark.
+  config using the real data benchmark.
 - That choice is global within task.
 - It is not nested separately within each dataset.
 
@@ -112,7 +113,7 @@ The benchmark uses three averaging steps:
 1. Within a fixed `(dataset, downstream model, k)` cell, scores are averaged
    over folds and seeds.
 2. For pooled benchmark summaries, those cell scores are averaged within a
-   dataset over downstream models and supported standard `k` values.
+   dataset over downstream models and available standard `k` values.
 3. The pooled tables then average those dataset-level summaries over datasets.
 
 ## Supporting Studies Used In The Paper
@@ -168,7 +169,7 @@ What this layer says:
   - `CIT`: `22/23` datasets, mean delta `+0.0318`
   - `DT`: `14/23` datasets, mean delta `+0.0155`
   - `RT`: `21/23` datasets, mean delta `+0.0346`
-- The strongest generic ensembles rank above CIF in the pooled classification
+- The highest-ranked generic ensembles rank above CIF in the pooled classification
   summary.
 
 ### 14-dataset classification benchmark with complete coverage

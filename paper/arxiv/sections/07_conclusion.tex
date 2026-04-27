@@ -1,21 +1,22 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper studies how CIT and CIF runtime controls affect feature rankings. At a
-fixed node with a fixed permutation budget and under the nodewise complete null,
-the Stage~A result gives Bonferroni control of the nodewise rejection
-probability.
+This paper studies how CIT and CIF runtime controls affect feature rankings. At
+the level of a single node before later tree decisions are considered, the
+Stage~A result gives Bonferroni control of nodewise rejection when no candidate
+feature at that node is associated with the response and the permutation budget
+is fixed.
 That p-value interpretation applies to the local test; the full adaptive tree
-and forest are evaluated empirically. In the CIF ablations, the clearest
-runtime controls are adaptive stopping and histogram thresholding. The CIT
-timing results are mixed and are therefore reported separately from the CIF
-runtime and downstream score results.
+and forest are evaluated empirically. In the CIF ablations, the largest runtime
+changes come from adaptive stopping and histogram thresholding. The CIT timing
+results are mixed and are therefore reported separately from the CIF runtime and
+downstream score results.
 
 On the classification benchmark, CIF ranks fourth of 17 methods with the runtime
 controls studied here. It improves on ctree and cforest on the 22 classification
 datasets where those references were run, and on CIT across 23 datasets.
-The high-$p$ and synthetic results show two patterns: CIF is stronger at
-enriching the selected top-$k$ feature set with informative features than at
+The high-$p$ and synthetic results show two patterns: the gains are clearer for
+enriching the selected top-$k$ feature set with informative features than for
 placing an informative feature first, and the classification simulations point
 to candidate sampling inside the forest as an important sparse high-$p$
 constraint in the diagnostic simulations. The regression evidence is based on

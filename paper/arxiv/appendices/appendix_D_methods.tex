@@ -97,7 +97,7 @@ parts of the theorem.
 
 \subsection{Benchmark protocol}
 
-The appendix tables use the same rank-then-evaluate benchmark protocol as
+The appendix tables use the same ranking benchmark protocol as
 \cref{sec:experiments-protocol}: a method first produces a ranking on the
 training split, and downstream models are then fit on the top-$k$ selected
 features and evaluated on held-out data. The real dataset benchmark uses
@@ -112,11 +112,11 @@ benchmark setup reported in the paper.
 The analysis uses completed benchmark outputs without imputation. Some benchmark
 outputs are unavailable, and some datasets have fewer than five standard values
 of $k$ because values greater than $p$ are not evaluated.
-Cell-level summaries omit unavailable cells. Shared support analyses retain only
-datasets with every method, learner, and standard value of $k$ present. These
+Cell-level summaries omit unavailable cells. Complete comparison analyses retain
+only datasets with every method, learner, and standard value of $k$ present. These
 rules explain why ctree and cforest classification comparisons use 22 rather
-than 23 datasets and why the shared support analyses use 14 classification and 6
-regression datasets.
+than 23 datasets and why the complete comparison analyses use 14 classification
+and 6 regression datasets.
 \Cref{tab:implementation-skips} lists the classification seed skips and the
 dexter method exclusion; the regression count comes from the same availability
 rule, not from additional rows in this table.

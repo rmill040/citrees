@@ -25,10 +25,10 @@ This paper evaluates CIT and CIF as feature selection methods. For each seed
 and cross-validation fold, a method produces a ranking from the training fold.
 Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
 evaluated on held-out data, with results summarized across datasets. This
-rank-then-evaluate design connects the split selection bias problem to feature
+rank and evaluate design connects the split selection bias problem to feature
 selection quality: the tree procedure matters here when its accepted splits put
 useful variables early enough for downstream models.
-The protocol is a predictive rank-then-evaluate benchmark, not an
+The protocol is a predictive feature selection benchmark, not an
 error-controlled high-dimensional selection procedure of the kind targeted by
 stability selection or knockoffs
 \citep{MeinshausenBuhlmann2010StabilitySelection,BarberCandes2015Knockoffs}.
@@ -56,21 +56,21 @@ outside this theorem
 Because several method families have tunable configurations, the benchmark
 chooses one setting per method family and task. A leave-one-dataset-out (LODO)
 classification analysis repeats the setting choice after holding out each
-dataset in the 14-dataset shared support analysis.
+dataset in the complete 14-dataset classification analysis.
 
 \paragraph{Contributions.}
-This paper contributes a broad real-dataset benchmark of feature selection
-methods, direct comparisons against classical conditional inference references,
-classification and regression trajectory summaries, classification sensitivity
-analyses, runtime ablations for the main practical controls, and high-$p$,
-synthetic recovery, and mechanism diagnostics (\cref{sec:boundary}). Regression
-is reported mainly through the 8-dataset real-data comparison, conditional
-inference comparisons over the datasets where both methods were run, and the
-mean-rank trajectory by $k$. The paper
-also states the fixed-$B$ nodewise Stage~A guarantee
+This paper contributes a broad benchmark on real datasets, direct comparisons
+against classical conditional inference references, classification and regression
+trajectory summaries, classification sensitivity analyses, runtime ablations for
+the main practical controls, and high-$p$ analyses, feature recovery on synthetic
+datasets, and mechanism diagnostics (\cref{sec:boundary}). Regression is
+reported mainly through the comparison across 8 real datasets, conditional
+inference comparisons over the datasets where both methods were run, and the mean
+rank trajectory by $k$. The paper also states the fixed-$B$ nodewise Stage~A guarantee
 (\cref{thm:plusone-superuniform,cor:stageA-global-null}) that motivates the
 testing primitive.
 
 The next sections define the algorithmic framework, state the fixed-node
 guarantee, describe the benchmark and ablation setup, and then present the
-results, practical guidance, and high-$p$, synthetic, and mechanism analyses.
+results, practical guidance, and analyses of high-$p$ behavior, feature recovery
+on synthetic datasets, and mechanism diagnostics.

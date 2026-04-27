@@ -56,11 +56,11 @@ Core reporting uses the standard values of `k`:
 Every trend must either:
 
 - show the full `k` trajectory, or
-- summarize performance over all supported `k` values for each dataset.
+- summarize performance over all available `k` values for each dataset.
 
-### 1.4 Support-Aware Accounting
+### 1.4 Dataset And Cell Accounting
 
-Every analysis must state what support set it uses:
+Every analysis must state what dataset and cell set it uses:
 
 - all-method complete-case,
 - pairwise-available,
@@ -68,7 +68,8 @@ Every analysis must state what support set it uses:
 - or another explicitly defined subset.
 
 Aggregate claims must report the relevant dataset counts. We should never let
-changing support across `k`, downstreams, or tasks stay implicit.
+changing dataset or cell availability across `k`, downstreams, or tasks stay
+implicit.
 
 ### 1.5 One Config Contract Per Analysis Family
 
@@ -141,10 +142,10 @@ Only after the stratified layer is understood do we make aggregate claims.
 
 Acceptable aggregate objects include:
 
-- mean delta over all downstream models and all supported `k` values;
-- mean rank over all downstream models and all supported `k` values;
+- mean delta over all downstream models and all available `k` values;
+- mean rank over all downstream models and all available `k` values;
 - consistency counts across downstream models;
-- dataset-level summaries over all supported `k`.
+- dataset-level summaries over all available `k`.
 
 The aggregate layer must not hide whether the pattern is driven by a single
 downstream model.
@@ -153,12 +154,12 @@ downstream model.
 
 A core claim should satisfy all of the following:
 
-1. It is visible across the full `k` trajectory or a support-aware aggregate
+1. It is visible across the full `k` trajectory or an available-cell aggregate
    over `k`.
 2. It is checked across all downstream models for that task.
 3. It is mirrored across classification and regression when appropriate, or the
    asymmetry is explicitly justified.
-4. Its support set is stated.
+4. Its dataset and cell set is stated.
 5. It uses the same config contract as the rest of the core analysis family.
 
 If any one of these is false, the claim is not ready for the main text yet.

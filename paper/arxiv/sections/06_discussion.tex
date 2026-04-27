@@ -1,8 +1,8 @@
 \section{Discussion}
 \label{sec:discussion}
 
-The classification benchmark gives the main empirical support for CIF as a
-feature selection method. On the datasets where the reference conditional
+The classification benchmark gives the main evidence for CIF as a feature
+selection method. On the datasets where the reference conditional
 inference implementations ran, CIF improves on ctree and cforest. The
 fixed-node theorem gives Stage~A rejection control under the nodewise complete
 null at a node specified in advance, while the adaptive tree and forest rankings
@@ -32,8 +32,8 @@ against ensembles designed primarily for prediction.
 
 The default benchmark configuration keeps adaptive stopping, histogram
 thresholding, and Bonferroni correction. Bonferroni makes this the stricter,
-more selective benchmark setting; removing it is better read as a diagnostic
-sensitivity check. Resampling methods that account for dependence, such as
+more selective benchmark setting; removing it is a diagnostic comparison.
+Resampling methods that account for dependence, such as
 Westfall--Young \citep{WestfallYoung1993ResamplingBasedMultipleTesting}, and
 false discovery rate control, such as Benjamini--Hochberg
 \citep{BenjaminiHochberg1995FDR}, answer different questions and are natural
@@ -50,5 +50,5 @@ in the main table and 6 in the analogous rank test.
 The simulation study suggests that high-$p$ forests can miss informative
 features because those features are not available at enough split decisions. The
 CIF-all variant manipulates candidate availability directly, but the experiment
-is still a diagnostic with a fixed design. The clearest next step is to make
+is still a diagnostic with a fixed design. A concrete next step is to make
 informative features available as split candidates more often inside forests.

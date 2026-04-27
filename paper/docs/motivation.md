@@ -31,9 +31,9 @@ The paper is therefore about a practical design question:
 - and which practical controls preserve the useful behavior while making the
   method usable.
 
-In the implemented learner, adaptive stopping is the clearest CIF runtime
-lever: disabling it makes CIF `4.0--8.4x` slower with only small changes in
-downstream score and synthetic recovery. Bounded histogram thresholding is
+In the implemented learner, adaptive stopping is the largest CIF runtime
+lever measured here: disabling it makes CIF `4.0--8.4x` slower with only small changes in
+downstream score and feature recovery on synthetic datasets. Bounded histogram thresholding is
 different: it is a separate Stage~B approximation that shrinks the search set
 itself, and exact threshold search is `1.9--10.8x` slower than histogram-256 in
 the CIF timing study. Feature scanning is a smaller and less stable lever. For
@@ -47,11 +47,11 @@ synthetic top-10 recovery rather than downstream model performance.
 - The core result is practical improvement of conditional inference trees and
   forests, not just a benchmark ranking.
 - CIF timing supports the main runtime story: adaptive stopping and histogram
-  thresholding provide the clearest runtime reductions with small score or
+  thresholding provide the largest runtime reductions with small score or
   recovery changes.
 - CIT timing belongs in its own lane: its runtime effects are mixed, and the
-  CIT timing run measures fit/ranking time plus synthetic recovery rather than
-  downstream model performance.
+  CIT timing run measures fit/ranking time plus feature recovery on synthetic
+  datasets rather than downstream model performance.
 - The benchmark validation is a joined all-vs-all comparison with DT and RT
   included: `17` classification methods and `18` regression methods.
 - DT and RT are supporting single tree checks. They help show that the broader
@@ -170,4 +170,4 @@ Do not claim:
 - that every practical control is a central empirical finding,
 - that exact first feature recovery is the same object as useful subset
   construction,
-- that the mechanism layer fully replaces the real-data benchmark.
+- that the mechanism layer fully replaces the real data benchmark.

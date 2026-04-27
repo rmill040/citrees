@@ -59,10 +59,11 @@ same downstream models, and $k \in \{5,10,25,50,100\}$.
 The same classification benchmark with 14 datasets yields a Friedman test statistic
 of
 $\chi^2(16)=141.32$ with $p<0.001$ and Kendall's
-$W=0.63$. For the analogous 6-dataset regression check, where all methods,
+$W=0.63$. For the analogous 6-dataset regression analysis, where all methods,
 downstream learners, and standard $k$ values are present, the Friedman test gives
-$\chi^2(17)=33.79$, $p=0.0089$, and Kendall's $W=0.33$. Regression is therefore
-presented as a secondary result.
+$\chi^2(17)=33.79$, $p=0.0089$, and Kendall's $W=0.33$. We report this analysis
+separately from the 14-dataset classification comparison because it has smaller
+dataset support.
 
 \subsection{LODO configuration sensitivity}
 
@@ -111,8 +112,8 @@ downstream models and standard $k$ values.
   distinct settings column gives the number of settings selected across the 14
   LODO runs. The last column reports how often the setting selected in the
   original 14 dataset analysis is selected again. For method families with one
-  setting, 14/14 is tautological; this count is an empirical stability check
-  only for families with more than one selectable setting.}
+  setting, 14/14 follows from the design; this column is informative only for
+  families with more than one selectable setting.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 

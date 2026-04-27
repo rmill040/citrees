@@ -20,9 +20,8 @@ regression benchmark. It also improves over the classical conditional inference 
 forest references in matched comparisons. Classification diagnostics show CIF's
 lowest mean ranks at the larger displayed values of $k$, while controlled
 sparse high-$p$ simulations show that forest candidate sampling can exclude
-informative features from many node-level tests. Overall, CIT and CIF remain
-practical feature-ranking tools in this benchmark, with the strongest empirical
-support for CIF. The Stage~A/Stage~B separation is retained, and the adaptive
-tree and forest rankings are evaluated empirically, with dominant CIF runtime
-costs controlled at small score changes in the ablations and synthetic recovery
-checks.
+informative features from many node-level tests. Overall, CIF has the strongest
+empirical support among the conditional-inference feature selection methods
+studied here. Adaptive stopping and histogram thresholding control its main
+runtime costs, while the high-$p$ simulations identify candidate feature
+availability as a remaining forest limitation.

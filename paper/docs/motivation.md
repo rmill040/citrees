@@ -14,8 +14,8 @@ search were applied too uniformly.
 
 The new benchmark results sharpen the validation story, not the motivation
 itself. The motivation is to improve conditional inference trees and forests as
-practical feature ranking methods: reduce runtime, keep the feature ranking
-behavior useful, and understand where the approximations change the method.
+practical feature selection methods: reduce runtime, keep the rankings useful,
+and understand where the approximations change the method.
 The broad benchmark then checks how the improved methods rank against common
 feature selection methods. In that validation layer, CIF ranks
 `4th/17` on classification and `3rd/18` on regression, while staying positive

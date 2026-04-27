@@ -21,8 +21,8 @@ This pattern is consistent with the results reported in
 
 \paragraph{Practical guidance.}
 CIF is most relevant when the task is feature ranking or feature selection,
-when nonlinear or interaction structure matters, and when the fixed-node
-Stage~A-before-Stage~B testing primitive is part of why the method is used. If
+when nonlinear or interaction structure matters, and when the Stage~A/Stage~B
+separation is part of why the method is used. If
 prediction accuracy is the only objective, boosted trees and random forest
 baselines should remain in the comparison set. When the objective is variable
 screening or ranking rather than final prediction, CIF should also be read
@@ -40,8 +40,7 @@ false discovery rate control, such as Benjamini--Hochberg
 extensions. Feature scanning is reasonable to keep on by default, but the
 ablations show mixed runtime effects once adaptive stopping is enabled and only
 small score changes. Threshold scanning also has mixed effects and is not a
-practical priority. Supporting ablations for feature muting and bootstrap changes
-do not show consistent runtime benefits.
+practical priority.
 
 \paragraph{Boundaries.}
 The 14-dataset classification analysis includes all 17 methods, all

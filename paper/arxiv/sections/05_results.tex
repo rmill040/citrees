@@ -121,21 +121,22 @@ intervals and LODO details.
   \label{fig:regression-k-trajectory}
 \end{figure}
 
-\Cref{fig:k-trajectory,fig:regression-k-trajectory} break out mean rank by
-$k$ and show the dataset count behind each column. In classification, CIF's
+\Cref{fig:k-trajectory,fig:regression-k-trajectory} report mean rank separately
+by $k$ and show the dataset count behind each column. In classification, CIF's
 mean rank is 6.2 at $k=5$, 7.4 at $k=10$, 5.5 at $k=50$, and 5.0 at
 $k=100$. In regression, CIF's mean rank is 8.9 at $k=5$, 5.6 at $k=50$,
-and 7.3 at $k=100$. These figures make the aggregate result in
-\Cref{tab:method-main-comparison} easier to read: CIF's lowest classification
-mean ranks appear at the larger displayed values of $k$, and its lowest
-regression mean rank appears at $k=50$. The ctree and cforest comparisons use
-22 classification datasets, compared with 14 datasets in the shared support
-analysis.
+and 7.3 at $k=100$. The trajectory results qualify the aggregate ranks in
+\Cref{tab:method-main-comparison}: CIF's lowest classification mean ranks occur
+at the larger displayed values of $k$, and its lowest regression mean rank
+occurs at $k=50$. The aggregate ctree and cforest comparisons use 22
+classification datasets; the trajectory figures use the $k$-specific dataset
+counts shown in each column, and the shared support analysis uses 14 datasets.
 
-Ranks by dataset align with the conditional inference comparisons.
-\Cref{tab:cif-breadth-summary} summarizes CIF's breadth across datasets and
-direct reference comparisons. In classification, CIF lands in the top half on
-21 of the 22 datasets with ctree and cforest results, and in the top 3 on 5.
+To separate average rank from dataset breadth,
+\Cref{tab:cif-breadth-summary} reports how often CIF appears in the top half or
+top 3 and how often it beats the tree references. In classification, CIF lands
+in the top half on 21 of the 22 datasets with ctree and cforest results, and in
+the top 3 on 5.
 The regression benchmark has 8 datasets; CIF stays in the top half on 6 datasets
 and in the top 3 on 2.
 Against the greedy single tree references, CIF beats DT on 14/23 classification
@@ -161,12 +162,12 @@ datasets; the RT regression comparison is effectively tied, with CIF ahead on
     \bottomrule
   \end{tabularx}
   \caption{Dataset breadth for the selected CIF configuration. Top half and top
-  3 counts use the main real data rank table support: 22 classification datasets
-  and 8 regression datasets. Classification top half and top 3 counts are
-  computed on available cells containing all methods, downstream learners, and
-  $k$ values, averaging 11.86 cells per dataset rather than a complete
-  $3 \times 5$ rectangle. Direct win counts use all datasets where the compared
-  pair is available.}
+  3 counts use the same support as the main real-data rank table: 22
+  classification datasets and 8 regression datasets. Classification top-half and
+  top-3 counts are based on the available cells for each dataset rather than
+  requiring every learner and every standard value of $k$ to be present. Direct
+  win counts use all datasets where the compared pair is
+  available.}
   \label{tab:cif-breadth-summary}
 \end{table}
 
@@ -255,9 +256,9 @@ diagnostic sensitivity comparison rather than a practical recommendation.
 \section{High-dimensional and synthetic limits}
 \label{sec:boundary}
 
-The remaining analyses examine three boundary cases: where CIF scores peak in
-high-$p$ data, how top-$k$ synthetic recovery differs from top-1 recovery, and
-how candidate-feature sampling inside the forest affects informative split
+The remaining analyses study where CIF's scores peak as the selected feature
+set grows, how synthetic recovery changes across values of $k$, and how
+candidate feature sampling inside the forest affects informative split
 selection.
 
 \paragraph{High-$p$ results on real datasets.}

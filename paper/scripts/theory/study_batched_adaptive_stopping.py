@@ -1,9 +1,9 @@
 """Empirical validation study: batched vs sequential adaptive stopping.
 
 TODO: Report these results in the paper's sequential stopping section.
-      Key finding: K=32 batched stopping preserves Type I error (4.61% vs 4.55%
-      sequential, 100K sims), enabling parallel permutation testing with adaptive
-      early stopping.
+      Key finding: K=32 batched stopping had similar null rejection to
+      sequential adaptive stopping (4.61% vs 4.55% sequential, 100K sims),
+      enabling parallel permutation testing with adaptive early stopping.
 
 Compares Type I error, power, and stopping times for:
   1. Sequential (per-permutation) stopping  — current citrees implementation
@@ -358,8 +358,8 @@ if __name__ == "__main__":
     print("=" * 90)
     print("EMPIRICAL VALIDATION: BATCHED ADAPTIVE PERMUTATION TESTING")
     print("=" * 90)
-    print(f"\nThis validates that checking the Beta CDF stopping criterion every")
-    print(f"K permutations (instead of every 1) preserves Type I error control.")
+    print(f"\nThis checks whether evaluating the Beta CDF stopping criterion every")
+    print(f"K permutations (instead of every 1) changes null rejection in simulation.")
     print(f"\nUsing {N_SIMS:,} simulations, n_max={N_MAX}")
     print()
 
@@ -389,6 +389,6 @@ if __name__ == "__main__":
     print(f"  Both within 95% CI of 0.05? [{0.05 - 1.96*se:.4f}, {0.05 + 1.96*se:.4f}]")
 
     if k32_type1 <= 0.05 + 1.96 * se:
-        print("\n  CONCLUSION: Batched stopping at K=32 preserves Type I error control.")
+        print("\n  CONCLUSION: Batched stopping at K=32 had similar simulated null rejection.")
     else:
         print("\n  WARNING: Batched stopping may inflate Type I error. Investigate further.")

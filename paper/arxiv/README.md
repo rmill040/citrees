@@ -36,9 +36,18 @@ Source bundle contents for submission:
   - `figures/benchmark_pairwise_sensitivity.png`
   - `figures/high_p_boundary_summary.png`
   - `figures/k_trajectory.png`
+  - `figures/regression_k_trajectory.png`
   - `figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png`
   - `figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png`
   - `figures/synthetic_topk_focus_curves.png`
 
-Exclude build products and unused figures from the arXiv source bundle:
-`*.aux`, `*.blg`, `*.log`, `*.out`, `*.fls`, `*.fdb_latexmk`, and `main.pdf`.
+Do not zip this directory by hand. It contains ignored scratch and build
+outputs. From the repository root, build the deterministic source bundle with:
+
+```bash
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_arxiv_source_bundle.py
+```
+
+The bundler rebuilds the manuscript, includes the generated `main.bbl`, copies
+only the files above, and excludes scratch, PDF, unused figures, and LaTeX
+build products.

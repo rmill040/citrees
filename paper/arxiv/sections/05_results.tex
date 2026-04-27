@@ -4,12 +4,12 @@
 \subsection{Benchmark on Real Datasets}
 \label{sec:experiments-real}
 
-\Cref{tab:method-main-comparison} reports the main real-data comparison: 17
+\Cref{tab:method-main-comparison} reports the main comparison on real datasets: 17
 classification methods on the 22 datasets with ctree and cforest results, and 18
 regression methods on all 8 datasets. The full classification collection has 23
 datasets; this table uses 22 because the ctree and cforest outputs are missing
 for dexter. Within each dataset, method ranks are computed
-after averaging scores over the downstream learners and selected-feature budgets
+after averaging scores over the downstream learners and selected values of $k$
 shared by the compared methods. Lower mean rank is better.
 
 \begin{table}[H]
@@ -29,33 +29,34 @@ shared by the compared methods. Lower mean rank is better.
     CatBoost & 5.85 & CIF & 7.07 \\
     CIF & 6.08 & RF & 8.09 \\
     RF & 6.27 & RT & 8.37 \\
-    RFE & 6.98 & DT & 8.68 \\
+    RF-RFE & 6.98 & DT & 8.68 \\
     ExtraTrees & 7.45 & LightGBM & 8.76 \\
-    DT & 7.67 & RDC filter & 8.83 \\
+    DT & 7.67 & RDC-style filter & 8.83 \\
     RT & 10.05 & CIT & 9.19 \\
     CIT & 10.34 & PC filter & 9.35 \\
     Boruta & 10.51 & DC filter & 9.77 \\
     MC filter & 10.65 & XGBoost & 9.96 \\
     PI & 10.76 & Boruta & 10.00 \\
     cforest & 11.36 & PI & 10.19 \\
-    RDC filter & 12.29 & RFE & 10.41 \\
+    RDC-style filter & 12.29 & RF-RFE & 10.41 \\
     ctree & 12.86 & cforest & 12.20 \\
-    CPI & 13.13 & ctree & 12.99 \\
-    & & CPI & 13.61 \\
+    CPI approx. & 13.13 & ctree & 12.99 \\
+    & & CPI approx. & 13.61 \\
     \bottomrule
   \end{tabular*}
-  \caption{Main real-data comparison: 17 classification methods on the 22
+  \caption{Main comparison on real datasets: 17 classification methods on the 22
   datasets with ctree and cforest results, and 18 regression methods on 8
   datasets. Ranks are computed within each
-  dataset after averaging over the downstream learners and selected-feature
-  budgets shared by the compared methods, then averaged across datasets.}
+  dataset after averaging over the downstream learners and selected values of
+  $k$ shared by the compared methods, then averaged across datasets.}
   \label{tab:method-main-comparison}
 \end{table}
 
-Under this averaging, CIF ranks 4th of 17 classification methods and 3rd of 18
-regression methods. CIF's largest paired advantages are against ctree, cforest,
-and CIT, as reported next. \Cref{app:benchmark-stability} reports
-learner-by-$k$ and seed sensitivity checks using the same selected
+Under this benchmark-selected configuration rule and averaging, CIF ranks 4th
+of 17 classification methods and 3rd of 18 on the smaller regression benchmark.
+The targeted conditional inference comparisons are against
+ctree, cforest, and CIT, as reported next. \Cref{app:benchmark-stability} reports
+learner and $k$ sensitivity checks using the same selected
 configurations, with support stated for each analysis.
 
 \begin{table}[H]
@@ -65,27 +66,27 @@ configurations, with support stated for each analysis.
   \renewcommand{\arraystretch}{1.08}
   \begin{tabular}{@{}llccc@{}}
     \toprule
-    Task & Compared with & Datasets & Mean diff. & W--L--T \\
+    Task & Compared with & Datasets & Mean diff. & W--L \\
     \midrule
-    Classification & ctree & 22 & +0.088 & 22--0--0 \\
-    Classification & cforest & 22 & +0.072 & 19--3--0 \\
-    Classification & CIT & 23 & +0.032 & 22--1--0 \\
-    Regression & ctree & 8 & +0.226 & 7--1--0 \\
-    Regression & cforest & 8 & +0.721 & 7--1--0 \\
-    Regression & CIT & 8 & +0.360 & 6--2--0 \\
+    Classification & ctree & 22 & +0.088 & 22--0 \\
+    Classification & cforest & 22 & +0.072 & 19--3 \\
+    Classification & CIT & 23 & +0.032 & 22--1 \\
+    Regression & ctree & 8 & +0.226 & 7--1 \\
+    Regression & cforest & 8 & +0.721 & 7--1 \\
+    Regression & CIT & 8 & +0.360 & 6--2 \\
     \bottomrule
   \end{tabular}
   \caption{Matched CIF comparisons against ctree, cforest, and CIT. Mean
-  differences are CIF minus the compared method after dataset-level averaging,
+  differences are CIF minus the compared method after averaging within each dataset,
   using balanced accuracy for classification and $R^2$ for regression. Positive
-  values favor CIF. W--L--T reports the number of datasets where CIF wins,
-  loses, or ties. Regression differences can exceed CIF's mean $R^2$ when the
-  compared method has negative mean $R^2$.}
+  values favor CIF. W--L reports wins and losses; no exact ties occurred in
+  these comparisons. Regression differences can exceed CIF's mean $R^2$ when
+  the compared method has negative mean $R^2$.}
   \label{tab:conditional-inference-comparisons}
 \end{table}
 
-On the 14-dataset shared-support classification analysis, which includes all 17
-methods, all three downstream learners, and all five standard values of $k$, the
+On the shared support classification analysis, which includes 14 datasets, all
+17 methods, all three downstream learners, and all five standard values of $k$, the
 95\% bootstrap intervals for the mean CIF differences, computed after averaging
 within each dataset, are [0.068, 0.154] for ctree,
 [0.067, 0.161] for cforest, and [0.023, 0.060] for CIT. On the same
@@ -93,8 +94,8 @@ within each dataset, are [0.068, 0.154] for ctree,
 overall ($\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$).
 The selected CIF setting has positive mean differences against ctree,
 cforest, and CIT on this analysis. The LODO check gives the same qualitative
-ranking: CIF is fifth among 17 methods by average held-out rank (mean held-out
-rank 5.64). CIF's global 14-dataset setting is selected in all 14 held-out
+ranking: CIF is fifth among 17 methods by average LODO rank (mean LODO
+rank 5.64). CIF's global setting from the 14 datasets is selected in all 14 LODO
 runs; these selection counts describe the LODO configuration rule rather than
 separate performance evidence.
 \Cref{tab:fixed-panel-cif-ci,tab:lodo-config-sensitivity} give the matched
@@ -110,20 +111,34 @@ intervals and LODO details.
   \label{fig:k-trajectory}
 \end{figure}
 
-\Cref{fig:k-trajectory} shows how classification mean ranks vary by $k$ across
-all 17 methods; the axis labels give the number of datasets included at each
-value of $k$. CIF is not strongest when models use only the first 5 or 10 ranked
-features, but its mean rank is better at larger feature budgets on the datasets
-represented there. The 22-dataset comparisons with ctree and cforest use
-broader support than the 14-dataset shared-support analysis.
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/regression_k_trajectory.png}
+  \caption{Regression mean rank by number of selected features. Rows show all
+  18 feature selection methods in the regression benchmark, averaged across
+  downstream models at each value of $k$. Lower ranks are better. The
+  parenthesized counts show the number of datasets included at each $k$.}
+  \label{fig:regression-k-trajectory}
+\end{figure}
 
-Ranks by dataset align with the conditional-inference comparisons.
+\Cref{fig:k-trajectory,fig:regression-k-trajectory} break out mean rank by
+$k$ and show the dataset count behind each column. In classification, CIF's
+mean rank is 6.2 at $k=5$, 7.4 at $k=10$, 5.5 at $k=50$, and 5.0 at
+$k=100$. In regression, CIF's mean rank is 8.9 at $k=5$, 5.6 at $k=50$,
+and 7.3 at $k=100$. These figures make the aggregate result in
+\Cref{tab:method-main-comparison} easier to read: CIF's lowest classification
+mean ranks appear at the larger displayed values of $k$, and its lowest
+regression mean rank appears at $k=50$. The ctree and cforest comparisons use
+22 classification datasets, compared with 14 datasets in the shared support
+analysis.
+
+Ranks by dataset align with the conditional inference comparisons.
 \Cref{tab:cif-breadth-summary} summarizes CIF's breadth across datasets and
 direct reference comparisons. In classification, CIF lands in the top half on
 21 of the 22 datasets with ctree and cforest results, and in the top 3 on 5.
-The 8-dataset regression benchmark
-is smaller; CIF stays in the top half on 6 datasets and in the top 3 on 2.
-Against the single-tree greedy references, CIF beats DT on 14/23 classification
+The regression benchmark has 8 datasets; CIF stays in the top half on 6 datasets
+and in the top 3 on 2.
+Against the greedy single tree references, CIF beats DT on 14/23 classification
 datasets and 6/8 regression datasets, and beats RT on 21/23 classification
 datasets; the RT regression comparison is effectively tied, with CIF ahead on
 5/8 datasets but a mean difference near zero.
@@ -135,7 +150,7 @@ datasets; the RT regression comparison is effectively tied, with CIF ahead on
   \renewcommand{\arraystretch}{1.08}
   \begin{tabularx}{\linewidth}{@{}l c c c X X@{}}
     \toprule
-    Task & Main rank & Top half & Top 3 & Conditional-inference wins & Single-tree wins \\
+    Task & Main rank & Top half & Top 3 & Conditional inference wins & Single tree wins \\
     \midrule
     Classification & 4/17 & 21/22 & 5/22 &
     ctree 22/22; cforest 19/22; CIT 22/23 &
@@ -145,10 +160,13 @@ datasets; the RT regression comparison is effectively tied, with CIF ahead on
     DT 6/8; RT 5/8 \\
     \bottomrule
   \end{tabularx}
-  \caption{Dataset-level breadth for the selected CIF configuration. Top-half
-  and top-3 counts use the main real-data rank table support: 22 classification
-  datasets and 8 regression datasets. Direct win counts use all datasets where
-  the compared pair is available.}
+  \caption{Dataset breadth for the selected CIF configuration. Top half and top
+  3 counts use the main real data rank table support: 22 classification datasets
+  and 8 regression datasets. Classification top half and top 3 counts are
+  computed on available cells containing all methods, downstream learners, and
+  $k$ values, averaging 11.86 cells per dataset rather than a complete
+  $3 \times 5$ rectangle. Direct win counts use all datasets where the compared
+  pair is available.}
   \label{tab:cif-breadth-summary}
 \end{table}
 

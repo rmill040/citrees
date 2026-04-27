@@ -311,7 +311,7 @@ def cpi_selector(
     correlation_threshold: float = 0.5,
     params: dict[str, Any] | None = None,
 ) -> np.ndarray:
-    """Compute feature ranking using conditional permutation importance.
+    """Compute feature ranking using a stratified conditional-permutation approximation.
 
     Parameters
     ----------
@@ -411,7 +411,7 @@ def rfe_selector(
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
 ) -> np.ndarray:
-    """Compute feature ranking using Recursive Feature Elimination."""
+    """Compute feature ranking using random-forest Recursive Feature Elimination."""
     if task == "classification":
         base_model = RandomForestClassifier(
             n_estimators=100, n_jobs=n_jobs, random_state=random_state

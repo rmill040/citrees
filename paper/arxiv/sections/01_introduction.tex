@@ -28,6 +28,10 @@ evaluated on held-out data, with results summarized across datasets. This
 rank-then-evaluate design connects the split selection bias problem to feature
 selection quality: the tree procedure matters here when its accepted splits put
 useful variables early enough for downstream models.
+The protocol is a predictive rank-then-evaluate benchmark, not an
+error-controlled high-dimensional selection procedure of the kind targeted by
+stability selection or knockoffs
+\citep{MeinshausenBuhlmann2010StabilitySelection,BarberCandes2015Knockoffs}.
 
 This paper asks which runtime controls matter for conditional inference trees
 (CIT) and conditional inference forests (CIF) when they are used to produce
@@ -52,16 +56,16 @@ outside this theorem
 Because several method families have tunable configurations, the benchmark
 chooses one setting per method family and task. A leave-one-dataset-out (LODO)
 classification analysis repeats the setting choice after holding out each
-dataset in the 14-dataset panel.
+dataset in the 14-dataset panel as a configuration-stability check.
 
 \paragraph{Contributions.}
 This paper contributes a broad real-dataset benchmark of feature selection
 methods, matched comparisons against classical conditional inference references,
-classification trajectory and sensitivity analyses, runtime ablations for the
-main practical controls, and high-$p$, synthetic recovery, and mechanism diagnostics
-(\cref{sec:boundary}). Regression is reported mainly through the 8-dataset
-real-data comparison and matched conditional-inference comparisons, while the
-detailed trajectory and sensitivity figures focus on classification. The paper
+classification and regression trajectory summaries, classification sensitivity
+analyses, runtime ablations for the main practical controls, and high-$p$,
+synthetic recovery, and mechanism diagnostics (\cref{sec:boundary}). Regression
+is reported mainly through the 8-dataset real-data comparison, matched
+conditional-inference comparisons, and the mean-rank trajectory by $k$. The paper
 also states the fixed-$B$ nodewise Stage~A guarantee
 (\cref{thm:plusone-superuniform,cor:stageA-global-null}) that motivates the
 testing primitive.

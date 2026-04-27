@@ -96,6 +96,7 @@ Keep in main text:
 Main-text figures:
 
 - `paper/results/figures/k_trajectory.png`
+- `paper/results/figures/regression_k_trajectory.png`
 - `paper/results/figures/high_p_boundary_summary.png`
 - `paper/results/figures/synthetic_topk_focus_curves.png`
 - `paper/results/figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png`
@@ -119,7 +120,7 @@ Do not let the paper regrow:
 - calibration in main text
 - CIF-vs-R as a headline layer
 - long method-by-method prose
-- detailed regression displays
+- regression displays beyond the compact trajectory figure
 - regime-by-regime synthetic walkthroughs
 
 ## Build The Manuscript
@@ -132,14 +133,17 @@ latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 ## Rebuild Paper-Facing Tables
 
 ```bash
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_paper_data_surfaces.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_characteristics_table.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_package_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/fig_benchmark_k_trajectory.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_heterogeneity_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_knob_ablation_summary_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_summary_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_cit_runtime_ablation_summary_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_manuscript_summary_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 ```

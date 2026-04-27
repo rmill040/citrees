@@ -5,7 +5,8 @@ Three methods:
 2. Adaptive: Bayesian Beta CDF posterior-confidence stopping (speed-oriented; the returned value is a Monte Carlo
    estimate evaluated at a stopping time, not a fixed-B permutation p-value)
 3. Adaptive Batched: Same as adaptive, but checks the stopping criterion every `batch_size` permutations instead of
-   every single permutation. Eliminates ~97% of Beta CDF evaluations with negligible effect on Type I error.
+   every single permutation. Eliminates ~97% of Beta CDF evaluations in calibration runs; these
+   adaptive outputs are not theorem-level fixed-B p-values.
 """
 
 import os
@@ -191,8 +192,11 @@ def _ptest_sequential_adaptive_batched(
 
     Same as _ptest_sequential_adaptive, but checks the Beta CDF stopping
     criterion every `batch_size` permutations instead of after every single
-    permutation. This eliminates ~97% of Beta CDF evaluations with negligible
-    effect on Type I error (validated in paper/scripts/theory/study_batched_adaptive_stopping.py).
+    permutation. Calibration runs in
+    paper/scripts/theory/study_batched_adaptive_stopping.py showed similar null
+    rejection while eliminating most Beta CDF evaluations, but the returned
+    values are still adaptive stopping-time estimates, not fixed-B permutation
+    p-values.
 
     Parameters
     ----------

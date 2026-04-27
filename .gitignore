@@ -133,4 +133,6 @@ paper/arxiv/*.lot
 paper/arxiv/*.out
 paper/arxiv/*.pdf
 paper/arxiv/*.synctex.gz
+paper/arxiv/build/
+paper/arxiv/*.zip
 paper/arxiv/*.toc

@@ -26,6 +26,8 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_benchmark_lodo_aggregate.csv` - leave-one-dataset-out aggregate sensitivity summary
 - `paper_benchmark_lodo_config_stability.csv` - leave-one-dataset-out selected-config stability summary
 - `paper_benchmark_spread.csv`
+- `k_trajectory_ranks.csv` - classification rank-by-k matrix used by the main-text trajectory figure
+- `regression_k_trajectory_ranks.csv` - regression rank-by-k matrix used by the main-text trajectory figure
 - `paper_benchmark_pairwise_aggregate.csv` - directed all-vs-all method comparisons; the `baseline` column is the compared method, not a restricted baseline set
 - `paper_benchmark_pairwise_stratified.csv` - directed all-vs-all comparisons by downstream model and number of selected features; the `baseline` column is the compared method
 - `paper_presentation_benchmark_summary.csv`
@@ -64,6 +66,14 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_mechanism_grid_forest_regression_aggregate_summary_1000trees.csv`
 - `paper_mechanism_grid_forest_classification_cif_vs_cif_all_deltas_1000trees.csv`
 - `paper_mechanism_grid_forest_regression_cif_vs_cif_all_deltas_1000trees.csv`
+- `paper_mechanism_grid_tree_classification_display_slice_ranking.csv`
+- `paper_mechanism_grid_tree_regression_display_slice_ranking.csv`
+- `paper_mechanism_grid_forest_classification_display_slice_ranking_1000trees.csv`
+- `paper_mechanism_grid_forest_regression_display_slice_ranking_1000trees.csv`
+- `paper_mechanism_grid_tree_classification_feature_counts.csv`
+- `paper_mechanism_grid_tree_regression_feature_counts.csv`
+- `paper_mechanism_grid_forest_classification_feature_counts.csv`
+- `paper_mechanism_grid_forest_regression_feature_counts.csv`
 
 ## Supporting-Only (Refreshed)
 

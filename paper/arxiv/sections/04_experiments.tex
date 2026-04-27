@@ -9,7 +9,7 @@ each seed. Classification uses logistic regression, support vector machine
 (SVM), and k-nearest neighbors (KNN) as downstream models and reports balanced
 accuracy, the mean recall across classes. Regression uses ridge regression,
 support vector regression (SVR), and KNN and reports $R^2$. The main tables use
-the standard budgets $k \in \{5,10,25,50,100\}$.
+the standard values $k \in \{5,10,25,50,100\}$.
 Downstream learner settings are fixed: logistic regression uses balanced class
 weights and 1,000 maximum iterations; SVM uses an RBF kernel with $C=1$,
 \texttt{gamma=scale}, and balanced class weights; KNN uses 5 distance-weighted
@@ -27,10 +27,11 @@ feature set.
 
 The downstream-evaluation pipeline also records the full feature set $k=p$ for
 every dataset. For datasets with more than 100 features, the separate high-$p$
-analysis adds fixed budgets $k \in \{150,200,300,500,750,1{,}000\}$ and
-fractional budgets
+analysis adds fixed values $k \in \{150,200,300,500,750,1{,}000\}$ and
+fractional values
 $\lceil 0.25p\rceil,\lceil 0.5p\rceil,\lceil 0.75p\rceil$, retaining only
-values that are at most $p$. The main tables average only the standard budgets.
+values that are at most $p$. The main tables average only the standard values
+of $k$.
 
 \subsection{Benchmark comparisons}
 \label{sec:experiments-analysis-plan}
@@ -51,8 +52,8 @@ intervals and omnibus rank testing. Regression has 8 datasets; the analogous
 rank test uses the 6 datasets with all methods, learners, and standard $k$
 values present.
 
-The $k$-trajectory analyses do not average over selected-feature budgets; they
-report results separately at each standard $k$. At
+The trajectory analyses do not average over the number of selected features; they
+report results separately at each standard value of $k$. At
 $k = 5, 10, 25, 50, 100$, these trajectory analyses use
 $22, 21, 15, 15, 14$ classification datasets and $8, 8, 7, 7, 6$ regression
 datasets. Pairwise CIF comparisons stratified by $k$ use the dataset counts
@@ -85,8 +86,11 @@ features available at each node (CIF-all), random forests (RF), and ExtraTrees
 The benchmark includes three types of feature selectors. Permutation test filters
 use univariate dependence scores to rank features: multiple correlation (MC) and
 randomized dependence coefficient (RDC) for classification, and Pearson
-correlation (PC), distance correlation (DC), and RDC for regression. RDC follows
-\citet{LopezPaz2013RDC}, and distance correlation follows
+correlation (PC), distance correlation (DC), and RDC for regression. The RDC
+filter is an RDC-style randomized-feature dependence score adapted from
+\citet{LopezPaz2013RDC}: it keeps the empirical-CDF random feature map but uses
+the maximum absolute pairwise correlation across projected columns instead of a
+canonical-correlation solve. Distance correlation follows
 \citet{Szekely2007DistanceCorrelation}. Embedded methods use tree
 or ensemble importance scores: CART decision trees (DT), randomized trees (RT),
 CIT, CIF, random forests (RF)
@@ -98,11 +102,20 @@ conditional-inference implementations ctree and cforest from
 \texttt{partykit}
 \citep{RPartykitPackage,Hothorn2006UnbiasedRecursivePartitioning,HothornZeileis2015Partykit}.
 Wrapper baselines use auxiliary random-forest fits to score feature subsets: Boruta
-\citep{Kursa2010Boruta}, permutation importance (PI), conditional permutation
-importance (CPI)
+\citep{Kursa2010Boruta}, permutation importance (PI)
+\citep{Breiman2001RandomForests,Strobl2007BiasRFVariableImportance}, a
+stratified conditional-permutation approximation (CPI approx.) motivated by
+conditional permutation importance
 \citep{DebeerStrobl2020ConditionalPermutationImportanceRevisited}, and
-recursive feature elimination (RFE)
-\citep{Guyon2002RFE}.
+random-forest recursive feature elimination (RF-RFE)
+\citep{Guyon2002RFE,Pedregosa2011ScikitLearn}. The CPI approximation trains a
+random forest on a training split, forms validation-set strata from features
+correlated with the target feature, and permutes the target feature within
+those strata. It is a benchmark baseline, not a claim to reproduce every detail
+of published CPI estimators. In the implementation used here, CPI approx. uses a
+20\% validation split, conditions on features with absolute correlation at least
+0.5 with the target feature, forms five-bin strata, and scores a 100-tree random
+forest after within-stratum permutation.
 
 \subsection{Configuration selection}
 \label{sec:experiments-repro}

@@ -2,8 +2,8 @@
 \label{app:benchmark-stability}
 
 This appendix reports benchmark support counts, matched CIF comparisons, LODO
-configuration sensitivity, learner-by-budget and seed sensitivity checks, and
-candidate-feature sampling by feature dimension.
+configuration sensitivity, learner and $k$ sensitivity checks, and candidate
+feature sampling by feature dimension.
 
 \Cref{tab:benchmark-support-ladder} summarizes the dataset counts used by the
 benchmark analyses. Missing benchmark entries are not imputed.
@@ -16,18 +16,18 @@ benchmark analyses. Missing benchmark entries are not imputed.
     \toprule
     Analysis & Classification datasets & Regression datasets & Purpose \\
     \midrule
-    Main rank table & 22 & 8 & Headline real-data rank table \\
-    Learner-by-$k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and selected-feature budget \\
+    Main rank table & 22 & 8 & Headline real data rank table \\
+    Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and number of selected features \\
     Matched rank tests & 14 & 6 & Bootstrap intervals and omnibus rank tests \\
     Seed sensitivity & 12 & 6 & Seed variation with shared dataset support across seeds \\
     \bottomrule
   \end{tabularx}
-  \caption{Dataset support for benchmark analyses. The learner-by-$k$ row lists
+  \caption{Dataset support for benchmark analyses. The learner and $k$ row lists
   counts at $k=5,10,25,50,100$. Missing benchmark entries are not imputed.}
   \label{tab:benchmark-support-ladder}
 \end{table}
 
-\subsection{Shared-support classification benchmark}
+\subsection{Shared support classification benchmark}
 
 \Cref{tab:fixed-panel-cif-ci} gives the matched CIF comparisons
 against ctree, cforest, and CIT. All comparisons use the same 14 datasets, the
@@ -39,20 +39,20 @@ same downstream models, and $k \in \{5,10,25,50,100\}$.
   \setlength{\tabcolsep}{5pt}
   \begin{tabular}{@{}l r l c c@{}}
     \toprule
-    Compared method & Mean $\Delta$ & 95\% CI & W--L--T & One-sided sign-test $p$ \\
+    Compared method & Mean $\Delta$ & 95\% CI & W--L & One sided sign test $p$ \\
     \midrule
-    ctree & 0.109 & [0.068, 0.154] & 14--0--0 & $<0.001$ \\
-    cforest & 0.111 & [0.067, 0.161] & 13--1--0 & $<0.001$ \\
-    CIT & 0.041 & [0.023, 0.060] & 13--1--0 & $<0.001$ \\
+    ctree & 0.109 & [0.068, 0.154] & 14--0 & $<0.001$ \\
+    cforest & 0.111 & [0.067, 0.161] & 13--1 & $<0.001$ \\
+    CIT & 0.041 & [0.023, 0.060] & 13--1 & $<0.001$ \\
     \bottomrule
   \end{tabular}
   \caption{Matched balanced accuracy differences between CIF and the compared
   method on the classification benchmark with 14 datasets. Rows are
-  dataset-level matched differences after averaging each dataset over the same
-  downstream learners and feature budgets. The confidence intervals are
+  matched differences within datasets after averaging each dataset over the same
+  downstream learners and values of $k$. The confidence intervals are
   percentile bootstrap intervals from 20{,}000 replicates. Positive differences
-  favor CIF. The sign-test alternative is CIF $>$ comparator. W--L--T gives the
-  number of datasets where CIF wins, loses, or ties against the compared method.}
+  favor CIF. The sign test alternative is CIF $>$ comparator. W--L gives wins
+  and losses; no exact ties occurred in these comparisons.}
   \label{tab:fixed-panel-cif-ci}
 \end{table}
 
@@ -67,11 +67,11 @@ presented as a secondary result.
 \subsection{LODO configuration sensitivity}
 
 \Cref{tab:lodo-config-sensitivity} summarizes the LODO analysis on the
-classification benchmark with 14 datasets. For each held-out dataset,
-configurations are selected on the other 13 datasets and evaluated on that
-held-out dataset using the same dataset-level averaging rule as the 14-dataset
-shared-support benchmark: average within dataset over downstream models and
-standard $k$ values.
+classification benchmark with 14 datasets. For each dataset left out of
+configuration selection, configurations are selected on the other 13 datasets
+and evaluated on the left out dataset using the same averaging rule as the
+shared support benchmark with 14 datasets: average within dataset over
+downstream models and standard $k$ values.
 
 \begin{table}[H]
   \centering
@@ -80,8 +80,8 @@ standard $k$ values.
   \begin{tabular}{@{}l r r r c@{}}
     \toprule
     Method &
-    \multicolumn{1}{c}{Held-out rank} &
-    \multicolumn{1}{c}{Held-out balanced accuracy} &
+    \multicolumn{1}{c}{LODO rank} &
+    \multicolumn{1}{c}{LODO balanced accuracy} &
     \multicolumn{1}{c}{Distinct settings} &
     Global setting reselected \\
     \midrule
@@ -91,56 +91,55 @@ standard $k$ values.
     XGBoost & 4.79 & 0.809 & 2 & 6/14 \\
     CIF & 5.64 & 0.798 & 1 & 14/14 \\
     ExtraTrees & 5.79 & 0.789 & 1 & 14/14 \\
-    RFE & 6.57 & 0.795 & 1 & 14/14 \\
+    RF-RFE & 6.57 & 0.795 & 1 & 14/14 \\
     DT & 7.43 & 0.774 & 1 & 14/14 \\
     Boruta & 9.14 & 0.747 & 1 & 14/14 \\
     RT & 10.64 & 0.752 & 1 & 14/14 \\
     CIT & 10.79 & 0.757 & 1 & 14/14 \\
     MC filter & 11.43 & 0.734 & 1 & 14/14 \\
-    RDC filter & 11.86 & 0.707 & 1 & 14/14 \\
+    RDC-style filter & 11.86 & 0.707 & 1 & 14/14 \\
     cforest & 13.29 & 0.687 & 1 & 14/14 \\
     ctree & 13.64 & 0.689 & 1 & 14/14 \\
     PI & 13.75 & 0.689 & 1 & 14/14 \\
-    CPI & 16.04 & 0.598 & 1 & 14/14 \\
+    CPI approx. & 16.04 & 0.598 & 1 & 14/14 \\
     \bottomrule
   \end{tabular}
   \caption{LODO configuration sensitivity on the classification benchmark with
-  14 datasets. For each held-out dataset, methods are ranked after selecting
-  configurations on the other 13 datasets; held-out balanced accuracy and
-  held-out rank are then averaged over the 14 held-out datasets. Lower rank is
-  better. The distinct settings column gives the number of settings selected
-  across the 14 LODO runs. The last column reports how often the setting
-  selected in the original 14-dataset analysis is selected again. For
-  one-setting method families, 14/14 is tautological; the re-selection count is
-  an empirical stability check only for families with more than one selectable
-  setting.}
+  14 datasets. For each LODO run, methods are ranked after selecting
+  configurations on the other 13 datasets; balanced accuracy and rank on the
+  left out dataset are then averaged over the 14 runs. Lower rank is better. The
+  distinct settings column gives the number of settings selected across the 14
+  LODO runs. The last column reports how often the setting selected in the
+  original 14 dataset analysis is selected again. For method families with one
+  setting, 14/14 is tautological; this count is an empirical stability check
+  only for families with more than one selectable setting.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
-For CIF, the LODO analysis selects the same configuration on all 14 held-out
-datasets, and CIF is fifth among 17 methods by average held-out rank (mean
-held-out rank 5.64). Among methods
+For CIF, the LODO analysis selects the same configuration in all 14 runs, and
+CIF is fifth among 17 methods by average LODO rank (mean LODO rank 5.64).
+Among methods
 with more than one selectable configuration in this table, XGBoost is the only
-one that selects more than one setting; it reselects the original 14-dataset
-choice on 6 of the 14 held-out datasets.
+one that selects more than one setting; it reselects the original 14 dataset
+choice in 6 of the 14 runs.
 
-\subsection{Sensitivity to downstream learner, feature budget, and seed}
+\subsection{Sensitivity to downstream learner, k, and seed}
 
-The main benchmark averages over downstream learners, standard selected-feature
-budgets, folds, and seeds. The following tables break out method ordering by
-learner, feature budget, or seed as descriptive sensitivity analyses. They use
+The main benchmark averages over downstream learners, standard values of $k$,
+folds, and seeds. The following tables break out method ordering by
+learner, value of $k$, or seed as descriptive sensitivity analyses. They use
 the same selected method configurations as the main benchmark.
 
-For the learner-by-$k$ checks, each comparison unit is one downstream learner
+For the learner and $k$ checks, each comparison unit is one downstream learner
 and one standard value of $k$. Within a unit, methods are ordered by their mean
-dataset-level rank on datasets with every compared method available for that
+rank within datasets with every compared method available for that
 unit; ties use average ranks.
 \Cref{tab:classification-learner-k-sensitivity,tab:regression-learner-k-sensitivity}
-summarize the 15 downstream-learner/budget combinations for each task. The
+summarize the 15 learner and $k$ combinations for each task. The
 learner columns report mean position over the five standard values of $k$ for
 that learner; lower positions are better. Mean rank keeps the underlying
-dataset-rank values before converting each comparison unit to positions. The
-Top 3 and Top 5 counts report downstream-learner/budget combinations, not
+dataset rank values before converting each comparison unit to positions. The
+Top 3 and Top 5 counts report learner and $k$ combinations, not
 datasets.
 
 \begin{table}[H]
@@ -157,7 +156,7 @@ datasets.
     CatBoost & 2.9 & 3.4 & 3.4 & 3.2 & 5.2 & 1.0--7.0 & 11/15 & 12/15 \\
     CIF & 3.0 & 5.6 & 4.6 & 4.4 & 6.0 & 1.0--8.0 & 3/15 & 12/15 \\
     RF & 4.8 & 4.6 & 4.8 & 4.7 & 6.2 & 1.0--7.0 & 1/15 & 11/15 \\
-    RFE & 5.5 & 5.8 & 5.6 & 5.6 & 6.9 & 1.5--8.0 & 2/15 & 5/15 \\
+    RF-RFE & 5.5 & 5.8 & 5.6 & 5.6 & 6.9 & 1.5--8.0 & 2/15 & 5/15 \\
     ExtraTrees & 6.4 & 6.2 & 8.0 & 6.9 & 7.2 & 4.0--9.0 & 0/15 & 2/15 \\
     DT & 8.1 & 6.9 & 7.0 & 7.3 & 8.0 & 3.0--12.0 & 2/15 & 4/15 \\
     RT & 10.6 & 9.8 & 10.0 & 10.1 & 9.9 & 8.0--12.0 & 0/15 & 0/15 \\
@@ -166,14 +165,14 @@ datasets.
     MC filter & 10.7 & 11.8 & 12.0 & 11.5 & 10.8 & 9.0--13.0 & 0/15 & 0/15 \\
     PI & 13.4 & 15.0 & 13.2 & 13.9 & 12.1 & 10.0--16.0 & 0/15 & 0/15 \\
     cforest & 14.2 & 12.4 & 14.6 & 13.7 & 12.1 & 11.0--16.0 & 0/15 & 0/15 \\
-    RDC filter & 13.4 & 14.1 & 13.6 & 13.7 & 12.1 & 10.0--16.0 & 0/15 & 0/15 \\
+    RDC-style filter & 13.4 & 14.1 & 13.6 & 13.7 & 12.1 & 10.0--16.0 & 0/15 & 0/15 \\
     ctree & 15.6 & 15.5 & 15.4 & 15.5 & 13.0 & 13.0--17.0 & 0/15 & 0/15 \\
-    CPI & 16.6 & 16.8 & 17.0 & 16.8 & 14.4 & 15.0--17.0 & 0/15 & 0/15 \\
+    CPI approx. & 16.6 & 16.8 & 17.0 & 16.8 & 14.4 & 15.0--17.0 & 0/15 & 0/15 \\
     \bottomrule
   \end{tabular}
-  \caption{Classification sensitivity by downstream learner and selected-feature
-  budget. Lower values are better. Mean position and mean rank average over 15
-  downstream-learner/budget combinations. The dataset counts at
+  \caption{Classification sensitivity by downstream learner and number of
+  selected features. Lower values are better. Mean position and mean rank average
+  over 15 learner and $k$ combinations. The dataset counts at
   $k=5,10,25,50,100$ are
   22, 21, 15, 15, and 14.}
   \label{tab:classification-learner-k-sensitivity}
@@ -195,49 +194,49 @@ datasets.
     RT & 4.2 & 8.2 & 5.6 & 6.0 & 8.0 & 1.5--13.0 & 3/15 & 10/15 \\
     DT & 5.9 & 8.4 & 7.3 & 7.2 & 8.5 & 1.0--14.0 & 2/15 & 2/15 \\
     LightGBM & 7.5 & 9.0 & 8.7 & 8.4 & 8.9 & 1.0--16.5 & 3/15 & 4/15 \\
-    RDC filter & 9.8 & 12.2 & 5.3 & 9.1 & 9.3 & 3.0--17.5 & 1/15 & 3/15 \\
+    RDC-style filter & 9.8 & 12.2 & 5.3 & 9.1 & 9.3 & 3.0--17.5 & 1/15 & 3/15 \\
     CIT & 12.4 & 4.1 & 12.1 & 9.5 & 9.4 & 2.0--16.0 & 2/15 & 3/15 \\
     PC filter & 10.9 & 11.5 & 9.3 & 10.6 & 9.8 & 7.5--16.0 & 0/15 & 0/15 \\
     DC filter & 13.7 & 14.0 & 7.4 & 11.7 & 10.3 & 4.0--17.0 & 0/15 & 1/15 \\
     XGBoost & 6.0 & 14.8 & 9.1 & 10.0 & 9.5 & 2.0--16.0 & 1/15 & 4/15 \\
     Boruta & 12.4 & 7.1 & 12.6 & 10.7 & 9.8 & 2.0--16.0 & 1/15 & 2/15 \\
     PI & 10.2 & 6.2 & 13.8 & 10.1 & 9.7 & 2.0--15.0 & 1/15 & 2/15 \\
-    RFE & 14.8 & 11.0 & 12.4 & 12.7 & 10.8 & 3.0--18.0 & 1/15 & 1/15 \\
+    RF-RFE & 14.8 & 11.0 & 12.4 & 12.7 & 10.8 & 3.0--18.0 & 1/15 & 1/15 \\
     cforest & 17.3 & 12.7 & 16.1 & 15.4 & 12.5 & 5.5--18.0 & 0/15 & 0/15 \\
     ctree & 12.6 & 16.0 & 17.8 & 15.5 & 12.9 & 8.0--18.0 & 0/15 & 0/15 \\
-    CPI & 16.9 & 15.8 & 16.6 & 16.4 & 13.2 & 9.0--18.0 & 0/15 & 0/15 \\
+    CPI approx. & 16.9 & 15.8 & 16.6 & 16.4 & 13.2 & 9.0--18.0 & 0/15 & 0/15 \\
     \bottomrule
   \end{tabular}
-  \caption{Regression sensitivity by downstream learner and selected-feature
-  budget. Lower values are better. Mean position and mean rank average over 15
-  downstream-learner/budget combinations. The dataset counts at
+  \caption{Regression sensitivity by downstream learner and number of selected
+  features. Lower values are better. Mean position and mean rank average over 15
+  learner and $k$ combinations. The dataset counts at
   $k=5,10,25,50,100$ are
   8, 8, 7, 7, and 6.}
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 
-In the classification sensitivity table, CIF is top-five in 12 of the 15
-downstream-learner/budget combinations and top-three in 3 of 15 combinations.
-Regression is more variable across learners and feature budgets; ExtraTrees and
+In the classification sensitivity table, CIF is top five in 12 of the 15
+learner and $k$ combinations and top three in 3 of 15 combinations.
+Regression is more variable across learners and values of $k$; ExtraTrees and
 CatBoost have lower mean positions than CIF across those combinations.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/benchmark_pairwise_sensitivity.png}
-  \caption{Matched classification margins against conditional-inference
+  \caption{Matched classification margins against conditional inference
   references by downstream learner and number of selected features. Each plotted
-  value is the mean CIF-minus-comparator balanced-accuracy difference for one
+  value is the mean CIF minus comparator balanced accuracy difference for one
   downstream learner and one value of $k$; positive values favor CIF. Dataset
   counts by $k$ are 22, 21, 15, 15, and 14 for ctree and cforest, and
   23, 22, 16, 16, and 15 for CIT.}
   \label{fig:benchmark-pairwise-sensitivity}
 \end{figure}
 
-For seed sensitivity, each method is re-ranked separately within each seed after
+For seed sensitivity, each method is ranked separately within each seed after
 retaining only datasets with results for every method, downstream learner,
-standard value of $k$, and seed. This shared-support seed panel has 12
-classification datasets and 6 regression datasets. This is a shared-support
-seed-sensitivity check, not the primary benchmark estimand.
+standard value of $k$, and seed. This shared support seed panel has 12
+classification datasets and 6 regression datasets. This is a shared support
+seed sensitivity check, not the primary benchmark estimand.
 
 \begin{table}[H]
   \centering
@@ -253,7 +252,7 @@ seed-sensitivity check, not the primary benchmark estimand.
     CatBoost & 3 & 2 & 5 & 3 & 4 & 3.4 & 5.7 \\
     CIF & 5 & 5 & 4 & 4 & 7 & 5.0 & 6.1 \\
     RF & 4 & 4 & 3 & 6 & 3 & 4.0 & 6.0 \\
-    RFE & 7 & 7 & 7 & 5 & 6 & 6.4 & 7.2 \\
+    RF-RFE & 7 & 7 & 7 & 5 & 6 & 6.4 & 7.2 \\
     ExtraTrees & 6 & 6 & 6 & 7 & 5 & 6.0 & 6.5 \\
     DT & 8 & 9 & 9 & 8 & 8 & 8.4 & 8.5 \\
     RT & 11 & 10 & 12 & 12 & 11 & 11.2 & 10.0 \\
@@ -262,12 +261,12 @@ seed-sensitivity check, not the primary benchmark estimand.
     MC filter & 12 & 12 & 11 & 11 & 12 & 11.6 & 10.4 \\
     PI & 16 & 16 & 16 & 16 & 16 & 16.0 & 13.1 \\
     cforest & 15 & 15 & 15 & 14 & 15 & 14.8 & 12.6 \\
-    RDC filter & 13 & 13 & 13 & 13 & 13 & 13.0 & 11.5 \\
+    RDC-style filter & 13 & 13 & 13 & 13 & 13 & 13.0 & 11.5 \\
     ctree & 14 & 14 & 14 & 15 & 14 & 14.2 & 12.5 \\
-    CPI & 17 & 17 & 17 & 17 & 17 & 17.0 & 15.3 \\
+    CPI approx. & 17 & 17 & 17 & 17 & 17 & 17.0 & 15.3 \\
     \bottomrule
   \end{tabular}
-  \caption{Classification seed sensitivity on the shared-support panel with 12
+  \caption{Classification seed sensitivity on the shared support panel with 12
   datasets. Each seed column is the method position after averaging over
   the three downstream learners and five standard values of $k$ within that
   seed. Lower values are better.}
@@ -290,20 +289,20 @@ seed-sensitivity check, not the primary benchmark estimand.
     RT & 3 & 2 & 2 & 5 & 4 & 3.2 & 7.6 \\
     DT & 11 & 4 & 7 & 3 & 3 & 5.6 & 8.1 \\
     LightGBM & 7 & 8 & 8 & 8 & 7 & 7.6 & 8.7 \\
-    RDC filter & 12 & 11 & 9 & 12 & 11 & 11.0 & 9.8 \\
+    RDC-style filter & 12 & 11 & 9 & 12 & 11 & 11.0 & 9.8 \\
     CIT & 8 & 9 & 12 & 10 & 13 & 10.4 & 9.4 \\
     PC filter & 13 & 13 & 13 & 13 & 12 & 12.8 & 10.5 \\
     DC filter & 15 & 15 & 14 & 15 & 14 & 14.6 & 11.1 \\
     XGBoost & 6 & 7 & 10 & 7 & 8 & 7.6 & 8.8 \\
     Boruta & 10 & 12 & 11 & 11 & 9 & 10.6 & 9.7 \\
     PI & 9 & 10 & 6 & 9 & 10 & 8.8 & 9.1 \\
-    RFE & 14 & 14 & 15 & 14 & 15 & 14.4 & 10.9 \\
+    RF-RFE & 14 & 14 & 15 & 14 & 15 & 14.4 & 10.9 \\
     cforest & 16 & 17 & 16 & 16 & 17 & 16.4 & 12.3 \\
     ctree & 18 & 18 & 18 & 17 & 18 & 17.8 & 13.1 \\
-    CPI & 17 & 16 & 17 & 18 & 16 & 16.8 & 12.3 \\
+    CPI approx. & 17 & 16 & 17 & 18 & 16 & 16.8 & 12.3 \\
     \bottomrule
   \end{tabular}
-  \caption{Regression seed sensitivity on the shared-support panel with 6
+  \caption{Regression seed sensitivity on the shared support panel with 6
   datasets. Each seed column is the method position after averaging over the
   three downstream learners and five standard values of $k$ within that seed.
   Lower values are better.}

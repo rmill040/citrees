@@ -23,6 +23,7 @@ top-k recovery diagnostics used by Figure 4.
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_paper_data_surfaces.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_characteristics_table.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_package_tables.py
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/fig_benchmark_k_trajectory.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_heterogeneity_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_tables.py
@@ -44,7 +45,7 @@ The packaged benchmark used by the current paper is:
 
 - real-data classification: `23` datasets
 - real-data regression: `8` datasets
-- standard budgets: `k = 5, 10, 25, 50, 100`
+- standard `k` values: `k = 5, 10, 25, 50, 100`
 - classification methods: `17`, including DT and RT
 - regression methods: `18`, including DT and RT
 - all-downstream reporting:
@@ -67,7 +68,7 @@ high-`p` extension:
 - `0.25p, 0.5p, 0.75p`
 - `p`
 
-Those extra budgets are for the high-`p` boundary layer, not the main
+Those extra `k` values are for the high-`p` boundary layer, not the main
 benchmark summary.
 
 ## Actual Pipeline Contract
@@ -86,7 +87,7 @@ This is the plain-English version of what the code actually does.
 - Stage 2 reconstructs the same seed and fold split.
 - For each stored fold ranking, it evaluates downstream models on the matching
   held-out fold.
-- For each feature budget `k`, it takes the top-`k` prefix of the stored
+- For each value of `k`, it takes the top-`k` prefix of the stored
   ranking, re-standardizes those selected features on the training fold, then
   fits a fresh downstream model.
 
@@ -111,7 +112,7 @@ The benchmark uses three averaging steps:
 1. Within a fixed `(dataset, downstream model, k)` cell, scores are averaged
    over folds and seeds.
 2. For pooled benchmark summaries, those cell scores are averaged within a
-   dataset over downstream models and supported standard budgets.
+   dataset over downstream models and supported standard `k` values.
 3. The pooled tables then average those dataset-level summaries over datasets.
 
 ## Supporting Studies Used In The Paper
@@ -121,7 +122,7 @@ The current support package includes:
 - fixed-node/root calibration refresh
 - 14-dataset paired and omnibus benchmark summaries
 - leave-one-dataset-out config-selection sensitivity summaries
-- downstream-learner/budget and seed sensitivity summaries
+- downstream learner, `k`, and seed sensitivity summaries
 - mirrored practical-knob ablations
 - threshold-search ablation
 - CIT runtime ablation
@@ -157,7 +158,7 @@ Main artifacts:
 
 What this layer says:
 
-- CIF is `4th/17` on the broader classification benchmark.
+- CIF is `4th/17` on the 22-dataset main-rank aggregate.
 - CIF mean rank is about `6.08`.
 - CIF mean balanced accuracy is about `0.819`.
 - CIF is positive against the historical conditional-inference
@@ -182,9 +183,9 @@ Main artifacts:
 What this layer says:
 
 - The 14 datasets are the classification datasets that remain complete across
-  all downstream models and standard budgets.
+  all downstream models and standard `k` values.
 - This layer keeps the same dataset membership across all downstream models and
-  standard budgets.
+  standard `k` values.
 - The omnibus summary is:
   - classification: `Kendall's W = 0.63` across `17` methods
 - CIF remains positive against CIT, DT, RT, and the historical baselines on
@@ -203,7 +204,7 @@ Main artifacts:
 What this layer says:
 
 - The broader classification benchmark can be broken out by downstream model
-  and standard feature budget.
+  and standard value of `k`.
 - The table contains all directed method-vs-method comparisons. The manuscript
   figure focuses on CIF against `CIT`, `r_ctree`, and `r_cforest`.
 

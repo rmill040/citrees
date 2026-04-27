@@ -1,14 +1,15 @@
-"""Build the paper-facing classification rank-by-k figure.
+"""Build the paper-facing rank-by-k figures.
 
-The figure uses the canonical stratified benchmark table and includes every
-classification method in that table. The heatmap avoids the visual clutter of
-seventeen overlaid lines while still showing how mean rank changes with the
-number of selected features.
+The figures use the canonical stratified benchmark table and include every
+method in each task-specific table. The heatmaps avoid the visual clutter of
+overlaid lines while still showing how mean rank changes with the number of
+selected features.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final, NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,43 +20,74 @@ TABLES_DIR = RESULTS_DIR / "tables"
 FIGURES_DIR = RESULTS_DIR / "figures"
 ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 
-STANDARD_K = [5, 10, 25, 50, 100]
-EXPECTED_N_METHODS = 17
+STANDARD_K: Final[tuple[int, ...]] = (5, 10, 25, 50, 100)
+
+
+class TaskPlotConfig(NamedTuple):
+    """Configuration for one task-specific k-trajectory heatmap."""
+
+    task: str
+    metric: str
+    expected_n_methods: int
+    output_name: str
+    table_name: str
+
+
+TASKS: Final[tuple[TaskPlotConfig, ...]] = (
+    TaskPlotConfig(
+        task="classification",
+        metric="balanced_accuracy",
+        expected_n_methods=17,
+        output_name="k_trajectory.png",
+        table_name="k_trajectory_ranks.csv",
+    ),
+    TaskPlotConfig(
+        task="regression",
+        metric="r2",
+        expected_n_methods=18,
+        output_name="regression_k_trajectory.png",
+        table_name="regression_k_trajectory_ranks.csv",
+    ),
+)
 
 DISPLAY_NAMES = {
     "boruta": "Boruta",
     "cat": "CatBoost",
     "cif": "CIF",
     "cit": "CIT",
-    "cpi": "CPI",
+    "cpi": "CPI approx.",
     "dt": "DT",
     "et": "ExtraTrees",
     "lgbm": "LightGBM",
     "pi": "PI",
+    "ptest_dc": "DC filter",
     "ptest_mc": "MC filter",
-    "ptest_rdc": "RDC filter",
+    "ptest_pc": "PC filter",
+    "ptest_rdc": "RDC-style filter",
     "r_cforest": "cforest",
     "r_ctree": "ctree",
     "rf": "RF",
-    "rfe": "RFE",
+    "rfe": "RF-RFE",
     "rt": "RT",
     "xgb": "XGBoost",
 }
 
 
-def _load_classification_ranks() -> tuple[pd.DataFrame, dict[int, int]]:
+def _load_ranks(config: TaskPlotConfig) -> tuple[pd.DataFrame, dict[int, int]]:
     path = TABLES_DIR / "paper_benchmark_stratified.csv"
     df = pd.read_csv(path)
     df = df[
-        (df["task"] == "classification")
-        & (df["metric"] == "balanced_accuracy")
+        (df["task"] == config.task)
+        & (df["metric"] == config.metric)
         & (df["support_type"] == "all_method_complete_case_standard_k")
         & (df["k"].isin(STANDARD_K))
     ].copy()
 
     methods = sorted(df["method_base"].unique())
-    if len(methods) != EXPECTED_N_METHODS:
-        raise ValueError(f"Expected {EXPECTED_N_METHODS} classification methods, found {len(methods)}: {methods}")
+    if len(methods) != config.expected_n_methods:
+        raise ValueError(
+            f"Expected {config.expected_n_methods} {config.task} methods, found {len(methods)}: {methods}"
+        )
 
     missing_names = sorted(set(methods) - set(DISPLAY_NAMES))
     if missing_names:
@@ -77,11 +109,11 @@ def _load_classification_ranks() -> tuple[pd.DataFrame, dict[int, int]]:
     return ranks, {int(k): int(v) for k, v in support.items()}
 
 
-def _write_rank_table(ranks: pd.DataFrame) -> None:
+def _write_rank_table(config: TaskPlotConfig, ranks: pd.DataFrame) -> None:
     out = ranks.reset_index().rename(columns={"index": "method_base"})
     out.insert(1, "display_name", out["method_base"].map(DISPLAY_NAMES))
     out.columns = [str(column) for column in out.columns]
-    out.to_csv(TABLES_DIR / "k_trajectory_ranks.csv", index=False)
+    out.to_csv(TABLES_DIR / config.table_name, index=False)
 
 
 def _annotate_heatmap(ax: plt.Axes, values: np.ndarray) -> None:
@@ -101,13 +133,7 @@ def _annotate_heatmap(ax: plt.Axes, values: np.ndarray) -> None:
             )
 
 
-def main() -> None:
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-
-    ranks, support = _load_classification_ranks()
-    _write_rank_table(ranks)
-
+def _setup_style() -> None:
     plt.style.use("default")
     plt.rcParams.update(
         {
@@ -129,9 +155,11 @@ def main() -> None:
         }
     )
 
+
+def _render_heatmap(config: TaskPlotConfig, ranks: pd.DataFrame, support: dict[int, int]) -> None:
     values = ranks.to_numpy(dtype=float)
     fig, ax = plt.subplots(figsize=(7.4, 5.6))
-    image = ax.imshow(values, cmap="viridis_r", aspect="auto", vmin=1, vmax=EXPECTED_N_METHODS)
+    image = ax.imshow(values, cmap="viridis_r", aspect="auto", vmin=1, vmax=config.expected_n_methods)
     _annotate_heatmap(ax, values)
 
     x_labels = [f"{k}\n(n={support[k]})" for k in STANDARD_K]
@@ -157,11 +185,22 @@ def main() -> None:
     fig.tight_layout()
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
-        out_path = out_dir / "k_trajectory.png"
+        out_path = out_dir / config.output_name
         fig.savefig(out_path)
         print(f"saved {out_path}")
 
     plt.close(fig)
+
+
+def main() -> None:
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+
+    _setup_style()
+    for config in TASKS:
+        ranks, support = _load_ranks(config)
+        _write_rank_table(config, ranks)
+        _render_heatmap(config, ranks, support)
 
 
 if __name__ == "__main__":

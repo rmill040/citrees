@@ -7,8 +7,8 @@ testing framework under the null hypothesis (independent X and y):
    produce (super-)uniform p-values under exchangeability.
 2. **Root-level**: CIT with fixed-B, Bonferroni-corrected Stage A rejects
    the root at rate <= alpha.
-3. **Adaptive stopping**: ptest_mc with adaptive early stopping preserves
-   Type I error control (may be slightly inflated vs fixed-B).
+3. **Adaptive stopping**: ptest_mc with adaptive early stopping is checked
+   empirically against fixed-B null rejection.
 
 Outputs
 -------

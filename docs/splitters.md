@@ -293,7 +293,12 @@ Input: Feature x ∈ ℝⁿ, target y ∈ ℝⁿ, threshold c
 
 ## Permutation Tests for Splitters
 
-In citrees, the selected split is validated using a permutation test:
+In citrees, a candidate threshold can be scored using a permutation test. For a
+fixed feature and fixed threshold family, the resulting left-tail p-value has
+the usual fixed-$B$ permutation interpretation under exchangeability. In a
+fitted CIT/CIF tree, this score is used after Stage A has selected the feature,
+so it should be read as an algorithmic split/stopping score rather than a
+post-selection inference claim.
 
 ### Null Hypothesis
 

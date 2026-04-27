@@ -118,15 +118,17 @@ def _ptest(func, x, y, n_resamples, alpha, early_stopping):
 
 ### Bonferroni Correction
 
-When testing multiple features, the alpha is adjusted:
+When testing multiple features at a fixed node in the exhaustive fixed-$B$
+Stage A reference procedure, the alpha is adjusted:
 
 ```python
-# Bonferroni correction controls family-wise error rate
+# Nodewise Bonferroni correction for fixed-B Stage A under the complete null
 alpha_adjusted = alpha / n_features
 ```
 
-This controls the **family-wise error rate** - the probability of at least one
-false positive.
+Under the nodewise complete permutation null, this controls the probability
+that Stage A accepts at least one feature at that fixed node. It is not a
+forest-level, full-tree, selected-split, or adaptive-stopping guarantee.
 
 ### Feature Muting
 
@@ -168,7 +170,7 @@ splitting assumptions). For full details, see the dedicated documentation:
 | Feature                   | Scientific Contribution                     | When to Use                   |
 | ------------------------- | ------------------------------------------- | ----------------------------- |
 | **Permutation tests**     | Reduced selection bias, test-based stopping | Always (core algorithm)       |
-| **Bonferroni correction** | Controls family-wise error rate             | When interpretability matters |
+| **Bonferroni correction** | Controls nodewise fixed-$B$ Stage A rejection under the complete null | Conservative tree growth |
 | **Feature muting**        | Accelerates training                        | Large feature spaces          |
 | **Honesty**               | Reduced adaptive bias in leaf estimation    | Causal/estimation contexts    |
 

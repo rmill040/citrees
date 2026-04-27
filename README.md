@@ -5,11 +5,12 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-citrees implements statistically principled decision trees and random forests
-using permutation-based hypothesis testing for variable selection. Unlike
+citrees implements conditional-inference-style decision trees and random
+forests using permutation-based screening before threshold selection. Unlike
 traditional CART-style trees that greedily optimize split criteria, citrees
-separates variable selection from split point selection using statistical tests
-to determine significance.
+separates variable selection from split point selection to reduce the classic
+high-cardinality split-selection bias mechanism. Fixed-B p-value calibration is
+nodewise; adaptive tree and forest rankings remain empirical model outputs.
 
 **Note**: citrees is _inspired by_ the conditional inference framework (Hothorn
 et al., 2006) but is not a direct port of R's `partykit::ctree`. We implement
@@ -26,8 +27,8 @@ bias**:
 
 | Problem                | CART Behavior                           | citrees Solution                                                                           |
 | ---------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **Selection bias**     | Favors high-cardinality features        | Permutation tests control for multiple comparisons                                         |
-| **Spurious splits**    | Finds "good" splits by chance           | Statistical significance required to split                                                 |
+| **Selection bias**     | Favors high-cardinality features        | Fixed-node Stage A permutation screening mitigates this multiplicity mechanism             |
+| **Spurious splits**    | Finds "good" splits by chance           | Stage A must accept a feature before threshold search; Stage B is an algorithmic split score |
 | **Overfitting**        | Requires pruning/cross-validation       | Principled stopping via hypothesis tests                                                   |
 | **Feature importance** | Biased toward frequently-split features | Still uses impurity-decrease importance; Stage A mitigates a key root-level bias mechanism |
 
@@ -117,8 +118,9 @@ considered for splitting.
 
 ### Advanced Capabilities
 
-- **Bonferroni Correction**: Controls family-wise error rate when testing
-  multiple features
+- **Bonferroni Correction**: Controls nodewise fixed-$B$ Stage A rejection
+  probability under the complete permutation null when testing multiple
+  features
 - **Feature Muting**: Automatically removes clearly uninformative features
 - **Honest Estimation**: Optional sample splitting to reduce adaptive bias in
   leaf estimation (Wager & Athey, 2018)
@@ -146,9 +148,9 @@ function BuildTree(X, y, depth):
     if p_j* ≥ α_adjusted:
         return LeafNode(y)  # No significant feature found
 
-    # Step 2: Find optimal split point
+    # Step 2: Find an algorithmic split point for the selected feature
     for each threshold c in X_j*:
-        H₀: Split at c provides no improvement
+        H₀: Fixed-feature threshold score under label exchangeability
         p_c ← PermutationTest(X_j*, y, c)
 
     c* ← argmin(p_c)
@@ -260,7 +262,7 @@ Notes:
 
 | Feature                 | citrees | sklearn RF | XGBoost | R partykit |
 | ----------------------- | ------- | ---------- | ------- | ---------- |
-| Variable selection bias | No      | Yes        | Yes     | No         |
+| High-cardinality split-selection bias mechanism | Mitigated by Stage A screening | Present | Present | Mitigated |
 | Statistical stopping    | Yes     | No         | No      | Yes        |
 | Permutation tests       | Yes     | No         | No      | Yes        |
 | Python native           | Yes     | Yes        | Yes     | No         |
@@ -269,12 +271,13 @@ Notes:
 
 ## Benchmarks
 
-citrees excels in scenarios requiring:
+citrees is intended for scenarios requiring:
 
-- **Unbiased feature selection** for interpretability
+- **Feature screening with reduced split-selection bias** for interpretability
 - **High-dimensional data** where many features are noise
-- **Statistical rigor** for scientific applications
-- **Causal inference** with honest estimation
+- **Permutation-based nodewise screening** for scientific applications
+- **Sample-split leaf estimation** with honest estimation, without standalone
+  confidence-interval or coverage guarantees
 
 For pure prediction performance on tabular data, gradient boosting methods
 (XGBoost, LightGBM) typically achieve higher accuracy.

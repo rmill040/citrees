@@ -25,6 +25,9 @@ $F_t \subseteq F_{t,\mathrm{nonconst}}$ is the set remaining after any
 denominator. The examined set $E_t \subseteq F_t$ is the subset whose tests are
 actually evaluated by the implemented learner. In the exhaustive fixed-$B$
 reference procedure, $E_t=F_t$.
+The fixed-node guarantee treats $F_t$, $E_t$, and $B$ as label-independent;
+feature sets inherited from earlier adaptive tree decisions and early-stopped
+stored values are outside that formal scope.
 
 \paragraph{Stage~A (feature selection).}
 In the exhaustive fixed-$B$ setting, Stage~A follows the conditional inference
@@ -187,5 +190,7 @@ as the secondary key. The R ctree reference ranks features by split-use counts,
 and cforest ranks by unconditional \texttt{partykit::varimp}. Boruta and
 recursive feature elimination rank by their fitted rank variables, with smaller
 ranks first. Permutation importance and conditional permutation importance rank
-by decreasing importance. When scores or rank variables tie, the within-tie order
-is deterministic but method-specific and is used only for reproducibility.
+by decreasing importance; in this benchmark the latter is a stratified
+conditional-permutation approximation. When scores or rank variables tie, the
+within-tie order is deterministic but method-specific and is used only for
+reproducibility.

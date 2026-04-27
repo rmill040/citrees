@@ -106,9 +106,9 @@ Training Data ──────────────────────
                           ▼
             ┌─────────────────────────────┐
             │        HONEST TREE          │
-            │  - Unbiased predictions     │
-            │  - Valid confidence intervals│
-            │  - Correct coverage         │
+            │  - Reduced adaptive bias     │
+            │  - No CI guarantee by itself │
+            │  - Empty leaves use fallback │
             └─────────────────────────────┘
 ```
 

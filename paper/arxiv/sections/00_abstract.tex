@@ -10,17 +10,19 @@ Empirically, adaptive stopping and histogram thresholding are the main
 runtime controls. Disabling adaptive stopping makes CIF fits
 4.0--8.4$\times$ slower by the median ratio across datasets, and exact threshold
 search is 1.9--10.8$\times$ slower than histogram thresholding, with small
-changes in downstream metrics and synthetic recovery. We
-then benchmark 17 classification and 18 regression feature selection methods on
-23 classification and 8 regression datasets, including permutation test filters,
+changes in downstream metrics and synthetic recovery. We then benchmark one
+selected configuration per method family for 17 classification and 18 regression
+feature selection methods on 23 classification and 8 regression datasets, including permutation test filters,
 wrappers, single trees, forests, and gradient boosted models. In the main
 real-data table, CIF ranks 4th of 17 on the 22 classification datasets where the
-ctree and cforest references were run and 3rd of 18 on the 8 regression
-datasets. It also improves over the classical conditional inference tree and
-forest references in matched comparisons. Classification diagnostics show that
-CIF's mean rank improves at larger selected-feature budgets, while controlled
+ctree and cforest references were run and 3rd of 18 on the smaller 8-dataset
+regression benchmark. It also improves over the classical conditional inference tree and
+forest references in matched comparisons. Classification diagnostics show CIF's
+lowest mean ranks at the larger displayed values of $k$, while controlled
 sparse high-$p$ simulations show that forest candidate sampling can exclude
 informative features from many node-level tests. Overall, CIT and CIF remain
-practical feature-ranking tools in this benchmark: the split selection rationale
-is retained, and the dominant runtime costs are controlled with small score
-changes in the CIF ablations and synthetic recovery checks.
+practical feature-ranking tools in this benchmark, with the strongest empirical
+support for CIF. The Stage~A/Stage~B separation is retained, and the adaptive
+tree and forest rankings are evaluated empirically, with dominant CIF runtime
+costs controlled at small score changes in the ablations and synthetic recovery
+checks.

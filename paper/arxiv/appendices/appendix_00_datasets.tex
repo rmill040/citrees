@@ -12,38 +12,46 @@ and regression designs.
 
 These tables report the number of samples $n$ and features $p$ for each
 dataset used in the benchmark.
+The packaged parquet snapshots under \texttt{paper/data/} define the exact
+analysis surface. Source labels identify the public benchmark collections from
+which the snapshots were drawn: UCI Machine Learning Repository
+\citep{DuaGraff2019UCI}, the NIPS 2003 feature selection challenge
+\citep{Guyon2004NIPSFeatureSelectionChallenge}, ASU/scikit-feature benchmark
+data \citep{Li2018FeatureSelectionDataPerspective}, OpenML
+\citep{Vanschoren2014OpenML}, and CoEPrA molecular-property benchmarks
+\citep{DemirKavuk2010CoeprA} where noted.
 
 \begin{table}[H]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}lrr@{}}
+  \begin{tabular}{@{}lrrl@{}}
     \toprule
-    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} & Source \\
     \midrule
-    \nolinkurl{gamma} & 19,020 & 9 \\
-    \nolinkurl{glass} & 214 & 10 \\
-    \nolinkurl{page-blocks} & 5,473 & 10 \\
-    \nolinkurl{vowel-context} & 990 & 10 \\
-    \nolinkurl{wine} & 178 & 13 \\
-    \nolinkurl{letter} & 20,000 & 16 \\
-    \nolinkurl{pendigits} & 10,992 & 16 \\
-    \nolinkurl{spam} & 4,601 & 57 \\
-    \nolinkurl{musk} & 6,597 & 166 \\
-    \nolinkurl{madelon} & 2,000 & 500 \\
-    \nolinkurl{isolet} & 7,797 & 616 \\
-    \nolinkurl{ORL} & 400 & 1,024 \\
-    \nolinkurl{Yale} & 165 & 1,024 \\
-    \nolinkurl{warpAR10P} & 130 & 2,400 \\
-    \nolinkurl{warpPIE10P} & 210 & 2,420 \\
-    \nolinkurl{gisette} & 6,000 & 5,000 \\
-    \nolinkurl{TOX_171} & 171 & 5,748 \\
-    \nolinkurl{ALLAML} & 72 & 7,129 \\
-    \nolinkurl{arcene} & 100 & 10,000 \\
-    \nolinkurl{pixraw10P} & 100 & 10,000 \\
-    \nolinkurl{orlraws10P} & 100 & 10,304 \\
-    \nolinkurl{CLL_SUB_111} & 111 & 11,340 \\
-    \nolinkurl{dexter} & 300 & 20,000 \\
+    \nolinkurl{gamma} & 19,020 & 9 & UCI \\
+    \nolinkurl{glass} & 214 & 10 & UCI \\
+    \nolinkurl{page-blocks} & 5,473 & 10 & UCI \\
+    \nolinkurl{vowel-context} & 990 & 10 & UCI \\
+    \nolinkurl{wine} & 178 & 13 & UCI \\
+    \nolinkurl{letter} & 20,000 & 16 & UCI \\
+    \nolinkurl{pendigits} & 10,992 & 16 & UCI \\
+    \nolinkurl{spam} & 4,601 & 57 & UCI \\
+    \nolinkurl{musk} & 6,597 & 166 & UCI \\
+    \nolinkurl{madelon} & 2,000 & 500 & NIPS 2003 \\
+    \nolinkurl{isolet} & 7,797 & 616 & UCI \\
+    \nolinkurl{ORL} & 400 & 1,024 & ASU/scikit-feature \\
+    \nolinkurl{Yale} & 165 & 1,024 & ASU/scikit-feature \\
+    \nolinkurl{warpAR10P} & 130 & 2,400 & ASU/scikit-feature \\
+    \nolinkurl{warpPIE10P} & 210 & 2,420 & ASU/scikit-feature \\
+    \nolinkurl{gisette} & 6,000 & 5,000 & NIPS 2003 \\
+    \nolinkurl{TOX_171} & 171 & 5,748 & ASU/scikit-feature \\
+    \nolinkurl{ALLAML} & 72 & 7,129 & ASU/scikit-feature \\
+    \nolinkurl{arcene} & 100 & 10,000 & NIPS 2003 \\
+    \nolinkurl{pixraw10P} & 100 & 10,000 & ASU/scikit-feature \\
+    \nolinkurl{orlraws10P} & 100 & 10,304 & ASU/scikit-feature \\
+    \nolinkurl{CLL_SUB_111} & 111 & 11,340 & ASU/scikit-feature \\
+    \nolinkurl{dexter} & 300 & 20,000 & NIPS 2003 \\
     \bottomrule
   \end{tabular}
   \caption{Classification benchmark datasets. Here $n$ is the number of samples
@@ -55,18 +63,18 @@ dataset used in the benchmark.
   \centering
   \scriptsize
   \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}lrr@{}}
+  \begin{tabular}{@{}lrrl@{}}
     \toprule
-    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} & Source \\
     \midrule
-    \nolinkurl{facebook} & 500 & 21 \\
-    \nolinkurl{imports-85} & 205 & 76 \\
-    \nolinkurl{residential} & 372 & 107 \\
-    \nolinkurl{community_crime} & 1,994 & 1,954 \\
-    \nolinkurl{comm_violence} & 2,215 & 2,210 \\
-    \nolinkurl{coepra2} & 76 & 5,144 \\
-    \nolinkurl{coepra1} & 89 & 5,787 \\
-    \nolinkurl{coepra3} & 133 & 5,787 \\
+    \nolinkurl{facebook} & 500 & 21 & UCI/OpenML \\
+    \nolinkurl{imports-85} & 205 & 76 & UCI \\
+    \nolinkurl{residential} & 372 & 107 & UCI/OpenML \\
+    \nolinkurl{community_crime} & 1,994 & 1,954 & UCI/OpenML \\
+    \nolinkurl{comm_violence} & 2,215 & 2,210 & UCI/OpenML \\
+    \nolinkurl{coepra2} & 76 & 5,144 & CoEPrA/OpenML \\
+    \nolinkurl{coepra1} & 89 & 5,787 & CoEPrA/OpenML \\
+    \nolinkurl{coepra3} & 133 & 5,787 & CoEPrA/OpenML \\
     \bottomrule
   \end{tabular}
   \caption{Regression benchmark datasets. Here $n$ is the number of samples and

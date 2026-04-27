@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import importlib.util
 import re
+import subprocess
+import zipfile
+from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.paper
 
 ROOT = Path(__file__).resolve().parents[2]
+ARXIV_DIR = ROOT / "paper" / "arxiv"
 
 
 def _read(relpath: str) -> str:
@@ -68,6 +72,8 @@ def test_results_authority_docs_keep_breadth_canonical_and_calibration_supportin
     assert "paper_benchmark_selected_config_details.csv" in finalization
     assert "paper_benchmark_fixed_panel_aggregate.csv" in finalization
     assert "paper_benchmark_fixed_panel_membership.csv" in finalization
+    assert "k_trajectory_ranks.csv" in finalization
+    assert "regression_k_trajectory_ranks.csv" in finalization
     assert "paper_heterogeneity_cif_pairwise_breadth.csv" in finalization
     assert "calibration_summary.csv" in finalization
     assert "appendix/supporting-only" in finalization
@@ -76,6 +82,8 @@ def test_results_authority_docs_keep_breadth_canonical_and_calibration_supportin
     assert "paper_benchmark_selected_config_details.csv" in tables_manifest
     assert "paper_benchmark_fixed_panel_aggregate.csv" in tables_manifest
     assert "paper_benchmark_fixed_panel_membership.csv" in tables_manifest
+    assert "k_trajectory_ranks.csv" in tables_manifest
+    assert "regression_k_trajectory_ranks.csv" in tables_manifest
     assert "paper_heterogeneity_cif_pairwise_breadth.csv" in tables_manifest
     assert "paper_heterogeneity_cif_pairwise_summary.csv" in tables_manifest
     assert "superseded by `paper_heterogeneity_cif_pairwise_breadth.csv`" in tables_manifest
@@ -92,6 +100,14 @@ def test_experiments_doc_demotes_non_packaged_outputs():
     assert "threshold-search ablation" in experiments
     assert "treat anything outside those locked outputs as exploratory or historical by" in experiments
     assert "Exploratory artifacts should not drive manuscript claims" in results_readme
+
+
+def test_documented_rebuild_path_includes_main_text_trajectory_generator():
+    """The closed rebuild path should regenerate trajectory figures and rank tables."""
+    generator = "paper/scripts/analysis/fig_benchmark_k_trajectory.py"
+
+    assert generator in _read("paper/README.md")
+    assert generator in _read("paper/docs/experiments.md")
 
 
 def test_readmes_and_appendices_do_not_reference_stale_appendix_layout():
@@ -118,17 +134,69 @@ def test_experiments_doc_points_to_current_operational_entrypoints():
     assert "citrees-exp infra launch-workers --count 5" in infrastructure
 
 
-def test_arxiv_bundle_keeps_main_text_figures_local():
-    """The manuscript should not depend on paper/results for its main figures."""
+def _load_arxiv_bundle_module():
+    module_path = ROOT / "paper" / "scripts" / "analysis" / "build_arxiv_source_bundle.py"
+    spec = importlib.util.spec_from_file_location("build_arxiv_source_bundle", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_arxiv_bundle_keeps_referenced_figures_local():
+    """The manuscript should not depend on paper/results for its figures."""
     main_tex = _read("paper/arxiv/main.tex")
+    bundler = _load_arxiv_bundle_module()
+    referenced = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()}
 
     assert r"\graphicspath{{figures/}}" in main_tex
-    for relpath in (
-        "paper/arxiv/figures/k_trajectory.png",
-        "paper/arxiv/figures/synthetic_topk_focus_curves.png",
-        "paper/arxiv/figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png",
-    ):
-        assert (ROOT / relpath).exists(), f"Missing local arXiv figure {relpath}"
+    for relpath in referenced:
+        assert (ARXIV_DIR / relpath).exists(), f"Missing local arXiv figure {relpath}"
+
+
+def test_arxiv_source_bundle_membership_includes_bibliography_and_excludes_junk():
+    """The deterministic source bundle should include bbl and avoid scratch/build products."""
+    bundler = _load_arxiv_bundle_module()
+    members = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.bundle_members(require_bbl=False)}
+    referenced = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()}
+    bundled_figures = {member for member in members if member.startswith("figures/")}
+
+    assert "main.tex" in members
+    assert "references.bib" in members
+    assert "main.bbl" in bundler.STATIC_FILES
+    assert bundled_figures == referenced
+    assert all(not member.startswith("scratch/") for member in members)
+    assert all(not member.startswith("build/") for member in members)
+
+
+def test_arxiv_referenced_figures_are_tracked_by_git():
+    """A committed manuscript should not reference untracked local-only figures."""
+    bundler = _load_arxiv_bundle_module()
+    referenced = [path.relative_to(ROOT).as_posix() for path in bundler.collect_referenced_figures()]
+
+    for relpath in referenced:
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", relpath],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        assert result.returncode == 0, f"{relpath} is referenced by TeX but is not tracked"
+
+
+def test_existing_arxiv_source_zip_is_not_stale():
+    """If a local source zip exists, it should contain all TeX-referenced figures."""
+    archive_path = ARXIV_DIR / "build" / "citrees-arxiv-source.zip"
+    if not archive_path.exists():
+        pytest.skip("No local arXiv source zip to check")
+
+    bundler = _load_arxiv_bundle_module()
+    referenced = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()}
+    with zipfile.ZipFile(archive_path) as archive:
+        members = set(archive.namelist())
+
+    assert referenced <= members
 
 
 def test_paper_markdown_does_not_reference_missing_scripts():

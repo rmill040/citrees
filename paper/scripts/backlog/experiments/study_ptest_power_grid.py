@@ -8,7 +8,8 @@ Two experiments:
 2. Power curves (alternative): varying signal strength, measure detection rate.
 
 Compares adaptive early stopping vs fixed-B across multiple B and alpha values.
-Validates the theoretical guarantee that adaptive stopping preserves Type I error.
+Archived calibration check only; adaptive stopping is not a theorem-level
+fixed-B p-value guarantee.
 
 Usage:
     uv run python -m paper.scripts.backlog.experiments.study_ptest_power_grid

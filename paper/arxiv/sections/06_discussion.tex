@@ -3,7 +3,8 @@
 
 The classification benchmark gives the main empirical support for CIF as a
 feature selection method. On the datasets where the reference conditional
-inference implementations ran, CIF improves on ctree and cforest. The
+inference implementations ran, CIF improves on ctree and cforest in matched
+dataset-level comparisons. The
 fixed-node theorem gives Stage~A rejection control at a node specified in
 advance, while the adaptive tree and forest rankings are evaluated empirically.
 The ablations identify the largest observed runtime effects and corresponding
@@ -20,8 +21,8 @@ This pattern is consistent with the results reported in
 
 \paragraph{Practical guidance.}
 CIF is most relevant when the task is feature ranking or feature selection,
-when nonlinear or interaction structure matters, and when a statistically
-grounded feature selection step is part of why the method is used. If
+when nonlinear or interaction structure matters, and when the fixed-node
+Stage~A-before-Stage~B testing primitive is part of why the method is used. If
 prediction accuracy is the only objective, boosted trees and random forest
 baselines should remain in the comparison set. When the objective is variable
 screening or ranking rather than final prediction, CIF should also be read

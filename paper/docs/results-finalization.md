@@ -30,6 +30,8 @@ Locked source of truth for the closed layers in this document:
 - `paper/results/tables/paper_benchmark_lodo_aggregate.csv`
 - `paper/results/tables/paper_benchmark_lodo_config_stability.csv`
 - `paper/results/tables/paper_benchmark_spread.csv`
+- `paper/results/tables/k_trajectory_ranks.csv`
+- `paper/results/tables/regression_k_trajectory_ranks.csv`
 - `paper/results/tables/paper_presentation_benchmark_summary.csv`
 - `paper/results/tables/paper_benchmark_pairwise_aggregate.csv`
 - `paper/results/tables/paper_benchmark_pairwise_stratified.csv`
@@ -93,7 +95,7 @@ Important note:
 - `paper/results/synthetic_topk_composition.parquet` is the joined synthetic
   top-k recovery surface used by the synthetic recovery tables and Figure 4.
 - file names and some table column names still use `endpoint`; paper-facing
-  prose should prefer `full feature set`, `full-feature budget`, or `k=p`
+  prose should prefer `full feature set` or `k=p`
 
 ## 2. Locked Experiment Inventory
 
@@ -149,13 +151,13 @@ Do not say:
 What the experiment is:
 
 - real-data rank-then-evaluate benchmark on `23` classification datasets
-- standard budgets `k = 5, 10, 25, 50, 100`
+- standard `k` values `5, 10, 25, 50, 100`
 - downstreams `lr`, `svm`, `knn`
 - one best global config per method family within task
 
 What the canonical aggregate says:
 
-- CIF is `4th/17` by mean rank on the broader classification benchmark aggregate
+- CIF is `4th/17` by mean rank on the 22-dataset main-rank aggregate
 - CIF mean rank is `6.0826`
 - CIF mean score is `0.8194`
 - the top three are `lgbm = 5.1667`, `xgb = 5.5803`, `cat = 5.8485`
@@ -203,8 +205,8 @@ Important caveats:
 
 Paper-safe interpretation:
 
-- CIF is competitive, not the leader
-- CIF often becomes more competitive as `k` grows, especially for LR and KNN
+- CIF is fourth of 17, not the leader
+- CIF's mean rank often improves as `k` grows, especially for LR and KNN
 - this is a benchmark-level trajectory over changing support, not a 14-dataset
   same-dataset longitudinal claim
 
@@ -324,19 +326,19 @@ What the CIF-specific full-feature summary says:
 - regression mean `k=p` minus `k=100` score is `-0.3084`
 - classification score improves at `k=p` on `23/45` cells
 - classification `k=p` matches the best observed score on `8/45` cells
-- classification `k=p` is the first best observed budget on only `5/45` cells
+- classification `k=p` is the first best observed value on only `5/45` cells
 - regression score improves at `k=p` on `5/18` cells
 - regression `k=p` matches the best observed score on `2/18` cells
-- regression `k=p` is the first best observed budget on only `2/18` cells
+- regression `k=p` is the first best observed value on only `2/18` cells
 
-What the CIF best-observed-budget summary says:
+What the CIF best observed `k` summary says:
 
-- classification first best observed budget:
+- classification first best observed value:
   - below `100`: `5/45`
   - at `100`: `5/45`
   - intermediate between `100` and `k=p`: `30/45`
   - full feature set: `5/45`
-- regression first best observed budget:
+- regression first best observed value:
   - below `100`: `9/18`
   - at `100`: `2/18`
   - intermediate: `5/18`
@@ -373,7 +375,7 @@ Do not say:
 
 - CIF needs all features to rank well
 - full-feature-only aggregate ranks are a main result
-- `23/45` means the full feature set is usually the best budget
+- `23/45` means the full feature set is usually the best value of `k`
 
 ### 2.5 Synthetic ground-truth recovery
 
@@ -387,10 +389,10 @@ What the experiment is:
 What the canonical summary says:
 
 - the primary synthetic ranking surface is the across-`k` curve, not any single
-  budget slice
+  value of `k`
 - CIF classification mean informative recovery over `k = 5, 10, 25, 50, 100`
   is `0.3443`, rank `8/17`
-- CIF regression mean informative recovery over the same budget curve is
+- CIF regression mean informative recovery over the same `k` curve is
   `0.3901`, rank `10/18`
 
 What the CIF regime split says:
@@ -436,7 +438,7 @@ What the experiment is:
 - this is a decomposition of the same selected-config synthetic ranking
   surface, not a third independent benchmark
 - trend summaries should be read from the across-`k` curve over the standard
-  budgets `5, 10, 25, 50, 100`; individual `k` rows are supporting detail only
+  values `5, 10, 25, 50, 100`; individual `k` rows are supporting detail only
 - decomposes the returned top-`k` positions into:
   - informative features
   - redundant proxies
@@ -446,8 +448,8 @@ What the experiment is:
 
 Important audit note:
 
-- for requested budgets above a dataset's total feature count, the composition
-  is now evaluated on the effective budget `min(k, p)`
+- for requested values above a dataset's total feature count, the composition
+  is now evaluated on the effective value `min(k, p)`
 - dataset-size clipping is tracked separately through
   `dataset_size_cap_share`, so a 50-feature dataset at requested `k=100` is no
   longer misread as having `missing_share = 0.5`
@@ -647,7 +649,7 @@ What the completed fixed-`n=250` grids say:
     `cit` / `cif_all` spread false top-`k` mass over only `9` false variables,
     versus `32` for `rf` / `et`
   - symmetric two-signal Gaussian:
-    all methods recover both true features in the small-budget check, but
+    all methods recover both true features in the small `k` check, but
     `cit` / `cif_all` still spread false mass over only `8` / `10` false
     variables versus `26` / `29` for `rf` / `et`
 
@@ -747,8 +749,17 @@ Canonical mechanism artifacts:
   - tree regression if needed: `make_regression_n250_p1000_i2`
   - forest regression is better shown through the aggregate table and trend
     curves than through a single feature-count main panel
-- those slice choices are data-driven; they come from the display-slice ranking
-  tables in `paper/results/tables/`
+- those slice choices are data-driven; they come from exact display-slice
+  ranking tables in `paper/results/tables/`:
+  - `paper_mechanism_grid_tree_classification_display_slice_ranking.csv`
+  - `paper_mechanism_grid_tree_regression_display_slice_ranking.csv`
+  - `paper_mechanism_grid_forest_classification_display_slice_ranking_1000trees.csv`
+  - `paper_mechanism_grid_forest_regression_display_slice_ranking_1000trees.csv`
+- feature-count source tables for the plotted mechanism panels are canonical:
+  - `paper_mechanism_grid_tree_classification_feature_counts.csv`
+  - `paper_mechanism_grid_tree_regression_feature_counts.csv`
+  - `paper_mechanism_grid_forest_classification_feature_counts.csv`
+  - `paper_mechanism_grid_forest_regression_feature_counts.csv`
 
 ### 2.8 Top-ranking diagnostics
 
@@ -815,10 +826,10 @@ What the experiment is:
 What the canonical mirrored ablation says:
 
 - disabling adaptive stopping is:
-  - `11.4734x` slower on real classification
-  - `6.2215x` slower on synthetic classification
-  - `11.6918x` slower on real regression
-  - `5.1000x` slower on synthetic regression
+  - `5.1403x` slower on real classification
+  - `5.5180x` slower on synthetic classification
+  - `8.4489x` slower on real regression
+  - `3.9776x` slower on synthetic regression
 - associated quality changes are small:
   - real classification downstream `-0.0045`
   - synthetic classification downstream `-0.0051`, with only a very small
@@ -835,10 +846,10 @@ What the canonical mirrored ablation says:
 What the strictness comparison says:
 
 - removing Bonferroni is much faster:
-  - `0.0286x` runtime on real classification
-  - `0.0186x` on synthetic classification
-  - `0.0137x` on real regression
-  - `0.0248x` on synthetic regression
+  - `0.1664x` runtime on real classification
+  - `0.0172x` on synthetic classification
+  - `0.0266x` on real regression
+  - `0.0219x` on synthetic regression
 - but it also makes trees deeper and less sparse:
   - depth increases by about `3.14` / `5.95` / `3.00` / `7.00`
   - features used increase by about `20.64` / `13.28` / `1.62` / `35.27`
@@ -854,13 +865,12 @@ What the weaker-control rows say:
 - `cif_no_scan`, `cif_no_mute`, and `cif_no_bootstrap` do not show comparably
   clean wins
 - `cif_no_scan` is still worth reporting: with adaptive stopping already on, it
-  is `1.1045x` slower on real classification, `1.0213x` slower on synthetic
-  classification, `1.0795x` slower on real regression, and `1.2175x` slower on
-  synthetic regression
+  is `0.8941x` on real classification, `1.0328x` on synthetic classification,
+  `1.8251x` on real regression, and `1.1963x` on synthetic regression
 - associated downstream-score changes are small and mixed:
   `-0.0015`, `-0.0054`, `+0.0006`, and `-0.0055`
 - `cif_no_threshold_scan` is more mixed still:
-  `0.6876x`, `1.0696x`, `0.7793x`, and `0.9258x` across the same four surfaces,
+  `0.9769x`, `1.1059x`, `0.6073x`, and `0.9397x` across the same four surfaces,
   with small/mixed downstream changes
 - paper-safe reading: feature scanning is a measured but modest supporting gain
   inside the early-stopping regime, while threshold scanning does not show a
@@ -874,15 +884,15 @@ What the threshold ablation says:
   - therefore `exact_256` is not a distinct configuration; it is a duplicate of
     `exact_all` and should not be interpreted separately
 - `exact_all` relative to `histogram_256`:
-  - `1.8711x` slower on real classification
-  - `5.0083x` slower on synthetic classification
-  - `10.6324x` slower on real regression
-  - `5.1917x` slower on synthetic regression
+  - `1.8890x` slower on real classification
+  - `5.1400x` slower on synthetic classification
+  - `10.7906x` slower on real regression
+  - `5.3095x` slower on synthetic regression
 - `histogram_32` relative to `histogram_256`:
-  - `0.0999x` on real classification
-  - `0.0427x` on synthetic classification
-  - `0.0963x` on real regression
-  - `0.0394x` on synthetic regression
+  - `0.0988x` on real classification
+  - `0.0393x` on synthetic classification
+  - `0.0912x` on real regression
+  - `0.0371x` on synthetic regression
 - its curve-based synthetic recovery shifts are small and favorable:
   - classification `+0.0150`
   - regression `+0.0033`
@@ -920,6 +930,10 @@ What the canonical aggregate says:
 - CIF mean rank is `7.0688`
 - CIF mean score is `0.3294`
 - support is only `8, 8, 7, 7, 6` across the standard `k` values
+- the regression trajectory matrix is now rendered as
+  `paper/results/figures/regression_k_trajectory.png`
+- CIF has mean rank `8.8750` at `k=5`, `5.6190` at `k=50`, and `7.2778` at
+  `k=100`; its lowest displayed regression mean rank is at `k=50`
 - on the looser all-supported pairwise layer, CIF has positive mean deltas
   against `15/17` regression baselines
 - pairwise aggregate deltas are positive against `15/17` regression baselines,
@@ -952,7 +966,7 @@ What the heterogeneity summary says:
 Paper-safe interpretation:
 
 - regression broadens the picture, but it is not the main benchmark focus
-- CIF is competitive there, but the support ceiling is too low for stronger
+- CIF is third of 18 there, but the support ceiling is too low for stronger
   claims
 
 Do not say:

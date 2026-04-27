@@ -261,8 +261,8 @@ Input: x_j ∈ ℝⁿ, y, threshold c, splitter (e.g., "gini", "mse")
 
 ### The Problem
 
-When testing $p$ features, the probability of at least one false positive
-increases:
+When testing $p$ independent null features at level $\alpha$, the probability
+of at least one false positive increases:
 
 $$FWER = 1 - (1 - \alpha)^p$$
 
@@ -271,17 +271,21 @@ positive!)
 
 ### Bonferroni Correction
 
-citrees uses **Bonferroni correction** to control the family-wise error rate
-(FWER):
+citrees uses **Bonferroni correction** to control the nodewise fixed-$B$
+Stage A rejection probability under the complete permutation null:
 
 $$\alpha_{adjusted} = \frac{\alpha}{m}$$
 
-where $m$ is the number of tests being performed.
+where $m$ is the number of tests being performed. For Stage A, this is the
+number of candidate features tested at a fixed node in the exhaustive fixed-$B$
+reference procedure. Stage B has a separate fixed-feature/threshold-family
+interpretation. These are not full-tree, selected-split, adaptive-stopping, or
+forest-level familywise-error guarantees.
 
-| Parameter               | Controls        | Formula            |
-| ----------------------- | --------------- | ------------------ | -------------- | --- |
-| `adjust_alpha_selector` | Feature tests   | $\alpha_{sel} / p$ |
-| `adjust_alpha_splitter` | Threshold tests | $\alpha\_{spl} /   | \{thresholds\} | $   |
+| Parameter               | Applies to                           | Formula                                |
+| ----------------------- | ------------------------------------ | -------------------------------------- |
+| `adjust_alpha_selector` | Fixed-node Stage A feature tests     | $\alpha_{\mathrm{sel}} / m$            |
+| `adjust_alpha_splitter` | Fixed selected-feature threshold set | $\alpha_{\mathrm{split}} / \lvert C_j\rvert$ |
 
 ### Algorithm with Correction
 
@@ -307,14 +311,14 @@ Input: X ∈ ℝⁿˣᵖ, y, α_selector, adjust_alpha
 
 ### Trade-offs
 
-| Correction      | FWER Control | Power  | Use Case                |
-| --------------- | ------------ | ------ | ----------------------- |
-| None            | Poor         | High   | Exploratory analysis    |
-| Bonferroni      | Strong       | Low    | Conservative, few tests |
-| Holm-Bonferroni | Strong       | Medium | Sequential testing      |
+| Correction      | Fixed-B Nodewise Scope | Power  | Use Case                |
+| --------------- | ---------------------- | ------ | ----------------------- |
+| None            | None                   | High   | Exploratory analysis    |
+| Bonferroni      | Conservative Stage A   | Low    | Conservative tree growth |
+| Holm-Bonferroni | Not implemented        | Medium | Alternative procedure   |
 
 citrees defaults to Bonferroni (`adjust_alpha_selector=True`) for conservative
-inference.
+nodewise Stage A screening.
 
 ---
 

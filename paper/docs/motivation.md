@@ -16,8 +16,8 @@ The new benchmark results sharpen the validation story, not the motivation
 itself. The motivation is to improve conditional inference trees and forests as
 practical feature ranking methods: reduce runtime, keep the feature ranking
 behavior useful, and understand where the approximations change the method.
-The broad benchmark then checks whether the improved methods remain competitive
-against common feature selection methods. In that validation layer, CIF ranks
+The broad benchmark then checks how the improved methods rank against common
+feature selection methods. In that validation layer, CIF ranks
 `4th/17` on classification and `3rd/18` on regression, while staying positive
 on matched datasets against `ctree`, `cforest`, CIT, and DT. Against RT, CIF is
 clearly positive on classification and nearly tied on regression. CIT provides
@@ -56,8 +56,8 @@ synthetic top-10 recovery rather than downstream model performance.
 - DT and RT are supporting single tree checks. They help show that the broader
   benchmark is not only a conditional inference reference comparison, but they
   should not be abstract-level framing.
-- CIF remains competitive after the runtime-focused changes. It ranks `4th/17`
-  on classification and `3rd/18` on the smaller regression benchmark.
+- CIF ranks `4th/17` on classification and `3rd/18` on the smaller regression
+  benchmark after the runtime focused changes.
 - CIF's cleanest direct wins are against the historical conditional inference
   references and the single tree conditional inference family: `22/22` wins
   versus `ctree`, `19/22` versus `cforest`, `22/23` versus CIT, `14/23` versus
@@ -109,10 +109,11 @@ Two boundary rules should stay explicit throughout the manuscript:
 
 The main text should center on:
 
-- real classification benchmark validation:
+- real benchmark validation:
   the 14-dataset classification benchmark as the credibility anchor,
-  the `k` trajectory with changing dataset support as the descriptive companion,
-  and regression as a smaller directional mirror,
+  matched classification and regression `k` trajectories with changing dataset
+  support as descriptive companions, and regression as a smaller directional
+  mirror,
 - practical controls:
   separate CIT timing from CIF timing and quality; for CIF, adaptive stopping
   first and bounded histogram thresholding second, with feature scanning
@@ -128,6 +129,7 @@ The main text should center on:
 Recommended main-text artifacts:
 
 - `paper/results/figures/k_trajectory.png`
+- `paper/results/figures/regression_k_trajectory.png`
 - `paper/results/tables/paper_presentation_benchmark_summary.csv`
 - `paper/results/tables/paper_presentation_practical_controls_summary.csv`
 - `paper/results/tables/paper_cit_runtime_ablation_summary.csv`
@@ -154,7 +156,6 @@ compete with it:
 - extended high-`p` support tables and endpoint checks,
 - synthetic top-ranking tables and detailed composition trends,
 - extended mechanism tables and regression mechanism mirrors,
-- regression benchmark mirror,
 - CIF-vs-R historical comparison.
 
 ## What The Paper Should Not Claim

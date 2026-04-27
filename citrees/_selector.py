@@ -155,8 +155,8 @@ def _ptest_multi(
 ) -> float:
     """Max-T permutation test for multiple selectors.
 
-    Computes max(selector_scores) INSIDE each permutation to provide
-    valid Type I error control in fixed-B mode when using multiple selectors.
+    Computes max(selector_scores) INSIDE each permutation to provide fixed-node
+    Type I error control in fixed-B mode when using multiple selectors.
 
     This implements the max-T method from Westfall & Young (1993), which
     accounts for the multiplicity of testing multiple selectors by using
@@ -379,7 +379,8 @@ def _ptest_pc_parallel(
 
 # Batched parallel permutation test for multiple correlation (classifier) with adaptive stopping.
 # Runs K=32 permutations in parallel via prange, then checks Beta CDF stopping criterion.
-# Validated in paper/scripts/theory/study_batched_adaptive_stopping.py: K=32 preserves Type I error.
+# Calibration script suggests similar null rejection for K=32; adaptive outputs are
+# not theorem-level fixed-B p-values.
 _BATCH_SIZE_PARALLEL = 32
 
 
@@ -501,10 +502,7 @@ def _ptest_pc_parallel_batched(
             cov_perm = n * sxy_perm - sx * sy_perm
             ssy_perm = n * sy2_perm - sy_perm * sy_perm
             denom_perm = np.sqrt(ssx * ssy_perm)
-            if denom_perm == 0:
-                theta_p = 0.0
-            else:
-                theta_p = np.abs(cov_perm / denom_perm)
+            theta_p = 0.0 if denom_perm == 0 else np.abs(cov_perm / denom_perm)
             if theta_p >= theta:
                 batch_extreme[i] = 1
 
@@ -693,10 +691,7 @@ def _ptest_rdc_classifier_parallel(
                 theta = rdc_c
 
     # Precompute Y projection weights per class
-    if n_classes == 2:
-        n_weight_sets = 1
-    else:
-        n_weight_sets = n_classes
+    n_weight_sets = 1 if n_classes == 2 else n_classes
     wy0_all = np.empty((n_weight_sets, k), dtype=np.float64)
     wy1_all = np.empty((n_weight_sets, k), dtype=np.float64)
     for c in range(n_weight_sets):
@@ -786,10 +781,7 @@ def _ptest_rdc_classifier_parallel_batched(
         return 1.0
 
     # Precompute Y projection weights per class
-    if n_classes == 2:
-        n_weight_sets = 1
-    else:
-        n_weight_sets = n_classes
+    n_weight_sets = 1 if n_classes == 2 else n_classes
     wy0_all = np.empty((n_weight_sets, k), dtype=np.float64)
     wy1_all = np.empty((n_weight_sets, k), dtype=np.float64)
     for c in range(n_weight_sets):
@@ -1159,9 +1151,10 @@ def _rdc_features(x: np.ndarray, k: int, s: float, seed: int) -> np.ndarray:
 
 @njit(cache=True, nogil=True, fastmath=True)
 def _rdc_cancor(X: np.ndarray, Y: np.ndarray) -> float:
-    """Largest canonical correlation between X and Y feature matrices.
+    """RDC-style max absolute pairwise correlation between feature matrices.
 
-    Computes max absolute correlation between standardized columns.
+    This approximates the original RDC canonical-correlation step with the
+    maximum absolute correlation between standardized projected columns.
     """
     n, p = X.shape
     q = Y.shape[1]

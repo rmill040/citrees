@@ -76,6 +76,7 @@ TASK_CONFIG: Final[dict[str, TopKTaskConfig]] = {
 TOP_K_VALUES: Final[tuple[int, ...]] = (1, 2, 5, 10, 20, 25, 50, 100)
 SELECTION_K_VALUES: Final[tuple[int, ...]] = (5, 10, 25, 50, 100)
 FOCUS_PLOT_K: Final[tuple[int, ...]] = (5, 10, 25, 50, 100)
+FOCUS_K_POSITIONS: Final[dict[int, int]] = {k: idx for idx, k in enumerate(FOCUS_PLOT_K)}
 FOCUS_METHODS: Final[tuple[str, ...]] = ("cit", "dt", "rt", "cif", "rf", "et", "xgb", "lgbm", "cat")
 FAMILY_PANELS: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
     ("single_tree", "Single trees", ("cit", "dt", "rt")),
@@ -486,13 +487,15 @@ def _setup_style() -> None:
     plt.style.use("default")
     plt.rcParams.update(
         {
-            "font.family": "DejaVu Sans",
+            "text.usetex": True,
+            "font.family": "serif",
             "font.size": 10,
             "axes.titlesize": 12,
             "axes.labelsize": 11,
             "xtick.labelsize": 10,
             "ytick.labelsize": 10,
             "legend.fontsize": 10,
+            "mathtext.fontset": "cm",
             "axes.spines.top": False,
             "axes.spines.right": False,
             "axes.grid": True,
@@ -525,8 +528,9 @@ def _plot_family(
             continue
 
         is_focus = method_base in {"cit", "cif"}
+        x_positions = method_df["k"].map(FOCUS_K_POSITIONS)
         ax.plot(
-            method_df["k"],
+            x_positions,
             method_df["informative_share"],
             color=METHOD_COLORS[method_base],
             linewidth=2.6 if is_focus else 1.8,
@@ -540,10 +544,9 @@ def _plot_family(
         )
 
     ax.set_title(title, pad=6)
-    ax.set_xscale("symlog", linthresh=10)
-    ax.set_xticks(FOCUS_PLOT_K)
+    ax.set_xticks(range(len(FOCUS_PLOT_K)))
     ax.set_xticklabels([str(k) for k in FOCUS_PLOT_K])
-    ax.set_ylim(-0.02, 1.02)
+    ax.set_ylim(0.0, 1.0)
     ax.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.grid(True, axis="both")
     ax.legend(loc="upper right", frameon=False, fontsize=8, handlelength=1.6)

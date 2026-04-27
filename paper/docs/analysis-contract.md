@@ -27,7 +27,7 @@ practical context after the scientific claim is already clear.
 If an analysis is part of the core story for classification, we should attempt
 to mirror the same analysis for regression.
 
-If the regression version is too weak or too low-powered to support a parallel
+If the regression version is too weak or too small to support a parallel
 claim, that must be stated explicitly. We should not silently build a much more
 complete analysis stack for classification and then let regression drift into an
 incompatible format.
@@ -49,7 +49,7 @@ The default interpretation must come from the all-downstream picture.
 
 We do not center single-`k` findings.
 
-Core reporting uses the standard feature budgets:
+Core reporting uses the standard values of `k`:
 
 - `k = 5, 10, 25, 50, 100`
 

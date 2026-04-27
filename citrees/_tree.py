@@ -1486,7 +1486,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferenceTree):
     """Conditional inference tree classifier.
 
-    Uses permutation-based hypothesis testing for unbiased variable selection.
+    Uses permutation-based Stage A screening to reduce split-selection bias.
+    Fixed-B p-value calibration is a fixed-node property; adaptive fitted-tree
+    rankings and importances are empirical model outputs.
 
     Parameters
     ----------
@@ -1635,7 +1637,9 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
 class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInferenceTree):
     """Conditional inference tree regressor.
 
-    Uses permutation-based hypothesis testing for unbiased variable selection.
+    Uses permutation-based Stage A screening to reduce split-selection bias.
+    Fixed-B p-value calibration is a fixed-node property; adaptive fitted-tree
+    rankings and importances are empirical model outputs.
 
     Parameters
     ----------

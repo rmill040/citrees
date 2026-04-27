@@ -2,11 +2,13 @@
 
 **Conditional Inference Trees and Forests for Python**
 
-citrees implements statistically principled decision trees and random forests
-that use permutation-based hypothesis testing for variable selection. Unlike
+citrees implements conditional-inference-style decision trees and random forests
+that use permutation-based screening before threshold selection. Unlike
 traditional CART-style trees that greedily optimize split criteria, conditional
 inference trees separate the variable selection step from the split point
-selection step, using statistical tests to determine significance.
+selection step to reduce the classic high-cardinality split-selection bias
+mechanism. Fixed-B p-value calibration is nodewise; adaptive tree and forest
+rankings remain empirical model outputs.
 
 ## Why citrees?
 
@@ -25,8 +27,9 @@ leads to:
 citrees addresses these issues by using **permutation tests** at each node to:
 
 - Test whether ANY feature is significantly associated with the target (feature
-  selection)
-- Test whether a split actually improves prediction (split selection)
+  selection) in the fixed-node reference procedure
+- Score selected-feature thresholds for algorithmic split/stopping decisions;
+  after Stage A selection, Stage B is not a post-selection inference claim
 
 ## Documentation
 
@@ -87,7 +90,8 @@ print(forest.feature_importances_)
 ### Statistical Foundation
 
 - **Permutation Tests**: Non-parametric hypothesis tests at each node
-- **Bonferroni Correction**: Controls family-wise error rate
+- **Bonferroni Correction**: Controls nodewise fixed-$B$ Stage A rejection
+  probability under the complete permutation null
 - **Statistical stopping**: Stop splitting when no feature is significant (Stage
   A)
 - **Early stopping (optional)**: Speed heuristic inside permutation tests (use

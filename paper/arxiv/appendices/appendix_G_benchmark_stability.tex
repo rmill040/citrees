@@ -315,15 +315,15 @@ seed sensitivity check, not the primary benchmark estimand.
 sampling figure from one sparse classification setting to $p = 100, 500$, and
 $1{,}000$ at 1,000 trees. For each method and number of features, the point
 marks the mean over $n_{\mathrm{informative}} \in \{1,2,5,10\}$ and the
-vertical segment shows the range over those four sparse settings.
+capped bar spans the minimum and maximum over those four sparse settings.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}
   \caption{Classification forest candidate feature sampling by number of
   features at 1,000 trees. Points are means over
-  $n_{\mathrm{informative}} \in \{1,2,5,10\}$ and vertical segments show the
-  min--max range over those sparse designs.}
+  $n_{\mathrm{informative}} \in \{1,2,5,10\}$; capped bars show the
+  min--max range over those sparse designs, not uncertainty intervals.}
   \label{fig:mechanism-dimension-curves}
 \end{figure}
 

@@ -97,16 +97,22 @@ def _plot_panel(ax: plt.Axes, agg: pd.DataFrame, ylabel: str, title: str) -> Non
         method_rows = agg[agg["method"] == method].set_index("n_features").loc[FEATURE_LEVELS].reset_index()
         x = x_base + OFFSETS[method]
         color = COLORS[method]
-        ax.vlines(x, method_rows["min"], method_rows["max"], color=color, linewidth=2.2, alpha=0.95)
-        ax.plot(
+        mean = method_rows["mean"].to_numpy(dtype=float)
+        lower = mean - method_rows["min"].to_numpy(dtype=float)
+        upper = method_rows["max"].to_numpy(dtype=float) - mean
+        ax.errorbar(
             x,
-            method_rows["mean"],
+            mean,
+            yerr=np.vstack([lower, upper]),
             color=color,
             linewidth=2.2 if method == "cif" else 2.0,
             marker="o",
             markersize=6.5 if method == "cif" else 5.5,
             markeredgecolor="white",
             markeredgewidth=0.7,
+            capsize=4.0,
+            capthick=1.2,
+            elinewidth=2.0,
             label=DISPLAY_NAMES[method],
         )
 

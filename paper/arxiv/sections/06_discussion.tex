@@ -3,10 +3,10 @@
 
 The classification benchmark gives the main empirical support for CIF as a
 feature selection method. On the datasets where the reference conditional
-inference implementations ran, CIF improves on ctree and cforest in matched
-dataset-level comparisons. The
-fixed-node theorem gives Stage~A rejection control at a node specified in
-advance, while the adaptive tree and forest rankings are evaluated empirically.
+inference implementations ran, CIF improves on ctree and cforest. The
+fixed-node theorem gives Stage~A rejection control under the nodewise complete
+null at a node specified in advance, while the adaptive tree and forest rankings
+are evaluated empirically.
 The ablations identify the largest observed runtime effects and corresponding
 score changes; for CIF, adaptive stopping and histogram thresholding give the
 main practical tradeoff.
@@ -46,9 +46,9 @@ practical priority.
 The 14-dataset classification analysis includes all 17 methods, all
 three downstream learners, and all five standard values of $k$. The ctree and
 cforest comparisons use 22 classification datasets. Regression uses 8 datasets
-in the main table and 6 in the analogous rank test, so it remains secondary.
+in the main table and 6 in the analogous rank test.
 The simulation study suggests that high-$p$ forests can miss informative
 features because those features are not available at enough split decisions. The
 CIF-all variant manipulates candidate availability directly, but the experiment
-is still a fixed-design diagnostic. The clearest next step is to make
+is still a diagnostic with a fixed design. The clearest next step is to make
 informative features available as split candidates more often inside forests.

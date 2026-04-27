@@ -607,7 +607,7 @@ What the completed fixed-`n=250` grids say:
     `informative_split_share = 0.917` vs `0.333`
   - the same contrast holds against CART-style forests:
     `rf = 0.084`, `et = 0.065`
-  - false-feature spread tells the same story:
+  - false feature spread shows the same contrast:
     `distinct_false_features_used = 93.4` for `cif_all`,
     `265.1` for `cif`,
     `528.8` for both `rf` and `et`

@@ -295,8 +295,8 @@ Main artifacts:
 
 What this layer says:
 
-- CIF's global benchmark-selected config is reselected on all `14/14`
-  held-out datasets in the 14-dataset classification check.
+- CIF's setting chosen in the main benchmark is reselected on all `14/14`
+  omitted datasets in the 14-dataset classification check.
 - The seed sensitivity tables use the fixed dataset support documented in
   `paper_benchmark_seed_complete_membership.csv`.
 - These tables are descriptive stability checks, not headline rank replacements.

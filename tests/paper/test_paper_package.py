@@ -186,17 +186,20 @@ def test_arxiv_referenced_figures_are_tracked_by_git():
 
 
 def test_existing_arxiv_source_zip_is_not_stale():
-    """If a local source zip exists, it should contain all TeX-referenced figures."""
+    """If a local source zip exists, it should exactly match the current source inputs."""
     archive_path = ARXIV_DIR / "build" / "citrees-arxiv-source.zip"
     if not archive_path.exists():
         pytest.skip("No local arXiv source zip to check")
 
     bundler = _load_arxiv_bundle_module()
-    referenced = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()}
+    expected_paths = bundler.bundle_members(require_bbl=True)
+    expected_members = {path.relative_to(ARXIV_DIR).as_posix() for path in expected_paths}
     with zipfile.ZipFile(archive_path) as archive:
         members = set(archive.namelist())
-
-    assert referenced <= members
+        assert members == expected_members
+        for path in expected_paths:
+            relpath = path.relative_to(ARXIV_DIR).as_posix()
+            assert archive.read(relpath) == path.read_bytes(), f"{relpath} is stale in the local arXiv source zip"
 
 
 def test_paper_markdown_does_not_reference_missing_scripts():

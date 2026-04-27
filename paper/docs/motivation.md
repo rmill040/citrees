@@ -19,7 +19,8 @@ and understand where the approximations change the method.
 The broad benchmark then checks how the improved methods rank against common
 feature selection methods. In that validation layer, CIF ranks
 `4th/17` on classification and `3rd/18` on regression, while staying positive
-on matched datasets against `ctree`, `cforest`, CIT, and DT. Against RT, CIF is
+against `ctree`, `cforest`, CIT, and DT on datasets where both methods were run.
+Against RT, CIF is
 clearly positive on classification and nearly tied on regression. CIT provides
 the single tree conditional inference comparison and a separate timing contrast.
 
@@ -111,7 +112,7 @@ The main text should center on:
 
 - real benchmark validation:
   the 14-dataset classification benchmark as the credibility anchor,
-  matched classification and regression `k` trajectories with changing dataset
+  classification and regression `k` trajectories with changing dataset
   support as descriptive companions, and regression as a smaller directional
   mirror,
 - practical controls:

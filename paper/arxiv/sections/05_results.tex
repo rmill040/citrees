@@ -52,7 +52,7 @@ shared by the compared methods. Lower mean rank is better.
   \label{tab:method-main-comparison}
 \end{table}
 
-Under this benchmark-selected configuration rule and averaging, CIF ranks 4th
+Using this rule for selecting configurations and this averaging scheme, CIF ranks 4th
 of 17 classification methods and 3rd of 18 on the smaller regression benchmark.
 The targeted conditional inference comparisons are against
 ctree, cforest, and CIT, as reported next. \Cref{app:benchmark-stability} reports
@@ -76,12 +76,13 @@ configurations, with support stated for each analysis.
     Regression & CIT & 8 & +0.360 & 6--2 \\
     \bottomrule
   \end{tabular}
-  \caption{Matched CIF comparisons against ctree, cforest, and CIT. Mean
+  \caption{Direct CIF comparisons against ctree, cforest, and CIT. Mean
   differences are CIF minus the compared method after averaging within each dataset,
   using balanced accuracy for classification and $R^2$ for regression. Positive
-  values favor CIF. W--L reports wins and losses; no exact ties occurred in
-  these comparisons. Regression differences can exceed CIF's mean $R^2$ when
-  the compared method has negative mean $R^2$.}
+  values favor CIF. The Datasets column gives the number of datasets where both
+  methods were run. W--L reports wins and losses; no exact ties
+  occurred in these comparisons. Large positive regression differences reflect
+  negative mean $R^2$ for some compared methods.}
   \label{tab:conditional-inference-comparisons}
 \end{table}
 
@@ -95,10 +96,10 @@ overall ($\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$).
 The selected CIF setting has positive mean differences against ctree,
 cforest, and CIT on this analysis. The LODO check gives the same qualitative
 ranking: CIF is fifth among 17 methods by average LODO rank (mean LODO
-rank 5.64). CIF's global setting from the 14 datasets is selected in all 14 LODO
-runs; these selection counts describe the LODO configuration rule rather than
-separate performance evidence.
-\Cref{tab:fixed-panel-cif-ci,tab:lodo-config-sensitivity} give the matched
+rank 5.64). Across the 14 LODO runs, CIF reselects the setting chosen in the
+main benchmark every time; these selection counts describe the LODO
+configuration rule rather than separate performance evidence.
+\Cref{tab:fixed-panel-cif-ci,tab:lodo-config-sensitivity} give the confidence
 intervals and LODO details.
 
 \begin{figure}[t]
@@ -200,7 +201,9 @@ metric changes and synthetic recovery results.
   classification and regression runs. Synthetic top-10 F1 changes are absolute
   changes on datasets with known informative features. Values are rounded for
   display. The final column is the largest absolute synthetic top-10 F1 change
-  across the synthetic task groups.}
+  across the synthetic task groups. The real classification, synthetic
+  classification, real regression, and synthetic regression groups
+  contain 7, 8, 2, and 6 dataset types, respectively.}
   \label{tab:cit-runtime-controls}
 \end{table}
 
@@ -239,7 +242,9 @@ and synthetic feature-recovery changes.
   over the real and synthetic task groups used for that row. Synthetic recovery
   changes are the largest absolute changes in mean informative-feature precision
   over the synthetic classification and regression task groups. Inequality
-  values are rounded upward to the nearest 0.001.}
+  values are rounded upward to the nearest 0.001. The real classification,
+  synthetic classification, real regression, and synthetic regression groups
+  contain 7, 8, 2, and 6 dataset types, respectively.}
   \label{tab:cif-runtime-controls}
 \end{table}
 
@@ -253,7 +258,7 @@ Removing Bonferroni correction is faster for both CIT and CIF, but it changes
 the statistical rule and produces trees that use more features, so it is a
 diagnostic sensitivity comparison rather than a practical recommendation.
 
-\section{High-dimensional and synthetic limits}
+\section{\texorpdfstring{High-$p$}{High-p} and synthetic behavior}
 \label{sec:boundary}
 
 The remaining analyses study where CIF's scores peak as the selected feature
@@ -298,6 +303,8 @@ of informative features selected. Its top-1 hit rate is 0.64, which places it
 12th of 17 by top-1 hit rate. CIF is therefore stronger at enriching the
 selected top-$k$ feature set with informative features than at placing an
 informative feature first.
+For regression, CIF ranks 10th of 18 by informative share and 15th of 18 by
+top-1 hit rate.
 \Cref{tab:synthetic-head}
 summarizes this contrast, and \Cref{fig:synthetic-topk-curves}
 shows how the selected set changes as $k$ grows. The share of
@@ -327,7 +334,10 @@ classification and 0.84 for regression.
   ranked feature and compares 17 classification methods and 18 regression
   methods. The signal or proxy share is
   computed only on the redundant-feature synthetic design for each task and counts true
-  informative plus redundant features, averaged over the same values of $k$.}
+  informative plus redundant features, averaged over the same values of $k$.
+  The informative share and top-1 summaries use 8 synthetic classification and 8
+  synthetic regression designs; the signal or proxy row uses the single redundant
+  feature design for each task.}
   \label{tab:synthetic-head}
 \end{table}
 
@@ -344,9 +354,9 @@ classification and 0.84 for regression.
 
 \FloatBarrier
 
-\paragraph{Candidate feature sampling limit.}
-This simulation asks whether the forest step that samples candidate features,
-rather than Stage~A itself, explains missed informative splits.
+\paragraph{Candidate feature sampling mechanism.}
+The separate mechanism grid asks whether the forest step that samples candidate
+features contributes to missed informative splits in sparse forests.
 \Cref{fig:mechanism-forest-counts} shows one sparse classification design where
 default CIF samples candidate features, whereas CIF-all sends every nonconstant
 candidate to Stage~A at each split.
@@ -363,21 +373,21 @@ candidate to Stage~A at each split.
 \end{figure}
 
 Across the single-tree mechanism grid, CIT selects informative splits at rates
-of 1.000 on classification and 0.935 on regression, indicating that Stage~A can
-identify informative features when every feature enters the candidate set. In forests,
-the informative-split share falls when only a subset of candidate features is
+of 1.000 on classification and 0.935 on regression, showing that, in this fixed
+design, exposing all candidate features yields many informative splits. In forests,
+the informative split share falls when only a subset of candidate features is
 sampled at each node. Across the classification forest mechanism grid at 1,000
 trees, default CIF selects informative splits 33.2\% of the time, compared with
 91.7\% for CIF-all, 8.4\% for RF, and 6.5\% for ET. Default CIF also uses more
 distinct noise features than CIF-all, 265 versus 93 on average. The displayed
 slice with $p{=}1{,}000$ and two informative features is an extreme case of the
-same pattern: default CIF selects informative splits at rate 0.090, while
+candidate sampling mechanism: default CIF selects informative splits at rate 0.090, while
 CIF-all selects them at rate 1.000. In regression, CIF-all selects informative
 splits 42.3\% of the time, versus 27.8\% for default CIF, but it uses more
 distinct noise features: 528.8 versus 367.7. CIF-all changes candidate feature
 availability by setting \texttt{max\_features=None}; feature muting and the
 other tree controls remain in force. In these sparse high-$p$ simulations, CIF
-has its highest informative-split share when informative features are included
+has its highest informative split share when informative features are included
 among the candidate split features at many nodes. When informative
-features are rarely sampled into node-level candidate sets, Stage~A cannot
+features are rarely sampled into candidate sets at nodes, Stage~A cannot
 select them.

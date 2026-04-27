@@ -4,24 +4,27 @@ split thresholds, but repeated permutation tests and threshold searches make
 that separation computationally expensive. We study CIT and CIF as feature
 selection methods and ask how selected runtime controls affect the resulting
 rankings. For the exhaustive fixed-$B$ Stage~A test at a fixed node, the
-$+1$ Monte Carlo feature p-values are superuniform under the complete null,
-giving Bonferroni control of the nodewise rejection probability.
+$+1$ Monte Carlo feature p-values are superuniform under the nodewise complete
+null, giving Bonferroni control of the nodewise rejection probability.
 Empirically, adaptive stopping and histogram thresholding are the main
 runtime controls. Disabling adaptive stopping makes CIF fits
 4.0--8.4$\times$ slower by the median ratio across datasets, and exact threshold
 search is 1.9--10.8$\times$ slower than histogram thresholding, with small
 changes in downstream metrics and synthetic recovery. We then benchmark one
-selected configuration per method family for 17 classification and 18 regression
-feature selection methods on 23 classification and 8 regression datasets, including permutation test filters,
+configuration selected from the benchmark per method family for 17 classification
+and 18 regression feature selection methods on up to 23 classification datasets
+and 8 regression datasets, including permutation test filters,
 wrappers, single trees, forests, and gradient boosted models. In the main
 real-data table, CIF ranks 4th of 17 on the 22 classification datasets where the
 ctree and cforest references were run and 3rd of 18 on the smaller 8-dataset
-regression benchmark. It also improves over the classical conditional inference tree and
-forest references in matched comparisons. Classification diagnostics show CIF's
-lowest mean ranks at the larger displayed values of $k$, while controlled
+regression benchmark. On datasets where both methods were run, it also improves
+over the classical conditional inference tree and forest references.
+Classification diagnostics show CIF's lowest mean ranks at the larger displayed
+values of $k$, while controlled
 sparse high-$p$ simulations show that forest candidate sampling can exclude
-informative features from many node-level tests. Overall, CIF has the strongest
-empirical support among the conditional-inference feature selection methods
-studied here. Adaptive stopping and histogram thresholding control its main
-runtime costs, while the high-$p$ simulations identify candidate feature
-availability as a remaining forest limitation.
+informative features from many tests at individual nodes. Overall, CIF has the
+strongest support on real data among the conditional inference tree and forest
+feature selection methods studied here. Adaptive stopping and histogram
+thresholding control its main runtime costs, while the high-$p$ simulations
+identify candidate feature availability as a main factor in sparse high-$p$
+forest behavior.

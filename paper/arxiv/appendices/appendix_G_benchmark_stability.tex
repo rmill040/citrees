@@ -1,7 +1,7 @@
 \section{Benchmark stability and candidate feature sampling}
 \label{app:benchmark-stability}
 
-This appendix reports benchmark support counts, matched CIF comparisons, LODO
+This appendix reports benchmark support counts, CIF comparisons on shared datasets, LODO
 configuration sensitivity, learner and $k$ sensitivity checks, and candidate
 feature sampling by feature dimension.
 
@@ -16,9 +16,9 @@ benchmark analyses. Missing benchmark entries are not imputed.
     \toprule
     Analysis & Classification datasets & Regression datasets & Purpose \\
     \midrule
-    Main rank table & 22 & 8 & Headline real data rank table \\
+    Main rank table & 22 & 8 & Primary rank summary on real datasets \\
     Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and number of selected features \\
-    Matched rank tests & 14 & 6 & Bootstrap intervals and omnibus rank tests \\
+    Shared support rank tests & 14 & 6 & Bootstrap intervals and omnibus rank tests \\
     Seed sensitivity & 12 & 6 & Seed variation with shared dataset support across seeds \\
     \bottomrule
   \end{tabularx}
@@ -29,7 +29,7 @@ benchmark analyses. Missing benchmark entries are not imputed.
 
 \subsection{Shared support classification benchmark}
 
-\Cref{tab:fixed-panel-cif-ci} gives the matched CIF comparisons
+\Cref{tab:fixed-panel-cif-ci} gives the CIF comparisons
 against ctree, cforest, and CIT. All comparisons use the same 14 datasets, the
 same downstream models, and $k \in \{5,10,25,50,100\}$.
 
@@ -46,9 +46,9 @@ same downstream models, and $k \in \{5,10,25,50,100\}$.
     CIT & 0.041 & [0.023, 0.060] & 13--1 & $<0.001$ \\
     \bottomrule
   \end{tabular}
-  \caption{Matched balanced accuracy differences between CIF and the compared
+  \caption{Balanced accuracy differences between CIF and the compared
   method on the classification benchmark with 14 datasets. Rows are
-  matched differences within datasets after averaging each dataset over the same
+  differences within datasets after averaging each dataset over the same
   downstream learners and values of $k$. The confidence intervals are
   percentile bootstrap intervals from 20{,}000 replicates. Positive differences
   favor CIF. The sign test alternative is CIF $>$ comparator. W--L gives wins
@@ -110,19 +110,19 @@ downstream models and standard $k$ values.
   configurations on the other 13 datasets; balanced accuracy and rank on the
   left out dataset are then averaged over the 14 runs. Lower rank is better. The
   distinct settings column gives the number of settings selected across the 14
-  LODO runs. The last column reports how often the setting selected in the
-  original 14 dataset analysis is selected again. For method families with one
-  setting, 14/14 follows from the design; this column is informative only for
-  families with more than one selectable setting.}
+  LODO runs. For each omitted dataset, scores and ranks first average over the
+  three downstream learners and five standard values of $k$. The last column
+  reports how often the setting chosen in the main benchmark was selected again.
+  For method families with one setting, 14/14 follows from the design; this
+  column is informative only for families with more than one selectable setting.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
 For CIF, the LODO analysis selects the same configuration in all 14 runs, and
 CIF is fifth among 17 methods by average LODO rank (mean LODO rank 5.64).
-Among methods
-with more than one selectable configuration in this table, XGBoost is the only
-one that selects more than one setting; it reselects the original 14 dataset
-choice in 6 of the 14 runs.
+Among methods that select more than one distinct setting across LODO runs,
+XGBoost is the only one; it reselects the setting chosen in the main benchmark
+in 6 of the 14 runs.
 
 \subsection{Sensitivity to downstream learner, k, and seed}
 
@@ -224,7 +224,7 @@ CatBoost have lower mean positions than CIF across those combinations.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/benchmark_pairwise_sensitivity.png}
-  \caption{Matched classification margins against conditional inference
+  \caption{Classification margins against conditional inference
   references by downstream learner and number of selected features. Each plotted
   value is the mean CIF minus comparator balanced accuracy difference for one
   downstream learner and one value of $k$; positive values favor CIF. Dataset
@@ -336,7 +336,7 @@ the difference in informative split share is 0.600 at $p{=}100$, 0.780 at
 $p{=}500$, and 0.910 at $p{=}1{,}000$, while the corresponding reductions in the
 number of different uninformative features used by the forest are 70, 264,
 and 439.
-The same pattern persists when the signal is less sparse: with five
+The gap also remains when the signal is less sparse: with five
 informative features, the difference in informative split share is still
 0.251, 0.564, and 0.543 as $p$ increases from 100 to 500 to 1,000. These
 curves are consistent with the main text conclusion that, in sparse high-$p$

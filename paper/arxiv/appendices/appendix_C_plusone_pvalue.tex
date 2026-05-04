@@ -1,11 +1,14 @@
 \section{Proof of Theorem~\ref{thm:plusone-superuniform}}
 \label{app:proof-plusone}
 
-We prove Theorem~\ref{thm:plusone-superuniform} under A0.1 through A0.5
+\Cref{app:permutation-exchangeability} shows why the usual computation with
+one observed statistic and $B$ random permutations has the same rank
+distribution as the exchangeable permutation construction. We now prove
+Theorem~\ref{thm:plusone-superuniform} under A0.1 through A0.5
 (\cref{app:assumptions}).
 
 Fix $(X_t,U)$ and work under the null hypothesis at the fixed node $t$. Under
-A0.2 through A0.3 (\cref{app:assumptions}), the standard computation
+A0.2 and A0.3 (\cref{app:assumptions}), the standard computation
 ``$T_{\mathrm{obs}}$ + $B$ random permutations'' is covered by the same rank
 argument as the i.i.d.\ permutation construction; see
 \cref{lem:identity-vs-random} in \cref{app:permutation-exchangeability} and
@@ -24,6 +27,9 @@ Define the right tail upper rank
 The left tail variant used in Stage~B replaces the exceedance check by
 $\ind\{T_b \le T_{\mathrm{obs}}\}$; equivalently, apply the right tail argument below to
 $-T$.
+In this paper, that left-tail convention explains how Stage~B scores candidate
+splits; Stage~B is run after Stage~A selects a feature and is not part of the
+Stage~A Type I error guarantee.
 
 \paragraph{No ties.}
 If the statistics almost surely have no ties, then $R = 1 + \sum_{b=1}^B \ind\{T_b > T_{\mathrm{obs}}\}$
@@ -48,17 +54,29 @@ handling, p-values are computed with the indicator $\ind\{T_b \ge T_{\mathrm{obs
 counts ties as exceedances. Let $V_{\mathrm{obs}},V_1,\dots,V_B \stackrel{\mathrm{i.i.d.}}{\sim}
 \mathrm{Unif}(0,1)$ be independent of all other randomness and define augmented
 statistics $\tilde{T}_{\mathrm{obs}} := (T_{\mathrm{obs}}, V_{\mathrm{obs}})$
-and $\tilde{T}_b := (T_b, V_b)$ for $b=1,\dots,B$, ordered
-lexicographically. Then
+and $\tilde{T}_b := (T_b, V_b)$ for $b=1,\dots,B$. The first coordinate is the
+test statistic; the second coordinate is used only as a tie-breaker. For the
+right-tail rank, $\tilde{T}_b$ exceeds $\tilde{T}_{\mathrm{obs}}$ exactly when
+$T_b > T_{\mathrm{obs}}$ or when $T_b = T_{\mathrm{obs}}$ and
+$V_b > V_{\mathrm{obs}}$. Then
 $(\tilde{T}_{\mathrm{obs}},\tilde{T}_1,\dots,\tilde{T}_B)$ is exchangeable and almost surely has no ties, so
 the rank argument above gives a superuniform p-value
 %
 \begin{equation}
-  \tilde{p}_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{\tilde{T}_b \ge_{\mathrm{lex}} \tilde{T}_{\mathrm{obs}}\}}{B+1}.
+  \tilde{p}_{\mathrm{MC}}^{\ge}
+  :=
+  \frac{
+    1 + \sum_{b=1}^B
+    \ind\{
+      T_b > T_{\mathrm{obs}}
+      \text{ or } (T_b = T_{\mathrm{obs}} \text{ and } V_b > V_{\mathrm{obs}})
+    \}
+  }{B+1}.
 \end{equation}
 %
-Moreover, for each $b$, $\ind\{\tilde{T}_b \ge_{\mathrm{lex}} \tilde{T}_{\mathrm{obs}}\} \le \ind\{T_b \ge T_{\mathrm{obs}}\}$,
-so $p_{\mathrm{MC}}^{\ge} \ge \tilde{p}_{\mathrm{MC}}^{\ge}$ and hence
+Moreover, for each $b$, the tie-broken event in the numerator above implies
+$T_b \ge T_{\mathrm{obs}}$, so
+$p_{\mathrm{MC}}^{\ge} \ge \tilde{p}_{\mathrm{MC}}^{\ge}$ and hence
 %
 \begin{equation}
   \PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U)

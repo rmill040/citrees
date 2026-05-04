@@ -1,26 +1,28 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper studies how CIT and CIF runtime controls affect feature rankings. At
-the level of a single node before later tree decisions are considered, the
-Stage~A result gives Bonferroni control of nodewise rejection when no candidate
-feature at that node is associated with the response and the permutation budget
-is fixed.
+This paper studies how runtime hyperparameters in CIT and CIF affect
+feature rankings, downstream prediction, and synthetic feature recovery. For
+exhaustive fixed-$B$ Stage~A testing at a fixed node, with
+a label-independent tested feature family, the Stage~A result gives Bonferroni
+control of nodewise rejection under the complete nodewise permutation null.
 That p-value interpretation applies to the local test; the full adaptive tree
-and forest are evaluated empirically. In the CIF ablations, the largest runtime
-changes come from adaptive stopping and histogram thresholding. The CIT timing
-results are mixed and are therefore reported separately from the CIF runtime and
-downstream score results.
+and forest are evaluated empirically. In the CIF ablations, adaptive stopping
+and histogram thresholding produce the largest timing changes. The CIT timing
+results are mixed and are reported separately from the CIF runtime and
+downstream-metric results.
 
-On the classification benchmark, CIF ranks fourth of 17 methods with the runtime
-controls studied here. It improves on ctree and cforest on the 22 classification
-datasets where those references were run, and on CIT across 23 datasets.
-The high-$p$ and synthetic results show two patterns: the gains are clearer for
-enriching the selected top-$k$ feature set with informative features than for
-placing an informative feature first, and the classification simulations point
-to candidate sampling inside the forest as an important sparse high-$p$
-constraint in the diagnostic simulations. The regression evidence is based on
-fewer datasets and shows less consistent ranking gains. Further progress likely
-depends on making informative features available at split decisions more often
-while preserving the Stage~A/Stage~B separation that makes the method
+On the classification benchmark, CIF ranks fourth of 17 methods with the
+runtime hyperparameters studied here. In direct comparisons, its
+average downstream scores are higher than ctree and cforest on the 22
+classification datasets where those references were run, and higher than CIT
+across 23 datasets.
+The high-$p$ and synthetic results show two patterns: the synthetic results are
+stronger for selected feature sets than for the first ranked feature, and in
+sparse high-$p$ classification simulations, candidate sampling inside forests
+can leave informative features unavailable at many split decisions. The
+regression evidence is based on
+fewer datasets and shows less consistent ranking gains. A natural next step is
+to test variants that increase candidate feature coverage inside forests while
+preserving the Stage~A/Stage~B separation that makes the method
 distinctive.

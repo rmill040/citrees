@@ -5,7 +5,7 @@ Archived story figure; not part of the current arXiv figure bundle.
 The figure combines the two boundary claims that now matter in the main paper:
   1. On the high-p real-data classification cohort, CIF is strongest at
      intermediate budgets rather than at the full endpoint.
-  2. Sparse-forest diagnostics make candidate-set exposure the clearest
+  2. Sparse-forest diagnostics make candidate feature coverage the clearest
      mechanism behind that pattern.
 """
 
@@ -40,7 +40,7 @@ CATEGORY_COLORS = {
 RIGHT_METHODS = ["cif", "cif_all", "rf", "et"]
 RIGHT_DISPLAY = {
     "cif": "CIF",
-    "cif_all": "CIF (all features)",
+    "cif_all": "CIF-all",
     "rf": "RF",
     "et": "ExtraTrees",
 }

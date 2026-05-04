@@ -25,7 +25,7 @@ DATASET = "make_classification_n250_p1000_i2"
 METHOD_ORDER = ("cif", "cif_all", "rf", "et")
 DISPLAY_NAMES = {
     "cif": "CIF",
-    "cif_all": "CIF (all features)",
+    "cif_all": "CIF-all",
     "rf": "RF",
     "et": "ExtraTrees",
 }
@@ -128,7 +128,7 @@ def main() -> None:
     for ax in axes_grid[-1, :]:
         ax.set_xlabel("Feature index")
     for ax in axes_grid[:, 0]:
-        ax.set_ylabel("Split-use count")
+        ax.set_ylabel("Trees using feature")
 
     fig.legend(
         handles=[

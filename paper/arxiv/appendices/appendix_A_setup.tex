@@ -8,7 +8,7 @@ Let $(X_i, Y_i)_{i=1}^n$ be training data and consider a fixed node $t$ with
 index set $I_t$ (size $n_t$). Write $X_t := (X_i)_{i \in I_t}$ and
 $Y_t := (Y_i)_{i \in I_t}$.
 
-At node $t$, the procedure performs two potential hypothesis testing steps:
+At node $t$, the algorithm performs two potential hypothesis testing steps:
 Stage~A performs feature selection over features $j \in F_t$ by testing
 association with $Y_t$, and Stage~B tests candidate thresholds for the selected
 feature $j_t^\star$.
@@ -27,6 +27,7 @@ feature $j_t^\star$.
     $I_t,\ n_t$ & Sample index set at node $t$ and its size $n_t := |I_t|$. \\
     $X_t,\ Y_t$ & Covariates and labels restricted to node $t$. \\
     $F_t,\ m_t$ & Tested feature set at node $t$ and its size $m_t := |F_t|$. \\
+    $E_t$ & Feature subset evaluated during adaptive tree growing; in the exhaustive fixed-$B$ reference rule used by the theorem, $E_t=F_t$. \\
     $F_{\mathrm{avail}}$ & Features available when node $t$ is reached. \\
     $F_{t,\mathrm{nonconst}}$ & Features in $F_{\mathrm{avail}}$ that are nonconstant at node $t$. \\
     $F_{\mathrm{avail}}'$ & Feature set passed to descendants after Stage~A and any feature muting. \\
@@ -42,9 +43,8 @@ feature $j_t^\star$.
     $p_t^{\star,\mathrm{ref}} := \min_{j\in F_t} p_{t,j}$;
     $j_t^{\star,\mathrm{ref}}$ is drawn uniformly from $M_t^\star$ using
     reservoir sampling. \\
-    $j_t^\star,\ s_t^\star$ & Feature and Stage~A score stored by the recursive
-    implementation, which may inspect only part of the feature set and may stop
-    early. \\
+    $j_t^\star,\ s_t^\star$ & Feature and Stage~A search score returned during
+    adaptive tree growing, possibly after evaluating only part of the feature set. \\
     $C_{t,j}$ & Candidate threshold set for feature $j$ at node $t$ (Stage~B). \\
     $c_t^\star,\ s_t^{\mathrm{split}}$ & Best threshold and its Stage~B split score for the selected feature. \\
     $\pi$ & Bootstrap sampling probabilities over training indices. \\
@@ -52,7 +52,7 @@ feature $j_t^\star$.
     $U$ & Label-independent algorithmic randomness (e.g., feature subsampling, threshold subsampling, tie-breaking randomness). \\
     \bottomrule
   \end{tabular}
-  \caption{Compact notation used throughout the paper.}
+  \caption{Compact notation used in the fixed-node statements and proof appendices.}
 \end{table}
 
 \subsection{Assumptions and theorem scope}
@@ -82,25 +82,21 @@ randomization independent of the data and are not included in $U$.
 \paragraph{A0.3 (Label-independent Stage~A tested family).}\label{assump:label-independence}
 For Stage~A results, the tested feature family $F_t$ and resample budget $B$ are
 measurable functions of $(X_t, U)$ and do \emph{not} depend on the observed
-labels $Y_t$ (or on permutation outcomes). A separate fixed-feature Stage~B
-statement would require its threshold set to be label-independent.
+labels $Y_t$ (or on permutation outcomes). The fixed-node guarantee uses the
+exhaustive reference case $E_t=F_t$; early-stopped examined sets are outside
+the theorem. A separate fixed-feature Stage~B statement would require its
+threshold set to be label-independent.
 
 \paragraph{A0.4 (Fixed-$B$ p-values).}\label{assump:fixed-b}
 Permutation p-values are computed with a fixed number of resamples $B$ (no
 optional stopping).
 
 \paragraph{A0.5 (Conservative tie handling in the Monte Carlo p-value).}\label{assump:ties}
-The +1 Monte Carlo p-value uses the implementation's conservative tie rule:
+The +1 Monte Carlo p-value uses the conservative tie convention:
 ties are counted as $T_b \ge T_{\mathrm{obs}}$ events for right-tail tests and
 as $T_b \le T_{\mathrm{obs}}$ events for left-tail tests. Random tie breaking
 among equal best features or thresholds is treated separately as
 label-independent algorithmic randomness.
-
-\paragraph{A0.6 (Idealized symmetry model for CART lemmas).}\label{assump:cart-symmetry}
-In idealized CART bias lemmas (not used for the fixed-node guarantees stated
-here), candidate
-split scores are assumed exchangeable across all $(j,c)$ pairs (and with no
-ties, or with ties broken at random).
 
 \subsection{Result and assumption checklist}
 \label{app:assumption-checklist}
@@ -110,11 +106,10 @@ ties, or with ties broken at random).
   \small
   \begin{tabular}{p{0.52\linewidth} p{0.42\linewidth}}
     \toprule
-    Result & Minimal assumptions \\
+    Result & Assumptions used \\
     \midrule
     +1 p-value superuniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1 through A0.5 \\
     Stage~A complete null control (Corollary~\ref{cor:stageA-global-null}) & A0.1 through A0.5 \\
-    Root ``any split'' consequence (\cref{rem:root-null}) & A0.1 through A0.5 at root \\
     \bottomrule
   \end{tabular}
   \caption{Assumptions used by the main fixed-node results in \cref{sec:theory}.}

@@ -311,7 +311,7 @@ def cpi_selector(
     correlation_threshold: float = 0.5,
     params: dict[str, Any] | None = None,
 ) -> np.ndarray:
-    """Compute feature ranking using a stratified conditional-permutation approximation.
+    """Compute feature ranking using stratified conditional permutation.
 
     Parameters
     ----------

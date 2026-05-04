@@ -4,7 +4,8 @@
 This section isolates the exhaustive fixed-$B$ Stage~A feature selection rule
 at a fixed node. The theorem proves superuniformity for one $+1$ Monte Carlo
 permutation p-value, and the corollary applies Bonferroni correction to the
-fixed-node Stage~A family. All probabilities below are conditional on
+fixed-node Stage~A family. In the notation of \cref{sec:stageA-stageB}, this is
+the reference case $E_t=F_t$. All probabilities below are conditional on
 $(X_t,U)$, where $U$ denotes any auxiliary randomness held fixed when
 conditioning.
 
@@ -42,8 +43,8 @@ let Stage~A reject when
   \min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t.
 \end{equation}
 %
-The implementation's strict comparison defines a subset of this nonstrict
-rejection event, so it is at least as conservative.
+The strict comparison used by the tree-growing rule defines a subset of this
+nonstrict rejection event, so it is at least as conservative.
 %
 Then
 %
@@ -59,16 +60,3 @@ Stage~A tests. It controls fixed-node Stage~A feature selection under the
 complete null. Partial-null familywise error control, p-values for the selected
 feature, and guarantees for the full adaptive learner are separate inferential
 targets.
-
-\begin{remark}[Root implication]
-\label{rem:root-null}
-If a fixed-$B$ tree using the Bonferroni Stage~A threshold has at least one
-internal split, then the root must have passed the Stage~A threshold. Under the
-complete root null,
-\cref{cor:stageA-global-null} gives
-%
-\begin{equation}
-  \PP(\text{the fitted tree has at least one internal split} \mid X_{\mathrm{root}},U)
-  \le \alpha_{\mathrm{sel}}.
-\end{equation}
-\end{remark}

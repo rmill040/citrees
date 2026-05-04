@@ -22,7 +22,7 @@ ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 METHODS = ["cif", "cif_all", "rf", "et"]
 DISPLAY_NAMES = {
     "cif": "CIF",
-    "cif_all": "CIF (all features)",
+    "cif_all": "CIF-all",
     "rf": "RF",
     "et": "ExtraTrees",
 }

@@ -128,7 +128,7 @@ The current support package includes:
 - threshold-search ablation
 - CIT runtime ablation
 - synthetic top-`k` composition diagnostics
-- fixed-design mechanism diagnostics
+- fixed-design candidate feature coverage diagnostics
 
 These studies are part of the locked support package, but they are not all
 reruns of the main benchmark.

@@ -69,7 +69,7 @@ SPLIT_COUNT_METHODS_ENSEMBLE: Final[tuple[str, ...]] = ("cif", "cif_all", "rf", 
 
 @dataclass(frozen=True)
 class CandidateSetCase:
-    """One fixed-design CIF candidate-set configuration."""
+    """One fixed-design CIF candidate feature configuration."""
 
     label: str
     max_features: str | int | None
@@ -188,7 +188,7 @@ def build_cif_model(
     n_estimators: int,
     verbose: int = 0,
 ) -> ConditionalInferenceForestClassifier:
-    """Instantiate a CIF model for the candidate-set study."""
+    """Instantiate a CIF model for the candidate feature study."""
     return ConditionalInferenceForestClassifier(
         n_estimators=n_estimators,
         selector="mc",
@@ -470,7 +470,7 @@ def _ranking_summary(ranking: np.ndarray, informative: list[int], k: int) -> int
 
 
 def build_candidate_set_study(spec: FixedDesignSpec, *, verbose: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run the CIF candidate-set sweep on one fixed design."""
+    """Run the CIF candidate feature sweep on one fixed design."""
     X, y, informative = make_fixed_dataset(spec)
     p = X.shape[1]
     cases = [
@@ -874,7 +874,7 @@ def plot_frequency_counts(counts: pd.DataFrame, output_path: Path) -> None:
     """Plot top-10 feature-frequency counts for each fixed design and method."""
     datasets = list(dict.fromkeys(counts["dataset"].tolist()))
     methods = ["cit", "cif_all", "rf", "et"]
-    display_names = {"cit": "CIT", "cif_all": "CIF (all features)", "rf": "RF", "et": "ExtraTrees"}
+    display_names = {"cit": "CIT", "cif_all": "CIF-all", "rf": "RF", "et": "ExtraTrees"}
 
     fig, axes = plt.subplots(len(datasets), len(methods), figsize=(16, 3.6 * len(datasets)), sharex=False, sharey=True)
     axes = np.atleast_2d(axes)
@@ -917,7 +917,7 @@ def plot_split_counts_by_feature_index(
         "dt": "Decision Tree",
         "rt": "Random Tree",
         "cif": "CIF",
-        "cif_all": "CIF (all features)",
+        "cif_all": "CIF-all",
         "rf": "RF",
         "et": "ExtraTrees",
     }
@@ -963,7 +963,7 @@ def plot_summary_curves(
         "dt": "Decision Tree",
         "rt": "Random Tree",
         "cif": "CIF",
-        "cif_all": "CIF (all features)",
+        "cif_all": "CIF-all",
         "rf": "RF",
         "et": "ExtraTrees",
     }
@@ -1003,8 +1003,8 @@ def plot_summary_curves(
 
 
 def main() -> None:
-    """Build and save paper-facing screening mechanism diagnostics."""
-    parser = argparse.ArgumentParser(description="Build paper-facing screening mechanism diagnostics")
+    """Build and save paper-facing candidate feature coverage diagnostics."""
+    parser = argparse.ArgumentParser(description="Build paper-facing candidate feature coverage diagnostics")
     parser.add_argument("--output-dir", type=Path, default=TABLES_DIR, help="Directory for CSV outputs")
     parser.add_argument("--figure-dir", type=Path, default=FIGURES_DIR, help="Directory for figure outputs")
     parser.add_argument(

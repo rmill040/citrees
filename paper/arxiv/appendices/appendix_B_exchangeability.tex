@@ -28,13 +28,13 @@ unconditionally.
 
 \begin{proof}
 Conditional on $(X_t, Y_t, U)$, each $T_b$ is a measurable function of $\Pi_b$, and
-$(\Pi_0,\dots,\Pi_B)$ are i.i.d. Therefore any permutation of the indices
+$(\Pi_0,\dots,\Pi_B)$ are i.i.d. Thus any permutation of the indices
 $b \in \{0,\dots,B\}$ leaves the joint law unchanged.
 \end{proof}
 
 \begin{lemma}[Identity plus $B$ random permutations has the same rank distribution]
 \label{lem:identity-vs-random}
-Assume A0.2 through A0.3 (\cref{app:assumptions}). Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
+Assume A0.2 and A0.3 (\cref{app:assumptions}). Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
 uniform random permutations of $\{1,\dots,n_t\}$, independent of $(X_t,Y_t,U)$.
 Define the observed statistic and permuted statistics by
 %
@@ -72,15 +72,13 @@ $(X_t,U)$ (A0.2). Let $\Pi_0$ be an independent uniform permutation and define
 $Y_t' := \Pi_0(Y_t)$. Then $Y_t' \stackrel{d}{=} Y_t$ conditional on $(X_t,U)$.
 
 For $b=1,\dots,B$, define $\Pi_b' := \Pi_b \circ \Pi_0^{-1}$. Since
-composition by the fixed permutation $\Pi_0^{-1}$ is a bijection of the
-permutation group, each $\Pi_b'$ is uniform on the symmetric group conditional
-on $\Pi_0$. Since $(\Pi_1,\dots,\Pi_B)$ are i.i.d.\ and independent of
-$(X_t,U,\Pi_0)$, the vector $(\Pi_1',\dots,\Pi_B')$ is also i.i.d.\ uniform.
-Moreover, $(\Pi_1',\dots,\Pi_B')$ depends only on $(\Pi_1,\dots,\Pi_B,\Pi_0)$,
-while $Y_t'=\Pi_0(Y_t)$ depends only on $(Y_t,\Pi_0)$; because
-$(\Pi_1,\dots,\Pi_B)$ are independent of $(X_t,U,Y_t,\Pi_0)$, the transformed
-vector $(\Pi_1',\dots,\Pi_B')$ is independent of $(X_t,U,Y_t')$.
-Moreover, for each $b$ we have $\Pi_b(Y_t) = \Pi_b'(Y_t')$. Therefore,
+right composition by the fixed element $\Pi_0^{-1}$ is a bijection of the
+permutation group, the conditional law of $(\Pi_1',\dots,\Pi_B')$ given
+$(Y_t,\Pi_0)$ is still i.i.d.\ uniform. This conditional law does not depend on
+the values of $Y_t$ or $\Pi_0$. Therefore $(\Pi_1',\dots,\Pi_B')$ is independent
+of $(Y_t',\Pi_0)$, even though both $Y_t'$ and the transformed permutations are
+defined using $\Pi_0$. For each $b$,
+$\Pi_b(Y_t) = \Pi_b'(Y_t')$. Therefore,
 %
 \begin{equation}
   \begin{aligned}

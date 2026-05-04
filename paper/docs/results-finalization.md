@@ -526,14 +526,14 @@ Do not say:
 - lower informative-only recovery on redundant suites means CIF is mostly
   choosing junk
 
-### 2.7 Fixed-design mechanism diagnostics
+### 2.7 Fixed-design candidate feature diagnostics
 
 What the experiment is:
 
 - fixed-design mechanism studies
 - not a new benchmark layer; these are diagnostic mechanism studies
 - separates:
-  - candidate-set coverage under different CIF `max_features` regimes
+  - candidate feature coverage under different CIF `max_features` regimes
   - full-candidate feature-count behavior on simple fixed designs
 - completed grid with `n=250` fixed, `p ∈ {100, 500, 1000}`,
   `n_informative ∈ {1, 2, 5, 10}`
@@ -544,7 +544,7 @@ What the experiment is:
   - classification: `cif`, `cif_all`, `rf`, `et`
   - regression: `cif`, `cif_all`, `rf`, `et`
 
-What the candidate-set sweep says:
+What the candidate feature sweep says:
 
 - fixed `p=100`, `n_informative=2` classification design with `n_seeds=2`
 - CIF default forest-style `max_features="sqrt"` means 10 sampled features per
@@ -666,7 +666,7 @@ Paper-safe interpretation:
 - the main classification-forest failure mode is not
   "permutation-based feature selection is bad"; it is that sparse candidate sampling can
   bury the signal before feature selection acts
-- the direct candidate-set sweep is suggestive rather than decisive because it
+- the direct candidate feature sweep is suggestive rather than decisive because it
   is tiny (`n_seeds=2`)
 - `cif_all` is a mechanism control, not an automatic recommendation that the
   production default should be `max_features=None`
@@ -699,7 +699,7 @@ Recommended displays:
   `make_classification_n250_p1000_i2` at `1000` trees
   - methods: `cif`, `cif_all`, `rf`, `et`
   - highlight the 2 informative features
-  - why: this illustrates the candidate-set-width story under the same selection
+  - why: this illustrates the candidate feature coverage story under the same selection
     logic
 
 - Figure: informative split share over `(p, n_informative)` for completed
@@ -718,7 +718,7 @@ Recommended displays:
 - Figure: informative split share over `(p, n_informative)` for completed
   regression forests at `1000` trees
   - methods: `cif`, `cif_all`, `rf`, `et`
-  - why: this shows the forest candidate-set story is weaker and messier in
+  - why: this shows the forest candidate feature story is weaker and messier in
     regression than in classification
 
 - Table: aggregate mechanism summary for each completed study
@@ -731,7 +731,7 @@ Recommended displays:
 - Table: `cif` vs `cif_all` delta table at `1000` trees
   - columns: `p`, `n_informative`, `cif informative_split_share`,
     `cif_all informative_split_share`, share gain, false-feature reduction
-  - why: this is the shortest compact table for the candidate-set-width
+  - why: this is the shortest compact table for the candidate feature coverage
     mechanism
 
 Canonical mechanism artifacts:
@@ -907,7 +907,7 @@ Paper-safe interpretation:
 
 - adaptive stopping is the largest practical runtime win
 - bounded histogram thresholding is the second largest practical runtime win
-- dropping Bonferroni changes the procedure, not just the runtime
+- dropping Bonferroni changes the testing rule, not just the runtime
 - scan, mute, and bootstrap should remain background controls rather than
   primary discoveries
 - these runtime ratios are within-method comparisons under the collected setup,

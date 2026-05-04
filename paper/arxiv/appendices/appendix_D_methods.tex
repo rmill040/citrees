@@ -1,55 +1,58 @@
 \section{Algorithmic and reproducibility notes}
 \label{app:methods}
 
-This appendix records implementation details needed to interpret the main
+This appendix records algorithm and reproducibility details needed to interpret the main
 results. Section~\ref{sec:method} gives the algorithmic loop, the setup and
 proof appendices give the fixed-node results, and
-Appendix~\ref{app:complexity-details} gives the detailed complexity formulas.
+Appendix~\ref{app:complexity-details} gives runtime and memory accounting for
+the benchmarked tree-growing algorithm.
 
 \subsection{Scope relative to the theory}
 
 The theory covers a narrow setting: exhaustive fixed-$B$ Stage~A feature
-selection at a node specified in advance under the complete permutation null. The
-benchmarked learner adds several practical controls that are useful
-algorithmically but fall outside that theorem:
+selection at a fixed node under the complete permutation null, with a
+label-independent tested feature family and resample budget. The benchmarked
+tree-growing algorithm includes several practical settings that are useful
+but fall outside that theorem:
 \begin{itemize}
   \item early stopping,
   \item feature and threshold candidate ordering inside early stopping,
   \item feature muting,
-  \item approximate threshold sets,
+  \item bounded threshold sets,
   \item bootstrap resampling and forest aggregation,
   \item optional honesty.
 \end{itemize}
-The fixed-node result applies only to exhaustive Stage~A p-values. The remaining
-reported Stage~A and split scores are algorithmic quantities.
+The fixed-node result applies only to exhaustive fixed-$B$ Stage~A p-values for
+that label-independent tested family. The remaining reported Stage~A and split
+scores are search scores used to grow the tree.
 
-\subsection{Node implementation choices}
+\subsection{Node-level choices}
 
 \paragraph{Stage~A.}
-At each node, the citrees implementation removes features that are constant on
+At each node, the tree-growing rule removes features that are constant on
 the node before any \texttt{max\_features} subsampling. If permutation testing
 is enabled, Stage~A computes $+1$ Monte Carlo p-values, can order candidates by
-a preliminary score before testing, and may stop early
-once a sufficiently strong candidate has been found. When feature muting is
-enabled, features with nonsignificant Stage~A scores can be removed from
-descendant candidate sets within the same subtree. These choices reduce
-computation, but they also make the returned score $s_t^\star$ an algorithmic
-Stage~A score rather than a full Stage~A p-value over the complete candidate
-set.
+a preliminary score before testing, and can terminate once a sufficiently strong
+candidate has been found. When feature muting is
+enabled, features with non-rejecting Stage~A p-values can be removed from
+descendant candidate feature pools within the same subtree. These choices reduce
+computation, but they also make the returned score $s_t^\star$ a
+tree-construction search score rather than a full Stage~A p-value over the
+complete candidate feature pool.
 
 \paragraph{Stage~B.}
-Given the selected feature, the citrees implementation builds threshold
+Given the selected feature, the tree-growing rule builds threshold
 candidates from midpoints between consecutive unique feature values. Exact search uses all such
 midpoints. Random sampling chooses a bounded subset of midpoints; percentile and
 histogram rules choose bounded representative thresholds derived from the
 midpoint distribution, with a fallback for small samples to the full midpoint
 set. When sequential stopping is enabled, threshold scanning may then reorder
-the chosen thresholds before testing. Because Stage~B is run after Stage~A has
+the candidate thresholds before testing. Because Stage~B is run after Stage~A has
 selected a feature using the node response, its returned quantity
-$s_t^{\mathrm{split}}$ is read as an algorithmic split score.
+$s_t^{\mathrm{split}}$ is read as a split-selection score.
 
 \paragraph{Split statistics.}
-For permutation split testing, the implementation uses the unweighted sum
+For permutation split testing, Stage~B uses the unweighted sum
 of child impurities as the tested statistic and a left tail convention. The
 deterministic split search and the final
 \texttt{min\_impurity\_decrease} filter instead use the usual weighted impurity
@@ -59,7 +62,7 @@ rankings produced by the fitted learners.
 
 \subsection{Permutation budgets and early stopping}
 
-The citrees implementation uses Phipson--Smyth $+1$ Monte Carlo permutation p-values
+The benchmarked tree-growing rule uses Phipson--Smyth $+1$ Monte Carlo permutation p-values
 \citep{PhipsonSmyth2010PermutationPValues} for both stages: right tail in
 Stage~A and left tail in Stage~B. The library exposes integer resampling budgets
 and three presets:
@@ -75,40 +78,30 @@ tests at the node, so the realized permutation budget at each node increases wit
 search width.
 
 \paragraph{Sequential stopping.}
-The benchmarked defaults use adaptive sequential stopping. The implementation
-tracks exceedances inside batches and stops once a Beta--Binomial posterior is
-confident that the latent exceedance rate is either below or above the nodewise
-threshold. A simpler futility/significance rule is also available. Both change
-the stopping time: once a stage stops at a data-dependent time, the returned
-value is no longer a classical fixed-$B$ Monte Carlo p-value. This is
-why the main paper separates the fixed-node guarantee from the runtime
-ablations.
+The benchmarked defaults use adaptive sequential stopping. The sequential test
+tracks exceedances inside batches and terminates when the Beta posterior for the
+exceedance rate places at least the configured confidence probability on one
+side of the nodewise threshold. A simpler futility/significance rule is also
+available. Both change the stopping time: once a stage stops at a
+data-dependent time, the returned value is no longer a classical fixed-$B$
+Monte Carlo p-value. This is why the main paper separates the fixed-node
+guarantee from the runtime ablations.
 
 \subsection{Forests, resampling, and honesty}
 
 CIF averages predictions from bootstrap trees. These forests are empirical
 extensions of the Stage~A rule, not settings covered by the fixed-node result
-itself. The classification implementation also supports
+itself. The classification tree and forest grids also support
 class-conditional bootstrap variants, and both trees and forests optionally
 support honest estimation via sample splitting. These settings are useful
 algorithmically, but they change the training distribution or the estimation
-target and should therefore be read as empirical design choices rather than as
-parts of the theorem.
+target; they are empirical design choices rather than parts of the theorem.
 
-\subsection{Benchmark protocol}
+\subsection{Benchmark output availability}
 
-The appendix tables use the same ranking benchmark protocol as
-\cref{sec:experiments-protocol}: a method first produces a ranking on the
-training split, and downstream models are then fit on the top-$k$ selected
-features and evaluated on held-out data. The real dataset benchmark uses
-fivefold cross validation over 5 random seeds, standard values
-$k \in \{5,10,25,50,100\}$, and larger high-$p$ values of $k$ only for the
-separate high-$p$ saturation check. If a method family has multiple settings,
-the analysis uses one chosen setting per task, chosen by mean score on the same
-benchmark setup reported in the paper.
-
-\subsection{Benchmark outputs and dataset counts}
-
+\Cref{sec:experiments-protocol,sec:experiments-repro} define the benchmark
+protocol and configuration-selection rule. This appendix only records output
+availability details needed to interpret the appendix tables.
 The analysis uses completed benchmark outputs without imputation. Some benchmark
 outputs are unavailable, and some datasets have fewer than five standard values
 of $k$ because values greater than $p$ are not evaluated.
@@ -117,7 +110,7 @@ only datasets with every method, learner, and standard value of $k$ present. The
 rules explain why ctree and cforest classification comparisons use 22 rather
 than 23 datasets and why the complete comparison analyses use 14 classification
 and 6 regression datasets.
-\Cref{tab:implementation-skips} lists the classification seed skips and the
+\Cref{tab:output-skips} lists the classification seed skips and the
 dexter method exclusion; the regression count comes from the same availability
 rule, not from additional rows in this table.
 
@@ -139,12 +132,12 @@ rule, not from additional rows in this table.
   \caption{Documented classification seed-level skips and method exclusions.
   Missing outputs are not imputed; this table documents classification omissions
   only.}
-  \label{tab:implementation-skips}
+  \label{tab:output-skips}
 \end{table}
 
 \subsection{Randomness and reproducibility}
 
-The implementation is deterministic given the same base seed. Pure Python
+Runs are deterministic given the same base seed. Pure Python
 permutation routines use local \texttt{numpy} generators, while compiled
 parallel routines use seeded streams per resample because generator RNGs
 are not uniformly supported in those contexts. This affects how random streams

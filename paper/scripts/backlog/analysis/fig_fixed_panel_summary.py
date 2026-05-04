@@ -33,8 +33,8 @@ DISPLAY_NAMES = {
     "cit": "CIT",
     "ptest_mc": "MC filter",
     "ptest_rdc": "RDC filter",
-    "r_cforest": "R cforest",
-    "r_ctree": "R ctree",
+    "r_cforest": "cforest",
+    "r_ctree": "ctree",
     "pi": "PI",
     "cpi": "CPI",
 }

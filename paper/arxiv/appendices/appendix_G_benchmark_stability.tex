@@ -1,9 +1,8 @@
-\section{Benchmark stability and candidate feature sampling}
+\section{Benchmark stability}
 \label{app:benchmark-stability}
 
-This appendix reports dataset counts for the benchmark analyses, CIF comparisons on the same datasets, LODO
-configuration sensitivity, learner and $k$ sensitivity checks, and candidate
-feature sampling by feature dimension.
+This appendix reports the benchmark dataset counts, same-dataset CIF comparisons, LODO
+configuration sensitivity, and learner, $k$, and seed sensitivity checks.
 
 \Cref{tab:benchmark-dataset-counts} summarizes the dataset counts used by the
 benchmark analyses. Missing benchmark entries are not imputed.
@@ -18,7 +17,7 @@ benchmark analyses. Missing benchmark entries are not imputed.
     \midrule
     Main rank table & 22 & 8 & Primary rank summary on real datasets \\
     Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and number of selected features \\
-    Complete rank tests & 14 & 6 & Bootstrap intervals and omnibus rank tests \\
+    Complete-case rank summaries & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
     Seed sensitivity & 12 & 6 & Seed variation on datasets complete across seeds \\
     \bottomrule
   \end{tabularx}
@@ -39,7 +38,7 @@ same downstream models, and $k \in \{5,10,25,50,100\}$.
   \setlength{\tabcolsep}{5pt}
   \begin{tabular}{@{}l S[table-format=1.3] l c c@{}}
     \toprule
-    Compared method & {Mean $\Delta$} & 95\% CI & W--L & One sided sign test $p$ \\
+    Compared method & {Mean $\Delta$} & 95\% CI & W--L & One-sided sign test $p$ \\
     \midrule
     ctree & 0.109 & [0.068, 0.154] & \winloss{14}{0} & $<0.001$ \\
     cforest & 0.111 & [0.067, 0.161] & \winloss{13}{1} & $<0.001$ \\
@@ -59,11 +58,12 @@ same downstream models, and $k \in \{5,10,25,50,100\}$.
 The same classification benchmark with 14 datasets yields a Friedman test statistic
 of
 $\chi^2(16)=141.32$ with $p<0.001$ and Kendall's
-$W=0.63$. For the analogous 6-dataset regression analysis, where all methods,
-downstream learners, and standard $k$ values are present, the Friedman test gives
-$\chi^2(17)=33.79$, $p=0.0089$, and Kendall's $W=0.33$. We report this analysis
-separately from the 14-dataset classification comparison because it has fewer
-datasets.
+$W=0.63$. The analogous regression complete-case panel has 6 datasets with
+all methods, downstream learners, and standard $k$ values present. The
+corresponding rank summaries are a Friedman statistic of $\chi^2(17)=33.79$, an
+asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$. Because this panel
+contains only 6 datasets, we treat the regression calculation as descriptive
+rather than as a confirmatory small-sample test.
 
 \subsection{LODO configuration sensitivity}
 
@@ -102,11 +102,11 @@ downstream models and standard $k$ values.
     RT & 10.64 & 0.752 & 1 & \countfrac{14}{14} \\
     CIT & 10.79 & 0.757 & 1 & \countfrac{14}{14} \\
     MC filter & 11.43 & 0.734 & 1 & \countfrac{14}{14} \\
-    RDC-style filter & 11.86 & 0.707 & 1 & \countfrac{14}{14} \\
+    RDC filter & 11.86 & 0.707 & 1 & \countfrac{14}{14} \\
     cforest & 13.29 & 0.687 & 1 & \countfrac{14}{14} \\
     ctree & 13.64 & 0.689 & 1 & \countfrac{14}{14} \\
     PI & 13.75 & 0.689 & 1 & \countfrac{14}{14} \\
-    CPI approx. & 16.04 & 0.598 & 1 & \countfrac{14}{14} \\
+    CPI & 16.04 & 0.598 & 1 & \countfrac{14}{14} \\
     \bottomrule
   \end{tabular}
   \caption{LODO configuration sensitivity on the classification benchmark with
@@ -117,13 +117,15 @@ downstream models and standard $k$ values.
   LODO runs. For each omitted dataset, scores and ranks first average over the
   three downstream learners and five standard values of $k$. The last column
   reports how often the setting chosen in the main benchmark was selected again.
-  For method families with one setting, reselection in all 14 LODO runs follows from the design; this
-  column is informative only for families with more than one selectable setting.}
+  For method families with only one setting, all 14 LODO runs necessarily
+  reselect that setting; this column is informative only for families with more
+  than one selectable setting.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
-For CIF, the LODO analysis selects the same configuration in all 14 runs, and
-CIF is fifth among 17 methods by average LODO rank (mean LODO rank 5.64).
+For CIF, this 14-dataset LODO analysis selects the same configuration in all 14
+runs and places CIF fifth among 17 methods by average LODO rank (mean LODO rank
+5.64).
 Among methods that select more than one distinct setting across LODO runs,
 XGBoost is the only one; it reselects the setting chosen in the main benchmark
 in 6 of the 14 runs.
@@ -131,9 +133,9 @@ in 6 of the 14 runs.
 \subsection{Sensitivity to downstream learner, k, and seed}
 
 The main benchmark averages over downstream learners, standard values of $k$,
-folds, and seeds. The following tables break out method ordering by
-learner, value of $k$, or seed as descriptive sensitivity analyses. They use
-the same selected method configurations as the main benchmark.
+folds, and seeds. The following tables report method ordering separately by
+downstream learner, value of $k$, and seed as descriptive sensitivity analyses.
+They use the same selected method configurations as the main benchmark.
 
 For the learner and $k$ checks, each comparison unit is one downstream learner
 and one standard value of $k$. Within a unit, methods are ordered by their mean
@@ -142,10 +144,10 @@ unit; ties use average ranks.
 \Cref{tab:classification-learner-k-sensitivity,tab:regression-learner-k-sensitivity}
 summarize the 15 learner and $k$ combinations for each task. The
 learner columns report mean position over the five standard values of $k$ for
-that learner; lower positions are better. Mean rank keeps the underlying
-dataset rank values before converting each comparison unit to positions. The
-Top 3 and Top 5 counts report learner and $k$ combinations, not
-datasets.
+that learner; lower positions are better. Mean position averages the positions
+obtained after ordering methods within each learner and $k$ combination; mean
+rank averages the dataset-level ranks directly. The Top 3 and Top 5 counts
+report learner and $k$ combinations, not datasets.
 
 \begin{table}[H]
   \centering
@@ -179,9 +181,9 @@ datasets.
     MC filter & 10.7 & 11.8 & 12.0 & 11.5 & 10.8 & 9.0--13.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     PI & 13.4 & 15.0 & 13.2 & 13.9 & 12.1 & 10.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     cforest & 14.2 & 12.4 & 14.6 & 13.7 & 12.1 & 11.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    RDC-style filter & 13.4 & 14.1 & 13.6 & 13.7 & 12.1 & 10.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    RDC filter & 13.4 & 14.1 & 13.6 & 13.7 & 12.1 & 10.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     ctree & 15.6 & 15.5 & 15.4 & 15.5 & 13.0 & 13.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CPI approx. & 16.6 & 16.8 & 17.0 & 16.8 & 14.4 & 15.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CPI & 16.6 & 16.8 & 17.0 & 16.8 & 14.4 & 15.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
   \caption{Classification sensitivity by downstream learner and number of
@@ -217,7 +219,7 @@ datasets.
     RT & 4.2 & 8.2 & 5.6 & 6.0 & 8.0 & 1.5--13.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
     DT & 5.9 & 8.4 & 7.3 & 7.2 & 8.5 & 1.0--14.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
     LightGBM & 7.5 & 9.0 & 8.7 & 8.4 & 8.9 & 1.0--16.5 & \countfrac{3}{15} & \countfrac{4}{15} \\
-    RDC-style filter & 9.8 & 12.2 & 5.3 & 9.1 & 9.3 & 3.0--17.5 & \countfrac{1}{15} & \countfrac{3}{15} \\
+    RDC filter & 9.8 & 12.2 & 5.3 & 9.1 & 9.3 & 3.0--17.5 & \countfrac{1}{15} & \countfrac{3}{15} \\
     CIT & 12.4 & 4.1 & 12.1 & 9.5 & 9.4 & 2.0--16.0 & \countfrac{2}{15} & \countfrac{3}{15} \\
     PC filter & 10.9 & 11.5 & 9.3 & 10.6 & 9.8 & 7.5--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     DC filter & 13.7 & 14.0 & 7.4 & 11.7 & 10.3 & 4.0--17.0 & \countfrac{0}{15} & \countfrac{1}{15} \\
@@ -227,7 +229,7 @@ datasets.
     RF-RFE & 14.8 & 11.0 & 12.4 & 12.7 & 10.8 & 3.0--18.0 & \countfrac{1}{15} & \countfrac{1}{15} \\
     cforest & 17.3 & 12.7 & 16.1 & 15.4 & 12.5 & 5.5--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     ctree & 12.6 & 16.0 & 17.8 & 15.5 & 12.9 & 8.0--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CPI approx. & 16.9 & 15.8 & 16.6 & 16.4 & 13.2 & 9.0--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CPI & 16.9 & 15.8 & 16.6 & 16.4 & 13.2 & 9.0--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
   \caption{Regression sensitivity by downstream learner and number of selected
@@ -255,11 +257,11 @@ CatBoost have lower mean positions than CIF across those combinations.
   \label{fig:benchmark-pairwise-sensitivity}
 \end{figure}
 
-For seed sensitivity, each method is ranked separately within each seed after
+For seed sensitivity, each method is ranked separately within each seed. After
 retaining only datasets with results for every method, downstream learner,
-standard value of $k$, and seed. This complete seed panel has 12 classification
-datasets and 6 regression datasets. This is a seed sensitivity check on the
-complete seed panel, not the primary benchmark estimand.
+standard value of $k$, and seed, the complete seed panel has 12 classification
+datasets and 6 regression datasets. It is a sensitivity check rather than the
+main benchmark analysis.
 
 \begin{table}[H]
   \centering
@@ -291,9 +293,9 @@ complete seed panel, not the primary benchmark estimand.
     MC filter & 12 & 12 & 11 & 11 & 12 & 11.6 & 10.4 \\
     PI & 16 & 16 & 16 & 16 & 16 & 16.0 & 13.1 \\
     cforest & 15 & 15 & 15 & 14 & 15 & 14.8 & 12.6 \\
-    RDC-style filter & 13 & 13 & 13 & 13 & 13 & 13.0 & 11.5 \\
+    RDC filter & 13 & 13 & 13 & 13 & 13 & 13.0 & 11.5 \\
     ctree & 14 & 14 & 14 & 15 & 14 & 14.2 & 12.5 \\
-    CPI approx. & 17 & 17 & 17 & 17 & 17 & 17.0 & 15.3 \\
+    CPI & 17 & 17 & 17 & 17 & 17 & 17.0 & 15.3 \\
     \bottomrule
   \end{tabular}
   \caption{Classification seed sensitivity on the complete seed panel with 12
@@ -326,7 +328,7 @@ complete seed panel, not the primary benchmark estimand.
     RT & 3 & 2 & 2 & 5 & 4 & 3.2 & 7.6 \\
     DT & 11 & 4 & 7 & 3 & 3 & 5.6 & 8.1 \\
     LightGBM & 7 & 8 & 8 & 8 & 7 & 7.6 & 8.7 \\
-    RDC-style filter & 12 & 11 & 9 & 12 & 11 & 11.0 & 9.8 \\
+    RDC filter & 12 & 11 & 9 & 12 & 11 & 11.0 & 9.8 \\
     CIT & 8 & 9 & 12 & 10 & 13 & 10.4 & 9.4 \\
     PC filter & 13 & 13 & 13 & 13 & 12 & 12.8 & 10.5 \\
     DC filter & 15 & 15 & 14 & 15 & 14 & 14.6 & 11.1 \\
@@ -336,7 +338,7 @@ complete seed panel, not the primary benchmark estimand.
     RF-RFE & 14 & 14 & 15 & 14 & 15 & 14.4 & 10.9 \\
     cforest & 16 & 17 & 16 & 16 & 17 & 16.4 & 12.3 \\
     ctree & 18 & 18 & 18 & 17 & 18 & 17.8 & 13.1 \\
-    CPI approx. & 17 & 16 & 17 & 18 & 16 & 16.8 & 12.3 \\
+    CPI & 17 & 16 & 17 & 18 & 16 & 16.8 & 12.3 \\
     \bottomrule
   \end{tabular}
   \caption{Regression seed sensitivity on the complete seed panel with 6
@@ -345,36 +347,3 @@ complete seed panel, not the primary benchmark estimand.
   Lower values are better.}
   \label{tab:regression-seed-sensitivity}
 \end{table}
-
-\subsection{Candidate feature sampling by number of features}
-
-\Cref{fig:mechanism-dimension-curves} extends the main text candidate feature
-sampling figure from one sparse classification setting to $p = 100, 500$, and
-$1{,}000$ at 1,000 trees. For each method and number of features, the point
-marks the mean over $n_{\mathrm{informative}} \in \{1,2,5,10\}$ and the
-capped bar spans the minimum and maximum over those four sparse settings.
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}
-  \caption{Classification forest candidate feature sampling by number of
-  features at 1,000 trees. Points are means over
-  $n_{\mathrm{informative}} \in \{1,2,5,10\}$; capped bars show the
-  min--max range over those sparse designs, not uncertainty intervals.}
-  \label{fig:mechanism-dimension-curves}
-\end{figure}
-
-The gap between default CIF and CIF-all widens as the number of
-features grows and is largest in the sparsest settings. CIF-all is the CIF
-variant that considers all nonconstant candidate features at each split. With
-two informative features,
-the difference in informative split share is 0.600 at $p{=}100$, 0.780 at
-$p{=}500$, and 0.910 at $p{=}1{,}000$, while the corresponding reductions in the
-number of different uninformative features used by the forest are 70, 264,
-and 439.
-The gap also remains when the signal is less sparse: with five
-informative features, the difference in informative split share is still
-0.251, 0.564, and 0.543 as $p$ increases from 100 to 500 to 1,000. These
-curves are consistent with the main text conclusion that, in sparse high-$p$
-forests, candidate subsampling can leave informative features out of too many
-split decisions.

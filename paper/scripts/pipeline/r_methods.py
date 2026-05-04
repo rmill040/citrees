@@ -1,4 +1,4 @@
-"""R ctree/cforest wrappers via rpy2 for feature selection experiments.
+"""ctree/cforest wrappers through R via rpy2 for feature selection experiments.
 
 This module provides Python wrappers for R's partykit package to enable
 benchmarking against the original ctree (Hothorn et al., 2006) implementation.
@@ -116,7 +116,7 @@ def r_ctree_ranking(
     minbucket: int = 7,
     **kwargs: Any,
 ) -> np.ndarray:
-    """Fit R ctree and return feature ranking based on variable usage.
+    """Fit ctree through rpy2 and return feature ranking based on variable usage.
 
     For a single tree, we rank features by how often they appear in splits.
     Features used more frequently are ranked higher; ties are broken by feature
@@ -220,7 +220,7 @@ def r_cforest_ranking(
     cores: int = -1,
     **kwargs: Any,
 ) -> np.ndarray:
-    """Fit R cforest and return feature ranking based on variable importance.
+    """Fit cforest through rpy2 and return feature ranking based on variable importance.
 
     Uses partykit's ``varimp()`` function for permutation-based variable
     importance.

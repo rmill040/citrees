@@ -8,14 +8,14 @@ truth.
 Conditional inference got an important idea right: separate feature selection
 from threshold optimization to reduce split-selection bias.
 
-The practical problem was that the classical implementation could be too
+The practical problem was that the classical approach could be too
 expensive to use comfortably, especially when many permutations and exhaustive
 search were applied too uniformly.
 
 The new benchmark results sharpen the validation story, not the motivation
 itself. The motivation is to improve conditional inference trees and forests as
 practical feature selection methods: reduce runtime, keep the rankings useful,
-and understand where the approximations change the method.
+and understand where the runtime hyperparameters change the method.
 The broad benchmark then checks how the improved methods rank against common
 feature selection methods. In that validation layer, CIF ranks
 `4th/17` on classification and `3rd/18` on regression, while staying positive
@@ -31,12 +31,13 @@ The paper is therefore about a practical design question:
 - and which practical controls preserve the useful behavior while making the
   method usable.
 
-In the implemented learner, adaptive stopping is the largest CIF runtime
-lever measured here: disabling it makes CIF `4.0--8.4x` slower with only small changes in
-downstream score and feature recovery on synthetic datasets. Bounded histogram thresholding is
-different: it is a separate Stage~B approximation that shrinks the search set
-itself, and exact threshold search is `1.9--10.8x` slower than histogram-256 in
-the CIF timing study. Feature scanning is a smaller and less stable lever. For
+In the benchmarked tree-growing algorithm, adaptive stopping is the largest CIF
+runtime hyperparameter measured here: disabling it makes CIF `4.0--8.4x` slower
+with only small changes in downstream score and feature recovery on synthetic
+datasets. Bounded histogram thresholding is different: it is a separate Stage~B
+search rule that shrinks the search set itself, and exact threshold search is
+`1.9--10.8x` slower than histogram-256 in the CIF timing study. Feature scanning
+has a smaller and less stable timing effect. For
 CIT, the timing results are mixed rather than a clean speed story: disabling
 adaptive stopping can be faster on synthetic runs but is not consistently faster
 on real datasets, and the CIT timing run measures fit/ranking time plus
@@ -124,7 +125,7 @@ The main text should center on:
 - a compact high-`p` saturation check,
 - one synthetic figure that distinguishes subset construction from exact
   first feature recovery,
-- one mechanism figure that explains the candidate set width failure mode in
+- one mechanism figure that explains the candidate feature coverage failure mode in
   sparse classification forests.
 
 Recommended main-text artifacts:

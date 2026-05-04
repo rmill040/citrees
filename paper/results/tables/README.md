@@ -99,7 +99,7 @@ paper contract without an explicit re-justification:
 - `paper_heterogeneity_cif_pairwise_summary.csv`
   - superseded by `paper_heterogeneity_cif_pairwise_breadth.csv`
 - `paper_mechanism_candidate_set_runs.csv`
-  - useful for traceability, but the candidate-set sweep is tiny and only
+  - useful for traceability, but the candidate feature sweep is tiny and only
     supporting
 
 ## Historical Audit Outputs

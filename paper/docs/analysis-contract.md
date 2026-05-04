@@ -16,7 +16,7 @@ That means:
   object of comparison;
 - we treat `r_ctree` and `r_cforest` as scientifically relevant reference
   implementations, not as the paper's sole target;
-- we lead with the statistical procedure, feature-selection behavior, and
+- we lead with the statistical testing rule, feature-selection behavior, and
   downstream scientific pattern, not with engineering convenience.
 
 If engineering differences matter, they should be presented as secondary

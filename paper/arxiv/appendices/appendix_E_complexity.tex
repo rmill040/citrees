@@ -45,10 +45,10 @@ whether all labels at the node are equal, and computes a leaf value if the node
 stops immediately. This contributes $O(n_t)$ work at every realized node. If the
 node is eligible for splitting, the algorithm scans all currently available
 features and removes features that are constant on the node. This costs
-$O(a_t n_t)$ for the data scan. Updating the feature-index array costs another
-$O(a_t d_t^{\mathrm{const}})$ for constant-feature removals in the current
-dense-data path, with worst case $O(a_t^2)$ if many available features are
-constant at the same node. This pruning occurs before \texttt{max\_features}, so
+$O(a_t n_t)$ for the data scan. Updating the array of available feature indices
+costs another $O(a_t d_t^{\mathrm{const}})$ for constant-feature removals in the
+current implementation for dense design matrices, with worst case $O(a_t^2)$ if
+many available features are constant at the same node. This pruning occurs before \texttt{max\_features}, so
 \texttt{max\_features} caps Stage~A width but not the initial constant-feature
 scan.
 
@@ -82,8 +82,8 @@ candidates, adding
 \end{equation}
 where $C^{\mathrm{scan}}_j$ is the selector-score cost used for ordering. If
 \texttt{feature\_muting} removes tested features with non-rejecting Stage~A
-p-values, updating the descendant feature-index array adds
-$O(a_t d_t^{\mathrm{mute}})$ current-node bookkeeping work.
+$p$-values, updating the descendant array of available feature indices adds
+$O(a_t d_t^{\mathrm{mute}})$ current-node update work.
 
 Stage~B candidate construction begins with unique-value and threshold-generation
 work on the selected feature. A safe upper bound for construction and leaf-size
@@ -113,13 +113,13 @@ Stage~B testing work is
 Threshold scanning, when enabled with splitter early stopping, uses weighted
 child impurity as an ordering score and adds
 $O(q_t C^{\mathrm{split}}(n_t) + q_t\log q_t)$. This ordering score is separate
-from the Stage~B p-value statistic.
+from the Stage~B $p$-value statistic.
 
 Finally, if the Stage~B split is accepted and the impurity decrease is large
-enough, the current dense-data path materializes left and right child matrices with
-all $p$ columns. This data copy costs $O(n_t p)$ at that split. Nodes that reach
+enough, the current dense-matrix implementation materializes left and right child
+matrices with all $p$ columns. This data copy costs $O(n_t p)$ at that split. Nodes that reach
 Stage~A but become leaves because Stage~A or Stage~B does not reject still incur
-the work already described. Non-internal leaves can also arise after
+the work already described. Other terminal leaves can also arise after
 constant-feature pruning leaves no available feature, after threshold generation
 and \texttt{min\_samples\_leaf} filtering leave no valid threshold, or after an
 accepted threshold fails the \texttt{min\_impurity\_decrease} gate. Such leaves
@@ -141,16 +141,16 @@ prescan work, but they do not improve the worst-case bound because the stopping
 rule can still examine all candidates and use the full budget.
 
 \paragraph{From nodes to trees and forests.}
-Let $T_t$ denote the applicable node-local cost for node $t$: immediate-stop
-work, Stage~A work, Stage~B work, and child-copy work as far as the recursive
+Let $T_t$ denote the applicable node-local cost for node $t$: immediate stopping
+work, Stage~A work, Stage~B work, and child copy work as far as the recursive
 builder reaches. Tree training cost is the sum over all realized tree nodes, not
 only over internal split nodes:
 \begin{equation}
   T_{\mathrm{tree}} = \sum_{t \in \mathcal{V}(\mathcal{T})} T_t.
 \end{equation}
-Immediate-stop leaves contribute only the node-level stopping and value
-computation term, while leaves that fail after Stage~A or Stage~B contribute the
-corresponding testing terms. For a binary tree,
+Leaves stopped by the initial checks contribute only the node-level stopping and
+value computation term, while leaves that fail after Stage~A or Stage~B
+contribute the corresponding testing terms. For a binary tree,
 $|\mathcal{V}(\mathcal{T})|=2|\mathcal{I}(\mathcal{T})|+1$, and a depth cap
 gives the usual exponential crude bound on node count, but $n_t$, $a_t$, $m_t$,
 $\tilde{q}_t$, $q_t$, and the realized permutation counts usually change
@@ -185,8 +185,8 @@ post-fit work, not part of the tree-building sum.
   over all $a_t$ available features.
   \item \textbf{\texttt{feature\_muting}.} This can shrink descendant values of
   $a_t$ and $m_t$. It can also add $O(a_t d_t^{\mathrm{mute}})$ current-node
-  feature-index bookkeeping when tested features with non-rejecting Stage~A
-  p-values are removed.
+  feature-index updates when tested features with non-rejecting Stage~A
+  $p$-values are removed.
   \item \textbf{\texttt{threshold\_method} and \texttt{max\_thresholds}.}
   Non-exact threshold methods use \texttt{max\_thresholds} to reduce
   $\tilde{q}_t$ up to method-specific constants; \texttt{exact} and the
@@ -215,10 +215,10 @@ post-fit work, not part of the tree-building sum.
 \end{itemize}
 
 \paragraph{Memory accounting.}
-At a node, feature-index bookkeeping and scanning arrays use $O(a_t+m_t)$ space,
+At a node, feature-index arrays and scanning arrays use $O(a_t+m_t)$ space,
 and threshold construction uses $O(n_t+\tilde{q}_t+q_t)$ auxiliary space.
 Permutation tests add statistic, mask, label, and selector-specific workspaces.
-The dense-data terms dominate in many fits: validation materializes a dense
+The dense-matrix terms dominate in many fits: validation materializes a dense
 $O(np)$ design matrix, and each accepted split materializes dense left and right
 child matrices with combined size $O(n_t p)$. Peak single-tree training memory
 is therefore bounded by the validated root matrix plus dense child arrays along

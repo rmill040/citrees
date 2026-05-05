@@ -2,11 +2,10 @@
 \label{sec:discussion}
 
 The classification benchmark provides the paper's main empirical evidence for
-CIF as a feature selection method. On the datasets where the reference conditional
-inference implementations ran, CIF has higher average downstream scores than
-ctree and cforest. The
+CIF as a feature selection method. For the 22 datasets with ctree and cforest
+results, CIF has higher average downstream scores than both methods. The
 fixed-node theorem applies to exhaustive fixed-$B$ Stage~A testing with a
-label-independent tested feature family under the nodewise complete null, while
+label-independent tested feature set under the nodewise complete null, while
 the adaptive tree and forest rankings are evaluated empirically.
 The ablations report timing ratios and score changes. For CIF, the largest
 timing changes come from adaptive stopping and histogram thresholding, while
@@ -26,15 +25,15 @@ feature subset, when nonlinear or interaction structure may be important, and
 when the Stage~A/Stage~B separation is part of why the method is used. If
 prediction accuracy is the only objective, boosted trees and random forest
 baselines should remain in the comparison set. When the objective is variable
-screening or ranking rather than final prediction, CIF should also be read
-against forest-based variable selection methods
+screening or ranking rather than final prediction, CIF should also be compared
+with forest-based variable selection methods
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, not only
 against ensembles designed primarily for prediction.
 
 The default benchmark configuration keeps adaptive stopping, histogram
 thresholding, and Bonferroni correction. With Bonferroni correction, the default
-benchmark is more conservative and more selective; removing it is a sensitivity
-comparison.
+tree and forest settings require stronger evidence before accepting a split and
+tend to use fewer features; removing it is a sensitivity comparison.
 Resampling methods that account for dependence, such as
 Westfall--Young \citep{WestfallYoung1993ResamplingBasedMultipleTesting}, and
 false discovery rate control, such as Benjamini--Hochberg
@@ -43,14 +42,13 @@ extensions. Feature and threshold scanning remain secondary: their timing
 effects are mixed once adaptive stopping is enabled, and metric changes are
 small.
 
-\paragraph{Boundaries.}
+\paragraph{Scope and limitations.}
 The 14-dataset classification analysis includes all 17 methods, all
 three downstream learners, and all five standard values of $k$. The ctree and
 cforest comparisons use 22 classification datasets. Regression uses 8 datasets
-in the main table and 6 in the analogous complete-case rank summary.
+in the main table and 6 in the analogous rank summary.
 The simulation study suggests that high-$p$ forests can miss informative
 features when candidate sampling leaves those features unavailable at many split
-decisions. This result is a fixed-design diagnostic, not a separate benchmark
-comparison. A
-concrete next step is to test variants that increase candidate feature coverage
-inside forests.
+decisions. This result comes from a diagnostic simulation, not from a separate
+benchmark comparison. A concrete next step is to test forest variants that
+consider more candidate features at each split.

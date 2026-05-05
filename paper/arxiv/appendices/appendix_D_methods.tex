@@ -2,7 +2,7 @@
 \label{app:methods}
 
 This appendix records algorithm and reproducibility details needed to interpret the main
-results. Section~\ref{sec:method} gives the algorithmic loop, the setup and
+results. Section~\ref{sec:method} gives the tree-growing loop, the setup and
 proof appendices give the fixed-node results, and
 Appendix~\ref{app:complexity-details} gives runtime and memory accounting for
 the benchmarked tree-growing algorithm.
@@ -11,7 +11,7 @@ the benchmarked tree-growing algorithm.
 
 The theory covers a narrow setting: exhaustive fixed-$B$ Stage~A feature
 selection at a fixed node under the complete permutation null, with a
-label-independent tested feature family and resample budget. The benchmarked
+label-independent tested feature set and resample budget. The benchmarked
 tree-growing algorithm includes several practical settings that are useful
 but fall outside that theorem:
 \begin{itemize}
@@ -22,22 +22,22 @@ but fall outside that theorem:
   \item bootstrap resampling and forest aggregation,
   \item optional honesty.
 \end{itemize}
-The fixed-node result applies only to exhaustive fixed-$B$ Stage~A p-values for
-that label-independent tested family. The remaining reported Stage~A and split
-scores are search scores used to grow the tree.
+The fixed-node result applies only to exhaustive fixed-$B$ Stage~A $p$-values for
+that label-independent tested feature set. Other Stage~A and split scores reported
+for adaptive tree growing are tree-construction scores.
 
 \subsection{Node-level choices}
 
 \paragraph{Stage~A.}
 At each node, the tree-growing rule removes features that are constant on
 the node before any \texttt{max\_features} subsampling. If permutation testing
-is enabled, Stage~A computes $+1$ Monte Carlo p-values, can order candidates by
+is enabled, Stage~A computes $+1$ Monte Carlo $p$-values, can order candidates by
 a preliminary score before testing, and can terminate once a sufficiently strong
 candidate has been found. When feature muting is
-enabled, features with non-rejecting Stage~A p-values can be removed from
+enabled, features with non-rejecting Stage~A $p$-values can be removed from
 descendant candidate feature pools within the same subtree. These choices reduce
 computation, but they also make the returned score $s_t^\star$ a
-tree-construction search score rather than a full Stage~A p-value over the
+tree-construction search score rather than a full Stage~A $p$-value over the
 complete candidate feature pool.
 
 \paragraph{Stage~B.}
@@ -49,7 +49,7 @@ midpoint distribution, with a fallback for small samples to the full midpoint
 set. When sequential stopping is enabled, threshold scanning may then reorder
 the candidate thresholds before testing. Because Stage~B is run after Stage~A has
 selected a feature using the node response, its returned quantity
-$s_t^{\mathrm{split}}$ is read as a split-selection score.
+$s_t^{\mathrm{split}}$ should be interpreted as a split-selection score.
 
 \paragraph{Split statistics.}
 For permutation split testing, Stage~B uses the unweighted sum
@@ -62,13 +62,13 @@ rankings produced by the fitted learners.
 
 \subsection{Permutation budgets and early stopping}
 
-The benchmarked tree-growing rule uses Phipson--Smyth $+1$ Monte Carlo permutation p-values
+The benchmarked tree-growing rule uses Phipson--Smyth $+1$ Monte Carlo permutation $p$-values
 \citep{PhipsonSmyth2010PermutationPValues} for both stages: right tail in
 Stage~A and left tail in Stage~B. The library exposes integer resampling budgets
 and three presets:
 \begin{itemize}
   \item \texttt{minimum}: the smallest budget that makes rejection attainable on
-  the discrete $+1$ p-value scale,
+  the discrete $+1$ $p$-value scale,
   \item \texttt{auto}: a larger budget intended to stabilize Monte Carlo error
   near the decision threshold,
   \item \texttt{maximum}: a conservative high-precision setting.
@@ -84,7 +84,7 @@ exceedance rate places at least the configured confidence probability on one
 side of the nodewise threshold. A simpler futility/significance rule is also
 available. Both change the stopping time: once a stage stops at a
 data-dependent time, the returned value is no longer a classical fixed-$B$
-Monte Carlo p-value. This is why the main paper separates the fixed-node
+Monte Carlo $p$-value. This is why the main paper separates the fixed-node
 guarantee from the runtime ablations.
 
 \subsection{Forests, resampling, and honesty}
@@ -93,9 +93,9 @@ CIF averages predictions from bootstrap trees. These forests are empirical
 extensions of the Stage~A rule, not settings covered by the fixed-node result
 itself. The classification tree and forest grids also support
 class-conditional bootstrap variants, and both trees and forests optionally
-support honest estimation via sample splitting. These settings are useful
-algorithmically, but they change the training distribution or the estimation
-target; they are empirical design choices rather than parts of the theorem.
+support honest estimation via sample splitting. These settings can be useful in
+practice, but they change the training distribution or the estimation target;
+they are empirical design choices and are not covered by the theorem.
 
 \subsection{Benchmark output availability}
 
@@ -105,8 +105,9 @@ availability details needed to interpret the appendix tables.
 The analysis uses completed benchmark outputs without imputation. Some benchmark
 outputs are unavailable, and some datasets have fewer than five standard values
 of $k$ because values greater than $p$ are not evaluated.
-Cell-level summaries omit unavailable cells. Complete comparison analyses retain
-only datasets with every method, learner, and standard value of $k$ present. These
+Summaries over individual results omit unavailable outputs. Complete comparison
+analyses retain only datasets with every method, downstream learner, and standard
+value of $k$ present. These
 rules explain why ctree and cforest classification comparisons use 22 rather
 than 23 datasets and why the complete comparison analyses use 14 classification
 and 6 regression datasets.

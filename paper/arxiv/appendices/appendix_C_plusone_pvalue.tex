@@ -50,7 +50,7 @@ so for any $\alpha \in [0,1]$,
 
 \paragraph{Ties.}
 If ties can occur, we use the tie convention A0.5. Under conservative tie
-handling, p-values are computed with the indicator $\ind\{T_b \ge T_{\mathrm{obs}}\}$, which
+handling, $p$-values are computed with the indicator $\ind\{T_b \ge T_{\mathrm{obs}}\}$, which
 counts ties as exceedances. Let $V_{\mathrm{obs}},V_1,\dots,V_B \stackrel{\mathrm{i.i.d.}}{\sim}
 \mathrm{Unif}(0,1)$ be independent of all other randomness and define augmented
 statistics $\tilde{T}_{\mathrm{obs}} := (T_{\mathrm{obs}}, V_{\mathrm{obs}})$
@@ -60,7 +60,7 @@ right-tail rank, $\tilde{T}_b$ exceeds $\tilde{T}_{\mathrm{obs}}$ exactly when
 $T_b > T_{\mathrm{obs}}$ or when $T_b = T_{\mathrm{obs}}$ and
 $V_b > V_{\mathrm{obs}}$. Then
 $(\tilde{T}_{\mathrm{obs}},\tilde{T}_1,\dots,\tilde{T}_B)$ is exchangeable and almost surely has no ties, so
-the rank argument above gives a superuniform p-value
+the rank argument above gives a superuniform $p$-value
 %
 \begin{equation}
   \tilde{p}_{\mathrm{MC}}^{\ge}

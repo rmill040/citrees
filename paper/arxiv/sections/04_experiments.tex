@@ -4,7 +4,7 @@
 \subsection{Benchmark setup}
 \label{sec:experiments-protocol}
 
-The benchmark protocol uses 5 random seeds and fivefold cross validation within
+The benchmark protocol uses 5 random seeds and 5-fold cross-validation within
 each seed. Classification uses logistic regression, support vector machine
 (SVM), and k-nearest neighbors (KNN) as downstream models and reports balanced
 accuracy, the mean recall across classes. Regression uses ridge regression,
@@ -43,14 +43,14 @@ means over downstream models and the standard $k$ values shared by the methods
 being compared. Third, the tables average dataset scores over datasets.
 
 The real data classification benchmark contains 23 datasets. Comparisons
-involving the partykit ctree and cforest references use 22 datasets because
-those references were not run on \texttt{dexter};
+involving partykit ctree and cforest use 22 datasets because those methods were
+not run on \texttt{dexter};
 comparisons among methods with \texttt{dexter} results use all 23. The
 14-dataset classification analysis requires all 17 methods, all three downstream
 learners, and all five standard values of $k$; it is used for bootstrap
 intervals and omnibus rank testing. Regression has 8 datasets; the analogous
-complete-case rank summary uses the 6 datasets with all methods, learners, and
-standard $k$ values present.
+rank summary uses the 6 datasets where all methods, downstream learners, and
+standard $k$ values are present.
 
 The trajectory analyses do not average over the number of selected features; they
 report results separately at each standard value of $k$. At
@@ -85,7 +85,7 @@ a CART decision tree (DT), a random threshold tree (RT), CIF, CIF with
 \label{sec:experiments-methods}
 
 The benchmark includes three types of feature selectors. Permutation test
-filters rank features by permutation p-values from univariate dependence
+filters rank features by permutation $p$-values from univariate dependence
 statistics:
 multiple correlation (MC) and randomized dependence coefficient (RDC) for
 classification, and Pearson correlation (PC), distance correlation (DC), and RDC
@@ -125,7 +125,7 @@ feature is permuted globally.
 Some methods, including CIT, CIF, XGBoost, LightGBM, ctree, and cforest, were
 run under multiple settings. Permutation test filters used one setting per
 statistic. For each task, the paper reports one selected configuration per
-method family, chosen by mean score over real datasets, downstream models, and
+method, chosen by mean score over real datasets, downstream models, and
 the standard values $k \in \{5,10,25,50,100\}$. Methods with only one run
 configuration are treated as fixed. The selected setting is then held fixed
 across datasets for that task. Because selection uses the same real data

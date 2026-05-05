@@ -1,8 +1,9 @@
 \section{Benchmark stability}
 \label{app:benchmark-stability}
 
-This appendix reports the benchmark dataset counts, same-dataset CIF comparisons, LODO
-configuration sensitivity, and learner, $k$, and seed sensitivity checks.
+This appendix reports the benchmark dataset counts, CIF comparisons on matched
+datasets, LODO configuration sensitivity, and learner, $k$, and seed sensitivity
+checks.
 
 \Cref{tab:benchmark-dataset-counts} summarizes the dataset counts used by the
 benchmark analyses. Missing benchmark entries are not imputed.
@@ -17,7 +18,7 @@ benchmark analyses. Missing benchmark entries are not imputed.
     \midrule
     Main rank table & 22 & 8 & Primary rank summary on real datasets \\
     Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and number of selected features \\
-    Complete-case rank summaries & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
+    Complete comparison analyses & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
     Seed sensitivity & 12 & 6 & Seed variation on datasets complete across seeds \\
     \bottomrule
   \end{tabularx}
@@ -41,7 +42,7 @@ same downstream models, and $k \in \{5,10,25,50,100\}$.
     Compared method & {Mean $\Delta$} & 95\% CI & W--L & One-sided sign test $p$ \\
     \midrule
     ctree & 0.109 & [0.068, 0.154] & \winloss{14}{0} & $<0.001$ \\
-    cforest & 0.111 & [0.067, 0.161] & \winloss{13}{1} & $<0.001$ \\
+    cforest & 0.111 & [0.067, 0.160] & \winloss{13}{1} & $<0.001$ \\
     CIT & 0.041 & [0.023, 0.060] & \winloss{13}{1} & $<0.001$ \\
     \bottomrule
   \end{tabular}
@@ -58,12 +59,12 @@ same downstream models, and $k \in \{5,10,25,50,100\}$.
 The same classification benchmark with 14 datasets yields a Friedman test statistic
 of
 $\chi^2(16)=141.32$ with $p<0.001$ and Kendall's
-$W=0.63$. The analogous regression complete-case panel has 6 datasets with
-all methods, downstream learners, and standard $k$ values present. The
+$W=0.63$. The analogous regression calculation uses the 6 datasets where all
+methods, downstream learners, and standard $k$ values are present. The
 corresponding rank summaries are a Friedman statistic of $\chi^2(17)=33.79$, an
-asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$. Because this panel
-contains only 6 datasets, we treat the regression calculation as descriptive
-rather than as a confirmatory small-sample test.
+asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$. Because this analysis
+includes only 6 datasets, we treat it as descriptive rather than as a
+confirmatory small-sample test.
 
 \subsection{LODO configuration sensitivity}
 
@@ -117,8 +118,8 @@ downstream models and standard $k$ values.
   LODO runs. For each omitted dataset, scores and ranks first average over the
   three downstream learners and five standard values of $k$. The last column
   reports how often the setting chosen in the main benchmark was selected again.
-  For method families with only one setting, all 14 LODO runs necessarily
-  reselect that setting; this column is informative only for families with more
+  For methods with only one setting, all 14 LODO runs necessarily
+  reselect that setting; this column is informative only for methods with more
   than one selectable setting.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
@@ -248,8 +249,8 @@ CatBoost have lower mean positions than CIF across those combinations.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/benchmark_pairwise_sensitivity.png}
-  \caption{Classification margins against conditional inference
-  references by downstream learner and number of selected features. Each plotted
+  \caption{Classification CIF margins against ctree, cforest, and CIT by
+  downstream learner and number of selected features. Each plotted
   value is the mean CIF minus comparator balanced accuracy difference for one
   downstream learner and one value of $k$; positive values favor CIF. Dataset
   counts by $k$ are 22, 21, 15, 15, and 14 for ctree and cforest, and
@@ -259,8 +260,8 @@ CatBoost have lower mean positions than CIF across those combinations.
 
 For seed sensitivity, each method is ranked separately within each seed. After
 retaining only datasets with results for every method, downstream learner,
-standard value of $k$, and seed, the complete seed panel has 12 classification
-datasets and 6 regression datasets. It is a sensitivity check rather than the
+standard value of $k$, and seed, 12 classification datasets and 6 regression
+datasets are complete across all five seeds. It is a sensitivity check rather than the
 main benchmark analysis.
 
 \begin{table}[H]
@@ -298,8 +299,8 @@ main benchmark analysis.
     CPI & 17 & 17 & 17 & 17 & 17 & 17.0 & 15.3 \\
     \bottomrule
   \end{tabular}
-  \caption{Classification seed sensitivity on the complete seed panel with 12
-  datasets. Each seed column is the method position after averaging over
+  \caption{Classification seed sensitivity on the 12 datasets complete across
+  all five seeds. Each seed column is the method position after averaging over
   the three downstream learners and five standard values of $k$ within that
   seed. Lower values are better.}
   \label{tab:classification-seed-sensitivity}
@@ -341,8 +342,8 @@ main benchmark analysis.
     CPI & 17 & 16 & 17 & 18 & 16 & 16.8 & 12.3 \\
     \bottomrule
   \end{tabular}
-  \caption{Regression seed sensitivity on the complete seed panel with 6
-  datasets. Each seed column is the method position after averaging over the
+  \caption{Regression seed sensitivity on the 6 datasets complete across all
+  five seeds. Each seed column is the method position after averaging over the
   three downstream learners and five standard values of $k$ within that seed.
   Lower values are better.}
   \label{tab:regression-seed-sensitivity}

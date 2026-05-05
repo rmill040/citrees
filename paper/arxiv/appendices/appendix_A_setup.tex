@@ -32,14 +32,14 @@ feature $j_t^\star$.
     $F_{t,\mathrm{nonconst}}$ & Features in $F_{\mathrm{avail}}$ that are nonconstant at node $t$. \\
     $F_{\mathrm{avail}}'$ & Feature set passed to descendants after Stage~A and any feature muting. \\
     $T^{\mathrm{sel}}_j$ & Stage~A selector statistic for feature $j$ at node $t$. \\
-    $p_{t,j}$ & +1 Monte Carlo permutation p-value for $T^{\mathrm{sel}}_j$ (fixed-$B$ mode). \\
-    $p_{\mathrm{MC}}^{\ge},\ p_{\mathrm{MC}}^{\le}$ & Right/left tail +1 Monte Carlo p-values computed from $B$ random permutations. \\
+    $p_{t,j}$ & +1 Monte Carlo permutation $p$-value for $T^{\mathrm{sel}}_j$ (fixed-$B$ mode). \\
+    $p_{\mathrm{MC}}^{\ge},\ p_{\mathrm{MC}}^{\le}$ & Right/left tail +1 Monte Carlo $p$-values computed from $B$ random permutations. \\
     $\alpha_{\mathrm{sel}}$ & Stage~A nominal significance level (before Bonferroni adjustment). \\
     $\alpha_{\mathrm{split}}$ & Stage~B nominal significance level (before Bonferroni adjustment). \\
-    $M_t^\star$ & Features attaining the minimum fixed-$B$ Stage~A p-value:
+    $M_t^\star$ & Features attaining the minimum fixed-$B$ Stage~A $p$-value:
     $M_t^\star := \{j \in F_t : p_{t,j}=p_t^{\star,\mathrm{ref}}\}$. \\
     $j_t^{\star,\mathrm{ref}},\ p_t^{\star,\mathrm{ref}}$ & Fixed-$B$
-    selected feature and minimum p-value:
+    selected feature and minimum $p$-value:
     $p_t^{\star,\mathrm{ref}} := \min_{j\in F_t} p_{t,j}$;
     $j_t^{\star,\mathrm{ref}}$ is drawn uniformly from $M_t^\star$ using
     reservoir sampling. \\
@@ -49,7 +49,7 @@ feature $j_t^\star$.
     $c_t^\star,\ s_t^{\mathrm{split}}$ & Best threshold and its Stage~B split score for the selected feature. \\
     $\pi$ & Bootstrap sampling probabilities over training indices. \\
     $B$ & Permutation resample budget (number of random permutations). \\
-    $U$ & Label-independent algorithmic randomness (e.g., feature subsampling, threshold subsampling, tie-breaking randomness). \\
+    $U$ & Label-independent auxiliary randomness used by the tree-growing rule (e.g., feature subsampling, threshold subsampling, tie-breaking randomness). \\
     \bottomrule
   \end{tabular}
   \caption{Compact notation used in the fixed-node statements and proof appendices.}
@@ -63,8 +63,8 @@ is described as ``fixed node,'' the node $t$ is held fixed rather than chosen
 adaptively from the data.
 Unless stated otherwise, the results in \cref{sec:theory} use the full
 fixed-node checklist below: fixed node, complete-null
-exchangeability, label-independent Stage~A family, fixed-$B$ p-values, and
-conservative tie handling.
+exchangeability, a label-independent Stage~A tested feature set, fixed-$B$
+$p$-values, and conservative tie handling.
 
 \paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
 The node $t$ is fixed, not selected from the data.
@@ -72,31 +72,32 @@ The node $t$ is fixed, not selected from the data.
 \paragraph{A0.2 (Nodewise complete permutation null / conditional exchangeability).}\label{assump:exchangeability}
 Under the (nodewise) complete permutation null at the fixed node $t$, $Y_t$ is
 exchangeable conditional on $(X_t, U)$, where $U$ denotes label-independent
-algorithmic randomness that can affect which hypotheses are tested (e.g.,
+auxiliary randomness used by the tree-growing rule and can affect which
+hypotheses are tested (e.g.,
 \texttt{max\_features}, threshold subsampling). This assumption targets a
 complete null at the node: it generally does \emph{not} hold under a
 ``featurewise'' partial null in which one feature is null while other features
 remain associated with $Y_t$. Monte Carlo permutation draws are additional
 randomization independent of the data and are not included in $U$.
 
-\paragraph{A0.3 (Label-independent Stage~A tested family).}\label{assump:label-independence}
-For Stage~A results, the tested feature family $F_t$ and resample budget $B$ are
+\paragraph{A0.3 (Label-independent Stage~A tested feature set).}\label{assump:label-independence}
+For Stage~A results, the tested feature set $F_t$ and resample budget $B$ are
 measurable functions of $(X_t, U)$ and do \emph{not} depend on the observed
 labels $Y_t$ (or on permutation outcomes). The fixed-node guarantee uses the
 exhaustive reference case $E_t=F_t$; early-stopped examined sets are outside
 the theorem. A separate fixed-feature Stage~B statement would require its
 threshold set to be label-independent.
 
-\paragraph{A0.4 (Fixed-$B$ p-values).}\label{assump:fixed-b}
-Permutation p-values are computed with a fixed number of resamples $B$ (no
+\paragraph{A0.4 (Fixed-$B$ \texorpdfstring{$p$}{p}-values).}\label{assump:fixed-b}
+Permutation $p$-values are computed with a fixed number of resamples $B$ (no
 optional stopping).
 
-\paragraph{A0.5 (Conservative tie handling in the Monte Carlo p-value).}\label{assump:ties}
-The +1 Monte Carlo p-value uses the conservative tie convention:
+\paragraph{A0.5 (Conservative tie handling in the Monte Carlo \texorpdfstring{$p$}{p}-value).}\label{assump:ties}
+The +1 Monte Carlo $p$-value uses the conservative tie convention:
 ties are counted as $T_b \ge T_{\mathrm{obs}}$ events for right-tail tests and
 as $T_b \le T_{\mathrm{obs}}$ events for left-tail tests. Random tie breaking
 among equal best features or thresholds is treated separately as
-label-independent algorithmic randomness.
+label-independent auxiliary randomness.
 
 \subsection{Result and assumption checklist}
 \label{app:assumption-checklist}
@@ -108,7 +109,7 @@ label-independent algorithmic randomness.
     \toprule
     Result & Assumptions used \\
     \midrule
-    +1 p-value superuniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1 through A0.5 \\
+    +1 $p$-value superuniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1 through A0.5 \\
     Stage~A complete null control (Corollary~\ref{cor:stageA-global-null}) & A0.1 through A0.5 \\
     \bottomrule
   \end{tabular}

@@ -1,4 +1,4 @@
-\section{Algorithmic framework}
+\section{Tree-growing method}
 \label{sec:method}
 
 At each internal node, conditional inference trees make two decisions. Stage~A
@@ -8,10 +8,10 @@ either returns a valid split or makes the node terminal. In this paper, CIT
 denotes the resulting single-tree feature selection method. CIF denotes a
 bootstrap ensemble of such trees with candidate feature sampling at each node
 and feature rankings formed by aggregating split importances across trees. The
-CIF-all variant is used only to study candidate feature coverage: it
-disables candidate feature sampling so every nonconstant available feature can
-enter Stage~A at each node. The comparison changes candidate feature coverage, the
-Stage~A multiplicity correction, and per-node computational cost.
+CIF-all variant is used only to isolate candidate feature sampling: it
+sets \texttt{max\_features=None} so every nonconstant available feature can
+enter Stage~A at each node. This changes which features are available to Stage~A,
+the Stage~A multiplicity correction, and per-node computational cost.
 
 \subsection{Stage~A and Stage~B}
 \label{sec:stageA-stageB}
@@ -38,7 +38,7 @@ splits, and adaptive stopping are not covered by that theorem.
 In the exhaustive fixed-$B$ setting, Stage~A follows the conditional inference
 tests of \citet{Hothorn2006UnbiasedRecursivePartitioning} and uses the
 permutation statistics of \citet{StrasserWeber1999PermutationStatistics}. It computes a selector
-statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and permutation p-value $p_{t,j}$
+statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ and permutation $p$-value $p_{t,j}$
 for every feature $j \in F_t$, then selects
 %
 \begin{equation}
@@ -57,11 +57,11 @@ sampling, and the node enters Stage~B.
 During adaptive tree growing, Stage~A uses the same decision structure but can
 order features by a preliminary score and evaluate only the subset $E_t$. The
 resulting score $s_t^\star$ is a search score for tree construction, not an
-exhaustive fixed-$B$ p-value covered by \cref{thm:plusone-superuniform}. Under
+exhaustive fixed-$B$ $p$-value covered by \cref{thm:plusone-superuniform}. Under
 the exhaustive reference rule with Bonferroni correction,
 $\min(1,m_t p_t^{\star,\mathrm{ref}})$ is a conservative complete-null
-p-value for the fixed-node Stage~A test. When feature muting is enabled,
-features with non-rejecting Stage~A p-values can be removed from descendant
+$p$-value for the fixed-node Stage~A test. When feature muting is enabled,
+features with non-rejecting Stage~A $p$-values can be removed from descendant
 candidate feature pools. Otherwise, apart from deterministic constant-feature pruning,
 $F'_{\mathrm{avail}}=F_{t,\mathrm{avail}}$.
 
@@ -70,8 +70,8 @@ Given a selected feature $j_t^\star$, Stage~B starts from midpoints between
 ordered unique values of $X_{t,j_t^\star}$. The exact method uses all such
 midpoints. The random method samples a bounded subset of midpoints, while the
 percentile and histogram methods choose bounded representative thresholds
-derived from the midpoint distribution, with a full-midpoint fallback on very
-small nodes. Candidates that would violate
+derived from the midpoint distribution; on very small nodes, they fall back to
+all midpoints. Candidates that would violate
 \texttt{min\_samples\_leaf} are filtered out. If no candidate remains, Stage~B
 returns no split.
 
@@ -80,17 +80,17 @@ best threshold over the candidates. When permutation testing is enabled, the
 tested statistic at threshold $c$ is the unweighted sum of child impurities
 $\mathrm{Imp}(Y_t^L(c)) + \mathrm{Imp}(Y_t^R(c))$, where $\mathrm{Imp}$ is the
 chosen node impurity measure. This statistic is used in a left-tail test, and
-the chosen threshold is the candidate with the smallest Stage~B p-value, with
+the chosen threshold is the candidate with the smallest Stage~B $p$-value, with
 uniform tie breaking. Let
 $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
 Bonferroni is enabled for Stage~B and
 $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. If the best
-Stage~B p-value is at least $\tau_t^{\mathrm{split}}$, the node becomes
+Stage~B $p$-value is at least $\tau_t^{\mathrm{split}}$, the node becomes
 terminal. When Stage~B permutation testing is disabled, the chosen threshold
 minimizes the usual weighted child impurity. The final
 \texttt{min\_impurity\_decrease} check also uses weighted impurity decrease.
-Stage~B is used here to choose the algorithmic split, not to provide a
-post-selection p-value with inferential guarantees.
+Stage~B chooses the split used by the tree; it does not provide a
+post-selection $p$-value with inferential guarantees.
 
 \begin{algorithm}[t]
   \caption{Conditional inference tree training skeleton (Stage~A $\rightarrow$ Stage~B)}
@@ -124,12 +124,12 @@ post-selection p-value with inferential guarantees.
   \end{algorithmic}
 \end{algorithm}
 
-\subsection{Monte Carlo permutation p-values}
+\subsection{Monte Carlo permutation \texorpdfstring{$p$}{p}-values}
 \label{sec:plusone}
 
 Let $T_{\mathrm{obs}}$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
 computed on $B$ random label permutations. For a right tail test we use the
-Phipson--Smyth $+1$ p-value
+Phipson--Smyth $+1$ $p$-value
 \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues}
 %
 \begin{equation}
@@ -179,9 +179,9 @@ benchmarked tree-growing algorithm, and
 
 The experiments evaluate each method through the ranking it produces on the
 training fold. CIT and CIF rankings are fitted split-importance rankings, not
-rankings of Stage~A p-values. For a fitted CIT, feature $j$ receives the sum,
-over internal nodes that split on $j$, of the node impurity decrease: parent
-impurity minus the child-size-weighted impurity within that node. The vector is
+rankings of Stage~A $p$-values. For a fitted CIT, feature $j$ receives the sum,
+over internal nodes that split on $j$, of the impurity decrease at that node:
+parent impurity minus the weighted child impurity. The vector is
 normalized to sum to one when the sum is positive. CIF sums these tree importance
 vectors over trees and then normalizes the forest vector in the same way. Stage~A
 determines which features enter threshold optimization, while impurity decrease
@@ -192,7 +192,7 @@ importance.
 The other embedded tree and ensemble methods use their fitted importance
 vectors in decreasing order: DT, RT, RF, ExtraTrees, XGBoost, LightGBM, and
 CatBoost. Filter methods rank features by decreasing dependence score.
-Permutation test filters rank by increasing p-value and use the dependence score
+Permutation test filters rank by increasing $p$-value and use the dependence score
 as the secondary key. The ctree reference ranks features by split-use counts,
 and cforest ranks by unconditional \texttt{partykit::varimp}. Boruta and
 recursive feature elimination rank by their fitted rank variables, with smaller

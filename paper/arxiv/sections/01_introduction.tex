@@ -13,7 +13,7 @@ current node and selects among them; Stage~B then optimizes a threshold within
 the selected feature. That separation addresses split selection bias, but the
 classical approach can require substantial computation through large
 permutation budgets and exhaustive threshold scans at every node.
-That same conditional inference program also motivated later work on
+The same conditional inference framework also motivated later work on
 conditional variable importance \citep{Strobl2008ConditionalVIM}.
 A related line of work uses forests directly for variable screening and ranking,
 rather than only for final prediction
@@ -24,9 +24,8 @@ inference forests (CIF) as feature selection methods. For each seed and
 cross-validation fold, a method produces a ranking from the training fold.
 Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
 evaluated on held-out data, with results summarized across datasets. This
-rank and evaluate design connects the split selection bias problem to feature
-selection quality: the tree method matters here when its accepted splits put
-useful variables early enough for downstream models.
+benchmark therefore asks whether the splits chosen by a tree or forest place
+useful variables early enough in the ranking for fixed downstream models to benefit.
 The protocol is a predictive feature selection benchmark, not an
 error-controlled high-dimensional selection method of the kind targeted by
 stability selection or knockoffs
@@ -43,35 +42,35 @@ tasks.
 
 The fixed-node theory calibrates the local Stage~A feature test. In that
 setting, Stage~A tests candidate features for association with the response
-under the nodewise complete permutation null. When the tested feature family and
-resample budget are label-independent, exhaustive fixed-$B$ p-values have a
+under the nodewise complete permutation null. When the tested feature set and
+resample budget are label-independent, exhaustive fixed-$B$ $p$-values have a
 clear permutation reference distribution. Its scope is this local test: the
 adaptive tree and forest, and the feature rankings they produce, are evaluated
-empirically. Selected-feature p-values, final split p-values, partial-null
+empirically. Selected-feature $p$-values, final split $p$-values, partial-null
 familywise error control, and forest-level error control remain outside this
 theorem
 \citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
 
-Because several method families have tunable configurations, the benchmark
-chooses one setting per method family and task. A leave-one-dataset-out (LODO)
+Because several methods have tunable configurations, the benchmark chooses one
+setting per method and task. A leave-one-dataset-out (LODO)
 classification analysis repeats the setting choice after holding out each
 dataset in the complete 14-dataset classification analysis.
 
 \paragraph{Contributions.}
 This paper contributes a broad real-data feature selection benchmark, direct
-comparisons against classical conditional inference references, classification
-and regression trajectory summaries, classification sensitivity analyses, and
+comparisons with ctree, cforest, and CIT, classification and regression
+trajectory summaries, classification sensitivity analyses, and
 runtime ablations for the main runtime hyperparameters. It also reports
-high-$p$ analyses, synthetic feature recovery checks, and candidate feature coverage
-checks (\cref{sec:boundary}). Regression is
-reported mainly through the comparison across 8 real datasets, conditional
-inference comparisons over the datasets where both methods were run, and the mean
-rank trajectory by $k$. The paper also states the fixed-node, exhaustive
+high-$p$ analyses, synthetic feature recovery checks, and candidate feature availability
+checks (\cref{sec:boundary}). Regression evidence is summarized through the main
+comparison across 8 real datasets, direct comparisons with ctree, cforest, and
+CIT on the datasets where each comparison is available, and the mean rank
+trajectory by $k$. The paper also states the fixed-node, exhaustive
 fixed-$B$ Stage~A guarantee
 (\cref{thm:plusone-superuniform,cor:stageA-global-null}) that motivates the
 local test.
 
-The next sections define the algorithmic framework, state the fixed-node
+The next sections define the tree-growing method, state the fixed-node
 guarantee, describe the benchmark and ablation setup, and then present the
 results, practical guidance, and analyses of high-$p$ behavior, synthetic
-feature recovery, and candidate feature coverage.
+feature recovery, and candidate feature availability.

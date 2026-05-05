@@ -4,25 +4,24 @@
 This paper studies how runtime hyperparameters in CIT and CIF affect
 feature rankings, downstream prediction, and synthetic feature recovery. For
 exhaustive fixed-$B$ Stage~A testing at a fixed node, with
-a label-independent tested feature family, the Stage~A result gives Bonferroni
+a label-independent tested feature set, the Stage~A result gives Bonferroni
 control of nodewise rejection under the complete nodewise permutation null.
-That p-value interpretation applies to the local test; the full adaptive tree
+That $p$-value interpretation applies to the local test; the full adaptive tree
 and forest are evaluated empirically. In the CIF ablations, adaptive stopping
 and histogram thresholding produce the largest timing changes. The CIT timing
 results are mixed and are reported separately from the CIF runtime and
-downstream-metric results.
+downstream prediction results.
 
 On the classification benchmark, CIF ranks fourth of 17 methods with the
 runtime hyperparameters studied here. In direct comparisons, its
-average downstream scores are higher than ctree and cforest on the 22
-classification datasets where those references were run, and higher than CIT
-across 23 datasets.
+average downstream scores are higher than ctree and cforest across 22
+classification datasets and higher than CIT across 23 classification datasets.
 The high-$p$ and synthetic results show two patterns: the synthetic results are
 stronger for selected feature sets than for the first ranked feature, and in
 sparse high-$p$ classification simulations, candidate sampling inside forests
 can leave informative features unavailable at many split decisions. The
 regression evidence is based on
 fewer datasets and shows less consistent ranking gains. A natural next step is
-to test variants that increase candidate feature coverage inside forests while
+to test forest variants that consider more candidate features at each split while
 preserving the Stage~A/Stage~B separation that makes the method
 distinctive.

@@ -1,7 +1,7 @@
-\section{Candidate feature coverage}
+\section{Candidate feature availability}
 \label{app:candidate-availability}
 
-This appendix reports the extended candidate feature coverage analysis separately
+This appendix reports the extended candidate feature availability analysis separately
 from the benchmark-stability summaries in \cref{app:benchmark-stability}.
 
 \Cref{fig:candidate-dimension-curves} extends the main text candidate feature
@@ -23,16 +23,16 @@ capped bar spans the minimum and maximum over those four sparse settings.
 The gap between default CIF and CIF-all widens as the number of
 features grows and is largest in the sparsest settings. CIF-all is the CIF
 variant with \texttt{max\_features=None}, so every nonconstant candidate feature
-can enter Stage~A at each split. This diagnostic varies candidate feature coverage
-directly; feature muting and all other tree settings are held fixed. With
-two informative features,
-the difference in informative split share is 0.600 at $p{=}100$, 0.780 at
+can enter Stage~A at each split. This diagnostic varies which features are
+available to Stage~A at each split; feature muting and all other tree settings are held fixed. With
+two informative features, the difference in the fraction of splits using an
+informative feature is 0.600 at $p{=}100$, 0.780 at
 $p{=}500$, and 0.910 at $p{=}1{,}000$, while the corresponding reductions in the
 number of different uninformative features used by the forest are 70, 264,
 and 439.
 The gap also remains when the signal is less sparse: with five
-informative features, the difference in informative split share is still
+informative features, the corresponding differences are still
 0.251, 0.564, and 0.543 as $p$ increases from 100 to 500 to 1,000. These
-curves are consistent with the main text conclusion that, in sparse high-$p$
-forests, candidate subsampling can make informative features unavailable at many
-split decisions.
+curves are consistent with the main text conclusion that sparse high-$p$ forests
+can miss informative features when candidate feature sampling leaves them
+unavailable at many split decisions.

@@ -8,16 +8,16 @@ whether CIT and CIF can be used as practical feature selection methods by
 measuring how runtime hyperparameters affect feature rankings,
 downstream prediction, and feature recovery on synthetic datasets with known
 informative features. For exhaustive fixed-$B$ Stage~A testing at a fixed node,
-when the tested feature family and resample budget are label-independent, $+1$
-Monte Carlo p-values give Bonferroni control of nodewise rejection under the
+when the tested feature set and resample budget are label-independent, $+1$
+Monte Carlo $p$-values give Bonferroni control of nodewise rejection under the
 complete nodewise permutation null. In CIF,
 adaptive stopping and histogram thresholding account for the largest measured
 runtime changes: without adaptive stopping, CIF training is 4.0--8.4$\times$
 slower across datasets, and exact threshold search is 1.9--10.8$\times$ slower
 than histogram thresholding. The corresponding absolute changes are at most
 0.011 in downstream prediction metrics and 0.017 in synthetic feature recovery.
-In the real data benchmark, with one selected configuration per method
-family, CIF ranks 4th of 17 classification methods on 22
+In the real data benchmark, with one selected configuration per method,
+CIF ranks 4th of 17 classification methods on 22
 datasets and 3rd of 18 methods on a smaller 8-dataset regression benchmark.
 In direct comparisons with the original conditional inference tree and forest
 implementations, CIF has higher average downstream scores on 22/22 and 19/22

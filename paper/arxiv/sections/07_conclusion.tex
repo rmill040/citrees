@@ -12,16 +12,18 @@ and histogram thresholding produce the largest timing changes. The CIT timing
 results are mixed and are reported separately from the CIF runtime and
 downstream prediction results.
 
-On the classification benchmark, CIF ranks fourth of 17 methods with the
-runtime hyperparameters studied here. In direct comparisons, its
-average downstream scores are higher than ctree and cforest across 22
-classification datasets and higher than CIT across 23 classification datasets.
-The high-$p$ and synthetic results show two patterns: the synthetic results are
-stronger for selected feature sets than for the first ranked feature, and in
-sparse high-$p$ classification simulations, candidate sampling inside forests
-can leave informative features unavailable at many split decisions. The
-regression evidence is based on
-fewer datasets and shows less consistent ranking gains. A natural next step is
-to test forest variants that consider more candidate features at each split while
-preserving the Stage~A/Stage~B separation that makes the method
+On the real-data benchmarks, CIF ranks fourth of 17 classification methods and
+third of 18 regression methods with the runtime hyperparameters studied here. In
+direct comparisons, its average downstream scores are higher than ctree and
+cforest across 22 classification datasets and higher than CIT across 23
+classification datasets; on regression, CIF is higher than ctree and cforest on
+7 of 8 datasets and higher than CIT on 6 of 8. The high-$p$ and synthetic
+results show two patterns: the synthetic results are stronger for selected
+feature sets than for the first ranked feature, and in sparse high-$p$
+simulations, candidate sampling inside forests can leave informative features
+unavailable at many split decisions. The regression evidence is based on fewer
+datasets and has wider uncertainty intervals in the 6-dataset regression
+analysis, but it is included throughout the empirical results. A natural next
+step is to test forest variants that consider more candidate features at each
+split while preserving the Stage~A/Stage~B separation that makes the method
 distinctive.

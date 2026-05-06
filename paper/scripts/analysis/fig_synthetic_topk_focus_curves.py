@@ -39,17 +39,7 @@ DISPLAY_NAMES = {
     "lgbm": "LightGBM",
     "cat": "CatBoost",
 }
-METHOD_COLORS = {
-    "cif": "#2563EB",
-    "cit": "#60A5FA",
-    "dt": "#6B7280",
-    "rt": "#F59E0B",
-    "rf": "#15803D",
-    "et": "#0F766E",
-    "xgb": "#EA580C",
-    "lgbm": "#7C3AED",
-    "cat": "#B91C1C",
-}
+PANEL_COLORS = ("#60A5FA", "#94A3B8", "#FBBF24", "#A78BFA")
 TASK_TITLES = {
     "classification": "Classification",
     "regression": "Regression",
@@ -94,7 +84,7 @@ def _plot_family(
 ) -> None:
     task_df = df[(df["task"] == task) & (df["k"].isin(FOCUS_K))].copy()
 
-    for method in methods:
+    for position, method in enumerate(methods):
         method_df = task_df[task_df["method_base"] == method].sort_values("k")
         if method_df.empty:
             continue
@@ -104,7 +94,7 @@ def _plot_family(
         ax.plot(
             x,
             method_df["informative_share"],
-            color=METHOD_COLORS[method],
+            color=PANEL_COLORS[position],
             linewidth=2.6 if is_focus else 1.8,
             alpha=1.0 if is_focus else 0.9,
             marker="o" if method in {"cif", "cit"} else "s",
@@ -134,7 +124,7 @@ def main() -> None:
     if focus.empty:
         raise RuntimeError("No focus rows available for the synthetic top-k figure.")
 
-    fig, axes = plt.subplots(2, 3, figsize=(10.2, 6.2), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 3, figsize=(10.2, 4.0), sharex=True, sharey=True)
     for row_idx, task in enumerate(("classification", "regression")):
         for col_idx, (family_title, methods) in enumerate(FAMILY_PANELS):
             title = family_title if row_idx == 0 else ""
@@ -144,7 +134,7 @@ def main() -> None:
             if row_idx == 1:
                 axes[row_idx, col_idx].set_xlabel(r"Number of selected features ($k$)")
 
-    fig.subplots_adjust(top=0.92, hspace=0.18, wspace=0.16, bottom=0.12)
+    fig.subplots_adjust(top=0.88, hspace=0.14, wspace=0.16, bottom=0.16)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "synthetic_topk_focus_curves.png"

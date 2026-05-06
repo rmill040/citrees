@@ -80,8 +80,8 @@ def main() -> None:
     ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     counts = _load_counts()
-    noise_color = "#64748B"
-    signal_color = "#1F2937"
+    noise_color = "#BFDBFE"
+    signal_color = "#2F855A"
 
     fig, axes_grid = plt.subplots(2, 2, figsize=(8.8, 6.3), sharex=True)
     axes = axes_grid.ravel()

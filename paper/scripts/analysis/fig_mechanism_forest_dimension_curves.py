@@ -1,7 +1,7 @@
-"""Build a paper-facing appendix figure for forest mechanism scaling.
+"""Build paper-facing appendix figures for forest mechanism scaling.
 
-This figure broadens the main-text sparse-case snapshot by showing how the
-classification forest mechanism changes with feature dimension at 1000 trees.
+These figures broaden the main-text sparse-case snapshot by showing how the
+forest mechanism changes with feature dimension at 1000 trees.
 For each method and feature dimension, the point marks the mean over
 `n_informative in {1,2,5,10}` and the vertical segment shows the min-max range.
 """
@@ -34,6 +34,16 @@ COLORS = {
 }
 OFFSETS = {"cif": -0.18, "cif_all": -0.06, "rf": 0.06, "et": 0.18}
 FEATURE_LEVELS = [100, 500, 1000]
+TASK_CONFIG = {
+    "classification": {
+        "summary_table": "paper_mechanism_grid_forest_classification_summary.csv",
+        "output_name": "paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png",
+    },
+    "regression": {
+        "summary_table": "paper_mechanism_grid_forest_regression_summary.csv",
+        "output_name": "paper_mechanism_grid_forest_regression_dimension_curves_1000trees.png",
+    },
+}
 
 
 def _setup_style() -> None:
@@ -65,17 +75,17 @@ def _setup_style() -> None:
     )
 
 
-def _load_summary() -> pd.DataFrame:
-    df = pd.read_csv(TABLES_DIR / "paper_mechanism_grid_forest_classification_summary.csv")
+def _load_summary(task: str) -> pd.DataFrame:
+    df = pd.read_csv(TABLES_DIR / TASK_CONFIG[task]["summary_table"])
     df = df[
         (df["study"] == "ensemble_split_counts")
-        & (df["task"] == "classification")
+        & (df["task"] == task)
         & (df["n_estimators_per_fit"] == 1000)
         & (df["method"].isin(METHODS))
         & (df["n_features"].isin(FEATURE_LEVELS))
     ].copy()
     if df.empty:
-        raise RuntimeError("No rows found for classification mechanism dimension curves.")
+        raise RuntimeError(f"No rows found for {task} mechanism dimension curves.")
     return df
 
 
@@ -123,12 +133,8 @@ def _plot_panel(ax: plt.Axes, agg: pd.DataFrame, ylabel: str, title: str) -> Non
     ax.set_ylabel(ylabel)
 
 
-def main() -> None:
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    _setup_style()
-
-    df = _load_summary()
+def _render_task(task: str) -> None:
+    df = _load_summary(task)
     split_agg = _aggregate(df, "informative_split_share")
     false_agg = _aggregate(df, "distinct_false_features_used")
 
@@ -171,11 +177,19 @@ def main() -> None:
     fig.subplots_adjust(top=0.78, bottom=0.22, wspace=0.26)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
-        out_path = out_dir / "paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png"
+        out_path = out_dir / TASK_CONFIG[task]["output_name"]
         fig.savefig(out_path)
         print(f"saved {out_path}")
 
     plt.close(fig)
+
+
+def main() -> None:
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    ARXIV_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    _setup_style()
+    for task in ("classification", "regression"):
+        _render_task(task)
 
 
 if __name__ == "__main__":

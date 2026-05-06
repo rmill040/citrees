@@ -3,15 +3,16 @@
 
 At each internal node, conditional inference trees make two decisions. Stage~A
 tests candidate features for association with the response and chooses a feature
-to split. Stage~B then searches thresholds only for that selected feature and
-either returns a valid split or makes the node terminal. In this paper, CIT
+to split. Stage~B then searches thresholds only for that selected feature; if no
+valid split is accepted, the node becomes terminal. In this paper, CIT
 denotes the resulting single-tree feature selection method. CIF denotes a
 bootstrap ensemble of such trees with candidate feature sampling at each node
 and feature rankings formed by aggregating split importances across trees. The
 CIF-all variant is used only to isolate candidate feature sampling: it
 sets \texttt{max\_features=None} so every nonconstant available feature can
-enter Stage~A at each node. This changes which features are available to Stage~A,
-the Stage~A multiplicity correction, and per-node computational cost.
+enter Stage~A at each node. This changes which features are available to
+Stage~A, the Stage~A multiplicity correction, and the per-node computational
+cost.
 
 \subsection{Stage~A and Stage~B}
 \label{sec:stageA-stageB}
@@ -56,7 +57,7 @@ sampling, and the node enters Stage~B.
 
 During adaptive tree growing, Stage~A uses the same decision structure but can
 order features by a preliminary score and evaluate only the subset $E_t$. The
-resulting score $s_t^\star$ is a search score for tree construction, not an
+resulting score $s_t^\star$ is used only to grow the tree; it is not an
 exhaustive fixed-$B$ $p$-value covered by \cref{thm:plusone-superuniform}. Under
 the exhaustive reference rule with Bonferroni correction,
 $\min(1,m_t p_t^{\star,\mathrm{ref}})$ is a conservative complete-null

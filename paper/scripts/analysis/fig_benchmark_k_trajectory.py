@@ -14,6 +14,7 @@ from typing import Final, NamedTuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
@@ -21,6 +22,10 @@ FIGURES_DIR = RESULTS_DIR / "figures"
 ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 
 STANDARD_K: Final[tuple[int, ...]] = (5, 10, 25, 50, 100)
+RANK_CMAP: Final[LinearSegmentedColormap] = LinearSegmentedColormap.from_list(
+    "rank_green_gray_red",
+    ["#2F855A", "#A7D7A4", "#F3F4F6", "#F2B8A2", "#B91C1C"],
+)
 
 
 class TaskPlotConfig(NamedTuple):
@@ -159,7 +164,7 @@ def _setup_style() -> None:
 def _render_heatmap(config: TaskPlotConfig, ranks: pd.DataFrame, support: dict[int, int]) -> None:
     values = ranks.to_numpy(dtype=float)
     fig, ax = plt.subplots(figsize=(7.4, 5.6))
-    image = ax.imshow(values, cmap="viridis_r", aspect="auto", vmin=1, vmax=config.expected_n_methods)
+    image = ax.imshow(values, cmap=RANK_CMAP, aspect="auto", vmin=1, vmax=config.expected_n_methods)
     _annotate_heatmap(ax, values)
 
     x_labels = [f"{k}\n(n={support[k]})" for k in STANDARD_K]

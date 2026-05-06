@@ -21,10 +21,12 @@ CIF ranks 4th of 17 classification methods on 22
 datasets and 3rd of 18 methods on a smaller 8-dataset regression benchmark.
 In direct comparisons with the original conditional inference tree and forest
 implementations, CIF has higher average downstream scores on 22/22 and 19/22
-classification datasets, respectively, and on 7/8 regression datasets against
-each reference. CIF's lowest classification mean
-ranks occur at larger values of $k$, while sparse high-$p$ simulations indicate
-that candidate feature sampling can leave informative features out of many
-local split tests. Overall, these experiments support CIF mainly as a predictive
-top-$k$ ranking method; exact recovery of the first informative feature is less
-consistent, especially in the synthetic recovery checks.
+classification datasets, respectively. On regression, CIF is higher on 7/8
+datasets against ctree and cforest and on 6/8 against CIT. CIF's lowest
+classification mean ranks occur at larger values of $k$, and its lowest
+displayed regression mean rank occurs at $k=50$. Sparse high-$p$ simulations
+indicate that candidate feature sampling can leave informative features out of
+many local split tests.
+Overall, these experiments support CIF mainly as a predictive top-$k$ ranking
+method; exact recovery of the first informative feature is less consistent,
+especially in the synthetic recovery checks.

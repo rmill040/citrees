@@ -12,7 +12,7 @@ for dexter. Within each dataset, method ranks are computed
 after averaging scores over the downstream learners and selected values of $k$
 shared by the compared methods. Lower mean rank is better.
 
-\begin{table}[!tbp]
+\begin{table}[!t]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{6pt}
@@ -54,12 +54,18 @@ shared by the compared methods. Lower mean rank is better.
 
 With the selected configurations fixed, CIF ranks 4th of 17
 classification methods and 3rd of 18 on the smaller regression benchmark.
-The next table compares CIF directly with ctree, cforest, and CIT.
-\Cref{app:benchmark-stability} reports
-learner and $k$ sensitivity checks using the same selected
-configurations, with dataset counts stated for each analysis.
+\Cref{tab:conditional-inference-comparisons} compares CIF directly with ctree,
+cforest, and CIT.
+\Cref{app:benchmark-stability} reports the learner-by-$k$ tables
+(\cref{tab:classification-learner-k-sensitivity,tab:regression-learner-k-sensitivity}),
+pairwise CIF-comparison heatmaps
+(\cref{fig:benchmark-pairwise-sensitivity,fig:regression-benchmark-pairwise-sensitivity}),
+and seed-sensitivity tables
+(\cref{tab:classification-seed-sensitivity,tab:regression-seed-sensitivity})
+for both classification and regression, with dataset counts stated for each
+analysis.
 
-\begin{table}[!tbp]
+\begin{table}[!t]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -86,22 +92,34 @@ configurations, with dataset counts stated for each analysis.
   \label{tab:conditional-inference-comparisons}
 \end{table}
 
-On the complete 14-dataset classification analysis, which includes all
-17 methods, all three downstream learners, and all five standard values of $k$, the
-95\% bootstrap intervals for the mean CIF differences, computed after averaging
-within each dataset, are [0.068, 0.154] for ctree,
-[0.067, 0.160] for cforest, and [0.023, 0.060] for CIT. On the same
-14 datasets, the Friedman test rejects equality of method ranks
-overall ($\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$).
-The selected CIF setting has positive mean differences against ctree,
-cforest, and CIT on this analysis. In the same complete 14-dataset
-classification analysis, the LODO check places CIF fifth among the 17 methods by
-average LODO rank (mean LODO rank 5.64). Across the 14 LODO runs, CIF reselects
-the setting chosen in the main benchmark every time. The reselection count
-measures configuration stability, not separate performance evidence.
-The bootstrap intervals and Friedman test use the selected configurations.
-\Cref{tab:fixed-panel-cif-ci,tab:lodo-config-sensitivity} give the confidence
-intervals and LODO details.
+When the analysis is restricted to datasets with all methods, downstream
+learners, and standard $k$ values available, the selected CIF configuration has
+positive mean differences against ctree, cforest, and CIT in both tasks. For the
+14-dataset classification analysis, the 95\% bootstrap intervals for the mean
+CIF differences are [0.068, 0.154] for ctree, [0.067, 0.160] for cforest, and
+[0.023, 0.060] for CIT. For the analogous 6-dataset regression analysis, the
+corresponding intervals are [0.113, 0.529] for ctree, [0.040, 2.570] for
+cforest, and [-0.007, 1.224] for CIT. The regression intervals are wider because
+that analysis has fewer datasets and some comparator mean $R^2$ values are
+negative.
+
+\FloatBarrier
+
+On the same 14-dataset classification analysis, the Friedman test rejects
+equality of method ranks overall ($\chi^2(16)=141.32$, $p<0.001$, Kendall's
+$W=0.63$). The analogous 6-dataset regression calculation gives
+$\chi^2(17)=33.79$, an asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$;
+because it uses only 6 datasets, the asymptotic $p$-value should be read
+cautiously. The bootstrap intervals and Friedman tests use the selected
+configurations.
+In the 14-dataset classification analysis, the LODO check places CIF
+fifth among the 17 methods by average LODO rank (mean LODO rank 5.64), and CIF
+reselects the setting chosen in the main benchmark in all 14 runs. In the
+6-dataset regression analysis, the LODO check places CIF tied with CatBoost for
+second by average LODO rank (mean LODO rank 5.50), behind ExtraTrees, and CIF
+reselects the global regression setting in 5 of 6 runs.
+\Cref{tab:cif-ci-comparisons,tab:lodo-config-sensitivity}
+give the confidence intervals and LODO details.
 
 \begin{figure}[t]
   \centering
@@ -132,8 +150,8 @@ and 7.3 at $k=100$. The trajectory results qualify the aggregate ranks in
 at the larger displayed values of $k$, and its lowest regression mean rank
 occurs at $k=50$. The aggregate ctree and cforest comparisons use 22
 classification datasets; the trajectory figures use the $k$-specific dataset
-counts shown in each column, and the complete classification analysis uses 14
-datasets.
+counts shown in each column. The analyses that require every method, learner,
+and standard $k$ value use 14 classification datasets and 6 regression datasets.
 
 To separate average rank from dataset breadth,
 \Cref{tab:cif-breadth-summary} reports how often CIF appears in the top half or
@@ -143,11 +161,10 @@ the top 3 on 5.
 The regression benchmark has 8 datasets; CIF stays in the top half on 6 datasets
 and in the top 3 on 2.
 Against the greedy single-tree baselines, CIF beats DT on 14/23 classification
-datasets and 6/8 regression datasets, and beats RT on 21/23 classification
-datasets; the RT regression comparison is effectively tied, with CIF ahead on
-5/8 datasets but a mean difference near zero.
+and 6/8 regression datasets, and beats RT on 21/23 classification datasets; the
+RT regression comparison is effectively tied.
 
-\begin{table}[!tbp]
+\begin{table}[H]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{6pt}
@@ -171,7 +188,9 @@ datasets; the RT regression comparison is effectively tied, with CIF ahead on
   datasets and 8 regression datasets. For classification, the top half and top 3
   counts use the learner-by-$k$ results available for each dataset rather than
   requiring every learner and every standard value of $k$ to be present. Direct win rows
-  use all datasets where CIF and the compared method were both run.}
+  use all datasets where CIF and the compared method were both run. The RT
+  regression row is effectively tied: CIF is ahead on 5/8 datasets, with a mean
+  difference near zero.}
   \label{tab:cif-breadth-summary}
 \end{table}
 
@@ -279,15 +298,15 @@ Across the 15 classification datasets with more than 100 features, CIF first
 reaches its best score between 100 and $p$ in 30 of the 45 combinations of
 dataset and downstream learner. The first best score occurs at $k{=}p$ in only
 5 of those 45 combinations.
-\Cref{fig:high-p-boundary}
-shows this pattern separately by downstream learner. Scores most often peak at
-intermediate values of $k$: 11 of 15 LR datasets, 9 of 15 SVM datasets, and 10
-of 15 KNN datasets first reach their best score at $100 < k < p$. The full feature set
-$k=p$ is mainly an LR exception. For LR, moving from $k{=}100$ to $k{=}p$
-improves CIF on average by $+0.022$, and $k=p$ matches the best observed score
-in 6 of 15 datasets. For SVM and KNN, the corresponding mean changes are
-$-0.058$ and $-0.075$, and $k=p$ is best in only 1 of 15 datasets for each
-learner.
+\Cref{fig:high-p-boundary} shows this classification pattern separately by
+downstream learner; the smaller regression high-$p$ result is summarized after
+the figure. Classification scores most often peak at intermediate values of
+$k$: 11 of 15 LR datasets, 9 of 15 SVM datasets, and 10 of 15 KNN datasets first
+reach their best score at $100 < k < p$. The full feature set $k=p$ is mainly an
+LR exception. For LR, moving from $k{=}100$ to $k{=}p$ improves CIF on average
+by $+0.022$, and $k=p$ matches the best observed score in 6 of 15 datasets. For
+SVM and KNN, the corresponding mean changes are $-0.058$ and $-0.075$, and
+$k=p$ is best in only 1 of 15 datasets for each learner.
 
 \begin{figure}[H]
   \centering
@@ -303,8 +322,9 @@ learner.
 In the 6 high-$p$ regression datasets, the pattern is more mixed. Across the 18
 combinations of dataset and downstream learner, 11 peak at or below $k{=}100$,
 only 2 peak at $k=p$, and the mean $k{=}p$ minus $k{=}100$ score change is
-$-0.308$. In this subset, using the full feature set is not generally helpful,
-and the $k=p$ exception appears mainly in classification with LR.
+$-0.308$. In this smaller regression subset, using the full feature set is not
+generally helpful. The main $k=p$ exception is the classification LR result in
+\Cref{fig:high-p-boundary}.
 
 \paragraph{Synthetic feature recovery.}
 Across the classification synthetic datasets, CIF's mean informative feature
@@ -357,7 +377,7 @@ classification and 0.84 for regression.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figures/synthetic_topk_focus_curves.png}
+  \includegraphics[width=0.96\linewidth]{figures/synthetic_topk_focus_curves.png}
   \caption{Synthetic top-$k$ recovery curves by method group. The single-tree
   panels compare CIT with DT and RT; the forest panels compare CIF with RF and
   ExtraTrees; the boosted tree panels compare CIF with XGBoost, LightGBM, and
@@ -370,11 +390,13 @@ classification and 0.84 for regression.
 
 \paragraph{Candidate feature sampling.}
 A diagnostic simulation grid examines whether candidate feature sampling in
-forests contributes to missed informative splits in sparse settings.
-\Cref{fig:candidate-forest-counts} shows one sparse classification design where
-default CIF samples candidate features, whereas CIF-all sets
+forests contributes to missed informative splits in sparse classification and
+regression settings. \Cref{fig:candidate-forest-counts} shows one sparse
+classification design where default CIF samples candidate features, whereas
+CIF-all sets
 \texttt{max\_features=None} so every nonconstant candidate can enter Stage~A at
-each split.
+each split. Appendix~\ref{app:candidate-availability} gives the classification
+and regression results over $p = 100, 500$, and $1{,}000$.
 
 \begin{figure}[H]
   \centering

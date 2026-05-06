@@ -1,12 +1,17 @@
 \section{Discussion}
 \label{sec:discussion}
 
-The classification benchmark provides the paper's main empirical evidence for
-CIF as a feature selection method. For the 22 datasets with ctree and cforest
-results, CIF has higher average downstream scores than both methods. The
-fixed-node theorem applies to exhaustive fixed-$B$ Stage~A testing with a
-label-independent tested feature set under the nodewise complete null, while
-the adaptive tree and forest rankings are evaluated empirically.
+The real-data benchmark provides evidence for CIF in both classification and
+regression, with stronger support in classification because that benchmark has
+more datasets. For the 22 classification datasets with ctree and cforest
+results, CIF has higher average downstream scores than both methods; in the
+8-dataset regression benchmark, CIF also has higher average downstream scores
+than ctree, cforest, and CIT, but the analyses that require all methods,
+downstream learners, and standard $k$ values use only 6 regression datasets and
+have wider uncertainty intervals. The fixed-node theorem applies to
+exhaustive fixed-$B$ Stage~A testing with a label-independent tested feature set
+under the nodewise complete null, while the adaptive tree and forest rankings
+are evaluated empirically.
 The ablations report timing ratios and score changes. For CIF, the largest
 timing changes come from adaptive stopping and histogram thresholding, while
 score changes remain small.
@@ -15,7 +20,10 @@ The high-$p$ and synthetic results identify one sparse-forest failure mode for
 CIF. In the candidate feature sampling simulation, single-tree CIT selects
 informative splits frequently when Stage~A considers all nonconstant features.
 In sparse high-$p$ forests, candidate sampling can leave informative features
-unavailable at many split decisions.
+unavailable at many split decisions. The pattern is strongest in the
+classification forest grid, while the regression grid shows the same
+candidate-availability mechanism with a more mixed tradeoff in uninformative
+feature use.
 This pattern is consistent with the results reported in
 \cref{sec:boundary}.
 

@@ -31,41 +31,40 @@ error-controlled high-dimensional selection method of the kind targeted by
 stability selection or knockoffs
 \citep{MeinshausenBuhlmann2010StabilitySelection,BarberCandes2015Knockoffs}.
 
-This paper asks whether the runtime hyperparameters that make CIT/CIF
-practical preserve useful feature rankings, and where those rankings are weaker.
+We ask whether CIT/CIF runtime hyperparameters reduce computation while
+preserving useful feature rankings, and where those rankings are weaker.
 That question is distinct from the broader tree and forest literature on direct
 prediction and causal estimation
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
-Specifically, we ask which hyperparameter choices reduce runtime and whether the
-resulting rankings remain useful on benchmark classification and regression
-tasks.
 
-The fixed-node theory calibrates the local Stage~A feature test. In that
-setting, Stage~A tests candidate features for association with the response
-under the nodewise complete permutation null. When the tested feature set and
-resample budget are label-independent, exhaustive fixed-$B$ $p$-values have a
-clear permutation reference distribution. Its scope is this local test: the
-adaptive tree and forest, and the feature rankings they produce, are evaluated
-empirically. Selected-feature $p$-values, final split $p$-values, partial-null
-familywise error control, and forest-level error control remain outside this
-theorem
+The theoretical result is local: it calibrates the Stage~A feature test at a
+fixed node. In that setting, Stage~A tests candidate features for association
+with the response under the nodewise complete permutation null. When the tested
+feature set and resample budget are label-independent, exhaustive fixed-$B$
+$p$-values have a clear permutation reference distribution. The guarantee does
+not cover the full adaptive tree or forest; those learners and their feature
+rankings are evaluated empirically. Selected-feature $p$-values, final split
+$p$-values, partial-null familywise error control, and forest-level error
+control remain outside this theorem
 \citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
 
 Because several methods have tunable configurations, the benchmark chooses one
-setting per method and task. A leave-one-dataset-out (LODO)
-classification analysis repeats the setting choice after holding out each
-dataset in the complete 14-dataset classification analysis.
+setting per method and task. Leave-one-dataset-out (LODO) analyses repeat the
+setting choice after holding out each dataset, separately for the 14-dataset
+classification analysis and the 6-dataset regression analysis that have all
+methods, downstream learners, and standard $k$ values available.
 
 \paragraph{Contributions.}
 This paper contributes a broad real-data feature selection benchmark, direct
 comparisons with ctree, cforest, and CIT, classification and regression
-trajectory summaries, classification sensitivity analyses, and
-runtime ablations for the main runtime hyperparameters. It also reports
-high-$p$ analyses, synthetic feature recovery checks, and candidate feature availability
-checks (\cref{sec:boundary}). Regression evidence is summarized through the main
-comparison across 8 real datasets, direct comparisons with ctree, cforest, and
-CIT on the datasets where each comparison is available, and the mean rank
-trajectory by $k$. The paper also states the fixed-node, exhaustive
+trajectory summaries, sensitivity analyses for both tasks, and runtime
+ablations for the main runtime hyperparameters. It also analyzes high-$p$
+behavior, synthetic feature recovery, and candidate feature availability
+(\cref{sec:boundary}). Regression is reported as a smaller parallel benchmark:
+the main comparison covers 8 real datasets, and the appendices give the
+corresponding regression LODO, learner-by-$k$, pairwise, seed, and
+candidate-availability checks, with dataset counts stated for each analysis. The
+paper also states the fixed-node, exhaustive
 fixed-$B$ Stage~A guarantee
 (\cref{thm:plusone-superuniform,cor:stageA-global-null}) that motivates the
 local test.

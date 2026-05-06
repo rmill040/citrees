@@ -18,7 +18,7 @@ benchmark analyses. Missing benchmark entries are not imputed.
     \midrule
     Main rank table & 22 & 8 & Primary rank summary on real datasets \\
     Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and number of selected features \\
-    Complete comparison analyses & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
+    Bootstrap and rank checks & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
     Seed sensitivity & 12 & 6 & Seed variation on datasets complete across seeds \\
     \bottomrule
   \end{tabularx}
@@ -27,33 +27,41 @@ benchmark analyses. Missing benchmark entries are not imputed.
   \label{tab:benchmark-dataset-counts}
 \end{table}
 
-\subsection{Complete classification benchmark}
+\subsection{Bootstrap and rank checks}
 
-\Cref{tab:fixed-panel-cif-ci} gives the CIF comparisons
-against ctree, cforest, and CIT. All comparisons use the same 14 datasets, the
-same downstream models, and $k \in \{5,10,25,50,100\}$.
+\Cref{tab:cif-ci-comparisons} gives the CIF comparisons
+against ctree, cforest, and CIT after restricting to datasets with all methods,
+downstream learners, and standard $k$ values available. Within each task, all
+comparisons use the same datasets, the same downstream models, and
+$k \in \{5,10,25,50,100\}$.
 
 \begin{table}[H]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}l S[table-format=1.3] l c c@{}}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}ll S[table-format=1.3] l c c@{}}
     \toprule
-    Compared method & {Mean $\Delta$} & 95\% CI & W--L & One-sided sign test $p$ \\
+    Task & Compared method & {Mean $\Delta$} & 95\% CI & W--L & Sign test $p$ \\
     \midrule
-    ctree & 0.109 & [0.068, 0.154] & \winloss{14}{0} & $<0.001$ \\
-    cforest & 0.111 & [0.067, 0.160] & \winloss{13}{1} & $<0.001$ \\
-    CIT & 0.041 & [0.023, 0.060] & \winloss{13}{1} & $<0.001$ \\
+    Classification & ctree & 0.109 & [0.068, 0.154] & \winloss{14}{0} & $<0.001$ \\
+    Classification & cforest & 0.111 & [0.067, 0.160] & \winloss{13}{1} & $<0.001$ \\
+    Classification & CIT & 0.041 & [0.023, 0.060] & \winloss{13}{1} & $<0.001$ \\
+    Regression & ctree & 0.297 & [0.113, 0.529] & \winloss{6}{0} & 0.016 \\
+    Regression & cforest & 0.957 & [0.040, 2.570] & \winloss{5}{1} & 0.109 \\
+    Regression & CIT & 0.480 & [-0.007, 1.224] & \winloss{5}{1} & 0.109 \\
     \bottomrule
   \end{tabular}
-  \caption{Balanced accuracy differences between CIF and the compared
-  method on the classification benchmark with 14 datasets. Rows are
-  differences within datasets after averaging each dataset over the same
-  downstream learners and values of $k$. The confidence intervals are
+  \caption{CIF differences against ctree, cforest, and CIT after restricting to
+  datasets with all methods, downstream learners, and standard $k$ values
+  available: 14 classification datasets and 6 regression datasets. Rows
+  are differences within datasets after averaging each dataset over the same
+  downstream learners and values of $k$. The metric is balanced accuracy for
+  classification and $R^2$ for regression. The confidence intervals are
   percentile bootstrap intervals from 20{,}000 replicates. Positive differences
   favor CIF. The sign test alternative is CIF $>$ comparator. W--L gives wins
-  and losses; no exact ties occurred in these comparisons.}
-  \label{tab:fixed-panel-cif-ci}
+  and losses; no exact ties occurred in these comparisons. Large positive
+  regression differences can reflect negative mean $R^2$ for the comparator.}
+  \label{tab:cif-ci-comparisons}
 \end{table}
 
 The same classification benchmark with 14 datasets yields a Friedman test statistic
@@ -62,74 +70,69 @@ $\chi^2(16)=141.32$ with $p<0.001$ and Kendall's
 $W=0.63$. The analogous regression calculation uses the 6 datasets where all
 methods, downstream learners, and standard $k$ values are present. The
 corresponding rank summaries are a Friedman statistic of $\chi^2(17)=33.79$, an
-asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$. Because this analysis
-includes only 6 datasets, we treat it as descriptive rather than as a
-confirmatory small-sample test.
+asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$. Because this regression
+analysis includes 6 datasets, the asymptotic $p$-value should be read
+cautiously.
 
 \subsection{LODO configuration sensitivity}
 
-\Cref{tab:lodo-config-sensitivity} summarizes the LODO analysis on the
-classification benchmark with 14 datasets. For each dataset left out of
-configuration selection, configurations are selected on the other 13 datasets
-and evaluated on the left out dataset using the same averaging rule as the
-complete 14-dataset benchmark: average within dataset over
-downstream models and standard $k$ values.
+\Cref{tab:lodo-config-sensitivity} reports task-specific LODO configuration
+selection. Each run selects configurations on all but one dataset in the same
+task, evaluates the omitted dataset, and averages scores and ranks over
+downstream models and standard $k$ values. CIF reselects the main setting in
+14/14 classification runs; in regression it uses two settings, reselects the
+main setting in 5/6 runs, and ties CatBoost for second by mean LODO rank behind
+ExtraTrees.
 
 \begin{table}[H]
   \centering
-  \footnotesize
-  \setlength{\tabcolsep}{4pt}
+  \scriptsize
+  \setlength{\tabcolsep}{2pt}
+  \renewcommand{\arraystretch}{0.96}
   \begin{tabular}{@{}l
     S[table-format=2.2]
     S[table-format=1.3]
     S[table-format=1.0]
+    c
+    @{\hspace{0.9em}}
+    l
+    S[table-format=2.2]
+    S[table-format=-1.3]
+    S[table-format=1.0]
     c@{}}
     \toprule
-    Method &
-    {LODO rank} &
-    {LODO balanced accuracy} &
-    {Distinct settings} &
-    Reselected \\
+    \multicolumn{5}{c}{Classification} &
+    \multicolumn{5}{c}{Regression} \\
+    \cmidrule(lr){1-5}\cmidrule(l){6-10}
+    Method & {Rank} & {Score} & {Set.} & {Main} &
+    Method & {Rank} & {Score} & {Set.} & {Main} \\
     \midrule
-    LightGBM & 3.14 & 0.816 & 1 & \countfrac{14}{14} \\
-    CatBoost & 4.29 & 0.805 & 1 & \countfrac{14}{14} \\
-    RF & 4.79 & 0.802 & 1 & \countfrac{14}{14} \\
-    XGBoost & 4.79 & 0.809 & 2 & \countfrac{6}{14} \\
-    CIF & 5.64 & 0.798 & 1 & \countfrac{14}{14} \\
-    ExtraTrees & 5.79 & 0.789 & 1 & \countfrac{14}{14} \\
-    RF-RFE & 6.57 & 0.795 & 1 & \countfrac{14}{14} \\
-    DT & 7.43 & 0.774 & 1 & \countfrac{14}{14} \\
-    Boruta & 9.14 & 0.747 & 1 & \countfrac{14}{14} \\
-    RT & 10.64 & 0.752 & 1 & \countfrac{14}{14} \\
-    CIT & 10.79 & 0.757 & 1 & \countfrac{14}{14} \\
-    MC filter & 11.43 & 0.734 & 1 & \countfrac{14}{14} \\
-    RDC filter & 11.86 & 0.707 & 1 & \countfrac{14}{14} \\
-    cforest & 13.29 & 0.687 & 1 & \countfrac{14}{14} \\
-    ctree & 13.64 & 0.689 & 1 & \countfrac{14}{14} \\
-    PI & 13.75 & 0.689 & 1 & \countfrac{14}{14} \\
-    CPI & 16.04 & 0.598 & 1 & \countfrac{14}{14} \\
+    LightGBM & 3.14 & 0.816 & 1 & \countfrac{14}{14} & ExtraTrees & 4.17 & 0.292 & 1 & \countfrac{6}{6} \\
+    CatBoost & 4.29 & 0.805 & 1 & \countfrac{14}{14} & CatBoost & 5.50 & 0.229 & 1 & \countfrac{6}{6} \\
+    RF & 4.79 & 0.802 & 1 & \countfrac{14}{14} & CIF & 5.50 & 0.214 & 2 & \countfrac{5}{6} \\
+    XGBoost & 4.79 & 0.809 & 2 & \countfrac{6}{14} & RF & 6.00 & 0.260 & 1 & \countfrac{6}{6} \\
+    CIF & 5.64 & 0.798 & 1 & \countfrac{14}{14} & RT & 6.00 & 0.266 & 1 & \countfrac{6}{6} \\
+    ExtraTrees & 5.79 & 0.789 & 1 & \countfrac{14}{14} & DT & 8.00 & 0.124 & 1 & \countfrac{6}{6} \\
+    RF-RFE & 6.57 & 0.795 & 1 & \countfrac{14}{14} & XGBoost & 8.50 & 0.149 & 2 & \countfrac{5}{6} \\
+    DT & 7.43 & 0.774 & 1 & \countfrac{14}{14} & LightGBM & 9.67 & -0.214 & 1 & \countfrac{6}{6} \\
+    Boruta & 9.14 & 0.747 & 1 & \countfrac{14}{14} & PI & 9.83 & -0.033 & 1 & \countfrac{6}{6} \\
+    RT & 10.64 & 0.752 & 1 & \countfrac{14}{14} & PC filter & 9.83 & 0.098 & 1 & \countfrac{6}{6} \\
+    CIT & 10.79 & 0.757 & 1 & \countfrac{14}{14} & RDC filter & 10.00 & -0.038 & 1 & \countfrac{6}{6} \\
+    MC filter & 11.43 & 0.734 & 1 & \countfrac{14}{14} & CIT & 11.33 & -0.291 & 2 & \countfrac{5}{6} \\
+    RDC filter & 11.86 & 0.707 & 1 & \countfrac{14}{14} & DC filter & 11.50 & -0.009 & 1 & \countfrac{6}{6} \\
+    cforest & 13.29 & 0.687 & 1 & \countfrac{14}{14} & Boruta & 11.83 & 0.109 & 1 & \countfrac{6}{6} \\
+    ctree & 13.64 & 0.689 & 1 & \countfrac{14}{14} & RF-RFE & 11.83 & 0.109 & 1 & \countfrac{6}{6} \\
+    PI & 13.75 & 0.689 & 1 & \countfrac{14}{14} & CPI & 13.50 & -0.552 & 1 & \countfrac{6}{6} \\
+    CPI & 16.04 & 0.598 & 1 & \countfrac{14}{14} & ctree & 13.83 & -0.035 & 1 & \countfrac{6}{6} \\
+    \multicolumn{5}{c}{} & cforest & 14.17 & -0.925 & 2 & \countfrac{5}{6} \\
     \bottomrule
   \end{tabular}
-  \caption{LODO configuration sensitivity on the classification benchmark with
-  14 datasets. For each LODO run, methods are ranked after selecting
-  configurations on the other 13 datasets; balanced accuracy and rank on the
-  left out dataset are then averaged over the 14 runs. Lower rank is better. The
-  distinct settings column gives the number of settings selected across the 14
-  LODO runs. For each omitted dataset, scores and ranks first average over the
-  three downstream learners and five standard values of $k$. The last column
-  reports how often the setting chosen in the main benchmark was selected again.
-  For methods with only one setting, all 14 LODO runs necessarily
-  reselect that setting; this column is informative only for methods with more
-  than one selectable setting.}
+  \caption{LODO configuration sensitivity. Lower rank is better. Classification
+  uses balanced accuracy on 14 datasets; regression uses $R^2$ on 6 datasets.
+  Set. counts distinct selected settings, and Main reports reselection of the
+  main benchmark setting.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
-
-For CIF, this 14-dataset LODO analysis selects the same configuration in all 14
-runs and places CIF fifth among 17 methods by average LODO rank (mean LODO rank
-5.64).
-Among methods that select more than one distinct setting across LODO runs,
-XGBoost is the only one; it reselects the setting chosen in the main benchmark
-in 6 of the 14 runs.
 
 \subsection{Sensitivity to downstream learner, k, and seed}
 
@@ -152,7 +155,7 @@ report learner and $k$ combinations, not datasets.
 
 \begin{table}[H]
   \centering
-  \scriptsize
+  \footnotesize
   \setlength{\tabcolsep}{3pt}
   \renewcommand{\arraystretch}{1.04}
   \begin{tabular}{@{}l
@@ -195,9 +198,17 @@ report learner and $k$ combinations, not datasets.
   \label{tab:classification-learner-k-sensitivity}
 \end{table}
 
+In the classification sensitivity table, CIF is top five in 12 of the 15
+learner and $k$ combinations and top three in 3 of 15 combinations. Its mean
+position is close to RF's and remains below the single-tree and filter baselines
+across the learner-by-$k$ grid. LightGBM, XGBoost, and CatBoost have lower mean
+positions in this breakdown, so this table supports the main ranking while
+showing that CIF is not a top-three method for most individual learner and $k$
+combinations.
+
 \begin{table}[H]
   \centering
-  \scriptsize
+  \footnotesize
   \setlength{\tabcolsep}{3pt}
   \renewcommand{\arraystretch}{1.04}
   \begin{tabular}{@{}l
@@ -241,10 +252,10 @@ report learner and $k$ combinations, not datasets.
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 
-In the classification sensitivity table, CIF is top five in 12 of the 15
-learner and $k$ combinations and top three in 3 of 15 combinations.
-Regression is more variable across learners and values of $k$; ExtraTrees and
-CatBoost have lower mean positions than CIF across those combinations.
+Regression is more variable across learners and values of $k$. ExtraTrees and
+CatBoost have lower mean positions than CIF across the 15 learner-by-$k$
+combinations, while CIF remains ahead of ctree, cforest, CIT, and most filter
+and wrapper methods in this summary.
 
 \begin{figure}[H]
   \centering
@@ -256,6 +267,18 @@ CatBoost have lower mean positions than CIF across those combinations.
   counts by $k$ are 22, 21, 15, 15, and 14 for ctree and cforest, and
   23, 22, 16, 16, and 15 for CIT.}
   \label{fig:benchmark-pairwise-sensitivity}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figures/regression_benchmark_pairwise_sensitivity.png}
+  \caption{Regression CIF margins against ctree, cforest, and CIT by
+  downstream learner and number of selected features. Each plotted
+  value is the mean CIF minus comparator $R^2$ difference for one downstream
+  learner and one value of $k$; positive values favor CIF. Dataset counts by
+  $k$ are 8, 8, 7, 7, and 6 for each comparison. Large positive cells can
+  reflect negative mean $R^2$ for the comparator.}
+  \label{fig:regression-benchmark-pairwise-sensitivity}
 \end{figure}
 
 For seed sensitivity, each method is ranked separately within each seed. After

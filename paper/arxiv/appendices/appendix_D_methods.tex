@@ -105,12 +105,12 @@ availability details needed to interpret the appendix tables.
 The analysis uses completed benchmark outputs without imputation. Some benchmark
 outputs are unavailable, and some datasets have fewer than five standard values
 of $k$ because values greater than $p$ are not evaluated.
-Summaries over individual results omit unavailable outputs. Complete comparison
-analyses retain only datasets with every method, downstream learner, and standard
-value of $k$ present. These
+Summaries over individual results omit unavailable outputs. Analyses that
+compare all methods retain only datasets with every method, downstream learner,
+and standard value of $k$ present. These
 rules explain why ctree and cforest classification comparisons use 22 rather
-than 23 datasets and why the complete comparison analyses use 14 classification
-and 6 regression datasets.
+than 23 datasets and why analyses requiring every method, downstream learner,
+and standard $k$ value use 14 classification and 6 regression datasets.
 \Cref{tab:output-skips} lists the classification seed skips and the
 dexter method exclusion; the regression count comes from the same availability
 rule, not from additional rows in this table.

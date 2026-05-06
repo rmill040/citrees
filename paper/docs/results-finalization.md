@@ -309,17 +309,17 @@ What the experiment is:
 What the canonical overall saturation table says:
 
 - classification all-method mean `score_k - score_{k=p}`:
-  - `-0.1974` at `k=5`
-  - `-0.1275` at `k=10`
-  - `-0.0605` at `k=25`
-  - `-0.0281` at `k=50`
-  - `-0.0062` at `k=100`
+  - `-0.1929` at `k=5`
+  - `-0.1228` at `k=10`
+  - `-0.0590` at `k=25`
+  - `-0.0291` at `k=50`
+  - `-0.0086` at `k=100`
 - regression all-method mean `score_k - score_{k=p}`:
-  - `+0.0504` at `k=5`
-  - `+0.0988` at `k=10`
-  - `+0.0541` at `k=25`
-  - `+0.0907` at `k=50`
-  - `+0.0864` at `k=100`
+  - `+0.0767` at `k=5`
+  - `+0.1239` at `k=10`
+  - `+0.0779` at `k=25`
+  - `+0.1002` at `k=50`
+  - `+0.0892` at `k=100`
 
 What the CIF-specific full-feature summary says:
 
@@ -347,8 +347,8 @@ What the CIF best observed `k` summary says:
 
 What the full-feature-only aggregate says:
 
-- CIF is `5th/15` on the full-feature-only classification aggregate
-- CIF is `15th/16` on the full-feature-only regression aggregate
+- CIF is `4th/17` on the full-feature-only classification aggregate
+- CIF is `17th/18` on the full-feature-only regression aggregate
 - in classification, the mean cross-method score range collapses from `0.1837`
   at `k=100` to `0.0393` at `k=p`
 - full-feature pairwise comparisons are mostly ties in classification, with

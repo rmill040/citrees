@@ -104,7 +104,7 @@ def main() -> None:
     axes[0].set_ylim(0.0, 1.0)
     axes[0].set_yticks(np.linspace(0.0, 1.0, 6))
     score_values = endpoint["mean_score_endpoint_minus_k100"].to_numpy(dtype=float)
-    bar_colors = ["#15803D" if val > 0 else "#B45309" for val in score_values]
+    bar_colors = ["#2F855A" if val > 0 else "#B91C1C" for val in score_values]
     axes[1].bar(x, score_values, width=0.62, color=bar_colors, edgecolor="white", linewidth=0.8)
     axes[1].axhline(0.0, color="#9CA3AF", linestyle="--", linewidth=1.0)
     axes[1].set_title(r"Mean score change: $k=p$ minus $k=100$", pad=14)

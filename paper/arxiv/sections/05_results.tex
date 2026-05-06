@@ -1,7 +1,7 @@
-\section{Benchmark results and ablations}
+\section{Real-data benchmark and runtime ablations}
 \label{sec:results}
 
-\subsection{Benchmark on Real Datasets}
+\subsection{Real-data benchmark}
 \label{sec:experiments-real}
 
 \Cref{tab:method-main-comparison} reports the main comparison on real datasets: 17
@@ -167,7 +167,7 @@ Against the greedy single-tree baselines, CIF beats DT on 14/23 classification
 and 6/8 regression datasets, and beats RT on 21/23 classification datasets; the
 RT regression comparison is effectively tied.
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{6pt}
@@ -236,21 +236,18 @@ changes.
   \label{tab:cit-runtime-hyperparams}
 \end{table}
 
-\paragraph{CIT timing.}
-\Cref{tab:cit-runtime-hyperparams} shows that the CIT timing effects are mixed.
-Disabling adaptive stopping is faster in the synthetic runs but not consistently
-faster on real datasets, where the median ratios span both sides of 1. The
-synthetic speedup is implementation-specific: without adaptive stopping, the
-single-tree code skips scan ordering used to find early exits, and large
-fixed-budget split tests use compiled parallel routines. Thus this row should not
-be read as a general claim that fixed-budget permutation tests are cheaper. Exact
-threshold search is sometimes slower and sometimes close to the default. Feature
-scanning also does not give a consistent tradeoff between runtime and top-10
-feature recovery on synthetic datasets. Because this run did not refit downstream
-models, these rows report timing and feature recovery changes on synthetic
-datasets, not downstream performance.
+\paragraph{CIT ablations.}
+\Cref{tab:cit-runtime-hyperparams} shows mixed CIT timing effects. Disabling
+adaptive stopping is faster in the synthetic runs but not consistently faster on
+real datasets. We therefore do not interpret this row as evidence that
+fixed-budget permutation testing is generally faster. For a single fitted tree,
+changing this option can also change the realized sequence of features,
+thresholds, and nodes evaluated, so this row is best read as an implementation
+diagnostic for CIT. Because this run did not refit downstream models, these rows
+report timing and feature recovery changes on synthetic datasets, not downstream
+performance.
 
-\paragraph{CIF timing and quality.}
+\paragraph{CIF ablations.}
 The CIF ablation table combines timing ratios with downstream metric changes
 and feature recovery changes on synthetic datasets.
 
@@ -292,7 +289,7 @@ Removing Bonferroni correction is faster for both CIT and CIF, but it changes
 the statistical rule and produces trees that use more features, so it is a
 sensitivity comparison rather than a recommended setting.
 
-\section{\texorpdfstring{High-$p$}{High-p} and synthetic behavior}
+\section{High-dimensional and synthetic diagnostics}
 \label{sec:boundary}
 
 The remaining analyses study where CIF's scores peak as the selected feature
@@ -300,7 +297,7 @@ set grows, how feature recovery on synthetic datasets changes across values of
 $k$, and how candidate feature sampling inside the forest affects informative
 split selection.
 
-\paragraph{High-$p$ results on real datasets.}
+\paragraph{High-dimensional real datasets.}
 Across the 15 classification datasets with more than 100 features, CIF first
 reaches its best score between 100 and $p$ in 30 of the 45 combinations of
 dataset and downstream learner. The first best score occurs at $k{=}p$ in only
@@ -315,7 +312,7 @@ by $+0.022$, and $k=p$ matches the best observed score in 6 of 15 datasets. For
 SVM and KNN, the corresponding mean changes are $-0.058$ and $-0.075$, and
 $k=p$ is best in only 1 of 15 datasets for each learner.
 
-\begin{figure}[H]
+\begin{figure}[!t]
   \centering
   \includegraphics[width=\linewidth]{figures/high_p_boundary_summary.png}
   \caption{Where CIF's classification scores peak as $k$ increases, by downstream learner.
@@ -349,7 +346,7 @@ redundant-feature synthetic designs, most selected features are still signal
 variables or redundant proxies rather than noise features: 0.83 for
 classification and 0.84 for regression.
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{6pt}
@@ -368,32 +365,13 @@ classification and 0.84 for regression.
     Signal or proxy share on redundant design & 0.83 & n/a & 0.84 & n/a \\
     \bottomrule
   \end{tabular}
-  \caption{Synthetic feature recovery for CIF. The informative share
-  rank orders methods by the mean share of true informative features selected
-  over $k = 5, 10, 25, 50$, and $100$. The top-1 hit rate is computed from the
-  synthetic composition results at $k=1$ as a separate summary of the first
-  ranked feature and compares 17 classification methods and 18 regression
-  methods. The signal or proxy share is
-  computed only on the redundant-feature synthetic design for each task and counts true
-  informative plus redundant features, averaged over the same values of $k$.
-  The informative share and top-1 summaries use 8 synthetic classification and 8
-  synthetic regression designs; the signal or proxy row uses the single redundant
-  feature design for each task.}
+  \caption{Synthetic feature recovery for CIF. Informative-share ranks average
+  true-informative feature share over $k = 5, 10, 25, 50$, and $100$. The top-1
+  hit rate is computed at $k=1$. The signal-or-proxy row is computed only on the
+  redundant-feature design for each task and counts true informative plus
+  redundant features.}
   \label{tab:synthetic-head}
 \end{table}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.96\linewidth]{figures/synthetic_topk_focus_curves.png}
-  \caption{Synthetic top-$k$ recovery curves by method group. The single-tree
-  panels compare CIT with DT and RT; the forest panels compare CIF with RF and
-  ExtraTrees; the boosted tree panels compare CIF with XGBoost, LightGBM, and
-  CatBoost. Panels show the share of selected top-$k$ features that are
-  informative; higher values are better.}
-  \label{fig:synthetic-topk-curves}
-\end{figure}
-
-\FloatBarrier
 
 \paragraph{Candidate feature sampling.}
 A diagnostic simulation grid examines whether candidate feature sampling in
@@ -405,15 +383,23 @@ CIF-all sets
 each split. Appendix~\ref{app:candidate-availability} gives the classification
 and regression results over $p = 100, 500$, and $1{,}000$.
 
-\begin{figure}[H]
+\begin{figure}[!t]
   \centering
-  \includegraphics[width=\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
-  \caption{Tree-level feature use in the forest on the single sparse
-  classification design with $n{=}250$, $p{=}1{,}000$, two informative features,
-  and 1,000 trees. Each count is the number of trees in which the feature is
-  used in at least one internal split.
-  Default CIF samples candidate features; CIF-all sets
-  \texttt{max\_features=None}. Vertical scales differ by panel.}
+  \includegraphics[width=0.84\linewidth]{figures/synthetic_topk_focus_curves.png}
+  \caption{Synthetic top-$k$ recovery curves. Columns compare single trees,
+  forests, and boosted trees; rows show classification and regression. Values
+  are selected-feature informative share, so higher is better.}
+  \label{fig:synthetic-topk-curves}
+\end{figure}
+
+\begin{figure}[!b]
+  \centering
+  \includegraphics[width=0.78\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
+  \caption{Tree-level feature use in one sparse classification forest design
+  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
+  trees using each feature in at least one split. CIF samples candidate
+  features; CIF-all sets \texttt{max\_features=None}. Each subplot has its own
+  y-axis range because counts differ across methods.}
   \label{fig:candidate-forest-counts}
 \end{figure}
 

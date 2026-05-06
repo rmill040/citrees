@@ -50,10 +50,12 @@ TASK_CONFIG = {
     "classification": {
         "output_name": "benchmark_pairwise_sensitivity.png",
         "metric_label": "Mean balanced-accuracy delta",
+        "color_abs_limit": None,
     },
     "regression": {
         "output_name": "regression_benchmark_pairwise_sensitivity.png",
         "metric_label": r"Mean $R^2$ delta",
+        "color_abs_limit": 1.0,
     },
 }
 
@@ -101,8 +103,10 @@ def _load_table(task: str) -> pd.DataFrame:
 def _render_task(task: str) -> None:
     df = _load_table(task)
     max_abs = float(df["mean_delta"].abs().max())
-    norm = TwoSlopeNorm(vmin=-max_abs, vcenter=0.0, vmax=max_abs)
-    fig, axes = plt.subplots(1, 3, figsize=(10.8, 3.8), sharey=True)
+    color_abs_limit = TASK_CONFIG[task]["color_abs_limit"]
+    color_abs = max_abs if color_abs_limit is None else min(max_abs, float(color_abs_limit))
+    norm = TwoSlopeNorm(vmin=-color_abs, vcenter=0.0, vmax=color_abs)
+    fig, axes = plt.subplots(1, 3, figsize=(11.2, 4.2), sharey=True, layout="constrained")
 
     for ax, baseline in zip(axes, BASELINES, strict=True):
         grid = (
@@ -110,8 +114,9 @@ def _render_task(task: str) -> None:
             .pivot(index="downstream_model", columns="k", values="mean_delta")
             .reindex(index=DOWNSTREAMS[task], columns=K_VALUES)
         )
+        display_values = np.clip(grid.to_numpy(dtype=float), -color_abs, color_abs)
         image = ax.imshow(
-            grid.to_numpy(),
+            display_values,
             cmap=SIGNED_GAIN_CMAP,
             norm=norm,
             aspect="auto",
@@ -130,21 +135,20 @@ def _render_task(task: str) -> None:
         for i, downstream in enumerate(DOWNSTREAMS[task]):
             for j, k_value in enumerate(K_VALUES):
                 val = float(grid.loc[downstream, k_value])
-                x = j - 0.08 if j == len(K_VALUES) - 1 else j
                 ax.text(
-                    x,
+                    j,
                     i,
                     f"{val:.2f}",
                     ha="center",
                     va="center",
-                    color="white" if abs(val) > 0.45 * max_abs else "#111827",
+                    color="white" if abs(val) > 0.45 * color_abs else "#111827",
                     fontsize=8.0,
                 )
 
     axes[0].set_ylabel("Downstream model")
-    cbar = fig.colorbar(image, ax=axes, fraction=0.024, pad=0.045)
+    extend = "both" if max_abs > color_abs else "neither"
+    cbar = fig.colorbar(image, ax=axes, fraction=0.028, pad=0.025, shrink=0.88, extend=extend)
     cbar.set_label(TASK_CONFIG[task]["metric_label"])
-    fig.subplots_adjust(wspace=0.18)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / TASK_CONFIG[task]["output_name"]

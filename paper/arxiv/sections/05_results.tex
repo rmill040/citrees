@@ -236,7 +236,11 @@ changes.
 \paragraph{CIT timing.}
 \Cref{tab:cit-runtime-hyperparams} shows that the CIT timing effects are mixed.
 Disabling adaptive stopping is faster in the synthetic runs but not consistently
-faster on real datasets, where the median ratios span both sides of 1. Exact
+faster on real datasets, where the median ratios span both sides of 1. The
+synthetic speedup is implementation-specific: without adaptive stopping, the
+single-tree code skips scan ordering used to find early exits, and large
+fixed-budget split tests use compiled parallel routines. Thus this row should not
+be read as a general claim that fixed-budget permutation tests are cheaper. Exact
 threshold search is sometimes slower and sometimes close to the default. Feature
 scanning also does not give a consistent tradeoff between runtime and top-10
 feature recovery on synthetic datasets. Because this run did not refit downstream

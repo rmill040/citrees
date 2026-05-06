@@ -19,10 +19,12 @@ than histogram thresholding. The corresponding absolute changes are at most
 In the real data benchmark, with one selected configuration per method,
 CIF ranks 4th of 17 classification methods on 22
 datasets and 3rd of 18 methods on a smaller 8-dataset regression benchmark.
-In direct comparisons with the original conditional inference tree and forest
-implementations, CIF has higher average downstream scores on 22/22 and 19/22
-classification datasets, respectively. On regression, CIF is higher on 7/8
-datasets against ctree and cforest and on 6/8 against CIT. CIF's lowest
+In direct classification comparisons with the original conditional inference tree
+and forest implementations, CIF has higher average downstream scores on 22/22
+and 19/22 datasets, respectively. The regression point estimates have the same
+direction, with CIF higher on 7/8 datasets against ctree and cforest and on 6/8
+against CIT, but the regression benchmark is smaller and the uncertainty
+intervals are wider. CIF's lowest
 classification mean ranks occur at larger values of $k$, and its lowest
 displayed regression mean rank occurs at $k=50$. Sparse high-$p$ simulations
 indicate that candidate feature sampling can leave informative features out of

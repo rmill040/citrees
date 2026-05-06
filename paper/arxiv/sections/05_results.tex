@@ -109,9 +109,12 @@ On the same 14-dataset classification analysis, the Friedman test rejects
 equality of method ranks overall ($\chi^2(16)=141.32$, $p<0.001$, Kendall's
 $W=0.63$). The analogous 6-dataset regression calculation gives
 $\chi^2(17)=33.79$, an asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$;
-because it uses only 6 datasets, the asymptotic $p$-value should be read
-cautiously. The bootstrap intervals and Friedman tests use the selected
-configurations.
+since it uses only 6 datasets, the asymptotic $p$-value should be read
+cautiously. The intervals and rank tests are also descriptive summaries for the
+selected settings, because configurations are selected on this same benchmark;
+they are not external validation of a pre-registered configuration. The LODO
+analysis below is a sensitivity check for configuration stability under
+one-dataset holdout.
 In the 14-dataset classification analysis, the LODO check places CIF
 fifth among the 17 methods by average LODO rank (mean LODO rank 5.64), and CIF
 reselects the setting chosen in the main benchmark in all 14 runs. In the

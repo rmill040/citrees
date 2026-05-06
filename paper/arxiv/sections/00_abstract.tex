@@ -3,32 +3,35 @@ reduce split selection bias by testing candidate split features before choosing
 split thresholds. That separation is relevant for feature selection because
 rankings from fitted trees and forests can otherwise reflect each feature's
 number of possible split thresholds. Repeated permutation tests and threshold
-searches, however, make the approach computationally expensive. We study
-whether CIT and CIF can be used as practical feature selection methods by
-measuring how runtime hyperparameters affect feature rankings,
-downstream prediction, and feature recovery on synthetic datasets with known
-informative features. For exhaustive fixed-$B$ Stage~A testing at a fixed node,
-when the tested feature set and resample budget are label-independent, $+1$
-Monte Carlo $p$-values give Bonferroni control of nodewise rejection under the
-complete nodewise permutation null. In CIF,
+searches, however, increase the computational cost. We study
+whether CIT and CIF can be used as practical feature selection methods through
+real-data downstream prediction benchmarks, experiments that change runtime
+settings one at a time, and experiments on synthetic datasets where the
+informative features are known.
+The statistical guarantee is only for one fixed node. It applies when candidate
+features are fixed before looking at the response and tested with the same fixed
+number of random permutations before choosing a split threshold. If the response
+labels are exchangeable within that node, Bonferroni-corrected $+1$ Monte Carlo
+$p$-values control the chance of selecting any tested feature. In CIF,
 adaptive stopping and histogram thresholding account for the largest measured
-runtime changes: without adaptive stopping, CIF training is 4.0--8.4$\times$
-slower across datasets, and exact threshold search is 1.9--10.8$\times$ slower
-than histogram thresholding. The corresponding absolute changes are at most
-0.011 in downstream prediction metrics and 0.017 in synthetic feature recovery.
+runtime changes: disabling adaptive stopping increases runtime by a median
+4.0--8.4$\times$ across dataset groups, and exact threshold search is
+1.9--10.8$\times$ slower than histogram-256 using elapsed times. The
+corresponding absolute changes are at most
+0.011 in downstream prediction metrics and 0.017 in the fraction of known
+informative features ranked near the top on synthetic datasets.
 In the real data benchmark, with one selected configuration per method,
 CIF ranks 4th of 17 classification methods on 22
 datasets and 3rd of 18 methods on a smaller 8-dataset regression benchmark.
 In direct classification comparisons with the original conditional inference tree
 and forest implementations, CIF has higher average downstream scores on 22/22
 and 19/22 datasets, respectively. The regression point estimates have the same
-direction, with CIF higher on 7/8 datasets against ctree and cforest and on 6/8
-against CIT, but the regression benchmark is smaller and the uncertainty
-intervals are wider. CIF's lowest
+direction in the smaller regression benchmark, with CIF higher on 7/8 datasets
+against ctree and cforest and on 6/8 against CIT. CIF's lowest
 classification mean ranks occur at larger values of $k$, and its lowest
 displayed regression mean rank occurs at $k=50$. Sparse high-$p$ simulations
 indicate that candidate feature sampling can leave informative features out of
 many local split tests.
-Overall, these experiments support CIF mainly as a predictive top-$k$ ranking
-method; exact recovery of the first informative feature is less consistent,
-especially in the synthetic recovery checks.
+Overall, these experiments position CIF as a practical top-$k$ feature ranking
+method and identify candidate feature sampling as an important control in sparse
+high-dimensional forests.

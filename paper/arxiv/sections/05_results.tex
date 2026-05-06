@@ -12,7 +12,7 @@ for dexter. Within each dataset, method ranks are computed
 after averaging scores over the downstream learners and selected values of $k$
 shared by the compared methods. Lower mean rank is better.
 
-\begin{table}[!t]
+\begin{table}[H]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{6pt}
@@ -65,7 +65,7 @@ and seed-sensitivity tables
 for both classification and regression, with dataset counts stated for each
 analysis.
 
-\begin{table}[!t]
+\begin{table}[H]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -212,7 +212,7 @@ The accounting in \cref{app:complexity-details} identifies the affected work
 terms; the ablations measure the corresponding observed timing and metric
 changes.
 
-\begin{table}[H]
+\begin{table}[!t]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{6pt}
@@ -251,7 +251,7 @@ performance.
 The CIF ablation table combines timing ratios with downstream metric changes
 and feature recovery changes on synthetic datasets.
 
-\begin{table}[H]
+\begin{table}[!t]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{6pt}
@@ -285,6 +285,7 @@ ratio across datasets, and exact threshold search is 1.9--10.8$\times$ slower
 than histogram-256. Downstream metric changes and synthetic feature-recovery
 changes remain small. The feature-scanning ablation is mixed and smaller once
 adaptive stopping is enabled.
+\FloatBarrier
 Removing Bonferroni correction is faster for both CIT and CIF, but it changes
 the statistical rule and produces trees that use more features, so it is a
 sensitivity comparison rather than a recommended setting.

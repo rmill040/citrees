@@ -1,0 +1,17 @@
+task,model_variant,ranking_variant,n_datasets,mean_dataset_score,median_dataset_score,mean_dataset_cells,min_fold_seed_rows,min_nonnull_score_rows,total_score_missing_rows,rank_position
+classification,cif_no_bootstrap,split_importance,23,0.8182999126103726,0.8152444444444444,12.0,25,25,0,1
+classification,cif_no_mute,split_importance,23,0.8181642043266824,0.814088888888889,12.0,25,25,0,2
+classification,cif_default,split_importance,23,0.8177755607055207,0.8171555555555555,12.0,25,25,0,3
+classification,cif_no_bootstrap,split_count,23,0.816043493903925,0.8118666666666667,12.0,25,25,0,4
+classification,cif_default,split_count,23,0.8149174734633147,0.8169333333333333,12.0,25,25,0,5
+classification,cif_no_mute,split_count,23,0.8142040965838566,0.8146666666666668,12.0,25,25,0,6
+classification,cif_one_tree,split_count,23,0.7575911767552302,0.7915041734777536,12.0,25,25,0,7
+classification,cif_one_tree,split_importance,23,0.7569950120836965,0.7822895622895624,12.0,25,25,0,8
+regression,cif_no_mute,split_importance,8,0.27830589694253355,0.48978544955339903,13.5,25,25,0,1
+regression,cif_default,split_importance,8,0.27826965682378035,0.4894251999897977,13.5,25,25,0,2
+regression,cif_default,split_count,8,0.25611586561753985,0.49200170866252513,13.5,25,25,0,3
+regression,cif_no_mute,split_count,8,0.24605818569996407,0.49156130702225853,13.5,25,25,0,4
+regression,cif_no_bootstrap,split_count,8,0.07661283062001448,0.486171039066648,13.5,25,25,0,5
+regression,cif_no_bootstrap,split_importance,8,0.0706228317547661,0.4818343717567865,13.5,25,25,0,6
+regression,cif_one_tree,split_importance,8,-0.2733886287021815,0.41102539794271103,13.5,25,25,0,7
+regression,cif_one_tree,split_count,8,-0.2745479486751915,0.4086243675489238,13.5,25,25,0,8

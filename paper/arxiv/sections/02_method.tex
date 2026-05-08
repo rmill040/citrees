@@ -57,7 +57,7 @@ sampling, and the node enters Stage~B.
 
 During adaptive tree growing, Stage~A uses the same decision structure but can
 order features by a preliminary score and evaluate only the subset $E_t$. The
-resulting score $s_t^\star$ is used only to grow the tree; it is not an
+returned feature field $q_t^{\mathrm{feat}}$ is used only to grow the tree; it is not an
 exhaustive fixed-$B$ $p$-value covered by \cref{thm:plusone-superuniform}. Under
 the exhaustive reference rule with Bonferroni correction,
 $\min(1,m_t p_t^{\star,\mathrm{ref}})$ is a conservative complete-null
@@ -71,23 +71,26 @@ Given a selected feature $j_t^\star$, Stage~B starts from midpoints between
 ordered unique values of $X_{t,j_t^\star}$. The exact method uses all such
 midpoints. The random method samples a bounded subset of midpoints, while the
 percentile and histogram methods choose bounded representative thresholds
-derived from the midpoint distribution; on very small nodes, they fall back to
-all midpoints. Candidates that would violate
-\texttt{min\_samples\_leaf} are filtered out. If no candidate remains, Stage~B
-returns no split.
+derived from the midpoint distribution. When the selected feature has at most
+four unique values, all methods use the full midpoint set. Candidates that
+would violate \texttt{min\_samples\_leaf} are filtered out. If no candidate
+remains, Stage~B returns no split.
 
 For the remaining finite threshold set $C_{t,j_t^\star}$, Stage~B selects the
-best threshold over the candidates. When permutation testing is enabled, the
-tested statistic at threshold $c$ is the unweighted sum of child impurities
+threshold used by the tree. When permutation testing is enabled, the tested
+statistic at threshold $c$ is the unweighted sum of child impurities
 $\mathrm{Imp}(Y_t^L(c)) + \mathrm{Imp}(Y_t^R(c))$, where $\mathrm{Imp}$ is the
 chosen node impurity measure. This statistic is used in a left-tail test, and
-the chosen threshold is the candidate with the smallest Stage~B $p$-value, with
-uniform tie breaking. Let
+the exhaustive fixed-$B$ rule chooses the candidate with the smallest Stage~B
+$p$-value, with uniform tie breaking. During adaptive tree growing, threshold
+scanning may reorder candidates and stop after the first rejecting threshold, so
+the returned Stage~B score is a tree-construction score rather than a global
+minimum over all retained thresholds. Let
 $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
 Bonferroni is enabled for Stage~B and
-$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. If the best
-Stage~B $p$-value is at least $\tau_t^{\mathrm{split}}$, the node becomes
-terminal. When Stage~B permutation testing is disabled, the chosen threshold
+$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. If no evaluated
+Stage~B $p$-value is below $\tau_t^{\mathrm{split}}$, the node becomes terminal.
+When Stage~B permutation testing is disabled, the chosen threshold
 minimizes the usual weighted child impurity. The final
 \texttt{min\_impurity\_decrease} check also uses weighted impurity decrease.
 Stage~B chooses the split used by the tree; it does not provide a
@@ -105,11 +108,11 @@ post-selection $p$-value with inferential guarantees.
       \If{\Call{Stop}{$X_t,Y_t,d,\theta$}}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
-      \State $(j_t^\star, s_t^\star, m_t, F'_{\mathrm{avail}}) \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\theta}$
+      \State $(j_t^\star, q_t^{\mathrm{feat}}, m_t, F'_{\mathrm{avail}}) \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\theta}$
       \If{$j_t^\star = \bot$}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
-      \State $(c_t^\star, s_t^{\mathrm{split}}) \gets \Call{StageB}{X_t,Y_t,j_t^\star,\theta}$
+      \State $(c_t^\star, q_t^{\mathrm{split}}) \gets \Call{StageB}{X_t,Y_t,j_t^\star,\theta}$
       \If{$c_t^\star = \bot$}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
@@ -117,13 +120,19 @@ post-selection $p$-value with inferential guarantees.
       \If{\Call{ImpurityDecrease}{$Y_t,Y_t^L,Y_t^R,\theta$} $< \texttt{min\_impurity\_decrease}$}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
-      \State $u \gets$ internal node with split $(j_t^\star,c_t^\star)$ and stored $(s_t^\star,s_t^{\mathrm{split}})$
+      \State $u \gets$ internal node with split $(j_t^\star,c_t^\star)$ and stored p-value fields $(q_t^{\mathrm{feat}},q_t^{\mathrm{split}})$
       \State $u.\mathrm{left} \gets \Call{GrowNode}{X_t^L,Y_t^L,d+1,F'_{\mathrm{avail}},\theta}$
       \State $u.\mathrm{right} \gets \Call{GrowNode}{X_t^R,Y_t^R,d+1,F'_{\mathrm{avail}},\theta}$
       \State \Return $u$
     \EndFunction
   \end{algorithmic}
 \end{algorithm}
+
+When permutation testing is enabled, the stored fields in
+\cref{alg:citree} are the selected feature and threshold permutation
+$p$-values. When permutation testing is disabled, selector or splitter metrics
+choose candidates and these stored $p$-value fields are sentinel values rather
+than those metrics.
 
 \subsection{Monte Carlo permutation \texorpdfstring{$p$}{p}-values}
 \label{sec:plusone}
@@ -190,16 +199,33 @@ scores only the accepted splits by their local reduction in impurity. Larger
 importances are ranked earlier, and features never used by a split receive zero
 importance.
 
+This split-importance ranking differs from standard random-forest impurity
+importance in how a feature becomes eligible for threshold search. In CART-style
+trees, the feature and threshold are chosen together by an impurity search, so a
+feature with more candidate thresholds has more opportunities to produce a large
+apparent impurity decrease \citep{Strobl2007BiasRFVariableImportance}. In CIT
+and CIF, Stage~A first selects a feature by a permutation test, and Stage~B
+searches thresholds only for that selected feature. This separation reduces the
+direct threshold-cardinality selection mechanism that affects CART/RF impurity
+importance. In this paper, we use the resulting scores as fitted
+split-importance rankings and evaluate them through downstream top-$k$
+prediction and synthetic feature recovery.
+
 The other embedded tree and ensemble methods use their fitted importance
 vectors in decreasing order: DT, RT, RF, ExtraTrees, XGBoost, LightGBM, and
 CatBoost. Filter methods rank features by decreasing dependence score.
 Permutation test filters rank by increasing $p$-value and use the dependence score
-as the secondary key. The ctree reference ranks features by split-use counts,
-and cforest ranks by unconditional \texttt{partykit::varimp}. Boruta and
-recursive feature elimination rank by their fitted rank variables, with smaller
-ranks first. Permutation importance and conditional permutation importance rank
-by decreasing importance; in this benchmark the latter follows the CPI
-calculation described in \cref{sec:experiments-methods}.
+as the secondary key. The ctree reference ranks features by split-use counts.
+For cforest, we use the default \texttt{partykit::varimp} output
+(\texttt{conditional = FALSE}, \texttt{nperm = 1}). Thus the cforest row uses
+the standard partykit feature-importance output, while CIF uses fitted
+split-importance rankings from accepted conditional-inference splits. Both
+rankings are evaluated by fitting the same downstream learners on the
+highest-ranked features. Boruta and recursive feature elimination rank by their
+fitted rank variables, with smaller ranks first. Permutation importance and
+conditional permutation importance rank by decreasing importance; in this
+benchmark the latter follows the CPI calculation described in
+\cref{sec:experiments-methods}.
 When scores or rank variables tie, the
 within-tie order is deterministic but method-specific and is used only for
 reproducibility.

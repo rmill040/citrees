@@ -8,6 +8,7 @@ scratch/
 catboost_info/
 paper/data/s3_sync/
 paper/results/clf_rankings.parquet
+paper/results/tables/cif_mechanism_ablation_metrics_flat.csv
 
 # Generated Ray cluster config (contains user's IP)
 paper/scripts/infra/ray/cluster.yaml

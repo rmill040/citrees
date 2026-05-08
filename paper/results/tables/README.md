@@ -31,6 +31,7 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_benchmark_pairwise_aggregate.csv` - directed all-vs-all method comparisons; the `baseline` column is the compared method, not a restricted baseline set
 - `paper_benchmark_pairwise_stratified.csv` - directed all-vs-all comparisons by downstream model and number of selected features; the `baseline` column is the compared method
 - `paper_presentation_benchmark_summary.csv`
+- `cif_mechanism_ablation_pairwise_vs_default.csv` - CIF ranking ablation summary used by the main-text CIF ranking ablation table
 - `paper_heterogeneity_method_summary.csv`
 - `paper_heterogeneity_cif_pairwise_breadth.csv`
 - `paper_high_p_delta_vs_endpoint_overall.csv`
@@ -82,6 +83,18 @@ These remain outside the closed main-text table package:
 - `calibration_summary.csv`
 - `cit_runtime_ablation_raw.csv`
 - `cit_runtime_ablation_dataset_summary.csv`
+- `cif_mechanism_ablation_cell_scores.csv`
+- `cif_mechanism_ablation_completeness.csv`
+- `cif_mechanism_ablation_dataset_scores.csv`
+- `cif_mechanism_ablation_method_summary.csv`
+- `cif_mechanism_ablation_paired_cell_deltas_vs_default.csv`
+- `cif_mechanism_ablation_paired_dataset_deltas_vs_default.csv`
+- `cif_mechanism_ablation_pairwise_by_downstream_k_vs_default.csv`
+
+The flattened fold-level CIF ranking ablation metrics file is local/S3
+provenance and is intentionally not tracked:
+
+- `cif_mechanism_ablation_metrics_flat.csv`
 
 ## Superseded Or Supporting-Only Examples
 

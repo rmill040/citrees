@@ -32,6 +32,7 @@ These are still on the live paper path and should not be backlogged yet:
 - `paper/scripts/analysis/build_fixed_panel_omnibus_table.py`
 - `paper/scripts/analysis/build_fixed_panel_pairwise_ci_table.py`
 - `paper/scripts/analysis/build_lodo_config_sensitivity_tables.py`
+- `paper/scripts/analysis/build_cif_mechanism_ablation_tables.py`
 - `paper/scripts/analysis/analyze_synthetic_ground_truth.py`
 - `paper/scripts/analysis/aggregate_pipeline_artifacts.py`
 - `paper/scripts/analysis/fig_benchmark_k_trajectory.py`
@@ -40,6 +41,7 @@ These are still on the live paper path and should not be backlogged yet:
 - `paper/scripts/analysis/run_mechanism_dimension_sweep_shard.py`
 - `paper/scripts/experiments/mirrored_knob_ablation.py`
 - `paper/scripts/experiments/threshold_search_ablation.py`
+- `paper/scripts/experiments/cif_mechanism_ablation.py`
 - `paper/scripts/theory/generate_calibration_support_package.py`
 - `paper/scripts/theory/muting_power_theory.py`
 - `paper/scripts/theory/study_batched_adaptive_stopping.py`
@@ -138,6 +140,7 @@ Operational audits and one-off repair scripts now live under
 - `paper/scripts/maintenance/audit_hash_alias_manifest.py`
 - `paper/scripts/maintenance/repair_hash_alias_canonicalization.py`
 - `paper/scripts/maintenance/repair_clf_pi_cpi_balanced_accuracy.py`
+- `paper/scripts/maintenance/run_dt_rt_ranked_feature_check.py`
 
 These are not on the current submission path, but they are still useful for
 artifact hygiene and should not be deleted casually.

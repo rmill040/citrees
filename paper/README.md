@@ -148,6 +148,13 @@ UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_manu
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 ```
 
+The CIF ranking ablation table is regenerated from its fold-level ablation
+metrics when those metrics are available:
+
+```bash
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_cif_mechanism_ablation_tables.py --input-uri <local-or-s3-metrics-prefix>
+```
+
 After rebuilding, reconcile against:
 
 - `paper/docs/results-finalization.md`

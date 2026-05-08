@@ -9,13 +9,31 @@ from typing import Annotated
 
 import typer
 
-from paper.scripts.cli._console import console, create_table, error, heading, info, success, warn
+from paper.scripts.cli._console import (
+    console,
+    create_table,
+    error,
+    heading,
+    info,
+    success,
+    warn,
+)
 
 app = typer.Typer(
     name="infra",
     help="AWS infrastructure setup",
     no_args_is_help=True,
 )
+
+
+def _split_csv(value: str) -> tuple[str, ...]:
+    """Parse comma-separated CLI options into a typed tuple."""
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
+def _split_int_csv(value: str) -> tuple[int, ...]:
+    """Parse comma-separated integer CLI options."""
+    return tuple(int(part) for part in _split_csv(value))
 
 
 # ---------------------------------------------------------------------------
@@ -203,9 +221,13 @@ def upload_data(
         result = upload_datasets(task=task, dry_run=dry_run, force=force)
 
     if dry_run:
-        info(f"Would upload {result['uploaded']} files, skip {result['skipped']} existing")
+        info(
+            f"Would upload {result['uploaded']} files, skip {result['skipped']} existing"
+        )
     else:
-        success(f"Uploaded {result['uploaded']} files, skipped {result['skipped']} existing")
+        success(
+            f"Uploaded {result['uploaded']} files, skipped {result['skipped']} existing"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +383,179 @@ def launch_workers_cmd(
     )
 
 
+@app.command(name="launch-mechanism-workers")
+def launch_mechanism_workers_cmd(
+    n: Annotated[
+        int,
+        typer.Option(
+            "--count",
+            "-n",
+            help="Number of sharded mechanism workers to launch",
+        ),
+    ] = 1,
+    instance_type: Annotated[
+        str,
+        typer.Option(
+            "--instance-type",
+            "-i",
+            help="EC2 instance type",
+        ),
+    ] = "c6a.8xlarge",
+    spot: Annotated[
+        bool,
+        typer.Option(
+            "--spot/--no-spot",
+            help="Use spot instances (default: spot)",
+        ),
+    ] = True,
+    image_uri: Annotated[
+        str,
+        typer.Option(
+            "--image-uri",
+            help="ECR image URI",
+        ),
+    ] = "",
+    output_uri: Annotated[
+        str,
+        typer.Option(
+            "--output-uri",
+            help="S3 output prefix; defaults to s3://{bucket}/experiments/cif_mechanism_ablation",
+        ),
+    ] = "",
+    num_shards: Annotated[
+        int,
+        typer.Option(
+            "--num-shards",
+            help="Global shard modulus; defaults to --count",
+        ),
+    ] = 0,
+    shard_start: Annotated[
+        int,
+        typer.Option(
+            "--shard-start",
+            help="First shard index to launch",
+        ),
+    ] = 0,
+    subnets: Annotated[
+        str,
+        typer.Option(
+            "--subnets",
+            help="Optional comma-separated subnet IDs; defaults to all default subnets",
+        ),
+    ] = "",
+    tasks: Annotated[
+        str,
+        typer.Option(
+            "--tasks",
+            help="Comma-separated tasks: classification,regression",
+        ),
+    ] = "classification,regression",
+    source: Annotated[
+        str,
+        typer.Option(
+            "--source",
+            help="Dataset source: real, synthetic, or all",
+        ),
+    ] = "real",
+    datasets: Annotated[
+        str,
+        typer.Option(
+            "--datasets",
+            help="Optional comma-separated dataset filter",
+        ),
+    ] = "",
+    seeds: Annotated[
+        str,
+        typer.Option(
+            "--seeds",
+            help="Comma-separated seed indices",
+        ),
+    ] = "0,1,2,3,4",
+    folds: Annotated[
+        str,
+        typer.Option(
+            "--folds",
+            help="Comma-separated fold indices",
+        ),
+    ] = "0,1,2,3,4",
+    model_variants: Annotated[
+        str,
+        typer.Option(
+            "--model-variants",
+            help="Comma-separated CIF model variants",
+        ),
+    ] = "cif_default",
+    ranking_variants: Annotated[
+        str,
+        typer.Option(
+            "--ranking-variants",
+            help="Ranking readouts",
+        ),
+    ] = "split_importance,split_count",
+    n_jobs: Annotated[
+        int,
+        typer.Option(
+            "--n-jobs",
+            help="CIF n_jobs inside each worker",
+        ),
+    ] = -1,
+    downstream_n_jobs: Annotated[
+        int,
+        typer.Option(
+            "--downstream-n-jobs",
+            help="Downstream learner n_jobs inside each worker",
+        ),
+    ] = 1,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite existing mechanism-ablation artifacts",
+        ),
+    ] = False,
+) -> None:
+    """Launch sharded EC2 workers for CIF mechanism ablations.
+
+    This command runs the paper-side mechanism-ablation runner directly on each
+    instance, using stable modulo sharding. It does not require the API server.
+    """
+    from paper.scripts.infra.ec2 import launch_mechanism_workers
+
+    if source not in {"real", "synthetic", "all"}:
+        error("source must be one of: real, synthetic, all")
+        raise typer.Exit(1)
+
+    if not image_uri:
+        from paper.scripts.infra.aws import ensure_ecr_repo
+
+        _name, repo_uri = ensure_ecr_repo()
+        image_uri = f"{repo_uri}:latest"
+        info(f"Using image: {image_uri}")
+
+    heading(f"Launching {n} Mechanism Workers")
+
+    launch_mechanism_workers(
+        n=n,
+        instance_type=instance_type,
+        image_uri=image_uri,
+        spot=spot,
+        num_shards=num_shards or None,
+        shard_start=shard_start,
+        subnet_ids=_split_csv(subnets),
+        output_uri=output_uri or None,
+        tasks=_split_csv(tasks),
+        source=source,
+        datasets=_split_csv(datasets),
+        seeds=_split_int_csv(seeds),
+        folds=_split_int_csv(folds),
+        model_variants=_split_csv(model_variants),
+        ranking_variants=_split_csv(ranking_variants),
+        n_jobs=n_jobs,
+        downstream_n_jobs=downstream_n_jobs,
+        force=force,
+    )
+
+
 @app.command(name="list-workers")
 def list_workers_cmd() -> None:
     """List running worker instances."""
@@ -392,6 +587,40 @@ def list_workers_cmd() -> None:
     console.print(table)
 
 
+@app.command(name="list-mechanism-workers")
+def list_mechanism_workers_cmd() -> None:
+    """List running CIF mechanism-ablation worker instances."""
+    from paper.scripts.infra.ec2 import list_mechanism_workers
+
+    heading("Mechanism Worker Instances")
+
+    workers = list_mechanism_workers()
+    if not workers:
+        info("No mechanism worker instances found")
+        return
+
+    table = create_table(
+        title=f"Mechanism workers ({len(workers)})",
+        columns=[
+            ("Instance ID", ""),
+            ("State", ""),
+            ("Type", ""),
+            ("Shard", ""),
+            ("Launched", ""),
+        ],
+    )
+    for w in workers:
+        shard = f"{w['shard_index']}/{w['num_shards']}" if w["shard_index"] else ""
+        table.add_row(
+            w["instance_id"],
+            w["state"],
+            w["instance_type"],
+            shard,
+            w["launch_time"],
+        )
+    console.print(table)
+
+
 @app.command(name="terminate-workers")
 def terminate_workers_cmd() -> None:
     """Terminate all running worker instances."""
@@ -404,6 +633,20 @@ def terminate_workers_cmd() -> None:
         success(f"Terminated {len(terminated)} instances")
     else:
         info("No workers to terminate")
+
+
+@app.command(name="terminate-mechanism-workers")
+def terminate_mechanism_workers_cmd() -> None:
+    """Terminate all running CIF mechanism-ablation workers."""
+    from paper.scripts.infra.ec2 import terminate_mechanism_workers
+
+    heading("Terminating Mechanism Workers")
+
+    terminated = terminate_mechanism_workers()
+    if terminated:
+        success(f"Terminated {len(terminated)} mechanism instances")
+    else:
+        info("No mechanism workers to terminate")
 
 
 # ---------------------------------------------------------------------------
@@ -449,8 +692,8 @@ def logs(
     """
     from paper.scripts.infra.ec2 import get_logs
 
-    if role not in ("api", "worker"):
-        error("Role must be 'api' or 'worker'")
+    if role not in ("api", "worker", "mechanism"):
+        error("Role must be 'api', 'worker', or 'mechanism'")
         raise typer.Exit(1)
 
     heading(f"CloudWatch Logs: /citrees/{role}")

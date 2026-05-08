@@ -5,9 +5,11 @@ This section isolates the exhaustive fixed-$B$ Stage~A feature selection rule
 at a fixed node. The theorem proves superuniformity for one $+1$ Monte Carlo
 permutation $p$-value, and the corollary applies Bonferroni correction across
 the fixed-node Stage~A tests. In the notation of \cref{sec:stageA-stageB}, this is
-the reference case $E_t=F_t$. All probabilities below are conditional on
-$(X_t,U)$, where $U$ denotes any auxiliary randomness held fixed when
-conditioning.
+the exhaustive reference case in which every feature in $F_t$ is tested with the
+same effective nodewise fixed budget $B$. All probabilities below are
+conditional on $(X_t,U)$, where $U$ denotes label-independent auxiliary
+randomness held fixed when conditioning, excluding the Monte Carlo permutation
+draws.
 
 \begin{theorem}[$+1$ permutation $p$-values are superuniform]
 \label{thm:plusone-superuniform}

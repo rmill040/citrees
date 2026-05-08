@@ -36,7 +36,8 @@ a preliminary score before testing, and can terminate once a sufficiently strong
 candidate has been found. When feature muting is
 enabled, features with non-rejecting Stage~A $p$-values can be removed from
 descendant candidate feature pools within the same subtree. These choices reduce
-computation, but they also make the returned score $s_t^\star$ a
+computation, but they also make the returned feature field
+$q_t^{\mathrm{feat}}$ a
 tree-construction search score rather than a full Stage~A $p$-value over the
 complete candidate feature pool.
 
@@ -45,11 +46,11 @@ Given the selected feature, the tree-growing rule builds threshold
 candidates from midpoints between consecutive unique feature values. Exact search uses all such
 midpoints. Random sampling chooses a bounded subset of midpoints; percentile and
 histogram rules choose bounded representative thresholds derived from the
-midpoint distribution, with a fallback for small samples to the full midpoint
-set. When sequential stopping is enabled, threshold scanning may then reorder
+midpoint distribution, with a fallback to the full midpoint set when the
+selected feature has at most four unique values. When sequential stopping is enabled, threshold scanning may then reorder
 the candidate thresholds before testing. Because Stage~B is run after Stage~A has
 selected a feature using the node response, its returned quantity
-$s_t^{\mathrm{split}}$ should be interpreted as a split-selection score.
+$q_t^{\mathrm{split}}$ should be interpreted as a split-selection score.
 
 \paragraph{Split statistics.}
 For permutation split testing, Stage~B uses the unweighted sum
@@ -79,13 +80,14 @@ search width.
 
 \paragraph{Sequential stopping.}
 The benchmarked defaults use adaptive sequential stopping. The sequential test
-tracks exceedances inside batches and terminates when the Beta posterior for the
-exceedance rate places at least the configured confidence probability on one
-side of the nodewise threshold. A simpler futility/significance rule is also
-available. Both change the stopping time: once a stage stops at a
-data-dependent time, the returned value is no longer a classical fixed-$B$
-Monte Carlo $p$-value. This is why the main paper separates the fixed-node
-guarantee from the runtime ablations.
+tracks exceedances over permutation draws and checks a Beta posterior for the
+exceedance rate at routine-specific points: each draw for Stage~B and batches
+for batched Stage~A selector paths. It terminates when the posterior places at
+least the configured confidence probability on one side of the nodewise
+threshold. A simpler futility/significance rule is also available. Both change
+the stopping time: once a stage stops at a data-dependent time, the returned
+value is no longer a classical fixed-$B$ Monte Carlo $p$-value. This is why the
+main paper separates the fixed-node guarantee from the runtime ablations.
 
 \subsection{Forests, resampling, and honesty}
 
@@ -115,27 +117,6 @@ and standard $k$ value use 14 classification and 6 regression datasets.
 dexter method exclusion; the regression count comes from the same availability
 rule, not from additional rows in this table.
 
-\begin{table}[H]
-  \centering
-  \scriptsize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}lll@{}}
-    \toprule
-    Method/config & Dataset & Seeds \\
-    \midrule
-    \texttt{ctree} MonteCarlo & \texttt{gisette} & 3 \\
-    \texttt{ctree} MonteCarlo & \texttt{isolet} & 2, 3 \\
-    \texttt{cit} with selector \texttt{rdc} & \texttt{gisette} & 0, 1, 3 \\
-    \texttt{cit} with selector \texttt{rdc} & \texttt{orlraws10P} & 1 \\
-    \texttt{ctree}, \texttt{cforest} & \texttt{dexter} & method exclusion \\
-    \bottomrule
-  \end{tabular}
-  \caption{Documented classification seed-level skips and method exclusions.
-  Missing outputs are not imputed; this table documents classification omissions
-  only.}
-  \label{tab:output-skips}
-\end{table}
-
 \subsection{Randomness and reproducibility}
 
 Runs are deterministic given the same base seed. Pure Python
@@ -145,3 +126,24 @@ are not uniformly supported in those contexts. This affects how random streams
 are constructed in code, but not the substantive reading of the results: the
 benchmark is reproducible from the saved artifacts and the reported rankings are
 deterministic given the stored configuration and seed schedule.
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Method/config & Dataset & Seeds \\
+    \midrule
+    ctree MonteCarlo & \texttt{gisette} & 3 \\
+    ctree MonteCarlo & \texttt{isolet} & 2, 3 \\
+    CIT with selector \texttt{rdc} & \texttt{gisette} & 0, 1, 3 \\
+    CIT with selector \texttt{rdc} & \texttt{orlraws10P} & 1 \\
+    ctree, cforest & \texttt{dexter} & method exclusion \\
+    \bottomrule
+  \end{tabular}
+  \caption{Documented classification seed-level skips and method exclusions.
+  Missing outputs are not imputed; this table documents classification omissions
+  only.}
+  \label{tab:output-skips}
+\end{table}

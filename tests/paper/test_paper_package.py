@@ -72,6 +72,7 @@ def test_results_authority_docs_keep_breadth_canonical_and_calibration_supportin
     assert "paper_benchmark_selected_config_details.csv" in finalization
     assert "paper_benchmark_fixed_panel_aggregate.csv" in finalization
     assert "paper_benchmark_fixed_panel_membership.csv" in finalization
+    assert "cif_mechanism_ablation_pairwise_vs_default.csv" in finalization
     assert "k_trajectory_ranks.csv" in finalization
     assert "regression_k_trajectory_ranks.csv" in finalization
     assert "paper_heterogeneity_cif_pairwise_breadth.csv" in finalization
@@ -82,6 +83,7 @@ def test_results_authority_docs_keep_breadth_canonical_and_calibration_supportin
     assert "paper_benchmark_selected_config_details.csv" in tables_manifest
     assert "paper_benchmark_fixed_panel_aggregate.csv" in tables_manifest
     assert "paper_benchmark_fixed_panel_membership.csv" in tables_manifest
+    assert "cif_mechanism_ablation_pairwise_vs_default.csv" in tables_manifest
     assert "k_trajectory_ranks.csv" in tables_manifest
     assert "regression_k_trajectory_ranks.csv" in tables_manifest
     assert "paper_heterogeneity_cif_pairwise_breadth.csv" in tables_manifest
@@ -98,7 +100,9 @@ def test_experiments_doc_demotes_non_packaged_outputs():
     assert "Supporting Studies Used In The Paper" in experiments
     assert "mirrored practical-knob ablations" in experiments
     assert "threshold-search ablation" in experiments
-    assert "treat anything outside those locked outputs as exploratory or historical by" in experiments
+    assert (
+        "treat anything outside those locked outputs as exploratory or historical by" in experiments
+    )
     assert "Exploratory artifacts should not drive manuscript claims" in results_readme
 
 
@@ -147,7 +151,9 @@ def test_arxiv_bundle_keeps_referenced_figures_local():
     """The manuscript should not depend on paper/results for its figures."""
     main_tex = _read("paper/arxiv/main.tex")
     bundler = _load_arxiv_bundle_module()
-    referenced = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()}
+    referenced = {
+        path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()
+    }
 
     assert r"\graphicspath{{figures/}}" in main_tex
     for relpath in referenced:
@@ -157,8 +163,12 @@ def test_arxiv_bundle_keeps_referenced_figures_local():
 def test_arxiv_source_bundle_membership_includes_bibliography_and_excludes_junk():
     """The deterministic source bundle should include bbl and avoid scratch/build products."""
     bundler = _load_arxiv_bundle_module()
-    members = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.bundle_members(require_bbl=False)}
-    referenced = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()}
+    members = {
+        path.relative_to(ARXIV_DIR).as_posix() for path in bundler.bundle_members(require_bbl=False)
+    }
+    referenced = {
+        path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()
+    }
     bundled_figures = {member for member in members if member.startswith("figures/")}
 
     assert "main.tex" in members
@@ -172,7 +182,9 @@ def test_arxiv_source_bundle_membership_includes_bibliography_and_excludes_junk(
 def test_arxiv_referenced_figures_are_tracked_by_git():
     """A committed manuscript should not reference untracked local-only figures."""
     bundler = _load_arxiv_bundle_module()
-    referenced = [path.relative_to(ROOT).as_posix() for path in bundler.collect_referenced_figures()]
+    referenced = [
+        path.relative_to(ROOT).as_posix() for path in bundler.collect_referenced_figures()
+    ]
 
     for relpath in referenced:
         result = subprocess.run(
@@ -199,7 +211,9 @@ def test_existing_arxiv_source_zip_is_not_stale():
         assert members == expected_members
         for path in expected_paths:
             relpath = path.relative_to(ARXIV_DIR).as_posix()
-            assert archive.read(relpath) == path.read_bytes(), f"{relpath} is stale in the local arXiv source zip"
+            assert archive.read(relpath) == path.read_bytes(), (
+                f"{relpath} is stale in the local arXiv source zip"
+            )
 
 
 def test_paper_markdown_does_not_reference_missing_scripts():
@@ -209,4 +223,6 @@ def test_paper_markdown_does_not_reference_missing_scripts():
     for path in (ROOT / "paper").rglob("*.md"):
         text = path.read_text(encoding="utf-8")
         for relpath in pattern.findall(text):
-            assert (ROOT / relpath).exists(), f"{path.relative_to(ROOT)} references missing script {relpath}"
+            assert (ROOT / relpath).exists(), (
+                f"{path.relative_to(ROOT)} references missing script {relpath}"
+            )

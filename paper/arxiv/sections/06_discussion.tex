@@ -16,6 +16,23 @@ The ablations report timing ratios and score changes. For CIF, the largest
 timing changes come from adaptive stopping and histogram thresholding, while
 score changes remain small.
 
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
+  \caption{Tree-level feature use in one sparse classification forest design
+  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
+  the number of trees using each feature in at least one split. CIF samples candidate
+  features; CIF-all sets \texttt{max\_features=None}. Each subplot has its own
+  y-axis range because counts differ across methods.}
+  \label{fig:candidate-forest-counts}
+\end{figure}
+
+The CIF ablation study compares split-count ranking, feature-muting,
+bootstrap, and one-tree variants under the same top-$k$ evaluation. The
+split-count ranking and feature-muting rows are small. The no-bootstrap row is
+near zero in classification and negative in regression. The one-tree row is the
+largest change in both tasks.
+
 The high-$p$ and synthetic results identify one sparse-forest failure mode for
 CIF. In the candidate feature sampling simulation, single-tree CIT selects
 informative splits frequently when Stage~A considers all nonconstant features.

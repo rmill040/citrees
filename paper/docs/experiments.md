@@ -35,6 +35,17 @@ UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_manu
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 ```
 
+The CIF ranking ablation table is rebuilt from fold-level ablation metrics
+when those metrics are available locally or in S3:
+
+```bash
+UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_cif_mechanism_ablation_tables.py --input-uri <local-or-s3-metrics-prefix>
+```
+
+The paper-facing summary is
+`paper/results/tables/cif_mechanism_ablation_pairwise_vs_default.csv`. The
+flattened fold-level metrics CSV is local/S3 provenance and is not tracked.
+
 After rebuilding:
 
 - refresh paper prose only after checking the rebuilt tables.

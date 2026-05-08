@@ -35,6 +35,7 @@ Locked source of truth for the closed layers in this document:
 - `paper/results/tables/paper_presentation_benchmark_summary.csv`
 - `paper/results/tables/paper_benchmark_pairwise_aggregate.csv`
 - `paper/results/tables/paper_benchmark_pairwise_stratified.csv`
+- `paper/results/tables/cif_mechanism_ablation_pairwise_vs_default.csv`
 - `paper/results/tables/paper_heterogeneity_method_summary.csv`
 - `paper/results/tables/paper_heterogeneity_cif_pairwise_breadth.csv`
 - `paper/results/tables/paper_high_p_delta_vs_endpoint_overall.csv`
@@ -77,6 +78,13 @@ Supporting-only source outside the closed main-text package:
 - `paper/results/tables/calibration_summary.csv`
 - `paper/results/tables/cit_runtime_ablation_raw.csv`
 - `paper/results/tables/cit_runtime_ablation_dataset_summary.csv`
+- `paper/results/tables/cif_mechanism_ablation_cell_scores.csv`
+- `paper/results/tables/cif_mechanism_ablation_completeness.csv`
+- `paper/results/tables/cif_mechanism_ablation_dataset_scores.csv`
+- `paper/results/tables/cif_mechanism_ablation_method_summary.csv`
+- `paper/results/tables/cif_mechanism_ablation_paired_cell_deltas_vs_default.csv`
+- `paper/results/tables/cif_mechanism_ablation_paired_dataset_deltas_vs_default.csv`
+- `paper/results/tables/cif_mechanism_ablation_pairwise_by_downstream_k_vs_default.csv`
 
 Important note:
 
@@ -87,6 +95,9 @@ Important note:
   provenance/supporting tables; use
   `paper/results/tables/paper_cit_runtime_ablation_summary.csv` for the
   paper-facing CIT runtime summary.
+- `paper/results/tables/cif_mechanism_ablation_metrics_flat.csv` is raw
+  fold-level provenance for the CIF ranking ablation study. It is not tracked; use
+  the summarized CIF ranking ablation CSVs above for paper-facing claims.
 - `paper/results/tables/paper_mirrored_knob_ablation_summary.csv` reports CIF
   runtime ratios as dataset-level mean ratios against `cif_default`, because
   the mirrored CIF source table is already aggregated over seeds.
@@ -290,7 +301,56 @@ Do not say:
 - CIF beats the highest-ranked ensemble baselines across datasets
 - CIF is the dataset-by-dataset leader
 
-### 2.4 High-p saturation and full-feature checks
+### 2.4 CIF ranking ablation study
+
+What the experiment is:
+
+- real-data CIF ranking ablation study evaluated under the same downstream top-`k`
+  protocol as the main benchmark
+- default CIF with fitted split-importance ranking is the reference
+- classification uses `23` datasets and regression uses `8` datasets
+- paired dataset deltas first average over supported downstream learners and
+  standard `k` values, then summarize across datasets
+- confidence intervals use `20,000` bootstrap replicates
+
+What the canonical CIF ranking ablation table says:
+
+- classification:
+  - split-count readout: mean delta `-0.0029`, CI `[-0.0067, +0.0010]`,
+    `10/23` wins and `13/23` losses
+  - disable bootstrap: mean delta `+0.0005`, CI `[-0.0030, +0.0039]`,
+    `10/23` wins, `12/23` losses, and `1` tie
+  - disable feature muting: mean delta `+0.0004`, CI `[-0.0010, +0.0016]`,
+    `13/23` wins, `8/23` losses, and `2` ties
+  - use one tree: mean delta `-0.0608`, CI `[-0.0913, -0.0348]`,
+    `1/23` wins and `22/23` losses
+- regression:
+  - split-count readout: mean delta `-0.0222`, CI `[-0.0599, +0.0004]`,
+    `3/8` wins and `5/8` losses
+  - disable bootstrap: mean delta `-0.2076`, CI `[-0.6041, -0.0037]`,
+    `3/8` wins and `5/8` losses
+  - disable feature muting: mean delta `+0.0000`, CI `[-0.0105, +0.0087]`,
+    `5/8` wins and `3/8` losses
+  - use one tree: mean delta `-0.5517`, CI `[-1.3276, -0.0726]`,
+    `0/8` wins and `8/8` losses
+
+Paper-safe interpretation:
+
+- the split-importance readout is not the large change in this ablation over
+  single-tree conditional-inference rankings
+- feature muting is not the large change either
+- bootstrap sampling is mixed: essentially neutral in classification and worse
+  in this regression ablation
+- reducing CIF from 100 trees to one tree is the large change, so the paper can
+  say exactly that
+
+Do not say:
+
+- this fully decomposes CIF versus `partykit::cforest`
+- this proves a population-level mechanism
+- split importance is guaranteed unbiased
+
+### 2.5 High-p saturation and full-feature checks
 
 What the experiment is:
 
@@ -378,7 +438,7 @@ Do not say:
 - full-feature-only aggregate ranks are a main result
 - `23/45` means the full feature set is usually the best value of `k`
 
-### 2.5 Synthetic ground-truth recovery
+### 2.6 Synthetic ground-truth recovery
 
 What the experiment is:
 
@@ -429,7 +489,7 @@ Do not say:
 - feature recovery on synthetic datasets makes CIF a clear winner
 - pooled `standard` is a homogeneous synthetic regime
 
-### 2.6 Synthetic top-k feature composition
+### 2.7 Synthetic top-k feature composition
 
 What the experiment is:
 
@@ -526,7 +586,7 @@ Do not say:
 - lower informative-only recovery on redundant suites means CIF is mostly
   choosing junk
 
-### 2.7 Fixed-design candidate feature diagnostics
+### 2.8 Fixed-design candidate feature diagnostics
 
 What the experiment is:
 
@@ -762,7 +822,7 @@ Canonical mechanism artifacts:
   - `paper_mechanism_grid_forest_classification_feature_counts.csv`
   - `paper_mechanism_grid_forest_regression_feature_counts.csv`
 
-### 2.8 Top-ranking diagnostics
+### 2.9 Top-ranking diagnostics
 
 What the experiment is:
 
@@ -812,7 +872,7 @@ Do not say:
 
 - CIF is a strong exact top-of-ranking method
 
-### 2.9 Practical knob evidence
+### 2.10 Practical knob evidence
 
 What the experiment is:
 
@@ -919,7 +979,7 @@ Do not say:
 - the executed regime is globally optimal
 - the practical shortcuts preserve the theorem
 
-### 2.10 Regression mirror
+### 2.11 Regression mirror
 
 What the experiment is:
 
@@ -974,7 +1034,7 @@ Do not say:
 
 - regression confirms the classification story at equal strength
 
-### 2.11 CIF-vs-R supporting comparison
+### 2.12 CIF-vs-R supporting comparison
 
 What the experiment is:
 

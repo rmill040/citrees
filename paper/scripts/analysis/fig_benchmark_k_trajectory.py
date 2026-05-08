@@ -122,18 +122,16 @@ def _write_rank_table(config: TaskPlotConfig, ranks: pd.DataFrame) -> None:
 
 
 def _annotate_heatmap(ax: plt.Axes, values: np.ndarray) -> None:
-    midpoint = (np.nanmin(values) + np.nanmax(values)) / 2
     for row_idx in range(values.shape[0]):
         for col_idx in range(values.shape[1]):
             value = values[row_idx, col_idx]
-            color = "white" if value > midpoint else "#111827"
             ax.text(
                 col_idx,
                 row_idx,
                 f"{value:.1f}",
                 ha="center",
                 va="center",
-                color=color,
+                color="black",
                 fontsize=7.5,
             )
 

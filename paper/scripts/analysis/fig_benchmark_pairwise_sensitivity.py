@@ -26,8 +26,8 @@ ARXIV_FIGURES_DIR = Path(__file__).resolve().parents[2] / "arxiv" / "figures"
 
 BASELINES = ["r_ctree", "r_cforest", "cit"]
 BASELINE_TITLES = {
-    "r_ctree": r"CIF vs \texttt{ctree}",
-    "r_cforest": r"CIF vs \texttt{cforest}",
+    "r_ctree": "CIF vs ctree",
+    "r_cforest": "CIF vs cforest",
     "cit": "CIF vs CIT",
 }
 DOWNSTREAMS = {
@@ -141,7 +141,7 @@ def _render_task(task: str) -> None:
                     f"{val:.2f}",
                     ha="center",
                     va="center",
-                    color="white" if abs(val) > 0.45 * color_abs else "#111827",
+                    color="black",
                     fontsize=8.0,
                 )
 

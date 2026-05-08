@@ -1,117 +1,99 @@
 \section{Setup and assumptions}
-\label{app:setup-assumptions}
 
-\subsection{Setup and notation}
-\label{app:setup}
+\subsection{Fixed-node setup}
 
-Let $(X_i, Y_i)_{i=1}^n$ be training data and consider a fixed node $t$ with
-index set $I_t$ (size $n_t$). Write $X_t := (X_i)_{i \in I_t}$ and
-$Y_t := (Y_i)_{i \in I_t}$.
+Let $(X_i, Y_i)_{i=1}^n$ be the training data. Fix a node $t$ with sample
+index set $I_t$ and size $n_t:=|I_t|$. Write
+$X_t := (X_i)_{i\in I_t}$ and $Y_t := (Y_i)_{i\in I_t}$ for the data restricted
+to that node. Stage~A tests a fixed candidate feature set $F_t$ with
+$m_t:=|F_t|$.
 
-At node $t$, the algorithm performs two potential hypothesis testing steps:
-Stage~A performs feature selection over features $j \in F_t$ by testing
-association with $Y_t$, and Stage~B tests candidate thresholds for the selected
-feature $j_t^\star$.
+The fixed-node theorem only concerns the exhaustive fixed-$B$ Stage~A reference
+test: every feature in $F_t$ is tested with the same effective nodewise
+per-feature budget $B$, and $F_t$ and $B$ are fixed after conditioning on the
+node covariates and label-independent auxiliary randomness.
 
-\subsubsection*{Notation summary}
+\subsubsection*{Proof notation}
+The proof notation used below is summarized in
+\cref{tab:fixed-node-notation}.
 \begin{table}[H]
   \centering
   \small
   \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}p{0.22\linewidth}p{0.72\linewidth}@{}}
+  \begin{tabular}{@{}p{0.24\linewidth}p{0.70\linewidth}@{}}
     \toprule
     Symbol & Meaning \\
     \midrule
-    $t$ & Node index (held fixed in ``fixed node'' results). \\
-    $n,\ p$ & Global sample size and number of features. \\
-    $I_t,\ n_t$ & Sample index set at node $t$ and its size $n_t := |I_t|$. \\
+    $t$ & Node index, held fixed in the theorem. \\
+    $I_t,\ n_t$ & Node sample index set and size $n_t:=|I_t|$. \\
     $X_t,\ Y_t$ & Covariates and labels restricted to node $t$. \\
-    $F_t,\ m_t$ & Tested feature set at node $t$ and its size $m_t := |F_t|$. \\
-    $E_t$ & Feature subset evaluated during adaptive tree growing; in the exhaustive fixed-$B$ reference rule used by the theorem, $E_t=F_t$. \\
-    $F_{\mathrm{avail}}$ & Features available when node $t$ is reached. \\
-    $F_{t,\mathrm{nonconst}}$ & Features in $F_{\mathrm{avail}}$ that are nonconstant at node $t$. \\
-    $F_{\mathrm{avail}}'$ & Feature set passed to descendants after Stage~A and any feature muting. \\
-    $T^{\mathrm{sel}}_j$ & Stage~A selector statistic for feature $j$ at node $t$. \\
-    $p_{t,j}$ & +1 Monte Carlo permutation $p$-value for $T^{\mathrm{sel}}_j$ (fixed-$B$ mode). \\
-    $p_{\mathrm{MC}}^{\ge},\ p_{\mathrm{MC}}^{\le}$ & Right/left tail +1 Monte Carlo $p$-values computed from $B$ random permutations. \\
-    $\alpha_{\mathrm{sel}}$ & Stage~A nominal significance level (before Bonferroni adjustment). \\
-    $\alpha_{\mathrm{split}}$ & Stage~B nominal significance level (before Bonferroni adjustment). \\
-    $M_t^\star$ & Features attaining the minimum fixed-$B$ Stage~A $p$-value:
-    $M_t^\star := \{j \in F_t : p_{t,j}=p_t^{\star,\mathrm{ref}}\}$. \\
-    $j_t^{\star,\mathrm{ref}},\ p_t^{\star,\mathrm{ref}}$ & Fixed-$B$
-    selected feature and minimum $p$-value:
-    $p_t^{\star,\mathrm{ref}} := \min_{j\in F_t} p_{t,j}$;
-    $j_t^{\star,\mathrm{ref}}$ is drawn uniformly from $M_t^\star$ using
-    reservoir sampling. \\
-    $j_t^\star,\ s_t^\star$ & Feature and Stage~A search score returned during
-    adaptive tree growing, possibly after evaluating only part of the feature set. \\
-    $C_{t,j}$ & Candidate threshold set for feature $j$ at node $t$ (Stage~B). \\
-    $c_t^\star,\ s_t^{\mathrm{split}}$ & Best threshold and its Stage~B split score for the selected feature. \\
-    $\pi$ & Bootstrap sampling probabilities over training indices. \\
-    $B$ & Permutation resample budget (number of random permutations). \\
-    $U$ & Label-independent auxiliary randomness used by the tree-growing rule (e.g., feature subsampling, threshold subsampling, tie-breaking randomness). \\
+    $F_t,\ m_t$ & Tested Stage~A feature set and size $m_t:=|F_t|$. \\
+    $X_{t,j}$ & Values of feature $j$ on the node samples. \\
+    $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ & Observed Stage~A statistic for feature $j$ at node $t$. \\
+    $T_{\mathrm{obs}},T_1,\dots,T_B$ & For one fixed feature test, the observed statistic and the same statistic after $B$ random label permutations. \\
+    $p_{t,j}$ & Fixed-$B$ $+1$ Monte Carlo permutation $p$-value for feature $j$. \\
+    $B$ & Effective nodewise random-permutation budget used for each fixed-$B$ feature test. \\
+    $U$ & Label-independent auxiliary randomness conditioned on in the proof, excluding Monte Carlo permutation draws and outcomes. \\
+    $\alpha_{\mathrm{sel}}$ & Stage~A nominal level; the corollary tests at $\alpha_{\mathrm{sel}}/m_t$. \\
     \bottomrule
   \end{tabular}
-  \caption{Compact notation used in the fixed-node statements and proof appendices.}
+  \caption{Notation used in the fixed-node Stage~A theorem and proof.}
+  \label{tab:fixed-node-notation}
 \end{table}
+
+Stage~B threshold search, adaptive stopping, feature muting, response-selected
+internal nodes, bootstrap forests, honesty, and selected-feature or
+post-selection $p$-values are algorithmic or inferential targets outside this
+fixed-node Stage~A guarantee; see \cref{sec:method,app:methods,app:complexity-details}.
 
 \subsection{Assumptions and theorem scope}
 \label{app:assumptions}
 
-We label assumptions to keep statements and proofs aligned. When a result below
-is described as ``fixed node,'' the node $t$ is held fixed rather than chosen
+The assumptions below define the inferential target of \cref{sec:theory}. When a
+result is described as fixed-node, the node $t$ is held fixed rather than chosen
 adaptively from the data.
-Unless stated otherwise, the results in \cref{sec:theory} use the full
-fixed-node checklist below: fixed node, complete-null
-exchangeability, a label-independent Stage~A tested feature set, fixed-$B$
-$p$-values, and conservative tie handling.
 
 \paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
-The node $t$ is fixed, not selected from the data.
+The node $t$ is fixed.
 
-\paragraph{A0.2 (Nodewise complete permutation null / conditional exchangeability).}\label{assump:exchangeability}
-Under the (nodewise) complete permutation null at the fixed node $t$, $Y_t$ is
-exchangeable conditional on $(X_t, U)$, where $U$ denotes label-independent
-auxiliary randomness used by the tree-growing rule and can affect which
-hypotheses are tested (e.g.,
-\texttt{max\_features}, threshold subsampling). This assumption targets a
-complete null at the node: it generally does \emph{not} hold under a
-``featurewise'' partial null in which one feature is null while other features
-remain associated with $Y_t$. Monte Carlo permutation draws are additional
-randomization independent of the data and are not included in $U$.
+\paragraph{A0.2 (Complete nodewise permutation null).}\label{assump:exchangeability}
+Under the null at node $t$, $Y_t$ is exchangeable conditional on $(X_t,U)$.
+This is a complete nodewise null, not a featurewise partial-null statement: it
+does not cover a null feature when other tested features in $F_t$ remain
+associated with $Y_t$.
 
-\paragraph{A0.3 (Label-independent Stage~A tested feature set).}\label{assump:label-independence}
-For Stage~A results, the tested feature set $F_t$ and resample budget $B$ are
-measurable functions of $(X_t, U)$ and do \emph{not} depend on the observed
-labels $Y_t$ (or on permutation outcomes). The fixed-node guarantee uses the
-exhaustive reference case $E_t=F_t$; early-stopped examined sets are outside
-the theorem. A separate fixed-feature Stage~B statement would require its
-threshold set to be label-independent.
+\paragraph{A0.3 (Label-independent tested feature set).}\label{assump:label-independence}
+The tested feature set $F_t$ and effective nodewise budget $B$ are measurable
+functions of $(X_t,U)$ and do not depend on the observed labels $Y_t$,
+permutation outcomes, or sequential stopping decisions.
 
-\paragraph{A0.4 (Fixed-$B$ \texorpdfstring{$p$}{p}-values).}\label{assump:fixed-b}
-Permutation $p$-values are computed with a fixed number of resamples $B$ (no
-optional stopping).
+\paragraph{A0.4 (Fixed-$B$ computation).}\label{assump:fixed-b}
+Each $p_{t,j}$ is computed with exactly $B$ random permutations, with no optional
+stopping. The Monte Carlo permutation draws used to compute the $p$-values are
+additional randomness, independent of $(X_t,Y_t,U)$, and are not included in
+$U$.
 
-\paragraph{A0.5 (Conservative tie handling in the Monte Carlo \texorpdfstring{$p$}{p}-value).}\label{assump:ties}
-The +1 Monte Carlo $p$-value uses the conservative tie convention:
-ties are counted as $T_b \ge T_{\mathrm{obs}}$ events for right-tail tests and
-as $T_b \le T_{\mathrm{obs}}$ events for left-tail tests. Random tie breaking
-among equal best features or thresholds is treated separately as
-label-independent auxiliary randomness.
+\paragraph{A0.5 (Conservative ties).}\label{assump:ties}
+The Stage~A $+1$ Monte Carlo $p$-value counts ties conservatively using
+$\ind\{T_b \ge T_{\mathrm{obs}}\}$ for right-tail tests. Random tie breaking
+among equal best features is label-independent auxiliary randomness and is not
+part of the rejection event.
 
 \subsection{Result and assumption checklist}
-\label{app:assumption-checklist}
 
+\Cref{tab:fixed-node-assumption-checklist} maps the fixed-node results to the
+assumptions they use.
 \begin{table}[H]
   \centering
   \small
-  \begin{tabular}{p{0.52\linewidth} p{0.42\linewidth}}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.56\linewidth}>{\centering\arraybackslash}p{0.20\linewidth}@{}}
     \toprule
     Result & Assumptions used \\
     \midrule
-    +1 $p$-value superuniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1 through A0.5 \\
-    Stage~A complete null control (Corollary~\ref{cor:stageA-global-null}) & A0.1 through A0.5 \\
+    $+1$ $p$-value superuniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1--A0.5 \\
+    Stage~A complete-null control (Corollary~\ref{cor:stageA-global-null}) & A0.1--A0.5 \\
     \bottomrule
   \end{tabular}
-  \caption{Assumptions used by the main fixed-node results in \cref{sec:theory}.}
+  \caption{Assumptions used by the fixed-node results in \cref{sec:theory}.}
+  \label{tab:fixed-node-assumption-checklist}
 \end{table}

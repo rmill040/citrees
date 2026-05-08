@@ -6,8 +6,8 @@ they are used as feature-selection methods rather than as final predictive
 models. We first run a real-data benchmark with fixed downstream learners and
 top-$k$ feature budgets. The analyses then report aggregate ranks,
 dataset-level breadth, high-dimensional behavior, synthetic recovery with known
-informative features, and a mechanism check for candidate feature sampling in
-forests.
+informative features, CIF ranking ablations, and a mechanism check for
+candidate feature sampling in forests.
 
 \subsection{Benchmark setup}
 \label{sec:experiments-protocol}
@@ -161,5 +161,13 @@ For CIT and CIF, the default benchmark settings use
 adaptive sequential stopping, Bonferroni correction, feature muting, feature
 scanning, threshold scanning, and histogram thresholding with 256 bins. The
 benchmarked CIT and CIF variants differ in selector and honesty; CIF uses the
-forest form with bootstrap sampling held fixed. The CIF hyperparameter ablation
-changes one setting at a time.
+forest form with bootstrap sampling held fixed. Each CIF runtime ablation
+changes one setting.
+
+To compare CIF with single-tree conditional-inference rankings, we also run a CIF
+ranking ablation study on the real-data benchmark datasets. This ablation holds the
+selected CIF configuration fixed and changes one part at a time: replacing the
+fitted split-importance readout with split counts, disabling feature muting,
+disabling bootstrap sampling, or reducing the forest to one tree. Each variant is
+evaluated with the same downstream learners, folds, seeds, and standard top-$k$
+values as the main benchmark.

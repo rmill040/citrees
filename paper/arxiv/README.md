@@ -36,9 +36,11 @@ Source bundle contents for submission:
   - `figures/benchmark_pairwise_sensitivity.png`
   - `figures/high_p_boundary_summary.png`
   - `figures/k_trajectory.png`
-  - `figures/regression_k_trajectory.png`
   - `figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png`
   - `figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png`
+  - `figures/paper_mechanism_grid_forest_regression_dimension_curves_1000trees.png`
+  - `figures/regression_benchmark_pairwise_sensitivity.png`
+  - `figures/regression_k_trajectory.png`
   - `figures/synthetic_topk_focus_curves.png`
 
 Do not zip this directory by hand. It contains ignored scratch and build

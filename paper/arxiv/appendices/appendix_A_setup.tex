@@ -79,21 +79,9 @@ $\ind\{T_b \ge T_{\mathrm{obs}}\}$ for right-tail tests. Random tie breaking
 among equal best features is label-independent auxiliary randomness and is not
 part of the rejection event.
 
-\subsection{Result and assumption checklist}
+\subsection{Results and assumptions}
 
-\Cref{tab:fixed-node-assumption-checklist} maps the fixed-node results to the
-assumptions they use.
-\begin{table}[H]
-  \centering
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.56\linewidth}>{\centering\arraybackslash}p{0.20\linewidth}@{}}
-    \toprule
-    Result & Assumptions used \\
-    \midrule
-    $+1$ $p$-value superuniformity (Theorem~\ref{thm:plusone-superuniform}) & A0.1--A0.5 \\
-    Stage~A complete-null control (Corollary~\ref{cor:stageA-global-null}) & A0.1--A0.5 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Assumptions used by the fixed-node results in \cref{sec:theory}.}
-  \label{tab:fixed-node-assumption-checklist}
-\end{table}
+Both fixed-node results in \cref{sec:theory} use Assumptions A0.1--A0.5:
+Theorem~\ref{thm:plusone-superuniform} establishes $+1$ $p$-value
+superuniformity, and Corollary~\ref{cor:stageA-global-null} gives Stage~A
+complete-null control.

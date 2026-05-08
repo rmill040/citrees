@@ -12,11 +12,12 @@ feature set is fixed independently of the node responses and each candidate
 feature is tested with the same fixed permutation budget before threshold search.
 Under response-label exchangeability within that node,
 Bonferroni-corrected $+1$ Monte Carlo $p$-values control the probability of
-selecting any tested feature under the nodewise null. In CIF runtime ablations, the
-largest measured runtime effects come from adaptive stopping and threshold
-search: disabling adaptive stopping raises median runtime 4.0--8.4$\times$
-across dataset groups, and exact threshold search is 1.9--10.8$\times$ slower
-than histogram-256. These settings change downstream prediction metrics by at
+selecting any tested feature under the nodewise null. In CIF runtime ablations
+that keep Bonferroni correction fixed, the largest measured runtime effects
+come from adaptive stopping and threshold search: disabling adaptive stopping
+raises median runtime 4.0--8.4$\times$ across dataset groups, and exact
+threshold search is 1.9--10.8$\times$ slower than histogram-256. These settings
+change downstream prediction metrics by at
 most 0.011 and the fraction of known informative features among top-ranked
 features by at most 0.017.
 On real datasets, using one selected configuration for each method, CIF ranks

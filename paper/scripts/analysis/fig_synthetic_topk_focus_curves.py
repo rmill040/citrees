@@ -124,7 +124,7 @@ def main() -> None:
     if focus.empty:
         raise RuntimeError("No focus rows available for the synthetic top-k figure.")
 
-    fig, axes = plt.subplots(2, 3, figsize=(10.2, 4.0), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 3, figsize=(10.2, 6.2), sharex=True, sharey=True)
     for row_idx, task in enumerate(("classification", "regression")):
         for col_idx, (family_title, methods) in enumerate(FAMILY_PANELS):
             title = family_title if row_idx == 0 else ""
@@ -134,7 +134,7 @@ def main() -> None:
             if row_idx == 1:
                 axes[row_idx, col_idx].set_xlabel(r"Number of selected features ($k$)")
 
-    fig.subplots_adjust(top=0.88, hspace=0.14, wspace=0.16, bottom=0.16)
+    fig.subplots_adjust(top=0.92, hspace=0.18, wspace=0.16, bottom=0.12)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "synthetic_topk_focus_curves.png"

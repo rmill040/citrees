@@ -7,10 +7,11 @@ exhaustive fixed-$B$ Stage~A testing at a fixed node, with
 a label-independent tested feature set, the Stage~A result gives Bonferroni
 control of nodewise rejection under the complete nodewise permutation null.
 That $p$-value interpretation applies to the local test; the full adaptive tree
-and forest are evaluated empirically. In the CIF runtime ablations, adaptive
-stopping and histogram thresholding produce the largest timing changes. The CIT
-timing results are mixed and are reported separately from the CIF runtime and
-downstream prediction results.
+and forest are evaluated empirically. Among the CIF timing controls that keep
+Bonferroni correction fixed, adaptive stopping and exact-versus-histogram
+threshold search produce the largest timing changes. The CIT timing results are
+mixed and are reported separately from the CIF runtime and downstream
+prediction results.
 
 On the real-data benchmarks, CIF ranks fourth of 17 classification methods and
 third of 18 regression methods with the runtime hyperparameters studied here. In

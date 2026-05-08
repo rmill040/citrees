@@ -311,7 +311,7 @@ changes and feature recovery changes on synthetic datasets.
   \end{tabular}
   \caption{CIF runtime and quality ablations. Runtime ratios are relative to
   default CIF. Adaptive stopping and feature scanning use median dataset-level
-  ratios; exact threshold search uses mean elapsed-time ratios relative to
+  ratios; exact threshold search uses ratios of group mean elapsed times relative to
   histogram-256. Quality columns report the largest absolute downstream
   metric change and synthetic feature-recovery change across the task groups
   used for each row. Inequality values are rounded upward to the nearest 0.001.
@@ -322,11 +322,12 @@ changes and feature recovery changes on synthetic datasets.
 \end{table}
 
 \Cref{tab:cif-runtime-hyperparams} shows a more consistent CIF timing pattern.
-Disabling adaptive stopping makes fits 4.0--8.4$\times$ slower by the median
-ratio across datasets, and exact threshold search is 1.9--10.8$\times$ slower
-than histogram-256. Downstream metric changes and synthetic feature-recovery
-changes remain small. The feature-scanning ablation is mixed and smaller once
-adaptive stopping is enabled.
+Disabling adaptive stopping makes fits 4.0--8.4$\times$ slower by median
+dataset-level ratios. In the separate threshold-search ablation, exact
+threshold search is 1.9--10.8$\times$ slower than histogram-256 by ratios of
+group mean elapsed times. Downstream metric changes and synthetic
+feature-recovery changes remain small. The feature-scanning ablation is mixed
+and smaller once adaptive stopping is enabled.
 \FloatBarrier
 Removing Bonferroni correction is faster for both CIT and CIF, but it changes
 the statistical rule and produces trees that use more features, so it is a

@@ -68,8 +68,11 @@ standard ``observed statistic + $B$ random permutations'' computation.
 
 \begin{proof}
 Fix $(X_t,U)$ and work under the null, so $Y_t$ is exchangeable conditional on
-$(X_t,U)$ (A0.2). Let $\Pi_0$ be an independent uniform permutation and define
-$Y_t' := \Pi_0(Y_t)$. Then $Y_t' \stackrel{d}{=} Y_t$ conditional on $(X_t,U)$.
+$(X_t,U)$ (A0.2). We write $\Pi(Y_t)$ for the vector obtained by applying
+$\Pi$ to the node-label indices, with composition interpreted so that
+$(\Pi_b \circ \Pi_0^{-1})(\Pi_0(Y_t)) = \Pi_b(Y_t)$. Let $\Pi_0$ be an
+independent uniform permutation and define $Y_t' := \Pi_0(Y_t)$. Then
+$Y_t' \stackrel{d}{=} Y_t$ conditional on $(X_t,U)$.
 
 For $b=1,\dots,B$, define $\Pi_b' := \Pi_b \circ \Pi_0^{-1}$. Since
 right composition by the fixed element $\Pi_0^{-1}$ is a bijection of the

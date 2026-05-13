@@ -68,8 +68,8 @@ The benchmarked tree-growing rule uses Phipson--Smyth $+1$ Monte Carlo permutati
 Stage~A and left tail in Stage~B. The library exposes integer resampling budgets
 and three presets:
 \begin{itemize}
-  \item \texttt{minimum}: the smallest budget that makes rejection attainable on
-  the discrete $+1$ $p$-value scale,
+  \item \texttt{minimum}: a conservative minimal-budget preset that makes
+  rejection attainable on the discrete $+1$ $p$-value scale,
   \item \texttt{auto}: a larger budget intended to stabilize Monte Carlo error
   near the decision threshold,
   \item \texttt{maximum}: a conservative high-precision setting.

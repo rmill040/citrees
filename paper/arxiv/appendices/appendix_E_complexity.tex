@@ -29,17 +29,19 @@ $h_t=|C_{t,j_t^\star}|\le \tilde{h}_t$ be the number of valid thresholds that
 remain after this filtering; if no filtering is applied, $h_t=\tilde{h}_t$.
 
 Let $C^{\mathrm{sel}}_j(n_t)$ denote the cost of the Stage~A statistic used for
-feature $j$ at node size $n_t$. In multi-selector mode this is the composite
-max-T statistic cost for one observed or permuted draw. Let
-$C^{\mathrm{split}}(n_t)$ denote the cost of one Stage~B split-quality statistic
-for a fixed threshold, excluding the label shuffle/copy overhead written below.
-For the default MC/Gini classification path and PC/MSE regression path these
-statistic evaluations are linear in $n_t$ for a fixed number of classes. RDC is
+feature $j$ at node size $n_t$, excluding the label-copy and shuffle work
+written explicitly below. In multi-selector mode this is the composite max-$T$
+statistic cost for one observed or permuted draw. Let
+$C^{\mathrm{split}}(n_t)$ denote the cost of one Stage~B impurity statistic after
+the threshold mask and child-label slices have been formed; the mask, slice,
+label shuffle, and copy overhead is written explicitly below. For the default
+MC/Gini classification path and PC/MSE regression path these statistic
+evaluations are linear in $n_t$ for a fixed number of classes. RDC is
 $O(n_t\log n_t)$ for fixed random-projection and class counts. Distance
 correlation and mutual information should be read through
-$C^{\mathrm{sel}}_j(n_t)$: the distance-correlation implementation can use a fast
-$O(n_t\log n_t)$ method, but fallback paths can be $O(n_t^2)$, and
-mutual information is delegated to scikit-learn.
+$C^{\mathrm{sel}}_j(n_t)$: distance-correlation paths may be
+$O(n_t\log n_t)$ or $O(n_t^2)$ depending on the backend, and mutual information
+is delegated to scikit-learn.
 
 \paragraph{Per-node accounting.}
 The tree-growing algorithm first checks the node-level stopping conditions, including
@@ -74,9 +76,9 @@ is
   \right),
 \end{equation}
 where the $+1$ accounts for the observed statistic and the $n_t$ term accounts
-for label copies or shuffles inside the permutation test. Feature scanning,
-when enabled with selector early stopping, computes prescan scores and sorts
-candidates, adding
+for label copies, shuffles, and other per-draw linear overhead inside the
+permutation test. Feature scanning, when enabled with selector early stopping,
+computes prescan scores and sorts candidates, adding
 \begin{equation}
   G^{\mathrm{A}}_t
   =
@@ -91,18 +93,12 @@ $p$-values, updating the descendant array of available feature indices adds
 $O(a_t d_t^{\mathrm{mute}})$ current-node update work.
 
 Stage~B candidate construction begins with unique-value and threshold-generation
-work on the selected feature. A safe upper bound for candidate construction is
-$O(n_t\log n_t)$ for unique/sort work plus the method-specific work needed to
-return $\tilde{h}_t$ candidates. When \texttt{min\_samples\_leaf} is greater
-than one, leaf-size filtering adds $O(\tilde{h}_t\log n_t)$ for the
-\texttt{searchsorted} calls. Bounded non-exact threshold methods reduce the
-returned pre-filter threshold set $\tilde{h}_t$ up to method-specific
-constants: \texttt{random} and \texttt{percentile} return at most
-\texttt{max\_thresholds} candidates before filtering, while \texttt{histogram}
-can return up to \texttt{max\_thresholds}$+1$ bin edges. The \texttt{exact}
-method and the fallback for features with at most four unique values use all
-midpoints. All paths pay unique-value and threshold-construction work; paths
-with \texttt{min\_samples\_leaf} greater than one also pay the filtering work.
+work on the selected feature. A safe upper bound is $O(n_t\log n_t)$, including
+the unique/sort work performed before bounded threshold methods reduce the
+returned candidate set. If \texttt{min\_samples\_leaf} is greater than one,
+filtering adds $O(n_t\log n_t+\tilde{h}_t\log n_t)$ for the feature sort and
+threshold lookups. Bounded non-exact methods reduce $\tilde{h}_t$, but they do
+not remove the initial unique-value pass.
 
 Let $\mathcal{K}_t \subseteq C_{t,j_t^\star}$ be the set of retained Stage~B
 thresholds that enter the main split-selection loop and whose permutation test
@@ -120,10 +116,13 @@ $b^{\mathrm{split}}_{t,k}=0$. The Stage~B testing work is
       \bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)
   \right).
 \end{equation}
+In $S^{\mathrm{B}}_t$, the added $n_t$ term accounts for forming or applying
+threshold masks, child-label slices, label copies, and shuffles for each
+observed or permuted draw.
 Threshold scanning, when enabled with splitter early stopping, uses weighted
 child impurity as an ordering score and adds
-$O(h_t C^{\mathrm{split}}(n_t) + h_t\log h_t)$. This ordering score is separate
-from the Stage~B $p$-value statistic.
+$O(h_t(C^{\mathrm{split}}(n_t)+n_t) + h_t\log h_t)$. This ordering score is
+separate from the Stage~B $p$-value statistic.
 
 Finally, if the Stage~B split is accepted and the impurity decrease is large
 enough, the dense-matrix tree builder materializes left and right child
@@ -170,27 +169,37 @@ gives the usual exponential crude bound on node count, but $n_t$, $a_t$, $m_t$,
 $\tilde{h}_t$, $h_t$, and the realized permutation counts usually change
 substantially with depth.
 
+If \texttt{honesty=True}, the node sum is computed on the structure-building
+subsample. Training also pays $O(np)$ for the dense split/estimation partition
+and a leaf re-estimation pass. If $e$ is the estimation-sample size and
+$\ell_i$ is the fitted-tree path length for estimation sample $i$, the current
+path representation gives worst-case routing cost
+$O(\sum_{i=1}^{e}\ell_i^2)$, followed by a stored-path tree walk of
+$O(\sum_{v\in\mathcal{V}(\mathcal{T})} d_v + e)$, where $d_v$ is node depth.
+
 For a forest of $M$ trees, let $s_r$ be the realized sample count passed to tree
 $r$ after bootstrap and any classifier sampling method. Let
 $C^{\mathrm{sample}}_r$ denote the sample-index construction cost for tree $r$.
 This term covers bootstrap and class-conditional sampling, while $O(s_r p)$
-accounts for supplying the selected $s_r$ training rows with all $p$ features to
-the tree. The forest fit first validates the full input and then fits the trees.
-Write $T_{\mathrm{tree},r}$ for the node-sum cost of tree $r$ computed as
-above.
+accounts for row selection and per-tree dense validation/copy before tree
+growth. The forest fit first validates the full input and then fits the trees.
+Write $T_{\mathrm{tree},r}$ for the node-sum cost of tree $r$ computed as above.
 The forest fit can be summarized as
 \begin{equation}
   T_{\mathrm{forest}}
   =
   O(np)
   + \sum_{r=1}^{M}
-      \left(C^{\mathrm{sample}}_r + O(s_r p) + T_{\mathrm{tree},r}\right)
+      \left(C^{\mathrm{sample}}_r + O(s_r p) + T_{\mathrm{tree},r}
+      + \mathbf{1}_{\mathrm{honest}} H_{\mathrm{honest},r}\right)
   + O(Mp)
   + \mathbf{1}_{\mathrm{oob}} T_{\mathrm{oob}},
 \end{equation}
 where $\mathbf{1}_{\mathrm{oob}}$ is one when OOB scoring is requested and zero
 otherwise, and $T_{\mathrm{oob}}$ is the optional post-fit OOB scoring cost,
-separate from the tree-building sum.
+separate from the tree-building sum. Here $H_{\mathrm{honest},r}$ denotes the
+honesty partition and leaf re-estimation cost just described, using the tree-$r$
+training sample size.
 With \texttt{bootstrap=False}, the realized root size is $n$ and
 \texttt{max\_samples} is unused; with bootstrap sampling, \texttt{max\_samples}
 is a requested sample size or cap, and classifier sampling methods can make the
@@ -245,17 +254,45 @@ partition plus a leaf re-estimation pass.
 \paragraph{Memory accounting.}
 At a node, feature-index arrays and scanning arrays use $O(a_t+m_t)$ space,
 and threshold construction uses $O(n_t+\tilde{h}_t+h_t)$ auxiliary space.
-Permutation tests add statistic, mask, label, and selector-specific workspaces.
-The dense-matrix terms dominate in many fits: validation materializes a dense
-$O(np)$ feature matrix, and each accepted split materializes dense left and right
-child matrices with combined size $O(n_t p)$. Peak single-tree training memory
-is therefore bounded by the validated root matrix plus dense child arrays along
-the active recursion path and sibling arrays retained by parent frames. Forest
-peak training memory also grows with the number of concurrently fitted trees and
-their per-tree training data. For the same $M$-tree forest, persistent fitted
-storage includes the stored node records over trees, the estimator list,
-$O(Mp)$ per-tree fitted arrays such as feature names and feature importances,
-and the forest-level $O(p)$ feature-importance and metadata arrays. When
-\texttt{oob\_score=True}, fitted storage also includes $O(nK)$ classifier OOB
-decision values for $K$ classes or $O(n)$ regressor OOB predictions, plus the
-scalar OOB score.
+Permutation tests add statistic, mask, label, permutation-output, and
+selector-specific workspaces; for example, fixed-budget non-adaptive tests may
+store an $O(B)$ vector of permuted statistics, while adaptive paths can keep
+constant-size counters apart from the copied or shuffled labels and
+selector-specific arrays.
+
+The dense-matrix terms dominate in many fits. Validation materializes a dense
+$O(np)$ feature matrix. Each accepted split materializes dense left and right
+child matrices with all $p$ columns and combined size $O(n_t p)$. During
+depth-first recursion, parent frames retain sibling child arrays while one child
+is being grown. If $\mathcal{P}$ is the set of accepted split nodes whose child
+matrices are live on the active recursion stack, the dense-array part of peak
+single-tree training memory is bounded by
+\[
+  O\!\left(np + p\sum_{u\in\mathcal{P}} n_u\right),
+\]
+plus node-local auxiliary workspaces. This is a live-path bound: it is $O(np)$
+for balanced growth but can be larger for highly unbalanced recursion.
+
+Honesty adds fit-time memory for the dense split and estimation partitions. It
+also stores estimation-sample groups by leaf path, giving
+$O(e+\sum_{q\in\mathcal{Q}} |q|)$ path-index workspace for the set
+$\mathcal{Q}$ of retained leaf-path keys, bounded by $O(eD)$ when all estimation
+samples have path length at most $D$. This is in addition to the tree-building
+memory above.
+
+Forest peak training memory grows with concurrent tree fits. Let
+$q=\min(M,\texttt{n\_jobs}_{\mathrm{eff}})$ be the number of trees fit
+concurrently by the joblib backend. Peak memory includes the validated forest
+input, returned estimators, and up to $q$ per-tree workspaces: bootstrap
+indices, dense row-selected matrices, validation copies, and tree-local
+peak-memory terms.
+
+For the same $M$-tree forest, persistent fitted storage includes the stored node
+records over trees, the estimator list, $O(Mp)$ per-tree fitted arrays such as
+feature names and feature importances, and the forest-level $O(p)$
+feature-importance and metadata arrays. When \texttt{oob\_score=True}, fitted
+storage also includes $O(nK)$ classifier OOB decision values for $K$ classes or
+$O(n)$ regressor OOB predictions, plus the scalar OOB score. OOB scoring also
+uses temporary fit-time workspace for the OOB count vector, recomputed bootstrap
+and unsampled indices, prediction slices $X_{\mathrm{oob}}$, and per-tree
+predictions or class-probability arrays.

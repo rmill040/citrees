@@ -216,9 +216,9 @@ vectors in decreasing order: DT, RT, RF, ExtraTrees, XGBoost, LightGBM, and
 CatBoost. Filter methods rank features by decreasing dependence score.
 Permutation test filters rank by increasing $p$-value and use the dependence score
 as the secondary key. The ctree reference ranks features by split-use counts.
-For cforest, we use the default \texttt{partykit::varimp} output
+For cforest, we use the default \texttt{partykit::varimp} scores
 (\texttt{conditional = FALSE}, \texttt{nperm = 1}). Thus the cforest row uses
-the standard partykit feature-importance output, while CIF uses fitted
+the standard partykit feature-importance scores, while CIF uses fitted
 split-importance rankings from accepted conditional-inference splits. Both
 rankings are evaluated by fitting the same downstream learners on the
 highest-ranked features. Boruta and recursive feature elimination rank by their

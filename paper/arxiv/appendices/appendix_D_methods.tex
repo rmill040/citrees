@@ -99,21 +99,21 @@ support honest estimation via sample splitting. These settings can be useful in
 practice, but they change the training distribution or the estimation target;
 they are empirical design choices and are not covered by the theorem.
 
-\subsection{Benchmark output availability}
+\subsection{Benchmark coverage}
 
 \Cref{sec:experiments-protocol,sec:experiments-repro} define the benchmark
-protocol and configuration-selection rule. This appendix only records output
-availability details needed to interpret the appendix tables.
-The analysis uses completed benchmark outputs without imputation. Some benchmark
-outputs are unavailable, and some datasets have fewer than five standard values
-of $k$ because values greater than $p$ are not evaluated.
-Summaries over individual results omit unavailable outputs. Analyses that
+protocol and configuration-selection rule. This appendix records coverage
+details needed to interpret the appendix tables.
+The analysis uses completed benchmark runs without imputation. Some benchmark
+runs are unavailable, and some datasets have fewer than five standard values of
+$k$ because values greater than $p$ are not evaluated.
+Summaries over individual results omit unavailable runs. Analyses that
 compare all methods retain only datasets with every method, downstream learner,
 and standard value of $k$ present. These
 rules explain why ctree and cforest classification comparisons use 22 rather
 than 23 datasets and why analyses requiring every method, downstream learner,
 and standard $k$ value use 14 classification and 6 regression datasets.
-\Cref{tab:output-skips} lists the classification seed skips and the
+\Cref{tab:coverage-skips} lists the classification seed skips and the
 dexter method exclusion; the regression count comes from the same availability
 rule, not from additional rows in this table.
 
@@ -123,9 +123,9 @@ Runs are deterministic given the same base seed. Pure Python
 permutation routines use local \texttt{numpy} generators, while compiled
 parallel routines use seeded streams per resample because generator RNGs
 are not uniformly supported in those contexts. This affects how random streams
-are constructed in code, but not the substantive reading of the results: the
-benchmark is reproducible from the saved artifacts and the reported rankings are
-deterministic given the stored configuration and seed schedule.
+are constructed, but not the substantive reading of the results: with the same
+data, configurations, implementation, and seed schedule, the reported rankings
+are deterministic.
 
 \begin{table}[H]
   \centering
@@ -143,7 +143,7 @@ deterministic given the stored configuration and seed schedule.
     \bottomrule
   \end{tabular}
   \caption{Documented classification seed-level skips and method exclusions.
-  Missing outputs are not imputed; this table documents classification omissions
+  Missing runs are not imputed; this table documents classification omissions
   only.}
-  \label{tab:output-skips}
+  \label{tab:coverage-skips}
 \end{table}

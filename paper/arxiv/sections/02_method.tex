@@ -8,7 +8,7 @@ valid split is accepted, the node becomes terminal. In this paper, CIT
 denotes the resulting single-tree feature selection method. CIF denotes a
 bootstrap ensemble of such trees with candidate feature sampling at each node
 and feature rankings formed by aggregating split importances across trees.
-CIF-all is the no-candidate-subsampling variant: every nonconstant available
+CIF-all disables candidate feature subsampling: every nonconstant available
 feature can enter Stage~A at each node. This changes the Stage~A feature set,
 the Stage~A multiplicity correction, and the per-node computational cost.
 
@@ -67,7 +67,7 @@ $\min(1,m_t p_t^{\star,\mathrm{ref}})$ is a conservative complete-null
 $p$-value for the fixed-node Stage~A test. When feature muting is enabled,
 features with non-rejecting Stage~A $p$-values can be removed from descendant
 candidate feature pools. When muting is disabled, descendants keep
-$F_{t,\mathrm{avail}}$ except for deterministic constant-feature pruning.
+$F_{t,\mathrm{avail}}$ except for deterministic constant feature pruning.
 
 \paragraph{Stage~B (threshold search).}
 Given a selected feature $j_t^\star$, Stage~B starts from midpoints between

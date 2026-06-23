@@ -11,7 +11,7 @@ Let $n$ be the training sample count and let $p$ be the number of features. At
 node $t$, let $n_t$ be the number of samples reaching the node. Using the
 notation of \cref{sec:stageA-stageB}, write $a_t=|F_{t,\mathrm{avail}}|$ and
 $d_t^{\mathrm{const}}=|F_{t,\mathrm{avail}}\setminus
-F_{t,\mathrm{nonconst}}|$. After constant-feature pruning and any
+F_{t,\mathrm{nonconst}}|$. After constant feature pruning and any
 candidate feature subsampling, Stage~A considers $F_t$, with
 $m_t=|F_t|$. Let $d_t^{\mathrm{mute}}$ be the number of tested Stage~A features
 removed from the descendant candidate feature pool by feature muting;
@@ -21,7 +21,7 @@ Stage~B is reached only when Stage~A returns a selected feature $j_t^\star$:
 either the Stage~A permutation feature test rejects or selector permutation
 testing is disabled. If Stage~B is reached, let $\tilde{h}_t$ be the number of
 candidate thresholds generated for $j_t^\star$ before any
-minimum leaf-size filtering. Let
+minimum leaf size filtering. Let
 $h_t=|C_{t,j_t^\star}|\le \tilde{h}_t$ be the number of valid thresholds that
 remain after this filtering; if no filtering is applied, $h_t=\tilde{h}_t$.
 
@@ -44,13 +44,13 @@ is delegated to scikit-learn.
 
 \paragraph{How runtime hyperparameters enter the accounting.}
 \begin{itemize}
-  \item \textbf{Candidate-feature subsampling.} This caps $m_t$ and therefore the
-  Stage~A testing width. It does not cap the constant-feature preprocessing pass
-  over all $a_t$ available features. Candidate-set construction and random
-  ordering add at most linear overhead in the local available-feature count.
+  \item \textbf{Candidate feature subsampling.} This caps $m_t$ and therefore the
+  Stage~A testing width. It does not cap the constant feature preprocessing pass
+  over all $a_t$ available features. Candidate set construction and random
+  ordering add at most linear overhead in the local available feature count.
   \item \textbf{Feature muting.} This can shrink $a_u$ and $m_u$ at descendant
-  nodes $u$. It can also add $O(a_t d_t^{\mathrm{mute}})$ current-node
-  feature-index updates when tested features whose Stage~A $p$-values do not
+  nodes $u$. It can also add $O(a_t d_t^{\mathrm{mute}})$ feature index updates
+  at the current node when tested features whose Stage~A $p$-values do not
   reject are removed.
   \item \textbf{Threshold-search method and threshold cap.}
   Non-exact threshold methods can reduce the returned pre-filter threshold set
@@ -86,11 +86,11 @@ whether all labels are equal, and computes the leaf value if it stops. This
 costs $O(n_t)$ at every node. If the node can split, the builder scans all
 available features and removes features that are constant at the node. This
 costs $O(a_t n_t)$ for the data scan. Updating the array of available feature
-indices costs another $O(a_t d_t^{\mathrm{const}})$ for constant-feature
-removals in the dense-matrix algorithm, with worst case $O(a_t^2)$ if many
+indices costs another $O(a_t d_t^{\mathrm{const}})$ for constant feature
+removals in the dense matrix algorithm, with worst case $O(a_t^2)$ if many
 available features are constant at the same node. This pruning occurs before
 candidate feature subsampling, so subsampling caps Stage~A width but not the
-initial constant-feature scan.
+initial constant feature scan.
 
 Let $\mathcal{J}_t$ be the Stage~A features whose score or permutation test is
 evaluated before any feature-level early stop. With Stage~A permutation tests,
@@ -122,7 +122,7 @@ computes prescan scores and sorts candidates, adding
 \end{equation}
 where $C^{\mathrm{scan}}_j$ is the selector-score cost used for ordering. If
 feature muting removes tested features whose Stage~A $p$-values do not reject,
-updating the descendant available-feature array adds
+updating the descendant available feature array adds
 $O(a_t d_t^{\mathrm{mute}})$ work at the current node.
 
 Stage~B first builds candidate thresholds for the selected feature. An upper
@@ -160,11 +160,11 @@ thresholds, adding $O(h_t)$. These ordering steps are separate from the
 permutation $p$-value computation.
 
 Finally, if Stage~B accepts a split and the impurity decrease is large enough,
-the dense-matrix tree builder creates left and right child matrices with all $p$
+the dense matrix tree builder creates left and right child matrices with all $p$
 columns. This copy costs $O(n_t p)$. Nodes that reach Stage~A but become leaves
 because Stage~A or Stage~B does not reject still incur the work already
-described. Terminal leaves can also occur when constant-feature pruning leaves no
-available feature, threshold generation or leaf-size filtering leaves no valid
+described. Terminal leaves can also occur when constant feature pruning leaves no
+available feature, threshold generation or leaf size filtering leaves no valid
 threshold, or an accepted threshold fails the minimum impurity-decrease gate.
 These leaves contribute the costs incurred up to that point but do not allocate
 child matrices.
@@ -189,14 +189,14 @@ nodes:
 \end{equation}
 Here $\mathcal{V}(\mathcal{T})$ and $\mathcal{I}(\mathcal{T})$ are the realized
 node set and internal split-node set. Leaves stopped by the initial checks
-contribute only the node-level stopping and value computation term, while leaves
+contribute only the stopping and value computation term at that node, while leaves
 that fail after Stage~A or Stage~B contribute the corresponding testing terms. A
 binary tree has
 $|\mathcal{V}(\mathcal{T})|=2|\mathcal{I}(\mathcal{T})|+1$. A depth cap gives a
-coarse exponential node-count bound, but $n_t$, $a_t$, $m_t$, $\tilde{h}_t$,
+coarse exponential node count bound, but $n_t$, $a_t$, $m_t$, $\tilde{h}_t$,
 $h_t$, and the realized permutation counts usually change with depth.
 
-If honesty is enabled, the node sum is computed on the structure-building
+If honesty is enabled, the node sum is computed on the structure building
 subsample. Training also pays $O(np)$ for the dense split/estimation partition
 and a leaf re-estimation pass. If $e$ is the estimation-sample size and
 $\ell_i$ is the fitted-tree path length for estimation sample $i$, the current
@@ -234,11 +234,11 @@ expression above is a work accounting.
 Without bootstrap sampling, each tree starts with root size $n$ and the
 bootstrap cap is unused. With bootstrap sampling, the configured bootstrap
 sample-size parameter sets the requested sample size or an upper bound, and
-classifier sampling can reduce $s_r$ further. If honesty is enabled, the
-structure-building root size is the splitting-subsample size.
+classifier sampling can reduce $s_r$ further. If honesty is enabled, the root
+size for structure building is the splitting subsample size.
 
 \paragraph{Memory accounting.}
-At a node, feature-index arrays and scanning arrays use $O(a_t+m_t)$ space,
+At a node, feature index arrays and scanning arrays use $O(a_t+m_t)$ space,
 and threshold construction uses $O(n_t+\tilde{h}_t+h_t)$ auxiliary space.
 Permutation tests add workspaces for statistics, masks, labels, permutation
 outputs, and selector-specific arrays. Fixed-budget non-adaptive tests may store
@@ -247,7 +247,7 @@ $B_{\mathrm{stage}}$ is the configured fixed budget for the selector or splitter
 test being run. Adaptive paths can keep constant-size counters apart from copied
 or shuffled labels and selector-specific arrays.
 
-The dense-matrix terms dominate in many fits. Validation materializes a dense
+The dense matrix terms dominate in many fits. Validation materializes a dense
 $O(np)$ feature matrix. Each accepted split materializes dense left and right
 child matrices with all $p$ columns and combined size $O(n_t p)$. During
 depth-first recursion, parent frames retain sibling child arrays while one child
@@ -260,8 +260,8 @@ single-tree training memory is bounded by
 plus node-local auxiliary workspaces. This is a live-path bound: it is $O(np)$
 for balanced growth but can be larger for highly unbalanced recursion.
 
-Honesty adds fit-time memory for the dense split and estimation partitions. It
-also stores estimation-sample groups by leaf path, giving
+Honesty adds memory during fitting for the dense split and estimation partitions.
+It also stores estimation-sample groups by leaf path, giving
 $O(e+\sum_{q\in\mathcal{Q}} |q|)$ path-index workspace for the set
 $\mathcal{Q}$ of retained leaf-path keys, bounded by $O(eD)$ when all estimation
 samples have path length at most $D$. This is in addition to the tree-building
@@ -272,7 +272,7 @@ $w=\min(M,n_{\mathrm{jobs}})$, where $n_{\mathrm{jobs}}$ is the number of
 parallel jobs used by the joblib backend after parameter normalization. Peak
 memory includes the validated forest input, returned estimators, and up to $w$
 concurrently executing per-tree workspaces: bootstrap indices, dense
-row-selected matrices, validation copies, and tree-local peak-memory terms.
+row-selected matrices, validation copies, and peak memory terms for each tree.
 Depending on joblib serialization or memmap behavior, workers may also hold
 shared memmaps or copies of the validated input.
 
@@ -281,6 +281,6 @@ all trees, the estimator list, $O(Mp)$ per-tree arrays such as feature names and
 feature importances, and $O(p)$ forest-level metadata arrays. If OOB scoring is
 enabled, fitted storage also includes $O(nK)$ classifier OOB decision values for
 $K$ classes or $O(n)$ regressor OOB predictions, plus the scalar OOB score. OOB
-scoring also uses temporary fit-time workspace for the OOB count vector,
+scoring also uses temporary workspace during fitting for the OOB count vector,
 recomputed bootstrap and unsampled indices, prediction slices
 $X_{\mathrm{oob}}$, and per-tree predictions or class-probability arrays.

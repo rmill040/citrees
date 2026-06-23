@@ -266,9 +266,8 @@ performance comparison.
   harmonic mean of precision and recall for recovering informative features among
   the first 10 ranked features. Numbers are rounded for
   display. The final column is the largest absolute top-10 F1 change across the
-  synthetic task groups. The real classification, synthetic
-  classification, real regression, and synthetic regression groups
-  contain 7, 8, 2, and 6 dataset types, respectively.}
+  synthetic task groups. The dataset-type counts are 7 real classification,
+  8 synthetic classification, 2 real regression, and 6 synthetic regression.}
   \label{tab:cit-runtime-hyperparams}
 \end{table}
 
@@ -304,9 +303,8 @@ changes and feature recovery changes on synthetic datasets.
   histogram-256 default. Score-change columns give the largest absolute downstream
   score change and synthetic feature-recovery change across the task groups
   used for each row. Inequality entries are rounded upward to the nearest 0.001.
-  The real classification, synthetic classification, real regression, and
-  synthetic regression groups contain 7, 8, 2, and 6 dataset types,
-  respectively.}
+  The dataset-type counts are 7 real classification, 8 synthetic classification,
+  2 real regression, and 6 synthetic regression.}
   \label{tab:cif-runtime-hyperparams}
 \end{table}
 
@@ -322,7 +320,7 @@ Removing Bonferroni correction is faster for both CIT and CIF, but it changes
 the statistical rule and yields trees with more selected features, so we do not
 treat it as a recommended setting.
 
-\section{High-dimensional and synthetic diagnostics}
+\section{High-dimensional and synthetic analyses}
 \label{sec:boundary}
 
 The remaining analyses study where CIF's scores peak as $k$ grows, how feature
@@ -399,9 +397,9 @@ regression.
 \end{table}
 
 \paragraph{Candidate feature sampling.}
-A diagnostic simulation asks whether forest candidate feature sampling causes
-splits to miss informative features in sparse classification and regression
-settings. \Cref{fig:candidate-forest-counts} shows one sparse classification
+A sparse simulation asks whether forest candidate feature sampling causes splits
+to miss informative features in classification and regression settings.
+\Cref{fig:candidate-forest-counts} shows one sparse classification
 design comparing default CIF with CIF-all. Default CIF samples candidate
 features at each split; CIF-all considers every nonconstant feature in Stage~A.
 \Cref{app:candidate-availability} gives the classification and regression

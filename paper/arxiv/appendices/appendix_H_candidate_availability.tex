@@ -1,15 +1,14 @@
 \section{Candidate feature availability}
 \label{app:candidate-availability}
 
-This appendix gives the extended $p$-sweep behind the main-text
-candidate feature sampling diagnostic, separate from the benchmark-stability
-summaries in \cref{app:benchmark-stability}.
+This appendix gives the extended $p$-sweep for the main-text candidate feature
+sampling analysis, separate from the benchmark-stability summaries in
+\cref{app:benchmark-stability}.
 
 \Cref{fig:candidate-dimension-curves,fig:regression-candidate-dimension-curves}
-show the candidate feature sampling diagnostic at feature dimensions
-$p \in \{100,500,1{,}000\}$, using forests with 1,000 trees per fit, separately
-for classification and regression. For each method and feature dimension $p$,
-the point marks the mean over
+show candidate feature sampling results for $p \in \{100,500,1{,}000\}$.
+Each forest uses 1,000 trees, with classification and regression shown
+separately. For each method and feature dimension $p$, each point is the mean over
 $n_{\mathrm{informative}} \in \{1,2,5,10\}$, and the capped bar spans the
 minimum and maximum over those four sparse settings.
 

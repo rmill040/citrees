@@ -23,8 +23,8 @@ This paper evaluates conditional inference trees (CIT) and conditional
 inference forests (CIF) as feature selection methods. For each seed and
 cross-validation fold, a method produces a ranking from the training fold.
 Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
-evaluated on held-out data, with results summarized across datasets. This
-benchmark therefore asks whether tree- and forest-derived rankings put useful
+evaluated on held-out data, with results summarized across datasets. The
+benchmark asks whether tree- and forest-derived rankings put useful
 variables early enough to improve fixed downstream models.
 We also ask whether CIT/CIF runtime hyperparameters reduce computation while
 preserving useful feature rankings, and where CIF recovery is weaker in high-$p$

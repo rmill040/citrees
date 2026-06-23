@@ -241,9 +241,9 @@ time. Each row compares a modified setting with the default version of the same
 estimator. Runtime values are ratios: values above 1 are slower than default,
 and values below 1 are faster. CIT and CIF are shown separately because the CIT
 run records fit time and synthetic top-10 feature recovery, while the CIF runs
-also record downstream score changes. The score-change columns show what
-changes inside these ablation runs; the main benchmark remains the primary
-performance comparison.
+also record downstream score changes. The score columns summarize changes within
+these ablation runs; the main benchmark remains the primary performance
+comparison.
 \Cref{app:complexity-details} links each ablation to the affected work terms.
 
 \begin{table}[H]
@@ -297,10 +297,10 @@ changes and feature recovery changes on synthetic datasets.
     Disable feature scanning & 0.89--1.83$\times$ & $\le 0.006$ & $\le 0.010$ \\
     \bottomrule
   \end{tabular}
-  \caption{CIF runtime and score-change ablations. Runtime ratios are relative to
+  \caption{CIF runtime ablations with score changes. Runtime ratios are relative to
   default CIF. Adaptive stopping and feature scanning use median dataset-level
   ratios. The exact-threshold row compares group mean elapsed time with the
-  histogram-256 default. Score-change columns give the largest absolute downstream
+  histogram-256 default. The score columns give the largest absolute downstream
   score change and synthetic feature-recovery change across the task groups
   used for each row. Inequality entries are rounded upward to the nearest 0.001.
   The dataset-type counts are 7 real classification, 8 synthetic classification,
@@ -323,7 +323,7 @@ treat it as a recommended setting.
 \section{High-dimensional and synthetic analyses}
 \label{sec:boundary}
 
-The remaining analyses study where CIF's scores peak as $k$ grows, how feature
+These analyses study where CIF's scores peak as $k$ grows, how feature
 recovery on synthetic datasets changes across values of $k$, and how candidate
 feature sampling inside the forest affects how often splits use informative
 features.

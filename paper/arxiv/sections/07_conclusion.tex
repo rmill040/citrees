@@ -21,9 +21,9 @@ CIT across 23 classification datasets. In the smaller regression benchmark, CIF
 is higher than ctree and cforest on 7 of 8 datasets and higher than CIT on 6 of
 8.
 
-The CIF ranking ablations show forest size matters most: using one
-tree changes the rankings the most, while changing feature muting or replacing
-split importance with split counts has much smaller effects. The high-$p$ and
+The CIF ranking ablations show that forest size matters: using one
+tree changes the rankings more than changing feature muting or replacing split
+importance with split counts. The high-$p$ and
 synthetic analyses show two patterns: CIF recovers true features more reliably
 within the top-$k$ list than at rank 1, and candidate sampling inside forests can
 leave informative features unavailable at many split decisions. The regression

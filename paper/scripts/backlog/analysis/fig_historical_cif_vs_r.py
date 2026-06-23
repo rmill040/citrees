@@ -3,7 +3,7 @@
 Archived comparison figure; not part of the current paper-facing rebuild path.
 
 2-panel figure (1x2): CIF vs r_cforest | CIF vs r_ctree
-  - X-axis: feature budget k (5, 10, 25, 50, 100)
+  - X-axis: selected features k (5, 10, 25, 50, 100)
   - Y-axis: mean dataset-level balanced-accuracy delta (CIF - opponent)
   - CIF / opponent scores are first averaged within each
     `(dataset, downstream_model, k)` cell
@@ -234,7 +234,7 @@ def _plot_panel(
             color="#6B7280",
         )
 
-    ax.set_xlabel("Feature budget $k$")
+    ax.set_xlabel("Selected features ($k$)")
     ax.set_ylabel("$\\Delta$ balanced accuracy\n(CIF $-$ opponent)")
     ax.set_title(f"CIF vs {opponent_name}", fontsize=10, fontweight="bold")
 

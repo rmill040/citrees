@@ -5,7 +5,7 @@ analysis layer:
 
 1. real datasets only,
 2. one best global config per method family within task,
-3. explicit standard feature budgets for cross-dataset comparisons, and
+3. explicit standard values of k for cross-dataset comparisons, and
 4. complete-case ranks for multi-method summaries.
 """
 

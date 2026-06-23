@@ -1,47 +1,55 @@
 \section{Benchmark stability}
 \label{app:benchmark-stability}
 
-This appendix reports the benchmark dataset counts, CIF comparisons on matched
-datasets, LODO configuration sensitivity, and learner, $k$, and seed sensitivity
-checks.
+This appendix reports benchmark dataset counts, complete-case CIF comparisons,
+leave-one-dataset-out (LODO) configuration sensitivity, and sensitivity checks
+by downstream learner, standard values of $k$, and seed.
 
 \Cref{tab:benchmark-dataset-counts} summarizes the dataset counts used by the
-benchmark analyses. Missing benchmark entries are not imputed.
+benchmark analyses. Counts differ because each analysis is restricted to the
+datasets, downstream learners, and standard top-$k$ values available for that
+comparison. The main real-data counts are unique datasets contributing at least
+one all-method-complete learner-by-$k$ cell, not datasets complete across all
+15 learner-by-$k$ cells.
 
 \begin{table}[H]
   \centering
-  \footnotesize
+  \fontsize{8}{9.1}\selectfont
   \setlength{\tabcolsep}{4pt}
-  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}X c c >{\raggedright\arraybackslash}X@{}}
+  \begin{tabularx}{0.88\linewidth}{@{}L{0.18\linewidth} C{0.18\linewidth} C{0.15\linewidth} Y@{}}
     \toprule
-    Analysis & Classification datasets & Regression datasets & Purpose \\
+    \tablehead{Analysis} &
+    Classification datasets & Regression datasets &
+    \multicolumn{1}{>{\centering\arraybackslash}X}{Purpose} \\
     \midrule
-    Main rank table & 22 & 8 & Primary rank summary on real datasets \\
-    Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and number of selected features \\
-    Bootstrap and rank checks & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
+    Main real-data comparison & 22 & 8 & Primary rank summary on real datasets \\
+    Complete-case CIF and rank checks & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
+    LODO configuration sensitivity & 14 & 6 & Held-out-dataset configuration checks \\
+    Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and value of $k$ \\
     Seed sensitivity & 12 & 6 & Seed variation on datasets complete across seeds \\
     \bottomrule
   \end{tabularx}
-  \caption{Dataset counts for benchmark analyses. The learner and $k$ row lists
-  counts at $k=5,10,25,50,100$. Missing benchmark entries are not imputed.}
+  \caption{Dataset counts for benchmark analyses. The learner-by-$k$ row lists
+  counts at $k=5,10,25,50,100$; each summary uses the datasets, downstream
+  learners, and standard top-$k$ values available for its comparison.}
   \label{tab:benchmark-dataset-counts}
 \end{table}
 
 \subsection{Bootstrap and rank checks}
 
-\Cref{tab:cif-ci-comparisons} gives the CIF comparisons
-against ctree, cforest, and CIT after restricting to datasets with all methods,
-downstream learners, and standard $k$ values available. Within each task, all
-comparisons use the same datasets, the same downstream models, and
-$k \in \{5,10,25,50,100\}$.
+\Cref{tab:cif-ci-comparisons} gives complete-case CIF comparisons against
+ctree, cforest, and CIT after restricting to datasets with all methods,
+downstream learners, and all five standard top-$k$ values available. Within
+each task, all comparisons use the same datasets, the same downstream learners,
+and $k \in \{5,10,25,50,100\}$.
 
 \begin{table}[H]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}ll S[table-format=1.3] l c c@{}}
+  \begin{tabular}{@{}ll S[table-format=1.3] c c c@{}}
     \toprule
-    Task & Compared method & {Mean $\Delta$} & 95\% CI & W--L & Sign test $p$ \\
+    \tablehead{Task} & \tablehead{Compared method} & {Mean $\Delta$} & 95\% CI & W--L & Sign test $p$ \\
     \midrule
     Classification & ctree & 0.109 & [0.068, 0.154] & \winloss{14}{0} & $<0.001$ \\
     Classification & cforest & 0.111 & [0.067, 0.160] & \winloss{13}{1} & $<0.001$ \\
@@ -51,45 +59,44 @@ $k \in \{5,10,25,50,100\}$.
     Regression & CIT & 0.480 & [-0.007, 1.224] & \winloss{5}{1} & 0.109 \\
     \bottomrule
   \end{tabular}
-  \caption{CIF differences against ctree, cforest, and CIT after restricting to
-  datasets with all methods, downstream learners, and standard $k$ values
-  available: 14 classification datasets and 6 regression datasets. Rows
-  are differences within datasets after averaging each dataset over the same
-  downstream learners and values of $k$. The metric is balanced accuracy for
-  classification and $R^2$ for regression. The confidence intervals are
-  percentile bootstrap intervals from 20{,}000 replicates. Positive differences
-  favor CIF. The sign test alternative is CIF $>$ comparator. W--L gives wins
-  and losses; no exact ties occurred in these comparisons. Large positive
-  regression differences can reflect negative mean $R^2$ for the comparator.}
+  \caption{Complete-case CIF differences against ctree, cforest, and CIT. Mean
+  $\Delta$ is CIF minus comparator after averaging each dataset over the same
+  downstream learners and values of $k$. Intervals resample dataset-level paired
+  deltas with 20{,}000 percentile-bootstrap replicates. W--L gives dataset-level
+  wins and losses; no exact ties occurred.}
   \label{tab:cif-ci-comparisons}
 \end{table}
 
-The same classification benchmark with 14 datasets yields a Friedman test statistic
-of
-$\chi^2(16)=141.32$ with $p<0.001$ and Kendall's
-$W=0.63$. The analogous regression calculation uses the 6 datasets where all
-methods, downstream learners, and standard $k$ values are present. The
-corresponding rank summaries are a Friedman statistic of $\chi^2(17)=33.79$, an
-asymptotic $p$-value of 0.0089, and Kendall's $W=0.33$. Because this regression
-analysis includes 6 datasets, the asymptotic $p$-value should be read
-cautiously.
+The metric is balanced accuracy for classification and $R^2$ for regression.
+Positive differences favor CIF. The sign-test alternative is CIF $>$ comparator.
+The intervals are descriptive and do not include configuration-selection
+uncertainty. With only 6 regression datasets, the regression intervals and exact
+sign tests should be read together. Large positive regression differences can
+reflect negative mean $R^2$ for the comparator.
+
+The Friedman checks use dataset-level method means after averaging the 15
+learner-by-$k$ cells. The complete-case classification panel gives
+$\chi^2(16)=141.32$ with asymptotic $p<0.001$ and Kendall's $W=0.63$ as a rank
+concordance measure. The complete-case regression panel gives
+$\chi^2(17)=33.79$, asymptotic $p=0.0089$, and Kendall's $W=0.33$. With only 6
+regression datasets, this asymptotic $p$-value is best treated as descriptive.
 
 \subsection{LODO configuration sensitivity}
 
-\Cref{tab:lodo-config-sensitivity} reports task-specific LODO configuration
-selection. Each run selects configurations on all but one dataset in the same
-task, evaluates the omitted dataset, and averages scores and ranks over
-downstream models and standard $k$ values. CIF reselects the main setting in
-14/14 classification runs; in regression it uses two settings, reselects the
-main setting in 5/6 runs, and ties CatBoost for second by mean LODO rank behind
-ExtraTrees.
+\Cref{tab:lodo-config-sensitivity} reports LODO configuration selection for each
+task. Each run selects configurations on all but one complete-case dataset in
+that task, evaluates the held-out dataset, and averages scores and ranks over
+downstream learners and standard top-$k$ values. CIF reselects the
+main-benchmark setting in all 14 classification holdouts. In regression, it uses
+two settings, reselects the global regression setting in 5 of 6 holdouts, and
+ties CatBoost for second by mean LODO rank behind ExtraTrees.
 
 \begin{table}[H]
   \centering
-  \scriptsize
-  \setlength{\tabcolsep}{2pt}
-  \renewcommand{\arraystretch}{0.96}
-  \begin{tabular}{@{}l
+  \fontsize{8}{9.1}\selectfont
+  \setlength{\tabcolsep}{3pt}
+  \renewcommand{\arraystretch}{1.0}
+  \begin{tabular*}{0.96\linewidth}{@{\extracolsep{\fill}}l
     S[table-format=2.2]
     S[table-format=1.3]
     S[table-format=1.0]
@@ -104,8 +111,8 @@ ExtraTrees.
     \multicolumn{5}{c}{Classification} &
     \multicolumn{5}{c}{Regression} \\
     \cmidrule(lr){1-5}\cmidrule(l){6-10}
-    Method & {Rank} & {Score} & {Set.} & {Main} &
-    Method & {Rank} & {Score} & {Set.} & {Main} \\
+    \tablehead{Method} & {Rank} & {Score} & {Settings} & {Main} &
+    \tablehead{Method} & {Rank} & {Score} & {Settings} & {Main} \\
     \midrule
     LightGBM & 3.14 & 0.816 & 1 & \countfrac{14}{14} & ExtraTrees & 4.17 & 0.292 & 1 & \countfrac{6}{6} \\
     CatBoost & 4.29 & 0.805 & 1 & \countfrac{14}{14} & CatBoost & 5.50 & 0.229 & 1 & \countfrac{6}{6} \\
@@ -126,32 +133,34 @@ ExtraTrees.
     CPI & 16.04 & 0.598 & 1 & \countfrac{14}{14} & ctree & 13.83 & -0.035 & 1 & \countfrac{6}{6} \\
     \multicolumn{5}{c}{} & cforest & 14.17 & -0.925 & 2 & \countfrac{5}{6} \\
     \bottomrule
-  \end{tabular}
-  \caption{LODO configuration sensitivity. Lower rank is better. Classification
-  uses balanced accuracy on 14 datasets; regression uses $R^2$ on 6 datasets.
-  Set. counts distinct selected settings, and Main reports reselection of the
-  main benchmark setting.}
+  \end{tabular*}
+  \caption{LODO configuration sensitivity. Lower rank is better; rows are
+  ordered by mean LODO rank within each task. Score is the mean held-out metric.
+  Settings counts distinct selected configurations, and Main reports reselection
+  of the main benchmark setting. Ranks are computed within held-out datasets
+  before averaging, so score order need not match rank order.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
-\subsection{Sensitivity to downstream learner, k, and seed}
+\subsection{Breakdowns by downstream learner, \texorpdfstring{top-$k$}{top-k} value, and seed}
 
 The main benchmark averages over downstream learners, standard values of $k$,
-folds, and seeds. The following tables report method ordering separately by
-downstream learner, value of $k$, and seed as descriptive sensitivity analyses.
-They use the same selected method configurations as the main benchmark.
+folds, and seeds. The next tables show how method ordering changes when results
+are split by downstream learner, value of $k$, and seed. They use the
+same selected method configurations as the main benchmark.
 
-For the learner and $k$ checks, each comparison unit is one downstream learner
-and one standard value of $k$. Within a unit, methods are ordered by their mean
-rank within datasets with every compared method available for that
-unit; ties use average ranks.
+For the learner and $k$ checks, one unit is one downstream learner paired with
+one standard value of $k$. Within each unit, methods are ordered by mean rank
+among datasets where every benchmark method is available for that learner-by-$k$
+cell; ties use average ranks.
 \Cref{tab:classification-learner-k-sensitivity,tab:regression-learner-k-sensitivity}
-summarize the 15 learner and $k$ combinations for each task. The
+show all 15 learner-by-$k$ combinations for each task. Rows follow the main
+benchmark order. The
 learner columns report mean position over the five standard values of $k$ for
 that learner; lower positions are better. Mean position averages the positions
-obtained after ordering methods within each learner and $k$ combination; mean
-rank averages the dataset-level ranks directly. The Top 3 and Top 5 counts
-report learner and $k$ combinations, not datasets.
+obtained after ordering methods within each learner-by-$k$ combination; mean
+rank averages the dataset-level ranks directly. Top 3 and Top 5 count
+learner-by-$k$ combinations, not datasets.
 
 \begin{table}[H]
   \centering
@@ -168,7 +177,7 @@ report learner and $k$ combinations, not datasets.
     c
     c@{}}
     \toprule
-    Method & {KNN} & {LR} & {SVM} & {Mean position} & {Mean rank} & {Best--worst} &
+    \tablehead{Method} & {KNN} & {LR} & {SVM} & {Mean position} & {Mean rank} & {Best--worst} &
     Top 3 & Top 5 \\
     \midrule
     LightGBM & 3.0 & 1.6 & 1.6 & 2.1 & 4.5 & 1.0--7.0 & \countfrac{14}{15} & \countfrac{14}{15} \\
@@ -190,21 +199,20 @@ report learner and $k$ combinations, not datasets.
     CPI & 16.6 & 16.8 & 17.0 & 16.8 & 14.4 & 15.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
-  \caption{Classification sensitivity by downstream learner and number of
-  selected features. Lower values are better. Mean position and mean rank average
-  over 15 learner and $k$ combinations. The dataset counts at
+  \caption{Classification sensitivity by downstream learner and value of $k$.
+  Lower values are better. KNN, LR, and SVM denote downstream learners;
+  Top 3 and Top 5 count learner-by-$k$ combinations. Mean position and mean rank
+  average over 15 learner-by-$k$ combinations. The dataset counts at
   $k=5,10,25,50,100$ are
   22, 21, 15, 15, and 14.}
   \label{tab:classification-learner-k-sensitivity}
 \end{table}
 
-In the classification sensitivity table, CIF is top five in 12 of the 15
-learner and $k$ combinations and top three in 3 of 15 combinations. Its mean
-position is close to RF's and remains below the single-tree and filter baselines
-across the learner-by-$k$ grid. LightGBM, XGBoost, and CatBoost have lower mean
-positions in this breakdown, so this table supports the main ranking while
-showing that CIF is not a top-three method for most individual learner and $k$
-combinations.
+In the classification learner-by-$k$ sensitivity table, CIF is top five in 12 of
+the 15 learner-by-$k$ combinations and top three in 3 of 15. Its mean position
+is close to RF's and is better than the single-tree and filter baselines in the
+mean-position summary. LightGBM, XGBoost, and CatBoost have lower mean
+positions.
 
 \begin{table}[H]
   \centering
@@ -221,7 +229,7 @@ combinations.
     c
     c@{}}
     \toprule
-    Method & {KNN} & {Ridge} & {SVR} & {Mean position} & {Mean rank} & {Best--worst} &
+    \tablehead{Method} & {KNN} & {Ridge} & {SVR} & {Mean position} & {Mean rank} & {Best--worst} &
     Top 3 & Top 5 \\
     \midrule
     ExtraTrees & 5.1 & 2.7 & 2.1 & 3.3 & 6.3 & 1.0--9.0 & \countfrac{10}{15} & \countfrac{12}{15} \\
@@ -244,25 +252,23 @@ combinations.
     CPI & 16.9 & 15.8 & 16.6 & 16.4 & 13.2 & 9.0--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
-  \caption{Regression sensitivity by downstream learner and number of selected
-  features. Lower values are better. Mean position and mean rank average over 15
-  learner and $k$ combinations. The dataset counts at
+  \caption{Regression sensitivity by downstream learner and value of $k$.
+  Lower values are better. KNN, Ridge, and SVR denote downstream
+  learners; Top 3 and Top 5 count learner-by-$k$ combinations. Mean position and
+  mean rank average over 15 learner-by-$k$ combinations. The dataset counts at
   $k=5,10,25,50,100$ are
   8, 8, 7, 7, and 6.}
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 
-Regression is more variable across learners and values of $k$. ExtraTrees and
-CatBoost have lower mean positions than CIF across the 15 learner-by-$k$
-combinations, while CIF remains ahead of ctree, cforest, CIT, and most filter
-and wrapper methods in this summary.
+In the regression breakdown, CIF ranks behind ExtraTrees and CatBoost by mean position, but remains ahead of ctree, cforest, CIT, and most filter and wrapper methods in this summary. The pairwise figures use the datasets available for each comparator, not the 14/6 all-method complete-case panels used above.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/benchmark_pairwise_sensitivity.png}
   \caption{Classification CIF margins against ctree, cforest, and CIT by
-  downstream learner and number of selected features. Each plotted
-  value is the mean CIF minus comparator balanced accuracy difference for one
+  downstream learner and value of $k$. Each plotted value is the
+  mean balanced-accuracy difference, CIF minus comparator, for one
   downstream learner and one value of $k$; positive values favor CIF. Dataset
   counts by $k$ are 22, 21, 15, 15, and 14 for ctree and cforest, and
   23, 22, 16, 16, and 15 for CIT.}
@@ -273,24 +279,25 @@ and wrapper methods in this summary.
   \centering
   \includegraphics[width=0.88\linewidth]{figures/regression_benchmark_pairwise_sensitivity.png}
   \caption{Regression CIF margins against ctree, cforest, and CIT by
-  downstream learner and number of selected features. Each plotted
-  value is the mean CIF minus comparator $R^2$ difference for one downstream
+  downstream learner and value of $k$. Each plotted value is the mean
+  $R^2$ difference, CIF minus comparator, for one downstream
   learner and one value of $k$; positive values favor CIF. Dataset counts by
-  $k$ are 8, 8, 7, 7, and 6 for each comparison. Large positive cells can
-  reflect negative mean $R^2$ for the comparator. The cell labels show the
+  $k$ are 8, 8, 7, 7, and 6 for each comparison. Large positive plotted values
+  can reflect negative mean $R^2$ for the comparator. Numeric labels show the
   unclipped values; the color scale is clipped at $\pm1$ for readability.}
   \label{fig:regression-benchmark-pairwise-sensitivity}
 \end{figure}
 
-For seed sensitivity, each method is ranked separately within each seed. After
-retaining only datasets with results for every method, downstream learner,
-standard value of $k$, and seed, 12 classification datasets and 6 regression
-datasets are complete across all five seeds. It is a sensitivity check rather than the
-main benchmark analysis.
+For the seed checks, each method is ranked separately within each fixed seed.
+Keeping only datasets with results for every method, downstream learner,
+standard top-$k$ value, and seed leaves 12 classification datasets and 6
+regression datasets complete across all five seeds. These tables are
+descriptive and do not include intervals or tests. Rows follow the main
+benchmark order.
 
 \begin{table}[H]
   \centering
-  \scriptsize
+  \footnotesize
   \setlength{\tabcolsep}{4pt}
   \renewcommand{\arraystretch}{1.04}
   \begin{tabular}{@{}l
@@ -302,7 +309,7 @@ main benchmark analysis.
     S[table-format=2.1]
     S[table-format=2.1]@{}}
     \toprule
-    Method & {Seed 0} & {Seed 1} & {Seed 2} & {Seed 3} & {Seed 4} & {Mean position} & {Mean rank} \\
+    \tablehead{Method} & {Seed 1} & {Seed 2} & {Seed 3} & {Seed 4} & {Seed 5} & {Mean position} & {Mean rank} \\
     \midrule
     LightGBM & 2 & 1 & 2 & 1 & 1 & 1.4 & 4.7 \\
     XGBoost & 1 & 3 & 1 & 2 & 2 & 1.8 & 5.0 \\
@@ -326,13 +333,14 @@ main benchmark analysis.
   \caption{Classification seed sensitivity on the 12 datasets complete across
   all five seeds. Each seed column is the method position after averaging over
   the three downstream learners and five standard values of $k$ within that
-  seed. Lower values are better.}
+  seed. Mean position averages the five seed positions; mean rank reports the
+  corresponding averaged dataset-level rank. Lower values are better.}
   \label{tab:classification-seed-sensitivity}
 \end{table}
 
 \begin{table}[H]
   \centering
-  \scriptsize
+  \footnotesize
   \setlength{\tabcolsep}{4pt}
   \renewcommand{\arraystretch}{1.04}
   \begin{tabular}{@{}l
@@ -344,7 +352,7 @@ main benchmark analysis.
     S[table-format=2.1]
     S[table-format=2.1]@{}}
     \toprule
-    Method & {Seed 0} & {Seed 1} & {Seed 2} & {Seed 3} & {Seed 4} & {Mean position} & {Mean rank} \\
+    \tablehead{Method} & {Seed 1} & {Seed 2} & {Seed 3} & {Seed 4} & {Seed 5} & {Mean position} & {Mean rank} \\
     \midrule
     ExtraTrees & 2 & 1 & 1 & 2 & 2 & 1.6 & 6.8 \\
     CatBoost & 1 & 6 & 3 & 1 & 1 & 2.4 & 6.9 \\
@@ -369,6 +377,7 @@ main benchmark analysis.
   \caption{Regression seed sensitivity on the 6 datasets complete across all
   five seeds. Each seed column is the method position after averaging over the
   three downstream learners and five standard values of $k$ within that seed.
-  Lower values are better.}
+  Mean position averages the five seed positions; mean rank reports the
+  corresponding averaged dataset-level rank. Lower values are better.}
   \label{tab:regression-seed-sensitivity}
 \end{table}

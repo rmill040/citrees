@@ -1,149 +1,143 @@
-\section{Algorithmic and reproducibility notes}
+\section{Algorithm and reproducibility notes}
 \label{app:methods}
 
-This appendix records algorithm and reproducibility details needed to interpret the main
-results. Section~\ref{sec:method} gives the tree-growing loop, the setup and
-proof appendices give the fixed-node results, and
-Appendix~\ref{app:complexity-details} gives runtime and memory accounting for
-the benchmarked tree-growing algorithm.
+This appendix gives implementation, benchmark-configuration, and coverage
+details needed to interpret the main results. Section~\ref{sec:method}
+describes the tree-growing loop, the setup and proof appendices give the
+fixed-node results, and Appendix~\ref{app:complexity-details} gives runtime and
+memory details for the benchmarked tree-growing algorithm.
 
 \subsection{Scope relative to the theory}
 
-The theory covers a narrow setting: exhaustive fixed-$B$ Stage~A feature
-selection at a fixed node under the complete permutation null, with a
-label-independent tested feature set and resample budget. The benchmarked
-tree-growing algorithm includes several practical settings that are useful
-but fall outside that theorem:
+The fixed-node theorem covers exhaustive fixed-$B$ Stage~A feature selection at
+a fixed node under the complete permutation null. In that result, the tested
+features and resample budget are fixed independently of the node responses. The
+benchmarked tree-growing algorithm also uses practical settings outside that
+theorem:
 \begin{itemize}
   \item early stopping,
   \item feature and threshold candidate ordering inside early stopping,
-  \item feature muting,
+  \item response-dependent feature muting,
   \item bounded threshold sets,
   \item bootstrap resampling and forest aggregation,
   \item optional honesty.
 \end{itemize}
-The fixed-node result applies only to exhaustive fixed-$B$ Stage~A $p$-values for
-that label-independent tested feature set. Other Stage~A and split scores reported
-for adaptive tree growing are tree-construction scores.
+Under these conditions, exhaustive fixed-$B$ Stage~A values are the only
+quantities covered by the theorem. Stage~A and split scores from adaptive trees
+should be read as scores used to build the tree, not as $p$-values covered by
+the theorem.
 
 \subsection{Node-level choices}
 
 \paragraph{Stage~A.}
 At each node, the tree-growing rule removes features that are constant on
-the node before any \texttt{max\_features} subsampling. If permutation testing
-is enabled, Stage~A computes $+1$ Monte Carlo $p$-values, can order candidates by
-a preliminary score before testing, and can terminate once a sufficiently strong
-candidate has been found. When feature muting is
-enabled, features with non-rejecting Stage~A $p$-values can be removed from
-descendant candidate feature pools within the same subtree. These choices reduce
-computation, but they also make the returned feature field
-$q_t^{\mathrm{feat}}$ a
-tree-construction search score rather than a full Stage~A $p$-value over the
-complete candidate feature pool.
+the node before any candidate feature subsampling. Stage~A computes $+1$ Monte
+Carlo $p$-values. It may scan candidates in preliminary-score order and, under
+early stopping, may stop once a candidate meets the nodewise threshold. With
+feature muting, features with non-rejecting Stage~A values can be removed from
+descendant candidate pools in the same subtree. These shortcuts reduce
+computation. When they are active, the returned $q_t^{\mathrm{feat}}$ is the
+feature-selection score used to grow the tree, not an exhaustive fixed-$B$
+Stage~A $p$-value over the full candidate pool.
 
 \paragraph{Stage~B.}
-Given the selected feature, the tree-growing rule builds threshold
-candidates from midpoints between consecutive unique feature values. Exact search uses all such
-midpoints. Random sampling chooses a bounded subset of midpoints; percentile and
-histogram rules choose bounded representative thresholds derived from the
-midpoint distribution, with a fallback to the full midpoint set when the
-selected feature has at most four unique values. When sequential stopping is enabled, threshold scanning may then reorder
-the candidate thresholds before testing. Because Stage~B is run after Stage~A has
-selected a feature using the node response, its returned quantity
-$q_t^{\mathrm{split}}$ should be interpreted as a split-selection score.
+After Stage~A selects a feature, Stage~B builds threshold candidates from
+midpoints between consecutive unique feature values. Exact search tests all
+midpoints. Random sampling tests a bounded subset; percentile and histogram
+rules test bounded representative thresholds from the midpoint distribution.
+With sequential stopping, Stage~B may scan thresholds in a reordered sequence.
+Because Stage~B tests thresholds only after a response-selected feature is
+chosen, $q_t^{\mathrm{split}}$ is a split-selection score.
 
 \paragraph{Split statistics.}
-For permutation split testing, Stage~B uses the unweighted sum
-of child impurities as the tested statistic and a left tail convention. The
-deterministic split search and the final
-\texttt{min\_impurity\_decrease} filter instead use the usual weighted impurity
-decrease. This distinction matters only for interpreting the Stage~B score; it
-does not change the main benchmark comparisons, which are all based on the final
-rankings produced by the fitted learners.
+For permutation split testing, Stage~B uses weighted child impurity as the
+tested statistic and a left tail convention. The final minimum
+impurity-decrease filter uses the corresponding weighted impurity decrease.
+These quantities support split construction, not post-selection inference.
 
 \subsection{Permutation budgets and early stopping}
 
-The benchmarked tree-growing rule uses Phipson--Smyth $+1$ Monte Carlo permutation $p$-values
-\citep{PhipsonSmyth2010PermutationPValues} for both stages: right tail in
-Stage~A and left tail in Stage~B. The library exposes integer resampling budgets
-and three presets:
+Both stages use Phipson--Smyth $+1$ Monte Carlo tail estimates
+\citep{PhipsonSmyth2010PermutationPValues}: right-tailed in Stage~A and
+left-tailed in Stage~B. The implementation supports integer resampling budgets
+and three named presets:
 \begin{itemize}
-  \item \texttt{minimum}: a conservative minimal-budget preset that makes
-  rejection attainable on the discrete $+1$ $p$-value scale,
-  \item \texttt{auto}: a larger budget intended to stabilize Monte Carlo error
-  near the decision threshold,
-  \item \texttt{maximum}: a conservative high-precision setting.
+  \item \emph{minimum}: the smallest preset that makes rejection attainable on
+  the discrete $+1$ scale,
+  \item \emph{auto}: a larger preset for reducing Monte Carlo error near the
+  decision threshold,
+  \item \emph{maximum}: a high-precision preset.
 \end{itemize}
-When Bonferroni is enabled, the effective threshold depends on the number of
-tests at the node, so the realized permutation budget at each node increases with
-search width.
+In the benchmarked CIT and CIF configurations, both Stage~A and Stage~B use the
+\emph{minimum} preset; the package constructors default to \emph{auto}. When
+Bonferroni correction is enabled, the nodewise threshold is divided by the
+number of tests, and preset budgets are recomputed from that adjusted threshold.
 
 \paragraph{Sequential stopping.}
-The benchmarked defaults use adaptive sequential stopping. The sequential test
-tracks exceedances over permutation draws and checks a Beta posterior for the
-exceedance rate at routine-specific points: each draw for Stage~B and batches
-for batched Stage~A selector paths. It terminates when the posterior places at
-least the configured confidence probability on one side of the nodewise
-threshold. A simpler futility/significance rule is also available. Both change
-the stopping time: once a stage stops at a data-dependent time, the returned
-value is no longer a classical fixed-$B$ Monte Carlo $p$-value. This is why the
-main paper separates the fixed-node guarantee from the runtime ablations.
+The benchmarked CIT and CIF configurations use adaptive sequential stopping. The
+procedure tracks permutation exceedances and checks a Beta posterior for the
+tail probability: after each draw in Stage~B and at batch boundaries in batched
+Stage~A paths. It stops when the posterior puts the configured confidence on one
+side of the nodewise threshold. A simpler futility/significance rule is also
+available. Values returned at stopping times are not classical fixed-$B$ Monte
+Carlo $p$-values, so the main paper separates the fixed-node guarantee from the
+runtime ablations.
 
 \subsection{Forests, resampling, and honesty}
 
-CIF averages predictions from bootstrap trees. These forests are empirical
-extensions of the Stage~A rule, not settings covered by the fixed-node result
-itself. The classification tree and forest grids also support
-class-conditional bootstrap variants, and both trees and forests optionally
-support honest estimation via sample splitting. These settings can be useful in
-practice, but they change the training distribution or the estimation target;
-they are empirical design choices and are not covered by the theorem.
+CIF fits bootstrap trees. For prediction, it averages tree predictions; for the
+benchmarked feature rankings, it aggregates tree split-importance vectors. The
+selected classification CIF setting uses stratified bootstrap sampling, and the
+regression CIF setting uses standard bootstrap sampling. More generally, forests
+can be run with or without bootstrap sampling, and classifier forests support
+stratified, undersampling, and oversampling variants. Trees and forests
+optionally support honest estimation via sample splitting. These settings can be
+useful in practice, but they change the training distribution or estimation
+target. The fixed-node theorem covers only the Stage~A reference rule.
 
 \subsection{Benchmark coverage}
 
 \Cref{sec:experiments-protocol,sec:experiments-repro} define the benchmark
-protocol and configuration-selection rule. This appendix records coverage
-details needed to interpret the appendix tables.
-The analysis uses completed benchmark runs without imputation. Some benchmark
-runs are unavailable, and some datasets have fewer than five standard values of
-$k$ because values greater than $p$ are not evaluated.
-Summaries over individual results omit unavailable runs. Analyses that
-compare all methods retain only datasets with every method, downstream learner,
-and standard value of $k$ present. These
-rules explain why ctree and cforest classification comparisons use 22 rather
-than 23 datasets and why analyses requiring every method, downstream learner,
-and standard $k$ value use 14 classification and 6 regression datasets.
-\Cref{tab:coverage-skips} lists the classification seed skips and the
-dexter method exclusion; the regression count comes from the same availability
-rule, not from additional rows in this table.
+protocol and configuration-selection rule. The benchmark compares 17
+classification methods and 18 regression methods, including permutation-test
+filters, embedded tree and ensemble methods, R ctree/cforest, and wrapper
+methods. This appendix explains which runs enter the appendix tables.
+
+For per-method and direct pairwise summaries, each comparison uses the datasets,
+downstream learners, and standard values of $k$ where the methods in that
+comparison are present. Analyses that compare all methods restrict to datasets
+with every method, downstream learner, and standard value of $k$ present. These
+rules give 14 classification and 6 regression datasets for complete-case
+analyses. Comparisons involving partykit ctree or cforest exclude
+\nolinkurl{dexter}, because those R-method runs are absent; non-R comparisons
+can still use \nolinkurl{dexter} when both methods are present.
+\Cref{tab:coverage-skips} lists the classification seed skips and the R
+ctree/cforest \texttt{dexter} exclusion.
 
 \subsection{Randomness and reproducibility}
 
-Runs are deterministic given the same base seed. Pure Python
-permutation routines use local \texttt{numpy} generators, while compiled
-parallel routines use seeded streams per resample because generator RNGs
-are not uniformly supported in those contexts. This affects how random streams
-are constructed, but not the substantive reading of the results: with the same
-data, configurations, implementation, and seed schedule, the reported rankings
-are deterministic.
+The experiment configuration fixes the seed schedule used for all reported
+runs. Pure Python permutation routines use local \texttt{numpy} generators.
+Numba parallel permutation paths assign one seed per resample, which avoids
+sharing a mutable generator across parallel loop iterations.
 
 \begin{table}[H]
   \centering
-  \scriptsize
+  \footnotesize
   \setlength{\tabcolsep}{4pt}
   \begin{tabular}{@{}lll@{}}
     \toprule
-    Method/config & Dataset & Seeds \\
+    \tablehead{Method/config} & \tablehead{Dataset} & \tablehead{Seeds} \\
     \midrule
-    ctree MonteCarlo & \texttt{gisette} & 3 \\
-    ctree MonteCarlo & \texttt{isolet} & 2, 3 \\
-    CIT with selector \texttt{rdc} & \texttt{gisette} & 0, 1, 3 \\
-    CIT with selector \texttt{rdc} & \texttt{orlraws10P} & 1 \\
-    ctree, cforest & \texttt{dexter} & method exclusion \\
+    R ctree \texttt{MonteCarlo} & \texttt{gisette} & \multicolumn{1}{c}{3} \\
+    R ctree \texttt{MonteCarlo} & \texttt{isolet} & \multicolumn{1}{c}{2, 3} \\
+    CIT with selector \texttt{rdc} & \texttt{gisette} & \multicolumn{1}{c}{0, 1, 3} \\
+    CIT with selector \texttt{rdc} & \texttt{orlraws10P} & \multicolumn{1}{c}{1} \\
+    partykit ctree, cforest & \texttt{dexter} & all seeds excluded for these R methods \\
     \bottomrule
   \end{tabular}
-  \caption{Documented classification seed-level skips and method exclusions.
-  Missing runs are not imputed; this table documents classification omissions
-  only.}
+  \caption{Classification benchmark cells omitted from the experiment grid. The
+  \texttt{dexter} row is a method-level exclusion for partykit ctree and
+  cforest; the other rows are seed-level skips.}
   \label{tab:coverage-skips}
 \end{table}

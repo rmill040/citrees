@@ -14,6 +14,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.ticker import PercentFormatter
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
@@ -110,6 +111,7 @@ def _plot_family(
     ax.set_xticklabels([str(k) for k in FOCUS_K])
     ax.set_ylim(0.0, 1.0)
     ax.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
+    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
     ax.grid(True, axis="both")
     ax.legend(loc="upper right", frameon=False, fontsize=8, handlelength=1.6)
 
@@ -130,11 +132,11 @@ def main() -> None:
             title = family_title if row_idx == 0 else ""
             _plot_family(axes[row_idx, col_idx], focus, task=task, methods=methods, title=title)
             if col_idx == 0:
-                axes[row_idx, col_idx].set_ylabel(f"{TASK_TITLES[task]}\nInformative share")
+                axes[row_idx, col_idx].set_ylabel(f"{TASK_TITLES[task]}\n\\% informative\namong selected")
             if row_idx == 1:
                 axes[row_idx, col_idx].set_xlabel(r"Number of selected features ($k$)")
 
-    fig.subplots_adjust(top=0.92, hspace=0.18, wspace=0.16, bottom=0.12)
+    fig.subplots_adjust(top=0.92, hspace=0.18, wspace=0.16, bottom=0.12, left=0.12)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "synthetic_topk_focus_curves.png"

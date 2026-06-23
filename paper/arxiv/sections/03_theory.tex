@@ -1,23 +1,22 @@
-\section{Fixed-node Stage~A guarantees}
+\section{Fixed-node Stage~A control}
 \label{sec:theory}
 
-This section isolates the exhaustive fixed-$B$ Stage~A feature selection rule
-at a fixed node. The theorem proves superuniformity for one $+1$ Monte Carlo
-permutation $p$-value, and the corollary applies Bonferroni correction across
-the fixed-node Stage~A tests. In the notation of \cref{sec:stageA-stageB}, this is
-the exhaustive reference case in which every feature in $F_t$ is tested with the
-same effective nodewise fixed budget $B$. All probabilities below are
-conditional on $(X_t,U)$, where $U$ denotes label-independent auxiliary
-randomness held fixed when conditioning, excluding the Monte Carlo permutation
-draws.
+This section analyzes the exhaustive fixed-$B$ Stage~A feature selection rule at a
+fixed node. The theorem proves superuniformity for a single $+1$ Monte Carlo
+permutation $p$-value, and the corollary applies Bonferroni correction across the
+fixed-node Stage~A tests. In the notation of \cref{sec:stageA-stageB}, this is
+the reference case where every feature in $F_t$ is tested with the same fixed
+nodewise budget $B$. All probabilities below condition on $(X_t,U)$, where $U$
+collects label-independent auxiliary randomness other than the Monte Carlo
+permutation draws.
 
 \begin{theorem}[$+1$ permutation $p$-values are superuniform]
 \label{thm:plusone-superuniform}
 Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise
 complete permutation null at the fixed node $t$, conditional on $(X_t,U)$, the
-usual computation from the observed statistic and $B$ random label permutations
-has the same rank distribution as an exchangeable $(B+1)$-tuple. Define the
-right tail $+1$ Monte Carlo $p$-value
+observed statistic together with the $B$ random-permutation statistics has the
+rank distribution of an exchangeable tuple of length $B+1$. Define the
+right-tail $+1$ Monte Carlo $p$-value
 %
 \begin{equation}
   p_{\mathrm{MC}}^{\ge}
@@ -31,23 +30,24 @@ Then for every $\alpha \in [0,1]$,
 \end{equation}
 \end{theorem}
 
-This is the standard exchangeable rank result for Monte Carlo permutation
-tests \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,Ernst2004PermutationMethodsExactInference,HemerikGoeman2018ExactTestingRandomPermutations}; \cref{app:permutation-exchangeability,app:proof-plusone} give the
-exchangeability statement and proof. The left tail version follows by
+This is the standard exchangeable-rank result for Monte Carlo permutation tests
+\citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,Ernst2004PermutationMethodsExactInference,HemerikGoeman2018ExactTestingRandomPermutations}.
+\Cref{app:permutation-exchangeability,app:proof-plusone} state the
+exchangeability condition and give the proof. The left-tail version follows by
 applying the same result to $-T$.
 
 \begin{corollary}[Stage~A complete null control at a fixed node]
 \label{cor:stageA-global-null}
-Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise complete null
-at $t$, and for a nonempty tested feature set $F_t$ with $m_t = |F_t| \ge 1$,
-let Stage~A reject when
+Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise complete
+null at $t$, let $F_t$ be nonempty and write $m_t = |F_t| \ge 1$. Let Stage~A
+reject when
 %
 \begin{equation}
   \min_{j \in F_t} p_{t,j} \le \alpha_{\mathrm{sel}}/m_t.
 \end{equation}
 %
-The strict comparison used by the tree-growing rule defines a subset of this
-nonstrict rejection event, so it is at least as conservative.
+The tree-growing rule uses a strict comparison, so its rejection event is a
+subset of the nonstrict event above.
 %
 Then
 %
@@ -57,9 +57,8 @@ Then
 \end{equation}
 \end{corollary}
 
-This combines the $+1$ $p$-value superuniformity in
-\cref{thm:plusone-superuniform} with the Bonferroni union bound over the $m_t$
-Stage~A tests. It controls fixed-node Stage~A feature selection under the
-complete null. Partial-null familywise error control, $p$-values for the selected
-feature, and guarantees for the full adaptive learner are separate inferential
-targets.
+Combining \cref{thm:plusone-superuniform} with the Bonferroni union bound over
+the $m_t$ Stage~A tests gives fixed-node Stage~A control under the complete
+null. The result is local: it does not cover partial-null familywise error
+control, $p$-values for selected features, or error control for fitted trees and
+forests.

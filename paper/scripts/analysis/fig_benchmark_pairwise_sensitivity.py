@@ -1,10 +1,10 @@
 """Build paper-facing downstream x k pairwise sensitivity heatmaps.
 
 The figures show pairwise comparisons before the headline table averages over
-downstream models and feature budgets. They are intentionally narrow:
+downstream models and values of k. They are intentionally narrow:
   - focus method: CIF
   - compared methods: the historical conditional-inference references and CIT
-  - cells: downstream model x standard feature budget
+  - cells: downstream model x standard value of k
 
 Each cell shows the mean metric difference between CIF and the compared method
 before within-dataset pooling over downstream models and budgets.
@@ -124,7 +124,7 @@ def _render_task(task: str) -> None:
         ax.set_title(BASELINE_TITLES[baseline], pad=8)
         ax.set_xticks(np.arange(len(K_VALUES)))
         ax.set_xticklabels([str(k) for k in K_VALUES])
-        ax.set_xlabel(r"Feature budget $k$")
+        ax.set_xlabel(r"Selected features ($k$)")
         ax.set_yticks(np.arange(len(DOWNSTREAMS[task])))
         ax.set_yticklabels([DOWNSTREAM_TITLES[d] for d in DOWNSTREAMS[task]])
         ax.set_xticks(np.arange(-0.5, len(K_VALUES), 1), minor=True)

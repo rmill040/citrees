@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 from citrees._splitter import (
+    _ptest,
+    _ptest_mse_parallel,
     entropy,
     gini,
     mae,
@@ -13,6 +15,56 @@ from citrees._splitter import (
     ptest_mae,
     ptest_mse,
 )
+
+
+def _child_impurity(func, y, idx, weighted):
+    """Compute the split statistic used by Stage B tests."""
+    if weighted:
+        n = len(y)
+        n_left = int(np.sum(idx))
+        n_right = n - n_left
+        return (n_left / n) * func(y[idx]) + (n_right / n) * func(y[~idx])
+    return func(y[idx]) + func(y[~idx])
+
+
+def _expected_splitter_ptest(
+    func, x, y, threshold, n_resamples, random_state, weighted
+):
+    idx = x <= threshold
+    theta = _child_impurity(func, y, idx, weighted)
+    y_perm = y.copy()
+    rng = np.random.default_rng(random_state)
+
+    extreme_count = 0
+    for _ in range(n_resamples):
+        rng.shuffle(y_perm)
+        theta_perm = _child_impurity(func, y_perm, idx, weighted)
+        if theta_perm <= theta:
+            extreme_count += 1
+
+    return (extreme_count + 1) / (n_resamples + 1)
+
+
+def _expected_parallel_splitter_ptest(
+    func, x, y, threshold, n_resamples, random_state, weighted
+):
+    idx = x <= threshold
+    theta = _child_impurity(func, y, idx, weighted)
+    extreme_count = 0
+    random_state_before = np.random.get_state()
+
+    try:
+        for i in range(n_resamples):
+            np.random.seed(random_state + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+            theta_perm = _child_impurity(func, y_perm, idx, weighted)
+            if theta_perm <= theta:
+                extreme_count += 1
+    finally:
+        np.random.set_state(random_state_before)
+
+    return (extreme_count + 1) / (n_resamples + 1)
 
 
 class TestGini:
@@ -248,6 +300,81 @@ class TestPtestMSE:
             random_state=42,
         )
         assert 0 < pval <= 1
+
+
+class TestStageBSplitStatistic:
+    """Tests for the Stage B split-test statistic."""
+
+    def test_generic_ptest_uses_weighted_child_impurity(self):
+        x = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.float64)
+        y = np.array([0, 0, 10, 0, 1, 1, 1, 20], dtype=np.float64)
+
+        pval = _ptest(
+            func=mse,
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=10,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=2,
+        )
+
+        weighted_expected = _expected_splitter_ptest(
+            func=mse,
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=10,
+            random_state=2,
+            weighted=True,
+        )
+        plain_sum_expected = _expected_splitter_ptest(
+            func=mse,
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=10,
+            random_state=2,
+            weighted=False,
+        )
+
+        assert pval == pytest.approx(weighted_expected)
+        assert pval != pytest.approx(plain_sum_expected)
+
+    def test_parallel_mse_ptest_uses_weighted_child_impurity(self):
+        x = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.float64)
+        y = np.array([0, 0, 10, 0, 1, 1, 1, 20], dtype=np.float64)
+
+        pval = _ptest_mse_parallel(
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=200,
+            random_state=1,
+        )
+
+        weighted_expected = _expected_parallel_splitter_ptest(
+            func=mse,
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=200,
+            random_state=1,
+            weighted=True,
+        )
+        plain_sum_expected = _expected_parallel_splitter_ptest(
+            func=mse,
+            x=x,
+            y=y,
+            threshold=0.5,
+            n_resamples=200,
+            random_state=1,
+            weighted=False,
+        )
+
+        assert pval == pytest.approx(weighted_expected)
+        assert pval != pytest.approx(plain_sum_expected)
 
 
 class TestPtestMAE:
@@ -551,7 +678,9 @@ class TestSplitterRNGReproducibility:
         )
         after = np.random.random()
 
-        assert before == after, f"_ptest_splitter contaminated global state: {before} != {after}"
+        assert (
+            before == after
+        ), f"_ptest_splitter contaminated global state: {before} != {after}"
 
     def test_ptest_gini_parallel_same_seed_same_result(self, classification_data):
         """Parallel Gini test with same seed should produce identical results."""
@@ -574,7 +703,11 @@ class TestSplitterRNGReproducibility:
 
         x, y, threshold = regression_data
 
-        pval1 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
-        pval2 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
+        pval1 = _ptest_mse_parallel(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
+        pval2 = _ptest_mse_parallel(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
 
         assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"

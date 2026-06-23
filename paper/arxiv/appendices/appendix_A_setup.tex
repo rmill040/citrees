@@ -2,38 +2,40 @@
 
 \subsection{Fixed-node setup}
 
-Let $(X_i, Y_i)_{i=1}^n$ be the training data. Fix a node $t$ with sample
-index set $I_t$ and size $n_t:=|I_t|$. Write
-$X_t := (X_i)_{i\in I_t}$ and $Y_t := (Y_i)_{i\in I_t}$ for the data restricted
-to that node. Stage~A tests a fixed candidate feature set $F_t$ with
-$m_t:=|F_t|$.
+Let $(X_i, Y_i)_{i=1}^n$ be the training data. Fix a node $t$ with sample index
+set $I_t$ and size $n_t:=|I_t|$. Write $X_t := (X_i)_{i\in I_t}$ and
+$Y_t := (Y_i)_{i\in I_t}$ for the data restricted to that node. Stage~A tests
+candidate features $F_t$ with $m_t:=|F_t|$.
 
-The fixed-node theorem only concerns the exhaustive fixed-$B$ Stage~A reference
-test: every feature in $F_t$ is tested with the same effective nodewise
-per-feature budget $B$, and $F_t$ and $B$ are fixed after conditioning on the
-node covariates and label-independent auxiliary randomness.
+The fixed-node theorem analyzes the exhaustive fixed-$B$ Stage~A reference test.
+Conditional on the node covariates and label-independent auxiliary randomness
+$U$, $F_t$ and $B$ are fixed, and every feature in $F_t$ is tested with exactly
+$B$ permutations.
 
-\subsubsection*{Proof notation}
-The proof notation used below is summarized in
-\cref{tab:fixed-node-notation}.
+\subsubsection*{Notation}
+\cref{tab:fixed-node-notation} lists the notation used in the proof.
 \begin{table}[H]
   \centering
   \small
   \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}p{0.24\linewidth}p{0.70\linewidth}@{}}
+  \begin{tabular}{@{}L{0.18\linewidth}L{0.76\linewidth}@{}}
     \toprule
-    Symbol & Meaning \\
+    \tablehead{Symbol} & \tablehead{Meaning} \\
     \midrule
     $t$ & Node index, held fixed in the theorem. \\
     $I_t,\ n_t$ & Node sample index set and size $n_t:=|I_t|$. \\
     $X_t,\ Y_t$ & Covariates and labels restricted to node $t$. \\
-    $F_t,\ m_t$ & Tested Stage~A feature set and size $m_t:=|F_t|$. \\
+    $U$ & Label-independent auxiliary randomness conditioned on in the proof; it excludes node responses, Monte Carlo permutation draws, permutation statistics, and $p$-values. \\
+    $F_t,\ m_t$ & Stage~A features and size $m_t:=|F_t|$. \\
     $X_{t,j}$ & Values of feature $j$ on the node samples. \\
-    $T^{\mathrm{sel}}_j(X_{t,j},Y_t)$ & Observed Stage~A statistic for feature $j$ at node $t$. \\
-    $T_{\mathrm{obs}},T_1,\dots,T_B$ & For one fixed feature test, the observed statistic and the same statistic after $B$ random label permutations. \\
+    $B$ & Number of random label permutations per tested feature in the fixed-$B$ reference test. \\
+    $T^{\mathrm{sel}}_j$ & Stage~A selector statistic for feature $j$: $T^{\mathrm{sel}}_j(X_{t,j},Y_t;U)$. \\
+    $T(\cdot,\cdot;U)$ & Generic scalar test statistic used in the exchangeability proof. \\
+    $\Pi_b$ & Random label permutation used for Monte Carlo replicate $b$. \\
+    $T_{\mathrm{obs}},T_1,\dots,T_B$ & Observed and permuted statistics for one fixed feature test. \\
+    $R$ & Right-tail rank numerator $1+\sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}$. \\
+    $p_{\mathrm{MC}}^{\ge}$ & Right-tail $+1$ Monte Carlo permutation $p$-value for one fixed feature test. \\
     $p_{t,j}$ & Fixed-$B$ $+1$ Monte Carlo permutation $p$-value for feature $j$. \\
-    $B$ & Effective nodewise random-permutation budget used for each fixed-$B$ feature test. \\
-    $U$ & Label-independent auxiliary randomness conditioned on in the proof, excluding Monte Carlo permutation draws and outcomes. \\
     $\alpha_{\mathrm{sel}}$ & Stage~A nominal level; the corollary tests at $\alpha_{\mathrm{sel}}/m_t$. \\
     \bottomrule
   \end{tabular}
@@ -41,31 +43,34 @@ The proof notation used below is summarized in
   \label{tab:fixed-node-notation}
 \end{table}
 
-Stage~B threshold search, adaptive stopping, feature muting, response-selected
-internal nodes, bootstrap forests, honesty, and selected-feature or
-post-selection $p$-values are algorithmic or inferential targets outside this
-fixed-node Stage~A guarantee; see \cref{sec:method,app:methods,app:complexity-details}.
+The guarantee is local to fixed-node Stage~A. It does not cover Stage~B
+threshold search, adaptive stopping, response-dependent feature muting,
+response-selected internal nodes, bootstrap forests, honesty, or
+$p$-values after feature selection or other post-selection steps; see
+\cref{sec:method,app:methods,app:complexity-details}.
 
 \subsection{Assumptions and theorem scope}
 \label{app:assumptions}
 
-The assumptions below define the inferential target of \cref{sec:theory}. When a
-result is described as fixed-node, the node $t$ is held fixed rather than chosen
-adaptively from the data.
+Assumptions A0.1--A0.5 define the fixed-node reference setting used by
+Theorem~\ref{thm:plusone-superuniform} and
+Corollary~\ref{cor:stageA-global-null}.
 
 \paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
-The node $t$ is fixed.
+The node $t$ and its sample index set $I_t$ are held fixed for the result. They
+are not chosen using node responses or earlier response-dependent splits.
 
 \paragraph{A0.2 (Complete nodewise permutation null).}\label{assump:exchangeability}
-Under the null at node $t$, $Y_t$ is exchangeable conditional on $(X_t,U)$.
-This is a complete nodewise null, not a featurewise partial-null statement: it
-does not cover a null feature when other tested features in $F_t$ remain
-associated with $Y_t$.
+Under the complete null at node $t$, $Y_t$ is exchangeable conditional on
+$(X_t,U)$: its conditional law is unchanged by permuting the node responses.
+This complete nodewise permutation null does not cover a null feature when any
+tested or untested node covariate remains associated with $Y_t$.
 
-\paragraph{A0.3 (Label-independent tested feature set).}\label{assump:label-independence}
-The tested feature set $F_t$ and effective nodewise budget $B$ are measurable
-functions of $(X_t,U)$ and do not depend on the observed labels $Y_t$,
-permutation outcomes, or sequential stopping decisions.
+\paragraph{A0.3 (Features fixed before seeing node responses).}\label{assump:label-independence}
+The features in $F_t$ and the effective nodewise budget $B$ are measurable
+functions of $(X_t,U)$ only. They do not depend on $Y_t$, other training
+responses used to reach the node, Monte Carlo permutation draws or statistics,
+$p$-values, or sequential stopping decisions.
 
 \paragraph{A0.4 (Fixed-$B$ computation).}\label{assump:fixed-b}
 Each $p_{t,j}$ is computed with exactly $B$ random permutations, with no optional
@@ -74,14 +79,14 @@ additional randomness, independent of $(X_t,Y_t,U)$, and are not included in
 $U$.
 
 \paragraph{A0.5 (Conservative ties).}\label{assump:ties}
-The Stage~A $+1$ Monte Carlo $p$-value counts ties conservatively using
-$\ind\{T_b \ge T_{\mathrm{obs}}\}$ for right-tail tests. Random tie breaking
-among equal best features is label-independent auxiliary randomness and is not
-part of the rejection event.
+For right-tail tests, the Stage~A $+1$ Monte Carlo $p$-value counts ties
+conservatively using $\ind\{T_b \ge T_{\mathrm{obs}}\}$. If several features tie
+after testing, any random tie break is label-independent and does not affect the
+Stage~A reject/no-reject event.
 
-\subsection{Results and assumptions}
+\subsection{Results using these assumptions}
 
-Both fixed-node results in \cref{sec:theory} use Assumptions A0.1--A0.5:
-Theorem~\ref{thm:plusone-superuniform} establishes $+1$ $p$-value
-superuniformity, and Corollary~\ref{cor:stageA-global-null} gives Stage~A
+Both fixed-node results in \cref{sec:theory} use Assumptions A0.1--A0.5.
+Theorem~\ref{thm:plusone-superuniform} proves $+1$ Monte Carlo permutation
+$p$-value superuniformity. Corollary~\ref{cor:stageA-global-null} gives Stage~A
 complete-null control.

@@ -1,32 +1,33 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper studies how runtime hyperparameters in CIT and CIF affect
-feature rankings, downstream prediction, and synthetic feature recovery. For
-exhaustive fixed-$B$ Stage~A testing at a fixed node, with
-a label-independent tested feature set, the Stage~A result gives Bonferroni
-control of nodewise rejection under the complete nodewise permutation null.
-That $p$-value interpretation applies to the local test; the full adaptive tree
-and forest are evaluated empirically. Among the CIF timing controls that keep
-Bonferroni correction fixed, adaptive stopping and exact-versus-histogram
-threshold search produce the largest timing changes. The CIT timing results are
-mixed and are reported separately from the CIF runtime and downstream
-prediction results.
+This paper studies how CIT and CIF runtime choices affect feature rankings,
+downstream prediction, and synthetic feature recovery. For exhaustive fixed-$B$
+Stage~A testing at a fixed node, if the tested features and permutation budget
+are fixed independently of the node responses, Bonferroni correction controls
+the probability of any Stage~A feature rejection under the nodewise complete
+permutation null. The benchmarks then evaluate the full tree and forest
+rankings. For CIF, adaptive stopping and exact-versus-histogram threshold search
+change runtime the most while keeping Bonferroni correction fixed. CIT timing is
+less consistent, so the paper separates it from the CIF runtime and downstream
+prediction summaries.
 
-On the real-data benchmarks, CIF ranks fourth of 17 classification methods and
-third of 18 regression methods with the runtime hyperparameters studied here. In
-direct comparisons, its average downstream scores are higher than ctree and
-cforest across 22 classification datasets and higher than CIT across 23
-classification datasets; on regression, CIF is higher than ctree and cforest on
-7 of 8 datasets and higher than CIT on 6 of 8. In the CIF ranking ablations, the
-one-tree row is the largest change; changing feature muting or replacing split
-importance with split counts is much smaller. The high-$p$ and synthetic
-results show two patterns: the synthetic results are stronger for selected
-feature sets than for the first ranked feature, and in sparse high-$p$
-simulations, candidate sampling inside forests can leave informative features
-unavailable at many split decisions. The regression evidence is based on fewer
-datasets and has wider uncertainty intervals in the 6-dataset regression
-analysis, but it is included throughout the empirical results. A natural next
-step is to test forest variants that consider more candidate features at each
-split while preserving the Stage~A/Stage~B separation that makes the method
-distinctive.
+On the real-data benchmarks with the selected settings, CIF ranks fourth of 17
+classification methods and third of 18 regression methods. These are
+within-benchmark rank and win/loss summaries, not validation of a preregistered
+configuration. In direct comparisons, CIF has higher average downstream scores
+than ctree and cforest across 22 classification datasets and higher scores than
+CIT across 23 classification datasets. In the smaller regression benchmark, CIF
+is higher than ctree and cforest on 7 of 8 datasets and higher than CIT on 6 of
+8.
+
+The CIF ranking ablations show forest size matters most: using one
+tree changes the rankings the most, while changing feature muting or replacing
+split importance with split counts has much smaller effects. The high-$p$ and
+synthetic analyses show two patterns: CIF recovers true features more reliably
+within the top-$k$ list than at rank 1, and candidate sampling inside forests can
+leave informative features unavailable at many split decisions. The regression
+benchmark is smaller and has wider intervals, so those results are less
+conclusive. A next step is to test forest variants that consider more candidate
+features at each split while keeping
+Stage~A selection separate from Stage~B splitting.

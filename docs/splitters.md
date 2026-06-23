@@ -20,10 +20,9 @@ separates the target variable.
 quantities used in different places:
 
 - **Weighted child impurity** (CART-style): $(n_L/n)\,I(y_L) + (n_R/n)\,I(y_R)$,
-  used for `min_impurity_decrease`, threshold scanning, and impurity-based
-  feature importances.
-- **Unweighted child impurity sum**: $I(y_L) + I(y_R)$, used as the Stage B
-  permutation-test statistic in citrees.
+  used for the Stage B permutation-test statistic, threshold scanning,
+  `min_impurity_decrease`, and impurity-based feature importances. The final
+  impurity decrease is the parent impurity minus this weighted child impurity.
 
 ## Gini Impurity (gini)
 
@@ -306,10 +305,10 @@ $$H_0: \text{The split provides no improvement in prediction}$$
 
 ### Test Statistic
 
-The implementation uses the **unweighted sum of child impurities** as the test
-statistic (lower is better):
+The implementation uses **weighted child impurity** as the test statistic
+(lower is better):
 
-$$S = \text{Impurity}(y_L) + \text{Impurity}(y_R)$$
+$$S = \frac{n_L}{n}\text{Impurity}(y_L) + \frac{n_R}{n}\text{Impurity}(y_R)$$
 
 ### Permutation Procedure
 

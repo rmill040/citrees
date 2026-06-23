@@ -35,6 +35,7 @@ from typing import Final
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import PercentFormatter
 from sklearn.datasets import make_classification, make_regression
 from sklearn.ensemble import (
     ExtraTreesClassifier,
@@ -993,6 +994,9 @@ def plot_summary_curves(
             )
         ax.set_xlabel(x_col.replace("_", " ").title(), fontsize=10)
         ax.set_ylabel(ylabel, fontsize=10)
+        if metric_col == "informative_split_share":
+            ax.set_ylim(0.0, 1.0)
+            ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
         ax.grid(alpha=0.25)
 
     axes[0].legend(frameon=False, fontsize=9)
@@ -1231,7 +1235,7 @@ def main() -> None:
         methods=SPLIT_COUNT_METHODS_SINGLE_TREE,
         x_col="n_informative",
         metrics=(
-            ("informative_split_share", "Informative split share"),
+            ("informative_split_share", "% of splits using informative features"),
             ("distinct_false_features_used", "Distinct noise features used"),
         ),
         title="Single-tree split concentration as informative fraction increases",
@@ -1249,7 +1253,7 @@ def main() -> None:
         methods=SPLIT_COUNT_METHODS_ENSEMBLE,
         x_col="n_informative",
         metrics=(
-            ("informative_split_share", "Informative split share"),
+            ("informative_split_share", "% of splits using informative features"),
             ("distinct_false_features_used", "Distinct noise features used"),
         ),
         title="Ensemble split concentration as informative fraction increases",
@@ -1267,7 +1271,7 @@ def main() -> None:
         methods=SPLIT_COUNT_METHODS_SINGLE_TREE,
         x_col="n_features",
         metrics=(
-            ("informative_split_share", "Informative split share"),
+            ("informative_split_share", "% of splits using informative features"),
             ("distinct_false_features_used", "Distinct noise features used"),
         ),
         title="Single-tree split concentration as dimension increases",
@@ -1285,7 +1289,7 @@ def main() -> None:
         methods=SPLIT_COUNT_METHODS_ENSEMBLE,
         x_col="n_features",
         metrics=(
-            ("informative_split_share", "Informative split share"),
+            ("informative_split_share", "% of splits using informative features"),
             ("distinct_false_features_used", "Distinct noise features used"),
         ),
         title="Ensemble split concentration as dimension increases",
@@ -1302,7 +1306,7 @@ def main() -> None:
         methods=SPLIT_COUNT_METHODS_SINGLE_TREE,
         x_col="n_informative",
         metrics=(
-            ("informative_split_share", "Informative split share"),
+            ("informative_split_share", "% of splits using informative features"),
             ("distinct_false_features_used", "Distinct noise features used"),
         ),
         title="Regression single-tree split concentration as informative fraction increases",
@@ -1319,7 +1323,7 @@ def main() -> None:
         methods=SPLIT_COUNT_METHODS_ENSEMBLE,
         x_col="n_informative",
         metrics=(
-            ("informative_split_share", "Informative split share"),
+            ("informative_split_share", "% of splits using informative features"),
             ("distinct_false_features_used", "Distinct noise features used"),
         ),
         title="Regression ensemble split concentration as informative fraction increases",

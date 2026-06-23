@@ -78,14 +78,22 @@ def _ptest(
     rng = np.random.default_rng(random_state)
 
     idx = x <= threshold
-    theta = func(y[idx]) + func(y[~idx])
+    n = len(y)
+    n_left = int(np.sum(idx))
+    n_right = n - n_left
+    if n_left == 0 or n_right == 0:
+        return 1.0
+
+    w_left = n_left / n
+    w_right = n_right / n
+    theta = (w_left * func(y[idx])) + (w_right * func(y[~idx]))
     y_ = y.copy()
 
     if early_stopping is None:
         theta_p = np.empty(n_resamples)
         for i in range(n_resamples):
             rng.shuffle(y_)
-            theta_p[i] = func(y_[idx]) + func(y_[~idx])
+            theta_p[i] = (w_left * func(y_[idx])) + (w_right * func(y_[~idx]))
         return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 
     min_resamples = ceil(1 / alpha)
@@ -95,7 +103,7 @@ def _ptest(
     if early_stopping == EarlyStopping.ADAPTIVE:
         for i in range(n_resamples):
             rng.shuffle(y_)
-            theta_p = func(y_[idx]) + func(y_[~idx])
+            theta_p = (w_left * func(y_[idx])) + (w_right * func(y_[~idx]))
             if theta_p <= theta:
                 extreme_count += 1
 
@@ -115,7 +123,7 @@ def _ptest(
     else:  # simple
         for i in range(n_resamples):
             rng.shuffle(y_)
-            theta_p = func(y_[idx]) + func(y_[~idx])
+            theta_p = (w_left * func(y_[idx])) + (w_right * func(y_[~idx]))
             if theta_p <= theta:
                 extreme_count += 1
 
@@ -155,10 +163,15 @@ def _ptest_gini_parallel(
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
         return 1.0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
 
     p_left = np.bincount(y_left) / n_left
     p_right = np.bincount(y_right) / n_right
-    theta = (1 - np.sum(p_left * p_left)) + (1 - np.sum(p_right * p_right))
+    theta = w_left * (1 - np.sum(p_left * p_left)) + w_right * (
+        1 - np.sum(p_right * p_right)
+    )
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -172,7 +185,7 @@ def _ptest_gini_parallel(
 
         p_left_perm = np.bincount(y_left_perm) / n_left
         p_right_perm = np.bincount(y_right_perm) / n_right
-        theta_p[i] = (1 - np.sum(p_left_perm * p_left_perm)) + (
+        theta_p[i] = w_left * (1 - np.sum(p_left_perm * p_left_perm)) + w_right * (
             1 - np.sum(p_right_perm * p_right_perm)
         )
 
@@ -201,11 +214,16 @@ def _ptest_mse_parallel(
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
         return 1.0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
 
     # Compute observed statistic
     dev_left = y_left - y_left.mean()
     dev_right = y_right - y_right.mean()
-    theta = np.mean(dev_left * dev_left) + np.mean(dev_right * dev_right)
+    theta = w_left * np.mean(dev_left * dev_left) + w_right * np.mean(
+        dev_right * dev_right
+    )
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -219,9 +237,9 @@ def _ptest_mse_parallel(
 
         dev_left_perm = y_left_perm - y_left_perm.mean()
         dev_right_perm = y_right_perm - y_right_perm.mean()
-        theta_p[i] = np.mean(dev_left_perm * dev_left_perm) + np.mean(
-            dev_right_perm * dev_right_perm
-        )
+        theta_p[i] = w_left * np.mean(
+            dev_left_perm * dev_left_perm
+        ) + w_right * np.mean(dev_right_perm * dev_right_perm)
 
         # +1 correction (Phipson & Smyth 2010)
     return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
@@ -249,6 +267,9 @@ def _ptest_entropy_parallel(
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
         return 1.0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
 
     # Entropy left
     p_left = np.bincount(y_left) / n_left
@@ -264,7 +285,7 @@ def _ptest_entropy_parallel(
         if p > 0:
             entropy_right -= p * np.log2(p)
 
-    theta = entropy_left + entropy_right
+    theta = w_left * entropy_left + w_right * entropy_right
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -290,7 +311,7 @@ def _ptest_entropy_parallel(
             if p > 0:
                 entropy_right_perm -= p * np.log2(p)
 
-        theta_p[i] = entropy_left_perm + entropy_right_perm
+        theta_p[i] = w_left * entropy_left_perm + w_right * entropy_right_perm
 
         # +1 correction (Phipson & Smyth 2010)
     return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
@@ -317,11 +338,14 @@ def _ptest_mae_parallel(
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
         return 1.0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
 
     # Compute observed statistic
     dev_left = np.abs(y_left - np.median(y_left))
     dev_right = np.abs(y_right - np.median(y_right))
-    theta = np.mean(dev_left) + np.mean(dev_right)
+    theta = w_left * np.mean(dev_left) + w_right * np.mean(dev_right)
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -335,7 +359,7 @@ def _ptest_mae_parallel(
 
         dev_left_perm = np.abs(y_left_perm - np.median(y_left_perm))
         dev_right_perm = np.abs(y_right_perm - np.median(y_right_perm))
-        theta_p[i] = np.mean(dev_left_perm) + np.mean(dev_right_perm)
+        theta_p[i] = w_left * np.mean(dev_left_perm) + w_right * np.mean(dev_right_perm)
 
     return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
 

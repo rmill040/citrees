@@ -778,7 +778,7 @@ def main() -> None:
                     "regression_datasets": _format_support_count(
                         support_counts["regression"]["learner_k"]
                     ),
-                    "purpose": "method ordering by learner and selected-feature budget",
+                    "purpose": "method ordering by learner and value of k",
                 },
                 {
                     "analysis": "Complete-case rank tests",

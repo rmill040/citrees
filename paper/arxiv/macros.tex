@@ -5,6 +5,17 @@
 \newcommand{\ind}{\mathbf{1}}
 \newcommand{\countfrac}[2]{\makebox[1.35em][r]{#1}/\makebox[1.35em][l]{#2}}
 \newcommand{\winloss}[2]{\makebox[1.35em][r]{#1}--\makebox[1.0em][l]{#2}}
+\newcommand{\tablehead}[1]{\multicolumn{1}{c}{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\sisetup{
+  group-separator={,},
+  group-minimum-digits=4,
+  input-ignore={,},
+  table-number-alignment=center,
+  table-text-alignment=center
+}
 
 \DeclareMathOperator*{\argmin}{arg\,min}
 
@@ -12,9 +23,14 @@
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}{Lemma}
 \newtheorem{corollary}{Corollary}
+\AddToHook{env/theorem/begin}{\crefalias{section}{theorem}}
+\AddToHook{env/lemma/begin}{\crefalias{section}{lemma}}
+\AddToHook{env/corollary/begin}{\crefalias{section}{corollary}}
 
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}
+\AddToHook{env/definition/begin}{\crefalias{section}{definition}}
 
 \theoremstyle{remark}
 \newtheorem{remark}{Remark}
+\AddToHook{env/remark/begin}{\crefalias{section}{remark}}

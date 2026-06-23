@@ -242,13 +242,13 @@ Input: x_j ∈ ℝⁿ, y, threshold c, splitter (e.g., "gini", "mse")
    L ← {i : x_j[i] ≤ c}
    R ← {i : x_j[i] > c}
 
-2. Compute observed statistic (unweighted child impurity sum):
-   S_obs ← Impurity(y[L]) + Impurity(y[R])
+2. Compute observed statistic (weighted child impurity):
+   S_obs ← (|L|/n) Impurity(y[L]) + (|R|/n) Impurity(y[R])
 
 3. Generate null distribution:
    For b = 1 to n_resamples:
        y_perm ← Permute(y)
-       S_perm[b] ← Impurity(y_perm[L]) + Impurity(y_perm[R])
+       S_perm[b] ← (|L|/n) Impurity(y_perm[L]) + (|R|/n) Impurity(y_perm[R])
 
 4. p-value ← (1 + Σ 𝟙[S_perm ≤ S_obs]) / (1 + n_resamples)  # left-tail
 

@@ -13,6 +13,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import PercentFormatter
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
@@ -142,23 +143,24 @@ def _render_task(task: str) -> None:
     _plot_panel(
         axes[0],
         split_agg,
-        ylabel="Informative split share",
-        title="Informative split share across sparse designs",
+        ylabel=r"\% of splits using informative features",
+        title="Splits using informative features across sparse designs",
     )
     axes[0].set_ylim(0.0, 1.05)
+    axes[0].yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
 
     _plot_panel(
         axes[1],
         false_agg,
-        ylabel="Distinct false features used",
-        title="Noise spread across sparse designs",
+        ylabel="Distinct uninformative features used",
+        title="Uninformative features used across sparse designs",
     )
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.98))
     axes[0].text(
         0.5,
-        -0.18,
+        -0.24,
         r"(A)",
         transform=axes[0].transAxes,
         ha="center",
@@ -167,14 +169,14 @@ def _render_task(task: str) -> None:
     )
     axes[1].text(
         0.5,
-        -0.18,
+        -0.24,
         r"(B)",
         transform=axes[1].transAxes,
         ha="center",
         va="top",
         fontsize=11,
     )
-    fig.subplots_adjust(top=0.78, bottom=0.22, wspace=0.26)
+    fig.subplots_adjust(top=0.78, bottom=0.28, wspace=0.26)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / TASK_CONFIG[task]["output_name"]

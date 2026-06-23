@@ -9,7 +9,7 @@ The analysis includes two related comparisons:
   muting, or reduce CIF to one tree.
 
 The analysis keeps the raw evidence paired at the strongest available level:
-dataset x downstream learner x feature budget, after averaging only repeated
+dataset x downstream learner x value of k, after averaging only repeated
 fold/seed rows inside each cell. Paper-facing aggregate comparisons then average
 paired cell deltas within each dataset before summarizing across datasets.
 """

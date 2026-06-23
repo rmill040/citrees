@@ -4,7 +4,7 @@ Archived story figure; not part of the current arXiv figure bundle.
 
 The figure combines the two boundary claims that now matter in the main paper:
   1. On the high-p real-data classification cohort, CIF is strongest at
-     intermediate budgets rather than at the full endpoint.
+     intermediate values of k rather than at the full endpoint.
   2. Sparse-forest diagnostics make candidate feature coverage the clearest
      mechanism behind that pattern.
 """
@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from matplotlib.patches import Patch
+from matplotlib.ticker import PercentFormatter
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
@@ -137,7 +138,7 @@ def main() -> None:
     ax_left.set_yticks(range(len(left.index)))
     ax_left.set_yticklabels(left.index)
     ax_left.set_xlabel("Downstream model")
-    ax_left.set_title("A. First best CIF budget by high-$p$ classification cell", fontsize=12, loc="left", pad=8)
+    ax_left.set_title("A. First $k$ with best CIF score by high-$p$ classification cell", fontsize=12, loc="left", pad=8)
     ax_left.tick_params(axis="both", length=0)
     ax_left.set_xticks([x - 0.5 for x in range(1, len(left.columns))], minor=True)
     ax_left.set_yticks([y - 0.5 for y in range(1, len(left.index))], minor=True)
@@ -179,12 +180,13 @@ def main() -> None:
         )
 
     ax_top.set_title("B. Candidate exposure", fontsize=12, loc="left")
-    ax_top.set_ylabel("Informative split share")
+    ax_top.set_ylabel("% of splits using informative features")
     ax_top.set_ylim(0.0, 1.05)
+    ax_top.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
     ax_top.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, fontsize=8.3)
 
-    ax_bottom.set_title("C. Noise spread", fontsize=12, loc="left")
-    ax_bottom.set_ylabel("Distinct false features")
+    ax_bottom.set_title("C. Uninformative features used", fontsize=12, loc="left")
+    ax_bottom.set_ylabel("Distinct uninformative features")
     ax_bottom.set_xlabel("Number of features ($p$)")
     ax_bottom.set_xticks([100, 500, 1000])
 

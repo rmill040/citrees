@@ -1,8 +1,8 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Conditional inference introduced an important separation between feature
-selection and threshold optimization to reduce split selection bias. Classical
+Conditional inference separates feature selection from threshold optimization to
+reduce split selection bias. Classical
 CART trees choose both a feature and a threshold from the same
 label-dependent search, which helps explain the well-documented preference for
 features with many admissible cutpoints
@@ -24,50 +24,41 @@ inference forests (CIF) as feature selection methods. For each seed and
 cross-validation fold, a method produces a ranking from the training fold.
 Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
 evaluated on held-out data, with results summarized across datasets. This
-benchmark therefore asks whether the splits chosen by a tree or forest place
-useful variables early enough in the ranking for fixed downstream models to benefit.
-The protocol is a predictive feature selection benchmark, not an
-error-controlled high-dimensional selection method of the kind targeted by
-stability selection or knockoffs
-\citep{MeinshausenBuhlmann2010StabilitySelection,BarberCandes2015Knockoffs}.
-
-We ask whether CIT/CIF runtime hyperparameters reduce computation while
-preserving useful feature rankings, and where those rankings are weaker.
-That question is distinct from the broader tree and forest literature on direct
-prediction and causal estimation
+benchmark therefore asks whether tree- and forest-derived rankings put useful
+variables early enough to improve fixed downstream models.
+We also ask whether CIT/CIF runtime hyperparameters reduce computation while
+preserving useful feature rankings, and where CIF recovery is weaker in high-$p$
+or synthetic settings. This feature-selection benchmark is separate from work on
+trees and forests as direct
+predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
-
-The theoretical result is local: it calibrates the Stage~A feature test at a
-fixed node. In that setting, Stage~A tests candidate features for association
-with the response under the nodewise complete permutation null. When the tested
-feature set and resample budget are label-independent, exhaustive fixed-$B$
-$p$-values have a clear permutation reference distribution. The guarantee does
-not cover the full adaptive tree or forest; those learners and their feature
-rankings are evaluated empirically. Selected-feature $p$-values, final split
-$p$-values, partial-null familywise error control, and forest-level error
-control remain outside this theorem
-\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
-
 Because several methods have tunable configurations, the benchmark chooses one
-setting per method and task. Leave-one-dataset-out (LODO) analyses repeat the
-setting choice after holding out each dataset, separately for the 14-dataset
-classification analysis and the 6-dataset regression analysis that have all
+setting per method and task. As a sensitivity check, leave-one-dataset-out
+(LODO) analyses repeat the setting choice after holding out each dataset. These
+LODO analyses use the 14 classification and 6 regression datasets with all
 methods, downstream learners, and standard $k$ values available.
 
+The theorem studies the Stage~A feature test at a fixed node. It assumes that
+the features tested at the node and the resample budget are fixed independently
+of the node responses, so exhaustive fixed-$B$ $p$-values have a clear
+permutation reference distribution under the nodewise complete permutation null.
+The benchmarks then evaluate the tree and forest feature rankings. This result
+does not cover $p$-values for selected features, final split $p$-values,
+partial-null familywise error control, or forest-level error control
+\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
+
 \paragraph{Contributions.}
-This paper contributes a broad real-data feature selection benchmark, direct
-comparisons with ctree, cforest, and CIT, classification and regression
-trajectory summaries, sensitivity analyses for both tasks, and runtime
-ablations for the main runtime hyperparameters. It also analyzes high-$p$
-behavior, synthetic feature recovery, and candidate feature availability
-(\cref{sec:boundary}). Regression is reported as a smaller parallel benchmark:
-the main comparison covers 8 real datasets, and the appendices give the
-corresponding regression LODO, learner-by-$k$, pairwise, seed, and
-candidate-availability checks, with dataset counts stated for each analysis. The
-paper also states the fixed-node, exhaustive
-fixed-$B$ Stage~A guarantee
-(\cref{thm:plusone-superuniform,cor:stageA-global-null}) that motivates the
-local test.
+This paper contributes a real-data benchmark of conditional-inference feature
+rankings for top-$k$ downstream prediction. The benchmark compares CIF with
+ctree, cforest, CIT, and other baselines, reports classification results and a
+smaller companion regression benchmark with dataset counts stated for each
+analysis, and ablates the main CIT/CIF runtime hyperparameters. The paper also
+states the fixed-node, exhaustive fixed-$B$ Stage~A guarantee
+(\cref{thm:plusone-superuniform,cor:stageA-global-null}); the full tree and
+forest rankings are evaluated in the benchmarks. Finally, the
+high-$p$ and synthetic analyses show cases with weaker top-$k$ recovery and how
+candidate feature sampling can make informative features unavailable at many
+forest split tests (\cref{sec:boundary}).
 
 The next sections define the tree-growing method, state the fixed-node
 guarantee, describe the benchmark and ablation setup, and then present the

@@ -15,6 +15,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import PercentFormatter
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
@@ -97,12 +98,13 @@ def main() -> None:
         )
         bottoms += values
 
-    axes[0].set_title("First best CIF budget", pad=14)
+    axes[0].set_title(r"First $k$ with best CIF score", pad=14)
     axes[0].set_xticks(x)
     axes[0].set_xticklabels([DISPLAY_NAMES[d] for d in DOWNSTREAMS])
-    axes[0].set_ylabel("Share of high-$p$ cells")
+    axes[0].set_ylabel(r"\% of high-$p$ datasets")
     axes[0].set_ylim(0.0, 1.0)
     axes[0].set_yticks(np.linspace(0.0, 1.0, 6))
+    axes[0].yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
     score_values = endpoint["mean_score_endpoint_minus_k100"].to_numpy(dtype=float)
     bar_colors = ["#2F855A" if val > 0 else "#B91C1C" for val in score_values]
     axes[1].bar(x, score_values, width=0.62, color=bar_colors, edgecolor="white", linewidth=0.8)
@@ -133,7 +135,7 @@ def main() -> None:
         loc="lower center",
         ncol=2,
         frameon=False,
-        bbox_to_anchor=(0.5, 1.34),
+        bbox_to_anchor=(0.5, 1.26),
         columnspacing=1.0,
         handlelength=1.4,
     )
@@ -157,7 +159,7 @@ def main() -> None:
         fontsize=11,
     )
 
-    fig.subplots_adjust(top=0.68, bottom=0.24, wspace=0.28)
+    fig.subplots_adjust(top=0.73, bottom=0.24, wspace=0.28)
 
     for out_dir in (FIGURES_DIR, ARXIV_FIGURES_DIR):
         out_path = out_dir / "high_p_boundary_summary.png"

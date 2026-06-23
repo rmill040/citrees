@@ -314,7 +314,7 @@ def _plot_heatmap(
 
     ax.set_xticks(range(n_k))
     ax.set_xticklabels([str(k) for k in K_VALUES])
-    ax.set_xlabel("Feature budget $k$", fontsize=9)
+    ax.set_xlabel("Selected features ($k$)", fontsize=9)
 
     ax.set_yticks(range(n_ds))
     ax.set_yticklabels(datasets, fontsize=7)

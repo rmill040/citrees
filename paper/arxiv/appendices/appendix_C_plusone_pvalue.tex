@@ -1,22 +1,21 @@
 \section{Proof of Theorem~\ref{thm:plusone-superuniform}}
 \label{app:proof-plusone}
 
-\Cref{app:permutation-exchangeability} shows why the usual computation with
-one observed statistic and $B$ random permutations has the same rank
-distribution as the exchangeable permutation construction. We now prove
-Theorem~\ref{thm:plusone-superuniform} under A0.1 through A0.5
+\Cref{app:permutation-exchangeability} reduces the usual computation with one
+observed statistic and $B$ random permutations to the exchangeable rank
+construction. We prove Theorem~\ref{thm:plusone-superuniform} under A0.1--A0.5
 (\cref{app:assumptions}).
 
-Fix $(X_t,U)$ and work under the null hypothesis at the fixed node $t$. Under
-A0.2 and A0.3 (\cref{app:assumptions}), the standard computation
-``$T_{\mathrm{obs}}$ + $B$ random permutations'' is covered by the same rank
-argument as the i.i.d.\ permutation construction; see
+Fix $(X_t,U)$, fix one candidate feature $j \in F_t$, and work under the
+nodewise complete permutation null at the fixed node $t$. Under A0.2--A0.4, the
+standard fixed-$B$ computation has the same conditional $p$-value distribution
+as the randomized exchangeable construction; see
 \cref{lem:identity-vs-random} in \cref{app:permutation-exchangeability} and
-\citet{HemerikGoeman2018ExactTestingRandomPermutations}. It therefore
-suffices to analyze the exchangeable construction in which the vector
-$(T_{\mathrm{obs}},T_1,\dots,T_B)$ is exchangeable conditional on $(X_t,U)$.
+\citet{HemerikGoeman2018ExactTestingRandomPermutations}. It is therefore enough
+to prove the rank bound for an exchangeable tuple, which we denote by
+$(T_{\mathrm{obs}},T_1,\dots,T_B)$.
 
-Define the right tail upper rank
+Define the conservative right-tail rank numerator
 %
 \begin{equation}
   R := 1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\},
@@ -24,16 +23,17 @@ Define the right tail upper rank
   p_{\mathrm{MC}}^{\ge} = \frac{R}{B+1}.
 \end{equation}
 %
-The left tail variant used in Stage~B replaces the exceedance check by
-$\ind\{T_b \le T_{\mathrm{obs}}\}$; equivalently, apply the right tail argument below to
-$-T$.
-In this paper, that left-tail convention explains how Stage~B scores candidate
-splits; Stage~B is run after Stage~A selects a feature and is not part of the
-Stage~A Type I error guarantee.
+The left-tail version replaces the exceedance check by
+$\ind\{T_b \le T_{\mathrm{obs}}\}$; equivalently, apply the right-tail argument
+below to $-T$. Stage~B uses this left-tail convention for split scores after
+Stage~A selects a feature, but the fixed-node Type I error guarantee here
+concerns Stage~A.
 
 \paragraph{No ties.}
-If the statistics almost surely have no ties, then $R = 1 + \sum_{b=1}^B \ind\{T_b > T_{\mathrm{obs}}\}$
-is the (descending) rank of $T_{\mathrm{obs}}$ among $(T_{\mathrm{obs}},T_1,\dots,T_B)$. Exchangeability implies
+If the statistics almost surely have no ties, then the $\ge$ indicator is the
+same as $>$, and $R$ is the descending rank of $T_{\mathrm{obs}}$ among
+$(T_{\mathrm{obs}},T_1,\dots,T_B)$, with rank 1 assigned to the largest
+statistic. Exchangeability implies
 %
 \begin{equation}
   \PP(R = r \mid X_t,U) = \frac{1}{B+1}, \qquad r=1,\dots,B+1,
@@ -49,18 +49,20 @@ so for any $\alpha \in [0,1]$,
 \end{equation}
 
 \paragraph{Ties.}
-If ties can occur, we use the tie convention A0.5. Under conservative tie
-handling, $p$-values are computed with the indicator $\ind\{T_b \ge T_{\mathrm{obs}}\}$, which
-counts ties as exceedances. Let $V_{\mathrm{obs}},V_1,\dots,V_B \stackrel{\mathrm{i.i.d.}}{\sim}
+If ties can occur, A0.5 uses conservative tie handling: the right-tail $+1$
+$p$-value uses $\ind\{T_b \ge T_{\mathrm{obs}}\}$, so ties with the observed
+statistic are counted in the numerator. To compare this rule with a no-ties
+rank, let
+$V_{\mathrm{obs}},V_1,\dots,V_B \stackrel{\mathrm{i.i.d.}}{\sim}
 \mathrm{Unif}(0,1)$ be independent of all other randomness and define augmented
 statistics $\tilde{T}_{\mathrm{obs}} := (T_{\mathrm{obs}}, V_{\mathrm{obs}})$
-and $\tilde{T}_b := (T_b, V_b)$ for $b=1,\dots,B$. The first coordinate is the
-test statistic; the second coordinate is used only as a tie-breaker. For the
-right-tail rank, $\tilde{T}_b$ exceeds $\tilde{T}_{\mathrm{obs}}$ exactly when
-$T_b > T_{\mathrm{obs}}$ or when $T_b = T_{\mathrm{obs}}$ and
-$V_b > V_{\mathrm{obs}}$. Then
-$(\tilde{T}_{\mathrm{obs}},\tilde{T}_1,\dots,\tilde{T}_B)$ is exchangeable and almost surely has no ties, so
-the rank argument above gives a superuniform $p$-value
+and $\tilde{T}_b := (T_b, V_b)$ for $b=1,\dots,B$. Order the augmented pairs
+lexicographically for the right tail: $\tilde{T}_b$ exceeds
+$\tilde{T}_{\mathrm{obs}}$ exactly when $T_b > T_{\mathrm{obs}}$, or when
+$T_b = T_{\mathrm{obs}}$ and $V_b > V_{\mathrm{obs}}$. Then
+$(\tilde{T}_{\mathrm{obs}},\tilde{T}_1,\dots,\tilde{T}_B)$ is exchangeable and
+almost surely has no ties, so the no-ties argument gives a superuniform
+$p$-value
 %
 \begin{equation}
   \tilde{p}_{\mathrm{MC}}^{\ge}
@@ -74,14 +76,18 @@ the rank argument above gives a superuniform $p$-value
   }{B+1}.
 \end{equation}
 %
-Moreover, for each $b$, the tie-broken event in the numerator above implies
-$T_b \ge T_{\mathrm{obs}}$, so
-$p_{\mathrm{MC}}^{\ge} \ge \tilde{p}_{\mathrm{MC}}^{\ge}$ and hence
+Moreover, each tie-broken indicator in $\tilde{p}_{\mathrm{MC}}^{\ge}$ is
+bounded by the corresponding conservative indicator
+$\ind\{T_b \ge T_{\mathrm{obs}}\}$. Thus
+$p_{\mathrm{MC}}^{\ge} \ge \tilde{p}_{\mathrm{MC}}^{\ge}$, and
 %
 \begin{equation}
   \PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U)
   \le \PP(\tilde{p}_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha.
 \end{equation}
 %
-Integrating over $(X_t,U)$ gives the corresponding unconditional inequality,
+Taking expectations over $(X_t,U)$ gives the unconditional bound,
 $\PP(p_{\mathrm{MC}}^{\ge} \le \alpha) \le \alpha$.
+The fixed-node Stage~A corollary applies this single-test bound to the $m_t$
+feature tests with threshold $\alpha_{\mathrm{sel}}/m_t$ and uses the Bonferroni
+union bound; no independence among feature tests is required.

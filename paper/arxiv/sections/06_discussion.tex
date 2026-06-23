@@ -1,80 +1,70 @@
 \section{Discussion}
 \label{sec:discussion}
 
-The real-data benchmark provides evidence for CIF in both classification and
-regression, with stronger support in classification because that benchmark has
-more datasets. For the 22 classification datasets with ctree and cforest
-results, CIF has higher average downstream scores than both methods; in the
-8-dataset regression benchmark, CIF also has higher average downstream scores
-than ctree, cforest, and CIT, but the analyses that require all methods,
-downstream learners, and standard $k$ values use only 6 regression datasets and
-have wider uncertainty intervals. The fixed-node theorem applies to
-exhaustive fixed-$B$ Stage~A testing with a label-independent tested feature set
-under the nodewise complete null, while the adaptive tree and forest rankings
-are evaluated empirically.
-The ablations report timing ratios and score changes. Among CIF timing controls
-that keep Bonferroni correction fixed, the largest timing changes come from
-adaptive stopping and exact-versus-histogram threshold search, while score
-changes remain small.
+The benchmark results favor CIF on average, and the classification results are
+clearer than the regression results. Across the 22 classification datasets with
+ctree and cforest results, CIF has higher average downstream scores than both
+methods. In regression, CIF has higher average downstream scores than ctree,
+cforest, and CIT across 8 datasets, while the complete-case rank analyses use
+only 6 datasets and have wider intervals. The theorem covers the
+fixed-node Stage~A test with fixed features and fixed budget, independent of the
+node responses under the complete null; the benchmark results cover fitted tree
+and forest rankings. The timing ablations show the largest changes for adaptive
+stopping and exact threshold search, with small score changes.
 
 \begin{figure}[!t]
   \centering
   \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
   \caption{Tree-level feature use in one sparse classification forest design
   ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
-  the number of trees using each feature in at least one split. CIF samples candidate
-  features; CIF-all sets \texttt{max\_features=None}. Each subplot has its own
+  the number of trees using each feature in at least one split. CIF samples a
+  subset of candidate features; CIF-all evaluates all nonconstant candidate
+  features. Each subplot has its own
   y-axis range because counts differ across methods.}
   \label{fig:candidate-forest-counts}
 \end{figure}
 
-The CIF ablation study compares split-count ranking, feature-muting,
-bootstrap, and one-tree variants under the same top-$k$ evaluation. The
-split-count ranking and feature-muting rows are small. The no-bootstrap row is
-near zero in classification and negative in regression. The one-tree row is the
-largest change in both tasks.
+The CIF ablation compares split-count ranking, feature muting, bootstrap
+sampling, and one-tree variants under the same top-$k$ evaluation. Replacing
+split-importance ranking with split counts and disabling feature muting change
+average scores little. Removing bootstrap sampling is close to neutral in
+classification and worse in regression. Reducing the forest to one tree gives the
+largest score change in both tasks.
 
-The high-$p$ and synthetic results identify one sparse-forest failure mode for
-CIF. In the candidate feature sampling simulation, single-tree CIT selects
-informative splits frequently when Stage~A considers all nonconstant features.
-In sparse high-$p$ forests, candidate sampling can leave informative features
-unavailable at many split decisions. The pattern is strongest in the
-classification forest grid, while the regression grid shows the same
-candidate-availability mechanism with a more mixed tradeoff in uninformative
-feature use.
-This pattern is consistent with the results reported in
-\cref{sec:boundary}.
+The high-$p$ and synthetic results point to one reason CIF can struggle in sparse
+forests. In the simulation with candidate sampling, single-tree CIT often selects
+informative features for splits because Stage~A considers all nonconstant
+features. In sparse high-$p$ forests, candidate sampling can leave informative
+features out of many split decisions. The effect is clearest in the
+classification forest simulations. Regression shows the same availability issue,
+but the change in uninformative feature use is smaller and less consistent. This
+matches the results in \cref{sec:boundary}.
 
-\paragraph{Practical guidance.}
-CIF is most relevant when the task needs an ordered feature list or a selected
-feature subset, when nonlinear or interaction structure may be important, and
-when the Stage~A/Stage~B separation is part of why the method is used. If
-prediction accuracy is the only objective, boosted trees and random forest
-baselines should remain in the comparison set. When the objective is variable
-screening or ranking rather than final prediction, CIF should also be compared
-with forest-based variable selection methods
-\citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, not only
-against ensembles designed primarily for prediction.
-
-The default benchmark configuration keeps adaptive stopping, histogram
-thresholding, and Bonferroni correction. With Bonferroni correction, the default
-tree and forest settings require stronger evidence before accepting a split and
-tend to use fewer features; removing it is a sensitivity comparison.
-Resampling methods that account for dependence, such as
-Westfall--Young \citep{WestfallYoung1993ResamplingBasedMultipleTesting}, and
-false discovery rate control, such as Benjamini--Hochberg
-\citep{BenjaminiHochberg1995FDR}, answer different questions and are natural
-extensions. Feature and threshold scanning remain secondary: their timing
-effects are mixed once adaptive stopping is enabled, and metric changes are
-small.
+The default benchmark keeps adaptive stopping, histogram thresholding, and
+Bonferroni correction. Bonferroni correction makes accepted splits require
+smaller adjusted $p$-values and tends to produce trees that use fewer features;
+removing it is included as a sensitivity check. Dependence-aware resampling,
+such as Westfall--Young \citep{WestfallYoung1993ResamplingBasedMultipleTesting},
+or false discovery rate control, such as Benjamini--Hochberg
+\citep{BenjaminiHochberg1995FDR}, would target different error criteria and are
+worth testing separately. Feature and threshold scanning play a smaller role in
+these experiments: once adaptive stopping is enabled, their timing effects are
+mixed and their score changes are small.
 
 \paragraph{Scope and limitations.}
-The 14-dataset classification analysis includes all 17 methods, all
-three downstream learners, and all five standard values of $k$. The ctree and
-cforest comparisons use 22 classification datasets. Regression uses 8 datasets
-in the main table and 6 in the analogous rank summary.
-The simulation study suggests that high-$p$ forests can miss informative
-features when candidate sampling leaves those features unavailable at many split
-decisions. This result comes from a diagnostic simulation, not from a separate
-benchmark comparison. A concrete next step is to test forest variants that
-consider more candidate features at each split.
+The complete-case analyses are smaller than the full benchmark: 14
+classification datasets for all 17 methods and 6 regression datasets for the
+analogous rank summary. The ctree and cforest classification comparisons use
+22 datasets, and the regression main table uses 8. The simulations also show
+that high-$p$ forests can miss informative features when candidate sampling
+leaves those features unavailable at many splits. A direct next step is to test
+forest variants that consider more candidate features at each split.
+
+\paragraph{Practical guidance.}
+CIF is most relevant when the goal is an ordered feature list or selected
+feature subset, especially when nonlinear effects or interactions may matter. If
+prediction accuracy is the only goal, boosted trees and random forest baselines
+should remain in the comparison set. For variable screening or ranking, CIF
+should also be compared with forest-based variable-selection methods
+\citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, not only
+with ensembles built mainly for prediction.

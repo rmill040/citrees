@@ -1,35 +1,31 @@
-\section{Dataset inventories}
+\section{Datasets}
 \label{app:dataset-inventory}
 
-This appendix lists the datasets used in the benchmark and synthetic feature
-recovery analyses. Tables~\ref{tab:benchmark-dataset-inventory-clf}
-and~\ref{tab:benchmark-dataset-inventory-reg} list the classification and
-regression benchmark datasets. Tables~\ref{tab:synthetic-dataset-inventory-clf}
-and~\ref{tab:synthetic-dataset-inventory-reg} list the synthetic classification
-and regression designs.
+This appendix gives the dataset inventory for the real-data benchmark and the
+synthetic feature-recovery analyses.
 
 \subsection{Benchmark datasets}
 
-These tables report the number of samples $n$ and features $p$ for each
-dataset used in the benchmark.
-Source labels identify the public benchmark collections from
-which the datasets were drawn: UCI Machine Learning Repository
-\citep{KellyLongjohnNottinghamUCI}, the NIPS 2003 feature selection challenge
-\citep{Guyon2004NIPSFeatureSelectionChallenge}, ASU/scikit-feature benchmark
-data \citep{Li2018FeatureSelectionDataPerspective}, OpenML
+For each real-data benchmark dataset, the tables report the number of samples
+$n$, the number of features $p$, and the source collection. Source labels refer
+to UCI Machine Learning Repository \citep{KellyLongjohnNottinghamUCI}, the NIPS
+2003 feature selection challenge \citep{Guyon2004NIPSFeatureSelectionChallenge},
+ASU/scikit-feature \citep{Li2018FeatureSelectionDataPerspective}, OpenML
 \citep{Vanschoren2014OpenML}, and CoEPrA molecular-property benchmarks
-\citep{DemirKavuk2010CoeprA} where noted. The tables abbreviate
-ASU/scikit-feature as ASU/SF.
+\citep{DemirKavuk2010CoeprA}. ASU/SF abbreviates ASU/scikit-feature.
+Slash-separated labels indicate original benchmark provenance and OpenML
+availability or hosting.
 
 \begin{table}[H]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{4pt}
   \renewcommand{\arraystretch}{1.0}
-  \begin{tabular}{@{}lrrl@{\quad}lrrl@{}}
+  \begin{tabular}{@{}lS[table-format=5.0]S[table-format=5.0]l@{\hspace{1.5em}}lS[table-format=5.0]S[table-format=5.0]l@{}}
     \toprule
-    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} & Src. &
-    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} & Src. \\
+    \tablehead{Dataset} & {$n$} & {$p$} & \tablehead{Source} &
+    \tablehead{Dataset} & {$n$} & {$p$} & \tablehead{Source} \\
+    \cmidrule(lr){1-4}\cmidrule(l){5-8}
     \midrule
     \nolinkurl{gamma} & 19,020 & 9 & UCI &
     \nolinkurl{Yale} & 165 & 1,024 & ASU/SF \\
@@ -56,8 +52,8 @@ ASU/scikit-feature as ASU/SF.
     \nolinkurl{ORL} & 400 & 1,024 & ASU/SF & & & & \\
     \bottomrule
   \end{tabular}
-  \caption{Classification benchmark datasets. Here $n$ is the number of samples
-  and $p$ is the number of features.}
+  \caption{Classification benchmark datasets. The two blocks are independent
+  columns used only to save space; rows do not indicate matched dataset pairs.}
   \label{tab:benchmark-dataset-inventory-clf}
 \end{table}
 
@@ -65,9 +61,9 @@ ASU/scikit-feature as ASU/SF.
   \centering
   \scriptsize
   \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}lrrl@{}}
+  \begin{tabular}{@{}lS[table-format=4.0]S[table-format=4.0]l@{}}
     \toprule
-    Dataset & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} & Source \\
+    \tablehead{Dataset} & {$n$} & {$p$} & \tablehead{Source} \\
     \midrule
     \nolinkurl{facebook} & 500 & 21 & UCI/OpenML \\
     \nolinkurl{imports-85} & 205 & 76 & UCI \\
@@ -79,8 +75,7 @@ ASU/scikit-feature as ASU/SF.
     \nolinkurl{coepra3} & 133 & 5,787 & CoEPrA/OpenML \\
     \bottomrule
   \end{tabular}
-  \caption{Regression benchmark datasets. Here $n$ is the number of samples and
-  $p$ is the number of features.}
+  \caption{Regression benchmark datasets. Source labels are defined in the text.}
   \label{tab:benchmark-dataset-inventory-reg}
 \end{table}
 
@@ -88,39 +83,42 @@ ASU/scikit-feature as ASU/SF.
 
 \subsection{Synthetic datasets}
 
-These tables report the number of samples $n$ and features $p$ for each
-synthetic design used in the recovery analysis. The Design column gives a short
-design label, and the Setting column records the remaining simulation
-parameters.
+These tables report $n$, $p$, and selected identifying settings for each
+synthetic feature-recovery design. In the classification table, \texttt{sep}
+denotes class separation and \texttt{flip} denotes label-flip probability. In
+the regression table, \texttt{noise} denotes the response-noise scale; for the
+heteroscedastic row, \texttt{scale} controls the feature-dependent noise
+multiplier.
 
-The synthetic datasets were chosen as small controlled examples where the
-informative features are known. Each design targets one issue that can matter
-for feature selection: correlated predictors, correlated noise, nonlinear signal,
-weak signal, high-cardinality noise, redundant features, and an easier and a
-harder baseline problem. The same idea is used for the regression datasets,
-which also include Friedman~1 and a heteroscedastic design. The parameter
-values were set by hand to keep the examples compact and to include one harder
-high-dimensional, small-sample case in each task.
+The synthetic datasets are controlled recovery problems with known informative
+features. The classification designs cover redundant features,
+high-cardinality noise, nonlinear signal, standard and weak signal, Toeplitz
+correlation, correlated-noise features, and sparse high-$p$ structure. The
+regression designs cover heteroscedastic noise, redundant features, Friedman~1,
+standard and weak signal, Toeplitz correlation, correlated-noise features, and
+sparse high-$p$ structure. The settings keep the examples compact while
+including one high-dimensional, small-sample case for each task.
 
 \begin{table}[H]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}p{0.24\linewidth}p{0.36\linewidth}rr@{}}
+  \begin{tabular}{@{}L{0.26\linewidth}L{0.32\linewidth}S[table-format=4.0]S[table-format=4.0]@{}}
     \toprule
-    Design & Setting & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    \tablehead{Design} & \tablehead{Setting} & {$n$} & {$p$} \\
     \midrule
-    Redundant features & 20 redundant features & 1,000 & 50 \\
-    High-cardinality bias & 50 noise features, 500 levels & 1,000 & 100 \\
-    Nonlinear signal & nonlinear decision boundary & 1,000 & 100 \\
+    Redundant features & 10 informative, 20 redundant features & 1,000 & 50 \\
+    High-cardinality noise & 10 informative, 50 high-cardinality noise features, 500 levels & 1,000 & 100 \\
+    Nonlinear signal & binarized Friedman~1, 5 informative & 1,000 & 100 \\
     Standard classification & 10 informative, sep $= 2.0$ & 1,000 & 100 \\
     Toeplitz correlation & 10 informative, $\rho = 0.95$ & 1,000 & 100 \\
     Weak signal classification & 10 informative, sep $= 0.1$, flip $= 0.1$ & 1,000 & 100 \\
-    Correlated noise & 10 informative, 20 noise, $\rho = 0.9$ & 1,000 & 120 \\
+    Correlated noise & 10 informative, 20 added correlated-noise features, $\rho = 0.9$ & 1,000 & 120 \\
     Sparse high-$p$ classification & 5 informative, sep $= 0.5$ & 200 & 1,000 \\
     \bottomrule
   \end{tabular}
-  \caption{Synthetic classification designs.}
+  \caption{Synthetic classification designs used in the feature-recovery
+  analysis.}
   \label{tab:synthetic-dataset-inventory-clf}
 \end{table}
 
@@ -128,20 +126,20 @@ high-dimensional, small-sample case in each task.
   \centering
   \scriptsize
   \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}p{0.24\linewidth}p{0.36\linewidth}rr@{}}
+  \begin{tabular}{@{}L{0.26\linewidth}L{0.32\linewidth}S[table-format=4.0]S[table-format=3.0]@{}}
     \toprule
-    Design & Setting & \multicolumn{1}{c}{$n$} & \multicolumn{1}{c}{$p$} \\
+    \tablehead{Design} & \tablehead{Setting} & {$n$} & {$p$} \\
     \midrule
-    Heteroscedastic regression & scale $= 4.0$, noise $= 5.0$ & 1,000 & 50 \\
-    Redundant features & 20 redundant features & 1,000 & 50 \\
-    Friedman 1 & noise $= 1.0$ & 1,000 & 100 \\
+    Heteroscedastic regression & heteroscedastic scale $= 4.0$, noise $= 5.0$ & 1,000 & 50 \\
+    Redundant features & 10 informative, 20 redundant features & 1,000 & 50 \\
+    Friedman 1 & 5 informative, noise $= 1.0$ & 1,000 & 100 \\
     Standard regression & 10 informative, noise $= 1.0$ & 1,000 & 100 \\
     Toeplitz correlation & 10 informative, $\rho = 0.95$ & 1,000 & 100 \\
     Weak signal regression & 10 informative, noise $= 50.0$ & 1,000 & 100 \\
-    Correlated noise & 10 informative, 20 noise, $\rho = 0.9$ & 1,000 & 120 \\
+    Correlated noise & 10 informative, 20 added correlated-noise features, $\rho = 0.9$ & 1,000 & 120 \\
     Sparse high-$p$ regression & 5 informative, noise $= 10.0$ & 200 & 500 \\
     \bottomrule
   \end{tabular}
-  \caption{Synthetic regression designs.}
+  \caption{Synthetic regression designs used in the feature-recovery analysis.}
   \label{tab:synthetic-dataset-inventory-reg}
 \end{table}

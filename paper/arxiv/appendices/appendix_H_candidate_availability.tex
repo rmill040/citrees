@@ -1,48 +1,57 @@
 \section{Candidate feature availability}
 \label{app:candidate-availability}
 
-This appendix reports the extended candidate feature availability analysis separately
-from the benchmark-stability summaries in \cref{app:benchmark-stability}.
+This appendix gives the extended $p$-sweep behind the main-text
+candidate feature sampling diagnostic, separate from the benchmark-stability
+summaries in \cref{app:benchmark-stability}.
 
 \Cref{fig:candidate-dimension-curves,fig:regression-candidate-dimension-curves}
-extend the main text candidate feature sampling figure from one sparse setting
-to $p = 100, 500$, and $1{,}000$ at 1,000 trees, separately for classification
-and regression. For each method and number of features, the point marks the mean
-over $n_{\mathrm{informative}} \in \{1,2,5,10\}$ and the capped bar spans the
+show the candidate feature sampling diagnostic at feature dimensions
+$p \in \{100,500,1{,}000\}$, using forests with 1,000 trees per fit, separately
+for classification and regression. For each method and feature dimension $p$,
+the point marks the mean over
+$n_{\mathrm{informative}} \in \{1,2,5,10\}$, and the capped bar spans the
 minimum and maximum over those four sparse settings.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}
-  \caption{Classification forest candidate feature sampling by number of
-  features at 1,000 trees. Points are means over
-  $n_{\mathrm{informative}} \in \{1,2,5,10\}$; capped bars show the
-  min--max range over those sparse designs, not uncertainty intervals.}
+  \caption{Classification forest candidate feature sampling by feature dimension
+  $p$ with 1,000 trees per fit. Points are means over
+  $n_{\mathrm{informative}} \in \{1,2,5,10\}$; capped bars span the
+  minimum-to-maximum values across those four sparse designs.
+  (A) shows \% of splits using informative features; (B) shows
+  the number of distinct uninformative features used.}
   \label{fig:candidate-dimension-curves}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/paper_mechanism_grid_forest_regression_dimension_curves_1000trees.png}
-  \caption{Regression forest candidate feature sampling by number of features
-  at 1,000 trees. Points are means over
-  $n_{\mathrm{informative}} \in \{1,2,5,10\}$; capped bars show the
-  min--max range over those sparse designs, not uncertainty intervals.}
+  \caption{Regression forest candidate feature sampling by feature dimension
+  $p$ with 1,000 trees per fit. Points are means over
+  $n_{\mathrm{informative}} \in \{1,2,5,10\}$; capped bars span the
+  minimum-to-maximum values across those four sparse designs.
+  (A) shows \% of splits using informative features; (B) shows
+  the number of distinct uninformative features used.}
   \label{fig:regression-candidate-dimension-curves}
 \end{figure}
 
-In classification, the gap between default CIF and CIF-all widens as the number
-of features grows and is largest in the sparsest settings. CIF-all is the CIF
-variant with \texttt{max\_features=None}, so every nonconstant candidate feature
-can enter Stage~A at each split; feature muting and all other tree settings are
-held fixed. With two informative features, the difference in informative split
-share is 0.600 at $p{=}100$, 0.780 at $p{=}500$, and 0.910 at $p{=}1{,}000$,
-while the corresponding reductions in distinct uninformative features used by
-the forest are 70, 264, and 439. With five informative features, the split-share
-differences are still 0.251, 0.564, and 0.543 as $p$ increases.
+In classification, CIF-all separates most clearly from default CIF in sparse
+high-$p$ settings. CIF-all evaluates all nonconstant candidate features at each
+split; feature muting and the other tree settings are unchanged. With two
+informative features and $p{=}100$, default CIF uses informative features in
+40.0\% of splits, while CIF-all does so in 100.0\%. The corresponding values
+are 12.2\% versus 90.2\% at $p{=}500$ and 9.0\% versus 100.0\% at
+$p{=}1{,}000$. CIF-all also uses 70, 264, and 439 fewer distinct uninformative
+features than default CIF. With five informative features, the CIF-all-minus-CIF
+differences are 25.1, 56.4, and 54.3 percentage points at $p{=}100$,
+$p{=}500$, and $p{=}1{,}000$.
 
-Regression shows the same candidate-availability effect for sparse signals, but
-with a less one-sided tradeoff because CIF-all uses more distinct uninformative
-features. With two informative features, CIF-all raises the informative split
-share by 0.189, 0.269, and 0.243 as $p$ increases from 100 to 1,000; with one
-informative feature, the gains are 0.298, 0.189, and 0.421.
+Regression shows a similar pattern in the one- and two-informative-feature
+settings, but CIF-all also uses more distinct uninformative features. With two
+informative features and $p{=}100$, default CIF uses informative features in
+39.9\% of splits, while CIF-all does so in 58.8\%. The corresponding values are
+19.7\% versus 46.7\% at $p{=}500$ and 11.6\% versus 35.9\% at
+$p{=}1{,}000$. With one informative feature, the CIF-all-minus-CIF differences
+are 29.8, 18.9, and 42.1 percentage points.

@@ -4,8 +4,8 @@
 This appendix separates two facts. First, statistics computed from i.i.d. random
 permutations are exchangeable. Second, under A0.2--A0.4, the usual ``observed
 statistic + $B$ random permutations'' computation has the same null rank
-distribution as a randomized-baseline construction. The superuniformity proof
-then uses the conservative tie convention in A0.5; see also
+distribution as a construction with a randomized baseline. The superuniformity
+proof then uses the conservative tie convention in A0.5; see also
 \citet{HemerikGoeman2018ExactTestingRandomPermutations} for a broader treatment
 of exact random permutation testing.
 
@@ -62,10 +62,9 @@ $T_0 := T(X_{t,j}, \Pi_0(Y_t); U)$ (keeping $T_1,\dots,T_B$ as above), and defin
 Both quantities use the same conservative right-tail tie convention: ties with
 the baseline statistic are counted as exceedances. Under the null, conditional
 on $(X_t,U)$, $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$ have the same
-distribution with this convention. Thus Theorem~\ref{thm:plusone-superuniform}
-can prove the rank bound for the exchangeable construction $p_{\mathrm{rnd}}$
-and apply the same conclusion to the standard ``observed statistic + $B$ random
-permutations'' computation.
+distribution with this convention. It is enough to prove the rank bound for
+the exchangeable construction $p_{\mathrm{rnd}}$ and apply the same conclusion
+to the standard ``observed statistic + $B$ random permutations'' computation.
 \end{lemma}
 
 \begin{proof}

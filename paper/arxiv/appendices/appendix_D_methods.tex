@@ -1,9 +1,9 @@
 \section{Algorithm and reproducibility notes}
 \label{app:methods}
 
-This appendix gives implementation, benchmark-configuration, and coverage
-details needed to interpret the main results. Section~\ref{sec:method}
-describes the tree-growing loop, the setup and proof appendices give the
+This appendix records implementation details, benchmark configuration, and
+coverage rules needed to interpret the main results. Section~\ref{sec:method}
+describes the tree-growing loop, the setup and proof appendices state the
 fixed-node results, and Appendix~\ref{app:complexity-details} gives runtime and
 memory details for the benchmarked tree-growing algorithm.
 
@@ -101,7 +101,7 @@ target. The fixed-node theorem covers only the Stage~A reference rule.
 protocol and configuration-selection rule. The benchmark compares 17
 classification methods and 18 regression methods, including permutation-test
 filters, embedded tree and ensemble methods, R ctree/cforest, and wrapper
-methods. This appendix explains which runs enter the appendix tables.
+methods. The rules below define which runs enter the appendix tables.
 
 For per-method and direct pairwise summaries, each comparison uses the datasets,
 downstream learners, and standard values of $k$ where the methods in that

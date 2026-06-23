@@ -1,11 +1,10 @@
 \section{Runtime and memory accounting}
 \label{app:complexity-details}
 
-This appendix explains the runtime terms behind the ablations in
-\cref{sec:results-practical}. We count training cost node by node: the scans,
-copies, and candidate tests actually reached. A node-by-node sum is needed
-because candidate pools, node sizes, threshold counts, and stopping times vary
-across the tree.
+The runtime terms behind the ablations in \cref{sec:results-practical} are
+counted node by node: the scans, copies, and candidate tests actually reached.
+A node-by-node sum is needed because candidate pools, node sizes, threshold
+counts, and stopping times vary across the tree.
 
 Let $n$ be the training sample count and let $p$ be the number of features. At
 node $t$, let $n_t$ be the number of samples reaching the node. Using the

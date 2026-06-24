@@ -1,33 +1,27 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper studies how CIT and CIF runtime choices affect feature rankings,
-downstream prediction, and synthetic feature recovery. For exhaustive fixed-$B$
-Stage~A testing at a fixed node, if the tested features and permutation budget
-are fixed independently of the node responses, Bonferroni correction controls
-the probability of any Stage~A feature rejection under the nodewise complete
-permutation null. The benchmarks then evaluate the full tree and forest
-rankings. For CIF, adaptive stopping and exact-versus-histogram threshold search
-change runtime the most while keeping Bonferroni correction fixed. CIT timing is
-less consistent, so the paper separates it from the CIF runtime and downstream
-prediction summaries.
+This paper evaluates conditional-inference tree and forest rankings for top-$k$
+downstream prediction and proves a fixed-node guarantee for Stage~A permutation
+testing. With the selected configurations, CIF ranks 4th of 17 methods in
+classification and 3rd of 18 in regression. CIF also scores higher on average
+than ctree, cforest, and CIT in the direct comparisons, with the clearest
+evidence in classification.
 
-On the real-data benchmarks with the selected settings, CIF ranks 4th of 17
-classification methods and 3rd of 18 regression methods. These
-within-benchmark rank and win/loss summaries evaluate the selected
-configurations. In direct comparisons, CIF has higher average downstream scores
-than ctree and cforest across 22 classification datasets and higher scores than
-CIT across 23 classification datasets. In the smaller regression benchmark, CIF
-is higher than ctree and cforest on 7 of 8 datasets and higher than CIT on 6 of
-8.
+The ablations show which measured CIF changes had the largest effects in this
+setting. In the CIF runtime ablations, where each run changes one setting at a
+time, disabling adaptive stopping and replacing histogram-256 thresholding with
+exact threshold search produce the largest slowdowns. For ranking quality,
+reducing CIF to one tree has the largest downstream score loss, while
+split-count ranking and feature muting have smaller effects in these runs. The
+high-$p$ and synthetic analyses add a practical diagnostic: CIF recovers
+informative features more reliably within the top-$k$ list than at rank 1, and
+candidate sampling can leave informative features unavailable at many
+sparse-forest split decisions.
 
-The CIF ranking ablations show that forest size matters: using one tree has the
-largest downstream score effect, while feature muting and split-count ranking
-have smaller effects. The high-$p$ and
-synthetic analyses show two patterns: CIF recovers true features more reliably
-within the top-$k$ list than at rank 1, and candidate sampling inside forests can
-leave informative features unavailable at many split decisions. Classification
-provides the clearest benchmark evidence, while the smaller regression benchmark
-has wider intervals. A next step is to test forest variants that consider more
-candidate features at each split while keeping
-Stage~A selection separate from Stage~B splitting.
+Taken together, the results support CIF as a practical top-$k$ feature-ranking
+method for the evaluated downstream prediction tasks, especially in
+classification. The practical guidance is to evaluate CIF rankings through the
+downstream learner, choose $k$ by held-out performance, keep adaptive stopping
+with bounded threshold search for similar ranking workloads, and monitor
+candidate feature availability in sparse high-$p$ settings.

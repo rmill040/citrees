@@ -280,10 +280,6 @@ this option can also change the realized sequence of features, thresholds, and
 nodes evaluated. Because this run did not refit downstream models, these rows
 report timing and synthetic feature-recovery changes, not downstream performance.
 
-\paragraph{CIF runtime ablations.}
-The CIF runtime ablation table combines timing ratios with downstream score
-changes and feature recovery changes on synthetic datasets.
-
 \begin{table}[H]
   \centering
   \footnotesize
@@ -308,27 +304,27 @@ changes and feature recovery changes on synthetic datasets.
   \label{tab:cif-runtime-hyperparams}
 \end{table}
 
+\paragraph{CIF runtime ablations.}
 \Cref{tab:cif-runtime-hyperparams} shows consistent slowdowns for two CIF
 changes. Disabling adaptive stopping makes fits 4.0--8.4$\times$ slower by
 median dataset-level ratios. In the separate threshold-search ablation, exact
 threshold search is 1.9--10.8$\times$ slower than histogram-256 by ratios of
 group mean elapsed times. Downstream score changes and synthetic
 feature-recovery changes are at most 0.011 and 0.017. The feature-scanning effect
-is smaller and less consistent once adaptive stopping is enabled.
-\FloatBarrier
-Removing Bonferroni correction is faster for both CIT and CIF, but it changes
-the statistical rule and yields trees with more selected features, so we do not
+is smaller and less consistent once adaptive stopping is enabled. Removing
+Bonferroni correction is faster for both CIT and CIF, but it changes the
+statistical rule and yields trees with more selected features, so we do not
 treat it as a recommended setting.
+\FloatBarrier
 
 \section{High-dimensional and synthetic analyses}
 \label{sec:boundary}
 
+\paragraph{High-dimensional real datasets.}
 These analyses study where CIF's scores peak as $k$ grows, how feature
 recovery on synthetic datasets changes across values of $k$, and how candidate
 feature sampling inside the forest affects how often splits use informative
 features.
-
-\paragraph{High-dimensional real datasets.}
 Across the 15 classification datasets with more than 100 features, CIF first
 reaches its best score at an intermediate value of $k$ ($100 < k < p$) in 30 of 45
 dataset-learner combinations. It first reaches its best score at the full

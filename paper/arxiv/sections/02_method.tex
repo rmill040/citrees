@@ -98,7 +98,10 @@ Stage~B $p$-value is below $\tau_t^{\mathrm{split}}$, the node becomes terminal.
 After a threshold passes the Stage~B test, the final minimum required-improvement
 check uses the corresponding weighted impurity decrease. Stage~B chooses the
 split used by the tree; the returned Stage~B score is not a valid post-selection
-$p$-value.
+$p$-value. The training skeleton in \cref{alg:citree} summarizes this flow and,
+for the benchmarked CIT and CIF configurations, stores two values at each split:
+the Stage~A permutation $p$-value for the selected feature and the Stage~B
+permutation $p$-value for the selected threshold.
 
 \begin{algorithm}[H]
   \caption{Conditional inference tree training skeleton (Stage~A $\rightarrow$ Stage~B)}
@@ -133,10 +136,6 @@ $p$-value.
     \EndFunction
   \end{algorithmic}
 \end{algorithm}
-
-For the benchmarked CIT and CIF configurations, \cref{alg:citree} stores two
-values at each split: the Stage~A permutation $p$-value for the selected feature
-and the Stage~B permutation $p$-value for the selected threshold.
 
 \subsection{Monte Carlo permutation \texorpdfstring{$p$}{p}-values}
 \label{sec:plusone}

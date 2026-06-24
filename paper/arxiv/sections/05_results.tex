@@ -92,14 +92,14 @@ each analysis reports its dataset count.
 
 \Cref{tab:conditional-inference-comparisons} shows CIF ahead on average in all
 six direct pairings. On the complete-case datasets, CIF is also ahead of ctree,
-cforest, and CIT in both tasks. In classification (14 datasets), the 95\%
-bootstrap intervals for mean CIF-minus-comparator differences are [0.068, 0.154]
-for ctree, [0.067, 0.160] for cforest, and [0.023, 0.060] for CIT. In
-regression (6 datasets), the intervals are [0.113, 0.529] for ctree,
-[0.040, 2.570] for cforest, and [-0.007, 1.224] for CIT. The regression
-interval for CIF versus CIT crosses zero; the other complete-case intervals are
-positive. The regression intervals are wider because fewer datasets are
-available and some comparator mean $R^2$ values are negative.
+cforest, and CIT in both tasks. The 95\% bootstrap CIs for mean
+CIF-minus-comparator differences are as follows. Classification (14 datasets):
+ctree [0.068, 0.154], cforest [0.067, 0.160], CIT [0.023, 0.060]. Regression
+(6 datasets): ctree [0.113, 0.529], cforest [0.040, 2.570], CIT
+[-0.007, 1.224]. The regression interval for CIF versus CIT crosses zero; the
+other complete-case intervals are positive. The regression intervals are wider
+because fewer datasets are available and some comparator mean $R^2$ values are
+negative.
 
 \paragraph{CIF ablations.}
 \Cref{tab:cif-ranking-ablation} compares the selected CIF configuration with
@@ -149,11 +149,11 @@ intervals that include zero. Disabling feature muting changes both tasks by
 $+0.000$, while disabling bootstrap sampling changes classification by $+0.001$
 and regression by $-0.208$.
 
-On the complete-case classification panel, the Friedman test rejects equality of
-method ranks overall ($\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$). The
-complete-case regression calculation gives $\chi^2(17)=33.79$, an asymptotic
-$p$-value of 0.0089, and Kendall's $W=0.33$. Because regression uses only
-6 datasets, this asymptotic $p$-value should be interpreted cautiously. These
+The complete-case Friedman tests use dataset-level method means.
+Classification: $\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$.
+Regression: $\chi^2(17)=33.79$, $p=0.0089$, Kendall's $W=0.33$. Because
+regression uses only 6 datasets, the regression $p$-value should be interpreted
+cautiously. These
 intervals and rank tests describe configurations selected by the benchmark, not
 settings fixed before the benchmark. The LODO analysis below checks whether the
 selected configurations are stable under one-dataset holdout.
@@ -403,7 +403,7 @@ to miss informative features in classification and regression settings.
 design comparing default CIF with CIF-all. Default CIF samples candidate
 features at each split; CIF-all considers every nonconstant feature in Stage~A.
 \Cref{app:candidate-availability} gives the classification and regression
-results over $p = 100, 500$, and $1{,}000$.
+results over $p \in \{100,500,1{,}000\}$.
 
 \begin{figure}[!t]
   \centering

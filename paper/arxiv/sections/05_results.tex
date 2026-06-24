@@ -408,18 +408,6 @@ features at each split; CIF-all considers every nonconstant feature in Stage~A.
 \Cref{app:candidate-availability} gives the classification and regression
 results over $p \in \{100,500,1{,}000\}$.
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
-  \caption{Tree-level feature use in one sparse classification forest design
-  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
-  the number of trees using each feature in at least one split. CIF samples a
-  subset of candidate features; CIF-all evaluates all nonconstant candidate
-  features. Each subplot has its own
-  y-axis range because counts differ across methods.}
-  \label{fig:candidate-forest-counts}
-\end{figure}
-
 In the single-tree simulations, CIT uses informative features in 100.0\% of
 classification splits and 93.5\% of regression splits. This shows that, in this
 fixed design, informative features are usually selected when every nonconstant
@@ -438,3 +426,15 @@ the other tree settings are held fixed. In these sparse high-$p$ simulations,
 splits use informative features most often when every nonconstant feature can
 enter Stage~A. When candidate sampling rarely includes an informative feature at
 a node, Stage~A selects from the available candidate set.
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
+  \caption{Tree-level feature use in one sparse classification forest design
+  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
+  the number of trees using each feature in at least one split. CIF samples a
+  subset of candidate features; CIF-all evaluates all nonconstant candidate
+  features. Each subplot has its own
+  y-axis range because counts differ across methods.}
+  \label{fig:candidate-forest-counts}
+\end{figure}

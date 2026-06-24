@@ -1,12 +1,12 @@
 \section{Discussion}
 \label{sec:discussion}
 
-The benchmark results favor CIF on average, and the classification results are
-clearer than the regression results. Across the 22 classification datasets with
-ctree and cforest results, CIF has higher average downstream scores than both
-methods. In regression, CIF has higher average downstream scores than ctree,
-cforest, and CIT across 8 datasets, while the complete-case rank analyses use
-only 6 datasets and have wider intervals. The theorem covers the
+The benchmark results favor CIF on average, with the clearest evidence in
+classification. Across the 22 classification datasets with ctree and cforest
+results, CIF has higher average downstream scores than both methods. In
+regression, CIF has higher average downstream scores than ctree, cforest, and
+CIT across 8 datasets; the complete-case regression rank analysis uses 6
+datasets and has wider intervals. The theorem covers the
 fixed-node Stage~A test with fixed features and fixed budget, independent of the
 node responses under the complete null; the benchmark results cover fitted tree
 and forest rankings. The timing ablations show the largest changes for adaptive
@@ -51,7 +51,7 @@ worth testing separately. Feature and threshold scanning play a smaller role in
 these experiments: once adaptive stopping is enabled, their timing effects are
 mixed and their score changes are small.
 
-\paragraph{Scope and limitations.}
+\paragraph{Scope and next steps.}
 The complete-case analyses are smaller than the full benchmark: 14
 classification datasets for all 17 methods and 6 regression datasets for the
 analogous rank summary. The ctree and cforest classification comparisons use
@@ -62,9 +62,9 @@ forest variants that consider more candidate features at each split.
 
 \paragraph{Practical guidance.}
 CIF is most relevant when the goal is an ordered feature list or selected
-feature subset, especially when nonlinear effects or interactions may matter. If
-prediction accuracy is the only goal, boosted trees and random forest baselines
-should remain in the comparison set. For variable screening or ranking, CIF
-should also be compared with forest-based variable-selection methods
-\citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}, not only
-with ensembles built mainly for prediction.
+feature subset, especially when nonlinear effects or interactions may matter.
+For pure prediction accuracy, boosted trees and random forest baselines should
+remain in the comparison set. For variable screening or ranking, CIF should also
+be compared with forest-based variable-selection methods
+\citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests} alongside
+ensembles built mainly for prediction.

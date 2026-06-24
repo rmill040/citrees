@@ -6,10 +6,11 @@
 
 \Cref{tab:method-main-comparison} reports the main real-data comparison.
 Classification uses the 22 datasets with ctree and cforest results; the full
-classification collection has 23 datasets, but ctree and cforest were not run on
-\nolinkurl{dexter}. Regression uses all 8 datasets. Within each dataset, scores
-are first averaged over downstream learners and the standard $k$ values shared
-by the compared methods, then converted to ranks. Lower mean rank is better.
+classification collection has 23 datasets, with \nolinkurl{dexter} reserved for
+analyses that compare methods available on that dataset. Regression uses all 8
+datasets. Within each dataset, scores are first averaged over downstream
+learners and the standard $k$ values shared by the compared methods, then
+converted to ranks. Lower mean rank is better.
 
 \begin{table}[H]
   \centering
@@ -151,11 +152,10 @@ and regression by $-0.208$.
 
 The complete-case Friedman tests use dataset-level method means.
 Classification: $\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$.
-Regression: $\chi^2(17)=33.79$, $p=0.0089$, Kendall's $W=0.33$. Because
-regression uses only 6 datasets, the regression $p$-value should be interpreted
-cautiously. These
-intervals and rank tests describe configurations selected by the benchmark, not
-settings fixed before the benchmark. The LODO analysis below checks whether the
+Regression: $\chi^2(17)=33.79$, $p=0.0089$, Kendall's $W=0.33$. The regression
+panel has 6 datasets, so the effect sizes, intervals, and LODO stability check
+carry the main interpretation. These intervals and rank tests summarize the
+benchmark-selected configurations. The LODO analysis below checks whether the
 selected configurations are stable under one-dataset holdout.
 
 In the 14-dataset classification panel, LODO ranks CIF fifth of 17 on average
@@ -272,13 +272,11 @@ comparison.
 \end{table}
 
 \paragraph{CIT runtime ablations.}
-\Cref{tab:cit-runtime-hyperparams} shows mixed CIT timing effects. Disabling
-adaptive stopping is faster in the synthetic runs but not consistently faster on
-real datasets, so this row should not be read as general evidence that
-fixed-budget permutation testing is faster. For a single fitted tree, changing
-this option can also change the realized sequence of features, thresholds, and
-nodes evaluated. Because this run did not refit downstream models, these rows
-report timing and synthetic feature-recovery changes, not downstream performance.
+\Cref{tab:cit-runtime-hyperparams} shows that CIT timing effects vary by data
+regime. Disabling adaptive stopping reduces runtime in the synthetic runs and has
+less consistent timing on real datasets. For a single fitted tree, changing this
+option can also change the realized sequence of features, thresholds, and nodes
+evaluated. These rows focus on timing and synthetic feature-recovery changes.
 
 \begin{table}[H]
   \centering
@@ -313,8 +311,8 @@ group mean elapsed times. Downstream score changes and synthetic
 feature-recovery changes are at most 0.011 and 0.017. The feature-scanning effect
 is smaller and less consistent once adaptive stopping is enabled. Removing
 Bonferroni correction is faster for both CIT and CIF, but it changes the
-statistical rule and yields trees with more selected features, so we do not
-treat it as a recommended setting.
+statistical rule and yields trees with more selected features; the default
+setting keeps Bonferroni correction.
 \FloatBarrier
 
 \section{High-dimensional and synthetic analyses}
@@ -365,9 +363,8 @@ top-$k$ list more reliably than it places one first.
 \Cref{tab:synthetic-head} summarizes this contrast, and
 \Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows. The percentage of
 selected features that are informative falls as $k$ grows. On
-redundant-feature synthetic designs, most selected features are true signals or
-redundant proxies rather than noise: 83\% for classification and 84\% for
-regression.
+redundant-feature synthetic designs, most selected features correspond to true
+signals or redundant proxies: 83\% for classification and 84\% for regression.
 
 \begin{table}[!htbp]
   \centering
@@ -426,5 +423,5 @@ features, 528.8 versus 367.7.
 CIF-all isolates candidate feature sampling because feature muting and
 the other tree settings are held fixed. In these sparse high-$p$ simulations,
 splits use informative features most often when every nonconstant feature can
-enter Stage~A. If candidate sampling rarely includes an informative feature at a
-node, Stage~A cannot select it.
+enter Stage~A. When candidate sampling rarely includes an informative feature at
+a node, Stage~A selects from the available candidate set.

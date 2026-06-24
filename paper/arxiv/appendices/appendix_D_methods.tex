@@ -22,10 +22,8 @@ theorem:
   \item bootstrap resampling and forest aggregation,
   \item optional honesty.
 \end{itemize}
-Under these conditions, exhaustive fixed-$B$ Stage~A values are the only
-quantities covered by the theorem. Stage~A and split scores from adaptive trees
-should be read as scores used to build the tree, not as $p$-values covered by
-the theorem.
+Under these conditions, the theorem covers exhaustive fixed-$B$ Stage~A values.
+Stage~A and split scores from adaptive trees are tree-construction scores.
 
 \subsection{Node-level choices}
 
@@ -37,8 +35,8 @@ early stopping, may stop once a candidate meets the nodewise threshold. With
 feature muting, features with non-rejecting Stage~A values can be removed from
 descendant candidate pools in the same subtree. These shortcuts reduce
 computation. When they are active, the returned $q_t^{\mathrm{feat}}$ is the
-feature-selection score used to grow the tree, not an exhaustive fixed-$B$
-Stage~A $p$-value over the full candidate pool.
+feature-selection score used to grow the tree; the exhaustive fixed-$B$
+reference value is defined over the full candidate pool.
 
 \paragraph{Stage~B.}
 After Stage~A selects a feature, Stage~B builds threshold candidates from
@@ -53,7 +51,7 @@ chosen, $q_t^{\mathrm{split}}$ is a split-selection score.
 For permutation split testing, Stage~B uses weighted child impurity as the
 tested statistic and a left tail convention. The final minimum
 impurity-decrease filter uses the corresponding weighted impurity decrease.
-These quantities support split construction, not post-selection inference.
+These quantities support split construction.
 
 \subsection{Permutation budgets and early stopping}
 
@@ -79,9 +77,9 @@ procedure tracks permutation exceedances and checks a Beta posterior for the
 tail probability: after each draw in Stage~B and at batch boundaries in batched
 Stage~A paths. It stops when the posterior puts the configured confidence on one
 side of the nodewise threshold. A simpler futility/significance rule is also
-available. Values returned at stopping times are not classical fixed-$B$ Monte
-Carlo $p$-values, so the main paper separates the fixed-node guarantee from the
-runtime ablations.
+available. Values returned at stopping times are adaptive stopping-time
+estimates, so the main paper reports the fixed-node guarantee and runtime
+ablations separately.
 
 \subsection{Forests, resampling, and honesty}
 

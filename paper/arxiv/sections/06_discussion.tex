@@ -12,18 +12,6 @@ node responses under the complete null; the benchmark results cover fitted tree
 and forest rankings. The timing ablations show the largest changes for adaptive
 stopping and exact threshold search, with small score changes.
 
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
-  \caption{Tree-level feature use in one sparse classification forest design
-  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
-  the number of trees using each feature in at least one split. CIF samples a
-  subset of candidate features; CIF-all evaluates all nonconstant candidate
-  features. Each subplot has its own
-  y-axis range because counts differ across methods.}
-  \label{fig:candidate-forest-counts}
-\end{figure}
-
 The CIF ablation compares split-count ranking, feature muting, bootstrap
 sampling, and one-tree variants under the same top-$k$ evaluation. Replacing
 split-importance ranking with split counts and disabling feature muting change

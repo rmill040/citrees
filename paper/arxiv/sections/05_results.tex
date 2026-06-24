@@ -95,9 +95,9 @@ each analysis reports its dataset count.
 six direct pairings. On the complete-case datasets, CIF is also ahead of ctree,
 cforest, and CIT in both tasks. The 95\% bootstrap CIs for mean
 CIF-minus-comparator differences are as follows. Classification (14 datasets):
-ctree [0.068, 0.154], cforest [0.067, 0.160], CIT [0.023, 0.060]. Regression
-(6 datasets): ctree [0.113, 0.529], cforest [0.040, 2.570], CIT
-[-0.007, 1.224]. The regression interval for CIF versus CIT crosses zero; the
+ctree [+0.068, +0.154], cforest [+0.067, +0.160], CIT [+0.023, +0.060]. Regression
+(6 datasets): ctree [+0.113, +0.529], cforest [+0.040, +2.570], CIT
+[-0.007, +1.224]. The regression interval for CIF versus CIT crosses zero; the
 other complete-case intervals are positive. The regression intervals are wider
 because fewer datasets are available and some comparator mean $R^2$ values are
 negative.
@@ -385,9 +385,19 @@ signals or redundant proxies: 83\% for classification and 84\% for regression.
   $k = 5, 10, 25, 50$, and $100$, the percentage of selected features that are
   truly informative. The top-1 hit rate is computed at $k=1$. The final row is
   computed and ranked only on the redundant-feature design for each task and
-  counts true informative plus redundant features.}
+  counts true informative plus redundant features. Fractional ranks indicate
+  averaged ties.}
   \label{tab:synthetic-head}
 \end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.84\linewidth]{figures/synthetic_topk_focus_curves.png}
+  \caption{Synthetic top-$k$ recovery curves. Columns compare single trees,
+  forests, and boosted trees; rows show classification and regression. Each
+  value is the percentage of selected features that are truly informative.}
+  \label{fig:synthetic-topk-curves}
+\end{figure}
 
 \paragraph{Candidate feature sampling.}
 A sparse simulation asks whether forest candidate feature sampling causes splits
@@ -398,13 +408,16 @@ features at each split; CIF-all considers every nonconstant feature in Stage~A.
 \Cref{app:candidate-availability} gives the classification and regression
 results over $p \in \{100,500,1{,}000\}$.
 
-\begin{figure}[!t]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=0.84\linewidth]{figures/synthetic_topk_focus_curves.png}
-  \caption{Synthetic top-$k$ recovery curves. Columns compare single trees,
-  forests, and boosted trees; rows show classification and regression. Each
-  value is the percentage of selected features that are truly informative.}
-  \label{fig:synthetic-topk-curves}
+  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
+  \caption{Tree-level feature use in one sparse classification forest design
+  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
+  the number of trees using each feature in at least one split. CIF samples a
+  subset of candidate features; CIF-all evaluates all nonconstant candidate
+  features. Each subplot has its own
+  y-axis range because counts differ across methods.}
+  \label{fig:candidate-forest-counts}
 \end{figure}
 
 In the single-tree simulations, CIT uses informative features in 100.0\% of

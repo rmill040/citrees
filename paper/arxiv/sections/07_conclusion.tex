@@ -12,8 +12,8 @@ change runtime the most while keeping Bonferroni correction fixed. CIT timing is
 less consistent, so the paper separates it from the CIF runtime and downstream
 prediction summaries.
 
-On the real-data benchmarks with the selected settings, CIF ranks fourth of 17
-classification methods and third of 18 regression methods. These
+On the real-data benchmarks with the selected settings, CIF ranks 4th of 17
+classification methods and 3rd of 18 regression methods. These
 within-benchmark rank and win/loss summaries evaluate the selected
 configurations. In direct comparisons, CIF has higher average downstream scores
 than ctree and cforest across 22 classification datasets and higher scores than
@@ -21,9 +21,9 @@ CIT across 23 classification datasets. In the smaller regression benchmark, CIF
 is higher than ctree and cforest on 7 of 8 datasets and higher than CIT on 6 of
 8.
 
-The CIF ranking ablations show that forest size matters: using one
-tree changes the rankings more than changing feature muting or replacing split
-importance with split counts. The high-$p$ and
+The CIF ranking ablations show that forest size matters: using one tree has the
+largest downstream score effect, while feature muting and split-count ranking
+have smaller effects. The high-$p$ and
 synthetic analyses show two patterns: CIF recovers true features more reliably
 within the top-$k$ list than at rank 1, and candidate sampling inside forests can
 leave informative features unavailable at many split decisions. Classification

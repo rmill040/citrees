@@ -10,6 +10,25 @@ separately. For each method and feature dimension $p$, each point is the mean ov
 $n_{\mathrm{informative}} \in \{1,2,5,10\}$, and the capped bar spans the
 minimum and maximum over those four sparse settings.
 
+In classification, evaluating all nonconstant candidates at each split increases
+informative-feature use most clearly in sparse high-$p$ settings. CIF-all keeps
+feature muting and the other tree settings unchanged while removing candidate
+feature subsampling. With two informative features and $p{=}100$, default CIF
+uses informative features in 40.0\% of splits, while CIF-all does so in 100.0\%.
+The corresponding values are 12.2\% versus 90.2\% at $p{=}500$ and 9.0\% versus
+100.0\% at $p{=}1{,}000$. CIF-all also uses 70, 264, and 439 fewer distinct
+uninformative features than default CIF. With five informative features, the
+CIF-all minus default CIF differences are 25.1, 56.4, and 54.3 percentage points
+at $p{=}100$, $p{=}500$, and $p{=}1{,}000$.
+
+Regression shows a similar informative-feature availability pattern in the one-
+and two-informative-feature settings, and CIF-all also uses more distinct
+uninformative features. With two informative features and $p{=}100$, default CIF
+uses informative features in 39.9\% of splits, while CIF-all does so in 58.8\%.
+The corresponding values are 19.7\% versus 46.7\% at $p{=}500$ and 11.6\%
+versus 35.9\% at $p{=}1{,}000$. With one informative feature, the CIF-all minus
+default CIF differences are 29.8, 18.9, and 42.1 percentage points.
+
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}
@@ -33,22 +52,3 @@ minimum and maximum over those four sparse settings.
   the number of distinct uninformative features used.}
   \label{fig:regression-candidate-dimension-curves}
 \end{figure}
-
-In classification, CIF-all separates most clearly from default CIF in sparse
-high-$p$ settings. CIF-all evaluates all nonconstant candidate features at each
-split; feature muting and the other tree settings are unchanged. With two
-informative features and $p{=}100$, default CIF uses informative features in
-40.0\% of splits, while CIF-all does so in 100.0\%. The corresponding values
-are 12.2\% versus 90.2\% at $p{=}500$ and 9.0\% versus 100.0\% at
-$p{=}1{,}000$. CIF-all also uses 70, 264, and 439 fewer distinct uninformative
-features than default CIF. With five informative features, the CIF-all-minus-CIF
-differences are 25.1, 56.4, and 54.3 percentage points at $p{=}100$,
-$p{=}500$, and $p{=}1{,}000$.
-
-Regression shows a similar pattern in the one- and two-informative-feature
-settings, but CIF-all also uses more distinct uninformative features. With two
-informative features and $p{=}100$, default CIF uses informative features in
-39.9\% of splits, while CIF-all does so in 58.8\%. The corresponding values are
-19.7\% versus 46.7\% at $p{=}500$ and 11.6\% versus 35.9\% at
-$p{=}1{,}000$. With one informative feature, the CIF-all-minus-CIF differences
-are 29.8, 18.9, and 42.1 percentage points.

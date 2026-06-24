@@ -36,10 +36,10 @@ multiple-correlation selector with Gini splitting in classification and
 Pearson-correlation selector with MSE splitting in regression, these statistic
 evaluations are linear in $n_t$ for a fixed number of classes. The randomized
 dependence coefficient (RDC) is $O(n_t\log n_t)$ for fixed random-projection and
-class counts. For distance correlation and mutual information, the cost is
-whatever $C^{\mathrm{sel}}_j(n_t)$ uses: distance correlation may cost
-$O(n_t\log n_t)$ or $O(n_t^2)$ depending on the backend, and mutual information
-is delegated to scikit-learn.
+class counts. For distance correlation and mutual information, the cost depends
+on the backend used by $C^{\mathrm{sel}}_j(n_t)$: distance correlation may cost
+$O(n_t\log n_t)$ or $O(n_t^2)$, and mutual information is delegated to
+scikit-learn.
 
 \paragraph{How runtime hyperparameters enter the accounting.}
 \begin{itemize}

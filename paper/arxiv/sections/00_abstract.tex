@@ -15,8 +15,8 @@ With Bonferroni correction held fixed, the CIF runtime ablations identify two
 runtime choices that matter most: adaptive stopping and threshold-search
 granularity. Disabling adaptive stopping makes median runtime
 4.0--8.4$\times$ larger across dataset groups, and exact threshold search is
-1.9--10.8$\times$ slower than bounded histogram search, with small downstream
-score changes. Sparse high-$p$
+1.9--10.8$\times$ slower than histogram-256 thresholding; the largest absolute
+downstream score change in these rows is 0.011. Sparse high-$p$
 simulations show that candidate feature sampling can leave informative variables
 unavailable at many forest split decisions. Overall,
 the results support CIF as a practical top-$k$ feature-ranking method in the

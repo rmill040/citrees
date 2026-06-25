@@ -3,11 +3,10 @@
 
 The clearest use case for CIF in these experiments is top-$k$ feature selection
 for a downstream model. The benchmark asks whether a ranking places useful
-features early enough for fixed downstream learners, and the strongest evidence
-is in classification. The regression benchmark points in the same direction, but
-it includes fewer datasets and has wider intervals. The fixed-node Stage~A
-theorem provides the local guarantee; the benchmark evaluates the fitted tree
-and forest rankings.
+features early enough for fixed downstream learners, with the strongest evidence
+in classification and a smaller regression panel pointing in the same direction.
+The fixed-node Stage~A theorem provides the local guarantee; fitted tree and
+forest rankings are assessed empirically.
 
 \paragraph{Practical guidance.}
 A CIF ranking should be judged through the downstream model that will use the
@@ -21,17 +20,13 @@ forest-based screening methods such as Boruta, permutation or conditional
 permutation importance, and RF-RFE
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}.
 
-For similar top-$k$ ranking workloads, the CIF runtime ablations, which vary one
-setting at a time, support adaptive stopping and histogram-256 thresholding as
-practical defaults. Disabling adaptive stopping and replacing histogram-256
-thresholding with exact threshold search produce the largest CIF slowdowns,
-while \cref{tab:cif-runtime-hyperparams} reports a largest absolute downstream
-score change of 0.011. Bonferroni correction should stay in the main setting
-because removing it changes the Stage~A testing rule; report it as a sensitivity
-analysis when it is varied. The ranking ablations separate the remaining choices.
-Reducing CIF to one tree gives the largest downstream score loss; split-count
-ranking and feature muting have much smaller effects, and removing bootstrap
-sampling is close to neutral in classification but worse in regression.
+The ablations separate runtime defaults from ranking choices. For similar
+top-$k$ workloads, adaptive stopping and histogram-256 thresholding preserve the
+practical runtime profile; Bonferroni correction is part of the Stage~A testing
+rule and should be varied only as a sensitivity analysis. For ranking quality,
+forest size matters more than the split-count and feature-muting variants tested
+here, so the selected forest should remain the default when ranking quality is
+the priority.
 
 In sparse high-$p$ settings, candidate feature availability should be monitored
 directly. The simulations show that default candidate sampling can leave
@@ -51,11 +46,10 @@ bootstrap samples, and forest aggregation, so their behavior is assessed through
 the ranking benchmark.
 
 The benchmark coverage is uneven across analyses. The ctree and cforest
-classification comparisons use 22 datasets, while the regression main table uses
-8. Complete-case rank and interval analyses are smaller, with 14 classification
-datasets and 6 regression datasets. The regression results therefore require
-more caution than the classification results, especially for comparisons with
-wide intervals.
+classification comparisons are broader than the complete-case rank and interval
+panels, and the regression benchmark is smaller throughout. The regression
+results therefore require more caution than the classification results,
+especially for comparisons with wide intervals.
 
 The candidate-availability analysis isolates a sparse high-$p$ setting in which
 forest candidate sampling can limit informative-feature exposure: wider

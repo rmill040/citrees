@@ -3,25 +3,16 @@
 
 This paper evaluates conditional-inference tree and forest rankings for top-$k$
 downstream prediction and proves a fixed-node guarantee for Stage~A permutation
-testing. With the selected configurations, CIF ranks 4th of 17 methods in
-classification and 3rd of 18 in regression. CIF also scores higher on average
-than ctree, cforest, and CIT in the direct comparisons, with the clearest
-evidence in classification.
+testing. The experiments support CIF as a useful feature-ranking method,
+especially in classification: its rankings compare favorably with ctree,
+cforest, and CIT, and they remain competitive among stronger tree-ensemble
+baselines.
 
-The ablations show which measured CIF changes had the largest effects in this
-setting. In the CIF runtime ablations, where each run changes one setting at a
-time, disabling adaptive stopping and replacing histogram-256 thresholding with
-exact threshold search produce the largest slowdowns. For ranking quality,
-reducing CIF to one tree has the largest downstream score loss, while
-split-count ranking and feature muting have smaller effects in these runs. The
-high-$p$ and synthetic analyses add a practical diagnostic: CIF recovers
-informative features more reliably within the top-$k$ list than at rank 1, and
-candidate sampling can leave informative features unavailable at many
-sparse-forest split decisions.
-
-Taken together, the results support CIF as a practical top-$k$ feature-ranking
-method for the evaluated downstream prediction tasks, especially in
-classification. The practical guidance is to evaluate CIF rankings through the
-downstream learner, choose $k$ by held-out performance, keep adaptive stopping
-with bounded threshold search for similar ranking workloads, and monitor
-candidate feature availability in sparse high-$p$ settings.
+The ablations sharpen that empirical picture. Adaptive stopping and bounded
+threshold search preserve the practical runtime profile, while the forest rather
+than a one-tree variant carries most of the ranking quality. The high-$p$ and
+synthetic analyses add the main diagnostic caution: sparse forests should be
+checked for whether informative features reach the split-test candidate sets
+often enough to enter the top-$k$ ranking. Overall, CIF is best viewed here as a
+statistically motivated, empirically benchmarked feature-ranking procedure for
+downstream prediction.

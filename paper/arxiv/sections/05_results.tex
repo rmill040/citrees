@@ -104,9 +104,8 @@ negative.
 
 \paragraph{CIF ablations.}
 \Cref{tab:cif-ranking-ablation} compares the selected CIF configuration with
-four variants: split-count ranking, disabling bootstrap sampling, disabling
-feature muting, and using one tree. Each variant uses the same downstream
-learners, folds, seeds, and standard top-$k$ values as the main benchmark.
+four targeted changes: split-count ranking, disabling bootstrap sampling,
+disabling feature muting, and using one tree.
 
 \begin{table}[H]
   \centering
@@ -181,8 +180,8 @@ give the confidence intervals and LODO details.
   \includegraphics[width=0.78\linewidth]{figures/regression_k_trajectory.png}
   \caption{Regression mean rank by number of selected features. Rows show all
   18 feature selection methods in the regression benchmark, averaged across
-  downstream models at each value of $k$. Lower ranks are better. The
-  parenthesized counts show the number of datasets included at each $k$.}
+  downstream models at each value of $k$. Lower ranks are better; parentheses
+  give the dataset count for each $k$.}
   \label{fig:regression-k-trajectory}
 \end{figure}
 
@@ -297,8 +296,7 @@ evaluated. These rows focus on timing and synthetic feature-recovery changes.
   histogram-256 default. The score columns give the largest absolute downstream
   score change and synthetic feature-recovery change across the task groups
   used for each row. Inequality entries are rounded upward to the nearest 0.001.
-  The dataset-type counts are 7 real classification, 8 synthetic classification,
-  2 real regression, and 6 synthetic regression.}
+  The task-group coverage matches \cref{tab:cit-runtime-hyperparams}.}
   \label{tab:cif-runtime-hyperparams}
 \end{table}
 

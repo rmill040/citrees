@@ -34,9 +34,8 @@ predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
 Because several methods have tunable configurations, the benchmark chooses one
 setting per method and task. As a sensitivity check, leave-one-dataset-out
-(LODO) analyses repeat the setting choice after holding out each dataset. These
-LODO analyses use the 14 classification and 6 regression datasets with all
-methods, downstream learners, and standard $k$ values available.
+(LODO) analyses repeat the setting choice after holding out each dataset, using
+the complete-case panels defined in \cref{sec:experiments-analysis-plan}.
 
 The theorem studies the Stage~A feature test at a fixed node. It assumes that
 the features tested at the node and the resample budget are fixed independently
@@ -58,7 +57,4 @@ states the fixed-node, exhaustive fixed-$B$ Stage~A guarantee
 forest rankings are evaluated in the benchmarks. Finally, the
 high-$p$ and synthetic analyses show cases with weaker top-$k$ recovery and how
 candidate feature sampling can make informative features unavailable at many
-forest split tests (\cref{sec:boundary}). The next sections define the tree-growing method, state the fixed-node
-guarantee, describe the benchmark and ablation setup, and then present the
-results, practical guidance, and analyses of high-$p$ behavior, synthetic
-feature recovery, and candidate feature availability.
+forest split tests (\cref{sec:boundary}).

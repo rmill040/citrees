@@ -11,12 +11,11 @@ CIT and CIF rankings on downstream prediction benchmarks.
 In the real-data benchmark, CIF ranks 4th among 17 classification methods on 22
 datasets and 3rd among 18 regression methods on 8 datasets; the regression
 analyses use fewer datasets and have wider intervals.
-With Bonferroni correction held fixed, the CIF runtime ablations identify two
-runtime choices that matter most: adaptive stopping and threshold-search
-granularity. Disabling adaptive stopping makes median runtime
-4.0--8.4$\times$ larger across dataset groups, and exact threshold search is
-1.9--10.8$\times$ slower than histogram-256 thresholding; the largest absolute
-downstream score change in these rows is 0.011. Sparse high-$p$
+With Bonferroni correction held fixed, the CIF runtime ablations identify
+adaptive stopping and threshold-search granularity as the main runtime choices:
+disabling adaptive stopping and replacing histogram-256 thresholding with exact
+threshold search substantially slow fitting, while downstream scores remain
+close to the default. Sparse high-$p$
 simulations show that candidate feature sampling can leave informative variables
 unavailable at many forest split decisions. Overall,
 the results support CIF as a practical top-$k$ feature-ranking method in the

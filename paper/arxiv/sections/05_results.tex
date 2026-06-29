@@ -152,10 +152,10 @@ and regression by $-0.208$.
 The complete-case Friedman tests use dataset-level method means.
 Classification: $\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$.
 Regression: $\chi^2(17)=33.79$, $p=0.0089$, Kendall's $W=0.33$. The regression
-panel has 6 datasets, so the effect sizes, intervals, and LODO stability check
-carry the main interpretation. These intervals and rank tests summarize the
-benchmark-selected configurations. The LODO analysis below checks whether the
-selected configurations are stable under one-dataset holdout.
+panel has 6 datasets, so the $p$-value should be read with the effect sizes,
+intervals, and LODO results. These intervals and rank tests summarize the
+benchmark-selected configurations. The LODO analysis below checks whether those
+configurations are stable under one-dataset holdout.
 
 In the 14-dataset classification panel, LODO ranks CIF fifth of 17 on average
 (mean rank 5.64), and CIF reselects the main-benchmark setting in all 14
@@ -235,14 +235,14 @@ classification datasets. The RT regression comparison is close: CIF is ahead on
 \subsection{Runtime ablations}
 \label{sec:results-practical}
 
-These ablations change one setting at a time and report elapsed wall-clock fit
-time. Each row compares a modified setting with the default version of the same
-estimator. Runtime values are ratios: values above 1 are slower than default,
-and values below 1 are faster. CIT and CIF are shown separately because the CIT
+The runtime ablations identify the defaults with the largest effect on fitting
+time and report how much the ranking scores move when those settings change. Each row
+changes one setting and reports elapsed wall-clock fit time relative to the
+default version of the same estimator. Ratios above 1 are slower than default,
+and ratios below 1 are faster. CIT and CIF are shown separately because the CIT
 run records fit time and synthetic top-10 feature recovery, while the CIF runs
-also record downstream score changes. The score columns summarize changes within
-these ablation runs; the main benchmark remains the primary performance
-comparison.
+also record downstream score changes. The main benchmark remains the primary
+performance comparison.
 \Cref{app:complexity-details} links each ablation to the affected work terms.
 
 \begin{table}[H]
@@ -407,10 +407,10 @@ features at each split; CIF-all considers every nonconstant feature in Stage~A.
 results over $p \in \{100,500,1{,}000\}$.
 
 In the single-tree simulations, CIT uses informative features in 100.0\% of
-classification splits and 93.5\% of regression splits. This shows that, in this
-fixed design, informative features are usually selected when every nonconstant
-feature is considered. In forests, candidate feature sampling reduces how often
-informative features are used for splits. Across the classification forest
+classification splits and 93.5\% of regression splits. In this fixed design,
+informative features are usually selected when every nonconstant feature is
+considered. In forests, candidate feature sampling reduces how often informative
+features are used for splits. Across the classification forest
 simulations with 1,000 trees, default CIF uses informative features in 33.2\% of
 splits, compared with 91.7\% for CIF-all, 8.4\% for RF, and 6.5\% for ET.
 Default CIF also uses more distinct noise features than CIF-all, 265 versus 93

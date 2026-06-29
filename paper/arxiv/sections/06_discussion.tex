@@ -1,14 +1,14 @@
 \section{Discussion}
 \label{sec:discussion}
 
-The clearest use case for CIF in these experiments is top-$k$ feature selection
-for a downstream model. The benchmark asks whether a ranking places useful
-features early enough for fixed downstream learners, with the strongest evidence
-in classification and a smaller regression panel pointing in the same direction.
-The fixed-node Stage~A theorem provides the local guarantee; fitted tree and
-forest rankings are assessed empirically.
+In these experiments, CIF is best supported as a top-$k$ feature-selection
+method for a downstream model. The benchmark asks whether a ranking places
+predictive features early enough for fixed downstream learners. The
+classification panel provides stronger evidence than the smaller regression
+panel, which has wider intervals. The fixed-node Stage~A theorem provides the
+local guarantee; fitted tree and forest rankings are assessed empirically.
 
-\paragraph{Practical guidance.}
+\paragraph{Guidance.}
 A CIF ranking should be judged through the downstream model that will use the
 selected features. In practice, choose $k$ on held-out data over a small grid
 that includes the intended feature budget and, when feasible, the full feature
@@ -21,8 +21,11 @@ permutation importance, and RF-RFE
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}.
 
 The ablations separate runtime defaults from ranking choices. For similar
-top-$k$ workloads, adaptive stopping and histogram-256 thresholding preserve the
-practical runtime profile; Bonferroni correction is part of the Stage~A testing
+top-$k$ CIF workloads, adaptive stopping and histogram-256 thresholding avoid the
+large slowdowns from fixed-budget testing and exact threshold search while
+producing small score changes in these ablations. The timing tables use the
+benchmark's minimum resampling preset; package constructors default to the
+larger \emph{auto} preset. Bonferroni correction is part of the Stage~A testing
 rule and should be varied only as a sensitivity analysis. For ranking quality,
 forest size matters more than the split-count and feature-muting variants tested
 here, so the selected forest should remain the default when ranking quality is
@@ -54,6 +57,5 @@ especially for comparisons with wide intervals.
 The candidate-availability analysis isolates a sparse high-$p$ setting in which
 forest candidate sampling can limit informative-feature exposure: wider
 candidate sets increase exposure, but they also change runtime and the mix of
-noise features used by splits. The point is diagnostic rather than prescriptive:
-candidate exposure should be checked alongside downstream performance and
-runtime before changing the candidate set.
+noise features used by splits. Use candidate exposure as a diagnostic alongside
+downstream performance and runtime before changing the candidate set.

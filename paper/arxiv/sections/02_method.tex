@@ -32,8 +32,8 @@ Let $E_t \subseteq F_t$ denote the evaluated subset; in the exhaustive fixed-$B$
 reference rule, $E_t=F_t$. The fixed-node theorem in \cref{sec:theory} applies
 to that reference rule: the features in $F_t$ and the budget $B$ are fixed
 independently of the node responses, and every $p_{t,j}$ for $j\in F_t$ uses
-that budget. It does not cover response-dependent node selection, inherited
-feature muting, or adaptive stopping.
+that budget. Adaptive tree growing adds response-dependent node selection,
+inherited feature muting, and stopping-time scores used for tree construction.
 
 \paragraph{Stage~A (feature selection).}
 In the exhaustive fixed-$B$ setting, Stage~A follows the feature-selection and

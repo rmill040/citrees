@@ -6,17 +6,16 @@ feature-ranking methods for downstream prediction using real-data benchmarks,
 runtime ablations, and synthetic feature-recovery experiments.
 At a fixed node, if the features and permutation budget do not depend on the
 node responses, Bonferroni-corrected $+1$ Monte Carlo permutation $p$-values
-control nodewise rejection under the complete permutation null. We then evaluate
-CIT and CIF rankings on downstream prediction benchmarks.
-In the real-data benchmark, CIF ranks 4th among 17 classification methods on 22
-datasets and 3rd among 18 regression methods on 8 datasets; the regression
-analyses use fewer datasets and have wider intervals.
-With Bonferroni correction held fixed, the CIF runtime ablations show that
-adaptive stopping and threshold-search granularity drive most of the runtime
-differences: turning off adaptive stopping and using exact threshold search both
-substantially increase fitting time, while downstream scores remain close to the
-default. Sparse high-$p$
-simulations show that candidate feature sampling can leave informative variables
-unavailable at many forest split decisions. Overall,
-the results support CIF as a practical top-$k$ feature-ranking method in the
+control nodewise rejection under the complete permutation null. With the
+benchmark configuration selected for each method, CIF ranks 4th among 17
+classification methods on 22 datasets and 3rd among 18 regression methods on 8
+datasets; the regression analyses use fewer datasets and have wider intervals.
+With Bonferroni correction held fixed, the CIF runtime ablations indicate that
+adaptive stopping and the number of thresholds searched have the largest measured
+effect on runtime: turning off adaptive stopping and using exact threshold
+search increase fitting time by 4.0--8.4$\times$ and 1.9--10.8$\times$,
+respectively, while downstream score changes are at most 0.011. Sparse high-$p$
+simulations indicate that candidate feature sampling can leave informative
+variables unavailable at many forest split decisions. Overall,
+the results support CIF as a top-$k$ feature-ranking method in the
 evaluated downstream prediction benchmarks.

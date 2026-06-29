@@ -1,8 +1,8 @@
 \section{Candidate feature availability}
 \label{app:candidate-availability}
 
-This appendix shows the extended $p$-sweep for the main-text candidate feature
-sampling analysis, separate from the benchmark-stability summaries in
+The extended $p$-sweep expands the main-text candidate feature sampling
+analysis, separate from the benchmark-stability summaries in
 \cref{app:benchmark-stability}. \Cref{fig:candidate-dimension-curves,fig:regression-candidate-dimension-curves}
 show candidate feature sampling results for $p \in \{100,500,1{,}000\}$.
 Each forest uses 1,000 trees, with classification and regression shown
@@ -10,8 +10,8 @@ separately. For each method and feature dimension $p$, each point is the mean ov
 $n_{\mathrm{informative}} \in \{1,2,5,10\}$, and the capped bar spans the
 minimum and maximum over those four sparse settings.
 
-In classification, evaluating all nonconstant candidates at each split increases
-informative-feature use most clearly in sparse high-$p$ settings. CIF-all keeps
+In classification, evaluating all nonconstant candidates at each split gives the
+largest informative-feature gains in sparse high-$p$ settings. CIF-all keeps
 feature muting and the other tree settings unchanged while removing candidate
 feature subsampling. With two informative features and $p{=}100$, default CIF
 uses informative features in 40.0\% of splits, while CIF-all does so in 100.0\%.

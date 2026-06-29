@@ -1,8 +1,8 @@
 \section{Algorithm and reproducibility notes}
 \label{app:methods}
 
-This appendix records implementation details, benchmark configuration, and
-coverage rules needed to interpret the main results. Section~\ref{sec:method}
+Algorithm settings, benchmark configuration, and coverage rules determine how
+the main results should be read. Section~\ref{sec:method}
 describes the tree-growing loop, the setup and proof appendices state the
 fixed-node results, and Appendix~\ref{app:complexity-details} gives runtime and
 memory details for the benchmarked tree-growing algorithm.
@@ -67,9 +67,12 @@ and three named presets:
   \item \emph{maximum}: a high-precision preset.
 \end{itemize}
 In the benchmarked CIT and CIF configurations, both Stage~A and Stage~B use the
-\emph{minimum} preset; the package constructors default to \emph{auto}. When
-Bonferroni correction is enabled, the nodewise threshold is divided by the
-number of tests, and preset budgets are recomputed from that adjusted threshold.
+\emph{minimum} preset; the package constructors default to \emph{auto}. Use the
+benchmark preset to match the paper timing runs, and use the package default
+when precision near the nodewise threshold matters more than reproducing those
+timings. When Bonferroni correction is enabled, the nodewise threshold is
+divided by the number of tests, and preset budgets are recomputed from that
+adjusted threshold.
 
 \paragraph{Sequential stopping.}
 The benchmarked CIT and CIF configurations use adaptive sequential stopping. The
@@ -90,7 +93,7 @@ regression CIF setting uses standard bootstrap sampling. More generally, forests
 can be run with or without bootstrap sampling, and classifier forests support
 stratified, undersampling, and oversampling variants. Trees and forests
 optionally support honest estimation via sample splitting. These settings can be
-useful in practice, but they change the training distribution or estimation
+important in practice, but they change the training distribution or estimation
 target. The fixed-node theorem covers only the Stage~A reference rule.
 
 \subsection{Benchmark coverage}

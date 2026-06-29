@@ -24,11 +24,11 @@ inference forests (CIF) as feature selection methods. For each seed and
 cross-validation fold, a method produces a ranking from the training fold.
 Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
 evaluated on held-out data, with results summarized across datasets. The
-benchmark asks whether tree- and forest-derived rankings put useful
+benchmark asks whether tree- and forest-derived rankings put predictive
 variables early enough to improve fixed downstream models.
 We also ask whether CIT/CIF runtime hyperparameters reduce computation while
-preserving useful feature rankings, and where CIF recovery is weaker in high-$p$
-or synthetic settings. This feature-selection benchmark is separate from work on
+preserving ranking quality, and where CIF recovery is weaker in high-$p$ or
+synthetic settings. This feature-selection benchmark is separate from work on
 trees and forests as direct
 predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
@@ -41,10 +41,7 @@ The theorem studies the Stage~A feature test at a fixed node. It assumes that
 the features tested at the node and the resample budget are fixed independently
 of the node responses, so exhaustive fixed-$B$ $p$-values have a clear
 permutation reference distribution under the nodewise complete permutation null.
-The benchmarks then evaluate the tree and forest feature rankings. This result
-does not cover $p$-values for selected features, final split $p$-values,
-partial-null familywise error control, or forest-level error control
-\citep{Berk2013ValidPostSelectionInference,Lee2016ExactPostSelectionInferenceLasso,LeebPotscher2015ConfidenceIntervalsAfterModelSelection}.
+The benchmarks then evaluate the tree and forest feature rankings empirically.
 
 \paragraph{Contributions.}
 This paper contributes a real-data benchmark of conditional-inference feature

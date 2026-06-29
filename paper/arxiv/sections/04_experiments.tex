@@ -1,12 +1,13 @@
 \section{Experimental design}
 \label{sec:experiments}
 
-The experiments ask whether rankings produced by CIT and CIF give useful top-$k$
-feature sets. For each training fold, a method produces a feature ranking, and
-fixed downstream learners evaluate the selected features on the held-out fold.
-We then summarize overall ranks, how often CIF performs well across datasets,
-high-dimensional behavior, recovery on synthetic data with known informative
-features, CIF ranking ablations, and candidate feature sampling in forests.
+The experiments ask whether rankings produced by CIT and CIF place predictive
+features early enough for fixed downstream learners. For each training fold, a
+method produces a feature ranking, and fixed downstream learners evaluate the
+selected features on the held-out fold. We then summarize overall ranks, how
+often CIF performs well across datasets, high-dimensional behavior, recovery on
+synthetic data with known informative features, CIF ranking ablations, and
+candidate feature sampling in forests.
 
 \subsection{Benchmark setup}
 \label{sec:experiments-protocol}
@@ -128,11 +129,12 @@ ExtraTrees, XGBoost, LightGBM, and CatBoost. Permutation-test filters rank by
 increasing $p$-value, with dependence score as the secondary key. The ctree
 reference ranks features by split-use counts. For cforest, we use partykit's
 default unconditional variable-importance scores with one permutation; CIF uses
-split-importance rankings from accepted conditional-inference splits. Boruta and
-recursive feature elimination rank by their fitted rank variables, with smaller
-ranks first. PI and CPI rank by decreasing importance; the CPI row uses the
-stratified conditional-permutation procedure described above. Ties are broken by
-deterministic, method-specific order for reproducibility.
+split-importance rankings from accepted conditional-inference splits. The
+cforest results therefore refer to this benchmarked partykit importance setting.
+Boruta and recursive feature elimination rank by their fitted rank variables,
+with smaller ranks first. PI and CPI rank by decreasing importance; the CPI row
+uses the stratified conditional-permutation procedure described above. Ties are
+broken by deterministic, method-specific order for reproducibility.
 
 \subsection{Configuration selection}
 \label{sec:experiments-repro}

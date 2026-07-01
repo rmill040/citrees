@@ -4,7 +4,7 @@ This script migrates the scratch fixed-design studies into the paper analysis
 layer. It separates two diagnostic questions that were previously conflated
 under "synthetic performance":
 
-1. Candidate-set coverage:
+1. Sampled-feature exposure:
    On very sparse problems, how much can CIF's default `max_features` regime
    suppress signal recovery before permutation testing even starts?
 
@@ -21,7 +21,7 @@ Outputs:
   - paper/results/figures/paper_mechanism_feature_frequency.png
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
+  uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 """
 
 from __future__ import annotations
@@ -58,7 +58,6 @@ from citrees import (
 )
 from citrees._tree import Node
 
-
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 TABLES_DIR = RESULTS_DIR / "tables"
 FIGURES_DIR = RESULTS_DIR / "figures"
@@ -70,7 +69,7 @@ SPLIT_COUNT_METHODS_ENSEMBLE: Final[tuple[str, ...]] = ("cif", "cif_all", "rf", 
 
 @dataclass(frozen=True)
 class CandidateSetCase:
-    """One fixed-design CIF candidate feature configuration."""
+    """One fixed-design CIF sampled-feature configuration."""
 
     label: str
     max_features: str | int | None
@@ -189,7 +188,7 @@ def build_cif_model(
     n_estimators: int,
     verbose: int = 0,
 ) -> ConditionalInferenceForestClassifier:
-    """Instantiate a CIF model for the candidate feature study."""
+    """Instantiate a CIF model for the sampled-feature study."""
     return ConditionalInferenceForestClassifier(
         n_estimators=n_estimators,
         selector="mc",
@@ -365,9 +364,13 @@ def build_ensemble_split_model(
             verbose=verbose,
         )
     if task == "classification" and method == "rf":
-        return RandomForestClassifier(n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose)
+        return RandomForestClassifier(
+            n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose
+        )
     if task == "classification" and method == "et":
-        return ExtraTreesClassifier(n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose)
+        return ExtraTreesClassifier(
+            n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose
+        )
     if task == "regression" and method == "cif":
         return ConditionalInferenceForestRegressor(
             n_estimators=n_estimators,
@@ -414,9 +417,13 @@ def build_ensemble_split_model(
             verbose=verbose,
         )
     if task == "regression" and method == "rf":
-        return RandomForestRegressor(n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose)
+        return RandomForestRegressor(
+            n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose
+        )
     if task == "regression" and method == "et":
-        return ExtraTreesRegressor(n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose)
+        return ExtraTreesRegressor(
+            n_estimators=n_estimators, n_jobs=n_jobs, random_state=seed, verbose=verbose
+        )
     raise ValueError(f"Unknown method: {method}")
 
 
@@ -470,8 +477,10 @@ def _ranking_summary(ranking: np.ndarray, informative: list[int], k: int) -> int
     return sum(int(i in ranking[:k]) for i in informative)
 
 
-def build_candidate_set_study(spec: FixedDesignSpec, *, verbose: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run the CIF candidate feature sweep on one fixed design."""
+def build_candidate_set_study(
+    spec: FixedDesignSpec, *, verbose: int = 0
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Run the CIF sampled-feature sweep on one fixed design."""
     X, y, informative = make_fixed_dataset(spec)
     p = X.shape[1]
     cases = [
@@ -585,11 +594,11 @@ def build_frequency_study(
 
                 run_rows.append(
                     {
-                "study": "false_feature_diffusion",
-                **spec_metadata(spec),
-                "method": method,
-                "seed": seed,
-                "informative_indices": ",".join(str(i) for i in informative),
+                        "study": "false_feature_diffusion",
+                        **spec_metadata(spec),
+                        "method": method,
+                        "seed": seed,
+                        "informative_indices": ",".join(str(i) for i in informative),
                         "top1_hit": int(ranking[0] in informative),
                         "n_true_top2": _ranking_summary(ranking, informative, 2),
                         "n_true_top10": _ranking_summary(ranking, informative, 10),
@@ -615,14 +624,30 @@ def build_frequency_study(
     counts = pd.DataFrame(count_rows)
 
     summary_rows: list[dict[str, object]] = []
-    group_cols = ["dataset", "kind", "design_family", "n_samples", "n_features", "n_informative", "informative_fraction", "method"]
+    group_cols = [
+        "dataset",
+        "kind",
+        "design_family",
+        "n_samples",
+        "n_features",
+        "n_informative",
+        "informative_fraction",
+        "method",
+    ]
     for group_key, sub in runs.groupby(group_cols):
-        dataset, kind, design_family, n_samples, n_features, n_informative, informative_fraction, method = group_key
+        (
+            dataset,
+            kind,
+            design_family,
+            n_samples,
+            n_features,
+            n_informative,
+            informative_fraction,
+            method,
+        ) = group_key
         for k in TOP_K_FREQUENCY:
             count_sub = counts[
-                (counts["dataset"] == dataset)
-                & (counts["method"] == method)
-                & (counts["k"] == k)
+                (counts["dataset"] == dataset) & (counts["method"] == method) & (counts["k"] == k)
             ]
             false = count_sub[count_sub["is_informative"] == 0]
             true = count_sub[count_sub["is_informative"] == 1]
@@ -645,11 +670,15 @@ def build_frequency_study(
                     "distinct_false_features": int((false["selection_count"] > 0).sum()),
                     "max_false_selection_count": int(false["selection_count"].max()),
                     "mean_false_selection_count": float(false["selection_count"].mean()),
-                    "true_selection_counts": ",".join(str(int(v)) for v in true["selection_count"].tolist()),
+                    "true_selection_counts": ",".join(
+                        str(int(v)) for v in true["selection_count"].tolist()
+                    ),
                 }
             )
 
-    summary = pd.DataFrame(summary_rows).sort_values(["dataset", "k", "method"]).reset_index(drop=True)
+    summary = (
+        pd.DataFrame(summary_rows).sort_values(["dataset", "k", "method"]).reset_index(drop=True)
+    )
     return runs, summary, counts
 
 
@@ -677,7 +706,9 @@ def build_single_tree_split_study(
                         f"seed={seed + 1}/{n_seeds}",
                         flush=True,
                     )
-                model = build_single_tree_split_model(spec.task, method, seed, verbose=estimator_verbose)
+                model = build_single_tree_split_model(
+                    spec.task, method, seed, verbose=estimator_verbose
+                )
                 model.fit(X, y)
                 split_counts = count_split_features_from_tree(model, p)
                 split_counts_total += split_counts
@@ -691,8 +722,12 @@ def build_single_tree_split_study(
                         "seed": seed,
                         "n_splits": int(split_counts.sum()),
                         "n_true_split_events": int(split_counts[informative].sum()),
-                        "n_noise_split_events": int(split_counts.sum() - split_counts[informative].sum()),
-                        "distinct_noise_features_used": int(((split_counts > 0) & ~np.isin(np.arange(p), informative)).sum()),
+                        "n_noise_split_events": int(
+                            split_counts.sum() - split_counts[informative].sum()
+                        ),
+                        "distinct_noise_features_used": int(
+                            ((split_counts > 0) & ~np.isin(np.arange(p), informative)).sum()
+                        ),
                         "informative_indices": ",".join(str(i) for i in informative),
                     }
                 )
@@ -716,9 +751,29 @@ def build_single_tree_split_study(
     counts = pd.DataFrame(count_rows)
 
     summary_rows: list[dict[str, object]] = []
-    group_cols = ["dataset", "task", "kind", "design_family", "n_samples", "n_features", "n_informative", "informative_fraction", "method"]
+    group_cols = [
+        "dataset",
+        "task",
+        "kind",
+        "design_family",
+        "n_samples",
+        "n_features",
+        "n_informative",
+        "informative_fraction",
+        "method",
+    ]
     for group_key, sub in runs.groupby(group_cols):
-        dataset, task, kind, design_family, n_samples, n_features, n_informative, informative_fraction, method = group_key
+        (
+            dataset,
+            task,
+            kind,
+            design_family,
+            n_samples,
+            n_features,
+            n_informative,
+            informative_fraction,
+            method,
+        ) = group_key
         count_sub = counts[(counts["dataset"] == dataset) & (counts["method"] == method)]
         false = count_sub[count_sub["is_informative"] == 0]
         true = count_sub[count_sub["is_informative"] == 1]
@@ -747,7 +802,9 @@ def build_single_tree_split_study(
                 "max_false_tree_use_count": int(false["tree_use_count"].max()),
                 "mean_false_tree_use_count": float(false["tree_use_count"].mean()),
                 "true_split_counts": ",".join(str(int(v)) for v in true["split_count"].tolist()),
-                "true_tree_use_counts": ",".join(str(int(v)) for v in true["tree_use_count"].tolist()),
+                "true_tree_use_counts": ",".join(
+                    str(int(v)) for v in true["tree_use_count"].tolist()
+                ),
             }
         )
 
@@ -805,8 +862,12 @@ def build_ensemble_split_study(
                         "n_estimators": len(model.estimators_),
                         "n_split_events": int(split_counts.sum()),
                         "n_true_split_events": int(split_counts[informative].sum()),
-                        "n_noise_split_events": int(split_counts.sum() - split_counts[informative].sum()),
-                        "distinct_noise_features_used": int(((tree_use_counts > 0) & ~np.isin(np.arange(p), informative)).sum()),
+                        "n_noise_split_events": int(
+                            split_counts.sum() - split_counts[informative].sum()
+                        ),
+                        "distinct_noise_features_used": int(
+                            ((tree_use_counts > 0) & ~np.isin(np.arange(p), informative)).sum()
+                        ),
                         "informative_indices": ",".join(str(i) for i in informative),
                     }
                 )
@@ -833,9 +894,29 @@ def build_ensemble_split_study(
     counts = pd.DataFrame(count_rows)
 
     summary_rows: list[dict[str, object]] = []
-    group_cols = ["dataset", "task", "kind", "design_family", "n_samples", "n_features", "n_informative", "informative_fraction", "method"]
+    group_cols = [
+        "dataset",
+        "task",
+        "kind",
+        "design_family",
+        "n_samples",
+        "n_features",
+        "n_informative",
+        "informative_fraction",
+        "method",
+    ]
     for group_key, sub in runs.groupby(group_cols):
-        dataset, task, kind, design_family, n_samples, n_features, n_informative, informative_fraction, method = group_key
+        (
+            dataset,
+            task,
+            kind,
+            design_family,
+            n_samples,
+            n_features,
+            n_informative,
+            informative_fraction,
+            method,
+        ) = group_key
         count_sub = counts[(counts["dataset"] == dataset) & (counts["method"] == method)]
         false = count_sub[count_sub["is_informative"] == 0]
         true = count_sub[count_sub["is_informative"] == 1]
@@ -858,12 +939,16 @@ def build_ensemble_split_study(
                 "mean_total_splits_per_fit": float(sub["n_split_events"].mean()),
                 "mean_true_split_events_per_fit": float(sub["n_true_split_events"].mean()),
                 "mean_noise_split_events_per_fit": float(sub["n_noise_split_events"].mean()),
-                "informative_split_share": float(true["split_count"].sum() / total_split_count) if total_split_count else 0.0,
+                "informative_split_share": float(true["split_count"].sum() / total_split_count)
+                if total_split_count
+                else 0.0,
                 "distinct_false_features_used": int((false["tree_use_count"] > 0).sum()),
                 "max_false_tree_use_count": int(false["tree_use_count"].max()),
                 "mean_false_tree_use_count": float(false["tree_use_count"].mean()),
                 "true_split_counts": ",".join(str(int(v)) for v in true["split_count"].tolist()),
-                "true_tree_use_counts": ",".join(str(int(v)) for v in true["tree_use_count"].tolist()),
+                "true_tree_use_counts": ",".join(
+                    str(int(v)) for v in true["tree_use_count"].tolist()
+                ),
             }
         )
 
@@ -877,14 +962,20 @@ def plot_frequency_counts(counts: pd.DataFrame, output_path: Path) -> None:
     methods = ["cit", "cif_all", "rf", "et"]
     display_names = {"cit": "CIT", "cif_all": "CIF-all", "rf": "RF", "et": "ExtraTrees"}
 
-    fig, axes = plt.subplots(len(datasets), len(methods), figsize=(16, 3.6 * len(datasets)), sharex=False, sharey=True)
+    fig, axes = plt.subplots(
+        len(datasets), len(methods), figsize=(16, 3.6 * len(datasets)), sharex=False, sharey=True
+    )
     axes = np.atleast_2d(axes)
 
     for row_idx, dataset in enumerate(datasets):
         for col_idx, method in enumerate(methods):
             ax = axes[row_idx, col_idx]
-            sub = counts[(counts["dataset"] == dataset) & (counts["method"] == method) & (counts["k"] == 10)].copy()
-            sub = sub.sort_values(["selection_count", "feature_idx"], ascending=[False, True]).reset_index(drop=True)
+            sub = counts[
+                (counts["dataset"] == dataset) & (counts["method"] == method) & (counts["k"] == 10)
+            ].copy()
+            sub = sub.sort_values(
+                ["selection_count", "feature_idx"], ascending=[False, True]
+            ).reset_index(drop=True)
             colors = ["#2563EB" if flag else "#D1D5DB" for flag in sub["is_informative"]]
             ax.bar(range(len(sub)), sub["selection_count"], color=colors, width=0.9)
             if row_idx == 0:
@@ -911,7 +1002,9 @@ def plot_split_counts_by_feature_index(
 ) -> None:
     """Plot raw feature-index split/use counts with informative features highlighted."""
     datasets = list(dict.fromkeys(counts["dataset"].tolist()))
-    fig, axes = plt.subplots(len(datasets), len(methods), figsize=(16, 3.8 * len(datasets)), sharex=False, sharey=False)
+    fig, axes = plt.subplots(
+        len(datasets), len(methods), figsize=(16, 3.8 * len(datasets)), sharex=False, sharey=False
+    )
     axes = np.atleast_2d(axes)
     display_names = {
         "cit": "CIT",
@@ -926,7 +1019,9 @@ def plot_split_counts_by_feature_index(
     for row_idx, dataset in enumerate(datasets):
         for col_idx, method in enumerate(methods):
             ax = axes[row_idx, col_idx]
-            sub = counts[(counts["dataset"] == dataset) & (counts["method"] == method)].sort_values("feature_idx")
+            sub = counts[(counts["dataset"] == dataset) & (counts["method"] == method)].sort_values(
+                "feature_idx"
+            )
             if sub.empty:
                 ax.axis("off")
                 continue
@@ -1007,10 +1102,16 @@ def plot_summary_curves(
 
 
 def main() -> None:
-    """Build and save paper-facing candidate feature coverage diagnostics."""
-    parser = argparse.ArgumentParser(description="Build paper-facing candidate feature coverage diagnostics")
-    parser.add_argument("--output-dir", type=Path, default=TABLES_DIR, help="Directory for CSV outputs")
-    parser.add_argument("--figure-dir", type=Path, default=FIGURES_DIR, help="Directory for figure outputs")
+    """Build and save paper-facing sampled-feature exposure diagnostics."""
+    parser = argparse.ArgumentParser(
+        description="Build paper-facing sampled-feature exposure diagnostics"
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, default=TABLES_DIR, help="Directory for CSV outputs"
+    )
+    parser.add_argument(
+        "--figure-dir", type=Path, default=FIGURES_DIR, help="Directory for figure outputs"
+    )
     parser.add_argument(
         "--frequency-seeds",
         type=int,
@@ -1060,7 +1161,9 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     figure_dir.mkdir(parents=True, exist_ok=True)
 
-    candidate_spec = FixedDesignSpec(name="easy_shuffled_classification", kind="easy_shuffled_classification")
+    candidate_spec = FixedDesignSpec(
+        name="easy_shuffled_classification", kind="easy_shuffled_classification"
+    )
     frequency_specs = [
         candidate_spec,
         FixedDesignSpec(
@@ -1161,17 +1264,21 @@ def main() -> None:
         + regression_dimension_specs
     )
 
-    candidate_runs, candidate_summary = build_candidate_set_study(candidate_spec, verbose=args.verbose)
+    candidate_runs, candidate_summary = build_candidate_set_study(
+        candidate_spec, verbose=args.verbose
+    )
     frequency_runs, frequency_summary, feature_counts = build_frequency_study(
         frequency_specs,
         n_seeds=args.frequency_seeds,
         verbose=args.verbose,
     )
-    single_tree_runs, single_tree_summary, single_tree_feature_counts = build_single_tree_split_study(
-        split_count_specs,
-        n_seeds=args.single_tree_seeds,
-        verbose=args.verbose,
-        estimator_verbose=args.estimator_verbose,
+    single_tree_runs, single_tree_summary, single_tree_feature_counts = (
+        build_single_tree_split_study(
+            split_count_specs,
+            n_seeds=args.single_tree_seeds,
+            verbose=args.verbose,
+            estimator_verbose=args.estimator_verbose,
+        )
     )
     ensemble_runs, ensemble_summary, ensemble_feature_counts = build_ensemble_split_study(
         split_count_specs,
@@ -1207,7 +1314,9 @@ def main() -> None:
 
     single_tree_fig = figure_dir / "paper_mechanism_single_tree_split_counts.png"
     plot_split_counts_by_feature_index(
-        single_tree_feature_counts[single_tree_feature_counts["dataset"] == "symmetric_two_signal_gaussian_n250_p100_i2"],
+        single_tree_feature_counts[
+            single_tree_feature_counts["dataset"] == "symmetric_two_signal_gaussian_n250_p100_i2"
+        ],
         methods=SPLIT_COUNT_METHODS_SINGLE_TREE,
         ylabel="Tree-use count",
         title="Repeated single-tree split usage by feature",
@@ -1217,7 +1326,9 @@ def main() -> None:
 
     ensemble_fig = figure_dir / "paper_mechanism_ensemble_split_counts.png"
     plot_split_counts_by_feature_index(
-        ensemble_feature_counts[ensemble_feature_counts["dataset"] == "symmetric_two_signal_gaussian_n250_p100_i2"],
+        ensemble_feature_counts[
+            ensemble_feature_counts["dataset"] == "symmetric_two_signal_gaussian_n250_p100_i2"
+        ],
         methods=SPLIT_COUNT_METHODS_ENSEMBLE,
         ylabel="Tree-use count",
         title="Large-ensemble feature usage by feature",
@@ -1297,7 +1408,9 @@ def main() -> None:
     )
     print(f"Saved {ensemble_dimension_fig}")
 
-    single_tree_regression_density_fig = figure_dir / "paper_mechanism_single_tree_regression_density_curves.png"
+    single_tree_regression_density_fig = (
+        figure_dir / "paper_mechanism_single_tree_regression_density_curves.png"
+    )
     plot_summary_curves(
         single_tree_summary[
             (single_tree_summary["design_family"] == "vary_informative_fraction")
@@ -1314,7 +1427,9 @@ def main() -> None:
     )
     print(f"Saved {single_tree_regression_density_fig}")
 
-    ensemble_regression_density_fig = figure_dir / "paper_mechanism_ensemble_regression_density_curves.png"
+    ensemble_regression_density_fig = (
+        figure_dir / "paper_mechanism_ensemble_regression_density_curves.png"
+    )
     plot_summary_curves(
         ensemble_summary[
             (ensemble_summary["design_family"] == "vary_informative_fraction")

@@ -23,6 +23,7 @@ def _allocate_samples(weights: np.ndarray, total: int) -> np.ndarray:
     -------
     np.ndarray
         Integer allocation for each class, summing to total.
+
     """
     if total <= 0 or len(weights) == 0:
         return np.zeros(len(weights), dtype=int)
@@ -72,6 +73,7 @@ def estimate_proba(*, y: np.ndarray, n_classes: int) -> np.ndarray:
     -------
     np.ndarray
         Estimated probabilities for each class.
+
     """
     return np.array([np.mean(y == j) for j in range(n_classes)])
 
@@ -89,6 +91,7 @@ def estimate_mean(y: np.ndarray) -> float:
     -------
     float
         Estimate mean.
+
     """
     return np.mean(y)
 
@@ -108,6 +111,7 @@ def calculate_max_value(*, n_values: int, desired_max: str | float | int | None 
     -------
     int
         Maximum value.
+
     """
     if type(desired_max) is int or np.issubdtype(type(desired_max), np.integer):
         total = min(int(desired_max), n_values)  # type: ignore[arg-type]
@@ -159,6 +163,7 @@ def split_data(
 
     y_right : np.ndarray
         Target in right child node.
+
     """
     idx = X[:, feature] <= threshold
     return X[idx], y[idx], X[~idx], y[~idx]
@@ -167,7 +172,7 @@ def split_data(
 def stratified_bootstrap_sample(
     *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
-    """Indices for stratified bootstrap sampling in classification.
+    """Return indices for stratified bootstrap sampling in classification.
 
     Parameters
     ----------
@@ -184,6 +189,7 @@ def stratified_bootstrap_sample(
     -------
     np.ndarray
         Indices for bootstrap sample.
+
     """
     prng = np.random.RandomState(random_state)
 
@@ -191,7 +197,7 @@ def stratified_bootstrap_sample(
     n_classes = len(np.unique(y))
     idx_classes = [np.where(y == j)[0] for j in range(n_classes)]
     idx = []
-    for j, idx_class in enumerate(idx_classes):
+    for idx_class in idx_classes:
         n_class = len(idx_class)
         idx.append(prng.choice(idx_class, size=n_class, replace=True))
 
@@ -226,6 +232,7 @@ def stratified_bootstrap_unsampled_idx(
     -------
     np.ndarray
         Indices for bootstrap sample.
+
     """
     idx_sampled = stratified_bootstrap_sample(
         y=y,
@@ -241,7 +248,7 @@ def stratified_bootstrap_unsampled_idx(
 def undersample_bootstrap_sample(
     *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
-    """Indices for class-balanced undersampling (bootstrap with per-class cap).
+    """Return indices for class-balanced undersampling.
 
     This method draws ``n_min`` samples *per class* with replacement, where
     ``n_min`` is the minority class count in ``y``. The resulting bootstrap size
@@ -264,6 +271,7 @@ def undersample_bootstrap_sample(
     -------
     np.ndarray
         Indices for bootstrap sample.
+
     """
     prng = np.random.RandomState(random_state)
 
@@ -273,7 +281,7 @@ def undersample_bootstrap_sample(
     n_min = int(class_counts.min())
 
     idx = []
-    for j, idx_class in enumerate(idx_classes):
+    for idx_class in idx_classes:
         idx.append(prng.choice(idx_class, size=n_min, replace=True))
 
     total = n_classes * n_min
@@ -308,7 +316,7 @@ def undersample_bootstrap_unsampled_idx(
 def oversample_bootstrap_sample(
     *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
-    """Indices for class-balanced oversampling (fixed-size bootstrap).
+    """Return indices for class-balanced oversampling.
 
     This method produces a bootstrap sample of size ``max_samples`` whose class
     counts are as equal as possible (difference at most 1), sampling with
@@ -330,6 +338,7 @@ def oversample_bootstrap_sample(
     -------
     np.ndarray
         Indices for bootstrap sample.
+
     """
     prng = np.random.RandomState(random_state)
 
@@ -366,10 +375,8 @@ def oversample_bootstrap_unsampled_idx(
     return idx_unsampled
 
 
-def classic_bootstrap_sample(
-    *, y: np.ndarray, max_samples: int, random_state: int
-) -> np.ndarray:
-    """Indices for classic bootstrapping.
+def classic_bootstrap_sample(*, y: np.ndarray, max_samples: int, random_state: int) -> np.ndarray:
+    """Return indices for classic bootstrapping.
 
     Parameters
     ----------
@@ -386,6 +393,7 @@ def classic_bootstrap_sample(
     -------
     np.ndarray
         Indices for bootstrap sample.
+
     """
     prng = np.random.RandomState(random_state)
 
@@ -417,6 +425,7 @@ def classic_bootstrap_unsampled_idx(
     -------
     np.ndarray
         Indices for bootstrap sample.
+
     """
     idx_sampled = classic_bootstrap_sample(
         y=y,

@@ -40,7 +40,9 @@ def collect_referenced_figures() -> list[Path]:
                     figures.add(path)
                     break
             else:
-                raise FileNotFoundError(f"{source.relative_to(ROOT)} references missing figure {match}")
+                raise FileNotFoundError(
+                    f"{source.relative_to(ROOT)} references missing figure {match}"
+                )
     return sorted(figures)
 
 
@@ -71,7 +73,9 @@ def write_bundle(out_path: Path) -> list[Path]:
     """Write the source bundle and return included members."""
     members = bundle_members()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    with zipfile.ZipFile(
+        out_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as archive:
         for path in members:
             arcname = path.relative_to(ARXIV_DIR).as_posix()
             info = zipfile.ZipInfo(arcname, ZIP_TIMESTAMP)
@@ -84,8 +88,12 @@ def write_bundle(out_path: Path) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="Bundle path to write")
-    parser.add_argument("--skip-build", action="store_true", help="Validate and zip the existing arXiv build state")
-    parser.add_argument("--check", action="store_true", help="Validate bundle membership without writing a zip")
+    parser.add_argument(
+        "--skip-build", action="store_true", help="Validate and zip the existing arXiv build state"
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="Validate bundle membership without writing a zip"
+    )
     args = parser.parse_args()
 
     if not args.skip_build:

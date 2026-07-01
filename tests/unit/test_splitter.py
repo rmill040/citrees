@@ -27,9 +27,7 @@ def _child_impurity(func, y, idx, weighted):
     return func(y[idx]) + func(y[~idx])
 
 
-def _expected_splitter_ptest(
-    func, x, y, threshold, n_resamples, random_state, weighted
-):
+def _expected_splitter_ptest(func, x, y, threshold, n_resamples, random_state, weighted):
     idx = x <= threshold
     theta = _child_impurity(func, y, idx, weighted)
     y_perm = y.copy()
@@ -45,9 +43,7 @@ def _expected_splitter_ptest(
     return (extreme_count + 1) / (n_resamples + 1)
 
 
-def _expected_parallel_splitter_ptest(
-    func, x, y, threshold, n_resamples, random_state, weighted
-):
+def _expected_parallel_splitter_ptest(func, x, y, threshold, n_resamples, random_state, weighted):
     idx = x <= threshold
     theta = _child_impurity(func, y, idx, weighted)
     extreme_count = 0
@@ -678,9 +674,7 @@ class TestSplitterRNGReproducibility:
         )
         after = np.random.random()
 
-        assert (
-            before == after
-        ), f"_ptest_splitter contaminated global state: {before} != {after}"
+        assert before == after, f"_ptest_splitter contaminated global state: {before} != {after}"
 
     def test_ptest_gini_parallel_same_seed_same_result(self, classification_data):
         """Parallel Gini test with same seed should produce identical results."""
@@ -703,11 +697,7 @@ class TestSplitterRNGReproducibility:
 
         x, y, threshold = regression_data
 
-        pval1 = _ptest_mse_parallel(
-            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
-        )
-        pval2 = _ptest_mse_parallel(
-            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
-        )
+        pval1 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
+        pval2 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
 
         assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"

@@ -38,7 +38,7 @@ def api_start(
 ) -> None:
     """Start the API queue server.
 
-    The server auto-discovers the full experiment grid and checks S3 for
+    The server auto-discovers the configured experiment set and checks S3 for
     completed work on startup. No configuration needed.
 
     Examples:

@@ -96,9 +96,7 @@ def build_benchmark_presentation_summary(
         ].sort_values("baseline")
         for _, comparison_row in cif_comparisons.iterrows():
             compared_method = str(comparison_row["baseline"])
-            row[f"cif_matched_vs_{compared_method}_datasets"] = int(
-                comparison_row["n_datasets"]
-            )
+            row[f"cif_matched_vs_{compared_method}_datasets"] = int(comparison_row["n_datasets"])
             row[f"cif_positive_vs_{compared_method}_datasets"] = int(comparison_row["wins"])
             row[f"cif_mean_delta_vs_{compared_method}"] = float(comparison_row["mean_delta"])
 

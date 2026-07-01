@@ -18,11 +18,11 @@ Outputs
 
 Run
 ---
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python \
+  uv run python \
       paper/scripts/theory/generate_calibration_support_package.py
 
   # Quick mode (fewer sims):
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python \
+  uv run python \
       paper/scripts/theory/generate_calibration_support_package.py --quick
 """
 
@@ -43,11 +43,10 @@ _mpl_dir.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(_mpl_dir))
 os.environ.setdefault("NUMBA_DISABLE_JIT", "1")
 
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt  # noqa: E402
 
-from citrees import ConditionalInferenceTreeClassifier
-from citrees._selector import ptest_mc, ptest_pc
-
+from citrees import ConditionalInferenceTreeClassifier  # noqa: E402
+from citrees._selector import ptest_mc, ptest_pc  # noqa: E402
 
 FIGURES_DIR = _paper_dir / "results" / "figures"
 TABLES_DIR = _paper_dir / "results" / "tables"
@@ -62,6 +61,7 @@ def _parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 # Part 1: Filter-level p-value ECDF
 # ---------------------------------------------------------------------------
+
 
 def run_ptest_calibration(
     *,
@@ -82,17 +82,25 @@ def run_ptest_calibration(
         # Classification null: random binary y, independent of x
         y_clf = rng.integers(0, 2, size=n).astype(np.int64)
         pvals_mc[i] = ptest_mc(
-            x=x, y=y_clf, n_classes=2,
-            n_resamples=B, early_stopping=None,
-            alpha=0.05, random_state=seed + i,
+            x=x,
+            y=y_clf,
+            n_classes=2,
+            n_resamples=B,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=seed + i,
         )
 
         # Regression null: random continuous y, independent of x
         y_reg = rng.standard_normal(n).astype(np.float64)
         pvals_pc[i] = ptest_pc(
-            x=x, y=y_reg, standardize=True,
-            n_resamples=B, early_stopping=None,
-            alpha=0.05, random_state=seed + i,
+            x=x,
+            y=y_reg,
+            standardize=True,
+            n_resamples=B,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=seed + i,
         )
 
     return {"ptest_mc": pvals_mc, "ptest_pc": pvals_pc}
@@ -112,9 +120,13 @@ def run_ptest_adaptive_calibration(
         x = rng.standard_normal(n).astype(np.float64)
         y = rng.integers(0, 2, size=n).astype(np.int64)
         pvals[i] = ptest_mc(
-            x=x, y=y, n_classes=2,
-            n_resamples=B, early_stopping="adaptive",
-            alpha=0.05, random_state=seed + i,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=B,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=seed + i,
         )
     return pvals
 
@@ -122,6 +134,7 @@ def run_ptest_adaptive_calibration(
 # ---------------------------------------------------------------------------
 # Part 2: CIT root split rate
 # ---------------------------------------------------------------------------
+
 
 def run_root_split_calibration(
     *,
@@ -156,6 +169,7 @@ def run_root_split_calibration(
 # Plotting
 # ---------------------------------------------------------------------------
 
+
 def plot_ecdf(results: dict[str, np.ndarray], title: str, outpath: Path) -> None:
     """Plot p-value ECDFs vs Uniform(0,1) diagonal."""
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
@@ -176,8 +190,16 @@ def plot_ecdf(results: dict[str, np.ndarray], title: str, outpath: Path) -> None
     # Right: histogram of all combined
     ax2 = axes[1]
     for label, pvals in results.items():
-        ax2.hist(pvals, bins=50, alpha=0.5, color=colors.get(label, "gray"),
-                 label=label, density=True, edgecolor="white", linewidth=0.3)
+        ax2.hist(
+            pvals,
+            bins=50,
+            alpha=0.5,
+            color=colors.get(label, "gray"),
+            label=label,
+            density=True,
+            edgecolor="white",
+            linewidth=0.3,
+        )
     ax2.axhline(1.0, ls="--", color="black", lw=1, label="Uniform density")
     ax2.set_xlabel("p-value")
     ax2.set_ylabel("Density")
@@ -200,7 +222,7 @@ def plot_root_split(results: list[dict], outpath: Path) -> None:
 
     x = np.arange(len(labels))
     bars = ax.bar(x, rates, color="#4C78A8", edgecolor="white", width=0.6)
-    for i, (rate, alpha) in enumerate(zip(rates, alphas)):
+    for i, (_rate, alpha) in enumerate(zip(rates, alphas, strict=False)):
         ax.hlines(alpha, i - 0.35, i + 0.35, colors="red", linestyles="--", linewidths=1.5)
 
     ax.set_xticks(x)
@@ -210,10 +232,12 @@ def plot_root_split(results: list[dict], outpath: Path) -> None:
 
     # Add a legend entry for the red dashes
     from matplotlib.lines import Line2D
+
     ax.legend(
         [bars[0], Line2D([0], [0], color="red", ls="--", lw=1.5)],
         ["Empirical rate", "Nominal alpha"],
-        loc="upper right", fontsize=8,
+        loc="upper right",
+        fontsize=8,
     )
     fig.tight_layout()
     fig.savefig(outpath, dpi=200, bbox_inches="tight")
@@ -224,6 +248,7 @@ def plot_root_split(results: list[dict], outpath: Path) -> None:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     args = _parse_args()
@@ -242,30 +267,49 @@ def main() -> None:
     # --- Part 1: Filter-level p-value calibration ---
     print(f"[1/3] Filter-level p-value calibration ({n_sims_ptest} sims)...")
     ptest_results = run_ptest_calibration(
-        n_sims=n_sims_ptest, n=200, p=1, B=199, seed=0,
+        n_sims=n_sims_ptest,
+        n=200,
+        p=1,
+        B=199,
+        seed=0,
     )
 
     # Empirical rejection rates at alpha=0.05
     for label, pvals in ptest_results.items():
         rej = (pvals <= 0.05).mean()
-        summary_rows.append({
-            "test": label, "mode": "fixed-B", "n": 200, "B": 199,
-            "n_sims": n_sims_ptest, "nominal_alpha": 0.05,
-            "empirical_rejection_rate": rej,
-        })
+        summary_rows.append(
+            {
+                "test": label,
+                "mode": "fixed-B",
+                "n": 200,
+                "B": 199,
+                "n_sims": n_sims_ptest,
+                "nominal_alpha": 0.05,
+                "empirical_rejection_rate": rej,
+            }
+        )
         print(f"  {label} (fixed-B): reject rate = {rej:.4f} (nominal 0.05)")
 
     # --- Part 1b: Adaptive stopping calibration ---
     print(f"[1b/3] Adaptive stopping calibration ({n_sims_ptest} sims)...")
     pvals_adaptive = run_ptest_adaptive_calibration(
-        n_sims=n_sims_ptest, n=200, B=199, seed=99999,
+        n_sims=n_sims_ptest,
+        n=200,
+        B=199,
+        seed=99999,
     )
     rej_adaptive = (pvals_adaptive <= 0.05).mean()
-    summary_rows.append({
-        "test": "ptest_mc", "mode": "adaptive", "n": 200, "B": 199,
-        "n_sims": n_sims_ptest, "nominal_alpha": 0.05,
-        "empirical_rejection_rate": rej_adaptive,
-    })
+    summary_rows.append(
+        {
+            "test": "ptest_mc",
+            "mode": "adaptive",
+            "n": 200,
+            "B": 199,
+            "n_sims": n_sims_ptest,
+            "nominal_alpha": 0.05,
+            "empirical_rejection_rate": rej_adaptive,
+        }
+    )
     print(f"  ptest_mc (adaptive): reject rate = {rej_adaptive:.4f} (nominal 0.05)")
 
     # Combined ECDF plot
@@ -288,16 +332,25 @@ def main() -> None:
     ]
     for cond in conditions:
         rate = run_root_split_calibration(
-            n_sims=n_sims_root, n=cond["n"], p=cond["p"],
-            B=cond["B"], alpha=cond["alpha"], seed=0,
+            n_sims=n_sims_root,
+            n=cond["n"],
+            p=cond["p"],
+            B=cond["B"],
+            alpha=cond["alpha"],
+            seed=0,
         )
         root_results.append({**cond, "split_rate": rate})
-        summary_rows.append({
-            "test": "CIT_root_split", "mode": f"n={cond['n']},p={cond['p']}",
-            "n": cond["n"], "B": cond["B"], "n_sims": n_sims_root,
-            "nominal_alpha": cond["alpha"],
-            "empirical_rejection_rate": rate,
-        })
+        summary_rows.append(
+            {
+                "test": "CIT_root_split",
+                "mode": f"n={cond['n']},p={cond['p']}",
+                "n": cond["n"],
+                "B": cond["B"],
+                "n_sims": n_sims_root,
+                "nominal_alpha": cond["alpha"],
+                "empirical_rejection_rate": rate,
+            }
+        )
         print(f"  n={cond['n']}, p={cond['p']}: split rate = {rate:.4f} (alpha={cond['alpha']})")
 
     plot_root_split(root_results, FIGURES_DIR / "calibration_root_split.png")
@@ -311,16 +364,26 @@ def main() -> None:
             x = rng.standard_normal(200).astype(np.float64)
             y = rng.integers(0, 2, size=200).astype(np.int64)
             pvals_b[i] = ptest_mc(
-                x=x, y=y, n_classes=2,
-                n_resamples=B, early_stopping=None,
-                alpha=0.05, random_state=B + i,
+                x=x,
+                y=y,
+                n_classes=2,
+                n_resamples=B,
+                early_stopping=None,
+                alpha=0.05,
+                random_state=B + i,
             )
         rej = (pvals_b <= 0.05).mean()
-        summary_rows.append({
-            "test": "ptest_mc", "mode": f"fixed-B={B}", "n": 200, "B": B,
-            "n_sims": n_sims_ptest, "nominal_alpha": 0.05,
-            "empirical_rejection_rate": rej,
-        })
+        summary_rows.append(
+            {
+                "test": "ptest_mc",
+                "mode": f"fixed-B={B}",
+                "n": 200,
+                "B": B,
+                "n_sims": n_sims_ptest,
+                "nominal_alpha": 0.05,
+                "empirical_rejection_rate": rej,
+            }
+        )
         print(f"  B={B}: reject rate = {rej:.4f}")
 
     # --- Save summary ---

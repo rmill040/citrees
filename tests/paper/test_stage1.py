@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
-from types import SimpleNamespace
 
 from citrees._selector import (
     ClassifierSelectors,
@@ -256,7 +257,7 @@ class TestWrapperSelectors:
 # ---------------------------------------------------------------------------
 
 try:
-    from paper.scripts.pipeline.r_methods import r_ctree_ranking, r_cforest_ranking
+    from paper.scripts.pipeline.r_methods import r_ctree_ranking
 
     _has_r = True
 except (ImportError, OSError):
@@ -274,12 +275,18 @@ class TestRCtreeRanking:
         from sklearn.datasets import make_classification
 
         X, y = make_classification(
-            n_samples=200, n_features=10, n_informative=5,
-            n_redundant=0, n_clusters_per_class=1, random_state=42,
+            n_samples=200,
+            n_features=10,
+            n_informative=5,
+            n_redundant=0,
+            n_clusters_per_class=1,
+            random_state=42,
         )
         ranking = r_ctree_ranking(X, y, task="classification")
         assert ranking.shape == (10,)
-        assert not np.array_equal(ranking, np.arange(10)), "ranking is identity — split extraction broken"
+        assert not np.array_equal(ranking, np.arange(10)), (
+            "ranking is identity — split extraction broken"
+        )
 
     @_skip_no_r
     def test_ranking_not_identity_regression(self) -> None:
@@ -287,11 +294,16 @@ class TestRCtreeRanking:
         from sklearn.datasets import make_regression
 
         X, y = make_regression(
-            n_samples=200, n_features=10, n_informative=5, random_state=42,
+            n_samples=200,
+            n_features=10,
+            n_informative=5,
+            random_state=42,
         )
         ranking = r_ctree_ranking(X, y, task="regression")
         assert ranking.shape == (10,)
-        assert not np.array_equal(ranking, np.arange(10)), "ranking is identity — split extraction broken"
+        assert not np.array_equal(ranking, np.arange(10)), (
+            "ranking is identity — split extraction broken"
+        )
 
     @_skip_no_r
     def test_stump_on_noise(self) -> None:

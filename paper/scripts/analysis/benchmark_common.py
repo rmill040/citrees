@@ -41,7 +41,9 @@ TASK_CONFIG: Final[dict[str, BenchmarkTaskConfig]] = {
 }
 
 
-def load_real_task_frame(*, task: str | None = None, path: Path = REAL_EVALUATION_SURFACE) -> pd.DataFrame:
+def load_real_task_frame(
+    *, task: str | None = None, path: Path = REAL_EVALUATION_SURFACE
+) -> pd.DataFrame:
     """Load the canonical joined real-data evaluation surface."""
     df = pd.read_parquet(path)
     df = df[df["dataset_source"] == "real"].copy()

@@ -53,7 +53,16 @@ def build_real_evaluation_surface() -> pd.DataFrame:
     dedup_keys = [col for col in EVALUATION_DEDUP_KEYS if col in joined.columns]
     joined = joined.drop_duplicates(subset=dedup_keys, keep="last")
     return joined.sort_values(
-        ["task", "dataset", "method_base", "method_id", "seed", "fold_idx", "downstream_model", "k"],
+        [
+            "task",
+            "dataset",
+            "method_base",
+            "method_id",
+            "seed",
+            "fold_idx",
+            "downstream_model",
+            "k",
+        ],
         kind="stable",
     ).reset_index(drop=True)
 

@@ -26,8 +26,8 @@ leads to:
 
 citrees addresses these issues by using **permutation tests** at each node to:
 
-- Test whether ANY feature is significantly associated with the target (feature
-  selection) in the fixed-node reference procedure
+- Test whether any feature is associated with the target strongly enough to pass
+  the configured Stage A screening rule
 - Score selected-feature thresholds for algorithmic split/stopping decisions;
   after Stage A selection, Stage B is not a post-selection inference claim
 
@@ -68,8 +68,8 @@ from citrees import (
 tree = ConditionalInferenceTreeClassifier(
     selector="mc",           # Multiple correlation for feature selection
     splitter="gini",         # Gini impurity for split quality
-    alpha_selector=0.05,     # Significance level for feature selection
-    alpha_splitter=0.05,     # Significance level for split selection
+    alpha_selector=0.05,     # Screening threshold for feature selection
+    alpha_splitter=0.05,     # Screening threshold for split selection
 )
 tree.fit(X_train, y_train)
 
@@ -89,11 +89,11 @@ print(forest.feature_importances_)
 
 ### Statistical Foundation
 
-- **Permutation Tests**: Non-parametric hypothesis tests at each node
+- **Permutation Tests**: Nodewise non-parametric screening tests
 - **Bonferroni Correction**: Controls nodewise fixed-$B$ Stage A rejection
   probability under the complete permutation null
-- **Statistical stopping**: Stop splitting when no feature is significant (Stage
-  A)
+- **Test-based stopping**: Stop splitting when no feature passes Stage A
+  screening
 - **Early stopping (optional)**: Speed heuristic inside permutation tests (use
   fixed-$B$ for paper-facing p-values)
 
@@ -135,7 +135,7 @@ The documentation is built with [MkDocs](https://www.mkdocs.org/) using the
 uv sync --group docs
 
 # Start local server (auto-reloads on changes)
-uv run mkdocs serve
+uv run --group docs mkdocs serve
 
 # View at http://127.0.0.1:8000
 ```
@@ -144,7 +144,7 @@ uv run mkdocs serve
 
 ```bash
 # Build HTML documentation
-uv run mkdocs build
+uv run --group docs mkdocs build --strict
 
 # Output in site/ directory
 ```
@@ -156,8 +156,8 @@ If you use citrees in your research, please cite:
 ```bibtex
 @software{citrees,
   title = {citrees: Conditional Inference Trees and Forests for Python},
-  author = {Milletich, Robert J.},
-  year = {2024},
+  author = {Milletich, Robert and Downes, Justin and Goley, Steve and Hirst, Newel},
+  year = {2026},
   url = {https://github.com/rmill040/citrees}
 }
 ```

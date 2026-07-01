@@ -91,13 +91,10 @@ def _load_summary(task: str) -> pd.DataFrame:
 
 
 def _aggregate(df: pd.DataFrame, value_col: str) -> pd.DataFrame:
-    return (
-        df.groupby(["method", "n_features"], as_index=False)
-        .agg(
-            mean=(value_col, "mean"),
-            min=(value_col, "min"),
-            max=(value_col, "max"),
-        )
+    return df.groupby(["method", "n_features"], as_index=False).agg(
+        mean=(value_col, "mean"),
+        min=(value_col, "min"),
+        max=(value_col, "max"),
     )
 
 
@@ -105,7 +102,9 @@ def _plot_panel(ax: plt.Axes, agg: pd.DataFrame, ylabel: str, title: str) -> Non
     x_base = np.arange(len(FEATURE_LEVELS))
 
     for method in METHODS:
-        method_rows = agg[agg["method"] == method].set_index("n_features").loc[FEATURE_LEVELS].reset_index()
+        method_rows = (
+            agg[agg["method"] == method].set_index("n_features").loc[FEATURE_LEVELS].reset_index()
+        )
         x = x_base + OFFSETS[method]
         color = COLORS[method]
         mean = method_rows["mean"].to_numpy(dtype=float)
@@ -157,7 +156,9 @@ def _render_task(task: str) -> None:
     )
 
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.98))
+    fig.legend(
+        handles, labels, loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.98)
+    )
     axes[0].text(
         0.5,
         -0.24,

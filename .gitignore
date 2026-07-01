@@ -1,17 +1,18 @@
 # Local files
 metrics/
 scratch/
+tmp/
 .claude/
 .uv-cache/
 .ruff_cache/
 .pytest_cache/
 catboost_info/
 paper/data/s3_sync/
+paper/results/cache/
 paper/results/clf_rankings.parquet
 paper/results/tables/cif_mechanism_ablation_metrics_flat.csv
-
-# Generated Ray cluster config (contains user's IP)
-paper/scripts/infra/ray/cluster.yaml
+paper/arxiv/figures/boundary_story.png
+paper/arxiv/figures/fixed_panel_story.png
 
 # User-specific experiment config (may contain AWS account info)
 paper/scripts/infra/config.yaml
@@ -117,6 +118,10 @@ ENV/
 
 # mkdocs documentation
 /site
+
+# JOSS draft outputs
+paper/joss/paper.pdf
+paper/joss/jats/
 
 # mypy
 .mypy_cache/

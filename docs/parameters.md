@@ -152,17 +152,17 @@ Options for `max_features`:
 
 All tree parameters plus:
 
-| Parameter          | Type                 | Default                     | Description                                                                             |
-| ------------------ | -------------------- | --------------------------- | --------------------------------------------------------------------------------------- |
-| `n_estimators`     | int                  | 100                         | Number of trees                                                                         |
-| `max_samples`      | int/float/None       | None                        | Bootstrap sample cap (count or fraction)                                                |
-| `bootstrap`        | bool                 | `True`                      | Whether to use bootstrap sampling                                                       |
-| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap (classification only)                            |
-| `n_jobs`           | int or None          | None                        | Parallel jobs (-1 for all cores)                                                        |
-| `oob_score`        | bool                 | False                       | Compute out-of-bag score (requires bootstrap; scores only samples with OOB predictions) |
+| Parameter         | Type                | Default                     | Description                                                                             |
+| ----------------- | ------------------- | --------------------------- | --------------------------------------------------------------------------------------- |
+| `n_estimators`    | int                 | 100                         | Number of trees                                                                         |
+| `max_samples`     | int/float/None      | None                        | Bootstrap sample cap (count or fraction)                                                |
+| `bootstrap`       | bool                | `True`                      | Whether to use bootstrap sampling                                                       |
+| `sampling_method` | SamplingMethod/None | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap (classification only)                            |
+| `n_jobs`          | int or None         | None                        | Parallel jobs (-1 for all cores)                                                        |
+| `oob_score`       | bool                | False                       | Compute out-of-bag score (requires bootstrap; scores only samples with OOB predictions) |
 
-When `bootstrap=False`, OOB scoring is disabled and `sampling_method`/`max_samples`
-must be `None`.
+When `bootstrap=False`, OOB scoring is disabled and
+`sampling_method`/`max_samples` must be `None`.
 
 Options for `sampling_method`:
 
@@ -181,8 +181,8 @@ Notes:
   cores).
 - `n_jobs=0` is invalid; use `None` or `1` to disable parallelism.
 - `sampling_method` requires `bootstrap=True`.
-- Invalid combinations (e.g., `bootstrap=False` with `sampling_method`
-  set) raise a validation error.
+- Invalid combinations (e.g., `bootstrap=False` with `sampling_method` set)
+  raise a validation error.
 - Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
   `None`).
 

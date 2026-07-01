@@ -166,4 +166,19 @@ class TestEvaluationKBudgets:
     def test_high_p_defaults_add_bridge_without_manual_overrides(self):
         """High-p datasets should automatically add bridge budgets above the standard schedule."""
         assert get_requested_evaluation_k_values(80) == [5, 10, 25, 50, 80]
-        assert get_requested_evaluation_k_values(1200) == [5, 10, 25, 50, 100, 150, 200, 300, 500, 600, 750, 900, 1000, 1200]
+        assert get_requested_evaluation_k_values(1200) == [
+            5,
+            10,
+            25,
+            50,
+            100,
+            150,
+            200,
+            300,
+            500,
+            600,
+            750,
+            900,
+            1000,
+            1200,
+        ]

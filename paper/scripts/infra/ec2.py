@@ -62,19 +62,13 @@ def _get_default_subnet_ids(ec2: Any, *, instance_type: str | None = None) -> li
             LocationType="availability-zone",
             Filters=[{"Name": "instance-type", "Values": [instance_type]}],
         )
-        offered_azs = {
-            item["Location"] for item in offerings.get("InstanceTypeOfferings", [])
-        }
+        offered_azs = {item["Location"] for item in offerings.get("InstanceTypeOfferings", [])}
 
-    response = ec2.describe_subnets(
-        Filters=[{"Name": "default-for-az", "Values": ["true"]}]
-    )
+    response = ec2.describe_subnets(Filters=[{"Name": "default-for-az", "Values": ["true"]}])
     subnets = response.get("Subnets", [])
     if offered_azs is not None:
         subnets = [
-            subnet
-            for subnet in subnets
-            if subnet.get("AvailabilityZone", "") in offered_azs
+            subnet for subnet in subnets if subnet.get("AvailabilityZone", "") in offered_azs
         ]
     subnets = sorted(
         subnets,
@@ -758,9 +752,7 @@ def list_workers(region: str = DEFAULT_REGION) -> list[dict[str, str]]:
                     "state": inst["State"]["Name"],
                     "instance_type": inst.get("InstanceType", ""),
                     "launch_time": (
-                        inst.get("LaunchTime", "").isoformat()
-                        if inst.get("LaunchTime")
-                        else ""
+                        inst.get("LaunchTime", "").isoformat() if inst.get("LaunchTime") else ""
                     ),
                 }
             )
@@ -792,9 +784,7 @@ def list_mechanism_workers(region: str = DEFAULT_REGION) -> list[dict[str, str]]
                     "state": inst["State"]["Name"],
                     "instance_type": inst.get("InstanceType", ""),
                     "launch_time": (
-                        inst.get("LaunchTime", "").isoformat()
-                        if inst.get("LaunchTime")
-                        else ""
+                        inst.get("LaunchTime", "").isoformat() if inst.get("LaunchTime") else ""
                     ),
                     "shard_index": tags.get("citrees-shard-index", ""),
                     "num_shards": tags.get("citrees-num-shards", ""),

@@ -299,14 +299,17 @@ fitted CIT/CIF tree, this score is used after Stage A has selected the feature,
 so it should be read as an algorithmic split/stopping score rather than a
 post-selection inference claim.
 
-### Null Hypothesis
+### Permutation Comparison
 
-$$H_0: \text{The split provides no improvement in prediction}$$
+For a fixed feature and threshold, the permutation comparison asks whether the
+observed weighted child impurity is unusually small under label exchangeability.
+Inside a fitted tree this is a split/stopping score, not a standalone
+post-selection inference claim.
 
 ### Test Statistic
 
-The implementation uses **weighted child impurity** as the test statistic
-(lower is better):
+The implementation uses **weighted child impurity** as the test statistic (lower
+is better):
 
 $$S = \frac{n_L}{n}\text{Impurity}(y_L) + \frac{n_R}{n}\text{Impurity}(y_R)$$
 
@@ -317,12 +320,12 @@ Algorithm: Splitter Permutation Test
 Input: x ∈ ℝⁿ, y, threshold c, n_resamples
 
 1. Compute observed statistic:
-   S_obs = Impurity(y_L) + Impurity(y_R)
+   S_obs = (|L|/n) * Impurity(y_L) + (|R|/n) * Impurity(y_R)
 
 2. Generate null distribution:
    For b = 1 to n_resamples:
        y_perm = shuffle(y)
-       S_perm[b] = Impurity(y_perm[L]) + Impurity(y_perm[R])
+       S_perm[b] = (|L|/n) * Impurity(y_perm[L]) + (|R|/n) * Impurity(y_perm[R])
 
 3. Compute p-value (left-tail):
    p = (1 + Σ_b 𝟙[S_perm[b] ≤ S_obs]) / (1 + n_resamples)

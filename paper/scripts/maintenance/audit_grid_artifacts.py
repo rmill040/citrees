@@ -1,10 +1,10 @@
-"""Audit raw local artifacts against the current experiment grid.
+"""Audit raw local artifacts against the configured experiment set.
 
 Operational audit helper; not part of the current paper-facing rebuild path.
 
-This script proves which current-grid configs are complete locally, which are
+This script proves which configured experiments are complete locally, which are
 missing, and which raw files are stale relative to the current source-defined
-grid.
+experiment set.
 
 Outputs:
   - paper/results/tables/grid_config_audit.csv
@@ -12,7 +12,7 @@ Outputs:
   - paper/results/tables/grid_artifact_audit_summary.json
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/maintenance/audit_grid_artifacts.py --local-dir ../data
+  uv run python paper/scripts/maintenance/audit_grid_artifacts.py --local-dir ../data
 """
 
 from __future__ import annotations
@@ -204,19 +204,29 @@ def _audit_task(
         "extra_metric_keys": len(extra_metric_keys),
         "extra_ranking_sample": [list(key) for key in sorted(extra_ranking_keys)[:20]],
         "extra_metric_sample": [list(key) for key in sorted(extra_metric_keys)[:20]],
-        "configs_with_missing_rankings": sum(1 for row in config_rows if row["missing_ranking_jobs"] > 0),
-        "configs_with_missing_metrics": sum(1 for row in config_rows if row["missing_metric_jobs"] > 0),
+        "configs_with_missing_rankings": sum(
+            1 for row in config_rows if row["missing_ranking_jobs"] > 0
+        ),
+        "configs_with_missing_metrics": sum(
+            1 for row in config_rows if row["missing_metric_jobs"] > 0
+        ),
     }
 
     return (
-        pd.DataFrame(config_rows).sort_values(["task", "method_base", "method_id"]).reset_index(drop=True),
-        pd.DataFrame(dataset_rows).sort_values(["task", "method_base", "method_id", "dataset"]).reset_index(drop=True),
+        pd.DataFrame(config_rows)
+        .sort_values(["task", "method_base", "method_id"])
+        .reset_index(drop=True),
+        pd.DataFrame(dataset_rows)
+        .sort_values(["task", "method_base", "method_id", "dataset"])
+        .reset_index(drop=True),
         summary,
     )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit raw local artifacts against the current experiment grid")
+    parser = argparse.ArgumentParser(
+        description="Audit raw local artifacts against the configured experiment set"
+    )
     parser.add_argument(
         "--local-dir",
         type=Path,

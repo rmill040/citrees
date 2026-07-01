@@ -1,7 +1,7 @@
 # Analysis Contract
 
-This document defines the standard analysis contract for the paper.
-It is the rule set that all core empirical claims must satisfy.
+This document defines the standard analysis contract for the paper. It is the
+rule set that all core empirical claims must satisfy.
 
 ## 1. Standardization Rules
 
@@ -27,15 +27,15 @@ practical context after the scientific claim is already clear.
 If an analysis is part of the core story for classification, we should attempt
 to mirror the same analysis for regression.
 
-If the regression version is too weak or too small to support a parallel
-claim, that must be stated explicitly. We should not silently build a much more
+If the regression version is too weak or too small to support a parallel claim,
+that must be stated explicitly. We should not silently build a much more
 complete analysis stack for classification and then let regression drift into an
 incompatible format.
 
 ### 1.2 Consider All Downstream Models
 
-Headline claims must not be based on a cherry-picked downstream model such as
-LR or SVM alone.
+Headline claims must not be based on a cherry-picked downstream model such as LR
+or SVM alone.
 
 For the core benchmark story:
 
@@ -58,9 +58,11 @@ Every trend must either:
 - show the full `k` trajectory, or
 - summarize performance over all available `k` values for each dataset.
 
-### 1.4 Dataset And Cell Accounting
+### 1.4 Dataset And Analysis-Unit Accounting
 
-Every analysis must state what dataset and cell set it uses:
+Every analysis must state what dataset set and analysis unit it uses. In the
+benchmark docs, a cell usually means one `(dataset, downstream model, k)` unit.
+Common support sets include:
 
 - all-method complete-case,
 - pairwise-available,
@@ -68,8 +70,8 @@ Every analysis must state what dataset and cell set it uses:
 - or another explicitly defined subset.
 
 Aggregate claims must report the relevant dataset counts. We should never let
-changing dataset or cell availability across `k`, downstreams, or tasks stay
-implicit.
+changing dataset or analysis-unit availability across `k`, downstreams, or tasks
+stay implicit.
 
 ### 1.5 One Config Contract Per Analysis Family
 
@@ -154,12 +156,12 @@ downstream model.
 
 A core claim should satisfy all of the following:
 
-1. It is visible across the full `k` trajectory or an available-cell aggregate
+1. It is visible across the full `k` trajectory or an available-unit aggregate
    over `k`.
 2. It is checked across all downstream models for that task.
 3. It is mirrored across classification and regression when appropriate, or the
    asymmetry is explicitly justified.
-4. Its dataset and cell set is stated.
+4. Its dataset set and analysis unit are stated.
 5. It uses the same config contract as the rest of the core analysis family.
 
 If any one of these is false, the claim is not ready for the main text yet.

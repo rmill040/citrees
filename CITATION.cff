@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use citrees in your research, please cite the software."
+title: "citrees: Conditional Inference Trees and Forests for Python"
+type: software
+authors:
+  - family-names: Milletich
+    given-names: Robert
+  - family-names: Downes
+    given-names: Justin
+  - family-names: Goley
+    given-names: Steve
+  - family-names: Hirst
+    given-names: Newel
+repository-code: "https://github.com/rmill040/citrees"
+url: "https://github.com/rmill040/citrees"
+license: MIT
+version: 0.1.0
+keywords:
+  - conditional inference trees
+  - random forests
+  - feature selection
+  - permutation tests
+  - machine learning
+abstract: >-
+  citrees is a Python package for conditional inference decision trees and
+  random forests with permutation-test-based feature selection.

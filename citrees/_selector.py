@@ -77,6 +77,7 @@ def _ptest(
     -------
     float
         Estimated achieved significance level.
+
     """
     # Use default_rng for isolated RNG stream (avoids global state contamination)
     rng = np.random.default_rng(random_state)
@@ -199,6 +200,7 @@ def _ptest_multi(
     -------
     float
         Estimated achieved significance level.
+
     """
     # Use default_rng for isolated RNG stream (avoids global state contamination)
     rng = np.random.default_rng(random_state)
@@ -878,6 +880,7 @@ def mc(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = 
     -------
     float
         Estimated multiple correlation.
+
     """
     if x.ndim > 1:
         x = x.ravel()
@@ -946,6 +949,7 @@ def mi(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float
     -------
     float
         Estimated mutual information.
+
     """
     if x.ndim == 1:
         x = x[:, None]
@@ -976,6 +980,7 @@ def pc(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None
     -------
     float
         Estimated Pearson correlation.
+
     """
     if x.ndim > 1:
         x = x.ravel()
@@ -1001,6 +1006,7 @@ def _covariance(x: np.ndarray, y: np.ndarray) -> float:
     -------
     float
         Estimated covariance.
+
     """
     n = len(x)
     sx = 0.0
@@ -1033,6 +1039,7 @@ def _correlation(x: np.ndarray, y: np.ndarray) -> float:
     -------
     float
         Estimated Pearson correlation.
+
     """
     n = len(x)
     sx = 0.0
@@ -1082,13 +1089,14 @@ def dc(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None
     -------
     float
         Estimated distance correlation.
+
     """
     if x.ndim > 1:
         x = x.ravel()
     if y.ndim > 1:
         y = y.ravel()
 
-    return _d_correlation(x, y) if standardize else _d_covariance(x, y)
+    return float(_d_correlation(x, y)) if standardize else float(_d_covariance(x, y))
 
 
 # =============================================================================
@@ -1322,6 +1330,7 @@ def ptest_mc(
     -------
     float
         Estimated achieved significance level.
+
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:
@@ -1400,6 +1409,7 @@ def ptest_mi(
     -------
     float
         Estimated achieved significance level.
+
     """
     return _ptest(
         func=mi,
@@ -1458,6 +1468,7 @@ def ptest_pc(
     -------
     float
         Estimated achieved significance level.
+
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:
@@ -1534,6 +1545,7 @@ def ptest_dc(
     -------
     float
         Estimated achieved significance level.
+
     """
     return _ptest(
         func=dc,
@@ -1597,6 +1609,7 @@ def ptest_rdc_classifier(
     -------
     float
         Estimated achieved significance level.
+
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:
@@ -1681,6 +1694,7 @@ def ptest_rdc_regressor(
     -------
     float
         Estimated achieved significance level.
+
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:

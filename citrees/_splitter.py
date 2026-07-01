@@ -73,6 +73,7 @@ def _ptest(
     -------
     float
         Estimated achieved significance level.
+
     """
     # Use default_rng for isolated RNG stream (avoids global state contamination)
     rng = np.random.default_rng(random_state)
@@ -169,9 +170,7 @@ def _ptest_gini_parallel(
 
     p_left = np.bincount(y_left) / n_left
     p_right = np.bincount(y_right) / n_right
-    theta = w_left * (1 - np.sum(p_left * p_left)) + w_right * (
-        1 - np.sum(p_right * p_right)
-    )
+    theta = w_left * (1 - np.sum(p_left * p_left)) + w_right * (1 - np.sum(p_right * p_right))
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -221,9 +220,7 @@ def _ptest_mse_parallel(
     # Compute observed statistic
     dev_left = y_left - y_left.mean()
     dev_right = y_right - y_right.mean()
-    theta = w_left * np.mean(dev_left * dev_left) + w_right * np.mean(
-        dev_right * dev_right
-    )
+    theta = w_left * np.mean(dev_left * dev_left) + w_right * np.mean(dev_right * dev_right)
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -237,9 +234,9 @@ def _ptest_mse_parallel(
 
         dev_left_perm = y_left_perm - y_left_perm.mean()
         dev_right_perm = y_right_perm - y_right_perm.mean()
-        theta_p[i] = w_left * np.mean(
-            dev_left_perm * dev_left_perm
-        ) + w_right * np.mean(dev_right_perm * dev_right_perm)
+        theta_p[i] = w_left * np.mean(dev_left_perm * dev_left_perm) + w_right * np.mean(
+            dev_right_perm * dev_right_perm
+        )
 
         # +1 correction (Phipson & Smyth 2010)
     return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
@@ -378,6 +375,7 @@ def gini(y: np.ndarray) -> float:
     -------
     float
         Gini index impurity.
+
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -401,6 +399,7 @@ def entropy(y: np.ndarray) -> float:
     -------
     float
         Entropy impurity.
+
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -454,6 +453,7 @@ def ptest_gini(
     -------
     float
         Achieved significance level (p-value).
+
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_gini_parallel(
@@ -520,6 +520,7 @@ def ptest_entropy(
     -------
     float
         Achieved significance level (p-value).
+
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_entropy_parallel(
@@ -560,6 +561,7 @@ def mse(y: np.ndarray) -> float:
     -------
     float
         Mean squared error (variance) of the target values.
+
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -587,6 +589,7 @@ def mae(y: np.ndarray) -> float:
     -------
     float
         Mean absolute error of the target values.
+
     """
     if y.ndim > 1:
         y = y.ravel()
@@ -639,6 +642,7 @@ def ptest_mse(
     -------
     float
         Achieved significance level (p-value).
+
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_mse_parallel(
@@ -705,6 +709,7 @@ def ptest_mae(
     -------
     float
         Achieved significance level (p-value).
+
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
         return _ptest_mae_parallel(

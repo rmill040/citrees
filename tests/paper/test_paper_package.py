@@ -20,6 +20,10 @@ def _read(relpath: str) -> str:
     return (ROOT / relpath).read_text(encoding="utf-8")
 
 
+def _one_line(text: str) -> str:
+    return " ".join(text.split())
+
+
 def test_key_readmes_do_not_reference_removed_markdown_docs():
     """Current paper READMEs should not point at removed support-doc files."""
     stale_names = (
@@ -101,7 +105,8 @@ def test_experiments_doc_demotes_non_packaged_outputs():
     assert "mirrored practical-knob ablations" in experiments
     assert "threshold-search ablation" in experiments
     assert (
-        "treat anything outside those locked outputs as exploratory or historical by" in experiments
+        "treat anything outside those locked outputs as exploratory or historical by"
+        in _one_line(experiments)
     )
     assert "Exploratory artifacts should not drive manuscript claims" in results_readme
 
@@ -161,11 +166,9 @@ def test_arxiv_bundle_keeps_referenced_figures_local():
 
 
 def test_arxiv_source_bundle_membership_includes_bibliography_and_excludes_junk():
-    """The deterministic source bundle should include bbl and avoid scratch/build products."""
+    """The deterministic source bundle should include BibTeX and avoid build products."""
     bundler = _load_arxiv_bundle_module()
-    members = {
-        path.relative_to(ARXIV_DIR).as_posix() for path in bundler.bundle_members(require_bbl=False)
-    }
+    members = {path.relative_to(ARXIV_DIR).as_posix() for path in bundler.bundle_members()}
     referenced = {
         path.relative_to(ARXIV_DIR).as_posix() for path in bundler.collect_referenced_figures()
     }
@@ -173,7 +176,8 @@ def test_arxiv_source_bundle_membership_includes_bibliography_and_excludes_junk(
 
     assert "main.tex" in members
     assert "references.bib" in members
-    assert "main.bbl" in bundler.STATIC_FILES
+    assert "main.bbl" not in members
+    assert "main.bbl" not in bundler.STATIC_FILES
     assert bundled_figures == referenced
     assert all(not member.startswith("scratch/") for member in members)
     assert all(not member.startswith("build/") for member in members)
@@ -204,7 +208,7 @@ def test_existing_arxiv_source_zip_is_not_stale():
         pytest.skip("No local arXiv source zip to check")
 
     bundler = _load_arxiv_bundle_module()
-    expected_paths = bundler.bundle_members(require_bbl=True)
+    expected_paths = bundler.bundle_members()
     expected_members = {path.relative_to(ARXIV_DIR).as_posix() for path in expected_paths}
     with zipfile.ZipFile(archive_path) as archive:
         members = set(archive.namelist())

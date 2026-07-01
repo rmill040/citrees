@@ -1,6 +1,6 @@
 """Self-populating FastAPI server for experiment orchestration.
 
-On startup, builds the full experiment grid for both classification and
+On startup, builds the configured experiment set for both classification and
 regression, checks S3 for completed work across all 4 queues (rankings/clf,
 rankings/reg, metrics/clf, metrics/reg), and serves remaining work.
 
@@ -132,7 +132,9 @@ def _needs_metrics_work(
 
     rankings_df = store.load("rankings", cfg)
     metrics_df = store.load("metrics", cfg)
-    required_k_values = get_requested_evaluation_k_values(infer_n_features_from_rankings(rankings_df))
+    required_k_values = get_requested_evaluation_k_values(
+        infer_n_features_from_rankings(rankings_df)
+    )
     return not metrics_cover_requested_k_values(metrics_df, required_k_values)
 
 
@@ -235,7 +237,8 @@ def _refresh_metrics() -> dict[str, int]:
             metrics_list = [
                 cfg
                 for cfg in grid
-                if cfg.key in completed_rankings and _needs_metrics_work(_store, cfg, completed_metrics)
+                if cfg.key in completed_rankings
+                and _needs_metrics_work(_store, cfg, completed_metrics)
             ]
             random.shuffle(metrics_list)
 

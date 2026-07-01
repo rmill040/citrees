@@ -18,7 +18,7 @@ Outputs:
   - paper/results/tables/paper_benchmark_lodo_config_stability.csv
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_lodo_config_sensitivity_tables.py
+  uv run python paper/scripts/analysis/build_lodo_config_sensitivity_tables.py
 """
 
 from __future__ import annotations

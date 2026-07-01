@@ -1,9 +1,8 @@
 """Empirical validation study: batched vs sequential adaptive stopping.
 
-TODO: Report these results in the paper's sequential stopping section.
-      Key finding: K=32 batched stopping had similar null rejection to
-      sequential adaptive stopping (4.61% vs 4.55% sequential, 100K sims),
-      enabling parallel permutation testing with adaptive early stopping.
+Paper note: K=32 batched stopping had similar null rejection to sequential
+adaptive stopping (4.61% vs 4.55% sequential, 100K sims), enabling parallel
+permutation testing with adaptive early stopping.
 
 Compares Type I error, power, and stopping times for:
   1. Sequential (per-permutation) stopping  — current citrees implementation
@@ -24,7 +23,6 @@ from math import ceil
 import numpy as np
 from scipy.special import betainc
 
-
 # =============================================================================
 # Core functions (matching citrees implementation exactly)
 # =============================================================================
@@ -35,9 +33,7 @@ def beta_cdf(x: float, a: float, b: float) -> float:
     return float(betainc(a, b, x))
 
 
-def check_stopping(
-    extreme_count: int, n: int, alpha: float, confidence: float
-) -> str | None:
+def check_stopping(extreme_count: int, n: int, alpha: float, confidence: float) -> str | None:
     """Check the two-sided adaptive stopping criterion.
 
     Returns "reject", "accept", or None (continue).
@@ -188,7 +184,7 @@ def print_results(results: dict, n_sims: int, alpha: float = 0.05) -> None:
     print("BATCHED vs SEQUENTIAL ADAPTIVE STOPPING — TYPE I ERROR COMPARISON")
     print("=" * 90)
     print(f"\nSimulations: {n_sims:,}  |  alpha: {alpha}  |  confidence: 0.95")
-    print(f"H0 dynamics: p ~ Uniform(0,1), L_n|p ~ Binomial(n,p)")
+    print("H0 dynamics: p ~ Uniform(0,1), L_n|p ~ Binomial(n,p)")
     print()
 
     # Standard error for binomial proportion at alpha=0.05
@@ -278,8 +274,12 @@ def print_path_divergence_analysis(n_sims: int = 100_000, n_max: int = 2000) -> 
         reject_then_accept = 0  # SAFE: sequential rejects but batched accepts (conservative)
 
         for i in range(n_sims):
-            seq_outcome, _, _, _ = simulate_sequential(n_max=n_max, alpha=alpha, confidence=confidence, seed=i)
-            bat_outcome, _, _, _ = simulate_batched(batch_size=K, n_max=n_max, alpha=alpha, confidence=confidence, seed=i)
+            seq_outcome, _, _, _ = simulate_sequential(
+                n_max=n_max, alpha=alpha, confidence=confidence, seed=i
+            )
+            bat_outcome, _, _, _ = simulate_batched(
+                batch_size=K, n_max=n_max, alpha=alpha, confidence=confidence, seed=i
+            )
 
             if seq_outcome == "accept" and bat_outcome == "reject":
                 accept_then_reject += 1
@@ -358,8 +358,8 @@ if __name__ == "__main__":
     print("=" * 90)
     print("EMPIRICAL VALIDATION: BATCHED ADAPTIVE PERMUTATION TESTING")
     print("=" * 90)
-    print(f"\nThis checks whether evaluating the Beta CDF stopping criterion every")
-    print(f"K permutations (instead of every 1) changes null rejection in simulation.")
+    print("\nThis checks whether evaluating the Beta CDF stopping criterion every")
+    print("K permutations (instead of every 1) changes null rejection in simulation.")
     print(f"\nUsing {N_SIMS:,} simulations, n_max={N_MAX}")
     print()
 
@@ -386,7 +386,7 @@ if __name__ == "__main__":
     print(f"  Batched K=32 Type I error: {k32_type1:.5f}")
     print(f"  Difference:                {k32_type1 - seq_type1:+.5f}")
     print(f"  Binomial SE at alpha=0.05: {se:.5f}")
-    print(f"  Both within 95% CI of 0.05? [{0.05 - 1.96*se:.4f}, {0.05 + 1.96*se:.4f}]")
+    print(f"  Both within 95% CI of 0.05? [{0.05 - 1.96 * se:.4f}, {0.05 + 1.96 * se:.4f}]")
 
     if k32_type1 <= 0.05 + 1.96 * se:
         print("\n  CONCLUSION: Batched stopping at K=32 had similar simulated null rejection.")

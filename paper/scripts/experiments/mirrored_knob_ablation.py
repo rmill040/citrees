@@ -49,7 +49,8 @@ EXPERIMENT_NAME = "mirrored_knob_ablation"
 KNOB_VARIANTS: dict[str, dict[str, Any]] = {
     "cif_default": dict(),
     "cif_no_adaptive": dict(
-        early_stopping_selector=None, early_stopping_splitter=None,
+        early_stopping_selector=None,
+        early_stopping_splitter=None,
     ),
     "cif_no_scan": dict(feature_scanning=False),
     "cif_no_threshold_scan": dict(threshold_scanning=False),
@@ -93,7 +94,9 @@ def _downstream_metrics(
         models = make_clf_downstream(seed) if task == "clf" else make_reg_downstream(seed)
         if len(top_k) == 0:
             for m_name in models:
-                rows.append({"downstream_model": m_name, "k": k, "metric": metric_name, "value": np.nan})
+                rows.append(
+                    {"downstream_model": m_name, "k": k, "metric": metric_name, "value": np.nan}
+                )
             continue
         X_sel = X[:, top_k]
         for m_name, est in models.items():
@@ -101,7 +104,14 @@ def _downstream_metrics(
             for tr, te in cv.split(X_sel, y):
                 est.fit(X_sel[tr], y[tr])
                 scores.append(scorer(y[te], est.predict(X_sel[te])))
-            rows.append({"downstream_model": m_name, "k": k, "metric": metric_name, "value": float(np.mean(scores))})
+            rows.append(
+                {
+                    "downstream_model": m_name,
+                    "k": k,
+                    "metric": metric_name,
+                    "value": float(np.mean(scores)),
+                }
+            )
     return rows
 
 
@@ -184,7 +194,11 @@ def _process_variant(
     for d in all_top_k:
         all_metric_keys.update(d.keys())
     for metric_key in sorted(all_metric_keys):
-        vals = [d[metric_key] for d in all_top_k if metric_key in d and not np.isnan(d.get(metric_key, np.nan))]
+        vals = [
+            d[metric_key]
+            for d in all_top_k
+            if metric_key in d and not np.isnan(d.get(metric_key, np.nan))
+        ]
         if vals:
             agg_row[f"{metric_key}_mean"] = float(np.mean(vals))
             agg_row[f"{metric_key}_std"] = float(np.std(vals))
@@ -199,7 +213,7 @@ def _process_variant(
     rows.append(agg_row)
 
     # Progress line
-    p10 = agg_row.get("precision_at_10_mean", None)
+    p10 = agg_row.get("precision_at_10_mean")
     t = agg_row.get("elapsed_seconds_mean", 0)
     depth = agg_row.get("mean_depth_mean", 0)
     ds_lr_10 = agg_row.get("ds_lr_k10_mean", agg_row.get("ds_ridge_k10_mean", 0))

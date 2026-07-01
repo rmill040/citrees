@@ -91,9 +91,7 @@ def _artifact_key_from_s3_key(key: str) -> tuple[str, str, int] | None:
     return (method_id, dataset, seed)
 
 
-def _filter_files_to_grid(
-    files: list[Path], grid_keys: set[tuple[str, str, int]]
-) -> list[Path]:
+def _filter_files_to_grid(files: list[Path], grid_keys: set[tuple[str, str, int]]) -> list[Path]:
     """Keep only files whose (method_id, dataset, seed) tuple is in the grid."""
     kept: list[Path] = []
     for f in files:
@@ -103,9 +101,7 @@ def _filter_files_to_grid(
     return kept
 
 
-def _filter_keys_to_grid(
-    keys: list[str], grid_keys: set[tuple[str, str, int]]
-) -> list[str]:
+def _filter_keys_to_grid(keys: list[str], grid_keys: set[tuple[str, str, int]]) -> list[str]:
     """Keep only S3 keys whose (method_id, dataset, seed) tuple is in the grid."""
     kept: list[str] = []
     for key in keys:
@@ -141,7 +137,9 @@ def _validate(
     if unexpected:
         sample = sorted(unexpected)[:10]
         logger.error(f"  UNEXPECTED artifact keys in {stage}/{task}: {sample}")
-        logger.error("  Data contains dataset/config/seed tuples not in the current grid. Aborting.")
+        logger.error(
+            "  Data contains dataset/config/seed tuples not in the current grid. Aborting."
+        )
         sys.exit(1)
 
     if missing:
@@ -180,7 +178,9 @@ def aggregate_local(
     all_files = sorted(search_dir.rglob("*.parquet"))
     grid_files = _filter_files_to_grid(all_files, grid_keys)
     n_stale = len(all_files) - len(grid_files)
-    logger.info(f"Found {len(all_files)} files, {len(grid_files)} match grid (filtered {n_stale} stale)")
+    logger.info(
+        f"Found {len(all_files)} files, {len(grid_files)} match grid (filtered {n_stale} stale)"
+    )
 
     if dry_run:
         for f in grid_files[:20]:
@@ -299,7 +299,9 @@ def aggregate_stage(
     all_keys = list_s3_objects(bucket, prefix, region_name=region_name)
     matching_keys = _filter_keys_to_grid(all_keys, grid_keys)
     n_stale = len(all_keys) - len(matching_keys)
-    logger.info(f"Found {len(all_keys)} files, {len(matching_keys)} match grid (filtered {n_stale} stale)")
+    logger.info(
+        f"Found {len(all_keys)} files, {len(matching_keys)} match grid (filtered {n_stale} stale)"
+    )
 
     if dry_run:
         for key in matching_keys[:20]:
@@ -334,7 +336,9 @@ def aggregate_stage(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Download and aggregate experiment artifacts (grid-filtered)")
+    parser = argparse.ArgumentParser(
+        description="Download and aggregate experiment artifacts (grid-filtered)"
+    )
     parser.add_argument(
         "--stage",
         choices=["rankings", "metrics", "all"],

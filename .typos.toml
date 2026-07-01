@@ -1,0 +1,14 @@
+[files]
+extend-exclude = [
+  "paper/results/**",
+  "site/**",
+]
+
+[default.extend-words]
+aas = "aas"
+ba = "ba"
+lgbm = "lgbm"
+Plas = "Plas"
+tage = "tage"
+thm = "thm"
+VanderPlas = "VanderPlas"

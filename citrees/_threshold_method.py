@@ -9,7 +9,7 @@ from citrees._registry import ThresholdMethods
 def exact(
     x: np.ndarray, max_thresholds: int | None = None, random_state: int | None = None
 ) -> np.ndarray:
-    """Unique midpoints in array.
+    """Return unique midpoints in array.
 
     Parameters
     ----------
@@ -26,6 +26,7 @@ def exact(
     -------
     np.ndarray
         Thresholds in array.
+
     """
     if x.ndim > 1:
         x = x.ravel()
@@ -57,6 +58,7 @@ def random(x: np.ndarray, max_thresholds: int, random_state: int) -> np.ndarray:
     -------
     np.ndarray
         Thresholds in array.
+
     """
     np.random.seed(random_state)
 
@@ -90,6 +92,7 @@ def percentile(x: np.ndarray, max_thresholds: int, random_state: int | None = No
     -------
     np.ndarray
         Thresholds in array.
+
     """
     if x.ndim > 1:
         x = x.ravel()
@@ -125,6 +128,7 @@ def histogram(x: np.ndarray, max_thresholds: int, random_state: int | None = Non
     -------
     np.ndarray
         Thresholds in array.
+
     """
     if x.ndim > 1:
         x = x.ravel()

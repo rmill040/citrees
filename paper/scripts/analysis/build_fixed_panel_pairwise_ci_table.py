@@ -12,7 +12,7 @@ Output:
   - paper/results/tables/paper_benchmark_fixed_panel_pairwise_ci.csv
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_fixed_panel_pairwise_ci_table.py
+  uv run python paper/scripts/analysis/build_fixed_panel_pairwise_ci_table.py
 """
 
 from __future__ import annotations

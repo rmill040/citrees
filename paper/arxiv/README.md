@@ -4,8 +4,7 @@
 - `sections/` contains the main-paper content.
 - `appendices/` contains proofs and supporting details.
 
-For claims, numbers, and paper structure, do not draft from this README.
-Use:
+For claims, numbers, and paper structure, do not draft from this README. Use:
 
 1. `../README.md`
 2. `../docs/analysis-contract.md`
@@ -46,7 +45,7 @@ Do not zip this directory by hand. It contains ignored scratch and build
 outputs. From the repository root, build the deterministic source bundle with:
 
 ```bash
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_arxiv_source_bundle.py
+uv run python paper/scripts/analysis/build_arxiv_source_bundle.py
 ```
 
 The bundler rebuilds the manuscript, copies only the files above, and excludes

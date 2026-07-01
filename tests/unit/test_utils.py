@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from citrees._utils import (
+    _allocate_samples,
     calculate_max_value,
     classic_bootstrap_sample,
     classic_bootstrap_unsampled_idx,
@@ -21,6 +22,32 @@ from citrees._utils import (
 )
 
 pytestmark = pytest.mark.other
+
+
+class TestAllocateSamples:
+    """Tests for proportional integer sample allocation."""
+
+    def test_zero_total_returns_zero_allocation(self):
+        """No requested samples should produce zero allocations."""
+        result = _allocate_samples(np.array([3, 7, 11]), total=0)
+        assert np.array_equal(result, np.array([0, 0, 0]))
+
+    def test_empty_weights_returns_empty_allocation(self):
+        """Empty weights should produce an empty allocation."""
+        result = _allocate_samples(np.array([]), total=5)
+        assert result.dtype == int
+        assert result.size == 0
+
+    def test_zero_weights_allocates_evenly(self):
+        """All-zero weights should fall back to nearly even allocation."""
+        result = _allocate_samples(np.array([0, 0, 0]), total=5)
+        assert np.array_equal(result, np.array([2, 2, 1]))
+
+    def test_largest_remainder_allocation(self):
+        """Remainder samples should go to the largest fractional parts."""
+        result = _allocate_samples(np.array([1, 2, 3]), total=5)
+        assert np.array_equal(result, np.array([1, 2, 2]))
+        assert result.sum() == 5
 
 
 @pytest.mark.parametrize(
@@ -137,28 +164,20 @@ class TestClassicBootstrapSample:
     def test_returns_correct_size(self):
         """Test returns correct sample size."""
         y = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
-        idx = classic_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx = classic_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         assert len(idx) == len(y)
 
     def test_with_max_samples(self):
         """Test with max_samples constraint."""
         y = np.array([0, 0, 0, 1, 1, 1])
-        idx = classic_bootstrap_sample(
-            y=y, max_samples=3, random_state=42
-        )
+        idx = classic_bootstrap_sample(y=y, max_samples=3, random_state=42)
         assert len(idx) == 3
 
     def test_reproducible(self):
         """Test reproducibility."""
         y = np.array([0, 0, 0, 1, 1, 1])
-        idx1 = classic_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
-        idx2 = classic_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx1 = classic_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
+        idx2 = classic_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         assert np.array_equal(idx1, idx2)
 
 
@@ -168,12 +187,8 @@ class TestClassicBootstrapUnsampledIdx:
     def test_returns_unsampled(self):
         """Test returns unsampled indices."""
         y = np.array([0, 0, 0, 1, 1, 1])
-        idx_unsampled = classic_bootstrap_unsampled_idx(
-            y=y, max_samples=len(y), random_state=42
-        )
-        idx_sampled = classic_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx_unsampled = classic_bootstrap_unsampled_idx(y=y, max_samples=len(y), random_state=42)
+        idx_sampled = classic_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         # Unsampled indices should not be in sampled indices
         for i in idx_unsampled:
             assert i not in idx_sampled
@@ -185,9 +200,7 @@ class TestStratifiedBootstrapSample:
     def test_maintains_class_proportions(self):
         """Test that class proportions are maintained."""
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx = stratified_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx = stratified_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         y_sampled = y[idx]
         # Both classes should be represented
         assert (y_sampled == 0).sum() > 0
@@ -196,17 +209,13 @@ class TestStratifiedBootstrapSample:
     def test_with_max_samples(self):
         """Test with max_samples constraint."""
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx = stratified_bootstrap_sample(
-            y=y, max_samples=4, random_state=42
-        )
+        idx = stratified_bootstrap_sample(y=y, max_samples=4, random_state=42)
         assert len(idx) <= 4
 
     def test_multiclass(self):
         """Test with multiclass data."""
         y = np.array([0, 0, 1, 1, 2, 2])
-        idx = stratified_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx = stratified_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         y_sampled = y[idx]
         # All classes should be represented
         assert (y_sampled == 0).sum() > 0
@@ -220,12 +229,8 @@ class TestStratifiedBootstrapUnsampledIdx:
     def test_returns_unsampled(self):
         """Test returns unsampled indices."""
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx_unsampled = stratified_bootstrap_unsampled_idx(
-            y=y, max_samples=len(y), random_state=42
-        )
-        idx_sampled = stratified_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx_unsampled = stratified_bootstrap_unsampled_idx(y=y, max_samples=len(y), random_state=42)
+        idx_sampled = stratified_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         for i in idx_unsampled:
             assert i not in idx_sampled
 
@@ -236,9 +241,7 @@ class TestUndersampleBootstrapSample:
     def test_balances_to_minority_count(self):
         """Each class should have exactly n_min samples when not truncated."""
         y = np.array([0, 0, 0, 0, 0, 1, 1])  # n_min = 2
-        idx = undersample_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx = undersample_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         assert len(idx) == 4
         y_sampled = y[idx]
         assert (y_sampled == 0).sum() == (y_sampled == 1).sum() == 2
@@ -246,9 +249,7 @@ class TestUndersampleBootstrapSample:
     def test_truncates_to_max_samples(self):
         """When max_samples < K*n_min, output size is exactly max_samples."""
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])  # n_min = 4, K*n_min = 8
-        idx = undersample_bootstrap_sample(
-            y=y, max_samples=5, random_state=42
-        )
+        idx = undersample_bootstrap_sample(y=y, max_samples=5, random_state=42)
         assert len(idx) == 5
         y_sampled = y[idx]
         assert abs(int((y_sampled == 0).sum()) - int((y_sampled == 1).sum())) <= 1
@@ -263,9 +264,7 @@ class TestUndersampleBootstrapUnsampledIdx:
         idx_unsampled = undersample_bootstrap_unsampled_idx(
             y=y, max_samples=len(y), random_state=42
         )
-        idx_sampled = undersample_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx_sampled = undersample_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         for i in idx_unsampled:
             assert i not in idx_sampled
 
@@ -276,9 +275,7 @@ class TestOversampleBootstrapSample:
     def test_fixed_size_balanced_classes(self):
         """Output size should be max_samples and class counts differ by at most 1."""
         y = np.array([0, 0, 0, 0, 0, 1, 1])  # imbalanced
-        idx = oversample_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx = oversample_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         assert len(idx) == len(y)
         y_sampled = y[idx]
         assert abs(int((y_sampled == 0).sum()) - int((y_sampled == 1).sum())) <= 1
@@ -288,9 +285,7 @@ class TestOversampleBootstrapSample:
     def test_multiclass_balancing(self):
         """Multiclass counts should be as equal as possible (diff <= 1)."""
         y = np.array([0] * 10 + [1] * 2 + [2] * 5)
-        idx = oversample_bootstrap_sample(
-            y=y, max_samples=9, random_state=42
-        )
+        idx = oversample_bootstrap_sample(y=y, max_samples=9, random_state=42)
         y_sampled = y[idx]
         counts = np.array([(y_sampled == c).sum() for c in [0, 1, 2]], dtype=int)
         assert counts.sum() == 9
@@ -303,12 +298,8 @@ class TestOversampleBootstrapUnsampledIdx:
     def test_returns_unsampled(self):
         """Returned indices should not appear in the sampled multiset."""
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx_unsampled = oversample_bootstrap_unsampled_idx(
-            y=y, max_samples=len(y), random_state=42
-        )
-        idx_sampled = oversample_bootstrap_sample(
-            y=y, max_samples=len(y), random_state=42
-        )
+        idx_unsampled = oversample_bootstrap_unsampled_idx(y=y, max_samples=len(y), random_state=42)
+        idx_sampled = oversample_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
         for i in idx_unsampled:
             assert i not in idx_sampled
 
@@ -424,9 +415,7 @@ class TestBugFixes:
 
         for n_per_class, n_classes, max_samples in test_cases:
             y = np.concatenate([np.full(n_per_class, j) for j in range(n_classes)])
-            idx = stratified_bootstrap_sample(
-                y=y, max_samples=max_samples, random_state=42
-            )
+            idx = stratified_bootstrap_sample(y=y, max_samples=max_samples, random_state=42)
             assert len(idx) == max_samples, (
                 f"Expected {max_samples} samples, got {len(idx)} "
                 f"for n_per_class={n_per_class}, n_classes={n_classes}"

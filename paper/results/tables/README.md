@@ -13,25 +13,44 @@ These are the tables intended for current manuscript and support-doc use:
 - `paper_benchmark_method_aggregate.csv`
 - `paper_benchmark_stratified.csv`
 - `paper_benchmark_complete_case_membership.csv`
-- `paper_benchmark_sensitivity_support.csv` - dataset counts for the main, learner-by-k, matched-rank, and seed-sensitivity benchmark checks
-- `paper_benchmark_downstream_sensitivity.csv` - all-method downstream-learner sensitivity summary used by the appendix
-- `paper_benchmark_learner_k_sensitivity.csv` - all-method learner-by-k sensitivity summary used by the appendix
-- `paper_benchmark_seed_sensitivity.csv` - all-method seed sensitivity summary used by the appendix
-- `paper_benchmark_seed_complete_membership.csv` - dataset membership for the shared-support seed sensitivity checks
-- `paper_benchmark_fixed_panel_membership.csv` - membership for the 14-dataset benchmark
-- `paper_benchmark_fixed_panel_aggregate.csv` - aggregate summary for the 14-dataset benchmark
-- `paper_benchmark_fixed_panel_pairwise_ci.csv` - matched-dataset uncertainty summaries for the 14-dataset benchmark
-- `paper_benchmark_fixed_panel_omnibus.csv` - omnibus test summaries for the 14-dataset benchmark
-- `paper_benchmark_lodo_selected_configs.csv` - leave-one-dataset-out selected configurations
-- `paper_benchmark_lodo_aggregate.csv` - leave-one-dataset-out aggregate sensitivity summary
-- `paper_benchmark_lodo_config_stability.csv` - leave-one-dataset-out selected-config stability summary
+- `paper_benchmark_sensitivity_support.csv` - dataset counts for the main,
+  learner-by-k, matched-rank, and seed-sensitivity benchmark checks
+- `paper_benchmark_downstream_sensitivity.csv` - all-method downstream-learner
+  sensitivity summary used by the appendix
+- `paper_benchmark_learner_k_sensitivity.csv` - all-method learner-by-k
+  sensitivity summary used by the appendix
+- `paper_benchmark_seed_sensitivity.csv` - all-method seed sensitivity summary
+  used by the appendix
+- `paper_benchmark_seed_complete_membership.csv` - dataset membership for the
+  shared-support seed sensitivity checks
+- `paper_benchmark_fixed_panel_membership.csv` - membership for the 14-dataset
+  benchmark
+- `paper_benchmark_fixed_panel_aggregate.csv` - aggregate summary for the
+  14-dataset benchmark
+- `paper_benchmark_fixed_panel_pairwise_ci.csv` - matched-dataset uncertainty
+  summaries for the 14-dataset benchmark
+- `paper_benchmark_fixed_panel_omnibus.csv` - omnibus test summaries for the
+  14-dataset benchmark
+- `paper_benchmark_lodo_selected_configs.csv` - leave-one-dataset-out selected
+  configurations
+- `paper_benchmark_lodo_aggregate.csv` - leave-one-dataset-out aggregate
+  sensitivity summary
+- `paper_benchmark_lodo_config_stability.csv` - leave-one-dataset-out
+  selected-config stability summary
 - `paper_benchmark_spread.csv`
-- `classification_k_trajectory_ranks.csv` - classification rank-by-k matrix used by the main-text trajectory figure
-- `regression_k_trajectory_ranks.csv` - regression rank-by-k matrix used by the main-text trajectory figure
-- `paper_benchmark_pairwise_aggregate.csv` - directed all-vs-all method comparisons; the `baseline` column is the compared method, not a restricted baseline set
-- `paper_benchmark_pairwise_stratified.csv` - directed all-vs-all comparisons by downstream model and number of selected features; the `baseline` column is the compared method
+- `classification_k_trajectory_ranks.csv` - classification rank-by-k matrix used
+  by the main-text trajectory figure
+- `regression_k_trajectory_ranks.csv` - regression rank-by-k matrix used by the
+  main-text trajectory figure
+- `paper_benchmark_pairwise_aggregate.csv` - directed all-vs-all method
+  comparisons; the `baseline` column is the compared method, not a restricted
+  baseline set
+- `paper_benchmark_pairwise_stratified.csv` - directed all-vs-all comparisons by
+  downstream model and number of selected features; the `baseline` column is the
+  compared method
 - `paper_presentation_benchmark_summary.csv`
-- `cif_mechanism_ablation_pairwise_vs_default.csv` - CIF ranking ablation summary used by the main-text CIF ranking ablation table
+- `cif_mechanism_ablation_pairwise_vs_default.csv` - CIF ranking ablation
+  summary used by the main-text CIF ranking ablation table
 - `paper_heterogeneity_method_summary.csv`
 - `paper_heterogeneity_cif_pairwise_breadth.csv`
 - `paper_high_p_delta_vs_endpoint_overall.csv`
@@ -108,11 +127,12 @@ paper contract without an explicit re-justification:
 - `friedman_synthetic*`
 - `dataset_trajectory_summary.csv`
 - `paper_heterogeneity_dataset_profile.csv`
-  - superseded by the more specific `paper_heterogeneity_cif_dataset_profile.csv`
+  - superseded by the more specific
+    `paper_heterogeneity_cif_dataset_profile.csv`
 - `paper_heterogeneity_cif_pairwise_summary.csv`
   - superseded by `paper_heterogeneity_cif_pairwise_breadth.csv`
 - `paper_mechanism_candidate_set_runs.csv`
-  - useful for traceability, but the candidate feature sweep is tiny and only
+  - useful for traceability, but the sampled-feature sweep is tiny and only
     supporting
 
 ## Historical Audit Outputs

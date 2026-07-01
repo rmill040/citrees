@@ -1,9 +1,8 @@
 # Results Finalization
 
-This document locks the paper-facing results surface before narrative
-rewriting. It inventories what each experiment is, what it supports, and what
-it does not justify. If a claim is not supported here, it is not ready for the
-paper.
+This document locks the paper-facing results surface before narrative rewriting.
+It inventories what each experiment is, what it supports, and what it does not
+justify. If a claim is not supported here, it is not ready for the paper.
 
 ## 1. Canonical Sources
 
@@ -88,25 +87,27 @@ Supporting-only source outside the closed main-text package:
 
 Important note:
 
-- `paper/results/tables/calibration_summary.csv` remains appendix/supporting-only
-  by design.
+- `paper/results/tables/calibration_summary.csv` remains
+  appendix/supporting-only by design.
 - `paper/results/tables/cit_runtime_ablation_raw.csv` and
   `paper/results/tables/cit_runtime_ablation_dataset_summary.csv` are
   provenance/supporting tables; use
   `paper/results/tables/paper_cit_runtime_ablation_summary.csv` for the
   paper-facing CIT runtime summary.
 - `paper/results/tables/cif_mechanism_ablation_metrics_flat.csv` is raw
-  fold-level provenance for the CIF ranking ablation study. It is not tracked; use
-  the summarized CIF ranking ablation CSVs above for paper-facing claims.
+  fold-level provenance for the CIF ranking ablation study. It is not tracked;
+  use the summarized CIF ranking ablation CSVs above for paper-facing claims.
 - `paper/results/tables/paper_mirrored_knob_ablation_summary.csv` reports CIF
-  runtime ratios as dataset-level mean ratios against `cif_default`, because
-  the mirrored CIF source table is already aggregated over seeds.
+  runtime ratios as dataset-level mean ratios against `cif_default`, because the
+  mirrored CIF source table is already aggregated over seeds.
 - `paper/results/paper_real_evaluation.parquet` is the joined real data
   downstream evaluation surface used by benchmark builders.
 - `paper/results/synthetic_topk_composition.parquet` is the joined synthetic
   top-k recovery surface used by the feature recovery tables and Figure 4.
 - file names and some table column names still use `endpoint`; paper-facing
   prose should prefer `full feature set` or `k=p`
+- file names containing `candidate` are historical artifact names; prose should
+  usually say `sampled-feature exposure` or `sampled feature set`
 
 ## 2. Locked Experiment Inventory
 
@@ -121,14 +122,14 @@ What the experiment is:
 
 What the refreshed table says:
 
-- fixed-`B` empirical rejection rates in the refreshed artifact are
-  `0.0409`, `0.0463`, `0.0438`, `0.0503`, and `0.0495` for MC at
-  `B=49,99,199,499,999` with `10,000` null simulations per setting
+- fixed-`B` empirical rejection rates in the refreshed artifact are `0.0409`,
+  `0.0463`, `0.0438`, `0.0503`, and `0.0495` for MC at `B=49,99,199,499,999`
+  with `10,000` null simulations per setting
 - fixed-`B` PC at `B=199` is `0.0504` with `10,000` null simulations
 - adaptive MC at `B=199` is `0.0476` with `10,000` null simulations
 - CIT root split rates are `0.0120`, `0.0230`, `0.0290`, `0.0100`, and `0.0200`
-  for `(n,p)=(200,10),(200,50),(200,100),(500,10),(500,100)` with `1,000`
-  null simulations per condition
+  for `(n,p)=(200,10),(200,50),(200,100),(500,10),(500,100)` with `1,000` null
+  simulations per condition
 - with `B=49`, the minimum attainable p-value is `1/50 = 0.02`, so rejection at
   `alpha = 0.01` is impossible regardless of signal
 
@@ -142,15 +143,15 @@ Paper-safe interpretation:
 
 - the refreshed fixed-`B` Stage A calibration is broadly theorem-aligned on the
   current authored script
-- the selection-bias demonstration is a motivating figure, not a
-  separate numeric benchmark
+- the selection-bias demonstration is a motivating figure, not a separate
+  numeric benchmark
 - adaptive stopping can be shown descriptively, but not as a theorem-backed
   calibration statement
 - the main practical fixed-`B` issue is resolution, not a different power-curve
   shape
 - this layer should remain appendix/supporting-only in the master story even
-  after refresh, because it supports the fixed-node theorem boundary rather
-  than the central benchmark claim
+  after refresh, because it supports the fixed-node theorem boundary rather than
+  the central benchmark claim
 
 Do not say:
 
@@ -172,8 +173,8 @@ What the canonical aggregate says:
 - CIF mean rank is `6.0826`
 - CIF mean score is `0.8194`
 - the top three are `lgbm = 5.1667`, `xgb = 5.5803`, `cat = 5.8485`
-- on the 14-dataset classification benchmark, CIF is `5th/17` with
-  mean rank `6.2548`
+- on the 14-dataset classification benchmark, CIF is `5th/17` with mean rank
+  `6.2548`
 
 What the CIF trajectory says:
 
@@ -181,8 +182,8 @@ What the CIF trajectory says:
 - SVM: `5.8409` at `k=5` to `5.4643` at `k=100`
 - KNN: `5.5455` at `k=5` to `4.2143` at `k=100`
 - KNN is `1st` at `k=100`
-- the dataset-count trajectory surface tightens as `k` grows:
-  mean cross-method range drops from `0.2560` at `k=5` to `0.1837` at `k=100`
+- the dataset-count trajectory surface tightens as `k` grows: mean cross-method
+  range drops from `0.2560` at `k=5` to `0.1837` at `k=100`
 
 Dataset and cell accounting:
 
@@ -191,18 +192,20 @@ Dataset and cell accounting:
 - the exact dataset membership behind those shrinking counts is now exposed in
   `paper_benchmark_complete_case_membership.csv`, so the 14-dataset benchmark is
   auditable even though it is still not the primary estimand
+- here and below, an analysis cell means one dataset/downstream-model/`k`
+  analysis unit unless a section defines a different unit
 - `paper_benchmark_fixed_panel_membership.csv` and
   `paper_benchmark_fixed_panel_aggregate.csv` make the 14-dataset benchmark
   explicit rather than leaving it implicit in prose
 - `paper_benchmark_fixed_panel_omnibus.csv` adds the 14-dataset Friedman
-  summary, so the manuscript can cite one omnibus test on the same
-  dataset-mean 14-dataset surface
+  summary, so the manuscript can cite one omnibus test on the same dataset-mean
+  14-dataset surface
 - the leave-one-dataset-out config-selection summaries show that the
-  classification CIF headline is not coming from unstable config choice:
-  CIF remains essentially in the same position and the same CIF config is
-  selected on all `14/14` held-out 14-dataset benchmark datasets
+  classification CIF headline is not coming from unstable config choice: CIF
+  remains essentially in the same position and the same CIF config is selected
+  on all `14/14` held-out 14-dataset benchmark datasets
 - `paper_benchmark_selected_config_details.csv` records each selected config's
-  resolved parameters, candidate grid size, and runner-up gap within family
+  resolved parameters, configuration grid size, and runner-up gap within family
 
 Important caveats:
 
@@ -219,8 +222,8 @@ Paper-safe interpretation:
 
 - CIF is fourth of 17, not the leader
 - CIF's mean rank often improves as `k` grows, especially for LR and KNN
-- this is a benchmark-level trajectory over changing dataset counts, not a 14-dataset
-  same-dataset longitudinal claim
+- this is a benchmark-level trajectory over changing dataset counts, not a
+  14-dataset same-dataset longitudinal claim
 
 Do not say:
 
@@ -231,8 +234,8 @@ Do not say:
 
 What the experiment is:
 
-- directed all-vs-all dataset summaries over all available downstream model
-  and standard-`k` cells
+- directed all-vs-all dataset summaries over all available downstream model and
+  standard-`k` cells
 - plus dataset-level heterogeneity summaries
 
 What the canonical pairwise aggregate says on the looser available-cell layer:
@@ -305,8 +308,8 @@ Do not say:
 
 What the experiment is:
 
-- real-data CIF ranking ablation study evaluated under the same downstream top-`k`
-  protocol as the main benchmark
+- real-data CIF ranking ablation study evaluated under the same downstream
+  top-`k` protocol as the main benchmark
 - default CIF with fitted split-importance ranking is the reference
 - classification uses `23` datasets and regression uses `8` datasets
 - paired dataset deltas first average over supported downstream learners and
@@ -316,23 +319,23 @@ What the experiment is:
 What the canonical CIF ranking ablation table says:
 
 - classification:
-  - split-count readout: mean delta `-0.0029`, CI `[-0.0067, +0.0010]`,
-    `10/23` wins and `13/23` losses
-  - disable bootstrap: mean delta `+0.0005`, CI `[-0.0030, +0.0039]`,
-    `10/23` wins, `12/23` losses, and `1` tie
+  - split-count readout: mean delta `-0.0029`, CI `[-0.0067, +0.0010]`, `10/23`
+    wins and `13/23` losses
+  - disable bootstrap: mean delta `+0.0005`, CI `[-0.0030, +0.0039]`, `10/23`
+    wins, `12/23` losses, and `1` tie
   - disable feature muting: mean delta `+0.0004`, CI `[-0.0010, +0.0016]`,
     `13/23` wins, `8/23` losses, and `2` ties
-  - use one tree: mean delta `-0.0608`, CI `[-0.0913, -0.0348]`,
-    `1/23` wins and `22/23` losses
+  - use one tree: mean delta `-0.0608`, CI `[-0.0913, -0.0348]`, `1/23` wins and
+    `22/23` losses
 - regression:
-  - split-count readout: mean delta `-0.0222`, CI `[-0.0599, +0.0004]`,
-    `3/8` wins and `5/8` losses
-  - disable bootstrap: mean delta `-0.2076`, CI `[-0.6041, -0.0037]`,
-    `3/8` wins and `5/8` losses
-  - disable feature muting: mean delta `+0.0000`, CI `[-0.0105, +0.0087]`,
-    `5/8` wins and `3/8` losses
-  - use one tree: mean delta `-0.5517`, CI `[-1.3276, -0.0726]`,
-    `0/8` wins and `8/8` losses
+  - split-count readout: mean delta `-0.0222`, CI `[-0.0599, +0.0004]`, `3/8`
+    wins and `5/8` losses
+  - disable bootstrap: mean delta `-0.2076`, CI `[-0.6041, -0.0037]`, `3/8` wins
+    and `5/8` losses
+  - disable feature muting: mean delta `+0.0000`, CI `[-0.0105, +0.0087]`, `5/8`
+    wins and `3/8` losses
+  - use one tree: mean delta `-0.5517`, CI `[-1.3276, -0.0726]`, `0/8` wins and
+    `8/8` losses
 
 Paper-safe interpretation:
 
@@ -358,12 +361,11 @@ What the experiment is:
 - classification cohort size `15`, regression cohort size `6`
 - full-feature completeness `14/15` in classification and `6/6` in regression
 - some methods emit truncated ranking surfaces on certain high-dimensional
-  datasets, so this layer should be read as a diagnostic of the executed
-  ranking surface rather than a guarantee that every method contributes a
-  distinct ordering all the way to `p`
-- the all-method cell-level high-`p` surface and method-level endpoint
-  presence are now exposed directly in
-  `paper_high_p_delta_vs_endpoint_cells.csv` and
+  datasets, so this layer should be read as a diagnostic of the executed ranking
+  surface rather than a guarantee that every method contributes a distinct
+  ordering all the way to `p`
+- the all-method cell-level high-`p` surface and method-level endpoint presence
+  are now exposed directly in `paper_high_p_delta_vs_endpoint_cells.csv` and
   `paper_high_p_endpoint_method_presence.csv`
 
 What the canonical overall saturation table says:
@@ -426,8 +428,8 @@ What the full-feature pairwise surface says:
 Paper-safe interpretation:
 
 - high-`p` is a saturation check, not a second main benchmark
-- in classification, useful operating points often appear between `100` and
-  `p`, not necessarily at `p`
+- in classification, useful operating points often appear between `100` and `p`,
+  not necessarily at `p`
 - in regression, using all features often hurts
 - full-feature-only ranks are too compressed or degenerate to be a strong
   comparative surface
@@ -451,10 +453,10 @@ What the canonical summary says:
 
 - the primary synthetic ranking surface is the across-`k` curve, not any single
   value of `k`
-- CIF classification mean informative recovery over `k = 5, 10, 25, 50, 100`
-  is `0.3443`, rank `8/17`
-- CIF regression mean informative recovery over the same `k` curve is
-  `0.3901`, rank `10/18`
+- CIF classification mean informative recovery over `k = 5, 10, 25, 50, 100` is
+  `0.3443`, rank `8/17`
+- CIF regression mean informative recovery over the same `k` curve is `0.3901`,
+  rank `10/18`
 
 What the CIF regime split says:
 
@@ -480,7 +482,8 @@ Paper-safe interpretation:
 
 - CIF is not a synthetic feature-discovery leader
 - correlated structure is favorable
-- weak signal and standard-hard classification are unfavorable on informative recovery
+- weak signal and standard-hard classification are unfavorable on informative
+  recovery
 - redundancy needs a separate composition read because lower informative-only
   recovery can still hide proxy-heavy top-`k` sets
 
@@ -496,8 +499,8 @@ What the experiment is:
 - synthetic top-`k` composition audit using the same one-best-config-per-family
   rule as the top-ranking diagnostics
 - evaluates `k = 1, 2, 5, 10, 20, 25, 50, 100`
-- this is a decomposition of the same selected-config synthetic ranking
-  surface, not a third independent benchmark
+- this is a decomposition of the same selected-config synthetic ranking surface,
+  not a third independent benchmark
 - trend summaries should be read from the across-`k` curve over the standard
   values `5, 10, 25, 50, 100`; individual `k` rows are supporting detail only
 - decomposes the returned top-`k` positions into:
@@ -509,11 +512,11 @@ What the experiment is:
 
 Important audit note:
 
-- for requested values above a dataset's total feature count, the composition
-  is now evaluated on the effective value `min(k, p)`
-- dataset-size clipping is tracked separately through
-  `dataset_size_cap_share`, so a 50-feature dataset at requested `k=100` is no
-  longer misread as having `missing_share = 0.5`
+- for requested values above a dataset's total feature count, the composition is
+  now evaluated on the effective value `min(k, p)`
+- dataset-size clipping is tracked separately through `dataset_size_cap_share`,
+  so a 50-feature dataset at requested `k=100` is no longer misread as having
+  `missing_share = 0.5`
 
 What the overall focus comparison says:
 
@@ -532,10 +535,10 @@ What the overall focus comparison says:
   - RF `0.4064 / 0.4649 / 0.4892 / 0.0460`
   - ET `0.4109 / 0.4723 / 0.4794 / 0.0483`
 - the trajectory itself also matters:
-  - classification CIF informative share falls from `0.639` at `k=5` to
-    `0.0964` at `k=100`, while pure-noise share rises from `0.208` to `0.8286`
-  - regression CIF informative share falls from `0.764` at `k=5` to `0.1121`
-    at `k=100`, while pure-noise share rises from `0.111` to `0.8138`
+  - classification CIF informative share falls from `0.639` at `k=5` to `0.0964`
+    at `k=100`, while pure-noise share rises from `0.208` to `0.8286`
+  - regression CIF informative share falls from `0.764` at `k=5` to `0.1121` at
+    `k=100`, while pure-noise share rises from `0.111` to `0.8138`
 
 What the regime split adds:
 
@@ -547,15 +550,15 @@ What the regime split adds:
   - CIT is unusually better on this suite: `0.4795 / 0.2781`
 - classification `redundant`:
   - CIF informative-only recovery is not leading (`0.3138`)
-  - but `signal_or_redundant_share = 0.8285`, close to RF `0.8852` and
-    ET `0.8942`
+  - but `signal_or_redundant_share = 0.8285`, close to RF `0.8852` and ET
+    `0.8942`
   - this is a proxy-heavy top-`k`, not a pure-noise failure
 - classification `standard_hard` and `weak_signal`:
   - CIF top-`k` purity is genuinely weaker
-  - mean pure-noise share on `standard_hard`: CIF `0.9516` vs RF `0.9021`,
-    ET `0.8747`
-  - mean pure-noise share on `weak_signal`: CIF `0.7997` vs RF `0.6078`,
-    ET `0.5381`
+  - mean pure-noise share on `standard_hard`: CIF `0.9516` vs RF `0.9021`, ET
+    `0.8747`
+  - mean pure-noise share on `weak_signal`: CIF `0.7997` vs RF `0.6078`, ET
+    `0.5381`
 - regression `redundant`:
   - CIF again fills top-`k` with informative-or-redundant features rather than
     pure noise
@@ -568,8 +571,8 @@ What the regime split adds:
 
 Paper-safe interpretation:
 
-- this does **not** support a blanket claim that permutation-based feature selection selects
-  less noise than RF or ET
+- this does **not** support a blanket claim that permutation-based feature
+  selection selects less noise than RF or ET
 - CIF's synthetic weakness on classification is not just a top-1 issue; it also
   shows up in lower top-`k` purity on `standard_hard` and `weak_signal`
 - redundancy is a different failure mode: CIF often returns useful proxies
@@ -586,15 +589,15 @@ Do not say:
 - lower informative-only recovery on redundant suites means CIF is mostly
   choosing junk
 
-### 2.8 Fixed-design candidate feature diagnostics
+### 2.8 Fixed-design sampled-feature exposure diagnostics
 
 What the experiment is:
 
 - fixed-design mechanism studies
 - not a new benchmark layer; these are diagnostic mechanism studies
 - separates:
-  - candidate feature coverage under different CIF `max_features` regimes
-  - full-candidate feature-count behavior on simple fixed designs
+  - sampled-feature exposure under different CIF `max_features` regimes
+  - all-feature feature-count behavior on simple fixed designs
 - completed grid with `n=250` fixed, `p ∈ {100, 500, 1000}`,
   `n_informative ∈ {1, 2, 5, 10}`
 - completed tree methods:
@@ -604,7 +607,7 @@ What the experiment is:
   - classification: `cif`, `cif_all`, `rf`, `et`
   - regression: `cif`, `cif_all`, `rf`, `et`
 
-What the candidate feature sweep says:
+What the sampled-feature sweep says:
 
 - fixed `p=100`, `n_informative=2` classification design with `n_seeds=2`
 - CIF default forest-style `max_features="sqrt"` means 10 sampled features per
@@ -620,113 +623,94 @@ What the completed fixed-`n=250` grids say:
 
 - single-tree classification:
   - `cit` is perfectly pure over the completed grid:
-    `informative_split_share = 1.000`,
-    `mean_total_splits_per_fit = 2.217`,
+    `informative_split_share = 1.000`, `mean_total_splits_per_fit = 2.217`,
     `distinct_false_features_used = 0.0`
-  - `dt` is intermediate:
-    `informative_split_share = 0.676`,
-    `mean_total_splits_per_fit = 6.017`,
-    `distinct_false_features_used = 10.33`
-  - `rt` is the noise-spraying baseline:
-    `informative_split_share = 0.061`,
-    `mean_total_splits_per_fit = 62.28`,
-    `distinct_false_features_used = 191.0`
+  - `dt` is intermediate: `informative_split_share = 0.676`,
+    `mean_total_splits_per_fit = 6.017`, `distinct_false_features_used = 10.33`
+  - `rt` is the noise-spraying baseline: `informative_split_share = 0.061`,
+    `mean_total_splits_per_fit = 62.28`, `distinct_false_features_used = 191.0`
   - `cit` stays at `informative_split_share = 1.000` for
-    `n_informative = 1, 2, 5, 10`; it simply uses as many informative splits
-    as the easy classification design needs
-  - `dt` is clean only in the easiest one-signal case; by `n_informative=10`
-    it falls to `0.429`
-  - `rt` gets worse as `p` grows:
-    `informative_split_share = 0.120` at `p=100`,
-    `0.041` at `p=500`,
-    `0.022` at `p=1000`
-  - purity is not the same as covering every true feature:
-    `cit` only uses about `60%` of the informative features on average,
-    versus `0.708` coverage share for `dt` and `0.875` for `rt`
-  - this should be read as sparse sufficient-set behavior, not exhaustive
-    signal recovery
+    `n_informative = 1, 2, 5, 10`; it simply uses as many informative splits as
+    the easy classification design needs
+  - `dt` is clean only in the easiest one-signal case; by `n_informative=10` it
+    falls to `0.429`
+  - `rt` gets worse as `p` grows: `informative_split_share = 0.120` at `p=100`,
+    `0.041` at `p=500`, `0.022` at `p=1000`
+  - purity is not the same as covering every true feature: `cit` only uses about
+    `60%` of the informative features on average, versus `0.708` coverage share
+    for `dt` and `0.875` for `rt`
+  - this should be read as sparse sufficient-set behavior, not exhaustive signal
+    recovery
 
 - single-tree regression:
   - `cit` remains very clean while continuing to split:
-    `informative_split_share = 0.935`,
-    `mean_total_splits_per_fit = 12.7`,
+    `informative_split_share = 0.935`, `mean_total_splits_per_fit = 12.7`,
     `distinct_false_features_used = 0.67`
   - `dt` and `rt` both fully grow and spend almost all split mass on noise:
     `dt = 0.073`, `rt = 0.084`
-  - `cit` degrades only modestly with width:
-    `informative_split_share = 0.990` at `p=100`,
-    `0.917` at `p=500`,
-    `0.898` at `p=1000`
-  - again, coverage and purity separate:
-    `cit` covers about `77.5%` of the informative features on average,
-    while `dt` and `rt` cover `96.7%` / `99.2%`
+  - `cit` degrades only modestly with width: `informative_split_share = 0.990`
+    at `p=100`, `0.917` at `p=500`, `0.898` at `p=1000`
+  - again, coverage and purity separate: `cit` covers about `77.5%` of the
+    informative features on average, while `dt` and `rt` cover `96.7%` / `99.2%`
   - the latter is not a quality win by itself; it comes from much deeper trees
     that also spend most split mass on noise
 
 - forest classification at `1000` trees:
   - `cif_all` is much cleaner than default `cif`:
     `informative_split_share = 0.917` vs `0.333`
-  - the same contrast holds against CART-style forests:
-    `rf = 0.084`, `et = 0.065`
+  - the same contrast holds against CART-style forests: `rf = 0.084`,
+    `et = 0.065`
   - false feature spread shows the same contrast:
-    `distinct_false_features_used = 93.4` for `cif_all`,
-    `265.1` for `cif`,
+    `distinct_false_features_used = 93.4` for `cif_all`, `265.1` for `cif`,
     `528.8` for both `rf` and `et`
   - the `cif` degradation is largest in sparse high-`p` settings:
     - `p=1000, i=1`: `cif = 0.099`, `cif_all = 1.000`
     - `p=1000, i=2`: `cif = 0.090`, `cif_all = 1.000`
     - `p=500, i=1`: `cif = 0.093`, `cif_all = 0.989`
-  - averaged by width, `cif` falls sharply as `p` grows:
-    `0.539` at `p=100`,
-    `0.265` at `p=500`,
-    `0.193` at `p=1000`
-  - `cif_all` stays high over the same sweep:
-    `0.954`, `0.899`, `0.898`
-  - the gap narrows as the informative fraction rises, but it remains large:
-    by `n_informative=10`, `cif = 0.507` and `cif_all = 0.808`
-  - coverage alone is not a useful forest summary:
-    `rf` and `et` touch essentially all informative features by `1000` trees,
-    but still spend most split mass on noise
+  - averaged by width, `cif` falls sharply as `p` grows: `0.539` at `p=100`,
+    `0.265` at `p=500`, `0.193` at `p=1000`
+  - `cif_all` stays high over the same sweep: `0.954`, `0.899`, `0.898`
+  - the gap narrows as the informative fraction rises, but it remains large: by
+    `n_informative=10`, `cif = 0.507` and `cif_all = 0.808`
+  - coverage alone is not a useful forest summary: `rf` and `et` touch
+    essentially all informative features by `1000` trees, but still spend most
+    split mass on noise
   - even `cif_all` can remain extremely pure while touching only one of two
     informative features on easy sparse designs, so the right read is again
     "clean sufficient subset" rather than "complete true-feature recovery"
 
 - forest regression at `1000` trees:
-  - `cif_all` improves informative split share over default `cif`:
-    `0.423` vs `0.278`
+  - `cif_all` improves informative split share over default `cif`: `0.423` vs
+    `0.278`
   - both conditional-inference forests still beat CART-style forests on this
-    purity metric:
-    `rf = 0.077`, `et = 0.084`
+    purity metric: `rf = 0.077`, `et = 0.084`
   - unlike classification, the all-feature control is not a clean rescue:
     `cif_all` uses nearly the full false feature set
-    (`distinct_false_features_used = 528.75`)
-    while default `cif` already uses `367.67`
-  - the regression delta surface is mixed:
-    split-share gains are largest in sparse wide settings, but
-    false-feature reduction is usually negative because `cif_all` overgrows
+    (`distinct_false_features_used = 528.75`) while default `cif` already uses
+    `367.67`
+  - the regression delta surface is mixed: split-share gains are largest in
+    sparse wide settings, but false-feature reduction is usually negative
+    because `cif_all` overgrows
 
 - fixed-design frequency studies remain useful as secondary context:
-  - easy shuffled classification:
-    `cit` / `cif_all` spread false top-`k` mass over only `9` false variables,
-    versus `32` for `rf` / `et`
-  - symmetric two-signal Gaussian:
-    all methods recover both true features in the small `k` check, but
-    `cit` / `cif_all` still spread false mass over only `8` / `10` false
-    variables versus `26` / `29` for `rf` / `et`
+  - easy shuffled classification: `cit` / `cif_all` spread false top-`k` mass
+    over only `9` false variables, versus `32` for `rf` / `et`
+  - symmetric two-signal Gaussian: all methods recover both true features in the
+    small `k` check, but `cit` / `cif_all` still spread false mass over only `8`
+    / `10` false variables versus `26` / `29` for `rf` / `et`
 
 Paper-safe interpretation:
 
 - these studies are the closest thing we have to the original motivation:
   full-support counts over known ground-truth features
-- the selection principle itself looks strong in trees:
-  `cit` is extremely pure in classification and remains very clean in
-  regression
-- purity and coverage are distinct estimands here:
-  noisy methods can touch more true features simply because they overgrow
-- the main classification-forest failure mode is not
-  "permutation-based feature selection is bad"; it is that sparse candidate sampling can
-  bury the signal before feature selection acts
-- the direct candidate feature sweep is suggestive rather than decisive because it
+- the selection principle itself looks strong in trees: `cit` is extremely pure
+  in classification and remains very clean in regression
+- purity and coverage are distinct estimands here: noisy methods can touch more
+  true features simply because they overgrow
+- the main classification-forest failure mode is not "permutation-based feature
+  selection is bad"; it is that sparse sampled-feature exposure can bury the
+  signal before feature selection acts
+- the direct sampled-feature sweep is suggestive rather than decisive because it
   is tiny (`n_seeds=2`)
 - `cif_all` is a mechanism control, not an automatic recommendation that the
   production default should be `max_features=None`
@@ -734,9 +718,9 @@ Paper-safe interpretation:
   completed fixed-`n=250` grids are the more direct mechanism evidence
 - the forest story is task-dependent:
   - in classification, `cif_all` is much cleaner than default `cif`
-  - in regression, `cif_all` still improves informative split share
-    (`0.423` vs `0.278`), but it also overgrows badly and uses nearly the full
-    false feature set
+  - in regression, `cif_all` still improves informative split share (`0.423` vs
+    `0.278`), but it also overgrows badly and uses nearly the full false feature
+    set
 - they do **not** overturn the locked synthetic benchmark design
 
 Do not say:
@@ -759,8 +743,8 @@ Recommended displays:
   `make_classification_n250_p1000_i2` at `1000` trees
   - methods: `cif`, `cif_all`, `rf`, `et`
   - highlight the 2 informative features
-  - why: this illustrates the candidate feature coverage story under the same selection
-    logic
+  - why: this illustrates the sampled-feature exposure story under the same
+    selection logic
 
 - Figure: informative split share over `(p, n_informative)` for completed
   classification studies
@@ -772,26 +756,25 @@ Recommended displays:
   regression trees
   - methods: `cit`, `dt`, `rt`
   - why: this shows that regression trees are not just repeating the
-    classification pattern; `cit` keeps splitting while staying mostly on
-    signal
+    classification pattern; `cit` keeps splitting while staying mostly on signal
 
 - Figure: informative split share over `(p, n_informative)` for completed
   regression forests at `1000` trees
   - methods: `cif`, `cif_all`, `rf`, `et`
-  - why: this shows the forest candidate feature story is weaker and messier in
+  - why: this shows the forest sampled-feature story is weaker and messier in
     regression than in classification
 
 - Table: aggregate mechanism summary for each completed study
   - columns: method, mean total splits, mean true split events, mean noise split
     events, informative split share, informative-feature coverage share,
     distinct false features used
-  - why: purity and coverage should be shown together so "pure" is not
-    misread as "recovers every true feature"
+  - why: purity and coverage should be shown together so "pure" is not misread
+    as "recovers every true feature"
 
 - Table: `cif` vs `cif_all` delta table at `1000` trees
   - columns: `p`, `n_informative`, `cif informative_split_share`,
     `cif_all informative_split_share`, share gain, false-feature reduction
-  - why: this is the shortest compact table for the candidate feature coverage
+  - why: this is the shortest compact table for the sampled-feature exposure
     mechanism
 
 Canonical mechanism artifacts:
@@ -829,9 +812,8 @@ What the experiment is:
 - synthetic top-of-ranking diagnostics where ground truth is known
 - one best synthetic config per family, selected by mean informative recovery
   over `k = 5, 10, 25, 50, 100` with effective `k=min(k,p)`
-- the supporting trend table here is now a head-of-list summary over
-  `k = 1, 2`, not a duplicate of the standard `5, 10, 25, 50, 100`
-  recovery curve
+- the supporting trend table here is now a head-of-list summary over `k = 1, 2`,
+  not a duplicate of the standard `5, 10, 25, 50, 100` recovery curve
 
 What the canonical summary says:
 
@@ -881,8 +863,8 @@ What the experiment is:
 - targeted threshold-search ablation
 - in the locked CIT/CIF benchmark grid, only selector family and honesty varied;
   the other practical controls were fixed by design
-- the real data side of this layer uses a small proxy panel rather than the
-  full canonical benchmark surface
+- the real data side of this layer uses a small proxy panel rather than the full
+  canonical benchmark surface
 
 What the canonical mirrored ablation says:
 
@@ -897,8 +879,8 @@ What the canonical mirrored ablation says:
     decline in mean recovery over standard `k`
     (`delta_precision_over_standard_k = -0.0014`)
   - real regression downstream `+0.0004`
-  - synthetic regression downstream `-0.0032`, with only a small decline in
-    the same curve-based recovery summary
+  - synthetic regression downstream `-0.0032`, with only a small decline in the
+    same curve-based recovery summary
     (`delta_precision_over_standard_k = -0.0051`)
 - this toggle disables both selector-side and splitter-side adaptive stopping,
   so it evaluates the implemented stopping regime rather than an isolated Stage
@@ -914,8 +896,8 @@ What the strictness comparison says:
 - but it also makes trees deeper and less sparse:
   - depth increases by about `3.14` / `5.95` / `3.00` / `7.00`
   - features used increase by about `20.64` / `13.28` / `1.62` / `35.27`
-- the feature recovery curve on synthetic datasets moves only modestly relative to that structural
-  shift:
+- the feature recovery curve on synthetic datasets moves only modestly relative
+  to that structural shift:
   - classification `+0.0213`
   - regression `+0.0009`
 - so this is a strictness-versus-depth regime change, not a clean practical
@@ -928,11 +910,11 @@ What the weaker-control rows say:
 - `cif_no_scan` is still worth reporting: with adaptive stopping already on, it
   is `0.8941x` on real classification, `1.0328x` on synthetic classification,
   `1.8251x` on real regression, and `1.1963x` on synthetic regression
-- associated downstream-score changes are small and mixed:
-  `-0.0015`, `-0.0054`, `+0.0006`, and `-0.0055`
-- `cif_no_threshold_scan` is more mixed still:
-  `0.9769x`, `1.1059x`, `0.6073x`, and `0.9397x` across the same four surfaces,
-  with small/mixed downstream changes
+- associated downstream-score changes are small and mixed: `-0.0015`, `-0.0054`,
+  `+0.0006`, and `-0.0055`
+- `cif_no_threshold_scan` is more mixed still: `0.9769x`, `1.1059x`, `0.6073x`,
+  and `0.9397x` across the same four surfaces, with small/mixed downstream
+  changes
 - paper-safe reading: feature scanning is a measured but modest supporting gain
   inside the early-stopping regime, while threshold scanning does not show a
   stable supporting speed benefit
@@ -954,7 +936,8 @@ What the threshold ablation says:
   - `0.0393x` on synthetic classification
   - `0.0912x` on real regression
   - `0.0371x` on synthetic regression
-- its curve-based feature recovery shifts on synthetic datasets are small and favorable:
+- its curve-based feature recovery shifts on synthetic datasets are small and
+  favorable:
   - classification `+0.0150`
   - regression `+0.0033`
 - `exact_all` is mixed even on the same curve-based synthetic summary:
@@ -999,8 +982,8 @@ What the canonical aggregate says:
   against `15/17` regression baselines
 - pairwise aggregate deltas are positive against `15/17` regression baselines,
   but that layer is descriptive only because of the small dataset count
-- the dataset-count trajectory surface widens with `k`:
-  mean cross-method range grows from `1.0720` at `k=5` to `1.8934` at `k=100`
+- the dataset-count trajectory surface widens with `k`: mean cross-method range
+  grows from `1.0720` at `k=5` to `1.8934` at `k=100`
 
 What the regression pairwise breadth says:
 

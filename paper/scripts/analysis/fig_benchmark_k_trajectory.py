@@ -100,7 +100,9 @@ def _load_ranks(config: TaskPlotConfig) -> tuple[pd.DataFrame, dict[int, int]]:
 
     support = df.groupby("k")["n_complete_datasets"].first().to_dict()
     if set(support) != set(STANDARD_K):
-        raise ValueError(f"Missing support counts for k values: {sorted(set(STANDARD_K) - set(support))}")
+        raise ValueError(
+            f"Missing support counts for k values: {sorted(set(STANDARD_K) - set(support))}"
+        )
 
     ranks = (
         df.groupby(["method_base", "k"], as_index=False)["mean_rank"]

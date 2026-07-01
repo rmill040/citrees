@@ -2,11 +2,11 @@
 
 Operational audit helper; not part of the current paper-facing rebuild path.
 
-This script reconstructs a previous config grid from git, normalizes parameter
+This script reconstructs a previous config set from git, normalizes parameter
 encodings into the current schema, and reports which old labels are semantically
 equivalent to current labels.
 
-It also checks whether the old-label raw artifacts would fill any current-grid
+It also checks whether the old-label raw artifacts would fill any current-set
 gaps, which determines whether a raw-file migration is useful or merely
 cosmetic.
 
@@ -15,7 +15,7 @@ Outputs:
   - paper/results/tables/grid_hash_aliases_summary.json
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/maintenance/audit_hash_alias_manifest.py \
+  uv run python paper/scripts/maintenance/audit_hash_alias_manifest.py \
       --old-spec '040f681a^:paper/scripts/pipeline/config.py' --local-dir ../data
 """
 
@@ -39,9 +39,11 @@ TABLES_DIR = RESULTS_DIR / "tables"
 
 
 def _label_from_params(method: str, params: dict[str, Any]) -> str:
-    """Compute the method label used by the experiment grid."""
+    """Compute the method label used by the configured experiment set."""
     filtered = {k: v for k, v in sorted(params.items()) if k not in ("method", "random_state")}
-    digest = hashlib.md5(json.dumps(filtered, sort_keys=True, default=str).encode()).hexdigest()[:16]
+    digest = hashlib.md5(json.dumps(filtered, sort_keys=True, default=str).encode()).hexdigest()[
+        :16
+    ]
     return f"{method}__{digest}"
 
 
@@ -88,11 +90,23 @@ def _normalize_old_params(
         if normalized.get("max_thresholds") != 256:
             return None
 
-    if task == "classification" and method in {"cif", "cit"} and normalized.get("selector") not in {"mc", "rdc"}:
+    if (
+        task == "classification"
+        and method in {"cif", "cit"}
+        and normalized.get("selector") not in {"mc", "rdc"}
+    ):
         return None
-    if task == "regression" and method in {"cif", "cit"} and normalized.get("selector") not in {"pc", "rdc"}:
+    if (
+        task == "regression"
+        and method in {"cif", "cit"}
+        and normalized.get("selector") not in {"pc", "rdc"}
+    ):
         return None
-    if method == "cif" and task == "classification" and normalized.get("sampling_method") != "stratified":
+    if (
+        method == "cif"
+        and task == "classification"
+        and normalized.get("sampling_method") != "stratified"
+    ):
         return None
     if method == "cif" and normalized.get("bootstrap") is not True:
         return None
@@ -135,14 +149,18 @@ def _build_manifest(
                 label = _label_from_params(method, params)
                 current_norm[task][_norm_key(params)] = label
 
-        for method_id, dataset, seed in {cfg.key for cfg in ExperimentGrid.from_cli(task, source="all")}:
+        for method_id, dataset, seed in {
+            cfg.key for cfg in ExperimentGrid.from_cli(task, source="all")
+        }:
             expected_by_label[task][method_id].add((dataset, seed))
 
     raw_rank = {
-        task: _collect_raw_keys(local_dir, "rankings", task) for task in ("classification", "regression")
+        task: _collect_raw_keys(local_dir, "rankings", task)
+        for task in ("classification", "regression")
     }
     raw_metric = {
-        task: _collect_raw_keys(local_dir, "metrics", task) for task in ("classification", "regression")
+        task: _collect_raw_keys(local_dir, "metrics", task)
+        for task in ("classification", "regression")
     }
 
     rows: list[dict[str, Any]] = []
@@ -193,7 +211,8 @@ def _build_manifest(
                         "rank_alias_is_complete": alias_rank_pairs == expected_pairs,
                         "metric_alias_is_complete": alias_metric_pairs == expected_pairs,
                         "sample_alias_rank_pairs": ";".join(
-                            f"{dataset}/seed{seed}" for dataset, seed in sorted(alias_rank_pairs)[:10]
+                            f"{dataset}/seed{seed}"
+                            for dataset, seed in sorted(alias_rank_pairs)[:10]
                         ),
                     }
                 )
@@ -206,13 +225,17 @@ def _build_manifest(
                 for row in rows[rows_before:]
                 if row["old_rank_jobs"] > 0 or row["old_metric_jobs"] > 0
             ),
-            "aliases_that_fill_current_rank_gaps": sum(1 for row in rows[rows_before:] if row["fills_missing_rank_jobs"] > 0),
+            "aliases_that_fill_current_rank_gaps": sum(
+                1 for row in rows[rows_before:] if row["fills_missing_rank_jobs"] > 0
+            ),
             "aliases_that_fill_current_metric_gaps": sum(
                 1 for row in rows[rows_before:] if row["fills_missing_metric_jobs"] > 0
             ),
         }
 
-    frame = pd.DataFrame(rows).sort_values(["task", "method_base", "old_label"]).reset_index(drop=True)
+    frame = (
+        pd.DataFrame(rows).sort_values(["task", "method_base", "old_label"]).reset_index(drop=True)
+    )
     return frame, summary
 
 

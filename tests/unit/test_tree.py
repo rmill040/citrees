@@ -59,8 +59,6 @@ def test_base_conditional_inference_tree_parameters():
         f"Wrong exception, got ({e.type}) but expected ({ValidationError})"
     )
 
-    # TODO: ADD HERE
-
     # Success
     params = BaseConditionalInferenceTreeParameters(
         estimator_type="classifier",

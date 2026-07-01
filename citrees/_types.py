@@ -39,7 +39,6 @@ class ThresholdMethod(StrEnum):
     HISTOGRAM = "histogram"
 
 
-
 class SamplingMethod(StrEnum):
     STRATIFIED = "stratified"
     UNDERSAMPLE = "undersample"

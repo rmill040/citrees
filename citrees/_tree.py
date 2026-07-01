@@ -172,6 +172,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         -------
         str
             Class as string.
+
         """
         string = self.__class__.__name__ + "("
         params = self.get_params()
@@ -195,6 +196,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         -------
         str
             Class as string.
+
         """
         return self.__repr__()
 
@@ -221,6 +223,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
 
         np.ndarray
             Training target.
+
         """
         feature_names_in = None
         if not isinstance(X, np.ndarray):
@@ -297,6 +300,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         -------
         np.ndarray
             Inference features.
+
         """
         if not hasattr(self, "feature_names_in_"):
             raise ValueError("Estimator not trained, must call fit() method before predict()")
@@ -349,6 +353,7 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         ----------
         params : dict[str, Any]
             Hyperparameters.
+
         """
         self._parameter_model(**params)
 
@@ -498,6 +503,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         type[BaseModel]
             Model to validate hyperparameters.
+
         """
         return BaseConditionalInferenceTreeParameters
 
@@ -519,6 +525,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         best_selector_name : str
             Name of the selector that produced the best score.
+
         """
         if self._multi_selector:
             best_score = -np.inf
@@ -577,6 +584,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         updated_available_features : np.ndarray
             Available feature indices after muting decisions at this node.
+
         """
         best_feature = features[0]
         best_pval = np.inf
@@ -701,6 +709,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         reject_H0 : bool
             Whether to reject the null hypothesis of significant binary split on data.
+
         """
         best_threshold = thresholds[0]
         best_pval = np.inf
@@ -779,6 +788,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         n_tests : int
             Number of hypothesis tests to perform.
+
         """
         alpha = getattr(self, f"alpha_{adjust}")
         n_resamples = getattr(self, f"n_resamples_{adjust}")
@@ -831,8 +841,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         return updated
 
     def _scan_features(self, X: np.ndarray, y: np.ndarray, features: np.ndarray) -> np.ndarray:
-        """Perform feature scanning to return the feature indices that are most associated with the
-        target.
+        """Perform feature scanning.
+
+        Return the feature indices that are most associated with the target.
 
         Parameters
         ----------
@@ -849,6 +860,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         np.ndarray
             Feature indices sorted in descending order based on strength of association with the target.
+
         """
         scores = np.array(
             [self._compute_selector_score(X[:, feature], y)[0] for feature in features]
@@ -875,6 +887,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         np.ndarray
             Thresholds sorted in ascending order based on weighted child impurity from the binary split.
+
         """
         scores = np.array(
             [self._split_impurity(x=x, y=y, threshold=threshold) for threshold in thresholds]
@@ -884,8 +897,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         return thresholds[ranks]
 
     def _split_impurity(self, *, x: np.ndarray, y: np.ndarray, threshold: float) -> float:
-        """Perform binary split and calculate split impurity as weighted sum of children node
-        impurities.
+        """Perform binary split.
+
+        Calculate split impurity as the weighted sum of child-node impurities.
 
         Parameters
         ----------
@@ -902,6 +916,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         float
             Weighted impurity metric.
+
         """
         idx = x <= threshold
         n = len(idx)
@@ -939,6 +954,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         impurity_decrease : float
             Node impurity decrease after binary split on threshold.
+
         """
         parent_impurity = self._splitter(y)
         children_impurity = (n_left / n) * self._splitter(y[idx]) + (n_right / n) * self._splitter(
@@ -977,10 +993,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         Node
             Node in decision tree.
+
         """
         reject_H0_feature = False
         reject_H0_threshold = False
-        impurity_decrease = -1
+        impurity_decrease = -1.0
         n, p = X.shape
         local_available = available_features
 
@@ -1090,10 +1107,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # Calculate impurity decrease
         if reject_H0_threshold:
             idx = x <= best_threshold
-            n_left = idx.sum()
-            n_right = n - n_left
+            n_left = int(idx.sum())
+            n_right = int(n - n_left)
             if n_left >= self._min_samples_leaf and n_right >= self._min_samples_leaf:
-                impurity, impurity_decrease = self._node_impurity(  # type: ignore
+                impurity, impurity_decrease = self._node_impurity(
                     y=y, idx=idx, n=n, n_left=n_left, n_right=n_right
                 )
 
@@ -1141,6 +1158,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         self
             Fitted estimator.
+
         """
         X, y = self._validate_data_fit(X=X, y=y, estimator_type=self._estimator_type)
         n, p = X.shape
@@ -1313,6 +1331,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         tuple
             Path from root to leaf (e.g., ('L', 'R', 'L')).
+
         """
         if tree is None:
             tree = self.tree_
@@ -1338,6 +1357,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         y : np.ndarray
             Estimation sample targets.
+
         """
         # Group samples by leaf path (serialization-safe)
         leaf_samples: dict[tuple, list[int]] = {}
@@ -1368,6 +1388,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         path : tuple
             Current path from root.
+
         """
         # Use stack-based iteration to avoid recursion limit issues
         stack = [(tree, path)]
@@ -1403,6 +1424,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         -------
         float | np.ndarray
             Predicted value for sample.
+
         """
         if tree is None:
             tree = self.tree_
@@ -1517,6 +1539,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
     ----------
     Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
     SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+
     """
 
     _estimator_type = "classifier"
@@ -1594,6 +1617,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
         -------
         np.ndarray
             Class probabilities.
+
         """
         return estimate_proba(y=y, n_classes=self.n_classes_)
 
@@ -1609,6 +1633,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
         -------
         np.ndarray
             Predicted class probabilities.
+
         """
         X = self._validate_data_predict(X)
 
@@ -1626,6 +1651,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
         -------
         np.ndarray
             Predicted class labels.
+
         """
         X = self._validate_data_predict(X)
 
@@ -1668,6 +1694,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
     ----------
     Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
     SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
+
     """
 
     _estimator_type = "regressor"
@@ -1745,6 +1772,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
         -------
         float
             Mean of target in node.
+
         """
         return estimate_mean(y)
 
@@ -1760,6 +1788,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
         -------
         np.ndarray
             Predicted target.
+
         """
         X = self._validate_data_predict(X)
 

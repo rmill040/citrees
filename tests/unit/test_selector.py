@@ -504,8 +504,13 @@ class TestPtestRDC:
         y = 2 * x + np.random.randn(100) * 0.1
         # n_resamples >= 200 triggers parallel path
         pval = ptest_rdc_regressor(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping=None, alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -514,8 +519,13 @@ class TestPtestRDC:
         x = np.linspace(0, 10, 100)
         y = 2 * x + np.random.randn(100) * 0.1
         pval = ptest_rdc_regressor(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -524,8 +534,13 @@ class TestPtestRDC:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping=None, alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -534,8 +549,13 @@ class TestPtestRDC:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -544,8 +564,13 @@ class TestPtestRDC:
         x = np.concatenate([np.zeros(30) + i for i in range(3)])
         y = np.concatenate([np.full(30, i, dtype=np.int64) for i in range(3)])
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=3, n_resamples=250,
-            early_stopping=None, alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=3,
+            n_resamples=250,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -554,8 +579,13 @@ class TestPtestRDC:
         x = np.concatenate([np.zeros(30) + i for i in range(3)])
         y = np.concatenate([np.full(30, i, dtype=np.int64) for i in range(3)])
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=3, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=3,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -565,8 +595,13 @@ class TestPtestRDC:
         x = rng.standard_normal(100)
         y = rng.standard_normal(100)
         pval = ptest_rdc_regressor(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping=None, alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval > 0.05
 
@@ -576,8 +611,13 @@ class TestPtestRDC:
         x = rng.standard_normal(100)
         y = rng.integers(0, 2, size=100).astype(np.int64)
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping=None, alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval > 0.05
 
@@ -586,12 +626,22 @@ class TestPtestRDC:
         x = np.linspace(0, 10, 100)
         y = 2 * x + 1.0
         pval1 = ptest_rdc_regressor(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         pval2 = ptest_rdc_regressor(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval1 == pval2
 
@@ -600,12 +650,22 @@ class TestPtestRDC:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval1 = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         pval2 = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval1 == pval2
 
@@ -614,8 +674,13 @@ class TestPtestRDC:
         x = np.linspace(0, 10, 200)
         y = 100 * x  # extreme signal
         pval = ptest_rdc_regressor(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval > 0
 
@@ -739,12 +804,22 @@ class TestEarlyStopping:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval1 = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         pval2 = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval1 == pval2
 
@@ -753,12 +828,22 @@ class TestEarlyStopping:
         x = np.linspace(0, 10, 100)
         y = 2 * x + 1.0
         pval1 = ptest_pc(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         pval2 = ptest_pc(
-            x=x, y=y, standardize=True, n_resamples=250,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=250,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval1 == pval2
 
@@ -783,8 +868,13 @@ class TestEarlyStopping:
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         # n_resamples < 200 routes to _ptest() Python adaptive branch
         pval = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=100,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=100,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -794,8 +884,13 @@ class TestEarlyStopping:
         y = 2 * x + np.random.randn(100) * 0.1
         # n_resamples < 200 routes to _ptest() Python adaptive branch
         pval = ptest_pc(
-            x=x, y=y, standardize=True, n_resamples=100,
-            early_stopping="adaptive", alpha=0.05, random_state=42,
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=100,
+            early_stopping="adaptive",
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 

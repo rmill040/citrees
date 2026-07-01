@@ -20,26 +20,26 @@ contains the real data downstream evaluations used by the benchmark scripts.
 top-k recovery diagnostics used by Figure 4.
 
 ```bash
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_paper_data_surfaces.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_dataset_characteristics_table.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_package_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/fig_benchmark_k_trajectory.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_heterogeneity_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_top_ranking_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_synthetic_topk_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_knob_ablation_summary_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_threshold_ablation_summary_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_cit_runtime_ablation_summary_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_manuscript_summary_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
+uv run python paper/scripts/analysis/build_paper_data_surfaces.py
+uv run python paper/scripts/analysis/build_dataset_characteristics_table.py
+uv run python paper/scripts/analysis/build_benchmark_package_tables.py
+uv run python paper/scripts/analysis/fig_benchmark_k_trajectory.py
+uv run python paper/scripts/analysis/build_benchmark_heterogeneity_tables.py
+uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
+uv run python paper/scripts/analysis/build_top_ranking_tables.py
+uv run python paper/scripts/analysis/build_synthetic_topk_tables.py
+uv run python paper/scripts/analysis/build_knob_ablation_summary_tables.py
+uv run python paper/scripts/analysis/build_threshold_ablation_summary_tables.py
+uv run python paper/scripts/analysis/build_cit_runtime_ablation_summary_tables.py
+uv run python paper/scripts/analysis/build_manuscript_summary_tables.py
+uv run python paper/scripts/analysis/build_mechanism_summary_tables.py
 ```
 
-The CIF ranking ablation table is rebuilt from fold-level ablation metrics
-when those metrics are available locally or in S3:
+The CIF ranking ablation table is rebuilt from fold-level ablation metrics when
+those metrics are available locally or in S3:
 
 ```bash
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_cif_mechanism_ablation_tables.py --input-uri <local-or-s3-metrics-prefix>
+uv run python paper/scripts/analysis/build_cif_mechanism_ablation_tables.py --input-uri <local-or-s3-metrics-prefix>
 ```
 
 The paper-facing summary is
@@ -72,8 +72,8 @@ What we did **not** run:
 - we did not evaluate every integer `k`
 - we did not evaluate every `5` features
 
-For datasets with `p > 100`, the evaluation pipeline also runs a sparse
-high-`p` extension:
+For datasets with `p > 100`, the evaluation pipeline also runs a sparse high-`p`
+extension:
 
 - `150, 200, 300, 500, 750, 1000`
 - `0.25p, 0.5p, 0.75p`
@@ -98,9 +98,9 @@ This is the plain-English version of what the code actually does.
 - Stage 2 reconstructs the same seed and fold split.
 - For each stored fold ranking, it evaluates downstream models on the matching
   held-out fold.
-- For each value of `k`, it takes the top-`k` prefix of the stored
-  ranking, re-standardizes those selected features on the training fold, then
-  fits a fresh downstream model.
+- For each value of `k`, it takes the top-`k` prefix of the stored ranking,
+  re-standardizes those selected features on the training fold, then fits a
+  fresh downstream model.
 
 This means the real data benchmark ranks features on each training fold and
 evaluates downstream models on the matching held-out fold.
@@ -109,13 +109,13 @@ evaluates downstream models on the matching held-out fold.
 
 - Several families are run under multiple configs.
 - The benchmark does not report every config.
-- Instead, for each method family and task, the analysis picks one global
-  config using the real data benchmark.
+- Instead, for each method family and task, the analysis picks one global config
+  using the real data benchmark.
 - That choice is global within task.
 - It is not nested separately within each dataset.
 
-The leave-one-dataset-out analysis is a sensitivity check for that choice. It
-is not a replacement for nested config selection.
+The leave-one-dataset-out analysis is a sensitivity check for that choice. It is
+not a replacement for nested config selection.
 
 ### Averaging contract
 
@@ -139,20 +139,19 @@ The current support package includes:
 - threshold-search ablation
 - CIT runtime ablation
 - synthetic top-`k` composition diagnostics
-- fixed-design candidate feature coverage diagnostics
+- fixed-design sampled-feature exposure diagnostics
 
 These studies are part of the locked support package, but they are not all
-reruns of the main benchmark.
-When in doubt, treat anything outside those locked outputs as exploratory or historical by
-default.
+reruns of the main benchmark. When in doubt, treat anything outside those locked
+outputs as exploratory or historical by default.
 
 Support-only rebuilds, when those locked outputs need to be refreshed:
 
 ```bash
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_fixed_panel_omnibus_table.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_fixed_panel_pairwise_ci_table.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_lodo_config_sensitivity_tables.py
-UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/theory/generate_calibration_support_package.py
+uv run python paper/scripts/analysis/build_fixed_panel_omnibus_table.py
+uv run python paper/scripts/analysis/build_fixed_panel_pairwise_ci_table.py
+uv run python paper/scripts/analysis/build_lodo_config_sensitivity_tables.py
+uv run python paper/scripts/theory/generate_calibration_support_package.py
 ```
 
 ## Result Layers We Already Have
@@ -173,15 +172,15 @@ What this layer says:
 - CIF is `4th/17` on the 22-dataset main-rank aggregate.
 - CIF mean rank is about `6.08`.
 - CIF mean balanced accuracy is about `0.819`.
-- CIF is positive against the historical conditional-inference
-  references and the added single-tree references:
+- CIF is positive against the historical conditional-inference references and
+  the added single-tree references:
   - `r_ctree`: `22/22` datasets, mean delta `+0.0876`
   - `r_cforest`: `19/22` datasets, mean delta `+0.0715`
   - `CIT`: `22/23` datasets, mean delta `+0.0318`
   - `DT`: `14/23` datasets, mean delta `+0.0155`
   - `RT`: `21/23` datasets, mean delta `+0.0346`
-- The highest-ranked generic ensembles rank above CIF in the pooled classification
-  summary.
+- The highest-ranked generic ensembles rank above CIF in the pooled
+  classification summary.
 
 ### 14-dataset classification benchmark with complete coverage
 
@@ -200,8 +199,8 @@ What this layer says:
   standard `k` values.
 - The omnibus summary is:
   - classification: `Kendall's W = 0.63` across `17` methods
-- CIF remains positive against CIT, DT, RT, and the historical baselines on
-  this layer.
+- CIF remains positive against CIT, DT, RT, and the historical baselines on this
+  layer.
 
 ### Downstream-model × k sensitivity
 
@@ -215,8 +214,8 @@ Main artifacts:
 
 What this layer says:
 
-- The broader classification benchmark can be broken out by downstream model
-  and standard value of `k`.
+- The broader classification benchmark can be broken out by downstream model and
+  standard value of `k`.
 - The table contains all directed method-vs-method comparisons. The manuscript
   figure focuses on CIF against `CIT`, `r_ctree`, and `r_cforest`.
 
@@ -256,8 +255,8 @@ What this layer says:
 - Endpoint performance is usually worse than `k=100` on classification:
   - mean score change from `k=100` to endpoint: about `-0.0369`
   - mean rank change: about `+3.07`
-- At the downstream level, `lr` improves at the endpoint more often than
-  `knn` or `svm`.
+- At the downstream level, `lr` improves at the endpoint more often than `knn`
+  or `svm`.
 
 ### Synthetic ranking diagnostics
 
@@ -288,13 +287,13 @@ Main artifacts:
 
 What this layer says:
 
-- The mechanism is sparse candidate exposure in forests, not generic tree
+- The mechanism is sparse sampled-feature exposure in forests, not generic tree
   weakness.
 - In the combined aggregate summary:
   - `cif` forest classification informative split share is about `0.332`
   - `cif_all` pushes that to about `0.917`
-- This quantifies how much informative exposure changes when feature
-  subsampling is removed in sparse high-`p` cases.
+- This quantifies how much informative exposure changes when feature subsampling
+  is removed in sparse high-`p` cases.
 
 ### Stability and seed/fold variability
 
@@ -343,8 +342,8 @@ The distributed experiment pipeline mixes:
 - and end-to-end serialization costs.
 
 Paper-grade runtime claims should come only from the dedicated practical-control
-ablations and should be phrased as within-method comparisons under the
-collected setup, not hardware-independent method-vs-method benchmarks.
+ablations and should be phrased as within-method comparisons under the collected
+setup, not hardware-independent method-vs-method benchmarks.
 
 Within-CIF speed-study provenance lives under `scratch/speed-study/`.
 

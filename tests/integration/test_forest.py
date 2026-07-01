@@ -268,9 +268,7 @@ class TestForestSampling:
     def test_classic_bootstrap(self, classification_data):
         """Test forest with classic bootstrap."""
         X, y = classification_data
-        clf = ConditionalInferenceForestClassifier(
-            n_estimators=5, bootstrap=True, **FAST_PARAMS
-        )
+        clf = ConditionalInferenceForestClassifier(n_estimators=5, bootstrap=True, **FAST_PARAMS)
         clf.fit(X, y)
         assert clf.predict(X).shape == y.shape
 

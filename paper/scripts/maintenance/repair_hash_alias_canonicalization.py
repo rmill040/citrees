@@ -19,10 +19,10 @@ Outputs:
   - paper/results/tables/hash_alias_canonicalization_summary.json
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/maintenance/repair_hash_alias_canonicalization.py \
+  uv run python paper/scripts/maintenance/repair_hash_alias_canonicalization.py \
       --local-dir ../data
 
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/maintenance/repair_hash_alias_canonicalization.py \
+  uv run python paper/scripts/maintenance/repair_hash_alias_canonicalization.py \
       --local-dir ../data --apply
 """
 
@@ -121,7 +121,9 @@ def _iter_actions(manifest: pd.DataFrame, local_dir: Path) -> list[dict[str, obj
                 new_path = old_path.with_name(old_path.name.replace(old_label, new_label, 1))
 
                 if new_path.exists():
-                    matches = _payloads_match(old_path, new_path, canonical_label=new_label, stage=stage)
+                    matches = _payloads_match(
+                        old_path, new_path, canonical_label=new_label, stage=stage
+                    )
                     action = "delete_old_duplicate" if matches else "conflict_keep_both"
                 else:
                     matches = True
@@ -223,7 +225,9 @@ def main() -> None:
         summary = {"mode": "apply" if args.apply else "dry_run", "total_files": 0}
     else:
         if args.apply:
-            actions["applied_action"] = actions.apply(lambda row: _apply_action(row.to_dict()), axis=1)
+            actions["applied_action"] = actions.apply(
+                lambda row: _apply_action(row.to_dict()), axis=1
+            )
         summary = _build_summary(actions, apply=args.apply)
         if args.apply:
             summary["applied_action_counts"] = (

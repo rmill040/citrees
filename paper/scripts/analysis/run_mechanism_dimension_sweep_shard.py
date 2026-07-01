@@ -18,7 +18,9 @@ from paper.scripts.analysis.build_mechanism_summary_tables import (
 )
 
 
-def _build_specs(task: str, n_features_values: list[int], n_informative_values: list[int]) -> list[FixedDesignSpec]:
+def _build_specs(
+    task: str, n_features_values: list[int], n_informative_values: list[int]
+) -> list[FixedDesignSpec]:
     specs: list[FixedDesignSpec] = []
     if task == "classification":
         for n_informative in n_informative_values:

@@ -24,11 +24,11 @@ from pathlib import Path
 
 import pandas as pd
 from joblib import parallel_backend
+from paper.scripts.analysis.aggregate import _build_grid_config_keys, aggregate_stage
 
 from paper.scripts.adapters import get_s3_bucket
-from paper.scripts.analysis.aggregate import _build_grid_config_keys, aggregate_stage
-from paper.scripts.config import load_config
 from paper.scripts.adapters.data import get_dataset_metadata, load_dataset
+from paper.scripts.config import load_config
 from paper.scripts.pipeline.methods import get_full_method_configs
 from paper.scripts.pipeline.stage1 import run_selection
 from paper.scripts.pipeline.stage2 import (
@@ -55,7 +55,13 @@ class LocalParquetStore:
     base_dir: Path
 
     def path(self, stage: str, cfg: ExperimentConfig) -> Path:
-        return self.base_dir / stage / cfg.task / cfg.dataset / f"{cfg.method.label}_seed{cfg.seed}.parquet"
+        return (
+            self.base_dir
+            / stage
+            / cfg.task
+            / cfg.dataset
+            / f"{cfg.method.label}_seed{cfg.seed}.parquet"
+        )
 
     def exists(self, stage: str, cfg: ExperimentConfig) -> bool:
         return self.path(stage, cfg).exists()
@@ -126,7 +132,9 @@ def _build_configs(
     ]
 
 
-def _aggregate_stage(store: LocalParquetStore, stage: str, configs: list[ExperimentConfig]) -> pd.DataFrame:
+def _aggregate_stage(
+    store: LocalParquetStore, stage: str, configs: list[ExperimentConfig]
+) -> pd.DataFrame:
     frames = [store.load(stage, cfg) for cfg in configs]
     return pd.concat(frames, ignore_index=True)
 
@@ -136,7 +144,9 @@ def _replace_rows(*, existing_path: Path, replacement: pd.DataFrame, backup_dir:
     shutil.copy2(existing_path, backup_dir / existing_path.name)
 
     existing = pd.read_parquet(existing_path)
-    keep = existing[~((existing["task"] == TARGET_TASK) & (existing["method_base"].isin(TARGET_METHODS)))].copy()
+    keep = existing[
+        ~((existing["task"] == TARGET_TASK) & (existing["method_base"].isin(TARGET_METHODS)))
+    ].copy()
     updated = pd.concat([keep, replacement], ignore_index=True)
     updated.to_parquet(existing_path, index=False)
 
@@ -266,9 +276,15 @@ def parse_args() -> argparse.Namespace:
         default=ROOT / "scratch" / "pi_cpi_balacc_rerun",
         help="Local scratch directory for rerun artifacts and backups",
     )
-    parser.add_argument("--datasets", type=str, default="", help="Optional comma-separated dataset filter")
-    parser.add_argument("--methods", type=str, default="", help="Optional comma-separated method_base filter")
-    parser.add_argument("--seeds", type=str, default="", help="Optional comma-separated seed filter")
+    parser.add_argument(
+        "--datasets", type=str, default="", help="Optional comma-separated dataset filter"
+    )
+    parser.add_argument(
+        "--methods", type=str, default="", help="Optional comma-separated method_base filter"
+    )
+    parser.add_argument(
+        "--seeds", type=str, default="", help="Optional comma-separated seed filter"
+    )
     parser.add_argument(
         "--skip-replace",
         action="store_true",
@@ -335,8 +351,12 @@ def main() -> None:
         return
 
     backup_dir = args.workdir.resolve() / "backups"
-    _replace_rows(existing_path=RANKINGS_PATH, replacement=rankings_replacement, backup_dir=backup_dir)
-    _replace_rows(existing_path=EVALUATION_PATH, replacement=evaluation_replacement, backup_dir=backup_dir)
+    _replace_rows(
+        existing_path=RANKINGS_PATH, replacement=rankings_replacement, backup_dir=backup_dir
+    )
+    _replace_rows(
+        existing_path=EVALUATION_PATH, replacement=evaluation_replacement, backup_dir=backup_dir
+    )
     print(f"Updated {RANKINGS_PATH}", flush=True)
     print(f"Updated {EVALUATION_PATH}", flush=True)
 

@@ -156,7 +156,9 @@ def _compute_synthetic_diagnostics(
     selection_cols = [f"precision@{k}" for k in SELECTION_K]
     diagnostics["selection_curve_score"] = diagnostics[selection_cols].mean(axis=1)
     perf = (
-        diagnostics.groupby(["task", "method_base", "method_id"], as_index=False)["selection_curve_score"]
+        diagnostics.groupby(["task", "method_base", "method_id"], as_index=False)[
+            "selection_curve_score"
+        ]
         .mean()
         .rename(columns={"selection_curve_score": "selection_score"})
     )
@@ -216,9 +218,9 @@ def _summarize_overall(df: pd.DataFrame) -> pd.DataFrame:
         ascending=False,
         method="average",
     )
-    return summary.sort_values(["task", "top1_rank_position", "mrr_rank_position", "method_base"]).reset_index(
-        drop=True
-    )
+    return summary.sort_values(
+        ["task", "top1_rank_position", "mrr_rank_position", "method_base"]
+    ).reset_index(drop=True)
 
 
 def _summarize_curve_over_k(df: pd.DataFrame) -> pd.DataFrame:
@@ -310,7 +312,9 @@ def _summarize_by_dataset(df: pd.DataFrame) -> pd.DataFrame:
         "first_true_rank",
     ]
     summary = (
-        df.groupby(["task", "dataset", "dataset_type", "method_base", "method_id"], as_index=False)[metrics]
+        df.groupby(["task", "dataset", "dataset_type", "method_base", "method_id"], as_index=False)[
+            metrics
+        ]
         .mean()
         .rename(
             columns={
@@ -329,7 +333,9 @@ def _summarize_by_dataset(df: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     """Build and save synthetic top-ranking diagnostic tables."""
-    parser = argparse.ArgumentParser(description="Build top-ranking diagnostics for synthetic rankings")
+    parser = argparse.ArgumentParser(
+        description="Build top-ranking diagnostics for synthetic rankings"
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,

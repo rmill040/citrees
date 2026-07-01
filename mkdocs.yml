@@ -64,9 +64,6 @@ extra_javascript:
 
 nav:
   - Home: index.md
-  - Getting Started:
-      - Installation: index.md#installation
-      - Quick Start: index.md#quick-start
   - User Guide:
       - Algorithm: algorithm.md
       - Selectors: selectors.md

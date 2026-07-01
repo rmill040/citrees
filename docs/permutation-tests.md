@@ -34,18 +34,19 @@ The key insight from
 is that permutation tests can be used at each node to:
 
 1. **Select features** - Test which features are associated with the target
-2. **Validate splits** - Test whether a split point improves prediction
+2. **Score split thresholds** - Compare fixed-threshold impurity scores against
+   label permutations
 
 ### Why Permutation Tests?
 
 Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection
 bias**:
 
-| Problem               | Traditional Trees               | Permutation Solution                                                          |
-| --------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
-| High-cardinality bias | Favor features with many values | Screen features via permutation p-values (and optionally validate thresholds) |
-| Spurious splits       | Find "good" splits by chance    | Statistical significance required                                             |
-| Overfitting           | Need pruning/CV                 | Natural stopping via tests                                                    |
+| Problem               | Traditional Trees               | Permutation Solution                                             |
+| --------------------- | ------------------------------- | ---------------------------------------------------------------- |
+| High-cardinality bias | Favor features with many values | Screen features via permutation p-values before threshold search |
+| Spurious splits       | Find "good" splits by chance    | Require Stage A screening before threshold search                |
+| Overfitting           | Need pruning/CV                 | Test-based stopping                                              |
 
 ---
 
@@ -60,11 +61,11 @@ $$T_{obs} = T(X, Y)$$
 
 Common test statistics in citrees:
 
-| Context              | Statistic                 | Formula                                   |
-| -------------------- | ------------------------- | ----------------------------------------- |
-| Feature selection    | Correlation               | $\|r(X, Y)\|$                             |
-| Classification split | Child impurity sum (Gini) | $Gini(y_L) + Gini(y_R)$ (lower is better) |
-| Regression split     | Child impurity sum (MSE)  | $MSE(y_L) + MSE(y_R)$ (lower is better)   |
+| Context              | Statistic                      | Formula                                           |
+| -------------------- | ------------------------------ | ------------------------------------------------- |
+| Feature selection    | Correlation                    | $\|r(X, Y)\|$                                     |
+| Classification split | Weighted child impurity (Gini) | $\frac{n_L}{n}Gini(y_L) + \frac{n_R}{n}Gini(y_R)$ |
+| Regression split     | Weighted child impurity (MSE)  | $\frac{n_L}{n}MSE(y_L) + \frac{n_R}{n}MSE(y_R)$   |
 
 ### Null Distribution
 
@@ -190,10 +191,10 @@ citrees uses permutation tests at two stages:
 │                                                              │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  Stage 2: SPLIT SELECTION                                    │
+│  Stage 2: SPLIT SCORING                                      │
 │  ─────────────────────────────                               │
 │  For each threshold c in X_j*:                               │
-│      H₀: Split at c provides no improvement                  │
+│      Score weighted child impurity under label permutations  │
 │      p_c ← PermutationTest(X_j*, Y, c, splitter_statistic)   │
 │                                                              │
 │  Select c* = argmin(p_c)                                     │
@@ -232,7 +233,7 @@ Input: x_j ∈ ℝⁿ, y, selector (e.g., "mc", "pc"), n_resamples
 
 ### Splitter Permutation Test
 
-Tests whether a split improves prediction:
+Scores a fixed threshold after a feature has been selected:
 
 ```
 Algorithm: Splitter Permutation Test
@@ -261,8 +262,8 @@ Input: x_j ∈ ℝⁿ, y, threshold c, splitter (e.g., "gini", "mse")
 
 ### The Problem
 
-When testing $p$ independent null features at level $\alpha$, the probability
-of at least one false positive increases:
+When testing $p$ independent null features at level $\alpha$, the probability of
+at least one false positive increases:
 
 $$FWER = 1 - (1 - \alpha)^p$$
 
@@ -271,20 +272,20 @@ positive!)
 
 ### Bonferroni Correction
 
-citrees uses **Bonferroni correction** to control the nodewise fixed-$B$
-Stage A rejection probability under the complete permutation null:
+citrees uses **Bonferroni correction** to control the nodewise fixed-$B$ Stage A
+rejection probability under the complete permutation null:
 
 $$\alpha_{adjusted} = \frac{\alpha}{m}$$
 
 where $m$ is the number of tests being performed. For Stage A, this is the
-number of candidate features tested at a fixed node in the exhaustive fixed-$B$
+number of available features tested at a fixed node in the exhaustive fixed-$B$
 reference procedure. Stage B has a separate fixed-feature/threshold-family
 interpretation. These are not full-tree, selected-split, adaptive-stopping, or
 forest-level familywise-error guarantees.
 
-| Parameter               | Applies to                           | Formula                                |
-| ----------------------- | ------------------------------------ | -------------------------------------- |
-| `adjust_alpha_selector` | Fixed-node Stage A feature tests     | $\alpha_{\mathrm{sel}} / m$            |
+| Parameter               | Applies to                           | Formula                                      |
+| ----------------------- | ------------------------------------ | -------------------------------------------- |
+| `adjust_alpha_selector` | Fixed-node Stage A feature tests     | $\alpha_{\mathrm{sel}} / m$                  |
 | `adjust_alpha_splitter` | Fixed selected-feature threshold set | $\alpha_{\mathrm{split}} / \lvert C_j\rvert$ |
 
 ### Algorithm with Correction
@@ -306,16 +307,16 @@ Input: X ∈ ℝⁿˣᵖ, y, α_selector, adjust_alpha
 4. If p_j* < α_adjusted:
        Return j*  # Significant feature found
    Else:
-       Return None  # No significant feature
+       Return None  # No feature passes Stage A screening
 ```
 
 ### Trade-offs
 
-| Correction      | Fixed-B Nodewise Scope | Power  | Use Case                |
-| --------------- | ---------------------- | ------ | ----------------------- |
-| None            | None                   | High   | Exploratory analysis    |
+| Correction      | Fixed-B Nodewise Scope | Power  | Use Case                 |
+| --------------- | ---------------------- | ------ | ------------------------ |
+| None            | None                   | High   | Exploratory analysis     |
 | Bonferroni      | Conservative Stage A   | Low    | Conservative tree growth |
-| Holm-Bonferroni | Not implemented        | Medium | Alternative procedure   |
+| Holm-Bonferroni | Not implemented        | Medium | Alternative procedure    |
 
 citrees defaults to Bonferroni (`adjust_alpha_selector=True`) for conservative
 nodewise Stage A screening.
@@ -426,17 +427,17 @@ Input: x, y, statistic T, max permutations B, threshold α, confidence γ
 ### Simple stopping (heuristic)
 
 The simple rule stops early if (i) the running estimate is already below
-$\alpha$ (significant), or (ii) even the best possible p-value after all
-remaining permutations cannot drop below $\alpha$ (futility). This can inflate
-Type I error because it “peeks” without a validity correction.
+$\alpha$, or (ii) even the best possible p-value after all remaining
+permutations cannot drop below $\alpha$ (futility). This can inflate Type I
+error because it “peeks” without a validity correction.
 
 ### Benefits
 
-| Scenario                        | Speedup         |
-| ------------------------------- | --------------- |
-| Clearly non-significant feature | 10-100×         |
-| Borderline feature              | 1× (no speedup) |
-| Clearly significant feature     | 1× (runs full)  |
+| Scenario            | Speedup         |
+| ------------------- | --------------- |
+| Clearly high-p case | 10-100×         |
+| Borderline case     | 1× (no speedup) |
+| Clearly low-p case  | 1× (runs full)  |
 
 Enable with:
 

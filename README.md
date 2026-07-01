@@ -5,10 +5,10 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-citrees implements conditional-inference-style decision trees and random
-forests using permutation-based screening before threshold selection. Unlike
-traditional CART-style trees that greedily optimize split criteria, citrees
-separates variable selection from split point selection to reduce the classic
+citrees implements conditional-inference-style decision trees and random forests
+using permutation-based screening before threshold selection. Unlike traditional
+CART-style trees that greedily optimize split criteria, citrees separates
+variable selection from split point selection to reduce the classic
 high-cardinality split-selection bias mechanism. Fixed-B p-value calibration is
 nodewise; adaptive tree and forest rankings remain empirical model outputs.
 
@@ -25,12 +25,12 @@ the usual fixed-node/root scope caveats for adaptive trees).
 Traditional decision trees (CART, ID3, C4.5) suffer from **variable selection
 bias**:
 
-| Problem                | CART Behavior                           | citrees Solution                                                                           |
-| ---------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **Selection bias**     | Favors high-cardinality features        | Fixed-node Stage A permutation screening mitigates this multiplicity mechanism             |
+| Problem                | CART Behavior                           | citrees Solution                                                                             |
+| ---------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Selection bias**     | Favors high-cardinality features        | Fixed-node Stage A permutation screening mitigates this multiplicity mechanism               |
 | **Spurious splits**    | Finds "good" splits by chance           | Stage A must accept a feature before threshold search; Stage B is an algorithmic split score |
-| **Overfitting**        | Requires pruning/cross-validation       | Principled stopping via hypothesis tests                                                   |
-| **Feature importance** | Biased toward frequently-split features | Still uses impurity-decrease importance; Stage A mitigates a key root-level bias mechanism |
+| **Overfitting**        | Requires pruning/cross-validation       | Principled stopping via hypothesis tests                                                     |
+| **Feature importance** | Biased toward frequently-split features | Still uses impurity-decrease importance; Stage A mitigates a key root-level bias mechanism   |
 
 ## Installation
 
@@ -44,10 +44,16 @@ pip install -e .
 uv sync
 ```
 
+The installable `citrees` package has a small runtime dependency set. The
+benchmark and manuscript pipeline under `paper/` uses additional optional
+dependencies and is installed separately with the `paper` extra or dependency
+group.
+
 ## Experiment CLI (`citrees-exp`)
 
 This repository includes a Typer-based CLI for running the paper experiments,
-managing AWS/Ray infrastructure, and monitoring progress.
+managing the API-server/worker experiment pipeline, managing AWS infrastructure,
+and monitoring progress.
 
 ```bash
 # Install experiment CLI deps
@@ -73,8 +79,8 @@ from citrees import (
 clf = ConditionalInferenceTreeClassifier(
     selector="mc",           # Multiple correlation for feature selection
     splitter="gini",         # Gini impurity for split quality
-    alpha_selector=0.05,     # Significance level for feature selection
-    alpha_splitter=0.05,     # Significance level for split selection
+    alpha_selector=0.05,     # Screening threshold for feature selection
+    alpha_splitter=0.05,     # Screening threshold for split selection
 )
 clf.fit(X_train, y_train)
 predictions = clf.predict(X_test)
@@ -103,8 +109,11 @@ importances = forest.feature_importances_
 ### Statistical Feature Selection
 
 At each node, features are tested for association with the target using
-permutation tests. Only statistically significant features (p < alpha) are
-considered for splitting.
+permutation tests. A feature must pass the configured Stage A screening rule
+before citrees searches over thresholds for that feature. With fixed-$B$
+permutation tests, the root-node p-values have the usual exchangeability-based
+interpretation; with the default adaptive stopping, the values are best read as
+algorithmic screening and stopping scores.
 
 ### Multiple Selector Methods
 
@@ -119,8 +128,7 @@ considered for splitting.
 ### Advanced Capabilities
 
 - **Bonferroni Correction**: Controls nodewise fixed-$B$ Stage A rejection
-  probability under the complete permutation null when testing multiple
-  features
+  probability under the complete permutation null when testing multiple features
 - **Feature Muting**: Automatically removes clearly uninformative features
 - **Honest Estimation**: Optional sample splitting to reduce adaptive bias in
   leaf estimation (Wager & Athey, 2018)
@@ -131,7 +139,7 @@ The conditional inference algorithm (Hothorn et al., 2006) proceeds as follows:
 
 ```
 Algorithm: Conditional Inference Tree
-Input: Data (X, y), significance levels α_select, α_split
+Input: Data (X, y), screening thresholds α_select, α_split
 
 function BuildTree(X, y, depth):
     # Step 1: Test global null hypothesis
@@ -146,7 +154,7 @@ function BuildTree(X, y, depth):
     j* ← argmin(p_j)
 
     if p_j* ≥ α_adjusted:
-        return LeafNode(y)  # No significant feature found
+        return LeafNode(y)  # No feature passes Stage A screening
 
     # Step 2: Find an algorithmic split point for the selected feature
     for each threshold c in X_j*:
@@ -156,7 +164,7 @@ function BuildTree(X, y, depth):
     c* ← argmin(p_c)
 
     if p_c* ≥ α_split:
-        return LeafNode(y)  # No significant split found
+        return LeafNode(y)  # No threshold passes the split rule
 
     # Step 3: Recurse
     left ← {i : X_ij* ≤ c*}
@@ -176,8 +184,8 @@ function BuildTree(X, y, depth):
 | [Algorithm Details](docs/algorithm.md)         | Deep dive into conditional inference            |
 | [Selectors](docs/selectors.md)                 | Feature selection methods (mc, mi, rdc, pc, dc) |
 | [Splitters](docs/splitters.md)                 | Split criteria (gini, entropy, mse, mae)        |
-| [Permutation Tests](docs/permutation-tests.md) | Statistical testing framework                   |
-| [Honest Estimation](docs/honest-estimation.md) | Sample splitting for causal inference           |
+| [Permutation Tests](docs/permutation-tests.md) | Nodewise permutation tests and scope caveats    |
+| [Honest Estimation](docs/honest-estimation.md) | Sample splitting for leaf estimation            |
 
 ## Parameters Reference
 
@@ -227,14 +235,14 @@ function BuildTree(X, y, depth):
 
 ### Forest Parameters
 
-| Parameter          | Type                 | Default                     | Description                                   |
-| ------------------ | -------------------- | --------------------------- | --------------------------------------------- |
-| `n_estimators`     | int                  | 100                         | Number of trees                               |
-| `max_samples`      | int/float/None       | None                        | Bootstrap sample cap (count or fraction)      |
-| `bootstrap`        | bool                 | `True`                      | Whether to use bootstrap sampling              |
-| `sampling_method`  | SamplingMethod/None  | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap        |
-| `n_jobs`           | int/None             | None                        | Parallel jobs (-1 for all cores)              |
-| `oob_score`        | bool                 | False                       | Compute out-of-bag score (requires bootstrap) |
+| Parameter         | Type                | Default                     | Description                                   |
+| ----------------- | ------------------- | --------------------------- | --------------------------------------------- |
+| `n_estimators`    | int                 | 100                         | Number of trees                               |
+| `max_samples`     | int/float/None      | None                        | Bootstrap sample cap (count or fraction)      |
+| `bootstrap`       | bool                | `True`                      | Whether to use bootstrap sampling             |
+| `sampling_method` | SamplingMethod/None | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap        |
+| `n_jobs`          | int/None            | None                        | Parallel jobs (-1 for all cores)              |
+| `oob_score`       | bool                | False                       | Compute out-of-bag score (requires bootstrap) |
 
 Notes:
 
@@ -243,8 +251,8 @@ Notes:
 - `sampling_method` options: `stratified`, `undersample`, `oversample`.
 - `max_samples` is only used when `bootstrap=True`.
 - `bootstrap=False` disables bootstrapping (and thus OOB).
-- Invalid combinations (e.g., `bootstrap=False` with `sampling_method`
-  set) raise a validation error.
+- Invalid combinations (e.g., `bootstrap=False` with `sampling_method` set)
+  raise a validation error.
 - Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
   `None`).
 - OOB scores are computed only for samples that receive at least one OOB
@@ -260,14 +268,14 @@ Notes:
 
 ## Comparison with Other Methods
 
-| Feature                 | citrees | sklearn RF | XGBoost | R partykit |
-| ----------------------- | ------- | ---------- | ------- | ---------- |
-| High-cardinality split-selection bias mechanism | Mitigated by Stage A screening | Present | Present | Mitigated |
-| Statistical stopping    | Yes     | No         | No      | Yes        |
-| Permutation tests       | Yes     | No         | No      | Yes        |
-| Python native           | Yes     | Yes        | Yes     | No         |
-| GPU support             | No      | No         | Yes     | No         |
-| Honest estimation       | Yes     | No         | No      | Yes        |
+| Feature                                         | citrees                        | sklearn RF | XGBoost | R partykit |
+| ----------------------------------------------- | ------------------------------ | ---------- | ------- | ---------- |
+| High-cardinality split-selection bias mechanism | Mitigated by Stage A screening | Present    | Present | Mitigated  |
+| Test-based stopping                             | Yes                            | No         | No      | Yes        |
+| Permutation tests                               | Yes                            | No         | No      | Yes        |
+| Python native                                   | Yes                            | Yes        | Yes     | No         |
+| GPU support                                     | No                             | No         | Yes     | No         |
+| Honest estimation                               | Yes                            | No         | No      | Yes        |
 
 ## Benchmarks
 
@@ -289,19 +297,27 @@ For pure prediction performance on tabular data, gradient boosting methods
 uv sync
 
 # Run tests
-uv run pytest tests/ -v
+uv run pytest tests/unit tests/integration -v
 
 # Run linters
 uv run pre-commit run --all-files
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and
+[SUPPORT.md](SUPPORT.md) for issue-reporting and support expectations.
+
+## Releases
+
+Release notes are maintained in [CHANGELOG.md](CHANGELOG.md). The JOSS
+submission is currently prepared against version `0.1.0`.
 
 ## Citation
 
 ```bibtex
 @software{citrees,
   title = {citrees: Conditional Inference Trees and Forests for Python},
-  author = {Milletich, Robert J.},
-  year = {2024},
+  author = {Milletich, Robert and Downes, Justin and Goley, Steve and Hirst, Newel},
+  year = {2026},
   url = {https://github.com/rmill040/citrees}
 }
 ```

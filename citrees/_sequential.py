@@ -200,9 +200,34 @@ def _ptest_sequential_adaptive_batched(
 
     Parameters
     ----------
+    func : Any
+        Test statistic function.
+
+    func_arg : Any
+        Extra argument passed to ``func``.
+
+    x : np.ndarray
+        Feature values.
+
+    y : np.ndarray
+        Target values.
+
+    n_resamples : int
+        Maximum number of permutations.
+
+    alpha : float
+        Significance threshold for adaptive stopping.
+
+    confidence : float
+        Posterior confidence threshold for early stopping.
+
+    random_state : int
+        Random seed.
+
     batch_size : int or None
         Number of permutations between stopping criterion checks.
         If None, defaults to os.cpu_count() or 1.
+
     """
     np.random.seed(random_state)
     min_resamples = ceil(1.0 / alpha)

@@ -2,10 +2,9 @@
 
 ## Overview
 
-citrees implements **Conditional Inference Trees** (CIT), which differ
-fundamentally from traditional CART-style trees. The key innovation is
-separating **variable selection** from **split point selection** using
-statistical hypothesis testing.
+citrees implements **Conditional Inference Trees** (CIT), which differ from
+traditional CART-style trees by separating **variable selection** from **split
+point selection** using nodewise permutation screening.
 
 ## The Problem with Traditional Trees
 
@@ -34,7 +33,7 @@ Conditional Inference Trees address this by using **permutation tests**:
 
 ```
 For each node:
-    Step 1: VARIABLE SELECTION (test association with target)
+    Step 1: VARIABLE SELECTION (screen association with target)
         For each feature X_j:
             H0: X_j is independent of Y
             Compute p-value using permutation test
@@ -43,8 +42,7 @@ For each node:
 
     Step 2: SPLIT POINT SELECTION (given the selected feature)
         For each possible split point c:
-            H0: Split at c provides no improvement
-            Compute p-value using permutation test
+            Score weighted child impurity under label permutations
         Select split with lowest p-value
 ```
 
@@ -56,11 +54,14 @@ For each node:
    mechanism that favors features with many candidate split points (at a fixed
    node; see the scope note in `docs/permutation-tests.md`).
 
-2. **Principled stopping**: The tree stops growing when no feature has a
-   statistically significant association with the target. No need for pruning.
+2. **Test-based stopping**: The tree stops growing when no feature passes the
+   configured Stage A screening rule. This replaces a separate pruning step in
+   many workflows.
 
-3. **Interpretable importance**: Feature importance is based on how often a
-   feature passes the statistical test and how much impurity it reduces.
+3. **Bounded interpretation**: Feature importances are normalized impurity
+   decreases. Stage A screening reduces one major source of split-selection
+   bias, but the exposed importance scores should still be interpreted as model
+   summaries rather than formal inference.
 
 ---
 
@@ -118,16 +119,16 @@ def _ptest(func, x, y, n_resamples, alpha, early_stopping):
 
 ### Bonferroni Correction
 
-When testing multiple features at a fixed node in the exhaustive fixed-$B$
-Stage A reference procedure, the alpha is adjusted:
+When testing multiple features at a fixed node in the exhaustive fixed-$B$ Stage
+A reference procedure, the alpha is adjusted:
 
 ```python
 # Nodewise Bonferroni correction for fixed-B Stage A under the complete null
 alpha_adjusted = alpha / n_features
 ```
 
-Under the nodewise complete permutation null, this controls the probability
-that Stage A accepts at least one feature at that fixed node. It is not a
+Under the nodewise complete permutation null, this controls the probability that
+Stage A accepts at least one feature at that fixed node. It is not a
 forest-level, full-tree, selected-split, or adaptive-stopping guarantee.
 
 ### Feature Muting
@@ -167,12 +168,12 @@ splitting assumptions). For full details, see the dedicated documentation:
 
 ## Summary: What Each Feature Adds
 
-| Feature                   | Scientific Contribution                     | When to Use                   |
-| ------------------------- | ------------------------------------------- | ----------------------------- |
-| **Permutation tests**     | Reduced selection bias, test-based stopping | Always (core algorithm)       |
-| **Bonferroni correction** | Controls nodewise fixed-$B$ Stage A rejection under the complete null | Conservative tree growth |
-| **Feature muting**        | Accelerates training                        | Large feature spaces          |
-| **Honesty**               | Reduced adaptive bias in leaf estimation    | Causal/estimation contexts    |
+| Feature                   | Scientific Contribution                                               | When to Use                  |
+| ------------------------- | --------------------------------------------------------------------- | ---------------------------- |
+| **Permutation tests**     | Reduced selection bias, test-based stopping                           | Core algorithm               |
+| **Bonferroni correction** | Controls nodewise fixed-$B$ Stage A rejection under the complete null | Conservative tree growth     |
+| **Feature muting**        | Accelerates training                                                  | Large feature spaces         |
+| **Honesty**               | Reduced adaptive bias in leaf estimation                              | Estimation-focused workflows |
 
 ## References
 

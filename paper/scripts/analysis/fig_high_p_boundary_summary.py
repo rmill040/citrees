@@ -76,8 +76,12 @@ def main() -> None:
     best = pd.read_csv(TABLES_DIR / "paper_high_p_cif_best_observed_k_summary.csv")
     endpoint = pd.read_csv(TABLES_DIR / "paper_high_p_cif_endpoint_summary.csv")
 
-    best = best[(best["task"] == "classification") & (best["downstream_model"].isin(DOWNSTREAMS))].copy()
-    endpoint = endpoint[(endpoint["task"] == "classification") & (endpoint["downstream_model"].isin(DOWNSTREAMS))].copy()
+    best = best[
+        (best["task"] == "classification") & (best["downstream_model"].isin(DOWNSTREAMS))
+    ].copy()
+    endpoint = endpoint[
+        (endpoint["task"] == "classification") & (endpoint["downstream_model"].isin(DOWNSTREAMS))
+    ].copy()
     best = best.set_index("downstream_model").loc[DOWNSTREAMS].reset_index()
     endpoint = endpoint.set_index("downstream_model").loc[DOWNSTREAMS].reset_index()
 
@@ -128,7 +132,12 @@ def main() -> None:
                 va="top",
                 fontsize=10,
                 color="#111827",
-                bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.9},
+                bbox={
+                    "boxstyle": "round,pad=0.12",
+                    "facecolor": "white",
+                    "edgecolor": "none",
+                    "alpha": 0.9,
+                },
             )
 
     axes[0].legend(

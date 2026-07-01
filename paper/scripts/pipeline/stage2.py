@@ -181,7 +181,9 @@ def get_requested_evaluation_k_values(n_features: int) -> list[int]:
     )
 
 
-def metrics_cover_requested_k_values(metrics_df: pd.DataFrame, required_k_values: list[int]) -> bool:
+def metrics_cover_requested_k_values(
+    metrics_df: pd.DataFrame, required_k_values: list[int]
+) -> bool:
     """Return True when an existing metrics artifact already covers the active k schedule."""
     if "k" not in metrics_df.columns:
         return False

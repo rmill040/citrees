@@ -88,6 +88,7 @@ def _parallel_fit_classifier(
     -------
     ConditionalInferenceTreeClassifier
         Fitted estimator.
+
     """
     if verbose and estimator_idx % _PRINT_FACTOR[verbose] == 0:
         print(f"Building tree {estimator_idx}/{n_estimators}")
@@ -158,6 +159,7 @@ def _parallel_fit_regressor(
     -------
     ConditionalInferenceTreeRegressor
         Fitted estimator.
+
     """
     if verbose and estimator_idx % _PRINT_FACTOR[verbose] == 0:
         print(f"Building tree {estimator_idx}/{n_estimators}")
@@ -191,9 +193,7 @@ class BaseConditionalInferenceForestParameters(BaseConditionalInferenceTreeParam
             if self.max_samples is not None:
                 raise ValueError("max_samples must be None when bootstrap=False")
             if self.oob_score:
-                raise ValueError(
-                    "oob_score requires bootstrap to be set (bootstrap enabled)"
-                )
+                raise ValueError("oob_score requires bootstrap to be set (bootstrap enabled)")
         return self
 
 
@@ -322,6 +322,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         -------
         type[BaseModel]
             Model to validate hyperparameters.
+
         """
         return BaseConditionalInferenceForestParameters
 
@@ -340,6 +341,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         -------
         self
             Fitted estimator.
+
         """
         X, y = self._validate_data_fit(X=X, y=y, estimator_type=self._estimator_type)
         n, p = X.shape
@@ -444,9 +446,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
         if self.oob_score:
             if self._bootstrap is None:
-                raise ValueError(
-                    "oob_score requires bootstrap to be set (bootstrap enabled)."
-                )
+                raise ValueError("oob_score requires bootstrap to be set (bootstrap enabled).")
             self._compute_oob_score(X, y)
 
         return self
@@ -480,19 +480,30 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
 
         for j, estimator in enumerate(self.estimators_):
             if self._estimator_type == EstimatorType.CLASSIFIER:
-                kwargs = {
-                    "y": y,
-                    "max_samples": self._max_samples,
-                    "random_state": self._random_state + j,
-                }
                 if self._sampling_method == SamplingMethod.STRATIFIED:
-                    boot_idx = stratified_bootstrap_sample(**kwargs)
+                    boot_idx = stratified_bootstrap_sample(
+                        y=y,
+                        max_samples=self._max_samples,
+                        random_state=self._random_state + j,
+                    )
                 elif self._sampling_method == SamplingMethod.UNDERSAMPLE:
-                    boot_idx = undersample_bootstrap_sample(**kwargs)
+                    boot_idx = undersample_bootstrap_sample(
+                        y=y,
+                        max_samples=self._max_samples,
+                        random_state=self._random_state + j,
+                    )
                 elif self._sampling_method == SamplingMethod.OVERSAMPLE:
-                    boot_idx = oversample_bootstrap_sample(**kwargs)
+                    boot_idx = oversample_bootstrap_sample(
+                        y=y,
+                        max_samples=self._max_samples,
+                        random_state=self._random_state + j,
+                    )
                 else:
-                    boot_idx = classic_bootstrap_sample(**kwargs)
+                    boot_idx = classic_bootstrap_sample(
+                        y=y,
+                        max_samples=self._max_samples,
+                        random_state=self._random_state + j,
+                    )
             else:
                 boot_idx = classic_bootstrap_sample(
                     y=y,
@@ -555,6 +566,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             Sparse indicator matrix with concatenated node paths.
         n_nodes_ptr : np.ndarray
             Cumulative sum of node counts for each estimator.
+
         """
         X = self._validate_data_predict(X)
 
@@ -663,6 +675,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         -------
         type[BaseModel]
             Model to validate hyperparameters.
+
         """
         return ConditionalInferenceForestClassifierParameters
 
@@ -678,6 +691,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         -------
         np.ndarray
             Predicted class probabilities.
+
         """
         X = self._validate_data_predict(X)
 
@@ -702,6 +716,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         -------
         np.ndarray
             Predicted class labels.
+
         """
         X = self._validate_data_predict(X)
 
@@ -825,6 +840,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
 
     oob_prediction_ : np.ndarray
         Out-of-bag predictions (if enabled).
+
     """
 
     _estimator_type = "regressor"
@@ -912,6 +928,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         -------
         np.ndarray
             Predicted target values.
+
         """
         X = self._validate_data_predict(X)
 

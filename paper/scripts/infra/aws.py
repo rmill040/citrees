@@ -510,7 +510,9 @@ def build_and_push_image(region: str = DEFAULT_REGION) -> str:
             info("Pushing to ECR...")
             for tag in [image_tag_sha, image_tag_latest]:
                 step(f"Pushing: {tag}")
-                push_cmd = subprocess.run(["docker", "push", tag], capture_output=False, env=docker_env)
+                push_cmd = subprocess.run(
+                    ["docker", "push", tag], capture_output=False, env=docker_env
+                )
                 if push_cmd.returncode != 0:
                     raise RuntimeError(f"Docker push failed for {tag}")
 

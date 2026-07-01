@@ -73,6 +73,23 @@ class TestRegistry:
         assert "func1" in keys
         assert "func2" in keys
 
+    def test_mapping_protocol_helpers(self):
+        """Test len(), iteration, and non-string membership checks."""
+        reg = Registry("TestRegistry")
+
+        @reg.register("func1")
+        def func1():
+            return "one"
+
+        @reg.register("func2")
+        def func2():
+            return "two"
+
+        assert len(reg) == 2
+        assert list(reg) == ["func1", "func2"]
+        assert 0 not in reg
+        assert object() not in reg
+
 
 class TestPredefinedRegistries:
     """Tests for predefined registries."""

@@ -11,7 +11,7 @@ Outputs:
   - paper/results/tables/cif_pairwise_trajectory_summary.csv
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/maintenance/audit_dataset_k_trajectories.py
+  uv run python paper/scripts/maintenance/audit_dataset_k_trajectories.py
 """
 
 from __future__ import annotations
@@ -152,7 +152,9 @@ def _pairwise_rows(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit dataset-level trajectories across supported k values")
+    parser = argparse.ArgumentParser(
+        description="Audit dataset-level trajectories across supported k values"
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,

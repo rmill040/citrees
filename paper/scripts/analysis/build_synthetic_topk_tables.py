@@ -123,7 +123,9 @@ def _build_feature_groups(meta: dict[str, object]) -> FeatureGroups:
     redundant = set(int(i) for i in meta.get("redundant_indices", []))
     explicit_noise = set(int(i) for i in meta.get("noise_indices", []))
     correlated_noise = set(int(i) for i in meta.get("correlated_noise_indices", []))
-    background_null = set(range(n_features_final)) - informative - redundant - explicit_noise - correlated_noise
+    background_null = (
+        set(range(n_features_final)) - informative - redundant - explicit_noise - correlated_noise
+    )
 
     return {
         "informative": informative,
@@ -198,7 +200,9 @@ def _select_best_configs(diagnostics: pd.DataFrame) -> pd.DataFrame:
     return best
 
 
-def _compute_task_rows_from_rankings(task: str, rankings: pd.DataFrame, data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _compute_task_rows_from_rankings(
+    task: str, rankings: pd.DataFrame, data_dir: Path
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return row-level metrics and best-config table for one task from rankings."""
     rankings = rankings[rankings["dataset_source"] == "synthetic"].copy()
 
@@ -252,7 +256,9 @@ def _compute_task_rows_from_rankings(task: str, rankings: pd.DataFrame, data_dir
     return diagnostics, best
 
 
-def _compute_task_rows(task: str, rankings_path: Path, data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _compute_task_rows(
+    task: str, rankings_path: Path, data_dir: Path
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return row-level metrics and best-config table for one task."""
     if not rankings_path.exists():
         return pd.DataFrame(), pd.DataFrame()
@@ -357,7 +363,9 @@ def _summarize_by_dataset_type(df: pd.DataFrame) -> pd.DataFrame:
             n_datasets=("dataset", "nunique"),
             **{metric: (metric, "mean") for metric in metric_cols},
         )
-        .sort_values(["task", "dataset_type", "k", "informative_share"], ascending=[True, True, True, False])
+        .sort_values(
+            ["task", "dataset_type", "k", "informative_share"], ascending=[True, True, True, False]
+        )
         .reset_index(drop=True)
     )
     return summary
@@ -390,7 +398,9 @@ def _summarize_by_dataset(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     summary = (
-        df.groupby(["task", "dataset", "dataset_type", "method_base", "method_id", "k"], as_index=False)
+        df.groupby(
+            ["task", "dataset", "dataset_type", "method_base", "method_id", "k"], as_index=False
+        )
         .agg(
             n_rankings=("dataset", "size"),
             n_datasets=("dataset", "nunique"),
@@ -480,9 +490,9 @@ def _summarize_curve_over_k(df: pd.DataFrame, group_cols: list[str]) -> pd.DataF
 def _build_focus_table(summary: pd.DataFrame) -> pd.DataFrame:
     """Filter the overall summary to method-family comparisons used in Figure 4."""
     focus = summary[summary["method_base"].isin(FOCUS_METHODS)].copy()
-    return focus.sort_values(["task", "k", "informative_share"], ascending=[True, True, False]).reset_index(
-        drop=True
-    )
+    return focus.sort_values(
+        ["task", "k", "informative_share"], ascending=[True, True, False]
+    ).reset_index(drop=True)
 
 
 def _setup_style() -> None:
@@ -565,7 +575,9 @@ def _save_focus_figure(focus: pd.DataFrame) -> None:
             title = family_title if row_idx == 0 else ""
             _plot_family(axes[row_idx, col_idx], focus, task=task, methods=methods, title=title)
             if col_idx == 0:
-                axes[row_idx, col_idx].set_ylabel(f"{TASK_TITLES[task]}\n\\% informative\namong selected")
+                axes[row_idx, col_idx].set_ylabel(
+                    f"{TASK_TITLES[task]}\n\\% informative\namong selected"
+                )
             if row_idx == 1:
                 axes[row_idx, col_idx].set_xlabel(r"Number of selected features ($k$)")
 
@@ -625,8 +637,12 @@ def main() -> None:
     best_config_details.to_csv(TABLES_DIR / "synthetic_topk_best_config_details.csv", index=False)
     summary.to_csv(TABLES_DIR / "synthetic_topk_composition_summary.csv", index=False)
     curve_summary.to_csv(TABLES_DIR / "synthetic_topk_composition_curve_summary.csv", index=False)
-    by_dataset_type.to_csv(TABLES_DIR / "synthetic_topk_composition_by_dataset_type.csv", index=False)
-    curve_by_dataset_type.to_csv(TABLES_DIR / "synthetic_topk_composition_curve_by_dataset_type.csv", index=False)
+    by_dataset_type.to_csv(
+        TABLES_DIR / "synthetic_topk_composition_by_dataset_type.csv", index=False
+    )
+    curve_by_dataset_type.to_csv(
+        TABLES_DIR / "synthetic_topk_composition_curve_by_dataset_type.csv", index=False
+    )
     by_dataset.to_csv(TABLES_DIR / "synthetic_topk_composition_by_dataset.csv", index=False)
     focus.to_csv(TABLES_DIR / "synthetic_topk_composition_focus.csv", index=False)
 

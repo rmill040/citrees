@@ -132,7 +132,9 @@ def main() -> None:
             title = family_title if row_idx == 0 else ""
             _plot_family(axes[row_idx, col_idx], focus, task=task, methods=methods, title=title)
             if col_idx == 0:
-                axes[row_idx, col_idx].set_ylabel(f"{TASK_TITLES[task]}\n\\% informative\namong selected")
+                axes[row_idx, col_idx].set_ylabel(
+                    f"{TASK_TITLES[task]}\n\\% informative\namong selected"
+                )
             if row_idx == 1:
                 axes[row_idx, col_idx].set_xlabel(r"Number of selected features ($k$)")
 

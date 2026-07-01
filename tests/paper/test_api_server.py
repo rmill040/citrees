@@ -62,6 +62,8 @@ def test_existing_metrics_covering_high_p_bridge_are_complete():
     )
     store = _FakeStore(
         rankings_df=pd.DataFrame({"feature_ranking": [list(range(1200))]}),
-        metrics_df=pd.DataFrame({"k": [5, 10, 25, 50, 100, 150, 200, 300, 500, 600, 750, 900, 1000, 1200]}),
+        metrics_df=pd.DataFrame(
+            {"k": [5, 10, 25, 50, 100, 150, 200, 300, 500, 600, 750, 900, 1000, 1200]}
+        ),
     )
     assert not _needs_metrics_work(store, cfg, completed_metrics={cfg.key})

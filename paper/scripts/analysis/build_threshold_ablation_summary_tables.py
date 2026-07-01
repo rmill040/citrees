@@ -8,8 +8,8 @@ support knob-level statements without relaxing the main benchmark contract.
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Final
 
 import pandas as pd
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from paper.scripts.analysis.benchmark_common import TABLES_DIR
+from paper.scripts.analysis.benchmark_common import TABLES_DIR  # noqa: E402
 
 THRESHOLD_ABLATION_PATH: Final[Path] = TABLES_DIR / "threshold_search_ablation.csv"
 DEFAULT_VARIANT: Final[str] = "histogram_256"
@@ -62,9 +62,15 @@ def build_threshold_ablation_summary(df: pd.DataFrame) -> pd.DataFrame:
     for task in sorted(df["task"].unique()):
         task_frame = df[df["task"] == task].copy()
         task_frame["dataset_group"] = task_frame["dataset_type"].map(dataset_group_label)
-        task_frame["real_downstream_mean"] = mean_available_columns(task_frame, REAL_SCORE_COLUMNS[task])
-        task_frame["synthetic_quality_mean"] = mean_available_columns(task_frame, SYNTHETIC_SCORE_COLUMNS)
-        task_frame["precision_curve_mean"] = mean_available_columns(task_frame, STANDARD_PRECISION_COLUMNS)
+        task_frame["real_downstream_mean"] = mean_available_columns(
+            task_frame, REAL_SCORE_COLUMNS[task]
+        )
+        task_frame["synthetic_quality_mean"] = mean_available_columns(
+            task_frame, SYNTHETIC_SCORE_COLUMNS
+        )
+        task_frame["precision_curve_mean"] = mean_available_columns(
+            task_frame, STANDARD_PRECISION_COLUMNS
+        )
 
         summary = (
             task_frame.groupby(["task", "dataset_group", "variant"], as_index=False)
@@ -112,9 +118,13 @@ def build_threshold_ablation_summary(df: pd.DataFrame) -> pd.DataFrame:
         )
 
         summary = summary.merge(defaults, on=["task", "dataset_group"], how="left")
-        summary["elapsed_seconds_ratio_vs_default"] = summary["mean_elapsed_seconds"] / summary["default_elapsed_seconds"]
+        summary["elapsed_seconds_ratio_vs_default"] = (
+            summary["mean_elapsed_seconds"] / summary["default_elapsed_seconds"]
+        )
         summary["delta_depth_vs_default"] = summary["mean_depth"] - summary["default_depth"]
-        summary["delta_features_used_vs_default"] = summary["mean_features_used"] - summary["default_features_used"]
+        summary["delta_features_used_vs_default"] = (
+            summary["mean_features_used"] - summary["default_features_used"]
+        )
         summary["delta_real_downstream_vs_default"] = (
             summary["mean_real_downstream_score"] - summary["default_real_downstream_score"]
         )

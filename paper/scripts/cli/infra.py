@@ -221,13 +221,9 @@ def upload_data(
         result = upload_datasets(task=task, dry_run=dry_run, force=force)
 
     if dry_run:
-        info(
-            f"Would upload {result['uploaded']} files, skip {result['skipped']} existing"
-        )
+        info(f"Would upload {result['uploaded']} files, skip {result['skipped']} existing")
     else:
-        success(
-            f"Uploaded {result['uploaded']} files, skipped {result['skipped']} existing"
-        )
+        success(f"Uploaded {result['uploaded']} files, skipped {result['skipped']} existing")
 
 
 # ---------------------------------------------------------------------------

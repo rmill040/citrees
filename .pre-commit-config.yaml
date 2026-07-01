@@ -11,11 +11,14 @@ repos:
       - id: check-json
       - id: check-case-conflict
       - id: end-of-file-fixer
+        exclude: ^paper/results/
       - id: trailing-whitespace
+        exclude: ^paper/results/
       - id: debug-statements
       - id: detect-private-key
       - id: mixed-line-ending
         args: ["--fix=lf"]
+        exclude: ^paper/results/
       - id: fix-byte-order-marker
 
   - repo: https://github.com/astral-sh/uv-pre-commit
@@ -32,6 +35,8 @@ repos:
     rev: v1.40.0
     hooks:
       - id: typos
+        args: [--config, .typos.toml]
+        exclude: ^(paper/results/|paper/scripts/archive/)
 
   - repo: local
     hooks:
@@ -59,7 +64,7 @@ repos:
           - --log-level=error
           - --prose-wrap=always
         files: \.(md|yaml|yml|json)$
-        exclude: ^(uv\.lock)
+        exclude: ^(uv\.lock|paper/results/)
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.11

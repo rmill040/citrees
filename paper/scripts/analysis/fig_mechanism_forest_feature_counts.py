@@ -33,7 +33,9 @@ OUTPUT_NAME = "paper_mechanism_grid_forest_classification_feature_counts_p1000_i
 
 
 def _load_counts() -> pd.DataFrame:
-    counts = pd.read_csv(TABLES_DIR / "paper_mechanism_grid_forest_classification_feature_counts.csv")
+    counts = pd.read_csv(
+        TABLES_DIR / "paper_mechanism_grid_forest_classification_feature_counts.csv"
+    )
     counts = counts[
         (counts["study"] == "ensemble_split_counts")
         & (counts["dataset"] == DATASET)

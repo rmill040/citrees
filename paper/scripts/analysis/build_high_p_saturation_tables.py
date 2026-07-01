@@ -19,7 +19,7 @@ Outputs:
   - paper/results/tables/paper_high_p_endpoint_spread.csv
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
+  uv run python paper/scripts/analysis/build_high_p_saturation_tables.py
 """
 
 from __future__ import annotations

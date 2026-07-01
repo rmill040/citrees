@@ -79,7 +79,14 @@ def _run_synthetic(rows: list[dict[str, Any]]) -> None:
                     X, y, info, _ = ds_fn(seed)
                     model = build_cif(task, seed, **overrides)
                     result = fit_and_evaluate_with_structure(
-                        X, y, info, model, seed, task, is_conf, n_base,
+                        X,
+                        y,
+                        info,
+                        model,
+                        seed,
+                        task,
+                        is_conf,
+                        n_base,
                     )
                     seed_results.append(result)
 
@@ -102,7 +109,14 @@ def _run_synthetic(rows: list[dict[str, Any]]) -> None:
                     X, y, info, _ = ds_fn(seed)
                     model = build_baseline(method, task, seed)
                     result = fit_and_evaluate_with_structure(
-                        X, y, info, model, seed, task, is_conf, n_base,
+                        X,
+                        y,
+                        info,
+                        model,
+                        seed,
+                        task,
+                        is_conf,
+                        n_base,
                     )
                     seed_results.append(result)
 

@@ -96,9 +96,7 @@ class ExperimentGrid:
 
     def __len__(self) -> int:
         """Total number of configurations in the grid."""
-        excluded = sum(
-            1 for m in self.methods for d in self.datasets if (m.name, d) in _EXCLUDED
-        )
+        excluded = sum(1 for m in self.methods for d in self.datasets if (m.name, d) in _EXCLUDED)
         base = (len(self.methods) * len(self.datasets) - excluded) * len(self.seeds)
         skipped = sum(
             1
@@ -177,7 +175,7 @@ class ExperimentGrid:
         Returns
         -------
         ExperimentGrid
-            Configured experiment grid.
+            Configured experiments.
 
         Raises
         ------

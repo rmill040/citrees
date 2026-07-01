@@ -146,7 +146,9 @@ def build_baseline(method: str, task: str, seed: int) -> BaseEstimator:
     """Build a baseline model (rf, et, cit) for comparison."""
     if method == "rf":
         if task == "clf":
-            return RandomForestClassifier(n_estimators=N_ESTIMATORS, n_jobs=N_JOBS, random_state=seed)
+            return RandomForestClassifier(
+                n_estimators=N_ESTIMATORS, n_jobs=N_JOBS, random_state=seed
+            )
         return RandomForestRegressor(n_estimators=N_ESTIMATORS, n_jobs=N_JOBS, random_state=seed)
     elif method == "et":
         if task == "clf":
@@ -167,13 +169,19 @@ def make_clf_downstream(seed: int, *, n_jobs: int = 1) -> dict[str, BaseEstimato
     """Downstream classifiers matching Stage 2 canonical params."""
     return {
         "lr": LogisticRegression(
-            max_iter=1000, class_weight="balanced", random_state=seed,
+            max_iter=1000,
+            class_weight="balanced",
+            random_state=seed,
         ),
         "svm": SVC(
-            class_weight="balanced", probability=True, random_state=seed,
+            class_weight="balanced",
+            probability=True,
+            random_state=seed,
         ),
         "knn": KNeighborsClassifier(
-            n_neighbors=5, weights="distance", n_jobs=n_jobs,
+            n_neighbors=5,
+            weights="distance",
+            n_jobs=n_jobs,
         ),
     }
 
@@ -184,7 +192,9 @@ def make_reg_downstream(seed: int, *, n_jobs: int = 1) -> dict[str, BaseEstimato
         "ridge": Ridge(alpha=1.0, random_state=seed),
         "svr": SVR(),
         "knn": KNeighborsRegressor(
-            n_neighbors=5, weights="distance", n_jobs=n_jobs,
+            n_neighbors=5,
+            weights="distance",
+            n_jobs=n_jobs,
         ),
     }
 
@@ -194,9 +204,7 @@ def make_reg_downstream(seed: int, *, n_jobs: int = 1) -> dict[str, BaseEstimato
 # =============================================================================
 
 
-def shuffle_columns(
-    X: np.ndarray, n_informative: int, seed: int
-) -> tuple[np.ndarray, list[int]]:
+def shuffle_columns(X: np.ndarray, n_informative: int, seed: int) -> tuple[np.ndarray, list[int]]:
     """Randomly permute columns and return updated informative indices."""
     rng = np.random.RandomState(seed)
     perm = rng.permutation(X.shape[1])
@@ -209,9 +217,15 @@ def shuffle_columns(
 def clf_standard_easy(seed: int) -> SyntheticDataset:
     """Easy classification: n=1000, p=100, k=10, class_sep=2.0."""
     X, y = make_classification(
-        n_samples=1000, n_features=100, n_informative=10, n_redundant=0,
-        n_clusters_per_class=2, class_sep=2.0, flip_y=0.0,
-        random_state=seed, shuffle=False,
+        n_samples=1000,
+        n_features=100,
+        n_informative=10,
+        n_redundant=0,
+        n_clusters_per_class=2,
+        class_sep=2.0,
+        flip_y=0.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 10, seed)
     return X, y, info, "clf_standard_easy"
@@ -220,9 +234,15 @@ def clf_standard_easy(seed: int) -> SyntheticDataset:
 def clf_standard_hard(seed: int) -> SyntheticDataset:
     """Hard classification: n=200, p=1000, k=5, class_sep=0.5."""
     X, y = make_classification(
-        n_samples=200, n_features=1000, n_informative=5, n_redundant=0,
-        n_clusters_per_class=2, class_sep=0.5, flip_y=0.0,
-        random_state=seed, shuffle=False,
+        n_samples=200,
+        n_features=1000,
+        n_informative=5,
+        n_redundant=0,
+        n_clusters_per_class=2,
+        class_sep=0.5,
+        flip_y=0.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 5, seed)
     return X, y, info, "clf_standard_hard"
@@ -231,9 +251,15 @@ def clf_standard_hard(seed: int) -> SyntheticDataset:
 def clf_weak_signal(seed: int) -> SyntheticDataset:
     """Weak signal classification: class_sep=0.1, flip_y=0.1."""
     X, y = make_classification(
-        n_samples=1000, n_features=100, n_informative=10, n_redundant=0,
-        n_clusters_per_class=2, class_sep=0.1, flip_y=0.1,
-        random_state=seed, shuffle=False,
+        n_samples=1000,
+        n_features=100,
+        n_informative=10,
+        n_redundant=0,
+        n_clusters_per_class=2,
+        class_sep=0.1,
+        flip_y=0.1,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 10, seed)
     return X, y, info, "clf_weak_signal"
@@ -268,9 +294,15 @@ def clf_toeplitz(seed: int) -> SyntheticDataset:
 def clf_confounder(seed: int) -> SyntheticDataset:
     """Classification with 20 confounder columns correlated at rho=0.9."""
     X, y = make_classification(
-        n_samples=1000, n_features=100, n_informative=10, n_redundant=0,
-        n_clusters_per_class=2, class_sep=1.0, flip_y=0.0,
-        random_state=seed, shuffle=False,
+        n_samples=1000,
+        n_features=100,
+        n_informative=10,
+        n_redundant=0,
+        n_clusters_per_class=2,
+        class_sep=1.0,
+        flip_y=0.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 10, seed)
     rng = np.random.RandomState(seed + 3)
@@ -287,9 +319,15 @@ def clf_confounder(seed: int) -> SyntheticDataset:
 def clf_bias(seed: int) -> SyntheticDataset:
     """Classification with 50 high-cardinality integer noise features."""
     X, y = make_classification(
-        n_samples=1000, n_features=50, n_informative=10, n_redundant=0,
-        n_clusters_per_class=2, class_sep=1.0, flip_y=0.0,
-        random_state=seed, shuffle=False,
+        n_samples=1000,
+        n_features=50,
+        n_informative=10,
+        n_redundant=0,
+        n_clusters_per_class=2,
+        class_sep=1.0,
+        flip_y=0.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 10, seed)
     rng = np.random.RandomState(seed + 1)
@@ -319,8 +357,14 @@ def clf_redundant(seed: int) -> SyntheticDataset:
 
 
 CLF_ALL = [
-    clf_standard_easy, clf_standard_hard, clf_weak_signal, clf_nonlinear,
-    clf_toeplitz, clf_confounder, clf_bias, clf_redundant,
+    clf_standard_easy,
+    clf_standard_hard,
+    clf_weak_signal,
+    clf_nonlinear,
+    clf_toeplitz,
+    clf_confounder,
+    clf_bias,
+    clf_redundant,
 ]
 CLF_CHALLENGING = [clf_confounder, clf_toeplitz, clf_weak_signal]
 
@@ -340,8 +384,12 @@ def reg_friedman(seed: int) -> SyntheticDataset:
 def reg_linear(seed: int) -> SyntheticDataset:
     """Linear regression: n=1000, p=100, k=10, noise=10."""
     X, y = make_regression(
-        n_samples=1000, n_features=100, n_informative=10,
-        noise=10.0, random_state=seed, shuffle=False,
+        n_samples=1000,
+        n_features=100,
+        n_informative=10,
+        noise=10.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 10, seed)
     return X, y, info, "reg_linear"
@@ -350,8 +398,12 @@ def reg_linear(seed: int) -> SyntheticDataset:
 def reg_highdim(seed: int) -> SyntheticDataset:
     """High-dimensional regression: n=200, p=500, k=5."""
     X, y = make_regression(
-        n_samples=200, n_features=500, n_informative=5,
-        noise=10.0, random_state=seed, shuffle=False,
+        n_samples=200,
+        n_features=500,
+        n_informative=5,
+        noise=10.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 5, seed)
     return X, y, info, "reg_highdim"
@@ -377,8 +429,12 @@ def reg_toeplitz(seed: int) -> SyntheticDataset:
 def reg_weak_signal(seed: int) -> SyntheticDataset:
     """Weak signal regression: noise=100."""
     X, y = make_regression(
-        n_samples=1000, n_features=100, n_informative=10,
-        noise=100.0, random_state=seed, shuffle=False,
+        n_samples=1000,
+        n_features=100,
+        n_informative=10,
+        noise=100.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 10, seed)
     return X, y, info, "reg_weak_signal"
@@ -387,8 +443,12 @@ def reg_weak_signal(seed: int) -> SyntheticDataset:
 def reg_confounder(seed: int) -> SyntheticDataset:
     """Regression with 20 confounder columns correlated at rho=0.9."""
     X, y = make_regression(
-        n_samples=1000, n_features=100, n_informative=10,
-        noise=10.0, random_state=seed, shuffle=False,
+        n_samples=1000,
+        n_features=100,
+        n_informative=10,
+        noise=10.0,
+        random_state=seed,
+        shuffle=False,
     )
     X, info = shuffle_columns(X, 10, seed)
     rng = np.random.RandomState(seed + 3)
@@ -410,8 +470,15 @@ REG_CHALLENGING = [reg_confounder, reg_toeplitz, reg_weak_signal]
 # Real dataset loaders
 # =============================================================================
 
-REAL_CLF_NAMES = ["iris", "wine", "breast_cancer", "digits",
-                  "openml_madelon", "openml_waveform", "openml_optdigits"]
+REAL_CLF_NAMES = [
+    "iris",
+    "wine",
+    "breast_cancer",
+    "digits",
+    "openml_madelon",
+    "openml_waveform",
+    "openml_optdigits",
+]
 REAL_REG_NAMES = ["diabetes", "california"]
 
 
@@ -429,14 +496,17 @@ def load_real_clf(name: str) -> RealDataset:
         X, y = data.data, data.target
     elif name == "openml_madelon":
         from sklearn.datasets import fetch_openml
+
         data = fetch_openml(data_id=1485, as_frame=False, parser="auto")
         X, y = data.data, data.target.astype(int)
     elif name == "openml_waveform":
         from sklearn.datasets import fetch_openml
+
         data = fetch_openml(data_id=60, as_frame=False, parser="auto")
         X, y = data.data, data.target.astype(int)
     elif name == "openml_optdigits":
         from sklearn.datasets import fetch_openml
+
         data = fetch_openml(data_id=28, as_frame=False, parser="auto")
         X, y = data.data, data.target.astype(int)
     else:
@@ -584,8 +654,12 @@ def fit_and_evaluate(
         result.update(downstream_reg(X, y, ranking, K, seed))
 
     if has_confounders and n_base_features is not None and true_info is not None:
-        result["confounder_rate_at_5"] = compute_confounder_rate(ranking, true_info, n_base_features, 5)
-        result["confounder_rate_at_10"] = compute_confounder_rate(ranking, true_info, n_base_features, 10)
+        result["confounder_rate_at_5"] = compute_confounder_rate(
+            ranking, true_info, n_base_features, 5
+        )
+        result["confounder_rate_at_10"] = compute_confounder_rate(
+            ranking, true_info, n_base_features, 10
+        )
 
     return result
 
@@ -601,8 +675,7 @@ def fit_and_evaluate_with_structure(
     n_base_features: int | None = None,
 ) -> dict[str, float]:
     """Like fit_and_evaluate but also captures tree structure stats."""
-    result = fit_and_evaluate(X, y, true_info, model, seed, task,
-                              has_confounders, n_base_features)
+    result = fit_and_evaluate(X, y, true_info, model, seed, task, has_confounders, n_base_features)
     result.update(get_tree_stats(model))
     return result
 
@@ -612,18 +685,34 @@ def fit_and_evaluate_with_structure(
 # =============================================================================
 
 _ALL_METRICS = [
-    "precision_at_10", "recall_at_10", "f1_at_10", "spread_at_10",
-    "lr_ba", "svm_ba", "knn_ba", "ridge_r2", "svr_r2", "knn_r2", "elapsed_seconds",
-    "confounder_rate_at_5", "confounder_rate_at_10",
-    "mean_depth", "max_depth", "mean_features_used",
+    "precision_at_10",
+    "recall_at_10",
+    "f1_at_10",
+    "spread_at_10",
+    "lr_ba",
+    "svm_ba",
+    "knn_ba",
+    "ridge_r2",
+    "svr_r2",
+    "knn_r2",
+    "elapsed_seconds",
+    "confounder_rate_at_5",
+    "confounder_rate_at_10",
+    "mean_depth",
+    "max_depth",
+    "mean_features_used",
 ]
 
 
-def aggregate_seeds(seed_results: list[dict[str, float]], base_row: dict[str, Any]) -> dict[str, Any]:
+def aggregate_seeds(
+    seed_results: list[dict[str, float]], base_row: dict[str, Any]
+) -> dict[str, Any]:
     """Aggregate per-seed results into mean/std for each metric."""
     agg: dict[str, Any] = dict(base_row)
     for metric in _ALL_METRICS:
-        vals = [r[metric] for r in seed_results if metric in r and not np.isnan(r.get(metric, np.nan))]
+        vals = [
+            r[metric] for r in seed_results if metric in r and not np.isnan(r.get(metric, np.nan))
+        ]
         if vals:
             agg[f"{metric}_mean"] = float(np.mean(vals))
             agg[f"{metric}_std"] = float(np.std(vals))
@@ -632,12 +721,12 @@ def aggregate_seeds(seed_results: list[dict[str, float]], base_row: dict[str, An
 
 def format_line(variant_name: str, agg: dict[str, Any], has_confounders: bool = False) -> str:
     """Format a single-line progress summary for console output."""
-    p10 = agg.get("precision_at_10_mean", None)
-    f1 = agg.get("f1_at_10_mean", None)
+    p10 = agg.get("precision_at_10_mean")
+    f1 = agg.get("f1_at_10_mean")
     spread = agg.get("spread_at_10_mean", 0)
     t = agg.get("elapsed_seconds_mean", 0)
     ds = agg.get("lr_ba_mean", agg.get("ridge_r2_mean", 0))
-    conf = agg.get("confounder_rate_at_10_mean", None)
+    conf = agg.get("confounder_rate_at_10_mean")
 
     parts = [f"  {variant_name:20s}:"]
     if p10 is not None:
@@ -659,9 +748,11 @@ def format_line_with_structure(
     p10 = agg.get("precision_at_10_mean", 0)
     ds = agg.get("lr_ba_mean", agg.get("ridge_r2_mean", 0))
     t = agg.get("elapsed_seconds_mean", 0)
-    conf = agg.get("confounder_rate_at_10_mean", None)
-    line = (f"  {variant_name:22s}: P@10={p10:.3f} ds={ds:.3f} "
-            f"depth={depth:.1f} feats={n_feat_used:.1f} t={t:.1f}s")
+    conf = agg.get("confounder_rate_at_10_mean")
+    line = (
+        f"  {variant_name:22s}: P@10={p10:.3f} ds={ds:.3f} "
+        f"depth={depth:.1f} feats={n_feat_used:.1f} t={t:.1f}s"
+    )
     if has_confounders and conf is not None:
         line += f" conf@10={conf:.3f}"
     return line
@@ -681,8 +772,10 @@ OPTIMIZATION_VARIANTS: dict[str, dict[str, Any]] = {
     "cif_subsample_50": dict(max_samples=0.5),
     "cif_no_scan_mute": dict(feature_scanning=False, feature_muting=False),
     "cif_all_off": dict(
-        feature_scanning=False, feature_muting=False,
-        early_stopping_selector=None, early_stopping_splitter=None,
+        feature_scanning=False,
+        feature_muting=False,
+        early_stopping_selector=None,
+        early_stopping_splitter=None,
     ),
 }
 
@@ -737,28 +830,48 @@ def warmup_jit() -> None:
     y_reg = X[:, 0] + rng.randn(30) * 0.1
 
     clf = ConditionalInferenceForestClassifier(
-        n_estimators=2, selector="mc", splitter="gini",
-        n_resamples_selector="minimum", n_resamples_splitter="minimum",
-        early_stopping_selector="adaptive", early_stopping_splitter="adaptive",
-        threshold_method="histogram", max_thresholds=8,
-        n_jobs=1, random_state=0, verbose=0,
+        n_estimators=2,
+        selector="mc",
+        splitter="gini",
+        n_resamples_selector="minimum",
+        n_resamples_splitter="minimum",
+        early_stopping_selector="adaptive",
+        early_stopping_splitter="adaptive",
+        threshold_method="histogram",
+        max_thresholds=8,
+        n_jobs=1,
+        random_state=0,
+        verbose=0,
     )
     clf.fit(X, y_clf)
 
     reg = ConditionalInferenceForestRegressor(
-        n_estimators=2, selector="pc", splitter="mse",
-        n_resamples_selector="minimum", n_resamples_splitter="minimum",
-        early_stopping_selector="adaptive", early_stopping_splitter="adaptive",
-        threshold_method="histogram", max_thresholds=8,
-        n_jobs=1, random_state=0, verbose=0,
+        n_estimators=2,
+        selector="pc",
+        splitter="mse",
+        n_resamples_selector="minimum",
+        n_resamples_splitter="minimum",
+        early_stopping_selector="adaptive",
+        early_stopping_splitter="adaptive",
+        threshold_method="histogram",
+        max_thresholds=8,
+        n_jobs=1,
+        random_state=0,
+        verbose=0,
     )
     reg.fit(X, y_reg)
 
     cit = ConditionalInferenceTreeClassifier(
-        selector="mc", splitter="gini",
-        n_resamples_selector="minimum", n_resamples_splitter="minimum",
-        early_stopping_selector="adaptive", early_stopping_splitter="adaptive",
-        threshold_method="histogram", max_thresholds=8, random_state=0, verbose=0,
+        selector="mc",
+        splitter="gini",
+        n_resamples_selector="minimum",
+        n_resamples_splitter="minimum",
+        early_stopping_selector="adaptive",
+        early_stopping_splitter="adaptive",
+        threshold_method="histogram",
+        max_thresholds=8,
+        random_state=0,
+        verbose=0,
     )
     cit.fit(X, y_clf)
     print("JIT warmup complete.")

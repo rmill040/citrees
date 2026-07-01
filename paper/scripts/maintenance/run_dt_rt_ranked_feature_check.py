@@ -12,7 +12,7 @@ creates compact score summaries for inspection. It does not write a
 paper-facing parquet unless `--canonical-output` is provided explicitly.
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python \
+  uv run python \
     paper/scripts/maintenance/run_dt_rt_ranked_feature_check.py
 """
 

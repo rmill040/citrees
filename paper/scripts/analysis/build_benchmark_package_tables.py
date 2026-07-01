@@ -31,7 +31,7 @@ Outputs:
   - paper/results/tables/paper_benchmark_seed_complete_membership.csv
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_benchmark_package_tables.py
+  uv run python paper/scripts/analysis/build_benchmark_package_tables.py
 """
 
 from __future__ import annotations
@@ -55,7 +55,6 @@ from paper.scripts.analysis.benchmark_common import (
 )
 from paper.scripts.analysis.config_resolution import resolve_method_config_details
 from paper.scripts.pipeline.methods import get_method_config_count
-
 
 DISPLAY_NAMES: Final[dict[str, str]] = {
     "boruta": "Boruta",
@@ -478,9 +477,7 @@ def _build_seed_complete_membership(seed_scores: pd.DataFrame, task: str) -> pd.
     """Record dataset membership for the strict seed-complete sensitivity panel."""
     expected_methods = int(seed_scores["method_base"].nunique())
     required_complete_cells = int(
-        seed_scores["seed"].nunique()
-        * seed_scores["downstream_model"].nunique()
-        * len(STANDARD_K)
+        seed_scores["seed"].nunique() * seed_scores["downstream_model"].nunique() * len(STANDARD_K)
     )
     cell_membership = (
         seed_scores.groupby(["seed", "downstream_model", "k", "dataset"], as_index=False)[

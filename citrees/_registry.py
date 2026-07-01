@@ -10,6 +10,7 @@ class Registry:
     ----------
     name : str
         Name of registry.
+
     """
 
     def __init__(self, name: str) -> None:
@@ -24,6 +25,7 @@ class Registry:
         -------
         str
             Name of registry.
+
         """
         return self._name
 
@@ -34,6 +36,7 @@ class Registry:
         -------
         List[Any]
             List of keys.
+
         """
         return list(self._registry.keys())
 
@@ -68,6 +71,7 @@ class Registry:
         -------
         T
             Key in registry
+
         """
         entry = self._registry.get(key, None)
         if not entry:
@@ -87,6 +91,7 @@ class Registry:
         -------
         T
             Callable to be registered.
+
         """
 
         def wrapper(f: T) -> T:

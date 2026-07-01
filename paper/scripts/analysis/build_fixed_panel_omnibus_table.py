@@ -13,7 +13,7 @@ Outputs:
   - paper/results/tables/paper_benchmark_fixed_panel_omnibus.csv
 
 Usage:
-  UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_fixed_panel_omnibus_table.py
+  uv run python paper/scripts/analysis/build_fixed_panel_omnibus_table.py
 """
 
 from __future__ import annotations
@@ -43,14 +43,18 @@ def build_fixed_panel_omnibus() -> pd.DataFrame:
     rows: list[dict[str, object]] = []
 
     for task in sorted(surface["task"].unique()):
-        fixed_datasets = membership[
-            (membership["task"] == task) & (membership["is_fixed_panel"])
-        ]["dataset"]
-        task_surface = surface[(surface["task"] == task) & (surface["dataset"].isin(fixed_datasets))].copy()
+        fixed_datasets = membership[(membership["task"] == task) & (membership["is_fixed_panel"])][
+            "dataset"
+        ]
+        task_surface = surface[
+            (surface["task"] == task) & (surface["dataset"].isin(fixed_datasets))
+        ].copy()
         if task_surface.empty:
             continue
 
-        matrix = task_surface.pivot(index="dataset", columns="method_base", values="mean_score").sort_index(axis=1)
+        matrix = task_surface.pivot(
+            index="dataset", columns="method_base", values="mean_score"
+        ).sort_index(axis=1)
         values = [matrix[col].to_numpy() for col in matrix.columns]
         chi2, p_value = stats.friedmanchisquare(*values)
         n_datasets = int(len(matrix))

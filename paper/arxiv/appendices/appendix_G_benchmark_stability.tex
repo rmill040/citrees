@@ -8,8 +8,9 @@ sensitivity checks by downstream learner, standard values of $k$, and seed.
 benchmark analyses. Counts differ because each analysis is restricted to the
 datasets, downstream learners, and standard top-$k$ values available for that
 comparison. The main real-data counts are unique datasets with at least one
-learner-by-$k$ cell complete for all methods; the complete-case analyses below
-use the stricter set with every standard learner-by-$k$ cell present.
+complete learner-by-$k$ combination for all methods; the complete-case analyses
+below use the stricter set with every standard learner-by-$k$ combination
+present.
 
 \begin{table}[H]
   \centering
@@ -72,7 +73,7 @@ deltas after configuration selection. Large positive regression differences can
 reflect negative mean $R^2$ for the comparator.
 
 The Friedman checks use dataset-level method means after averaging the 15
-learner-by-$k$ cells. Classification: $\chi^2(16)=141.32$, $p<0.001$,
+learner-by-$k$ combinations. Classification: $\chi^2(16)=141.32$, $p<0.001$,
 Kendall's $W=0.63$. Regression: $\chi^2(17)=33.79$, $p=0.0089$, Kendall's
 $W=0.33$. For the 6-dataset regression panel, read the $p$-value together with
 Kendall's $W$ and the LODO table.
@@ -83,8 +84,8 @@ Kendall's $W$ and the LODO table.
 task. Each run selects configurations on all but one complete-case dataset in
 that task, evaluates the held-out dataset, and averages scores and ranks over
 downstream learners and standard top-$k$ values. CIF reselects the
-main-benchmark setting in all 14 classification holdouts. In regression, it uses
-two settings, reselects the global regression setting in 5 of 6 holdouts, and
+main-benchmark configuration in all 14 classification holdouts. In regression, it uses
+two configurations, reselects the global regression configuration in 5 of 6 holdouts, and
 ties CatBoost for second by mean LODO rank behind ExtraTrees.
 
 \begin{table}[H]
@@ -132,8 +133,9 @@ ties CatBoost for second by mean LODO rank behind ExtraTrees.
   \end{tabular*}
   \caption{LODO configuration sensitivity. Lower rank is better; rows are
   ordered by mean LODO rank within each task. Score is the mean held-out metric.
-  Settings counts distinct selected configurations, and Main reports reselection
-  of the main benchmark setting. Ranks are computed within held-out datasets
+  Settings reports the number of distinct selected configurations; Main reports
+  how often the main benchmark configuration is reselected. Ranks are computed
+  within held-out datasets
   before averaging, so score order need not match rank order.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
@@ -148,15 +150,16 @@ same selected method configurations as the main benchmark.
 For the learner and $k$ checks, one unit is one downstream learner paired with
 one standard value of $k$. Within each unit, methods are ordered by mean rank
 among datasets where every benchmark method is available for that learner-by-$k$
-cell; ties use average ranks.
+combination; ties use average ranks.
 \Cref{tab:classification-learner-k-sensitivity,tab:regression-learner-k-sensitivity}
 show all 15 learner-by-$k$ combinations for each task. Rows follow the main
 benchmark order. The
 learner columns report mean position over the five standard values of $k$ for
 that learner; lower positions are better. Mean position averages the positions
 obtained after ordering methods within each learner-by-$k$ combination; mean
-rank averages the dataset-level ranks directly. Top 3 cells and Top 5 cells
-count learner-by-$k$ combinations.
+rank averages the dataset-level ranks directly. Top 3 of 15 and Top 5 of 15
+count the learner-by-$k$ combinations where the method ranks in the top 3 or
+top 5.
 
 \begin{table}[H]
   \centering
@@ -174,7 +177,7 @@ count learner-by-$k$ combinations.
     c@{}}
     \toprule
     \tablehead{Method} & {KNN} & {LR} & {SVM} & {Mean position} & {Mean rank} & {Best--worst} &
-    \shortstack{Top 3\\cells} & \shortstack{Top 5\\cells} \\
+    \shortstack{Top 3\\of 15} & \shortstack{Top 5\\of 15} \\
     \midrule
     LightGBM & 3.0 & 1.6 & 1.6 & 2.1 & 4.5 & 1.0--7.0 & \countfrac{14}{15} & \countfrac{14}{15} \\
     XGBoost & 4.0 & 2.2 & 2.2 & 2.8 & 5.0 & 1.0--5.0 & \countfrac{12}{15} & \countfrac{15}{15} \\
@@ -197,8 +200,10 @@ count learner-by-$k$ combinations.
   \end{tabular}
   \caption{Classification sensitivity by downstream learner and value of $k$.
   Lower values are better. KNN, LR, and SVM denote downstream learners;
-  Top 3 cells and Top 5 cells count learner-by-$k$ combinations. Mean position and mean rank
-  average over 15 learner-by-$k$ combinations. The dataset counts at
+  Top 3 of 15 and Top 5 of 15 count the learner-by-$k$ combinations where the
+  method ranks in the top 3 or top 5. Mean position averages ordinal method
+  positions over the 15 combinations; mean rank averages the underlying
+  dataset-level ranks. The dataset counts at
   $k=5,10,25,50,100$ are
   22, 21, 15, 15, and 14.}
   \label{tab:classification-learner-k-sensitivity}
@@ -226,7 +231,7 @@ positions.
     c@{}}
     \toprule
     \tablehead{Method} & {KNN} & {Ridge} & {SVR} & {Mean position} & {Mean rank} & {Best--worst} &
-    \shortstack{Top 3\\cells} & \shortstack{Top 5\\cells} \\
+    \shortstack{Top 3\\of 15} & \shortstack{Top 5\\of 15} \\
     \midrule
     ExtraTrees & 5.1 & 2.7 & 2.1 & 3.3 & 6.3 & 1.0--9.0 & \countfrac{10}{15} & \countfrac{12}{15} \\
     CatBoost & 1.4 & 7.1 & 3.0 & 3.8 & 6.9 & 1.0--12.5 & \countfrac{8}{15} & \countfrac{12}{15} \\
@@ -250,8 +255,10 @@ positions.
   \end{tabular}
   \caption{Regression sensitivity by downstream learner and value of $k$.
   Lower values are better. KNN, Ridge, and SVR denote downstream
-  learners; Top 3 cells and Top 5 cells count learner-by-$k$ combinations. Mean position and
-  mean rank average over 15 learner-by-$k$ combinations. The dataset counts at
+  learners; Top 3 of 15 and Top 5 of 15 count the learner-by-$k$ combinations
+  where the method ranks in the top 3 or top 5. Mean position averages ordinal
+  method positions over the 15 combinations; mean rank averages the underlying
+  dataset-level ranks. The dataset counts at
   $k=5,10,25,50,100$ are
   8, 8, 7, 7, and 6.}
   \label{tab:regression-learner-k-sensitivity}
@@ -292,8 +299,10 @@ For the seed checks, each method is ranked separately within each fixed seed.
 Keeping only datasets with results for every method, downstream learner,
 standard top-$k$ value, and seed leaves 12 classification datasets and 6
 regression datasets complete across all five seeds. These tables summarize seed
-variation by rank without intervals or tests. Rows follow the main benchmark
-order.
+variation by rank without intervals or tests. In these tables, a seed column is
+the method's ordinal position after sorting that seed's averaged dataset-level
+ranks, while mean rank is the averaged dataset-level rank value itself. Rows
+follow the main benchmark order.
 
 \begin{table}[H]
   \centering
@@ -331,10 +340,10 @@ order.
     \bottomrule
   \end{tabular}
   \caption{Classification seed sensitivity on the 12 datasets complete across
-  all five seeds. Each seed column is the method position after averaging over
-  the three downstream learners and five standard values of $k$ within that
-  seed. Mean position averages the five seed positions; mean rank reports the
-  corresponding averaged dataset-level rank. Lower values are better.}
+  all five seeds. Each seed column is the method's ordinal position after
+  sorting methods by their averaged dataset-level ranks for that seed. Mean
+  position averages those five ordinal positions; mean rank reports the averaged
+  dataset-level rank value itself. Lower values are better.}
   \label{tab:classification-seed-sensitivity}
 \end{table}
 
@@ -375,9 +384,9 @@ order.
     \bottomrule
   \end{tabular}
   \caption{Regression seed sensitivity on the 6 datasets complete across all
-  five seeds. Each seed column is the method position after averaging over the
-  three downstream learners and five standard values of $k$ within that seed.
-  Mean position averages the five seed positions; mean rank reports the
-  corresponding averaged dataset-level rank. Lower values are better.}
+  five seeds. Each seed column is the method's ordinal position after sorting
+  methods by their averaged dataset-level ranks for that seed. Mean position
+  averages those five ordinal positions; mean rank reports the averaged
+  dataset-level rank value itself. Lower values are better.}
   \label{tab:regression-seed-sensitivity}
 \end{table}

@@ -2,8 +2,8 @@
 \label{app:complexity-details}
 
 The runtime terms behind the ablations in \cref{sec:results-practical} are
-counted node by node: the scans, copies, and candidate tests actually reached.
-A node-by-node sum is needed because candidate pools, node sizes, threshold
+counted node by node: the scans, copies, and feature or threshold tests actually
+reached. A node-by-node sum is needed because feature pools, node sizes, threshold
 counts, and stopping times vary across the tree.
 
 Let $n$ be the training sample count and let $p$ be the number of features. At
@@ -11,28 +11,28 @@ node $t$, let $n_t$ be the number of samples reaching the node. Using the
 notation of \cref{sec:stageA-stageB}, write $a_t=|F_{t,\mathrm{avail}}|$ and
 $d_t^{\mathrm{const}}=|F_{t,\mathrm{avail}}\setminus
 F_{t,\mathrm{nonconst}}|$. After constant feature pruning and any
-candidate feature subsampling, Stage~A considers $F_t$, with
+feature subsampling, Stage~A considers $F_t$, with
 $m_t=|F_t|$. Let $d_t^{\mathrm{mute}}$ be the number of tested Stage~A features
-removed from the descendant candidate feature pool by feature muting;
+removed from the descendant feature pool by feature muting;
 if feature muting is disabled, $d_t^{\mathrm{mute}}=0$.
 
 Stage~B is reached only when Stage~A returns a selected feature $j_t^\star$:
 either the Stage~A permutation feature test rejects or selector permutation
 testing is disabled. If Stage~B is reached, let $\tilde{h}_t$ be the number of
-candidate thresholds generated for $j_t^\star$ before any
+thresholds generated for $j_t^\star$ before any
 minimum leaf size filtering. Let
 $h_t=|C_{t,j_t^\star}|\le \tilde{h}_t$ be the number of valid thresholds that
 remain after this filtering; if no filtering is applied, $h_t=\tilde{h}_t$.
 
 Let $C^{\mathrm{sel}}_j(n_t)$ be the cost of the Stage~A statistic for feature
 $j$ at node size $n_t$, excluding the label copies and shuffles counted
-separately below. If the implementation is configured with a list of selectors,
-this denotes the cost of evaluating the configured selector statistics for one
-observed or permuted draw and taking their common-scale maximum. Let
+separately below. For a list of selectors, this denotes the cost of evaluating
+the selector statistics for one observed or permuted draw and taking their
+common-scale maximum. Let
 $C^{\mathrm{split}}(n_t)$ be the cost of one Stage~B impurity statistic after
 the threshold mask and child-label slices have been formed; the mask, slice,
-label shuffle, and copy overhead is counted separately below. For the default
-multiple-correlation selector with Gini splitting in classification and
+label shuffle, and copy overhead is counted separately below. For the
+multiple-correlation selector with Gini splitting in classification and the
 Pearson-correlation selector with MSE splitting in regression, these statistic
 evaluations are linear in $n_t$ for a fixed number of classes. The randomized
 dependence coefficient (RDC) is $O(n_t\log n_t)$ for fixed random-projection and
@@ -43,9 +43,9 @@ scikit-learn.
 
 \paragraph{How runtime hyperparameters enter the accounting.}
 \begin{itemize}
-  \item \textbf{Candidate feature subsampling.} This caps $m_t$ and therefore the
+  \item \textbf{Feature subsampling.} This caps $m_t$ and therefore the
   Stage~A testing width. It does not cap the constant feature preprocessing pass
-  over all $a_t$ available features. Candidate set construction and random
+  over all $a_t$ available features. Feature-set construction and random
   ordering add at most linear overhead in the local available feature count.
   \item \textbf{Feature muting.} This can shrink $a_u$ and $m_u$ at descendant
   nodes $u$. It can also add $O(a_t d_t^{\mathrm{mute}})$ feature index updates
@@ -57,9 +57,10 @@ scikit-learn.
   for features with at most four unique values use all midpoints.
   \item \textbf{Adaptive stopping, feature scanning, and threshold scanning.}
   These reduce work only when they shorten the actual stopping path. They may
-  change candidate order and reduce the number of tested candidates or
-  permutation draws, but the worst case is still all candidates and the full
-  budget. Bonferroni is separate because it changes the statistical rule.
+  change feature or threshold order and reduce the number of tested features,
+  tested thresholds, or permutation draws, but the worst case is still all
+  features or thresholds and the full budget. Bonferroni is separate because it
+  changes the statistical rule.
   \item \textbf{Bonferroni correction and resampling presets.} When Bonferroni
   correction is enabled, the nodewise threshold is divided by the number of
   tests in that stage. Write $r_{\mathrm{tests}}$ for this count ($m_t$ in
@@ -88,7 +89,7 @@ costs $O(a_t n_t)$ for the data scan. Updating the array of available feature
 indices costs another $O(a_t d_t^{\mathrm{const}})$ for constant feature
 removals in the dense matrix algorithm, with worst case $O(a_t^2)$ if many
 available features are constant at the same node. This pruning occurs before
-candidate feature subsampling, so subsampling caps Stage~A width but not the
+feature subsampling, so subsampling caps Stage~A width but not the
 initial constant feature scan.
 
 Let $\mathcal{J}_t$ be the Stage~A features whose score or permutation test is
@@ -110,7 +111,7 @@ $b^{\mathrm{sel}}_{t,j}=0$. The Stage~A testing work is
 where the $+1$ accounts for the observed statistic and the $n_t$ term accounts
 for label copies, shuffles, and other per-draw linear overhead inside the
 permutation test. Feature scanning, when enabled with selector early stopping,
-computes prescan scores and sorts candidates, adding
+computes prescan scores and sorts features, adding
 \begin{equation}
   G^{\mathrm{A}}_t
   =
@@ -124,14 +125,14 @@ feature muting removes tested features whose Stage~A $p$-values do not reject,
 updating the descendant available feature array adds
 $O(a_t d_t^{\mathrm{mute}})$ work at the current node.
 
-Stage~B first builds candidate thresholds for the selected feature. An upper
+Stage~B first builds thresholds for the selected feature. An upper
 bound is $O(n_t\log n_t)$, because unique values are computed and sorted before
 threshold caps are applied. If the minimum leaf size is greater than one,
 filtering adds $O(n_t\log n_t+\tilde{h}_t\log n_t)$ for the feature sort and
 threshold lookups. Bounded non-exact methods reduce $\tilde{h}_t$ only when the
 effective cap is below the number of available midpoints; with few unique values
-or no effective cap, the implementation can use all available midpoints. They do
-not remove the initial unique-value pass.
+or no effective cap, all available midpoints can remain in the threshold set.
+They do not remove the initial unique-value pass.
 
 Let $\mathcal{C}^{\mathrm{eval}}_t \subseteq C_{t,j_t^\star}$ be the retained
 Stage~B thresholds whose permutation test or non-permutation split score is
@@ -154,8 +155,8 @@ observed or permuted draw.
 Under splitter early stopping, threshold ordering has two paths. If threshold
 scanning is enabled, it uses weighted child impurity as an ordering score and
 adds $O(h_t(C^{\mathrm{split}}(n_t)+n_t) + h_t\log h_t)$. If threshold scanning
-is disabled, the implementation still randomly permutes the retained
-thresholds, adding $O(h_t)$. These ordering steps are separate from the
+is disabled, the retained thresholds are still randomly permuted, adding
+$O(h_t)$. These ordering steps are separate from the
 permutation $p$-value computation.
 
 Finally, if Stage~B accepts a split and the impurity decrease is large enough,
@@ -172,11 +173,12 @@ child matrices.
 In the exhaustive fixed-$B$ reference setting, Stage~A tests every feature in
 $F_t$, Stage~B tests every retained threshold, and both stages use fixed
 permutation budgets. In adaptive runs, stopping can reduce work by testing fewer
-candidates or using fewer permutation draws. Feature and threshold scanning are
-ordering heuristics: they pay for a prescan so likely candidates are tried
-earlier. They can reduce realized runtime when the shorter stopping path offsets
-the prescan work, but they do not improve the worst-case bound because the
-stopping rule can still examine all candidates and use the full budget.
+features or thresholds or using fewer permutation draws. Feature and threshold
+scanning are ordering heuristics: they pay for a prescan so likely features or
+thresholds are tried earlier. They can reduce realized runtime when the shorter
+stopping path offsets the prescan work, but they do not improve the worst-case
+bound because the stopping rule can still examine all features or thresholds and
+use the full budget.
 
 \paragraph{From nodes to trees and forests.}
 Let $W_t$ be the cost paid at node $t$: the stopping checks, any Stage~A work,

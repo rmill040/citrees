@@ -2,13 +2,13 @@
 \label{sec:method}
 
 At each internal node, conditional inference trees make two decisions. Stage~A
-tests candidate features for association with the response and chooses a feature
+tests features for association with the response and chooses a feature
 to split. Stage~B then searches thresholds only for that selected feature; if no
 valid split is accepted, the node becomes terminal. In this paper, CIT
 denotes the resulting single-tree feature selection method. CIF denotes a
-bootstrap ensemble of such trees with candidate feature sampling at each node
+bootstrap ensemble of such trees with feature sampling at each node
 and feature rankings formed by aggregating split importances across trees.
-CIF-all disables candidate feature subsampling: every nonconstant available
+CIF-all disables feature subsampling: every nonconstant available
 feature can enter Stage~A at each node. This changes the Stage~A feature set,
 the Stage~A multiplicity correction, and the per-node computational cost.
 
@@ -19,7 +19,7 @@ At a node $t$, write $(X_t,Y_t)$ for the samples reaching that node. Let
 $F_{t,\mathrm{avail}}$ be the feature set carried into the node by the
 tree-growing algorithm, including any feature muting inherited from ancestors.
 Let $F_{t,\mathrm{nonconst}} \subseteq F_{t,\mathrm{avail}}$ be the features
-that are nonconstant on the node samples. After any candidate feature
+that are nonconstant on the node samples. After any feature
 subsampling, Stage~A considers a set
 $F_t \subseteq F_{t,\mathrm{nonconst}}$; its size $m_t=|F_t|$ is the
 Bonferroni denominator for that node.
@@ -66,7 +66,7 @@ the exhaustive reference rule with Bonferroni correction,
 $\min(1,m_t p_t^{\star,\mathrm{ref}})$ is a conservative complete-null
 $p$-value for the fixed-node Stage~A test. When feature muting is enabled,
 features with non-rejecting Stage~A $p$-values can be removed from descendant
-candidate feature pools. When muting is disabled, descendants keep
+feature pools. When muting is disabled, descendants keep
 $F_{t,\mathrm{avail}}$ except for deterministic constant feature pruning.
 
 \paragraph{Stage~B (threshold search).}
@@ -74,9 +74,9 @@ Given a selected feature $j_t^\star$, Stage~B starts from midpoints between
 ordered unique values of $X_{t,j_t^\star}$. The exact method uses all such
 midpoints. The random method samples a bounded subset of midpoints, while the
 percentile and histogram methods choose bounded representative thresholds
-derived from the midpoint distribution. Candidate thresholds that would leave
-either child below the minimum leaf size are filtered out. If no candidate
-remains, Stage~B returns no split.
+derived from the midpoint distribution. Thresholds that would leave either child
+below the minimum leaf size are filtered out. If no threshold remains, Stage~B
+returns no split.
 
 For the remaining finite threshold set $C_{t,j_t^\star}$, Stage~B selects the
 threshold used by the tree. The tested statistic at threshold $c$ is the
@@ -86,9 +86,9 @@ weighted child impurity
   + \frac{|Y_t^R(c)|}{|Y_t|}\mathrm{Imp}(Y_t^R(c)),
 \]
 where $\mathrm{Imp}$ is the chosen node impurity measure. This statistic is used
-in a left-tail test, and the exhaustive fixed-$B$ rule chooses the candidate
-with the smallest Stage~B $p$-value, with uniform tie breaking. During adaptive
-tree growing, threshold scanning may reorder candidates and stop after the first
+in a left-tail test, and the exhaustive fixed-$B$ rule chooses the threshold with
+the smallest Stage~B $p$-value, with uniform tie breaking. During adaptive tree
+growing, threshold scanning may reorder thresholds and stop after the first
 rejecting threshold, so the returned Stage~B score is a tree-construction score
 rather than a global minimum over all retained thresholds. Let
 $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
@@ -180,9 +180,10 @@ stopping, and features carried into the node. Adaptive stopping changes the
 number of permutations evaluated for each test
 \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
 Histogram thresholding reduces the Stage~B threshold set by replacing exhaustive
-cutpoints with binned thresholds. Feature and threshold scanning reorder
-candidates under early stopping, and feature muting can reduce the feature pool
-inherited by descendants. Appendix~\ref{app:methods} gives algorithm and
+cutpoints with binned thresholds. Feature and threshold scanning change the
+order in which features or thresholds are tested under early stopping; feature
+muting can reduce the feature pool inherited by descendants.
+Appendix~\ref{app:methods} gives algorithm and
 reproducibility details, Appendix~\ref{app:complexity-details} gives runtime and
 memory accounting, and \cref{sec:results-practical} reports the measured timing
 effects.
@@ -207,7 +208,7 @@ importance.
 This split-importance ranking differs from standard random-forest impurity
 importance in how a feature enters threshold search. In CART-style trees, the
 feature and threshold are chosen together by an impurity search, so a feature
-with more candidate thresholds has more chances to produce a large apparent
+with more possible thresholds has more chances to produce a large apparent
 impurity decrease \citep{Strobl2007BiasRFVariableImportance}. In CIT and CIF,
 Stage~A first selects a feature by a permutation test; Stage~B then searches
 thresholds only for that feature. This reduces the advantage that

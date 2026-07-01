@@ -12,11 +12,10 @@ memory details for the benchmarked tree-growing algorithm.
 The fixed-node theorem covers exhaustive fixed-$B$ Stage~A feature selection at
 a fixed node under the complete permutation null. In that result, the tested
 features and resample budget are fixed independently of the node responses. The
-benchmarked tree-growing algorithm also uses practical settings outside that
-theorem:
+benchmarked tree-growing algorithm also uses settings outside that theorem:
 \begin{itemize}
   \item early stopping,
-  \item feature and threshold candidate ordering inside early stopping,
+  \item feature and threshold ordering inside early stopping,
   \item response-dependent feature muting,
   \item bounded threshold sets,
   \item bootstrap resampling and forest aggregation,
@@ -29,17 +28,17 @@ Stage~A and split scores from adaptive trees are tree-construction scores.
 
 \paragraph{Stage~A.}
 At each node, the tree-growing rule removes features that are constant on
-the node before any candidate feature subsampling. Stage~A computes $+1$ Monte
-Carlo $p$-values. It may scan candidates in preliminary-score order and, under
-early stopping, may stop once a candidate meets the nodewise threshold. With
+the node before any feature subsampling. Stage~A computes $+1$ Monte
+Carlo $p$-values. It may scan features in preliminary-score order and, under
+early stopping, may stop once a feature meets the nodewise threshold. With
 feature muting, features with non-rejecting Stage~A values can be removed from
-descendant candidate pools in the same subtree. These shortcuts reduce
+descendant feature pools in the same subtree. These shortcuts reduce
 computation. When they are active, the returned $q_t^{\mathrm{feat}}$ is the
 feature-selection score used to grow the tree; the exhaustive fixed-$B$
-reference value is defined over the full candidate pool.
+reference value is defined over the full feature pool.
 
 \paragraph{Stage~B.}
-After Stage~A selects a feature, Stage~B builds threshold candidates from
+After Stage~A selects a feature, Stage~B builds thresholds from
 midpoints between consecutive unique feature values. Exact search tests all
 midpoints. Random sampling tests a bounded subset; percentile and histogram
 rules test bounded representative thresholds from the midpoint distribution.
@@ -57,44 +56,24 @@ These quantities support split construction.
 
 Both stages use Phipson--Smyth $+1$ Monte Carlo tail estimates
 \citep{PhipsonSmyth2010PermutationPValues}: right-tailed in Stage~A and
-left-tailed in Stage~B. The implementation supports integer resampling budgets
-and three named presets:
-\begin{itemize}
-  \item \emph{minimum}: the smallest preset that makes rejection attainable on
-  the discrete $+1$ scale,
-  \item \emph{auto}: a larger preset for reducing Monte Carlo error near the
-  decision threshold,
-  \item \emph{maximum}: a high-precision preset.
-\end{itemize}
-In the benchmarked CIT and CIF configurations, both Stage~A and Stage~B use the
-\emph{minimum} preset; the package constructors default to \emph{auto}. Use the
-benchmark preset to match the paper timing runs, and use the package default
-when precision near the nodewise threshold matters more than reproducing those
-timings. When Bonferroni correction is enabled, the nodewise threshold is
-divided by the number of tests, and preset budgets are recomputed from that
-adjusted threshold.
+left-tailed in Stage~B. For the benchmarked CIT and CIF configurations, the
+resampling budget is set from the Bonferroni-adjusted nodewise threshold and is
+large enough for rejection to be possible on the discrete $+1$ scale.
 
 \paragraph{Sequential stopping.}
 The benchmarked CIT and CIF configurations use adaptive sequential stopping. The
-procedure tracks permutation exceedances and checks a Beta posterior for the
-tail probability: after each draw in Stage~B and at batch boundaries in batched
-Stage~A paths. It stops when the posterior puts the configured confidence on one
-side of the nodewise threshold. A simpler futility/significance rule is also
-available. Values returned at stopping times are adaptive stopping-time
-estimates, so the main paper reports the fixed-node guarantee and runtime
-ablations separately.
+stopping rule monitors permutation exceedances and stops once a Beta posterior
+places the configured confidence on one side of the nodewise threshold. Because
+the returned values are stopping-time estimates, the paper treats the fixed-node
+guarantee and runtime ablations separately.
 
 \subsection{Forests, resampling, and honesty}
 
-CIF fits bootstrap trees. For prediction, it averages tree predictions; for the
-benchmarked feature rankings, it aggregates tree split-importance vectors. The
-selected classification CIF setting uses stratified bootstrap sampling, and the
-regression CIF setting uses standard bootstrap sampling. More generally, forests
-can be run with or without bootstrap sampling, and classifier forests support
-stratified, undersampling, and oversampling variants. Trees and forests
-optionally support honest estimation via sample splitting. These settings can be
-important in practice, but they change the training distribution or estimation
-target. The fixed-node theorem covers only the Stage~A reference rule.
+CIF fits bootstrap trees and forms feature rankings by aggregating tree
+split-importance vectors. The benchmark uses stratified bootstrap sampling for
+classification and standard bootstrap sampling for regression. These forest-level
+choices affect the fitted rankings, while the fixed-node theorem covers only the
+Stage~A reference test.
 
 \subsection{Benchmark coverage}
 
@@ -117,7 +96,7 @@ ctree/cforest \texttt{dexter} exclusion.
 
 \subsection{Randomness and reproducibility}
 
-The experiment configuration fixes the seed schedule used for all reported
+The benchmark configuration fixes the seed schedule used for all reported
 runs. Pure Python permutation routines use local \texttt{numpy} generators.
 Numba parallel permutation paths assign one seed per resample, which avoids
 sharing a mutable generator across parallel loop iterations.
@@ -137,8 +116,8 @@ sharing a mutable generator across parallel loop iterations.
     partykit ctree, cforest & \texttt{dexter} & all seeds excluded for these R methods \\
     \bottomrule
   \end{tabular}
-  \caption{Classification benchmark cells omitted from the experiment grid. The
-  \texttt{dexter} row is a method-level exclusion for partykit ctree and
-  cforest; the other rows are seed-level skips.}
+  \caption{Classification benchmark exclusions. The \texttt{dexter} row is a
+  method-level exclusion for partykit ctree and cforest; the other rows are
+  seed-level skips.}
   \label{tab:coverage-skips}
 \end{table}

@@ -8,7 +8,7 @@ label-dependent search, which helps explain the well-documented preference for
 features with many admissible cutpoints
 \citep{Breiman1984ClassificationAndRegressionTrees,LohShih1997SplitSelectionMethods,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,Shih2004NoteOnSplitSelectionBiasClassificationTrees,StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini,Strobl2007BiasRFVariableImportance}.
 In the conditional inference framework \citep{Hothorn2006UnbiasedRecursivePartitioning,HothornHornikVandeWielZeileis2006LegoSystemConditionalInference},
-Stage~A tests candidate features for association with the response at the
+Stage~A tests features for association with the response at the
 current node and selects among them; Stage~B then optimizes a threshold within
 the selected feature. That separation addresses split selection bias, but the
 classical approach can require substantial computation through large
@@ -33,8 +33,8 @@ trees and forests as direct
 predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
 Because several methods have tunable configurations, the benchmark chooses one
-setting per method and task. As a sensitivity check, leave-one-dataset-out
-(LODO) analyses repeat the setting choice after holding out each dataset, using
+configuration per method and task. As a sensitivity check, leave-one-dataset-out
+(LODO) analyses repeat the configuration choice after holding out each dataset, using
 the complete-case panels defined in \cref{sec:experiments-analysis-plan}.
 
 The theorem studies the Stage~A feature test at a fixed node. It assumes that
@@ -46,12 +46,12 @@ The benchmarks then evaluate the tree and forest feature rankings empirically.
 \paragraph{Contributions.}
 This paper contributes a real-data benchmark of conditional-inference feature
 rankings for top-$k$ downstream prediction. The benchmark compares CIF with
-ctree, cforest, CIT, and other baselines, reports classification results and a
-smaller companion regression benchmark with dataset counts stated for each
-analysis, and ablates the main CIT/CIF runtime hyperparameters. The paper also
-states the fixed-node, exhaustive fixed-$B$ Stage~A guarantee
+ctree, cforest, CIT, and other baselines in classification and companion
+regression analyses, and includes ablations of the main CIT/CIF runtime
+hyperparameters. The paper also states the fixed-node, exhaustive fixed-$B$
+Stage~A guarantee
 (\cref{thm:plusone-superuniform,cor:stageA-global-null}); the full tree and
 forest rankings are evaluated in the benchmarks. Finally, the
 high-$p$ and synthetic analyses show cases with weaker top-$k$ recovery and how
-candidate feature sampling can make informative features unavailable at many
-forest split tests (\cref{sec:boundary}).
+forest feature sampling can reduce how often forest splits use informative
+features (\cref{sec:boundary}).

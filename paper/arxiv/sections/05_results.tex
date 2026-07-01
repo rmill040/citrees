@@ -128,9 +128,10 @@ disabling feature muting, and using one tree.
     \bottomrule
   \end{tabular}
   \caption{CIF ablations on the real-data benchmark. Mean differences compare
-  each changed variant with default CIF using split-importance ranking. Scores
-  are averaged within each dataset over downstream learners and supported
-  standard values of $k$. Classification uses balanced accuracy; regression uses
+  each changed variant with the selected CIF configuration using
+  split-importance ranking. Scores are averaged within each dataset over
+  downstream learners and supported standard values of $k$. Classification uses
+  balanced accuracy; regression uses
   $R^2$. The confidence intervals are percentile bootstrap intervals over
   dataset-level differences from 20{,}000 replicates. Positive values favor the
   changed CIF variant. W--L counts datasets where the changed variant is higher
@@ -158,10 +159,10 @@ benchmark-selected configurations. The LODO analysis below checks whether those
 configurations are stable under one-dataset holdout.
 
 In the 14-dataset classification panel, LODO ranks CIF fifth of 17 on average
-(mean rank 5.64), and CIF reselects the main-benchmark setting in all 14
+(mean rank 5.64), and CIF reselects the main-benchmark configuration in all 14
 holdouts. In the 6-dataset regression panel, LODO ties CIF with CatBoost for
 second on average (mean rank 5.50), behind ExtraTrees; CIF reselects the global
-regression setting in 5 of 6 holdouts.
+regression configuration in 5 of 6 holdouts.
 \Cref{tab:cif-ci-comparisons,tab:lodo-config-sensitivity}
 give the confidence intervals and LODO details.
 
@@ -170,8 +171,8 @@ give the confidence intervals and LODO details.
   \includegraphics[width=0.78\linewidth]{figures/k_trajectory.png}
   \caption{Classification mean rank by number of selected features. Rows show
   all 17 feature selection methods in the classification benchmark, averaged
-  across downstream models at each value of $k$. Lower ranks are better. The
-  parenthesized counts show the number of datasets included at each $k$.}
+  across downstream models at each value of $k$. Lower ranks are better.
+  Parenthesized counts show the number of datasets with observed scores.}
   \label{fig:k-trajectory}
 \end{figure}
 
@@ -180,8 +181,8 @@ give the confidence intervals and LODO details.
   \includegraphics[width=0.78\linewidth]{figures/regression_k_trajectory.png}
   \caption{Regression mean rank by number of selected features. Rows show all
   18 feature selection methods in the regression benchmark, averaged across
-  downstream models at each value of $k$. Lower ranks are better; parentheses
-  give the dataset count for each $k$.}
+  downstream models at each value of $k$. Lower ranks are better.
+  Parenthesized counts show the number of datasets with observed scores.}
   \label{fig:regression-k-trajectory}
 \end{figure}
 
@@ -215,8 +216,8 @@ shown in each column. Complete-case analyses use 14 classification datasets and
     Win vs RT & \countfrac{21}{23} & \countfrac{5}{8} \\
     \bottomrule
   \end{tabular}
-  \caption{Dataset breadth for the selected CIF configuration. Top-half and
-  top-3 counts use the datasets from \cref{tab:method-main-comparison}. Direct
+  \caption{Dataset breadth for the selected CIF configuration. Top half and
+  Top 3 counts use the datasets from \cref{tab:method-main-comparison}. Direct
   win rows use datasets where both methods were run.}
   \label{tab:cif-breadth-summary}
 \end{table}
@@ -235,11 +236,12 @@ classification datasets. The RT regression comparison is close: CIF is ahead on
 \subsection{Runtime ablations}
 \label{sec:results-practical}
 
-The runtime ablations identify the defaults with the largest effect on fitting
-time and report how much the ranking scores move when those settings change. Each row
-changes one setting and reports elapsed wall-clock fit time relative to the
-default version of the same estimator. Ratios above 1 are slower than default,
-and ratios below 1 are faster. CIT and CIF are shown separately because the CIT
+The runtime ablations identify which benchmark settings have the largest effect
+on fitting time and report how much the ranking scores move when those settings
+change. Each row changes one setting and reports elapsed wall-clock fit time
+relative to the selected configuration for the same estimator. Ratios above 1 are
+slower than that reference, and ratios below 1 are faster. CIT and CIF are shown
+separately because the CIT
 run records fit time and synthetic top-10 feature recovery, while the CIF runs
 also record downstream score changes. The main benchmark remains the primary
 performance comparison.
@@ -259,7 +261,7 @@ performance comparison.
     \bottomrule
   \end{tabular}
   \caption{CIT runtime ablations. Runtime ratios are paired by seed and dataset
-  against the default CIT setting and summarized across the real and synthetic
+  against the selected CIT configuration and summarized across the real and synthetic
   classification and regression runs. Top-10 F1 changes are absolute changes on
   synthetic datasets with known informative features, where top-10 F1 is the
   harmonic mean of precision and recall for recovering informative features among
@@ -291,9 +293,9 @@ evaluated. These rows focus on timing and synthetic feature-recovery changes.
     \bottomrule
   \end{tabular}
   \caption{CIF runtime ablations with score changes. Runtime ratios are relative to
-  default CIF. Adaptive stopping and feature scanning use median dataset-level
+  the selected CIF configuration. Adaptive stopping and feature scanning use median dataset-level
   ratios. The exact-threshold row compares group mean elapsed time with the
-  histogram-256 default. The score columns give the largest absolute downstream
+  histogram-256 reference. The score columns give the largest absolute downstream
   score change and synthetic feature-recovery change across the task groups
   used for each row. Inequality entries are rounded upward to the nearest 0.001.
   The task-group coverage matches \cref{tab:cit-runtime-hyperparams}.}
@@ -309,7 +311,7 @@ group mean elapsed times. Downstream score changes and synthetic
 feature-recovery changes are at most 0.011 and 0.017. The feature-scanning effect
 is smaller and less consistent once adaptive stopping is enabled. Removing
 Bonferroni correction is faster for both CIT and CIF, but it changes the
-statistical rule and yields trees with more selected features; the default
+statistical rule and yields trees with more selected features; the selected
 setting keeps Bonferroni correction.
 \FloatBarrier
 
@@ -318,8 +320,8 @@ setting keeps Bonferroni correction.
 
 \paragraph{High-dimensional real datasets.}
 These analyses study where CIF's scores peak as $k$ grows, how feature
-recovery on synthetic datasets changes across values of $k$, and how candidate
-feature sampling inside the forest affects how often splits use informative
+recovery on synthetic datasets changes across values of $k$, and how feature
+sampling inside the forest affects how often splits use informative
 features.
 Across the 15 classification datasets with more than 100 features, CIF first
 reaches its best score at an intermediate value of $k$ ($100 < k < p$) in 30 of 45
@@ -397,33 +399,33 @@ signals or redundant proxies: 83\% for classification and 84\% for regression.
   \label{fig:synthetic-topk-curves}
 \end{figure}
 
-\paragraph{Candidate feature sampling.}
-A sparse simulation asks whether forest candidate feature sampling causes splits
-to miss informative features in classification and regression settings.
+\paragraph{Feature sampling in forests.}
+A sparse simulation asks whether forest feature sampling makes splits less
+likely to use informative features in classification and regression settings.
 \Cref{fig:candidate-forest-counts} shows one sparse classification
-design comparing default CIF with CIF-all. Default CIF samples candidate
-features at each split; CIF-all considers every nonconstant feature in Stage~A.
+design comparing CIF with CIF-all. CIF samples a subset of features at each
+split; CIF-all considers every nonconstant feature in Stage~A.
 \Cref{app:candidate-availability} gives the classification and regression
 results over $p \in \{100,500,1{,}000\}$.
 
 In the single-tree simulations, CIT uses informative features in 100.0\% of
 classification splits and 93.5\% of regression splits. In this fixed design,
 informative features are usually selected when every nonconstant feature is
-considered. In forests, candidate feature sampling reduces how often informative
+considered. In forests, sampling a subset of features reduces how often informative
 features are used for splits. Across the classification forest
-simulations with 1,000 trees, default CIF uses informative features in 33.2\% of
+simulations with 1,000 trees, CIF uses informative features in 33.2\% of
 splits, compared with 91.7\% for CIF-all, 8.4\% for RF, and 6.5\% for ET.
-Default CIF also uses more distinct noise features than CIF-all, 265 versus 93
+CIF also uses more distinct noise features than CIF-all, 265 versus 93
 on average. For the $p{=}1{,}000$ classification setting with two informative
-features, default CIF uses informative features in 9.0\% of splits, while
-CIF-all uses them in 100.0\%. In regression, CIF-all uses informative features
-more often than default CIF, 42.3\% versus 27.8\%, but uses more distinct noise
-features, 528.8 versus 367.7.
-CIF-all isolates candidate feature sampling because feature muting and
+features, CIF uses informative features in 9.0\% of splits, while CIF-all uses
+them in 100.0\%. In regression, CIF-all uses informative features more often
+than CIF, 42.3\% versus 27.8\%, but uses more distinct noise features, 528.8
+versus 367.7.
+CIF-all isolates feature subsampling because feature muting and
 the other tree settings are held fixed. In these sparse high-$p$ simulations,
 splits use informative features most often when every nonconstant feature can
-enter Stage~A. When candidate sampling rarely includes an informative feature at
-a node, Stage~A selects from the available candidate set.
+enter Stage~A. When the sampled feature subset rarely includes an informative
+feature at a node, Stage~A selects from that subset.
 
 \begin{figure}[!t]
   \centering
@@ -431,7 +433,7 @@ a node, Stage~A selects from the available candidate set.
   \caption{Tree-level feature use in one sparse classification forest design
   ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
   the number of trees using each feature in at least one split. CIF samples a
-  subset of candidate features; CIF-all evaluates all nonconstant candidate
+  subset of features; CIF-all evaluates all nonconstant
   features. Each subplot has its own
   y-axis range because counts differ across methods.}
   \label{fig:candidate-forest-counts}

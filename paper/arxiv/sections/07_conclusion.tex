@@ -8,12 +8,12 @@ especially in classification: its rankings compare favorably with ctree,
 cforest, and CIT, and they remain competitive among stronger tree-ensemble
 baselines.
 
-The ablations add two practical details. Adaptive stopping and bounded threshold
-search avoid large runtime increases in CIF, while the one-tree ablation has the
-largest ranking-quality loss. The high-$p$ and synthetic analyses add two
-diagnostic cautions: sparse forests should be checked for whether informative
-features reach the split-test candidate sets often enough to enter the top-$k$
+The ablations separate runtime and ranking effects. Adaptive stopping and
+bounded threshold search avoid large runtime increases, while the one-tree
+ablation has the largest ranking-quality loss. The high-$p$ and synthetic
+analyses add two diagnostic cautions: sparse forests should be checked for
+whether informative features are used in enough splits to enter the top-$k$
 ranking, and CIF should not be treated as a first-feature discovery method when
-the goal is to identify a single driver. Overall, these results support CIF as a
-feature-ranking method for downstream prediction, backed by a local Stage~A
-result and benchmark evidence.
+the goal is to identify a single driver. Overall, these
+results support CIF as a feature-ranking method for downstream prediction,
+backed by a local Stage~A result and benchmark evidence.

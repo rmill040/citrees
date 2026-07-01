@@ -3,16 +3,16 @@
 
 In these experiments, CIF is best supported as a top-$k$ feature-selection
 method for a downstream model. The benchmark asks whether a ranking places
-predictive features early enough for fixed downstream learners. The
-classification panel provides stronger evidence than the smaller regression
-panel, which has wider intervals. The fixed-node Stage~A theorem provides the
-local guarantee; fitted tree and forest rankings are assessed empirically.
+predictive features early enough for fixed downstream learners. Classification
+gives the clearest support; the smaller regression panel is positive but less
+precise. The fixed-node Stage~A theorem provides the local guarantee; fitted
+tree and forest rankings are assessed empirically.
 
 \paragraph{Guidance.}
 A CIF ranking should be judged through the downstream model that will use the
-selected features. In practice, choose $k$ on held-out data over a small grid
-that includes the intended feature budget and, when feasible, the full feature
-set as a sanity check. When prediction accuracy is the main target, tree-ensemble
+selected features. In practice, choose $k$ on held-out data over a small set of
+values that includes the intended feature budget and, when feasible, the full
+feature set as a sanity check. When prediction accuracy is the main target, tree-ensemble
 baselines such as random forests, ExtraTrees, and boosted trees should remain in
 the comparison set. When the target is variable screening or a ranked feature
 list for later modeling, CIF should also be compared with ctree, cforest, and
@@ -20,42 +20,39 @@ forest-based screening methods such as Boruta, permutation or conditional
 permutation importance, and RF-RFE
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}.
 
-The ablations separate runtime defaults from ranking choices. For similar
-top-$k$ CIF workloads, adaptive stopping and histogram-256 thresholding avoid the
-large slowdowns from fixed-budget testing and exact threshold search while
-producing small score changes in these ablations. The timing tables use the
-benchmark's minimum resampling preset; package constructors default to the
-larger \emph{auto} preset. Bonferroni correction is part of the Stage~A testing
-rule and should be varied only as a sensitivity analysis. For ranking quality,
-forest size matters more than the split-count and feature-muting variants tested
-here, so the selected forest should remain the default when ranking quality is
-the priority.
+The ablations show that adaptive stopping and histogram-256 thresholding account
+for the largest measured CIF runtime changes, with small downstream score changes
+in these experiments. Bonferroni correction is part of the Stage~A testing rule
+and is not treated as a runtime shortcut. For ranking quality, forest size
+matters more than the split-count and feature-muting variants tested here, so the
+selected CIF configuration is the relevant ranking reference when ranking
+quality is the priority.
 
-In sparse high-$p$ settings, candidate feature availability should be monitored
-directly. The simulations show that default candidate sampling can leave
-informative features out of many forest split decisions, especially in sparse
-classification designs. Useful diagnostics include top-$k$ stability across
-seeds, the share of splits using the final top-$k$ features or any prespecified
-positive control features, the number of distinct low-ranked or known null
-features used in splits, and sensitivity to less aggressive candidate sampling
-or to a small CIF-all run with fewer seeds or trees.
+In sparse high-$p$ settings, feature use should be monitored directly.
+The simulations show that CIF feature sampling can leave informative features
+out of many forest split decisions, especially in sparse classification designs.
+Useful diagnostics include top-$k$ stability across seeds, the share of splits
+using the final top-$k$ features or any prespecified positive control features,
+the number of distinct low-ranked or known null features used in splits, and
+sensitivity to larger sampled feature sets or to a small CIF-all run with fewer
+seeds or trees.
 
 \paragraph{Limitations.}
 The fixed-node result is a reference guarantee for exhaustive fixed-$B$ Stage~A
 testing at one node, with the tested features and permutation budget fixed
 independently of the node responses. The benchmarked trees and forests add
-adaptive stopping, candidate ordering, feature muting, bounded threshold sets,
+adaptive stopping, feature and threshold ordering, feature muting, bounded threshold sets,
 bootstrap samples, and forest aggregation, so their behavior is assessed through
 the ranking benchmark.
 
-The benchmark coverage is uneven across analyses. The ctree and cforest
-classification comparisons are broader than the complete-case rank and interval
-panels, and the regression benchmark is smaller throughout. The regression
-results therefore require more caution than the classification results,
-especially for comparisons with wide intervals.
+The benchmark coverage is uneven across analyses. Some comparisons use broader
+panels where both methods are available, while complete-case rank and interval
+summaries use smaller panels that include every method. These summaries are
+therefore descriptive rather than confirmatory.
 
-The candidate-availability analysis isolates a sparse high-$p$ setting in which
-forest candidate sampling can limit informative-feature exposure: wider
-candidate sets increase exposure, but they also change runtime and the mix of
-noise features used by splits. Use candidate exposure as a diagnostic alongside
-downstream performance and runtime before changing the candidate set.
+The sampled-forest analysis isolates a sparse high-$p$ setting in which
+forest feature sampling can limit how often splits use informative features:
+larger sampled feature sets increase informative-feature use, but they also
+change runtime and the mix of noise features used by splits. Track how often
+splits use informative features alongside downstream performance and runtime
+before changing the number of features sampled at each split.

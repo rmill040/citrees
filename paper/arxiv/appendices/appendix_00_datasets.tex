@@ -18,41 +18,38 @@ availability or hosting.
 \begin{table}[H]
   \centering
   \scriptsize
-  \setlength{\tabcolsep}{4pt}
+  \setlength{\tabcolsep}{5pt}
   \renewcommand{\arraystretch}{1.0}
-  \begin{tabular}{@{}lS[table-format=5.0]S[table-format=5.0]l@{\hspace{1.5em}}lS[table-format=5.0]S[table-format=5.0]l@{}}
+  \begin{tabular}{@{}lS[table-format=5.0]S[table-format=5.0]l@{}}
     \toprule
-    \tablehead{Dataset} & {$n$} & {$p$} & \tablehead{Source} &
     \tablehead{Dataset} & {$n$} & {$p$} & \tablehead{Source} \\
-    \cmidrule(lr){1-4}\cmidrule(l){5-8}
     \midrule
-    \nolinkurl{gamma} & 19,020 & 9 & UCI &
+    \nolinkurl{gamma} & 19,020 & 9 & UCI \\
+    \nolinkurl{glass} & 214 & 10 & UCI \\
+    \nolinkurl{page-blocks} & 5,473 & 10 & UCI \\
+    \nolinkurl{vowel-context} & 990 & 10 & UCI \\
+    \nolinkurl{wine} & 178 & 13 & UCI \\
+    \nolinkurl{letter} & 20,000 & 16 & UCI \\
+    \nolinkurl{pendigits} & 10,992 & 16 & UCI \\
+    \nolinkurl{spam} & 4,601 & 57 & UCI \\
+    \nolinkurl{musk} & 6,597 & 166 & UCI \\
+    \nolinkurl{madelon} & 2,000 & 500 & NIPS 2003 \\
+    \nolinkurl{isolet} & 7,797 & 616 & UCI \\
+    \nolinkurl{ORL} & 400 & 1,024 & ASU/SF \\
     \nolinkurl{Yale} & 165 & 1,024 & ASU/SF \\
-    \nolinkurl{glass} & 214 & 10 & UCI &
     \nolinkurl{warpAR10P} & 130 & 2,400 & ASU/SF \\
-    \nolinkurl{page-blocks} & 5,473 & 10 & UCI &
     \nolinkurl{warpPIE10P} & 210 & 2,420 & ASU/SF \\
-    \nolinkurl{vowel-context} & 990 & 10 & UCI &
     \nolinkurl{gisette} & 6,000 & 5,000 & NIPS 2003 \\
-    \nolinkurl{wine} & 178 & 13 & UCI &
     \nolinkurl{TOX_171} & 171 & 5,748 & ASU/SF \\
-    \nolinkurl{letter} & 20,000 & 16 & UCI &
     \nolinkurl{ALLAML} & 72 & 7,129 & ASU/SF \\
-    \nolinkurl{pendigits} & 10,992 & 16 & UCI &
     \nolinkurl{arcene} & 100 & 10,000 & NIPS 2003 \\
-    \nolinkurl{spam} & 4,601 & 57 & UCI &
     \nolinkurl{pixraw10P} & 100 & 10,000 & ASU/SF \\
-    \nolinkurl{musk} & 6,597 & 166 & UCI &
     \nolinkurl{orlraws10P} & 100 & 10,304 & ASU/SF \\
-    \nolinkurl{madelon} & 2,000 & 500 & NIPS 2003 &
     \nolinkurl{CLL_SUB_111} & 111 & 11,340 & ASU/SF \\
-    \nolinkurl{isolet} & 7,797 & 616 & UCI &
     \nolinkurl{dexter} & 300 & 20,000 & NIPS 2003 \\
-    \nolinkurl{ORL} & 400 & 1,024 & ASU/SF & & & & \\
     \bottomrule
   \end{tabular}
-  \caption{Classification benchmark datasets. The two blocks are independent
-  columns used only to save space; rows do not indicate matched dataset pairs.}
+  \caption{Classification benchmark datasets.}
   \label{tab:benchmark-dataset-inventory-clf}
 \end{table}
 
@@ -74,7 +71,7 @@ availability or hosting.
     \nolinkurl{coepra3} & 133 & 5,787 & CoEPrA/OpenML \\
     \bottomrule
   \end{tabular}
-  \caption{Regression benchmark datasets. Source labels are defined in the text.}
+  \caption{Regression benchmark datasets.}
   \label{tab:benchmark-dataset-inventory-reg}
 \end{table}
 

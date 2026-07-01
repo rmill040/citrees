@@ -7,7 +7,7 @@ method produces a feature ranking, and fixed downstream learners evaluate the
 selected features on the held-out fold. We then summarize overall ranks, how
 often CIF performs well across datasets, high-dimensional behavior, recovery on
 synthetic data with known informative features, CIF ranking ablations, and
-candidate feature sampling in forests.
+feature sampling in forests.
 
 \subsection{Benchmark setup}
 \label{sec:experiments-protocol}
@@ -78,12 +78,12 @@ their parameter choices.
 
 Feature recovery uses 8 synthetic classification datasets and 8 synthetic
 regression datasets with known informative features and controlled noise
-structure. A separate study of candidate feature sampling uses $n=250$ and
+structure. A separate study of feature sampling uses $n=250$ and
 varies $p \in \{100, 500, 1{,}000\}$ and
 $n_{\mathrm{informative}} \in \{1,2,5,10\}$. That study compares CIT, a CART
 decision tree (DT), a random threshold tree (RT), CIF, CIF-all, random forests
 (RF), and ExtraTrees (ET), using 1,000 trees for forest methods. CIF-all denotes
-the CIF variant that evaluates all nonconstant candidate features at each split.
+the CIF variant that evaluates all nonconstant features at each split.
 
 \subsection{Compared methods}
 \label{sec:experiments-methods}
@@ -128,7 +128,7 @@ ensemble baselines rank features by decreasing fitted importance: DT, RT, RF,
 ExtraTrees, XGBoost, LightGBM, and CatBoost. Permutation-test filters rank by
 increasing $p$-value, with dependence score as the secondary key. The ctree
 reference ranks features by split-use counts. For cforest, we use partykit's
-default unconditional variable-importance scores with one permutation; CIF uses
+unconditional variable-importance scores with one permutation; CIF uses
 split-importance rankings from accepted conditional-inference splits. The
 cforest results therefore refer to this benchmarked partykit importance setting.
 Boruta and recursive feature elimination rank by their fitted rank variables,
@@ -140,27 +140,27 @@ broken by deterministic, method-specific order for reproducibility.
 \label{sec:experiments-repro}
 
 Several methods, including CIT, CIF, XGBoost, LightGBM, ctree, and cforest, were
-evaluated under multiple settings. Permutation-test filters used one setting per
+evaluated under multiple configurations. Permutation-test filters used one configuration per
 statistic. For each task, the paper reports one configuration per method,
 selected by mean score over real datasets, downstream models, and the standard
 values $k \in \{5,10,25,50,100\}$. Methods with only one configuration are
-treated as fixed. The selected setting is then held fixed across datasets for
+treated as fixed. The selected configuration is then held fixed across datasets for
 that task. Because configuration selection and reporting use the same real-data
 benchmark, the reported scores, intervals, and rank summaries are descriptive.
 As a sensitivity check, we repeat configuration selection in leave-one-dataset-out
 (LODO) form for both tasks. In classification, each of the 14 complete-case
-datasets is evaluated using settings chosen from the other 13 datasets. In
-regression, each of the 6 complete-case datasets is evaluated using settings
+datasets is evaluated using configurations chosen from the other 13 datasets. In
+regression, each of the 6 complete-case datasets is evaluated using configurations
 chosen from the other 5 datasets. The downstream models, $k$ values, and
 averaging within each dataset are unchanged.
 
-For the synthetic analysis, settings are selected separately from the real-data
-benchmark. Each method is assigned the setting with the highest average recovery
+For the synthetic analysis, configurations are selected separately from the real-data
+benchmark. Each method is assigned the configuration with the highest average recovery
 of the true informative features over $k = 5, 10, 25, 50,$ and $100$. The
-default benchmark settings for CIT and CIF use adaptive sequential stopping,
-Bonferroni correction, feature muting, feature scanning, threshold scanning, and
-256-bin histogram thresholding. The benchmarked CIT and CIF variants differ in
-selector and honesty; CIF is run as a bootstrap forest.
+benchmarked CIT and CIF configurations use adaptive sequential stopping, Bonferroni
+correction, feature muting, feature scanning, threshold scanning, and 256-bin
+histogram thresholding. The benchmarked CIT and CIF variants differ in selector
+and honesty; CIF is run as a bootstrap forest.
 Each CIF runtime ablation changes one setting.
 
 To isolate which parts of the CIF ranking matter, we run a ranking ablation on

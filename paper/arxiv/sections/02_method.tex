@@ -103,6 +103,28 @@ for the benchmarked CIT and CIF configurations, stores two values at each split:
 the Stage~A permutation $p$-value for the selected feature and the Stage~B
 permutation $p$-value for the selected threshold.
 
+\subsection{Monte Carlo permutation \texorpdfstring{$p$}{p}-values}
+\label{sec:plusone}
+
+Let $T_{\mathrm{obs}}$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
+computed on $B$ random label permutations. For a right tail test we use the
+Phipson--Smyth $+1$ $p$-value
+\citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues},
+where $\ind\{\cdot\}$ denotes the indicator function:
+%
+\begin{equation}
+  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
+\end{equation}
+%
+For a left tail test we analogously define
+%
+\begin{equation}
+  p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_{\mathrm{obs}}\}}{B+1}.
+\end{equation}
+%
+Stage~A uses the right tail convention and Stage~B the left tail convention;
+ties count as exceedances in both cases.
+
 \begin{algorithm}[H]
   \caption{Conditional inference tree training skeleton (Stage~A $\rightarrow$ Stage~B)}
   \label{alg:citree}
@@ -136,28 +158,6 @@ permutation $p$-value for the selected threshold.
     \EndFunction
   \end{algorithmic}
 \end{algorithm}
-
-\subsection{Monte Carlo permutation \texorpdfstring{$p$}{p}-values}
-\label{sec:plusone}
-
-Let $T_{\mathrm{obs}}$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
-computed on $B$ random label permutations. For a right tail test we use the
-Phipson--Smyth $+1$ $p$-value
-\citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues},
-where $\ind\{\cdot\}$ denotes the indicator function:
-%
-\begin{equation}
-  p_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
-\end{equation}
-%
-For a left tail test we analogously define
-%
-\begin{equation}
-  p_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_{\mathrm{obs}}\}}{B+1}.
-\end{equation}
-%
-Stage~A uses the right tail convention and Stage~B the left tail convention;
-ties count as exceedances in both cases.
 
 \subsection{Forests and runtime hyperparameters}
 \label{sec:bootstrap}

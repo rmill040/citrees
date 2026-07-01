@@ -142,9 +142,9 @@ disabling feature muting, and using one tree.
 
 \FloatBarrier
 
-Table~\ref{tab:cif-ranking-ablation} shows that reducing CIF to one tree has the
-largest effect: $-0.061$ balanced accuracy in classification and $-0.552$ $R^2$
-in regression. Replacing fitted split importance with split counts changes the
+Reducing CIF to one tree has the largest effect: $-0.061$ balanced accuracy in
+classification and $-0.552$ $R^2$ in regression. Replacing fitted split
+importance with split counts changes the
 mean score by $-0.003$ in classification and $-0.022$ in regression, with
 intervals that include zero. Disabling feature muting changes both tasks by
 $+0.000$, while disabling bootstrap sampling changes classification by $+0.001$
@@ -166,36 +166,8 @@ regression configuration in 5 of 6 holdouts.
 \Cref{tab:cif-ci-comparisons,tab:lodo-config-sensitivity}
 give the confidence intervals and LODO details.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.78\linewidth]{figures/k_trajectory.png}
-  \caption{Classification mean rank by number of selected features. Rows show
-  all 17 feature selection methods in the classification benchmark, averaged
-  across downstream models at each value of $k$. Lower ranks are better.
-  Parenthesized counts show the number of datasets with observed scores.}
-  \label{fig:k-trajectory}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.78\linewidth]{figures/regression_k_trajectory.png}
-  \caption{Regression mean rank by number of selected features. Rows show all
-  18 feature selection methods in the regression benchmark, averaged across
-  downstream models at each value of $k$. Lower ranks are better.
-  Parenthesized counts show the number of datasets with observed scores.}
-  \label{fig:regression-k-trajectory}
-\end{figure}
-
-\Cref{fig:k-trajectory,fig:regression-k-trajectory} report mean rank separately
-by $k$ and show the dataset count behind each column. In classification, CIF's
-mean rank is 6.2 at $k=5$, 7.4 at $k=10$, 5.5 at $k=50$, and 5.0 at $k=100$.
-In regression, CIF's mean rank is 8.9 at $k=5$, 5.6 at $k=50$, and 7.3 at
-$k=100$. These by-$k$ results add context to
-\Cref{tab:method-main-comparison}: CIF is strongest at larger displayed $k$
-values in classification and at $k=50$ in regression. The aggregate ctree and
-cforest comparisons use 22 classification datasets; the figures use the counts
-shown in each column. Complete-case analyses use 14 classification datasets and
-6 regression datasets.
+\Cref{tab:cif-breadth-summary} reports how often CIF appears in the top half or
+top 3 and how often it beats tree baselines.
 
 \begin{table}[H]
   \centering
@@ -222,14 +194,48 @@ shown in each column. Complete-case analyses use 14 classification datasets and
   \label{tab:cif-breadth-summary}
 \end{table}
 
-\Cref{tab:cif-breadth-summary} reports how often CIF appears in the top half or
-top 3 and how often it beats tree baselines. In classification, CIF is in the top
-half on 21 of the 22 datasets with ctree and cforest results, and in the top 3
-on 5 of 22. In regression, CIF is in the top half on 6 of 8 datasets and in the
-top 3 on 2 of 8. Against the greedy single-tree baselines, CIF beats DT on 14/23
-classification datasets and 6/8 regression datasets, and beats RT on 21/23
-classification datasets. The RT regression comparison is close: CIF is ahead on
-5/8 datasets, with a mean difference near zero.
+In classification, CIF is in the top half on 21 of the 22 datasets with ctree
+and cforest results, and in the top 3 on 5 of 22. In regression, CIF is in the
+top half on 6 of 8 datasets and in the top 3 on 2 of 8. Against the greedy
+single-tree baselines, CIF beats DT on 14/23 classification datasets and 6/8
+regression datasets, and beats RT on 21/23 classification datasets. The RT
+regression comparison is close: CIF is ahead on 5/8 datasets, with a mean
+difference near zero.
+
+\Cref{fig:k-trajectory,fig:regression-k-trajectory} report mean rank separately
+by $k$. In classification, CIF's mean rank is 6.2 at $k=5$, 7.4 at $k=10$,
+5.5 at $k=50$, and 5.0 at $k=100$.
+In regression, CIF's mean rank is 8.9 at $k=5$, 5.6 at $k=50$, and 7.3 at
+$k=100$. These by-$k$ results add context to
+\Cref{tab:method-main-comparison}: CIF is strongest at larger displayed $k$
+values in classification and at $k=50$ in regression. The aggregate ctree and
+cforest comparisons use 22 classification datasets. For $k=5,10,25,50,100$,
+the classification columns use 22, 21, 15, 15, and 14 datasets, respectively;
+the regression columns use 8, 8, 7, 7, and 6 datasets, respectively.
+Complete-case analyses use 14 classification datasets and 6 regression datasets.
+
+\FloatBarrier
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.86\linewidth]{figures/classification_k_trajectory.png}
+  \caption{Classification mean rank by number of selected features. Rows show
+  all 17 feature selection methods in the classification benchmark, averaged
+  across downstream models at each value of $k$. Lower ranks are better.
+  The columns for $k=5,10,25,50,100$ use 22, 21, 15, 15, and 14 datasets,
+  respectively.}
+  \label{fig:k-trajectory}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.86\linewidth]{figures/regression_k_trajectory.png}
+  \caption{Regression mean rank by number of selected features. Rows show all
+  18 feature selection methods in the regression benchmark, averaged across
+  downstream models at each value of $k$. Lower ranks are better. The columns
+  for $k=5,10,25,50,100$ use 8, 8, 7, 7, and 6 datasets, respectively.}
+  \label{fig:regression-k-trajectory}
+\end{figure}
 
 \FloatBarrier
 
@@ -328,13 +334,19 @@ reaches its best score at an intermediate value of $k$ ($100 < k < p$) in 30 of 
 dataset-learner combinations. It first reaches its best score at the full
 feature set ($k=p$) in only 5 of 45 combinations.
 \Cref{fig:high-p-boundary} shows this pattern by downstream learner; regression
-is summarized after the figure. Classification scores most often peak at
+is summarized next. Classification scores most often peak at
 intermediate $k$: 11 of 15 LR datasets, 9 of 15 SVM datasets, and 10 of 15 KNN
 datasets. The full feature set is mainly an LR exception. Moving from $k{=}100$
 to $k{=}p$ gives a mean $k{=}p$ minus $k{=}100$ score change of $+0.022$ for LR,
 and $k=p$ matches the best observed LR score in 6 of 15 datasets. For SVM and
 KNN, the corresponding mean changes are $-0.058$ and $-0.075$, and $k=p$ is
 best in only 1 of 15 datasets for each learner.
+
+In the 6 high-$p$ regression datasets, full-feature evaluation is rarely best.
+Across the 18 dataset-learner combinations, 11 peak at or below $k{=}100$, only
+2 peak at $k=p$, and the mean $k{=}p$ minus $k{=}100$ score change is $-0.308$.
+The main full-feature exception remains the classification LR result in
+\Cref{fig:high-p-boundary}.
 
 \begin{figure}[H]
   \centering
@@ -346,12 +358,6 @@ best in only 1 of 15 datasets for each learner.
   change from $k{=}100$ to $k{=}p$.}
   \label{fig:high-p-boundary}
 \end{figure}
-
-In the 6 high-$p$ regression datasets, full-feature evaluation is rarely best.
-Across the 18 dataset-learner combinations, 11 peak at or below $k{=}100$, only
-2 peak at $k=p$, and the mean $k{=}p$ minus $k{=}100$ score change is $-0.308$.
-The main full-feature exception remains the classification LR result in
-\Cref{fig:high-p-boundary}.
 
 \paragraph{Synthetic feature recovery.}
 Across synthetic classification datasets, 34\% of the features in CIF's top-$k$
@@ -438,3 +444,5 @@ feature at a node, Stage~A selects from that subset.
   y-axis range because counts differ across methods.}
   \label{fig:candidate-forest-counts}
 \end{figure}
+
+\FloatBarrier

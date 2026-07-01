@@ -29,13 +29,12 @@ Source bundle contents for submission:
 - `main.tex`
 - `macros.tex`
 - `references.bib`
-- `main.bbl`
 - `sections/`
 - `appendices/`
 - referenced figures:
   - `figures/benchmark_pairwise_sensitivity.png`
   - `figures/high_p_boundary_summary.png`
-  - `figures/k_trajectory.png`
+  - `figures/classification_k_trajectory.png`
   - `figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png`
   - `figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png`
   - `figures/paper_mechanism_grid_forest_regression_dimension_curves_1000trees.png`
@@ -50,6 +49,6 @@ outputs. From the repository root, build the deterministic source bundle with:
 UV_CACHE_DIR=./scratch/.uv_cache uv run python paper/scripts/analysis/build_arxiv_source_bundle.py
 ```
 
-The bundler rebuilds the manuscript, includes the generated `main.bbl`, copies
-only the files above, and excludes scratch, PDF, unused figures, and LaTeX
-build products.
+The bundler rebuilds the manuscript, copies only the files above, and excludes
+scratch, PDF, unused figures, `main.bbl`, and LaTeX build products. arXiv
+regenerates the bibliography from `references.bib`.

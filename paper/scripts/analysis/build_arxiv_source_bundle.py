@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 ARXIV_DIR = ROOT / "paper" / "arxiv"
 DEFAULT_OUT = ARXIV_DIR / "build" / "citrees-arxiv-source.zip"
-STATIC_FILES = ("main.tex", "macros.tex", "references.bib", "main.bbl")
+STATIC_FILES = ("main.tex", "macros.tex", "references.bib")
 INCLUDEGRAPHICS_RE = re.compile(r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}")
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 ZIP_FILE_MODE = 0o644
@@ -44,17 +44,14 @@ def collect_referenced_figures() -> list[Path]:
     return sorted(figures)
 
 
-def bundle_members(*, require_bbl: bool = True) -> list[Path]:
+def bundle_members() -> list[Path]:
     """Return arXiv-relative files included in the source bundle."""
     members: set[Path] = set()
     for relname in STATIC_FILES:
         path = ARXIV_DIR / relname
-        if (require_bbl or relname != "main.bbl") and not path.exists():
-            raise FileNotFoundError(
-                f"Missing {path.relative_to(ROOT)}. Run latexmk or this script without --skip-build."
-            )
-        if path.exists():
-            members.add(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Missing {path.relative_to(ROOT)}.")
+        members.add(path)
 
     members.update(tex_sources())
     members.update(collect_referenced_figures())
@@ -72,7 +69,7 @@ def build_pdf() -> None:
 
 def write_bundle(out_path: Path) -> list[Path]:
     """Write the source bundle and return included members."""
-    members = bundle_members(require_bbl=True)
+    members = bundle_members()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for path in members:
@@ -94,7 +91,7 @@ def main() -> None:
     if not args.skip_build:
         build_pdf()
 
-    members = bundle_members(require_bbl=True)
+    members = bundle_members()
     if args.check:
         for path in members:
             print(path.relative_to(ARXIV_DIR).as_posix())

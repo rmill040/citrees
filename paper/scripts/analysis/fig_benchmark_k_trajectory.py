@@ -43,8 +43,8 @@ TASKS: Final[tuple[TaskPlotConfig, ...]] = (
         task="classification",
         metric="balanced_accuracy",
         expected_n_methods=17,
-        output_name="k_trajectory.png",
-        table_name="k_trajectory_ranks.csv",
+        output_name="classification_k_trajectory.png",
+        table_name="classification_k_trajectory_ranks.csv",
     ),
     TaskPlotConfig(
         task="regression",
@@ -165,13 +165,14 @@ def _render_heatmap(config: TaskPlotConfig, ranks: pd.DataFrame, support: dict[i
     image = ax.imshow(values, cmap=RANK_CMAP, aspect="auto", vmin=1, vmax=config.expected_n_methods)
     _annotate_heatmap(ax, values)
 
-    x_labels = [f"{k}\n(n={support[k]})" for k in STANDARD_K]
+    x_labels = [f"{k}\n{support[k]} datasets" for k in STANDARD_K]
     y_labels = [DISPLAY_NAMES[method] for method in ranks.index]
     ax.set_xticks(np.arange(len(STANDARD_K)), labels=x_labels)
     ax.set_yticks(np.arange(len(ranks.index)), labels=y_labels)
-    ax.set_xlabel("Number of selected features $k$")
+    ax.set_xlabel("Number of selected features $k$", labelpad=14)
     ax.set_ylabel("")
-    ax.tick_params(axis="both", length=0)
+    ax.tick_params(axis="x", length=0, pad=4)
+    ax.tick_params(axis="y", length=0)
     ax.set_xticks(np.arange(-0.5, len(STANDARD_K), 1), minor=True)
     ax.set_yticks(np.arange(-0.5, len(ranks.index), 1), minor=True)
     ax.grid(which="minor", color="white", linestyle="-", linewidth=0.9)

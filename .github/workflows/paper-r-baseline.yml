@@ -30,9 +30,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y r-base r-base-dev libcurl4-openssl-dev libssl-dev libxml2-dev
 
+      - name: Configure R user library
+        run: |
+          echo "R_LIBS_USER=$HOME/R/library" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/R/library"
+
       - name: Install partykit
         run: |
-          Rscript -e 'options(Ncpus=2); install.packages("partykit", repos="https://cloud.r-project.org")'
+          Rscript -e 'options(Ncpus=2); install.packages("partykit", lib=Sys.getenv("R_LIBS_USER"), repos="https://cloud.r-project.org")'
           Rscript -e 'stopifnot(requireNamespace("partykit", quietly=TRUE)); print(packageVersion("partykit"))'
 
       - name: Install uv

@@ -5,8 +5,8 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-citrees implements conditional-inference-style decision trees and random forests
-using permutation-based screening before threshold selection. Unlike traditional
+citrees implements conditional-inference-style decision trees and forests using
+permutation-based screening before threshold selection. Unlike traditional
 CART-style trees that greedily optimize split criteria, citrees separates
 variable selection from split point selection to reduce the classic
 high-cardinality split-selection bias mechanism. Fixed-B p-value calibration is
@@ -129,7 +129,8 @@ algorithmic screening and stopping scores.
 
 - **Bonferroni Correction**: Controls nodewise fixed-$B$ Stage A rejection
   probability under the complete permutation null when testing multiple features
-- **Feature Muting**: Automatically removes clearly uninformative features
+- **Feature Muting**: Removes Stage A non-rejecting tested features from
+  descendant feature pools
 - **Honest Estimation**: Optional sample splitting to reduce adaptive bias in
   leaf estimation (Wager & Athey, 2018)
 
@@ -186,6 +187,7 @@ function BuildTree(X, y, depth):
 | [Splitters](docs/splitters.md)                 | Split criteria (gini, entropy, mse, mae)        |
 | [Permutation Tests](docs/permutation-tests.md) | Nodewise permutation tests and scope caveats    |
 | [Honest Estimation](docs/honest-estimation.md) | Sample splitting for leaf estimation            |
+| [Basic Usage Example](examples/basic_usage.py) | Runnable classifier, regressor, and forest demo |
 
 ## Parameters Reference
 
@@ -210,7 +212,7 @@ function BuildTree(X, y, depth):
 | `early_stopping_splitter`            | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests            |
 | `early_stopping_confidence_selector` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (selectors) |
 | `early_stopping_confidence_splitter` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (splitters) |
-| `feature_muting`                     | bool               | True                     | Remove uninformative features                                      |
+| `feature_muting`                     | bool               | True                     | Remove Stage A non-rejecting tested features from descendant pools |
 | `feature_scanning`                   | bool               | True                     | Test promising features first                                      |
 
 ### Tree Structure Parameters

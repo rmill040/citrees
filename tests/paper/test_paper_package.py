@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import subprocess
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -141,6 +142,26 @@ def test_experiments_doc_points_to_current_operational_entrypoints():
     assert "paper/docs/infrastructure.md" in experiments
     assert "citrees-exp infra launch-api" in infrastructure
     assert "citrees-exp infra launch-workers --count 5" in infrastructure
+
+
+def test_citrees_exp_entrypoint_targets_packaged_wheel_sources():
+    """The wheel should ship the experiment CLI modules named by its console script."""
+    pyproject = tomllib.loads(_read("pyproject.toml"))
+
+    assert pyproject["project"]["scripts"]["citrees-exp"] == "paper.scripts.cli.entrypoint:main"
+    assert "citrees" in pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["only-include"]
+    assert (
+        "paper/scripts" in pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["only-include"]
+    )
+
+
+def test_generated_paper_artifacts_are_excluded_from_sdist():
+    """Generated experiment data/results should not ship in the Python sdist."""
+    pyproject = tomllib.loads(_read("pyproject.toml"))
+
+    sdist_exclude = pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["exclude"]
+    assert "/paper/data" in sdist_exclude
+    assert "/paper/results" in sdist_exclude
 
 
 def _load_arxiv_bundle_module():

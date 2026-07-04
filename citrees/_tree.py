@@ -654,8 +654,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     if self._rng.random_sample() < 1.0 / n_best_pval:
                         best_feature = int(feature)
 
-                # Check for feature muting: mute features that are not statistically significant
-                # (i.e., p-value >= alpha means we fail to reject H0 of no association)
+                # Check for subtree-local feature muting: remove tested features
+                # that fail the node's Stage A gate from descendant feature pools.
                 if (
                     self._feature_muting
                     and pval_feature >= self._alpha_selector
@@ -1530,6 +1530,16 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
     early_stopping_confidence_splitter : float, default=0.95
         Confidence threshold for adaptive stopping in split selection.
 
+    feature_muting : bool, default=True
+        If True, tested features that fail the node's Stage A gate are removed
+        from descendant feature pools in that subtree. The gate uses the
+        node-adjusted alpha when ``adjust_alpha_selector=True``. Feature muting
+        can change fitted trees and feature rankings.
+
+    feature_scanning : bool, default=True
+        Whether to test promising features first when selector early stopping is
+        enabled.
+
     Notes
     -----
     P-values use the Phipson & Smyth (2010) +1 correction to ensure they are
@@ -1684,6 +1694,16 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
 
     early_stopping_confidence_splitter : float, default=0.95
         Confidence threshold for adaptive stopping in split selection.
+
+    feature_muting : bool, default=True
+        If True, tested features that fail the node's Stage A gate are removed
+        from descendant feature pools in that subtree. The gate uses the
+        node-adjusted alpha when ``adjust_alpha_selector=True``. Feature muting
+        can change fitted trees and feature rankings.
+
+    feature_scanning : bool, default=True
+        Whether to test promising features first when selector early stopping is
+        enabled.
 
     Notes
     -----

@@ -770,7 +770,10 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         Confidence threshold for adaptive stopping in split selection.
 
     feature_muting : bool, default=True
-        Whether to perform feature muting.
+        If True, tested features that fail a tree node's Stage A gate are
+        removed from descendant feature pools in that subtree. The gate uses the
+        node-adjusted alpha when ``adjust_alpha_selector=True``. Feature muting
+        can change fitted trees and feature rankings.
 
     feature_scanning : bool, default=True
         Whether to perform feature scanning.

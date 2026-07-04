@@ -133,17 +133,23 @@ forest-level, full-tree, selected-split, or adaptive-stopping guarantee.
 
 ### Feature Muting
 
-Features that clearly fail the test are "muted" (removed from consideration):
+Feature muting removes tested features that fail the node's Stage A gate from
+the candidate set inherited by descendants:
 
 ```python
-# Feature muting accelerates training by removing uninformative features
-if feature_muting and pval >= max(alpha, 1 - alpha):
-    mute_feature(feature)  # Remove from available features
+# alpha_node is alpha_selector after any nodewise Bonferroni adjustment.
+alpha_node = alpha_selector / n_tested_features if adjust_alpha_selector else alpha_selector
+
+if feature_muting and pval >= alpha_node:
+    mute_feature(feature)  # Remove from descendant feature pools
 ```
 
-For $\alpha \le 1/2$, this is an _upper-tail_ rule: `pval >= 1 - alpha` (e.g.,
-$\alpha=0.05 \Rightarrow p\ge 0.95$). It is a speed-only heuristic: it avoids
-repeatedly testing features that look extremely unpromising.
+This is a model-construction choice, not an upper-tail `p >= 1 - alpha` rule and
+not a pure speed-only heuristic. A muted feature failed to reject the node's
+Stage A test under the current node threshold; that threshold is Bonferroni
+adjusted when `adjust_alpha_selector=True`. Because the decision changes which
+features descendants can consider, feature muting can change the fitted tree and
+the resulting feature ranking.
 
 Muting is **subtree-local**: muted features are removed only for descendants of
 the current node (siblings are isolated), which avoids traversal-order
@@ -172,7 +178,7 @@ splitting assumptions). For full details, see the dedicated documentation:
 | ------------------------- | --------------------------------------------------------------------- | ---------------------------- |
 | **Permutation tests**     | Reduced selection bias, test-based stopping                           | Core algorithm               |
 | **Bonferroni correction** | Controls nodewise fixed-$B$ Stage A rejection under the complete null | Conservative tree growth     |
-| **Feature muting**        | Accelerates training                                                  | Large feature spaces         |
+| **Feature muting**        | Removes Stage A non-rejecting tested features from descendant pools   | Large feature spaces         |
 | **Honesty**               | Reduced adaptive bias in leaf estimation                              | Estimation-focused workflows |
 
 ## References

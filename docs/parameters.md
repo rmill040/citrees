@@ -73,12 +73,16 @@ Notes:
 
 | Parameter          | Type | Default | Description                           |
 | ------------------ | ---- | ------- | ------------------------------------- |
-| `feature_muting`   | bool | True    | Remove clearly uninformative features |
+| `feature_muting`   | bool | True    | Remove Stage A non-rejecting tested features from descendant pools |
 | `feature_scanning` | bool | True    | Test promising features first         |
 
 Notes:
 
 - `feature_scanning` only applies when `early_stopping_selector` is not `None`.
+- `feature_muting` is subtree-local model pruning: a tested feature that fails
+  the node's Stage A gate is removed from descendant feature pools in that
+  subtree. The gate uses the node-adjusted alpha when
+  `adjust_alpha_selector=True`, so muting can change fitted trees and rankings.
 
 ### Threshold Generation
 

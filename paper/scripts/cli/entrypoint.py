@@ -15,6 +15,7 @@ def _print_install_help(*, missing: str | None) -> None:
 
     print("citrees-exp requires the experiment CLI dependencies.", file=sys.stderr)
     print("Install with one of:", file=sys.stderr)
+    print("  pip install 'citrees[paper]'", file=sys.stderr)
     print("  uv sync --group paper", file=sys.stderr)
     print("  pip install -e '.[paper]'", file=sys.stderr)
 

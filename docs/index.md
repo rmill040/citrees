@@ -2,13 +2,13 @@
 
 **Conditional Inference Trees and Forests for Python**
 
-citrees implements conditional-inference-style decision trees and random forests
-that use permutation-based screening before threshold selection. Unlike
-traditional CART-style trees that greedily optimize split criteria, conditional
-inference trees separate the variable selection step from the split point
-selection step to reduce the classic high-cardinality split-selection bias
-mechanism. Fixed-B p-value calibration is nodewise; adaptive tree and forest
-rankings remain empirical model outputs.
+citrees implements conditional-inference-style decision trees and forests that
+use permutation-based screening before threshold selection. Unlike traditional
+CART-style trees that greedily optimize split criteria, conditional inference
+trees separate the variable selection step from the split point selection step
+to reduce the classic high-cardinality split-selection bias mechanism. Fixed-B
+p-value calibration is nodewise; adaptive tree and forest rankings remain
+empirical model outputs.
 
 ## Why citrees?
 
@@ -109,7 +109,8 @@ print(forest.feature_importances_)
 
 - **Honest Estimation**: Sample splitting to reduce adaptive bias in leaf
   estimation
-- **Feature Muting**: Automatically removes uninformative features
+- **Feature Muting**: Removes Stage A non-rejecting tested features from
+  descendant feature pools
 
 ## Installation
 

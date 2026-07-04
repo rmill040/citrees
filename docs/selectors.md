@@ -89,8 +89,12 @@ def mc(x, y, n_classes, random_state=None):
 
 ## Mutual Information (mi)
 
-Measures non-linear statistical dependence using information theory. Based on
-k-nearest neighbors estimation.
+Measures non-linear statistical dependence using information theory. In
+`citrees`, this selector delegates to
+`sklearn.feature_selection.mutual_info_classif` for a one-column feature matrix.
+It uses scikit-learn's default estimator settings unless the implementation is
+changed upstream: dense features are treated as continuous, the target is
+discrete, and `n_neighbors=3`.
 
 ### Mathematical Definition
 
@@ -101,34 +105,44 @@ Where:
 - $H(Y)$ = Entropy of $Y$
 - $H(Y|X)$ = Conditional entropy of $Y$ given $X$
 
-For continuous features, MI is estimated using the
-[KSG estimator](https://arxiv.org/abs/cond-mat/0305641):
-
-$$\hat{MI}(X; Y) = \psi(k) - \langle \psi(n_x + 1) + \psi(n_y + 1) \rangle + \psi(N)$$
+For continuous dense features with a discrete target, the delegated
+scikit-learn estimator uses nearest-neighbor entropy estimation for mixed
+continuous-discrete data. `citrees` passes `random_state` through to
+scikit-learn so the small tie-breaking noise added to continuous variables is
+reproducible.
 
 ### Properties
 
 - **Range**: [0, ∞)
-- **Units**: Nats (natural log) or bits (log₂)
-- **Zero iff independent**: $MI(X;Y) = 0 \Leftrightarrow X \perp Y$
+- **Units**: Nats
+- **Zero iff independent**: True mutual information is zero iff independent;
+  finite-sample estimates should be interpreted as estimates.
+- **Negative estimates**: scikit-learn clips negative estimates to zero.
 - **Limitation**: Unbounded scale makes it incompatible with other selectors
 
 ### Algorithm
 
 ```
-Algorithm: Mutual Information (KSG Estimator)
-Input: Feature x ∈ ℝⁿ, class labels y ∈ {1,...,K}ⁿ, neighbors k
+Algorithm: Mutual Information (scikit-learn delegated)
+Input: Feature x ∈ ℝⁿ, class labels y ∈ {1,...,K}ⁿ, random_state
 
-1. For each point i:
-   a. Find k-th nearest neighbor in joint space (x, y)
-   b. Let ε[i] = distance to k-th neighbor
-   c. Count n_x[i] = points within ε[i] in x-space
-   d. Count n_y[i] = points within ε[i] in y-space
+1. Reshape x to an n × 1 feature matrix if needed.
+2. Call sklearn.feature_selection.mutual_info_classif(
+      x, y, random_state=random_state
+   )
+   with scikit-learn's default discrete_features="auto" and n_neighbors=3.
+3. Return the first estimated MI value.
+```
 
-2. Compute MI estimate:
-   MI = ψ(k) - (1/n)Σᵢ[ψ(n_x[i]+1) + ψ(n_y[i]+1)] + ψ(n)
+### Implementation
 
-   where ψ is the digamma function
+```python
+# From _selector.py
+def mi(x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int) -> float:
+    if x.ndim == 1:
+        x = x[:, None]
+
+    return mutual_info_classif(x, y, random_state=random_state)[0]
 ```
 
 ### Usage Note
@@ -385,9 +399,10 @@ the feature with the smallest p-value.
 1. **Multiple Correlation**: Fisher, R.A. (1925). Statistical Methods for
    Research Workers.
 
-2. **Mutual Information**: Kraskov, A., Stögbauer, H., & Grassberger, P. (2004).
-   [Estimating mutual information](https://arxiv.org/abs/cond-mat/0305641).
-   Physical Review E.
+2. **Mutual Information**: citrees delegates to scikit-learn's
+   [`mutual_info_classif`](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html),
+   which cites nearest-neighbor entropy estimators for continuous and mixed
+   continuous-discrete variables.
 
 3. **RDC**: Lopez-Paz, D., Hennig, P., & Schölkopf, B. (2013).
    [The Randomized Dependence Coefficient](https://arxiv.org/abs/1304.7717).

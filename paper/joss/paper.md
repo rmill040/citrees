@@ -28,8 +28,8 @@ bibliography: paper.bib
 
 `citrees` is a Python package for conditional inference trees and forests for
 classification and regression. The package provides scikit-learn-style
-estimators for tabular data, including prediction, classifier probability
-estimation, out-of-bag scoring, decision paths, fitted tree and forest
+estimators for tabular data, including predictions, class-probability estimates
+for classifiers, out-of-bag scoring, decision paths, fitted tree and forest
 inspection, and split-derived feature importances.
 
 The core tree-growing procedure separates feature selection from threshold
@@ -39,10 +39,13 @@ reduces the advantage a feature gets simply because it offers many thresholds to
 try
 [@Breiman1984ClassificationAndRegressionTrees;
 @Strobl2007BiasRFVariableImportance].
-`citrees` includes configurable association tests, corrected permutation
-p-values [@PhipsonSmyth2010PermutationPValues], sequential stopping, threshold
-subsampling, bootstrapping, parallel forest fitting, and optional leaf estimates
-after sample splitting.
+`citrees` includes association statistics for linear and nonlinear dependence:
+multiple correlation and mutual information for classification, Pearson and
+distance correlation for regression, and the randomized dependence coefficient
+for both tasks [@Szekely2007DistanceCorrelation; @LopezPaz2013RDC]. It also
+provides corrected permutation p-values [@PhipsonSmyth2010PermutationPValues],
+sequential stopping, threshold subsampling, bootstrapping, parallel forest
+fitting, and optional leaf estimates after sample splitting.
 
 # Statement of need
 
@@ -94,17 +97,20 @@ importances.
 The implementation separates the estimator interface from the statistical
 components used during fitting. Association tests, split criteria, threshold
 search methods, parameter validation, and forest aggregation live in separate
-modules. This allows classification and regression estimators to share the same
-user-facing design while using task-specific statistics, and it lets users vary
-association tests or threshold-search controls without changing the surrounding
-workflow.
+modules. Classification selectors include multiple correlation, mutual
+information, and the randomized dependence coefficient. Regression selectors
+include Pearson correlation, distance correlation, and the randomized dependence
+coefficient. Split criteria include Gini and entropy for classification and mean
+squared or absolute error for regression. This lets users vary association
+tests or threshold-search controls without changing the surrounding workflow.
 
 Permutation testing is the main computational cost. `citrees` uses Numba for
-association and split statistics, fits forest trees in parallel, and exposes the
-main runtime controls directly: permutation budgets, adaptive stopping, feature
-scanning, threshold scanning, and threshold subsampling. Fixed permutation
-budgets support the most direct interpretation of nodewise p-values, while the
-faster settings are exposed as model-building choices for practical fitting.
+association and split statistics, fits forest trees in parallel, and includes
+the main runtime controls directly: permutation budgets, adaptive stopping,
+feature scanning, threshold scanning, and threshold subsampling. Fixed
+permutation budgets support the most direct interpretation of nodewise p-values,
+while the faster settings are available as model-building choices for practical
+fitting.
 
 # Research impact statement
 
@@ -114,21 +120,20 @@ package to fit predictive models, inspect tree and forest structure, compare
 association tests and stopping rules, and compute split-derived feature
 importances when feature analysis is part of the study.
 
-The companion benchmark [@Milletich2026FeatureSelection] demonstrates one such
-workflow. It studies real and synthetic classification and regression tasks,
-uses fitted split importances as feature rankings, and evaluates selected
-features with downstream balanced accuracy and $R^2$. In the real-data
-aggregate reported by the benchmark, the selected CIF configuration ranks
-fourth among 17 classification methods and third among 18 regression methods.
-Those aggregate ranks come from
+Milletich et al. [-@Milletich2026FeatureSelection] evaluate `citrees` in real
+and synthetic classification and regression benchmarks. They use fitted split
+importances as feature rankings and evaluate selected features with downstream
+balanced accuracy and $R^2$. In their real-data aggregate, the selected CIF
+configuration ranks fourth among 17 classification methods and third among 18
+regression methods. Those aggregate ranks come from
 `paper/results/tables/paper_benchmark_method_aggregate.csv`.
 
-The benchmark also reports runtime ablations for practical fitting controls. In
-the CIF ablations, disabling adaptive stopping makes fits 4.0--8.4 times slower
-across task groups, with absolute downstream score changes no larger than
-0.006. These results should be read as descriptive benchmark evidence, but they
-show that `citrees` can be used to study prediction, feature analysis, and
-runtime behavior in a single reproducible Python workflow.
+Milletich et al. also report runtime ablations for practical fitting controls.
+In the CIF ablations, disabling adaptive stopping makes fits 4.0--8.4 times
+slower across task groups, with absolute downstream score changes no larger than
+0.006. These are descriptive results, but they show that `citrees` can be used
+to study prediction, feature analysis, and runtime behavior in the same Python
+workflow.
 
 # AI usage disclosure
 

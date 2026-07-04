@@ -26,125 +26,109 @@ bibliography: paper.bib
 
 # Summary
 
-`citrees` is a Python package for conditional inference trees and forests. It
-separates two decisions that standard CART training usually makes at the same
-time: which feature to split on and where to place the split. At each node,
-`citrees` first tests which features are associated with the response, then
-searches for a threshold on the selected feature. This reduces the advantage a
-feature gets simply because it offers many thresholds to try
+`citrees` is a Python package for conditional inference trees and forests for
+classification and regression. The package provides scikit-learn-style
+estimators for tabular data, including prediction, classifier probability
+estimation, out-of-bag scoring, decision paths, fitted tree and forest
+inspection, and split-derived feature importances.
+
+The core tree-growing procedure separates feature selection from threshold
+selection. At each node, `citrees` first tests which features are associated
+with the response, then searches for a threshold on the selected feature. This
+reduces the advantage a feature gets simply because it offers many thresholds to
+try
 [@Breiman1984ClassificationAndRegressionTrees;
 @Strobl2007BiasRFVariableImportance].
-
-The package provides classifier and regressor estimators that follow
-scikit-learn conventions for tabular data. Fitted estimators can make
-predictions, estimate class probabilities for classifiers, return decision
-paths, and compute feature importances from their splits for feature ranking.
-Association tests include multiple correlation and mutual information for
-classification, Pearson and distance correlation for regression
-[@Szekely2007DistanceCorrelation], and the randomized dependence coefficient for
-both tasks [@LopezPaz2013RDC]. `citrees` also provides corrected permutation
+`citrees` includes configurable association tests, corrected permutation
 p-values [@PhipsonSmyth2010PermutationPValues], sequential stopping, threshold
-subsampling, bootstrapping, out-of-bag (OOB) scoring, and optional leaf
-estimates after sample splitting.
+subsampling, bootstrapping, parallel forest fitting, and optional leaf estimates
+after sample splitting.
 
 # Statement of need
 
-Decision trees and forests are widely used for prediction, feature ranking, and
+Decision trees and forests are used for prediction, model inspection, and
 exploratory analysis. Standard CART training chooses the feature and threshold
-jointly [@Breiman1984ClassificationAndRegressionTrees]. When one feature has
-many possible thresholds, it gets more opportunities to look useful even when it
-is noise. This can change both the fitted tree and the feature ranking derived
-from it. Conditional inference trees address the problem by testing feature
-association before threshold search [@Hothorn2006UnbiasedRecursivePartitioning].
+jointly [@Breiman1984ClassificationAndRegressionTrees]. This can favor features
+with many possible thresholds, because they have more chances to produce an
+apparently good split even under noise. The effect matters for the fitted model
+itself: it can change tree structure, predictions, and split-derived summaries
+such as feature importances. Conditional inference trees address this issue by
+testing feature association before threshold search
+[@Hothorn2006UnbiasedRecursivePartitioning].
 
-This distinction matters when the ranking itself will be interpreted. In a
-simulation study, the question may be whether a method recovers known signal
-features. In an applied tabular analysis, the ranking may determine which
-variables are inspected, validated, or passed to a smaller downstream model. For
-these uses, an accurate predictor is not enough: the feature selection mechanism
-also has to be explicit and inspectable.
-
-`citrees` is intended for researchers comparing feature selection methods,
-applied scientists who need interpretable rankings, and method developers who
-want a configurable implementation of conditional inference trees and forests.
-It supports encoded binary and ordinal features, continuous features, and
-features with many possible values. It also exposes the permutation budgets,
-stopping rules, and threshold search options used during fitting.
+`citrees` provides this approach as a native Python estimator library. It is
+designed for users who want to fit conditional inference trees and forests for
+classification or regression, use them in scikit-learn-style workflows, inspect
+the fitted structure, and choose practical fitting controls such as permutation
+budgets, sequential stopping, feature scanning, and threshold search settings.
+Feature ranking is one supported workflow, but the package is broader: it
+provides full predictive estimators with inspection and runtime-control tools.
 
 # State of the field
 
 The original conditional inference tree and forest methods are implemented in R,
 most notably through the `partykit` ecosystem [@HothornZeileis2015Partykit;
 @RPartykitPackage]. These packages remain the reference implementation for many
-statistical workflows. In Python, the most common tree and forest estimators are
-provided by scikit-learn [@Pedregosa2011ScikitLearn]. They provide robust CART
-decision trees and random forests, but they do not use conditional inference
-feature tests as the tree growth rule.
+statistical workflows. In Python, scikit-learn provides the standard tree and
+forest estimators [@Pedregosa2011ScikitLearn], but these estimators use
+CART-style split selection rather than conditional inference feature tests.
 
-`citrees` gives Python users native estimators for conditional inference trees
-and forests. It is not a wrapper around the R implementation, and it is not a
-post-hoc importance method layered on top of CART. Extending scikit-learn's CART
-estimators would not provide conditional-inference growth without changing their
-splitting rule. `citrees` implements conditional inference tree growth, uses
-Numba to accelerate permutation tests
-[@Lam2015Numba], and provides association tests and forest feature importances
-directly in Python. Researchers can use conditional inference trees and forests
-in ordinary Python experiments and pipelines that already follow scikit-learn
-conventions.
-
-Python users can already rank features with filter methods, wrapper methods, and
-importance scores from fitted tree or boosting models
-[@Li2018FeatureSelectionDataPerspective]. What is missing is a native
-conditional inference tree and forest implementation that uses feature
-association tests as the tree growth rule. `citrees` provides that estimator
-interface directly in Python.
+`citrees` provides a native Python implementation of conditional inference trees
+and forests. It implements conditional inference tree growth directly, rather
+than wrapping R or adding post-hoc importance scores to CART models. The package
+provides classifier and regressor trees and forests, Numba-accelerated
+permutation-test computations [@Lam2015Numba], configurable association tests,
+fitted-model inspection, and split-derived feature importances. Python users can
+therefore use conditional inference trees and forests in workflows similar to
+those used for scikit-learn estimators: prediction, model inspection, comparison
+studies, and feature analysis.
 
 # Software design
 
-The public API follows scikit-learn conventions. Internally, `citrees` separates
-association tests, split criteria, and threshold search strategies from the
-estimator interface. Researchers can change the association test while keeping
-the rest of a tree or forest fixed, and classification and regression share the
-same user-facing API with task-specific statistics.
+The public API follows scikit-learn conventions. `citrees` provides conditional
+inference tree and forest estimators for classification and regression,
+including `fit`, `predict`, classifier `predict_proba`, decision paths, fitted
+tree structure, forest out-of-bag scores, and split-derived feature
+importances.
 
-Permutation testing is computationally expensive, so association and split
-statistics use Numba. Forest estimators fit trees in parallel and support
-bootstrap sampling, stratified sampling for classification, out-of-bag (OOB)
-scoring, and optional leaf estimates after sample splitting. Fitted estimators
-return decision paths and tree structure, and compute feature importances from
-their splits so users can inspect which features drove the fitted tree or
-forest.
+The implementation separates the estimator interface from the statistical
+components used during fitting. Association tests, split criteria, threshold
+search methods, parameter validation, and forest aggregation live in separate
+modules. This allows classification and regression estimators to share the same
+user-facing design while using task-specific statistics, and it lets users vary
+association tests or threshold-search controls without changing the surrounding
+workflow.
 
-The package makes the cost of permutation testing explicit. Fixed permutation
-budgets support the most direct interpretation of nodewise p-values. Adaptive
-stopping, feature scanning, and threshold subsampling reduce fitting time, but
-should be treated as algorithmic fitting choices rather than exact equivalents
-to full permutation tests.
+Permutation testing is the main computational cost. `citrees` uses Numba for
+association and split statistics, fits forest trees in parallel, and exposes the
+main runtime controls directly: permutation budgets, adaptive stopping, feature
+scanning, threshold scanning, and threshold subsampling. Fixed permutation
+budgets support the most direct interpretation of nodewise p-values, while the
+faster settings are exposed as model-building choices for practical fitting.
 
 # Research impact statement
 
-`citrees` supports research workflows where feature rankings are not just
-byproducts of prediction, but objects that researchers inspect and compare. The
-package is designed for method comparisons, synthetic signal-recovery studies,
-and applied tabular analyses that use rankings to choose variables for later
-modeling.
+The main research impact of `citrees` is that it provides a Python estimator
+family for conditional inference trees and forests. Researchers can use the
+package to fit predictive models, inspect tree and forest structure, compare
+association tests and stopping rules, and compute split-derived feature
+importances when feature analysis is part of the study.
 
-A companion benchmark in the repository covers real and synthetic classification
-and regression tasks [@Milletich2026FeatureSelection]. It compares the
-conditional inference forest implementation with common tree, filter, wrapper,
-and embedded baselines and evaluates downstream performance at selected feature
-counts. In the real-data aggregate reported by the companion manuscript, the
-selected conditional inference forest configuration ranks fourth among 17
-classification methods and third among 18 regression methods. Those aggregate
-ranks come from `paper/results/tables/paper_benchmark_method_aggregate.csv`.
-These rankings are descriptive because the benchmark also selects configurations
-on the reported surface, but they show that the implementation is a usable
-baseline rather than only a reference translation.
+The companion benchmark [@Milletich2026FeatureSelection] demonstrates one such
+workflow. It studies real and synthetic classification and regression tasks,
+uses fitted split importances as feature rankings, and evaluates selected
+features with downstream balanced accuracy and $R^2$. In the real-data
+aggregate reported by the benchmark, the selected CIF configuration ranks
+fourth among 17 classification methods and third among 18 regression methods.
+Those aggregate ranks come from
+`paper/results/tables/paper_benchmark_method_aggregate.csv`.
 
-This gives researchers a Python baseline for conditional inference trees and
-forests, reusable code for fitting models and inspecting rankings, and a
-reproducible comparison scaffold for studying feature-selection behavior in
-tabular data.
+The benchmark also reports runtime ablations for practical fitting controls. In
+the CIF ablations, disabling adaptive stopping makes fits 4.0--8.4 times slower
+across task groups, with absolute downstream score changes no larger than
+0.006. These results should be read as descriptive benchmark evidence, but they
+show that `citrees` can be used to study prediction, feature analysis, and
+runtime behavior in a single reproducible Python workflow.
 
 # AI usage disclosure
 

@@ -257,8 +257,9 @@ class TestWrapperSelectors:
 # ---------------------------------------------------------------------------
 
 try:
-    from paper.scripts.pipeline.r_methods import r_ctree_ranking
+    from paper.scripts.pipeline.r_methods import _get_partykit, r_ctree_ranking
 
+    _get_partykit()
     _has_r = True
 except (ImportError, OSError):
     _has_r = False

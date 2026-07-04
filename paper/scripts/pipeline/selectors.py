@@ -9,11 +9,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from boruta import BorutaPy
-from catboost import CatBoostClassifier, CatBoostRegressor
 from joblib import Parallel, delayed
-from lightgbm import LGBMClassifier, LGBMRegressor
-from mrmr import mrmr_classif, mrmr_regression
 from sklearn.ensemble import (
     ExtraTreesClassifier,
     ExtraTreesRegressor,
@@ -30,7 +26,6 @@ from sklearn.tree import (
     ExtraTreeClassifier,
     ExtraTreeRegressor,
 )
-from xgboost import XGBClassifier, XGBRegressor
 
 from citrees import (
     ConditionalInferenceForestClassifier,
@@ -97,6 +92,8 @@ def get_embedding_model(
             model_params["random_state"] = random_state
             return ConditionalInferenceForestClassifier(**model_params)
         if method == "xgb":
+            from xgboost import XGBClassifier
+
             base = {
                 "n_estimators": 100,
                 "n_jobs": n_jobs,
@@ -107,6 +104,8 @@ def get_embedding_model(
             model_params["random_state"] = random_state
             return XGBClassifier(**model_params)
         if method == "lgbm":
+            from lightgbm import LGBMClassifier
+
             base = {
                 "n_estimators": 100,
                 "n_jobs": n_jobs,
@@ -117,6 +116,8 @@ def get_embedding_model(
             model_params["random_state"] = random_state
             return LGBMClassifier(**model_params)
         if method == "cat":
+            from catboost import CatBoostClassifier
+
             base = {
                 "n_estimators": 100,
                 "random_state": random_state,
@@ -152,6 +153,8 @@ def get_embedding_model(
             model_params["random_state"] = random_state
             return ConditionalInferenceForestRegressor(**model_params)
         if method == "xgb":
+            from xgboost import XGBRegressor
+
             base = {
                 "n_estimators": 100,
                 "n_jobs": n_jobs,
@@ -162,6 +165,8 @@ def get_embedding_model(
             model_params["random_state"] = random_state
             return XGBRegressor(**model_params)
         if method == "lgbm":
+            from lightgbm import LGBMRegressor
+
             base = {
                 "n_estimators": 100,
                 "n_jobs": n_jobs,
@@ -172,6 +177,8 @@ def get_embedding_model(
             model_params["random_state"] = random_state
             return LGBMRegressor(**model_params)
         if method == "cat":
+            from catboost import CatBoostRegressor
+
             base = {
                 "n_estimators": 100,
                 "random_state": random_state,
@@ -204,6 +211,8 @@ def boruta_selector(
     params = params or {}
     n_estimators = params.get("n_estimators", "auto")
     max_iter = params.get("max_iter", 100)
+
+    from boruta import BorutaPy
 
     if task == "classification":
         base_model = RandomForestClassifier(
@@ -388,8 +397,12 @@ def mrmr_selector(X_train: np.ndarray, y_train: np.ndarray, task: str) -> np.nda
     n_features = X_train.shape[1]
 
     if task == "classification":
+        from mrmr import mrmr_classif
+
         selected = mrmr_classif(df, y_series, K=n_features, show_progress=False)
     else:
+        from mrmr import mrmr_regression
+
         selected = mrmr_regression(df, y_series, K=n_features, show_progress=False)
 
     ranking = np.array(selected)

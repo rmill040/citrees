@@ -268,18 +268,7 @@ Notes:
 | `verbose`                     | int      | 1       | Verbosity level (0=quiet; higher prints more progress)     |
 | `check_for_unused_parameters` | bool     | False   | Warn when parameters are ineffective due to other settings |
 
-## Comparison with Other Methods
-
-| Feature                                         | citrees                        | sklearn RF | XGBoost | R partykit |
-| ----------------------------------------------- | ------------------------------ | ---------- | ------- | ---------- |
-| High-cardinality split-selection bias mechanism | Mitigated by Stage A screening | Present    | Present | Mitigated  |
-| Test-based stopping                             | Yes                            | No         | No      | Yes        |
-| Permutation tests                               | Yes                            | No         | No      | Yes        |
-| Python native                                   | Yes                            | Yes        | Yes     | No         |
-| GPU support                                     | No                             | No         | Yes     | No         |
-| Honest estimation                               | Yes                            | No         | No      | Yes        |
-
-## Benchmarks
+## Use Cases
 
 citrees is intended for scenarios requiring:
 
@@ -288,9 +277,6 @@ citrees is intended for scenarios requiring:
 - **Permutation-based nodewise screening** for scientific applications
 - **Sample-split leaf estimation** with honest estimation, without standalone
   confidence-interval or coverage guarantees
-
-For pure prediction performance on tabular data, gradient boosting methods
-(XGBoost, LightGBM) typically achieve higher accuracy.
 
 ## Development
 
@@ -310,8 +296,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and
 
 ## Releases
 
-Release notes are maintained in [CHANGELOG.md](CHANGELOG.md). The JOSS
-submission is currently prepared against version `0.1.0`.
+Release notes are maintained in [CHANGELOG.md](CHANGELOG.md).
 
 ## Citation
 

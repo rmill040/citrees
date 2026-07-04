@@ -61,8 +61,8 @@ designed for users who want to fit conditional inference trees and forests for
 classification or regression, use them in scikit-learn-style workflows, inspect
 the fitted structure, and choose practical fitting controls such as permutation
 budgets, sequential stopping, feature scanning, and threshold search settings.
-Feature ranking is one supported workflow, but the package is broader: it
-provides full predictive estimators with inspection and runtime-control tools.
+The same fitted estimators can also be used for prediction, model inspection,
+and feature analysis.
 
 # State of the field
 

@@ -372,7 +372,6 @@ paper = [
     { name = "openml" },
     { name = "pandas" },
     { name = "pyarrow" },
-    { name = "pyyaml" },
     { name = "rich" },
     { name = "rpy2" },
     { name = "seaborn" },
@@ -385,7 +384,6 @@ paper-test = [
     { name = "boto3" },
     { name = "fastapi" },
     { name = "loguru" },
-    { name = "pyyaml" },
     { name = "statsmodels" },
 ]
 
@@ -418,7 +416,6 @@ paper = [
     { name = "openml" },
     { name = "pandas" },
     { name = "pyarrow" },
-    { name = "pyyaml" },
     { name = "rich" },
     { name = "rpy2" },
     { name = "seaborn" },
@@ -431,7 +428,6 @@ paper-test = [
     { name = "boto3" },
     { name = "fastapi" },
     { name = "loguru" },
-    { name = "pyyaml" },
     { name = "statsmodels" },
 ]
 
@@ -467,8 +463,6 @@ requires-dist = [
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
-    { name = "pyyaml", marker = "extra == 'paper'", specifier = ">=6.0" },
-    { name = "pyyaml", marker = "extra == 'paper-test'", specifier = ">=6.0" },
     { name = "rich", marker = "extra == 'paper'", specifier = ">=13.0.0" },
     { name = "rpy2", marker = "extra == 'paper'", specifier = ">=3.6.4" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
@@ -512,7 +506,6 @@ paper = [
     { name = "openml", specifier = ">=0.14" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "pyarrow", specifier = ">=22.0.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "rpy2", specifier = ">=3.6.4" },
     { name = "seaborn", specifier = ">=0.13" },
@@ -525,7 +518,6 @@ paper-test = [
     { name = "boto3", specifier = ">=1.42.25" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "pyyaml", specifier = ">=6.0" },
     { name = "statsmodels", specifier = ">=0.14.6" },
 ]
 

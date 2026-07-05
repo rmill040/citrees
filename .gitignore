@@ -9,7 +9,8 @@ tmp/
 catboost_info/
 paper/data/s3_sync/
 paper/results/cache/
-paper/results/clf_rankings.parquet
+paper/results/*.parquet
+paper/results/figures/
 paper/results/tables/cif_mechanism_ablation_metrics_flat.csv
 paper/arxiv/figures/boundary_story.png
 paper/arxiv/figures/fixed_panel_story.png
@@ -138,6 +139,7 @@ paper/arxiv/*.log
 paper/arxiv/*.lot
 paper/arxiv/*.out
 paper/arxiv/*.pdf
+!paper/arxiv/main.pdf
 paper/arxiv/*.synctex.gz
 paper/arxiv/build/
 paper/arxiv/*.zip

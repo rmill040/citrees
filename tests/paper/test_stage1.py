@@ -1,4 +1,4 @@
-"""Tests for paper/scripts/pipeline/stage1.py (feature selection)."""
+"""Tests for paper/benchmark/pipeline/stage1.py (feature selection)."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class TestFilterSelector:
 
     def test_label_invariance(self) -> None:
         """Filter selector should be invariant to label shift."""
-        from paper.scripts.pipeline.stage1 import filter_selector
+        from paper.benchmark.pipeline.stage1 import filter_selector
 
         n_per = 5
         x0 = np.vstack(
@@ -53,7 +53,7 @@ class TestPermutationSelector:
 
     def test_kw_only_classifier(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ptest_* selector tests should be called with keyword-only args (classification)."""
-        from paper.scripts.pipeline.stage1 import permutation_selector
+        from paper.benchmark.pipeline.stage1 import permutation_selector
 
         def selector_fn(x, y, n_classes, random_state=None):
             return 0.0
@@ -74,7 +74,7 @@ class TestPermutationSelector:
 
     def test_kw_only_regression(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ptest_* selector tests should be called with keyword-only args (regression)."""
-        from paper.scripts.pipeline.stage1 import permutation_selector
+        from paper.benchmark.pipeline.stage1 import permutation_selector
 
         def selector_fn(x, y, standardize=True, random_state=None):
             return 0.0
@@ -104,7 +104,7 @@ class TestEmbeddingSelector:
             ExtraTreeRegressor,
         )
 
-        from paper.scripts.pipeline.selectors import get_embedding_model
+        from paper.benchmark.pipeline.selectors import get_embedding_model
 
         clf_dt = get_embedding_model("dt", "classification", random_state=1718)
         clf_rt = get_embedding_model("rt", "classification", random_state=1718)
@@ -122,7 +122,7 @@ class TestEmbeddingSelector:
 
     def test_run_selection_accepts_dt_and_rt(self) -> None:
         """Stage 1 should route dt and rt through embedding selection."""
-        from paper.scripts.pipeline.stage1 import run_selection
+        from paper.benchmark.pipeline.stage1 import run_selection
 
         rng = np.random.default_rng(1718)
         X = rng.normal(size=(30, 4))
@@ -149,7 +149,7 @@ class TestWrapperSelectors:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """PI should align its internal scorer with the benchmark headline metric."""
-        from paper.scripts.pipeline import selectors
+        from paper.benchmark.pipeline import selectors
 
         X = np.array(
             [
@@ -188,7 +188,7 @@ class TestWrapperSelectors:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """CPI should rank minority-recall signal ahead of majority-only signal."""
-        from paper.scripts.pipeline import selectors
+        from paper.benchmark.pipeline import selectors
 
         class DummyParallel:
             def __init__(self, n_jobs: int):
@@ -257,7 +257,7 @@ class TestWrapperSelectors:
 # ---------------------------------------------------------------------------
 
 try:
-    from paper.scripts.pipeline.r_methods import _get_partykit, r_ctree_ranking
+    from paper.benchmark.pipeline.r_methods import _get_partykit, r_ctree_ranking
 
     _get_partykit()
     _has_r = True

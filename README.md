@@ -5,6 +5,11 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+**Paper**: This repository contains the `citrees` package, benchmark code, and
+results for Milletich, Downes, Goley, and Hirst (2026),
+[_Conditional Inference Trees and Forests for Feature Selection_](https://arxiv.org/abs/2607.01417)
+([PDF](https://arxiv.org/pdf/2607.01417)).
+
 citrees implements conditional-inference-style decision trees and forests using
 permutation-based screening before threshold selection. Unlike traditional
 CART-style trees that greedily optimize split criteria, citrees separates
@@ -84,6 +89,7 @@ clf = ConditionalInferenceTreeClassifier(
 )
 clf.fit(X_train, y_train)
 predictions = clf.predict(X_test)
+probabilities = clf.predict_proba(X_test)
 
 # Regression
 reg = ConditionalInferenceTreeRegressor(
@@ -99,6 +105,8 @@ forest = ConditionalInferenceForestClassifier(
     n_jobs=-1,                          # Use all cores
 )
 forest.fit(X_train, y_train)
+forest_predictions = forest.predict(X_test)
+forest_probabilities = forest.predict_proba(X_test)
 
 # Feature importance (impurity decrease; subject to known caveats)
 importances = forest.feature_importances_

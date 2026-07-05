@@ -23,4 +23,7 @@ keywords:
   - machine learning
 abstract: >-
   citrees is a Python package for conditional inference decision trees and
-  random forests with permutation-test-based feature selection.
+  random forests. It provides scikit-learn-style classifiers and regressors for
+  prediction, class-probability estimation, decision paths, and split-derived
+  feature importances using permutation-test-based feature selection during tree
+  growth.

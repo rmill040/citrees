@@ -1,5 +1,0 @@
-analysis,classification_datasets,regression_datasets,purpose
-Main rank table,22,8,headline real-data rank summary
-Learner-by-k sensitivity,"22, 21, 15, 15, 14","8, 8, 7, 7, 6",method ordering by learner and selected-feature budget
-Complete-case rank tests,14,6,bootstrap intervals and omnibus rank tests
-Strict seed-complete sensitivity,12,6,seed variation with fixed dataset support

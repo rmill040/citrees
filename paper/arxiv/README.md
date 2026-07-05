@@ -1,15 +1,12 @@
 # arXiv Manuscript
 
-- `main.tex` is the manuscript entrypoint.
-- `sections/` contains the main-paper content.
-- `appendices/` contains proofs and supporting details.
+- `main.tex`: manuscript entrypoint.
+- `main.pdf`: published arXiv PDF.
+- `sections/`: main-paper content.
+- `appendices/`: proofs and supporting details.
+- `figures/`: figures referenced by the manuscript.
 
-For claims, numbers, and paper structure, do not draft from this README. Use:
-
-1. `../README.md`
-2. `../docs/analysis-contract.md`
-3. `../docs/results-finalization.md`
-4. `../docs/motivation.md`
+Do not edit these files unless preparing a deliberate new arXiv version.
 
 Build:
 
@@ -45,7 +42,7 @@ Do not zip this directory by hand. It contains ignored scratch and build
 outputs. From the repository root, build the deterministic source bundle with:
 
 ```bash
-uv run python paper/scripts/analysis/build_arxiv_source_bundle.py
+uv run python paper/analysis/build_arxiv_source_bundle.py
 ```
 
 The bundler rebuilds the manuscript, copies only the files above, and excludes

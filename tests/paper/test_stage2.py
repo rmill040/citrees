@@ -1,10 +1,10 @@
-"""Tests for paper/scripts/pipeline/stage2.py (evaluation)."""
+"""Tests for paper/benchmark/pipeline/stage2.py (evaluation)."""
 
 import numpy as np
 import pytest
 from sklearn.metrics import roc_auc_score
 
-from paper.scripts.pipeline.stage2 import (
+from paper.benchmark.pipeline.stage2 import (
     compute_roc_auc,
     evaluate_fold,
     get_requested_evaluation_k_values,

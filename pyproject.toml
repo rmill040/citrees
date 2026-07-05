@@ -67,7 +67,6 @@ paper = [
     "openml>=0.14",
     "pandas>=2.3.3",
     "pyarrow>=22.0.0",
-    "pyyaml>=6.0",
     "rich>=13.0.0",
     "rpy2>=3.6.4",
     "seaborn>=0.13",
@@ -80,7 +79,6 @@ paper-test = [
     "boto3>=1.42.25",
     "fastapi>=0.115.0",
     "loguru>=0.7.3",
-    "pyyaml>=6.0",
     "statsmodels>=0.14.6",
 ]
 docs = [
@@ -91,7 +89,7 @@ docs = [
 ]
 
 [project.scripts]
-citrees-exp = "paper.scripts.cli.entrypoint:main"
+citrees-exp = "paper.benchmark.cli.entrypoint:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -100,11 +98,19 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 only-include = [
     "citrees",
-    "paper/scripts",
+    "paper/benchmark/adapters",
+    "paper/benchmark/api",
+    "paper/benchmark/cli",
+    "paper/benchmark/config",
+    "paper/benchmark/experiments",
+    "paper/benchmark/infra",
+    "paper/benchmark/pipeline",
+    "paper/benchmark/utils",
 ]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
+    "/paper/arxiv/*.pdf",
     "/paper/data",
     "/paper/results",
 ]
@@ -162,7 +168,6 @@ paper = [
     "openml>=0.14",
     "pandas>=2.3.3",
     "pyarrow>=22.0.0",
-    "pyyaml>=6.0",
     "rich>=13.0.0",
     "rpy2>=3.6.4",
     "seaborn>=0.13",
@@ -175,7 +180,6 @@ paper-test = [
     "boto3>=1.42.25",
     "fastapi>=0.115.0",
     "loguru>=0.7.3",
-    "pyyaml>=6.0",
     "statsmodels>=0.14.6",
 ]
 docs = [

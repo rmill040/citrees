@@ -1,1 +1,1 @@
-"""Tests for paper experiment pipeline (paper/scripts/*)."""
+"""Tests for paper experiment and artifact code."""

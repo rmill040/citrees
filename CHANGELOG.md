@@ -9,8 +9,8 @@ with version numbers matching `pyproject.toml` and GitHub release tags.
 
 ### Added
 
-- Initial JOSS-ready Python package metadata for conditional inference trees and
-  forests.
+- Initial Python package metadata for conditional inference trees and forests,
+  including JOSS submission files.
 - Scikit-learn-style classifier and regressor APIs for conditional inference
   trees and forests.
 - Permutation-test selectors for classification and regression, including

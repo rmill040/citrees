@@ -5,8 +5,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from paper.scripts.api.server import _needs_metrics_work
-from paper.scripts.pipeline.types import ExperimentConfig, MethodConfig
+from paper.benchmark.api.server import _needs_metrics_work
+from paper.benchmark.pipeline.types import ExperimentConfig, MethodConfig
 
 pytestmark = pytest.mark.paper
 

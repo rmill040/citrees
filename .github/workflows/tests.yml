@@ -7,9 +7,13 @@ on:
       - "docs/**"
       - "examples/**"
       - "paper/README.md"
+      - "paper/arxiv/**"
       - "paper/docs/**"
+      - "paper/joss/**"
       - "paper/results/README.md"
       - "paper/results/tables/README.md"
+      - "paper/results/tables/*.csv"
+      - "paper/results/tables/*.json"
       - "paper/scripts/**"
       - "tests/unit/**"
       - "tests/integration/**"
@@ -24,9 +28,13 @@ on:
       - "docs/**"
       - "examples/**"
       - "paper/README.md"
+      - "paper/arxiv/**"
       - "paper/docs/**"
+      - "paper/joss/**"
       - "paper/results/README.md"
       - "paper/results/tables/README.md"
+      - "paper/results/tables/*.csv"
+      - "paper/results/tables/*.json"
       - "paper/scripts/**"
       - "tests/unit/**"
       - "tests/integration/**"
@@ -67,6 +75,28 @@ jobs:
       - name: Run example smoke test
         run: uv run python examples/basic_usage.py
 
+      - name: Build distributions
+        run: uv build --wheel --sdist
+
+      - name: Smoke test built wheel
+        run: |
+          python -m venv /tmp/citrees-wheel-smoke
+          /tmp/citrees-wheel-smoke/bin/python -m pip install dist/citrees-*.whl
+          cd /tmp
+          /tmp/citrees-wheel-smoke/bin/python - <<'PY'
+          import numpy as np
+          from citrees import ConditionalInferenceTreeClassifier
+
+          X = np.array([[0.0], [0.1], [1.0], [1.1]])
+          y = np.array([0, 0, 1, 1])
+          clf = ConditionalInferenceTreeClassifier(random_state=1718, max_depth=1)
+          clf.fit(X, y)
+          predictions = clf.predict(X)
+          probabilities = clf.predict_proba(X)
+          assert predictions.shape == (4,)
+          assert probabilities.shape == (4, 2)
+          PY
+
       - name: Build docs
         run: uv run mkdocs build --strict
 
@@ -87,11 +117,11 @@ jobs:
       - name: Install paper test dependencies
         run: uv sync --group dev --group paper-test
 
-      - name: Check paper test formatting
-        run: uv run ruff format --check tests/paper
+      - name: Check paper support formatting
+        run: uv run ruff format --check tests/paper paper/scripts/analysis paper/scripts/data_generation
 
-      - name: Lint paper tests and selectors
-        run: uv run ruff check tests/paper paper/scripts/pipeline/selectors.py
+      - name: Lint paper support code
+        run: uv run ruff check tests/paper paper/scripts/analysis paper/scripts/data_generation paper/scripts/pipeline
 
       - name: Run paper support tests
         run: uv run pytest tests/paper -q

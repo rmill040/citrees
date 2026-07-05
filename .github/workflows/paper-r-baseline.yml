@@ -3,12 +3,12 @@ name: Paper R Baseline
 on:
   push:
     paths:
-      - "paper/scripts/pipeline/r_methods.py"
+      - "paper/benchmark/pipeline/r_methods.py"
       - "tests/paper/test_stage1.py"
       - ".github/workflows/paper-r-baseline.yml"
   pull_request:
     paths:
-      - "paper/scripts/pipeline/r_methods.py"
+      - "paper/benchmark/pipeline/r_methods.py"
       - "tests/paper/test_stage1.py"
       - ".github/workflows/paper-r-baseline.yml"
   workflow_dispatch:
@@ -49,7 +49,7 @@ jobs:
       - name: Check rpy2 bridge
         run: |
           uv run --with rpy2 python - <<'PY'
-          from paper.scripts.pipeline.r_methods import _get_partykit
+          from paper.benchmark.pipeline.r_methods import _get_partykit
 
           _get_partykit()
           print("rpy2/partykit bridge ok")

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 BLOCKED = {
-    "paper/scripts/infra/config.yaml",
+    "paper/benchmark/infra/config.yaml",
 }
 
 
@@ -25,7 +25,7 @@ def main(argv: list[str]) -> int:
     blocked = []
     for arg in argv[1:]:
         norm = _normalize(arg)
-        if norm in BLOCKED or norm.endswith("/paper/scripts/infra/config.yaml"):
+        if norm in BLOCKED or norm.endswith("/paper/benchmark/infra/config.yaml"):
             blocked.append(arg)
 
     if not blocked:
@@ -35,9 +35,7 @@ def main(argv: list[str]) -> int:
         "ERROR: Refusing to commit AWS-specific runtime configs:\n"
         + "".join(f"  - {path}\n" for path in blocked)
     )
-    sys.stderr.write(
-        "Use the template file instead:\n  - paper/scripts/infra/config.example.yaml\n"
-    )
+    sys.stderr.write("Runtime AWS configs should stay out of version control.\n")
     return 1
 
 

@@ -7,14 +7,17 @@ on:
       - "docs/**"
       - "examples/**"
       - "paper/README.md"
+      - "paper/analysis/**"
       - "paper/arxiv/**"
-      - "paper/docs/**"
+      - "paper/benchmark/**"
+      - "paper/data_generation/**"
       - "paper/joss/**"
+      - "paper/maintenance/**"
       - "paper/results/README.md"
       - "paper/results/tables/README.md"
       - "paper/results/tables/*.csv"
       - "paper/results/tables/*.json"
-      - "paper/scripts/**"
+      - "paper/theory/**"
       - "tests/unit/**"
       - "tests/integration/**"
       - "tests/paper/**"
@@ -28,14 +31,17 @@ on:
       - "docs/**"
       - "examples/**"
       - "paper/README.md"
+      - "paper/analysis/**"
       - "paper/arxiv/**"
-      - "paper/docs/**"
+      - "paper/benchmark/**"
+      - "paper/data_generation/**"
       - "paper/joss/**"
+      - "paper/maintenance/**"
       - "paper/results/README.md"
       - "paper/results/tables/README.md"
       - "paper/results/tables/*.csv"
       - "paper/results/tables/*.json"
-      - "paper/scripts/**"
+      - "paper/theory/**"
       - "tests/unit/**"
       - "tests/integration/**"
       - "tests/paper/**"
@@ -118,10 +124,10 @@ jobs:
         run: uv sync --group dev --group paper-test
 
       - name: Check paper support formatting
-        run: uv run ruff format --check tests/paper paper/scripts/analysis paper/scripts/data_generation
+        run: uv run ruff format --check tests/paper paper/analysis paper/benchmark paper/data_generation paper/maintenance paper/theory
 
       - name: Lint paper support code
-        run: uv run ruff check tests/paper paper/scripts/analysis paper/scripts/data_generation paper/scripts/pipeline
+        run: uv run ruff check tests/paper paper/analysis paper/benchmark paper/data_generation paper/maintenance paper/theory
 
       - name: Run paper support tests
         run: uv run pytest tests/paper -q

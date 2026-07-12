@@ -694,3 +694,14 @@ standardized evaluation.
 4. **Type hints**: All functions should have type annotations
 5. **Tests**: Use pytest markers (`@pytest.mark.tree`, etc.)
 6. **Data format**: Test data uses parquet (pyarrow)
+
+## Skills
+
+Read the matching skill BEFORE starting work in its lane:
+
+| When the task involves... | Read first |
+|---|---|
+| Writing or editing the paper, proposal, abstract, figures, tables, captions, or reviewer responses | ~/Documents/skills/scientific-writing/SKILL.md |
+| Reviewing a paper, proposal, or draft; vetting a research idea | ~/Documents/skills/formal-review/SKILL.md |
+| Creating or updating markdown docs, trackers, READMEs, or code comments | ~/Documents/skills/research-docs-hygiene/SKILL.md |
+| Running experiments, pipelines, infrastructure, or code changes | ~/Documents/skills/verified-execution/SKILL.md |

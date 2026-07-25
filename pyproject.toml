@@ -50,7 +50,7 @@ dev = [
     "pandas>=2.3.3",
     "pre-commit>=3.0",
     "pyarrow>=22.0.0",
-    "pytest>=8.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0",
     "ruff>=0.4",
 ]
@@ -151,7 +151,7 @@ dev = [
     "mypy>=1.10",
     "pandas>=2.3.3",
     "pyarrow>=22.0.0",
-    "pytest>=8.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0",
     "ruff>=0.4",
 ]

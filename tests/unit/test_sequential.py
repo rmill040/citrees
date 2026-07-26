@@ -1,9 +1,11 @@
 """Tests for citrees._sequential.py."""
 
+import numba
 import numpy as np
 import pytest
 from scipy.stats import beta as scipy_beta
 
+from citrees import _sequential
 from citrees._sequential import (
     _beta_cdf,
     _ptest_sequential_adaptive,
@@ -380,3 +382,22 @@ class TestSequentialAdaptiveBatched:
         # Both should reject
         assert pval_seq < 0.05
         assert pval_bat < 0.05
+
+
+@pytest.mark.skipif(numba.config.DISABLE_JIT, reason="JIT disabled: no compiled kernel to compare")
+class TestJitParity:
+    """Compiled Numba kernels must match their pure-Python source."""
+
+    KERNELS = {
+        "_beta_cdf": (_sequential._beta_cdf, (0.3, 2.0, 5.0)),
+    }
+
+    @pytest.mark.parametrize("name", sorted(KERNELS))
+    def test_jit_matches_py_func(self, name, assert_jit_parity):
+        """The compiled kernel and its Python source must return identical values."""
+        fn, args = self.KERNELS[name]
+        assert_jit_parity(fn, *args)
+
+    def test_every_kernel_has_a_parity_case(self, assert_all_kernels_covered):
+        """Fail when a Numba kernel is added to _sequential without a parity case."""
+        assert_all_kernels_covered(_sequential, {fn for fn, _ in self.KERNELS.values()})

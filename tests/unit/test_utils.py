@@ -2,9 +2,11 @@
 
 from typing import Any
 
+import numba
 import numpy as np
 import pytest
 
+from citrees import _utils
 from citrees._utils import (
     _allocate_samples,
     calculate_max_value,
@@ -441,3 +443,34 @@ class TestBugFixes:
         X_with_inf = np.array([[1.0], [np.inf], [3.0]])
         with pytest.raises(ValueError, match="NaN or Inf"):
             clf.fit(X_with_inf, y)
+
+
+@pytest.mark.skipif(numba.config.DISABLE_JIT, reason="JIT disabled: no compiled kernel to compare")
+class TestJitParity:
+    """Compiled Numba kernels must match their pure-Python source."""
+
+    _RNG = np.random.default_rng(1718)
+    _X_2D = _RNG.standard_normal((60, 3))
+    _Y_REG = _RNG.standard_normal(60)
+    _Y_INT = np.array([0, 0, 1, 1, 2, 2, 0, 1], dtype=np.int64)
+    _Y_FLOAT = np.array([0.5, 1.5, 2.5, 3.5, -1.0, 0.0], dtype=np.float64)
+
+    KERNELS = {
+        "estimate_mean": (_utils.estimate_mean, (), {"y": _Y_FLOAT}),
+        "estimate_proba": (_utils.estimate_proba, (), {"y": _Y_INT, "n_classes": 3}),
+        "split_data": (
+            _utils.split_data,
+            (),
+            {"X": _X_2D, "y": _Y_REG, "feature": 0, "threshold": 0.0},
+        ),
+    }
+
+    @pytest.mark.parametrize("name", sorted(KERNELS))
+    def test_jit_matches_py_func(self, name, assert_jit_parity):
+        """The compiled kernel and its Python source must return identical values."""
+        fn, args, kwargs = self.KERNELS[name]
+        assert_jit_parity(fn, *args, **kwargs)
+
+    def test_every_kernel_has_a_parity_case(self, assert_all_kernels_covered):
+        """Fail when a Numba kernel is added to _utils without a parity case."""
+        assert_all_kernels_covered(_utils, {fn for fn, _, _ in self.KERNELS.values()})

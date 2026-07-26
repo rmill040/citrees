@@ -1,8 +1,10 @@
 """Tests for citrees._threshold_method.py."""
 
+import numba
 import numpy as np
 import pytest
 
+from citrees import _threshold_method
 from citrees._threshold_method import exact, histogram, percentile, random
 
 
@@ -328,3 +330,27 @@ class TestThresholdMethodPyFunc:
             histogram(x, max_thresholds=10, random_state=None),
             histogram(x, max_thresholds=10, random_state=None),
         )
+
+
+@pytest.mark.skipif(numba.config.DISABLE_JIT, reason="JIT disabled: no compiled kernel to compare")
+class TestJitParity:
+    """Compiled Numba kernels must match their pure-Python source."""
+
+    _X = np.random.default_rng(1718).standard_normal(120)
+
+    KERNELS = {
+        "exact": (_threshold_method.exact, (_X, 16, 1718)),
+        "histogram": (_threshold_method.histogram, (_X, 16, 1718)),
+        "percentile": (_threshold_method.percentile, (_X, 16, 1718)),
+        "random": (_threshold_method.random, (_X, 16, 1718)),
+    }
+
+    @pytest.mark.parametrize("name", sorted(KERNELS))
+    def test_jit_matches_py_func(self, name, assert_jit_parity):
+        """The compiled kernel and its Python source must return identical values."""
+        fn, args = self.KERNELS[name]
+        assert_jit_parity(fn, *args)
+
+    def test_every_kernel_has_a_parity_case(self, assert_all_kernels_covered):
+        """Fail when a Numba kernel is added to _threshold_method without a parity case."""
+        assert_all_kernels_covered(_threshold_method, {fn for fn, _ in self.KERNELS.values()})

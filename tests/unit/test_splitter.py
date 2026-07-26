@@ -1,8 +1,10 @@
 """Tests for citrees._splitter.py."""
 
+import numba
 import numpy as np
 import pytest
 
+from citrees import _splitter
 from citrees._splitter import (
     _ptest,
     _ptest_mse_parallel,
@@ -701,3 +703,40 @@ class TestSplitterRNGReproducibility:
         pval2 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
 
         assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+
+
+@pytest.mark.skipif(numba.config.DISABLE_JIT, reason="JIT disabled: no compiled kernel to compare")
+class TestJitParity:
+    """Compiled Numba kernels must match their pure-Python source."""
+
+    _RNG = np.random.default_rng(1718)
+    _X = _RNG.standard_normal(120)
+    _Y_CLF = (_X + _RNG.standard_normal(120) * 0.5 > 0).astype(np.int64)
+    _Y_REG = 2.0 * _X + _RNG.standard_normal(120) * 0.5
+    _Y_INT = np.array([0, 0, 1, 1, 2, 2, 0, 1], dtype=np.int64)
+    _Y_FLOAT = np.array([0.5, 1.5, 2.5, 3.5, -1.0, 0.0], dtype=np.float64)
+
+    KERNELS = {
+        "gini": (_splitter.gini, (_Y_INT,)),
+        "entropy": (_splitter.entropy, (_Y_INT,)),
+        "mse": (_splitter.mse, (_Y_FLOAT,)),
+        "mae": (_splitter.mae, (_Y_FLOAT,)),
+        "_ptest_gini_parallel": (_splitter._ptest_gini_parallel, (_X, _Y_CLF, 0.0, 250, 1718)),
+        "_ptest_entropy_parallel": (
+            _splitter._ptest_entropy_parallel,
+            (_X, _Y_CLF, 0.0, 250, 1718),
+        ),
+        "_ptest_mse_parallel": (_splitter._ptest_mse_parallel, (_X, _Y_REG, 0.0, 250, 1718)),
+        "_ptest_mae_parallel": (_splitter._ptest_mae_parallel, (_X, _Y_REG, 0.0, 250, 1718)),
+        "_beta_cdf": (_splitter._beta_cdf, (0.3, 2.0, 5.0)),
+    }
+
+    @pytest.mark.parametrize("name", sorted(KERNELS))
+    def test_jit_matches_py_func(self, name, assert_jit_parity):
+        """The compiled kernel and its Python source must return identical values."""
+        fn, args = self.KERNELS[name]
+        assert_jit_parity(fn, *args)
+
+    def test_every_kernel_has_a_parity_case(self, assert_all_kernels_covered):
+        """Fail when a Numba kernel is added to _splitter without a parity case."""
+        assert_all_kernels_covered(_splitter, {fn for fn, _ in self.KERNELS.values()})

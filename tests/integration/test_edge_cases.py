@@ -107,55 +107,132 @@ class TestEdgeCases:
         assert clf.predict(X).shape == y.shape
 
 
+def _count_splits(node):
+    """Count internal (non-leaf) nodes in a fitted tree."""
+    if node is None or "left_child" not in node:
+        return 0
+    return 1 + _count_splits(node.get("left_child")) + _count_splits(node.get("right_child"))
+
+
 class TestStatisticalCorrectness:
-    """Test statistical correctness with full permutation testing parameters."""
+    """The permutation tests must gate splitting, not merely run.
+
+    Selector-level p-value validity is asserted directly in
+    tests/unit/test_statistical_validity.py. These tests cover the property
+    that matters at the estimator level: a tree built on pure noise should not
+    split, because no feature clears the significance threshold.
+    """
 
     @pytest.mark.slow
-    def test_full_ptest(self, classification_data):
-        """Test that full permutation testing produces valid p-values."""
-        X, y = classification_data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    def test_no_splits_on_pure_noise(self):
+        """A tree fit on independent noise must stay a single leaf."""
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((150, 10))
+        y = rng.integers(0, 2, 150)
 
         clf = ConditionalInferenceTreeClassifier(
             n_resamples_selector="auto",
             n_resamples_splitter="auto",
-            random_state=42,
+            alpha_selector=0.05,
+            random_state=1718,
             verbose=0,
         )
-        clf.fit(X_train, y_train)
+        clf.fit(X, y)
 
-        assert hasattr(clf, "tree_")
-        y_pred = clf.predict(X_test)
-        accuracy = (y_pred == y_test).mean()
-        assert accuracy > 0.5, f"Accuracy {accuracy} too low"
+        n_splits = _count_splits(clf.tree_)
+        assert n_splits == 0, (
+            f"Tree split {n_splits} times on pure noise; permutation gating is not working"
+        )
+
+    @pytest.mark.slow
+    def test_splits_on_real_signal(self):
+        """The same configuration must still split when signal is present."""
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((150, 10))
+        y = (X[:, 0] > 0).astype(int)
+
+        clf = ConditionalInferenceTreeClassifier(
+            n_resamples_selector="auto",
+            n_resamples_splitter="auto",
+            alpha_selector=0.05,
+            random_state=1718,
+            verbose=0,
+        )
+        clf.fit(X, y)
+
+        assert _count_splits(clf.tree_) > 0, "Tree failed to split on a clean deterministic signal"
+        assert clf.tree_["feature"] == 0, (
+            f"Tree split on feature {clf.tree_['feature']} instead of the informative one"
+        )
 
 
 class TestHonestyMode:
-    """Test honest estimation (sample splitting for unbiased leaf estimates)."""
+    """Honest estimation must actually split the sample, not just accept the flag."""
 
-    def test_honest_tree_classifier(self, classification_data):
-        """Test honest tree classifier."""
+    def test_honesty_changes_the_fitted_tree(self, classification_data):
+        """Honest and non-honest fits on identical data and seed must differ.
+
+        Honesty holds out a fraction of the data for leaf estimation, so the
+        structure is learned from fewer samples. An identical tree would mean
+        the flag is being ignored.
+        """
         X, y = classification_data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        clf = ConditionalInferenceTreeClassifier(honesty=True, honesty_fraction=0.5, **FAST_PARAMS)
-        clf.fit(X_train, y_train)
+        params = {**FAST_PARAMS, "max_depth": 3}
+        honest = ConditionalInferenceTreeClassifier(
+            honesty=True, honesty_fraction=0.5, **params
+        ).fit(X, y)
+        standard = ConditionalInferenceTreeClassifier(honesty=False, **params).fit(X, y)
 
-        assert hasattr(clf, "tree_")
-        y_pred = clf.predict(X_test)
-        assert y_pred.shape == y_test.shape
+        assert honest.tree_ != standard.tree_, (
+            "honesty=True produced an identical tree to honesty=False"
+        )
 
-    def test_honest_tree_regressor(self, regression_data):
-        """Test honest tree regressor."""
+    def test_honesty_reduces_in_sample_optimism(self):
+        """Honest leaf estimates should be less optimistic on training data.
+
+        Leaves are estimated from samples not used to choose the splits, so the
+        training-set accuracy of an honest tree should not exceed that of a
+        standard tree. Averaged over seeds to avoid asserting on one draw.
+        """
+        honest_scores = []
+        standard_scores = []
+        for seed in range(5):
+            rng = np.random.default_rng(seed)
+            X = rng.standard_normal((200, 8))
+            y = (X[:, 0] + rng.standard_normal(200) * 1.5 > 0).astype(int)
+
+            params = {
+                "n_resamples_selector": "minimum",
+                "n_resamples_splitter": "minimum",
+                "verbose": 0,
+                "random_state": seed,
+                "max_depth": 4,
+            }
+            honest = ConditionalInferenceTreeClassifier(
+                honesty=True, honesty_fraction=0.5, **params
+            ).fit(X, y)
+            standard = ConditionalInferenceTreeClassifier(honesty=False, **params).fit(X, y)
+
+            honest_scores.append((honest.predict(X) == y).mean())
+            standard_scores.append((standard.predict(X) == y).mean())
+
+        assert np.mean(honest_scores) <= np.mean(standard_scores), (
+            f"Honest tree was more optimistic in-sample ({np.mean(honest_scores):.3f}) "
+            f"than the standard tree ({np.mean(standard_scores):.3f})"
+        )
+
+    def test_honest_regressor_fits_and_predicts(self, regression_data):
+        """Honest regression must produce finite predictions of the right shape."""
         X, y = regression_data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         reg = ConditionalInferenceTreeRegressor(honesty=True, honesty_fraction=0.5, **FAST_PARAMS)
         reg.fit(X_train, y_train)
 
-        assert hasattr(reg, "tree_")
         y_pred = reg.predict(X_test)
         assert y_pred.shape == y_test.shape
+        assert np.all(np.isfinite(y_pred)), "Honest regressor produced non-finite predictions"
 
     def test_honest_forest_classifier(self, classification_data):
         """Test honest forest classifier."""

@@ -1,9 +1,13 @@
 """Tests for citrees._selector.py."""
 
+from collections.abc import Callable
+
+import numba
 import numpy as np
 import pytest
 from scipy.stats import kstest
 
+from citrees import _selector
 from citrees._selector import (
     _RDC_K,
     _RDC_S,
@@ -1277,3 +1281,261 @@ class TestParallelSelectorRNGReproducibility:
         pval2 = _ptest_pc_parallel(x=x, y=y, n_resamples=500, random_state=42)
 
         assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+
+
+# =============================================================================
+# JIT / py_func PARITY
+# =============================================================================
+
+
+@pytest.mark.skipif(numba.config.DISABLE_JIT, reason="JIT disabled: no compiled kernel to compare")
+class TestJitParity:
+    """Compiled Numba kernels must match their pure-Python source."""
+
+    _RNG = np.random.default_rng(1718)
+    _X = _RNG.standard_normal(120)
+    _Y_CLF = (_X + _RNG.standard_normal(120) * 0.5 > 0).astype(np.int64)
+    _Y_REG = 2.0 * _X + _RNG.standard_normal(120) * 0.5
+    _X_2D = _RNG.standard_normal((60, 3))
+    _Y_2D = _RNG.standard_normal((60, 3))
+
+    KERNELS = {
+        "mc": (_selector.mc, (_X, _Y_CLF, 2, 1718)),
+        "pc": (_selector.pc, (_X, _Y_REG, True, 1718)),
+        "_correlation": (_selector._correlation, (_X, _Y_REG)),
+        "_covariance": (_selector._covariance, (_X, _Y_REG)),
+        "_rdc": (_selector._rdc, (_X, _Y_REG, _RDC_K, _RDC_S, 1718)),
+        "_rdc_cancor": (_selector._rdc_cancor, (_X_2D, _Y_2D)),
+        "_rdc_ecdf": (_selector._rdc_ecdf, (_X,)),
+        "_rdc_features": (_selector._rdc_features, (_X, _RDC_K, _RDC_S, 1718)),
+        "_beta_cdf": (_selector._beta_cdf, (0.3, 2.0, 5.0)),
+        "_ptest_mc_parallel": (_selector._ptest_mc_parallel, (_X, _Y_CLF, 2, 250, 1718)),
+        "_ptest_mc_parallel_batched": (
+            _selector._ptest_mc_parallel_batched,
+            (_X, _Y_CLF, 2, 250, 1718, 0.05, 0.95),
+        ),
+        "_ptest_pc_parallel": (_selector._ptest_pc_parallel, (_X, _Y_REG, 250, 1718)),
+        "_ptest_pc_parallel_batched": (
+            _selector._ptest_pc_parallel_batched,
+            (_X, _Y_REG, 250, 1718, 0.05, 0.95),
+        ),
+        "_ptest_rdc_classifier_parallel": (
+            _selector._ptest_rdc_classifier_parallel,
+            (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718),
+        ),
+        "_ptest_rdc_classifier_parallel_batched": (
+            _selector._ptest_rdc_classifier_parallel_batched,
+            (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95),
+        ),
+        "_ptest_rdc_regressor_parallel": (
+            _selector._ptest_rdc_regressor_parallel,
+            (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718),
+        ),
+        "_ptest_rdc_regressor_parallel_batched": (
+            _selector._ptest_rdc_regressor_parallel_batched,
+            (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95),
+        ),
+    }
+
+    @pytest.mark.parametrize("name", sorted(KERNELS))
+    def test_jit_matches_py_func(self, name, assert_jit_parity):
+        """The compiled kernel and its Python source must return identical values."""
+        fn, args = self.KERNELS[name]
+        assert_jit_parity(fn, *args)
+
+    def test_every_kernel_has_a_parity_case(self, assert_all_kernels_covered):
+        """Fail when a Numba kernel is added to _selector without a parity case."""
+        assert_all_kernels_covered(_selector, {fn for fn, _ in self.KERNELS.values()})
+
+
+# =============================================================================
+# STATISTICAL VALIDITY OF THE PERMUTATION TESTS
+# =============================================================================
+# The library's central claim is that its permutation tests produce valid
+# p-values and that EarlyStopping.ADAPTIVE preserves that validity. These
+# properties are asserted directly here rather than inferred from downstream
+# accuracy. All tests are marked slow: each runs hundreds of permutation tests.
+
+
+N_TRIALS = 300
+N_SAMPLES = 150
+N_RESAMPLES = 100
+ALPHA = 0.05
+
+
+def _null_classification(seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Feature and labels drawn independently, so the null holds by construction."""
+    rng = np.random.default_rng(seed)
+    x = rng.standard_normal(N_SAMPLES)
+    y = rng.integers(0, 2, N_SAMPLES).astype(np.int64)
+    return x, y
+
+
+def _null_regression(seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Feature and target drawn independently, so the null holds by construction."""
+    rng = np.random.default_rng(seed)
+    x = rng.standard_normal(N_SAMPLES)
+    y = rng.standard_normal(N_SAMPLES)
+    return x, y
+
+
+def _clf_selector(fn: Callable[..., float]) -> Callable[[int], float]:
+    def run(seed: int) -> float:
+        x, y = _null_classification(seed)
+        return fn(
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=N_RESAMPLES,
+            early_stopping=None,
+            alpha=ALPHA,
+            random_state=seed,
+        )
+
+    return run
+
+
+def _reg_selector(fn: Callable[..., float]) -> Callable[[int], float]:
+    def run(seed: int) -> float:
+        x, y = _null_regression(seed)
+        return fn(
+            x=x,
+            y=y,
+            standardize=True,
+            n_resamples=N_RESAMPLES,
+            early_stopping=None,
+            alpha=ALPHA,
+            random_state=seed,
+        )
+
+    return run
+
+
+NULL_SELECTORS = {
+    "mc": _clf_selector(ptest_mc),
+    "mi": _clf_selector(ptest_mi),
+    "rdc_classifier": _clf_selector(ptest_rdc_classifier),
+    "pc": _reg_selector(ptest_pc),
+    "dc": _reg_selector(ptest_dc),
+    "rdc_regressor": _reg_selector(ptest_rdc_regressor),
+}
+
+
+def _null_pvalues(run: Callable[[int], float], n_trials: int = N_TRIALS) -> np.ndarray:
+    return np.array([run(seed) for seed in range(n_trials)])
+
+
+# ``mi`` is excluded from the uniformity check by construction, not by
+# convenience. It delegates to sklearn's ``mutual_info_classif``, whose kNN
+# estimator clips negative estimates to exactly 0.0; under the null that happens
+# for roughly half of all datasets. A zero statistic is tied by every
+# permutation, so those trials return p = 1.0 and the null distribution carries
+# a large atom at 1. That makes the test conservative, not invalid, which
+# ``test_no_anti_conservatism_under_null`` verifies for every selector.
+CONTINUOUS_STATISTIC_SELECTORS = sorted(set(NULL_SELECTORS) - {"mi"})
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("name", CONTINUOUS_STATISTIC_SELECTORS)
+def test_pvalues_uniform_under_null(name: str) -> None:
+    """Selectors with a continuous statistic produce uniform p-values under the null."""
+    pvalues = _null_pvalues(NULL_SELECTORS[name])
+
+    # Permutation p-values are discrete on multiples of 1/(n_resamples+1), so a
+    # strict KS threshold would reject on discreteness alone.
+    stat, p = kstest(pvalues, "uniform")
+    assert p > 0.001, f"{name}: p-values not uniform under null (KS stat={stat:.4f}, p={p:.4g})"
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("name", sorted(NULL_SELECTORS))
+def test_no_anti_conservatism_under_null(name: str) -> None:
+    """P(p <= t) must not exceed t under the null, for every selector.
+
+    This is the validity condition a permutation test has to satisfy. It holds
+    for conservative discrete tests such as ``mi``, where strict uniformity does
+    not, and it is what guarantees the nominal alpha is an upper bound on the
+    false positive rate.
+    """
+    pvalues = _null_pvalues(NULL_SELECTORS[name])
+
+    # Tolerance is ~3 binomial standard errors at the worst-case p=0.5.
+    tolerance = 3.0 * np.sqrt(0.25 / N_TRIALS)
+    for threshold in (0.01, 0.05, 0.10, 0.25, 0.50):
+        rate = float(np.mean(pvalues <= threshold))
+        assert rate <= threshold + tolerance, (
+            f"{name}: anti-conservative at t={threshold}: P(p<=t)={rate:.3f} exceeds {threshold + tolerance:.3f}"
+        )
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("name", sorted(NULL_SELECTORS))
+def test_type_i_error_controlled_under_null(name: str) -> None:
+    """Rejection rate under the null must stay near the nominal alpha."""
+    pvalues = _null_pvalues(NULL_SELECTORS[name])
+    rate = float(np.mean(pvalues < ALPHA))
+
+    # Binomial standard error at alpha=0.05 over N_TRIALS draws is ~0.013, so a
+    # 0.02-0.10 band is roughly +/- 4 SE and fails on real inflation, not noise.
+    assert 0.02 < rate < 0.10, (
+        f"{name}: Type I error {rate:.3f} outside [0.02, 0.10] at alpha={ALPHA}"
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("name", sorted(NULL_SELECTORS))
+def test_pvalues_never_zero_and_bounded(name: str) -> None:
+    """The Phipson & Smyth +1 correction bounds p-values away from zero."""
+    pvalues = _null_pvalues(NULL_SELECTORS[name], n_trials=50)
+
+    assert pvalues.min() >= 1.0 / (N_RESAMPLES + 1) - 1e-12, (
+        f"{name}: p-value below the +1 correction floor"
+    )
+    assert pvalues.max() <= 1.0, f"{name}: p-value above 1"
+
+
+@pytest.mark.slow
+def test_adaptive_early_stopping_preserves_type_i_error() -> None:
+    """EarlyStopping.ADAPTIVE must keep Type I error at roughly the nominal alpha.
+
+    This is the property that makes ADAPTIVE the default: it is ~95% faster than
+    the full permutation test without inflating the false positive rate.
+    """
+    pvalues = []
+    for seed in range(N_TRIALS):
+        x, y = _null_classification(seed)
+        pvalues.append(
+            ptest_mc(
+                x=x,
+                y=y,
+                n_classes=2,
+                n_resamples=N_RESAMPLES,
+                early_stopping="adaptive",
+                alpha=ALPHA,
+                random_state=seed,
+            )
+        )
+
+    rate = float(np.mean(np.array(pvalues) < ALPHA))
+    assert rate < 0.10, (
+        f"adaptive early stopping inflated Type I error to {rate:.3f} at alpha={ALPHA}"
+    )
+
+
+@pytest.mark.slow
+def test_adaptive_early_stopping_retains_power() -> None:
+    """ADAPTIVE must still reject when a strong signal is present."""
+    rng = np.random.default_rng(1718)
+    x = np.concatenate([rng.standard_normal(75) - 3, rng.standard_normal(75) + 3])
+    y = np.concatenate([np.zeros(75), np.ones(75)]).astype(np.int64)
+
+    pval = ptest_mc(
+        x=x,
+        y=y,
+        n_classes=2,
+        n_resamples=N_RESAMPLES,
+        early_stopping="adaptive",
+        alpha=ALPHA,
+        random_state=1718,
+    )
+    assert pval < ALPHA, f"adaptive early stopping failed to detect a strong signal (p={pval:.4f})"

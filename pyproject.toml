@@ -4,9 +4,6 @@ version = "0.1.0"
 description = "Conditional inference trees and forests"
 authors = [
     { name = "Robert Milletich", email = "rmill040@gmail.com" },
-    { name = "Justin Downes" },
-    { name = "Steve Goley" },
-    { name = "Newel Hirst" },
 ]
 readme = "README.md"
 license = { text = "MIT" }

@@ -1,5 +1,6 @@
 import os
 import sys
+import zlib
 
 import numpy as np
 import pytest
@@ -15,6 +16,21 @@ if "NUMBA_DISABLE_JIT" not in os.environ and any("--cov" in arg for arg in sys.a
     os.environ["NUMBA_DISABLE_JIT"] = "1"
 # Otherwise, JIT stays enabled (Numba's default behavior)
 # If NUMBA_DISABLE_JIT is set explicitly, respect the user's choice
+
+
+@pytest.fixture(autouse=True)
+def _seed_legacy_global_rng(request):
+    """Seed numpy's legacy global RNG deterministically per test.
+
+    Some tests generate data via bare ``np.random.*`` calls without an explicit
+    seed, so their pass/fail thresholds would otherwise depend on uncontrolled
+    draws. Seeding from a stable hash of the test's node ID makes every such
+    draw reproducible per test while keeping draws distinct across tests.
+
+    This is test scaffolding only: the library-code rule against
+    ``np.random.seed`` (global-state contamination) still stands.
+    """
+    np.random.seed(zlib.crc32(request.node.nodeid.encode()))
 
 
 # =============================================================================

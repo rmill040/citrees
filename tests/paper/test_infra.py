@@ -86,6 +86,10 @@ def test_candidate_image_pins_complete_statistical_runtime() -> None:
     assert "build-essential=12.10ubuntu1" in dockerfile
     assert "/partykit_1.2-24.tar.gz" in dockerfile
     assert "packagemanager.posit.co/cran/2026-08-01/src/contrib/inum_1.0-5.tar.gz" in dockerfile
+    assert (
+        "9d1b4365f8e03f4e1e4989b7f91ea9e65c25dc171d807db9b206addbc0eb65fe /tmp/inum_1.0-5.tar.gz"
+        in dockerfile
+    )
     assert 'partykit="1.2.24"' in dockerfile
     assert "uv python install 3.12.7" in dockerfile
     assert "UV_PYTHON=3.12.7" in dockerfile

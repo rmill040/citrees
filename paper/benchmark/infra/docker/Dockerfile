@@ -55,7 +55,7 @@ RUN set -eux; \
         https://cloud.r-project.org/src/contrib/Archive/partykit/partykit_1.2-24.tar.gz; \
     printf '%s  %s\n' \
         86254674600d64e18b65d52f42d7ebfc217c8e1945cb63ac06da22cbf04d355c /tmp/Formula_1.2-5.tar.gz \
-        e696b7e0b31b3bbf405112e60691b6a72fedcaa02e08ee517c59f6bf9cd36bbd /tmp/inum_1.0-5.tar.gz \
+        9d1b4365f8e03f4e1e4989b7f91ea9e65c25dc171d807db9b206addbc0eb65fe /tmp/inum_1.0-5.tar.gz \
         3023e0495d0789765bdf04c0ef0990a57b48fefa322c55f20e250d2d70d67eaf /tmp/libcoin_1.0-10.tar.gz \
         e20e7f534bc89b9258ad63d508aabed60f3bd504a7532a33e6ea230ca8fa4171 /tmp/mvtnorm_1.3-3.tar.gz \
         40c06b75458f100f3e203fb47f80d5be6f632628bfafa2704d27250a7914c9ff /tmp/partykit_1.2-24.tar.gz \

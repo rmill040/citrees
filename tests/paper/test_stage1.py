@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from types import SimpleNamespace
 
 import numpy as np
@@ -16,10 +17,14 @@ from citrees._selector import (
 )
 from paper.benchmark.pipeline.r_methods import (
     _MAX_SUPPORTED_RANDOM_STATE,
+    _aligned_named_values,
     _normalize_r_seed,
     _ranking_from_named_scores,
     _resolve_cores,
     _resolve_mtry,
+    _root_diagnostics_from_named_values,
+    r_cforest_importance,
+    r_ctree_root_diagnostics,
 )
 
 pytestmark = pytest.mark.paper
@@ -557,6 +562,76 @@ class TestRBoundaryHelpers:
 
         assert ranking.tolist() == [1, 3, 0, 2, 4]
 
+    def test_named_values_preserve_zeros_negatives_and_ties(self) -> None:
+        importance = _aligned_named_values(
+            ["X3", "X1", "X4"],
+            np.array([0.0, -2.0, -2.0]),
+            n_features=5,
+            value_name="importance",
+            fill_value=0.0,
+        )
+
+        np.testing.assert_array_equal(importance, np.array([0.0, -2.0, 0.0, 0.0, -2.0]))
+
+    def test_root_diagnostics_align_candidates_to_original_features(self) -> None:
+        diagnostics = _root_diagnostics_from_named_values(
+            root_feature_name="X2",
+            feature_names=["X2", "X0"],
+            statistics=np.array([4.5, 1.25]),
+            p_values=np.array([0.001, 0.2]),
+            n_features=3,
+        )
+
+        assert diagnostics.root_feature == 2
+        np.testing.assert_allclose(
+            diagnostics.statistics,
+            np.array([1.25, np.nan, 4.5]),
+            equal_nan=True,
+        )
+        np.testing.assert_allclose(
+            diagnostics.p_values,
+            np.array([0.2, np.nan, 0.001]),
+            equal_nan=True,
+        )
+
+    @pytest.mark.parametrize("root_feature_name", ["feature0", "X01", "X3"])
+    def test_root_diagnostics_reject_malformed_root_feature(
+        self,
+        root_feature_name: str,
+    ) -> None:
+        with pytest.raises(RuntimeError, match="root feature"):
+            _root_diagnostics_from_named_values(
+                root_feature_name=root_feature_name,
+                feature_names=["X0", "X1", "X2"],
+                statistics=np.ones(3),
+                p_values=np.full(3, 0.5),
+                n_features=3,
+            )
+
+    @pytest.mark.parametrize("feature_names", [["feature0"], ["X01"], ["X3"], ["X1", "X1"]])
+    def test_root_diagnostics_reject_malformed_candidate_features(
+        self,
+        feature_names: list[str],
+    ) -> None:
+        with pytest.raises(RuntimeError, match="candidate"):
+            _root_diagnostics_from_named_values(
+                root_feature_name=None,
+                feature_names=feature_names,
+                statistics=np.ones(len(feature_names)),
+                p_values=np.full(len(feature_names), 0.5),
+                n_features=3,
+            )
+
+    def test_root_diagnostics_defaults_to_matched_monte_carlo_controls(self) -> None:
+        parameters = inspect.signature(r_ctree_root_diagnostics).parameters
+
+        assert parameters["teststat"].default == "quadratic"
+        assert parameters["testtype"].default == "MonteCarlo"
+        assert parameters["nresample"].default == 999
+        assert parameters["mincriterion"].default == 0.0
+        assert parameters["minsplit"].default == 2
+        assert parameters["minbucket"].default == 1
+
     @pytest.mark.parametrize(
         ("feature_names", "scores", "match"),
         [
@@ -610,6 +685,55 @@ class TestRBoundaryHelpers:
     def test_core_resolution_rejects_invalid_counts(self, cores: int) -> None:
         with pytest.raises(ValueError, match="cores must be -1 or a positive integer"):
             _resolve_cores(cores)
+
+    def test_cforest_ranking_uses_raw_aligned_importance(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        observed: dict[str, object] = {}
+
+        def importance(
+            X: np.ndarray,
+            y: np.ndarray,
+            **kwargs: object,
+        ) -> np.ndarray:
+            del y
+            observed.update(kwargs)
+            return np.array([0.0, -1.0, 0.0, 2.0])
+
+        monkeypatch.setattr(r_methods, "r_cforest_importance", importance)
+        X = np.arange(48, dtype=np.float64).reshape(12, 4)
+        y = np.array([0, 1] * 6)
+
+        ranking = r_methods.r_cforest_ranking(
+            X,
+            y,
+            task="classification",
+            testtype="MonteCarlo",
+            nresample=999,
+            ntree=25,
+            cores=1,
+            random_state=42,
+        )
+
+        assert ranking.tolist() == [3, 0, 2, 1]
+        assert observed == {
+            "task": "classification",
+            "teststat": "quadratic",
+            "testtype": "MonteCarlo",
+            "mincriterion": 0.0,
+            "nresample": 999,
+            "ntree": 25,
+            "mtry": None,
+            "replace": False,
+            "fraction": 0.632,
+            "varimp_conditional": False,
+            "varimp_nperm": 1,
+            "cores": 1,
+            "random_state": 42,
+        }
 
     @_skip_no_r
     def test_r_runtime_versions_are_reported(self) -> None:
@@ -765,6 +889,42 @@ class TestRCtreeRanking:
 
 class TestRCforestRanking:
     """Regression tests for named partykit cforest importance values."""
+
+    @_skip_no_r
+    def test_jss_root_diagnostics_and_raw_forest_importance(self) -> None:
+        """Matched Monte Carlo diagnostics and raw importance must survive the R boundary."""
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(120)
+        X = np.column_stack([np.zeros((signal.size, 3)), signal])
+        y = (signal > 0).astype(np.int64)
+
+        first = r_ctree_root_diagnostics(X, y, random_state=42)
+        second = r_ctree_root_diagnostics(X, y, random_state=42)
+
+        assert first.root_feature == X.shape[1] - 1
+        assert first.statistics.shape == (X.shape[1],)
+        assert first.p_values.shape == (X.shape[1],)
+        np.testing.assert_allclose(first.statistics, second.statistics, equal_nan=True)
+        np.testing.assert_allclose(first.p_values, second.p_values, equal_nan=True)
+        assert np.isnan(first.p_values[:3]).all()
+        assert np.isfinite(first.p_values[3])
+        assert first.p_values[3] * 999 == pytest.approx(round(first.p_values[3] * 999))
+
+        importance = r_cforest_importance(
+            X,
+            y,
+            testtype="MonteCarlo",
+            nresample=999,
+            ntree=25,
+            mtry="all",
+            cores=1,
+            random_state=42,
+        )
+
+        assert importance.shape == (X.shape[1],)
+        assert np.isfinite(importance).all()
+        assert np.count_nonzero(importance[:3]) == 0
+        assert importance[3] > 0
 
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])

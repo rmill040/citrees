@@ -267,7 +267,13 @@ class TestPtestMC:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=100, early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=100,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -277,7 +283,13 @@ class TestPtestMC:
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         # n_resamples >= 200 triggers parallel version
         pval = ptest_mc(
-            x=x, y=y, n_classes=2, n_resamples=250, early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=250,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.05
 
@@ -366,7 +378,13 @@ class TestPtestMI:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_mi(
-            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.1
 
@@ -376,7 +394,13 @@ class TestPtestMI:
         x = np.random.randn(100)
         y = np.random.randint(0, 2, 100).astype(np.int64)
         pval = ptest_mi(
-            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert 0 < pval <= 1
 
@@ -474,7 +498,13 @@ class TestPtestRDC:
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert pval < 0.1
 
@@ -499,7 +529,13 @@ class TestPtestRDC:
         x = np.random.randn(100)
         y = np.random.randint(0, 2, 100).astype(np.int64)
         pval = ptest_rdc_classifier(
-            x=x, y=y, n_classes=2, n_resamples=50, early_stopping=None, alpha=0.05, random_state=42
+            x=x,
+            y=y,
+            n_classes=2,
+            n_resamples=50,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
         )
         assert 0 < pval <= 1
 
@@ -868,10 +904,10 @@ class TestEarlyStopping:
         assert pval > 0
 
     def test_ptest_adaptive_small_resamples_mc(self):
-        """Test _ptest() adaptive branch with n_resamples < parallel threshold."""
+        """Test the serial adaptive branch with n_resamples below the parallel threshold."""
         x = np.concatenate([np.zeros(50), np.ones(50)])
         y = np.concatenate([np.zeros(50), np.ones(50)]).astype(np.int64)
-        # n_resamples < 200 routes to _ptest() Python adaptive branch
+        # n_resamples < 200 routes to the serial Python adaptive branch.
         pval = ptest_mc(
             x=x,
             y=y,
@@ -884,10 +920,10 @@ class TestEarlyStopping:
         assert pval < 0.05
 
     def test_ptest_adaptive_small_resamples_pc(self):
-        """Test _ptest() adaptive branch for pc with n_resamples < parallel threshold."""
+        """Test the serial PC adaptive branch below the parallel threshold."""
         x = np.linspace(0, 10, 100)
         y = 2 * x + np.random.randn(100) * 0.1
-        # n_resamples < 200 routes to _ptest() Python adaptive branch
+        # n_resamples < 200 routes to the serial Python adaptive branch.
         pval = ptest_pc(
             x=x,
             y=y,
@@ -936,9 +972,9 @@ class TestEarlyStopping:
         }
 
         monkeypatch.setattr(os, "cpu_count", lambda: 1)
-        one_cpu = _selector._ptest(**kwargs)
+        one_cpu = _selector._ptest_result(**kwargs)
         monkeypatch.setattr(os, "cpu_count", lambda: 64)
-        many_cpus = _selector._ptest(**kwargs)
+        many_cpus = _selector._ptest_result(**kwargs)
 
         assert one_cpu == many_cpus
 
@@ -990,7 +1026,7 @@ class TestEarlyStopping:
         observed = []
         for batch_size in (1, 8, 32, 64):
             monkeypatch.setattr(_selector, "_ADAPTIVE_BATCH_SIZE", batch_size)
-            observed.append(_selector._ptest(**kwargs))
+            observed.append(_selector._ptest_result(**kwargs))
 
         assert observed == [observed[0]] * len(observed)
 
@@ -1169,11 +1205,11 @@ class TestSelectorRNGReproducibility:
 
     def test_ptest_same_seed_same_result(self, classification_data):
         """Same random_state should produce identical p-values."""
-        from citrees._selector import _ptest
+        from citrees._selector import _ptest_result
 
         x, y = classification_data
 
-        pval1 = _ptest(
+        result1 = _ptest_result(
             func=mc,
             func_arg=2,
             x=x,
@@ -1184,7 +1220,7 @@ class TestSelectorRNGReproducibility:
             random_state=42,
         )
 
-        pval2 = _ptest(
+        result2 = _ptest_result(
             func=mc,
             func_arg=2,
             x=x,
@@ -1195,15 +1231,15 @@ class TestSelectorRNGReproducibility:
             random_state=42,
         )
 
-        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+        assert result1 == result2, f"Same seed should give same result: {result1} != {result2}"
 
     def test_ptest_different_seed_different_result(self, classification_data):
         """Different random_state should produce different p-values."""
-        from citrees._selector import _ptest
+        from citrees._selector import _ptest_result
 
         x, y = classification_data
 
-        pval1 = _ptest(
+        result1 = _ptest_result(
             func=mc,
             func_arg=2,
             x=x,
@@ -1214,7 +1250,7 @@ class TestSelectorRNGReproducibility:
             random_state=42,
         )
 
-        pval2 = _ptest(
+        result2 = _ptest_result(
             func=mc,
             func_arg=2,
             x=x,
@@ -1225,11 +1261,13 @@ class TestSelectorRNGReproducibility:
             random_state=99,
         )
 
-        assert pval1 != pval2, f"Different seeds should give different results: {pval1} == {pval2}"
+        assert result1 != result2, (
+            f"Different seeds should give different results: {result1} == {result2}"
+        )
 
     def test_ptest_no_global_state_contamination(self, classification_data):
-        """_ptest should not contaminate global RNG state."""
-        from citrees._selector import _ptest
+        """The serial result core should not contaminate global RNG state."""
+        from citrees._selector import _ptest_result
 
         x, y = classification_data
 
@@ -1237,7 +1275,7 @@ class TestSelectorRNGReproducibility:
         before = np.random.random()
 
         np.random.seed(123)
-        _ptest(
+        _ptest_result(
             func=mc,
             func_arg=2,
             x=x,
@@ -1249,7 +1287,7 @@ class TestSelectorRNGReproducibility:
         )
         after = np.random.random()
 
-        assert before == after, f"_ptest contaminated global state: {before} != {after}"
+        assert before == after, f"_ptest_result contaminated global state: {before} != {after}"
 
     def test_ptest_multi_same_seed_same_result(self, classification_data):
         """_ptest_multi with same seed should produce identical results."""
@@ -1330,36 +1368,38 @@ class TestParallelSelectorRNGReproducibility:
 
     def test_ptest_mc_parallel_same_seed_same_result(self, classification_data):
         """Parallel MC test with same seed should produce identical results."""
-        from citrees._selector import _ptest_mc_parallel
+        from citrees._selector import _ptest_mc_parallel_result
 
         x, y = classification_data
 
-        pval1 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
-        pval2 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
+        result1 = _ptest_mc_parallel_result(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
+        result2 = _ptest_mc_parallel_result(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
 
-        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+        assert result1 == result2, f"Same seed should give same result: {result1} != {result2}"
 
     def test_ptest_mc_parallel_different_seed_different_result(self, classification_data):
         """Parallel MC test with different seed should produce different results."""
-        from citrees._selector import _ptest_mc_parallel
+        from citrees._selector import _ptest_mc_parallel_result
 
         x, y = classification_data
 
-        pval1 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
-        pval2 = _ptest_mc_parallel(x=x, y=y, n_classes=2, n_resamples=500, random_state=99)
+        result1 = _ptest_mc_parallel_result(x=x, y=y, n_classes=2, n_resamples=500, random_state=42)
+        result2 = _ptest_mc_parallel_result(x=x, y=y, n_classes=2, n_resamples=500, random_state=99)
 
-        assert pval1 != pval2, f"Different seeds should give different results: {pval1} == {pval2}"
+        assert result1 != result2, (
+            f"Different seeds should give different results: {result1} == {result2}"
+        )
 
     def test_ptest_pc_parallel_same_seed_same_result(self, regression_data):
         """Parallel PC test with same seed should produce identical results."""
-        from citrees._selector import _ptest_pc_parallel
+        from citrees._selector import _ptest_pc_parallel_result
 
         x, y = regression_data
 
-        pval1 = _ptest_pc_parallel(x=x, y=y, n_resamples=500, random_state=42)
-        pval2 = _ptest_pc_parallel(x=x, y=y, n_resamples=500, random_state=42)
+        result1 = _ptest_pc_parallel_result(x=x, y=y, n_resamples=500, random_state=42)
+        result2 = _ptest_pc_parallel_result(x=x, y=y, n_resamples=500, random_state=42)
 
-        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+        assert result1 == result2, f"Same seed should give same result: {result1} != {result2}"
 
 
 # =============================================================================
@@ -1388,30 +1428,36 @@ class TestJitParity:
         "_rdc_ecdf": (_selector._rdc_ecdf, (_X,)),
         "_rdc_features": (_selector._rdc_features, (_X, _RDC_K, _RDC_S, 1718)),
         "_beta_cdf": (_selector._beta_cdf, (0.3, 2.0, 5.0)),
-        "_ptest_mc_parallel": (_selector._ptest_mc_parallel, (_X, _Y_CLF, 2, 250, 1718)),
-        "_ptest_mc_parallel_batched": (
-            _selector._ptest_mc_parallel_batched,
+        "_ptest_mc_parallel_result": (
+            _selector._ptest_mc_parallel_result,
+            (_X, _Y_CLF, 2, 250, 1718),
+        ),
+        "_ptest_mc_parallel_batched_result": (
+            _selector._ptest_mc_parallel_batched_result,
             (_X, _Y_CLF, 2, 250, 1718, 0.05, 0.95),
         ),
-        "_ptest_pc_parallel": (_selector._ptest_pc_parallel, (_X, _Y_REG, 250, 1718)),
-        "_ptest_pc_parallel_batched": (
-            _selector._ptest_pc_parallel_batched,
+        "_ptest_pc_parallel_result": (
+            _selector._ptest_pc_parallel_result,
+            (_X, _Y_REG, 250, 1718),
+        ),
+        "_ptest_pc_parallel_batched_result": (
+            _selector._ptest_pc_parallel_batched_result,
             (_X, _Y_REG, 250, 1718, 0.05, 0.95),
         ),
-        "_ptest_rdc_classifier_parallel": (
-            _selector._ptest_rdc_classifier_parallel,
+        "_ptest_rdc_classifier_parallel_result": (
+            _selector._ptest_rdc_classifier_parallel_result,
             (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718),
         ),
-        "_ptest_rdc_classifier_parallel_batched": (
-            _selector._ptest_rdc_classifier_parallel_batched,
+        "_ptest_rdc_classifier_parallel_batched_result": (
+            _selector._ptest_rdc_classifier_parallel_batched_result,
             (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95),
         ),
-        "_ptest_rdc_regressor_parallel": (
-            _selector._ptest_rdc_regressor_parallel,
+        "_ptest_rdc_regressor_parallel_result": (
+            _selector._ptest_rdc_regressor_parallel_result,
             (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718),
         ),
-        "_ptest_rdc_regressor_parallel_batched": (
-            _selector._ptest_rdc_regressor_parallel_batched,
+        "_ptest_rdc_regressor_parallel_batched_result": (
+            _selector._ptest_rdc_regressor_parallel_batched_result,
             (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95),
         ),
     }

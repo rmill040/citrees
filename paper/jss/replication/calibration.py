@@ -2,7 +2,7 @@
 
 The analysis separates three questions:
 
-1. Are individual selector permutation tests calibrated under independence?
+1. Are fixed-budget selector permutation p-values calibrated under independence?
 2. How often does a fitted tree split under the global null when the feature
    gate, threshold gate, or both gates are active?
 3. Does variable cardinality affect which null feature is selected at the root?
@@ -36,6 +36,7 @@ from citrees import (
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
 )
+from citrees._permutation import collect_permutation_counts
 from citrees._selector import (
     _ptest_multi,
     dc,
@@ -52,7 +53,7 @@ from citrees._selector import (
 )
 
 Task = Literal["classification", "regression"]
-Stopping = Literal["fixed", "adaptive", "simple"]
+Stopping = Literal["exhaustive", "adaptive", "simple"]
 FeatureDistribution = Literal["normal", "binary", "ordinal4"]
 Gate = Literal["selector", "splitter", "combined"]
 Profile = Literal["smoke", "quick", "full"]
@@ -75,11 +76,10 @@ class ProfileSettings:
 
 @dataclass(frozen=True)
 class SelectorNullScenario:
-    """Configuration for one selector-level null experiment."""
+    """Configuration for one fixed-budget selector-level null experiment."""
 
     task: Task
     selector: str
-    stopping: Stopping
     feature_distribution: FeatureDistribution
     n_samples: int
     n_resamples: int
@@ -88,7 +88,7 @@ class SelectorNullScenario:
     @property
     def scenario(self) -> str:
         return (
-            f"{self.task}__{self.selector}__{self.stopping}__"
+            f"{self.task}__{self.selector}__fixed_budget__"
             f"{self.feature_distribution}__n{self.n_samples}__b{self.n_resamples}"
         )
 
@@ -98,19 +98,35 @@ class SelectorNullScenario:
 
 
 @dataclass(frozen=True)
+class SelectorTestResult:
+    """Fixed-budget p-value and actual permutations from one selector test."""
+
+    p_value: float
+    permutations: int
+
+
+@dataclass(frozen=True)
 class RootNullScenario:
-    """Configuration for one root-level null experiment."""
+    """Configuration for one fitted-tree null experiment."""
 
     task: Task
     gate: Gate
     stopping: Stopping
+    feature_scanning: bool
+    threshold_scanning: bool
     feature_distribution: FeatureDistribution
     n_samples: int
     n_features: int
-    n_resamples: int
+    base_resamples: int
     threshold_method: str = "exact"
     max_thresholds: int | None = None
     alpha: float = 0.05
+
+    def __post_init__(self) -> None:
+        """Disable scan flags that are inert under exhaustive permutation tests."""
+        if self.stopping == "exhaustive":
+            object.__setattr__(self, "feature_scanning", False)
+            object.__setattr__(self, "threshold_scanning", False)
 
     @property
     def scenario(self) -> str:
@@ -121,8 +137,10 @@ class RootNullScenario:
         )
         return (
             f"{self.task}__{self.gate}__{self.stopping}__"
+            f"feature_scan{int(self.feature_scanning)}__"
+            f"threshold_scan{int(self.threshold_scanning)}__"
             f"{self.feature_distribution}__n{self.n_samples}__p{self.n_features}__"
-            f"b{self.n_resamples}__{threshold}"
+            f"base_b{self.base_resamples}__{threshold}"
         )
 
     @property
@@ -131,6 +149,29 @@ class RootNullScenario:
             f"root_null__{self.task}__{self.feature_distribution}__"
             f"n{self.n_samples}__p{self.n_features}"
         )
+
+    @property
+    def model_design(self) -> str:
+        """Return the seed-pairing key with stopping and scanning factors removed."""
+        threshold = (
+            self.threshold_method
+            if self.max_thresholds is None
+            else f"{self.threshold_method}{self.max_thresholds}"
+        )
+        return (
+            f"root_null__{self.task}__{self.gate}__{self.feature_distribution}__"
+            f"n{self.n_samples}__p{self.n_features}__base_b{self.base_resamples}__"
+            f"{threshold}__alpha{self.alpha:.17g}"
+        )
+
+
+@dataclass(frozen=True)
+class RootFitResult:
+    """Root split decision and actual permutation counts from one fitted tree."""
+
+    split: bool
+    selector_permutations: int
+    splitter_permutations: int
 
 
 def _settings(profile: Profile) -> ProfileSettings:
@@ -204,10 +245,11 @@ def _matrix(
 
 
 def _early_stopping(stopping: Stopping) -> str | None:
-    return None if stopping == "fixed" else stopping
+    """Map the exhaustive reference level to a full permutation test."""
+    return None if stopping == "exhaustive" else stopping
 
 
-def _selector_p_value(
+def _fixed_budget_selector_p_value(
     scenario: SelectorNullScenario,
     x: np.ndarray,
     y: np.ndarray,
@@ -217,7 +259,7 @@ def _selector_p_value(
         "x": x,
         "y": y,
         "n_resamples": scenario.n_resamples,
-        "early_stopping": _early_stopping(scenario.stopping),
+        "early_stopping": None,
         "alpha": scenario.alpha,
         "random_state": seed,
     }
@@ -259,25 +301,32 @@ def _selector_p_value(
     raise ValueError(f"Unsupported selector scenario: {scenario}")
 
 
+def _fixed_budget_selector_test(
+    scenario: SelectorNullScenario,
+    x: np.ndarray,
+    y: np.ndarray,
+    seed: int,
+) -> SelectorTestResult:
+    """Run one fixed-budget selector test and collect actual permutations."""
+    with collect_permutation_counts() as counts:
+        p_value = _fixed_budget_selector_p_value(scenario, x, y, seed)
+    return SelectorTestResult(
+        p_value=p_value,
+        permutations=counts["selector"],
+    )
+
+
 def _selector_scenarios(profile: Profile, settings: ProfileSettings) -> list[SelectorNullScenario]:
     if profile == "smoke":
         return [
-            SelectorNullScenario(
-                "classification", "mc", "fixed", "normal", 80, settings.selector_resamples
-            ),
-            SelectorNullScenario(
-                "regression", "pc", "adaptive", "binary", 80, settings.selector_resamples
-            ),
+            SelectorNullScenario("classification", "mc", "normal", 80, settings.selector_resamples),
+            SelectorNullScenario("regression", "pc", "binary", 80, settings.selector_resamples),
         ]
 
-    stopping_modes: tuple[Stopping, ...] = (
-        ("fixed", "adaptive", "simple") if profile == "full" else ("fixed", "adaptive")
-    )
     scenarios = [
         SelectorNullScenario(
             task,
             selector,
-            stopping,
             "normal",
             200,
             settings.selector_resamples,
@@ -287,19 +336,16 @@ def _selector_scenarios(profile: Profile, settings: ProfileSettings) -> list[Sel
             ("regression", ("pc", "dc", "rdc")),
         )
         for selector in selectors
-        for stopping in stopping_modes
     ]
     scenarios.extend(
         SelectorNullScenario(
             task,
             selector,
-            stopping,
             distribution,
             200,
             settings.selector_resamples,
         )
         for task, selector in (("classification", "mc"), ("regression", "pc"))
-        for stopping in stopping_modes
         for distribution in ("binary", "ordinal4")
     )
     if profile == "full":
@@ -307,13 +353,11 @@ def _selector_scenarios(profile: Profile, settings: ProfileSettings) -> list[Sel
             SelectorNullScenario(
                 task,
                 selector,
-                stopping,
                 distribution,
                 n_samples,
                 settings.selector_resamples,
             )
             for task, selector in (("classification", "mc"), ("regression", "pc"))
-            for stopping in stopping_modes
             for distribution in ("normal", "binary", "ordinal4")
             for n_samples in (100, 500)
             if n_samples != 200
@@ -322,7 +366,6 @@ def _selector_scenarios(profile: Profile, settings: ProfileSettings) -> list[Sel
             SelectorNullScenario(
                 task,
                 selector,
-                stopping,
                 "normal",
                 200,
                 settings.selector_resamples,
@@ -331,7 +374,6 @@ def _selector_scenarios(profile: Profile, settings: ProfileSettings) -> list[Sel
                 ("classification", "mc+rdc"),
                 ("regression", "pc+dc+rdc"),
             )
-            for stopping in stopping_modes
         )
     return scenarios
 
@@ -341,7 +383,7 @@ def run_selector_null(
     *,
     base_seed: int = BASE_SEED,
 ) -> pd.DataFrame:
-    """Run selector permutation tests under independence."""
+    """Run fixed-budget selector permutation tests under independence."""
     settings = _settings(profile)
     rows: list[dict[str, object]] = []
     for scenario in _selector_scenarios(profile, settings):
@@ -351,17 +393,19 @@ def run_selector_null(
             rng = np.random.default_rng(data_seed)
             x = _feature(rng, scenario.feature_distribution, scenario.n_samples)
             y = _response(rng, scenario.task, scenario.n_samples)
-            p_value = _selector_p_value(scenario, x, y, model_seed)
+            test_result = _fixed_budget_selector_test(scenario, x, y, model_seed)
             rows.append(
                 {
                     **asdict(scenario),
                     "experiment": "selector_null",
+                    "estimand": "fixed_budget_permutation_p_value",
                     "scenario": scenario.scenario,
                     "replicate": replicate,
                     "data_seed": data_seed,
                     "model_seed": model_seed,
-                    "p_value": p_value,
-                    "rejected": p_value < scenario.alpha,
+                    "realized_permutations": test_result.permutations,
+                    "p_value": test_result.p_value,
+                    "rejected": test_result.p_value < scenario.alpha,
                 }
             )
     return pd.DataFrame(rows)
@@ -369,23 +413,63 @@ def run_selector_null(
 
 def _root_scenarios(profile: Profile, settings: ProfileSettings) -> list[RootNullScenario]:
     if profile == "smoke":
-        return [
+        scenarios = [
             RootNullScenario(
-                "classification", "selector", "fixed", "normal", 80, 3, settings.root_resamples
-            ),
-            RootNullScenario(
-                "regression", "combined", "adaptive", "ordinal4", 80, 3, settings.root_resamples
-            ),
+                "classification",
+                "combined",
+                "adaptive",
+                feature_scanning,
+                threshold_scanning,
+                "normal",
+                80,
+                3,
+                settings.root_resamples,
+                threshold_method="histogram",
+                max_thresholds=8,
+            )
+            for feature_scanning in (False, True)
+            for threshold_scanning in (False, True)
         ]
+        scenarios.extend(
+            [
+                RootNullScenario(
+                    "regression",
+                    "selector",
+                    "exhaustive",
+                    False,
+                    False,
+                    "normal",
+                    80,
+                    3,
+                    settings.root_resamples,
+                ),
+                RootNullScenario(
+                    "regression",
+                    "splitter",
+                    "simple",
+                    False,
+                    True,
+                    "normal",
+                    80,
+                    1,
+                    settings.root_resamples,
+                    threshold_method="histogram",
+                    max_thresholds=8,
+                ),
+            ]
+        )
+        return scenarios
 
     stopping_modes: tuple[Stopping, ...] = (
-        ("fixed", "adaptive", "simple") if profile == "full" else ("fixed", "adaptive")
+        ("exhaustive", "adaptive", "simple") if profile == "full" else ("exhaustive", "adaptive")
     )
     scenarios = [
         RootNullScenario(
             task,
             "selector",
             stopping,
+            feature_scanning,
+            False,
             "normal",
             200,
             n_features,
@@ -394,12 +478,15 @@ def _root_scenarios(profile: Profile, settings: ProfileSettings) -> list[RootNul
         for task in ("classification", "regression")
         for stopping in stopping_modes
         for n_features in (5, 20)
+        for feature_scanning in ((False,) if stopping == "exhaustive" else (False, True))
     ]
     scenarios.extend(
         RootNullScenario(
             task,
             "splitter",
             stopping,
+            False,
+            threshold_scanning,
             distribution,
             200,
             1,
@@ -410,12 +497,15 @@ def _root_scenarios(profile: Profile, settings: ProfileSettings) -> list[RootNul
         for task in ("classification", "regression")
         for stopping in stopping_modes
         for distribution in ("binary", "ordinal4", "normal")
+        for threshold_scanning in ((False,) if stopping == "exhaustive" else (False, True))
     )
     scenarios.extend(
         RootNullScenario(
             task,
             "combined",
             stopping,
+            feature_scanning,
+            threshold_scanning,
             "normal",
             200,
             5,
@@ -425,6 +515,8 @@ def _root_scenarios(profile: Profile, settings: ProfileSettings) -> list[RootNul
         )
         for task in ("classification", "regression")
         for stopping in stopping_modes
+        for feature_scanning in ((False,) if stopping == "exhaustive" else (False, True))
+        for threshold_scanning in ((False,) if stopping == "exhaustive" else (False, True))
     )
     if profile == "full":
         scenarios.extend(
@@ -432,6 +524,8 @@ def _root_scenarios(profile: Profile, settings: ProfileSettings) -> list[RootNul
                 task,
                 "splitter",
                 stopping,
+                False,
+                threshold_scanning,
                 "normal",
                 50,
                 1,
@@ -439,6 +533,7 @@ def _root_scenarios(profile: Profile, settings: ProfileSettings) -> list[RootNul
             )
             for task in ("classification", "regression")
             for stopping in stopping_modes
+            for threshold_scanning in ((False,) if stopping == "exhaustive" else (False, True))
         )
     return scenarios
 
@@ -448,7 +543,7 @@ def _fit_null_tree(
     X: np.ndarray,
     y: np.ndarray,
     seed: int,
-) -> bool:
+) -> RootFitResult:
     selector_enabled = scenario.gate in {"selector", "combined"}
     splitter_enabled = scenario.gate in {"splitter", "combined"}
     common: dict[str, object] = {
@@ -456,8 +551,8 @@ def _fit_null_tree(
         "alpha_splitter": scenario.alpha,
         "adjust_alpha_selector": selector_enabled,
         "adjust_alpha_splitter": splitter_enabled,
-        "n_resamples_selector": scenario.n_resamples if selector_enabled else None,
-        "n_resamples_splitter": scenario.n_resamples if splitter_enabled else None,
+        "n_resamples_selector": scenario.base_resamples if selector_enabled else None,
+        "n_resamples_splitter": scenario.base_resamples if splitter_enabled else None,
         "early_stopping_selector": (
             _early_stopping(scenario.stopping) if selector_enabled else None
         ),
@@ -465,9 +560,9 @@ def _fit_null_tree(
             _early_stopping(scenario.stopping) if splitter_enabled else None
         ),
         "feature_muting": False,
-        "feature_scanning": scenario.stopping != "fixed",
+        "feature_scanning": scenario.feature_scanning,
         "threshold_method": scenario.threshold_method,
-        "threshold_scanning": scenario.stopping != "fixed",
+        "threshold_scanning": scenario.threshold_scanning,
         "max_thresholds": scenario.max_thresholds,
         "max_depth": 1,
         "random_state": seed,
@@ -478,7 +573,12 @@ def _fit_null_tree(
     else:
         model = ConditionalInferenceTreeRegressor(**common)
     model.fit(X, y)
-    return bool(model._n_nodes > 1)
+    counts = model.realized_permutation_counts_
+    return RootFitResult(
+        split=bool(model._n_nodes > 1),
+        selector_permutations=counts["selector"],
+        splitter_permutations=counts["splitter"],
+    )
 
 
 def run_root_null(
@@ -492,7 +592,7 @@ def run_root_null(
     for scenario in _root_scenarios(profile, settings):
         for replicate in range(settings.root_replicates):
             data_seed = _stream_seed(base_seed, scenario.data_design, replicate, "data")
-            model_seed = _stream_seed(base_seed, scenario.scenario, replicate, "model")
+            model_seed = _stream_seed(base_seed, scenario.model_design, replicate, "model")
             rng = np.random.default_rng(data_seed)
             X = _matrix(
                 rng,
@@ -501,16 +601,22 @@ def run_root_null(
                 scenario.n_features,
             )
             y = _response(rng, scenario.task, scenario.n_samples)
-            split = _fit_null_tree(scenario, X, y, model_seed)
+            fit_result = _fit_null_tree(scenario, X, y, model_seed)
             rows.append(
                 {
                     **asdict(scenario),
                     "experiment": "root_null",
+                    "estimand": "fitted_tree_split_decision",
                     "scenario": scenario.scenario,
                     "replicate": replicate,
                     "data_seed": data_seed,
                     "model_seed": model_seed,
-                    "split": split,
+                    "realized_selector_permutations": fit_result.selector_permutations,
+                    "realized_splitter_permutations": fit_result.splitter_permutations,
+                    "realized_permutations": (
+                        fit_result.selector_permutations + fit_result.splitter_permutations
+                    ),
+                    "split": fit_result.split,
                 }
             )
     return pd.DataFrame(rows)
@@ -680,9 +786,7 @@ def wilson_interval(successes: int, total: int, confidence: float = 0.95) -> tup
     return max(float(center - half_width), 0.0), min(float(center + half_width), 1.0)
 
 
-def _attainable_alpha(alpha: float, n_resamples: int, stopping: str) -> float:
-    if stopping != "fixed":
-        return float("nan")
+def _attainable_alpha(alpha: float, n_resamples: int) -> float:
     support = n_resamples + 1
     rejected_values = max(int(np.ceil(alpha * support) - 1), 0)
     return rejected_values / support
@@ -691,10 +795,10 @@ def _attainable_alpha(alpha: float, n_resamples: int, stopping: str) -> float:
 def summarize_selector_null(raw: pd.DataFrame) -> pd.DataFrame:
     """Summarize selector-level rejection rates and Wilson intervals."""
     group_columns = [
+        "estimand",
         "scenario",
         "task",
         "selector",
-        "stopping",
         "feature_distribution",
         "n_samples",
         "n_resamples",
@@ -717,8 +821,8 @@ def summarize_selector_null(raw: pd.DataFrame) -> pd.DataFrame:
                 "attainable_alpha": _attainable_alpha(
                     float(values["alpha"]),
                     int(values["n_resamples"]),
-                    str(values["stopping"]),
                 ),
+                "realized_permutations_total": int(group["realized_permutations"].sum()),
             }
         )
     return pd.DataFrame(rows)
@@ -727,14 +831,17 @@ def summarize_selector_null(raw: pd.DataFrame) -> pd.DataFrame:
 def summarize_root_null(raw: pd.DataFrame) -> pd.DataFrame:
     """Summarize root split rates and Wilson intervals."""
     group_columns = [
+        "estimand",
         "scenario",
         "task",
         "gate",
         "stopping",
+        "feature_scanning",
+        "threshold_scanning",
         "feature_distribution",
         "n_samples",
         "n_features",
-        "n_resamples",
+        "base_resamples",
         "threshold_method",
         "max_thresholds",
         "alpha",
@@ -753,6 +860,14 @@ def summarize_root_null(raw: pd.DataFrame) -> pd.DataFrame:
                 "split_rate": successes / total,
                 "confidence_lower": lower,
                 "confidence_upper": upper,
+                "realized_selector_permutations_total": int(
+                    group["realized_selector_permutations"].sum()
+                ),
+                "realized_splitter_permutations_total": int(
+                    group["realized_splitter_permutations"].sum()
+                ),
+                "realized_permutations_total": int(group["realized_permutations"].sum()),
+                "realized_permutations_mean": float(group["realized_permutations"].mean()),
             }
         )
     return pd.DataFrame(rows)
@@ -901,6 +1016,7 @@ def write_results(
         Path(__file__).resolve(),
         repo_root / "paper" / "benchmark" / "pipeline" / "r_methods.py",
         repo_root / "citrees" / "_forest.py",
+        repo_root / "citrees" / "_permutation.py",
         repo_root / "citrees" / "_selector.py",
         repo_root / "citrees" / "_sequential.py",
         repo_root / "citrees" / "_splitter.py",
@@ -919,7 +1035,7 @@ def write_results(
 
     receipt = {
         "analysis": "calibration",
-        "schema_version": 2,
+        "schema_version": 3,
         "profile": profile,
         "base_seed": base_seed,
         "settings": asdict(_settings(profile)),

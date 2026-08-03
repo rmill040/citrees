@@ -1,6 +1,8 @@
 import warnings
 from abc import ABCMeta, abstractmethod
+from collections.abc import Mapping
 from math import ceil
+from types import MappingProxyType
 from typing import Any, TypedDict
 
 import numpy as np
@@ -11,6 +13,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
+from citrees._permutation import collect_permutation_counts
 from citrees._selector import (
     ClassifierSelectors,
     ClassifierSelectorTests,
@@ -40,7 +43,12 @@ from citrees._types import (
     ProbabilityFloat,
     ThresholdMethod,
 )
-from citrees._utils import calculate_max_value, estimate_mean, estimate_proba, split_data
+from citrees._utils import (
+    calculate_max_value,
+    estimate_mean,
+    estimate_proba,
+    split_data,
+)
 
 
 class Node(TypedDict, total=False):
@@ -383,7 +391,11 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
         if params["n_resamples_selector"] is None:
             flags = [
                 key
-                for key in ["adjust_alpha_selector", "feature_muting", "early_stopping_selector"]
+                for key in [
+                    "adjust_alpha_selector",
+                    "feature_muting",
+                    "early_stopping_selector",
+                ]
                 if params[key]
             ]
         if flags:
@@ -506,6 +518,13 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
 
         """
         return BaseConditionalInferenceTreeParameters
+
+    @property
+    def realized_permutation_counts_(self) -> Mapping[str, int]:
+        """Actual selector and splitter permutations performed by the latest fit."""
+        if not hasattr(self, "_realized_permutation_counts"):
+            raise AttributeError("realized_permutation_counts_ is available only after fitting")
+        return MappingProxyType(self._realized_permutation_counts)
 
     def _compute_selector_score(self, x: np.ndarray, y: np.ndarray) -> tuple[float, str]:
         """Compute selector score, using max across all selectors in multi-selector mode.
@@ -1132,7 +1151,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 X=X_left, y=y_left, depth=depth + 1, available_features=local_available
             )
             right_child = self._build_tree(
-                X=X_right, y=y_right, depth=depth + 1, available_features=local_available
+                X=X_right,
+                y=y_right,
+                depth=depth + 1,
+                available_features=local_available,
             )
 
             return Node(
@@ -1166,6 +1188,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             Fitted estimator.
 
         """
+        self.__dict__.pop("_realized_permutation_counts", None)
         X, y = self._validate_data_fit(X=X, y=y, estimator_type=self._estimator_type)
         n, p = X.shape
 
@@ -1286,22 +1309,32 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.feature_importances_ = np.zeros(p, dtype=float)
         self.n_features_in_ = p
 
-        # Honest estimation: split data into splitting and estimation samples
-        if self.honesty:
-            X_split, X_est, y_split, y_est = train_test_split(
-                X,
-                y,
-                test_size=self.honesty_fraction,
-                random_state=self._random_state,
-            )
-            # Build tree structure using splitting sample
-            self.tree_ = self._build_tree(
-                X_split, y_split, depth=1, available_features=np.arange(p, dtype=int)
-            )
-            # Re-estimate leaf values using estimation sample
-            self._reestimate_leaf_values(X_est, y_est)
-        else:
-            self.tree_ = self._build_tree(X, y, depth=1, available_features=np.arange(p, dtype=int))
+        with collect_permutation_counts() as permutation_counts:
+            # Honest estimation: split data into splitting and estimation samples
+            if self.honesty:
+                X_split, X_est, y_split, y_est = train_test_split(
+                    X,
+                    y,
+                    test_size=self.honesty_fraction,
+                    random_state=self._random_state,
+                )
+                # Build tree structure using splitting sample
+                self.tree_ = self._build_tree(
+                    X_split,
+                    y_split,
+                    depth=1,
+                    available_features=np.arange(p, dtype=int),
+                )
+                # Re-estimate leaf values using estimation sample
+                self._reestimate_leaf_values(X_est, y_est)
+            else:
+                self.tree_ = self._build_tree(
+                    X, y, depth=1, available_features=np.arange(p, dtype=int)
+                )
+        self._realized_permutation_counts: dict[str, int] = {
+            "selector": permutation_counts["selector"],
+            "splitter": permutation_counts["splitter"],
+        }
 
         # Normalize feature importances
         fi_sum = self.feature_importances_.sum()
@@ -1371,7 +1404,11 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self._reestimate_tree_by_path(self.tree_, y, leaf_samples, path=())
 
     def _reestimate_tree_by_path(
-        self, tree: Node, y: np.ndarray, leaf_samples: dict[tuple, list[int]], path: tuple
+        self,
+        tree: Node,
+        y: np.ndarray,
+        leaf_samples: dict[tuple, list[int]],
+        path: tuple,
     ) -> None:
         """Re-estimate leaf values in tree using path-based identification (iterative).
 

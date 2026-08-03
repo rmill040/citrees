@@ -66,18 +66,13 @@ threshold only within that variable
 recursive partitioning models \citep{Hothorn+Zeileis:2015}. In
 \proglang{Python}, \sklearn provides mature CART trees and forests and a common
 estimator interface for model selection and pipelines
-\citep{Pedregosa+Varoquaux+Gramfort:2011}. It does not provide conditional
-inference trees or forests.
-
-\citrees provides classifiers and regressors for both supported task types.
-The estimators follow the \sklearn protocol. It is not a port of
-\pkg{partykit}.
-The package implements the separation between nodewise feature screening and
-threshold search, then adds selector choices, threshold approximations,
-sequential computation, forest sampling controls, and model inspection
-methods designed for \proglang{Python} workflows. The main design goal is to
-make each statistical and computational choice explicit in the fitted
-estimator.
+\citep{Pedregosa+Varoquaux+Gramfort:2011}. \citrees extends this estimator
+ecosystem with native conditional inference classifiers and regressors. The
+package separates nodewise feature screening from threshold search, then adds
+selector choices, threshold approximations, sequential computation, forest
+sampling controls, and model inspection methods designed for
+\proglang{Python} workflows. Each statistical and computational choice is an
+explicit fitted-estimator parameter.
 
 \section{Statistical procedure} \label{sec:procedure}
 
@@ -102,10 +97,10 @@ of the response. \citrees uses the corrected Monte Carlo value
   \label{eq:permutation-p}
 \end{equation}
 %
-so a finite permutation sample never returns zero
+whose minimum attainable value is $1/(B+1)$
 \citep{Phipson+Smyth:2010}. With multiplicity adjustment enabled, predictor
 $j$ passes the nodewise screen when $p_j < \alpha_{\mathrm{A}}/|F_t|$.
-Without adjustment, the threshold is $\alpha_{\mathrm{A}}$. The passing
+With adjustment disabled, the threshold is $\alpha_{\mathrm{A}}$. The passing
 predictor with the smallest value is selected, with random tie resolution.
 
 Classification selectors include multiple correlation, mutual information,
@@ -114,15 +109,15 @@ Pearson correlation, distance correlation, and the randomized dependence
 coefficient \citep{Szekely+Rizzo+Bakirov:2007,Lopez-Paz+Hennig+Schoelkopf:2013}.
 Compatible bounded statistics can also be combined in a max-$T$ permutation
 test \citep{Westfall+Young:1993}. This option evaluates the largest configured
-selector score within each response permutation, preserving the joint
-permutation reference distribution rather than combining separately computed
-$p$~values.
+selector score within each response permutation and uses the resulting joint
+max-statistic reference distribution.
 
-The exhaustive procedure evaluates every predictor with the requested
-permutation budget. Sequential modes check a stopping criterion after fixed
-batches of permutations and can avoid the remaining work once a decision is
-sufficiently clear. These modes are fitting controls. Their stopping-time
-values should not be interpreted as exhaustive fixed-$B$ $p$~values.
+The exhaustive procedure evaluates every candidate with the requested
+permutation budget and reports fixed-$B$ $p$~values. Adaptive stopping checks
+its posterior criterion every 32 permutations; simple stopping checks
+significance and futility after each permutation beyond the minimum budget.
+Both sequential modes can stop at the first passing candidate and report the
+fitted decision and realized permutation count.
 
 \subsection{Threshold selection} \label{sec:thresholds}
 
@@ -138,7 +133,8 @@ regression supports squared and absolute error. The candidate score can be
 tested with response permutations using a left-tail counterpart of
 Equation~\ref{eq:permutation-p}. If no candidate passes the configured Stage B
 threshold, the node is terminal. The accepted threshold is a tree-construction
-decision after feature selection, not a post-selection inferential result.
+decision after feature selection. Calibration analyses evaluate the fixed-node
+permutation gates.
 
 \subsection{Forests and feature summaries} \label{sec:forests}
 
@@ -163,10 +159,9 @@ budget, Equation~\ref{eq:permutation-p} has the usual exchangeability-based
 Monte Carlo interpretation. A fitted tree adds response-dependent node
 creation, repeated tests, optional feature ordering and muting, and threshold
 selection. Forests add bootstrap samples, predictor sampling, and aggregation.
-Consequently, nodewise fixed-budget calibration does not by itself establish
-global inferential guarantees for an adaptive fitted tree, forest, or
-split-derived feature ranking. The software reports fitted model outputs and
-does not present them as confirmatory variable-selection inference.
+Equation~\ref{eq:permutation-p} defines the fixed-node permutation test used
+during tree construction. The fitted tree and forest analyses target predictive
+behavior, feature stability, and computation under adaptive construction.
 
 \section{Software design and interface} \label{sec:software}
 
@@ -175,8 +170,8 @@ estimators: tree and forest variants for classification and regression. The
 estimators implement \code{fit()} and \code{predict()}, classifiers implement
 \code{predict_proba()}, and fitted models expose \code{apply()},
 \code{decision_path()}, and \code{feature_importances_}. They can therefore
-participate in \sklearn cross-validation, pipeline, and parameter-search
-utilities without a separate adapter.
+participate directly in \sklearn cross-validation, pipeline, and
+parameter-search utilities.
 
 The following example fits a classification forest and evaluates it through a
 standard train-test workflow.
@@ -208,15 +203,15 @@ Association statistics, permutation tests, split criteria, and threshold
 generators are separate registered components. The tree implementation resolves
 the requested components during fitting and uses the same implementations for
 single trees and forests. This organization keeps classification and regression
-behavior parallel while allowing a new statistic or threshold method to be
-added without changing the estimator interface.
+behavior parallel while registered statistics and threshold methods preserve a
+common estimator interface.
 
-Parameter validation occurs before fitting. It rejects incompatible selector
-combinations, invalid probability thresholds, impossible sample fractions,
-and forest settings that cannot produce the requested output. Random seeds are
-propagated through permutation tests, sample splitting, bootstrap sampling,
-and tree construction. Fitted estimators retain the parameters expected by
-\sklearn cloning and model-selection utilities.
+Parameter validation occurs before fitting and enforces compatible selector
+combinations, valid probability thresholds, feasible sample fractions, and
+forest settings with defined outputs. Random seeds are propagated through
+permutation tests, sample splitting, bootstrap sampling, and tree construction.
+Fitted estimators retain the parameters expected by \sklearn cloning and
+model-selection utilities.
 
 \subsection{Computation} \label{sec:computation}
 
@@ -226,9 +221,8 @@ resamples are requested. Performance-critical statistics use
 be fit concurrently, and sequential stopping can reduce permutation work.
 Threshold subsampling bounds the number of Stage B candidates, while feature
 muting can reduce the predictor set passed to descendants. Each control changes
-the realized computation and may change the fitted model, so the package
-exposes them as estimator parameters rather than hidden implementation
-heuristics.
+the realized computation and may change the fitted model. Explicit estimator
+parameters make these choices auditable.
 
 \section{Relationship to existing software} \label{sec:comparison}
 
@@ -237,11 +231,10 @@ trees and forests in \proglang{R}. It implements the conditional inference
 framework through linear statistics and provides a broad object system for
 recursive partitioning \citep{Hothorn+Hornik+Zeileis:2006,Hothorn+Zeileis:2015}.
 \citrees follows the same high-level separation of variable selection and
-split-point optimization, but its selector statistics, stopping rules, forest
-controls, and fitted object representation are package-specific. Analyses that
-require exact \code{ctree} or \code{cforest} behavior should use
-\pkg{partykit}; analyses embedded in \proglang{Python} pipelines can use
-\citrees without crossing language boundaries.
+split-point optimization with package-specific selector statistics, stopping
+rules, forest controls, and fitted object representation. \pkg{partykit}
+provides exact \code{ctree} and \code{cforest} behavior, while \citrees serves
+native \proglang{Python} pipelines.
 
 \sklearn trees and forests provide substantially faster CART-style fitting for
 many prediction tasks and remain essential baselines. Their split search
@@ -267,8 +260,8 @@ Nonlinear selector choices & Yes & Framework-dependent & No \\
 \caption{\label{tab:software-comparison} High-level comparison of the software
 interfaces relevant to \citrees. ``Conditional feature screen'' denotes a
 predictor-response test before threshold optimization. The packages expose
-different statistical procedures and are not expected to produce identical
-trees.}
+different statistical procedures; behavioral comparisons account for each
+procedure and its defaults.}
 \end{table}
 
 \section{Evaluation and replication design} \label{sec:evaluation}
@@ -284,10 +277,9 @@ depth and stopping controls.
 Behavioral comparisons use shared training folds and random seeds to compare
 root variables, complete split-variable rankings, predictions, and
 reproducibility. Agreement is interpreted relative to documented differences
-in statistics and defaults, rather than as an expectation of identical fitted
-trees. Computational experiments vary sample size, predictor count, selector,
-permutation budget, and forest size on fixed hardware, reporting elapsed time
-and peak memory.
+in statistics and defaults for each implementation. Computational experiments
+vary sample size, predictor count, selector, permutation budget, and forest size
+on fixed hardware, reporting elapsed time and peak memory.
 
 Replication materials provide a quick profile intended for a regular computer
 and a full profile for the reported simulation and scaling estimates. Both
@@ -306,12 +298,13 @@ with common model-selection workflows. Its main cost is computation:
 permutation tests can be much slower than impurity-only split search,
 especially in high dimensions or large forests.
 
-The package is appropriate when the separation between feature screening and
-threshold optimization is part of the modeling goal. It is not a substitute
-for \pkg{partykit} when exact \proglang{R} reference behavior is required, and
-it does not turn adaptive tree construction into post-selection inference.
-Applications should evaluate predictive performance, feature stability, and
-runtime against both conditional inference and CART-style alternatives.
+The package serves applications where the separation between feature screening
+and threshold optimization is part of the modeling goal. \pkg{partykit} serves
+analyses requiring exact \proglang{R} reference behavior. Inferential analysis
+quantifies fixed-node permutation calibration, while adaptive tree construction
+produces fitted predictive models. Applications should evaluate predictive
+performance, feature stability, and runtime against both conditional inference
+and CART-style alternatives.
 
 \section*{Acknowledgments}
 

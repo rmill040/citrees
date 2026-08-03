@@ -495,6 +495,34 @@ class TestTreeRepr:
 class TestTreeAttributes:
     """Tests for tree attributes after fitting."""
 
+    def test_realized_permutation_counts_require_fit(self):
+        """Permutation diagnostics are unavailable before fitting."""
+        clf = ConditionalInferenceTreeClassifier(**FAST_PARAMS)
+
+        with pytest.raises(AttributeError, match="available only after fitting"):
+            _ = clf.realized_permutation_counts_
+
+    def test_realized_permutation_counts_are_read_only(self):
+        """A fit exposes immutable selector and splitter permutation totals."""
+        X, y = make_classification(n_samples=100, n_features=5, random_state=42)
+        clf = ConditionalInferenceTreeClassifier(
+            **{
+                **FAST_PARAMS,
+                "n_resamples_selector": 39,
+                "n_resamples_splitter": 39,
+                "early_stopping_selector": "adaptive",
+                "early_stopping_splitter": "adaptive",
+            }
+        )
+        clf.fit(X, y)
+
+        counts = clf.realized_permutation_counts_
+        assert set(counts) == {"selector", "splitter"}
+        assert counts["selector"] > 0
+        assert counts["splitter"] >= 0
+        with pytest.raises(TypeError):
+            counts["selector"] = 0
+
     def test_n_features_in(self):
         """Test n_features_in_ is set correctly."""
         X, y = make_classification(n_samples=100, n_features=10, random_state=42)

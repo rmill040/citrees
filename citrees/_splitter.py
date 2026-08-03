@@ -5,6 +5,7 @@ import numpy as np
 from numba import njit
 from numba import prange as _numba_prange
 
+from citrees._permutation import PermutationTestResult, record_permutation_test
 from citrees._registry import (
     ClassifierSplitters,
     ClassifierSplitterTests,
@@ -18,6 +19,7 @@ prange: Any = _numba_prange
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
+_ADAPTIVE_BATCH_SIZE = 32
 
 # P-value correction: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
 # SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
@@ -25,7 +27,7 @@ _PARALLEL_THRESHOLD = 200
 # Note: min_resamples = ceil(1/alpha) remains valid since 1/(m+1) < alpha.
 
 
-def _ptest(
+def _ptest_result(
     *,
     func: Any,
     x: np.ndarray,
@@ -36,7 +38,7 @@ def _ptest(
     alpha: float,
     random_state: int,
     confidence: float = 0.95,
-) -> float:
+) -> PermutationTestResult:
     """Perform a permutation test for split selection.
 
     Parameters
@@ -74,8 +76,8 @@ def _ptest(
 
     Returns
     -------
-    float
-        Estimated achieved significance level.
+    tuple[float, int]
+        P-value and realized number of permutations.
 
     """
     # Use default_rng for isolated RNG stream (avoids global state contamination)
@@ -86,7 +88,7 @@ def _ptest(
     n_left = int(np.sum(idx))
     n_right = n - n_left
     if n_left == 0 or n_right == 0:
-        return 1.0
+        return 1.0, 0
 
     w_left = n_left / n
     w_right = n_right / n
@@ -98,31 +100,35 @@ def _ptest(
         for i in range(n_resamples):
             rng.shuffle(y_)
             theta_p[i] = (w_left * func(y_[idx])) + (w_right * func(y_[~idx]))
-        return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+        p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+        return float(p_value), n_resamples
 
     min_resamples = ceil(1 / alpha)
     n_resamples = max(n_resamples, min_resamples)
     extreme_count = 0
 
     if early_stopping == EarlyStopping.ADAPTIVE:
-        for i in range(n_resamples):
-            rng.shuffle(y_)
-            theta_p = (w_left * func(y_[idx])) + (w_right * func(y_[~idx]))
-            if theta_p <= theta:
-                extreme_count += 1
+        m = 0
+        while m < n_resamples:
+            batch_end = min(m + _ADAPTIVE_BATCH_SIZE, n_resamples)
+            for _ in range(batch_end - m):
+                rng.shuffle(y_)
+                theta_p = (w_left * func(y_[idx])) + (w_right * func(y_[~idx]))
+                if theta_p <= theta:
+                    extreme_count += 1
+            m = batch_end
 
-            n = i + 1
-            if n >= min_resamples:
+            if m >= min_resamples:
                 a = 1.0 + extreme_count
-                b = 1.0 + n - extreme_count
+                b = 1.0 + m - extreme_count
                 prob_sig = _beta_cdf(alpha, a, b)
 
                 if prob_sig >= confidence:
-                    return (extreme_count + 1) / (n + 1)
+                    return (extreme_count + 1) / (m + 1), m
                 if (1.0 - prob_sig) >= confidence:
-                    return (extreme_count + 1) / (n + 1)
+                    return (extreme_count + 1) / (m + 1), m
 
-        return (extreme_count + 1) / (n_resamples + 1)
+        return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
     else:  # simple
         for i in range(n_resamples):
@@ -136,13 +142,13 @@ def _ptest(
 
             if n >= min_resamples:
                 if current_pval < alpha:
-                    return current_pval
+                    return current_pval, n
 
                 best_possible = (extreme_count + 1) / (n_resamples + 1)
                 if best_possible >= alpha and extreme_count >= 3:
-                    return current_pval
+                    return current_pval, n
 
-        return (extreme_count + 1) / (n_resamples + 1)
+        return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
 
 # Parallel permutation test for Gini index (classifier)
@@ -150,14 +156,20 @@ def _ptest(
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_gini_parallel(
+def _ptest_gini_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Parallel permutation test for Gini index."""
+) -> PermutationTestResult:
+    """Parallel permutation test for Gini index.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     idx = x <= threshold
     y_left = y[idx]
     y_right = y[~idx]
@@ -166,7 +178,7 @@ def _ptest_gini_parallel(
     n_left = len(y_left)
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
-        return 1.0
+        return 1.0, 0
     n = len(y)
     w_left = n_left / n
     w_right = n_right / n
@@ -192,7 +204,8 @@ def _ptest_gini_parallel(
         )
 
         # +1 correction (Phipson & Smyth 2010)
-    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 # Parallel permutation test for MSE (regressor)
@@ -200,14 +213,20 @@ def _ptest_gini_parallel(
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_mse_parallel(
+def _ptest_mse_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Parallel permutation test for MSE."""
+) -> PermutationTestResult:
+    """Parallel permutation test for MSE.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     idx = x <= threshold
     y_left = y[idx]
     y_right = y[~idx]
@@ -215,7 +234,7 @@ def _ptest_mse_parallel(
     n_left = len(y_left)
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
-        return 1.0
+        return 1.0, 0
     n = len(y)
     w_left = n_left / n
     w_right = n_right / n
@@ -242,7 +261,8 @@ def _ptest_mse_parallel(
         )
 
         # +1 correction (Phipson & Smyth 2010)
-    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 # Parallel permutation test for Entropy (classifier)
@@ -250,14 +270,20 @@ def _ptest_mse_parallel(
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_entropy_parallel(
+def _ptest_entropy_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Parallel permutation test for entropy."""
+) -> PermutationTestResult:
+    """Parallel permutation test for entropy.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     idx = x <= threshold
     y_left = y[idx]
     y_right = y[~idx]
@@ -266,7 +292,7 @@ def _ptest_entropy_parallel(
     n_left = len(y_left)
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
-        return 1.0
+        return 1.0, 0
     n = len(y)
     w_left = n_left / n
     w_right = n_right / n
@@ -314,7 +340,8 @@ def _ptest_entropy_parallel(
         theta_p[i] = w_left * entropy_left_perm + w_right * entropy_right_perm
 
         # +1 correction (Phipson & Smyth 2010)
-    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 # Parallel permutation test for MAE (regressor)
@@ -322,14 +349,20 @@ def _ptest_entropy_parallel(
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_mae_parallel(
+def _ptest_mae_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Parallel permutation test for MAE."""
+) -> PermutationTestResult:
+    """Parallel permutation test for MAE.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     idx = x <= threshold
     y_left = y[idx]
     y_right = y[~idx]
@@ -337,7 +370,7 @@ def _ptest_mae_parallel(
     n_left = len(y_left)
     n_right = len(y_right)
     if n_left == 0 or n_right == 0:
-        return 1.0
+        return 1.0, 0
     n = len(y)
     w_left = n_left / n
     w_right = n_right / n
@@ -361,7 +394,8 @@ def _ptest_mae_parallel(
         dev_right_perm = np.abs(y_right_perm - np.median(y_right_perm))
         theta_p[i] = w_left * np.mean(dev_left_perm) + w_right * np.mean(dev_right_perm)
 
-    return (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 @ClassifierSplitters.register("gini")
@@ -459,25 +493,26 @@ def ptest_gini(
 
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
-        return _ptest_gini_parallel(
+        result = _ptest_gini_parallel_result(
             x=x,
             y=y,
             threshold=threshold,
             n_resamples=n_resamples,
             random_state=random_state,
         )
-
-    return _ptest(
-        func=gini,
-        x=x,
-        y=y,
-        threshold=threshold,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+    else:
+        result = _ptest_result(
+            func=gini,
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("splitter", result)
 
 
 @ClassifierSplitterTests.register("entropy")
@@ -526,25 +561,26 @@ def ptest_entropy(
 
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
-        return _ptest_entropy_parallel(
+        result = _ptest_entropy_parallel_result(
             x=x,
             y=y,
             threshold=threshold,
             n_resamples=n_resamples,
             random_state=random_state,
         )
-
-    return _ptest(
-        func=entropy,
-        x=x,
-        y=y,
-        threshold=threshold,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+    else:
+        result = _ptest_result(
+            func=entropy,
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("splitter", result)
 
 
 @RegressorSplitters.register("mse")
@@ -648,25 +684,26 @@ def ptest_mse(
 
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
-        return _ptest_mse_parallel(
+        result = _ptest_mse_parallel_result(
             x=x,
             y=y,
             threshold=threshold,
             n_resamples=n_resamples,
             random_state=random_state,
         )
-
-    return _ptest(
-        func=mse,
-        x=x,
-        y=y,
-        threshold=threshold,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+    else:
+        result = _ptest_result(
+            func=mse,
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("splitter", result)
 
 
 @RegressorSplitterTests.register("mae")
@@ -715,22 +752,23 @@ def ptest_mae(
 
     """
     if early_stopping is None and n_resamples >= _PARALLEL_THRESHOLD:
-        return _ptest_mae_parallel(
+        result = _ptest_mae_parallel_result(
             x=x,
             y=y,
             threshold=threshold,
             n_resamples=n_resamples,
             random_state=random_state,
         )
-
-    return _ptest(
-        func=mae,
-        x=x,
-        y=y,
-        threshold=threshold,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+    else:
+        result = _ptest_result(
+            func=mae,
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("splitter", result)

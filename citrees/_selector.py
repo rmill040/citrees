@@ -8,6 +8,7 @@ from numba import njit
 from numba import prange as _numba_prange
 from sklearn.feature_selection import mutual_info_classif
 
+from citrees._permutation import PermutationTestResult, record_permutation_test
 from citrees._registry import (
     ClassifierSelectors,
     ClassifierSelectorTests,
@@ -29,7 +30,7 @@ _ADAPTIVE_BATCH_SIZE = 32
 # Note: min_resamples = ceil(1/alpha) remains valid since 1/(m+1) < alpha.
 
 
-def _ptest(
+def _ptest_result(
     *,
     func: Any,
     func_arg: Any,
@@ -40,7 +41,7 @@ def _ptest(
     alpha: float,
     random_state: int,
     confidence: float = 0.95,
-) -> float:
+) -> PermutationTestResult:
     """Calculate the achieved significance level using a permutation test.
 
     Parameters
@@ -78,8 +79,8 @@ def _ptest(
 
     Returns
     -------
-    float
-        Estimated achieved significance level.
+    tuple[float, int]
+        P-value and realized number of permutations.
 
     """
     # Use default_rng for isolated RNG stream (avoids global state contamination)
@@ -93,7 +94,8 @@ def _ptest(
         for i in range(n_resamples):
             rng.shuffle(y_)
             theta_p[i] = func(x, y_, func_arg, random_state=random_state)
-        return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+        p_value = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+        return float(p_value), n_resamples
 
     min_resamples = ceil(1 / alpha)
     n_resamples = max(n_resamples, min_resamples)
@@ -116,11 +118,11 @@ def _ptest(
                 prob_sig = _beta_cdf(alpha, a, b)
 
                 if prob_sig >= confidence:
-                    return (extreme_count + 1) / (m + 1)
+                    return (extreme_count + 1) / (m + 1), m
                 if (1.0 - prob_sig) >= confidence:
-                    return (extreme_count + 1) / (m + 1)
+                    return (extreme_count + 1) / (m + 1), m
 
-        return (extreme_count + 1) / (n_resamples + 1)
+        return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
     else:  # simple
         for i in range(n_resamples):
@@ -134,16 +136,16 @@ def _ptest(
 
             if n >= min_resamples:
                 if current_pval < alpha:
-                    return current_pval
+                    return current_pval, n
 
                 best_possible = (extreme_count + 1) / (n_resamples + 1)
                 if best_possible >= alpha and extreme_count >= 3:
-                    return current_pval
+                    return current_pval, n
 
-        return (extreme_count + 1) / (n_resamples + 1)
+        return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
 
-def _ptest_multi(
+def _ptest_multi_result(
     *,
     funcs: list,
     func_args: list,
@@ -155,7 +157,7 @@ def _ptest_multi(
     alpha: float,
     random_state: int,
     confidence: float = 0.95,
-) -> float:
+) -> PermutationTestResult:
     """Max-T permutation test for multiple selectors.
 
     Computes max(selector_scores) INSIDE each permutation to provide fixed-node
@@ -200,8 +202,8 @@ def _ptest_multi(
 
     Returns
     -------
-    float
-        Estimated achieved significance level.
+    tuple[float, int]
+        P-value and realized number of permutations.
 
     """
     # Use default_rng for isolated RNG stream (avoids global state contamination)
@@ -233,7 +235,8 @@ def _ptest_multi(
         for i in range(n_resamples):
             rng.shuffle(y_)
             theta_p[i] = compute_max_stat(x, y_)
-        return (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
+        p_value = (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
+        return float(p_value), n_resamples
 
     min_resamples = ceil(1 / alpha)
     n_resamples = max(n_resamples, min_resamples)
@@ -256,11 +259,11 @@ def _ptest_multi(
                 prob_sig = _beta_cdf(alpha, a, b)
 
                 if prob_sig >= confidence:
-                    return (extreme_count + 1) / (m + 1)
+                    return (extreme_count + 1) / (m + 1), m
                 if (1.0 - prob_sig) >= confidence:
-                    return (extreme_count + 1) / (m + 1)
+                    return (extreme_count + 1) / (m + 1), m
 
-        return (extreme_count + 1) / (n_resamples + 1)
+        return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
     else:  # simple
         for i in range(n_resamples):
@@ -274,13 +277,42 @@ def _ptest_multi(
 
             if n >= min_resamples:
                 if current_pval < alpha:
-                    return current_pval
+                    return current_pval, n
 
                 best_possible = (extreme_count + 1) / (n_resamples + 1)
                 if best_possible >= alpha and extreme_count >= 3:
-                    return current_pval
+                    return current_pval, n
 
-        return (extreme_count + 1) / (n_resamples + 1)
+        return (extreme_count + 1) / (n_resamples + 1), n_resamples
+
+
+def _ptest_multi(
+    *,
+    funcs: list,
+    func_args: list,
+    take_abs: list[bool] | None = None,
+    x: np.ndarray,
+    y: np.ndarray,
+    n_resamples: int,
+    early_stopping: EarlyStoppingOption,
+    alpha: float,
+    random_state: int,
+    confidence: float = 0.95,
+) -> float:
+    """Return a max-T p-value and record its realized permutation count."""
+    result = _ptest_multi_result(
+        funcs=funcs,
+        func_args=func_args,
+        take_abs=take_abs,
+        x=x,
+        y=y,
+        n_resamples=n_resamples,
+        early_stopping=early_stopping,
+        alpha=alpha,
+        random_state=random_state,
+        confidence=confidence,
+    )
+    return record_permutation_test("selector", result)
 
 
 # Parallel permutation test for multiple correlation (classifier)
@@ -288,19 +320,25 @@ def _ptest_multi(
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_mc_parallel(
+def _ptest_mc_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     n_classes: int,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Parallel permutation test for multiple correlation."""
+) -> PermutationTestResult:
+    """Parallel permutation test for multiple correlation.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     # Compute observed statistic
     mu = x.mean()
     sst = np.sum((x - mu) ** 2)
     if sst == 0:
-        return 1.0
+        return 1.0, 0
     ssb = 0.0
     for j in range(n_classes):
         x_j = x[y == j]
@@ -327,7 +365,8 @@ def _ptest_mc_parallel(
         theta_p[i] = np.sqrt(ssb_perm / sst)
 
     # +1 correction (Phipson & Smyth 2010)
-    return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 # Parallel permutation test for pearson correlation (regressor)
@@ -335,13 +374,19 @@ def _ptest_mc_parallel(
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_pc_parallel(
+def _ptest_pc_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Parallel permutation test for pearson correlation."""
+) -> PermutationTestResult:
+    """Parallel permutation test for pearson correlation.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     n = len(x)
     sx = x.sum()
     sx2 = np.sum(x * x)
@@ -354,7 +399,7 @@ def _ptest_pc_parallel(
     ssy = n * sy2 - sy * sy
     denom = np.sqrt(ssx * ssy)
     if denom == 0:
-        return 1.0
+        return 1.0, 0
     theta = np.abs(cov / denom)
 
     # Parallel permutation
@@ -377,7 +422,8 @@ def _ptest_pc_parallel(
             theta_p[i] = np.abs(cov_perm / denom_perm)
 
     # +1 correction (Phipson & Smyth 2010)
-    return (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(theta_p >= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 # Batched parallel permutation test for multiple correlation (classifier) with adaptive stopping.
@@ -385,7 +431,7 @@ def _ptest_pc_parallel(
 # Calibration suggests similar null rejection for K=32; adaptive outputs are
 # not theorem-level fixed-B p-values.
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_mc_parallel_batched(
+def _ptest_mc_parallel_batched_result(
     x: np.ndarray,
     y: np.ndarray,
     n_classes: int,
@@ -393,13 +439,19 @@ def _ptest_mc_parallel_batched(
     random_state: int,
     alpha: float,
     confidence: float,
-) -> float:
-    """Parallel batched permutation test for multiple correlation with adaptive stopping."""
+) -> PermutationTestResult:
+    """Parallel batched permutation test for multiple correlation with adaptive stopping.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     # Compute observed statistic
     mu = x.mean()
     sst = np.sum((x - mu) ** 2)
     if sst == 0:
-        return 1.0
+        return 1.0, 0
     ssb = 0.0
     for j in range(n_classes):
         x_j = x[y == j]
@@ -445,26 +497,32 @@ def _ptest_mc_parallel_batched(
             prob_sig = _beta_cdf(alpha, a, b)
 
             if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
             if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
-    return (extreme_count + 1) / (n_resamples + 1)
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
 
 # Batched parallel permutation test for pearson correlation (regressor) with adaptive stopping.
-# Same pattern as _ptest_mc_parallel_batched.
+# Same pattern as _ptest_mc_parallel_batched_result.
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_pc_parallel_batched(
+def _ptest_pc_parallel_batched_result(
     x: np.ndarray,
     y: np.ndarray,
     n_resamples: int,
     random_state: int,
     alpha: float,
     confidence: float,
-) -> float:
-    """Parallel batched permutation test for pearson correlation with adaptive stopping."""
+) -> PermutationTestResult:
+    """Parallel batched permutation test for pearson correlation with adaptive stopping.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     n = len(x)
     sx = x.sum()
     sx2 = np.sum(x * x)
@@ -477,7 +535,7 @@ def _ptest_pc_parallel_batched(
     ssy = n * sy2 - sy * sy
     denom = np.sqrt(ssx * ssy)
     if denom == 0:
-        return 1.0
+        return 1.0, 0
     theta = np.abs(cov / denom)
 
     min_resamples = int(np.ceil(1.0 / alpha))
@@ -516,12 +574,12 @@ def _ptest_pc_parallel_batched(
             prob_sig = _beta_cdf(alpha, a, b)
 
             if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
             if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
-    return (extreme_count + 1) / (n_resamples + 1)
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
 
 # Parallel permutation test for RDC (regressor), no early stopping.
@@ -530,7 +588,7 @@ def _ptest_pc_parallel_batched(
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_rdc_regressor_parallel(
+def _ptest_rdc_regressor_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     k: int,
@@ -538,8 +596,14 @@ def _ptest_rdc_regressor_parallel(
     rdc_seed: int,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Full parallel permutation test for RDC (regression), no early stopping."""
+) -> PermutationTestResult:
+    """Full parallel permutation test for RDC (regression), no early stopping.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     n = len(x)
     X_feat = _rdc_features(x, k, s, rdc_seed)
 
@@ -574,13 +638,14 @@ def _ptest_rdc_regressor_parallel(
         theta_p[i] = rdc_val
 
     # +1 correction (Phipson & Smyth 2010)
-    return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 # Batched parallel permutation test for RDC (regressor) with adaptive stopping.
-# Same pattern as _ptest_pc_parallel_batched.
+# Same pattern as _ptest_pc_parallel_batched_result.
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_rdc_regressor_parallel_batched(
+def _ptest_rdc_regressor_parallel_batched_result(
     x: np.ndarray,
     y: np.ndarray,
     k: int,
@@ -590,8 +655,14 @@ def _ptest_rdc_regressor_parallel_batched(
     random_state: int,
     alpha: float,
     confidence: float,
-) -> float:
-    """Parallel batched permutation test for RDC (regression) with adaptive stopping."""
+) -> PermutationTestResult:
+    """Parallel batched permutation test for RDC (regression) with adaptive stopping.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     n = len(x)
 
     # Precompute X features (x never changes across permutations)
@@ -609,7 +680,7 @@ def _ptest_rdc_regressor_parallel_batched(
     Y_feat_obs = _rdc_features(y, k, s, rdc_seed + 1000)
     theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
     if theta <= 0.0:
-        return 1.0
+        return 1.0, 0
 
     # Parallel batched permutation
     min_resamples = int(np.ceil(1.0 / alpha))
@@ -648,18 +719,18 @@ def _ptest_rdc_regressor_parallel_batched(
             b = 1.0 + m - extreme_count
             prob_sig = _beta_cdf(alpha, a, b)
             if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
             if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
-    return (extreme_count + 1) / (n_resamples + 1)
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
 
 # Parallel permutation test for RDC (classifier), no early stopping.
 # Handles multi-class via max RDC over one-vs-all binary encodings.
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_rdc_classifier_parallel(
+def _ptest_rdc_classifier_parallel_result(
     x: np.ndarray,
     y: np.ndarray,
     n_classes: int,
@@ -668,8 +739,14 @@ def _ptest_rdc_classifier_parallel(
     rdc_seed: int,
     n_resamples: int,
     random_state: int,
-) -> float:
-    """Full parallel permutation test for RDC (classification), no early stopping."""
+) -> PermutationTestResult:
+    """Full parallel permutation test for RDC (classification), no early stopping.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     n = len(x)
     X_feat = _rdc_features(x, k, s, rdc_seed)
 
@@ -738,13 +815,14 @@ def _ptest_rdc_classifier_parallel(
             theta_p[i] = rdc_perm
 
     # +1 correction (Phipson & Smyth 2010)
-    return (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+    p_value = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
+    return p_value, n_resamples
 
 
 # Batched parallel permutation test for RDC (classifier) with adaptive stopping.
 # Handles multi-class via max RDC over one-vs-all binary encodings.
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
-def _ptest_rdc_classifier_parallel_batched(
+def _ptest_rdc_classifier_parallel_batched_result(
     x: np.ndarray,
     y: np.ndarray,
     n_classes: int,
@@ -755,8 +833,14 @@ def _ptest_rdc_classifier_parallel_batched(
     random_state: int,
     alpha: float,
     confidence: float,
-) -> float:
-    """Parallel batched permutation test for RDC (classification) with adaptive stopping."""
+) -> PermutationTestResult:
+    """Parallel batched permutation test for RDC (classification) with adaptive stopping.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
     n = len(x)
     X_feat = _rdc_features(x, k, s, rdc_seed)
 
@@ -778,7 +862,7 @@ def _ptest_rdc_classifier_parallel_batched(
                 theta = rdc_c
 
     if theta <= 0.0:
-        return 1.0
+        return 1.0, 0
 
     # Precompute Y projection weights per class
     n_weight_sets = 1 if n_classes == 2 else n_classes
@@ -847,12 +931,12 @@ def _ptest_rdc_classifier_parallel_batched(
             b = 1.0 + m - extreme_count
             prob_sig = _beta_cdf(alpha, a, b)
             if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
             if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1)
+                return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
-    return (extreme_count + 1) / (n_resamples + 1)
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
 
 @ClassifierSelectors.register("mc")
@@ -1332,7 +1416,7 @@ def ptest_mc(
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:
-            return _ptest_mc_parallel(
+            result = _ptest_mc_parallel_result(
                 x=x,
                 y=y,
                 n_classes=n_classes,
@@ -1340,7 +1424,7 @@ def ptest_mc(
                 random_state=random_state,
             )
         elif early_stopping == EarlyStopping.ADAPTIVE:
-            return _ptest_mc_parallel_batched(
+            result = _ptest_mc_parallel_batched_result(
                 x=x,
                 y=y,
                 n_classes=n_classes,
@@ -1349,18 +1433,31 @@ def ptest_mc(
                 alpha=alpha,
                 confidence=confidence,
             )
-
-    return _ptest(
-        func=mc,
-        func_arg=n_classes,
-        x=x,
-        y=y,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+        else:
+            result = _ptest_result(
+                func=mc,
+                func_arg=n_classes,
+                x=x,
+                y=y,
+                n_resamples=n_resamples,
+                early_stopping=early_stopping,
+                alpha=alpha,
+                random_state=random_state,
+                confidence=confidence,
+            )
+    else:
+        result = _ptest_result(
+            func=mc,
+            func_arg=n_classes,
+            x=x,
+            y=y,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("selector", result)
 
 
 @ClassifierSelectorTests.register("mi")
@@ -1409,7 +1506,7 @@ def ptest_mi(
         Estimated achieved significance level.
 
     """
-    return _ptest(
+    result = _ptest_result(
         func=mi,
         func_arg=n_classes,
         x=x,
@@ -1420,6 +1517,7 @@ def ptest_mi(
         random_state=random_state,
         confidence=confidence,
     )
+    return record_permutation_test("selector", result)
 
 
 @RegressorSelectorTests.register("pc")
@@ -1470,14 +1568,14 @@ def ptest_pc(
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:
-            return _ptest_pc_parallel(
+            result = _ptest_pc_parallel_result(
                 x=x,
                 y=y,
                 n_resamples=n_resamples,
                 random_state=random_state,
             )
         elif early_stopping == EarlyStopping.ADAPTIVE:
-            return _ptest_pc_parallel_batched(
+            result = _ptest_pc_parallel_batched_result(
                 x=x,
                 y=y,
                 n_resamples=n_resamples,
@@ -1485,18 +1583,31 @@ def ptest_pc(
                 alpha=alpha,
                 confidence=confidence,
             )
-
-    return _ptest(
-        func=pc,
-        func_arg=standardize,
-        x=x,
-        y=y,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+        else:
+            result = _ptest_result(
+                func=pc,
+                func_arg=standardize,
+                x=x,
+                y=y,
+                n_resamples=n_resamples,
+                early_stopping=early_stopping,
+                alpha=alpha,
+                random_state=random_state,
+                confidence=confidence,
+            )
+    else:
+        result = _ptest_result(
+            func=pc,
+            func_arg=standardize,
+            x=x,
+            y=y,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("selector", result)
 
 
 @RegressorSelectorTests.register("dc")
@@ -1545,7 +1656,7 @@ def ptest_dc(
         Estimated achieved significance level.
 
     """
-    return _ptest(
+    result = _ptest_result(
         func=dc,
         func_arg=standardize,
         x=x,
@@ -1556,6 +1667,7 @@ def ptest_dc(
         random_state=random_state,
         confidence=confidence,
     )
+    return record_permutation_test("selector", result)
 
 
 # =============================================================================
@@ -1611,7 +1723,7 @@ def ptest_rdc_classifier(
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:
-            return _ptest_rdc_classifier_parallel(
+            result = _ptest_rdc_classifier_parallel_result(
                 x=x,
                 y=y,
                 n_classes=n_classes,
@@ -1622,7 +1734,7 @@ def ptest_rdc_classifier(
                 random_state=random_state,
             )
         elif early_stopping == EarlyStopping.ADAPTIVE:
-            return _ptest_rdc_classifier_parallel_batched(
+            result = _ptest_rdc_classifier_parallel_batched_result(
                 x=x,
                 y=y,
                 n_classes=n_classes,
@@ -1634,18 +1746,31 @@ def ptest_rdc_classifier(
                 alpha=alpha,
                 confidence=confidence,
             )
-
-    return _ptest(
-        func=rdc_classifier,
-        func_arg=n_classes,
-        x=x,
-        y=y,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+        else:
+            result = _ptest_result(
+                func=rdc_classifier,
+                func_arg=n_classes,
+                x=x,
+                y=y,
+                n_resamples=n_resamples,
+                early_stopping=early_stopping,
+                alpha=alpha,
+                random_state=random_state,
+                confidence=confidence,
+            )
+    else:
+        result = _ptest_result(
+            func=rdc_classifier,
+            func_arg=n_classes,
+            x=x,
+            y=y,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("selector", result)
 
 
 @RegressorSelectorTests.register("rdc")
@@ -1696,7 +1821,7 @@ def ptest_rdc_regressor(
     """
     if n_resamples >= _PARALLEL_THRESHOLD:
         if early_stopping is None:
-            return _ptest_rdc_regressor_parallel(
+            result = _ptest_rdc_regressor_parallel_result(
                 x=x,
                 y=y,
                 k=_RDC_K,
@@ -1706,7 +1831,7 @@ def ptest_rdc_regressor(
                 random_state=random_state,
             )
         elif early_stopping == EarlyStopping.ADAPTIVE:
-            return _ptest_rdc_regressor_parallel_batched(
+            result = _ptest_rdc_regressor_parallel_batched_result(
                 x=x,
                 y=y,
                 k=_RDC_K,
@@ -1717,15 +1842,28 @@ def ptest_rdc_regressor(
                 alpha=alpha,
                 confidence=confidence,
             )
-
-    return _ptest(
-        func=rdc_regressor,
-        func_arg=standardize,
-        x=x,
-        y=y,
-        n_resamples=n_resamples,
-        early_stopping=early_stopping,
-        alpha=alpha,
-        random_state=random_state,
-        confidence=confidence,
-    )
+        else:
+            result = _ptest_result(
+                func=rdc_regressor,
+                func_arg=standardize,
+                x=x,
+                y=y,
+                n_resamples=n_resamples,
+                early_stopping=early_stopping,
+                alpha=alpha,
+                random_state=random_state,
+                confidence=confidence,
+            )
+    else:
+        result = _ptest_result(
+            func=rdc_regressor,
+            func_arg=standardize,
+            x=x,
+            y=y,
+            n_resamples=n_resamples,
+            early_stopping=early_stopping,
+            alpha=alpha,
+            random_state=random_state,
+            confidence=confidence,
+        )
+    return record_permutation_test("selector", result)

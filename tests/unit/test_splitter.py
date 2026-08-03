@@ -6,8 +6,8 @@ import pytest
 
 from citrees import _splitter
 from citrees._splitter import (
-    _ptest,
-    _ptest_mse_parallel,
+    _ptest_mse_parallel_result,
+    _ptest_result,
     entropy,
     gini,
     mae,
@@ -307,7 +307,7 @@ class TestStageBSplitStatistic:
         x = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.float64)
         y = np.array([0, 0, 10, 0, 1, 1, 1, 20], dtype=np.float64)
 
-        pval = _ptest(
+        pval = _ptest_result(
             func=mse,
             x=x,
             y=y,
@@ -316,7 +316,7 @@ class TestStageBSplitStatistic:
             early_stopping=None,
             alpha=0.05,
             random_state=2,
-        )
+        )[0]
 
         weighted_expected = _expected_splitter_ptest(
             func=mse,
@@ -344,13 +344,13 @@ class TestStageBSplitStatistic:
         x = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.float64)
         y = np.array([0, 0, 10, 0, 1, 1, 1, 20], dtype=np.float64)
 
-        pval = _ptest_mse_parallel(
+        pval = _ptest_mse_parallel_result(
             x=x,
             y=y,
             threshold=0.5,
             n_resamples=200,
             random_state=1,
-        )
+        )[0]
 
         weighted_expected = _expected_parallel_splitter_ptest(
             func=mse,
@@ -625,12 +625,12 @@ class TestSplitterRNGReproducibility:
         return x, y, threshold
 
     def test_splitter_ptest_same_seed_same_result(self, classification_data):
-        """Splitter _ptest with same seed should produce identical results."""
-        from citrees._splitter import _ptest as _ptest_splitter
+        """The serial splitter result core is reproducible for a fixed seed."""
+        from citrees._splitter import _ptest_result as _ptest_splitter_result
 
         x, y, threshold = classification_data
 
-        pval1 = _ptest_splitter(
+        result1 = _ptest_splitter_result(
             func=gini,
             x=x,
             y=y,
@@ -641,7 +641,7 @@ class TestSplitterRNGReproducibility:
             random_state=42,
         )
 
-        pval2 = _ptest_splitter(
+        result2 = _ptest_splitter_result(
             func=gini,
             x=x,
             y=y,
@@ -652,11 +652,11 @@ class TestSplitterRNGReproducibility:
             random_state=42,
         )
 
-        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+        assert result1 == result2, f"Same seed should give same result: {result1} != {result2}"
 
     def test_splitter_ptest_no_global_state_contamination(self, classification_data):
-        """Splitter _ptest should not contaminate global RNG state."""
-        from citrees._splitter import _ptest as _ptest_splitter
+        """The serial splitter result core should not contaminate global RNG state."""
+        from citrees._splitter import _ptest_result as _ptest_splitter_result
 
         x, y, threshold = classification_data
 
@@ -664,7 +664,7 @@ class TestSplitterRNGReproducibility:
         before = np.random.random()
 
         np.random.seed(123)
-        _ptest_splitter(
+        _ptest_splitter_result(
             func=gini,
             x=x,
             y=y,
@@ -676,33 +676,39 @@ class TestSplitterRNGReproducibility:
         )
         after = np.random.random()
 
-        assert before == after, f"_ptest_splitter contaminated global state: {before} != {after}"
+        assert before == after, (
+            f"_ptest_splitter_result contaminated global state: {before} != {after}"
+        )
 
     def test_ptest_gini_parallel_same_seed_same_result(self, classification_data):
         """Parallel Gini test with same seed should produce identical results."""
-        from citrees._splitter import _ptest_gini_parallel
+        from citrees._splitter import _ptest_gini_parallel_result
 
         x, y, threshold = classification_data
 
-        pval1 = _ptest_gini_parallel(
+        result1 = _ptest_gini_parallel_result(
             x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
         )
-        pval2 = _ptest_gini_parallel(
+        result2 = _ptest_gini_parallel_result(
             x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
         )
 
-        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+        assert result1 == result2, f"Same seed should give same result: {result1} != {result2}"
 
     def test_ptest_mse_parallel_same_seed_same_result(self, regression_data):
         """Parallel MSE test with same seed should produce identical results."""
-        from citrees._splitter import _ptest_mse_parallel
+        from citrees._splitter import _ptest_mse_parallel_result
 
         x, y, threshold = regression_data
 
-        pval1 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
-        pval2 = _ptest_mse_parallel(x=x, y=y, threshold=threshold, n_resamples=500, random_state=42)
+        result1 = _ptest_mse_parallel_result(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
+        result2 = _ptest_mse_parallel_result(
+            x=x, y=y, threshold=threshold, n_resamples=500, random_state=42
+        )
 
-        assert pval1 == pval2, f"Same seed should give same result: {pval1} != {pval2}"
+        assert result1 == result2, f"Same seed should give same result: {result1} != {result2}"
 
 
 @pytest.mark.skipif(numba.config.DISABLE_JIT, reason="JIT disabled: no compiled kernel to compare")
@@ -721,13 +727,22 @@ class TestJitParity:
         "entropy": (_splitter.entropy, (_Y_INT,)),
         "mse": (_splitter.mse, (_Y_FLOAT,)),
         "mae": (_splitter.mae, (_Y_FLOAT,)),
-        "_ptest_gini_parallel": (_splitter._ptest_gini_parallel, (_X, _Y_CLF, 0.0, 250, 1718)),
-        "_ptest_entropy_parallel": (
-            _splitter._ptest_entropy_parallel,
+        "_ptest_gini_parallel_result": (
+            _splitter._ptest_gini_parallel_result,
             (_X, _Y_CLF, 0.0, 250, 1718),
         ),
-        "_ptest_mse_parallel": (_splitter._ptest_mse_parallel, (_X, _Y_REG, 0.0, 250, 1718)),
-        "_ptest_mae_parallel": (_splitter._ptest_mae_parallel, (_X, _Y_REG, 0.0, 250, 1718)),
+        "_ptest_entropy_parallel_result": (
+            _splitter._ptest_entropy_parallel_result,
+            (_X, _Y_CLF, 0.0, 250, 1718),
+        ),
+        "_ptest_mse_parallel_result": (
+            _splitter._ptest_mse_parallel_result,
+            (_X, _Y_REG, 0.0, 250, 1718),
+        ),
+        "_ptest_mae_parallel_result": (
+            _splitter._ptest_mae_parallel_result,
+            (_X, _Y_REG, 0.0, 250, 1718),
+        ),
         "_beta_cdf": (_splitter._beta_cdf, (0.3, 2.0, 5.0)),
     }
 

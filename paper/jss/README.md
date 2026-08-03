@@ -30,7 +30,7 @@ affiliation is Amazon Web Services.
 
 | Analysis                | Purpose                                                                                | Primary comparisons                                         |
 | ----------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Null calibration        | Measure feature-test and root-split rejection under independence                       | Fixed permutation tests, adaptive stopping, simple stopping |
+| Null calibration        | Measure feature-test and root-split rejection under independence                       | Fixed-budget p-values; exhaustive, adaptive, and simple fitting |
 | Split-variable bias     | Measure selection frequency when noise variables differ only in cardinality            | `citrees`, `partykit::ctree`, CART                          |
 | Power and recovery      | Show linear, nonlinear, correlated, and interaction boundaries                         | All compatible `citrees` selectors and multi-selector tests |
 | Reference behavior      | Compare fitted structure, rankings, predictions, and documented differences            | `citrees`, `partykit::ctree`, `partykit::cforest`           |
@@ -50,15 +50,14 @@ end-to-end tutorial.
 
 ## Claim Boundaries
 
-- Simulation results evaluate calibration, power, and known failure boundaries.
-  They do not establish universal superiority.
-- Reference comparisons test behavioral agreement under matched controls. They
-  do not assume identical trees from different statistics and implementations.
-- Cardiac results are an adapted predictive reanalysis. They do not replicate
-  the mixed-effects Epi-MEIF model, identify causal variants, or support
-  clinical conclusions.
-- DGRP lines are the independent units. Repeated resampling quantifies
-  uncertainty but does not create additional independent observations.
+- Simulation results estimate calibration, power, and known failure boundaries
+  across the specified designs.
+- Reference comparisons quantify behavioral agreement under matched controls
+  while retaining each implementation's statistics and defaults.
+- Cardiac results are an adapted predictive reanalysis of screening and
+  stability among DGRP lines.
+- DGRP lines are the independent units, and repeated resampling quantifies
+  uncertainty over these lines.
 - Benchmark context comes only from final corrected arXiv v2 artifacts.
 
 ## Replication
@@ -70,10 +69,10 @@ The final submission provides a single entry point with two profiles:
 - `full` rebuilds the reported simulation estimates and computational
   measurements and may require parallel hardware.
 
-Generated outputs are written below `paper/jss/results/` and are not tracked.
-Tables and figures cited by the manuscript are copied into the submission source
-only after a full-profile receipt records the clean source revision, dependency
-versions, inputs, and output hashes.
+Generated outputs remain below `paper/jss/results/` as ignored build artifacts.
+A full-profile receipt records the clean source revision, dependency versions,
+inputs, and output hashes before manuscript tables and figures enter the
+submission source.
 
 ## Manuscript
 

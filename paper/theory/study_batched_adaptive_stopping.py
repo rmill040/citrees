@@ -5,8 +5,8 @@ adaptive stopping (4.61% vs 4.55% sequential, 100K sims), enabling parallel
 permutation testing with adaptive early stopping.
 
 Compares Type I error, power, and stopping times for:
-  1. Sequential (per-permutation) stopping  — current citrees implementation
-  2. Batched stopping with various batch sizes K
+  1. Sequential stopping checked after each permutation as the reference
+  2. Batched stopping with several batch sizes; citrees uses K=32
 
 Uses the CORRECT H0 simulation dynamics from sequential_stopping_analysis.py:
   - p = F(T_0) ~ Uniform(0, 1)

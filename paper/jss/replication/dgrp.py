@@ -1,15 +1,19 @@
-"""Acquire and prepare the public DGRP cardiac phenotype outcomes."""
+"""Acquire and validate the public DGRP phenotype and genotype inputs."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import re
 import shutil
+import tarfile
+import tempfile
 import urllib.request
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import numpy as np
 import pandas as pd
@@ -25,6 +29,18 @@ EXPECTED_OUTCOME_ROWS = 1_136
 EXPECTED_ELIGIBLE_LINES = 166
 EXPECTED_COMPLETE_LINES = 154
 
+GENOTYPE_RECORD_ID = 5_582_846
+GENOTYPE_URL = "https://zenodo.org/api/records/5582846/files/dgrp2.tar.gz/content"
+GENOTYPE_ARCHIVE_FILENAME = "dgrp2.tar.gz"
+GENOTYPE_ARCHIVE_BYTES = 97_913_546
+GENOTYPE_ARCHIVE_MD5 = "77c26d1469b18d7da5e6597b6d466454"
+GENOTYPE_ARCHIVE_SHA256 = "ff3c318debf28b02d61293b2b82cd12047273f5d743387d748d1ce308ea4c452"
+GENOTYPE_BED_MAGIC = bytes.fromhex("6c1b01")
+EXPECTED_GENOTYPE_SAMPLES = 205
+EXPECTED_GENOTYPE_VARIANTS = 4_438_427
+EXPECTED_GENOTYPE_BED_BYTES = 230_798_207
+EXPECTED_GENOTYPE_ONLY_LINES = 38
+
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "dgrp"
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results" / "dgrp"
 
@@ -36,6 +52,33 @@ class TraitSpec:
     name: str
     column: str
     unit: str
+
+
+@dataclass(frozen=True)
+class GenotypeFileSpec:
+    """Pinned metadata for one file in the DGRP PLINK archive."""
+
+    member_name: str
+    size_bytes: int
+    sha256: str
+
+
+@dataclass(frozen=True)
+class GenotypeInventory:
+    """Validated identities and dimensions of the DGRP PLINK files."""
+
+    genotype_lines: tuple[str, ...]
+    variant_count: int
+    bed_bytes: int
+
+
+@dataclass(frozen=True)
+class LineOverlap:
+    """Normalized line identities shared by the phenotype and genotype sources."""
+
+    phenotype_lines: tuple[str, ...]
+    genotype_lines: tuple[str, ...]
+    genotype_only_lines: tuple[str, ...]
 
 
 TRAITS = (
@@ -58,6 +101,27 @@ EXPECTED_TRAIT_COUNTS = {
     "AI": (166, 1_832),
 }
 
+GENOTYPE_FILE_SPECS = (
+    GenotypeFileSpec(
+        "input/dgrp2.bed",
+        EXPECTED_GENOTYPE_BED_BYTES,
+        "2855e4fab69dde2ed0016d503b87a293c436c423bcda8b1021048d173df43ce7",
+    ),
+    GenotypeFileSpec(
+        "input/dgrp2.bim",
+        148_523_556,
+        "3d1d0e77c90cd135360fbf79113df3d9c94648503c50e0ed1fd54240625909be",
+    ),
+    GenotypeFileSpec(
+        "input/dgrp2.fam",
+        5_491,
+        "387d760ae033a3d97f261bef8ea1fc256d26c2528c97698b565219bf3df69a2b",
+    ),
+)
+
+_PHENOTYPE_LINE_PATTERN = re.compile(r"dgrp([0-9]+)")
+_GENOTYPE_LINE_PATTERN = re.compile(r"line_([0-9]+)")
+
 
 def sha256(path: Path) -> str:
     """Return the SHA-256 digest of a file."""
@@ -66,6 +130,17 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _md5_and_sha256(path: Path) -> tuple[str, str]:
+    """Return both pinned archive digests after one streaming read."""
+    md5_digest = hashlib.md5()
+    sha256_digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            md5_digest.update(chunk)
+            sha256_digest.update(chunk)
+    return md5_digest.hexdigest(), sha256_digest.hexdigest()
 
 
 def verify_source(path: Path) -> None:
@@ -102,6 +177,445 @@ def acquire_phenotype_workbook(data_dir: Path = DEFAULT_DATA_DIR) -> Path:
         partial.unlink(missing_ok=True)
         raise
     return destination
+
+
+def verify_genotype_archive(
+    path: Path,
+    *,
+    expected_bytes: int | None = None,
+    expected_md5: str | None = None,
+    expected_sha256: str | None = None,
+) -> None:
+    """Require the exact pinned DGRP genotype archive."""
+    expected_bytes = GENOTYPE_ARCHIVE_BYTES if expected_bytes is None else expected_bytes
+    expected_md5 = GENOTYPE_ARCHIVE_MD5 if expected_md5 is None else expected_md5
+    expected_sha256 = GENOTYPE_ARCHIVE_SHA256 if expected_sha256 is None else expected_sha256
+    observed_bytes = path.stat().st_size
+    if observed_bytes != expected_bytes:
+        raise RuntimeError(
+            f"DGRP genotype archive size mismatch for {path}: "
+            f"expected {expected_bytes}, got {observed_bytes}"
+        )
+    observed_md5, observed_sha256 = _md5_and_sha256(path)
+    if observed_md5 != expected_md5:
+        raise RuntimeError(
+            f"DGRP genotype archive MD5 mismatch for {path}: "
+            f"expected {expected_md5}, got {observed_md5}"
+        )
+    if observed_sha256 != expected_sha256:
+        raise RuntimeError(
+            f"DGRP genotype archive SHA-256 mismatch for {path}: "
+            f"expected {expected_sha256}, got {observed_sha256}"
+        )
+
+
+def acquire_genotype_archive(data_dir: Path = DEFAULT_DATA_DIR) -> Path:
+    """Download the pinned DGRP genotype archive when it is not already present."""
+    data_dir.mkdir(parents=True, exist_ok=True)
+    destination = data_dir / GENOTYPE_ARCHIVE_FILENAME
+    if destination.exists():
+        verify_genotype_archive(destination)
+        return destination
+
+    partial = destination.with_suffix(destination.suffix + ".part")
+    if partial.exists():
+        raise RuntimeError(f"Partial DGRP genotype download already exists: {partial}")
+
+    try:
+        with (
+            urllib.request.urlopen(GENOTYPE_URL, timeout=60) as response,
+            partial.open("xb") as stream,
+        ):
+            shutil.copyfileobj(response, stream)
+        verify_genotype_archive(partial)
+        partial.replace(destination)
+    except Exception:
+        partial.unlink(missing_ok=True)
+        raise
+    return destination
+
+
+def _validated_tar_members(
+    archive: tarfile.TarFile,
+    specs: Sequence[GenotypeFileSpec],
+) -> dict[str, tarfile.TarInfo]:
+    """Return exact regular archive members after rejecting unsafe paths."""
+    expected = {spec.member_name: spec for spec in specs}
+    if len(expected) != len(specs):
+        raise ValueError("DGRP genotype file specifications contain duplicate paths")
+
+    members = archive.getmembers()
+    observed_names = [member.name for member in members]
+    if len(observed_names) != len(set(observed_names)):
+        raise RuntimeError("DGRP genotype archive contains duplicate member paths")
+
+    for member in members:
+        member_path = PurePosixPath(member.name)
+        if member_path.is_absolute() or ".." in member_path.parts or "\\" in member.name:
+            raise RuntimeError(f"Unsafe DGRP genotype archive member: {member.name}")
+        if not member.isfile():
+            raise RuntimeError(f"DGRP genotype archive member is not a regular file: {member.name}")
+
+    observed = set(observed_names)
+    if observed != set(expected):
+        missing = sorted(set(expected) - observed)
+        extra = sorted(observed - set(expected))
+        raise RuntimeError(
+            f"DGRP genotype archive member mismatch: missing={missing}, extra={extra}"
+        )
+
+    indexed = {member.name: member for member in members}
+    for name, spec in expected.items():
+        observed_size = indexed[name].size
+        if observed_size != spec.size_bytes:
+            raise RuntimeError(
+                f"DGRP genotype member size mismatch for {name}: "
+                f"expected {spec.size_bytes}, got {observed_size}"
+            )
+    return indexed
+
+
+def validate_genotype_archive_members(archive_path: Path) -> None:
+    """Require the exact three regular files in the pinned genotype archive."""
+    with tarfile.open(archive_path, mode="r:gz") as archive:
+        _validated_tar_members(archive, GENOTYPE_FILE_SPECS)
+
+
+def _safe_extract_genotype_members(
+    archive_path: Path,
+    destination: Path,
+    specs: Sequence[GenotypeFileSpec],
+) -> tuple[Path, ...]:
+    """Extract validated members to fixed destinations without trusting tar paths."""
+    if destination.is_symlink():
+        raise RuntimeError(f"DGRP extraction destination must not be a symlink: {destination}")
+    destination.mkdir(parents=True, exist_ok=True)
+    if any(destination.iterdir()):
+        raise RuntimeError(f"DGRP extraction destination must be empty: {destination}")
+
+    written: list[Path] = []
+    try:
+        with tarfile.open(archive_path, mode="r:gz") as archive:
+            members = _validated_tar_members(archive, specs)
+            for spec in specs:
+                target = destination.joinpath(*PurePosixPath(spec.member_name).parts)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = archive.extractfile(members[spec.member_name])
+                if source is None:
+                    raise RuntimeError(
+                        f"Unable to read DGRP genotype archive member: {spec.member_name}"
+                    )
+                with source, target.open("xb") as stream:
+                    written.append(target)
+                    shutil.copyfileobj(source, stream)
+
+                observed_sha256 = sha256(target)
+                if observed_sha256 != spec.sha256:
+                    raise RuntimeError(
+                        f"DGRP genotype checksum mismatch for {spec.member_name}: "
+                        f"expected {spec.sha256}, got {observed_sha256}"
+                    )
+    except Exception:
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
+    return tuple(written)
+
+
+def normalize_phenotype_line(value: str) -> str:
+    """Map a phenotype identity such as dgrp21 to the PLINK identity line_21."""
+    match = _PHENOTYPE_LINE_PATTERN.fullmatch(value)
+    if match is None:
+        raise ValueError(f"DGRP phenotype line must match dgrp followed by digits: {value!r}")
+    return f"line_{int(match.group(1))}"
+
+
+def _normalize_genotype_line(value: str) -> str:
+    """Return the canonical numeric identity for one PLINK DGRP line."""
+    match = _GENOTYPE_LINE_PATTERN.fullmatch(value)
+    if match is None:
+        raise ValueError(f"DGRP genotype line must match line_ followed by digits: {value!r}")
+    return f"line_{int(match.group(1))}"
+
+
+def _line_sort_key(value: str) -> int:
+    """Return the numeric component used for deterministic line ordering."""
+    match = _GENOTYPE_LINE_PATTERN.fullmatch(value)
+    if match is None:
+        raise ValueError(f"Invalid normalized DGRP genotype line: {value!r}")
+    return int(match.group(1))
+
+
+def validate_fam(
+    path: Path,
+    *,
+    expected_samples: int | None = EXPECTED_GENOTYPE_SAMPLES,
+) -> tuple[str, ...]:
+    """Validate FAM identities and return normalized genotype lines in file order."""
+    genotype_lines: list[str] = []
+    seen: set[str] = set()
+    with path.open("r", encoding="ascii", newline="") as stream:
+        for line_number, line in enumerate(stream, start=1):
+            fields = line.split()
+            if len(fields) != 6:
+                raise ValueError(
+                    f"DGRP FAM row {line_number} must contain 6 fields, found {len(fields)}"
+                )
+            family_id, individual_id = fields[:2]
+            if family_id != individual_id:
+                raise ValueError(f"DGRP FAM row {line_number} has different FID and IID values")
+            normalized = _normalize_genotype_line(family_id)
+            if normalized in seen:
+                raise ValueError(f"DGRP FAM contains duplicate line identity: {normalized}")
+            seen.add(normalized)
+            genotype_lines.append(normalized)
+
+    if expected_samples is not None and len(genotype_lines) != expected_samples:
+        raise RuntimeError(
+            f"Expected {expected_samples} DGRP genotype samples, found {len(genotype_lines)}"
+        )
+    return tuple(genotype_lines)
+
+
+def validate_bim(
+    path: Path,
+    *,
+    expected_variants: int | None = EXPECTED_GENOTYPE_VARIANTS,
+) -> int:
+    """Validate BIM rows, unique variant IDs, and positive integer positions."""
+    variant_ids: set[str] = set()
+    variant_count = 0
+    with path.open("r", encoding="ascii", newline="", buffering=1024 * 1024) as stream:
+        for line_number, line in enumerate(stream, start=1):
+            fields = line.split()
+            if len(fields) != 6:
+                raise ValueError(
+                    f"DGRP BIM row {line_number} must contain 6 fields, found {len(fields)}"
+                )
+            variant_id = fields[1]
+            if variant_id in variant_ids:
+                raise ValueError(f"DGRP BIM contains duplicate variant ID: {variant_id}")
+            variant_ids.add(variant_id)
+
+            position_text = fields[3]
+            if not position_text.isdecimal() or int(position_text) <= 0:
+                raise ValueError(
+                    f"DGRP BIM row {line_number} has invalid integer position: {position_text!r}"
+                )
+            variant_count += 1
+            if expected_variants is not None and variant_count > expected_variants:
+                raise RuntimeError(
+                    f"Expected {expected_variants} DGRP variants, found more than that"
+                )
+
+    if expected_variants is not None and variant_count != expected_variants:
+        raise RuntimeError(f"Expected {expected_variants} DGRP variants, found {variant_count}")
+    return variant_count
+
+
+def validate_bed(
+    path: Path,
+    *,
+    expected_bytes: int = EXPECTED_GENOTYPE_BED_BYTES,
+    expected_magic: bytes = GENOTYPE_BED_MAGIC,
+) -> None:
+    """Validate the PLINK BED size and variant-major magic bytes."""
+    observed_bytes = path.stat().st_size
+    if observed_bytes != expected_bytes:
+        raise RuntimeError(
+            f"DGRP BED size mismatch for {path}: expected {expected_bytes}, got {observed_bytes}"
+        )
+    with path.open("rb") as stream:
+        observed_magic = stream.read(len(expected_magic))
+    if observed_magic != expected_magic:
+        raise RuntimeError(
+            f"DGRP BED magic mismatch for {path}: "
+            f"expected {expected_magic.hex()}, got {observed_magic.hex()}"
+        )
+
+
+def _input_paths(input_dir: Path) -> dict[str, Path]:
+    """Return expected extracted paths keyed by archive member name."""
+    return {
+        spec.member_name: input_dir / PurePosixPath(spec.member_name).name
+        for spec in GENOTYPE_FILE_SPECS
+    }
+
+
+def validate_genotype_files(input_dir: Path) -> GenotypeInventory:
+    """Validate the pinned DGRP PLINK files and inventory."""
+    if input_dir.is_symlink() or not input_dir.is_dir():
+        raise RuntimeError(f"DGRP genotype input directory is invalid: {input_dir}")
+
+    paths = _input_paths(input_dir)
+    expected_names = {path.name for path in paths.values()}
+    observed_names = {path.name for path in input_dir.iterdir()}
+    if not expected_names.issubset(observed_names):
+        missing = sorted(expected_names - observed_names)
+        raise RuntimeError(f"DGRP genotype input files are missing: {missing}")
+
+    for spec in GENOTYPE_FILE_SPECS:
+        path = paths[spec.member_name]
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"DGRP genotype input must be a regular file: {path}")
+        observed_bytes = path.stat().st_size
+        if observed_bytes != spec.size_bytes:
+            raise RuntimeError(
+                f"DGRP genotype file size mismatch for {path.name}: "
+                f"expected {spec.size_bytes}, got {observed_bytes}"
+            )
+        observed_sha256 = sha256(path)
+        if observed_sha256 != spec.sha256:
+            raise RuntimeError(
+                f"DGRP genotype checksum mismatch for {path.name}: "
+                f"expected {spec.sha256}, got {observed_sha256}"
+            )
+
+    genotype_lines = validate_fam(
+        paths["input/dgrp2.fam"],
+        expected_samples=EXPECTED_GENOTYPE_SAMPLES,
+    )
+    variant_count = validate_bim(
+        paths["input/dgrp2.bim"],
+        expected_variants=EXPECTED_GENOTYPE_VARIANTS,
+    )
+    validate_bed(
+        paths["input/dgrp2.bed"],
+        expected_bytes=EXPECTED_GENOTYPE_BED_BYTES,
+        expected_magic=GENOTYPE_BED_MAGIC,
+    )
+    return GenotypeInventory(
+        genotype_lines=genotype_lines,
+        variant_count=variant_count,
+        bed_bytes=paths["input/dgrp2.bed"].stat().st_size,
+    )
+
+
+def extract_genotype_archive(
+    archive_path: Path,
+    data_dir: Path = DEFAULT_DATA_DIR,
+) -> Path:
+    """Safely extract and validate the pinned DGRP PLINK files."""
+    verify_genotype_archive(archive_path)
+    validate_genotype_archive_members(archive_path)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    input_dir = data_dir / "input"
+    if input_dir.exists() or input_dir.is_symlink():
+        validate_genotype_files(input_dir)
+        return input_dir
+
+    with tempfile.TemporaryDirectory(prefix=".dgrp2-", dir=data_dir) as temporary:
+        temporary_root = Path(temporary)
+        _safe_extract_genotype_members(
+            archive_path,
+            temporary_root,
+            GENOTYPE_FILE_SPECS,
+        )
+        temporary_input = temporary_root / "input"
+        validate_genotype_files(temporary_input)
+        temporary_input.replace(input_dir)
+    return input_dir
+
+
+def validate_line_overlap(
+    phenotype_lines: Iterable[str],
+    genotype_lines: Iterable[str],
+) -> LineOverlap:
+    """Require every normalized phenotype line to have a genotype sample."""
+    normalized_phenotypes = {normalize_phenotype_line(value) for value in phenotype_lines}
+    normalized_genotypes_list = [_normalize_genotype_line(value) for value in genotype_lines]
+    normalized_genotypes = set(normalized_genotypes_list)
+    if not normalized_phenotypes:
+        raise ValueError("DGRP phenotype line inventory is empty")
+    if not normalized_genotypes:
+        raise ValueError("DGRP genotype line inventory is empty")
+    if len(normalized_genotypes) != len(normalized_genotypes_list):
+        raise ValueError("DGRP genotype line inventory contains duplicate identities")
+
+    missing = normalized_phenotypes - normalized_genotypes
+    if missing:
+        raise RuntimeError(
+            "DGRP phenotype lines are missing from the genotype inventory: "
+            f"{sorted(missing, key=_line_sort_key)}"
+        )
+
+    genotype_only = normalized_genotypes - normalized_phenotypes
+    return LineOverlap(
+        phenotype_lines=tuple(sorted(normalized_phenotypes, key=_line_sort_key)),
+        genotype_lines=tuple(sorted(normalized_genotypes, key=_line_sort_key)),
+        genotype_only_lines=tuple(sorted(genotype_only, key=_line_sort_key)),
+    )
+
+
+def validate_pinned_line_overlap(
+    phenotype_lines: Iterable[str],
+    genotype_lines: Iterable[str],
+) -> LineOverlap:
+    """Require the exact overlap between the pinned phenotype and genotype sources."""
+    overlap = validate_line_overlap(phenotype_lines, genotype_lines)
+    observed_counts = (
+        len(overlap.phenotype_lines),
+        len(overlap.genotype_lines),
+        len(overlap.genotype_only_lines),
+    )
+    expected_counts = (
+        EXPECTED_SOURCE_LINES,
+        EXPECTED_GENOTYPE_SAMPLES,
+        EXPECTED_GENOTYPE_ONLY_LINES,
+    )
+    if observed_counts != expected_counts:
+        raise RuntimeError(
+            "DGRP phenotype-genotype line inventory mismatch: "
+            f"expected {expected_counts}, found {observed_counts}"
+        )
+    return overlap
+
+
+def build_genotype_source_receipt(
+    archive_path: Path,
+    input_dir: Path,
+    phenotype_lines: Iterable[str],
+) -> dict[str, object]:
+    """Build deterministic provenance after validating both pinned sources."""
+    verify_genotype_archive(archive_path)
+    validate_genotype_archive_members(archive_path)
+    inventory = validate_genotype_files(input_dir)
+    overlap = validate_pinned_line_overlap(
+        phenotype_lines,
+        inventory.genotype_lines,
+    )
+    paths = _input_paths(input_dir)
+    return {
+        "schema_version": 1,
+        "source": {
+            "record_id": GENOTYPE_RECORD_ID,
+            "url": GENOTYPE_URL,
+            "filename": GENOTYPE_ARCHIVE_FILENAME,
+            "bytes": archive_path.stat().st_size,
+            "md5": GENOTYPE_ARCHIVE_MD5,
+            "sha256": GENOTYPE_ARCHIVE_SHA256,
+        },
+        "files": {
+            spec.member_name: {
+                "bytes": paths[spec.member_name].stat().st_size,
+                "sha256": sha256(paths[spec.member_name]),
+            }
+            for spec in GENOTYPE_FILE_SPECS
+        },
+        "inventory": {
+            "samples": len(inventory.genotype_lines),
+            "variants": inventory.variant_count,
+            "bed_bytes": inventory.bed_bytes,
+            "bed_magic": GENOTYPE_BED_MAGIC.hex(),
+        },
+        "line_overlap": {
+            "phenotype_source_lines": len(overlap.phenotype_lines),
+            "genotype_lines": len(overlap.genotype_lines),
+            "shared_lines": len(overlap.phenotype_lines),
+            "genotype_only_lines": len(overlap.genotype_only_lines),
+            "genotype_only_ids": list(overlap.genotype_only_lines),
+        },
+    }
 
 
 def validate_individual_phenotypes(frame: pd.DataFrame) -> None:

@@ -1214,6 +1214,19 @@ class TestRegressorHeteroscedastic:
 class TestBonferronCorrection:
     """Tests for Bonferroni correction behavior."""
 
+    def test_minimum_budget_equals_first_attainable_bonferroni_boundary(self) -> None:
+        """Minimum resampling reaches exactly one adjusted decision boundary."""
+        clf = ConditionalInferenceTreeClassifier(
+            alpha_selector=0.05,
+            n_resamples_selector="minimum",
+            random_state=0,
+        )
+
+        clf._bonferroni_correction(adjust="selector", n_tests=37)
+
+        assert clf._alpha_selector == 0.05 / 37
+        assert clf._n_resamples_selector == 740
+
     def test_bonferroni_correction_resets_when_single_test(self) -> None:
         """Regression test: per-node Bonferroni must not leak across nodes.
 

@@ -9,8 +9,7 @@ with version numbers matching `pyproject.toml` and GitHub release tags.
 
 ### Added
 
-- Initial Python package metadata for conditional inference trees and forests,
-  including JOSS submission files.
+- Initial Python package metadata for conditional inference trees and forests.
 - Scikit-learn-style classifier and regressor APIs for conditional inference
   trees and forests.
 - Permutation-test selectors for classification and regression, including
@@ -22,4 +21,4 @@ with version numbers matching `pyproject.toml` and GitHub release tags.
   subsampling, and parallel training.
 - Optional sample-split leaf re-estimation.
 - Unit, integration, and paper-pipeline tests.
-- MkDocs documentation and JOSS paper draft.
+- MkDocs documentation and paper experiment support.

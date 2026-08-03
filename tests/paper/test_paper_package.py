@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib.util
-import math
 import re
 import subprocess
 import tarfile
@@ -24,18 +23,14 @@ def _read(relpath: str) -> str:
     return (ROOT / relpath).read_text(encoding="utf-8")
 
 
-def _one_line(text: str) -> str:
-    return " ".join(text.split())
-
-
 def test_arxiv_title_block_is_stable_for_reproducible_builds():
     """The manuscript title block should not vary with the current date."""
     text = _read("paper/arxiv/main.tex")
     assert r"\date{\today}" not in text
 
 
-def test_tables_manifest_lists_only_joss_cited_tables():
-    """The tracked table manifest should stay limited to JOSS-cited CSVs."""
+def test_tables_manifest_lists_only_claim_support_tables():
+    """The tracked table manifest should stay limited to claim-support CSVs."""
     tables_manifest = _read("paper/results/tables/README.md")
 
     assert "paper_benchmark_method_aggregate.csv" in tables_manifest
@@ -140,10 +135,9 @@ def test_generated_paper_artifacts_are_excluded_from_sdist(tmp_path):
     assert not any("__pycache__" in name for name in names)
 
 
-def test_joss_benchmark_claims_match_canonical_result_tables():
-    """The JOSS-facing benchmark claims should stay tied to the locked CSVs."""
+def test_benchmark_summary_matches_canonical_result_tables():
+    """The locked benchmark summary should retain the reported aggregate ranks."""
     method_summary = pd.read_csv(ROOT / "paper/results/tables/paper_benchmark_method_aggregate.csv")
-    paper = _one_line(_read("paper/joss/paper.md"))
     cif = method_summary[method_summary["method_base"] == "cif"].set_index("task")
 
     classification_rank = int(cif.loc["classification", "rank_position"])
@@ -161,16 +155,13 @@ def test_joss_benchmark_claims_match_canonical_result_tables():
     assert regression_rank == 3
     assert int(cif.loc["regression", "n_datasets"]) == 8
     assert regression_methods == 18
-    assert f"fourth among {classification_methods} classification methods" in paper
-    assert f"third among {regression_methods} regression methods" in paper
 
 
-def test_joss_runtime_claim_matches_practical_controls_summary():
-    """The adaptive-stopping runtime sentence should match the locked summary table."""
+def test_adaptive_stopping_summary_matches_reported_bounds():
+    """The locked adaptive-stopping summary should retain the reported bounds."""
     controls = pd.read_csv(
         ROOT / "paper/results/tables/paper_presentation_practical_controls_summary.csv"
     )
-    paper = _one_line(_read("paper/joss/paper.md"))
     rows = controls[
         (controls["family"] == "mirrored")
         & (controls["reference_variant"] == "cif_default")
@@ -182,12 +173,6 @@ def test_joss_runtime_claim_matches_practical_controls_summary():
     assert rows["runtime_ratio_vs_default"].min() >= 3.95
     assert rows["runtime_ratio_vs_default"].max() <= 8.45
     assert rows["downstream_delta_vs_default"].abs().max() <= 0.006
-    runtime_min = rows["runtime_ratio_vs_default"].min()
-    runtime_max = rows["runtime_ratio_vs_default"].max()
-    score_delta_max = rows["downstream_delta_vs_default"].abs().max()
-    score_delta_bound = math.ceil(score_delta_max * 1000) / 1000
-    assert f"{runtime_min:.1f}--{runtime_max:.1f} times slower" in paper
-    assert f"{score_delta_bound:.3f}" in paper
 
 
 def _load_arxiv_bundle_module():

@@ -24,6 +24,7 @@ from paper.benchmark.pipeline.methods import (
     get_methods,
 )
 from paper.benchmark.pipeline.types import (
+    DatasetIdentity,
     ExperimentConfig,
     MethodConfig,
     Result,
@@ -35,6 +36,7 @@ from paper.benchmark.pipeline.types import (
 __all__ = [
     # Types
     "MethodConfig",
+    "DatasetIdentity",
     "ExperimentConfig",
     "Result",
     "TaskType",

@@ -136,7 +136,9 @@ CLF_CPI_GRID: dict[str, list[Any]] = {
     "n_repeats": [10],
 }
 
-CLF_RFE_GRID: dict[str, list[Any]] = {}
+CLF_RFE_GRID: dict[str, list[Any]] = {
+    "step": [1],
+}
 
 
 # =============================================================================
@@ -253,7 +255,9 @@ REG_CPI_GRID: dict[str, list[Any]] = {
     "n_repeats": [10],
 }
 
-REG_RFE_GRID: dict[str, list[Any]] = {}
+REG_RFE_GRID: dict[str, list[Any]] = {
+    "step": [1],
+}
 
 
 # =============================================================================
@@ -280,6 +284,7 @@ R_CFOREST_GRID: dict[str, list[Any]] = {
     "fraction": [0.632],
     "varimp_conditional": [False],
     "varimp_nperm": [1],
+    "cores": [1],
 }
 
 

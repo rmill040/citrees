@@ -1,11 +1,11 @@
-import os
 from math import ceil
 from typing import Any
 
 import numpy as np
 from dcor import distance_correlation as _d_correlation
 from dcor import distance_covariance as _d_covariance
-from numba import njit, prange
+from numba import njit
+from numba import prange as _numba_prange
 from sklearn.feature_selection import mutual_info_classif
 
 from citrees._registry import (
@@ -17,8 +17,11 @@ from citrees._registry import (
 from citrees._sequential import _beta_cdf
 from citrees._types import EarlyStopping, EarlyStoppingOption
 
+prange: Any = _numba_prange
+
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200
+_ADAPTIVE_BATCH_SIZE = 32
 
 # P-value correction: Phipson & Smyth (2010). "Permutation P-values Should Never Be Zero."
 # SAGMB 9(1):39. https://pubmed.ncbi.nlm.nih.gov/21044043/
@@ -97,10 +100,9 @@ def _ptest(
     extreme_count = 0
 
     if early_stopping == EarlyStopping.ADAPTIVE:
-        batch_size = os.cpu_count() or 1
         m = 0
         while m < n_resamples:
-            batch_end = min(m + batch_size, n_resamples)
+            batch_end = min(m + _ADAPTIVE_BATCH_SIZE, n_resamples)
             for _ in range(batch_end - m):
                 rng.shuffle(y_)
                 theta_p = np.abs(func(x, y_, func_arg, random_state=random_state))
@@ -238,10 +240,9 @@ def _ptest_multi(
     extreme_count = 0
 
     if early_stopping == EarlyStopping.ADAPTIVE:
-        batch_size = os.cpu_count() or 1
         m = 0
         while m < n_resamples:
-            batch_end = min(m + batch_size, n_resamples)
+            batch_end = min(m + _ADAPTIVE_BATCH_SIZE, n_resamples)
             for _ in range(batch_end - m):
                 rng.shuffle(y_)
                 theta_p = compute_max_stat(x, y_)  # type: ignore[assignment]
@@ -380,12 +381,9 @@ def _ptest_pc_parallel(
 
 
 # Batched parallel permutation test for multiple correlation (classifier) with adaptive stopping.
-# Runs K=32 permutations in parallel via prange, then checks Beta CDF stopping criterion.
-# Calibration script suggests similar null rejection for K=32; adaptive outputs are
+# Runs fixed-size batches in parallel via prange, then checks Beta CDF stopping criterion.
+# Calibration suggests similar null rejection for K=32; adaptive outputs are
 # not theorem-level fixed-B p-values.
-_BATCH_SIZE_PARALLEL = 32
-
-
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_mc_parallel_batched(
     x: np.ndarray,
@@ -418,7 +416,7 @@ def _ptest_mc_parallel_batched(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
         # Run batch in parallel
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
         for i in prange(batch_size):
@@ -489,7 +487,7 @@ def _ptest_pc_parallel_batched(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
         # Run batch in parallel
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
         for i in prange(batch_size):
@@ -621,7 +619,7 @@ def _ptest_rdc_regressor_parallel_batched(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
 
         for i in prange(batch_size):
@@ -801,7 +799,7 @@ def _ptest_rdc_classifier_parallel_batched(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_BATCH_SIZE_PARALLEL, n_resamples - m)
+        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
 
         for i in prange(batch_size):

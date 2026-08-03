@@ -36,6 +36,17 @@ htmlcov
 # Development
 scratch/
 
+# Repository content not used by distributed benchmark workers
+docs/
+examples/
+paper/analysis/
+paper/arxiv/
+paper/data_generation/
+paper/jss/
+paper/maintenance/
+paper/results/
+paper/theory/
+
 # Large result files (regenerated during experiments)
 paper/results/*.parquet
 paper/results/*.png

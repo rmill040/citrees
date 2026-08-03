@@ -23,7 +23,9 @@ scanning remain exactly as selected in the paper benchmark.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
+import json
 import math
 import os
 import re
@@ -63,6 +65,7 @@ TABLES_DIR: Final[Path] = ROOT / "paper" / "results" / "tables"
 DEFAULT_OUTPUT_URI: Final[str] = str(ROOT / "scratch" / "cif_mechanism_ablation")
 SELECTED_CONFIG_PATH: Final[Path] = TABLES_DIR / "paper_benchmark_selected_config_details.csv"
 EXPERIMENT_NAME: Final[str] = "cif_component_ablation"
+DISTRIBUTED_PREFIX_NAME: Final[str] = "cif_mechanism_ablation"
 MODEL_VARIANTS: Final[tuple[str, ...]] = (
     "cif_default",
     "cif_no_mute",
@@ -72,6 +75,7 @@ MODEL_VARIANTS: Final[tuple[str, ...]] = (
 DEFAULT_MODEL_VARIANTS: Final[tuple[str, ...]] = ("cif_default",)
 RANKING_VARIANTS: Final[tuple[str, ...]] = ("split_importance", "split_count")
 DEFAULT_FOLDS: Final[tuple[int, ...]] = tuple(range(N_SPLITS))
+SPECIFICATION_VERSION: Final[int] = 1
 
 PARAM_COLUMNS: Final[tuple[str, ...]] = (
     "selector",
@@ -282,6 +286,61 @@ def _s3_client() -> Any:
     return boto3.client("s3", region_name=region)
 
 
+def mechanism_specification_sha256(
+    *,
+    tasks: Sequence[str],
+    source: str,
+    datasets: Sequence[str],
+    seeds: Sequence[int],
+    folds: Sequence[int],
+    model_variants: Sequence[str],
+    ranking_variants: Sequence[str],
+    n_jobs: int,
+    downstream_n_jobs: int,
+) -> str:
+    """Return the canonical digest of all mechanism-study execution inputs."""
+    specification = {
+        "datasets": list(datasets),
+        "downstream_n_jobs": downstream_n_jobs,
+        "experiment": EXPERIMENT_NAME,
+        "folds": list(folds),
+        "model_variants": list(model_variants),
+        "n_jobs": n_jobs,
+        "ranking_variants": list(ranking_variants),
+        "seeds": list(seeds),
+        "source": source,
+        "specification_version": SPECIFICATION_VERSION,
+        "tasks": list(tasks),
+    }
+    payload = json.dumps(
+        specification,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def distributed_output_uri(
+    *,
+    bucket: str,
+    image_uri: str,
+    specification_sha256: str,
+) -> str:
+    """Derive the only distributed output prefix from immutable inputs."""
+    if not bucket or "/" in bucket or bucket != bucket.strip():
+        raise ValueError("S3_BUCKET must contain one normalized bucket name")
+    repository, separator, image_sha256 = image_uri.rpartition("@sha256:")
+    if not separator or not repository or not re.fullmatch(r"[0-9a-f]{64}", image_sha256):
+        raise ValueError("CITREES_IMAGE_URI must be an immutable image digest URI")
+    if not re.fullmatch(r"[0-9a-f]{64}", specification_sha256):
+        raise ValueError("mechanism specification digest must be 64 lowercase hex characters")
+    return (
+        f"s3://{bucket}/experiments/{DISTRIBUTED_PREFIX_NAME}"
+        f"/image-sha256/{image_sha256}/spec-sha256/{specification_sha256}"
+    )
+
+
 def _split_s3_uri(uri: str) -> tuple[str, str]:
     if not uri.startswith("s3://"):
         raise ValueError(f"Not an S3 URI: {uri}")
@@ -327,7 +386,26 @@ def save_frame(df: pd.DataFrame, uri: str) -> None:
         bucket, key = _split_s3_uri(uri)
         buffer = io.BytesIO()
         df.to_parquet(buffer, index=False)
-        _s3_client().put_object(Bucket=bucket, Key=key, Body=buffer.getvalue())
+        payload = buffer.getvalue()
+        client = _s3_client()
+        try:
+            client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=payload,
+                ContentType="application/vnd.apache.parquet",
+                IfNoneMatch="*",
+                Metadata={"sha256": hashlib.sha256(payload).hexdigest()},
+            )
+        except Exception as write_error:
+            try:
+                existing = client.get_object(Bucket=bucket, Key=key)["Body"].read()
+            except Exception:
+                raise write_error from None
+            if existing != payload:
+                raise RuntimeError(
+                    f"Immutable mechanism artifact collision at s3://{bucket}/{key}"
+                ) from write_error
         return
 
     path = Path(uri)
@@ -369,13 +447,12 @@ def run_item(
     output_uri: str,
     n_jobs: int | None,
     downstream_n_jobs: int,
-    force: bool,
 ) -> dict[str, Any]:
     """Run one fold-level work item and write ranking/metric artifacts."""
     metrics_uri = artifact_uri(output_uri, "metrics", item)
     rankings_uri = artifact_uri(output_uri, "rankings", item)
     fits_uri = artifact_uri(output_uri, "fits", item)
-    if not force and item_is_complete(
+    if item_is_complete(
         metrics_uri=metrics_uri,
         rankings_uri=rankings_uri,
         fits_uri=fits_uri,
@@ -550,7 +627,11 @@ def build_work_items(
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run CIF component ablations")
-    parser.add_argument("--output-uri", default=DEFAULT_OUTPUT_URI, help="Local path or s3:// URI")
+    parser.add_argument(
+        "--distributed",
+        action="store_true",
+        help="Write to the immutable campaign prefix derived from worker environment",
+    )
     parser.add_argument(
         "--tasks",
         default="classification,regression",
@@ -583,7 +664,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--shard-index", type=int, default=0, help="This shard index")
     parser.add_argument("--n-jobs", type=int, default=-1, help="CIF n_jobs per fit")
     parser.add_argument("--downstream-n-jobs", type=int, default=1, help="Downstream n_jobs")
-    parser.add_argument("--force", action="store_true", help="Overwrite existing artifacts")
     parser.add_argument("--dry-run", action="store_true", help="Print work items without running")
     parser.add_argument("--max-items", type=int, default=None, help="Optional cap after sharding")
     return parser.parse_args(argv)
@@ -615,6 +695,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.shard_index < 0 or args.shard_index >= args.num_shards:
         raise ValueError("--shard-index must satisfy 0 <= shard_index < num_shards")
 
+    specification_sha256 = mechanism_specification_sha256(
+        tasks=tasks,
+        source=args.source,
+        datasets=datasets,
+        seeds=seeds,
+        folds=folds,
+        model_variants=model_variants,
+        ranking_variants=ranking_variants,
+        n_jobs=args.n_jobs,
+        downstream_n_jobs=args.downstream_n_jobs,
+    )
+    if args.distributed:
+        expected_specification_sha256 = os.environ.get(
+            "CITREES_MECHANISM_SPEC_SHA256",
+            "",
+        )
+        if expected_specification_sha256 != specification_sha256:
+            raise RuntimeError(
+                "Distributed mechanism specification does not match CITREES_MECHANISM_SPEC_SHA256"
+            )
+        output_uri = distributed_output_uri(
+            bucket=os.environ.get("S3_BUCKET", ""),
+            image_uri=os.environ.get("CITREES_IMAGE_URI", ""),
+            specification_sha256=specification_sha256,
+        )
+    else:
+        output_uri = DEFAULT_OUTPUT_URI
+
     all_items = build_work_items(
         tasks=tasks,
         source=args.source,
@@ -632,7 +740,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(
         f"{EXPERIMENT_NAME}: total_items={len(all_items)} shard_items={len(shard_items)} "
-        f"shard={args.shard_index}/{args.num_shards} output={args.output_uri}",
+        f"shard={args.shard_index}/{args.num_shards} output={output_uri} "
+        f"specification_sha256={specification_sha256}",
         flush=True,
     )
 
@@ -651,10 +760,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             result = run_item(
                 item,
-                output_uri=args.output_uri,
+                output_uri=output_uri,
                 n_jobs=args.n_jobs,
                 downstream_n_jobs=args.downstream_n_jobs,
-                force=args.force,
             )
             print(result, flush=True)
         except Exception as exc:  # noqa: BLE001

@@ -6,44 +6,24 @@ and filtering based on completion status.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Literal
 
 from paper.benchmark.pipeline.methods import (
     get_full_method_configs,
     get_methods,
 )
-from paper.benchmark.pipeline.types import ExperimentConfig, MethodConfig, TaskType
-
-# R methods crash with "protect(): protection stack overflow" on high-dimensional
-# datasets. These (method_name, dataset) pairs are excluded from the grid.
-_EXCLUDED: set[tuple[str, str]] = {
-    ("r_ctree", "dexter"),
-    ("r_cforest", "dexter"),
-}
-
-# Specific (method_label, dataset, seed) combos that consistently fail after
-# multiple retries across different instance types (c6a, r5). These are excluded
-# from the grid so the API queue reports 0 pending when everything else is done.
-# These cells are intentionally excluded so known non-completions do not keep
-# distributed queues open after the rest of the benchmark finishes.
-_SKIPPED: set[tuple[str, str, int]] = {
-    # r_ctree MonteCarlo (testtype="MonteCarlo") hangs/OOMs on high-dim datasets.
-    # The Bonferroni config (9d1ca9c27dfc7f5e) completes fine for these same datasets.
-    ("r_ctree__b6e09ceb0eb26367", "gisette", 3),
-    ("r_ctree__b6e09ceb0eb26367", "isolet", 2),
-    ("r_ctree__b6e09ceb0eb26367", "isolet", 3),
-    # CIT-RDC on these specific splits never finished reliably in repeated runs.
-    # We treat them as known skipped cells rather than open missing work.
-    ("cit__2f00ba06d3fd6444", "gisette", 0),
-    ("cit__2f00ba06d3fd6444", "gisette", 1),
-    ("cit__2f00ba06d3fd6444", "gisette", 3),
-    ("cit__2f00ba06d3fd6444", "orlraws10P", 1),
-}
+from paper.benchmark.pipeline.types import (
+    DatasetIdentity,
+    ExperimentConfig,
+    MethodConfig,
+    TaskType,
+)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExperimentGrid:
     """Grid of experiment configurations for distributed execution.
 
@@ -75,39 +55,61 @@ class ExperimentGrid:
     """
 
     task: TaskType
-    methods: list[MethodConfig]
-    datasets: list[str]
-    seeds: list[int]
+    methods: Sequence[MethodConfig]
+    datasets: Sequence[str]
+    seeds: Sequence[int]
+    dataset_identities: Mapping[str, DatasetIdentity] | None = None
+
+    def __post_init__(self) -> None:
+        methods = tuple(self.methods)
+        datasets = tuple(self.datasets)
+        seeds = tuple(self.seeds)
+        if any(not isinstance(method, MethodConfig) for method in methods):
+            raise TypeError("methods must contain MethodConfig instances")
+        if any(not isinstance(dataset, str) or not dataset for dataset in datasets):
+            raise ValueError("datasets must contain non-empty names")
+        if len({method.label for method in methods}) != len(methods):
+            raise ValueError("methods must have unique identities")
+        if len(set(datasets)) != len(datasets):
+            raise ValueError("datasets must be unique")
+        if len(set(seeds)) != len(seeds):
+            raise ValueError("seeds must be unique")
+        if any(type(seed) is not int or seed < 0 for seed in seeds):
+            raise ValueError("seeds must be non-negative integers")
+
+        identities = self.dataset_identities
+        if identities is None:
+            from paper.benchmark.adapters.data import get_dataset_identity
+
+            identities = {dataset: get_dataset_identity(dataset, self.task) for dataset in datasets}
+        identities = dict(identities)
+        if set(identities) != set(datasets):
+            raise ValueError("dataset_identities must exactly cover the grid datasets")
+        if any(not isinstance(identity, DatasetIdentity) for identity in identities.values()):
+            raise TypeError("dataset_identities values must be DatasetIdentity instances")
+
+        object.__setattr__(self, "methods", methods)
+        object.__setattr__(self, "datasets", datasets)
+        object.__setattr__(self, "seeds", seeds)
+        object.__setattr__(self, "dataset_identities", MappingProxyType(identities))
 
     def __iter__(self) -> Iterator[ExperimentConfig]:
         """Iterate over all experiment configurations."""
+        assert self.dataset_identities is not None
         for method in self.methods:
             for dataset in self.datasets:
-                if (method.name, dataset) in _EXCLUDED:
-                    continue
                 for seed in self.seeds:
-                    if (method.label, dataset, seed) in _SKIPPED:
-                        continue
                     yield ExperimentConfig(
                         method=method,
                         dataset=dataset,
                         seed=seed,
                         task=self.task,
+                        dataset_identity=self.dataset_identities[dataset],
                     )
 
     def __len__(self) -> int:
         """Total number of configurations in the grid."""
-        excluded = sum(1 for m in self.methods for d in self.datasets if (m.name, d) in _EXCLUDED)
-        base = (len(self.methods) * len(self.datasets) - excluded) * len(self.seeds)
-        skipped = sum(
-            1
-            for m in self.methods
-            for d in self.datasets
-            if (m.name, d) not in _EXCLUDED
-            for s in self.seeds
-            if (m.label, d, s) in _SKIPPED
-        )
-        return base - skipped
+        return len(self.methods) * len(self.datasets) * len(self.seeds)
 
     def filter_pending(self, completed: set[tuple[str, str, int]]) -> list[ExperimentConfig]:
         """Get list of configurations not in the completed set.

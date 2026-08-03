@@ -11,7 +11,7 @@ on:
       - "paper/arxiv/**"
       - "paper/benchmark/**"
       - "paper/data_generation/**"
-      - "paper/joss/**"
+      - "paper/jss/**"
       - "paper/maintenance/**"
       - "paper/results/README.md"
       - "paper/results/tables/README.md"
@@ -35,7 +35,7 @@ on:
       - "paper/arxiv/**"
       - "paper/benchmark/**"
       - "paper/data_generation/**"
-      - "paper/joss/**"
+      - "paper/jss/**"
       - "paper/maintenance/**"
       - "paper/results/README.md"
       - "paper/results/tables/README.md"
@@ -70,7 +70,9 @@ jobs:
         run: uv sync --group dev --group docs
 
       - name: Check formatting
-        run: uv run ruff format --check citrees examples tests/unit tests/integration
+        run:
+          uv run ruff format --check citrees examples tests/unit
+          tests/integration
 
       - name: Lint
         run: uv run ruff check citrees examples tests/unit tests/integration
@@ -134,7 +136,9 @@ jobs:
         run: uv run python -c "import citrees._selector"
 
       - name: Run unit and integration tests with coverage
-        run: uv run pytest tests/unit tests/integration -m "not slow" --cov=citrees --cov-report=term-missing --cov-report=xml
+        run:
+          uv run pytest tests/unit tests/integration -m "not slow" --cov=citrees
+          --cov-report=term-missing --cov-report=xml
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -160,10 +164,16 @@ jobs:
         run: uv sync --group dev --group paper-test
 
       - name: Check paper support formatting
-        run: uv run ruff format --check tests/paper paper/analysis paper/benchmark paper/data_generation paper/maintenance paper/theory
+        run:
+          uv run ruff format --check tests/paper paper/analysis paper/benchmark
+          paper/data_generation paper/jss/replication paper/maintenance
+          paper/theory
 
       - name: Lint paper support code
-        run: uv run ruff check tests/paper paper/analysis paper/benchmark paper/data_generation paper/maintenance paper/theory
+        run:
+          uv run ruff check tests/paper paper/analysis paper/benchmark
+          paper/data_generation paper/jss/replication paper/maintenance
+          paper/theory
 
       - name: Run paper support tests
         run: uv run pytest tests/paper -q

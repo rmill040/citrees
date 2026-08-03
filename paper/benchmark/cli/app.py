@@ -7,7 +7,7 @@ experiments, checking progress, and managing infrastructure.
 from __future__ import annotations
 
 import time
-from collections import defaultdict
+from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
 import httpx
@@ -18,7 +18,6 @@ from paper.benchmark.cli.console_output import (
     create_table,
     error,
     format_number,
-    format_percent,
     heading,
     info,
     progress_bar,
@@ -53,9 +52,16 @@ def _get_cluster_app() -> typer.Typer:
     return cluster_app
 
 
+def _get_manifest_app() -> typer.Typer:
+    from paper.benchmark.cli.manifest import app as manifest_app
+
+    return manifest_app
+
+
 app.add_typer(_get_list_app(), name="list", help="List datasets and methods")
 app.add_typer(_get_infra_app(), name="infra", help="AWS infrastructure setup")
 app.add_typer(_get_cluster_app(), name="cluster", help="API server and worker operations")
+app.add_typer(_get_manifest_app(), name="manifest", help="Account-bound rerun manifests")
 
 
 def _poll_status(api_url: str) -> dict[str, Any]:
@@ -111,25 +117,46 @@ def run(
 
         queues = data.get("queues", {})
         total_pending = sum(q.get("pending", 0) for q in queues.values())
+        total_failed = sum(q.get("failed", 0) for q in queues.values())
 
         table = create_table(
             title="Queue Status",
             columns=[
                 ("Queue", ""),
+                ("Available", "number"),
+                ("In flight", "number"),
                 ("Pending", "number"),
+                ("Completed", "number"),
+                ("Failed", "number"),
                 ("Initial", "number"),
                 ("Progress", ""),
             ],
         )
         for name, counts in queues.items():
+            available = counts.get("available", 0)
+            in_flight = counts.get("in_flight", 0)
             pending = counts.get("pending", 0)
+            completed = counts.get("completed", 0)
+            failed = counts.get("failed", 0)
             initial = counts.get("initial", 0)
-            done = initial - pending
+            done = completed + failed
             bar = progress_bar(done, initial) if initial > 0 else ""
-            table.add_row(name, str(pending), str(initial), bar)
+            table.add_row(
+                name,
+                str(available),
+                str(in_flight),
+                str(pending),
+                str(completed),
+                str(failed),
+                str(initial),
+                bar,
+            )
         console.print(table)
 
         if total_pending == 0:
+            if total_failed:
+                error(f"Queues terminated with {format_number(total_failed)} failed cells")
+                raise typer.Exit(1)
             success("All queues empty")
             break
 
@@ -277,152 +304,29 @@ def smoke(
 
 @app.command()
 def check(
+    manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--manifest",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Account-bound manifest for this artifact namespace",
+        ),
+    ],
     stage: Annotated[
-        Literal["rankings", "metrics"],
+        Literal["all", "rankings", "metrics"],
         typer.Option(
             "--stage",
-            "-s",
-            help="Stage to check: rankings or metrics",
+            help="Artifact stage to reconcile",
         ),
-    ] = "rankings",
-    task: Annotated[
-        Literal["classification", "regression"],
-        typer.Option(
-            "--task",
-            "-t",
-            help="Task type: classification or regression",
-        ),
-    ] = "classification",
-    by_method: Annotated[
-        bool,
-        typer.Option(
-            "--by-method",
-            help="Show progress grouped by method",
-        ),
-    ] = False,
-    by_dataset: Annotated[
-        bool,
-        typer.Option(
-            "--by-dataset",
-            help="Show progress grouped by dataset",
-        ),
-    ] = False,
-    synthetic_only: Annotated[
-        bool,
-        typer.Option(
-            "--synthetic-only",
-            help="Only show synthetic datasets",
-        ),
-    ] = False,
+    ] = "all",
 ) -> None:
-    """Check experiment progress from S3.
+    """Fail unless manifest-required artifacts are exact and valid."""
+    from paper.benchmark.cli.manifest import reconcile_manifest
 
-    Examples:
-        citrees-exp check
-        citrees-exp check --stage metrics --by-method
-        citrees-exp check --by-dataset --synthetic-only
-    """
-    from paper.benchmark.adapters import S3Store, get_datasets
-    from paper.benchmark.config.constants import N_SEEDS
-    from paper.benchmark.pipeline import ExperimentGrid
-
-    # Build full grid to know expected counts
-    all_datasets = get_datasets(task)
-    grid = ExperimentGrid.from_cli(task=task, n_seeds=N_SEEDS)
-
-    if synthetic_only:
-        all_datasets = [d for d in all_datasets if "synthetic" in d]
-
-    method_labels = [m.label for m in grid.methods]
-    total_expected = len(grid)
-
-    heading(f"Progress: {stage.upper()} ({task})")
-
-    store = S3Store.from_env(validate_uploads=True)
-    info(f"S3: {store.bucket}")
-    console.print(
-        f"  Expected: {format_number(total_expected)} configs "
-        f"({len(all_datasets)} datasets x {len(method_labels)} methods x {N_SEEDS} seeds, minus exclusions)"
-    )
-    console.print()
-
-    # Fetch completed from S3
-    with console.status(f"Listing s3://{store.bucket}/{stage}/{task}/..."):
-        all_completed = store.list_completed(stage, task)
-
-    # Filter to only artifacts matching the current grid
-    grid_keys = {cfg.key for cfg in grid}
-    completed = all_completed & grid_keys
-
-    # Organize by dataset
-    completed_by_dataset: dict[str, set[tuple[str, int]]] = defaultdict(set)
-    for method_label, dataset, seed in completed:
-        completed_by_dataset[dataset].add((method_label, seed))
-
-    total_done = len(completed)
-    pct = format_percent(total_done, total_expected)
-    bar = progress_bar(total_done, total_expected, width=30)
-
-    console.print(f"  {bar} {format_number(total_done)} / {format_number(total_expected)} ({pct})")
-    console.print(f"  Remaining: {format_number(total_expected - total_done)}")
-    console.print()
-
-    if by_method:
-        heading("By Method")
-        method_counts: dict[str, int] = defaultdict(int)
-        for method_label, _ds, _seed in completed:
-            method_counts[method_label] += 1
-
-        table = create_table(columns=[("Method", ""), ("Progress", ""), ("Done", "number")])
-        # Count expected per method from the grid itself
-        method_expected: dict[str, int] = defaultdict(int)
-        for cfg in grid:
-            method_expected[cfg.method.label] += 1
-
-        for m in method_labels:
-            expected_per = method_expected.get(m, 0)
-            cnt = method_counts.get(m, 0)
-            table.add_row(m[:30], progress_bar(cnt, expected_per), f"{cnt}/{expected_per}")
-        console.print(table)
-        console.print()
-
-    if by_dataset:
-        heading("By Dataset")
-        expected_per = len(method_labels) * N_SEEDS
-        incomplete = [
-            (d, len(completed_by_dataset.get(d, set())))
-            for d in all_datasets
-            if len(completed_by_dataset.get(d, set())) < expected_per
-        ]
-        complete = [
-            d for d in all_datasets if len(completed_by_dataset.get(d, set())) >= expected_per
-        ]
-
-        if incomplete:
-            table = create_table(
-                title=f"Incomplete ({len(incomplete)})",
-                columns=[("Dataset", ""), ("Progress", ""), ("Done", "number")],
-            )
-            for d, cnt in sorted(incomplete, key=lambda x: x[1]):
-                table.add_row(d[:40], progress_bar(cnt, expected_per), f"{cnt}/{expected_per}")
-            console.print(table)
-
-        console.print(f"\n  [success]Complete:[/] {len(complete)} datasets")
-
-
-@app.command()
-def watch() -> None:
-    """Interactive live dashboard showing experiment progress.
-
-    Shows both tasks by default with keyboard-driven filtering.
-    Press [t] to cycle task, [c] category, [s] stage, [n] top-N, [q] quit.
-
-    Examples:
-        citrees-exp watch
-    """
-    from paper.benchmark.cli.watch import run_watch
-
-    run_watch()
+    reconcile_manifest(manifest_path, stage)
 
 
 def _version_callback(value: bool) -> None:

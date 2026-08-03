@@ -1,15 +1,21 @@
 """Tests for paper/benchmark/pipeline/stage2.py (evaluation)."""
 
+import json
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.metrics import roc_auc_score
 
+from paper.benchmark.adapters.store import LoadedArtifact
 from paper.benchmark.pipeline.stage2 import (
     compute_roc_auc,
     evaluate_fold,
     get_requested_evaluation_k_values,
     metrics_cover_requested_k_values,
     resolve_evaluation_k_values,
+    run_evaluation,
 )
 
 pytestmark = pytest.mark.paper
@@ -182,3 +188,215 @@ class TestEvaluationKBudgets:
             1000,
             1200,
         ]
+
+
+def test_stage2_keys_rankings_by_fold_id_when_rows_are_shuffled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ranking row order must not change the fold-to-ranking assignment."""
+    from paper.benchmark.pipeline import stage2
+    from paper.benchmark.pipeline.types import DatasetIdentity, ExperimentConfig, MethodConfig
+
+    config = ExperimentConfig(
+        method=MethodConfig("rf"),
+        dataset="fixture",
+        seed=3,
+        task="classification",
+        dataset_identity=DatasetIdentity("d" * 64, n_samples=50, n_features=5),
+    )
+    rng = np.random.default_rng(1718)
+    X = rng.normal(size=(50, 5))
+    y = np.array([0, 1] * 25)
+    rankings = pd.DataFrame(
+        {
+            "fold_idx": list(range(5)),
+            "feature_ranking": [np.roll(np.arange(5), fold).tolist() for fold in range(5)],
+        }
+    )
+
+    def fake_evaluate_fold(
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        ranking: np.ndarray,
+        task: str,
+        random_state: int,
+        k_values: list[int],
+        n_jobs: int,
+    ) -> list[dict[str, object]]:
+        del X_train, y_train, X_test, y_test, task, k_values, n_jobs
+        return [
+            {
+                "k": 1,
+                "n_features_selected": 1,
+                "downstream_model": "fixture",
+                "first_feature": int(ranking[0]),
+                "evaluation_random_state": random_state,
+            }
+        ]
+
+    monkeypatch.setattr(stage2, "evaluate_fold", fake_evaluate_fold)
+    ordered = run_evaluation(X, y, rankings, config, n_jobs=1)
+    shuffled = run_evaluation(
+        X,
+        y,
+        rankings.sample(frac=1, random_state=99).reset_index(drop=True),
+        config,
+        n_jobs=1,
+    )
+
+    def fold_key(row: dict[str, object]) -> int:
+        return int(row["fold_idx"])
+
+    assert sorted(ordered, key=fold_key) == sorted(shuffled, key=fold_key)
+    assert {int(row["fold_idx"]): int(row["first_feature"]) for row in shuffled} == {
+        fold: int(np.roll(np.arange(5), fold)[0]) for fold in range(5)
+    }
+
+
+@pytest.mark.parametrize(
+    ("duplicate_upload", "expected_status"),
+    [(False, "done"), (True, "skipped")],
+)
+def test_run_evaluation_validates_and_round_trips_complete_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    duplicate_upload: bool,
+    expected_status: str,
+) -> None:
+    """The real Stage 2 entry point must save a validator-complete artifact."""
+    from paper.benchmark.config.constants import PIPELINE_ARTIFACT_VERSION
+    from paper.benchmark.pipeline import stage2
+    from paper.benchmark.pipeline.types import DatasetIdentity, ExperimentConfig, MethodConfig
+    from paper.benchmark.pipeline.validation import validate_metrics_artifact
+
+    config = ExperimentConfig(
+        method=MethodConfig("rf", params=(("n_estimators", 100),)),
+        dataset="fixture",
+        seed=2,
+        task="classification",
+        dataset_identity=DatasetIdentity("d" * 64, n_samples=80, n_features=5),
+    )
+    rng = np.random.default_rng(1718)
+    X = rng.normal(size=(80, 5))
+    y = (X[:, 0] + 0.25 * X[:, 1] > 0).astype(int)
+    common = {
+        "artifact_version": PIPELINE_ARTIFACT_VERSION,
+        "artifact_prefix": "repairs/run-001",
+        "aws_account_id": "123456789012",
+        "campaign_sha256": "e" * 64,
+        "container_image": "repository@sha256:" + "a" * 64,
+        "created_at_utc": "2026-08-03T12:00:00+00:00",
+        "dataset": config.dataset,
+        "dataset_sha256": config.dataset_identity.sha256,
+        "git_sha": "a" * 40,
+        "hardware": {"logical_cpus": 32},
+        "library_versions": {"python": "3.12.7"},
+        "method": config.method.label,
+        "method_base": config.method.name,
+        "method_id": config.method.label,
+        "method_params_json": json.dumps(
+            config.method.params_dict,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        "manifest_sha256": "b" * 64,
+        "n_features": X.shape[1],
+        "n_samples": X.shape[0],
+        "seed": config.seed,
+        "task": config.task,
+    }
+    rankings = pd.DataFrame(
+        [
+            {
+                **common,
+                "feature_ranking": list(range(X.shape[1])),
+                "fold_idx": fold,
+                "fold_random_state": config.seed * 1000 + fold,
+                "selection_cpus": 32,
+            }
+            for fold in range(5)
+        ]
+    )
+
+    class RoundTripStore:
+        def __init__(self) -> None:
+            self.saved: pd.DataFrame | None = None
+
+        def exists(self, stage: str, cfg: ExperimentConfig) -> bool:
+            del cfg
+            return stage == "rankings"
+
+        def load(self, stage: str, cfg: ExperimentConfig) -> pd.DataFrame:
+            del cfg
+            if stage == "rankings":
+                return rankings.copy()
+            if stage == "metrics" and self.saved is not None:
+                return self.saved.copy()
+            raise AssertionError(f"unexpected load: {stage}")
+
+        def load_with_payload_sha256(
+            self,
+            stage: str,
+            cfg: ExperimentConfig,
+        ) -> LoadedArtifact:
+            return LoadedArtifact(
+                frame=self.load(stage, cfg),
+                payload_sha256="c" * 64,
+            )
+
+        def save(self, stage: str, cfg: ExperimentConfig, frame: pd.DataFrame) -> str:
+            del cfg
+            assert stage == "metrics"
+            path = tmp_path / "metrics.parquet"
+            frame.to_parquet(path, index=False)
+            self.saved = pd.read_parquet(path)
+            if duplicate_upload:
+                raise FileExistsError("another worker uploaded first")
+            return str(path)
+
+    store = RoundTripStore()
+    monkeypatch.setattr(
+        stage2,
+        "load_dataset",
+        lambda dataset, task, *, identity: (X, y),
+    )
+    monkeypatch.setattr(
+        stage2,
+        "get_dataset_metadata",
+        lambda dataset, task, *, identity: {
+            "dataset_source": "fixture",
+            "dataset_type": "real",
+            "dataset_family": "test",
+            "n_informative": 2,
+        },
+    )
+    monkeypatch.setattr(stage2, "get_git_sha", lambda: "a" * 40)
+    monkeypatch.setattr(stage2, "get_library_versions", lambda: {"python": "3.12.7"})
+    monkeypatch.setattr(stage2, "get_hardware_metadata", lambda: {"logical_cpus": 32})
+    monkeypatch.setattr(
+        stage2,
+        "get_container_image",
+        lambda: "repository@sha256:" + "a" * 64,
+    )
+    monkeypatch.setattr(
+        stage2,
+        "get_benchmark_scope",
+        lambda: {
+            "artifact_prefix": "repairs/run-001",
+            "campaign_sha256": "e" * 64,
+            "manifest_sha256": "b" * 64,
+            "aws_account_id": "123456789012",
+        },
+    )
+    monkeypatch.setattr(stage2, "utc_now_iso", lambda: "2026-08-03T13:00:00+00:00")
+
+    result = stage2._run_evaluation(config, store)  # type: ignore[arg-type]
+
+    assert result.status == expected_status, result.error
+    assert store.saved is not None
+    assert store.saved["dataset_sha256"].unique().tolist() == ["d" * 64]
+    assert store.saved["ranking_dataset_sha256"].unique().tolist() == ["d" * 64]
+    assert store.saved["ranking_payload_sha256"].unique().tolist() == ["c" * 64]
+    validate_metrics_artifact(store.saved, config)

@@ -25,8 +25,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from paper.benchmark.adapters.data import get_dataset_shape
 from paper.benchmark.adapters.runner import LocalRunner
+from paper.benchmark.adapters.store import LoadedArtifact
 from paper.benchmark.pipeline.grid import ExperimentGrid
 from paper.benchmark.pipeline.types import ExperimentConfig, StageType, TaskType
 
@@ -66,6 +66,22 @@ class LocalParquetStore:
             raise FileNotFoundError(path)
         return pd.read_parquet(path)
 
+    def load_with_payload_sha256(
+        self,
+        stage: StageType,
+        config: ExperimentConfig,
+    ) -> LoadedArtifact:
+        import hashlib
+
+        path = self.path(stage, config)
+        if not path.exists():
+            raise FileNotFoundError(path)
+        payload = path.read_bytes()
+        return LoadedArtifact(
+            frame=pd.read_parquet(path),
+            payload_sha256=hashlib.sha256(payload).hexdigest(),
+        )
+
     def list_completed(self, stage: StageType, task: TaskType) -> set[tuple[str, str, int]]:
         completed: set[tuple[str, str, int]] = set()
         root = self.base_dir / stage / task
@@ -96,7 +112,8 @@ def _build_configs(args: argparse.Namespace) -> list[ExperimentConfig]:
     def within_dataset_cell_cap(cfg: ExperimentConfig) -> bool:
         if args.max_dataset_cells is None:
             return True
-        n_samples, n_features = get_dataset_shape(cfg.dataset, cfg.task)
+        n_samples = cfg.dataset_identity.n_samples
+        n_features = cfg.dataset_identity.n_features
         return n_samples * n_features <= args.max_dataset_cells
 
     configs: list[ExperimentConfig] = []

@@ -1,5 +1,7 @@
 [files]
 extend-exclude = [
+  "paper/jss/jss.bst",
+  "paper/jss/jss.cls",
   "paper/results/**",
   "site/**",
 ]

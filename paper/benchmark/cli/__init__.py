@@ -5,8 +5,8 @@ including running experiments, checking progress, and managing infrastructure.
 
 Usage:
     citrees-exp --help
-    citrees-exp run classification
-    citrees-exp check --by-method
+    citrees-exp run
+    citrees-exp check --manifest scratch/manifest.csv
 """
 
 from __future__ import annotations

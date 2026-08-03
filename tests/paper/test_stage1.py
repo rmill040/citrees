@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from citrees._selector import (
@@ -13,8 +14,104 @@ from citrees._selector import (
     RegressorSelectors,
     RegressorSelectorTests,
 )
+from paper.benchmark.pipeline.r_methods import (
+    _MAX_SUPPORTED_RANDOM_STATE,
+    _normalize_r_seed,
+    _ranking_from_named_scores,
+    _resolve_cores,
+    _resolve_mtry,
+)
 
 pytestmark = pytest.mark.paper
+
+
+def test_concurrent_valid_ranking_upload_is_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A worker that loses an immutable upload race must validate and skip."""
+    from paper.benchmark.pipeline import stage1
+    from paper.benchmark.pipeline.types import DatasetIdentity, ExperimentConfig, MethodConfig
+
+    config = ExperimentConfig(
+        method=MethodConfig("dt"),
+        dataset="fixture",
+        seed=0,
+        task="classification",
+        dataset_identity=DatasetIdentity("d" * 64, n_samples=20, n_features=4),
+    )
+    X = np.arange(80, dtype=float).reshape(20, 4)
+    y = np.array([0, 1] * 10)
+
+    class ConcurrentStore:
+        def __init__(self) -> None:
+            self.saved: pd.DataFrame | None = None
+
+        def exists(self, stage: str, cfg: ExperimentConfig) -> bool:
+            return False
+
+        def save(
+            self,
+            stage: str,
+            cfg: ExperimentConfig,
+            frame: pd.DataFrame,
+        ) -> str:
+            self.saved = frame.copy()
+            raise FileExistsError("another worker uploaded first")
+
+        def load(self, stage: str, cfg: ExperimentConfig) -> pd.DataFrame:
+            assert self.saved is not None
+            return self.saved.copy()
+
+    monkeypatch.setattr(
+        stage1,
+        "load_dataset",
+        lambda dataset, task, *, identity: (X, y),
+    )
+    monkeypatch.setattr(
+        stage1,
+        "get_dataset_metadata",
+        lambda dataset, task, *, identity: {
+            "dataset_source": "fixture",
+            "dataset_type": "real",
+            "dataset_family": "test",
+            "n_informative": 1,
+        },
+    )
+    monkeypatch.setattr(
+        stage1,
+        "run_selection",
+        lambda *args, **kwargs: [
+            {
+                "fold_idx": fold,
+                "fold_random_state": fold,
+                "feature_ranking": list(range(X.shape[1])),
+            }
+            for fold in range(5)
+        ],
+    )
+    monkeypatch.setattr(stage1, "get_git_sha", lambda: "a" * 40)
+    monkeypatch.setattr(stage1, "get_library_versions", lambda: {"python": "3.12.7"})
+    monkeypatch.setattr(stage1, "get_hardware_metadata", lambda: {"logical_cpus": 1})
+    monkeypatch.setattr(
+        stage1,
+        "get_container_image",
+        lambda: "repository@sha256:" + "a" * 64,
+    )
+    monkeypatch.setattr(
+        stage1,
+        "get_benchmark_scope",
+        lambda: {
+            "artifact_prefix": "repairs/run-001",
+            "campaign_sha256": "e" * 64,
+            "manifest_sha256": "b" * 64,
+            "aws_account_id": "123456789012",
+        },
+    )
+
+    result = stage1._run_selection(config, ConcurrentStore())  # type: ignore[arg-type]
+
+    assert result.is_skipped
+    assert result.data is not None
 
 
 class TestFilterSelector:
@@ -141,6 +238,38 @@ class TestEmbeddingSelector:
             assert len(results) == 5
             assert all(row["feature_ranking"] for row in results)
 
+    @pytest.mark.parametrize("method", ["dt", "rt"])
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    @pytest.mark.parametrize("signal_index", [0, 4])
+    def test_single_tree_rankings_preserve_known_feature_identity(
+        self,
+        method: str,
+        task: str,
+        signal_index: int,
+    ) -> None:
+        """DT and RT must rank the original signal column first in every fold."""
+        from paper.benchmark.pipeline.stage1 import run_selection
+
+        signal = np.linspace(-2.0, 2.0, 200)
+        X = np.zeros((signal.size, 5), dtype=np.float64)
+        X[:, signal_index] = signal
+        y = (signal > 0).astype(np.int64) if task == "classification" else signal
+
+        results = run_selection(
+            X,
+            y,
+            method=method,
+            task=task,
+            seed=0,
+            n_jobs=1,
+        )
+
+        assert len(results) == 5
+        for row in results:
+            ranking = row["feature_ranking"]
+            assert ranking[0] == signal_index
+            assert sorted(ranking) == list(range(X.shape[1]))
+
 
 class TestWrapperSelectors:
     """Tests for wrapper selector scoring behavior."""
@@ -251,13 +380,144 @@ class TestWrapperSelectors:
 
         assert ranking.tolist() == [1, 0]
 
+    def test_boruta_uses_importance_history_within_decision_tiers(self) -> None:
+        """Tied Boruta decisions must not collapse to original column order."""
+        from sklearn.datasets import load_wine
+
+        from paper.benchmark.pipeline.selectors import boruta_selector
+
+        wine = load_wine()
+        permutation = np.arange(wine.data.shape[1])[::-1]
+        original = boruta_selector(
+            wine.data,
+            wine.target,
+            task="classification",
+            random_state=1718,
+            n_jobs=1,
+            params={"n_estimators": "auto", "max_iter": 200},
+        )
+        permuted = boruta_selector(
+            wine.data[:, permutation],
+            wine.target,
+            task="classification",
+            random_state=1718,
+            n_jobs=1,
+            params={"n_estimators": "auto", "max_iter": 200},
+        )
+
+        assert set(original[:5]) == set(permutation[permuted[:5]])
+
+    def test_boruta_orders_each_decision_tier_by_descending_importance(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Boruta ties must have an exact, importance-descending total order."""
+        import boruta
+
+        from paper.benchmark.pipeline import selectors
+
+        class DummyBoruta:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                del args, kwargs
+
+            def fit(self, X: np.ndarray, y: np.ndarray) -> DummyBoruta:
+                del X, y
+                self.ranking_ = np.array([1, 1, 2, 2])
+                self.importance_history_ = np.array(
+                    [
+                        [np.nan, np.nan, np.nan, np.nan],
+                        [0.2, 0.8, 0.1, 0.6],
+                        [0.4, 1.0, 0.3, 0.8],
+                    ]
+                )
+                return self
+
+        monkeypatch.setattr(boruta, "BorutaPy", DummyBoruta)
+        ranking = selectors.boruta_selector(
+            np.zeros((8, 4)),
+            np.array([0, 1] * 4),
+            task="classification",
+            random_state=1718,
+            n_jobs=1,
+        )
+
+        assert ranking.tolist() == [1, 0, 3, 2]
+
+    def test_rfe_step_is_explicit_in_method_identity(self) -> None:
+        """RFE artifacts must identify the one-at-a-time elimination algorithm."""
+        from paper.benchmark.pipeline.methods import get_full_method_configs
+
+        for task in ("classification", "regression"):
+            configs = get_full_method_configs(["rfe"], task)
+            assert len(configs) == 1
+            assert configs[0].params_dict == {"step": 1}
+
+    def test_cforest_core_count_is_explicit_in_method_identity(self) -> None:
+        """Production cforest variants must not depend on worker CPU count."""
+        from paper.benchmark.pipeline.methods import get_full_method_configs
+
+        for task in ("classification", "regression"):
+            configs = get_full_method_configs(["r_cforest"], task)
+            assert configs
+            assert all(config.params_dict["cores"] == 1 for config in configs)
+
+    def test_rfe_uses_and_requires_single_feature_steps(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """RFE must produce a total elimination order and reject batched steps."""
+        from paper.benchmark.pipeline import selectors
+
+        captured: dict[str, object] = {}
+
+        class DummyRFE:
+            def __init__(self, estimator, *, n_features_to_select: int, step: int):
+                del estimator
+                captured["n_features_to_select"] = n_features_to_select
+                captured["step"] = step
+
+            def fit(self, X: np.ndarray, y: np.ndarray):
+                del y
+                self.ranking_ = np.arange(1, X.shape[1] + 1)
+                return self
+
+        monkeypatch.setattr(selectors, "RFE", DummyRFE)
+        X = np.arange(24, dtype=float).reshape(6, 4)
+        y = np.array([0, 1, 0, 1, 0, 1])
+
+        ranking = selectors.rfe_selector(
+            X,
+            y,
+            task="classification",
+            random_state=1718,
+            n_jobs=1,
+            params={"step": 1},
+        )
+
+        assert ranking.tolist() == [0, 1, 2, 3]
+        assert captured == {"n_features_to_select": 1, "step": 1}
+        with pytest.raises(ValueError, match="requires RFE step=1"):
+            selectors.rfe_selector(
+                X,
+                y,
+                task="classification",
+                random_state=1718,
+                n_jobs=1,
+                params={"step": 0.1},
+            )
+
 
 # ---------------------------------------------------------------------------
 # r_ctree / r_cforest
 # ---------------------------------------------------------------------------
 
 try:
-    from paper.benchmark.pipeline.r_methods import _get_partykit, r_ctree_ranking
+    from paper.benchmark.pipeline.r_methods import (
+        _get_partykit,
+        r_cforest_ranking,
+        r_ctree_ranking,
+        r_ctree_root_feature,
+    )
 
     _get_partykit()
     _has_r = True
@@ -265,6 +525,100 @@ except (ImportError, OSError):
     _has_r = False
 
 _skip_no_r = pytest.mark.skipif(not _has_r, reason="R / rpy2 / partykit not available")
+
+
+class TestRBoundaryHelpers:
+    """Unit tests for values crossing between Python and partykit."""
+
+    def test_seed_mapping_covers_supported_boundaries_without_collisions(self) -> None:
+        random_states = [0, 1, 2_147_483_646, 2_147_483_647, 2_147_483_648, 4_294_967_294]
+
+        r_seeds = [_normalize_r_seed(value) for value in random_states]
+
+        assert r_seeds == [0, 1, 2_147_483_646, 2_147_483_647, -2_147_483_647, -1]
+        assert len(set(r_seeds)) == len(r_seeds)
+
+    @pytest.mark.parametrize("random_state", [-1, _MAX_SUPPORTED_RANDOM_STATE + 1])
+    def test_seed_mapping_rejects_out_of_range_values(self, random_state: int) -> None:
+        with pytest.raises(ValueError, match="random_state must be between"):
+            _normalize_r_seed(random_state)
+
+    @pytest.mark.parametrize("random_state", [True, 1.5, "1718"])
+    def test_seed_mapping_rejects_non_integer_values(self, random_state: object) -> None:
+        with pytest.raises(TypeError, match="random_state must be an integer"):
+            _normalize_r_seed(random_state)  # type: ignore[arg-type]
+
+    def test_sparse_named_scores_restore_original_feature_indices(self) -> None:
+        ranking = _ranking_from_named_scores(
+            ["X3", "X1", "X4"],
+            np.array([2.0, 2.0, -1.0]),
+            n_features=5,
+        )
+
+        assert ranking.tolist() == [1, 3, 0, 2, 4]
+
+    @pytest.mark.parametrize(
+        ("feature_names", "scores", "match"),
+        [
+            (["X0"], np.array([1.0, 2.0]), "different numbers"),
+            (["X0", "X1"], np.array([[1.0, 2.0]]), "non-vector"),
+            (["X0"], np.array([np.nan]), "non-finite"),
+            (["feature0"], np.array([1.0]), "Unexpected"),
+            (["X01"], np.array([1.0]), "Unexpected"),
+            (["X5"], np.array([1.0]), "out of range"),
+            (["X1", "X1"], np.array([1.0, 2.0]), "duplicate"),
+        ],
+    )
+    def test_named_scores_reject_malformed_r_output(
+        self,
+        feature_names: list[str],
+        scores: np.ndarray,
+        match: str,
+    ) -> None:
+        with pytest.raises(RuntimeError, match=match):
+            _ranking_from_named_scores(feature_names, scores, n_features=5)
+
+    @pytest.mark.parametrize(
+        ("mtry", "n_features", "expected"),
+        [
+            (None, 10, 10),
+            ("all", 10, 10),
+            ("sqrt", 10, 4),
+            ("log", 10, 4),
+            ("log", 1, 1),
+            (3, 10, 3),
+        ],
+    )
+    def test_mtry_resolution(self, mtry: int | str | None, n_features: int, expected: int) -> None:
+        assert _resolve_mtry(mtry, n_features) == expected
+
+    @pytest.mark.parametrize("mtry", [0, 6, "bogus", 1.5, True])
+    def test_mtry_rejects_invalid_values(self, mtry: object) -> None:
+        with pytest.raises((TypeError, ValueError)):
+            _resolve_mtry(mtry, 5)  # type: ignore[arg-type]
+
+    def test_default_core_resolution_uses_detected_cpu_count(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 8)
+        assert _resolve_cores(-1) == 8
+
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: None)
+        assert _resolve_cores(-1) == 1
+
+    @pytest.mark.parametrize("cores", [0, -2])
+    def test_core_resolution_rejects_invalid_counts(self, cores: int) -> None:
+        with pytest.raises(ValueError, match="cores must be -1 or a positive integer"):
+            _resolve_cores(cores)
+
+    @_skip_no_r
+    def test_r_runtime_versions_are_reported(self) -> None:
+        from paper.benchmark.pipeline.r_methods import get_r_runtime_versions
+
+        versions = get_r_runtime_versions()
+
+        assert versions["r"].startswith("R version ")
+        assert versions["partykit"]
 
 
 class TestRCtreeRanking:
@@ -328,15 +682,292 @@ class TestRCtreeRanking:
         assert np.array_equal(r1, r2)
 
     @_skip_no_r
-    def test_top_features_are_split_variables(self) -> None:
-        """Top-ranked features should be those actually used in splits."""
-        from sklearn.datasets import load_wine
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    @pytest.mark.parametrize("signal_index", [0, 2, 4])
+    def test_feature_index_matches_known_signal(self, task: str, signal_index: int) -> None:
+        """R model-frame variable IDs must map to the original Python feature."""
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(240)
+        X = rng.standard_normal((signal.size, 5))
+        X[:, signal_index] = signal
+        y = (signal > 0).astype(int) if task == "classification" else signal
 
-        wine = load_wine()
-        ranking = r_ctree_ranking(wine.data, wine.target, task="classification")
-        # Wine tree uses several features; rank-1 must not be a zero-count feature.
-        # If var_counts were all-zero, ranking[0] would be 0 (identity fallback).
-        # Wine's known important features include proline (12), flavanoids (6),
-        # color_intensity (9), etc. — feature 0 (alcohol) is rarely the sole
-        # top split, so a non-zero first entry is strong evidence.
-        assert ranking[0] != 0, "rank-1 feature is 0 — likely identity fallback"
+        ranking = r_ctree_ranking(
+            X,
+            y,
+            task=task,
+            testtype="Univariate",
+            alpha=0.05,
+            minsplit=2,
+            minbucket=1,
+        )
+
+        assert ranking.shape == (X.shape[1],)
+        assert np.array_equal(np.sort(ranking), np.arange(X.shape[1]))
+        assert ranking[0] == signal_index
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    @pytest.mark.parametrize("random_state", [1718, 3_238_245_004])
+    def test_root_feature_uses_zero_based_index(self, task: str, random_state: int) -> None:
+        """The root-feature helper should return the predictive second column."""
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(200)
+        X = np.column_stack([rng.standard_normal(200), signal])
+        y = (signal > 0).astype(int) if task == "classification" else signal
+
+        root_feature = r_ctree_root_feature(X, y, task=task, random_state=random_state)
+
+        assert root_feature == 1
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_root_feature_returns_minus_one_when_tree_has_no_split(self, task: str) -> None:
+        """A terminal root must not be passed to partykit's split-node accessor."""
+        X = np.zeros((40, 4), dtype=np.float64)
+        y = (
+            np.array([0, 1] * 20, dtype=np.int64)
+            if task == "classification"
+            else np.arange(40, dtype=np.float64)
+        )
+
+        root_feature = r_ctree_root_feature(
+            X,
+            y,
+            task=task,
+            mincriterion=1.0,
+        )
+
+        assert root_feature == -1
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_monte_carlo_same_seed_is_deterministic(self, task: str) -> None:
+        """Monte Carlo ctree rankings must reproduce under an identical seed."""
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(120)
+        X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])
+        y = (signal > 0).astype(int) if task == "classification" else signal
+        kwargs = {
+            "task": task,
+            "testtype": "MonteCarlo",
+            "nresample": 99,
+            "minsplit": 10,
+            "minbucket": 4,
+            "random_state": 42,
+        }
+
+        first = r_ctree_ranking(X, y, **kwargs)
+        second = r_ctree_ranking(X, y, **kwargs)
+
+        assert np.array_equal(first, second)
+
+
+class TestRCforestRanking:
+    """Regression tests for named partykit cforest importance values."""
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_sparse_named_importance_maps_to_complete_ranking(self, task: str) -> None:
+        """A last-column signal must retain its original Python feature index."""
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(180)
+        X = np.column_stack([np.zeros((signal.size, 4)), signal])
+        y = (signal > 0).astype(int) if task == "classification" else signal
+
+        ranking = r_cforest_ranking(
+            X,
+            y,
+            task=task,
+            ntree=50,
+            mtry="all",
+            cores=2,
+            random_state=1718,
+        )
+
+        assert ranking.shape == (X.shape[1],)
+        assert np.array_equal(np.sort(ranking), np.arange(X.shape[1]))
+        assert ranking[0] == X.shape[1] - 1
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_parallel_same_seed_is_deterministic(self, task: str) -> None:
+        """The same fold seed must reproduce with multi-core forest execution."""
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((160, 6))
+        signal = X[:, 5] + 0.25 * X[:, 2]
+        y = (signal > 0).astype(int) if task == "classification" else signal
+        kwargs = {
+            "task": task,
+            "ntree": 50,
+            "mtry": "sqrt",
+            "cores": 2,
+            "random_state": 42,
+        }
+
+        rankings = [r_cforest_ranking(X, y, **kwargs) for _ in range(3)]
+
+        assert all(np.array_equal(rankings[0], ranking) for ranking in rankings[1:])
+
+    @_skip_no_r
+    def test_default_core_path_is_reproducible(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Production's cores=-1 path must use deterministic parallel streams."""
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((160, 6))
+        y = (X[:, 5] + 0.25 * X[:, 2] > 0).astype(int)
+        kwargs = {
+            "task": "classification",
+            "ntree": 50,
+            "mtry": "sqrt",
+            "cores": -1,
+            "random_state": 42,
+        }
+
+        first = r_cforest_ranking(X, y, **kwargs)
+        second = r_cforest_ranking(X, y, **kwargs)
+
+        assert np.array_equal(first, second)
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_every_production_grid_variant_runs_through_r(
+        self, task: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every configured R variant must return a semantically valid ranking."""
+        from paper.benchmark.pipeline.methods import get_full_method_configs
+
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(80)
+        X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])
+        y = (signal > 0).astype(int) if task == "classification" else signal
+
+        configs = get_full_method_configs(["r_ctree", "r_cforest"], task)
+        assert len(configs) == 6
+        for config in configs:
+            params = config.params_dict
+            ranking = (
+                r_ctree_ranking(X, y, task=task, random_state=42, **params)
+                if config.name == "r_ctree"
+                else r_cforest_ranking(
+                    X,
+                    y,
+                    task=task,
+                    random_state=42,
+                    **params,
+                )
+            )
+
+            assert np.array_equal(np.sort(ranking), np.arange(X.shape[1])), config.label
+            assert ranking[0] == X.shape[1] - 1, config.label
+
+
+def test_cforest_production_config_ignores_worker_cpu_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The configured cforest core count must override host CPU discovery."""
+    from paper.benchmark.pipeline import r_methods
+    from paper.benchmark.pipeline.methods import get_full_method_configs
+    from paper.benchmark.pipeline.stage1 import run_selection
+
+    observed_cores: list[int] = []
+
+    def ranking(
+        X: np.ndarray,
+        y: np.ndarray,
+        *,
+        cores: int,
+        **kwargs: object,
+    ) -> np.ndarray:
+        del y, kwargs
+        observed_cores.append(cores)
+        return np.arange(X.shape[1])
+
+    monkeypatch.setattr(r_methods, "r_cforest_ranking", ranking)
+    config = get_full_method_configs(["r_cforest"], "classification")[0]
+    rng = np.random.default_rng(1718)
+    X = rng.standard_normal((50, 4))
+    y = np.array([0, 1] * 25)
+
+    for cpu_count in (2, 64):
+        monkeypatch.setattr(
+            "paper.benchmark.pipeline.r_methods.os.cpu_count",
+            lambda value=cpu_count: value,
+        )
+        run_selection(
+            X,
+            y,
+            "r_cforest",
+            "classification",
+            seed=0,
+            params=config.params_dict,
+        )
+
+    assert observed_cores == [1] * 10
+
+
+@pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])
+@pytest.mark.parametrize("task", ["classification", "regression"])
+def test_r_methods_receive_fold_seed(
+    method: str,
+    task: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stage 1 must pass its deterministic fold seed into each R method."""
+    from paper.benchmark.pipeline import r_methods
+    from paper.benchmark.pipeline.stage1 import run_selection
+
+    observed: list[int] = []
+
+    def ranking(
+        X: np.ndarray,
+        y: np.ndarray,
+        *,
+        random_state: int,
+        **kwargs: object,
+    ) -> np.ndarray:
+        observed.append(random_state)
+        return np.arange(X.shape[1])
+
+    monkeypatch.setattr(r_methods, f"{method}_ranking", ranking)
+    rng = np.random.default_rng(42)
+    X = rng.standard_normal((50, 4))
+    y = np.array([0, 1] * 25) if task == "classification" else rng.standard_normal(50)
+
+    run_selection(X, y, method, task, seed=7)
+
+    assert observed == [7000, 7001, 7002, 7003, 7004]
+
+
+@pytest.mark.parametrize(
+    ("ranking", "match"),
+    [
+        (np.array([], dtype=int), "ranking shape"),
+        (np.array([0, 1, 2], dtype=int), "ranking shape"),
+        (np.array([[0, 1, 2, 3]], dtype=int), "ranking shape"),
+        (np.array([0.0, 1.0, 2.0, 3.0]), "non-integer"),
+        (np.array([0, 1, 1, 3]), "permutation"),
+        (np.array([-1, 0, 1, 2]), "permutation"),
+        (np.array([0, 1, 2, 4]), "permutation"),
+    ],
+)
+def test_stage1_rejects_malformed_rankings(
+    ranking: np.ndarray,
+    match: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No method may emit an incomplete or ambiguous feature ranking."""
+    from paper.benchmark.pipeline import r_methods
+    from paper.benchmark.pipeline.stage1 import run_selection
+
+    def malformed_ranking(X: np.ndarray, y: np.ndarray, **kwargs: object) -> np.ndarray:
+        return ranking
+
+    monkeypatch.setattr(r_methods, "r_ctree_ranking", malformed_ranking)
+    rng = np.random.default_rng(42)
+    X = rng.standard_normal((50, 4))
+    y = np.array([0, 1] * 25)
+
+    with pytest.raises(ValueError, match=match):
+        run_selection(X, y, "r_ctree", "classification", seed=0)

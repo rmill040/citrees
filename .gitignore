@@ -120,10 +120,6 @@ ENV/
 # mkdocs documentation
 /site
 
-# JOSS draft outputs
-paper/joss/paper.pdf
-paper/joss/jats/
-
 # mypy
 .mypy_cache/
 
@@ -144,3 +140,15 @@ paper/arxiv/*.synctex.gz
 paper/arxiv/build/
 paper/arxiv/*.zip
 paper/arxiv/*.toc
+
+# LaTeX (JSS article) and generated replication outputs
+paper/jss/article.aux
+paper/jss/article.bbl
+paper/jss/article.blg
+paper/jss/article.fdb_latexmk
+paper/jss/article.fls
+paper/jss/article.log
+paper/jss/article.out
+paper/jss/article.pdf
+paper/jss/data/
+paper/jss/results/

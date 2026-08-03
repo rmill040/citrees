@@ -105,11 +105,10 @@ Where:
 - $H(Y)$ = Entropy of $Y$
 - $H(Y|X)$ = Conditional entropy of $Y$ given $X$
 
-For continuous dense features with a discrete target, the delegated
-scikit-learn estimator uses nearest-neighbor entropy estimation for mixed
-continuous-discrete data. `citrees` passes `random_state` through to
-scikit-learn so the small tie-breaking noise added to continuous variables is
-reproducible.
+For continuous dense features with a discrete target, the delegated scikit-learn
+estimator uses nearest-neighbor entropy estimation for mixed continuous-discrete
+data. `citrees` passes `random_state` through to scikit-learn so the small
+tie-breaking noise added to continuous variables is reproducible.
 
 ### Properties
 

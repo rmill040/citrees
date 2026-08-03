@@ -1,11 +1,9 @@
-"""Infrastructure commands for AWS setup and management.
-
-Commands for setting up IAM, ECR, Docker images, S3, and EC2 workers.
-"""
+"""Infrastructure commands for AWS setup and management."""
 
 from __future__ import annotations
 
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Literal
 
 import typer
 
@@ -68,7 +66,7 @@ def build() -> None:
     """Build and push Docker image to ECR.
 
     Builds the Docker image from paper/benchmark/infra/docker/Dockerfile
-    and pushes it to ECR with both :latest and :{git_sha} tags.
+    and pushes it to ECR with one immutable full-commit tag.
 
     Example:
         citrees-exp infra ecr build
@@ -87,7 +85,7 @@ def clean() -> None:
     """Clear all images from the ECR repository.
 
     Two-stage cleanup:
-    1. Delete tagged images (:latest, :{sha}, etc.)
+    1. Delete full-revision tagged images
     2. Delete remaining untagged manifests (orphaned layers)
 
     The repository itself is preserved.
@@ -118,48 +116,29 @@ def clean() -> None:
 
 @app.command()
 def setup() -> None:
-    """Full infrastructure setup: IAM + Docker image.
+    """Create the S3 bucket and build the immutable Docker image.
 
     This performs all setup steps in sequence:
-    1. Create IAM role and instance profile
+    1. Create the private, versioned S3 bucket
     2. Build and push Docker image to ECR
 
     Example:
         citrees-exp infra setup
     """
-    from paper.benchmark.infra.aws import build_and_push_image, ensure_iam_role
+    from paper.benchmark.infra.aws import build_and_push_image, ensure_s3_bucket
 
-    heading("Full Setup: IAM + Docker")
+    heading("Full Setup: S3 + Docker")
 
-    console.print("\n[1/2] Ensuring IAM role and instance profile...")
-    with console.status("Creating IAM resources..."):
-        ensure_iam_role()
-    success("IAM role ready")
+    console.print("\n[1/2] Ensuring S3 bucket...")
+    with console.status("Creating S3 bucket..."):
+        bucket_name = ensure_s3_bucket()
+    success(f"S3 bucket ready: {bucket_name}")
 
     console.print("\n[2/2] Building and pushing Docker image...")
     image_uri = build_and_push_image()
     success(f"Docker image pushed: {image_uri}")
 
     heading("Setup Complete")
-
-
-@app.command()
-def iam() -> None:
-    """Create IAM role and instance profile for workers.
-
-    Creates:
-    - IAM role: citrees-worker
-    - Instance profile: citrees-worker
-    - Attached policies for S3 and ECR access
-    """
-    from paper.benchmark.infra.aws import ensure_iam_role
-
-    heading("Creating IAM resources")
-
-    with console.status("Creating IAM role and instance profile..."):
-        arn = ensure_iam_role()
-
-    success(f"IAM resources ready: {arn}")
 
 
 @app.command()
@@ -181,7 +160,7 @@ def s3() -> None:
 @app.command(name="upload-data")
 def upload_data(
     task: Annotated[
-        str | None,
+        Literal["classification", "regression"] | None,
         typer.Option(
             "--task",
             "-t",
@@ -196,19 +175,10 @@ def upload_data(
             help="Show what would be uploaded without uploading",
         ),
     ] = False,
-    force: Annotated[
-        bool,
-        typer.Option(
-            "--force",
-            "-f",
-            help="Re-upload even if file already exists in S3",
-        ),
-    ] = False,
 ) -> None:
-    """Upload datasets to S3 for workers.
+    """Publish datasets to immutable content-addressed S3 keys.
 
-    Uploads parquet files from paper/data/ to s3://{bucket}/data/
-    Skips files that already exist in S3 (use --force to re-upload).
+    Existing keys are accepted only when their bytes match the local dataset.
     """
     from paper.benchmark.infra.aws import upload_datasets
 
@@ -218,7 +188,7 @@ def upload_data(
         info("Dry run - no files will be uploaded")
 
     with console.status("Scanning and uploading..."):
-        result = upload_datasets(task=task, dry_run=dry_run, force=force)
+        result = upload_datasets(task=task, dry_run=dry_run)
 
     if dry_run:
         info(f"Would upload {result['uploaded']} files, skip {result['skipped']} existing")
@@ -245,9 +215,53 @@ def launch_api_cmd(
         str,
         typer.Option(
             "--image-uri",
-            help="ECR image URI",
+            help="Immutable ECR image URI in repository@sha256:digest form",
         ),
     ] = "",
+    artifact_prefix: Annotated[
+        str,
+        typer.Option(
+            "--artifact-prefix",
+            envvar="CITREES_ARTIFACT_PREFIX",
+            help="Isolated S3 prefix for corrected artifacts",
+        ),
+    ] = "",
+    manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--manifest",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Private validated rerun manifest for this account shard",
+        ),
+    ] = None,
+    stage: Annotated[
+        Literal["rankings", "metrics"],
+        typer.Option(
+            "--stage",
+            envvar="CITREES_STAGE",
+            help="Run rankings or metrics as a separate phase",
+        ),
+    ] = "rankings",
+    lease_seconds: Annotated[
+        int,
+        typer.Option(
+            "--lease-seconds",
+            min=1,
+            help="Assignment lease duration; workers heartbeat while a cell runs",
+        ),
+    ] = 900,
+    max_cell_attempts: Annotated[
+        int | None,
+        typer.Option(
+            "--max-cell-attempts",
+            min=1,
+            envvar="CITREES_MAX_CELL_ATTEMPTS",
+            help="Explicit fixed attempt budget for each manifest cell",
+        ),
+    ] = None,
 ) -> None:
     """Launch the API server on an EC2 instance.
 
@@ -256,16 +270,21 @@ def launch_api_cmd(
     """
     from paper.benchmark.infra.ec2 import launch_api
 
-    if not image_uri:
-        from paper.benchmark.infra.aws import ensure_ecr_repo
-
-        _name, repo_uri = ensure_ecr_repo()
-        image_uri = f"{repo_uri}:latest"
-        info(f"Using image: {image_uri}")
+    if not image_uri or not artifact_prefix or manifest_path is None or max_cell_attempts is None:
+        error("--image-uri, --artifact-prefix, --manifest, and --max-cell-attempts are required")
+        raise typer.Exit(2)
 
     heading("Launching API Server")
 
-    result = launch_api(instance_type=instance_type, image_uri=image_uri)
+    result = launch_api(
+        instance_type=instance_type,
+        image_uri=image_uri,
+        artifact_prefix=artifact_prefix,
+        manifest_path=manifest_path,
+        stage=stage,
+        lease_seconds=lease_seconds,
+        max_cell_attempts=max_cell_attempts,
+    )
 
     if result["api_url"]:
         console.print(f"\n  API URL: [bold cyan]{result['api_url']}[/]")
@@ -343,16 +362,43 @@ def launch_workers_cmd(
         bool,
         typer.Option(
             "--spot/--no-spot",
-            help="Use spot instances (default: spot)",
+            help="Use Spot instances instead of on-demand instances",
         ),
-    ] = True,
+    ] = False,
     image_uri: Annotated[
         str,
         typer.Option(
             "--image-uri",
-            help="ECR image URI",
+            help="Immutable ECR image URI in repository@sha256:digest form",
         ),
     ] = "",
+    artifact_prefix: Annotated[
+        str,
+        typer.Option(
+            "--artifact-prefix",
+            envvar="CITREES_ARTIFACT_PREFIX",
+            help="Must match the API server artifact prefix",
+        ),
+    ] = "",
+    manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--manifest",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Private rerun manifest; must match the running API",
+        ),
+    ] = None,
+    stage: Annotated[
+        Literal["rankings", "metrics"],
+        typer.Option(
+            "--stage",
+            envvar="CITREES_STAGE",
+            help="Must match the API server phase",
+        ),
+    ] = "rankings",
 ) -> None:
     """Launch EC2 worker instances.
 
@@ -362,12 +408,9 @@ def launch_workers_cmd(
     """
     from paper.benchmark.infra.ec2 import launch_workers
 
-    if not image_uri:
-        from paper.benchmark.infra.aws import ensure_ecr_repo
-
-        _name, repo_uri = ensure_ecr_repo()
-        image_uri = f"{repo_uri}:latest"
-        info(f"Using image: {image_uri}")
+    if not image_uri or not artifact_prefix or manifest_path is None:
+        error("--image-uri, --artifact-prefix, and --manifest are required")
+        raise typer.Exit(2)
 
     heading(f"Launching {n} Workers")
 
@@ -375,6 +418,9 @@ def launch_workers_cmd(
         n=n,
         instance_type=instance_type,
         image_uri=image_uri,
+        artifact_prefix=artifact_prefix,
+        manifest_path=manifest_path,
+        stage=stage,
         spot=spot,
     )
 
@@ -401,21 +447,14 @@ def launch_mechanism_workers_cmd(
         bool,
         typer.Option(
             "--spot/--no-spot",
-            help="Use spot instances (default: spot)",
+            help="Use Spot instances instead of on-demand instances",
         ),
-    ] = True,
+    ] = False,
     image_uri: Annotated[
         str,
         typer.Option(
             "--image-uri",
-            help="ECR image URI",
-        ),
-    ] = "",
-    output_uri: Annotated[
-        str,
-        typer.Option(
-            "--output-uri",
-            help="S3 output prefix; defaults to s3://{bucket}/experiments/cif_mechanism_ablation",
+            help="Immutable ECR image URI in repository@sha256:digest form",
         ),
     ] = "",
     num_shards: Annotated[
@@ -502,13 +541,6 @@ def launch_mechanism_workers_cmd(
             help="Downstream learner n_jobs inside each worker",
         ),
     ] = 1,
-    force: Annotated[
-        bool,
-        typer.Option(
-            "--force",
-            help="Overwrite existing mechanism-ablation artifacts",
-        ),
-    ] = False,
 ) -> None:
     """Launch sharded EC2 workers for CIF mechanism ablations.
 
@@ -522,11 +554,8 @@ def launch_mechanism_workers_cmd(
         raise typer.Exit(1)
 
     if not image_uri:
-        from paper.benchmark.infra.aws import ensure_ecr_repo
-
-        _name, repo_uri = ensure_ecr_repo()
-        image_uri = f"{repo_uri}:latest"
-        info(f"Using image: {image_uri}")
+        error("--image-uri is required")
+        raise typer.Exit(2)
 
     heading(f"Launching {n} Mechanism Workers")
 
@@ -538,7 +567,6 @@ def launch_mechanism_workers_cmd(
         num_shards=num_shards or None,
         shard_start=shard_start,
         subnet_ids=_split_csv(subnets),
-        output_uri=output_uri or None,
         tasks=_split_csv(tasks),
         source=source,
         datasets=_split_csv(datasets),
@@ -548,7 +576,6 @@ def launch_mechanism_workers_cmd(
         ranking_variants=_split_csv(ranking_variants),
         n_jobs=n_jobs,
         downstream_n_jobs=downstream_n_jobs,
-        force=force,
     )
 
 

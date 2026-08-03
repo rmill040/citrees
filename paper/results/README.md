@@ -1,6 +1,7 @@
 # Results
 
-This directory keeps only the result files needed by the JOSS paper.
+This directory keeps only the result files needed to verify reported manuscript
+claims.
 
 Most experiment outputs are untracked. Regenerate them locally when rebuilding
 the arXiv analysis.
@@ -8,7 +9,7 @@ the arXiv analysis.
 Subdirectories:
 
 - `figures/`: ignored local figure outputs
-- `tables/`: tracked CSVs cited by the JOSS paper
+- `tables/`: tracked CSVs used to verify manuscript claims
 - `cache/`: cached intermediates and theory/calibration outputs
 
 Do not add broad analysis tables here unless a submission cites them.

@@ -1,5 +1,6 @@
 """Tests for citrees._selector.py."""
 
+import os
 from collections.abc import Callable
 
 import numba
@@ -914,6 +915,84 @@ class TestEarlyStopping:
             random_state=42,
         )
         assert pval < 0.05
+
+    def test_adaptive_stopping_is_host_cpu_invariant(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A host's reported CPU count must not change a seeded p-value."""
+        rng = np.random.default_rng(1718)
+        x = rng.normal(size=80)
+        y = 0.15 * x + rng.normal(size=80)
+        kwargs = {
+            "func": pc,
+            "func_arg": True,
+            "x": x,
+            "y": y,
+            "n_resamples": 100,
+            "early_stopping": "adaptive",
+            "alpha": 0.05,
+            "random_state": 1718,
+        }
+
+        monkeypatch.setattr(os, "cpu_count", lambda: 1)
+        one_cpu = _selector._ptest(**kwargs)
+        monkeypatch.setattr(os, "cpu_count", lambda: 64)
+        many_cpus = _selector._ptest(**kwargs)
+
+        assert one_cpu == many_cpus
+
+    def test_multi_selector_stopping_is_host_cpu_invariant(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A host's reported CPU count must not change a seeded max-T p-value."""
+        rng = np.random.default_rng(1718)
+        x = rng.normal(size=80)
+        y = (x + rng.normal(size=80) > 0).astype(np.int64)
+        kwargs = {
+            "funcs": [mc],
+            "func_args": [2],
+            "take_abs": [True],
+            "x": x,
+            "y": y,
+            "n_resamples": 100,
+            "early_stopping": "adaptive",
+            "alpha": 0.05,
+            "random_state": 1718,
+        }
+
+        monkeypatch.setattr(os, "cpu_count", lambda: 1)
+        one_cpu = _ptest_multi(**kwargs)
+        monkeypatch.setattr(os, "cpu_count", lambda: 64)
+        many_cpus = _ptest_multi(**kwargs)
+
+        assert one_cpu == many_cpus
+
+    def test_minimum_budget_is_batch_boundary_invariant(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The minimum budget permits only the final adaptive decision check."""
+        rng = np.random.default_rng(1718)
+        x = rng.normal(size=80)
+        y = rng.normal(size=80)
+        kwargs = {
+            "func": pc,
+            "func_arg": True,
+            "x": x,
+            "y": y,
+            "n_resamples": 20,
+            "early_stopping": "adaptive",
+            "alpha": 0.05,
+            "random_state": 1718,
+        }
+        observed = []
+        for batch_size in (1, 8, 32, 64):
+            monkeypatch.setattr(_selector, "_ADAPTIVE_BATCH_SIZE", batch_size)
+            observed.append(_selector._ptest(**kwargs))
+
+        assert observed == [observed[0]] * len(observed)
 
 
 class TestSelectorDirect:

@@ -18,14 +18,16 @@ Outputs:
 
 Usage:
   uv run python paper/maintenance/audit_hash_alias_manifest.py \
-      --old-spec '040f681a^:paper/benchmark/pipeline/config.py' --local-dir ../data
+      --old-spec '040f681a^:paper/scripts/pipeline/config.py' --local-dir ../data
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
+import re
 import subprocess
 from collections import defaultdict
 from pathlib import Path
@@ -38,6 +40,11 @@ from paper.benchmark.pipeline.grid import ExperimentGrid
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = ROOT / "scratch" / "paper-maintenance"
+_RANDOM_STATE_IMPORT = re.compile(
+    r"^from (?P<module>paper\.(?:scripts|benchmark)\.config\.constants) "
+    r"import RANDOM_STATE$",
+    re.MULTILINE,
+)
 
 
 def _label_from_params(method: str, params: dict[str, Any]) -> str:
@@ -62,8 +69,44 @@ def _norm_key(params: dict[str, Any]) -> tuple[tuple[str, str], ...]:
 
 def _load_old_grid(spec: str) -> dict[str, dict[str, list[dict[str, Any]]]]:
     """Execute a historical config module from git and return its get_configs()."""
+    revision, separator, _path = spec.partition(":")
+    if not separator or not revision:
+        raise ValueError("old grid spec must use '<revision>:<path>' syntax")
+
     source = subprocess.check_output(["git", "show", spec], text=True)
-    namespace: dict[str, Any] = {"__name__": "__grid_snapshot__"}
+    import_match = _RANDOM_STATE_IMPORT.search(source)
+    if import_match is None:
+        raise RuntimeError("historical config does not import RANDOM_STATE from constants")
+
+    constants_path = import_match.group("module").replace(".", "/") + ".py"
+    constants_source = subprocess.check_output(
+        ["git", "show", f"{revision}:{constants_path}"],
+        text=True,
+    )
+    random_state: int | None = None
+    for node in ast.parse(constants_source).body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value_node = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+            value_node = node.value
+        else:
+            continue
+        if any(isinstance(target, ast.Name) and target.id == "RANDOM_STATE" for target in targets):
+            value = ast.literal_eval(value_node)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise RuntimeError("historical RANDOM_STATE must be an integer")
+            random_state = value
+            break
+    if random_state is None:
+        raise RuntimeError("historical constants do not define RANDOM_STATE")
+
+    source = _RANDOM_STATE_IMPORT.sub("", source, count=1)
+    namespace: dict[str, Any] = {
+        "__name__": "__grid_snapshot__",
+        "RANDOM_STATE": random_state,
+    }
     exec(source, namespace)
     return {task: namespace["get_configs"](task) for task in ("classification", "regression")}
 
@@ -245,7 +288,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Audit old-hash -> current-hash config aliases")
     parser.add_argument(
         "--old-spec",
-        default="040f681a^:paper/benchmark/pipeline/config.py",
+        default="040f681a^:paper/scripts/pipeline/config.py",
         help="git show spec for the historical config module",
     )
     parser.add_argument(

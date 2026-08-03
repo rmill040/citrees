@@ -1,5 +1,7 @@
 """Tests for citrees._sequential.py."""
 
+import os
+
 import numba
 import numpy as np
 import pytest
@@ -382,6 +384,47 @@ class TestSequentialAdaptiveBatched:
         # Both should reject
         assert pval_seq < 0.05
         assert pval_bat < 0.05
+
+    def test_default_batch_size_is_host_cpu_invariant(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The default batch boundary must not depend on host hardware."""
+        rng = np.random.default_rng(1718)
+        x = rng.normal(size=80)
+        y = 0.15 * x + rng.normal(size=80)
+        kwargs = {
+            "func": self._mean_diff,
+            "func_arg": None,
+            "x": x,
+            "y": y,
+            "n_resamples": 100,
+            "alpha": 0.05,
+            "confidence": 0.95,
+            "random_state": 1718,
+        }
+
+        monkeypatch.setattr(os, "cpu_count", lambda: 1)
+        one_cpu = _ptest_sequential_adaptive_batched(**kwargs)
+        monkeypatch.setattr(os, "cpu_count", lambda: 64)
+        many_cpus = _ptest_sequential_adaptive_batched(**kwargs)
+
+        assert one_cpu == many_cpus
+
+    def test_nonpositive_batch_size_is_rejected(self) -> None:
+        """Invalid explicit batch sizes must fail instead of looping forever."""
+        with pytest.raises(ValueError, match="batch_size must be positive"):
+            _ptest_sequential_adaptive_batched(
+                func=self._mean_diff,
+                func_arg=None,
+                x=np.array([0.0, 1.0]),
+                y=np.array([0.0, 1.0]),
+                n_resamples=20,
+                alpha=0.05,
+                confidence=0.95,
+                random_state=1718,
+                batch_size=0,
+            )
 
 
 @pytest.mark.skipif(numba.config.DISABLE_JIT, reason="JIT disabled: no compiled kernel to compare")

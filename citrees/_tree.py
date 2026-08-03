@@ -540,11 +540,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     best_name = name
             return best_score, best_name
         else:
-            score = self._selector(x=x, y=y, **self._selector_kwargs)
+            selector_name = self._selector_names[0]
+            score = self._selectors[selector_name](x=x, y=y, **self._selector_kwargs)
             # For pc (Pearson correlation), take absolute value
-            if self._selector_names[0] == "pc":
+            if selector_name == "pc":
                 score = abs(score)
-            return score, self._selector_names[0]
+            return score, selector_name
 
     def _select_best_feature(
         self,
@@ -636,7 +637,12 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                         confidence=self._selector_test_kwargs["confidence"],
                     )
                 else:
-                    pval_feature = self._selector_test(x=x, y=y, **self._selector_test_kwargs)
+                    selector_name = self._selector_names[0]
+                    pval_feature = self._selector_tests[selector_name](
+                        x=x,
+                        y=y,
+                        **self._selector_test_kwargs,
+                    )
 
                 # Update best feature with reservoir sampling for ties
                 if pval_feature < best_pval:
@@ -1187,8 +1193,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     value = max(lower_limit, upper_limit)
             setattr(self, f"_{param}", value)
 
-        # No need to adjust alphas yet if flags are enabled. The alpha adjustments happen during each call to
-        # self._selector_test and self._splitter_test
+        # Alpha adjustments are applied at each selector and splitter test.
         for param in [
             "alpha_selector",
             "alpha_splitter",
@@ -1251,11 +1256,6 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 **common_selector_test_kwargs,
                 **{"standardize": True},
             }
-
-        # For backwards compatibility, set _selector and _selector_test to first selector
-        # These are used by _scan_features
-        self._selector = self._selectors[selectors[0]]
-        self._selector_test = self._selector_tests[selectors[0]]
 
         self._splitter_test_kwargs = {
             "n_resamples": self._n_resamples_splitter,

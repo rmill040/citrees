@@ -8,13 +8,16 @@ This module provides utilities for tracking execution environment:
 
 from __future__ import annotations
 
+import importlib.metadata
 import os
+import platform
+import re
 import subprocess
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
-import numpy as np
+_AWS_ACCOUNT_ID_PATTERN = re.compile(r"^[0-9]{12}$")
 
 
 def get_repo_root() -> Path:
@@ -37,27 +40,63 @@ def utc_now_iso() -> str:
 
 def get_library_versions() -> dict[str, str]:
     """Return versions of key libraries for reproducibility tracking."""
-    versions: dict[str, str] = {}
-
-    with suppress(Exception):
-        import sklearn
-
-        versions["sklearn"] = sklearn.__version__
-
-    with suppress(Exception):
-        versions["numpy"] = np.__version__
-
-    with suppress(Exception):
-        import numba
-
-        versions["numba"] = numba.__version__
-
-    with suppress(Exception):
-        import citrees
-
-        versions["citrees"] = getattr(citrees, "__version__", "unknown")
+    versions = {"python": platform.python_version()}
+    distributions = {
+        "boruta": "Boruta",
+        "catboost": "catboost",
+        "citrees": "citrees",
+        "dcor": "dcor",
+        "lightgbm": "lightgbm",
+        "mrmr_selection": "mrmr-selection",
+        "numba": "numba",
+        "numpy": "numpy",
+        "pandas": "pandas",
+        "pyarrow": "pyarrow",
+        "rpy2": "rpy2",
+        "scipy": "scipy",
+        "sklearn": "scikit-learn",
+        "xgboost": "xgboost",
+    }
+    for key, distribution in distributions.items():
+        with suppress(importlib.metadata.PackageNotFoundError):
+            versions[key] = importlib.metadata.version(distribution)
 
     return versions
+
+
+def get_hardware_metadata() -> dict[str, str | int]:
+    """Return host metadata needed to interpret runtime measurements."""
+    return {
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "processor": platform.processor() or "unknown",
+        "logical_cpus": os.cpu_count() or 1,
+        "ec2_instance_type": os.environ.get("EC2_INSTANCE_TYPE", "unknown"),
+    }
+
+
+def get_container_image() -> str:
+    """Return the immutable image identity supplied to a distributed worker."""
+    return os.environ.get("CITREES_IMAGE_URI", "unknown").strip() or "unknown"
+
+
+def get_benchmark_scope() -> dict[str, str]:
+    """Return the required immutable scope for a benchmark artifact."""
+    from paper.benchmark.adapters.store import _normalize_artifact_prefix
+    from paper.benchmark.pipeline.manifest import validate_manifest_sha256
+
+    artifact_prefix = _normalize_artifact_prefix(os.environ.get("CITREES_ARTIFACT_PREFIX", ""))
+    manifest_sha256 = validate_manifest_sha256(os.environ.get("CITREES_MANIFEST_SHA256", ""))
+    campaign_sha256 = validate_manifest_sha256(os.environ.get("CITREES_CAMPAIGN_SHA256", ""))
+    aws_account_id = os.environ.get("AWS_ACCOUNT_ID", "").strip()
+    if not _AWS_ACCOUNT_ID_PATTERN.fullmatch(aws_account_id):
+        raise RuntimeError("AWS_ACCOUNT_ID must contain exactly 12 decimal digits")
+    return {
+        "artifact_prefix": artifact_prefix,
+        "campaign_sha256": campaign_sha256,
+        "manifest_sha256": manifest_sha256,
+        "aws_account_id": aws_account_id,
+    }
 
 
 def get_git_sha() -> str:

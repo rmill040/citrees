@@ -36,7 +36,7 @@ repos:
     hooks:
       - id: typos
         args: [--config, .typos.toml]
-        exclude: ^paper/results/
+        exclude: ^(paper/results/|paper/jss/jss\.(bst|cls)$)
 
   - repo: local
     hooks:

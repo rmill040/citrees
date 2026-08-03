@@ -6,7 +6,10 @@ This module provides pure utility functions:
 """
 
 from paper.benchmark.utils.env import (
+    get_benchmark_scope,
+    get_container_image,
     get_git_sha,
+    get_hardware_metadata,
     get_library_versions,
     get_repo_root,
     utc_now_iso,
@@ -20,6 +23,9 @@ from paper.benchmark.utils.metrics import (
 
 __all__ = [
     # Environment
+    "get_benchmark_scope",
+    "get_container_image",
+    "get_hardware_metadata",
     "get_repo_root",
     "utc_now_iso",
     "get_library_versions",

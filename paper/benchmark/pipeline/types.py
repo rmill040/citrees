@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -16,6 +17,7 @@ import pandas as pd
 TaskType = Literal["classification", "regression"]
 StatusType = Literal["done", "failed", "skipped", "no_rankings"]
 StageType = Literal["rankings", "metrics"]
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,23 @@ class MethodConfig:
 
 
 @dataclass(frozen=True)
+class DatasetIdentity:
+    """Immutable byte and shape identity for one benchmark dataset."""
+
+    sha256: str
+    n_samples: int
+    n_features: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.sha256, str) or not _SHA256_PATTERN.fullmatch(self.sha256):
+            raise ValueError("dataset SHA-256 must be 64 lowercase hexadecimal characters")
+        if type(self.n_samples) is not int or self.n_samples <= 0:
+            raise ValueError("dataset n_samples must be a positive integer")
+        if type(self.n_features) is not int or self.n_features <= 0:
+            raise ValueError("dataset n_features must be a positive integer")
+
+
+@dataclass(frozen=True)
 class ExperimentConfig:
     """Configuration for a single experiment run.
 
@@ -81,12 +100,15 @@ class ExperimentConfig:
         Random seed index.
     task : TaskType
         Task type: "classification" or "regression".
+    dataset_identity : DatasetIdentity
+        Immutable dataset bytes and shape used by this run.
     """
 
     method: MethodConfig
     dataset: str
     seed: int
     task: TaskType
+    dataset_identity: DatasetIdentity
 
     @property
     def key(self) -> tuple[str, str, int]:

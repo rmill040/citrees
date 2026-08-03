@@ -3,13 +3,23 @@ name: Paper R Baseline
 on:
   push:
     paths:
-      - "paper/benchmark/pipeline/r_methods.py"
-      - "tests/paper/test_stage1.py"
+      - "citrees/**"
+      - "paper/benchmark/**"
+      - "tests/**"
+      - "README.md"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/paper-r-baseline.yml"
   pull_request:
     paths:
-      - "paper/benchmark/pipeline/r_methods.py"
-      - "tests/paper/test_stage1.py"
+      - "citrees/**"
+      - "paper/benchmark/**"
+      - "tests/**"
+      - "README.md"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/paper-r-baseline.yml"
   workflow_dispatch:
 
@@ -20,40 +30,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install system R
+      - name: Build candidate benchmark image
         run: |
-          sudo apt-get update
-          sudo apt-get install -y r-base r-base-dev libcurl4-openssl-dev libssl-dev libtirpc-dev libxml2-dev
+          mkdir -p "$RUNNER_TEMP/citrees-build-context"
+          git archive --format=tar HEAD |
+            tar -xf - -C "$RUNNER_TEMP/citrees-build-context"
+          docker build \
+            --build-arg "SOURCE_GIT_SHA=$GITHUB_SHA" \
+            --file "$RUNNER_TEMP/citrees-build-context/paper/benchmark/infra/docker/Dockerfile" \
+            --tag citrees-r-baseline:candidate \
+            "$RUNNER_TEMP/citrees-build-context"
 
-      - name: Configure R user library
+      - name: Verify frozen runtime
         run: |
-          echo "R_LIBS_USER=$HOME/R/library" >> "$GITHUB_ENV"
-          mkdir -p "$HOME/R/library"
-
-      - name: Install partykit
-        run: |
-          Rscript -e 'options(Ncpus=2); install.packages("partykit", lib=Sys.getenv("R_LIBS_USER"), repos="https://cloud.r-project.org")'
-          Rscript -e 'stopifnot(requireNamespace("partykit", quietly=TRUE)); print(packageVersion("partykit"))'
-
-      - name: Install uv
-        run: python -m pip install uv
-
-      - name: Install Python dependencies
-        run: uv sync --group dev --group paper-test
-
-      - name: Check rpy2 bridge
-        run: |
-          uv run --with rpy2 python - <<'PY'
+          test \
+            "$(docker inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' citrees-r-baseline:candidate)" \
+            = "$GITHUB_SHA"
+          docker run --rm citrees-r-baseline:candidate \
+            R --vanilla --slave -e \
+            'stopifnot(as.character(getRversion()) == "4.5.2"); stopifnot(as.character(packageVersion("partykit")) == "1.2.24")'
+          docker run --rm -i citrees-r-baseline:candidate python - <<'PY'
+          import platform
+          from importlib.metadata import version
           from paper.benchmark.pipeline.r_methods import _get_partykit
+          from paper.benchmark.utils.env import get_library_versions
 
+          assert platform.python_version() == "3.12.7"
+          assert version("rpy2") == "3.6.7"
+          assert version("scikit-learn") == "1.8.0"
+          assert get_library_versions()["rpy2"] == "3.6.7"
           _get_partykit()
-          print("rpy2/partykit bridge ok")
           PY
 
-      - name: Run R baseline tests
-        run: uv run --with rpy2 pytest tests/paper/test_stage1.py -k RCtree -q -rs
+      - name: Run benchmark tests in candidate image
+        run: |
+          docker run --rm citrees-r-baseline:candidate \
+            pytest tests/paper/test_stage1.py tests/paper/test_provenance.py -q -rs

@@ -6,6 +6,7 @@ It computes feature rankings using different methods and saves them to S3.
 
 from __future__ import annotations
 
+import json
 import socket
 import time
 import traceback
@@ -21,9 +22,20 @@ from paper.benchmark.adapters.data import (
     load_dataset,
 )
 from paper.benchmark.adapters.store import Store
-from paper.benchmark.config.constants import N_SPLITS
+from paper.benchmark.config.constants import N_SPLITS, PIPELINE_ARTIFACT_VERSION
 from paper.benchmark.pipeline.types import ExperimentConfig, Result
-from paper.benchmark.utils.env import get_git_sha, get_library_versions, utc_now_iso
+from paper.benchmark.pipeline.validation import (
+    validate_artifact_provenance,
+    validate_ranking_artifact,
+)
+from paper.benchmark.utils.env import (
+    get_benchmark_scope,
+    get_container_image,
+    get_git_sha,
+    get_hardware_metadata,
+    get_library_versions,
+    utc_now_iso,
+)
 
 # =============================================================================
 # Selection methods
@@ -255,7 +267,14 @@ def wrapper_selector(
     if method == "mrmr":
         return mrmr_selector(X_train, y_train, task)
     if method == "rfe":
-        return rfe_selector(X_train, y_train, task, random_state, n_jobs=n_jobs)
+        return rfe_selector(
+            X_train,
+            y_train,
+            task,
+            random_state,
+            n_jobs=n_jobs,
+            params=params,
+        )
 
     raise ValueError(f"Unknown wrapper method: {method}")
 
@@ -314,20 +333,44 @@ def run_selection(
         elif method == "r_ctree":
             from paper.benchmark.pipeline.r_methods import r_ctree_ranking
 
-            ranking = r_ctree_ranking(X_train, y_train, task=task, **params)
+            ranking = r_ctree_ranking(
+                X_train,
+                y_train,
+                task=task,
+                random_state=rs,
+                **params,
+            )
         elif method == "r_cforest":
             from paper.benchmark.pipeline.r_methods import r_cforest_ranking
 
-            ranking = r_cforest_ranking(X_train, y_train, task=task, **params)
+            ranking = r_cforest_ranking(
+                X_train,
+                y_train,
+                task=task,
+                random_state=rs,
+                **params,
+            )
         else:
             raise ValueError(f"Unknown method: {method}")
 
-        if len(ranking) == 0:
-            raise ValueError(f"Empty ranking returned by {method} for fold {fold_idx}")
+        ranking = np.asarray(ranking)
+        n_features = X_train.shape[1]
+        if ranking.ndim != 1 or ranking.shape[0] != n_features:
+            raise ValueError(
+                f"{method} returned ranking shape {ranking.shape} for "
+                f"{n_features} features in fold {fold_idx}"
+            )
+        if not np.issubdtype(ranking.dtype, np.integer):
+            raise ValueError(f"{method} returned a non-integer ranking in fold {fold_idx}")
+        if not np.array_equal(np.sort(ranking), np.arange(n_features)):
+            raise ValueError(
+                f"{method} did not return a permutation of all feature indices in fold {fold_idx}"
+            )
 
         results.append(
             {
                 "fold_idx": fold_idx,
+                "fold_random_state": rs,
                 "feature_ranking": ranking.tolist(),
             }
         )
@@ -346,28 +389,49 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
     hostname = socket.gethostname()
     git_sha = get_git_sha()
 
-    # Check if output exists
-    if store.exists("rankings", cfg):
-        return Result(
-            config=cfg,
-            status="skipped",
-            hostname=hostname,
-        )
-
     try:
+        benchmark_scope = get_benchmark_scope()
+        container_image = get_container_image()
+        expected_provenance = {
+            **benchmark_scope,
+            "container_image": container_image,
+            "git_sha": git_sha,
+        }
+        if store.exists("rankings", cfg):
+            existing = store.load("rankings", cfg)
+            validate_ranking_artifact(existing, cfg)
+            validate_artifact_provenance(existing, expected_provenance)
+            return Result(
+                config=cfg,
+                status="skipped",
+                data=existing,
+                hostname=hostname,
+            )
+
         # Load dataset
-        X, y = load_dataset(dataset, task)
+        X, y = load_dataset(dataset, task, identity=cfg.dataset_identity)
         n_samples, n_features = int(X.shape[0]), int(X.shape[1])
         n_jobs = -1
 
         # Get dataset metadata
-        dataset_meta = get_dataset_metadata(dataset, task)
+        dataset_meta = get_dataset_metadata(
+            dataset,
+            task,
+            identity=cfg.dataset_identity,
+        )
 
         # Run selection
         created_at_utc = utc_now_iso()
         tic = time.perf_counter()
         fold_results = run_selection(X, y, method, task, seed, params=params, n_jobs=n_jobs)
         elapsed = time.perf_counter() - tic
+        library_versions = get_library_versions()
+        if method in {"r_ctree", "r_cforest"}:
+            from paper.benchmark.pipeline.r_methods import get_r_runtime_versions
+
+            library_versions.update(get_r_runtime_versions())
+        hardware = get_hardware_metadata()
+        selection_cpus = int(params["cores"]) if method == "r_cforest" else n_jobs
 
         # Enrich results with metadata
         for row in fold_results:
@@ -379,14 +443,23 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
                     "method_id": cfg.method.label,
                     "method": cfg.method.label,
                     "method_base": method,
-                    "artifact_version": 2,
+                    "method_params_json": json.dumps(
+                        params,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    "artifact_version": PIPELINE_ARTIFACT_VERSION,
+                    "dataset_sha256": cfg.dataset_identity.sha256,
                     "n_samples": n_samples,
                     "n_features": n_features,
-                    "selection_cpus": n_jobs,
+                    "selection_cpus": selection_cpus,
                     "elapsed_seconds": float(elapsed),
                     "created_at_utc": created_at_utc,
                     "git_sha": git_sha,
-                    "library_versions": get_library_versions(),
+                    "container_image": container_image,
+                    "library_versions": library_versions,
+                    "hardware": hardware,
+                    **benchmark_scope,
                     "dataset_source": dataset_meta.get("dataset_source"),
                     "dataset_type": dataset_meta.get("dataset_type"),
                     "dataset_family": dataset_meta.get("dataset_family"),
@@ -396,7 +469,21 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
 
         # Save to store
         df = pd.DataFrame(fold_results)
-        s3_path = store.save("rankings", cfg, df)
+        validate_ranking_artifact(df, cfg)
+        validate_artifact_provenance(df, expected_provenance)
+        try:
+            s3_path = store.save("rankings", cfg, df)
+        except FileExistsError:
+            existing = store.load("rankings", cfg)
+            validate_ranking_artifact(existing, cfg)
+            validate_artifact_provenance(existing, expected_provenance)
+            return Result(
+                config=cfg,
+                status="skipped",
+                elapsed_seconds=elapsed,
+                data=existing,
+                hostname=hostname,
+            )
 
         return Result(
             config=cfg,

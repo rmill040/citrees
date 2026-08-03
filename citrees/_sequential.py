@@ -9,12 +9,13 @@ Three methods:
    adaptive outputs are not theorem-level fixed-B p-values.
 """
 
-import os
 from math import ceil, exp, lgamma, log
 from typing import Any
 
 import numpy as np
 from numba import njit
+
+_ADAPTIVE_BATCH_SIZE = 32
 
 
 @njit(cache=True, fastmath=True)
@@ -226,7 +227,7 @@ def _ptest_sequential_adaptive_batched(
 
     batch_size : int or None
         Number of permutations between stopping criterion checks.
-        If None, defaults to os.cpu_count() or 1.
+        If None, defaults to the fixed production batch size of 32.
 
     """
     np.random.seed(random_state)
@@ -234,7 +235,9 @@ def _ptest_sequential_adaptive_batched(
     n_resamples = max(n_resamples, min_resamples)
 
     if batch_size is None:
-        batch_size = os.cpu_count() or 1
+        batch_size = _ADAPTIVE_BATCH_SIZE
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
 
     theta = np.abs(func(x, y, func_arg, random_state=random_state))
     y_ = y.copy()

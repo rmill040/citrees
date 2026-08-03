@@ -231,7 +231,9 @@ def boruta_selector(
         verbose=0,
     )
     boruta.fit(X_train, y_train)
-    return np.argsort(boruta.ranking_)
+    median_importance = np.nanmedian(boruta.importance_history_[1:], axis=0)
+    median_importance = np.nan_to_num(median_importance, nan=-np.inf)
+    return np.lexsort((-median_importance, boruta.ranking_))
 
 
 def pi_selector(
@@ -423,8 +425,16 @@ def rfe_selector(
     task: str,
     random_state: int,
     n_jobs: int = _DEFAULT_N_JOBS,
+    params: dict[str, Any] | None = None,
 ) -> np.ndarray:
     """Compute feature ranking using random-forest Recursive Feature Elimination."""
+    params = params or {}
+    step = params.get("step", 1)
+    if isinstance(step, bool) or not isinstance(step, (int, float)):
+        raise TypeError("RFE step must be an integer or float")
+    if step != 1:
+        raise ValueError("The benchmark requires RFE step=1 for a total elimination ranking")
+
     if task == "classification":
         base_model = RandomForestClassifier(
             n_estimators=100, n_jobs=n_jobs, random_state=random_state
@@ -434,6 +444,6 @@ def rfe_selector(
             n_estimators=100, n_jobs=n_jobs, random_state=random_state
         )
 
-    rfe = RFE(base_model, n_features_to_select=1, step=0.1)
+    rfe = RFE(base_model, n_features_to_select=1, step=step)
     rfe.fit(X_train, y_train)
     return np.argsort(rfe.ranking_)

@@ -71,10 +71,10 @@ Notes:
 
 ### Feature Optimization
 
-| Parameter          | Type | Default | Description                           |
-| ------------------ | ---- | ------- | ------------------------------------- |
+| Parameter          | Type | Default | Description                                                        |
+| ------------------ | ---- | ------- | ------------------------------------------------------------------ |
 | `feature_muting`   | bool | True    | Remove Stage A non-rejecting tested features from descendant pools |
-| `feature_scanning` | bool | True    | Test promising features first         |
+| `feature_scanning` | bool | True    | Test promising features first                                      |
 
 Notes:
 

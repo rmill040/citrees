@@ -15,6 +15,21 @@ import os
 RANDOM_STATE = 1718
 N_SEEDS = 5
 N_SPLITS = 5
+PIPELINE_ARTIFACT_VERSION = 4
+
+# =============================================================================
+# Control Plane
+# =============================================================================
+
+API_POLL_INTERVAL_SECONDS = 5.0
+API_READINESS_TIMEOUT_SECONDS = 900.0
+WORKER_MAX_API_FAILURES = int(API_READINESS_TIMEOUT_SECONDS / API_POLL_INTERVAL_SECONDS)
+WORKER_CONTROL_TIMEOUT_SECONDS = 30
+WORKER_HEARTBEAT_TIMEOUT_SECONDS = 10
+ASSIGNMENT_OFFER_SECONDS = 2 * WORKER_CONTROL_TIMEOUT_SECONDS
+# Two timed-out heartbeats complete after 4L/9 + 2T. Requiring another full
+# timeout as scheduling margin gives L > 27T/5.
+MIN_ASSIGNMENT_LEASE_SECONDS = (27 * WORKER_HEARTBEAT_TIMEOUT_SECONDS) // 5 + 1
 
 # =============================================================================
 # AWS Configuration

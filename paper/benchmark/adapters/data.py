@@ -9,7 +9,10 @@ This module handles all dataset-related operations:
 
 from __future__ import annotations
 
+import hashlib
+import io
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any, Literal
@@ -22,10 +25,12 @@ from loguru import logger
 
 from paper.benchmark.adapters.store import get_s3_bucket as _get_s3_bucket
 from paper.benchmark.adapters.store import get_s3_client as _get_s3_client
+from paper.benchmark.pipeline.types import DatasetIdentity
 from paper.benchmark.utils.env import get_repo_root
 
 TaskType = Literal["classification", "regression"]
 DataSource = Literal["real", "synthetic"]
+_DATASET_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def get_data_dir(task: TaskType, source: DataSource = "real") -> Path:
@@ -51,9 +56,20 @@ def get_data_cache_dir() -> Path:
     return cache_dir
 
 
-def get_data_s3_prefix(task: TaskType, source: DataSource) -> str:
-    """Return the S3 prefix for datasets."""
-    return f"data/{task}/{source}"
+def get_dataset_s3_key(
+    name: str,
+    task: TaskType,
+    source: DataSource,
+    identity: DatasetIdentity,
+) -> str:
+    """Return the name- and content-bound S3 key for one dataset."""
+    if not _DATASET_NAME_PATTERN.fullmatch(name):
+        raise ValueError("dataset name must use a safe canonical name")
+    if task not in {"classification", "regression"}:
+        raise ValueError(f"invalid dataset task {task!r}")
+    if source not in {"real", "synthetic"}:
+        raise ValueError(f"invalid dataset source {source!r}")
+    return f"data/{task}/{source}/{name}/sha256/{identity.sha256}.parquet"
 
 
 def get_dataset_prefix(task: TaskType) -> str:
@@ -66,33 +82,6 @@ def _infer_source(name: str) -> DataSource:
     return "synthetic" if "synthetic" in name else "real"
 
 
-def _list_datasets_from_s3(task: TaskType, source: DataSource) -> list[str]:
-    """List dataset names from S3 when local data directory is unavailable.
-
-    Used on the cluster head node where paper/data/ is not baked into the
-    Docker image.
-    """
-    prefix = get_dataset_prefix(task)
-    s3_prefix = f"{get_data_s3_prefix(task, source)}/"
-
-    try:
-        bucket = _get_s3_bucket()
-        client = _get_s3_client()
-        paginator = client.get_paginator("list_objects_v2")
-        names: list[str] = []
-        for page in paginator.paginate(Bucket=bucket, Prefix=s3_prefix):
-            for obj in page.get("Contents", []):
-                key = obj["Key"]
-                filename = key.rsplit("/", 1)[-1]
-                if filename.startswith(prefix) and filename.endswith(".parquet"):
-                    name = filename.replace(prefix, "").replace(".parquet", "")
-                    names.append(name)
-        return names
-    except Exception as e:
-        logger.warning(f"Failed to list datasets from S3 for {task}/{source}: {e}")
-        return []
-
-
 def get_datasets(
     task: TaskType,
     *,
@@ -101,9 +90,8 @@ def get_datasets(
 ) -> list[str]:
     """List dataset names for the given task type and source.
 
-    Scans the local filesystem first.  When no local data directories exist
-    (e.g. on the cluster head node where ``paper/data/`` is excluded from the
-    Docker image), falls back to listing datasets from S3.
+    Scans the local filesystem. Distributed runs obtain their exact dataset
+    inventory and content hashes from the immutable rerun manifest.
 
     Parameters
     ----------
@@ -123,23 +111,97 @@ def get_datasets(
     datasets: list[str] = []
 
     sources: list[DataSource] = ["real", "synthetic"] if source == "all" else [source]  # type: ignore[list-item]
-    any_local_dir_exists = False
     for src in sources:
         search_dir = data_dir / task / src if data_dir is not None else get_data_dir(task, src)
         if not search_dir.exists():
             continue
-        any_local_dir_exists = True
         for f in search_dir.glob(f"{prefix}*.parquet"):
             name = f.stem.replace(prefix, "")
             datasets.append(name)
 
-    # Fall back to S3 discovery when no local data directories exist
-    if not any_local_dir_exists and data_dir is None:
-        logger.info(f"No local data directory found for {task}, discovering datasets from S3")
-        for src in sources:
-            datasets.extend(_list_datasets_from_s3(task, src))
-
     return sorted(datasets)
+
+
+def get_dataset_file_identity(path: Path) -> DatasetIdentity:
+    """Hash and inspect one Parquet dataset file."""
+    return get_dataset_payload_identity(path.read_bytes())
+
+
+def get_dataset_payload_identity(payload: bytes) -> DatasetIdentity:
+    """Return the byte hash and logical dimensions of Parquet dataset bytes."""
+    try:
+        parquet = pq.ParquetFile(io.BytesIO(payload))
+    except Exception as exc:
+        raise ValueError("dataset bytes are not readable Parquet") from exc
+
+    columns = parquet.schema_arrow.names
+    if columns.count("y") != 1:
+        raise ValueError("dataset Parquet must contain exactly one target column named 'y'")
+    return DatasetIdentity(
+        sha256=hashlib.sha256(payload).hexdigest(),
+        n_samples=int(parquet.metadata.num_rows),
+        n_features=len(columns) - 1,
+    )
+
+
+def validate_dataset_payload(
+    payload: bytes,
+    expected: DatasetIdentity,
+    *,
+    location: str,
+) -> None:
+    """Require dataset bytes to match the manifest-bound identity."""
+    observed = get_dataset_payload_identity(payload)
+    if observed != expected:
+        raise ValueError(
+            f"dataset identity mismatch at {location}: expected {expected}, observed {observed}"
+        )
+
+
+def validate_dataset_path(path: Path, expected: DatasetIdentity) -> None:
+    """Require a dataset file to match the manifest-bound identity."""
+    validate_dataset_payload(path.read_bytes(), expected, location=str(path))
+
+
+def get_dataset_s3_payload(
+    name: str,
+    task: TaskType,
+    source: DataSource,
+    identity: DatasetIdentity,
+    *,
+    bucket: str | None = None,
+    client: Any | None = None,
+    region_name: str | None = None,
+) -> bytes:
+    """Download and validate one content-addressed dataset object."""
+    resolved_bucket = _get_s3_bucket() if bucket is None else bucket
+    resolved_client = _get_s3_client(region_name=region_name) if client is None else client
+    s3_key = get_dataset_s3_key(name, task, source, identity)
+    s3_path = f"s3://{resolved_bucket}/{s3_key}"
+    try:
+        response = resolved_client.get_object(Bucket=resolved_bucket, Key=s3_key)
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            raise FileNotFoundError(f"Dataset not found in S3: {s3_path}") from exc
+        raise RuntimeError(f"Failed to download dataset from S3: {s3_path}") from exc
+    payload = response["Body"].read()
+    validate_dataset_payload(payload, identity, location=s3_path)
+    return payload
+
+
+def get_dataset_identity(
+    name: str,
+    task: TaskType,
+    *,
+    source: DataSource | None = None,
+    data_dir: Path | None = None,
+) -> DatasetIdentity:
+    """Return the byte hash and dimensions of a local named dataset."""
+    path = get_dataset_path(name, task, source=source, data_dir=data_dir)
+    if not path.exists():
+        raise FileNotFoundError(f"Dataset not found locally: {path}")
+    return get_dataset_file_identity(path)
 
 
 def get_dataset_path(
@@ -182,26 +244,23 @@ def _resolve_dataset_path(
     name: str,
     task: TaskType,
     source: DataSource,
+    identity: DatasetIdentity,
     data_dir: Path | None = None,
 ) -> Path:
-    """Resolve dataset path, falling back to S3 cache if needed.
-
-    Tries local path first, then downloads from S3 to cache.
-    """
+    """Resolve a local named file or exact content-addressed cache path."""
     path = get_dataset_path(name, task, source=source, data_dir=data_dir)
     if path.exists():
         return path
 
-    # Fall back to S3 cache only when data_dir is not specified
     if data_dir is None:
-        return ensure_dataset_cached(name, task, source)
+        return ensure_dataset_cached(name, task, source, identity)
 
     raise FileNotFoundError(f"Dataset not found: {path}")
 
 
-def _load_parquet_to_arrays(path: Path, task: TaskType) -> tuple[np.ndarray, np.ndarray]:
-    """Load a parquet file into (X, y) numpy arrays."""
-    df = pd.read_parquet(path)
+def _load_parquet_to_arrays(payload: bytes, task: TaskType) -> tuple[np.ndarray, np.ndarray]:
+    """Load verified Parquet bytes into ``(X, y)`` arrays."""
+    df = pd.read_parquet(io.BytesIO(payload))
     y = df.pop("y").values
     y = y.astype(np.int64) if task == "classification" else y.astype(np.float64)
     X = df.values.astype(np.float64)
@@ -212,22 +271,19 @@ def ensure_dataset_cached(
     name: str,
     task: TaskType,
     source: DataSource,
+    identity: DatasetIdentity,
     *,
     region_name: str | None = None,
 ) -> Path:
-    """Download dataset from S3 to local cache if not already present.
+    """Download and verify an exact content-addressed dataset.
 
     Uses file-based locking to prevent redundant downloads when multiple
     workers request the same dataset concurrently.
 
     Parameters
     ----------
-    name : str
-        Dataset name (without prefix).
-    task : TaskType
-        Either "classification" or "regression".
-    source : DataSource
-        Either "real" or "synthetic".
+    identity : DatasetIdentity
+        Exact manifest-bound byte hash and dimensions.
     region_name : str, optional
         AWS region name for S3 client.
 
@@ -244,55 +300,43 @@ def ensure_dataset_cached(
     import fcntl
 
     cache_dir = get_data_cache_dir()
-    prefix = get_dataset_prefix(task)
-    filename = f"{prefix}{name}.parquet"
-
-    # Create subdirectory structure matching S3: data/{task}/{source}/
-    local_dir = cache_dir / task / source
+    local_dir = cache_dir / "sha256"
     local_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = local_dir / filename
+    cache_path = local_dir / f"{identity.sha256}.parquet"
 
-    # Fast path: already cached
     if cache_path.exists():
+        validate_dataset_path(cache_path, identity)
         return cache_path
 
-    # Slow path: acquire lock, check again, download if needed
     lock_path = cache_path.with_suffix(".lock")
     with open(lock_path, "w") as lock_file:
         fcntl.flock(lock_file, fcntl.LOCK_EX)
 
-        # Check again after acquiring lock (another worker may have downloaded)
         if cache_path.exists():
+            validate_dataset_path(cache_path, identity)
             return cache_path
 
-        # Download from S3
+        s3_key = get_dataset_s3_key(name, task, source, identity)
         bucket = _get_s3_bucket()
-        s3_key = f"{get_data_s3_prefix(task, source)}/{filename}"
         s3_path = f"s3://{bucket}/{s3_key}"
 
         logger.info(f"Downloading dataset from S3: {s3_path} -> {cache_path}")
-        try:
-            client = _get_s3_client(region_name=region_name)
-            response = client.get_object(Bucket=bucket, Key=s3_key)
-            content = response["Body"].read()
+        content = get_dataset_s3_payload(
+            name,
+            task,
+            source,
+            identity,
+            bucket=bucket,
+            region_name=region_name,
+        )
 
-            # Write atomically to avoid partial files
-            tmp_path = cache_path.with_suffix(
-                f".tmp.{os.getpid()}.{threading.current_thread().ident}"
-            )
-            tmp_path.write_bytes(content)
-            tmp_path.rename(cache_path)
+        tmp_path = cache_path.with_suffix(f".tmp.{os.getpid()}.{threading.current_thread().ident}")
+        tmp_path.write_bytes(content)
+        tmp_path.rename(cache_path)
 
-            logger.info(f"Successfully cached dataset: {cache_path} ({len(content)} bytes)")
-        except ClientError as e:
-            code = e.response.get("Error", {}).get("Code", "")
-            if code in {"404", "NoSuchKey", "NotFound"}:
-                raise FileNotFoundError(
-                    f"Dataset not found in S3: {s3_path}. "
-                    f"Upload datasets with: aws s3 sync paper/data/ s3://{bucket}/data/"
-                ) from e
-            raise RuntimeError(f"Failed to download dataset from S3: {s3_path}") from e
+        logger.info(f"Successfully cached dataset: {cache_path} ({len(content)} bytes)")
 
+    validate_dataset_path(cache_path, identity)
     return cache_path
 
 
@@ -300,10 +344,11 @@ def load_dataset(
     name: str,
     task: TaskType,
     *,
+    identity: DatasetIdentity,
     source: DataSource | None = None,
     data_dir: Path | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Load dataset into (X, y) numpy arrays.
+    """Load a manifest-bound dataset into ``(X, y)`` arrays.
 
     Resolution order:
     1. Local path (for local development or custom data_dir)
@@ -326,8 +371,16 @@ def load_dataset(
         (X, y) arrays where X is float64 and y is int64 (classification) or float64 (regression).
     """
     resolved_source = source if source is not None else _infer_source(name)
-    path = _resolve_dataset_path(name, task, resolved_source, data_dir)
-    return _load_parquet_to_arrays(path, task)
+    path = _resolve_dataset_path(name, task, resolved_source, identity, data_dir)
+    payload = path.read_bytes()
+    validate_dataset_payload(payload, identity, location=str(path))
+    X, y = _load_parquet_to_arrays(payload, task)
+    if X.shape != (identity.n_samples, identity.n_features):
+        raise ValueError(
+            f"loaded dataset shape {X.shape} does not match manifest "
+            f"({identity.n_samples}, {identity.n_features})"
+        )
+    return X, y
 
 
 def get_dataset_shape(
@@ -337,26 +390,16 @@ def get_dataset_shape(
     source: DataSource | None = None,
     data_dir: Path | None = None,
 ) -> tuple[int, int]:
-    """Get (n_samples, n_features) from parquet metadata without loading full dataset."""
-    resolved_source = source if source is not None else _infer_source(name)
-    path = _resolve_dataset_path(name, task, resolved_source, data_dir)
-
-    try:
-        pf = pq.ParquetFile(path)
-        n_samples = pf.metadata.num_rows
-        feature_columns = [c for c in pf.schema_arrow.names if c != "y"]
-        return int(n_samples), int(len(feature_columns))
-    except Exception:
-        pass
-
-    X, _y = load_dataset(name, task, source=resolved_source, data_dir=data_dir)
-    return int(X.shape[0]), int(X.shape[1])
+    """Return dimensions from the verified local dataset identity."""
+    identity = get_dataset_identity(name, task, source=source, data_dir=data_dir)
+    return identity.n_samples, identity.n_features
 
 
 def get_dataset_metadata(
     name: str,
     task: TaskType,
     *,
+    identity: DatasetIdentity | None = None,
     source: DataSource | None = None,
     data_dir: Path | None = None,
 ) -> dict[str, Any]:
@@ -370,7 +413,15 @@ def get_dataset_metadata(
     """
     inferred_source = _infer_source(name)
     resolved_source = source if source is not None else inferred_source
-    path = _resolve_dataset_path(name, task, resolved_source, data_dir)
+    expected_identity = identity or get_dataset_identity(
+        name,
+        task,
+        source=resolved_source,
+        data_dir=data_dir,
+    )
+    path = _resolve_dataset_path(name, task, resolved_source, expected_identity, data_dir)
+    payload = path.read_bytes()
+    validate_dataset_payload(payload, expected_identity, location=str(path))
 
     metadata: dict[str, Any] = {
         "dataset_source": inferred_source,
@@ -380,7 +431,7 @@ def get_dataset_metadata(
     }
 
     try:
-        pf = pq.ParquetFile(path)
+        pf = pq.ParquetFile(io.BytesIO(payload))
         schema_meta = pf.schema_arrow.metadata or {}
 
         # Check if synthetic

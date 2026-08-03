@@ -7,6 +7,7 @@ compute performance metrics.
 
 from __future__ import annotations
 
+import json
 import socket
 import time
 import traceback
@@ -42,10 +43,24 @@ from paper.benchmark.config.constants import (
     HIGH_P_EVALUATION_EXTRA_K_VALUES,
     HIGH_P_EVALUATION_P_THRESHOLD,
     N_SPLITS,
+    PIPELINE_ARTIFACT_VERSION,
     REG_DOWNSTREAM_MODELS,
 )
 from paper.benchmark.pipeline.types import ExperimentConfig, Result
-from paper.benchmark.utils.env import get_git_sha, get_library_versions, utc_now_iso
+from paper.benchmark.pipeline.validation import (
+    validate_artifact_provenance,
+    validate_metrics_artifact,
+    validate_metrics_ranking_payload,
+    validate_ranking_artifact,
+)
+from paper.benchmark.utils.env import (
+    get_benchmark_scope,
+    get_container_image,
+    get_git_sha,
+    get_hardware_metadata,
+    get_library_versions,
+    utc_now_iso,
+)
 
 # =============================================================================
 # Resource allocation
@@ -315,13 +330,20 @@ def run_evaluation(
             res.update(
                 {
                     "dataset": cfg.dataset,
+                    "dataset_sha256": cfg.dataset_identity.sha256,
                     "method_id": cfg.method.label,
                     "method": cfg.method.label,
                     "method_base": cfg.method.name,
                     "task": task,
                     "seed": seed,
                     "fold_idx": fold_idx,
-                    "artifact_version": 2,
+                    "fold_random_state": rs,
+                    "method_params_json": json.dumps(
+                        cfg.method.params_dict,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    "artifact_version": PIPELINE_ARTIFACT_VERSION,
                     "n_samples": n_samples,
                     "n_features": n_features,
                     "evaluation_cpus": n_jobs,
@@ -347,31 +369,65 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
         )
 
     try:
+        benchmark_scope = get_benchmark_scope()
+        container_image = get_container_image()
+        expected_provenance = {
+            **benchmark_scope,
+            "container_image": container_image,
+            "git_sha": git_sha,
+        }
         # Load rankings first so the active k schedule can be checked without
         # assuming the current metrics artifact is complete.
-        rankings_df = store.load("rankings", cfg)
-        ranking_n_features = infer_n_features_from_rankings(rankings_df)
-        requested_k_values = get_requested_evaluation_k_values(ranking_n_features)
+        loaded_rankings = store.load_with_payload_sha256("rankings", cfg)
+        rankings_df = loaded_rankings.frame
+        ranking_payload_sha256 = loaded_rankings.payload_sha256
+        validate_ranking_artifact(rankings_df, cfg)
+        validate_artifact_provenance(rankings_df, expected_provenance)
 
         if store.exists("metrics", cfg):
             existing_metrics = store.load("metrics", cfg)
-            if metrics_cover_requested_k_values(existing_metrics, requested_k_values):
-                return Result(
-                    config=cfg,
-                    status="skipped",
-                    hostname=hostname,
-                )
+            validate_metrics_artifact(existing_metrics, cfg)
+            validate_metrics_ranking_payload(
+                existing_metrics,
+                ranking_payload_sha256,
+            )
+            validate_artifact_provenance(
+                existing_metrics,
+                expected_provenance,
+                include_ranking_reference=True,
+            )
+            return Result(
+                config=cfg,
+                status="skipped",
+                hostname=hostname,
+            )
 
-        X, y = load_dataset(cfg.dataset, task)
+        X, y = load_dataset(
+            cfg.dataset,
+            task,
+            identity=cfg.dataset_identity,
+        )
+        validate_ranking_artifact(rankings_df, cfg)
         n_jobs = -1
         # Get dataset metadata
-        dataset_meta = get_dataset_metadata(cfg.dataset, task)
+        dataset_meta = get_dataset_metadata(
+            cfg.dataset,
+            task,
+            identity=cfg.dataset_identity,
+        )
 
         # Run evaluation
         created_at_utc = utc_now_iso()
         tic = time.perf_counter()
         results = run_evaluation(X, y, rankings_df, cfg, n_jobs=n_jobs)
         elapsed = time.perf_counter() - tic
+        library_versions = get_library_versions()
+        if cfg.method.name in {"r_ctree", "r_cforest"}:
+            from paper.benchmark.pipeline.r_methods import get_r_runtime_versions
+
+            library_versions.update(get_r_runtime_versions())
+        hardware = get_hardware_metadata()
+        ranking_row = rankings_df.iloc[0]
 
         # Enrich results with metadata
         for row in results:
@@ -380,17 +436,55 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
                     "elapsed_seconds": float(elapsed),
                     "created_at_utc": created_at_utc,
                     "git_sha": git_sha,
-                    "library_versions": get_library_versions(),
+                    "container_image": container_image,
+                    "library_versions": library_versions,
+                    "hardware": hardware,
+                    "ranking_artifact_version": int(ranking_row["artifact_version"]),
+                    "ranking_git_sha": str(ranking_row["git_sha"]),
+                    "ranking_container_image": str(ranking_row["container_image"]),
+                    "ranking_artifact_prefix": str(ranking_row["artifact_prefix"]),
+                    "ranking_dataset_sha256": str(ranking_row["dataset_sha256"]),
+                    "ranking_manifest_sha256": str(ranking_row["manifest_sha256"]),
+                    "ranking_payload_sha256": ranking_payload_sha256,
+                    "ranking_aws_account_id": str(ranking_row["aws_account_id"]),
                     "dataset_source": dataset_meta.get("dataset_source"),
                     "dataset_type": dataset_meta.get("dataset_type"),
                     "dataset_family": dataset_meta.get("dataset_family"),
                     "n_informative": dataset_meta.get("n_informative"),
+                    **benchmark_scope,
                 }
             )
 
         # Save to store
         df = pd.DataFrame(results)
-        s3_path = store.save("metrics", cfg, df)
+        validate_metrics_artifact(df, cfg)
+        validate_metrics_ranking_payload(df, ranking_payload_sha256)
+        validate_artifact_provenance(
+            df,
+            expected_provenance,
+            include_ranking_reference=True,
+        )
+        try:
+            s3_path = store.save("metrics", cfg, df)
+        except FileExistsError:
+            existing_metrics = store.load("metrics", cfg)
+            validate_metrics_artifact(existing_metrics, cfg)
+            validate_metrics_ranking_payload(
+                existing_metrics,
+                ranking_payload_sha256,
+            )
+            validate_artifact_provenance(
+                existing_metrics,
+                expected_provenance,
+                include_ranking_reference=True,
+            )
+            return Result(
+                config=cfg,
+                status="skipped",
+                elapsed_seconds=elapsed,
+                data=existing_metrics,
+                hostname=hostname,
+            )
 
         return Result(
             config=cfg,

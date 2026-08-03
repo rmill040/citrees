@@ -1,0 +1,322 @@
+\documentclass[article]{jss}
+
+\usepackage{amsmath,amssymb,booktabs,lmodern,thumbpdf,xspace}
+
+\newcommand{\citrees}{\pkg{citrees}\xspace}
+\newcommand{\sklearn}{\pkg{scikit-learn}\xspace}
+
+\author{Robert Milletich\\Amazon Web Services
+  \And Justin Downes\\Amazon Web Services
+  \And Newel Hirst\\Amazon Web Services}
+\Plainauthor{Robert Milletich, Justin Downes, Newel Hirst}
+
+\title{\citrees: Conditional Inference Trees and Forests for \proglang{Python}}
+\Plaintitle{citrees: Conditional Inference Trees and Forests for Python}
+\Shorttitle{\citrees: Conditional Inference Trees and Forests}
+
+\Abstract{
+  Conditional inference trees separate variable selection from split-point
+  optimization, reducing the advantage that variables with many possible
+  cutpoints receive in greedy tree construction. \citrees is an open-source
+  \proglang{Python} implementation of conditional-inference-style trees and
+  forests for classification and regression. The package provides estimators
+  compatible with common \sklearn workflows while exposing the statistical
+  and computational choices used at each node. These choices include linear
+  and nonlinear association statistics, Monte Carlo permutation tests,
+  multiplicity adjustment, sequential stopping, bounded threshold searches,
+  feature muting, bootstrap sampling, and separate samples for structure and
+  leaf estimation. This article describes the statistical procedure and its
+  inferential scope, the software architecture and estimator interface, and
+  the relationship to \pkg{partykit} and CART implementations. Accompanying
+  replication analyses evaluate null calibration, split-variable selection,
+  matched behavior across implementations, and computational scaling.
+}
+
+\Keywords{conditional inference trees, random forests, permutation tests,
+  feature selection, machine learning, \proglang{Python}}
+\Plainkeywords{conditional inference trees, random forests, permutation tests,
+  feature selection, machine learning, Python}
+
+\Address{
+  Robert Milletich, Justin Downes, Newel Hirst\\
+  Amazon Web Services\\
+  United States\\
+  E-mail: \email{rmilleti@amazon.com}, \email{jusdow@amazon.com},
+  \email{nhirst@amazon.com}
+}
+
+\begin{document}
+
+\section{Introduction} \label{sec:introduction}
+
+Classification and regression trees divide a predictor space into regions that
+can be represented by a sequence of simple decisions. In the CART procedure,
+the split variable and threshold are selected together by optimizing an
+impurity criterion \citep{Breiman+Friedman+Olshen+Stone:1984}. Variables with
+more admissible cutpoints consequently receive more opportunities to produce a
+favorable split under noise. This mechanism is a documented source of
+split-variable selection bias in trees and forest importance measures
+\citep{Strobl+Boulesteix+Zeileis+Hothorn:2007}.
+
+Conditional inference trees separate the two decisions. A node first tests
+predictor-response association and selects a variable, then searches for a
+threshold only within that variable
+\citep{Hothorn+Hornik+Zeileis:2006}. The framework is implemented in the
+\proglang{R} package \pkg{partykit}, which also supplies infrastructure for
+recursive partitioning models \citep{Hothorn+Zeileis:2015}. In
+\proglang{Python}, \sklearn provides mature CART trees and forests and a common
+estimator interface for model selection and pipelines
+\citep{Pedregosa+Varoquaux+Gramfort:2011}. It does not provide conditional
+inference trees or forests.
+
+\citrees provides classifiers and regressors for both supported task types.
+The estimators follow the \sklearn protocol. It is not a port of
+\pkg{partykit}.
+The package implements the separation between nodewise feature screening and
+threshold search, then adds selector choices, threshold approximations,
+sequential computation, forest sampling controls, and model inspection
+methods designed for \proglang{Python} workflows. The main design goal is to
+make each statistical and computational choice explicit in the fitted
+estimator.
+
+\section{Statistical procedure} \label{sec:procedure}
+
+Let $(X_t, y_t)$ denote the observations reaching node $t$, and let
+$F_t$ be the nonconstant predictors considered at that node after any feature
+sampling or muting. Tree construction has two stages. Stage A tests each
+predictor in $F_t$ for association with the response. Stage B searches
+thresholds for the predictor selected by Stage A. Either stage can stop the
+node without a split.
+
+\subsection{Nodewise feature screening} \label{sec:screening}
+
+For predictor $j$, let $T_j$ be its configured association statistic and let
+$T_{j,1},\ldots,T_{j,B}$ be the same statistic after $B$ random permutations
+of the response. \citrees uses the corrected Monte Carlo value
+%
+\begin{equation}
+  p_j =
+  \frac{1 + \sum_{b=1}^{B}
+    \mathbb{1}\!\left\{T_{j,b} \geq T_j\right\}}
+       {B + 1},
+  \label{eq:permutation-p}
+\end{equation}
+%
+so a finite permutation sample never returns zero
+\citep{Phipson+Smyth:2010}. With multiplicity adjustment enabled, predictor
+$j$ passes the nodewise screen when $p_j < \alpha_{\mathrm{A}}/|F_t|$.
+Without adjustment, the threshold is $\alpha_{\mathrm{A}}$. The passing
+predictor with the smallest value is selected, with random tie resolution.
+
+Classification selectors include multiple correlation, mutual information,
+and the randomized dependence coefficient. Regression selectors include
+Pearson correlation, distance correlation, and the randomized dependence
+coefficient \citep{Szekely+Rizzo+Bakirov:2007,Lopez-Paz+Hennig+Schoelkopf:2013}.
+Compatible bounded statistics can also be combined in a max-$T$ permutation
+test \citep{Westfall+Young:1993}. This option evaluates the largest configured
+selector score within each response permutation, preserving the joint
+permutation reference distribution rather than combining separately computed
+$p$~values.
+
+The exhaustive procedure evaluates every predictor with the requested
+permutation budget. Sequential modes check a stopping criterion after fixed
+batches of permutations and can avoid the remaining work once a decision is
+sufficiently clear. These modes are fitting controls. Their stopping-time
+values should not be interpreted as exhaustive fixed-$B$ $p$~values.
+
+\subsection{Threshold selection} \label{sec:thresholds}
+
+After Stage A selects predictor $j^\star$, Stage B constructs candidate
+thresholds from the ordered unique values of $X_{t,j^\star}$. The exact method
+uses all admissible midpoints. Random, percentile, and histogram methods
+construct bounded subsets for larger nodes. Candidates that violate the
+minimum leaf size are removed before evaluation.
+
+Each remaining candidate is scored by the weighted impurity of its left and
+right children. Classification supports Gini and entropy criteria, while
+regression supports squared and absolute error. The candidate score can be
+tested with response permutations using a left-tail counterpart of
+Equation~\ref{eq:permutation-p}. If no candidate passes the configured Stage B
+threshold, the node is terminal. The accepted threshold is a tree-construction
+decision after feature selection, not a post-selection inferential result.
+
+\subsection{Forests and feature summaries} \label{sec:forests}
+
+A conditional inference forest fits trees to bootstrap samples and can sample
+a subset of predictors at each node. Classification forests optionally use
+stratified, under-, or oversampling when constructing bootstrap samples.
+Predictions average class probabilities or regression estimates across trees.
+Out-of-bag scores are available when bootstrapping is enabled.
+
+Tree feature importances sum the local impurity decreases attributed to each
+accepted split and normalize the result when its total is positive. Forest
+importances aggregate the normalized tree vectors. Stage A therefore controls
+which predictors may enter threshold optimization, while the reported
+importance measures the impurity reduction of accepted splits. The package
+also exposes terminal-node indices and sparse decision paths for direct model
+inspection.
+
+\subsection{Scope of statistical interpretation} \label{sec:scope}
+
+For a fixed node, a fixed predictor set, and an exhaustive fixed permutation
+budget, Equation~\ref{eq:permutation-p} has the usual exchangeability-based
+Monte Carlo interpretation. A fitted tree adds response-dependent node
+creation, repeated tests, optional feature ordering and muting, and threshold
+selection. Forests add bootstrap samples, predictor sampling, and aggregation.
+Consequently, nodewise fixed-budget calibration does not by itself establish
+global inferential guarantees for an adaptive fitted tree, forest, or
+split-derived feature ranking. The software reports fitted model outputs and
+does not present them as confirmatory variable-selection inference.
+
+\section{Software design and interface} \label{sec:software}
+
+\citrees is implemented in \proglang{Python} and distributes four public
+estimators: tree and forest variants for classification and regression. The
+estimators implement \code{fit()} and \code{predict()}, classifiers implement
+\code{predict_proba()}, and fitted models expose \code{apply()},
+\code{decision_path()}, and \code{feature_importances_}. They can therefore
+participate in \sklearn cross-validation, pipeline, and parameter-search
+utilities without a separate adapter.
+
+The following example fits a classification forest and evaluates it through a
+standard train-test workflow.
+%
+\begin{Code}
+from citrees import ConditionalInferenceForestClassifier
+from sklearn.datasets import load_breast_cancer
+from sklearn.metrics import balanced_accuracy_score
+from sklearn.model_selection import train_test_split
+
+X, y = load_breast_cancer(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, stratify=y, random_state=1718
+)
+
+model = ConditionalInferenceForestClassifier(
+    n_estimators=100,
+    selector="mc",
+    random_state=1718,
+    n_jobs=-1,
+)
+model.fit(X_train, y_train)
+score = balanced_accuracy_score(y_test, model.predict(X_test))
+\end{Code}
+
+\subsection{Statistical components} \label{sec:components}
+
+Association statistics, permutation tests, split criteria, and threshold
+generators are separate registered components. The tree implementation resolves
+the requested components during fitting and uses the same implementations for
+single trees and forests. This organization keeps classification and regression
+behavior parallel while allowing a new statistic or threshold method to be
+added without changing the estimator interface.
+
+Parameter validation occurs before fitting. It rejects incompatible selector
+combinations, invalid probability thresholds, impossible sample fractions,
+and forest settings that cannot produce the requested output. Random seeds are
+propagated through permutation tests, sample splitting, bootstrap sampling,
+and tree construction. Fitted estimators retain the parameters expected by
+\sklearn cloning and model-selection utilities.
+
+\subsection{Computation} \label{sec:computation}
+
+Permutation testing dominates runtime when many predictors, thresholds, or
+resamples are requested. Performance-critical statistics use
+\pkg{Numba}-compiled kernels \citep{Lam+Pitrou+Seibert:2015}. Forest trees can
+be fit concurrently, and sequential stopping can reduce permutation work.
+Threshold subsampling bounds the number of Stage B candidates, while feature
+muting can reduce the predictor set passed to descendants. Each control changes
+the realized computation and may change the fitted model, so the package
+exposes them as estimator parameters rather than hidden implementation
+heuristics.
+
+\section{Relationship to existing software} \label{sec:comparison}
+
+\pkg{partykit} is the reference software ecosystem for conditional inference
+trees and forests in \proglang{R}. It implements the conditional inference
+framework through linear statistics and provides a broad object system for
+recursive partitioning \citep{Hothorn+Hornik+Zeileis:2006,Hothorn+Zeileis:2015}.
+\citrees follows the same high-level separation of variable selection and
+split-point optimization, but its selector statistics, stopping rules, forest
+controls, and fitted object representation are package-specific. Analyses that
+require exact \code{ctree} or \code{cforest} behavior should use
+\pkg{partykit}; analyses embedded in \proglang{Python} pipelines can use
+\citrees without crossing language boundaries.
+
+\sklearn trees and forests provide substantially faster CART-style fitting for
+many prediction tasks and remain essential baselines. Their split search
+jointly optimizes a predictor and threshold by impurity reduction. \citrees
+incurs the additional cost of nodewise association tests in exchange for
+separating predictor screening from threshold optimization. It also exposes
+linear and nonlinear selector choices and fixed or sequential permutation
+budgets. These implementations answer related but different modeling needs,
+and predictive comparisons should retain both.
+
+\begin{table}[t!]
+\centering
+\begin{tabular}{llll}
+\hline
+Capability & \citrees & \pkg{partykit} & \sklearn \\ \hline
+Primary language & \proglang{Python} & \proglang{R} & \proglang{Python} \\
+Conditional feature screen & Yes & Yes & No \\
+Classification and regression & Yes & Yes & Yes \\
+Single trees and forests & Yes & Yes & Yes \\
+Nonlinear selector choices & Yes & Framework-dependent & No \\
+\sklearn estimator protocol & Yes & No & Yes \\ \hline
+\end{tabular}
+\caption{\label{tab:software-comparison} High-level comparison of the software
+interfaces relevant to \citrees. ``Conditional feature screen'' denotes a
+predictor-response test before threshold optimization. The packages expose
+different statistical procedures and are not expected to produce identical
+trees.}
+\end{table}
+
+\section{Evaluation and replication design} \label{sec:evaluation}
+
+The software evaluation separates statistical behavior from predictive
+benchmarking. Null simulations measure selector rejection and root-split rates
+for fixed and sequential permutation modes. A second experiment permutes the
+column order of independent predictors with binary, discrete, and continuous
+support, then measures how often each support type is selected at the root.
+The comparison includes \citrees, \pkg{partykit}, and CART under matched
+depth and stopping controls.
+
+Behavioral comparisons use shared training folds and random seeds to compare
+root variables, complete split-variable rankings, predictions, and
+reproducibility. Agreement is interpreted relative to documented differences
+in statistics and defaults, rather than as an expectation of identical fitted
+trees. Computational experiments vary sample size, predictor count, selector,
+permutation budget, and forest size on fixed hardware, reporting elapsed time
+and peak memory.
+
+Replication materials provide a quick profile intended for a regular computer
+and a full profile for the reported simulation and scaling estimates. Both
+profiles record random seeds, software versions, source hashes, platform
+metadata, and generated artifact names. The quick profile preserves the
+analysis structure with fewer repetitions; the full profile is the source for
+manuscript results.
+
+\section{Discussion} \label{sec:discussion}
+
+\citrees makes conditional-inference-style trees and forests available as
+native \proglang{Python} estimators. Its main practical advantage is explicit
+control over the nodewise association test, multiplicity threshold,
+permutation computation, and threshold search while retaining compatibility
+with common model-selection workflows. Its main cost is computation:
+permutation tests can be much slower than impurity-only split search,
+especially in high dimensions or large forests.
+
+The package is appropriate when the separation between feature screening and
+threshold optimization is part of the modeling goal. It is not a substitute
+for \pkg{partykit} when exact \proglang{R} reference behavior is required, and
+it does not turn adaptive tree construction into post-selection inference.
+Applications should evaluate predictive performance, feature stability, and
+runtime against both conditional inference and CART-style alternatives.
+
+\section*{Acknowledgments}
+
+The authors acknowledge Amazon Web Services for supporting this work.
+
+\bibliography{refs}
+
+\end{document}

@@ -430,8 +430,7 @@ uv sync --group paper
 | ------------------- | --------------------------------------- |
 | `citrees-exp run`   | Poll API server for live queue progress |
 | `citrees-exp smoke` | Quick local smoke test (no API needed)  |
-| `citrees-exp check` | Check S3 experiment progress            |
-| `citrees-exp watch` | Interactive Rich dashboard with key nav |
+| `citrees-exp check` | Reconcile manifest artifacts in S3      |
 
 ### `config` Subgroup
 
@@ -453,8 +452,7 @@ uv sync --group paper
 
 | Command                               | Description                        |
 | ------------------------------------- | ---------------------------------- |
-| `citrees-exp infra setup`             | Full setup (IAM + Docker)          |
-| `citrees-exp infra iam`               | Create IAM role + instance profile |
+| `citrees-exp infra setup`             | Create S3 and build Docker image   |
 | `citrees-exp infra s3`                | Create S3 bucket                   |
 | `citrees-exp infra upload-data`       | Upload datasets to S3              |
 | `citrees-exp infra ecr create`        | Create ECR repository              |
@@ -493,6 +491,10 @@ Stage 2: Downstream Evaluation (pipeline/stage2.py)
 ## Distributed Architecture (API Server + EC2 Workers)
 
 The experiment infrastructure uses a pull-based API server model:
+
+Each distributed launch derives a deterministic IAM instance profile from the
+campaign digest and exact output prefix. Runtime instances can write only below
+that one prefix.
 
 ```
 ┌─────────────────────┐      ┌───────────────────────────────┐
@@ -571,8 +573,7 @@ Methods are defined in `paper/scripts/pipeline/methods.py`:
 ```bash
 # 1. Setup infrastructure (one-time)
 citrees-exp config init
-citrees-exp infra setup           # IAM + Docker
-citrees-exp infra s3              # Create S3 bucket
+citrees-exp infra setup           # S3 + immutable Docker image
 citrees-exp infra upload-data     # Upload datasets
 
 # 2. Launch API server + workers on EC2
@@ -580,9 +581,8 @@ citrees-exp infra launch-api
 citrees-exp infra launch-workers --count 5   # auto-discovers API private IP
 
 # 3. Monitor progress
-citrees-exp run                       # poll queue status
-citrees-exp watch                     # interactive dashboard
-citrees-exp check --by-method         # S3 progress check
+citrees-exp run                                      # poll queue status
+citrees-exp check --manifest scratch/manifest.csv    # exact S3 reconciliation
 
 # 4. Tear down
 citrees-exp infra terminate-workers
@@ -699,9 +699,9 @@ standardized evaluation.
 
 Read the matching skill BEFORE starting work in its lane:
 
-| When the task involves... | Read first |
-|---|---|
-| Writing or editing the paper, proposal, abstract, figures, tables, captions, or reviewer responses | ~/Documents/skills/scientific-writing/SKILL.md |
-| Reviewing a paper, proposal, or draft; vetting a research idea | ~/Documents/skills/formal-review/SKILL.md |
-| Creating or updating markdown docs, trackers, READMEs, or code comments | ~/Documents/skills/research-docs-hygiene/SKILL.md |
-| Running experiments, pipelines, infrastructure, or code changes | ~/Documents/skills/verified-execution/SKILL.md |
+| When the task involves...                                                                          | Read first                                        |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Writing or editing the paper, proposal, abstract, figures, tables, captions, or reviewer responses | ~/Documents/skills/scientific-writing/SKILL.md    |
+| Reviewing a paper, proposal, or draft; vetting a research idea                                     | ~/Documents/skills/formal-review/SKILL.md         |
+| Creating or updating markdown docs, trackers, READMEs, or code comments                            | ~/Documents/skills/research-docs-hygiene/SKILL.md |
+| Running experiments, pipelines, infrastructure, or code changes                                    | ~/Documents/skills/verified-execution/SKILL.md    |

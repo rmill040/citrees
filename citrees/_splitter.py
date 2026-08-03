@@ -2,7 +2,8 @@ from math import ceil
 from typing import Any
 
 import numpy as np
-from numba import njit, prange
+from numba import njit
+from numba import prange as _numba_prange
 
 from citrees._registry import (
     ClassifierSplitters,
@@ -12,6 +13,8 @@ from citrees._registry import (
 )
 from citrees._sequential import _beta_cdf
 from citrees._types import EarlyStopping, EarlyStoppingOption
+
+prange: Any = _numba_prange
 
 # Threshold for using parallel permutation tests
 _PARALLEL_THRESHOLD = 200

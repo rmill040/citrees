@@ -25,15 +25,22 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from itertools import combinations, permutations
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 import pandas as pd
-from scipy.stats import chisquare, kendalltau, norm, rankdata
+from scipy.stats import norm, rankdata
+from sklearn.ensemble import (
+    RandomForestClassifier,
+    RandomForestRegressor,
+)
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 from citrees import (
+    ConditionalInferenceForestClassifier,
+    ConditionalInferenceForestRegressor,
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
 )
@@ -52,6 +59,11 @@ from citrees._selector import (
     rdc_classifier,
     rdc_regressor,
 )
+from paper.benchmark.pipeline.r_methods import (
+    RCTreeRootDiagnostics,
+    r_cforest_importance,
+    r_ctree_root_diagnostics,
+)
 
 Task = Literal["classification", "regression"]
 Stopping = Literal["exhaustive", "adaptive", "simple"]
@@ -59,6 +71,10 @@ FeatureDistribution = Literal["normal", "binary", "ordinal4"]
 Gate = Literal["selector", "splitter", "combined"]
 Profile = Literal["smoke", "quick", "full"]
 PValueComparison = Literal["<", "<="]
+PValueRule = Literal["plus_one", "r_monte_carlo"]
+ConditionalTreeMethod = Literal["citrees", "partykit"]
+TreeMethod = Literal["citrees", "partykit", "cart"]
+ForestMethod = Literal["citrees_cif", "partykit_cforest", "sklearn_rf"]
 ReplicateStatistic = Callable[[np.ndarray, np.ndarray], float]
 SupportIndices = Sequence[int] | np.ndarray
 
@@ -66,9 +82,19 @@ BASE_SEED = 1718
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results" / "calibration"
 CARDINALITY_N_SAMPLES = 200
 CARDINALITY_SUPPORTS = (2, 4, 10, 20, 200)
-CARDINALITY_LABELS = ("binary", "4 levels", "10 levels", "20 levels", "continuous")
+CARDINALITY_LABELS = ("2 levels", "4 levels", "10 levels", "20 levels", "200 levels")
+CARDINALITY_DGP = "exact_balanced_ordered_discrete"
+CARDINALITY_MAX_SUPPORT_FEATURE_TYPE = "balanced_200_level_ordered_discrete"
 CARDINALITY_B = 999
 CARDINALITY_ALPHA = 0.05
+CARDINALITY_FOREST_TREES = 100
+CARDINALITY_FOREST_IMPORTANCE_PERMUTATIONS = 10
+CARDINALITY_EXACT_LABEL_PERMUTATIONS = 120
+CARDINALITY_TREND_RESAMPLES = 9_999
+CARDINALITY_TREND_RANDOMIZATION = "monte_carlo_independent_within_replicate"
+CARDINALITY_TREND_P_VALUE_RULE = "plus_one"
+CARDINALITY_HOLM_FAMILY = "cardinality_tree_and_forest_positive_trends"
+CARDINALITY_HOLM_FAMILY_SIZE = 14
 
 
 @dataclass(frozen=True)
@@ -78,9 +104,9 @@ class ProfileSettings:
     selector_replicates: int
     root_replicates: int
     cardinality_replicates: int
+    cardinality_forest_replicates: int
     selector_resamples: int
     root_resamples: int
-    cardinality_resamples: int = CARDINALITY_B
 
 
 @dataclass(frozen=True)
@@ -109,6 +135,27 @@ class ControlledSplitResult:
     def split(self) -> bool:
         """Return whether the adjusted candidate test selected a feature."""
         return self.no_split_weight == 0.0
+
+
+@dataclass(frozen=True)
+class PermutationSupport:
+    """Exact rational support representation for one permutation p-value."""
+
+    index: int
+    numerator: int
+    denominator: int
+
+
+@dataclass(frozen=True)
+class CardinalityCandidateDiagnostics:
+    """Candidate-level diagnostics and native root outcome for one method fit."""
+
+    statistics: np.ndarray
+    p_values: np.ndarray
+    native_p_values: np.ndarray
+    realized_permutations: np.ndarray
+    native_selected_position: int | None
+    native_p_value_rule: PValueRule
 
 
 @dataclass(frozen=True)
@@ -226,7 +273,8 @@ def _settings(profile: Profile) -> ProfileSettings:
         return ProfileSettings(
             selector_replicates=4,
             root_replicates=3,
-            cardinality_replicates=8,
+            cardinality_replicates=1,
+            cardinality_forest_replicates=1,
             selector_resamples=39,
             root_resamples=39,
         )
@@ -235,6 +283,7 @@ def _settings(profile: Profile) -> ProfileSettings:
             selector_replicates=200,
             root_replicates=100,
             cardinality_replicates=500,
+            cardinality_forest_replicates=10,
             selector_resamples=199,
             root_resamples=199,
         )
@@ -242,6 +291,7 @@ def _settings(profile: Profile) -> ProfileSettings:
         selector_replicates=5_000,
         root_replicates=5_000,
         cardinality_replicates=10_000,
+        cardinality_forest_replicates=2_500,
         selector_resamples=999,
         root_resamples=999,
     )
@@ -670,7 +720,12 @@ def _cardinality_matrix(
     rng: np.random.Generator,
     n_samples: int,
 ) -> tuple[np.ndarray, tuple[CardinalityFeatureDesign, ...]]:
-    """Construct shuffled columns with exact balanced empirical supports."""
+    """Construct shuffled exact-support ordered discrete columns.
+
+    All five predictors are discrete. In particular, the maximum-support
+    predictor contains each integer level from 0 through 199 exactly once; it
+    is not sampled from a continuous distribution.
+    """
     if n_samples != CARDINALITY_N_SAMPLES:
         raise ValueError(
             f"The cardinality design requires n_samples={CARDINALITY_N_SAMPLES}, "
@@ -712,6 +767,36 @@ def _cardinality_matrix(
     return X, tuple(features)
 
 
+def cardinality_design() -> pd.DataFrame:
+    """Return the frozen cardinality data-generating process as a table."""
+    total_pairs = CARDINALITY_N_SAMPLES * (CARDINALITY_N_SAMPLES - 1) // 2
+    rows: list[dict[str, object]] = []
+    for feature_id, (label, support) in enumerate(
+        zip(CARDINALITY_LABELS, CARDINALITY_SUPPORTS, strict=True)
+    ):
+        multiplicity = CARDINALITY_N_SAMPLES // support
+        tied_pairs = support * multiplicity * (multiplicity - 1) // 2
+        rows.append(
+            {
+                "experiment": "cardinality_design",
+                "dgp": CARDINALITY_DGP,
+                "n_samples": CARDINALITY_N_SAMPLES,
+                "n_features": len(CARDINALITY_SUPPORTS),
+                "feature_id": feature_id,
+                "cardinality": label,
+                "feature_type": "ordered_discrete",
+                "nominal_support": support,
+                "realized_support": support,
+                "maximum_multiplicity": multiplicity,
+                "tied_pair_fraction": tied_pairs / total_pairs,
+                "balance": "exact",
+                "column_order": "randomized_per_replicate",
+                "maximum_support_feature_type": CARDINALITY_MAX_SUPPORT_FEATURE_TYPE,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _validate_support_indices(
     support_indices: SupportIndices,
     n_resamples: int,
@@ -730,6 +815,46 @@ def _validate_support_indices(
     return indices
 
 
+def _permutation_support(
+    p_value: float,
+    n_resamples: int,
+    rule: PValueRule,
+) -> PermutationSupport:
+    """Return the exact support code for a method-specific permutation p-value."""
+    if not np.isfinite(p_value):
+        raise ValueError("p_value must be finite")
+    if n_resamples <= 0:
+        raise ValueError("n_resamples must be positive")
+    if rule == "plus_one":
+        denominator = n_resamples + 1
+        numerator = int(round(p_value * denominator))
+        minimum_numerator = 1
+        support_index = numerator - 1
+    elif rule == "r_monte_carlo":
+        denominator = n_resamples
+        numerator = int(round(p_value * denominator))
+        minimum_numerator = 0
+        support_index = numerator
+    else:
+        raise ValueError(f"Unsupported p-value rule: {rule}")
+    if (
+        numerator < minimum_numerator
+        or numerator > denominator
+        or not np.isclose(
+            p_value,
+            numerator / denominator,
+            rtol=0.0,
+            atol=1e-10,
+        )
+    ):
+        raise ValueError(f"p_value={p_value} is not on the B={n_resamples} support for rule={rule}")
+    return PermutationSupport(
+        index=support_index,
+        numerator=numerator,
+        denominator=denominator,
+    )
+
+
 def _permutation_p_value(support_index: int, n_resamples: int) -> float:
     """Map a zero-based exceedance index to its corrected permutation p-value."""
     indices = _validate_support_indices([support_index], n_resamples)
@@ -738,27 +863,27 @@ def _permutation_p_value(support_index: int, n_resamples: int) -> float:
 
 def _permutation_support_index(p_value: float, n_resamples: int) -> int:
     """Recover the exact zero-based support index for a permutation p-value."""
-    if not np.isfinite(p_value):
-        raise ValueError("p_value must be finite")
-    scaled_index = p_value * (n_resamples + 1) - 1
-    support_index = int(round(scaled_index))
-    if not np.isclose(scaled_index, support_index, rtol=0.0, atol=1e-10):
-        raise ValueError(f"p_value={p_value} is not on the B={n_resamples} permutation support")
-    _validate_support_indices([support_index], n_resamples)
-    return support_index
+    return _permutation_support(p_value, n_resamples, "plus_one").index
 
 
 def _attainable_cutoff(
     alpha: float,
     n_resamples: int,
     comparison: PValueComparison,
+    *,
+    rule: PValueRule = "plus_one",
 ) -> float | None:
     """Return the largest attainable p-value satisfying the rejection rule."""
     if not 0.0 < alpha <= 1.0:
         raise ValueError("alpha must be in (0, 1]")
     if n_resamples <= 0:
         raise ValueError("n_resamples must be positive")
-    support = np.arange(1, n_resamples + 2, dtype=np.float64) / (n_resamples + 1)
+    if rule == "plus_one":
+        support = np.arange(1, n_resamples + 2, dtype=np.float64) / (n_resamples + 1)
+    elif rule == "r_monte_carlo":
+        support = np.arange(0, n_resamples + 1, dtype=np.float64) / n_resamples
+    else:
+        raise ValueError(f"Unsupported p-value rule: {rule}")
     if comparison == "<":
         eligible = support[support < alpha]
     elif comparison == "<=":
@@ -785,6 +910,7 @@ def controlled_split_weights(
     support_indices: SupportIndices,
     *,
     n_resamples: int = CARDINALITY_B,
+    rule: PValueRule = "plus_one",
     alpha: float = CARDINALITY_ALPHA,
     comparison: PValueComparison = "<",
 ) -> ControlledSplitResult:
@@ -792,8 +918,16 @@ def controlled_split_weights(
     indices = _validate_support_indices(support_indices, n_resamples)
     if not 0.0 < alpha <= 1.0:
         raise ValueError("alpha must be in (0, 1]")
-    forced_weights = fractional_minimum_p_weights(indices, n_resamples=n_resamples)
-    minimum_p_value = _permutation_p_value(int(indices.min()), n_resamples)
+    forced_weights = fractional_minimum_p_weights(
+        indices,
+        n_resamples=n_resamples,
+    )
+    if rule == "plus_one":
+        minimum_p_value = _permutation_p_value(int(indices.min()), n_resamples)
+    elif rule == "r_monte_carlo":
+        minimum_p_value = float(indices.min() / n_resamples)
+    else:
+        raise ValueError(f"Unsupported p-value rule: {rule}")
     adjusted_alpha = alpha / indices.size
     if comparison == "<":
         split = minimum_p_value < adjusted_alpha
@@ -812,71 +946,148 @@ def controlled_split_weights(
 
 def build_cardinality_tree_raw(
     features: Sequence[CardinalityFeatureDesign],
-    support_indices: SupportIndices,
+    diagnostics: CardinalityCandidateDiagnostics,
     *,
     task: Task,
-    method: str,
+    method: ConditionalTreeMethod,
+    selector: str,
     replicate: int,
     data_seed: int,
     model_seed: int,
-    native_selected_position: int | None,
     alpha: float = CARDINALITY_ALPHA,
     comparison: PValueComparison = "<",
 ) -> pd.DataFrame:
     """Build one candidate-level tree record from aligned permutation results."""
-    n_resamples = CARDINALITY_B
     ordered_features = tuple(sorted(features, key=lambda feature: feature.feature_id))
     expected_feature_ids = set(range(len(CARDINALITY_SUPPORTS)))
     if {feature.feature_id for feature in ordered_features} != expected_feature_ids:
         raise ValueError("features must contain each cardinality feature exactly once")
     if {feature.position for feature in ordered_features} != expected_feature_ids:
         raise ValueError("features must occupy each matrix position exactly once")
-
-    indices = _validate_support_indices(support_indices, n_resamples)
-    if indices.size != len(ordered_features):
-        raise ValueError("support_indices must align with the matrix columns")
+    expected_native_rule: PValueRule = "plus_one" if method == "citrees" else "r_monte_carlo"
+    if diagnostics.native_p_value_rule != expected_native_rule:
+        raise ValueError(
+            f"{method} cardinality diagnostics require native rule={expected_native_rule}"
+        )
+    statistics = np.asarray(diagnostics.statistics, dtype=np.float64)
+    p_values = np.asarray(diagnostics.p_values, dtype=np.float64)
+    native_p_values = np.asarray(diagnostics.native_p_values, dtype=np.float64)
+    realized_permutations = np.asarray(diagnostics.realized_permutations)
+    for name, values in (
+        ("statistics", statistics),
+        ("p_values", p_values),
+        ("native_p_values", native_p_values),
+        ("realized_permutations", realized_permutations),
+    ):
+        if values.ndim != 1 or values.size != len(ordered_features):
+            raise ValueError(f"{name} must align with the matrix columns")
+    if (
+        not np.isfinite(statistics).all()
+        or not np.isfinite(p_values).all()
+        or not np.isfinite(native_p_values).all()
+    ):
+        raise ValueError("Candidate statistics and p-values must be finite")
+    expected_resamples = (
+        CARDINALITY_B * len(ordered_features) if method == "citrees" else CARDINALITY_B
+    )
+    if (
+        not np.issubdtype(realized_permutations.dtype, np.integer)
+        or not np.asarray(realized_permutations == expected_resamples).all()
+    ):
+        raise ValueError(f"{method} candidate tests must realize {expected_resamples} permutations")
+    supports = [
+        _permutation_support(float(p_value), expected_resamples, "plus_one") for p_value in p_values
+    ]
+    native_supports = [
+        _permutation_support(
+            float(p_value),
+            expected_resamples,
+            diagnostics.native_p_value_rule,
+        )
+        for p_value in native_p_values
+    ]
+    indices = np.asarray([support.index for support in supports], dtype=np.int64)
+    native_selected_position = diagnostics.native_selected_position
     if (
         native_selected_position is not None
         and native_selected_position not in expected_feature_ids
     ):
         raise ValueError("native_selected_position is outside the matrix")
 
-    forced_weights = fractional_minimum_p_weights(indices, n_resamples=n_resamples)
+    forced_weights = fractional_minimum_p_weights(
+        indices,
+        n_resamples=expected_resamples,
+    )
     controlled = controlled_split_weights(
         indices,
-        n_resamples=n_resamples,
+        n_resamples=expected_resamples,
+        rule="plus_one",
         alpha=alpha,
         comparison=comparison,
     )
     adjusted_weights = np.asarray(controlled.feature_weights)
-    denominator = n_resamples + 1
+    minimum_index = int(indices.min())
+    all_p_equal = bool(np.all(indices == minimum_index))
+    native_selected_feature = (
+        -1
+        if native_selected_position is None
+        else next(
+            feature.feature_id
+            for feature in ordered_features
+            if feature.position == native_selected_position
+        )
+    )
     rows: list[dict[str, object]] = []
     for feature in ordered_features:
-        support_index = int(indices[feature.position])
+        support = supports[feature.position]
         rows.append(
             {
+                "experiment": "cardinality_tree",
+                "dgp": CARDINALITY_DGP,
+                "maximum_support_feature_type": CARDINALITY_MAX_SUPPORT_FEATURE_TYPE,
                 "task": task,
                 "method": method,
+                "selection_test": "fixed_monte_carlo",
+                "selector": selector,
                 "replicate": replicate,
                 "feature_id": feature.feature_id,
                 "cardinality": feature.label,
                 "cardinality_rank": feature.feature_id,
+                "feature_type": "ordered_discrete",
                 "nominal_support": feature.nominal_support,
                 "realized_support": feature.realized_support,
                 "maximum_multiplicity": feature.maximum_multiplicity,
                 "tied_pair_fraction": feature.tied_pair_fraction,
                 "feature_position": feature.position,
+                "n_samples": CARDINALITY_N_SAMPLES,
+                "n_features": len(CARDINALITY_SUPPORTS),
                 "data_seed": data_seed,
                 "model_seed": model_seed,
-                "B": n_resamples,
+                "B": CARDINALITY_B,
+                "realized_permutations": int(realized_permutations[feature.position]),
                 "selection_alpha": alpha,
                 "adjusted_alpha": alpha / len(ordered_features),
                 "p_value_comparison": comparison,
-                "p_value_support_index": support_index,
-                "p_value_numerator": support_index + 1,
-                "p_value_denominator": denominator,
-                "p_value": _permutation_p_value(support_index, n_resamples),
+                "p_value_rule": "plus_one",
+                "native_p_value_rule": diagnostics.native_p_value_rule,
+                "attainable_adjusted_cutoff": _attainable_cutoff(
+                    alpha / len(ordered_features),
+                    expected_resamples,
+                    comparison,
+                    rule="plus_one",
+                ),
+                "candidate_statistic": float(statistics[feature.position]),
+                "p_value_support_index": support.index,
+                "p_value_numerator": support.numerator,
+                "p_value_denominator": support.denominator,
+                "p_value": float(p_values[feature.position]),
+                "native_p_value_support_index": native_supports[feature.position].index,
+                "native_p_value_numerator": native_supports[feature.position].numerator,
+                "native_p_value_denominator": native_supports[feature.position].denominator,
+                "native_p_value": float(native_p_values[feature.position]),
                 "minimum_p_tie_size": controlled.minimum_p_tie_size,
+                "all_p_equal": all_p_equal,
+                "is_minimum_p": support.index == minimum_index,
                 "forced_winner_weight": float(forced_weights[feature.position]),
                 "adjusted_winner_weight": float(adjusted_weights[feature.position]),
                 "adjusted_split": controlled.split,
@@ -885,6 +1096,107 @@ def build_cardinality_tree_raw(
                 "native_winner": feature.position == native_selected_position,
                 "native_split": native_selected_position is not None,
                 "native_no_split": native_selected_position is None,
+                "native_selected_position": (
+                    -1 if native_selected_position is None else native_selected_position
+                ),
+                "native_selected_feature": native_selected_feature,
+                "native_score_tie_size": pd.NA,
+            }
+        )
+    frame = pd.DataFrame(rows)
+    validate_cardinality_tree_raw(frame)
+    return frame
+
+
+def build_cardinality_cart_raw(
+    features: Sequence[CardinalityFeatureDesign],
+    candidate_scores: np.ndarray,
+    *,
+    task: Task,
+    replicate: int,
+    data_seed: int,
+    model_seed: int,
+    native_selected_position: int | None,
+) -> pd.DataFrame:
+    """Build candidate-level native CART evidence without permutation fields."""
+    ordered_features = tuple(sorted(features, key=lambda feature: feature.feature_id))
+    scores = np.asarray(candidate_scores, dtype=np.float64)
+    if scores.shape != (len(ordered_features),) or not np.isfinite(scores).all():
+        raise ValueError("candidate_scores must be one finite value per matrix column")
+    expected_positions = set(range(len(ordered_features)))
+    if {feature.position for feature in ordered_features} != expected_positions:
+        raise ValueError("features must occupy each matrix position exactly once")
+    if native_selected_position is not None and native_selected_position not in expected_positions:
+        raise ValueError("native_selected_position is outside the matrix")
+    maximum_score = float(scores.max())
+    score_tie_size = int(np.count_nonzero(scores == maximum_score))
+    native_selected_feature = (
+        -1
+        if native_selected_position is None
+        else next(
+            feature.feature_id
+            for feature in ordered_features
+            if feature.position == native_selected_position
+        )
+    )
+    rows: list[dict[str, object]] = []
+    for feature in ordered_features:
+        rows.append(
+            {
+                "experiment": "cardinality_tree",
+                "dgp": CARDINALITY_DGP,
+                "maximum_support_feature_type": CARDINALITY_MAX_SUPPORT_FEATURE_TYPE,
+                "task": task,
+                "method": "cart",
+                "selection_test": "impurity",
+                "selector": "gini" if task == "classification" else "squared_error",
+                "replicate": replicate,
+                "feature_id": feature.feature_id,
+                "cardinality": feature.label,
+                "cardinality_rank": feature.feature_id,
+                "feature_type": "ordered_discrete",
+                "nominal_support": feature.nominal_support,
+                "realized_support": feature.realized_support,
+                "maximum_multiplicity": feature.maximum_multiplicity,
+                "tied_pair_fraction": feature.tied_pair_fraction,
+                "feature_position": feature.position,
+                "n_samples": CARDINALITY_N_SAMPLES,
+                "n_features": len(CARDINALITY_SUPPORTS),
+                "data_seed": data_seed,
+                "model_seed": model_seed,
+                "B": pd.NA,
+                "realized_permutations": 0,
+                "selection_alpha": pd.NA,
+                "adjusted_alpha": pd.NA,
+                "p_value_comparison": "none",
+                "p_value_rule": "none",
+                "native_p_value_rule": "none",
+                "attainable_adjusted_cutoff": pd.NA,
+                "candidate_statistic": float(scores[feature.position]),
+                "p_value_support_index": pd.NA,
+                "p_value_numerator": pd.NA,
+                "p_value_denominator": pd.NA,
+                "p_value": pd.NA,
+                "native_p_value_support_index": pd.NA,
+                "native_p_value_numerator": pd.NA,
+                "native_p_value_denominator": pd.NA,
+                "native_p_value": pd.NA,
+                "minimum_p_tie_size": pd.NA,
+                "all_p_equal": pd.NA,
+                "is_minimum_p": pd.NA,
+                "forced_winner_weight": pd.NA,
+                "adjusted_winner_weight": pd.NA,
+                "adjusted_split": pd.NA,
+                "adjusted_no_split": pd.NA,
+                "no_split_weight": pd.NA,
+                "native_winner": feature.position == native_selected_position,
+                "native_split": native_selected_position is not None,
+                "native_no_split": native_selected_position is None,
+                "native_selected_position": (
+                    -1 if native_selected_position is None else native_selected_position
+                ),
+                "native_selected_feature": native_selected_feature,
+                "native_score_tie_size": score_tie_size,
             }
         )
     frame = pd.DataFrame(rows)
@@ -893,22 +1205,49 @@ def build_cardinality_tree_raw(
 
 
 def validate_cardinality_tree_raw(raw: pd.DataFrame) -> None:
-    """Validate candidate keys, seed pairing, and explicit split outcomes."""
+    """Validate candidate support, pairing, weights, and split outcomes."""
     required = {
+        "experiment",
+        "dgp",
+        "maximum_support_feature_type",
         "task",
         "method",
+        "selection_test",
+        "selector",
         "replicate",
         "feature_id",
+        "cardinality",
+        "cardinality_rank",
+        "feature_type",
         "data_seed",
         "model_seed",
         "B",
         "nominal_support",
         "realized_support",
+        "maximum_multiplicity",
+        "tied_pair_fraction",
         "feature_position",
+        "n_samples",
+        "n_features",
+        "realized_permutations",
+        "selection_alpha",
+        "adjusted_alpha",
+        "p_value_comparison",
+        "p_value_rule",
+        "native_p_value_rule",
+        "attainable_adjusted_cutoff",
+        "candidate_statistic",
         "p_value_support_index",
         "p_value_numerator",
         "p_value_denominator",
         "p_value",
+        "native_p_value_support_index",
+        "native_p_value_numerator",
+        "native_p_value_denominator",
+        "native_p_value",
+        "minimum_p_tie_size",
+        "all_p_equal",
+        "is_minimum_p",
         "forced_winner_weight",
         "adjusted_winner_weight",
         "adjusted_split",
@@ -917,6 +1256,9 @@ def validate_cardinality_tree_raw(raw: pd.DataFrame) -> None:
         "native_winner",
         "native_split",
         "native_no_split",
+        "native_selected_position",
+        "native_selected_feature",
+        "native_score_tie_size",
     }
     missing = required.difference(raw.columns)
     if missing:
@@ -927,48 +1269,72 @@ def validate_cardinality_tree_raw(raw: pd.DataFrame) -> None:
     keys = ["task", "replicate", "method", "feature_id"]
     if raw.duplicated(keys).any():
         raise ValueError("Cardinality tree candidate keys must be unique")
-    if not raw["B"].eq(CARDINALITY_B).all():
-        raise ValueError(f"Cardinality tree records require B={CARDINALITY_B}")
+    if not raw["experiment"].eq("cardinality_tree").all():
+        raise ValueError("Tree rows require experiment='cardinality_tree'")
+    if not raw["dgp"].eq(CARDINALITY_DGP).all():
+        raise ValueError(f"Tree rows require dgp={CARDINALITY_DGP}")
+    if not raw["maximum_support_feature_type"].eq(CARDINALITY_MAX_SUPPORT_FEATURE_TYPE).all():
+        raise ValueError("Tree rows do not identify the 200-level discrete predictor")
+    if not raw["feature_type"].eq("ordered_discrete").all():
+        raise ValueError("Every cardinality predictor must be labeled ordered discrete")
+    if not raw["n_samples"].eq(CARDINALITY_N_SAMPLES).all():
+        raise ValueError("Tree rows have an inconsistent sample size")
+    if not raw["n_features"].eq(len(CARDINALITY_SUPPORTS)).all():
+        raise ValueError("Tree rows have an inconsistent feature count")
     paired_data_seeds = raw.groupby(["task", "replicate"], sort=False)["data_seed"].nunique()
     if not paired_data_seeds.eq(1).all():
         raise ValueError("Methods within a replicate must share one data seed")
 
     expected_feature_ids = set(range(len(CARDINALITY_SUPPORTS)))
+    expected_multiplicities = np.asarray(
+        [CARDINALITY_N_SAMPLES // support for support in CARDINALITY_SUPPORTS],
+        dtype=np.int64,
+    )
+    total_pairs = CARDINALITY_N_SAMPLES * (CARDINALITY_N_SAMPLES - 1) // 2
+    expected_tied_fractions = np.asarray(
+        [
+            support * (multiplicity * (multiplicity - 1) // 2) / total_pairs
+            for support, multiplicity in zip(
+                CARDINALITY_SUPPORTS,
+                expected_multiplicities,
+                strict=True,
+            )
+        ],
+        dtype=np.float64,
+    )
+    position_mappings: dict[tuple[object, object], tuple[int, ...]] = {}
     for _, group in raw.groupby(["task", "replicate", "method"], sort=False):
+        group = group.sort_values("feature_id")
         if set(group["feature_id"]) != expected_feature_ids:
             raise ValueError("Every method replicate must retain all cardinality features")
-        if set(group["nominal_support"]) != set(CARDINALITY_SUPPORTS):
+        if not group["cardinality_rank"].eq(group["feature_id"]).all():
+            raise ValueError("Cardinality rank must equal feature_id")
+        if tuple(group["cardinality"]) != CARDINALITY_LABELS:
+            raise ValueError("Cardinality labels must follow the frozen DGP")
+        if tuple(int(value) for value in group["nominal_support"]) != CARDINALITY_SUPPORTS:
             raise ValueError("Every method replicate must retain the planned supports")
-        if not group["nominal_support"].equals(group["realized_support"]):
+        if not np.array_equal(
+            group["nominal_support"].to_numpy(dtype=np.int64),
+            group["realized_support"].to_numpy(dtype=np.int64),
+        ):
             raise ValueError("Realized supports must equal the planned supports")
+        if not np.array_equal(
+            group["maximum_multiplicity"].to_numpy(dtype=np.int64),
+            expected_multiplicities,
+        ):
+            raise ValueError("Maximum multiplicities disagree with the frozen DGP")
+        if not np.allclose(
+            group["tied_pair_fraction"].to_numpy(dtype=np.float64),
+            expected_tied_fractions,
+        ):
+            raise ValueError("Tied-pair fractions disagree with the frozen DGP")
         if set(group["feature_position"]) != expected_feature_ids:
             raise ValueError("Every method replicate must retain each feature position")
-        if not (
-            group["p_value_numerator"].eq(group["p_value_support_index"] + 1).all()
-            and group["p_value_denominator"].eq(group["B"] + 1).all()
-            and np.allclose(
-                group["p_value"].to_numpy(dtype=np.float64),
-                (group["p_value_numerator"] / group["p_value_denominator"]).to_numpy(
-                    dtype=np.float64
-                ),
-            )
-        ):
-            raise ValueError("Permutation p-values must match their recorded support")
-        if not np.isclose(float(group["forced_winner_weight"].sum()), 1.0):
-            raise ValueError("Forced winner weights must sum to one")
-        adjusted_no_split = group["adjusted_no_split"].astype(bool)
-        if adjusted_no_split.nunique() != 1:
-            raise ValueError("Adjusted split status must be constant within a replicate")
-        expected_adjusted_total = 0.0 if bool(adjusted_no_split.iloc[0]) else 1.0
-        if not np.isclose(
-            float(group["adjusted_winner_weight"].sum()),
-            expected_adjusted_total,
-        ):
-            raise ValueError("Adjusted winner weights disagree with split status")
-        if not group["no_split_weight"].eq(float(adjusted_no_split.iloc[0])).all():
-            raise ValueError("No-split weight disagrees with adjusted split status")
-        if not group["adjusted_split"].eq(not bool(adjusted_no_split.iloc[0])).all():
-            raise ValueError("Adjusted split indicators disagree")
+        pair_key = (group["task"].iloc[0], group["replicate"].iloc[0])
+        positions = tuple(int(value) for value in group["feature_position"])
+        reference_positions = position_mappings.setdefault(pair_key, positions)
+        if positions != reference_positions:
+            raise ValueError("Methods within a replicate must share the position mapping")
 
         native_no_split = group["native_no_split"].astype(bool)
         if native_no_split.nunique() != 1:
@@ -978,6 +1344,193 @@ def validate_cardinality_tree_raw(raw: pd.DataFrame) -> None:
             raise ValueError("Native winner indicators disagree with split status")
         if not group["native_split"].eq(not bool(native_no_split.iloc[0])).all():
             raise ValueError("Native split indicators disagree")
+        selected_positions = group["native_selected_position"].astype(int)
+        selected_features = group["native_selected_feature"].astype(int)
+        if selected_positions.nunique() != 1 or selected_features.nunique() != 1:
+            raise ValueError("Native selected-feature metadata must be constant")
+        selected_position = int(selected_positions.iloc[0])
+        selected_feature = int(selected_features.iloc[0])
+        if bool(native_no_split.iloc[0]):
+            if selected_position != -1 or selected_feature != -1:
+                raise ValueError("Native no-split rows require selected-feature sentinel -1")
+        else:
+            winner = group[group["native_winner"]]
+            if (
+                selected_position not in expected_feature_ids
+                or selected_feature not in expected_feature_ids
+                or int(winner["feature_position"].iloc[0]) != selected_position
+                or int(winner["feature_id"].iloc[0]) != selected_feature
+            ):
+                raise ValueError("Native winner disagrees with selected-feature metadata")
+
+        method = str(group["method"].iloc[0])
+        if method == "cart":
+            nullable = [
+                "B",
+                "selection_alpha",
+                "adjusted_alpha",
+                "attainable_adjusted_cutoff",
+                "p_value_support_index",
+                "p_value_numerator",
+                "p_value_denominator",
+                "p_value",
+                "native_p_value_support_index",
+                "native_p_value_numerator",
+                "native_p_value_denominator",
+                "native_p_value",
+                "minimum_p_tie_size",
+                "all_p_equal",
+                "is_minimum_p",
+                "forced_winner_weight",
+                "adjusted_winner_weight",
+                "adjusted_split",
+                "adjusted_no_split",
+                "no_split_weight",
+            ]
+            if not group[nullable].isna().all().all():
+                raise ValueError("CART rows must not contain permutation outcomes")
+            if not group["p_value_comparison"].eq("none").all():
+                raise ValueError("CART rows require p_value_comparison='none'")
+            if not group["p_value_rule"].eq("none").all():
+                raise ValueError("CART rows require p_value_rule='none'")
+            if not group["native_p_value_rule"].eq("none").all():
+                raise ValueError("CART rows require native_p_value_rule='none'")
+            scores = group["candidate_statistic"].to_numpy(dtype=np.float64)
+            if not np.isfinite(scores).all():
+                raise ValueError("CART candidate statistics must be finite")
+            tie_size = int(np.count_nonzero(scores == scores.max()))
+            if not group["native_score_tie_size"].eq(tie_size).all():
+                raise ValueError("CART score-tie size is inconsistent")
+            if not bool(native_no_split.iloc[0]):
+                winner_score = float(
+                    group.loc[group["native_winner"], "candidate_statistic"].iloc[0]
+                )
+                if not np.isclose(winner_score, float(scores.max())):
+                    raise ValueError("CART native winner must maximize impurity decrease")
+            continue
+
+        if method not in {"citrees", "partykit"}:
+            raise ValueError(f"Unsupported cardinality tree method: {method}")
+        if not group["B"].eq(CARDINALITY_B).all():
+            raise ValueError(f"Conditional tree records require base B={CARDINALITY_B}")
+        n_tests = len(CARDINALITY_SUPPORTS)
+        realized = CARDINALITY_B * n_tests if method == "citrees" else CARDINALITY_B
+        native_rule: PValueRule = "plus_one" if method == "citrees" else "r_monte_carlo"
+        if not group["realized_permutations"].eq(realized).all():
+            raise ValueError(f"{method} rows require {realized} realized permutations")
+        if not group["p_value_rule"].eq("plus_one").all():
+            raise ValueError("Common p-values require the plus-one rule")
+        if not group["native_p_value_rule"].eq(native_rule).all():
+            raise ValueError(f"{method} rows require native rule={native_rule}")
+        if group["p_value_comparison"].nunique() != 1 or group["p_value_comparison"].iloc[
+            0
+        ] not in {"<", "<="}:
+            raise ValueError("Conditional rows require one explicit comparison rule")
+        comparison = group["p_value_comparison"].iloc[0]
+
+        supports = [
+            _permutation_support(float(value), realized, "plus_one") for value in group["p_value"]
+        ]
+        native_supports = [
+            _permutation_support(float(value), realized, native_rule)
+            for value in group["native_p_value"]
+        ]
+        for prefix, expected_supports in (
+            ("p_value", supports),
+            ("native_p_value", native_supports),
+        ):
+            if not np.array_equal(
+                group[f"{prefix}_support_index"].to_numpy(dtype=np.int64),
+                np.asarray([support.index for support in expected_supports]),
+            ):
+                raise ValueError(f"{prefix} support indices are invalid")
+            if not np.array_equal(
+                group[f"{prefix}_numerator"].to_numpy(dtype=np.int64),
+                np.asarray([support.numerator for support in expected_supports]),
+            ):
+                raise ValueError(f"{prefix} numerators are invalid")
+            if not np.array_equal(
+                group[f"{prefix}_denominator"].to_numpy(dtype=np.int64),
+                np.asarray([support.denominator for support in expected_supports]),
+            ):
+                raise ValueError(f"{prefix} denominators are invalid")
+        if method == "partykit":
+            expected_corrected = (
+                group["native_p_value_numerator"].to_numpy(dtype=np.int64) + 1
+            ) / (CARDINALITY_B + 1)
+            if not np.allclose(
+                group["p_value"].to_numpy(dtype=np.float64),
+                expected_corrected,
+            ):
+                raise ValueError("partykit p-values must use the plus-one conversion")
+        elif not np.allclose(
+            group["p_value"].to_numpy(dtype=np.float64),
+            group["native_p_value"].to_numpy(dtype=np.float64),
+        ):
+            raise ValueError("citrees native and common p-values must match")
+
+        indices = np.asarray([support.index for support in supports], dtype=np.int64)
+        minimum = int(indices.min())
+        is_minimum = indices == minimum
+        tie_size = int(is_minimum.sum())
+        if not group["is_minimum_p"].astype(bool).eq(is_minimum).all():
+            raise ValueError("Minimum-p indicators are inconsistent")
+        if not group["minimum_p_tie_size"].eq(tie_size).all():
+            raise ValueError("Minimum-p tie sizes are inconsistent")
+        if not group["all_p_equal"].eq(tie_size == n_tests).all():
+            raise ValueError("All-p-equal indicators are inconsistent")
+        expected_forced = np.zeros(n_tests, dtype=np.float64)
+        expected_forced[is_minimum] = 1.0 / tie_size
+        forced = group["forced_winner_weight"].to_numpy(dtype=np.float64)
+        if not np.allclose(forced, expected_forced):
+            raise ValueError("Forced winner weights must cover only minimum-p ties")
+
+        controlled = controlled_split_weights(
+            indices,
+            n_resamples=realized,
+            rule="plus_one",
+            alpha=CARDINALITY_ALPHA,
+            comparison=comparison,
+        )
+        expected_adjusted = np.asarray(controlled.feature_weights)
+        adjusted = group["adjusted_winner_weight"].to_numpy(dtype=np.float64)
+        if not np.allclose(adjusted, expected_adjusted):
+            raise ValueError("Adjusted winner weights are inconsistent")
+        if not group["adjusted_split"].eq(controlled.split).all():
+            raise ValueError("Adjusted split indicators are inconsistent")
+        if not group["adjusted_no_split"].eq(not controlled.split).all():
+            raise ValueError("Adjusted no-split indicators are inconsistent")
+        if not group["no_split_weight"].eq(controlled.no_split_weight).all():
+            raise ValueError("No-split weights are inconsistent")
+        expected_cutoff = _attainable_cutoff(
+            CARDINALITY_ALPHA / n_tests,
+            realized,
+            comparison,
+            rule="plus_one",
+        )
+        if not np.allclose(
+            group["attainable_adjusted_cutoff"].to_numpy(dtype=np.float64),
+            expected_cutoff,
+        ):
+            raise ValueError("Attainable adjusted cutoff is inconsistent")
+        if not group["selection_alpha"].eq(CARDINALITY_ALPHA).all():
+            raise ValueError("Selection alpha is inconsistent")
+        if not group["adjusted_alpha"].eq(CARDINALITY_ALPHA / n_tests).all():
+            raise ValueError("Adjusted alpha is inconsistent")
+        if not np.isfinite(group["candidate_statistic"].to_numpy(dtype=np.float64)).all():
+            raise ValueError("Candidate statistics must be finite")
+        if not bool(native_no_split.iloc[0]):
+            native_indices = np.asarray(
+                [support.index for support in native_supports],
+                dtype=np.int64,
+            )
+            winner_position = int(group.loc[group["native_winner"], "feature_position"].iloc[0])
+            if native_indices[winner_position] != int(native_indices.min()):
+                raise ValueError("Native winner must have a minimum candidate p-value")
+        if method == "citrees" and bool(native_no_split.iloc[0]) == controlled.split:
+            raise ValueError("citrees native and reconstructed adjusted split statuses disagree")
+        if method == "partykit" and controlled.split and bool(native_no_split.iloc[0]):
+            raise ValueError("partykit cannot reject after correction but retain no split")
 
 
 def _selected_root_feature(model: object) -> int:
@@ -995,13 +1548,12 @@ def _fit_cardinality_model(
     X: np.ndarray,
     y: np.ndarray,
     seed: int,
-    n_resamples: int,
 ) -> object:
     if method == "citrees":
         common: dict[str, object] = {
-            "alpha_selector": 1.0,
-            "adjust_alpha_selector": False,
-            "n_resamples_selector": n_resamples,
+            "alpha_selector": CARDINALITY_ALPHA,
+            "adjust_alpha_selector": True,
+            "n_resamples_selector": CARDINALITY_B,
             "early_stopping_selector": None,
             "n_resamples_splitter": None,
             "feature_muting": False,
@@ -1025,92 +1577,206 @@ def _fit_cardinality_model(
     return model
 
 
-def _select_cardinality_feature(
+def _citrees_cardinality_diagnostics(
     task: Task,
-    method: Literal["citrees", "partykit", "cart"],
     X: np.ndarray,
     y: np.ndarray,
     seed: int,
-    n_resamples: int,
-) -> int:
-    if method == "partykit":
-        from paper.benchmark.pipeline.r_methods import r_ctree_root_feature
+) -> CardinalityCandidateDiagnostics:
+    """Compute candidate tests and the native citrees Bonferroni decision."""
+    n_tests = X.shape[1]
+    adjusted_alpha = CARDINALITY_ALPHA / n_tests
+    realized_budget = CARDINALITY_B * n_tests
+    statistics = np.empty(n_tests, dtype=np.float64)
+    p_values = np.empty(n_tests, dtype=np.float64)
+    realized = np.empty(n_tests, dtype=np.int64)
+    for position in range(n_tests):
+        x = X[:, position]
+        with collect_permutation_counts() as counts:
+            if task == "classification":
+                statistics[position] = mc(
+                    x,
+                    y,
+                    int(np.unique(y).size),
+                    random_state=seed,
+                )
+                p_values[position] = ptest_mc(
+                    x=x,
+                    y=y,
+                    n_classes=int(np.unique(y).size),
+                    n_resamples=realized_budget,
+                    early_stopping=None,
+                    alpha=adjusted_alpha,
+                    random_state=seed,
+                )
+            else:
+                statistics[position] = abs(pc(x, y, True, random_state=seed))
+                p_values[position] = ptest_pc(
+                    x=x,
+                    y=y,
+                    standardize=True,
+                    n_resamples=realized_budget,
+                    early_stopping=None,
+                    alpha=adjusted_alpha,
+                    random_state=seed,
+                )
+        realized[position] = counts["selector"]
+    model = _fit_cardinality_model(task, "citrees", X, y, seed)
+    selected = _selected_root_feature(model)
+    return CardinalityCandidateDiagnostics(
+        statistics=statistics,
+        p_values=p_values,
+        native_p_values=p_values.copy(),
+        realized_permutations=realized,
+        native_selected_position=None if selected < 0 else selected,
+        native_p_value_rule="plus_one",
+    )
 
-        return r_ctree_root_feature(
-            X,
+
+def _partykit_cardinality_diagnostics(
+    task: Task,
+    X: np.ndarray,
+    y: np.ndarray,
+    seed: int,
+) -> CardinalityCandidateDiagnostics:
+    """Retain partykit's native lattice alongside corrected p-values."""
+    diagnostics: RCTreeRootDiagnostics = r_ctree_root_diagnostics(
+        X,
+        y,
+        task=task,
+        teststat="quadratic",
+        testtype="MonteCarlo",
+        nresample=CARDINALITY_B,
+        mincriterion=1.0 - CARDINALITY_ALPHA / X.shape[1],
+        minsplit=2,
+        minbucket=1,
+        random_state=seed,
+    )
+    corrected = np.asarray(diagnostics.p_values, dtype=np.float64)
+    corrected_supports = [
+        _permutation_support(float(value), CARDINALITY_B, "plus_one") for value in corrected
+    ]
+    native_p_values = np.asarray(
+        [(support.numerator - 1) / CARDINALITY_B for support in corrected_supports],
+        dtype=np.float64,
+    )
+    return CardinalityCandidateDiagnostics(
+        statistics=np.asarray(diagnostics.statistics, dtype=np.float64),
+        p_values=corrected,
+        native_p_values=native_p_values,
+        realized_permutations=np.full(X.shape[1], CARDINALITY_B, dtype=np.int64),
+        native_selected_position=(
+            None if diagnostics.root_feature < 0 else diagnostics.root_feature
+        ),
+        native_p_value_rule="r_monte_carlo",
+    )
+
+
+def _cart_impurity_decrease(model: object) -> float:
+    """Return the weighted root impurity decrease for a fitted CART stump."""
+    tree = model.tree_
+    if tree.node_count == 1:
+        return 0.0
+    left = int(tree.children_left[0])
+    right = int(tree.children_right[0])
+    root_weight = float(tree.weighted_n_node_samples[0])
+    decrease = (
+        root_weight * float(tree.impurity[0])
+        - float(tree.weighted_n_node_samples[left]) * float(tree.impurity[left])
+        - float(tree.weighted_n_node_samples[right]) * float(tree.impurity[right])
+    ) / root_weight
+    return max(decrease, 0.0)
+
+
+def _cart_cardinality_evidence(
+    task: Task,
+    X: np.ndarray,
+    y: np.ndarray,
+    seed: int,
+) -> tuple[np.ndarray, int | None]:
+    """Compute per-feature CART stump scores and the native full-matrix winner."""
+    scores = np.empty(X.shape[1], dtype=np.float64)
+    for position in range(X.shape[1]):
+        model = _fit_cardinality_model(
+            task,
+            "cart",
+            X[:, [position]],
             y,
-            task=task,
-            teststat="quadratic",
-            testtype="Univariate",
-            mincriterion=0.0,
-            minsplit=2,
-            minbucket=1,
-            random_state=seed,
+            seed,
         )
-    model = _fit_cardinality_model(task, method, X, y, seed, n_resamples)
-    return _selected_root_feature(model)
+        scores[position] = _cart_impurity_decrease(model)
+    full_model = _fit_cardinality_model(task, "cart", X, y, seed)
+    selected = _selected_root_feature(full_model)
+    return scores, None if selected < 0 else selected
 
 
-def run_cardinality_bias(
+def run_cardinality_trees(
     profile: Profile,
     *,
     base_seed: int = BASE_SEED,
 ) -> pd.DataFrame:
-    """Measure root-variable selection when null features differ in cardinality."""
+    """Run candidate-level conditional tests and native CART root selection."""
     settings = _settings(profile)
-    rows: list[dict[str, object]] = []
-    methods: tuple[Literal["citrees", "partykit", "cart"], ...] = (
-        ("citrees", "cart") if profile == "smoke" else ("citrees", "partykit", "cart")
-    )
+    frames: list[pd.DataFrame] = []
     for task in ("classification", "regression"):
         data_design = f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}"
         for replicate in range(settings.cardinality_replicates):
             data_seed = _stream_seed(base_seed, data_design, replicate, "data")
             rng = np.random.default_rng(data_seed)
             X, features = _cardinality_matrix(rng, CARDINALITY_N_SAMPLES)
-            features_by_position = {feature.position: feature for feature in features}
             y = _response(rng, task, CARDINALITY_N_SAMPLES)
-            for method in methods:
+            for method in ("citrees", "partykit"):
                 scenario = f"{task}__{method}__n{CARDINALITY_N_SAMPLES}"
                 model_seed = _stream_seed(base_seed, scenario, replicate, "model")
-                selected_column = _select_cardinality_feature(
-                    task,
-                    method,
-                    X,
-                    y,
-                    model_seed,
-                    CARDINALITY_B,
+                diagnostics = (
+                    _citrees_cardinality_diagnostics(task, X, y, model_seed)
+                    if method == "citrees"
+                    else _partykit_cardinality_diagnostics(task, X, y, model_seed)
                 )
-                selected_design = (
-                    None if selected_column < 0 else features_by_position[selected_column]
-                )
-                selected_feature = -1 if selected_design is None else selected_design.feature_id
-                rows.append(
-                    {
-                        "experiment": "cardinality_bias",
-                        "scenario": scenario,
-                        "task": task,
-                        "method": method,
-                        "replicate": replicate,
-                        "data_seed": data_seed,
-                        "model_seed": model_seed,
-                        "n_samples": CARDINALITY_N_SAMPLES,
-                        "n_features": len(CARDINALITY_LABELS),
-                        "selection_test": (
-                            "fixed_monte_carlo"
-                            if method == "citrees"
-                            else "asymptotic"
-                            if method == "partykit"
-                            else "none"
+                frames.append(
+                    build_cardinality_tree_raw(
+                        features,
+                        diagnostics,
+                        task=task,
+                        method=method,
+                        selector=(
+                            "mc"
+                            if task == "classification" and method == "citrees"
+                            else "pc"
+                            if task == "regression" and method == "citrees"
+                            else "quadratic"
                         ),
-                        "n_resamples": CARDINALITY_B if method == "citrees" else None,
-                        "selected_feature": selected_feature,
-                        "selected_cardinality": (
-                            "no split" if selected_design is None else selected_design.label
-                        ),
-                    }
+                        replicate=replicate,
+                        data_seed=data_seed,
+                        model_seed=model_seed,
+                    )
                 )
-    return pd.DataFrame(rows)
+            cart_seed = _stream_seed(
+                base_seed,
+                f"{task}__cart__n{CARDINALITY_N_SAMPLES}",
+                replicate,
+                "model",
+            )
+            cart_scores, cart_selected = _cart_cardinality_evidence(
+                task,
+                X,
+                y,
+                cart_seed,
+            )
+            frames.append(
+                build_cardinality_cart_raw(
+                    features,
+                    cart_scores,
+                    task=task,
+                    replicate=replicate,
+                    data_seed=data_seed,
+                    model_seed=cart_seed,
+                    native_selected_position=cart_selected,
+                )
+            )
+    raw = pd.concat(frames, ignore_index=True)
+    validate_cardinality_tree_raw(raw)
+    return raw
 
 
 def directional_effect(
@@ -1129,37 +1795,16 @@ def directional_effect(
     weight_total = float(weights.sum())
     if weight_total > 1.0 and not np.isclose(weight_total, 1.0):
         raise ValueError("winner_weights must sum to at most one")
+    if np.isclose(weight_total, 0.0):
+        return float("nan")
     return float(np.dot(weights, ranks - ranks.mean()))
 
 
-def _replicate_statistic_mean(
+def _validate_label_value_matrices(
     labels: np.ndarray,
     values: np.ndarray,
-    statistic: ReplicateStatistic,
-) -> float:
-    """Average a statistic over replicates while retaining defined values."""
-    replicate_values = np.asarray(
-        [
-            statistic(label_row, value_row)
-            for label_row, value_row in zip(labels, values, strict=True)
-        ],
-        dtype=np.float64,
-    )
-    defined = np.isfinite(replicate_values)
-    if not defined.any():
-        raise ValueError("The replicate statistic is undefined for every replicate")
-    return float(replicate_values[defined].mean())
-
-
-def one_sided_label_randomization(
-    labels: np.ndarray,
-    values: np.ndarray,
-    *,
-    statistic: ReplicateStatistic,
-    n_resamples: int,
-    random_state: int,
-) -> RandomizationTestResult:
-    """Test for a positive trend by permuting labels within each replicate."""
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return validated replicate-by-feature matrices for exact tests."""
     label_matrix = np.asarray(labels, dtype=np.float64)
     value_matrix = np.asarray(values, dtype=np.float64)
     if label_matrix.ndim == 1:
@@ -1168,31 +1813,142 @@ def one_sided_label_randomization(
         value_matrix = value_matrix[np.newaxis, :]
     if label_matrix.ndim != 2 or value_matrix.ndim != 2 or label_matrix.shape != value_matrix.shape:
         raise ValueError("labels and values must be aligned replicate-by-feature matrices")
-    if label_matrix.shape[1] < 2:
-        raise ValueError("Each replicate must contain at least two features")
+    if label_matrix.shape[1] != len(CARDINALITY_SUPPORTS):
+        raise ValueError("Exact cardinality randomization requires five features")
     if not np.isfinite(label_matrix).all() or not np.isfinite(value_matrix).all():
         raise ValueError("labels and values must be finite")
+    if not np.all(label_matrix == label_matrix[0]):
+        raise ValueError("Cardinality labels must be shared across replicates")
+    if np.unique(label_matrix[0]).size != label_matrix.shape[1]:
+        raise ValueError("Cardinality labels must be unique")
+    return label_matrix, value_matrix
+
+
+def _label_permutations(labels: np.ndarray) -> np.ndarray:
+    """Enumerate all 5! permutations of one cardinality label vector."""
+    label_permutations = np.asarray(list(permutations(labels)), dtype=np.float64)
+    if label_permutations.shape[0] != CARDINALITY_EXACT_LABEL_PERMUTATIONS:
+        raise RuntimeError("The frozen five-feature design must have exactly 120 permutations")
+    return label_permutations
+
+
+def _joint_randomization_test(
+    per_replicate_null: np.ndarray,
+    observed: float,
+    *,
+    n_resamples: int,
+    random_state: int,
+) -> RandomizationTestResult:
+    """Sample independent within-replicate assignments from exact null grids."""
+    null_grid = np.asarray(per_replicate_null, dtype=np.float64)
+    if (
+        null_grid.ndim != 2
+        or null_grid.shape[0] == 0
+        or null_grid.shape[1] != CARDINALITY_EXACT_LABEL_PERMUTATIONS
+        or not np.isfinite(null_grid).all()
+    ):
+        raise ValueError("per_replicate_null must be a finite R by 120 matrix")
+    if isinstance(n_resamples, bool) or not isinstance(n_resamples, int):
+        raise TypeError("n_resamples must be an integer")
     if n_resamples <= 0:
         raise ValueError("n_resamples must be positive")
+    if not np.isfinite(observed):
+        raise ValueError("observed must be finite")
 
-    observed = _replicate_statistic_mean(label_matrix, value_matrix, statistic)
     rng = np.random.default_rng(random_state)
+    replicate_indices = np.arange(null_grid.shape[0], dtype=np.int64)
     extreme_count = 0
-    permuted_labels = np.empty_like(label_matrix)
-    for _ in range(n_resamples):
-        for replicate in range(label_matrix.shape[0]):
-            permuted_labels[replicate] = rng.permutation(label_matrix[replicate])
-        null_statistic = _replicate_statistic_mean(
-            permuted_labels,
-            value_matrix,
-            statistic,
+    batch_size = 256
+    for start in range(0, n_resamples, batch_size):
+        current_size = min(batch_size, n_resamples - start)
+        sampled_permutations = rng.integers(
+            0,
+            CARDINALITY_EXACT_LABEL_PERMUTATIONS,
+            size=(current_size, null_grid.shape[0]),
         )
-        extreme_count += int(null_statistic >= observed)
+        sampled_statistics = null_grid[
+            replicate_indices[np.newaxis, :],
+            sampled_permutations,
+        ].mean(axis=1)
+        extreme_count += int(np.count_nonzero(sampled_statistics >= observed - 1e-12))
     return RandomizationTestResult(
         statistic=observed,
         p_value=(extreme_count + 1) / (n_resamples + 1),
         extreme_count=extreme_count,
         n_resamples=n_resamples,
+    )
+
+
+def one_sided_label_randomization(
+    labels: np.ndarray,
+    values: np.ndarray,
+    *,
+    statistic: ReplicateStatistic,
+    n_resamples: int = CARDINALITY_TREND_RESAMPLES,
+    random_state: int = BASE_SEED,
+) -> RandomizationTestResult:
+    """Test a mean effect using independent within-replicate label assignments."""
+    label_matrix, value_matrix = _validate_label_value_matrices(labels, values)
+    observed_values = np.asarray(
+        [
+            statistic(label_row, value_row)
+            for label_row, value_row in zip(label_matrix, value_matrix, strict=True)
+        ],
+        dtype=np.float64,
+    )
+    defined = np.isfinite(observed_values)
+    if not defined.any():
+        raise ValueError("The statistic is undefined for every replicate")
+    observed = float(observed_values[defined].mean())
+    per_replicate_null = np.empty(
+        (int(defined.sum()), CARDINALITY_EXACT_LABEL_PERMUTATIONS),
+        dtype=np.float64,
+    )
+    for permutation_index, permuted_labels in enumerate(_label_permutations(label_matrix[0])):
+        per_replicate_null[:, permutation_index] = np.asarray(
+            [statistic(permuted_labels, value_row) for value_row in value_matrix[defined]],
+            dtype=np.float64,
+        )
+    return _joint_randomization_test(
+        per_replicate_null,
+        observed,
+        n_resamples=n_resamples,
+        random_state=random_state,
+    )
+
+
+def _directional_randomization(
+    labels: np.ndarray,
+    winner_weights: np.ndarray,
+    *,
+    n_resamples: int,
+    random_state: int,
+) -> RandomizationTestResult:
+    """Enumerate each replicate exactly, then sample their joint null."""
+    label_matrix, weight_matrix = _validate_label_value_matrices(
+        labels,
+        winner_weights,
+    )
+    active = ~np.isclose(weight_matrix.sum(axis=1), 0.0)
+    if not active.any():
+        raise ValueError("Directional effect is undefined when every replicate has no split")
+    label_permutations = _label_permutations(label_matrix[0])
+    centered = label_permutations - label_permutations.mean(axis=1, keepdims=True)
+    per_replicate_null = weight_matrix[active] @ centered.T
+    observed = float(
+        np.mean(
+            np.sum(
+                weight_matrix[active]
+                * (label_matrix[active] - label_matrix[active].mean(axis=1, keepdims=True)),
+                axis=1,
+            )
+        )
+    )
+    return _joint_randomization_test(
+        per_replicate_null,
+        observed,
+        n_resamples=n_resamples,
+        random_state=random_state,
     )
 
 
@@ -1203,7 +1959,6 @@ def holm_adjust(p_values: Sequence[float]) -> np.ndarray:
         raise ValueError("p_values must be a non-empty one-dimensional sequence")
     if not np.isfinite(values).all() or np.any(values < 0.0) or np.any(values > 1.0):
         raise ValueError("p_values must be finite and between zero and one")
-
     order = np.argsort(values, kind="stable")
     ordered = values[order]
     multipliers = np.arange(values.size, 0, -1, dtype=np.float64)
@@ -1217,127 +1972,894 @@ def holm_adjust(p_values: Sequence[float]) -> np.ndarray:
 
 
 def average_ranks(values: Sequence[float]) -> np.ndarray:
-    """Return ascending average ranks without resolving equal values by position."""
+    """Return ascending average ranks without resolving ties by position."""
     array = np.asarray(values, dtype=np.float64)
     if array.ndim != 1 or array.size == 0 or not np.isfinite(array).all():
         raise ValueError("values must be a finite, non-empty vector")
     return np.asarray(rankdata(array, method="average"), dtype=np.float64)
 
 
+def _pairwise_signs(values: np.ndarray) -> np.ndarray:
+    """Return pairwise comparison signs for each row of a matrix."""
+    matrix = np.asarray(values, dtype=np.float64)
+    if matrix.ndim != 2 or not np.isfinite(matrix).all():
+        raise ValueError("values must be a finite two-dimensional matrix")
+    pairs = tuple(combinations(range(matrix.shape[1]), 2))
+    return np.column_stack([np.sign(matrix[:, left] - matrix[:, right]) for left, right in pairs])
+
+
+def _kendall_tau_b_grid(
+    label_rows: np.ndarray,
+    value_rows: np.ndarray,
+) -> np.ndarray:
+    """Compute all row-pair tau-b values by vectorized pairwise signs."""
+    label_signs = _pairwise_signs(label_rows)
+    value_signs = _pairwise_signs(value_rows)
+    numerator = label_signs @ value_signs.T
+    denominator = np.sqrt(
+        np.count_nonzero(label_signs, axis=1)[:, np.newaxis]
+        * np.count_nonzero(value_signs, axis=1)[np.newaxis, :]
+    )
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.divide(
+            numerator,
+            denominator,
+            out=np.full(numerator.shape, np.nan, dtype=np.float64),
+            where=denominator > 0.0,
+        )
+
+
 def kendall_tau_b(
     cardinality_ranks: np.ndarray,
     raw_importances: np.ndarray,
 ) -> float:
-    """Return Kendall tau-b between cardinality rank and raw importance."""
+    """Return Kendall tau-b between cardinality rank and importance."""
     ranks = np.asarray(cardinality_ranks, dtype=np.float64)
     importances = np.asarray(raw_importances, dtype=np.float64)
-    if ranks.ndim != 1 or importances.ndim != 1 or ranks.shape != importances.shape:
-        raise ValueError("cardinality_ranks and raw_importances must be aligned vectors")
-    if ranks.size < 2 or not np.isfinite(ranks).all() or not np.isfinite(importances).all():
-        raise ValueError("cardinality_ranks and raw_importances must be finite")
-    result = kendalltau(ranks, importances, variant="b")
-    return float(result.statistic)
+    if (
+        ranks.ndim != 1
+        or importances.ndim != 1
+        or ranks.shape != importances.shape
+        or ranks.size < 2
+        or not np.isfinite(ranks).all()
+        or not np.isfinite(importances).all()
+    ):
+        raise ValueError("cardinality_ranks and raw_importances must be finite aligned vectors")
+    return float(_kendall_tau_b_grid(ranks[np.newaxis, :], importances[np.newaxis, :])[0, 0])
+
+
+def _kendall_randomization(
+    labels: np.ndarray,
+    importances: np.ndarray,
+    *,
+    n_resamples: int,
+    random_state: int,
+) -> RandomizationTestResult:
+    """Enumerate replicate tau-b grids, then sample their joint null."""
+    label_matrix, importance_matrix = _validate_label_value_matrices(
+        labels,
+        importances,
+    )
+    tau_grid = _kendall_tau_b_grid(
+        _label_permutations(label_matrix[0]),
+        importance_matrix,
+    )
+    defined = np.isfinite(tau_grid[0])
+    if not defined.any():
+        raise ValueError("Kendall tau-b is undefined for every replicate")
+    observed = float(_kendall_tau_b_grid(label_matrix[:1], importance_matrix)[0, defined].mean())
+    return _joint_randomization_test(
+        tau_grid[:, defined].T,
+        observed,
+        n_resamples=n_resamples,
+        random_state=random_state,
+    )
+
+
+def _candidate_matrices(
+    raw: pd.DataFrame,
+    value_column: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return feature-ordered label and value matrices across replicates."""
+    label_rows: list[np.ndarray] = []
+    value_rows: list[np.ndarray] = []
+    for _, replicate_group in raw.groupby("replicate", sort=True):
+        ordered = replicate_group.sort_values("feature_id")
+        label_rows.append(ordered["cardinality_rank"].to_numpy(dtype=np.float64))
+        value_rows.append(ordered[value_column].to_numpy(dtype=np.float64))
+    return np.vstack(label_rows), np.vstack(value_rows)
+
+
+def summarize_cardinality_tree(
+    raw: pd.DataFrame,
+    *,
+    random_state: int = BASE_SEED,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Return replicate, planned-trend, and method summaries for tree rows."""
+    validate_cardinality_tree_raw(raw)
+    replicate_rows: list[dict[str, object]] = []
+    trend_rows: list[dict[str, object]] = []
+    for (task, method), method_group in raw.groupby(["task", "method"], sort=True):
+        for replicate, replicate_group in method_group.groupby("replicate", sort=True):
+            ordered = replicate_group.sort_values("feature_id")
+            labels = ordered["cardinality_rank"].to_numpy(dtype=np.float64)
+            native_effect = directional_effect(
+                labels,
+                ordered["native_winner"].to_numpy(dtype=np.float64),
+            )
+            conditional = method in {"citrees", "partykit"}
+            replicate_rows.append(
+                {
+                    "experiment": "cardinality_tree_replicate",
+                    "dgp": CARDINALITY_DGP,
+                    "task": task,
+                    "method": method,
+                    "replicate": int(replicate),
+                    "data_seed": int(ordered["data_seed"].iloc[0]),
+                    "model_seed": int(ordered["model_seed"].iloc[0]),
+                    "n_features": len(CARDINALITY_SUPPORTS),
+                    "forced_directional_effect": (
+                        directional_effect(
+                            labels,
+                            ordered["forced_winner_weight"].to_numpy(dtype=np.float64),
+                        )
+                        if conditional
+                        else float("nan")
+                    ),
+                    "adjusted_directional_effect": (
+                        directional_effect(
+                            labels,
+                            ordered["adjusted_winner_weight"].to_numpy(dtype=np.float64),
+                        )
+                        if conditional
+                        else float("nan")
+                    ),
+                    "adjusted_split": (
+                        bool(ordered["adjusted_split"].iloc[0]) if conditional else None
+                    ),
+                    "adjusted_no_split": (
+                        bool(ordered["adjusted_no_split"].iloc[0]) if conditional else None
+                    ),
+                    "native_directional_effect": native_effect,
+                    "native_split": bool(ordered["native_split"].iloc[0]),
+                    "native_no_split": bool(ordered["native_no_split"].iloc[0]),
+                    "minimum_p_tie_size": (
+                        int(ordered["minimum_p_tie_size"].iloc[0]) if conditional else float("nan")
+                    ),
+                    "all_p_equal": (bool(ordered["all_p_equal"].iloc[0]) if conditional else None),
+                    "native_score_tie_size": (
+                        int(ordered["native_score_tie_size"].iloc[0])
+                        if method == "cart"
+                        else float("nan")
+                    ),
+                }
+            )
+
+        if method not in {"citrees", "partykit"}:
+            continue
+        labels, forced_weights = _candidate_matrices(
+            method_group,
+            "forced_winner_weight",
+        )
+        _, adjusted_weights = _candidate_matrices(
+            method_group,
+            "adjusted_winner_weight",
+        )
+        adjusted_splits = ~np.isclose(adjusted_weights.sum(axis=1), 0.0)
+        for estimand, weights in (
+            ("forced_winner", forced_weights),
+            ("adjusted_winner_given_split", adjusted_weights),
+        ):
+            hypothesis_id = f"tree__{task}__{method}__{estimand}"
+            defined = ~np.isclose(weights.sum(axis=1), 0.0)
+            if defined.any():
+                test = _directional_randomization(
+                    labels,
+                    weights,
+                    n_resamples=CARDINALITY_TREND_RESAMPLES,
+                    random_state=_stream_seed(
+                        random_state,
+                        hypothesis_id,
+                        0,
+                        "trend_randomization",
+                    ),
+                )
+                statistic = test.statistic
+                p_value = test.p_value
+                extreme_count: int | float = test.extreme_count
+            else:
+                statistic = float("nan")
+                p_value = float("nan")
+                extreme_count = float("nan")
+            trend_rows.append(
+                {
+                    "experiment": "cardinality_tree_trend",
+                    "dgp": CARDINALITY_DGP,
+                    "hypothesis_id": hypothesis_id,
+                    "task": task,
+                    "method": method,
+                    "estimand": estimand,
+                    "alternative": "positive",
+                    "n_replicates": weights.shape[0],
+                    "n_defined_effects": int(defined.sum()),
+                    "n_adjusted_splits": int(adjusted_splits.sum()),
+                    "n_adjusted_no_splits": int((~adjusted_splits).sum()),
+                    "adjusted_no_split_rate": float((~adjusted_splits).mean()),
+                    "mean_directional_effect": statistic,
+                    "randomization_p_value": p_value,
+                    "randomization_extreme_count": extreme_count,
+                    "per_replicate_label_permutations": (CARDINALITY_EXACT_LABEL_PERMUTATIONS),
+                    "joint_randomization_resamples": CARDINALITY_TREND_RESAMPLES,
+                    "randomization_scheme": CARDINALITY_TREND_RANDOMIZATION,
+                    "randomization_p_value_rule": CARDINALITY_TREND_P_VALUE_RULE,
+                }
+            )
+
+    replicate_summary = pd.DataFrame(replicate_rows)
+    method_rows: list[dict[str, object]] = []
+    for (task, method), group in replicate_summary.groupby(
+        ["task", "method"],
+        sort=True,
+    ):
+        conditional = method in {"citrees", "partykit"}
+        native_splits = group["native_split"].astype(bool)
+        native_effects = group.loc[
+            native_splits,
+            "native_directional_effect",
+        ].to_numpy(dtype=np.float64)
+        if conditional:
+            adjusted_splits = group["adjusted_split"].astype(bool)
+            tie_sizes = group["minimum_p_tie_size"].to_numpy(dtype=np.float64)
+            score_tie_count: int | float = float("nan")
+            mean_score_tie: float = float("nan")
+        else:
+            adjusted_splits = pd.Series(dtype=bool)
+            tie_sizes = np.asarray([], dtype=np.float64)
+            score_ties = group["native_score_tie_size"].to_numpy(dtype=np.float64)
+            score_tie_count = int(np.count_nonzero(score_ties > 1))
+            mean_score_tie = float(score_ties.mean())
+        method_rows.append(
+            {
+                "experiment": "cardinality_tree_method",
+                "dgp": CARDINALITY_DGP,
+                "task": task,
+                "method": method,
+                "n_replicates": len(group),
+                "n_adjusted_splits": (int(adjusted_splits.sum()) if conditional else float("nan")),
+                "n_adjusted_no_splits": (
+                    int((~adjusted_splits).sum()) if conditional else float("nan")
+                ),
+                "adjusted_split_rate": (
+                    float(adjusted_splits.mean()) if conditional else float("nan")
+                ),
+                "n_native_splits": int(native_splits.sum()),
+                "n_native_no_splits": int((~native_splits).sum()),
+                "native_split_rate": float(native_splits.mean()),
+                "mean_native_directional_effect_given_split": (
+                    float(native_effects.mean()) if native_effects.size else float("nan")
+                ),
+                "n_minimum_p_ties": (
+                    int(np.count_nonzero(tie_sizes > 1)) if conditional else float("nan")
+                ),
+                "minimum_p_tie_rate": (
+                    float(np.mean(tie_sizes > 1)) if conditional else float("nan")
+                ),
+                "mean_minimum_p_tie_size": (
+                    float(tie_sizes.mean()) if conditional else float("nan")
+                ),
+                "n_all_p_equal": (
+                    int(group["all_p_equal"].astype(bool).sum()) if conditional else float("nan")
+                ),
+                "n_native_score_ties": score_tie_count,
+                "mean_native_score_tie_size": mean_score_tie,
+            }
+        )
+    return replicate_summary, pd.DataFrame(trend_rows), pd.DataFrame(method_rows)
+
+
+def _fit_cardinality_forest_importance(
+    task: Task,
+    method: ForestMethod,
+    X: np.ndarray,
+    y: np.ndarray,
+    seed: int,
+) -> np.ndarray:
+    """Fit one matched depth-one forest and return native importances."""
+    if method == "partykit_cforest":
+        return np.asarray(
+            r_cforest_importance(
+                X,
+                y,
+                task=task,
+                teststat="quadratic",
+                testtype="MonteCarlo",
+                mincriterion=1.0 - CARDINALITY_ALPHA / X.shape[1],
+                nresample=CARDINALITY_B,
+                ntree=CARDINALITY_FOREST_TREES,
+                mtry="all",
+                maxdepth=1,
+                minsplit=2,
+                minbucket=1,
+                replace=True,
+                fraction=1.0,
+                varimp_conditional=False,
+                varimp_nperm=CARDINALITY_FOREST_IMPORTANCE_PERMUTATIONS,
+                cores=1,
+                random_state=seed,
+            ),
+            dtype=np.float64,
+        )
+
+    if method == "sklearn_rf":
+        model = (
+            RandomForestClassifier(
+                n_estimators=CARDINALITY_FOREST_TREES,
+                max_depth=1,
+                max_features=None,
+                min_samples_split=2,
+                min_samples_leaf=1,
+                bootstrap=True,
+                max_samples=None,
+                n_jobs=1,
+                random_state=seed,
+            )
+            if task == "classification"
+            else RandomForestRegressor(
+                n_estimators=CARDINALITY_FOREST_TREES,
+                max_depth=1,
+                max_features=None,
+                min_samples_split=2,
+                min_samples_leaf=1,
+                bootstrap=True,
+                max_samples=None,
+                n_jobs=1,
+                random_state=seed,
+            )
+        )
+    else:
+        common: dict[str, object] = {
+            "n_estimators": CARDINALITY_FOREST_TREES,
+            "alpha_selector": CARDINALITY_ALPHA,
+            "adjust_alpha_selector": True,
+            "adjust_alpha_splitter": False,
+            "n_resamples_selector": CARDINALITY_B,
+            "n_resamples_splitter": None,
+            "early_stopping_selector": None,
+            "early_stopping_splitter": None,
+            "feature_muting": False,
+            "feature_scanning": False,
+            "max_features": None,
+            "threshold_scanning": False,
+            "max_depth": 1,
+            "min_samples_split": 2,
+            "min_samples_leaf": 1,
+            "bootstrap": True,
+            "max_samples": None,
+            "n_jobs": 1,
+            "random_state": seed,
+            "verbose": 0,
+        }
+        model = (
+            ConditionalInferenceForestClassifier(
+                sampling_method=None,
+                **common,
+            )
+            if task == "classification"
+            else ConditionalInferenceForestRegressor(**common)
+        )
+    model.fit(X, y)
+    return np.asarray(model.feature_importances_, dtype=np.float64)
+
+
+def build_cardinality_forest_raw(
+    features: Sequence[CardinalityFeatureDesign],
+    raw_importances: np.ndarray,
+    *,
+    task: Task,
+    method: ForestMethod,
+    replicate: int,
+    data_seed: int,
+    model_seed: int,
+) -> pd.DataFrame:
+    """Build feature-level forest records with explicit structural zeros."""
+    ordered_features = tuple(sorted(features, key=lambda feature: feature.feature_id))
+    values = np.asarray(raw_importances, dtype=np.float64)
+    if values.shape != (len(ordered_features),) or np.isinf(values).any():
+        raise ValueError("raw_importances must be one non-infinite value per matrix column")
+    if method != "partykit_cforest" and np.isnan(values).any():
+        raise ValueError(f"{method} importances must not be missing")
+    trend_values = np.where(np.isnan(values), 0.0, values)
+    if method == "citrees_cif":
+        forest_family = "conditional_inference"
+        selector = "mc" if task == "classification" else "pc"
+        base_budget: int | float = CARDINALITY_B
+        candidate_budget = CARDINALITY_B * len(CARDINALITY_SUPPORTS)
+        importance_type = "normalized_impurity_decrease"
+        importance_permutations = 0
+    elif method == "partykit_cforest":
+        forest_family = "conditional_inference"
+        selector = "quadratic"
+        base_budget = CARDINALITY_B
+        candidate_budget = CARDINALITY_B
+        importance_type = "partykit_permutation"
+        importance_permutations = CARDINALITY_FOREST_IMPORTANCE_PERMUTATIONS
+    else:
+        forest_family = "cart"
+        selector = "gini" if task == "classification" else "squared_error"
+        base_budget = float("nan")
+        candidate_budget = 0
+        importance_type = "normalized_impurity_decrease"
+        importance_permutations = 0
+
+    rows: list[dict[str, object]] = []
+    for feature in ordered_features:
+        raw_value = float(values[feature.position])
+        missing = bool(np.isnan(raw_value))
+        rows.append(
+            {
+                "experiment": "cardinality_forest",
+                "dgp": CARDINALITY_DGP,
+                "maximum_support_feature_type": CARDINALITY_MAX_SUPPORT_FEATURE_TYPE,
+                "task": task,
+                "method": method,
+                "forest_family": forest_family,
+                "selector": selector,
+                "replicate": replicate,
+                "feature_id": feature.feature_id,
+                "cardinality": feature.label,
+                "cardinality_rank": feature.feature_id,
+                "feature_type": "ordered_discrete",
+                "nominal_support": feature.nominal_support,
+                "realized_support": feature.realized_support,
+                "maximum_multiplicity": feature.maximum_multiplicity,
+                "tied_pair_fraction": feature.tied_pair_fraction,
+                "feature_position": feature.position,
+                "n_samples": CARDINALITY_N_SAMPLES,
+                "n_features": len(CARDINALITY_SUPPORTS),
+                "data_seed": data_seed,
+                "model_seed": model_seed,
+                "B": base_budget,
+                "realized_candidate_resamples": candidate_budget,
+                "n_trees": CARDINALITY_FOREST_TREES,
+                "max_depth": 1,
+                "max_features": len(CARDINALITY_SUPPORTS),
+                "sampling_with_replacement": True,
+                "sample_size": CARDINALITY_N_SAMPLES,
+                "importance_type": importance_type,
+                "importance_permutations": importance_permutations,
+                "raw_importance": raw_value,
+                "raw_importance_missing": missing,
+                "trend_importance": float(trend_values[feature.position]),
+                "structural_zero_imputed": missing,
+            }
+        )
+    frame = pd.DataFrame(rows)
+    validate_cardinality_forest_raw(frame)
+    return frame
+
+
+def validate_cardinality_forest_raw(raw: pd.DataFrame) -> None:
+    """Validate paired DGP metadata, controls, and forest importances."""
+    required = {
+        "experiment",
+        "dgp",
+        "maximum_support_feature_type",
+        "task",
+        "method",
+        "forest_family",
+        "selector",
+        "replicate",
+        "feature_id",
+        "cardinality",
+        "cardinality_rank",
+        "feature_type",
+        "nominal_support",
+        "realized_support",
+        "maximum_multiplicity",
+        "tied_pair_fraction",
+        "feature_position",
+        "n_samples",
+        "n_features",
+        "data_seed",
+        "model_seed",
+        "B",
+        "realized_candidate_resamples",
+        "n_trees",
+        "max_depth",
+        "max_features",
+        "sampling_with_replacement",
+        "sample_size",
+        "importance_type",
+        "importance_permutations",
+        "raw_importance",
+        "raw_importance_missing",
+        "trend_importance",
+        "structural_zero_imputed",
+    }
+    missing_columns = required.difference(raw.columns)
+    if missing_columns:
+        raise ValueError(f"Missing cardinality forest columns: {sorted(missing_columns)}")
+    if not raw.columns.is_unique:
+        raise ValueError("Cardinality forest columns must be unique")
+    if raw.duplicated(["task", "replicate", "method", "feature_id"]).any():
+        raise ValueError("Cardinality forest candidate keys must be unique")
+    if not raw["experiment"].eq("cardinality_forest").all():
+        raise ValueError("Forest rows require experiment='cardinality_forest'")
+    if not raw["dgp"].eq(CARDINALITY_DGP).all():
+        raise ValueError(f"Forest rows require dgp={CARDINALITY_DGP}")
+    if not raw["maximum_support_feature_type"].eq(CARDINALITY_MAX_SUPPORT_FEATURE_TYPE).all():
+        raise ValueError("Forest rows do not identify the 200-level discrete predictor")
+    if not raw["feature_type"].eq("ordered_discrete").all():
+        raise ValueError("Every cardinality predictor must be labeled ordered discrete")
+    if not raw.groupby(["task", "replicate"])["data_seed"].nunique().eq(1).all():
+        raise ValueError("Forest methods within a replicate must share one data seed")
+
+    expected_ids = set(range(len(CARDINALITY_SUPPORTS)))
+    expected_multiplicities = np.asarray(
+        [CARDINALITY_N_SAMPLES // support for support in CARDINALITY_SUPPORTS],
+        dtype=np.int64,
+    )
+    total_pairs = CARDINALITY_N_SAMPLES * (CARDINALITY_N_SAMPLES - 1) // 2
+    expected_tied_fractions = np.asarray(
+        [
+            support * (multiplicity * (multiplicity - 1) // 2) / total_pairs
+            for support, multiplicity in zip(
+                CARDINALITY_SUPPORTS,
+                expected_multiplicities,
+                strict=True,
+            )
+        ],
+        dtype=np.float64,
+    )
+    position_mappings: dict[tuple[object, object], tuple[int, ...]] = {}
+    for _, group in raw.groupby(["task", "replicate", "method"], sort=False):
+        ordered = group.sort_values("feature_id")
+        if set(ordered["feature_id"]) != expected_ids:
+            raise ValueError("Every forest replicate must retain all cardinality features")
+        if tuple(ordered["cardinality"]) != CARDINALITY_LABELS:
+            raise ValueError("Forest cardinality labels must follow the frozen DGP")
+        if not ordered["cardinality_rank"].eq(ordered["feature_id"]).all():
+            raise ValueError("Forest cardinality rank must equal feature_id")
+        if tuple(int(value) for value in ordered["nominal_support"]) != CARDINALITY_SUPPORTS:
+            raise ValueError("Forest supports disagree with the frozen DGP")
+        if not np.array_equal(
+            ordered["nominal_support"].to_numpy(dtype=np.int64),
+            ordered["realized_support"].to_numpy(dtype=np.int64),
+        ):
+            raise ValueError("Forest realized supports must equal planned supports")
+        if not np.array_equal(
+            ordered["maximum_multiplicity"].to_numpy(dtype=np.int64),
+            expected_multiplicities,
+        ):
+            raise ValueError("Forest multiplicities disagree with the frozen DGP")
+        if not np.allclose(
+            ordered["tied_pair_fraction"].to_numpy(dtype=np.float64),
+            expected_tied_fractions,
+        ):
+            raise ValueError("Forest tied-pair fractions disagree with the frozen DGP")
+        if set(ordered["feature_position"]) != expected_ids:
+            raise ValueError("Every forest replicate must retain each feature position")
+        pair_key = (ordered["task"].iloc[0], ordered["replicate"].iloc[0])
+        positions = tuple(int(value) for value in ordered["feature_position"])
+        reference = position_mappings.setdefault(pair_key, positions)
+        if positions != reference:
+            raise ValueError("Forest methods within a replicate must share position mappings")
+        if (
+            not ordered["n_samples"].eq(CARDINALITY_N_SAMPLES).all()
+            or not ordered["n_features"].eq(len(CARDINALITY_SUPPORTS)).all()
+            or not ordered["n_trees"].eq(CARDINALITY_FOREST_TREES).all()
+            or not ordered["max_depth"].eq(1).all()
+            or not ordered["max_features"].eq(len(CARDINALITY_SUPPORTS)).all()
+            or not ordered["sampling_with_replacement"].astype(bool).all()
+            or not ordered["sample_size"].eq(CARDINALITY_N_SAMPLES).all()
+        ):
+            raise ValueError("Forest controls disagree with the frozen design")
+
+        method = str(ordered["method"].iloc[0])
+        raw_values = ordered["raw_importance"].to_numpy(dtype=np.float64)
+        trend_values = ordered["trend_importance"].to_numpy(dtype=np.float64)
+        missing = np.isnan(raw_values)
+        if not np.isfinite(trend_values).all():
+            raise ValueError("Trend importances must be finite")
+        if not np.array_equal(
+            ordered["raw_importance_missing"].astype(bool).to_numpy(),
+            missing,
+        ):
+            raise ValueError("Raw-importance missing indicators are inconsistent")
+        if not np.array_equal(
+            ordered["structural_zero_imputed"].astype(bool).to_numpy(),
+            missing,
+        ):
+            raise ValueError("Structural-zero indicators are inconsistent")
+        if not np.allclose(trend_values, np.where(missing, 0.0, raw_values)):
+            raise ValueError("Trend importance must only replace omitted values with zero")
+
+        if method == "partykit_cforest":
+            if (
+                not ordered["B"].eq(CARDINALITY_B).all()
+                or not ordered["realized_candidate_resamples"].eq(CARDINALITY_B).all()
+                or not ordered["importance_type"].eq("partykit_permutation").all()
+                or not ordered["importance_permutations"]
+                .eq(CARDINALITY_FOREST_IMPORTANCE_PERMUTATIONS)
+                .all()
+            ):
+                raise ValueError("partykit cforest controls are inconsistent")
+        elif method == "citrees_cif":
+            if missing.any():
+                raise ValueError("citrees CIF importances must not be missing")
+            if (
+                not ordered["B"].eq(CARDINALITY_B).all()
+                or not ordered["realized_candidate_resamples"]
+                .eq(CARDINALITY_B * len(CARDINALITY_SUPPORTS))
+                .all()
+                or not ordered["importance_type"].eq("normalized_impurity_decrease").all()
+            ):
+                raise ValueError("citrees CIF controls are inconsistent")
+        elif method == "sklearn_rf":
+            if missing.any() or not ordered["B"].isna().all():
+                raise ValueError("sklearn RF rows have invalid permutation metadata")
+            if (
+                not ordered["realized_candidate_resamples"].eq(0).all()
+                or not ordered["importance_type"].eq("normalized_impurity_decrease").all()
+            ):
+                raise ValueError("sklearn RF controls are inconsistent")
+        else:
+            raise ValueError(f"Unsupported cardinality forest method: {method}")
+
+
+def run_cardinality_forests(
+    profile: Profile,
+    *,
+    base_seed: int = BASE_SEED,
+) -> pd.DataFrame:
+    """Run matched CIF, cforest, and CART random-forest comparisons."""
+    settings = _settings(profile)
+    frames: list[pd.DataFrame] = []
+    methods: tuple[ForestMethod, ...] = (
+        "citrees_cif",
+        "partykit_cforest",
+        "sklearn_rf",
+    )
+    for task in ("classification", "regression"):
+        data_design = f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}"
+        for replicate in range(settings.cardinality_forest_replicates):
+            data_seed = _stream_seed(base_seed, data_design, replicate, "data")
+            rng = np.random.default_rng(data_seed)
+            X, features = _cardinality_matrix(rng, CARDINALITY_N_SAMPLES)
+            y = _response(rng, task, CARDINALITY_N_SAMPLES)
+            for method in methods:
+                model_seed = _stream_seed(
+                    base_seed,
+                    f"{task}__{method}__n{CARDINALITY_N_SAMPLES}",
+                    replicate,
+                    "model",
+                )
+                importances = _fit_cardinality_forest_importance(
+                    task,
+                    method,
+                    X,
+                    y,
+                    model_seed,
+                )
+                frames.append(
+                    build_cardinality_forest_raw(
+                        features,
+                        importances,
+                        task=task,
+                        method=method,
+                        replicate=replicate,
+                        data_seed=data_seed,
+                        model_seed=model_seed,
+                    )
+                )
+    raw = pd.concat(frames, ignore_index=True)
+    validate_cardinality_forest_raw(raw)
+    return raw
 
 
 def summarize_cardinality_forest_trends(
     raw: pd.DataFrame,
     *,
-    n_resamples: int,
-    random_state: int,
+    random_state: int = BASE_SEED,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Summarize replicate and method-level tau-b trends from raw importances."""
-    required = {
-        "task",
-        "method",
-        "replicate",
-        "feature_id",
-        "cardinality_rank",
-        "raw_importance",
-    }
-    missing = required.difference(raw.columns)
-    if missing:
-        raise ValueError(f"Missing cardinality forest columns: {sorted(missing)}")
-    keys = ["task", "replicate", "method", "feature_id"]
-    if raw.duplicated(keys).any():
-        raise ValueError("Cardinality forest candidate keys must be unique")
-
+    """Summarize replicate and Monte Carlo method-level tau-b forest trends."""
+    validate_cardinality_forest_raw(raw)
     replicate_rows: list[dict[str, object]] = []
     summary_rows: list[dict[str, object]] = []
-    grouped = raw.groupby(["task", "method"], sort=True)
-    for (task, method), method_group in grouped:
-        label_rows: list[np.ndarray] = []
-        importance_rows: list[np.ndarray] = []
-        for replicate, replicate_group in method_group.groupby("replicate", sort=True):
+    for (task, method), method_group in raw.groupby(["task", "method"], sort=True):
+        labels, importances = _candidate_matrices(
+            method_group,
+            "trend_importance",
+        )
+        tau_values = _kendall_tau_b_grid(labels[:1], importances)[0]
+        for row_index, (replicate, replicate_group) in enumerate(
+            method_group.groupby("replicate", sort=True)
+        ):
             ordered = replicate_group.sort_values("feature_id")
-            if set(ordered["feature_id"]) != set(range(len(CARDINALITY_SUPPORTS))):
-                raise ValueError("Every forest replicate must contain all cardinality features")
-            labels = ordered["cardinality_rank"].to_numpy(dtype=np.float64)
-            importances = ordered["raw_importance"].to_numpy(dtype=np.float64)
-            importance_ranks = average_ranks(importances)
-            tau = kendall_tau_b(labels, importances)
-            _, tie_counts = np.unique(importances, return_counts=True)
+            values = ordered["trend_importance"].to_numpy(dtype=np.float64)
+            importance_ranks = average_ranks(values)
+            _, tie_counts = np.unique(values, return_counts=True)
             replicate_rows.append(
                 {
+                    "experiment": "cardinality_forest_replicate",
+                    "dgp": CARDINALITY_DGP,
                     "task": task,
                     "method": method,
                     "replicate": int(replicate),
-                    "kendall_tau_b": tau,
+                    "data_seed": int(ordered["data_seed"].iloc[0]),
+                    "model_seed": int(ordered["model_seed"].iloc[0]),
+                    "kendall_tau_b": float(tau_values[row_index]),
                     "maximum_importance_tie_size": int(tie_counts.max()),
-                    "zero_importance_count": int(np.count_nonzero(importances == 0.0)),
-                    "average_importance_ranks": tuple(float(value) for value in importance_ranks),
+                    "zero_importance_count": int(np.count_nonzero(values == 0.0)),
+                    "raw_importance_missing_count": int(
+                        ordered["raw_importance_missing"].astype(bool).sum()
+                    ),
+                    "all_importances_equal": bool(tie_counts.max() == len(values)),
+                    **{
+                        f"average_rank_feature_{feature_id}": float(importance_ranks[feature_id])
+                        for feature_id in range(len(CARDINALITY_SUPPORTS))
+                    },
                 }
             )
-            label_rows.append(labels)
-            importance_rows.append(importances)
-
-        label_matrix = np.vstack(label_rows)
-        importance_matrix = np.vstack(importance_rows)
-        defined = np.asarray(
-            [
-                kendall_tau_b(label_row, importance_row)
-                for label_row, importance_row in zip(
-                    label_matrix,
-                    importance_matrix,
-                    strict=True,
-                )
-            ],
-            dtype=np.float64,
-        )
-        defined_count = int(np.isfinite(defined).sum())
+        defined_count = int(np.isfinite(tau_values).sum())
+        hypothesis_id = f"forest__{task}__{method}__importance_trend"
         if defined_count:
-            seed = _stream_seed(
-                random_state,
-                f"cardinality_forest__{task}__{method}",
-                0,
-                "randomization",
-            )
-            test = one_sided_label_randomization(
-                label_matrix,
-                importance_matrix,
-                statistic=kendall_tau_b,
-                n_resamples=n_resamples,
-                random_state=seed,
+            test = _kendall_randomization(
+                labels,
+                importances,
+                n_resamples=CARDINALITY_TREND_RESAMPLES,
+                random_state=_stream_seed(
+                    random_state,
+                    hypothesis_id,
+                    0,
+                    "trend_randomization",
+                ),
             )
             mean_tau = test.statistic
             p_value = test.p_value
-            extreme_count: int | None = test.extreme_count
+            extreme_count: int | float = test.extreme_count
         else:
             mean_tau = float("nan")
             p_value = float("nan")
-            extreme_count = None
+            extreme_count = float("nan")
         summary_rows.append(
             {
+                "experiment": "cardinality_forest_trend",
+                "dgp": CARDINALITY_DGP,
+                "hypothesis_id": hypothesis_id,
                 "task": task,
                 "method": method,
-                "n_replicates": label_matrix.shape[0],
+                "estimand": "importance_kendall_tau_b",
+                "alternative": "positive",
+                "n_replicates": importances.shape[0],
                 "n_defined_trends": defined_count,
+                "n_undefined_trends": int(importances.shape[0] - defined_count),
                 "mean_kendall_tau_b": mean_tau,
                 "randomization_p_value": p_value,
                 "randomization_extreme_count": extreme_count,
-                "randomization_resamples": n_resamples,
+                "per_replicate_label_permutations": (CARDINALITY_EXACT_LABEL_PERMUTATIONS),
+                "joint_randomization_resamples": CARDINALITY_TREND_RESAMPLES,
+                "randomization_scheme": CARDINALITY_TREND_RANDOMIZATION,
+                "randomization_p_value_rule": CARDINALITY_TREND_P_VALUE_RULE,
+                "mean_zero_importance_count": float(
+                    np.mean(np.count_nonzero(importances == 0.0, axis=1))
+                ),
+                "mean_raw_importance_missing_count": float(
+                    method_group.groupby("replicate")["raw_importance_missing"].sum().mean()
+                ),
             }
         )
     return pd.DataFrame(replicate_rows), pd.DataFrame(summary_rows)
+
+
+def apply_cardinality_holm(
+    tree_summary: pd.DataFrame,
+    forest_summary: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Apply one fixed Holm family to the 14 planned positive-trend tests."""
+    planned = pd.concat(
+        [
+            tree_summary[
+                [
+                    "hypothesis_id",
+                    "experiment",
+                    "task",
+                    "method",
+                    "estimand",
+                    "alternative",
+                    "randomization_p_value",
+                ]
+            ],
+            forest_summary[
+                [
+                    "hypothesis_id",
+                    "experiment",
+                    "task",
+                    "method",
+                    "estimand",
+                    "alternative",
+                    "randomization_p_value",
+                ]
+            ],
+        ],
+        ignore_index=True,
+    )
+    if len(planned) != CARDINALITY_HOLM_FAMILY_SIZE or planned["hypothesis_id"].duplicated().any():
+        raise ValueError(
+            f"The cardinality Holm family requires {CARDINALITY_HOLM_FAMILY_SIZE} "
+            "unique planned hypotheses"
+        )
+    raw_p_values = planned["randomization_p_value"].to_numpy(dtype=np.float64)
+    for p_value in raw_p_values[np.isfinite(raw_p_values)]:
+        _permutation_support(
+            float(p_value),
+            CARDINALITY_TREND_RESAMPLES,
+            "plus_one",
+        )
+    holm_inputs = np.where(np.isfinite(raw_p_values), raw_p_values, 1.0)
+    adjusted = holm_adjust(holm_inputs)
+    minimum_raw_p_value = 1.0 / (CARDINALITY_TREND_RESAMPLES + 1)
+    minimum_holm_p_value = float(
+        holm_adjust(
+            [minimum_raw_p_value] * CARDINALITY_HOLM_FAMILY_SIZE,
+        )[0]
+    )
+    if minimum_holm_p_value >= CARDINALITY_ALPHA:
+        raise ValueError("The planned Holm family does not have attainable 0.05 resolution")
+    planned["holm_family"] = CARDINALITY_HOLM_FAMILY
+    planned["holm_family_size"] = CARDINALITY_HOLM_FAMILY_SIZE
+    planned["test_defined"] = np.isfinite(raw_p_values)
+    planned["holm_input_p_value"] = holm_inputs
+    planned["holm_adjusted_p_value"] = adjusted
+    planned["holm_reject_0_05"] = adjusted < CARDINALITY_ALPHA
+    planned["minimum_attainable_raw_p_value"] = minimum_raw_p_value
+    planned["minimum_attainable_holm_p_value"] = minimum_holm_p_value
+    planned["undefined_test_treatment"] = np.where(
+        planned["test_defined"],
+        "monte_carlo_p_value",
+        "set_to_one",
+    )
+
+    holm_columns = [
+        "holm_family",
+        "holm_family_size",
+        "holm_input_p_value",
+        "holm_adjusted_p_value",
+        "holm_reject_0_05",
+    ]
+    lookup = planned.set_index("hypothesis_id")
+    adjusted_summaries: list[pd.DataFrame] = []
+    for summary in (tree_summary, forest_summary):
+        adjusted_summary = summary.copy()
+        for column in holm_columns:
+            adjusted_summary[column] = adjusted_summary["hypothesis_id"].map(lookup[column])
+        adjusted_summaries.append(adjusted_summary)
+    family = planned[
+        [
+            "holm_family",
+            "holm_family_size",
+            "hypothesis_id",
+            "experiment",
+            "task",
+            "method",
+            "estimand",
+            "alternative",
+            "test_defined",
+            "randomization_p_value",
+            "holm_input_p_value",
+            "holm_adjusted_p_value",
+            "holm_reject_0_05",
+            "minimum_attainable_raw_p_value",
+            "minimum_attainable_holm_p_value",
+            "undefined_test_treatment",
+        ]
+    ].rename(
+        columns={
+            "holm_family": "family",
+            "holm_family_size": "family_size",
+        }
+    )
+    return adjusted_summaries[0], adjusted_summaries[1], family
 
 
 def wilson_interval(successes: int, total: int, confidence: float = 0.95) -> tuple[float, float]:
@@ -1440,58 +2962,394 @@ def summarize_root_null(raw: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def summarize_cardinality_bias(
-    raw: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Summarize conditional root selection frequencies and global tests."""
-    feature_rows: list[dict[str, object]] = []
-    global_rows: list[dict[str, object]] = []
-    for (task, method), group in raw.groupby(["task", "method"], sort=True):
-        selected = group[group["selected_feature"] >= 0]
-        total = int(len(group))
-        n_splits = int(len(selected))
-        counts = (
-            selected["selected_feature"]
-            .value_counts()
-            .reindex(range(len(CARDINALITY_LABELS)), fill_value=0)
-            .astype(int)
-        )
-        for feature_index, label in enumerate(CARDINALITY_LABELS):
-            count = int(counts.loc[feature_index])
-            lower, upper = wilson_interval(count, n_splits)
-            feature_rows.append(
-                {
-                    "task": task,
-                    "method": method,
-                    "feature_index": feature_index,
-                    "cardinality": label,
-                    "n_replicates": total,
-                    "n_splits": n_splits,
-                    "selection_count": count,
-                    "selection_rate_given_split": (count / n_splits if n_splits else float("nan")),
-                    "confidence_lower": lower,
-                    "confidence_upper": upper,
-                }
+CALIBRATION_RESULT_SCHEMAS: dict[str, tuple[str, ...]] = {
+    "selector_null_raw": (
+        "task",
+        "selector",
+        "feature_distribution",
+        "n_samples",
+        "n_resamples",
+        "alpha",
+        "experiment",
+        "estimand",
+        "scenario",
+        "replicate",
+        "data_seed",
+        "model_seed",
+        "realized_permutations",
+        "p_value",
+        "rejected",
+    ),
+    "selector_null_summary": (
+        "estimand",
+        "scenario",
+        "task",
+        "selector",
+        "feature_distribution",
+        "n_samples",
+        "n_resamples",
+        "alpha",
+        "n_replicates",
+        "n_rejections",
+        "rejection_rate",
+        "confidence_lower",
+        "confidence_upper",
+        "attainable_alpha",
+        "realized_permutations_total",
+    ),
+    "root_null_raw": (
+        "task",
+        "gate",
+        "stopping",
+        "feature_scanning",
+        "threshold_scanning",
+        "feature_distribution",
+        "n_samples",
+        "n_features",
+        "base_resamples",
+        "threshold_method",
+        "max_thresholds",
+        "alpha",
+        "experiment",
+        "estimand",
+        "scenario",
+        "replicate",
+        "data_seed",
+        "model_seed",
+        "realized_selector_permutations",
+        "realized_splitter_permutations",
+        "realized_permutations",
+        "split",
+    ),
+    "root_null_summary": (
+        "estimand",
+        "scenario",
+        "task",
+        "gate",
+        "stopping",
+        "feature_scanning",
+        "threshold_scanning",
+        "feature_distribution",
+        "n_samples",
+        "n_features",
+        "base_resamples",
+        "threshold_method",
+        "max_thresholds",
+        "alpha",
+        "n_replicates",
+        "n_splits",
+        "split_rate",
+        "confidence_lower",
+        "confidence_upper",
+        "realized_selector_permutations_total",
+        "realized_splitter_permutations_total",
+        "realized_permutations_total",
+        "realized_permutations_mean",
+    ),
+    "cardinality_design": (
+        "experiment",
+        "dgp",
+        "n_samples",
+        "n_features",
+        "feature_id",
+        "cardinality",
+        "feature_type",
+        "nominal_support",
+        "realized_support",
+        "maximum_multiplicity",
+        "tied_pair_fraction",
+        "balance",
+        "column_order",
+        "maximum_support_feature_type",
+    ),
+    "cardinality_tree_raw": (
+        "experiment",
+        "dgp",
+        "maximum_support_feature_type",
+        "task",
+        "method",
+        "selection_test",
+        "selector",
+        "replicate",
+        "feature_id",
+        "cardinality",
+        "cardinality_rank",
+        "feature_type",
+        "nominal_support",
+        "realized_support",
+        "maximum_multiplicity",
+        "tied_pair_fraction",
+        "feature_position",
+        "n_samples",
+        "n_features",
+        "data_seed",
+        "model_seed",
+        "B",
+        "realized_permutations",
+        "selection_alpha",
+        "adjusted_alpha",
+        "p_value_comparison",
+        "p_value_rule",
+        "native_p_value_rule",
+        "attainable_adjusted_cutoff",
+        "candidate_statistic",
+        "p_value_support_index",
+        "p_value_numerator",
+        "p_value_denominator",
+        "p_value",
+        "native_p_value_support_index",
+        "native_p_value_numerator",
+        "native_p_value_denominator",
+        "native_p_value",
+        "minimum_p_tie_size",
+        "all_p_equal",
+        "is_minimum_p",
+        "forced_winner_weight",
+        "adjusted_winner_weight",
+        "adjusted_split",
+        "adjusted_no_split",
+        "no_split_weight",
+        "native_winner",
+        "native_split",
+        "native_no_split",
+        "native_selected_position",
+        "native_selected_feature",
+        "native_score_tie_size",
+    ),
+    "cardinality_tree_replicate": (
+        "experiment",
+        "dgp",
+        "task",
+        "method",
+        "replicate",
+        "data_seed",
+        "model_seed",
+        "n_features",
+        "forced_directional_effect",
+        "adjusted_directional_effect",
+        "adjusted_split",
+        "adjusted_no_split",
+        "native_directional_effect",
+        "native_split",
+        "native_no_split",
+        "minimum_p_tie_size",
+        "all_p_equal",
+        "native_score_tie_size",
+    ),
+    "cardinality_tree_trend_summary": (
+        "experiment",
+        "dgp",
+        "hypothesis_id",
+        "task",
+        "method",
+        "estimand",
+        "alternative",
+        "n_replicates",
+        "n_defined_effects",
+        "n_adjusted_splits",
+        "n_adjusted_no_splits",
+        "adjusted_no_split_rate",
+        "mean_directional_effect",
+        "randomization_p_value",
+        "randomization_extreme_count",
+        "per_replicate_label_permutations",
+        "joint_randomization_resamples",
+        "randomization_scheme",
+        "randomization_p_value_rule",
+        "holm_family",
+        "holm_family_size",
+        "holm_input_p_value",
+        "holm_adjusted_p_value",
+        "holm_reject_0_05",
+    ),
+    "cardinality_tree_method_summary": (
+        "experiment",
+        "dgp",
+        "task",
+        "method",
+        "n_replicates",
+        "n_adjusted_splits",
+        "n_adjusted_no_splits",
+        "adjusted_split_rate",
+        "n_native_splits",
+        "n_native_no_splits",
+        "native_split_rate",
+        "mean_native_directional_effect_given_split",
+        "n_minimum_p_ties",
+        "minimum_p_tie_rate",
+        "mean_minimum_p_tie_size",
+        "n_all_p_equal",
+        "n_native_score_ties",
+        "mean_native_score_tie_size",
+    ),
+    "cardinality_forest_raw": (
+        "experiment",
+        "dgp",
+        "maximum_support_feature_type",
+        "task",
+        "method",
+        "forest_family",
+        "selector",
+        "replicate",
+        "feature_id",
+        "cardinality",
+        "cardinality_rank",
+        "feature_type",
+        "nominal_support",
+        "realized_support",
+        "maximum_multiplicity",
+        "tied_pair_fraction",
+        "feature_position",
+        "n_samples",
+        "n_features",
+        "data_seed",
+        "model_seed",
+        "B",
+        "realized_candidate_resamples",
+        "n_trees",
+        "max_depth",
+        "max_features",
+        "sampling_with_replacement",
+        "sample_size",
+        "importance_type",
+        "importance_permutations",
+        "raw_importance",
+        "raw_importance_missing",
+        "trend_importance",
+        "structural_zero_imputed",
+    ),
+    "cardinality_forest_replicate": (
+        "experiment",
+        "dgp",
+        "task",
+        "method",
+        "replicate",
+        "data_seed",
+        "model_seed",
+        "kendall_tau_b",
+        "maximum_importance_tie_size",
+        "zero_importance_count",
+        "raw_importance_missing_count",
+        "all_importances_equal",
+        "average_rank_feature_0",
+        "average_rank_feature_1",
+        "average_rank_feature_2",
+        "average_rank_feature_3",
+        "average_rank_feature_4",
+    ),
+    "cardinality_forest_summary": (
+        "experiment",
+        "dgp",
+        "hypothesis_id",
+        "task",
+        "method",
+        "estimand",
+        "alternative",
+        "n_replicates",
+        "n_defined_trends",
+        "n_undefined_trends",
+        "mean_kendall_tau_b",
+        "randomization_p_value",
+        "randomization_extreme_count",
+        "per_replicate_label_permutations",
+        "joint_randomization_resamples",
+        "randomization_scheme",
+        "randomization_p_value_rule",
+        "mean_zero_importance_count",
+        "mean_raw_importance_missing_count",
+        "holm_family",
+        "holm_family_size",
+        "holm_input_p_value",
+        "holm_adjusted_p_value",
+        "holm_reject_0_05",
+    ),
+    "cardinality_holm_family": (
+        "family",
+        "family_size",
+        "hypothesis_id",
+        "experiment",
+        "task",
+        "method",
+        "estimand",
+        "alternative",
+        "test_defined",
+        "randomization_p_value",
+        "holm_input_p_value",
+        "holm_adjusted_p_value",
+        "holm_reject_0_05",
+        "minimum_attainable_raw_p_value",
+        "minimum_attainable_holm_p_value",
+        "undefined_test_treatment",
+    ),
+}
+
+
+def _validate_serializable_frame(name: str, frame: pd.DataFrame) -> None:
+    """Reject nested cells and infinite values before Parquet/CSV writing."""
+    if not frame.columns.is_unique:
+        raise ValueError(f"{name} columns must be unique")
+    numeric = frame.select_dtypes(include=[np.number])
+    if np.isinf(numeric.to_numpy(dtype=np.float64)).any():
+        raise ValueError(f"{name} contains infinite numeric values")
+    nested_types = (dict, list, set, tuple, np.ndarray)
+    for column in frame.columns:
+        if frame[column].map(lambda value: isinstance(value, nested_types)).any():
+            raise TypeError(f"{name}.{column} contains a non-serializable nested value")
+
+
+def validate_calibration_results(results: dict[str, pd.DataFrame]) -> None:
+    """Validate the complete production result and writer contract."""
+    if set(results) != set(CALIBRATION_RESULT_SCHEMAS):
+        missing = sorted(set(CALIBRATION_RESULT_SCHEMAS).difference(results))
+        extra = sorted(set(results).difference(CALIBRATION_RESULT_SCHEMAS))
+        raise ValueError(f"Calibration result tables differ: missing={missing}, extra={extra}")
+    for name, expected_columns in CALIBRATION_RESULT_SCHEMAS.items():
+        frame = results[name]
+        if tuple(frame.columns) != expected_columns:
+            raise ValueError(
+                f"{name} schema differs: expected={expected_columns}, "
+                f"observed={tuple(frame.columns)}"
             )
-        if n_splits:
-            statistic, p_value = chisquare(counts.to_numpy())
-        else:
-            statistic, p_value = float("nan"), float("nan")
-        split_lower, split_upper = wilson_interval(n_splits, total)
-        global_rows.append(
-            {
-                "task": task,
-                "method": method,
-                "n_replicates": total,
-                "n_splits": n_splits,
-                "split_rate": n_splits / total,
-                "split_confidence_lower": split_lower,
-                "split_confidence_upper": split_upper,
-                "uniform_selection_chisquare": float(statistic),
-                "uniform_selection_p_value": float(p_value),
-            }
-        )
-    return pd.DataFrame(feature_rows), pd.DataFrame(global_rows)
+        _validate_serializable_frame(name, frame)
+
+    validate_cardinality_tree_raw(results["cardinality_tree_raw"])
+    validate_cardinality_forest_raw(results["cardinality_forest_raw"])
+    design = results["cardinality_design"]
+    if (
+        len(design) != len(CARDINALITY_SUPPORTS)
+        or tuple(design["nominal_support"]) != CARDINALITY_SUPPORTS
+        or not design["maximum_support_feature_type"].eq(CARDINALITY_MAX_SUPPORT_FEATURE_TYPE).all()
+    ):
+        raise ValueError("The serialized cardinality design differs from the frozen DGP")
+    family = results["cardinality_holm_family"]
+    if (
+        len(family) != CARDINALITY_HOLM_FAMILY_SIZE
+        or family["hypothesis_id"].duplicated().any()
+        or not family["family"].eq(CARDINALITY_HOLM_FAMILY).all()
+        or not family["family_size"].eq(CARDINALITY_HOLM_FAMILY_SIZE).all()
+    ):
+        raise ValueError("The serialized cardinality Holm family is incomplete")
+    for name in (
+        "cardinality_tree_trend_summary",
+        "cardinality_forest_summary",
+    ):
+        summary = results[name]
+        if (
+            not summary["per_replicate_label_permutations"]
+            .eq(CARDINALITY_EXACT_LABEL_PERMUTATIONS)
+            .all()
+            or not summary["joint_randomization_resamples"].eq(CARDINALITY_TREND_RESAMPLES).all()
+            or not summary["randomization_scheme"].eq(CARDINALITY_TREND_RANDOMIZATION).all()
+            or not summary["randomization_p_value_rule"].eq(CARDINALITY_TREND_P_VALUE_RULE).all()
+        ):
+            raise ValueError(f"{name} has inconsistent randomization metadata")
+    if (
+        not family["minimum_attainable_raw_p_value"]
+        .eq(1.0 / (CARDINALITY_TREND_RESAMPLES + 1))
+        .all()
+        or not family["minimum_attainable_holm_p_value"].lt(CARDINALITY_ALPHA).all()
+    ):
+        raise ValueError("The serialized Holm family has insufficient p-value resolution")
 
 
 def run_calibration(
@@ -1499,20 +3357,40 @@ def run_calibration(
     *,
     base_seed: int = BASE_SEED,
 ) -> dict[str, pd.DataFrame]:
-    """Run all calibration analyses and return raw and summary tables."""
+    """Run all calibration analyses and return validated production tables."""
     selector_raw = run_selector_null(profile, base_seed=base_seed)
     root_raw = run_root_null(profile, base_seed=base_seed)
-    cardinality_raw = run_cardinality_bias(profile, base_seed=base_seed)
-    cardinality_summary, cardinality_global = summarize_cardinality_bias(cardinality_raw)
-    return {
+    tree_raw = run_cardinality_trees(profile, base_seed=base_seed)
+    tree_replicate, tree_trend, tree_method = summarize_cardinality_tree(
+        tree_raw,
+        random_state=base_seed,
+    )
+    forest_raw = run_cardinality_forests(profile, base_seed=base_seed)
+    forest_replicate, forest_summary = summarize_cardinality_forest_trends(
+        forest_raw,
+        random_state=base_seed,
+    )
+    tree_trend, forest_summary, holm_family = apply_cardinality_holm(
+        tree_trend,
+        forest_summary,
+    )
+    results = {
         "selector_null_raw": selector_raw,
         "selector_null_summary": summarize_selector_null(selector_raw),
         "root_null_raw": root_raw,
         "root_null_summary": summarize_root_null(root_raw),
-        "cardinality_bias_raw": cardinality_raw,
-        "cardinality_bias_summary": cardinality_summary,
-        "cardinality_bias_global": cardinality_global,
+        "cardinality_design": cardinality_design(),
+        "cardinality_tree_raw": tree_raw,
+        "cardinality_tree_replicate": tree_replicate,
+        "cardinality_tree_trend_summary": tree_trend,
+        "cardinality_tree_method_summary": tree_method,
+        "cardinality_forest_raw": forest_raw,
+        "cardinality_forest_replicate": forest_replicate,
+        "cardinality_forest_summary": forest_summary,
+        "cardinality_holm_family": holm_family,
     }
+    validate_calibration_results(results)
+    return results
 
 
 def _git_sha() -> str:
@@ -1565,6 +3443,7 @@ def write_results(
     elapsed_seconds: float,
 ) -> None:
     """Write analysis tables and a machine-readable execution receipt."""
+    validate_calibration_results(results)
     output_dir.mkdir(parents=True, exist_ok=True)
     artifact_paths: list[Path] = []
     for name, frame in results.items():
@@ -1572,7 +3451,7 @@ def write_results(
         parquet_path = output_dir / parquet_name
         frame.to_parquet(parquet_path, index=False)
         artifact_paths.append(parquet_path)
-        if name.endswith("_summary") or name.endswith("_global"):
+        if name.endswith("_summary") or name.endswith("_family") or name == "cardinality_design":
             csv_name = f"{name}.csv"
             csv_path = output_dir / csv_name
             frame.to_csv(csv_path, index=False)
@@ -1602,10 +3481,28 @@ def write_results(
 
     receipt = {
         "analysis": "calibration",
-        "schema_version": 3,
+        "schema_version": 4,
         "profile": profile,
         "base_seed": base_seed,
         "settings": asdict(_settings(profile)),
+        "cardinality_design": {
+            "dgp": CARDINALITY_DGP,
+            "n_samples": CARDINALITY_N_SAMPLES,
+            "supports": list(CARDINALITY_SUPPORTS),
+            "maximum_support_feature_type": CARDINALITY_MAX_SUPPORT_FEATURE_TYPE,
+            "base_permutations": CARDINALITY_B,
+            "forest_trees": CARDINALITY_FOREST_TREES,
+            "forest_importance_permutations": (CARDINALITY_FOREST_IMPORTANCE_PERMUTATIONS),
+            "exact_label_permutations": CARDINALITY_EXACT_LABEL_PERMUTATIONS,
+            "trend_randomization_resamples": CARDINALITY_TREND_RESAMPLES,
+            "trend_randomization_scheme": CARDINALITY_TREND_RANDOMIZATION,
+            "trend_randomization_p_value_rule": CARDINALITY_TREND_P_VALUE_RULE,
+            "holm_family": CARDINALITY_HOLM_FAMILY,
+            "holm_family_size": CARDINALITY_HOLM_FAMILY_SIZE,
+            "minimum_attainable_raw_p_value": 1.0 / (CARDINALITY_TREND_RESAMPLES + 1),
+            "minimum_attainable_holm_p_value": CARDINALITY_HOLM_FAMILY_SIZE
+            / (CARDINALITY_TREND_RESAMPLES + 1),
+        },
         "created_utc": datetime.now(UTC).isoformat(),
         "elapsed_seconds": elapsed_seconds,
         "git_sha": _git_sha(),
@@ -1615,6 +3512,13 @@ def write_results(
         "r_environment": _r_environment(),
         "source_sha256": {str(path.relative_to(repo_root)): _sha256(path) for path in source_files},
         "versions": versions,
+        "tables": {
+            name: {
+                "rows": len(frame),
+                "columns": list(frame.columns),
+            }
+            for name, frame in results.items()
+        },
         "artifacts": {
             path.name: {
                 "bytes": path.stat().st_size,

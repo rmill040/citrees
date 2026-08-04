@@ -340,19 +340,31 @@ column order of independent ordered discrete predictors with 2, 4, 10, 20, and
 The comparison includes \citrees, \pkg{partykit}, and CART under matched
 depth and stopping controls.
 
-Behavioral comparisons use shared training folds and random seeds to compare
-root variables, complete split-variable rankings, predictions, and
-reproducibility. Agreement is interpreted relative to documented differences
-in statistics and defaults for each implementation. Computational experiments
-vary sample size, predictor count, selector, permutation budget, and forest size
-on fixed hardware, reporting elapsed time and peak memory.
+Behavioral comparisons use identical training folds. Each implementation
+receives the same integer seed through its own \proglang{Python} or \proglang{R}
+random-number stream. Both receive the profile's nominal permutation setting.
+\citrees expands its per-candidate permutation count by the nodewise Bonferroni
+factor, while \pkg{partykit} passes the nominal setting to its native Monte Carlo
+distribution control. Tree summaries compare split decisions and root
+variables, with root identity evaluated when both trees split. Feature
+concordance compares split counts for trees and the documented native importance
+measure for each forest implementation. Rank concordance is evaluated when both
+native summaries distinguish among features. Held-out predictions and exact
+same-seed replication of the reported roots, feature summaries, and predictions
+provide additional behavioral comparisons. Repeat-level means and percentile
+bootstrap intervals quantify variation across data-partition seeds for each
+fixed dataset.
+Computational experiments vary sample size, predictor count, selector,
+permutation budget, and forest size on fixed hardware, reporting elapsed time
+and peak memory.
 
 Replication materials provide a quick profile intended for a regular computer
 and a full profile for the reported simulation and scaling estimates. Both
 profiles record random seeds, software versions, source hashes, platform
-metadata, and generated artifact names. The quick profile preserves the
-analysis structure with fewer repetitions; the full profile is the source for
-manuscript results.
+metadata, and generated artifact names. The quick profile uses fewer folds,
+smaller permutation and forest budgets, and fewer importance permutations while
+retaining the datasets, metric definitions, output schemas, and validation
+rules. The full profile is the source for manuscript results.
 
 \section{Discussion} \label{sec:discussion}
 

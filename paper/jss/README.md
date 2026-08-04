@@ -33,7 +33,7 @@ affiliation is Amazon Web Services.
 | Null calibration        | Measure feature-test and root-split rejection under independence                       | Fixed-budget p-values; exhaustive, adaptive, and simple fitting |
 | Split-variable bias     | Measure selection frequency when noise variables differ only in cardinality            | `citrees`, `partykit::ctree`, CART                          |
 | Power and recovery      | Show linear, nonlinear, correlated, and interaction boundaries                         | All compatible `citrees` selectors and multi-selector tests |
-| Reference behavior      | Compare fitted structure, rankings, predictions, and documented differences            | `citrees`, `partykit::ctree`, `partykit::cforest`           |
+| Reference behavior      | Compare split decisions, conditional root agreement, native feature summaries, and predictions | `citrees`, `partykit::ctree`, `partykit::cforest`           |
 | Scaling                 | Measure runtime and peak memory across controlled problem dimensions                   | `citrees`, `partykit`, scikit-learn                         |
 | DGRP application        | Demonstrate leakage-safe screening and linkage-disequilibrium-aware stability analysis | Tree, forest, linear, and marginal baselines                |
 | Tutorial                | Demonstrate the estimator interface in an executable workflow                          | Breast Cancer Wisconsin Diagnostic data                     |
@@ -52,8 +52,9 @@ end-to-end tutorial.
 
 - Simulation results estimate calibration, power, and known failure boundaries
   across the specified designs.
-- Reference comparisons quantify behavioral agreement under matched controls
-  while retaining each implementation's statistics and defaults.
+- Reference comparisons quantify split decisions, conditional root agreement,
+  native feature-summary concordance, and held-out prediction behavior under
+  identical folds and aligned structural controls.
 - Cardiac results are an adapted predictive reanalysis of screening and
   stability among DGRP lines.
 - DGRP lines are the independent units, and repeated resampling quantifies
@@ -64,8 +65,9 @@ end-to-end tutorial.
 
 The final submission provides a single entry point with two profiles:
 
-- `quick` rebuilds analogous manuscript results within the JSS reviewer-time
-  target on a regular computer.
+- `quick` retains the datasets, metric definitions, output schemas, and
+  validation rules with reduced folds and computational budgets for a regular
+  computer.
 - `full` rebuilds the reported simulation estimates and computational
   measurements and may require parallel hardware.
 

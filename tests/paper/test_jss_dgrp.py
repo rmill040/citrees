@@ -7,6 +7,7 @@ import io
 import json
 import sys
 import tarfile
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -230,6 +231,36 @@ def test_genotype_archive_acquisition_verifies_download_before_publish(
 
     assert dgrp.acquire_genotype_archive(tmp_path) == destination
     assert calls == [(source_url, 60)]
+
+
+@pytest.mark.parametrize(
+    ("acquire", "filename"),
+    [
+        (dgrp.acquire_phenotype_workbook, dgrp.PHENOTYPE_FILENAME),
+        (dgrp.acquire_genotype_archive, dgrp.GENOTYPE_ARCHIVE_FILENAME),
+    ],
+)
+def test_acquisition_cleans_partial_download_after_keyboard_interrupt(
+    acquire: Callable[[Path], Path],
+    filename: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class InterruptedResponse(io.BytesIO):
+        def read(self, size: int | None = -1) -> bytes:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        dgrp.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: InterruptedResponse(),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        acquire(tmp_path)
+
+    partial = (tmp_path / filename).with_suffix((tmp_path / filename).suffix + ".part")
+    assert not partial.exists()
 
 
 def test_safe_tar_extraction_accepts_only_exact_regular_members(tmp_path: Path) -> None:
@@ -509,6 +540,62 @@ def test_genotype_extraction_preserves_sqlite_and_rejects_malformed_plink(
         dgrp.extract_genotype_archive(archive_path, data_dir)
     assert malformed_fam.read_bytes() == b"malformed\n"
     assert sqlite_path.read_bytes() == sqlite_payload
+
+
+def test_genotype_extraction_rolls_back_after_keyboard_interrupt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    members = [
+        ("input/dgrp2.bed", dgrp.GENOTYPE_BED_MAGIC + b"\x00"),
+        ("input/dgrp2.bim", b"1 variant 0 1 A G\n"),
+        (
+            "input/dgrp2.fam",
+            b"line_1 line_1 0 0 2 -9\nline_2 line_2 0 0 2 -9\n",
+        ),
+    ]
+    specs = _genotype_specs(members)
+    data_dir = tmp_path / "data"
+    input_dir = data_dir / "input"
+    input_dir.mkdir(parents=True)
+    unrelated = input_dir / "Phenosnip.201612.sqlite"
+    unrelated.write_bytes(b"preserve this source")
+    archive_path = data_dir / dgrp.GENOTYPE_ARCHIVE_FILENAME
+    _write_tar(archive_path, members)
+    archive_payload = archive_path.read_bytes()
+
+    monkeypatch.setattr(dgrp, "GENOTYPE_FILE_SPECS", specs)
+    monkeypatch.setattr(dgrp, "GENOTYPE_ARCHIVE_BYTES", len(archive_payload))
+    monkeypatch.setattr(
+        dgrp,
+        "GENOTYPE_ARCHIVE_MD5",
+        hashlib.md5(archive_payload, usedforsecurity=False).hexdigest(),
+    )
+    monkeypatch.setattr(
+        dgrp,
+        "GENOTYPE_ARCHIVE_SHA256",
+        hashlib.sha256(archive_payload).hexdigest(),
+    )
+    monkeypatch.setattr(dgrp, "EXPECTED_GENOTYPE_SAMPLES", 2)
+    monkeypatch.setattr(dgrp, "EXPECTED_GENOTYPE_VARIANTS", 1)
+
+    real_link = dgrp.os.link
+    links = 0
+
+    def interrupt_second_link(source: Path, destination: Path) -> None:
+        nonlocal links
+        links += 1
+        if links == 2:
+            raise KeyboardInterrupt
+        real_link(source, destination)
+
+    monkeypatch.setattr(dgrp.os, "link", interrupt_second_link)
+
+    with pytest.raises(KeyboardInterrupt):
+        dgrp.extract_genotype_archive(archive_path, data_dir)
+
+    assert {path.name for path in input_dir.iterdir()} == {unrelated.name}
+    assert unrelated.read_bytes() == b"preserve this source"
 
 
 def test_main_invokes_genotype_pipeline_and_persists_provenance(

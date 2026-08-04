@@ -174,7 +174,7 @@ def acquire_phenotype_workbook(data_dir: Path = DEFAULT_DATA_DIR) -> Path:
             shutil.copyfileobj(response, stream)
         verify_source(partial)
         partial.replace(destination)
-    except Exception:
+    except BaseException:
         partial.unlink(missing_ok=True)
         raise
     return destination
@@ -231,7 +231,7 @@ def acquire_genotype_archive(data_dir: Path = DEFAULT_DATA_DIR) -> Path:
             shutil.copyfileobj(response, stream)
         verify_genotype_archive(partial)
         partial.replace(destination)
-    except Exception:
+    except BaseException:
         partial.unlink(missing_ok=True)
         raise
     return destination
@@ -317,7 +317,7 @@ def _safe_extract_genotype_members(
                         f"DGRP genotype checksum mismatch for {spec.member_name}: "
                         f"expected {spec.sha256}, got {observed_sha256}"
                     )
-    except Exception:
+    except BaseException:
         shutil.rmtree(destination)
         destination.mkdir(parents=True)
         raise
@@ -542,7 +542,7 @@ def extract_genotype_archive(
                     os.link(source, destination)
                     installed.append(destination)
                 validate_genotype_files(input_dir)
-            except Exception:
+            except BaseException:
                 for path in installed:
                     path.unlink(missing_ok=True)
                 raise

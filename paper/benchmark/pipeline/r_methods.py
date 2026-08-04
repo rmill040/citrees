@@ -685,6 +685,9 @@ def r_cforest_importance(
     nresample: int = 9999,
     ntree: int = 100,
     mtry: int | str | None = None,
+    maxdepth: int | None = None,
+    minsplit: int = 20,
+    minbucket: int = 7,
     replace: bool = False,
     fraction: float = 0.632,
     varimp_conditional: bool = False,
@@ -720,6 +723,12 @@ def r_cforest_importance(
         Number of variables to sample at each split.
         "sqrt" for sqrt(n_features), "log" for log2(n_features),
         "all" or None for all features.
+    maxdepth : int or None
+        Maximum tree depth. None uses partykit's default.
+    minsplit : int
+        Minimum samples required to attempt a split.
+    minbucket : int
+        Minimum samples in terminal nodes.
     replace : bool
         Whether to sample with replacement (bootstrap).
     fraction : float
@@ -755,13 +764,18 @@ def r_cforest_importance(
     formula = stats.as_formula("y ~ .")
 
     # Build ctree_control for cforest
-    control = partykit.ctree_control(
-        teststat=teststat,
-        testtype=testtype,
-        mincriterion=mincriterion,
-        nresample=nresample,
-        saveinfo=False,
-    )
+    control_kwargs: dict[str, Any] = {
+        "teststat": teststat,
+        "testtype": testtype,
+        "mincriterion": mincriterion,
+        "nresample": nresample,
+        "minsplit": minsplit,
+        "minbucket": minbucket,
+        "saveinfo": False,
+    }
+    if maxdepth is not None:
+        control_kwargs["maxdepth"] = maxdepth
+    control = partykit.ctree_control(**control_kwargs)
 
     # Build perturb list
     perturb = ro.ListVector({"replace": replace, "fraction": fraction})
@@ -806,6 +820,9 @@ def r_cforest_ranking(
     nresample: int = 9999,
     ntree: int = 100,
     mtry: int | str | None = None,
+    maxdepth: int | None = None,
+    minsplit: int = 20,
+    minbucket: int = 7,
     replace: bool = False,
     fraction: float = 0.632,
     varimp_conditional: bool = False,
@@ -824,6 +841,9 @@ def r_cforest_ranking(
         nresample=nresample,
         ntree=ntree,
         mtry=mtry,
+        maxdepth=maxdepth,
+        minsplit=minsplit,
+        minbucket=minbucket,
         replace=replace,
         fraction=fraction,
         varimp_conditional=varimp_conditional,

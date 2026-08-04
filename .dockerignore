@@ -42,7 +42,9 @@ examples/
 paper/analysis/
 paper/arxiv/
 paper/data_generation/
-paper/jss/
+paper/jss/*
+!paper/jss/replication/
+!paper/jss/replication/**
 paper/maintenance/
 paper/results/
 paper/theory/

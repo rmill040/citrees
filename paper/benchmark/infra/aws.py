@@ -20,8 +20,9 @@ import subprocess
 import tarfile
 import tempfile
 import time
+import urllib.parse
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -224,6 +225,80 @@ def verify_candidate_image(
             "run",
             "--rm",
             image_tag,
+            "python",
+            "-m",
+            "paper.jss.replication.cloud",
+            "--help",
+        ],
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-e",
+            f"GIT_SHA={git_sha}",
+            "-e",
+            "CITREES_SOURCE_CLEAN=1",
+            image_tag,
+            "python",
+            "-c",
+            (
+                "from paper.jss.replication.shards import capture_execution_context; "
+                "context = capture_execution_context('calibration'); "
+                f"assert context.git_sha == {git_sha!r}; "
+                "assert context.git_dirty is False"
+            ),
+        ],
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-e",
+            f"GIT_SHA={git_sha}",
+            "-e",
+            "CITREES_SOURCE_CLEAN=1",
+            image_tag,
+            "python",
+            "-m",
+            "paper.jss.replication.shards",
+            "calibration-shard",
+            "--profile",
+            "smoke",
+            "--component",
+            "selector",
+            "--shard-index",
+            "0",
+            "--num-shards",
+            "2",
+            "--output-dir",
+            "/tmp/jss-selector-smoke",
+        ],
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-e",
+            f"GIT_SHA={git_sha}",
+            "-e",
+            "CITREES_SOURCE_CLEAN=1",
+            image_tag,
+            "python",
+            "-m",
+            "paper.jss.replication.shards",
+            "behavior-shard",
+            "--profile",
+            "smoke",
+            "--shard-index",
+            "0",
+            "--num-shards",
+            "8",
+            "--output-dir",
+            "/tmp/jss-behavior-smoke",
+        ],
+        [
+            "docker",
+            "run",
+            "--rm",
+            image_tag,
             "pytest",
             "tests/paper/test_stage1.py",
             "tests/paper/test_provenance.py",
@@ -308,7 +383,15 @@ def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
                             f"arn:aws:s3:::{bucket_name}/*",
                         ],
                         "Condition": {"Bool": {"aws:SecureTransport": "false"}},
-                    }
+                    },
+                    {
+                        "Sid": "DenyUnconditionalJSSWrites",
+                        "Effect": "Deny",
+                        "Principal": "*",
+                        "Action": "s3:PutObject",
+                        "Resource": f"arn:aws:s3:::{bucket_name}/jss/replication/*",
+                        "Condition": {"Null": {"s3:if-none-match": "true"}},
+                    },
                 ],
             }
         ),
@@ -594,26 +677,147 @@ def campaign_instance_profile_name(
     *,
     output_prefix: str,
     campaign_sha256: str,
+    write_prefixes: Sequence[str],
 ) -> str:
     """Derive one IAM identity from an immutable campaign and output prefix."""
     normalized_prefix = _normalize_artifact_prefix(output_prefix)
     campaign_sha256 = validate_manifest_sha256(campaign_sha256)
-    identity = hashlib.sha256(f"{campaign_sha256}\0{normalized_prefix}".encode()).hexdigest()
+    normalized_write_prefixes = tuple(
+        sorted({_normalize_artifact_prefix(prefix) for prefix in write_prefixes})
+    )
+    if not normalized_write_prefixes:
+        raise ValueError("campaign write prefixes must not be empty")
+    if any(
+        prefix != normalized_prefix and not prefix.startswith(f"{normalized_prefix}/")
+        for prefix in normalized_write_prefixes
+    ):
+        raise ValueError("campaign write prefixes must lie within the output prefix")
+    identity = hashlib.sha256(
+        "\0".join((campaign_sha256, normalized_prefix, *normalized_write_prefixes)).encode()
+    ).hexdigest()
     return f"citrees-campaign-{identity[:32]}"
+
+
+def _iam_policy_document(value: object, label: str) -> dict[str, Any]:
+    """Parse one IAM policy document returned by AWS."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(urllib.parse.unquote(value))
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"{label} is not valid JSON") from error
+    if not isinstance(value, dict):
+        raise RuntimeError(f"{label} is not a JSON object")
+    return value
+
+
+def _iam_role(response: object, role_name: str) -> dict[str, Any]:
+    """Return one exact role object from an IAM response."""
+    if not isinstance(response, dict) or not isinstance(response.get("Role"), dict):
+        raise RuntimeError(f"IAM role readback is invalid for {role_name}")
+    role = response["Role"]
+    if role.get("RoleName") != role_name:
+        raise RuntimeError(f"IAM role readback differs for {role_name}")
+    return role
+
+
+def _list_role_policy_names(iam: Any, role_name: str) -> tuple[str, ...]:
+    """List every inline policy attached to one role."""
+    names: list[str] = []
+    marker: str | None = None
+    seen_markers: set[str] = set()
+    while True:
+        arguments: dict[str, object] = {"RoleName": role_name}
+        if marker is not None:
+            arguments["Marker"] = marker
+        response = iam.list_role_policies(**arguments)
+        page_names = response.get("PolicyNames")
+        if not isinstance(page_names, list) or any(
+            not isinstance(name, str) for name in page_names
+        ):
+            raise RuntimeError(f"IAM inline policy inventory is invalid for {role_name}")
+        names.extend(page_names)
+        if not response.get("IsTruncated", False):
+            break
+        next_marker = response.get("Marker")
+        if not isinstance(next_marker, str) or not next_marker or next_marker in seen_markers:
+            raise RuntimeError(f"IAM inline policy pagination is invalid for {role_name}")
+        seen_markers.add(next_marker)
+        marker = next_marker
+    if len(names) != len(set(names)):
+        raise RuntimeError(f"IAM inline policy inventory contains duplicates for {role_name}")
+    return tuple(sorted(names))
+
+
+def _list_attached_role_policy_arns(iam: Any, role_name: str) -> tuple[str, ...]:
+    """List every managed policy attached to one role."""
+    arns: list[str] = []
+    marker: str | None = None
+    seen_markers: set[str] = set()
+    while True:
+        arguments: dict[str, object] = {"RoleName": role_name}
+        if marker is not None:
+            arguments["Marker"] = marker
+        response = iam.list_attached_role_policies(**arguments)
+        policies = response.get("AttachedPolicies")
+        if not isinstance(policies, list):
+            raise RuntimeError(f"IAM managed policy inventory is invalid for {role_name}")
+        for policy in policies:
+            if not isinstance(policy, dict) or not isinstance(policy.get("PolicyArn"), str):
+                raise RuntimeError(f"IAM managed policy inventory is invalid for {role_name}")
+            arns.append(policy["PolicyArn"])
+        if not response.get("IsTruncated", False):
+            break
+        next_marker = response.get("Marker")
+        if not isinstance(next_marker, str) or not next_marker or next_marker in seen_markers:
+            raise RuntimeError(f"IAM managed policy pagination is invalid for {role_name}")
+        seen_markers.add(next_marker)
+        marker = next_marker
+    if len(arns) != len(set(arns)):
+        raise RuntimeError(f"IAM managed policy inventory contains duplicates for {role_name}")
+    return tuple(sorted(arns))
+
+
+def _instance_profile_role_names(response: object, profile_name: str) -> tuple[str, ...]:
+    """Return the exact role inventory from one instance-profile response."""
+    if not isinstance(response, dict) or not isinstance(response.get("InstanceProfile"), dict):
+        raise RuntimeError(f"IAM instance profile readback is invalid for {profile_name}")
+    roles = response["InstanceProfile"].get("Roles")
+    if not isinstance(roles, list):
+        raise RuntimeError(f"IAM instance profile readback is invalid for {profile_name}")
+    role_names: list[str] = []
+    for role in roles:
+        if not isinstance(role, dict) or not isinstance(role.get("RoleName"), str):
+            raise RuntimeError(f"IAM instance profile readback is invalid for {profile_name}")
+        role_names.append(role["RoleName"])
+    if len(role_names) != len(set(role_names)):
+        raise RuntimeError(f"IAM instance profile contains duplicate roles for {profile_name}")
+    return tuple(sorted(role_names))
 
 
 def ensure_campaign_iam_profile(
     *,
     output_prefix: str,
     campaign_sha256: str,
+    write_prefixes: Sequence[str],
     region: str = DEFAULT_REGION,
 ) -> str:
     """Ensure one campaign-bound role and return its instance-profile name."""
     normalized_prefix = _normalize_artifact_prefix(output_prefix)
     campaign_sha256 = validate_manifest_sha256(campaign_sha256)
+    normalized_write_prefixes = tuple(
+        sorted({_normalize_artifact_prefix(prefix) for prefix in write_prefixes})
+    )
+    if not normalized_write_prefixes:
+        raise ValueError("campaign write prefixes must not be empty")
+    if any(
+        prefix != normalized_prefix and not prefix.startswith(f"{normalized_prefix}/")
+        for prefix in normalized_write_prefixes
+    ):
+        raise ValueError("campaign write prefixes must lie within the output prefix")
     profile_name = campaign_instance_profile_name(
         output_prefix=normalized_prefix,
         campaign_sha256=campaign_sha256,
+        write_prefixes=normalized_write_prefixes,
     )
     role_name = profile_name
     policy_name = f"{profile_name}-runtime"
@@ -622,6 +826,7 @@ def ensure_campaign_iam_profile(
     bucket_name = get_resource_name(account_id)
     bucket_arn = f"arn:aws:s3:::{bucket_name}"
     output_arn = f"{bucket_arn}/{normalized_prefix}/*"
+    write_arns = [f"{bucket_arn}/{prefix}/*" for prefix in normalized_write_prefixes]
 
     trust_policy = {
         "Version": "2012-10-17",
@@ -666,7 +871,8 @@ def ensure_campaign_iam_profile(
                 "Sid": "S3WriteArtifacts",
                 "Effect": "Allow",
                 "Action": "s3:PutObject",
-                "Resource": output_arn,
+                "Resource": write_arns,
+                "Condition": {"StringEquals": {"s3:if-none-match": "*"}},
             },
             {
                 "Sid": "ECRAuthorization",
@@ -701,7 +907,7 @@ def ensure_campaign_iam_profile(
     }
 
     try:
-        iam.get_role(RoleName=role_name)
+        existing_role = _iam_role(iam.get_role(RoleName=role_name), role_name)
         step(f"IAM role exists: {role_name}")
     except iam.exceptions.NoSuchEntityException:
         step(f"Creating IAM role: {role_name}")
@@ -711,11 +917,21 @@ def ensure_campaign_iam_profile(
             Description=f"citrees campaign {campaign_sha256[:16]} runtime",
         )
     else:
+        if existing_role.get("PermissionsBoundary") is not None:
+            raise RuntimeError(f"campaign IAM role {role_name} has a permissions boundary")
         iam.update_assume_role_policy(
             RoleName=role_name,
             PolicyDocument=json.dumps(trust_policy),
         )
 
+    for unexpected_policy_name in _list_role_policy_names(iam, role_name):
+        if unexpected_policy_name == policy_name:
+            continue
+        iam.delete_role_policy(
+            RoleName=role_name,
+            PolicyName=unexpected_policy_name,
+        )
+        step(f"Deleted unexpected IAM inline policy: {unexpected_policy_name}")
     iam.put_role_policy(
         RoleName=role_name,
         PolicyName=policy_name,
@@ -724,23 +940,34 @@ def ensure_campaign_iam_profile(
     step(f"IAM policy attached: {policy_name}")
 
     ssm_policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-    iam.attach_role_policy(RoleName=role_name, PolicyArn=ssm_policy_arn)
-    step("Attached AmazonSSMManagedInstanceCore")
+    attached_policy_arns = _list_attached_role_policy_arns(iam, role_name)
+    for unexpected_policy_arn in attached_policy_arns:
+        if unexpected_policy_arn == ssm_policy_arn:
+            continue
+        iam.detach_role_policy(
+            RoleName=role_name,
+            PolicyArn=unexpected_policy_arn,
+        )
+        step(f"Detached unexpected IAM managed policy: {unexpected_policy_arn}")
+    if ssm_policy_arn not in attached_policy_arns:
+        iam.attach_role_policy(RoleName=role_name, PolicyArn=ssm_policy_arn)
+        step("Attached AmazonSSMManagedInstanceCore")
 
     profile_changed = False
     try:
         response = iam.get_instance_profile(InstanceProfileName=profile_name)
         step(f"Instance profile exists: {profile_name}")
-        roles = response["InstanceProfile"].get("Roles", [])
-        unexpected_roles = sorted(
-            role["RoleName"] for role in roles if role.get("RoleName") != role_name
-        )
-        if unexpected_roles:
-            raise RuntimeError(
-                f"campaign instance profile {profile_name} contains unexpected roles "
-                f"{unexpected_roles}"
+        profile_role_names = _instance_profile_role_names(response, profile_name)
+        for unexpected_role_name in profile_role_names:
+            if unexpected_role_name == role_name:
+                continue
+            iam.remove_role_from_instance_profile(
+                InstanceProfileName=profile_name,
+                RoleName=unexpected_role_name,
             )
-        if not roles:
+            step(f"Removed unexpected instance-profile role: {unexpected_role_name}")
+            profile_changed = True
+        if role_name not in profile_role_names:
             step("Attaching role to instance profile...")
             iam.add_role_to_instance_profile(
                 InstanceProfileName=profile_name,
@@ -761,6 +988,40 @@ def ensure_campaign_iam_profile(
     if profile_changed:
         step("Waiting for IAM propagation (10s)...")
         time.sleep(10)
+
+    verified_role = _iam_role(iam.get_role(RoleName=role_name), role_name)
+    if verified_role.get("PermissionsBoundary") is not None:
+        raise RuntimeError(f"campaign IAM role {role_name} has a permissions boundary")
+    observed_trust_policy = _iam_policy_document(
+        verified_role.get("AssumeRolePolicyDocument"),
+        f"campaign IAM role {role_name} trust policy",
+    )
+    if observed_trust_policy != trust_policy:
+        raise RuntimeError(f"campaign IAM role {role_name} trust policy differs")
+
+    inline_policy_names = _list_role_policy_names(iam, role_name)
+    if inline_policy_names != (policy_name,):
+        raise RuntimeError(f"campaign IAM role {role_name} inline policy inventory differs")
+    inline_policy = iam.get_role_policy(
+        RoleName=role_name,
+        PolicyName=policy_name,
+    )
+    if inline_policy.get("RoleName") != role_name or inline_policy.get("PolicyName") != policy_name:
+        raise RuntimeError(f"campaign IAM role {role_name} runtime policy identity differs")
+    observed_runtime_policy = _iam_policy_document(
+        inline_policy.get("PolicyDocument"),
+        f"campaign IAM role {role_name} runtime policy",
+    )
+    if observed_runtime_policy != runtime_policy:
+        raise RuntimeError(f"campaign IAM role {role_name} runtime policy differs")
+
+    attached_policy_arns = _list_attached_role_policy_arns(iam, role_name)
+    if attached_policy_arns != (ssm_policy_arn,):
+        raise RuntimeError(f"campaign IAM role {role_name} managed policy inventory differs")
+
+    verified_profile = iam.get_instance_profile(InstanceProfileName=profile_name)
+    if _instance_profile_role_names(verified_profile, profile_name) != (role_name,):
+        raise RuntimeError(f"campaign instance profile {profile_name} role inventory differs")
 
     return profile_name
 

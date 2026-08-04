@@ -7,6 +7,7 @@ import hashlib
 import json
 import platform
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,8 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
+
+from paper.jss.replication import cloud
 
 Profile = Literal["smoke", "quick", "full"]
 
@@ -355,6 +358,14 @@ def run_replication(
         )
         if missing_shard_roots:
             raise ValueError(f"distributed shard root omits analyses: {missing_shard_roots}")
+    cloud_accounting: dict[str, object] | None = None
+    if shard_root is not None:
+        accounting_path = shard_root / cloud.COMPUTE_ACCOUNTING_FILENAME
+        provenance_path = shard_root / cloud.CLOUD_PROVENANCE_DIRECTORY
+        if accounting_path.exists() != provenance_path.exists():
+            raise ValueError("distributed shard root has incomplete cloud provenance")
+        if accounting_path.exists():
+            cloud_accounting = cloud.validate_compute_accounting(shard_root)
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     scratch_dir = REPO_ROOT / "scratch"
     scratch_dir.mkdir(exist_ok=True)
@@ -362,6 +373,13 @@ def run_replication(
         raise RuntimeError("replication output must share a filesystem with the repository")
 
     starting_git_sha = _git_sha()
+    if cloud_accounting is not None:
+        if cloud_accounting.get("profile") != profile:
+            raise ValueError("cloud accounting profile differs from replication")
+        if cloud_accounting.get("base_seed") != base_seed:
+            raise ValueError("cloud accounting seed differs from replication")
+        if cloud_accounting.get("git_sha") != starting_git_sha:
+            raise ValueError("cloud accounting source revision differs from replication")
     if profile == "full" and _git_dirty():
         raise RuntimeError("The full replication profile requires a clean source tree")
 
@@ -427,6 +445,26 @@ def run_replication(
         ]
         if shard_root is not None:
             source_files.append(Path(__file__).resolve().with_name("shards.py"))
+        cloud_accounting_metadata: dict[str, object] | None = None
+        if cloud_accounting is not None and shard_root is not None:
+            if cloud.validate_compute_accounting(shard_root) != cloud_accounting:
+                raise RuntimeError("cloud accounting changed during distributed replication")
+            accounting_source = shard_root / cloud.COMPUTE_ACCOUNTING_FILENAME
+            accounting_artifact = staging / cloud.COMPUTE_ACCOUNTING_FILENAME
+            shutil.copyfile(accounting_source, accounting_artifact)
+            shutil.copytree(
+                shard_root / cloud.CLOUD_PROVENANCE_DIRECTORY,
+                staging / cloud.CLOUD_PROVENANCE_DIRECTORY,
+            )
+            cloud_accounting_metadata = {
+                "analysis": cloud_accounting["analysis"],
+                "schema_version": cloud_accounting["schema_version"],
+                "campaign_sha256": cloud_accounting["campaign_sha256"],
+                "artifact": cloud.COMPUTE_ACCOUNTING_FILENAME,
+                "bytes": accounting_artifact.stat().st_size,
+                "sha256": _sha256(accounting_artifact),
+            }
+            source_files.append(Path(cloud.__file__).resolve())
         receipt = {
             "analysis": "jss_replication",
             "schema_version": 1,
@@ -455,6 +493,7 @@ def run_replication(
                 }
                 for name, child_receipt in child_receipts.items()
             },
+            "cloud_compute_accounting": cloud_accounting_metadata,
             "artifacts": _output_hashes(staging),
         }
         (staging / "receipt.json").write_text(

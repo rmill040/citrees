@@ -34,9 +34,7 @@ from paper.jss.replication.behavior import (
 
 pytestmark = pytest.mark.paper
 
-R_AVAILABLE = (
-    shutil.which("Rscript") is not None and importlib.util.find_spec("rpy2") is not None
-)
+R_AVAILABLE = shutil.which("Rscript") is not None and importlib.util.find_spec("rpy2") is not None
 
 
 def test_profiles_define_explicit_workloads() -> None:
@@ -152,9 +150,7 @@ def test_prediction_metrics_cover_probability_and_regression_agreement() -> None
 
 def _mock_datasets() -> tuple[DatasetSpec, DatasetSpec]:
     sample_ids = np.arange(8, dtype=np.float64)
-    X_classification = np.column_stack(
-        [sample_ids, sample_ids / 8.0, np.sin(sample_ids)]
-    )
+    X_classification = np.column_stack([sample_ids, sample_ids / 8.0, np.sin(sample_ids)])
     y_classification = (sample_ids.astype(np.int64) % 2).astype(np.int64)
     X_regression = np.column_stack([sample_ids, sample_ids**2, np.cos(sample_ids)])
     y_regression = sample_ids * 1.5
@@ -202,16 +198,12 @@ def _mock_fit_method(
     if family == "tree":
         root_feature = 0 if method == "citrees" else 1
         feature_values = (
-            np.array([2.0, 1.0, 0.0])
-            if method == "citrees"
-            else np.array([1.0, 2.0, 0.0])
+            np.array([2.0, 1.0, 0.0]) if method == "citrees" else np.array([1.0, 2.0, 0.0])
         )
     else:
         root_feature = None
         feature_values = (
-            np.array([0.6, 0.3, 0.1])
-            if method == "citrees"
-            else np.array([0.5, np.nan, 0.2])
+            np.array([0.6, 0.3, 0.1]) if method == "citrees" else np.array([0.5, np.nan, 0.2])
         )
 
     sample_ids = X_test[:, 0].astype(np.int64)
@@ -265,11 +257,7 @@ def test_mocked_run_is_complete_and_deterministic(
         ["native_output_reproducible", "predictions_reproducible"]
     ].all(axis=None)
     assert mocked_results["behavior_summary"]["bootstrap_resamples"].eq(0).all()
-    assert (
-        mocked_results["behavior_summary"][["lower_95", "upper_95"]]
-        .isna()
-        .all(axis=None)
-    )
+    assert mocked_results["behavior_summary"][["lower_95", "upper_95"]].isna().all(axis=None)
     fold_summary = mocked_results["behavior_fold_summary"]
     assert (
         fold_summary.loc[
@@ -355,17 +343,13 @@ def test_validation_rejects_corrupted_behavior_tables(
         corrupted[table_name].loc[0, "model_seed"] += 1
     elif mutation == "string_boolean":
         fits = corrupted["behavior_fit_raw"]
-        fits["native_output_reproducible"] = fits["native_output_reproducible"].astype(
-            object
-        )
+        fits["native_output_reproducible"] = fits["native_output_reproducible"].astype(object)
         fits.loc[0, "native_output_reproducible"] = "False"
     elif mutation == "fractional_root":
         fits = corrupted["behavior_fit_raw"]
         fits["root_feature"] = fits["root_feature"].astype(object)
         tree_index = fits[fits["model_family"].eq("tree")].index[0]
-        fits.loc[tree_index, "root_feature"] = (
-            float(fits.loc[tree_index, "root_feature"]) + 0.5
-        )
+        fits.loc[tree_index, "root_feature"] = float(fits.loc[tree_index, "root_feature"]) + 0.5
     elif mutation == "dataset_hash":
         for frame in corrupted.values():
             if "dataset_sha256" in frame:
@@ -536,18 +520,13 @@ def test_writer_records_controls_sources_and_artifact_hashes(
     assert receipt["schema_version"] == 4
     assert receipt["profile"] == "smoke"
     assert receipt["base_seed"] == 7
-    assert receipt["controls"]["partykit_selector"]["test_distribution"] == list(
-        PARTYKIT_TESTTYPE
-    )
+    assert receipt["controls"]["partykit_selector"]["test_distribution"] == list(PARTYKIT_TESTTYPE)
     assert receipt["controls"]["forest"]["bootstrap"] == "n_out_of_n_with_replacement"
     assert (
         receipt["controls"]["root_comparison"]["root_identity"]
         == "conditional_on_both_trees_splitting"
     )
-    assert (
-        receipt["controls"]["summary"]["estimate"]
-        == "unweighted_mean_of_partition_repeat_means"
-    )
+    assert receipt["controls"]["summary"]["estimate"] == "unweighted_mean_of_partition_repeat_means"
     assert (
         receipt["controls"]["citrees_performance_advantage"]["interpretation"]
         == "positive_values_favor_citrees"
@@ -564,9 +543,7 @@ def test_writer_records_controls_sources_and_artifact_hashes(
     for artifact, metadata in receipt["artifacts"].items():
         artifact_path = tmp_path / artifact
         assert metadata["bytes"] == artifact_path.stat().st_size
-        assert (
-            metadata["sha256"] == hashlib.sha256(artifact_path.read_bytes()).hexdigest()
-        )
+        assert metadata["sha256"] == hashlib.sha256(artifact_path.read_bytes()).hexdigest()
 
 
 @pytest.mark.skipif(not R_AVAILABLE, reason="R and rpy2 are required")
@@ -579,16 +556,12 @@ def test_real_smoke_returns_same_fit_r_behavior() -> None:
         base_seed=behavior.BASE_SEED,
     )
     fits = results["behavior_fit_raw"]
-    assert fits[["native_output_reproducible", "predictions_reproducible"]].all(
-        axis=None
-    )
+    assert fits[["native_output_reproducible", "predictions_reproducible"]].all(axis=None)
     features = results["behavior_feature_raw"]
     partykit_forests = features[
         features["model_family"].eq("forest") & features["method"].eq("partykit")
     ]
-    assert not np.isinf(
-        partykit_forests["feature_value"].to_numpy(dtype=np.float64)
-    ).any()
+    assert not np.isinf(partykit_forests["feature_value"].to_numpy(dtype=np.float64)).any()
     probabilities = results["behavior_probability_raw"]
     probability_sums = probabilities.groupby(
         ["dataset", "model_family", "method", "repeat", "fold", "sample_id"]

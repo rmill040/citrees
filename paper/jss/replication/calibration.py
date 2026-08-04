@@ -19,7 +19,6 @@ import hashlib
 import importlib.metadata
 import json
 import platform
-import shutil
 import subprocess
 import time
 from collections.abc import Callable, Sequence, Set
@@ -62,6 +61,7 @@ from citrees._selector import (
 )
 from paper.benchmark.pipeline.r_methods import (
     RCTreeRootDiagnostics,
+    get_r_runtime_versions,
     r_cforest_importance,
     r_ctree_root_diagnostics,
 )
@@ -84,6 +84,7 @@ SEED_MODULUS = 2**32 - 1
 SEED_MULTIPLIER = 2_654_435_761
 SEED_BASE_MULTIPLIER = 2_246_822_519
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results" / "calibration"
+REPO_ROOT = Path(__file__).resolve().parents[3]
 CARDINALITY_N_SAMPLES = 200
 CARDINALITY_SUPPORTS = (2, 4, 10, 20, 200)
 CARDINALITY_LABELS = ("2 levels", "4 levels", "10 levels", "20 levels", "200 levels")
@@ -3905,16 +3906,18 @@ def _git_sha() -> str:
         check=True,
         capture_output=True,
         text=True,
+        cwd=REPO_ROOT,
     )
     return result.stdout.strip()
 
 
 def _git_dirty() -> bool:
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain", "--untracked-files=all"],
         check=True,
         capture_output=True,
         text=True,
+        cwd=REPO_ROOT,
     )
     return bool(result.stdout.strip())
 
@@ -3923,21 +3926,8 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _r_environment() -> dict[str, str] | None:
-    if shutil.which("Rscript") is None:
-        return None
-    result = subprocess.run(
-        [
-            "Rscript",
-            "-e",
-            'cat(R.version.string, as.character(packageVersion("partykit")), sep="\\t")',
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    r_version, partykit_version = result.stdout.strip().split("\t", maxsplit=1)
-    return {"r": r_version, "partykit": partykit_version}
+def _r_environment() -> dict[str, str]:
+    return get_r_runtime_versions()
 
 
 def write_results(

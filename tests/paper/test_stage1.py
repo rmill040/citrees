@@ -159,12 +159,8 @@ class TestFilterSelector:
         X = np.hstack([x0, x1])
         y = np.array([0] * n_per + [1] * n_per + [2] * n_per)
 
-        rank_base = filter_selector(
-            X, y, method="mc", task="classification", random_state=0
-        )
-        rank_shift = filter_selector(
-            X, y + 5, method="mc", task="classification", random_state=0
-        )
+        rank_base = filter_selector(X, y, method="mc", task="classification", random_state=0)
+        rank_shift = filter_selector(X, y + 5, method="mc", task="classification", random_state=0)
 
         assert np.array_equal(rank_base, rank_shift)
 
@@ -179,9 +175,7 @@ class TestPermutationSelector:
         def selector_fn(x, y, n_classes, random_state=None):
             return 0.0
 
-        def test_fn(
-            *, x, y, n_classes, alpha, n_resamples, early_stopping, random_state
-        ):
+        def test_fn(*, x, y, n_classes, alpha, n_resamples, early_stopping, random_state):
             return 0.5
 
         monkeypatch.setitem(ClassifierSelectors._registry, "kw", selector_fn)
@@ -202,9 +196,7 @@ class TestPermutationSelector:
         def selector_fn(x, y, standardize=True, random_state=None):
             return 0.0
 
-        def test_fn(
-            *, x, y, standardize, alpha, n_resamples, early_stopping, random_state
-        ):
+        def test_fn(*, x, y, standardize, alpha, n_resamples, early_stopping, random_state):
             return 0.5
 
         monkeypatch.setitem(RegressorSelectors._registry, "kw", selector_fn)
@@ -213,9 +205,7 @@ class TestPermutationSelector:
         X = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=float)
         y = np.array([0.1, -0.2, 0.3], dtype=float)
 
-        ranking = permutation_selector(
-            X, y, method="ptest_kw", task="regression", random_state=0
-        )
+        ranking = permutation_selector(X, y, method="ptest_kw", task="regression", random_state=0)
         assert ranking.shape == (X.shape[1],)
 
 
@@ -328,9 +318,7 @@ class TestWrapperSelectors:
             captured["scoring"] = kwargs["scoring"]
             return SimpleNamespace(importances_mean=np.array([0.2, 0.1], dtype=float))
 
-        monkeypatch.setattr(
-            selectors, "permutation_importance", fake_permutation_importance
-        )
+        monkeypatch.setattr(selectors, "permutation_importance", fake_permutation_importance)
 
         ranking = selectors.pi_selector(
             X,
@@ -399,9 +387,7 @@ class TestWrapperSelectors:
         monkeypatch.setattr(selectors, "Parallel", DummyParallel)
         monkeypatch.setattr(selectors, "delayed", dummy_delayed)
         monkeypatch.setattr(selectors, "train_test_split", fake_train_test_split)
-        monkeypatch.setattr(
-            selectors.np.random, "default_rng", lambda seed: DummyRng(seed)
-        )
+        monkeypatch.setattr(selectors.np.random, "default_rng", lambda seed: DummyRng(seed))
 
         ranking = selectors.cpi_selector(
             np.zeros((1, 2), dtype=float),
@@ -625,9 +611,7 @@ class TestRBoundaryHelpers:
             _normalize_r_seed(random_state)
 
     @pytest.mark.parametrize("random_state", [True, 1.5, "1718"])
-    def test_seed_mapping_rejects_non_integer_values(
-        self, random_state: object
-    ) -> None:
+    def test_seed_mapping_rejects_non_integer_values(self, random_state: object) -> None:
         with pytest.raises(TypeError, match="random_state must be an integer"):
             _normalize_r_seed(random_state)  # type: ignore[arg-type]
 
@@ -699,9 +683,7 @@ class TestRBoundaryHelpers:
                 n_features=3,
             )
 
-    @pytest.mark.parametrize(
-        "feature_names", [["feature0"], ["X01"], ["X3"], ["X1", "X1"]]
-    )
+    @pytest.mark.parametrize("feature_names", [["feature0"], ["X01"], ["X3"], ["X1", "X1"]])
     def test_root_diagnostics_reject_malformed_candidate_features(
         self,
         feature_names: list[str],
@@ -952,10 +934,7 @@ class TestRBoundaryHelpers:
 
         monkeypatch.setattr(r_methods, "r_ctree_root_diagnostics", malformed)
 
-        assert (
-            r_methods.r_ctree_root_feature(np.ones((4, 1)), np.array([0, 1, 0, 1]))
-            == -1
-        )
+        assert r_methods.r_ctree_root_feature(np.ones((4, 1)), np.array([0, 1, 0, 1])) == -1
 
     def test_root_feature_propagates_r_execution_failure(
         self,
@@ -1003,9 +982,7 @@ class TestRBoundaryHelpers:
             (3, 10, 3),
         ],
     )
-    def test_mtry_resolution(
-        self, mtry: int | str | None, n_features: int, expected: int
-    ) -> None:
+    def test_mtry_resolution(self, mtry: int | str | None, n_features: int, expected: int) -> None:
         assert _resolve_mtry(mtry, n_features) == expected
 
     @pytest.mark.parametrize("mtry", [0, 6, "bogus", 1.5, True])
@@ -1016,14 +993,10 @@ class TestRBoundaryHelpers:
     def test_default_core_resolution_uses_detected_cpu_count(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(
-            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 8
-        )
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 8)
         assert _resolve_cores(-1) == 8
 
-        monkeypatch.setattr(
-            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: None
-        )
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: None)
         assert _resolve_cores(-1) == 1
 
     @pytest.mark.parametrize("cores", [0, -2])
@@ -1099,9 +1072,7 @@ class TestRBoundaryHelpers:
 
     @_skip_no_r
     @pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])
-    def test_fresh_process_configures_r_before_running_adapter(
-        self, method: str
-    ) -> None:
+    def test_fresh_process_configures_r_before_running_adapter(self, method: str) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         code = f"""
 import sys
@@ -1177,9 +1148,9 @@ class TestRCtreeRanking:
         )
         ranking = r_ctree_ranking(X, y, task="classification")
         assert ranking.shape == (10,)
-        assert not np.array_equal(
-            ranking, np.arange(10)
-        ), "ranking is identity — split extraction broken"
+        assert not np.array_equal(ranking, np.arange(10)), (
+            "ranking is identity — split extraction broken"
+        )
 
     @_skip_no_r
     def test_ranking_not_identity_regression(self) -> None:
@@ -1194,9 +1165,9 @@ class TestRCtreeRanking:
         )
         ranking = r_ctree_ranking(X, y, task="regression")
         assert ranking.shape == (10,)
-        assert not np.array_equal(
-            ranking, np.arange(10)
-        ), "ranking is identity — split extraction broken"
+        assert not np.array_equal(ranking, np.arange(10)), (
+            "ranking is identity — split extraction broken"
+        )
 
     @_skip_no_r
     def test_stump_on_noise(self) -> None:
@@ -1222,9 +1193,7 @@ class TestRCtreeRanking:
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
     @pytest.mark.parametrize("signal_index", [0, 2, 4])
-    def test_feature_index_matches_known_signal(
-        self, task: str, signal_index: int
-    ) -> None:
+    def test_feature_index_matches_known_signal(self, task: str, signal_index: int) -> None:
         """R model-frame variable IDs must map to the original Python feature."""
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(240)
@@ -1249,9 +1218,7 @@ class TestRCtreeRanking:
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
     @pytest.mark.parametrize("random_state", [1718, 3_238_245_004])
-    def test_root_feature_uses_zero_based_index(
-        self, task: str, random_state: int
-    ) -> None:
+    def test_root_feature_uses_zero_based_index(self, task: str, random_state: int) -> None:
         """The root-feature helper should return the predictive second column."""
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(200)
@@ -1264,9 +1231,7 @@ class TestRCtreeRanking:
 
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
-    def test_root_feature_returns_minus_one_when_tree_has_no_split(
-        self, task: str
-    ) -> None:
+    def test_root_feature_returns_minus_one_when_tree_has_no_split(self, task: str) -> None:
         """A terminal root must not be passed to partykit's split-node accessor."""
         X = np.zeros((40, 4), dtype=np.float64)
         y = (
@@ -1421,9 +1386,7 @@ class TestRBehavior:
             assert np.isfinite(first.predictions).all()
             assert first.probabilities is None
             assert first.classes is None
-        np.testing.assert_allclose(
-            first.importances, second.importances, equal_nan=True
-        )
+        np.testing.assert_allclose(first.importances, second.importances, equal_nan=True)
         np.testing.assert_array_equal(first.predictions, second.predictions)
         if first.probabilities is not None and second.probabilities is not None:
             np.testing.assert_array_equal(first.probabilities, second.probabilities)
@@ -1533,13 +1496,9 @@ class TestRCforestRanking:
         assert all(np.array_equal(rankings[0], ranking) for ranking in rankings[1:])
 
     @_skip_no_r
-    def test_default_core_path_is_reproducible(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_default_core_path_is_reproducible(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Production's cores=-1 path must use deterministic parallel streams."""
-        monkeypatch.setattr(
-            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2
-        )
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
         rng = np.random.default_rng(1718)
         X = rng.standard_normal((160, 6))
         y = (X[:, 5] + 0.25 * X[:, 2] > 0).astype(int)
@@ -1564,9 +1523,7 @@ class TestRCforestRanking:
         """Every configured R variant must return a semantically valid ranking."""
         from paper.benchmark.pipeline.methods import get_full_method_configs
 
-        monkeypatch.setattr(
-            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2
-        )
+        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(80)
         X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])

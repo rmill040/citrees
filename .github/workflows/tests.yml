@@ -1,54 +1,6 @@
 name: Tests and Docs
 
 on:
-  push:
-    paths:
-      - "citrees/**"
-      - "docs/**"
-      - "examples/**"
-      - "paper/README.md"
-      - "paper/analysis/**"
-      - "paper/arxiv/**"
-      - "paper/benchmark/**"
-      - "paper/data_generation/**"
-      - "paper/jss/**"
-      - "paper/maintenance/**"
-      - "paper/results/README.md"
-      - "paper/results/tables/README.md"
-      - "paper/results/tables/*.csv"
-      - "paper/results/tables/*.json"
-      - "paper/theory/**"
-      - "tests/unit/**"
-      - "tests/integration/**"
-      - "tests/paper/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "mkdocs.yml"
-      - ".github/workflows/tests.yml"
-  pull_request:
-    paths:
-      - "citrees/**"
-      - "docs/**"
-      - "examples/**"
-      - "paper/README.md"
-      - "paper/analysis/**"
-      - "paper/arxiv/**"
-      - "paper/benchmark/**"
-      - "paper/data_generation/**"
-      - "paper/jss/**"
-      - "paper/maintenance/**"
-      - "paper/results/README.md"
-      - "paper/results/tables/README.md"
-      - "paper/results/tables/*.csv"
-      - "paper/results/tables/*.json"
-      - "paper/theory/**"
-      - "tests/unit/**"
-      - "tests/integration/**"
-      - "tests/paper/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "mkdocs.yml"
-      - ".github/workflows/tests.yml"
   workflow_dispatch:
 
 jobs:

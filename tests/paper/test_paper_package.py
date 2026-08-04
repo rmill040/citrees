@@ -73,6 +73,7 @@ def test_citrees_exp_entrypoint_targets_packaged_wheel_sources():
         "paper/benchmark/infra",
         "paper/benchmark/pipeline",
         "paper/benchmark/utils",
+        "paper/jss/replication",
     }.issubset(wheel_includes)
     assert "paper/benchmark" not in wheel_includes
     assert "paper/analysis" not in wheel_includes
@@ -99,6 +100,7 @@ def test_built_wheel_excludes_paper_research_residue(tmp_path):
     assert any(name.startswith("citrees/") for name in names)
     assert any(name.startswith("paper/benchmark/cli/") for name in names)
     assert any(name.startswith("paper/benchmark/pipeline/") for name in names)
+    assert any(name.startswith("paper/jss/replication/") for name in names)
     assert not any(name.startswith("paper/analysis/") for name in names)
     assert not any(name.startswith("paper/maintenance/") for name in names)
     assert not any(name.startswith("paper/theory/") for name in names)

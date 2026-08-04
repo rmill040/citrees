@@ -1,26 +1,6 @@
 name: Paper R Baseline
 
 on:
-  push:
-    paths:
-      - "citrees/**"
-      - "paper/benchmark/**"
-      - "tests/**"
-      - "README.md"
-      - ".dockerignore"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/paper-r-baseline.yml"
-  pull_request:
-    paths:
-      - "citrees/**"
-      - "paper/benchmark/**"
-      - "tests/**"
-      - "README.md"
-      - ".dockerignore"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/paper-r-baseline.yml"
   workflow_dispatch:
 
 jobs:

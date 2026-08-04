@@ -108,6 +108,7 @@ only-include = [
     "paper/benchmark/infra",
     "paper/benchmark/pipeline",
     "paper/benchmark/utils",
+    "paper/jss/replication",
 ]
 
 [tool.hatch.build.targets.sdist]

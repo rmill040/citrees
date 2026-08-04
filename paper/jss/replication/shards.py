@@ -6,7 +6,9 @@ import argparse
 import hashlib
 import importlib.metadata
 import json
+import os
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
@@ -19,6 +21,7 @@ from numbers import Integral, Real
 from pathlib import Path
 from typing import Literal, cast
 
+import numpy as np
 import pandas as pd
 
 from paper.benchmark.pipeline.r_methods import get_r_runtime_versions
@@ -34,6 +37,7 @@ CalibrationComponent = Literal[
 ]
 RUNTIME_PACKAGES = (
     "citrees",
+    "dcor",
     "numba",
     "numpy",
     "pandas",
@@ -43,6 +47,19 @@ RUNTIME_PACKAGES = (
     "scipy",
 )
 R_ENVIRONMENT_KEYS = frozenset({"r", "partykit", "libcoin", "mvtnorm"})
+THREAD_ENVIRONMENT_KEYS = (
+    "BLIS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMBA_DISABLE_JIT",
+    "NUMBA_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "PYTHONHASHSEED",
+    "R_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+)
+_FULL_GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 BASE_SEED = 1718
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -91,10 +108,33 @@ class ExecutionContext:
     git_dirty: bool
     python: str
     platform: str
+    hardware: dict[str, object]
+    blas_configuration: dict[str, object]
+    thread_environment: dict[str, str]
     r_environment: dict[str, str]
     source_sha256: dict[str, str]
     input_sha256: dict[str, str]
     versions: dict[str, str]
+
+
+_SHARD_RECEIPT_FIELDS = frozenset(
+    {
+        "analysis",
+        "schema_version",
+        "spec",
+        "spec_sha256",
+        "assignments",
+        "assignment_count",
+        "assignments_sha256",
+        "created_utc",
+        "elapsed_seconds",
+        "execution_context_sha256",
+        "scientific_context_sha256",
+        *ExecutionContext.__dataclass_fields__,
+        "tables",
+        "artifacts",
+    }
+)
 
 
 def _sha256(path: Path) -> str:
@@ -115,25 +155,67 @@ def _json_sha256(value: object) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _scientific_context_payload(context: Mapping[str, object]) -> dict[str, object]:
+    hardware = context["hardware"]
+    if not isinstance(hardware, Mapping):
+        raise TypeError("execution-context hardware must be a mapping")
+    return {
+        "git_sha": context["git_sha"],
+        "git_dirty": context["git_dirty"],
+        "python": context["python"],
+        "machine": hardware["machine"],
+        "logical_cpus": hardware["logical_cpus"],
+        "blas_configuration": context["blas_configuration"],
+        "thread_environment": context["thread_environment"],
+        "r_environment": context["r_environment"],
+        "source_sha256": context["source_sha256"],
+        "input_sha256": context["input_sha256"],
+        "versions": context["versions"],
+    }
+
+
 def _git_sha() -> str:
-    return subprocess.run(
+    expected = os.environ.get("GIT_SHA")
+    if expected is not None and not _FULL_GIT_SHA_PATTERN.fullmatch(expected):
+        raise RuntimeError("GIT_SHA must be a lowercase 40-character Git revision")
+    completed = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=REPO_ROOT,
-        check=True,
         capture_output=True,
         text=True,
-    ).stdout.strip()
+        check=False,
+    )
+    if completed.returncode == 0:
+        observed = completed.stdout.strip()
+        if not _FULL_GIT_SHA_PATTERN.fullmatch(observed):
+            raise RuntimeError(f"Git returned an invalid source revision: {observed!r}")
+        if expected is not None and expected != observed:
+            raise RuntimeError(
+                f"GIT_SHA {expected!r} differs from the checked-out revision {observed!r}"
+            )
+        return observed
+    if expected is None:
+        raise RuntimeError(
+            "Source revision is unavailable: run inside a Git worktree or set GIT_SHA"
+        )
+    return expected
 
 
 def _git_dirty() -> bool:
-    return bool(
-        subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+    completed = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode == 0:
+        return bool(completed.stdout.strip())
+    if os.environ.get("GIT_SHA") is not None and os.environ.get("CITREES_SOURCE_CLEAN") == "1":
+        return False
+    raise RuntimeError(
+        "Source cleanliness is unavailable outside a Git worktree; "
+        "set GIT_SHA and CITREES_SOURCE_CLEAN=1 for a verified image"
     )
 
 
@@ -141,18 +223,13 @@ def _source_files(target_analysis: TargetAnalysis) -> tuple[Path, ...]:
     analysis_file = Path(
         calibration.__file__ if target_analysis == "calibration" else behavior.__file__
     ).resolve()
+    package_files = tuple(sorted((REPO_ROOT / "citrees").glob("*.py")))
     return (
         Path(__file__).resolve(),
+        REPO_ROOT / "paper" / "jss" / "replication" / "cloud.py",
         analysis_file,
         REPO_ROOT / "paper" / "benchmark" / "pipeline" / "r_methods.py",
-        REPO_ROOT / "citrees" / "_forest.py",
-        REPO_ROOT / "citrees" / "_permutation.py",
-        REPO_ROOT / "citrees" / "_selector.py",
-        REPO_ROOT / "citrees" / "_sequential.py",
-        REPO_ROOT / "citrees" / "_splitter.py",
-        REPO_ROOT / "citrees" / "_threshold_method.py",
-        REPO_ROOT / "citrees" / "_tree.py",
-        REPO_ROOT / "citrees" / "_types.py",
+        *package_files,
         REPO_ROOT / "pyproject.toml",
         REPO_ROOT / "uv.lock",
     )
@@ -160,6 +237,37 @@ def _source_files(target_analysis: TargetAnalysis) -> tuple[Path, ...]:
 
 def _versions() -> dict[str, str]:
     return {package: importlib.metadata.version(package) for package in RUNTIME_PACKAGES}
+
+
+def _processor_name() -> str:
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.is_file():
+        for line in cpuinfo.read_text(encoding="ascii").splitlines():
+            if line.startswith("model name"):
+                return line.partition(":")[2].strip()
+    return platform.processor()
+
+
+def _hardware() -> dict[str, object]:
+    logical_cpus = os.cpu_count()
+    if logical_cpus is None or logical_cpus < 1:
+        raise RuntimeError("logical CPU count is unavailable")
+    return {
+        "machine": platform.machine(),
+        "processor": _processor_name(),
+        "logical_cpus": logical_cpus,
+    }
+
+
+def _blas_configuration() -> dict[str, object]:
+    return cast(
+        dict[str, object],
+        json.loads(json.dumps(np.__config__.CONFIG, sort_keys=True)),
+    )
+
+
+def _thread_environment() -> dict[str, str]:
+    return {name: os.environ.get(name, "") for name in THREAD_ENVIRONMENT_KEYS}
 
 
 def capture_execution_context(
@@ -177,6 +285,9 @@ def capture_execution_context(
         git_dirty=_git_dirty(),
         python=platform.python_version(),
         platform=platform.platform(),
+        hardware=_hardware(),
+        blas_configuration=_blas_configuration(),
+        thread_environment=_thread_environment(),
         r_environment=get_r_runtime_versions(),
         source_sha256={str(path.relative_to(REPO_ROOT)): _sha256(path) for path in source_files},
         input_sha256=input_sha256,
@@ -250,7 +361,10 @@ def behavior_shard_cells(spec: ShardSpec) -> tuple[behavior.BehaviorCell, ...]:
     validate_shard_spec(spec)
     if spec.target_analysis != "behavior":
         raise ValueError("behavior cell assignment requires a behavior shard")
-    cells = behavior.behavior_cell_inventory(spec.profile)[spec.shard_index :: spec.num_shards]
+    inventory = behavior.behavior_cell_inventory(spec.profile)
+    start = len(inventory) * spec.shard_index // spec.num_shards
+    stop = len(inventory) * (spec.shard_index + 1) // spec.num_shards
+    cells = inventory[start:stop]
     if not cells:
         raise RuntimeError("behavior shard assignment is empty")
     return cells
@@ -514,6 +628,7 @@ def write_shard(
             "created_utc": datetime.now(UTC).isoformat(),
             "elapsed_seconds": elapsed_seconds,
             "execution_context_sha256": _json_sha256(context_payload),
+            "scientific_context_sha256": _json_sha256(_scientific_context_payload(context_payload)),
             **context_payload,
             "tables": {
                 name: {"rows": len(frame), "columns": list(frame.columns)}
@@ -562,6 +677,18 @@ def _require_json_integer(value: object, label: str) -> int:
     return int(value)
 
 
+def _require_canonical_utc(value: object, label: str) -> datetime:
+    if not isinstance(value, str):
+        raise TypeError(f"{label} must be a string")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError(f"{label} is invalid") from error
+    if parsed.tzinfo is None or parsed.astimezone(UTC).isoformat() != value:
+        raise ValueError(f"{label} must be canonical UTC")
+    return parsed
+
+
 def _expected_artifact_names(spec: ShardSpec) -> set[str]:
     if spec.target_analysis == "calibration":
         component = cast(CalibrationComponent, spec.component)
@@ -585,6 +712,8 @@ def _verify_receipt_artifacts(
         raise ValueError("shard output inventory differs from its receipt")
     for name, raw_metadata in artifacts.items():
         metadata = _require_mapping(raw_metadata, f"artifact metadata for {name}")
+        if set(metadata) != {"bytes", "sha256"}:
+            raise ValueError(f"shard artifact metadata fields differ for {name}")
         artifact_path = output_dir / name
         if artifact_path.parent != output_dir or not artifact_path.is_file():
             raise ValueError(f"invalid shard artifact path: {name!r}")
@@ -654,6 +783,35 @@ def _verify_execution_context(
     if not isinstance(platform_name, str) or not platform_name:
         raise TypeError("shard platform must be a nonempty string")
 
+    hardware = _require_mapping(receipt.get("hardware"), "shard hardware")
+    if set(hardware) != {"machine", "processor", "logical_cpus"}:
+        raise ValueError("shard hardware fields differ from the required inventory")
+    if not isinstance(hardware["machine"], str) or not hardware["machine"]:
+        raise ValueError("shard machine identity must be a nonempty string")
+    if not isinstance(hardware["processor"], str):
+        raise TypeError("shard processor identity must be a string")
+    logical_cpus = hardware["logical_cpus"]
+    if (
+        isinstance(logical_cpus, bool)
+        or not isinstance(logical_cpus, Integral)
+        or int(logical_cpus) < 1
+    ):
+        raise ValueError("shard logical CPU count must be a positive integer")
+    blas_configuration = _require_mapping(
+        receipt.get("blas_configuration"),
+        "shard BLAS configuration",
+    )
+    if not blas_configuration:
+        raise ValueError("shard BLAS configuration must not be empty")
+    thread_environment = _require_mapping(
+        receipt.get("thread_environment"),
+        "shard thread environment",
+    )
+    if set(thread_environment) != set(THREAD_ENVIRONMENT_KEYS) or not all(
+        isinstance(value, str) for value in thread_environment.values()
+    ):
+        raise ValueError("shard thread environment differs from the required inventory")
+
     r_environment = _require_mapping(
         receipt.get("r_environment"),
         "shard R environment",
@@ -689,6 +847,9 @@ def _verify_execution_context(
         "git_dirty": receipt.get("git_dirty"),
         "python": python_version,
         "platform": platform_name,
+        "hardware": dict(hardware),
+        "blas_configuration": dict(blas_configuration),
+        "thread_environment": dict(thread_environment),
         "r_environment": dict(r_environment),
         "source_sha256": dict(source_sha256),
         "input_sha256": dict(input_sha256),
@@ -696,6 +857,10 @@ def _verify_execution_context(
     }
     if receipt.get("execution_context_sha256") != _json_sha256(context_payload):
         raise ValueError("shard execution context hash differs")
+    if receipt.get("scientific_context_sha256") != _json_sha256(
+        _scientific_context_payload(context_payload)
+    ):
+        raise ValueError("shard scientific context hash differs")
 
 
 def _parse_shard_spec(raw_spec: object) -> ShardSpec:
@@ -724,6 +889,96 @@ def _parse_shard_spec(raw_spec: object) -> ShardSpec:
     return spec
 
 
+def _verify_shard_receipt(
+    receipt_path: Path,
+    *,
+    expected_spec: ShardSpec | None,
+    expected_git_sha: str,
+    allow_cloud_execution: bool,
+    require_cloud_execution: bool,
+) -> VerifiedShard:
+    receipt = json.loads(receipt_path.read_text(encoding="ascii"))
+    if not isinstance(receipt, dict) or receipt.get("analysis") != "jss_shard":
+        raise ValueError("shard receipt has an invalid analysis identity")
+    has_cloud_execution = "cloud_execution" in receipt
+    if has_cloud_execution and not allow_cloud_execution:
+        raise ValueError("base shard receipt contains cloud execution metadata")
+    if require_cloud_execution and not has_cloud_execution:
+        raise ValueError("cloud shard receipt omits cloud execution metadata")
+    expected_fields = set(_SHARD_RECEIPT_FIELDS)
+    if has_cloud_execution:
+        expected_fields.add("cloud_execution")
+    if set(receipt) != expected_fields:
+        raise ValueError("shard receipt fields differ from the required schema")
+
+    spec = _parse_shard_spec(receipt.get("spec"))
+    if expected_spec is not None and spec != expected_spec:
+        raise ValueError("shard receipt specification differs from the requested shard")
+    if _require_json_integer(receipt.get("schema_version"), "schema_version") != 1:
+        raise ValueError("unsupported shard receipt schema")
+    if receipt.get("spec_sha256") != _json_sha256(asdict(spec)):
+        raise ValueError("shard spec hash differs")
+    assignments = receipt.get("assignments")
+    if not isinstance(assignments, list):
+        raise TypeError("shard assignments must be a JSON array")
+    if assignments != _assignment_payload(spec):
+        raise ValueError("shard assignments differ from the deterministic inventory")
+    if _require_json_integer(receipt.get("assignment_count"), "assignment_count") != len(
+        assignments
+    ):
+        raise ValueError("shard assignment count differs")
+    if receipt.get("assignments_sha256") != _json_sha256(assignments):
+        raise ValueError("shard assignment hash differs")
+    if receipt.get("git_sha") != expected_git_sha:
+        raise ValueError("shard source revision differs from the expected revision")
+    if not isinstance(receipt.get("git_dirty"), bool):
+        raise TypeError("shard git_dirty must be boolean")
+    if spec.profile == "full" and receipt["git_dirty"]:
+        raise ValueError("full-profile shard records a dirty source tree")
+    _require_canonical_utc(receipt.get("created_utc"), "created_utc")
+    elapsed_seconds = receipt.get("elapsed_seconds")
+    if (
+        isinstance(elapsed_seconds, bool)
+        or not isinstance(elapsed_seconds, Real)
+        or not 0.0 <= float(elapsed_seconds) < float("inf")
+    ):
+        raise ValueError("shard elapsed_seconds must be finite and nonnegative")
+    _verify_receipt_sources(receipt, spec)
+    _verify_execution_context(receipt, spec)
+    output_dir = receipt_path.parent
+    _verify_receipt_artifacts(receipt, output_dir, spec)
+    _verify_receipt_tables(receipt, output_dir, spec)
+    return VerifiedShard(
+        receipt_path=receipt_path,
+        output_dir=output_dir,
+        spec=spec,
+        receipt=receipt,
+        receipt_sha256=_sha256(receipt_path),
+    )
+
+
+def verify_shard_directory(
+    output_dir: Path,
+    *,
+    expected_spec: ShardSpec,
+    expected_git_sha: str | None = None,
+    allow_cloud_execution: bool = False,
+    require_cloud_execution: bool = False,
+) -> VerifiedShard:
+    """Verify one exact shard directory against its requested specification."""
+    output_dir = output_dir.resolve()
+    if not output_dir.is_dir():
+        raise NotADirectoryError(f"shard output is not a directory: {output_dir}")
+    validate_shard_spec(expected_spec)
+    return _verify_shard_receipt(
+        output_dir / "receipt.json",
+        expected_spec=expected_spec,
+        expected_git_sha=expected_git_sha or _git_sha(),
+        allow_cloud_execution=allow_cloud_execution,
+        require_cloud_execution=require_cloud_execution,
+    )
+
+
 def discover_verified_shards(
     shard_root: Path,
     *,
@@ -738,6 +993,8 @@ def discover_verified_shards(
     current_git_sha = _git_sha()
     verified: list[VerifiedShard] = []
     for receipt_path in sorted(shard_root.rglob("receipt.json")):
+        if any(part.startswith(".") for part in receipt_path.relative_to(shard_root).parts):
+            continue
         receipt = json.loads(receipt_path.read_text(encoding="ascii"))
         if not isinstance(receipt, dict) or receipt.get("analysis") != "jss_shard":
             continue
@@ -746,51 +1003,20 @@ def discover_verified_shards(
             continue
         if spec.profile != profile or spec.base_seed != base_seed:
             raise ValueError("shard profile or seed differs from the requested merge")
-        if receipt.get("schema_version") != 1:
-            raise ValueError("unsupported shard receipt schema")
-        if receipt.get("spec_sha256") != _json_sha256(asdict(spec)):
-            raise ValueError("shard spec hash differs")
-        assignments = receipt.get("assignments")
-        if not isinstance(assignments, list):
-            raise TypeError("shard assignments must be a JSON array")
-        if assignments != _assignment_payload(spec):
-            raise ValueError("shard assignments differ from the deterministic inventory")
-        if receipt.get("assignment_count") != len(assignments):
-            raise ValueError("shard assignment count differs")
-        if receipt.get("assignments_sha256") != _json_sha256(assignments):
-            raise ValueError("shard assignment hash differs")
-        if receipt.get("git_sha") != current_git_sha:
-            raise ValueError("shard source revision differs from the merge revision")
-        if not isinstance(receipt.get("git_dirty"), bool):
-            raise TypeError("shard git_dirty must be boolean")
-        if profile == "full" and receipt["git_dirty"]:
-            raise ValueError("full-profile shard records a dirty source tree")
-        elapsed_seconds = receipt.get("elapsed_seconds")
-        if (
-            isinstance(elapsed_seconds, bool)
-            or not isinstance(elapsed_seconds, Real)
-            or not 0.0 <= float(elapsed_seconds) < float("inf")
-        ):
-            raise ValueError("shard elapsed_seconds must be finite and nonnegative")
-        _verify_receipt_sources(receipt, spec)
-        _verify_execution_context(receipt, spec)
-        output_dir = receipt_path.parent
-        _verify_receipt_artifacts(receipt, output_dir, spec)
-        _verify_receipt_tables(receipt, output_dir, spec)
         verified.append(
-            VerifiedShard(
-                receipt_path=receipt_path,
-                output_dir=output_dir,
-                spec=spec,
-                receipt=receipt,
-                receipt_sha256=_sha256(receipt_path),
+            _verify_shard_receipt(
+                receipt_path,
+                expected_spec=spec,
+                expected_git_sha=current_git_sha,
+                allow_cloud_execution=True,
+                require_cloud_execution=False,
             )
         )
     if not verified:
         raise ValueError(f"no {target_analysis} shard receipts found below {shard_root}")
-    context_hashes = {shard.receipt.get("execution_context_sha256") for shard in verified}
+    context_hashes = {shard.receipt.get("scientific_context_sha256") for shard in verified}
     if len(context_hashes) != 1:
-        raise ValueError("shards were produced by different execution contexts")
+        raise ValueError("shards were produced by different scientific contexts")
     return tuple(verified)
 
 

@@ -75,7 +75,7 @@ def _csv_arg(values: Sequence[str | int]) -> str:
     return ",".join(str(value) for value in values)
 
 
-def _validate_image_digest_uri(image_uri: str) -> str:
+def validate_image_digest_uri(image_uri: str) -> str:
     """Require an immutable container image digest for distributed work."""
     normalized = image_uri.strip()
     if not _IMAGE_DIGEST_PATTERN.fullmatch(normalized):
@@ -162,7 +162,7 @@ def _wait_for_api_ready(
     raise RuntimeError(f"API did not become ready at {api_url}: {last_error}")
 
 
-def _get_ami(region: str) -> str:
+def get_ami(region: str) -> str:
     """Get the latest Amazon Linux 2023 AMI ID."""
     ssm = boto3.client("ssm", region_name=region)
     ami_param = ssm.get_parameter(
@@ -171,7 +171,7 @@ def _get_ami(region: str) -> str:
     return ami_param["Parameter"]["Value"]
 
 
-def _get_default_subnet_ids(ec2: Any, *, instance_type: str | None = None) -> list[str]:
+def get_default_subnet_ids(ec2: Any, *, instance_type: str | None = None) -> list[str]:
     """Return default subnet IDs sorted by AZ for diversified placement."""
     offered_azs: set[str] | None = None
     if instance_type:
@@ -520,7 +520,7 @@ def launch_api(
         raise ValueError("lease_seconds must be a positive integer")
     if type(max_cell_attempts) is not int or max_cell_attempts <= 0:
         raise ValueError("max_cell_attempts must be a positive integer")
-    image_uri = _validate_image_digest_uri(image_uri)
+    image_uri = validate_image_digest_uri(image_uri)
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
     git_sha = validate_image_revision(image_uri, region=region)
     manifest_info = publish_rerun_manifest(manifest_path, region=region)
@@ -535,9 +535,10 @@ def launch_api(
     instance_profile_name = ensure_campaign_iam_profile(
         output_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        write_prefixes=(artifact_prefix,),
         region=region,
     )
-    ami_id = _get_ami(region)
+    ami_id = get_ami(region)
 
     user_data = _make_api_user_data(
         region=region,
@@ -694,7 +695,7 @@ def get_api_scope(region: str = DEFAULT_REGION) -> ApiScope | None:
         tags["citrees-artifact-prefix"],
         tags["citrees-stage"],
     )
-    image_uri = _validate_image_digest_uri(tags["citrees-image-uri"])
+    image_uri = validate_image_digest_uri(tags["citrees-image-uri"])
     campaign_sha256 = validate_manifest_sha256(tags["citrees-campaign-sha256"])
     manifest_sha256 = validate_manifest_sha256(tags["citrees-manifest-sha256"])
     manifest_key = manifest_s3_key(manifest_sha256)
@@ -808,7 +809,7 @@ def launch_workers(
     """
     if n < 1:
         raise ValueError("n must be >= 1")
-    image_uri = _validate_image_digest_uri(image_uri)
+    image_uri = validate_image_digest_uri(image_uri)
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
     manifest_info = publish_rerun_manifest(manifest_path, region=region)
     manifest_sha256 = str(manifest_info["sha256"])
@@ -842,6 +843,7 @@ def launch_workers(
     instance_profile_name = ensure_campaign_iam_profile(
         output_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        write_prefixes=(artifact_prefix,),
         region=region,
     )
     _wait_for_api_ready(
@@ -858,7 +860,7 @@ def launch_workers(
     account_id = get_aws_account_id()
     bucket = get_resource_name(account_id)
     ecr_uri = image_uri.split("/")[0]
-    ami_id = _get_ami(region)
+    ami_id = get_ami(region)
 
     user_data = _make_worker_user_data(
         region=region,
@@ -955,7 +957,7 @@ def launch_mechanism_workers(
     total_shards = n if num_shards is None else num_shards
     if n < 1:
         raise ValueError("n must be >= 1")
-    image_uri = _validate_image_digest_uri(image_uri)
+    image_uri = validate_image_digest_uri(image_uri)
     git_sha = validate_image_revision(image_uri, region=region)
     if total_shards < 1:
         raise ValueError("num_shards must be >= 1")
@@ -974,10 +976,8 @@ def launch_mechanism_workers(
     bucket = get_resource_name(account_id)
     ecr_uri = image_uri.split("/")[0]
     sg_id = ensure_security_group(region)
-    ami_id = _get_ami(region)
-    placement_subnets = list(subnet_ids) or _get_default_subnet_ids(
-        ec2, instance_type=instance_type
-    )
+    ami_id = get_ami(region)
+    placement_subnets = list(subnet_ids) or get_default_subnet_ids(ec2, instance_type=instance_type)
     if not placement_subnets:
         raise RuntimeError(f"No default subnets offer instance type {instance_type}")
 
@@ -1003,6 +1003,7 @@ def launch_mechanism_workers(
     instance_profile_name = ensure_campaign_iam_profile(
         output_prefix=output_prefix,
         campaign_sha256=specification_sha256,
+        write_prefixes=(output_prefix,),
         region=region,
     )
 

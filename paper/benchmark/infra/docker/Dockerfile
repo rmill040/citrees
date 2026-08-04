@@ -78,6 +78,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY citrees ./citrees
 COPY paper/benchmark ./paper/benchmark
+COPY paper/jss/replication ./paper/jss/replication
 COPY tests/__init__.py tests/conftest.py ./tests/
 COPY tests/paper ./tests/paper
 
@@ -87,6 +88,16 @@ ENV UV_PYTHON=3.12.7
 ENV UV_PYTHON_DOWNLOADS=never
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
+ENV BLIS_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV NUMBA_DISABLE_JIT=0
+ENV NUMBA_NUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
+ENV OMP_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV PYTHONHASHSEED=0
+ENV R_NUM_THREADS=1
+ENV VECLIB_MAXIMUM_THREADS=1
 
 # Install with paper dependencies
 RUN uv sync --frozen --group paper \

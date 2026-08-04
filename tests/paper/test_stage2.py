@@ -235,9 +235,7 @@ def test_stage2_keys_rankings_by_fold_id_when_rows_are_shuffled(
     rankings = pd.DataFrame(
         {
             "fold_idx": list(range(5)),
-            "feature_ranking": [
-                np.roll(np.arange(5), fold).tolist() for fold in range(5)
-            ],
+            "feature_ranking": [np.roll(np.arange(5), fold).tolist() for fold in range(5)],
         }
     )
 

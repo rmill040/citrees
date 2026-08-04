@@ -415,6 +415,96 @@ def test_assignments_are_complete_disjoint_and_deterministic() -> None:
         for index in range(3)
     ]
 
+    for num_shards in (8, 50, 100):
+        assignments = [
+            shards.behavior_shard_cells(
+                shards.ShardSpec(
+                    target_analysis="behavior",
+                    component="behavior",
+                    profile="full",
+                    shard_index=index,
+                    num_shards=num_shards,
+                    base_seed=7,
+                )
+            )
+            for index in range(num_shards)
+        ]
+        for assignment in assignments:
+            counts = {
+                family: sum(cell.model_family == family for cell in assignment)
+                for family in behavior.MODEL_FAMILIES
+            }
+            assert abs(counts["tree"] - counts["forest"]) <= 1
+
+
+@pytest.mark.parametrize("component", ["selector", "root"])
+def test_real_calibration_shards_reproduce_one_shot_rows(
+    component: shards.CalibrationComponent,
+    calibration_smoke_raw: dict[str, pd.DataFrame],
+) -> None:
+    table_name = shards.CALIBRATION_TABLES[component]
+    direct = calibration_smoke_raw[table_name]
+    probe = shards.ShardSpec(
+        target_analysis="calibration",
+        component=component,
+        profile="smoke",
+        shard_index=0,
+        num_shards=1,
+        base_seed=7,
+    )
+    num_shards = min(2, shards._assignment_count(probe))
+    frames = [
+        shards.run_calibration_shard(
+            shards.ShardSpec(
+                target_analysis="calibration",
+                component=component,
+                profile="smoke",
+                shard_index=index,
+                num_shards=num_shards,
+                base_seed=7,
+            )
+        )[table_name]
+        for index in range(num_shards)
+    ]
+    observed = calibration.normalize_calibration_table(
+        table_name,
+        pd.concat(frames, ignore_index=True),
+    ).sort_values(["scenario", "replicate"], ignore_index=True)
+    expected = calibration.normalize_calibration_table(table_name, direct).sort_values(
+        ["scenario", "replicate"],
+        ignore_index=True,
+    )
+    pd.testing.assert_frame_equal(observed, expected, check_exact=True)
+
+
+def test_container_source_identity_requires_explicit_clean_revision(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    revision = "a" * 40
+    monkeypatch.setattr(shards, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("GIT_SHA", revision)
+    monkeypatch.setenv("CITREES_SOURCE_CLEAN", "1")
+
+    assert shards._git_sha() == revision
+    assert shards._git_dirty() is False
+
+    monkeypatch.delenv("CITREES_SOURCE_CLEAN")
+    with pytest.raises(RuntimeError, match="CITREES_SOURCE_CLEAN"):
+        shards._git_dirty()
+
+
+def test_container_source_identity_rejects_invalid_or_conflicting_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_SHA", "invalid")
+    with pytest.raises(RuntimeError, match="40-character"):
+        shards._git_sha()
+
+    monkeypatch.setenv("GIT_SHA", "0" * 40)
+    with pytest.raises(RuntimeError, match="differs from the checked-out revision"):
+        shards._git_sha()
+
 
 @pytest.mark.parametrize(
     ("spec", "exception", "match"),
@@ -591,6 +681,55 @@ def test_receipt_and_artifact_corruption_are_rejected(
         base_seed=7,
     )
     assert len(verified) == 1
+    assert shards.verify_shard_directory(valid_dir, expected_spec=spec).spec == spec
+
+    unexpected_field_dir = tmp_path / "unexpected-receipt-field" / "shard"
+    shutil.copytree(valid_dir, unexpected_field_dir)
+    unexpected_receipt_path = unexpected_field_dir / "receipt.json"
+    unexpected_receipt = json.loads(unexpected_receipt_path.read_text(encoding="ascii"))
+    unexpected_receipt["unexpected"] = True
+    unexpected_receipt_path.write_text(
+        json.dumps(unexpected_receipt, indent=2, sort_keys=True) + "\n",
+        encoding="ascii",
+    )
+    with pytest.raises(ValueError, match="receipt fields differ"):
+        shards.verify_shard_directory(unexpected_field_dir, expected_spec=spec)
+
+    schema_dir = tmp_path / "boolean-schema" / "shard"
+    shutil.copytree(valid_dir, schema_dir)
+    schema_receipt_path = schema_dir / "receipt.json"
+    schema_receipt = json.loads(schema_receipt_path.read_text(encoding="ascii"))
+    schema_receipt["schema_version"] = True
+    schema_receipt_path.write_text(
+        json.dumps(schema_receipt, indent=2, sort_keys=True) + "\n",
+        encoding="ascii",
+    )
+    with pytest.raises(TypeError, match="schema_version must be an integer"):
+        shards.verify_shard_directory(schema_dir, expected_spec=spec)
+
+    timestamp_dir = tmp_path / "invalid-timestamp" / "shard"
+    shutil.copytree(valid_dir, timestamp_dir)
+    timestamp_receipt_path = timestamp_dir / "receipt.json"
+    timestamp_receipt = json.loads(timestamp_receipt_path.read_text(encoding="ascii"))
+    timestamp_receipt["created_utc"] = "not-a-timestamp"
+    timestamp_receipt_path.write_text(
+        json.dumps(timestamp_receipt, indent=2, sort_keys=True) + "\n",
+        encoding="ascii",
+    )
+    with pytest.raises(ValueError, match="created_utc is invalid"):
+        shards.verify_shard_directory(timestamp_dir, expected_spec=spec)
+
+    metadata_dir = tmp_path / "unexpected-artifact-metadata" / "shard"
+    shutil.copytree(valid_dir, metadata_dir)
+    metadata_receipt_path = metadata_dir / "receipt.json"
+    metadata_receipt = json.loads(metadata_receipt_path.read_text(encoding="ascii"))
+    metadata_receipt["artifacts"]["selector_null_raw.parquet"]["unexpected"] = True
+    metadata_receipt_path.write_text(
+        json.dumps(metadata_receipt, indent=2, sort_keys=True) + "\n",
+        encoding="ascii",
+    )
+    with pytest.raises(ValueError, match="artifact metadata fields differ"):
+        shards.verify_shard_directory(metadata_dir, expected_spec=spec)
 
     artifact_dir = tmp_path / "artifact-corruption" / "shard"
     shutil.copytree(valid_dir, artifact_dir)
@@ -650,6 +789,31 @@ def test_receipt_and_artifact_corruption_are_rejected(
     with pytest.raises(TypeError, match="shard_index must be an integer"):
         shards.discover_verified_shards(
             spec_dir.parent,
+            target_analysis="calibration",
+            profile="smoke",
+            base_seed=7,
+        )
+
+
+def test_orphaned_hidden_staging_directory_is_not_discovered(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_runtime_receipts(monkeypatch)
+    spec = shards.ShardSpec(
+        target_analysis="calibration",
+        component="selector",
+        profile="smoke",
+        shard_index=0,
+        num_shards=2,
+        base_seed=7,
+    )
+    shard_root = tmp_path / "shards"
+    shards.run_shard_to_directory(spec, shard_root / ".orphan" / "shard")
+
+    with pytest.raises(ValueError, match="no calibration shard receipts"):
+        shards.discover_verified_shards(
+            shard_root,
             target_analysis="calibration",
             profile="smoke",
             base_seed=7,
@@ -722,7 +886,7 @@ def test_calibration_raw_corruption_and_missing_rows_are_rejected(
         )
 
 
-def test_merge_rejects_mixed_execution_contexts(
+def test_merge_allows_descriptive_host_context_differences(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -745,6 +909,9 @@ def test_merge_rejects_mixed_execution_contexts(
     changed_receipt_path = shard_root / "001" / "receipt.json"
     changed_receipt = json.loads(changed_receipt_path.read_text(encoding="ascii"))
     changed_receipt["platform"] = "different-worker-platform"
+    changed_hardware = changed_receipt["hardware"]
+    assert isinstance(changed_hardware, dict)
+    changed_hardware["processor"] = "different-cpu-stepping"
     context_payload = {
         key: changed_receipt[key]
         for key in (
@@ -752,6 +919,9 @@ def test_merge_rejects_mixed_execution_contexts(
             "git_dirty",
             "python",
             "platform",
+            "hardware",
+            "blas_configuration",
+            "thread_environment",
             "r_environment",
             "source_sha256",
             "input_sha256",
@@ -764,7 +934,66 @@ def test_merge_rejects_mixed_execution_contexts(
         encoding="ascii",
     )
 
-    with pytest.raises(ValueError, match="different execution contexts"):
+    verified = shards.discover_verified_shards(
+        shard_root,
+        target_analysis="calibration",
+        profile="smoke",
+        base_seed=7,
+    )
+    assert len(verified) == 2
+
+
+def test_merge_rejects_mixed_scientific_contexts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_runtime_receipts(monkeypatch)
+    shard_root = tmp_path / "mixed-context"
+    for shard_index in range(2):
+        spec = shards.ShardSpec(
+            target_analysis="calibration",
+            component="selector",
+            profile="smoke",
+            shard_index=shard_index,
+            num_shards=2,
+            base_seed=7,
+        )
+        shards.run_shard_to_directory(
+            spec,
+            shard_root / f"{shard_index:03d}",
+        )
+
+    changed_receipt_path = shard_root / "001" / "receipt.json"
+    changed_receipt = json.loads(changed_receipt_path.read_text(encoding="ascii"))
+    changed_environment = changed_receipt["thread_environment"]
+    assert isinstance(changed_environment, dict)
+    changed_environment["OMP_NUM_THREADS"] = "2"
+    context_payload = {
+        key: changed_receipt[key]
+        for key in (
+            "git_sha",
+            "git_dirty",
+            "python",
+            "platform",
+            "hardware",
+            "blas_configuration",
+            "thread_environment",
+            "r_environment",
+            "source_sha256",
+            "input_sha256",
+            "versions",
+        )
+    }
+    changed_receipt["execution_context_sha256"] = shards._json_sha256(context_payload)
+    changed_receipt["scientific_context_sha256"] = shards._json_sha256(
+        shards._scientific_context_payload(context_payload)
+    )
+    changed_receipt_path.write_text(
+        json.dumps(changed_receipt, indent=2, sort_keys=True) + "\n",
+        encoding="ascii",
+    )
+
+    with pytest.raises(ValueError, match="different scientific contexts"):
         shards.discover_verified_shards(
             shard_root,
             target_analysis="calibration",

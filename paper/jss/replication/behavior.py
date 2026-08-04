@@ -65,6 +65,7 @@ MIN_SAMPLES_LEAF = 7
 TOP_K = 5
 PARTYKIT_TESTTYPE = ("Bonferroni", "MonteCarlo")
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results" / "behavior"
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class CitreesControl(TypedDict):
@@ -1843,16 +1844,18 @@ def _git_sha() -> str:
         check=True,
         capture_output=True,
         text=True,
+        cwd=REPO_ROOT,
     ).stdout.strip()
 
 
 def _git_dirty() -> bool:
     return bool(
         subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "status", "--porcelain", "--untracked-files=all"],
             check=True,
             capture_output=True,
             text=True,
+            cwd=REPO_ROOT,
         ).stdout.strip()
     )
 

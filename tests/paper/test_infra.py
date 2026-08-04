@@ -28,12 +28,12 @@ from paper.benchmark.infra.ec2 import (
     _make_api_user_data,
     _make_mechanism_user_data,
     _make_worker_user_data,
-    _validate_image_digest_uri,
     _validate_queue_scope,
     get_api_scope,
     launch_api,
     launch_mechanism_workers,
     launch_workers,
+    validate_image_digest_uri,
 )
 
 pytestmark = pytest.mark.paper
@@ -45,6 +45,126 @@ DIGEST_URI = (
 MANIFEST_SHA256 = "b" * 64
 CAMPAIGN_SHA256 = "e" * 64
 MANIFEST_KEY = f"rerun-manifests/{MANIFEST_SHA256}.csv"
+SSM_POLICY_ARN = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+CAMPAIGN_TRUST_POLICY = {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {"Service": "ec2.amazonaws.com"},
+            "Action": "sts:AssumeRole",
+        }
+    ],
+}
+
+
+class _NoSuchEntityError(Exception):
+    pass
+
+
+def _campaign_iam_client(
+    profile_name: str,
+    *,
+    initial_inline_policy_names: tuple[str, ...] = (),
+    initial_attached_policy_arns: tuple[str, ...] = (),
+    initial_profile_roles: tuple[str, ...] | None = None,
+    readback_trust_policy: object | None = None,
+    readback_inline_policy_names: tuple[str, ...] | None = None,
+    readback_runtime_policy: object | None = None,
+    readback_attached_policy_arns: tuple[str, ...] | None = None,
+    readback_profile_roles: tuple[str, ...] | None = None,
+) -> MagicMock:
+    policy_name = f"{profile_name}-runtime"
+    initial_profile_roles = initial_profile_roles or (profile_name,)
+    client = MagicMock()
+    client.exceptions.NoSuchEntityException = _NoSuchEntityError
+    client.get_role.side_effect = [
+        {
+            "Role": {
+                "RoleName": profile_name,
+                "AssumeRolePolicyDocument": {"Version": "stale"},
+            }
+        },
+        {
+            "Role": {
+                "RoleName": profile_name,
+                "AssumeRolePolicyDocument": (
+                    CAMPAIGN_TRUST_POLICY
+                    if readback_trust_policy is None
+                    else readback_trust_policy
+                ),
+            }
+        },
+    ]
+    client.list_role_policies.side_effect = [
+        {"PolicyNames": list(initial_inline_policy_names)},
+        {
+            "PolicyNames": list(
+                (policy_name,)
+                if readback_inline_policy_names is None
+                else readback_inline_policy_names
+            )
+        },
+    ]
+    client.list_attached_role_policies.side_effect = [
+        {
+            "AttachedPolicies": [
+                {"PolicyName": arn.rsplit("/", maxsplit=1)[-1], "PolicyArn": arn}
+                for arn in initial_attached_policy_arns
+            ]
+        },
+        {
+            "AttachedPolicies": [
+                {"PolicyName": arn.rsplit("/", maxsplit=1)[-1], "PolicyArn": arn}
+                for arn in (
+                    (SSM_POLICY_ARN,)
+                    if readback_attached_policy_arns is None
+                    else readback_attached_policy_arns
+                )
+            ]
+        },
+    ]
+    client.get_instance_profile.side_effect = [
+        {
+            "InstanceProfile": {
+                "Roles": [{"RoleName": role_name} for role_name in initial_profile_roles]
+            }
+        },
+        {
+            "InstanceProfile": {
+                "Roles": [
+                    {"RoleName": role_name}
+                    for role_name in (
+                        (profile_name,)
+                        if readback_profile_roles is None
+                        else readback_profile_roles
+                    )
+                ]
+            }
+        },
+    ]
+
+    def get_role_policy(**_: object) -> dict[str, object]:
+        policy = readback_runtime_policy
+        if policy is None:
+            policy = json.loads(client.put_role_policy.call_args.kwargs["PolicyDocument"])
+        return {
+            "RoleName": profile_name,
+            "PolicyName": policy_name,
+            "PolicyDocument": policy,
+        }
+
+    client.get_role_policy.side_effect = get_role_policy
+    return client
+
+
+def _patch_campaign_iam(
+    monkeypatch: pytest.MonkeyPatch,
+    client: MagicMock,
+) -> None:
+    monkeypatch.setattr(aws_infra, "get_aws_account_id", lambda: "123456789012")
+    monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
+    monkeypatch.setattr(aws_infra.time, "sleep", lambda seconds: None)
 
 
 @pytest.mark.parametrize(
@@ -63,7 +183,7 @@ def test_mechanism_launch_has_no_mutable_output_or_overwrite_controls() -> None:
 
 
 def test_distributed_launch_requires_immutable_image_digest() -> None:
-    assert _validate_image_digest_uri(f" {DIGEST_URI} ") == DIGEST_URI
+    assert validate_image_digest_uri(f" {DIGEST_URI} ") == DIGEST_URI
 
     for invalid in (
         "",
@@ -73,11 +193,12 @@ def test_distributed_launch_requires_immutable_image_digest() -> None:
         "repository@sha256:" + "g" * 64,
     ):
         with pytest.raises(ValueError, match="immutable"):
-            _validate_image_digest_uri(invalid)
+            validate_image_digest_uri(invalid)
 
 
 def test_candidate_image_pins_complete_statistical_runtime() -> None:
     dockerfile = Path("paper/benchmark/infra/docker/Dockerfile").read_text()
+    dockerignore = Path(".dockerignore").read_text().splitlines()
 
     assert "FROM rocker/r-ver:4.5.2@sha256:" in dockerfile
     assert "SOURCE_GIT_SHA" in dockerfile
@@ -95,6 +216,23 @@ def test_candidate_image_pins_complete_statistical_runtime() -> None:
     assert "UV_PYTHON=3.12.7" in dockerfile
     assert 'version("rpy2") == "3.6.7"' in dockerfile
     assert 'version("scikit-learn") == "1.8.0"' in dockerfile
+    assert "COPY paper/jss/replication ./paper/jss/replication" in dockerfile
+    assert "paper/jss/" not in dockerignore
+    assert "!paper/jss/replication/" in dockerignore
+    assert "!paper/jss/replication/**" in dockerignore
+    for variable in (
+        "BLIS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMBA_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "R_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+    ):
+        assert f"ENV {variable}=1" in dockerfile
+    assert "ENV NUMBA_DISABLE_JIT=0" in dockerfile
+    assert "ENV PYTHONHASHSEED=0" in dockerfile
     assert "COPY . ." not in dockerfile
 
 
@@ -198,7 +336,7 @@ def test_mechanism_launch_scopes_profile_to_derived_output(
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(ec2_infra, "ensure_security_group", lambda region: "sg-test")
     monkeypatch.setattr(ec2_infra, "ensure_campaign_iam_profile", ensure_profile)
-    monkeypatch.setattr(ec2_infra, "_get_ami", lambda region: "ami-test")
+    monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
     monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: client)
     specification_sha256 = mechanism_specification_sha256(
         tasks=("classification",),
@@ -227,12 +365,14 @@ def test_mechanism_launch_scopes_profile_to_derived_output(
         n_jobs=1,
         downstream_n_jobs=1,
     ) == ["i-mechanism"]
+    expected_prefix = (
+        "experiments/cif_mechanism_ablation/image-sha256/"
+        f"{'a' * 64}/spec-sha256/{specification_sha256}"
+    )
     ensure_profile.assert_called_once_with(
-        output_prefix=(
-            "experiments/cif_mechanism_ablation/image-sha256/"
-            f"{'a' * 64}/spec-sha256/{specification_sha256}"
-        ),
+        output_prefix=expected_prefix,
         campaign_sha256=specification_sha256,
+        write_prefixes=(expected_prefix,),
         region="us-east-1",
     )
     assert client.run_instances.call_args.kwargs["IamInstanceProfile"] == {
@@ -337,7 +477,7 @@ def _mock_api_launch(
         "ensure_campaign_iam_profile",
         lambda **kwargs: "citrees-campaign-test",
     )
-    monkeypatch.setattr(ec2_infra, "_get_ami", lambda region: "ami-test")
+    monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
     monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: ec2_client)
     monkeypatch.setattr(ec2_infra.boto3, "resource", lambda *args, **kwargs: ec2_resource)
     monkeypatch.setattr(ec2_infra.time, "sleep", lambda seconds: None)
@@ -548,7 +688,7 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
         lambda image_uri, region: "a" * 40,
     )
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
-    monkeypatch.setattr(ec2_infra, "_get_ami", lambda region: "ami-test")
+    monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
     monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: client)
 
     assert launch_workers(
@@ -590,7 +730,18 @@ def test_s3_bucket_is_private_and_versioned(
     )
     client.put_bucket_encryption.assert_called_once()
     policy = json.loads(client.put_bucket_policy.call_args.kwargs["Policy"])
-    assert policy["Statement"][0]["Condition"] == {"Bool": {"aws:SecureTransport": "false"}}
+    statements = {statement["Sid"]: statement for statement in policy["Statement"]}
+    assert statements["DenyInsecureTransport"]["Condition"] == {
+        "Bool": {"aws:SecureTransport": "false"}
+    }
+    assert statements["DenyUnconditionalJSSWrites"] == {
+        "Sid": "DenyUnconditionalJSSWrites",
+        "Effect": "Deny",
+        "Principal": "*",
+        "Action": "s3:PutObject",
+        "Resource": "arn:aws:s3:::citrees-123456789012/jss/replication/*",
+        "Condition": {"Null": {"s3:if-none-match": "true"}},
+    }
 
 
 def test_campaign_role_can_write_only_its_exact_output_prefix(
@@ -600,24 +751,23 @@ def test_campaign_role_can_write_only_its_exact_output_prefix(
     profile_name = aws_infra.campaign_instance_profile_name(
         output_prefix=output_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
+        write_prefixes=(output_prefix,),
     )
-    client = MagicMock()
-    client.get_instance_profile.return_value = {
-        "InstanceProfile": {"Roles": [{"RoleName": profile_name}]}
-    }
-    monkeypatch.setattr(aws_infra, "get_aws_account_id", lambda: "123456789012")
-    monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
+    client = _campaign_iam_client(profile_name)
+    _patch_campaign_iam(monkeypatch, client)
 
     assert (
         aws_infra.ensure_campaign_iam_profile(
             output_prefix=output_prefix,
             campaign_sha256=CAMPAIGN_SHA256,
+            write_prefixes=(output_prefix,),
         )
         == profile_name
     )
     assert profile_name != aws_infra.campaign_instance_profile_name(
         output_prefix="repairs/run-002",
         campaign_sha256=CAMPAIGN_SHA256,
+        write_prefixes=("repairs/run-002",),
     )
 
     policy = client.put_role_policy.call_args.kwargs["PolicyDocument"]
@@ -625,9 +775,12 @@ def test_campaign_role_can_write_only_its_exact_output_prefix(
     assert "iam:PassRole" not in policy
 
     statements = {statement["Sid"]: statement for statement in json.loads(policy)["Statement"]}
-    assert statements["S3WriteArtifacts"]["Resource"] == (
+    assert statements["S3WriteArtifacts"]["Resource"] == [
         "arn:aws:s3:::citrees-123456789012/repairs/run-001/*"
-    )
+    ]
+    assert statements["S3WriteArtifacts"]["Condition"] == {
+        "StringEquals": {"s3:if-none-match": "*"}
+    }
     assert statements["S3ListApprovedPrefixes"]["Condition"]["StringLike"]["s3:prefix"] == [
         "data/*",
         "rerun-manifests/*",
@@ -641,6 +794,177 @@ def test_campaign_role_can_write_only_its_exact_output_prefix(
     assert statements["ECRPull"]["Resource"] == (
         "arn:aws:ecr:us-east-1:123456789012:repository/citrees-123456789012"
     )
+
+
+def test_campaign_role_can_limit_writes_to_shard_subprefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_prefix = "jss/replication/source-a/campaign-b"
+    write_prefix = f"{output_prefix}/shards"
+    profile_name = aws_infra.campaign_instance_profile_name(
+        output_prefix=output_prefix,
+        campaign_sha256=CAMPAIGN_SHA256,
+        write_prefixes=(write_prefix,),
+    )
+    client = _campaign_iam_client(profile_name)
+    _patch_campaign_iam(monkeypatch, client)
+
+    assert (
+        aws_infra.ensure_campaign_iam_profile(
+            output_prefix=output_prefix,
+            campaign_sha256=CAMPAIGN_SHA256,
+            write_prefixes=(write_prefix,),
+        )
+        == profile_name
+    )
+    statements = {
+        statement["Sid"]: statement
+        for statement in json.loads(client.put_role_policy.call_args.kwargs["PolicyDocument"])[
+            "Statement"
+        ]
+    }
+    assert statements["S3WriteArtifacts"]["Resource"] == [
+        f"arn:aws:s3:::citrees-123456789012/{write_prefix}/*"
+    ]
+    assert profile_name != aws_infra.campaign_instance_profile_name(
+        output_prefix=output_prefix,
+        campaign_sha256=CAMPAIGN_SHA256,
+        write_prefixes=(output_prefix,),
+    )
+
+
+def test_campaign_role_converges_dirty_existing_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_prefix = "jss/replication/source-a/campaign-b"
+    write_prefix = f"{output_prefix}/shards"
+    profile_name = aws_infra.campaign_instance_profile_name(
+        output_prefix=output_prefix,
+        campaign_sha256=CAMPAIGN_SHA256,
+        write_prefixes=(write_prefix,),
+    )
+    runtime_policy_name = f"{profile_name}-runtime"
+    unexpected_managed_policy = "arn:aws:iam::123456789012:policy/unexpected"
+    client = _campaign_iam_client(
+        profile_name,
+        initial_inline_policy_names=(runtime_policy_name, "unexpected-inline"),
+        initial_attached_policy_arns=(SSM_POLICY_ARN, unexpected_managed_policy),
+        initial_profile_roles=("unexpected-role",),
+    )
+    _patch_campaign_iam(monkeypatch, client)
+
+    assert (
+        aws_infra.ensure_campaign_iam_profile(
+            output_prefix=output_prefix,
+            campaign_sha256=CAMPAIGN_SHA256,
+            write_prefixes=(write_prefix,),
+        )
+        == profile_name
+    )
+
+    client.delete_role_policy.assert_called_once_with(
+        RoleName=profile_name,
+        PolicyName="unexpected-inline",
+    )
+    client.detach_role_policy.assert_called_once_with(
+        RoleName=profile_name,
+        PolicyArn=unexpected_managed_policy,
+    )
+    client.remove_role_from_instance_profile.assert_called_once_with(
+        InstanceProfileName=profile_name,
+        RoleName="unexpected-role",
+    )
+    client.add_role_to_instance_profile.assert_called_once_with(
+        InstanceProfileName=profile_name,
+        RoleName=profile_name,
+    )
+
+
+def test_campaign_role_rejects_permissions_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_prefix = "jss/replication/source-a/campaign-b"
+    write_prefix = f"{output_prefix}/shards"
+    profile_name = aws_infra.campaign_instance_profile_name(
+        output_prefix=output_prefix,
+        campaign_sha256=CAMPAIGN_SHA256,
+        write_prefixes=(write_prefix,),
+    )
+    client = MagicMock()
+    client.exceptions.NoSuchEntityException = _NoSuchEntityError
+    client.get_role.return_value = {
+        "Role": {
+            "RoleName": profile_name,
+            "AssumeRolePolicyDocument": CAMPAIGN_TRUST_POLICY,
+            "PermissionsBoundary": {
+                "PermissionsBoundaryType": "Policy",
+                "PermissionsBoundaryArn": "arn:aws:iam::123456789012:policy/boundary",
+            },
+        }
+    }
+    _patch_campaign_iam(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="permissions boundary"):
+        aws_infra.ensure_campaign_iam_profile(
+            output_prefix=output_prefix,
+            campaign_sha256=CAMPAIGN_SHA256,
+            write_prefixes=(write_prefix,),
+        )
+
+    client.update_assume_role_policy.assert_not_called()
+    client.put_role_policy.assert_not_called()
+    client.attach_role_policy.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("mismatch", "message"),
+    [
+        ("trust", "trust policy"),
+        ("inline_inventory", "inline policy inventory"),
+        ("runtime_policy", "runtime policy"),
+        ("managed_inventory", "managed policy inventory"),
+        ("profile_role", "instance profile"),
+    ],
+)
+def test_campaign_role_rejects_postmutation_readback_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    mismatch: str,
+    message: str,
+) -> None:
+    output_prefix = "jss/replication/source-a/campaign-b"
+    write_prefix = f"{output_prefix}/shards"
+    profile_name = aws_infra.campaign_instance_profile_name(
+        output_prefix=output_prefix,
+        campaign_sha256=CAMPAIGN_SHA256,
+        write_prefixes=(write_prefix,),
+    )
+    policy_name = f"{profile_name}-runtime"
+    options: dict[str, object] = {}
+    if mismatch == "trust":
+        options["readback_trust_policy"] = {"Version": "2012-10-17", "Statement": []}
+    elif mismatch == "inline_inventory":
+        options["readback_inline_policy_names"] = (policy_name, "unexpected-inline")
+    elif mismatch == "runtime_policy":
+        options["readback_runtime_policy"] = {
+            "Version": "2012-10-17",
+            "Statement": [],
+        }
+    elif mismatch == "managed_inventory":
+        options["readback_attached_policy_arns"] = (
+            SSM_POLICY_ARN,
+            "arn:aws:iam::123456789012:policy/unexpected",
+        )
+    else:
+        options["readback_profile_roles"] = ()
+    client = _campaign_iam_client(profile_name, **options)
+    _patch_campaign_iam(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match=message):
+        aws_infra.ensure_campaign_iam_profile(
+            output_prefix=output_prefix,
+            campaign_sha256=CAMPAIGN_SHA256,
+            write_prefixes=(write_prefix,),
+        )
 
 
 def test_security_group_refresh_preserves_self_ingress(

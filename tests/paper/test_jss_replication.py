@@ -265,6 +265,57 @@ def test_replication_records_distributed_dispatch(
     assert "execution_mode: distributed" in transcript
 
 
+def test_distributed_replication_binds_cloud_accounting(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "replication-output"
+    dgrp_data_dir = tmp_path / "dgrp-data"
+    dgrp_data_dir.mkdir()
+    shard_root = tmp_path / "shards"
+    (shard_root / "calibration").mkdir(parents=True)
+    (shard_root / "behavior").mkdir()
+    provenance = shard_root / replicate.cloud.CLOUD_PROVENANCE_DIRECTORY
+    provenance.mkdir()
+    (provenance / "campaign.json").write_text("{}\n", encoding="ascii")
+    accounting_path = shard_root / replicate.cloud.COMPUTE_ACCOUNTING_FILENAME
+    accounting_path.write_text('{"fixture": true}\n', encoding="ascii")
+    accounting = {
+        "analysis": "jss_cloud_compute_accounting",
+        "schema_version": 1,
+        "campaign_sha256": "a" * 64,
+        "profile": "smoke",
+        "base_seed": 7,
+        "git_sha": replicate._git_sha(),
+    }
+    monkeypatch.setattr(
+        replicate.cloud,
+        "validate_compute_accounting",
+        lambda root: accounting,
+    )
+
+    run_replication(
+        "smoke",
+        output_dir,
+        base_seed=7,
+        dgrp_data_dir=dgrp_data_dir,
+        shard_root=shard_root,
+        runner=_fake_runner,
+    )
+
+    copied_accounting = output_dir / replicate.cloud.COMPUTE_ACCOUNTING_FILENAME
+    assert copied_accounting.read_bytes() == accounting_path.read_bytes()
+    assert (
+        output_dir / replicate.cloud.CLOUD_PROVENANCE_DIRECTORY / "campaign.json"
+    ).read_bytes() == b"{}\n"
+    receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
+    metadata = receipt["cloud_compute_accounting"]
+    assert metadata["campaign_sha256"] == "a" * 64
+    assert metadata["sha256"] == hashlib.sha256(copied_accounting.read_bytes()).hexdigest()
+    assert replicate.cloud.COMPUTE_ACCOUNTING_FILENAME in receipt["artifacts"]
+    assert "paper/jss/replication/cloud.py" in receipt["source_sha256"]
+
+
 def test_distributed_replication_requires_both_shard_trees(tmp_path: Path) -> None:
     shard_root = tmp_path / "shards"
     (shard_root / "calibration").mkdir(parents=True)

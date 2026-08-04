@@ -12,7 +12,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -58,6 +58,19 @@ class TutorialRun:
     search_results: pd.DataFrame
 
 
+class TreeParameters(TypedDict):
+    """Typed keyword arguments shared by the tutorial estimators."""
+
+    selector: str
+    n_resamples_selector: str
+    n_resamples_splitter: str
+    threshold_method: str
+    max_thresholds: int
+    max_depth: int
+    random_state: int
+    verbose: int
+
+
 def _settings(profile: Profile) -> TutorialSettings:
     if profile == "smoke":
         return TutorialSettings(
@@ -99,7 +112,7 @@ def _input_sha256(X: pd.DataFrame, y: pd.Series) -> str:
     return digest.hexdigest()
 
 
-def _tree_parameters(*, max_depth: int, random_state: int) -> dict[str, object]:
+def _tree_parameters(*, max_depth: int, random_state: int) -> TreeParameters:
     """Return the explicit tutorial tree configuration."""
     return {
         "selector": "mc",

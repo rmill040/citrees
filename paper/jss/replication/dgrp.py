@@ -135,7 +135,7 @@ def sha256(path: Path) -> str:
 
 def _md5_and_sha256(path: Path) -> tuple[str, str]:
     """Return both pinned archive digests after one streaming read."""
-    md5_digest = hashlib.md5()
+    md5_digest = hashlib.md5(usedforsecurity=False)
     sha256_digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -186,8 +186,8 @@ def verify_genotype_archive(
     expected_bytes: int | None = None,
     expected_md5: str | None = None,
     expected_sha256: str | None = None,
-) -> None:
-    """Require the exact pinned DGRP genotype archive."""
+) -> tuple[str, str]:
+    """Require the pinned archive and return its observed MD5 and SHA-256."""
     expected_bytes = GENOTYPE_ARCHIVE_BYTES if expected_bytes is None else expected_bytes
     expected_md5 = GENOTYPE_ARCHIVE_MD5 if expected_md5 is None else expected_md5
     expected_sha256 = GENOTYPE_ARCHIVE_SHA256 if expected_sha256 is None else expected_sha256
@@ -208,6 +208,7 @@ def verify_genotype_archive(
             f"DGRP genotype archive SHA-256 mismatch for {path}: "
             f"expected {expected_sha256}, got {observed_sha256}"
         )
+    return observed_md5, observed_sha256
 
 
 def acquire_genotype_archive(data_dir: Path = DEFAULT_DATA_DIR) -> Path:
@@ -317,8 +318,8 @@ def _safe_extract_genotype_members(
                         f"expected {spec.sha256}, got {observed_sha256}"
                     )
     except Exception:
-        for path in written:
-            path.unlink(missing_ok=True)
+        shutil.rmtree(destination)
+        destination.mkdir(parents=True)
         raise
     return tuple(written)
 
@@ -608,7 +609,7 @@ def build_genotype_source_receipt(
     phenotype_lines: Iterable[str],
 ) -> dict[str, object]:
     """Build deterministic provenance after validating both pinned sources."""
-    verify_genotype_archive(archive_path)
+    observed_md5, observed_sha256 = verify_genotype_archive(archive_path)
     validate_genotype_archive_members(archive_path)
     inventory = validate_genotype_files(input_dir)
     overlap = validate_pinned_line_overlap(
@@ -623,8 +624,8 @@ def build_genotype_source_receipt(
             "url": GENOTYPE_URL,
             "filename": GENOTYPE_ARCHIVE_FILENAME,
             "bytes": archive_path.stat().st_size,
-            "md5": GENOTYPE_ARCHIVE_MD5,
-            "sha256": GENOTYPE_ARCHIVE_SHA256,
+            "md5": observed_md5,
+            "sha256": observed_sha256,
         },
         "files": {
             spec.member_name: {

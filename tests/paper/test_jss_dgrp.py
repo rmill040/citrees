@@ -162,14 +162,17 @@ def test_genotype_archive_rejects_size_and_checksum_mismatches(tmp_path: Path) -
     path = tmp_path / "dgrp2.tar.gz"
     payload = b"synthetic DGRP archive"
     path.write_bytes(payload)
-    expected_md5 = hashlib.md5(payload).hexdigest()
+    expected_md5 = hashlib.md5(payload, usedforsecurity=False).hexdigest()
     expected_sha256 = hashlib.sha256(payload).hexdigest()
 
-    dgrp.verify_genotype_archive(
+    assert dgrp.verify_genotype_archive(
         path,
         expected_bytes=len(payload),
         expected_md5=expected_md5,
         expected_sha256=expected_sha256,
+    ) == (
+        expected_md5,
+        expected_sha256,
     )
     with pytest.raises(RuntimeError, match="size mismatch"):
         dgrp.verify_genotype_archive(
@@ -208,7 +211,11 @@ def test_genotype_archive_acquisition_verifies_download_before_publish(
 
     monkeypatch.setattr(dgrp, "GENOTYPE_URL", source_url)
     monkeypatch.setattr(dgrp, "GENOTYPE_ARCHIVE_BYTES", len(payload))
-    monkeypatch.setattr(dgrp, "GENOTYPE_ARCHIVE_MD5", hashlib.md5(payload).hexdigest())
+    monkeypatch.setattr(
+        dgrp,
+        "GENOTYPE_ARCHIVE_MD5",
+        hashlib.md5(payload, usedforsecurity=False).hexdigest(),
+    )
     monkeypatch.setattr(
         dgrp,
         "GENOTYPE_ARCHIVE_SHA256",
@@ -286,12 +293,20 @@ def test_safe_tar_extraction_accepts_only_exact_regular_members(tmp_path: Path) 
         ),
         *specs[1:],
     )
+    retry_destination = tmp_path / "bad-hash"
     with pytest.raises(RuntimeError, match="checksum mismatch"):
         dgrp._safe_extract_genotype_members(
             archive_path,
-            tmp_path / "bad-hash",
+            retry_destination,
             bad_hash_specs,
         )
+    assert list(retry_destination.iterdir()) == []
+    retried = dgrp._safe_extract_genotype_members(
+        archive_path,
+        retry_destination,
+        specs,
+    )
+    assert [path.read_bytes() for path in retried] == [payload for _, payload in members]
 
 
 def test_bed_validation_rejects_wrong_size_and_magic(tmp_path: Path) -> None:
@@ -380,7 +395,7 @@ def test_genotype_source_receipt_is_deterministic(
     archive_path = tmp_path / dgrp.GENOTYPE_ARCHIVE_FILENAME
     _write_tar(archive_path, members)
     archive_payload = archive_path.read_bytes()
-    archive_md5 = hashlib.md5(archive_payload).hexdigest()
+    archive_md5 = hashlib.md5(archive_payload, usedforsecurity=False).hexdigest()
     archive_sha256 = hashlib.sha256(archive_payload).hexdigest()
     extraction_root = tmp_path / "extracted"
     dgrp._safe_extract_genotype_members(archive_path, extraction_root, specs)
@@ -395,6 +410,15 @@ def test_genotype_source_receipt_is_deterministic(
     monkeypatch.setattr(dgrp, "EXPECTED_GENOTYPE_BED_BYTES", 4)
     monkeypatch.setattr(dgrp, "EXPECTED_SOURCE_LINES", 1)
     monkeypatch.setattr(dgrp, "EXPECTED_GENOTYPE_ONLY_LINES", 1)
+    observed_md5 = "1" * 32
+    observed_sha256 = "2" * 64
+    verification_calls: list[Path] = []
+
+    def verify_archive(path: Path) -> tuple[str, str]:
+        verification_calls.append(path)
+        return observed_md5, observed_sha256
+
+    monkeypatch.setattr(dgrp, "verify_genotype_archive", verify_archive)
 
     first = dgrp.build_genotype_source_receipt(
         archive_path,
@@ -408,13 +432,14 @@ def test_genotype_source_receipt_is_deterministic(
     )
 
     assert first == second
+    assert verification_calls == [archive_path, archive_path]
     assert first["source"] == {
         "record_id": 5_582_846,
         "url": dgrp.GENOTYPE_URL,
         "filename": "dgrp2.tar.gz",
         "bytes": len(archive_payload),
-        "md5": archive_md5,
-        "sha256": archive_sha256,
+        "md5": observed_md5,
+        "sha256": observed_sha256,
     }
     assert first["inventory"] == {
         "samples": 2,
@@ -459,7 +484,7 @@ def test_genotype_extraction_preserves_sqlite_and_rejects_malformed_plink(
     monkeypatch.setattr(
         dgrp,
         "GENOTYPE_ARCHIVE_MD5",
-        hashlib.md5(archive_payload).hexdigest(),
+        hashlib.md5(archive_payload, usedforsecurity=False).hexdigest(),
     )
     monkeypatch.setattr(
         dgrp,

@@ -9,9 +9,11 @@ import json
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, TypedDict
 from unittest.mock import MagicMock
 
 import pytest
+from botocore.exceptions import ClientError, ReadTimeoutError
 
 from paper.benchmark.cli.infra import (
     launch_mechanism_workers_cmd,
@@ -56,6 +58,55 @@ CAMPAIGN_TRUST_POLICY = {
         }
     ],
 }
+
+
+class _WorkerLaunchKwargs(TypedDict):
+    n: int
+    instance_type: str
+    image_uri: str
+    artifact_prefix: str
+    launch_id: str
+    manifest_path: Path
+    stage: str
+    spot: bool
+
+
+class _MemoryS3:
+    """In-memory S3 double with conditional immutable writes."""
+
+    def __init__(self, events: list[str] | None = None) -> None:
+        self.objects: dict[str, tuple[bytes, dict[str, str]]] = {}
+        self.events = events
+
+    def put_object(self, **kwargs: Any) -> dict[str, object]:
+        key = str(kwargs["Key"])
+        if self.events is not None:
+            self.events.append(f"s3:{key}")
+        if kwargs.get("IfNoneMatch") == "*" and key in self.objects:
+            raise ClientError(
+                {
+                    "Error": {"Code": "PreconditionFailed"},
+                    "ResponseMetadata": {"HTTPStatusCode": 412},
+                },
+                "PutObject",
+            )
+        body = kwargs["Body"]
+        payload = body if isinstance(body, bytes) else str(body).encode("utf-8")
+        self.objects[key] = (payload, dict(kwargs.get("Metadata", {})))
+        return {}
+
+    def get_object(self, **kwargs: Any) -> dict[str, object]:
+        key = str(kwargs["Key"])
+        if key not in self.objects:
+            raise ClientError(
+                {
+                    "Error": {"Code": "NoSuchKey"},
+                    "ResponseMetadata": {"HTTPStatusCode": 404},
+                },
+                "GetObject",
+            )
+        payload, metadata = self.objects[key]
+        return {"Body": io.BytesIO(payload), "Metadata": metadata}
 
 
 class _NoSuchEntityError(Exception):
@@ -628,6 +679,7 @@ def test_worker_launch_rejects_scope_mismatch_before_ec2_launch(
             instance_type="c6a.8xlarge",
             image_uri=DIGEST_URI,
             artifact_prefix="repairs/run-001",
+            launch_id="scope-mismatch",
             manifest_path=manifest_path,
             stage="rankings",
         )
@@ -641,7 +693,9 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
     manifest_path.write_text("fixture", encoding="utf-8")
     events: list[str] = []
     client = MagicMock()
+    s3 = _MemoryS3()
     client.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    client.describe_instances.return_value = {"Reservations": []}
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
@@ -689,13 +743,18 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
     )
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
-    monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: client)
+    monkeypatch.setattr(
+        ec2_infra.boto3,
+        "client",
+        lambda service, **kwargs: {"ec2": client, "s3": s3}[service],
+    )
 
     assert launch_workers(
         n=1,
         instance_type="c6a.8xlarge",
         image_uri=DIGEST_URI,
         artifact_prefix="repairs/run-001",
+        launch_id="ingress-refresh",
         manifest_path=manifest_path,
         stage="rankings",
     ) == ["i-worker"]
@@ -703,6 +762,500 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
     assert client.run_instances.call_args.kwargs["IamInstanceProfile"] == {
         "Name": "citrees-campaign-test"
     }
+
+
+def test_worker_launch_is_durable_idempotent_and_exact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = tmp_path / "manifest.csv"
+    manifest_path.write_text("fixture", encoding="utf-8")
+    events: list[str] = []
+    s3 = _MemoryS3(events)
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = {"Reservations": []}
+
+    def run_instances(**kwargs: Any) -> dict[str, object]:
+        slot = len(ec2.run_instances.call_args_list)
+        events.append(f"ec2:{slot}")
+        return {"Instances": [{"InstanceId": f"i-worker-{slot}"}]}
+
+    ec2.run_instances.side_effect = run_instances
+    monkeypatch.setattr(
+        ec2_infra,
+        "publish_rerun_manifest",
+        lambda path, region: {
+            "bucket": "citrees-123456789012",
+            "key": MANIFEST_KEY,
+            "sha256": MANIFEST_SHA256,
+            "campaign_sha256": CAMPAIGN_SHA256,
+            "cells": 1,
+        },
+    )
+    monkeypatch.setattr(
+        ec2_infra,
+        "get_api_scope",
+        lambda region: ApiScope(
+            api_url="http://10.0.0.10:8000",
+            public_api_url="http://203.0.113.10:8000",
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            image_uri=DIGEST_URI,
+            manifest_s3_key=MANIFEST_KEY,
+            manifest_sha256=MANIFEST_SHA256,
+            max_cell_attempts=3,
+            stage="rankings",
+        ),
+    )
+    monkeypatch.setattr(ec2_infra, "ensure_security_group", lambda region: "sg-test")
+    monkeypatch.setattr(
+        ec2_infra,
+        "ensure_campaign_iam_profile",
+        lambda **kwargs: "citrees-campaign-test",
+    )
+    monkeypatch.setattr(ec2_infra, "_wait_for_api_ready", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ec2_infra, "validate_image_revision", lambda image_uri, region: "a" * 40)
+    monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
+    monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
+    monkeypatch.setattr(
+        ec2_infra.boto3,
+        "client",
+        lambda service, **kwargs: {"ec2": ec2, "s3": s3}[service],
+    )
+
+    launch_kwargs: _WorkerLaunchKwargs = {
+        "n": 2,
+        "instance_type": "c6a.8xlarge",
+        "image_uri": DIGEST_URI,
+        "artifact_prefix": "repairs/run-001",
+        "manifest_path": manifest_path,
+        "stage": "rankings",
+        "spot": True,
+        "launch_id": "scale-001",
+    }
+    assert launch_workers(**launch_kwargs) == ["i-worker-1", "i-worker-2"]
+
+    assert events[0].endswith("/worker-launches/scale-001/intent.json")
+    assert events.index("ec2:1") > 0
+    assert len(ec2.run_instances.call_args_list) == 2
+    client_tokens: set[str] = set()
+    for call in ec2.run_instances.call_args_list:
+        assert call.kwargs["MinCount"] == 1
+        assert call.kwargs["MaxCount"] == 1
+        assert call.kwargs["ClientToken"].startswith("citrees-worker-")
+        client_tokens.add(call.kwargs["ClientToken"])
+        tags = {tag["Key"]: tag["Value"] for tag in call.kwargs["TagSpecifications"][0]["Tags"]}
+        assert tags["citrees-instance-family"] == "c6a"
+        assert tags["citrees-market"] == "spot"
+        assert tags["citrees-worker-launch-id"] == "scale-001"
+    assert len(client_tokens) == 2
+
+    intent_key = "repairs/run-001/_control/worker-launches/scale-001/intent.json"
+    intent = json.loads(s3.objects[intent_key][0])
+    assert intent["instance_family"] == "c6a"
+    assert intent["market"] == "spot"
+    assert intent["requested_instances"] == 2
+    first_request = ec2.run_instances.call_args_list[0].kwargs
+    request_contract = intent["request_contract"]
+    for key, value in first_request.items():
+        if key not in {"ClientToken", "TagSpecifications", "UserData"}:
+            assert request_contract[key] == value
+    assert (
+        request_contract["UserDataSha256"]
+        == hashlib.sha256(first_request["UserData"].encode()).hexdigest()
+    )
+    outcome_keys = sorted(key for key in s3.objects if "/instances/" in key)
+    assert len(outcome_keys) == 2
+    assert {json.loads(s3.objects[key][0])["instance_id"] for key in outcome_keys} == {
+        "i-worker-1",
+        "i-worker-2",
+    }
+    assert {json.loads(s3.objects[key][0])["market"] for key in outcome_keys} == {"spot"}
+    assert {json.loads(s3.objects[key][0])["instance_family"] for key in outcome_keys} == {"c6a"}
+
+    ec2.run_instances.reset_mock()
+    events.clear()
+    assert launch_workers(**launch_kwargs) == ["i-worker-1", "i-worker-2"]
+    ec2.run_instances.assert_not_called()
+
+
+def _mock_worker_launch_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, MagicMock, _MemoryS3]:
+    """Install deterministic benchmark worker launch dependencies."""
+    manifest_path = tmp_path / "manifest.csv"
+    manifest_path.write_text("fixture", encoding="utf-8")
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = {"Reservations": []}
+    s3 = _MemoryS3()
+    monkeypatch.setattr(
+        ec2_infra,
+        "publish_rerun_manifest",
+        lambda path, region: {
+            "bucket": "citrees-123456789012",
+            "key": MANIFEST_KEY,
+            "sha256": MANIFEST_SHA256,
+            "campaign_sha256": CAMPAIGN_SHA256,
+            "cells": 1,
+        },
+    )
+    monkeypatch.setattr(
+        ec2_infra,
+        "get_api_scope",
+        lambda region: ApiScope(
+            api_url="http://10.0.0.10:8000",
+            public_api_url="http://203.0.113.10:8000",
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            image_uri=DIGEST_URI,
+            manifest_s3_key=MANIFEST_KEY,
+            manifest_sha256=MANIFEST_SHA256,
+            max_cell_attempts=3,
+            stage="rankings",
+        ),
+    )
+    monkeypatch.setattr(ec2_infra, "ensure_security_group", lambda region: "sg-test")
+    monkeypatch.setattr(
+        ec2_infra,
+        "ensure_campaign_iam_profile",
+        lambda **kwargs: "citrees-campaign-test",
+    )
+    monkeypatch.setattr(ec2_infra, "_wait_for_api_ready", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ec2_infra, "validate_image_revision", lambda image_uri, region: "a" * 40)
+    monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
+    monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
+    monkeypatch.setattr(ec2_infra.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(
+        ec2_infra.boto3,
+        "client",
+        lambda service, **kwargs: {"ec2": ec2, "s3": s3}[service],
+    )
+    return manifest_path, ec2, s3
+
+
+def _worker_launch_kwargs(
+    manifest_path: Path,
+    *,
+    n: int = 1,
+    spot: bool = False,
+) -> _WorkerLaunchKwargs:
+    """Build one complete direct worker launch invocation."""
+    return {
+        "n": n,
+        "instance_type": "c6a.8xlarge",
+        "image_uri": DIGEST_URI,
+        "artifact_prefix": "repairs/run-001",
+        "launch_id": "scale-001",
+        "manifest_path": manifest_path,
+        "stage": "rankings",
+        "spot": spot,
+    }
+
+
+def test_worker_launch_recovers_ambiguous_timeout_with_same_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.side_effect = [
+        ReadTimeoutError(endpoint_url="https://ec2.us-east-1.amazonaws.com"),
+        {"Instances": [{"InstanceId": "i-recovered"}]},
+    ]
+
+    assert launch_workers(**_worker_launch_kwargs(manifest_path)) == ["i-recovered"]
+
+    assert len(ec2.run_instances.call_args_list) == 2
+    first = ec2.run_instances.call_args_list[0].kwargs
+    second = ec2.run_instances.call_args_list[1].kwargs
+    assert first["ClientToken"] == second["ClientToken"]
+    assert first["TagSpecifications"] == second["TagSpecifications"]
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    [
+        "InternalError",
+        "InternalFailure",
+        "RequestLimitExceeded",
+        "ServiceUnavailable",
+        "Unavailable",
+    ],
+)
+def test_worker_launch_retries_ambiguous_ec2_server_error_with_same_token(
+    error_code: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.side_effect = [
+        ClientError(
+            {"Error": {"Code": error_code, "Message": "ambiguous"}},
+            "RunInstances",
+        ),
+        {"Instances": [{"InstanceId": "i-recovered"}]},
+    ]
+
+    assert launch_workers(**_worker_launch_kwargs(manifest_path)) == ["i-recovered"]
+    assert ec2.run_instances.call_count == 2
+    assert {call.kwargs["ClientToken"] for call in ec2.run_instances.call_args_list} == {
+        ec2.run_instances.call_args_list[0].kwargs["ClientToken"]
+    }
+
+
+def test_worker_launch_exhausts_ambiguous_retries_without_changing_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.side_effect = [
+        ReadTimeoutError(endpoint_url="https://ec2.us-east-1.amazonaws.com") for _ in range(3)
+    ]
+
+    with pytest.raises(ReadTimeoutError):
+        launch_workers(**_worker_launch_kwargs(manifest_path))
+
+    assert ec2.run_instances.call_count == 3
+    assert len({call.kwargs["ClientToken"] for call in ec2.run_instances.call_args_list}) == 1
+    assert not any("/instances/" in key for key in s3.objects)
+
+
+def test_worker_launch_recovers_exact_tags_after_ambiguous_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    describe_calls = 0
+
+    def describe_instances(**kwargs: Any) -> dict[str, object]:
+        nonlocal describe_calls
+        describe_calls += 1
+        tags = [
+            {
+                "Key": item["Name"].removeprefix("tag:"),
+                "Value": item["Values"][0],
+            }
+            for item in kwargs["Filters"]
+        ]
+        return {
+            "Reservations": [
+                {
+                    "Instances": [
+                        {
+                            "InstanceId": "i-tag-recovered",
+                            "Tags": tags,
+                        }
+                    ]
+                }
+            ]
+        }
+
+    ec2.describe_instances.side_effect = describe_instances
+    ec2.run_instances.side_effect = ReadTimeoutError(
+        endpoint_url="https://ec2.us-east-1.amazonaws.com"
+    )
+
+    assert launch_workers(**_worker_launch_kwargs(manifest_path)) == ["i-tag-recovered"]
+    assert ec2.run_instances.call_count == 1
+
+
+def test_worker_launch_reconciles_partial_capacity_on_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    capacity_error = ClientError(
+        {"Error": {"Code": "InsufficientInstanceCapacity", "Message": "full"}},
+        "RunInstances",
+    )
+    ec2.run_instances.side_effect = [
+        {"Instances": [{"InstanceId": "i-worker-1"}]},
+        capacity_error,
+    ]
+    kwargs = _worker_launch_kwargs(manifest_path, n=3)
+
+    assert launch_workers(**kwargs) == ["i-worker-1"]
+    failed_slot_token = ec2.run_instances.call_args_list[1].kwargs["ClientToken"]
+
+    ec2.run_instances.reset_mock(side_effect=True)
+    ec2.run_instances.side_effect = [
+        {"Instances": [{"InstanceId": "i-worker-2"}]},
+        {"Instances": [{"InstanceId": "i-worker-3"}]},
+    ]
+    assert launch_workers(**kwargs) == [
+        "i-worker-1",
+        "i-worker-2",
+        "i-worker-3",
+    ]
+    assert ec2.run_instances.call_count == 2
+    assert ec2.run_instances.call_args_list[0].kwargs["ClientToken"] == failed_slot_token
+
+
+def test_worker_launch_accounts_terminated_instance_with_exact_tags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    kwargs = _worker_launch_kwargs(manifest_path)
+    assert launch_workers(**kwargs) == ["i-worker"]
+    tags = ec2.run_instances.call_args.kwargs["TagSpecifications"][0]["Tags"]
+    record_key = next(key for key in s3.objects if "/instances/" in key)
+    del s3.objects[record_key]
+    ec2.run_instances.reset_mock()
+    ec2.describe_instances.return_value = {
+        "Reservations": [
+            {
+                "Instances": [
+                    {
+                        "InstanceId": "i-worker",
+                        "State": {"Name": "terminated"},
+                        "Tags": tags,
+                    }
+                ]
+            }
+        ]
+    }
+
+    assert launch_workers(**kwargs) == ["i-worker"]
+    ec2.run_instances.assert_not_called()
+    assert record_key in s3.objects
+
+
+def test_worker_launch_rejects_reused_identity_with_changed_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    kwargs = _worker_launch_kwargs(manifest_path)
+    assert launch_workers(**kwargs) == ["i-worker"]
+    ec2.run_instances.reset_mock()
+
+    with pytest.raises(RuntimeError, match="different exact launch contract"):
+        launch_workers(**_worker_launch_kwargs(manifest_path, spot=True))
+
+    ec2.run_instances.assert_not_called()
+
+
+def test_worker_launch_replay_requires_same_count(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    assert launch_workers(**_worker_launch_kwargs(manifest_path)) == ["i-worker"]
+    ec2.run_instances.reset_mock()
+
+    with pytest.raises(RuntimeError, match="recovery requires the same --count"):
+        launch_workers(**_worker_launch_kwargs(manifest_path, n=2))
+
+    ec2.run_instances.assert_not_called()
+
+
+def test_worker_launch_preserves_prior_records_across_operational_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    operational_error = ClientError(
+        {"Error": {"Code": "UnauthorizedOperation", "Message": "denied"}},
+        "RunInstances",
+    )
+    ec2.run_instances.side_effect = [
+        {"Instances": [{"InstanceId": "i-worker-1"}]},
+        operational_error,
+    ]
+    kwargs = _worker_launch_kwargs(manifest_path, n=2)
+
+    with pytest.raises(ClientError, match="UnauthorizedOperation"):
+        launch_workers(**kwargs)
+
+    records = [
+        json.loads(payload)
+        for key, (payload, _metadata) in s3.objects.items()
+        if "/instances/" in key
+    ]
+    assert [record["instance_id"] for record in records] == ["i-worker-1"]
+    failed_slot_token = ec2.run_instances.call_args_list[1].kwargs["ClientToken"]
+
+    ec2.run_instances.reset_mock(side_effect=True)
+    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker-2"}]}
+    assert launch_workers(**kwargs) == ["i-worker-1", "i-worker-2"]
+    assert ec2.run_instances.call_count == 1
+    assert ec2.run_instances.call_args.kwargs["ClientToken"] == failed_slot_token
+
+
+def test_worker_launch_rejects_nonexact_ec2_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.return_value = {
+        "Instances": [
+            {"InstanceId": "i-worker-1"},
+            {"InstanceId": "i-worker-2"},
+        ]
+    }
+
+    with pytest.raises(RuntimeError, match="2 instances"):
+        launch_workers(**_worker_launch_kwargs(manifest_path))
+
+    assert ec2.run_instances.call_count == 1
+    assert not any("/instances/" in key for key in s3.objects)
+
+
+def test_worker_launch_propagates_operational_ec2_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.side_effect = ClientError(
+        {"Error": {"Code": "UnauthorizedOperation", "Message": "denied"}},
+        "RunInstances",
+    )
+
+    with pytest.raises(ClientError, match="UnauthorizedOperation"):
+        launch_workers(**_worker_launch_kwargs(manifest_path))
+
+    assert ec2.run_instances.call_count == 1
+    assert not any("/instances/" in key for key in s3.objects)
+
+
+def test_worker_launch_requires_durable_intent_before_ec2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    write_error = ClientError(
+        {"Error": {"Code": "AccessDenied", "Message": "denied"}},
+        "PutObject",
+    )
+    monkeypatch.setattr(s3, "put_object", MagicMock(side_effect=write_error))
+
+    with pytest.raises(ClientError, match="AccessDenied"):
+        launch_workers(**_worker_launch_kwargs(manifest_path))
+
+    ec2.run_instances.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "launch_id",
+    ["", "UPPER", "contains spaces", "../escape", "trailing-", "a" * 65],
+)
+def test_worker_launch_rejects_invalid_identity_before_aws(
+    launch_id: str,
+) -> None:
+    with pytest.raises(ValueError, match="launch_id"):
+        launch_workers(
+            n=1,
+            instance_type="c6a.8xlarge",
+            image_uri=DIGEST_URI,
+            artifact_prefix="repairs/run-001",
+            launch_id=launch_id,
+            manifest_path=Path("unused.csv"),
+            stage="rankings",
+        )
 
 
 def test_s3_bucket_is_private_and_versioned(

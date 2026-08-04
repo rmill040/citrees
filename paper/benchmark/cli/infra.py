@@ -380,6 +380,13 @@ def launch_workers_cmd(
             help="Must match the API server artifact prefix",
         ),
     ] = "",
+    launch_id: Annotated[
+        str,
+        typer.Option(
+            "--launch-id",
+            help="Stable identity for this exact launch batch; reuse it only to recover",
+        ),
+    ] = "",
     manifest_path: Annotated[
         Path | None,
         typer.Option(
@@ -408,8 +415,8 @@ def launch_workers_cmd(
     """
     from paper.benchmark.infra.ec2 import launch_workers
 
-    if not image_uri or not artifact_prefix or manifest_path is None:
-        error("--image-uri, --artifact-prefix, and --manifest are required")
+    if not image_uri or not artifact_prefix or not launch_id or manifest_path is None:
+        error("--image-uri, --artifact-prefix, --launch-id, and --manifest are required")
         raise typer.Exit(2)
 
     heading(f"Launching {n} Workers")
@@ -419,6 +426,7 @@ def launch_workers_cmd(
         instance_type=instance_type,
         image_uri=image_uri,
         artifact_prefix=artifact_prefix,
+        launch_id=launch_id,
         manifest_path=manifest_path,
         stage=stage,
         spot=spot,

@@ -20,7 +20,13 @@ from typing import Any
 
 import boto3
 import httpx
-from botocore.exceptions import ClientError
+from botocore.exceptions import (
+    ClientError,
+    ConnectionClosedError,
+    ConnectTimeoutError,
+    EndpointConnectionError,
+    ReadTimeoutError,
+)
 
 from paper.benchmark.adapters.store import _normalize_artifact_prefix
 from paper.benchmark.cli.console_output import info, step, success, warn
@@ -52,7 +58,32 @@ DEFAULT_MECHANISM_FOLDS = (0, 1, 2, 3, 4)
 DEFAULT_MECHANISM_MODEL_VARIANTS = ("cif_default",)
 DEFAULT_MECHANISM_RANKING_VARIANTS = ("split_importance", "split_count")
 _IMAGE_DIGEST_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
+_WORKER_LAUNCH_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 _QUEUE_STAGES = frozenset({"rankings", "metrics"})
+_AMBIGUOUS_EC2_ERROR_CODES = frozenset(
+    {
+        "InternalError",
+        "InternalFailure",
+        "RequestLimitExceeded",
+        "RequestTimeout",
+        "RequestTimeoutException",
+        "ServiceUnavailable",
+        "ServiceUnavailableException",
+        "Unavailable",
+    }
+)
+_CAPACITY_ERROR_CODES = frozenset(
+    {
+        "InsufficientHostCapacity",
+        "InsufficientInstanceCapacity",
+        "InsufficientReservedInstanceCapacity",
+        "InstanceLimitExceeded",
+        "MaxSpotInstanceCountExceeded",
+        "VcpuLimitExceeded",
+    }
+)
+_AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
+_WORKER_LAUNCH_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -81,6 +112,340 @@ def validate_image_digest_uri(image_uri: str) -> str:
     if not _IMAGE_DIGEST_PATTERN.fullmatch(normalized):
         raise ValueError("image_uri must be an immutable repository@sha256:<64 hex> URI")
     return normalized
+
+
+def _validate_worker_launch_id(launch_id: str) -> str:
+    """Validate one operator-supplied immutable worker launch identity."""
+    normalized = launch_id.strip()
+    if not _WORKER_LAUNCH_ID_PATTERN.fullmatch(normalized):
+        raise ValueError(
+            "launch_id must contain 1-64 lowercase letters, digits, or hyphens, "
+            "and must start and end with a letter or digit"
+        )
+    return normalized
+
+
+def _canonical_json_object(value: dict[str, Any]) -> bytes:
+    """Serialize a control record to one deterministic JSON representation."""
+    return (
+        json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("ascii")
+
+
+def _is_missing_s3_object(exc: ClientError) -> bool:
+    """Return whether an S3 client error means that an object is absent."""
+    code = exc.response.get("Error", {}).get("Code", "")
+    status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return code in {"404", "NoSuchKey", "NotFound"} or status == 404
+
+
+def _put_immutable_json(
+    s3: Any,
+    *,
+    bucket: str,
+    key: str,
+    value: dict[str, Any],
+    record_kind: str,
+) -> str:
+    """Write and read back one canonical JSON control record exactly once."""
+    payload = _canonical_json_object(value)
+    payload_sha256 = hashlib.sha256(payload).hexdigest()
+    metadata = {
+        "record-kind": record_kind,
+        "sha256": payload_sha256,
+    }
+    write_error: Exception | None = None
+    try:
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=payload,
+            ContentType="application/json",
+            IfNoneMatch="*",
+            Metadata=metadata,
+        )
+    except Exception as exc:
+        write_error = exc
+
+    try:
+        response = s3.get_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        if write_error is not None and _is_missing_s3_object(exc):
+            raise write_error from None
+        raise
+    observed_payload = response["Body"].read()
+    observed_metadata = response.get("Metadata", {})
+    if observed_payload != payload or observed_metadata != metadata:
+        message = f"Immutable worker launch record collision at s3://{bucket}/{key}"
+        if write_error is not None:
+            raise RuntimeError(message) from write_error
+        raise RuntimeError(message)
+    return payload_sha256
+
+
+def _read_immutable_json(
+    s3: Any,
+    *,
+    bucket: str,
+    key: str,
+    record_kind: str,
+) -> dict[str, Any] | None:
+    """Read and validate one canonical immutable JSON control record."""
+    try:
+        response = s3.get_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        if _is_missing_s3_object(exc):
+            return None
+        raise
+    payload = response["Body"].read()
+    try:
+        value = json.loads(payload)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid worker launch record at s3://{bucket}/{key}") from exc
+    if not isinstance(value, dict) or _canonical_json_object(value) != payload:
+        raise RuntimeError(f"Non-canonical worker launch record at s3://{bucket}/{key}")
+    payload_sha256 = hashlib.sha256(payload).hexdigest()
+    expected_metadata = {"record-kind": record_kind, "sha256": payload_sha256}
+    if response.get("Metadata", {}) != expected_metadata:
+        raise RuntimeError(f"Worker launch record metadata mismatch at s3://{bucket}/{key}")
+    return value
+
+
+def _worker_launch_prefix(artifact_prefix: str, launch_id: str) -> str:
+    """Return the exact control prefix for one worker launch batch."""
+    return f"{artifact_prefix}/_control/worker-launches/{launch_id}"
+
+
+def _worker_slot_identity(intent_sha256: str, slot: int) -> tuple[str, str]:
+    """Derive one stable EC2 client token and request digest per launch slot."""
+    payload = _canonical_json_object(
+        {
+            "intent_sha256": intent_sha256,
+            "slot": slot,
+        }
+    )
+    request_sha256 = hashlib.sha256(payload).hexdigest()
+    return f"citrees-worker-{request_sha256[:49]}", request_sha256
+
+
+def _worker_launch_record(
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    client_token: str,
+    instance_family: str,
+    instance_id: str,
+    instance_type: str,
+    intent_sha256: str,
+    launch_id: str,
+    manifest_sha256: str,
+    market: str,
+    region: str,
+    request_sha256: str,
+    slot: int,
+) -> dict[str, Any]:
+    """Build the complete deterministic record for one accepted instance."""
+    return {
+        "artifact_prefix": artifact_prefix,
+        "campaign_sha256": campaign_sha256,
+        "client_token": client_token,
+        "instance_family": instance_family,
+        "instance_id": instance_id,
+        "instance_type": instance_type,
+        "intent_sha256": intent_sha256,
+        "kind": "citrees-benchmark-worker-launch",
+        "launch_id": launch_id,
+        "manifest_sha256": manifest_sha256,
+        "market": market,
+        "region": region,
+        "request_sha256": request_sha256,
+        "schema_version": _WORKER_LAUNCH_SCHEMA_VERSION,
+        "slot": slot,
+    }
+
+
+def _load_worker_launch_record(
+    s3: Any,
+    *,
+    artifact_prefix: str,
+    bucket: str,
+    campaign_sha256: str,
+    client_token: str,
+    instance_family: str,
+    instance_type: str,
+    intent_sha256: str,
+    launch_id: str,
+    manifest_sha256: str,
+    market: str,
+    region: str,
+    request_sha256: str,
+    slot: int,
+) -> str | None:
+    """Return a previously accepted instance after exact record validation."""
+    key = f"{_worker_launch_prefix(artifact_prefix, launch_id)}/instances/{slot:06d}.json"
+    record = _read_immutable_json(
+        s3,
+        bucket=bucket,
+        key=key,
+        record_kind="worker-launch",
+    )
+    if record is None:
+        return None
+    instance_id = record.get("instance_id")
+    if not isinstance(instance_id, str) or not instance_id:
+        raise RuntimeError(f"Worker launch record has no instance ID: s3://{bucket}/{key}")
+    expected = _worker_launch_record(
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        client_token=client_token,
+        instance_family=instance_family,
+        instance_id=instance_id,
+        instance_type=instance_type,
+        intent_sha256=intent_sha256,
+        launch_id=launch_id,
+        manifest_sha256=manifest_sha256,
+        market=market,
+        region=region,
+        request_sha256=request_sha256,
+        slot=slot,
+    )
+    if record != expected:
+        raise RuntimeError(f"Worker launch record scope mismatch at s3://{bucket}/{key}")
+    return instance_id
+
+
+def _publish_worker_launch_record(
+    s3: Any,
+    *,
+    artifact_prefix: str,
+    bucket: str,
+    record: dict[str, Any],
+) -> None:
+    """Durably publish one accepted worker instance before returning it."""
+    launch_id = str(record["launch_id"])
+    slot = int(record["slot"])
+    key = f"{_worker_launch_prefix(artifact_prefix, launch_id)}/instances/{slot:06d}.json"
+    _put_immutable_json(
+        s3,
+        bucket=bucket,
+        key=key,
+        value=record,
+        record_kind="worker-launch",
+    )
+
+
+def _find_worker_for_exact_tags(ec2: Any, tags: dict[str, str]) -> str | None:
+    """Recover one accepted launch in any state carrying the exact identity."""
+    filters = [{"Name": f"tag:{key}", "Values": [value]} for key, value in sorted(tags.items())]
+    instances: dict[str, dict[str, Any]] = {}
+    next_token: str | None = None
+    while True:
+        kwargs: dict[str, Any] = {"Filters": filters}
+        if next_token is not None:
+            kwargs["NextToken"] = next_token
+        response = ec2.describe_instances(**kwargs)
+        for reservation in response.get("Reservations", []):
+            for instance in reservation.get("Instances", []):
+                instance_id = instance.get("InstanceId")
+                if not isinstance(instance_id, str) or not instance_id:
+                    raise RuntimeError("EC2 returned a worker without an instance ID")
+                observed_tags = {
+                    str(tag["Key"]): str(tag["Value"]) for tag in instance.get("Tags", [])
+                }
+                if any(observed_tags.get(key) != value for key, value in tags.items()):
+                    raise RuntimeError(
+                        f"EC2 returned {instance_id} outside the exact worker launch identity"
+                    )
+                instances[instance_id] = instance
+        token = response.get("NextToken")
+        next_token = str(token) if token else None
+        if next_token is None:
+            break
+    if len(instances) > 1:
+        raise RuntimeError(
+            f"Multiple EC2 instances share one worker launch identity: {sorted(instances)}"
+        )
+    return next(iter(instances), None)
+
+
+def _single_instance_id(response: dict[str, Any]) -> str:
+    """Require one exact instance from a one-instance EC2 request."""
+    instances = response.get("Instances")
+    if not isinstance(instances, list) or len(instances) != 1:
+        count = len(instances) if isinstance(instances, list) else 0
+        raise RuntimeError(f"EC2 returned {count} instances for a one-instance worker request")
+    instance_id = instances[0].get("InstanceId")
+    if not isinstance(instance_id, str) or not instance_id:
+        raise RuntimeError("EC2 accepted a worker request without returning an instance ID")
+    return instance_id
+
+
+def _is_ambiguous_ec2_error(exc: Exception) -> bool:
+    """Return whether an EC2 failure could follow an accepted request."""
+    if isinstance(
+        exc,
+        (
+            ConnectionClosedError,
+            ConnectTimeoutError,
+            EndpointConnectionError,
+            ReadTimeoutError,
+        ),
+    ):
+        return True
+    if isinstance(exc, ClientError):
+        code = exc.response.get("Error", {}).get("Code", "")
+        return code in _AMBIGUOUS_EC2_ERROR_CODES
+    return False
+
+
+def _launch_or_recover_worker(
+    ec2: Any,
+    *,
+    recover_before_launch: bool,
+    run_kwargs: dict[str, Any],
+    tags: dict[str, str],
+) -> str:
+    """Recover or idempotently launch one exact worker instance."""
+    if recover_before_launch:
+        recovered = _find_worker_for_exact_tags(ec2, tags)
+        if recovered is not None:
+            return recovered
+
+    for attempt in range(len(_AMBIGUOUS_EC2_RETRY_DELAYS) + 1):
+        try:
+            response = ec2.run_instances(**run_kwargs)
+        except Exception as exc:
+            if not _is_ambiguous_ec2_error(exc):
+                raise
+            recovered = _find_worker_for_exact_tags(ec2, tags)
+            if recovered is not None:
+                return recovered
+            if attempt == len(_AMBIGUOUS_EC2_RETRY_DELAYS):
+                raise
+            delay = _AMBIGUOUS_EC2_RETRY_DELAYS[attempt]
+            warn(
+                "EC2 worker launch response was ambiguous; retrying the same "
+                f"idempotent request after {delay:g}s"
+            )
+            time.sleep(delay)
+            continue
+
+        try:
+            return _single_instance_id(response)
+        except RuntimeError:
+            recovered = _find_worker_for_exact_tags(ec2, tags)
+            if recovered is not None:
+                return recovered
+            raise
+
+    raise AssertionError("unreachable worker launch retry state")
 
 
 def _validate_queue_scope(
@@ -772,6 +1137,7 @@ def launch_workers(
     image_uri: str,
     *,
     artifact_prefix: str,
+    launch_id: str,
     manifest_path: Path,
     stage: str,
     spot: bool = False,
@@ -792,6 +1158,8 @@ def launch_workers(
         EC2 instance type (e.g., "m5.8xlarge").
     image_uri : str
         Full ECR image URI.
+    launch_id : str
+        Stable operator-supplied identity for this exact launch batch.
     spot : bool
         Use spot instances instead of on-demand.
     region : str
@@ -809,9 +1177,15 @@ def launch_workers(
     """
     if n < 1:
         raise ValueError("n must be >= 1")
+    launch_id = _validate_worker_launch_id(launch_id)
+    instance_type = instance_type.strip()
+    instance_family, separator, instance_size = instance_type.partition(".")
+    if not instance_family or not separator or not instance_size:
+        raise ValueError("instance_type must include an EC2 family and size")
     image_uri = validate_image_digest_uri(image_uri)
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
     manifest_info = publish_rerun_manifest(manifest_path, region=region)
+    manifest_s3_key = str(manifest_info["key"])
     manifest_sha256 = str(manifest_info["sha256"])
     campaign_sha256 = str(manifest_info["campaign_sha256"])
     api_scope = get_api_scope(region)
@@ -823,6 +1197,7 @@ def launch_workers(
         "artifact_prefix": artifact_prefix,
         "campaign_sha256": campaign_sha256,
         "image_uri": image_uri,
+        "manifest_s3_key": manifest_s3_key,
         "manifest_sha256": manifest_sha256,
         "stage": stage,
     }
@@ -830,6 +1205,7 @@ def launch_workers(
         "artifact_prefix": api_scope.artifact_prefix,
         "campaign_sha256": api_scope.campaign_sha256,
         "image_uri": api_scope.image_uri,
+        "manifest_s3_key": api_scope.manifest_s3_key,
         "manifest_sha256": api_scope.manifest_sha256,
         "stage": api_scope.stage,
     }
@@ -857,10 +1233,25 @@ def launch_workers(
     api_url = api_scope.api_url
 
     ec2 = boto3.client("ec2", region_name=region)
+    s3 = boto3.client("s3", region_name=region)
     account_id = get_aws_account_id()
     bucket = get_resource_name(account_id)
     ecr_uri = image_uri.split("/")[0]
-    ami_id = get_ami(region)
+    launch_prefix = _worker_launch_prefix(artifact_prefix, launch_id)
+    intent_key = f"{launch_prefix}/intent.json"
+    existing_intent = _read_immutable_json(
+        s3,
+        bucket=bucket,
+        key=intent_key,
+        record_kind="worker-launch-intent",
+    )
+    if existing_intent is None:
+        ami_id = get_ami(region)
+    else:
+        observed_ami_id = existing_intent.get("ami_id")
+        if not isinstance(observed_ami_id, str) or not observed_ami_id:
+            raise RuntimeError(f"Worker launch intent has no AMI ID: s3://{bucket}/{intent_key}")
+        ami_id = observed_ami_id
 
     user_data = _make_worker_user_data(
         region=region,
@@ -876,54 +1267,181 @@ def launch_workers(
         stage=stage,
     )
 
-    pricing = "spot" if spot else "on-demand"
-    info(f"Launching {n} {pricing} workers: {instance_type}, AMI={ami_id}")
-    step(f"API: {api_url}")
-    step(f"Image: {image_uri}")
-    step(f"Security group: {sg_id}")
-    step(f"Instance profile: {instance_profile_name}")
-
-    run_kwargs: dict[str, Any] = {
+    encoded_user_data = base64.b64encode(user_data.encode()).decode()
+    base_run_kwargs: dict[str, Any] = {
         "ImageId": ami_id,
         "InstanceType": instance_type,
         "MinCount": 1,
-        "MaxCount": n,
+        "MaxCount": 1,
         "IamInstanceProfile": {"Name": instance_profile_name},
-        "UserData": base64.b64encode(user_data.encode()).decode(),
+        "UserData": encoded_user_data,
         "MetadataOptions": {"HttpPutResponseHopLimit": 2},
         "SecurityGroupIds": [sg_id],
         "InstanceInitiatedShutdownBehavior": "terminate",
-        "TagSpecifications": [
-            {
-                "ResourceType": "instance",
-                "Tags": [
-                    {"Key": TAG_KEY, "Value": WORKER_TAG_VALUE},
-                    {"Key": "Name", "Value": "citrees-worker"},
-                    {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
-                    {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
-                    {"Key": "citrees-manifest-sha256", "Value": manifest_sha256},
-                    {"Key": "citrees-image-uri", "Value": image_uri},
-                    {"Key": "citrees-stage", "Value": stage},
-                ],
-            }
-        ],
     }
-
     if spot:
-        run_kwargs["InstanceMarketOptions"] = {
+        base_run_kwargs["InstanceMarketOptions"] = {
             "MarketType": "spot",
             "SpotOptions": {
                 "SpotInstanceType": "one-time",
                 "InstanceInterruptionBehavior": "terminate",
             },
         }
+    request_contract = dict(base_run_kwargs)
+    request_contract.pop("UserData")
+    request_contract["UserDataSha256"] = hashlib.sha256(encoded_user_data.encode()).hexdigest()
 
-    response = ec2.run_instances(**run_kwargs)
+    market = "spot" if spot else "on-demand"
+    intent = {
+        "ami_id": ami_id,
+        "api_scope": {
+            "api_url": api_scope.api_url,
+            "artifact_prefix": api_scope.artifact_prefix,
+            "campaign_sha256": api_scope.campaign_sha256,
+            "image_uri": api_scope.image_uri,
+            "manifest_s3_key": api_scope.manifest_s3_key,
+            "manifest_sha256": api_scope.manifest_sha256,
+            "max_cell_attempts": api_scope.max_cell_attempts,
+            "public_api_url": api_scope.public_api_url,
+            "stage": api_scope.stage,
+        },
+        "artifact_prefix": artifact_prefix,
+        "aws_account_id": account_id,
+        "bucket": bucket,
+        "campaign_sha256": campaign_sha256,
+        "image_git_sha": git_sha,
+        "image_uri": image_uri,
+        "instance_family": instance_family,
+        "instance_profile_name": instance_profile_name,
+        "instance_type": instance_type,
+        "kind": "citrees-benchmark-worker-launch-intent",
+        "launch_id": launch_id,
+        "manifest_s3_key": manifest_s3_key,
+        "manifest_sha256": manifest_sha256,
+        "market": market,
+        "region": region,
+        "request_contract": request_contract,
+        "requested_instances": n,
+        "schema_version": _WORKER_LAUNCH_SCHEMA_VERSION,
+        "security_group_id": sg_id,
+        "stage": stage,
+        "user_data_sha256": hashlib.sha256(user_data.encode()).hexdigest(),
+    }
+    if existing_intent is not None and existing_intent != intent:
+        existing_count = existing_intent.get("requested_instances")
+        if existing_count != n:
+            raise RuntimeError(
+                f"Worker launch {launch_id!r} is bound to --count {existing_count}; "
+                f"recovery requires the same --count, not {n}"
+            )
+        raise RuntimeError(
+            f"Worker launch {launch_id!r} is bound to a different exact launch contract"
+        )
+    intent_sha256 = _put_immutable_json(
+        s3,
+        bucket=bucket,
+        key=intent_key,
+        value=intent,
+        record_kind="worker-launch-intent",
+    )
 
-    instance_ids = [inst["InstanceId"] for inst in response["Instances"]]
+    info(f"Launching {n} {market} workers: {instance_type}, AMI={ami_id}")
+    step(f"API: {api_url}")
+    step(f"Image: {image_uri}")
+    step(f"Security group: {sg_id}")
+    step(f"Instance profile: {instance_profile_name}")
+    step(f"Launch intent: s3://{bucket}/{intent_key}")
+
+    instance_ids: list[str] = []
+    for slot in range(1, n + 1):
+        client_token, request_sha256 = _worker_slot_identity(intent_sha256, slot)
+        tags = {
+            TAG_KEY: WORKER_TAG_VALUE,
+            "Name": "citrees-worker",
+            "citrees-artifact-prefix": artifact_prefix,
+            "citrees-campaign-sha256": campaign_sha256,
+            "citrees-image-uri": image_uri,
+            "citrees-instance-family": instance_family,
+            "citrees-manifest-sha256": manifest_sha256,
+            "citrees-market": market,
+            "citrees-stage": stage,
+            "citrees-worker-client-token": client_token,
+            "citrees-worker-intent-sha256": intent_sha256,
+            "citrees-worker-launch-id": launch_id,
+            "citrees-worker-request-sha256": request_sha256,
+            "citrees-worker-slot": str(slot),
+        }
+        existing_instance_id = _load_worker_launch_record(
+            s3,
+            artifact_prefix=artifact_prefix,
+            bucket=bucket,
+            campaign_sha256=campaign_sha256,
+            client_token=client_token,
+            instance_family=instance_family,
+            instance_type=instance_type,
+            intent_sha256=intent_sha256,
+            launch_id=launch_id,
+            manifest_sha256=manifest_sha256,
+            market=market,
+            region=region,
+            request_sha256=request_sha256,
+            slot=slot,
+        )
+        if existing_instance_id is not None:
+            instance_ids.append(existing_instance_id)
+            step(f"  slot {slot}/{n}: {existing_instance_id} (recorded)")
+            continue
+
+        run_kwargs = dict(base_run_kwargs)
+        run_kwargs["ClientToken"] = client_token
+        run_kwargs["TagSpecifications"] = [
+            {
+                "ResourceType": "instance",
+                "Tags": [{"Key": key, "Value": value} for key, value in sorted(tags.items())],
+            }
+        ]
+        try:
+            instance_id = _launch_or_recover_worker(
+                ec2,
+                recover_before_launch=existing_intent is not None,
+                run_kwargs=run_kwargs,
+                tags=tags,
+            )
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code not in _CAPACITY_ERROR_CODES:
+                raise
+            warn(
+                f"Stopped worker launch at slot {slot}/{n}: {code}. "
+                f"Accepted {len(instance_ids)} instance(s)."
+            )
+            break
+
+        record = _worker_launch_record(
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            client_token=client_token,
+            instance_family=instance_family,
+            instance_id=instance_id,
+            instance_type=instance_type,
+            intent_sha256=intent_sha256,
+            launch_id=launch_id,
+            manifest_sha256=manifest_sha256,
+            market=market,
+            region=region,
+            request_sha256=request_sha256,
+            slot=slot,
+        )
+        _publish_worker_launch_record(
+            s3,
+            artifact_prefix=artifact_prefix,
+            bucket=bucket,
+            record=record,
+        )
+        instance_ids.append(instance_id)
+        step(f"  slot {slot}/{n}: {instance_id}")
+
     success(f"Launched {len(instance_ids)} worker instances")
-    for iid in instance_ids:
-        step(f"  {iid}")
 
     return instance_ids
 

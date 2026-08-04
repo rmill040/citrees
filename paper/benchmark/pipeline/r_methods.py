@@ -19,6 +19,12 @@ import numpy as np
 
 _R_MAX_SEED = int(np.iinfo(np.int32).max)
 _MAX_SUPPORTED_RANDOM_STATE = 2 * _R_MAX_SEED
+_R_MAX_PPSIZE = 500_000
+_R_MAX_PPSIZE_OPTION = f"--max-ppsize={_R_MAX_PPSIZE}"
+
+
+class RDiagnosticError(RuntimeError):
+    """Raised when partykit returns malformed or unmappable diagnostics."""
 
 
 @dataclass(frozen=True)
@@ -62,10 +68,34 @@ def _setup_r_home() -> None:
                 return
 
 
+def _configure_r_init_options(embedded: Any) -> None:
+    """Require R's maximum supported protection stack before initialization."""
+    options = tuple(embedded.get_initoptions())
+    protection_stack_options = tuple(
+        option for option in options if option.startswith("--max-ppsize")
+    )
+    if embedded.isinitialized():
+        if protection_stack_options != (_R_MAX_PPSIZE_OPTION,):
+            raise RuntimeError(
+                "Embedded R was initialized without the required "
+                f"{_R_MAX_PPSIZE_OPTION} option. Start a fresh process and import "
+                "the citrees R adapter before rpy2.robjects."
+            )
+        return
+
+    options_without_ppsize = tuple(
+        option for option in options if not option.startswith("--max-ppsize")
+    )
+    embedded.set_initoptions((*options_without_ppsize, _R_MAX_PPSIZE_OPTION))
+
+
 def _import_rpy2() -> tuple[Any, Any]:
-    """Import rpy2 after ensuring R_HOME is set."""
+    """Import rpy2 after configuring R_HOME and embedded-R initialization."""
     _setup_r_home()
     try:
+        from rpy2.rinterface_lib import embedded  # type: ignore[import-not-found]
+
+        _configure_r_init_options(embedded)
         import rpy2.robjects as ro  # type: ignore[import-not-found]
         from rpy2.robjects.packages import importr  # type: ignore[import-not-found]
     except ImportError as e:
@@ -79,6 +109,68 @@ def _import_rpy2() -> tuple[Any, Any]:
 # Import R packages (lazy load on first use)
 _partykit: Any | None = None
 _stats: Any | None = None
+_root_diagnostics_function: Any | None = None
+
+_R_CTREE_ROOT_DIAGNOSTICS = """
+function(tree) {
+    root_feature <- character(0)
+    statistic_feature_names <- character(0)
+    p_value_feature_names <- character(0)
+    statistics <- numeric(0)
+    p_values <- numeric(0)
+    result <- function(error = character(0)) {
+        list(
+            root_feature = root_feature,
+            statistic_feature_names = statistic_feature_names,
+            p_value_feature_names = p_value_feature_names,
+            statistics = statistics,
+            p_values = p_values,
+            error = error
+        )
+    }
+
+    root_info <- info_node(node_party(tree))
+    criterion <- root_info$criterion
+    if (!is.null(criterion)) {
+        required_rows <- c("statistic", "p.value")
+        if (
+            is.null(dim(criterion)) ||
+            is.null(rownames(criterion)) ||
+            is.null(colnames(criterion)) ||
+            !all(required_rows %in% rownames(criterion))
+        ) {
+            return(result("partykit returned malformed root candidate diagnostics"))
+        }
+        statistic_values <- criterion["statistic", , drop = FALSE]
+        p_value_values <- criterion["p.value", , drop = FALSE]
+        statistic_feature_names <- colnames(statistic_values)
+        p_value_feature_names <- colnames(p_value_values)
+        statistics <- as.numeric(statistic_values)
+        p_values <- as.numeric(p_value_values)
+    }
+
+    data_names <- names(data_party(tree))
+    all_ids <- nodeids(tree)
+    term_ids <- nodeids(tree, terminal = TRUE)
+    inner_ids <- setdiff(all_ids, term_ids)
+    if (length(inner_ids) > 0) {
+        vid <- unlist(nodeapply(tree, ids = inner_ids[1], FUN = function(n) {
+            varid_split(split_node(n))
+        }), use.names = FALSE)
+        if (
+            length(vid) != 1L ||
+            is.na(vid) ||
+            vid < 1L ||
+            vid > length(data_names)
+        ) {
+            return(result("partykit returned an invalid split-variable ID"))
+        }
+        root_feature <- data_names[[vid]]
+    }
+
+    result()
+}
+"""
 
 
 def _normalize_r_seed(random_state: int) -> int:
@@ -162,12 +254,12 @@ def _feature_index_from_name(
 ) -> int:
     """Map one canonical R feature name to its zero-based Python index."""
     if not name.startswith("X") or not name[1:].isdigit():
-        raise RuntimeError(f"Unexpected partykit {value_name} feature name: {name!r}")
+        raise RDiagnosticError(f"Unexpected partykit {value_name} feature name: {name!r}")
     feature_index = int(name[1:])
     if name != f"X{feature_index}":
-        raise RuntimeError(f"Unexpected partykit {value_name} feature name: {name!r}")
+        raise RDiagnosticError(f"Unexpected partykit {value_name} feature name: {name!r}")
     if feature_index < 0 or feature_index >= n_features:
-        raise RuntimeError(f"partykit {value_name} feature index is out of range: {name!r}")
+        raise RDiagnosticError(f"partykit {value_name} feature index is out of range: {name!r}")
     return feature_index
 
 
@@ -182,13 +274,15 @@ def _aligned_named_values(
     """Map named R values to their original zero-based feature positions."""
     numeric_values = np.asarray(values, dtype=np.float64)
     if numeric_values.ndim != 1:
-        raise RuntimeError(
+        raise RDiagnosticError(
             f"partykit returned a non-vector {value_name} shape: {numeric_values.shape}"
         )
     if len(feature_names) != len(numeric_values):
-        raise RuntimeError(f"partykit returned different numbers of {value_name} names and values")
+        raise RDiagnosticError(
+            f"partykit returned different numbers of {value_name} names and values"
+        )
     if not np.isfinite(numeric_values).all():
-        raise RuntimeError(f"partykit returned non-finite {value_name} values")
+        raise RDiagnosticError(f"partykit returned non-finite {value_name} values")
 
     aligned = np.full(n_features, fill_value, dtype=np.float64)
     seen: set[int] = set()
@@ -199,7 +293,7 @@ def _aligned_named_values(
             value_name=value_name,
         )
         if feature_index in seen:
-            raise RuntimeError(f"partykit returned duplicate {value_name} feature: {name!r}")
+            raise RDiagnosticError(f"partykit returned duplicate {value_name} feature: {name!r}")
         aligned[feature_index] = value
         seen.add(feature_index)
 
@@ -222,24 +316,75 @@ def _ranking_from_named_scores(
     return np.lexsort((np.arange(n_features), -importance))
 
 
+def _ranking_from_importance(importance: np.ndarray) -> np.ndarray:
+    """Return a complete ranking with omitted importance values placed last."""
+    values = np.asarray(importance, dtype=np.float64)
+    if values.ndim != 1:
+        raise ValueError(f"importance must be one-dimensional, got shape {values.shape}")
+    if np.isinf(values).any():
+        raise ValueError("importance must not contain infinite values")
+    ranking_values = np.where(np.isnan(values), -np.inf, values)
+    return np.lexsort((np.arange(values.size), -ranking_values))
+
+
+def _correct_monte_carlo_p_values(p_values: np.ndarray, n_resamples: int) -> np.ndarray:
+    """Convert partykit's b/B values to the (b+1)/(B+1) convention."""
+    if isinstance(n_resamples, bool) or not isinstance(n_resamples, int):
+        raise TypeError("n_resamples must be an integer")
+    if n_resamples <= 0:
+        raise ValueError("n_resamples must be positive")
+
+    corrected = np.asarray(p_values, dtype=np.float64).copy()
+    if corrected.ndim != 1:
+        raise RDiagnosticError(
+            f"partykit returned a non-vector candidate p-value shape: {corrected.shape}"
+        )
+    if np.isinf(corrected).any():
+        raise RDiagnosticError("partykit returned non-finite candidate p-value values")
+
+    finite = np.isfinite(corrected)
+    finite_values = corrected[finite]
+    if ((finite_values < 0.0) | (finite_values > 1.0)).any():
+        raise RDiagnosticError("partykit returned a candidate p-value outside [0, 1]")
+
+    extreme_counts = np.rint(finite_values * n_resamples)
+    tolerance = np.finfo(np.float64).eps * max(1, n_resamples) * 8
+    if not np.allclose(
+        finite_values * n_resamples,
+        extreme_counts,
+        rtol=0.0,
+        atol=tolerance,
+    ):
+        raise RDiagnosticError(
+            f"partykit Monte Carlo p-values are not on the b/{n_resamples} lattice"
+        )
+    corrected[finite] = (extreme_counts + 1.0) / (n_resamples + 1.0)
+    return corrected
+
+
 def _root_diagnostics_from_named_values(
     *,
     root_feature_name: str | None,
-    feature_names: list[str],
+    statistic_feature_names: list[str],
+    p_value_feature_names: list[str],
     statistics: np.ndarray,
     p_values: np.ndarray,
     n_features: int,
 ) -> RCTreeRootDiagnostics:
     """Validate and align the candidate diagnostics returned by partykit."""
+    if statistic_feature_names != p_value_feature_names:
+        raise RDiagnosticError(
+            "partykit returned unaligned candidate statistic and p-value feature names"
+        )
     aligned_statistics = _aligned_named_values(
-        feature_names,
+        statistic_feature_names,
         statistics,
         n_features,
         value_name="candidate statistic",
         fill_value=float("nan"),
     )
     aligned_p_values = _aligned_named_values(
-        feature_names,
+        p_value_feature_names,
         p_values,
         n_features,
         value_name="candidate p-value",
@@ -247,7 +392,7 @@ def _root_diagnostics_from_named_values(
     )
     finite_p_values = aligned_p_values[np.isfinite(aligned_p_values)]
     if ((finite_p_values < 0.0) | (finite_p_values > 1.0)).any():
-        raise RuntimeError("partykit returned a candidate p-value outside [0, 1]")
+        raise RDiagnosticError("partykit returned a candidate p-value outside [0, 1]")
 
     root_feature = (
         -1
@@ -262,7 +407,7 @@ def _root_diagnostics_from_named_values(
         not np.isfinite(aligned_statistics[root_feature])
         or not np.isfinite(aligned_p_values[root_feature])
     ):
-        raise RuntimeError("partykit root feature is missing candidate diagnostics")
+        raise RDiagnosticError("partykit root feature is missing candidate diagnostics")
 
     return RCTreeRootDiagnostics(
         root_feature=root_feature,
@@ -285,6 +430,14 @@ def _get_stats() -> Any:
         _ro, importr = _import_rpy2()
         _stats = importr("stats")
     return _stats
+
+
+def _get_root_diagnostics_function(ro: Any) -> Any:
+    """Compile and cache the R closure used to inspect ctree roots."""
+    global _root_diagnostics_function
+    if _root_diagnostics_function is None:
+        _root_diagnostics_function = ro.r(_R_CTREE_ROOT_DIAGNOSTICS)
+    return _root_diagnostics_function
 
 
 def get_r_runtime_versions() -> dict[str, str]:
@@ -435,6 +588,7 @@ def r_ctree_root_diagnostics(
     The defaults provide the fixed-budget Monte Carlo control used by the JSS
     cardinality experiment. Features omitted from partykit's root criterion,
     such as constant columns, retain their original positions with NaN values.
+    Monte Carlo p-values use the corrected (b+1)/(B+1) convention.
     """
     ro, _importr = _import_rpy2()
     partykit = _get_partykit()
@@ -456,68 +610,32 @@ def r_ctree_root_diagnostics(
     )
     tree = partykit.ctree(stats.as_formula("y ~ ."), data=r_data, control=control)
 
-    r_code = """
-    function(tree) {
-        root_info <- info_node(node_party(tree))
-        criterion <- root_info$criterion
-        feature_names <- character(0)
-        statistics <- numeric(0)
-        p_values <- numeric(0)
-        if (!is.null(criterion)) {
-            required_rows <- c("statistic", "p.value")
-            if (
-                is.null(dim(criterion)) ||
-                is.null(rownames(criterion)) ||
-                is.null(colnames(criterion)) ||
-                !all(required_rows %in% rownames(criterion))
-            ) {
-                stop("partykit returned malformed root candidate diagnostics")
-            }
-            feature_names <- colnames(criterion)
-            statistics <- as.numeric(criterion["statistic", , drop = TRUE])
-            p_values <- as.numeric(criterion["p.value", , drop = TRUE])
-        }
-
-        root_feature <- character(0)
-        data_names <- names(data_party(tree))
-        all_ids <- nodeids(tree)
-        term_ids <- nodeids(tree, terminal = TRUE)
-        inner_ids <- setdiff(all_ids, term_ids)
-        if (length(inner_ids) > 0) {
-            vid <- unlist(nodeapply(tree, ids = inner_ids[1], FUN = function(n) {
-                varid_split(split_node(n))
-            }), use.names = FALSE)
-            if (
-                length(vid) != 1L ||
-                is.na(vid) ||
-                vid < 1L ||
-                vid > length(data_names)
-            ) {
-                stop("partykit returned an invalid split-variable ID")
-            }
-            root_feature <- data_names[[vid]]
-        }
-
-        list(
-            root_feature = root_feature,
-            feature_names = feature_names,
-            statistics = statistics,
-            p_values = p_values
-        )
-    }
-    """
-    get_root_diagnostics = ro.r(r_code)
+    get_root_diagnostics = _get_root_diagnostics_function(ro)
     raw_diagnostics = get_root_diagnostics(tree)
+    diagnostic_errors = [str(value) for value in raw_diagnostics.rx2("error")]
+    if diagnostic_errors:
+        raise RDiagnosticError("; ".join(diagnostic_errors))
+
     root_names = [str(name) for name in raw_diagnostics.rx2("root_feature")]
     if len(root_names) > 1:
-        raise RuntimeError("partykit returned multiple root features")
+        raise RDiagnosticError("partykit returned multiple root features")
 
-    return _root_diagnostics_from_named_values(
+    diagnostics = _root_diagnostics_from_named_values(
         root_feature_name=root_names[0] if root_names else None,
-        feature_names=[str(name) for name in raw_diagnostics.rx2("feature_names")],
+        statistic_feature_names=[
+            str(name) for name in raw_diagnostics.rx2("statistic_feature_names")
+        ],
+        p_value_feature_names=[str(name) for name in raw_diagnostics.rx2("p_value_feature_names")],
         statistics=np.asarray(raw_diagnostics.rx2("statistics"), dtype=np.float64),
         p_values=np.asarray(raw_diagnostics.rx2("p_values"), dtype=np.float64),
         n_features=n_features,
+    )
+    if testtype != "MonteCarlo":
+        return diagnostics
+    return RCTreeRootDiagnostics(
+        root_feature=diagnostics.root_feature,
+        statistics=diagnostics.statistics,
+        p_values=_correct_monte_carlo_p_values(diagnostics.p_values, nresample),
     )
 
 
@@ -538,18 +656,21 @@ def r_ctree_root_feature(
 
     A return value of -1 indicates that the fitted tree has no split.
     """
-    diagnostics = r_ctree_root_diagnostics(
-        X,
-        y,
-        task=task,
-        teststat=teststat,
-        testtype=testtype,
-        nresample=nresample,
-        mincriterion=mincriterion,
-        minsplit=minsplit,
-        minbucket=minbucket,
-        random_state=random_state,
-    )
+    try:
+        diagnostics = r_ctree_root_diagnostics(
+            X,
+            y,
+            task=task,
+            teststat=teststat,
+            testtype=testtype,
+            nresample=nresample,
+            mincriterion=mincriterion,
+            minsplit=minsplit,
+            minbucket=minbucket,
+            random_state=random_state,
+        )
+    except RDiagnosticError:
+        return -1
     return diagnostics.root_feature
 
 
@@ -574,7 +695,8 @@ def r_cforest_importance(
     """Fit cforest through rpy2 and return aligned raw variable importance.
 
     Uses partykit's ``varimp()`` function for permutation-based variable
-    importance. Values preserve their original scale, sign, zeros, and ties.
+    importance. Named values preserve their original scale, sign, zeros, and
+    ties. Features omitted by partykit are represented by NaN.
 
     Parameters
     ----------
@@ -669,7 +791,7 @@ def r_cforest_importance(
         np.asarray(varimp),
         n_features,
         value_name="importance",
-        fill_value=0.0,
+        fill_value=float("nan"),
     )
 
 
@@ -709,4 +831,4 @@ def r_cforest_ranking(
         cores=cores,
         random_state=random_state,
     )
-    return np.lexsort((np.arange(X.shape[1]), -importance))
+    return _ranking_from_importance(importance)

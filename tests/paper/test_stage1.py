@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import inspect
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -17,8 +20,13 @@ from citrees._selector import (
 )
 from paper.benchmark.pipeline.r_methods import (
     _MAX_SUPPORTED_RANDOM_STATE,
+    _R_MAX_PPSIZE_OPTION,
+    RDiagnosticError,
     _aligned_named_values,
+    _configure_r_init_options,
+    _correct_monte_carlo_p_values,
     _normalize_r_seed,
+    _ranking_from_importance,
     _ranking_from_named_scores,
     _resolve_cores,
     _resolve_mtry,
@@ -535,6 +543,44 @@ _skip_no_r = pytest.mark.skipif(not _has_r, reason="R / rpy2 / partykit not avai
 class TestRBoundaryHelpers:
     """Unit tests for values crossing between Python and partykit."""
 
+    def test_r_init_options_set_maximum_protection_stack_before_initialization(self) -> None:
+        options = ("rpy2", "--quiet", "--no-save", "--max-ppsize=10000")
+        configured: list[tuple[str, ...]] = []
+        embedded = SimpleNamespace(
+            get_initoptions=lambda: options,
+            isinitialized=lambda: False,
+            set_initoptions=lambda value: configured.append(value),
+        )
+
+        _configure_r_init_options(embedded)
+
+        assert configured == [("rpy2", "--quiet", "--no-save", _R_MAX_PPSIZE_OPTION)]
+
+    def test_r_init_options_reject_incompatible_initialized_runtime(self) -> None:
+        embedded = SimpleNamespace(
+            get_initoptions=lambda: ("rpy2", "--quiet", "--no-save"),
+            isinitialized=lambda: True,
+            set_initoptions=lambda _value: None,
+        )
+
+        with pytest.raises(RuntimeError, match="Start a fresh process"):
+            _configure_r_init_options(embedded)
+
+    def test_monte_carlo_p_values_use_plus_one_lattice(self) -> None:
+        raw = np.array([0.0, 3 / 19, 10 / 19, 1.0, np.nan])
+
+        corrected = _correct_monte_carlo_p_values(raw, n_resamples=19)
+
+        np.testing.assert_allclose(
+            corrected,
+            np.array([1 / 20, 4 / 20, 11 / 20, 1.0, np.nan]),
+            equal_nan=True,
+        )
+
+    def test_monte_carlo_p_values_reject_values_off_partykit_lattice(self) -> None:
+        with pytest.raises(RDiagnosticError, match="not on the b/19 lattice"):
+            _correct_monte_carlo_p_values(np.array([0.1]), n_resamples=19)
+
     def test_seed_mapping_covers_supported_boundaries_without_collisions(self) -> None:
         random_states = [0, 1, 2_147_483_646, 2_147_483_647, 2_147_483_648, 4_294_967_294]
 
@@ -568,15 +614,27 @@ class TestRBoundaryHelpers:
             np.array([0.0, -2.0, -2.0]),
             n_features=5,
             value_name="importance",
-            fill_value=0.0,
+            fill_value=float("nan"),
         )
 
-        np.testing.assert_array_equal(importance, np.array([0.0, -2.0, 0.0, 0.0, -2.0]))
+        np.testing.assert_allclose(
+            importance,
+            np.array([np.nan, -2.0, np.nan, 0.0, -2.0]),
+            equal_nan=True,
+        )
+
+    def test_importance_ranking_places_omitted_features_after_negative_values(self) -> None:
+        importance = np.array([np.nan, -2.0, np.nan, 0.0, -2.0])
+
+        ranking = _ranking_from_importance(importance)
+
+        assert ranking.tolist() == [3, 1, 4, 0, 2]
 
     def test_root_diagnostics_align_candidates_to_original_features(self) -> None:
         diagnostics = _root_diagnostics_from_named_values(
             root_feature_name="X2",
-            feature_names=["X2", "X0"],
+            statistic_feature_names=["X2", "X0"],
+            p_value_feature_names=["X2", "X0"],
             statistics=np.array([4.5, 1.25]),
             p_values=np.array([0.001, 0.2]),
             n_features=3,
@@ -602,7 +660,8 @@ class TestRBoundaryHelpers:
         with pytest.raises(RuntimeError, match="root feature"):
             _root_diagnostics_from_named_values(
                 root_feature_name=root_feature_name,
-                feature_names=["X0", "X1", "X2"],
+                statistic_feature_names=["X0", "X1", "X2"],
+                p_value_feature_names=["X0", "X1", "X2"],
                 statistics=np.ones(3),
                 p_values=np.full(3, 0.5),
                 n_features=3,
@@ -616,10 +675,22 @@ class TestRBoundaryHelpers:
         with pytest.raises(RuntimeError, match="candidate"):
             _root_diagnostics_from_named_values(
                 root_feature_name=None,
-                feature_names=feature_names,
+                statistic_feature_names=feature_names,
+                p_value_feature_names=feature_names,
                 statistics=np.ones(len(feature_names)),
                 p_values=np.full(len(feature_names), 0.5),
                 n_features=3,
+            )
+
+    def test_root_diagnostics_reject_unaligned_statistic_and_p_value_names(self) -> None:
+        with pytest.raises(RDiagnosticError, match="unaligned"):
+            _root_diagnostics_from_named_values(
+                root_feature_name=None,
+                statistic_feature_names=["X0", "X1"],
+                p_value_feature_names=["X1", "X0"],
+                statistics=np.ones(2),
+                p_values=np.full(2, 0.5),
+                n_features=2,
             )
 
     def test_root_diagnostics_defaults_to_matched_monte_carlo_controls(self) -> None:
@@ -631,6 +702,56 @@ class TestRBoundaryHelpers:
         assert parameters["mincriterion"].default == 0.0
         assert parameters["minsplit"].default == 2
         assert parameters["minbucket"].default == 1
+
+    def test_root_diagnostics_closure_is_compiled_once(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        compiled = object()
+        source_calls: list[str] = []
+
+        def compile_r(source: str) -> object:
+            source_calls.append(source)
+            return compiled
+
+        monkeypatch.setattr(r_methods, "_root_diagnostics_function", None)
+        ro = SimpleNamespace(r=compile_r)
+
+        first = r_methods._get_root_diagnostics_function(ro)
+        second = r_methods._get_root_diagnostics_function(ro)
+
+        assert first is compiled
+        assert second is compiled
+        assert len(source_calls) == 1
+
+    def test_root_feature_maps_diagnostic_anomaly_to_no_split(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        def malformed(*_args: object, **_kwargs: object) -> None:
+            raise RDiagnosticError("unmapped root")
+
+        monkeypatch.setattr(r_methods, "r_ctree_root_diagnostics", malformed)
+
+        assert r_methods.r_ctree_root_feature(np.ones((4, 1)), np.array([0, 1, 0, 1])) == -1
+
+    def test_root_feature_propagates_r_execution_failure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        def failed(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("R execution failed")
+
+        monkeypatch.setattr(r_methods, "r_ctree_root_diagnostics", failed)
+
+        with pytest.raises(RuntimeError, match="R execution failed"):
+            r_methods.r_ctree_root_feature(np.ones((4, 1)), np.array([0, 1, 0, 1]))
 
     @pytest.mark.parametrize(
         ("feature_names", "scores", "match"),
@@ -701,7 +822,7 @@ class TestRBoundaryHelpers:
         ) -> np.ndarray:
             del y
             observed.update(kwargs)
-            return np.array([0.0, -1.0, 0.0, 2.0])
+            return np.array([np.nan, -1.0, 0.0, 2.0])
 
         monkeypatch.setattr(r_methods, "r_cforest_importance", importance)
         X = np.arange(48, dtype=np.float64).reshape(12, 4)
@@ -718,7 +839,7 @@ class TestRBoundaryHelpers:
             random_state=42,
         )
 
-        assert ranking.tolist() == [3, 0, 2, 1]
+        assert ranking.tolist() == [3, 2, 1, 0]
         assert observed == {
             "task": "classification",
             "teststat": "quadratic",
@@ -743,6 +864,65 @@ class TestRBoundaryHelpers:
 
         assert versions["r"].startswith("R version ")
         assert versions["partykit"]
+
+    @_skip_no_r
+    @pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])
+    def test_fresh_process_configures_r_before_running_adapter(self, method: str) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        code = f"""
+import sys
+assert "rpy2.robjects" not in sys.modules
+
+import numpy as np
+from paper.benchmark.pipeline.r_methods import (
+    _R_MAX_PPSIZE_OPTION,
+    r_cforest_ranking,
+    r_ctree_ranking,
+)
+
+assert "rpy2.robjects" not in sys.modules
+rng = np.random.default_rng(1718)
+signal = rng.standard_normal(80)
+X = np.column_stack([rng.standard_normal((80, 3)), signal])
+y = (signal > 0).astype(np.int64)
+if {method!r} == "r_ctree":
+    ranking = r_ctree_ranking(
+        X,
+        y,
+        testtype="MonteCarlo",
+        nresample=19,
+        minsplit=10,
+        minbucket=4,
+        random_state=42,
+    )
+else:
+    ranking = r_cforest_ranking(
+        X,
+        y,
+        testtype="Bonferroni",
+        mincriterion=0.95,
+        ntree=1,
+        mtry="sqrt",
+        cores=1,
+        random_state=42,
+    )
+
+from rpy2.rinterface_lib import embedded
+assert embedded.isinitialized()
+assert embedded.get_initoptions().count(_R_MAX_PPSIZE_OPTION) == 1
+np.testing.assert_array_equal(np.sort(ranking), np.arange(X.shape[1]))
+print("fresh-process-{method}-ok")
+"""
+        completed = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        assert f"fresh-process-{method}-ok" in completed.stdout
 
 
 class TestRCtreeRanking:
@@ -891,6 +1071,26 @@ class TestRCforestRanking:
     """Regression tests for named partykit cforest importance values."""
 
     @_skip_no_r
+    def test_monte_carlo_diagnostics_use_corrected_nontrivial_lattice(self) -> None:
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(120)
+        X = np.column_stack([signal, rng.standard_normal((120, 3))])
+        y = (signal > 0).astype(np.int64)
+
+        diagnostics = r_ctree_root_diagnostics(
+            X,
+            y,
+            testtype="MonteCarlo",
+            nresample=19,
+            random_state=42,
+        )
+
+        finite_p_values = diagnostics.p_values[np.isfinite(diagnostics.p_values)]
+        extreme_counts = finite_p_values * 20 - 1
+        np.testing.assert_allclose(extreme_counts, np.rint(extreme_counts), atol=1e-12)
+        assert ((extreme_counts > 0) & (extreme_counts < 19)).any()
+
+    @_skip_no_r
     def test_jss_root_diagnostics_and_raw_forest_importance(self) -> None:
         """Matched Monte Carlo diagnostics and raw importance must survive the R boundary."""
         rng = np.random.default_rng(1718)
@@ -908,7 +1108,8 @@ class TestRCforestRanking:
         np.testing.assert_allclose(first.p_values, second.p_values, equal_nan=True)
         assert np.isnan(first.p_values[:3]).all()
         assert np.isfinite(first.p_values[3])
-        assert first.p_values[3] * 999 == pytest.approx(round(first.p_values[3] * 999))
+        extreme_count = first.p_values[3] * 1000 - 1
+        assert extreme_count == pytest.approx(round(extreme_count))
 
         importance = r_cforest_importance(
             X,
@@ -922,8 +1123,8 @@ class TestRCforestRanking:
         )
 
         assert importance.shape == (X.shape[1],)
-        assert np.isfinite(importance).all()
-        assert np.count_nonzero(importance[:3]) == 0
+        assert np.isnan(importance[:3]).all()
+        assert np.isfinite(importance[3])
         assert importance[3] > 0
 
     @_skip_no_r

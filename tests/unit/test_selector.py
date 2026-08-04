@@ -1084,12 +1084,46 @@ class TestSelectorDirect:
         result = _correlation(x, y)
         assert result == pytest.approx(1.0, rel=0.01)
 
-    def test_rdc_ecdf(self):
-        """Test _rdc_ecdf computes ECDF."""
+    def test_rdc_ecdf_preserves_tie_free_ranks(self):
+        """Test _rdc_ecdf preserves ordinal ranks when values are unique."""
         x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
         result = _rdc_ecdf(x)
-        assert np.all(result > 0)
-        assert np.all(result <= 1)
+        expected = np.array([0.2, 0.6, 0.4, 1.0, 0.8])
+        np.testing.assert_allclose(result, expected, rtol=0.0, atol=np.finfo(np.float64).eps)
+
+    def test_rdc_ecdf_assigns_equal_values_their_empirical_cdf(self):
+        """Test _rdc_ecdf assigns ties the upper-rank empirical CDF."""
+        x = np.array([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+        result = _rdc_ecdf(x)
+        expected = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_rdc_classifier_is_invariant_to_joint_row_permutation(self):
+        """Test tied class labels do not make RDC depend on row order."""
+        x = np.array([0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4, 0.5])
+        y = np.array([0, 0, 0, 0, 1, 1, 1, 1], dtype=np.int64)
+        permutation = np.array([1, 3, 0, 2, 5, 7, 6, 4])
+
+        original = rdc_classifier(x, y, n_classes=2, random_state=42)
+        permuted = rdc_classifier(x[permutation], y[permutation], n_classes=2, random_state=42)
+
+        assert original == pytest.approx(permuted, rel=0.0, abs=1e-12)
+
+    def test_rdc_regressor_is_invariant_to_joint_row_permutation(self):
+        """Test tied values do not make regression RDC depend on row order."""
+        x = np.array([0.0, 1.0, 0.0, 2.0, 1.0, 2.0, 0.0, 1.0])
+        y = np.array([0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+        permutation = np.array([1, 3, 0, 2, 5, 7, 6, 4])
+
+        original = rdc_regressor(x, y, standardize=True, random_state=42)
+        permuted = rdc_regressor(
+            x[permutation],
+            y[permutation],
+            standardize=True,
+            random_state=42,
+        )
+
+        assert original == pytest.approx(permuted, rel=0.0, abs=1e-12)
 
     def test_rdc_linear(self):
         """Test _rdc with linear relationship."""

@@ -120,3 +120,20 @@ def rank_complete_case_scores(df: pd.DataFrame) -> pd.DataFrame:
         method="average",
     )
     return ranked
+
+
+def rank_dataset_mean_scores(df: pd.DataFrame) -> pd.DataFrame:
+    """Average supported cells within dataset and method, then rank methods."""
+    ranked = (
+        df.groupby(["dataset", "method_base", "method_id"], as_index=False)
+        .agg(
+            n_cells=("dataset_mean_score", "size"),
+            mean_score=("dataset_mean_score", "mean"),
+        )
+        .reset_index(drop=True)
+    )
+    ranked["rank"] = ranked.groupby("dataset")["mean_score"].rank(
+        ascending=False,
+        method="average",
+    )
+    return ranked

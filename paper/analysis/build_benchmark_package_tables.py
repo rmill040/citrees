@@ -50,6 +50,7 @@ from paper.analysis.benchmark_common import (
     dataset_scores,
     load_real_task_frame,
     rank_complete_case_scores,
+    rank_dataset_mean_scores,
     select_best_task_configs,
     task_global_config_scores,
 )
@@ -125,22 +126,18 @@ def _build_stratified_summary(
 
 
 def _build_method_aggregate(
-    ranked: pd.DataFrame,
+    scores: pd.DataFrame,
     task: str,
     metric: str,
 ) -> pd.DataFrame:
-    """Aggregate complete-case ranks over all downstreams and standard k values."""
-    by_dataset = ranked.groupby(["dataset", "method_base", "method_id"], as_index=False).agg(
-        n_cells=("rank", "size"),
-        mean_rank=("rank", "mean"),
-        mean_score=("dataset_mean_score", "mean"),
-    )
+    """Average complete-case scores within dataset, rank, then average ranks."""
+    by_dataset = rank_dataset_mean_scores(scores)
 
     aggregate = by_dataset.groupby(["method_base", "method_id"], as_index=False).agg(
         n_datasets=("dataset", "nunique"),
         mean_dataset_cells=("n_cells", "mean"),
-        mean_rank=("mean_rank", "mean"),
-        median_rank=("mean_rank", "median"),
+        mean_rank=("rank", "mean"),
+        median_rank=("rank", "median"),
         mean_score=("mean_score", "mean"),
     )
     aggregate.insert(0, "task", task)
@@ -443,8 +440,7 @@ def _build_fixed_panel_aggregate(
     fixed_panel_membership = _build_fixed_panel_membership(scores, task)
     fixed_datasets = fixed_panel_membership[fixed_panel_membership["is_fixed_panel"]]["dataset"]
     fixed_scores = scores[scores["dataset"].isin(fixed_datasets)].copy()
-    fixed_ranked = rank_complete_case_scores(fixed_scores)
-    fixed_aggregate = _build_method_aggregate(fixed_ranked, task, metric)
+    fixed_aggregate = _build_method_aggregate(fixed_scores, task, metric)
     fixed_aggregate["support_type"] = "dataset_mean_over_all_standard_downstream_k_fixed_panel"
 
     headline_cols = [
@@ -665,7 +661,7 @@ def main() -> None:
                 support_type="all_method_complete_case_all_observed_k",
             )
         )
-        headline_aggregate = _build_method_aggregate(standard_ranked, task, metric)
+        headline_aggregate = _build_method_aggregate(standard_complete, task, metric)
         method_aggregate_frames.append(headline_aggregate)
         downstream_sensitivity_frames.append(
             _build_learner_k_sensitivity(

@@ -1202,12 +1202,19 @@ _RDC_S = 1.0 / 6.0  # Bandwidth parameter
 
 @njit(cache=True, nogil=True, fastmath=True)
 def _rdc_ecdf(x: np.ndarray) -> np.ndarray:
-    """Empirical CDF transform: ecdf(x)(x) = rank(x) / n."""
+    """Empirical CDF transform: ecdf(x)(x) = #(X <= x) / n."""
     n = len(x)
     order = np.argsort(x)
     ranks = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        ranks[order[i]] = (i + 1) / n
+    i = 0
+    while i < n:
+        j = i + 1
+        while j < n and x[order[j]] == x[order[i]]:
+            j += 1
+        value = j / n
+        for k in range(i, j):
+            ranks[order[k]] = value
+        i = j
     return ranks
 
 

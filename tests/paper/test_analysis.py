@@ -7,14 +7,20 @@ import pandas as pd
 import pytest
 
 from paper.analysis.analyze_synthetic_ground_truth import dataset_type_from_config
-from paper.analysis.benchmark_common import select_best_task_configs
+from paper.analysis.benchmark_common import (
+    complete_case_scores,
+    rank_complete_case_scores,
+    select_best_task_configs,
+)
 from paper.analysis.build_benchmark_package_tables import (
     _build_benchmark_spread,
     _build_complete_case_membership,
     _build_config_selection_audit,
     _build_fixed_panel_aggregate,
     _build_fixed_panel_membership,
+    _build_method_aggregate,
     _build_pairwise_aggregate,
+    _build_stratified_summary,
 )
 from paper.analysis.build_high_p_saturation_tables import (
     build_cif_best_observed_k_summary,
@@ -195,6 +201,169 @@ class TestBenchmarkCommon:
         assert bool(d1["is_complete_case"])
         assert d2["n_methods_present"] == 1
         assert not bool(d2["is_complete_case"])
+
+    def test_headline_aggregate_averages_scores_before_ranking(self):
+        """Headline ranks should follow the declared dataset score-then-rank estimand."""
+        scores = pd.DataFrame(
+            [
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "a",
+                    "method_id": "a__config",
+                    "dataset_mean_score": 1.0,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "b",
+                    "method_id": "b__config",
+                    "dataset_mean_score": 0.9,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "a",
+                    "method_id": "a__config",
+                    "dataset_mean_score": 0.0,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "b",
+                    "method_id": "b__config",
+                    "dataset_mean_score": 0.8,
+                },
+            ]
+        )
+
+        aggregate = _build_method_aggregate(
+            complete_case_scores(scores),
+            task="classification",
+            metric="balanced_accuracy",
+        ).set_index("method_base")
+
+        assert aggregate.loc["b", "mean_score"] == pytest.approx(0.85)
+        assert aggregate.loc["b", "mean_rank"] == 1.0
+        assert aggregate.loc["b", "rank_position"] == 1.0
+        assert aggregate.loc["a", "mean_score"] == pytest.approx(0.5)
+        assert aggregate.loc["a", "mean_rank"] == 2.0
+        assert aggregate.loc["a", "rank_position"] == 2.0
+
+    def test_headline_aggregate_uses_only_complete_case_cells(self):
+        """A method-missing cell should contribute to neither method's dataset mean."""
+        scores = pd.DataFrame(
+            [
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "a",
+                    "method_id": "a__config",
+                    "dataset_mean_score": 0.2,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "b",
+                    "method_id": "b__config",
+                    "dataset_mean_score": 0.8,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "a",
+                    "method_id": "a__config",
+                    "dataset_mean_score": 1.0,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "a",
+                    "method_id": "a__config",
+                    "dataset_mean_score": 0.4,
+                },
+                {
+                    "dataset": "d2",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "b",
+                    "method_id": "b__config",
+                    "dataset_mean_score": 0.6,
+                },
+            ]
+        )
+
+        aggregate = _build_method_aggregate(
+            complete_case_scores(scores),
+            task="classification",
+            metric="balanced_accuracy",
+        ).set_index("method_base")
+
+        assert aggregate.loc["a", "mean_dataset_cells"] == 1.0
+        assert aggregate.loc["b", "mean_dataset_cells"] == 1.0
+        assert aggregate.loc["a", "mean_score"] == pytest.approx(0.3)
+        assert aggregate.loc["b", "mean_score"] == pytest.approx(0.7)
+        assert aggregate.loc["b", "mean_rank"] == 1.0
+        assert aggregate.loc["a", "mean_rank"] == 2.0
+
+    def test_learner_k_sensitivity_keeps_cell_level_ranks(self):
+        """Stratified learner-k output should retain its cell-level rank estimand."""
+        scores = pd.DataFrame(
+            [
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "a",
+                    "method_id": "a__config",
+                    "dataset_mean_score": 1.0,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 5,
+                    "method_base": "b",
+                    "method_id": "b__config",
+                    "dataset_mean_score": 0.9,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "a",
+                    "method_id": "a__config",
+                    "dataset_mean_score": 0.0,
+                },
+                {
+                    "dataset": "d1",
+                    "downstream_model": "lr",
+                    "k": 10,
+                    "method_base": "b",
+                    "method_id": "b__config",
+                    "dataset_mean_score": 0.8,
+                },
+            ]
+        )
+
+        stratified = _build_stratified_summary(
+            rank_complete_case_scores(complete_case_scores(scores)),
+            task="classification",
+            metric="balanced_accuracy",
+            support_type="test",
+        ).set_index(["k", "method_base"])
+
+        assert stratified.loc[(5, "a"), "rank_position"] == 1.0
+        assert stratified.loc[(5, "b"), "rank_position"] == 2.0
+        assert stratified.loc[(10, "a"), "rank_position"] == 2.0
+        assert stratified.loc[(10, "b"), "rank_position"] == 1.0
 
     def test_build_benchmark_spread_summarizes_per_k_and_pooled_cells(self):
         """The benchmark spread surface should expose standard-k and pooled dispersion."""
@@ -577,34 +746,10 @@ class TestBenchmarkCommon:
             ]
         )
 
-        headline_ranked = scores.copy()
-        headline_ranked["rank"] = headline_ranked.groupby(["downstream_model", "k", "dataset"])[
-            "dataset_mean_score"
-        ].rank(
-            ascending=False,
-            method="average",
-        )
-        headline_by_dataset = headline_ranked.groupby(
-            ["dataset", "method_base", "method_id"], as_index=False
-        ).agg(
-            n_cells=("rank", "size"),
-            mean_rank=("rank", "mean"),
-            mean_score=("dataset_mean_score", "mean"),
-        )
-        headline_aggregate = headline_by_dataset.groupby(
-            ["method_base", "method_id"], as_index=False
-        ).agg(
-            n_datasets=("dataset", "nunique"),
-            mean_dataset_cells=("n_cells", "mean"),
-            mean_rank=("mean_rank", "mean"),
-            median_rank=("mean_rank", "median"),
-            mean_score=("mean_score", "mean"),
-        )
-        headline_aggregate.insert(0, "task", "classification")
-        headline_aggregate.insert(1, "metric", "balanced_accuracy")
-        headline_aggregate["support_type"] = "dataset_mean_over_all_complete_case_downstream_k"
-        headline_aggregate["rank_position"] = headline_aggregate["mean_rank"].rank(
-            ascending=True, method="average"
+        headline_aggregate = _build_method_aggregate(
+            complete_case_scores(scores),
+            task="classification",
+            metric="balanced_accuracy",
         )
 
         _, fixed = _build_fixed_panel_aggregate(

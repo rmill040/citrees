@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
+import sys
 import tarfile
 from pathlib import Path
 
@@ -295,14 +297,15 @@ def test_safe_tar_extraction_accepts_only_exact_regular_members(tmp_path: Path) 
 def test_bed_validation_rejects_wrong_size_and_magic(tmp_path: Path) -> None:
     path = tmp_path / "dgrp2.bed"
     path.write_bytes(dgrp.GENOTYPE_BED_MAGIC + b"\x00" * 5)
-    dgrp.validate_bed(path, expected_bytes=8)
+    assert dgrp.variant_major_bed_bytes(205, 4_438_427) == 230_798_207
+    dgrp.validate_bed(path, sample_count=2, variant_count=5)
 
     with pytest.raises(RuntimeError, match="size mismatch"):
-        dgrp.validate_bed(path, expected_bytes=9)
+        dgrp.validate_bed(path, sample_count=2, variant_count=6)
 
     path.write_bytes(b"\x00\x00\x00" + b"\x00" * 5)
     with pytest.raises(RuntimeError, match="magic mismatch"):
-        dgrp.validate_bed(path, expected_bytes=8)
+        dgrp.validate_bed(path, sample_count=2, variant_count=5)
 
 
 def test_bim_validation_rejects_duplicate_ids_and_invalid_positions(
@@ -426,3 +429,155 @@ def test_genotype_source_receipt_is_deterministic(
         "genotype_only_lines": 1,
         "genotype_only_ids": ["line_2"],
     }
+
+
+def test_genotype_extraction_preserves_sqlite_and_rejects_malformed_plink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    members = [
+        ("input/dgrp2.bed", dgrp.GENOTYPE_BED_MAGIC + b"\x00"),
+        ("input/dgrp2.bim", b"1 variant 0 1 A G\n"),
+        (
+            "input/dgrp2.fam",
+            b"line_1 line_1 0 0 2 -9\nline_2 line_2 0 0 2 -9\n",
+        ),
+    ]
+    specs = _genotype_specs(members)
+    data_dir = tmp_path / "data"
+    input_dir = data_dir / "input"
+    input_dir.mkdir(parents=True)
+    sqlite_path = input_dir / "Phenosnip.201612.sqlite"
+    sqlite_payload = b"preserve this source"
+    sqlite_path.write_bytes(sqlite_payload)
+    archive_path = data_dir / dgrp.GENOTYPE_ARCHIVE_FILENAME
+    _write_tar(archive_path, members)
+    archive_payload = archive_path.read_bytes()
+
+    monkeypatch.setattr(dgrp, "GENOTYPE_FILE_SPECS", specs)
+    monkeypatch.setattr(dgrp, "GENOTYPE_ARCHIVE_BYTES", len(archive_payload))
+    monkeypatch.setattr(
+        dgrp,
+        "GENOTYPE_ARCHIVE_MD5",
+        hashlib.md5(archive_payload).hexdigest(),
+    )
+    monkeypatch.setattr(
+        dgrp,
+        "GENOTYPE_ARCHIVE_SHA256",
+        hashlib.sha256(archive_payload).hexdigest(),
+    )
+    monkeypatch.setattr(dgrp, "EXPECTED_GENOTYPE_SAMPLES", 2)
+    monkeypatch.setattr(dgrp, "EXPECTED_GENOTYPE_VARIANTS", 1)
+
+    assert dgrp.extract_genotype_archive(archive_path, data_dir) == input_dir
+    assert sqlite_path.read_bytes() == sqlite_payload
+    assert {path.name for path in input_dir.iterdir()} == {
+        "Phenosnip.201612.sqlite",
+        "dgrp2.bed",
+        "dgrp2.bim",
+        "dgrp2.fam",
+    }
+
+    malformed_fam = input_dir / "dgrp2.fam"
+    malformed_fam.write_bytes(b"malformed\n")
+    with pytest.raises(RuntimeError, match="file size mismatch"):
+        dgrp.extract_genotype_archive(archive_path, data_dir)
+    assert malformed_fam.read_bytes() == b"malformed\n"
+    assert sqlite_path.read_bytes() == sqlite_payload
+
+
+def test_main_invokes_genotype_pipeline_and_persists_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    data_dir = tmp_path / "data"
+    output_dir = tmp_path / "output"
+    data_dir.mkdir()
+    phenotype_source = data_dir / dgrp.PHENOTYPE_FILENAME
+    phenotype_source.write_bytes(b"synthetic phenotype source")
+    genotype_archive = data_dir / dgrp.GENOTYPE_ARCHIVE_FILENAME
+    genotype_archive.write_bytes(b"synthetic genotype source")
+    genotype_input = data_dir / "input"
+    genotype_input.mkdir()
+    frame = _phenotypes()
+    expected_provenance = {
+        "schema_version": 1,
+        "source": {"sha256": "a" * 64},
+        "inventory": {"samples": 3, "variants": 2},
+        "line_overlap": {
+            "phenotype_source_lines": 3,
+            "genotype_lines": 3,
+            "shared_lines": 3,
+            "genotype_only_lines": 0,
+            "genotype_only_ids": [],
+        },
+    }
+    calls: list[str] = []
+
+    def acquire_phenotypes(observed_data_dir: Path) -> Path:
+        assert observed_data_dir == data_dir
+        calls.append("acquire_phenotypes")
+        return phenotype_source
+
+    def load_phenotypes(observed_source: Path) -> pd.DataFrame:
+        assert observed_source == phenotype_source
+        calls.append("load_phenotypes")
+        return frame
+
+    def acquire_genotypes(observed_data_dir: Path) -> Path:
+        assert observed_data_dir == data_dir
+        calls.append("acquire_genotypes")
+        return genotype_archive
+
+    def extract_genotypes(observed_archive: Path, observed_data_dir: Path) -> Path:
+        assert observed_archive == genotype_archive
+        assert observed_data_dir == data_dir
+        calls.append("extract_genotypes")
+        return genotype_input
+
+    def build_provenance(
+        observed_archive: Path,
+        observed_input: Path,
+        phenotype_lines: pd.Series,
+    ) -> dict[str, object]:
+        assert observed_archive == genotype_archive
+        assert observed_input == genotype_input
+        assert set(phenotype_lines) == {"dgrp1", "dgrp2", "dgrp3"}
+        calls.append("build_provenance")
+        return expected_provenance
+
+    monkeypatch.setattr(dgrp, "acquire_phenotype_workbook", acquire_phenotypes)
+    monkeypatch.setattr(dgrp, "load_individual_phenotypes", load_phenotypes)
+    monkeypatch.setattr(dgrp, "acquire_genotype_archive", acquire_genotypes)
+    monkeypatch.setattr(dgrp, "extract_genotype_archive", extract_genotypes)
+    monkeypatch.setattr(dgrp, "build_genotype_source_receipt", build_provenance)
+    monkeypatch.setattr(dgrp, "verify_source", lambda path: None)
+    monkeypatch.setattr(dgrp, "validate_pinned_line_outcomes", lambda outcomes: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dgrp.py",
+            "--data-dir",
+            str(data_dir),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    dgrp.main()
+
+    assert calls == [
+        "acquire_phenotypes",
+        "load_phenotypes",
+        "acquire_genotypes",
+        "extract_genotypes",
+        "build_provenance",
+    ]
+    receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
+    assert receipt["schema_version"] == 2
+    assert receipt["genotype"] == expected_provenance
+    assert (output_dir / "line_outcomes.parquet").is_file()
+    assert (output_dir / "trait_summary.csv").is_file()
+    assert capsys.readouterr().out == "Wrote DGRP outcomes for 2 lines.\n"

@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import tarfile
 import tempfile
 import urllib.request
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -413,13 +414,25 @@ def validate_bim(
     return variant_count
 
 
+def variant_major_bed_bytes(sample_count: int, variant_count: int) -> int:
+    """Return the exact PLINK BED size for variant-major two-bit genotypes."""
+    if sample_count < 1:
+        raise ValueError("sample_count must be positive")
+    if variant_count < 1:
+        raise ValueError("variant_count must be positive")
+    bytes_per_variant = (sample_count + 3) // 4
+    return len(GENOTYPE_BED_MAGIC) + bytes_per_variant * variant_count
+
+
 def validate_bed(
     path: Path,
     *,
-    expected_bytes: int = EXPECTED_GENOTYPE_BED_BYTES,
+    sample_count: int,
+    variant_count: int,
     expected_magic: bytes = GENOTYPE_BED_MAGIC,
 ) -> None:
-    """Validate the PLINK BED size and variant-major magic bytes."""
+    """Validate PLINK variant-major magic and size derived from data dimensions."""
+    expected_bytes = variant_major_bed_bytes(sample_count, variant_count)
     observed_bytes = path.stat().st_size
     if observed_bytes != expected_bytes:
         raise RuntimeError(
@@ -481,7 +494,8 @@ def validate_genotype_files(input_dir: Path) -> GenotypeInventory:
     )
     validate_bed(
         paths["input/dgrp2.bed"],
-        expected_bytes=EXPECTED_GENOTYPE_BED_BYTES,
+        sample_count=len(genotype_lines),
+        variant_count=variant_count,
         expected_magic=GENOTYPE_BED_MAGIC,
     )
     return GenotypeInventory(
@@ -495,14 +509,18 @@ def extract_genotype_archive(
     archive_path: Path,
     data_dir: Path = DEFAULT_DATA_DIR,
 ) -> Path:
-    """Safely extract and validate the pinned DGRP PLINK files."""
+    """Safely install the pinned PLINK files while preserving unrelated inputs."""
     verify_genotype_archive(archive_path)
     validate_genotype_archive_members(archive_path)
     data_dir.mkdir(parents=True, exist_ok=True)
     input_dir = data_dir / "input"
-    if input_dir.exists() or input_dir.is_symlink():
-        validate_genotype_files(input_dir)
-        return input_dir
+    if input_dir.is_symlink() or (input_dir.exists() and not input_dir.is_dir()):
+        raise RuntimeError(f"DGRP genotype input directory is invalid: {input_dir}")
+    if input_dir.is_dir():
+        expected_paths = tuple(_input_paths(input_dir).values())
+        if any(path.exists() or path.is_symlink() for path in expected_paths):
+            validate_genotype_files(input_dir)
+            return input_dir
 
     with tempfile.TemporaryDirectory(prefix=".dgrp2-", dir=data_dir) as temporary:
         temporary_root = Path(temporary)
@@ -513,7 +531,20 @@ def extract_genotype_archive(
         )
         temporary_input = temporary_root / "input"
         validate_genotype_files(temporary_input)
-        temporary_input.replace(input_dir)
+        if not input_dir.exists():
+            temporary_input.replace(input_dir)
+        else:
+            installed: list[Path] = []
+            try:
+                for source in _input_paths(temporary_input).values():
+                    destination = input_dir / source.name
+                    os.link(source, destination)
+                    installed.append(destination)
+                validate_genotype_files(input_dir)
+            except Exception:
+                for path in installed:
+                    path.unlink(missing_ok=True)
+                raise
     return input_dir
 
 
@@ -756,9 +787,10 @@ def write_results(
     outcomes: pd.DataFrame,
     output_dir: Path,
     *,
+    genotype_provenance: Mapping[str, object],
     minimum_individuals: int = MIN_INDIVIDUALS_PER_LINE,
 ) -> None:
-    """Write prepared outcomes, summary counts, and a source receipt."""
+    """Write prepared outcomes and phenotype-genotype source provenance."""
     verify_source(source_path)
     validate_pinned_line_outcomes(outcomes)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -770,7 +802,7 @@ def write_results(
     artifacts = (outcomes_path, summary_path)
     receipt = {
         "analysis": "dgrp_phenotypes",
-        "schema_version": 1,
+        "schema_version": 2,
         "created_utc": datetime.now(UTC).isoformat(),
         "source": {
             "url": PHENOTYPE_URL,
@@ -781,6 +813,7 @@ def write_results(
         },
         "minimum_individuals_per_line": minimum_individuals,
         "traits": [asdict(trait) for trait in TRAITS],
+        "genotype": dict(genotype_provenance),
         "artifacts": {
             path.name: {"bytes": path.stat().st_size, "sha256": sha256(path)} for path in artifacts
         },
@@ -802,11 +835,19 @@ def main() -> None:
     args = _parse_args()
     source_path = acquire_phenotype_workbook(args.data_dir)
     frame = load_individual_phenotypes(source_path)
+    genotype_archive = acquire_genotype_archive(args.data_dir)
+    genotype_input = extract_genotype_archive(genotype_archive, args.data_dir)
+    genotype_provenance = build_genotype_source_receipt(
+        genotype_archive,
+        genotype_input,
+        frame["strain_number"],
+    )
     outcomes = build_line_outcomes(frame)
     write_results(
         source_path,
         outcomes,
         args.output_dir,
+        genotype_provenance=genotype_provenance,
         minimum_individuals=MIN_INDIVIDUALS_PER_LINE,
     )
     print(f"Wrote DGRP outcomes for {outcomes['strain_number'].nunique()} lines.")

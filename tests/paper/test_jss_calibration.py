@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-
 import numpy as np
 import pandas as pd
 import pytest
 
 from paper.jss.replication import calibration
 from paper.jss.replication.calibration import (
-    CARDINALITY_LABELS,
     ProfileSettings,
     RootNullScenario,
     SelectorNullScenario,
@@ -22,11 +18,9 @@ from paper.jss.replication.calibration import (
     _selector_scenarios,
     _settings,
     _stream_seed,
-    run_calibration,
     run_root_null,
     run_selector_null,
     wilson_interval,
-    write_results,
 )
 
 pytestmark = pytest.mark.paper
@@ -44,24 +38,12 @@ def test_root_null_is_deterministic() -> None:
     pd.testing.assert_frame_equal(first, second)
 
 
-def test_smoke_profile_schema_and_counts() -> None:
-    results = run_calibration("smoke", base_seed=42)
+def test_smoke_selector_and_root_schema_and_counts() -> None:
+    selector = run_selector_null("smoke", base_seed=42)
+    root = run_root_null("smoke", base_seed=42)
 
-    assert set(results) == {
-        "selector_null_raw",
-        "selector_null_summary",
-        "root_null_raw",
-        "root_null_summary",
-        "cardinality_bias_raw",
-        "cardinality_bias_summary",
-        "cardinality_bias_global",
-    }
-    assert len(results["selector_null_raw"]) == 8
-    assert len(results["root_null_raw"]) == 18
-    assert len(results["cardinality_bias_raw"]) == 32
-    assert set(results["cardinality_bias_summary"]["cardinality"]) == set(CARDINALITY_LABELS)
-    selector = results["selector_null_raw"]
-    root = results["root_null_raw"]
+    assert len(selector) == 8
+    assert len(root) == 18
     assert selector["p_value"].between(0.0, 1.0).all()
     assert selector["estimand"].eq("fixed_budget_permutation_p_value").all()
     assert selector["realized_permutations"].between(0, selector["n_resamples"]).all()
@@ -83,18 +65,9 @@ def test_smoke_profile_schema_and_counts() -> None:
     assert combined["realized_splitter_permutations"].ge(0).all()
     assert {"data_seed", "model_seed"} <= set(selector)
     assert {"data_seed", "model_seed"} <= set(root)
-    assert results["selector_null_summary"].columns.is_unique
-
     paired_root = combined.groupby("replicate")[["data_seed", "model_seed"]].nunique()
     assert paired_root["data_seed"].eq(1).all()
     assert paired_root["model_seed"].eq(1).all()
-
-    cardinality = results["cardinality_bias_raw"]
-    paired_data_counts = cardinality.groupby(["task", "replicate"])["data_seed"].nunique()
-    assert paired_data_counts.eq(1).all()
-    assert cardinality.groupby(["task", "replicate"])["model_seed"].nunique().eq(2).all()
-    assert cardinality.loc[cardinality["method"] == "citrees", "n_resamples"].notna().all()
-    assert cardinality.loc[cardinality["method"] == "cart", "n_resamples"].isna().all()
 
 
 def test_full_profile_separates_fixed_budget_and_fitted_tree_estimands() -> None:
@@ -103,9 +76,9 @@ def test_full_profile_separates_fixed_budget_and_fitted_tree_estimands() -> None
         selector_replicates=5_000,
         root_replicates=5_000,
         cardinality_replicates=10_000,
+        cardinality_forest_replicates=2_500,
         selector_resamples=999,
         root_resamples=999,
-        cardinality_resamples=999,
     )
 
     selector_scenarios = _selector_scenarios("full", settings)
@@ -333,32 +306,3 @@ def test_wilson_interval_contains_observed_proportion() -> None:
     lower, upper = wilson_interval(5, 20)
     assert lower < 0.25 < upper
     assert np.isnan(wilson_interval(0, 0)[0])
-
-
-def test_write_results_records_artifacts(tmp_path) -> None:
-    results = run_calibration("smoke", base_seed=7)
-    write_results(
-        results,
-        tmp_path,
-        profile="smoke",
-        base_seed=7,
-        elapsed_seconds=1.25,
-    )
-
-    receipt = json.loads((tmp_path / "receipt.json").read_text(encoding="ascii"))
-    assert receipt["analysis"] == "calibration"
-    assert receipt["schema_version"] == 3
-    assert receipt["profile"] == "smoke"
-    assert receipt["base_seed"] == 7
-    assert isinstance(receipt["git_dirty"], bool)
-    assert "paper/jss/replication/calibration.py" in receipt["source_sha256"]
-    assert "citrees/_permutation.py" in receipt["source_sha256"]
-    assert "citrees/_selector.py" in receipt["source_sha256"]
-    assert "citrees/_tree.py" in receipt["source_sha256"]
-    assert "uv.lock" in receipt["source_sha256"]
-    assert len(receipt["artifacts"]) > len(results)
-    for artifact, metadata in receipt["artifacts"].items():
-        artifact_path = tmp_path / artifact
-        assert artifact_path.exists()
-        assert metadata["bytes"] == artifact_path.stat().st_size
-        assert metadata["sha256"] == hashlib.sha256(artifact_path.read_bytes()).hexdigest()

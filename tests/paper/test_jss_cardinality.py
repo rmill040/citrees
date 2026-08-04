@@ -652,7 +652,11 @@ def test_run_calibration_and_writer_emit_every_validated_table(
         elapsed_seconds=1.25,
     )
     receipt = json.loads((tmp_path / "receipt.json").read_text(encoding="ascii"))
+    assert receipt["analysis"] == "calibration"
     assert receipt["schema_version"] == 4
+    assert receipt["profile"] == "smoke"
+    assert receipt["base_seed"] == 7
+    assert isinstance(receipt["git_dirty"], bool)
     assert receipt["cardinality_design"]["supports"] == list(CARDINALITY_SUPPORTS)
     assert receipt["cardinality_design"]["maximum_support_feature_type"] == (
         CARDINALITY_MAX_SUPPORT_FEATURE_TYPE
@@ -662,6 +666,13 @@ def test_run_calibration_and_writer_emit_every_validated_table(
     )
     assert receipt["cardinality_design"]["minimum_attainable_holm_p_value"] < CARDINALITY_ALPHA
     assert set(receipt["tables"]) == set(CALIBRATION_RESULT_SCHEMAS)
+    assert "paper/jss/replication/calibration.py" in receipt["source_sha256"]
+    assert "paper/benchmark/pipeline/r_methods.py" in receipt["source_sha256"]
+    assert "citrees/_forest.py" in receipt["source_sha256"]
+    assert "citrees/_permutation.py" in receipt["source_sha256"]
+    assert "citrees/_selector.py" in receipt["source_sha256"]
+    assert "citrees/_tree.py" in receipt["source_sha256"]
+    assert "uv.lock" in receipt["source_sha256"]
     for table_name in CALIBRATION_RESULT_SCHEMAS:
         assert (tmp_path / f"{table_name}.parquet").exists()
     for artifact, metadata in receipt["artifacts"].items():

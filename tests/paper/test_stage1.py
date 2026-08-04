@@ -31,7 +31,10 @@ from paper.benchmark.pipeline.r_methods import (
     _resolve_cores,
     _resolve_mtry,
     _root_diagnostics_from_named_values,
+    _validate_inputs,
+    r_cforest_behavior,
     r_cforest_importance,
+    r_ctree_behavior,
     r_ctree_root_diagnostics,
 )
 
@@ -43,7 +46,11 @@ def test_concurrent_valid_ranking_upload_is_skipped(
 ) -> None:
     """A worker that loses an immutable upload race must validate and skip."""
     from paper.benchmark.pipeline import stage1
-    from paper.benchmark.pipeline.types import DatasetIdentity, ExperimentConfig, MethodConfig
+    from paper.benchmark.pipeline.types import (
+        DatasetIdentity,
+        ExperimentConfig,
+        MethodConfig,
+    )
 
     config = ExperimentConfig(
         method=MethodConfig("dt"),
@@ -152,8 +159,12 @@ class TestFilterSelector:
         X = np.hstack([x0, x1])
         y = np.array([0] * n_per + [1] * n_per + [2] * n_per)
 
-        rank_base = filter_selector(X, y, method="mc", task="classification", random_state=0)
-        rank_shift = filter_selector(X, y + 5, method="mc", task="classification", random_state=0)
+        rank_base = filter_selector(
+            X, y, method="mc", task="classification", random_state=0
+        )
+        rank_shift = filter_selector(
+            X, y + 5, method="mc", task="classification", random_state=0
+        )
 
         assert np.array_equal(rank_base, rank_shift)
 
@@ -168,7 +179,9 @@ class TestPermutationSelector:
         def selector_fn(x, y, n_classes, random_state=None):
             return 0.0
 
-        def test_fn(*, x, y, n_classes, alpha, n_resamples, early_stopping, random_state):
+        def test_fn(
+            *, x, y, n_classes, alpha, n_resamples, early_stopping, random_state
+        ):
             return 0.5
 
         monkeypatch.setitem(ClassifierSelectors._registry, "kw", selector_fn)
@@ -189,7 +202,9 @@ class TestPermutationSelector:
         def selector_fn(x, y, standardize=True, random_state=None):
             return 0.0
 
-        def test_fn(*, x, y, standardize, alpha, n_resamples, early_stopping, random_state):
+        def test_fn(
+            *, x, y, standardize, alpha, n_resamples, early_stopping, random_state
+        ):
             return 0.5
 
         monkeypatch.setitem(RegressorSelectors._registry, "kw", selector_fn)
@@ -198,7 +213,9 @@ class TestPermutationSelector:
         X = np.array([[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]], dtype=float)
         y = np.array([0.1, -0.2, 0.3], dtype=float)
 
-        ranking = permutation_selector(X, y, method="ptest_kw", task="regression", random_state=0)
+        ranking = permutation_selector(
+            X, y, method="ptest_kw", task="regression", random_state=0
+        )
         assert ranking.shape == (X.shape[1],)
 
 
@@ -311,7 +328,9 @@ class TestWrapperSelectors:
             captured["scoring"] = kwargs["scoring"]
             return SimpleNamespace(importances_mean=np.array([0.2, 0.1], dtype=float))
 
-        monkeypatch.setattr(selectors, "permutation_importance", fake_permutation_importance)
+        monkeypatch.setattr(
+            selectors, "permutation_importance", fake_permutation_importance
+        )
 
         ranking = selectors.pi_selector(
             X,
@@ -380,7 +399,9 @@ class TestWrapperSelectors:
         monkeypatch.setattr(selectors, "Parallel", DummyParallel)
         monkeypatch.setattr(selectors, "delayed", dummy_delayed)
         monkeypatch.setattr(selectors, "train_test_split", fake_train_test_split)
-        monkeypatch.setattr(selectors.np.random, "default_rng", lambda seed: DummyRng(seed))
+        monkeypatch.setattr(
+            selectors.np.random, "default_rng", lambda seed: DummyRng(seed)
+        )
 
         ranking = selectors.cpi_selector(
             np.zeros((1, 2), dtype=float),
@@ -543,7 +564,9 @@ _skip_no_r = pytest.mark.skipif(not _has_r, reason="R / rpy2 / partykit not avai
 class TestRBoundaryHelpers:
     """Unit tests for values crossing between Python and partykit."""
 
-    def test_r_init_options_set_maximum_protection_stack_before_initialization(self) -> None:
+    def test_r_init_options_set_maximum_protection_stack_before_initialization(
+        self,
+    ) -> None:
         options = ("rpy2", "--quiet", "--no-save", "--max-ppsize=10000")
         configured: list[tuple[str, ...]] = []
         embedded = SimpleNamespace(
@@ -582,7 +605,14 @@ class TestRBoundaryHelpers:
             _correct_monte_carlo_p_values(np.array([0.1]), n_resamples=19)
 
     def test_seed_mapping_covers_supported_boundaries_without_collisions(self) -> None:
-        random_states = [0, 1, 2_147_483_646, 2_147_483_647, 2_147_483_648, 4_294_967_294]
+        random_states = [
+            0,
+            1,
+            2_147_483_646,
+            2_147_483_647,
+            2_147_483_648,
+            4_294_967_294,
+        ]
 
         r_seeds = [_normalize_r_seed(value) for value in random_states]
 
@@ -595,7 +625,9 @@ class TestRBoundaryHelpers:
             _normalize_r_seed(random_state)
 
     @pytest.mark.parametrize("random_state", [True, 1.5, "1718"])
-    def test_seed_mapping_rejects_non_integer_values(self, random_state: object) -> None:
+    def test_seed_mapping_rejects_non_integer_values(
+        self, random_state: object
+    ) -> None:
         with pytest.raises(TypeError, match="random_state must be an integer"):
             _normalize_r_seed(random_state)  # type: ignore[arg-type]
 
@@ -623,12 +655,12 @@ class TestRBoundaryHelpers:
             equal_nan=True,
         )
 
-    def test_importance_ranking_places_omitted_features_after_negative_values(self) -> None:
+    def test_importance_ranking_restores_omitted_structural_zeros(self) -> None:
         importance = np.array([np.nan, -2.0, np.nan, 0.0, -2.0])
 
         ranking = _ranking_from_importance(importance)
 
-        assert ranking.tolist() == [3, 1, 4, 0, 2]
+        assert ranking.tolist() == [0, 2, 3, 1, 4]
 
     def test_root_diagnostics_align_candidates_to_original_features(self) -> None:
         diagnostics = _root_diagnostics_from_named_values(
@@ -667,7 +699,9 @@ class TestRBoundaryHelpers:
                 n_features=3,
             )
 
-    @pytest.mark.parametrize("feature_names", [["feature0"], ["X01"], ["X3"], ["X1", "X1"]])
+    @pytest.mark.parametrize(
+        "feature_names", [["feature0"], ["X01"], ["X3"], ["X1", "X1"]]
+    )
     def test_root_diagnostics_reject_malformed_candidate_features(
         self,
         feature_names: list[str],
@@ -682,7 +716,9 @@ class TestRBoundaryHelpers:
                 n_features=3,
             )
 
-    def test_root_diagnostics_reject_unaligned_statistic_and_p_value_names(self) -> None:
+    def test_root_diagnostics_reject_unaligned_statistic_and_p_value_names(
+        self,
+    ) -> None:
         with pytest.raises(RDiagnosticError, match="unaligned"):
             _root_diagnostics_from_named_values(
                 root_feature_name=None,
@@ -702,6 +738,115 @@ class TestRBoundaryHelpers:
         assert parameters["mincriterion"].default == 0.0
         assert parameters["minsplit"].default == 2
         assert parameters["minbucket"].default == 1
+
+    def test_classification_targets_must_be_integer_labels(self) -> None:
+        X = np.arange(12, dtype=np.float64).reshape(6, 2)
+        y = np.array([0.0, 1.5, 0.0, 1.5, 0.0, 1.5])
+
+        with pytest.raises(ValueError, match="integer class labels"):
+            _validate_inputs(X, y, "classification")
+
+    def test_r_inputs_must_be_real_valued(self) -> None:
+        X = np.arange(12, dtype=np.float64).reshape(6, 2)
+        y = np.array([0, 1, 0, 1, 0, 1])
+
+        with pytest.raises(ValueError, match="real values"):
+            _validate_inputs(X.astype(np.complex128) + 1j, y, "classification")
+        with pytest.raises(ValueError, match="real values"):
+            _validate_inputs(X, y.astype(np.complex128) + 1j, "classification")
+
+    def test_classification_targets_require_two_classes(self) -> None:
+        X = np.arange(12, dtype=np.float64).reshape(6, 2)
+
+        with pytest.raises(ValueError, match="at least two classes"):
+            _validate_inputs(X, np.zeros(6, dtype=np.int64), "classification")
+
+    def test_classification_targets_must_fit_signed_int64(self) -> None:
+        X = np.arange(12, dtype=np.float64).reshape(6, 2)
+        y = np.array([0, 2**63, 0, 2**63, 0, 2**63], dtype=np.uint64)
+
+        with pytest.raises(ValueError, match="signed 64-bit"):
+            _validate_inputs(X, y, "classification")
+
+    def test_r_regression_predictions_own_their_memory(self) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        source = np.array([1.5, 2.5], dtype=np.float64)
+        stats = SimpleNamespace(
+            predict=lambda model, **kwargs: source,
+        )
+        ro = SimpleNamespace(DataFrame=lambda values: values, FloatVector=np.asarray)
+
+        predictions, probabilities, classes = r_methods._r_prediction_outputs(
+            object(),
+            np.ones((2, 1), dtype=np.float64),
+            np.array([1.0, 2.0], dtype=np.float64),
+            "regression",
+            ro=ro,
+            stats=stats,
+        )
+        source[:] = 0.0
+
+        np.testing.assert_array_equal(predictions, [1.5, 2.5])
+        assert predictions.flags.owndata
+        assert probabilities is None
+        assert classes is None
+
+    def test_root_diagnostics_reject_combined_monte_carlo_controls(self) -> None:
+        X = np.arange(12, dtype=np.float64).reshape(6, 2)
+        y = np.array([0, 1, 0, 1, 0, 1])
+
+        with pytest.raises(TypeError, match="one partykit testtype"):
+            r_ctree_root_diagnostics(
+                X,
+                y,
+                testtype=("Bonferroni", "MonteCarlo"),
+            )
+
+    def test_cforest_sampling_controls_reject_ambiguous_values(self) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        kwargs = {
+            "task": "classification",
+            "teststat": "quadratic",
+            "testtype": "Univariate",
+            "mincriterion": 0.0,
+            "nresample": 19,
+            "ntree": 5,
+            "mtry": "all",
+            "maxdepth": 2,
+            "minsplit": 4,
+            "minbucket": 2,
+            "cores": 1,
+            "random_state": 42,
+        }
+        X = np.arange(24, dtype=np.float64).reshape(12, 2)
+        y = np.array([0, 1] * 6)
+
+        with pytest.raises(TypeError, match="replace must be a boolean"):
+            r_methods._fit_r_cforest(
+                X,
+                y,
+                replace="False",  # type: ignore[arg-type]
+                fraction=1.0,
+                **kwargs,
+            )
+        with pytest.raises(TypeError, match="fraction must be a real number"):
+            r_methods._fit_r_cforest(
+                X,
+                y,
+                replace=True,
+                fraction=True,  # type: ignore[arg-type]
+                **kwargs,
+            )
+        with pytest.raises(ValueError, match=r"fraction must be in \(0, 1\]"):
+            r_methods._fit_r_cforest(
+                X,
+                y,
+                replace=True,
+                fraction=float("nan"),
+                **kwargs,
+            )
 
     def test_root_diagnostics_closure_is_compiled_once(
         self,
@@ -726,6 +871,76 @@ class TestRBoundaryHelpers:
         assert second is compiled
         assert len(source_calls) == 1
 
+    def test_split_usage_closure_is_compiled_once(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        compiled = object()
+        source_calls: list[str] = []
+
+        def compile_r(source: str) -> object:
+            source_calls.append(source)
+            return compiled
+
+        monkeypatch.setattr(r_methods, "_split_usage_function", None)
+        ro = SimpleNamespace(r=compile_r)
+
+        first = r_methods._get_split_usage_function(ro)
+        second = r_methods._get_split_usage_function(ro)
+
+        assert first is compiled
+        assert second is compiled
+        assert len(source_calls) == 1
+
+    def test_bootstrap_weights_closure_is_compiled_once(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        compiled = object()
+        source_calls: list[str] = []
+
+        def compile_r(source: str) -> object:
+            source_calls.append(source)
+            return compiled
+
+        monkeypatch.setattr(r_methods, "_bootstrap_weights_function", None)
+        ro = SimpleNamespace(r=compile_r)
+
+        first = r_methods._get_bootstrap_weights_function(ro)
+        second = r_methods._get_bootstrap_weights_function(ro)
+
+        assert first is compiled
+        assert second is compiled
+        assert len(source_calls) == 1
+
+    def test_partykit_testtype_preserves_combined_controls(self) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        captured: list[str] = []
+
+        class FakeR:
+            @staticmethod
+            def StrVector(values: tuple[str, ...]) -> tuple[str, ...]:
+                captured.extend(values)
+                return values
+
+        assert r_methods._r_testtype(FakeR(), "MonteCarlo") == "MonteCarlo"
+        assert r_methods._r_testtype(
+            FakeR(),
+            ("Bonferroni", "MonteCarlo"),
+        ) == ("Bonferroni", "MonteCarlo")
+        assert captured == ["Bonferroni", "MonteCarlo"]
+        with pytest.raises(ValueError, match="unique"):
+            r_methods._r_testtype(FakeR(), ("MonteCarlo", "MonteCarlo"))
+        with pytest.raises(ValueError, match="unsupported"):
+            r_methods._r_testtype(FakeR(), "Unknown")
+        with pytest.raises(ValueError, match="combined"):
+            r_methods._r_testtype(FakeR(), ("Bonferroni", "Univariate"))
+
     def test_root_feature_maps_diagnostic_anomaly_to_no_split(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -737,7 +952,10 @@ class TestRBoundaryHelpers:
 
         monkeypatch.setattr(r_methods, "r_ctree_root_diagnostics", malformed)
 
-        assert r_methods.r_ctree_root_feature(np.ones((4, 1)), np.array([0, 1, 0, 1])) == -1
+        assert (
+            r_methods.r_ctree_root_feature(np.ones((4, 1)), np.array([0, 1, 0, 1]))
+            == -1
+        )
 
     def test_root_feature_propagates_r_execution_failure(
         self,
@@ -785,7 +1003,9 @@ class TestRBoundaryHelpers:
             (3, 10, 3),
         ],
     )
-    def test_mtry_resolution(self, mtry: int | str | None, n_features: int, expected: int) -> None:
+    def test_mtry_resolution(
+        self, mtry: int | str | None, n_features: int, expected: int
+    ) -> None:
         assert _resolve_mtry(mtry, n_features) == expected
 
     @pytest.mark.parametrize("mtry", [0, 6, "bogus", 1.5, True])
@@ -796,10 +1016,14 @@ class TestRBoundaryHelpers:
     def test_default_core_resolution_uses_detected_cpu_count(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 8)
+        monkeypatch.setattr(
+            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 8
+        )
         assert _resolve_cores(-1) == 8
 
-        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: None)
+        monkeypatch.setattr(
+            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: None
+        )
         assert _resolve_cores(-1) == 1
 
     @pytest.mark.parametrize("cores", [0, -2])
@@ -842,7 +1066,7 @@ class TestRBoundaryHelpers:
             random_state=42,
         )
 
-        assert ranking.tolist() == [3, 2, 1, 0]
+        assert ranking.tolist() == [3, 0, 2, 1]
         assert observed == {
             "task": "classification",
             "teststat": "quadratic",
@@ -870,10 +1094,14 @@ class TestRBoundaryHelpers:
 
         assert versions["r"].startswith("R version ")
         assert versions["partykit"]
+        assert versions["libcoin"]
+        assert versions["mvtnorm"]
 
     @_skip_no_r
     @pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])
-    def test_fresh_process_configures_r_before_running_adapter(self, method: str) -> None:
+    def test_fresh_process_configures_r_before_running_adapter(
+        self, method: str
+    ) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         code = f"""
 import sys
@@ -949,9 +1177,9 @@ class TestRCtreeRanking:
         )
         ranking = r_ctree_ranking(X, y, task="classification")
         assert ranking.shape == (10,)
-        assert not np.array_equal(ranking, np.arange(10)), (
-            "ranking is identity — split extraction broken"
-        )
+        assert not np.array_equal(
+            ranking, np.arange(10)
+        ), "ranking is identity — split extraction broken"
 
     @_skip_no_r
     def test_ranking_not_identity_regression(self) -> None:
@@ -966,9 +1194,9 @@ class TestRCtreeRanking:
         )
         ranking = r_ctree_ranking(X, y, task="regression")
         assert ranking.shape == (10,)
-        assert not np.array_equal(ranking, np.arange(10)), (
-            "ranking is identity — split extraction broken"
-        )
+        assert not np.array_equal(
+            ranking, np.arange(10)
+        ), "ranking is identity — split extraction broken"
 
     @_skip_no_r
     def test_stump_on_noise(self) -> None:
@@ -994,7 +1222,9 @@ class TestRCtreeRanking:
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
     @pytest.mark.parametrize("signal_index", [0, 2, 4])
-    def test_feature_index_matches_known_signal(self, task: str, signal_index: int) -> None:
+    def test_feature_index_matches_known_signal(
+        self, task: str, signal_index: int
+    ) -> None:
         """R model-frame variable IDs must map to the original Python feature."""
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(240)
@@ -1019,7 +1249,9 @@ class TestRCtreeRanking:
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
     @pytest.mark.parametrize("random_state", [1718, 3_238_245_004])
-    def test_root_feature_uses_zero_based_index(self, task: str, random_state: int) -> None:
+    def test_root_feature_uses_zero_based_index(
+        self, task: str, random_state: int
+    ) -> None:
         """The root-feature helper should return the predictive second column."""
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(200)
@@ -1032,7 +1264,9 @@ class TestRCtreeRanking:
 
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
-    def test_root_feature_returns_minus_one_when_tree_has_no_split(self, task: str) -> None:
+    def test_root_feature_returns_minus_one_when_tree_has_no_split(
+        self, task: str
+    ) -> None:
         """A terminal root must not be passed to partykit's split-node accessor."""
         X = np.zeros((40, 4), dtype=np.float64)
         y = (
@@ -1060,7 +1294,7 @@ class TestRCtreeRanking:
         y = (signal > 0).astype(int) if task == "classification" else signal
         kwargs = {
             "task": task,
-            "testtype": "MonteCarlo",
+            "testtype": ("Bonferroni", "MonteCarlo"),
             "nresample": 99,
             "minsplit": 10,
             "minbucket": 4,
@@ -1071,6 +1305,128 @@ class TestRCtreeRanking:
         second = r_ctree_ranking(X, y, **kwargs)
 
         assert np.array_equal(first, second)
+
+
+class TestRBehavior:
+    """Same-fit structure, importance, and prediction extraction."""
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_ctree_behavior_is_complete_and_deterministic(self, task: str) -> None:
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(180)
+        X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])
+        y = np.where(signal > 0, 5, 2) if task == "classification" else signal
+        kwargs = {
+            "task": task,
+            "testtype": "MonteCarlo",
+            "mincriterion": 0.0,
+            "nresample": 39,
+            "maxdepth": 2,
+            "minsplit": 10,
+            "minbucket": 4,
+            "random_state": 42,
+        }
+
+        first = r_ctree_behavior(X[:140], y[:140], X[140:], **kwargs)
+        second = r_ctree_behavior(X[:140], y[:140], X[140:], **kwargs)
+
+        assert first.root_feature == X.shape[1] - 1
+        assert first.split_counts.shape == (X.shape[1],)
+        assert first.split_counts.sum() >= 1
+        assert first.split_counts[first.root_feature] >= 1
+        assert first.predictions.shape == (40,)
+        if task == "classification":
+            assert set(first.predictions).issubset({2, 5})
+            np.testing.assert_array_equal(first.classes, [2, 5])
+            assert first.probabilities is not None
+            assert first.probabilities.shape == (40, 2)
+            np.testing.assert_allclose(first.probabilities.sum(axis=1), 1.0)
+        else:
+            assert np.isfinite(first.predictions).all()
+            assert first.probabilities is None
+            assert first.classes is None
+        assert first.root_feature == second.root_feature
+        np.testing.assert_array_equal(first.split_counts, second.split_counts)
+        np.testing.assert_array_equal(first.predictions, second.predictions)
+        if first.probabilities is not None and second.probabilities is not None:
+            np.testing.assert_array_equal(first.probabilities, second.probabilities)
+
+    @_skip_no_r
+    def test_ctree_behavior_preserves_large_signed_int64_labels(self) -> None:
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(180)
+        X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])
+        labels = np.array([-(2**40), 2**40], dtype=np.int64)
+        y = labels[(signal > 0).astype(np.int64)]
+
+        result = r_ctree_behavior(
+            X[:140],
+            y[:140],
+            X[140:],
+            task="classification",
+            testtype=("Bonferroni", "MonteCarlo"),
+            mincriterion=0.0,
+            nresample=39,
+            maxdepth=2,
+            minsplit=10,
+            minbucket=4,
+            random_state=42,
+        )
+
+        np.testing.assert_array_equal(result.classes, labels)
+        assert set(result.predictions).issubset(set(labels))
+        assert result.probabilities is not None
+        assert result.probabilities.shape == (40, 2)
+        np.testing.assert_allclose(result.probabilities.sum(axis=1), 1.0)
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_cforest_behavior_is_complete_and_deterministic(self, task: str) -> None:
+        rng = np.random.default_rng(1718)
+        signal = rng.standard_normal(180)
+        X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])
+        y = np.where(signal > 0, 5, 2) if task == "classification" else signal
+        kwargs = {
+            "task": task,
+            "testtype": ("Bonferroni", "MonteCarlo"),
+            "mincriterion": 0.0,
+            "nresample": 39,
+            "ntree": 25,
+            "mtry": "all",
+            "maxdepth": 2,
+            "minsplit": 10,
+            "minbucket": 4,
+            "replace": True,
+            "fraction": 1.0,
+            "varimp_nperm": 1,
+            "cores": 1,
+            "random_state": 42,
+        }
+
+        first = r_cforest_behavior(X[:140], y[:140], X[140:], **kwargs)
+        second = r_cforest_behavior(X[:140], y[:140], X[140:], **kwargs)
+
+        assert first.importances.shape == (X.shape[1],)
+        assert not np.isinf(first.importances).any()
+        assert np.isfinite(first.importances).any()
+        assert first.predictions.shape == (40,)
+        if task == "classification":
+            assert set(first.predictions).issubset({2, 5})
+            np.testing.assert_array_equal(first.classes, [2, 5])
+            assert first.probabilities is not None
+            assert first.probabilities.shape == (40, 2)
+            np.testing.assert_allclose(first.probabilities.sum(axis=1), 1.0)
+        else:
+            assert np.isfinite(first.predictions).all()
+            assert first.probabilities is None
+            assert first.classes is None
+        np.testing.assert_allclose(
+            first.importances, second.importances, equal_nan=True
+        )
+        np.testing.assert_array_equal(first.predictions, second.predictions)
+        if first.probabilities is not None and second.probabilities is not None:
+            np.testing.assert_array_equal(first.probabilities, second.probabilities)
 
 
 class TestRCforestRanking:
@@ -1177,9 +1533,13 @@ class TestRCforestRanking:
         assert all(np.array_equal(rankings[0], ranking) for ranking in rankings[1:])
 
     @_skip_no_r
-    def test_default_core_path_is_reproducible(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_core_path_is_reproducible(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Production's cores=-1 path must use deterministic parallel streams."""
-        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
+        monkeypatch.setattr(
+            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2
+        )
         rng = np.random.default_rng(1718)
         X = rng.standard_normal((160, 6))
         y = (X[:, 5] + 0.25 * X[:, 2] > 0).astype(int)
@@ -1204,7 +1564,9 @@ class TestRCforestRanking:
         """Every configured R variant must return a semantically valid ranking."""
         from paper.benchmark.pipeline.methods import get_full_method_configs
 
-        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
+        monkeypatch.setattr(
+            "paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2
+        )
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(80)
         X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])

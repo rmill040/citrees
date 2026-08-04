@@ -117,7 +117,9 @@ def compute_roc_auc(
     """
     unique = np.unique(y_true)
     if unique.size < 2:
-        logger.debug("ROC AUC undefined: y_true has only {} unique class(es)", unique.size)
+        logger.debug(
+            "ROC AUC undefined: y_true has only {} unique class(es)", unique.size
+        )
         return float(np.nan)
 
     if y_proba.ndim == 1:
@@ -139,7 +141,9 @@ def compute_roc_auc(
         return float(np.nan)
 
     return float(
-        roc_auc_score(y_true, y_proba, multi_class="ovr", average="weighted", labels=classes)
+        roc_auc_score(
+            y_true, y_proba, multi_class="ovr", average="weighted", labels=classes
+        )
     )
 
 
@@ -229,7 +233,9 @@ def evaluate_fold(
     if k_values is None:
         k_values = get_requested_evaluation_k_values(n_features)
 
-    downstream_models = CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
+    downstream_models = (
+        CLF_DOWNSTREAM_MODELS if task == "classification" else REG_DOWNSTREAM_MODELS
+    )
     model_factory = get_clf_models if task == "classification" else get_reg_models
 
     results = []
@@ -251,8 +257,12 @@ def evaluate_fold(
             if task == "classification":
                 metrics = {
                     "accuracy": accuracy_score(y_test, y_pred),
-                    "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0.0),
-                    "f1_macro": f1_score(y_test, y_pred, average="macro", zero_division=0.0),
+                    "f1": f1_score(
+                        y_test, y_pred, average="weighted", zero_division=0.0
+                    ),
+                    "f1_macro": f1_score(
+                        y_test, y_pred, average="macro", zero_division=0.0
+                    ),
                     "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
                 }
                 if hasattr(model, "predict_proba"):
@@ -272,7 +282,7 @@ def evaluate_fold(
             results.append(
                 {
                     "k": k,
-                    "n_features_selected": k,
+                    "n_features_selected": int(len(top_k_features)),
                     "downstream_model": model_name,
                     **metrics,
                 }
@@ -307,7 +317,9 @@ def run_evaluation(
         try:
             train_idx, test_idx = splits[fold_idx]
         except IndexError as e:
-            raise ValueError(f"Invalid fold_idx={fold_idx}; expected 0..{len(splits) - 1}") from e
+            raise ValueError(
+                f"Invalid fold_idx={fold_idx}; expected 0..{len(splits) - 1}"
+            ) from e
 
         ranking = np.array(row["feature_ranking"])
         X_train, X_test = X[train_idx], X[test_idx]

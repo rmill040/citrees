@@ -147,6 +147,27 @@ class TestEvaluateFold:
         observed_k = sorted({row["k"] for row in results})
         assert observed_k == [3, 8]
 
+    def test_short_ranking_records_actual_selected_feature_count(self):
+        """A requested budget above ranking length must report the indexed columns."""
+        rng = np.random.default_rng(1718)
+        X = rng.normal(size=(40, 5))
+        y = X[:, 0] - 0.5 * X[:, 2] + rng.normal(scale=0.1, size=40)
+
+        results = evaluate_fold(
+            X[:30],
+            y[:30],
+            X[30:],
+            y[30:],
+            np.array([2, 0, 1]),
+            task="regression",
+            random_state=0,
+            k_values=[5],
+            n_jobs=1,
+        )
+
+        assert {row["k"] for row in results} == {5}
+        assert {row["n_features_selected"] for row in results} == {3}
+
 
 class TestEvaluationKBudgets:
     """Tests for Stage 2 k-budget scheduling helpers."""
@@ -195,7 +216,11 @@ def test_stage2_keys_rankings_by_fold_id_when_rows_are_shuffled(
 ) -> None:
     """Ranking row order must not change the fold-to-ranking assignment."""
     from paper.benchmark.pipeline import stage2
-    from paper.benchmark.pipeline.types import DatasetIdentity, ExperimentConfig, MethodConfig
+    from paper.benchmark.pipeline.types import (
+        DatasetIdentity,
+        ExperimentConfig,
+        MethodConfig,
+    )
 
     config = ExperimentConfig(
         method=MethodConfig("rf"),
@@ -210,7 +235,9 @@ def test_stage2_keys_rankings_by_fold_id_when_rows_are_shuffled(
     rankings = pd.DataFrame(
         {
             "fold_idx": list(range(5)),
-            "feature_ranking": [np.roll(np.arange(5), fold).tolist() for fold in range(5)],
+            "feature_ranking": [
+                np.roll(np.arange(5), fold).tolist() for fold in range(5)
+            ],
         }
     )
 
@@ -268,7 +295,11 @@ def test_run_evaluation_validates_and_round_trips_complete_artifact(
     """The real Stage 2 entry point must save a validator-complete artifact."""
     from paper.benchmark.config.constants import PIPELINE_ARTIFACT_VERSION
     from paper.benchmark.pipeline import stage2
-    from paper.benchmark.pipeline.types import DatasetIdentity, ExperimentConfig, MethodConfig
+    from paper.benchmark.pipeline.types import (
+        DatasetIdentity,
+        ExperimentConfig,
+        MethodConfig,
+    )
     from paper.benchmark.pipeline.validation import validate_metrics_artifact
 
     config = ExperimentConfig(

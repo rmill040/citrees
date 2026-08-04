@@ -27,9 +27,11 @@ def _fake_runner(
     output_dir: Path,
     base_seed: int,
     dgrp_data_dir: Path,
+    shard_root: Path | None,
 ) -> AnalysisExecution:
     assert base_seed == 7
     assert dgrp_data_dir.name == "dgrp-data"
+    del shard_root
     output_dir.mkdir(parents=True)
     artifact = output_dir / f"{spec.name}.txt"
     artifact.write_text(f"{spec.name}\n", encoding="ascii")
@@ -100,6 +102,7 @@ def test_child_commands_forward_profile_seed_output_and_dgrp_data(tmp_path: Path
         tmp_path / "calibration",
         7,
         tmp_path / "dgrp-data",
+        None,
     )
     assert profiled[:3] == (
         replicate.sys.executable,
@@ -114,10 +117,61 @@ def test_child_commands_forward_profile_seed_output_and_dgrp_data(tmp_path: Path
         tmp_path / "dgrp",
         7,
         tmp_path / "dgrp-data",
+        None,
     )
     assert "--profile" not in dgrp
     assert "--seed" not in dgrp
     assert dgrp[-2:] == ("--data-dir", str(tmp_path / "dgrp-data"))
+
+
+def test_distributed_commands_merge_calibration_and_behavior_shards(
+    tmp_path: Path,
+) -> None:
+    shard_root = tmp_path / "shards"
+    calibration = _analysis_command(
+        ANALYSES[0],
+        "full",
+        tmp_path / "calibration",
+        7,
+        tmp_path / "dgrp-data",
+        shard_root,
+    )
+    behavior = _analysis_command(
+        ANALYSES[1],
+        "full",
+        tmp_path / "behavior",
+        7,
+        tmp_path / "dgrp-data",
+        shard_root,
+    )
+    performance = _analysis_command(
+        ANALYSES[2],
+        "full",
+        tmp_path / "performance",
+        7,
+        tmp_path / "dgrp-data",
+        shard_root,
+    )
+
+    assert calibration[:4] == (
+        replicate.sys.executable,
+        "-m",
+        "paper.jss.replication.shards",
+        "calibration-merge",
+    )
+    assert calibration[-4:] == (
+        "--shard-root",
+        str(shard_root / "calibration"),
+        "--output-dir",
+        str(tmp_path / "calibration"),
+    )
+    assert behavior[3] == "behavior-merge"
+    assert str(shard_root / "behavior") in behavior
+    assert performance[:3] == (
+        replicate.sys.executable,
+        "-m",
+        "paper.jss.replication.performance",
+    )
 
 
 def test_replication_atomically_publishes_receipts_hashes_and_transcript(
@@ -141,6 +195,8 @@ def test_replication_atomically_publishes_receipts_hashes_and_transcript(
     assert receipt["schema_version"] == 1
     assert receipt["profile"] == "smoke"
     assert receipt["base_seed"] == 7
+    assert receipt["execution_mode"] == "serial"
+    assert receipt["distributed_analyses"] == []
     assert set(receipt["child_receipts"]) == {spec.name for spec in ANALYSES}
     assert set(receipt["executions"]) == {spec.name for spec in ANALYSES}
     assert "paper/jss/replication/replicate.py" in receipt["source_sha256"]
@@ -160,6 +216,66 @@ def test_replication_atomically_publishes_receipts_hashes_and_transcript(
         assert artifact.is_file()
         assert metadata["bytes"] == artifact.stat().st_size
         assert metadata["sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
+
+
+def test_replication_records_distributed_dispatch(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "replication-output"
+    dgrp_data_dir = tmp_path / "dgrp-data"
+    dgrp_data_dir.mkdir()
+    shard_root = tmp_path / "shards"
+    (shard_root / "calibration").mkdir(parents=True)
+    (shard_root / "behavior").mkdir()
+    observed_roots: list[Path | None] = []
+
+    def distributed_runner(
+        spec: AnalysisSpec,
+        profile: replicate.Profile,
+        child_dir: Path,
+        base_seed: int,
+        observed_data_dir: Path,
+        observed_shard_root: Path | None,
+    ) -> AnalysisExecution:
+        observed_roots.append(observed_shard_root)
+        return _fake_runner(
+            spec,
+            profile,
+            child_dir,
+            base_seed,
+            observed_data_dir,
+            observed_shard_root,
+        )
+
+    run_replication(
+        "smoke",
+        output_dir,
+        base_seed=7,
+        dgrp_data_dir=dgrp_data_dir,
+        shard_root=shard_root,
+        runner=distributed_runner,
+    )
+
+    receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
+    assert receipt["execution_mode"] == "distributed"
+    assert receipt["distributed_analyses"] == ["behavior", "calibration"]
+    assert "paper/jss/replication/shards.py" in receipt["source_sha256"]
+    assert observed_roots == [shard_root.resolve()] * len(ANALYSES)
+    transcript = (output_dir / "transcript.txt").read_text(encoding="utf-8")
+    assert "execution_mode: distributed" in transcript
+
+
+def test_distributed_replication_requires_both_shard_trees(tmp_path: Path) -> None:
+    shard_root = tmp_path / "shards"
+    (shard_root / "calibration").mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="behavior"):
+        run_replication(
+            "smoke",
+            tmp_path / "output",
+            shard_root=shard_root,
+            runner=_fake_runner,
+        )
 
 
 def test_replication_rejects_existing_output(tmp_path: Path) -> None:
@@ -186,7 +302,9 @@ def test_failed_child_is_not_published(tmp_path: Path) -> None:
         child_dir: Path,
         base_seed: int,
         observed_data_dir: Path,
+        shard_root: Path | None,
     ) -> AnalysisExecution:
+        assert shard_root is None
         if spec.name == "behavior":
             return AnalysisExecution(
                 command=("fake-analysis", spec.name),
@@ -201,6 +319,7 @@ def test_failed_child_is_not_published(tmp_path: Path) -> None:
             child_dir,
             base_seed,
             observed_data_dir,
+            shard_root,
         )
 
     with pytest.raises(RuntimeError, match="behavior failed"):
@@ -219,7 +338,7 @@ def test_child_receipt_validation_rejects_artifact_corruption(tmp_path: Path) ->
     output_dir = tmp_path / spec.name
     data_dir = tmp_path / "dgrp-data"
     data_dir.mkdir()
-    _fake_runner(spec, "smoke", output_dir, 7, data_dir)
+    _fake_runner(spec, "smoke", output_dir, 7, data_dir, None)
     artifact = output_dir / f"{spec.name}.txt"
     artifact.write_text("corrupted\n", encoding="ascii")
 
@@ -239,7 +358,7 @@ def test_child_receipt_validation_rejects_source_or_revision_mismatch(tmp_path: 
     data_dir.mkdir()
 
     wrong_source_dir = tmp_path / "wrong-source"
-    _fake_runner(spec, "smoke", wrong_source_dir, 7, data_dir)
+    _fake_runner(spec, "smoke", wrong_source_dir, 7, data_dir, None)
     wrong_source_receipt = json.loads(
         (wrong_source_dir / "receipt.json").read_text(encoding="ascii")
     )
@@ -259,7 +378,7 @@ def test_child_receipt_validation_rejects_source_or_revision_mismatch(tmp_path: 
         )
 
     wrong_revision_dir = tmp_path / "wrong-revision"
-    _fake_runner(spec, "smoke", wrong_revision_dir, 7, data_dir)
+    _fake_runner(spec, "smoke", wrong_revision_dir, 7, data_dir, None)
     wrong_revision_receipt = json.loads(
         (wrong_revision_dir / "receipt.json").read_text(encoding="ascii")
     )

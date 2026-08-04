@@ -106,6 +106,21 @@ def test_full_profile_separates_fixed_budget_and_fitted_tree_estimands() -> None
     }
 
 
+def test_frozen_calibration_seed_inventory_is_injective() -> None:
+    seeds = [
+        _stream_seed(calibration.BASE_SEED, design, replicate, stream)
+        for (stream, design), (_offset, replicate_limit) in (
+            calibration._seed_namespace_offsets().items()
+        )
+        for replicate in range(replicate_limit)
+    ]
+
+    assert len(seeds) == 458_248
+    assert len(seeds) == len(set(seeds))
+    assert min(seeds) >= 0
+    assert max(seeds) < calibration.SEED_MODULUS
+
+
 def test_smoke_and_quick_selector_scenario_inventories_are_exact() -> None:
     expected = {
         "smoke": {

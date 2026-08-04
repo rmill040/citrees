@@ -64,14 +64,23 @@ def _plus_one_values(indices: np.ndarray, n_resamples: int) -> np.ndarray:
     return (indices + 1) / (n_resamples + 1)
 
 
-def _synthetic_tree_raw() -> pd.DataFrame:
+def _synthetic_tree_raw(base_seed: int | None = None) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
     for task_index, task in enumerate(("classification", "regression")):
         _, features = _cardinality_matrix(
             np.random.default_rng(100 + task_index),
             CARDINALITY_N_SAMPLES,
         )
-        data_seed = 500 + task_index
+        data_seed = (
+            500 + task_index
+            if base_seed is None
+            else calibration._stream_seed(
+                base_seed,
+                f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}",
+                0,
+                "data",
+            )
+        )
         citrees_indices = np.asarray([100, 200, 300, 400, 500], dtype=np.int64)
         citrees_budget = CARDINALITY_B * len(CARDINALITY_SUPPORTS)
         citrees_p_values = _plus_one_values(citrees_indices, citrees_budget)
@@ -95,7 +104,16 @@ def _synthetic_tree_raw() -> pd.DataFrame:
                 selector="mc" if task == "classification" else "pc",
                 replicate=0,
                 data_seed=data_seed,
-                model_seed=700 + task_index,
+                model_seed=(
+                    700 + task_index
+                    if base_seed is None
+                    else calibration._stream_seed(
+                        base_seed,
+                        f"{task}__citrees__n{CARDINALITY_N_SAMPLES}",
+                        0,
+                        "model",
+                    )
+                ),
             )
         )
 
@@ -120,7 +138,16 @@ def _synthetic_tree_raw() -> pd.DataFrame:
                 selector="quadratic",
                 replicate=0,
                 data_seed=data_seed,
-                model_seed=800 + task_index,
+                model_seed=(
+                    800 + task_index
+                    if base_seed is None
+                    else calibration._stream_seed(
+                        base_seed,
+                        f"{task}__partykit__n{CARDINALITY_N_SAMPLES}",
+                        0,
+                        "model",
+                    )
+                ),
             )
         )
 
@@ -132,7 +159,16 @@ def _synthetic_tree_raw() -> pd.DataFrame:
                 task=task,
                 replicate=0,
                 data_seed=data_seed,
-                model_seed=900 + task_index,
+                model_seed=(
+                    900 + task_index
+                    if base_seed is None
+                    else calibration._stream_seed(
+                        base_seed,
+                        f"{task}__cart__n{CARDINALITY_N_SAMPLES}",
+                        0,
+                        "model",
+                    )
+                ),
                 native_selected_position=int(np.argmax(scores)),
             )
         )
@@ -151,7 +187,7 @@ def _position_aligned_values(
     return values
 
 
-def _synthetic_forest_raw() -> pd.DataFrame:
+def _synthetic_forest_raw(base_seed: int | None = None) -> pd.DataFrame:
     patterns = {
         "citrees_cif": [1.0, 2.0, 3.0, 4.0, 5.0],
         "partykit_cforest": [3.0, 2.0, 5.0, 1.0, 4.0],
@@ -164,7 +200,16 @@ def _synthetic_forest_raw() -> pd.DataFrame:
                 np.random.default_rng(200 + task_index * 10 + replicate),
                 CARDINALITY_N_SAMPLES,
             )
-            data_seed = 1_000 + task_index * 10 + replicate
+            data_seed = (
+                1_000 + task_index * 10 + replicate
+                if base_seed is None
+                else calibration._stream_seed(
+                    base_seed,
+                    f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}",
+                    replicate,
+                    "data",
+                )
+            )
             for method_index, (method, pattern) in enumerate(patterns.items()):
                 frames.append(
                     build_cardinality_forest_raw(
@@ -174,7 +219,16 @@ def _synthetic_forest_raw() -> pd.DataFrame:
                         method=method,  # type: ignore[arg-type]
                         replicate=replicate,
                         data_seed=data_seed,
-                        model_seed=1_100 + task_index * 100 + replicate * 10 + method_index,
+                        model_seed=(
+                            1_100 + task_index * 100 + replicate * 10 + method_index
+                            if base_seed is None
+                            else calibration._stream_seed(
+                                base_seed,
+                                f"{task}__{method}__n{CARDINALITY_N_SAMPLES}",
+                                replicate,
+                                "model",
+                            )
+                        ),
                     )
                 )
     raw = pd.concat(frames, ignore_index=True)
@@ -619,8 +673,12 @@ def test_run_calibration_and_writer_emit_every_validated_table(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    tree_raw = _synthetic_tree_raw()
-    forest_raw = _synthetic_forest_raw()
+    tree_raw = _synthetic_tree_raw(base_seed=7)
+    forest_raw = (
+        _synthetic_forest_raw(base_seed=7)
+        .loc[lambda frame: frame["replicate"].eq(0)]
+        .reset_index(drop=True)
+    )
     monkeypatch.setattr(
         calibration,
         "run_cardinality_trees",
@@ -633,7 +691,7 @@ def test_run_calibration_and_writer_emit_every_validated_table(
     )
 
     results = run_calibration("smoke", base_seed=7)
-    validate_calibration_results(results)
+    validate_calibration_results(results, profile="smoke", base_seed=7)
 
     assert set(results) == set(CALIBRATION_RESULT_SCHEMAS)
     assert all(
@@ -641,7 +699,7 @@ def test_run_calibration_and_writer_emit_every_validated_table(
         for name, schema in CALIBRATION_RESULT_SCHEMAS.items()
     )
     assert len(results["cardinality_tree_raw"]) == 30
-    assert len(results["cardinality_forest_raw"]) == 60
+    assert len(results["cardinality_forest_raw"]) == 30
     assert len(results["cardinality_holm_family"]) == 14
 
     write_results(

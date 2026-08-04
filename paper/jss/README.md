@@ -89,6 +89,33 @@ artifact hash before atomically publishing the combined output directory. Use
 `--output-dir` for a new destination; an existing destination is rejected to
 prevent results from different executions from being mixed.
 
+Calibration and matched behavior support deterministic distributed execution.
+Each worker runs one indexed shard into the corresponding analysis directory:
+
+```bash
+uv run python -m paper.jss.replication.shards calibration-shard \
+  --component selector --profile full --shard-index 0 --num-shards 100 \
+  --output-dir <shard-root>/calibration/selector/00000
+
+uv run python -m paper.jss.replication.shards behavior-shard \
+  --profile full --shard-index 0 --num-shards 100 \
+  --output-dir <shard-root>/behavior/00000
+```
+
+The calibration components are `selector`, `root`, `cardinality_tree`, and
+`cardinality_forest`. Every index from zero through `num-shards - 1` is
+required for each component. The canonical suite merges complete shard trees:
+
+```bash
+uv run python -m paper.jss.replication --profile full \
+  --shard-root <shard-root> --output-dir <result-root>
+```
+
+The merge validates assignment coverage, source and input hashes, package and R
+versions, artifact hashes, schemas, row inventories, and execution contexts.
+The combined output includes the shard receipts used to construct each final
+analysis.
+
 ## Manuscript
 
 The source uses version 3.6 of the official JSS LaTeX style downloaded from:

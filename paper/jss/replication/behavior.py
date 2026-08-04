@@ -15,6 +15,7 @@ import json
 import platform
 import subprocess
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -248,6 +249,23 @@ BEHAVIOR_RESULT_SCHEMAS: dict[str, tuple[str, ...]] = {
         "bootstrap_resamples",
     ),
 }
+BEHAVIOR_RAW_TABLES = tuple(name for name in BEHAVIOR_RESULT_SCHEMAS if name != "behavior_summary")
+BEHAVIOR_STORAGE_DTYPES: dict[str, dict[str, str | type[object]]] = {
+    "behavior_fold_summary": {"root_comparison": object},
+    "behavior_probability_raw": {
+        "task": "str",
+        "dataset": "str",
+        "dataset_sha256": "str",
+        "model_family": "str",
+        "method": "str",
+        "repeat": "int64",
+        "fold": "int64",
+        "model_seed": "int64",
+        "sample_id": "int64",
+        "class_label": "int64",
+        "probability": "float64",
+    },
+}
 
 SUMMARY_METRICS = (
     "split_decision_agreement",
@@ -274,6 +292,17 @@ SUMMARY_METRICS = (
 )
 
 
+def normalize_behavior_table(
+    table_name: str,
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
+    """Apply the frozen in-memory dtypes used for Parquet serialization."""
+    normalized = frame.copy()
+    for column, dtype in BEHAVIOR_STORAGE_DTYPES.get(table_name, {}).items():
+        normalized[column] = normalized[column].astype(dtype)
+    return normalized
+
+
 @dataclass(frozen=True)
 class BehaviorSettings:
     """Workload and model controls for one replication profile."""
@@ -284,6 +313,18 @@ class BehaviorSettings:
     n_trees: int
     importance_permutations: int
     summary_resamples: int
+
+
+@dataclass(frozen=True, order=True)
+class BehaviorCell:
+    """One paired implementation comparison on one held-out partition."""
+
+    task: Task
+    dataset: str
+    model_family: ModelFamily
+    split_index: int
+    repeat: int
+    fold: int
 
 
 @dataclass(frozen=True)
@@ -407,7 +448,7 @@ def load_behavior_datasets() -> tuple[DatasetSpec, DatasetSpec]:
 
 def _tree_split_counts(tree: Node, n_features: int) -> np.ndarray:
     """Count split-variable usage in a fitted citrees tree."""
-    counts = np.zeros(n_features, dtype=np.float64)
+    counts: np.ndarray = np.zeros(n_features, dtype=np.float64)
     stack = [tree]
     while stack:
         node = stack.pop()
@@ -470,9 +511,7 @@ def _fit_citrees(
                 else None
             ),
             classes=(
-                np.asarray(model.classes_, dtype=np.int64)
-                if task == "classification"
-                else None
+                np.asarray(model.classes_, dtype=np.int64) if task == "classification" else None
             ),
         )
 
@@ -506,11 +545,7 @@ def _fit_citrees(
             if task == "classification"
             else None
         ),
-        classes=(
-            np.asarray(model.classes_, dtype=np.int64)
-            if task == "classification"
-            else None
-        ),
+        classes=(np.asarray(model.classes_, dtype=np.int64) if task == "classification" else None),
     )
 
 
@@ -683,9 +718,7 @@ def _prediction_metrics(
             or partykit_behavior.classes is None
             or not np.array_equal(citrees_behavior.classes, partykit_behavior.classes)
         ):
-            raise ValueError(
-                "Classification behavior requires aligned class probabilities"
-            )
+            raise ValueError("Classification behavior requires aligned class probabilities")
         classes = citrees_behavior.classes
         citrees_probabilities = citrees_behavior.probabilities
         partykit_probabilities = partykit_behavior.probabilities
@@ -700,15 +733,11 @@ def _prediction_metrics(
         )
         return {
             "prediction_metric": "balanced_accuracy",
-            "citrees_prediction_score": float(
-                balanced_accuracy_score(y_true, citrees_predictions)
-            ),
+            "citrees_prediction_score": float(balanced_accuracy_score(y_true, citrees_predictions)),
             "partykit_prediction_score": float(
                 balanced_accuracy_score(y_true, partykit_predictions)
             ),
-            "prediction_agreement": float(
-                np.mean(citrees_predictions == partykit_predictions)
-            ),
+            "prediction_agreement": float(np.mean(citrees_predictions == partykit_predictions)),
             "prediction_correlation": float("nan"),
             "prediction_mean_absolute_difference": float("nan"),
             "citrees_mean_absolute_error": float("nan"),
@@ -719,12 +748,8 @@ def _prediction_metrics(
             "probability_spearman_correlation": probability_correlation,
             "citrees_roc_auc": float(roc_auc_score(y_true, citrees_positive)),
             "partykit_roc_auc": float(roc_auc_score(y_true, partykit_positive)),
-            "citrees_log_loss": float(
-                log_loss(y_true, citrees_probabilities, labels=classes)
-            ),
-            "partykit_log_loss": float(
-                log_loss(y_true, partykit_probabilities, labels=classes)
-            ),
+            "citrees_log_loss": float(log_loss(y_true, citrees_probabilities, labels=classes)),
+            "partykit_log_loss": float(log_loss(y_true, partykit_probabilities, labels=classes)),
         }
 
     correlation = (
@@ -734,23 +759,15 @@ def _prediction_metrics(
     )
     return {
         "prediction_metric": "root_mean_squared_error",
-        "citrees_prediction_score": float(
-            mean_squared_error(y_true, citrees_predictions) ** 0.5
-        ),
-        "partykit_prediction_score": float(
-            mean_squared_error(y_true, partykit_predictions) ** 0.5
-        ),
+        "citrees_prediction_score": float(mean_squared_error(y_true, citrees_predictions) ** 0.5),
+        "partykit_prediction_score": float(mean_squared_error(y_true, partykit_predictions) ** 0.5),
         "prediction_agreement": float("nan"),
         "prediction_correlation": correlation,
         "prediction_mean_absolute_difference": float(
             np.mean(np.abs(citrees_predictions - partykit_predictions))
         ),
-        "citrees_mean_absolute_error": float(
-            mean_absolute_error(y_true, citrees_predictions)
-        ),
-        "partykit_mean_absolute_error": float(
-            mean_absolute_error(y_true, partykit_predictions)
-        ),
+        "citrees_mean_absolute_error": float(mean_absolute_error(y_true, citrees_predictions)),
+        "partykit_mean_absolute_error": float(mean_absolute_error(y_true, partykit_predictions)),
         "probability_mean_absolute_difference": float("nan"),
         "probability_spearman_correlation": float("nan"),
         "citrees_roc_auc": float("nan"),
@@ -777,9 +794,7 @@ def _fold_pair_row(
     partykit_values = _ranking_values(partykit_behavior.feature_values)
     citrees_ranking_informative = _native_ranking_informative(citrees_values)
     partykit_ranking_informative = _native_ranking_informative(partykit_values)
-    both_rankings_informative = (
-        citrees_ranking_informative and partykit_ranking_informative
-    )
+    both_rankings_informative = citrees_ranking_informative and partykit_ranking_informative
     top_k = min(TOP_K, len(citrees_values))
     tau = float("nan")
     top_jaccard = float("nan")
@@ -883,9 +898,7 @@ def _feature_definition(method: Method, family: ModelFamily) -> str:
     if family == "tree":
         return "split_count"
     return (
-        "normalized_impurity_decrease"
-        if method == "citrees"
-        else "partykit_permutation_importance"
+        "normalized_impurity_decrease" if method == "citrees" else "partykit_permutation_importance"
     )
 
 
@@ -894,6 +907,7 @@ def _run_dataset(
     settings: BehaviorSettings,
     *,
     base_seed: int,
+    selected_cells: frozenset[tuple[int, ModelFamily]] | None = None,
 ) -> tuple[
     list[dict[str, object]],
     list[dict[str, object]],
@@ -911,6 +925,13 @@ def _run_dataset(
     for split_index, (train_indices, test_indices) in enumerate(
         splitter.split(dataset.X, dataset.y)
     ):
+        families = tuple(
+            family
+            for family in MODEL_FAMILIES
+            if selected_cells is None or (split_index, family) in selected_cells
+        )
+        if not families:
+            continue
         repeat, fold = divmod(split_index, settings.n_splits)
         X_train = dataset.X[train_indices]
         X_test = dataset.X[test_indices]
@@ -918,7 +939,7 @@ def _run_dataset(
         y_test = dataset.y[test_indices]
         train_ids_sha256 = _index_sha256(train_indices)
         test_ids_sha256 = _index_sha256(test_indices)
-        for family in MODEL_FAMILIES:
+        for family in families:
             model_seed = _stream_seed(
                 base_seed,
                 dataset.task,
@@ -970,9 +991,7 @@ def _run_dataset(
                         "n_train": len(train_indices),
                         "n_test": len(test_indices),
                         "n_features": dataset.X.shape[1],
-                        "root_feature": (
-                            first.root_feature if family == "tree" else pd.NA
-                        ),
+                        "root_feature": (first.root_feature if family == "tree" else pd.NA),
                         "native_output_reproducible": reproducibility[method][0],
                         "predictions_reproducible": reproducibility[method][1],
                     }
@@ -1180,9 +1199,7 @@ def validate_behavior_results(
 ) -> None:
     """Require complete paired folds, tie-aware rankings, and predictions."""
     if set(results) != set(BEHAVIOR_RESULT_SCHEMAS):
-        raise ValueError(
-            f"Behavior tables differ from the required set: {sorted(results)}"
-        )
+        raise ValueError(f"Behavior tables differ from the required set: {sorted(results)}")
     for name, schema in BEHAVIOR_RESULT_SCHEMAS.items():
         frame = results[name]
         if frame.empty or tuple(frame.columns) != schema:
@@ -1282,13 +1299,8 @@ def validate_behavior_results(
         for row in frame.itertuples(index=False):
             dataset = dataset_by_name[str(row.dataset)]
             if str(row.task) != dataset.task:
-                raise ValueError(
-                    f"{table_name} task labels differ from dataset provenance"
-                )
-            if (
-                hasattr(row, "dataset_sha256")
-                and str(row.dataset_sha256) != dataset.sha256
-            ):
+                raise ValueError(f"{table_name} task labels differ from dataset provenance")
+            if hasattr(row, "dataset_sha256") and str(row.dataset_sha256) != dataset.sha256:
                 raise ValueError(f"{table_name} hashes differ from dataset provenance")
 
     expected_splits: dict[tuple[str, str, int, int], dict[str, object]] = {}
@@ -1341,9 +1353,7 @@ def validate_behavior_results(
         )
     }
     if observed_fit_keys != expected_fit_keys:
-        raise ValueError(
-            "Behavior fits differ from the required dataset and fold coverage"
-        )
+        raise ValueError("Behavior fits differ from the required dataset and fold coverage")
     if len(fits) != len(folds) * 2:
         raise ValueError("Every paired fold must contain both implementations")
     if not fits.groupby(pair_key)["method"].agg(set).eq({"citrees", "partykit"}).all():
@@ -1359,9 +1369,7 @@ def validate_behavior_results(
         "n_features",
     )
     if not fits.groupby(pair_key)[list(paired_controls)].nunique().eq(1).all().all():
-        raise ValueError(
-            "Paired implementations must share folds, seeds, and dimensions"
-        )
+        raise ValueError("Paired implementations must share folds, seeds, and dimensions")
     for fit in fits.itertuples(index=False):
         split = expected_splits[
             (
@@ -1380,13 +1388,8 @@ def validate_behavior_results(
             fit.repeat,
             fit.fold,
         )
-        if (
-            fit.split_seed != expected_split_seed
-            or fit.model_seed != expected_model_seed
-        ):
-            raise ValueError(
-                "Recorded behavior seeds must be derived from the base seed"
-            )
+        if fit.split_seed != expected_split_seed or fit.model_seed != expected_model_seed:
+            raise ValueError("Recorded behavior seeds must be derived from the base seed")
         if any(
             getattr(fit, column) != split[column]
             for column in (
@@ -1397,28 +1400,20 @@ def validate_behavior_results(
                 "n_features",
             )
         ):
-            raise ValueError(
-                "Recorded held-out fold differs from the frozen dataset split"
-            )
+            raise ValueError("Recorded held-out fold differs from the frozen dataset split")
         if fit.model_family == "tree":
             root = int(fit.root_feature)
             if root < -1 or root >= int(fit.n_features):
-                raise ValueError(
-                    "Tree root feature must be -1 or a valid feature index"
-                )
+                raise ValueError("Tree root feature must be -1 or a valid feature index")
         elif pd.notna(fit.root_feature):
             raise ValueError("Forest fits must not contain tree-root values")
-    reproducible = fits[
-        ["native_output_reproducible", "predictions_reproducible"]
-    ].astype(bool)
+    reproducible = fits[["native_output_reproducible", "predictions_reproducible"]].astype(bool)
     if not reproducible.all().all():
         failed = fits.loc[
             ~reproducible.all(axis=1),
             [*fit_key, "native_output_reproducible", "predictions_reproducible"],
         ].to_dict(orient="records")
-        raise ValueError(
-            f"Same-seed refits changed reported outputs or predictions: {failed}"
-        )
+        raise ValueError(f"Same-seed refits changed reported outputs or predictions: {failed}")
 
     fit_index = fits.set_index(fit_key)
     fit_seeds = fit_index["model_seed"]
@@ -1438,19 +1433,12 @@ def validate_behavior_results(
                 expected_seeds.to_numpy(dtype=np.uint64),
             )
         ):
-            raise ValueError(
-                f"{table_name} raw model seeds must match fitted model seeds"
-            )
+            raise ValueError(f"{table_name} raw model seeds must match fitted model seeds")
 
     feature_key = [*fit_key, "feature_id"]
     if features.duplicated(feature_key).any():
         raise ValueError("Behavior feature keys must be unique")
-    if (
-        not features.groupby(["dataset", "feature_id"])["feature_name"]
-        .nunique()
-        .eq(1)
-        .all()
-    ):
+    if not features.groupby(["dataset", "feature_id"])["feature_name"].nunique().eq(1).all():
         raise ValueError("Feature names must remain fixed within each dataset")
     for keys, group in features.groupby(fit_key, sort=False):
         fit = fit_index.loc[keys]
@@ -1465,22 +1453,16 @@ def validate_behavior_results(
         if tuple(ordered["feature_name"].astype(str)) != dataset.feature_names:
             raise ValueError("Feature names differ from the frozen dataset")
         if set(ordered["feature_definition"]) != {
-            _feature_definition(
-                cast(Method, str(keys[3])), cast(ModelFamily, str(keys[2]))
-            )
+            _feature_definition(cast(Method, str(keys[3])), cast(ModelFamily, str(keys[2])))
         }:
-            raise ValueError(
-                "Feature definitions differ from the fitted implementation"
-            )
+            raise ValueError("Feature definitions differ from the fitted implementation")
         values = ordered["feature_value"].to_numpy(dtype=np.float64)
         missing = np.isnan(values)
         if np.isinf(values).any() or not np.array_equal(
             ordered["feature_value_missing"].to_numpy(dtype=bool),
             missing,
         ):
-            raise ValueError(
-                "Feature values and missingness indicators are inconsistent"
-            )
+            raise ValueError("Feature values and missingness indicators are inconsistent")
         expected_ranking_values = _ranking_values(values)
         if not np.array_equal(
             ordered["ranking_value"].to_numpy(dtype=np.float64),
@@ -1489,26 +1471,18 @@ def validate_behavior_results(
             ordered["rank"].to_numpy(dtype=np.int64),
             _tie_ranks(values),
         ):
-            raise ValueError(
-                "Feature rankings must preserve native ties and structural zeros"
-            )
+            raise ValueError("Feature rankings must preserve native ties and structural zeros")
 
         family_name = str(keys[2])
         method_name = str(keys[3])
         if missing.any() and (family_name != "forest" or method_name != "partykit"):
-            raise ValueError(
-                "Only omitted partykit forest importance values may be missing"
-            )
+            raise ValueError("Only omitted partykit forest importance values may be missing")
         if family_name == "forest":
             if ordered["is_root"].notna().any() or pd.notna(fit["root_feature"]):
                 raise ValueError("Forest rows must not contain tree-root values")
             continue
 
-        if (
-            missing.any()
-            or (values < 0).any()
-            or not np.equal(values, np.floor(values)).all()
-        ):
+        if missing.any() or (values < 0).any() or not np.equal(values, np.floor(values)).all():
             raise ValueError("Tree split counts must be complete nonnegative integers")
         root = int(fit["root_feature"])
         expected_root = np.arange(n_features) == root
@@ -1522,26 +1496,12 @@ def validate_behavior_results(
     prediction_key = [*fit_key, "sample_id"]
     if predictions.duplicated(prediction_key).any():
         raise ValueError("Behavior prediction keys must be unique")
-    if not np.isfinite(
-        predictions[["y_true", "prediction"]].to_numpy(dtype=np.float64)
-    ).all():
+    if not np.isfinite(predictions[["y_true", "prediction"]].to_numpy(dtype=np.float64)).all():
         raise ValueError("Behavior predictions and outcomes must be finite")
-    if (
-        not predictions.groupby(["dataset", "sample_id"])["y_true"]
-        .nunique()
-        .eq(1)
-        .all()
-    ):
+    if not predictions.groupby(["dataset", "sample_id"])["y_true"].nunique().eq(1).all():
         raise ValueError("Sample outcomes must remain fixed across fits")
-    if (
-        not predictions.groupby([*pair_key, "sample_id"])["method"]
-        .nunique()
-        .eq(2)
-        .all()
-    ):
-        raise ValueError(
-            "Every held-out sample must have both implementation predictions"
-        )
+    if not predictions.groupby([*pair_key, "sample_id"])["method"].nunique().eq(2).all():
+        raise ValueError("Every held-out sample must have both implementation predictions")
     for keys, group in predictions.groupby(fit_key, sort=False):
         fit = fit_index.loc[keys]
         sample_ids = group["sample_id"].to_numpy(dtype=np.int64)
@@ -1564,9 +1524,7 @@ def validate_behavior_results(
             raise ValueError("Recorded outcomes differ from the frozen dataset")
         train_ids = np.setdiff1d(np.arange(n_total), sample_ids)
         if _index_sha256(train_ids) != fit["train_ids_sha256"]:
-            raise ValueError(
-                "Recorded training and held-out folds are not complementary"
-            )
+            raise ValueError("Recorded training and held-out folds are not complementary")
     for _keys, group in predictions.groupby(
         ["task", "dataset", "model_family", "method", "repeat"],
         sort=False,
@@ -1581,9 +1539,7 @@ def validate_behavior_results(
         not probabilities["task"].eq("classification").all()
         or not probabilities["probability"].between(0.0, 1.0).all()
     ):
-        raise ValueError(
-            "Probability rows must contain valid classification probabilities"
-        )
+        raise ValueError("Probability rows must contain valid classification probabilities")
     classification_predictions = predictions[predictions["task"] == "classification"]
     class_labels_by_dataset = {
         dataset: np.sort(group["y_true"].unique().astype(np.int64))
@@ -1597,9 +1553,7 @@ def validate_behavior_results(
             ordered["class_label"].to_numpy(dtype=np.int64),
             expected_classes,
         ) or not np.isclose(ordered["probability"].sum(), 1.0):
-            raise ValueError(
-                "Probability rows must align to every observed class and sum to one"
-            )
+            raise ValueError("Probability rows must align to every observed class and sum to one")
     if (
         not classification_predictions["prediction"]
         .isin(probabilities["class_label"].unique())
@@ -1612,16 +1566,12 @@ def validate_behavior_results(
         .eq(2)
         .all()
     ):
-        raise ValueError(
-            "Every held-out class probability must include both implementations"
-        )
+        raise ValueError("Every held-out class probability must include both implementations")
 
     if folds.duplicated(pair_key).any() or len(folds) != (
         settings.n_splits * settings.n_repeats * 2 * 2
     ):
-        raise ValueError(
-            "Behavior fold summaries have incomplete task and family coverage"
-        )
+        raise ValueError("Behavior fold summaries have incomplete task and family coverage")
     feature_groups = {
         keys: group.sort_values("feature_id")
         for keys, group in features.groupby(fit_key, sort=False)
@@ -1662,16 +1612,12 @@ def validate_behavior_results(
                     probability_group.index.to_numpy(dtype=np.int64),
                     prediction_group["sample_id"].to_numpy(dtype=np.int64),
                 ):
-                    raise ValueError(
-                        "Probability and hard-prediction sample IDs differ"
-                    )
+                    raise ValueError("Probability and hard-prediction sample IDs differ")
                 classes = probability_group.columns.to_numpy(dtype=np.int64)
                 method_probabilities = probability_group.to_numpy(dtype=np.float64)
             behaviors[method] = ModelBehavior(
                 root_feature=int(fit["root_feature"]) if family == "tree" else None,
-                feature_values=feature_group["feature_value"].to_numpy(
-                    dtype=np.float64
-                ),
+                feature_values=feature_group["feature_value"].to_numpy(dtype=np.float64),
                 predictions=prediction_group["prediction"].to_numpy(),
                 probabilities=method_probabilities,
                 classes=classes,
@@ -1684,9 +1630,7 @@ def validate_behavior_results(
             if y_test is None:
                 y_test = current_y
             elif not np.array_equal(y_test, current_y):
-                raise ValueError(
-                    "Paired methods must retain identical held-out outcomes"
-                )
+                raise ValueError("Paired methods must retain identical held-out outcomes")
             current_seed = int(fit["model_seed"])
             if model_seed is None:
                 model_seed = current_seed
@@ -1694,9 +1638,7 @@ def validate_behavior_results(
                 raise ValueError("Paired methods must retain one model seed")
 
         if y_test is None or model_seed is None:
-            raise ValueError(
-                "Behavior fold reconstruction requires both fitted methods"
-            )
+            raise ValueError("Behavior fold reconstruction requires both fitted methods")
         expected_fold_rows.append(
             _fold_pair_row(
                 DatasetSpec(
@@ -1720,11 +1662,7 @@ def validate_behavior_results(
         :,
         BEHAVIOR_RESULT_SCHEMAS["behavior_fold_summary"],
     ]
-    if not (
-        folds.reset_index(drop=True)
-        .convert_dtypes()
-        .equals(expected_folds.convert_dtypes())
-    ):
+    if not (folds.reset_index(drop=True).convert_dtypes().equals(expected_folds.convert_dtypes())):
         raise ValueError("Behavior fold summaries differ from the validated raw tables")
 
     numeric_fold_columns = [
@@ -1759,67 +1697,123 @@ def validate_behavior_results(
     native_jaccard = folds["native_top_k_with_ties_jaccard"].dropna()
     if not native_jaccard.between(0.0, 1.0).all():
         raise ValueError("Top-k-with-ties Jaccard values must lie in [0, 1]")
-    reproducibility_columns = [
-        column for column in folds if column.endswith("_reproducible")
-    ]
+    reproducibility_columns = [column for column in folds if column.endswith("_reproducible")]
     if not folds[reproducibility_columns].astype(bool).all().all():
         raise ValueError("Fold summaries require reproducible same-seed refits")
 
     expected_summary = summarize_behavior(folds, settings, base_seed=base_seed)
     if not summary.convert_dtypes().equals(expected_summary.convert_dtypes()):
-        raise ValueError(
-            "Behavior aggregate summaries differ from the validated fold estimates"
+        raise ValueError("Behavior aggregate summaries differ from the validated fold estimates")
+
+
+def behavior_cell_inventory(profile: Profile) -> tuple[BehaviorCell, ...]:
+    """Return the complete deterministic paired-cell inventory."""
+    settings = _settings(profile)
+    return tuple(
+        BehaviorCell(
+            task=dataset.task,
+            dataset=dataset.name,
+            model_family=family,
+            split_index=split_index,
+            repeat=split_index // settings.n_splits,
+            fold=split_index % settings.n_splits,
         )
+        for dataset in load_behavior_datasets()
+        for split_index in range(settings.n_splits * settings.n_repeats)
+        for family in MODEL_FAMILIES
+    )
 
 
-def run_behavior(
+def _resolve_behavior_cells(
+    profile: Profile,
+    selected: Sequence[BehaviorCell] | None,
+) -> tuple[BehaviorCell, ...]:
+    """Return selected cells in canonical inventory order."""
+    inventory = behavior_cell_inventory(profile)
+    if selected is None:
+        return inventory
+    if not selected:
+        raise ValueError("selected behavior cells must not be empty")
+    if any(not isinstance(cell, BehaviorCell) for cell in selected):
+        raise TypeError("selected behavior cells must contain BehaviorCell values")
+    if len(set(selected)) != len(selected):
+        raise ValueError("selected behavior cells must be unique")
+    selected_set = set(selected)
+    unknown = selected_set.difference(inventory)
+    if unknown:
+        raise ValueError(f"selected behavior cells are outside the profile inventory: {unknown}")
+    return tuple(cell for cell in inventory if cell in selected_set)
+
+
+def run_behavior_raw(
     profile: Profile,
     *,
     base_seed: int = BASE_SEED,
+    selected_cells: Sequence[BehaviorCell] | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Run all paired behavior comparisons and return validated tables."""
+    """Run a complete or selected set of paired behavior cells."""
     settings = _settings(profile)
+    cells = _resolve_behavior_cells(profile, selected_cells)
     fit_rows: list[dict[str, object]] = []
     feature_rows: list[dict[str, object]] = []
     prediction_rows: list[dict[str, object]] = []
     probability_rows: list[dict[str, object]] = []
     pair_rows: list[dict[str, object]] = []
     for dataset in load_behavior_datasets():
+        dataset_cells = frozenset(
+            (cell.split_index, cell.model_family) for cell in cells if cell.dataset == dataset.name
+        )
+        if not dataset_cells:
+            continue
         (
             dataset_fits,
             dataset_features,
             dataset_predictions,
             dataset_probabilities,
             dataset_pairs,
-        ) = _run_dataset(dataset, settings, base_seed=base_seed)
+        ) = _run_dataset(
+            dataset,
+            settings,
+            base_seed=base_seed,
+            selected_cells=dataset_cells,
+        )
         fit_rows.extend(dataset_fits)
         feature_rows.extend(dataset_features)
         prediction_rows.extend(dataset_predictions)
         probability_rows.extend(dataset_probabilities)
         pair_rows.extend(dataset_pairs)
-    fits = pd.DataFrame(fit_rows)
-    features = pd.DataFrame(feature_rows)
-    predictions = pd.DataFrame(prediction_rows)
-    probabilities = pd.DataFrame(probability_rows)
-    folds = pd.DataFrame(pair_rows)
+    rows = {
+        "behavior_fit_raw": fit_rows,
+        "behavior_feature_raw": feature_rows,
+        "behavior_prediction_raw": prediction_rows,
+        "behavior_probability_raw": probability_rows,
+        "behavior_fold_summary": pair_rows,
+    }
+    return {
+        name: pd.DataFrame(table_rows, columns=BEHAVIOR_RESULT_SCHEMAS[name])
+        for name, table_rows in rows.items()
+    }
+
+
+def assemble_behavior_results(
+    raw_results: dict[str, pd.DataFrame],
+    profile: Profile,
+    *,
+    base_seed: int = BASE_SEED,
+) -> dict[str, pd.DataFrame]:
+    """Build and validate final behavior tables from complete raw inputs."""
+    if set(raw_results) != set(BEHAVIOR_RAW_TABLES):
+        raise ValueError("behavior raw tables differ from the required inventory")
+    for name in BEHAVIOR_RAW_TABLES:
+        if tuple(raw_results[name].columns) != BEHAVIOR_RESULT_SCHEMAS[name]:
+            raise ValueError(f"{name} differs from its required schema")
+    normalized_raw = {
+        name: normalize_behavior_table(name, raw_results[name]) for name in BEHAVIOR_RAW_TABLES
+    }
+    folds = normalized_raw["behavior_fold_summary"]
+    settings = _settings(profile)
     results = {
-        "behavior_fit_raw": fits.loc[:, BEHAVIOR_RESULT_SCHEMAS["behavior_fit_raw"]],
-        "behavior_feature_raw": features.loc[
-            :,
-            BEHAVIOR_RESULT_SCHEMAS["behavior_feature_raw"],
-        ],
-        "behavior_prediction_raw": predictions.loc[
-            :,
-            BEHAVIOR_RESULT_SCHEMAS["behavior_prediction_raw"],
-        ],
-        "behavior_probability_raw": probabilities.loc[
-            :,
-            BEHAVIOR_RESULT_SCHEMAS["behavior_probability_raw"],
-        ],
-        "behavior_fold_summary": folds.loc[
-            :,
-            BEHAVIOR_RESULT_SCHEMAS["behavior_fold_summary"],
-        ],
+        **normalized_raw,
         "behavior_summary": summarize_behavior(
             folds,
             settings,
@@ -1828,6 +1822,19 @@ def run_behavior(
     }
     validate_behavior_results(results, settings, base_seed=base_seed)
     return results
+
+
+def run_behavior(
+    profile: Profile,
+    *,
+    base_seed: int = BASE_SEED,
+) -> dict[str, pd.DataFrame]:
+    """Run all paired behavior comparisons and return validated tables."""
+    return assemble_behavior_results(
+        run_behavior_raw(profile, base_seed=base_seed),
+        profile,
+        base_seed=base_seed,
+    )
 
 
 def _git_sha() -> str:
@@ -1863,6 +1870,7 @@ def write_results(
     elapsed_seconds: float,
 ) -> None:
     """Write behavior tables and a machine-readable execution receipt."""
+    results = {name: normalize_behavior_table(name, frame) for name, frame in results.items()}
     settings = _settings(profile)
     validate_behavior_results(results, settings, base_seed=base_seed)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1881,8 +1889,7 @@ def write_results(
             artifact_paths.append(csv_path)
 
     written_results = {
-        name: pd.read_parquet(parquet_path)
-        for name, parquet_path in parquet_paths.items()
+        name: pd.read_parquet(parquet_path) for name, parquet_path in parquet_paths.items()
     }
     validate_behavior_results(
         written_results,
@@ -1998,9 +2005,7 @@ def write_results(
         "python": platform.python_version(),
         "platform": platform.platform(),
         "r_environment": get_r_runtime_versions(),
-        "source_sha256": {
-            str(path.relative_to(repo_root)): _sha256(path) for path in source_files
-        },
+        "source_sha256": {str(path.relative_to(repo_root)): _sha256(path) for path in source_files},
         "versions": versions,
         "tables": {
             name: {"rows": len(frame), "columns": list(frame.columns)}

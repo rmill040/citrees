@@ -22,12 +22,13 @@ import platform
 import shutil
 import subprocess
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Sequence, Set
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from itertools import combinations, permutations
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -79,6 +80,9 @@ ReplicateStatistic = Callable[[np.ndarray, np.ndarray], float]
 SupportIndices = Sequence[int] | np.ndarray
 
 BASE_SEED = 1718
+SEED_MODULUS = 2**32 - 1
+SEED_MULTIPLIER = 2_654_435_761
+SEED_BASE_MULTIPLIER = 2_246_822_519
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results" / "calibration"
 CARDINALITY_N_SAMPLES = 200
 CARDINALITY_SUPPORTS = (2, 4, 10, 20, 200)
@@ -297,12 +301,46 @@ def _settings(profile: Profile) -> ProfileSettings:
     )
 
 
+def _resolve_replicates(
+    total: int,
+    selected: Sequence[int] | None,
+) -> tuple[int, ...]:
+    """Return one sorted, unique, in-range replicate subset."""
+    if selected is None:
+        return tuple(range(total))
+    if not selected:
+        raise ValueError("selected replicates must not be empty")
+    if any(
+        isinstance(value, bool) or not isinstance(value, (int, np.integer)) for value in selected
+    ):
+        raise TypeError("selected replicates must contain integers")
+    replicates = tuple(sorted(int(value) for value in selected))
+    if len(set(replicates)) != len(replicates):
+        raise ValueError("selected replicates must be unique")
+    if replicates[0] < 0 or replicates[-1] >= total:
+        raise ValueError(f"selected replicates must lie in [0, {total})")
+    return replicates
+
+
 def _stream_seed(base_seed: int, design: str, replicate: int, stream: str) -> int:
-    """Derive a deterministic seed for one independent simulation stream."""
-    digest = hashlib.sha256(f"{stream}__{design}".encode("ascii")).digest()
-    scenario_key = int.from_bytes(digest[:4], byteorder="little", signed=False)
-    sequence = np.random.SeedSequence([base_seed, scenario_key, replicate])
-    return int(sequence.generate_state(1, dtype=np.uint32)[0])
+    """Return an injective 32-bit seed for one frozen simulation stream."""
+    if isinstance(base_seed, bool) or not isinstance(base_seed, int):
+        raise TypeError("base_seed must be an integer")
+    if base_seed < 0:
+        raise ValueError("base_seed must be nonnegative")
+    if isinstance(replicate, bool) or not isinstance(replicate, int):
+        raise TypeError("replicate must be an integer")
+    namespace = (stream, design)
+    try:
+        offset, replicate_limit = _seed_namespace_offsets()[namespace]
+    except KeyError as error:
+        raise ValueError(f"unregistered calibration seed namespace: {namespace!r}") from error
+    if replicate < 0 or replicate >= replicate_limit:
+        raise ValueError(
+            f"replicate must lie in [0, {replicate_limit}) for seed namespace {namespace!r}"
+        )
+    ordinal = offset + replicate
+    return int((base_seed * SEED_BASE_MULTIPLIER + ordinal * SEED_MULTIPLIER) % SEED_MODULUS)
 
 
 def _balanced_classes(rng: np.random.Generator, n_samples: int, n_classes: int = 2) -> np.ndarray:
@@ -487,12 +525,14 @@ def run_selector_null(
     profile: Profile,
     *,
     base_seed: int = BASE_SEED,
+    replicate_indices: Sequence[int] | None = None,
 ) -> pd.DataFrame:
     """Run fixed-budget selector permutation tests under independence."""
     settings = _settings(profile)
+    replicates = _resolve_replicates(settings.selector_replicates, replicate_indices)
     rows: list[dict[str, object]] = []
     for scenario in _selector_scenarios(profile, settings):
-        for replicate in range(settings.selector_replicates):
+        for replicate in replicates:
             data_seed = _stream_seed(base_seed, scenario.data_design, replicate, "data")
             model_seed = _stream_seed(base_seed, scenario.scenario, replicate, "model")
             rng = np.random.default_rng(data_seed)
@@ -643,6 +683,74 @@ def _root_scenarios(profile: Profile, settings: ProfileSettings) -> list[RootNul
     return scenarios
 
 
+@lru_cache(maxsize=1)
+def _seed_namespace_offsets() -> dict[tuple[str, str], tuple[int, int]]:
+    """Assign disjoint ordinal ranges to every frozen calibration RNG stream."""
+    limits: dict[tuple[str, str], int] = {}
+
+    def register(stream: str, design: str, replicate_limit: int) -> None:
+        key = (stream, design)
+        limits[key] = max(limits.get(key, 0), replicate_limit)
+
+    for profile in ("smoke", "quick", "full"):
+        typed_profile = cast(Profile, profile)
+        settings = _settings(typed_profile)
+        for selector_scenario in _selector_scenarios(typed_profile, settings):
+            register(
+                "data",
+                selector_scenario.data_design,
+                settings.selector_replicates,
+            )
+            register(
+                "model",
+                selector_scenario.scenario,
+                settings.selector_replicates,
+            )
+        for root_scenario in _root_scenarios(typed_profile, settings):
+            register("data", root_scenario.data_design, settings.root_replicates)
+            register("model", root_scenario.model_design, settings.root_replicates)
+
+    full_settings = _settings("full")
+    for task in ("classification", "regression"):
+        data_design = f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}"
+        register("data", data_design, full_settings.cardinality_replicates)
+        for method in ("citrees", "partykit", "cart"):
+            register(
+                "model",
+                f"{task}__{method}__n{CARDINALITY_N_SAMPLES}",
+                full_settings.cardinality_replicates,
+            )
+        for method in ("citrees_cif", "partykit_cforest", "sklearn_rf"):
+            register(
+                "model",
+                f"{task}__{method}__n{CARDINALITY_N_SAMPLES}",
+                full_settings.cardinality_forest_replicates,
+            )
+        for method in ("citrees", "partykit"):
+            for estimand in ("forced_winner", "adjusted_winner_given_split"):
+                register(
+                    "trend_randomization",
+                    f"tree__{task}__{method}__{estimand}",
+                    1,
+                )
+        for method in ("citrees_cif", "partykit_cforest", "sklearn_rf"):
+            register(
+                "trend_randomization",
+                f"forest__{task}__{method}__importance_trend",
+                1,
+            )
+
+    offsets: dict[tuple[str, str], tuple[int, int]] = {}
+    offset = 0
+    for namespace in sorted(limits):
+        replicate_limit = limits[namespace]
+        offsets[namespace] = (offset, replicate_limit)
+        offset += replicate_limit
+    if offset >= SEED_MODULUS:
+        raise RuntimeError("calibration seed inventory exceeds the supported 32-bit space")
+    return offsets
+
+
 def _fit_null_tree(
     scenario: RootNullScenario,
     X: np.ndarray,
@@ -690,12 +798,14 @@ def run_root_null(
     profile: Profile,
     *,
     base_seed: int = BASE_SEED,
+    replicate_indices: Sequence[int] | None = None,
 ) -> pd.DataFrame:
     """Run root-level tree tests under the complete global null."""
     settings = _settings(profile)
+    replicates = _resolve_replicates(settings.root_replicates, replicate_indices)
     rows: list[dict[str, object]] = []
     for scenario in _root_scenarios(profile, settings):
-        for replicate in range(settings.root_replicates):
+        for replicate in replicates:
             data_seed = _stream_seed(base_seed, scenario.data_design, replicate, "data")
             model_seed = _stream_seed(base_seed, scenario.model_design, replicate, "model")
             rng = np.random.default_rng(data_seed)
@@ -1725,13 +1835,15 @@ def run_cardinality_trees(
     profile: Profile,
     *,
     base_seed: int = BASE_SEED,
+    replicate_indices: Sequence[int] | None = None,
 ) -> pd.DataFrame:
     """Run candidate-level conditional tests and native CART root selection."""
     settings = _settings(profile)
+    replicates = _resolve_replicates(settings.cardinality_replicates, replicate_indices)
     frames: list[pd.DataFrame] = []
     for task in ("classification", "regression"):
         data_design = f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}"
-        for replicate in range(settings.cardinality_replicates):
+        for replicate in replicates:
             data_seed = _stream_seed(base_seed, data_design, replicate, "data")
             rng = np.random.default_rng(data_seed)
             X, features = _cardinality_matrix(rng, CARDINALITY_N_SAMPLES)
@@ -2622,9 +2734,14 @@ def run_cardinality_forests(
     profile: Profile,
     *,
     base_seed: int = BASE_SEED,
+    replicate_indices: Sequence[int] | None = None,
 ) -> pd.DataFrame:
     """Run matched CIF, cforest, and CART random-forest comparisons."""
     settings = _settings(profile)
+    replicates = _resolve_replicates(
+        settings.cardinality_forest_replicates,
+        replicate_indices,
+    )
     frames: list[pd.DataFrame] = []
     methods: tuple[ForestMethod, ...] = (
         "citrees_cif",
@@ -2633,7 +2750,7 @@ def run_cardinality_forests(
     )
     for task in ("classification", "regression"):
         data_design = f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}"
-        for replicate in range(settings.cardinality_forest_replicates):
+        for replicate in replicates:
             data_seed = _stream_seed(base_seed, data_design, replicate, "data")
             rng = np.random.default_rng(data_seed)
             X, features = _cardinality_matrix(rng, CARDINALITY_N_SAMPLES)
@@ -3294,6 +3411,39 @@ CALIBRATION_RESULT_SCHEMAS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+CALIBRATION_STORAGE_DTYPES: dict[str, dict[str, str]] = {
+    "cardinality_tree_raw": {
+        "B": "Int64",
+        "selection_alpha": "Float64",
+        "adjusted_alpha": "Float64",
+        "attainable_adjusted_cutoff": "Float64",
+        "p_value_support_index": "Int64",
+        "p_value_numerator": "Int64",
+        "p_value_denominator": "Int64",
+        "p_value": "Float64",
+        "native_p_value_support_index": "Int64",
+        "native_p_value_numerator": "Int64",
+        "native_p_value_denominator": "Int64",
+        "native_p_value": "Float64",
+        "minimum_p_tie_size": "Int64",
+        "forced_winner_weight": "Float64",
+        "adjusted_winner_weight": "Float64",
+        "no_split_weight": "Float64",
+        "native_score_tie_size": "Int64",
+    },
+}
+
+
+def normalize_calibration_table(
+    table_name: str,
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
+    """Apply the frozen in-memory dtypes used for Parquet serialization."""
+    normalized = frame.copy()
+    for column, dtype in CALIBRATION_STORAGE_DTYPES.get(table_name, {}).items():
+        normalized[column] = normalized[column].astype(dtype)
+    return normalized
+
 
 def _validate_serializable_frame(name: str, frame: pd.DataFrame) -> None:
     """Reject nested cells and infinite values before Parquet/CSV writing."""
@@ -3308,7 +3458,276 @@ def _validate_serializable_frame(name: str, frame: pd.DataFrame) -> None:
             raise TypeError(f"{name}.{column} contains a non-serializable nested value")
 
 
-def validate_calibration_results(results: dict[str, pd.DataFrame]) -> None:
+def _validate_exact_keys(
+    frame: pd.DataFrame,
+    *,
+    columns: tuple[str, ...],
+    expected: Set[tuple[object, ...]],
+    label: str,
+) -> None:
+    if frame.duplicated(list(columns)).any():
+        raise ValueError(f"{label} contains duplicate keys")
+    expected_set = set(expected)
+    observed = set(frame.loc[:, columns].itertuples(index=False, name=None))
+    if observed != expected_set or len(frame) != len(expected_set):
+        missing = sorted(expected_set.difference(observed), key=repr)
+        extra = sorted(observed.difference(expected_set), key=repr)
+        raise ValueError(f"{label} inventory differs: missing={missing}, extra={extra}")
+
+
+def _matches_expected_value(observed: object, expected: object) -> bool:
+    if expected is None:
+        return bool(pd.isna(observed))
+    return bool(observed == expected)
+
+
+def _require_integral(value: object, label: str) -> int:
+    if (
+        isinstance(value, (bool, np.bool_))
+        or not isinstance(value, (int, float, np.integer, np.floating))
+        or not np.isfinite(value)
+        or float(value) != np.floor(float(value))
+    ):
+        raise ValueError(f"{label} must be an integer")
+    return int(value)
+
+
+def validate_selector_null_raw(
+    raw: pd.DataFrame,
+    profile: Profile,
+    *,
+    base_seed: int,
+    replicate_indices: Sequence[int] | None = None,
+) -> None:
+    """Require the exact selector-null inventory, metadata, seeds, and decisions."""
+    table_name = "selector_null_raw"
+    if tuple(raw.columns) != CALIBRATION_RESULT_SCHEMAS[table_name]:
+        raise ValueError(f"{table_name} differs from its required schema")
+    settings = _settings(profile)
+    replicates = _resolve_replicates(settings.selector_replicates, replicate_indices)
+    scenarios = _selector_scenarios(profile, settings)
+    scenario_by_name = {scenario.scenario: scenario for scenario in scenarios}
+    expected = {
+        (scenario.scenario, replicate) for scenario in scenarios for replicate in replicates
+    }
+    _validate_exact_keys(
+        raw,
+        columns=("scenario", "replicate"),
+        expected=expected,
+        label=table_name,
+    )
+    for row in raw.itertuples(index=False):
+        scenario = scenario_by_name[str(row.scenario)]
+        replicate = _require_integral(row.replicate, f"{table_name}.replicate")
+        for field, expected_value in asdict(scenario).items():
+            if not _matches_expected_value(getattr(row, field), expected_value):
+                raise ValueError(f"{table_name} scenario metadata differs for {row.scenario}")
+        if row.experiment != "selector_null" or row.estimand != (
+            "fixed_budget_permutation_p_value"
+        ):
+            raise ValueError(f"{table_name} experiment metadata differs")
+        if row.data_seed != _stream_seed(
+            base_seed,
+            scenario.data_design,
+            replicate,
+            "data",
+        ) or row.model_seed != _stream_seed(
+            base_seed,
+            scenario.scenario,
+            replicate,
+            "model",
+        ):
+            raise ValueError(f"{table_name} seeds differ from the frozen derivation")
+        realized = _require_integral(
+            row.realized_permutations,
+            f"{table_name}.realized_permutations",
+        )
+        if realized != scenario.n_resamples:
+            raise ValueError(f"{table_name} must exhaust its fixed permutation budget")
+        p_value = float(row.p_value)
+        numerator = p_value * (scenario.n_resamples + 1)
+        if (
+            not np.isfinite(p_value)
+            or not 0.0 < p_value <= 1.0
+            or not np.isclose(numerator, round(numerator), rtol=0.0, atol=1e-10)
+        ):
+            raise ValueError(f"{table_name} p-values differ from the permutation support")
+        if not isinstance(row.rejected, (bool, np.bool_)) or bool(row.rejected) != (
+            p_value < scenario.alpha
+        ):
+            raise ValueError(f"{table_name} rejection flags differ from p < alpha")
+
+
+def validate_root_null_raw(
+    raw: pd.DataFrame,
+    profile: Profile,
+    *,
+    base_seed: int,
+    replicate_indices: Sequence[int] | None = None,
+) -> None:
+    """Require the exact fitted-root inventory, metadata, seeds, and counts."""
+    table_name = "root_null_raw"
+    if tuple(raw.columns) != CALIBRATION_RESULT_SCHEMAS[table_name]:
+        raise ValueError(f"{table_name} differs from its required schema")
+    settings = _settings(profile)
+    replicates = _resolve_replicates(settings.root_replicates, replicate_indices)
+    scenarios = _root_scenarios(profile, settings)
+    scenario_by_name = {scenario.scenario: scenario for scenario in scenarios}
+    expected = {
+        (scenario.scenario, replicate) for scenario in scenarios for replicate in replicates
+    }
+    _validate_exact_keys(
+        raw,
+        columns=("scenario", "replicate"),
+        expected=expected,
+        label=table_name,
+    )
+    for row in raw.itertuples(index=False):
+        scenario = scenario_by_name[str(row.scenario)]
+        replicate = _require_integral(row.replicate, f"{table_name}.replicate")
+        for field, expected_value in asdict(scenario).items():
+            if not _matches_expected_value(getattr(row, field), expected_value):
+                raise ValueError(f"{table_name} scenario metadata differs for {row.scenario}")
+        if row.experiment != "root_null" or row.estimand != "fitted_tree_split_decision":
+            raise ValueError(f"{table_name} experiment metadata differs")
+        if row.data_seed != _stream_seed(
+            base_seed,
+            scenario.data_design,
+            replicate,
+            "data",
+        ) or row.model_seed != _stream_seed(
+            base_seed,
+            scenario.model_design,
+            replicate,
+            "model",
+        ):
+            raise ValueError(f"{table_name} seeds differ from the frozen derivation")
+        selector_count = _require_integral(
+            row.realized_selector_permutations,
+            f"{table_name}.realized_selector_permutations",
+        )
+        splitter_count = _require_integral(
+            row.realized_splitter_permutations,
+            f"{table_name}.realized_splitter_permutations",
+        )
+        total_count = _require_integral(
+            row.realized_permutations,
+            f"{table_name}.realized_permutations",
+        )
+        if min(selector_count, splitter_count) < 0 or total_count != (
+            selector_count + splitter_count
+        ):
+            raise ValueError(f"{table_name} permutation counts are inconsistent")
+        if scenario.gate == "selector" and (selector_count < 1 or splitter_count != 0):
+            raise ValueError(f"{table_name} selector-gate counts are inconsistent")
+        if scenario.gate == "splitter" and (selector_count != 0 or splitter_count < 1):
+            raise ValueError(f"{table_name} splitter-gate counts are inconsistent")
+        if scenario.gate == "combined" and selector_count < 1:
+            raise ValueError(f"{table_name} combined-gate counts are inconsistent")
+        if not isinstance(row.split, (bool, np.bool_)):
+            raise ValueError(f"{table_name}.split must be boolean")
+
+
+def validate_cardinality_tree_experiment(
+    raw: pd.DataFrame,
+    profile: Profile,
+    *,
+    base_seed: int,
+    replicate_indices: Sequence[int] | None = None,
+) -> None:
+    """Require complete tree-method coverage and frozen per-fit seeds."""
+    table_name = "cardinality_tree_raw"
+    if tuple(raw.columns) != CALIBRATION_RESULT_SCHEMAS[table_name]:
+        raise ValueError(f"{table_name} differs from its required schema")
+    validate_cardinality_tree_raw(raw)
+    replicates = _resolve_replicates(
+        _settings(profile).cardinality_replicates,
+        replicate_indices,
+    )
+    methods: tuple[TreeMethod, ...] = ("citrees", "partykit", "cart")
+    expected = {
+        (task, method, replicate, feature_id)
+        for task in ("classification", "regression")
+        for replicate in replicates
+        for method in methods
+        for feature_id in range(len(CARDINALITY_SUPPORTS))
+    }
+    _validate_exact_keys(
+        raw,
+        columns=("task", "method", "replicate", "feature_id"),
+        expected=expected,
+        label=table_name,
+    )
+    for (task, replicate, method), group in raw.groupby(
+        ["task", "replicate", "method"],
+        sort=False,
+    ):
+        replicate_value = _require_integral(replicate, f"{table_name}.replicate")
+        data_design = f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}"
+        model_design = f"{task}__{method}__n{CARDINALITY_N_SAMPLES}"
+        if set(group["data_seed"]) != {
+            _stream_seed(base_seed, data_design, replicate_value, "data")
+        } or set(group["model_seed"]) != {
+            _stream_seed(base_seed, model_design, replicate_value, "model")
+        }:
+            raise ValueError(f"{table_name} seeds differ from the frozen derivation")
+
+
+def validate_cardinality_forest_experiment(
+    raw: pd.DataFrame,
+    profile: Profile,
+    *,
+    base_seed: int,
+    replicate_indices: Sequence[int] | None = None,
+) -> None:
+    """Require complete forest-method coverage and frozen per-fit seeds."""
+    table_name = "cardinality_forest_raw"
+    if tuple(raw.columns) != CALIBRATION_RESULT_SCHEMAS[table_name]:
+        raise ValueError(f"{table_name} differs from its required schema")
+    validate_cardinality_forest_raw(raw)
+    replicates = _resolve_replicates(
+        _settings(profile).cardinality_forest_replicates,
+        replicate_indices,
+    )
+    methods: tuple[ForestMethod, ...] = (
+        "citrees_cif",
+        "partykit_cforest",
+        "sklearn_rf",
+    )
+    expected = {
+        (task, method, replicate, feature_id)
+        for task in ("classification", "regression")
+        for replicate in replicates
+        for method in methods
+        for feature_id in range(len(CARDINALITY_SUPPORTS))
+    }
+    _validate_exact_keys(
+        raw,
+        columns=("task", "method", "replicate", "feature_id"),
+        expected=expected,
+        label=table_name,
+    )
+    for (task, replicate, method), group in raw.groupby(
+        ["task", "replicate", "method"],
+        sort=False,
+    ):
+        replicate_value = _require_integral(replicate, f"{table_name}.replicate")
+        data_design = f"cardinality_bias__{task}__n{CARDINALITY_N_SAMPLES}"
+        model_design = f"{task}__{method}__n{CARDINALITY_N_SAMPLES}"
+        if set(group["data_seed"]) != {
+            _stream_seed(base_seed, data_design, replicate_value, "data")
+        } or set(group["model_seed"]) != {
+            _stream_seed(base_seed, model_design, replicate_value, "model")
+        }:
+            raise ValueError(f"{table_name} seeds differ from the frozen derivation")
+
+
+def validate_calibration_results(
+    results: dict[str, pd.DataFrame],
+    *,
+    profile: Profile,
+    base_seed: int,
+) -> None:
     """Validate the complete production result and writer contract."""
     if set(results) != set(CALIBRATION_RESULT_SCHEMAS):
         missing = sorted(set(CALIBRATION_RESULT_SCHEMAS).difference(results))
@@ -3323,8 +3742,40 @@ def validate_calibration_results(results: dict[str, pd.DataFrame]) -> None:
             )
         _validate_serializable_frame(name, frame)
 
-    validate_cardinality_tree_raw(results["cardinality_tree_raw"])
-    validate_cardinality_forest_raw(results["cardinality_forest_raw"])
+    validate_selector_null_raw(
+        results["selector_null_raw"],
+        profile,
+        base_seed=base_seed,
+    )
+    validate_root_null_raw(
+        results["root_null_raw"],
+        profile,
+        base_seed=base_seed,
+    )
+    validate_cardinality_tree_experiment(
+        results["cardinality_tree_raw"],
+        profile,
+        base_seed=base_seed,
+    )
+    validate_cardinality_forest_experiment(
+        results["cardinality_forest_raw"],
+        profile,
+        base_seed=base_seed,
+    )
+    expected_selector_summary = summarize_selector_null(results["selector_null_raw"])
+    if (
+        not results["selector_null_summary"]
+        .convert_dtypes()
+        .equals(expected_selector_summary.convert_dtypes())
+    ):
+        raise ValueError("selector_null_summary differs from the validated raw rows")
+    expected_root_summary = summarize_root_null(results["root_null_raw"])
+    if (
+        not results["root_null_summary"]
+        .convert_dtypes()
+        .equals(expected_root_summary.convert_dtypes())
+    ):
+        raise ValueError("root_null_summary differs from the validated raw rows")
     design = results["cardinality_design"]
     if (
         len(design) != len(CARDINALITY_SUPPORTS)
@@ -3363,20 +3814,44 @@ def validate_calibration_results(results: dict[str, pd.DataFrame]) -> None:
         raise ValueError("The serialized Holm family has insufficient p-value resolution")
 
 
-def run_calibration(
-    profile: Profile,
+def assemble_calibration_results(
+    selector_raw: pd.DataFrame,
+    root_raw: pd.DataFrame,
+    tree_raw: pd.DataFrame,
+    forest_raw: pd.DataFrame,
     *,
+    profile: Profile,
     base_seed: int = BASE_SEED,
 ) -> dict[str, pd.DataFrame]:
-    """Run all calibration analyses and return validated production tables."""
-    selector_raw = run_selector_null(profile, base_seed=base_seed)
-    root_raw = run_root_null(profile, base_seed=base_seed)
-    tree_raw = run_cardinality_trees(profile, base_seed=base_seed)
+    """Build and validate final calibration tables from complete raw inputs."""
+    selector_raw = normalize_calibration_table("selector_null_raw", selector_raw)
+    root_raw = normalize_calibration_table("root_null_raw", root_raw)
+    tree_raw = normalize_calibration_table("cardinality_tree_raw", tree_raw)
+    forest_raw = normalize_calibration_table("cardinality_forest_raw", forest_raw)
+    validate_selector_null_raw(
+        selector_raw,
+        profile,
+        base_seed=base_seed,
+    )
+    validate_root_null_raw(
+        root_raw,
+        profile,
+        base_seed=base_seed,
+    )
+    validate_cardinality_tree_experiment(
+        tree_raw,
+        profile,
+        base_seed=base_seed,
+    )
+    validate_cardinality_forest_experiment(
+        forest_raw,
+        profile,
+        base_seed=base_seed,
+    )
     tree_replicate, tree_trend, tree_method = summarize_cardinality_tree(
         tree_raw,
         random_state=base_seed,
     )
-    forest_raw = run_cardinality_forests(profile, base_seed=base_seed)
     forest_replicate, forest_summary = summarize_cardinality_forest_trends(
         forest_raw,
         random_state=base_seed,
@@ -3400,8 +3875,28 @@ def run_calibration(
         "cardinality_forest_summary": forest_summary,
         "cardinality_holm_family": holm_family,
     }
-    validate_calibration_results(results)
+    validate_calibration_results(
+        results,
+        profile=profile,
+        base_seed=base_seed,
+    )
     return results
+
+
+def run_calibration(
+    profile: Profile,
+    *,
+    base_seed: int = BASE_SEED,
+) -> dict[str, pd.DataFrame]:
+    """Run all calibration analyses and return validated production tables."""
+    return assemble_calibration_results(
+        run_selector_null(profile, base_seed=base_seed),
+        run_root_null(profile, base_seed=base_seed),
+        run_cardinality_trees(profile, base_seed=base_seed),
+        run_cardinality_forests(profile, base_seed=base_seed),
+        profile=profile,
+        base_seed=base_seed,
+    )
 
 
 def _git_sha() -> str:
@@ -3454,7 +3949,12 @@ def write_results(
     elapsed_seconds: float,
 ) -> None:
     """Write analysis tables and a machine-readable execution receipt."""
-    validate_calibration_results(results)
+    results = {name: normalize_calibration_table(name, frame) for name, frame in results.items()}
+    validate_calibration_results(
+        results,
+        profile=profile,
+        base_seed=base_seed,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     artifact_paths: list[Path] = []
     for name, frame in results.items():

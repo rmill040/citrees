@@ -23,6 +23,7 @@ BASE_SEED = 1718
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results"
 DEFAULT_DGRP_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "dgrp"
+DISTRIBUTED_ANALYSES = frozenset({"calibration", "behavior"})
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,7 @@ ANALYSES = (
 )
 
 AnalysisRunner = Callable[
-    [AnalysisSpec, Profile, Path, int, Path],
+    [AnalysisSpec, Profile, Path, int, Path, Path | None],
     AnalysisExecution,
 ]
 
@@ -121,7 +122,23 @@ def _analysis_command(
     output_dir: Path,
     base_seed: int,
     dgrp_data_dir: Path,
+    shard_root: Path | None,
 ) -> tuple[str, ...]:
+    if shard_root is not None and spec.name in DISTRIBUTED_ANALYSES:
+        return (
+            sys.executable,
+            "-m",
+            "paper.jss.replication.shards",
+            f"{spec.name}-merge",
+            "--profile",
+            profile,
+            "--seed",
+            str(base_seed),
+            "--shard-root",
+            str(shard_root / spec.name),
+            "--output-dir",
+            str(output_dir),
+        )
     command = [
         sys.executable,
         "-m",
@@ -142,6 +159,7 @@ def _run_analysis(
     output_dir: Path,
     base_seed: int,
     dgrp_data_dir: Path,
+    shard_root: Path | None,
 ) -> AnalysisExecution:
     command = _analysis_command(
         spec,
@@ -149,6 +167,7 @@ def _run_analysis(
         output_dir,
         base_seed,
         dgrp_data_dir,
+        shard_root,
     )
     started = time.perf_counter()
     completed = subprocess.run(
@@ -318,6 +337,7 @@ def run_replication(
     *,
     base_seed: int = BASE_SEED,
     dgrp_data_dir: Path = DEFAULT_DGRP_DATA_DIR,
+    shard_root: Path | None = None,
     runner: AnalysisRunner = _run_analysis,
 ) -> Path:
     """Run all analyses and atomically publish one verified result tree."""
@@ -326,6 +346,15 @@ def run_replication(
     output_dir = output_dir.resolve()
     if output_dir.exists():
         raise FileExistsError(f"replication output already exists: {output_dir}")
+    if shard_root is not None:
+        shard_root = shard_root.resolve()
+        if not shard_root.is_dir():
+            raise NotADirectoryError(f"distributed shard root is not a directory: {shard_root}")
+        missing_shard_roots = sorted(
+            analysis for analysis in DISTRIBUTED_ANALYSES if not (shard_root / analysis).is_dir()
+        )
+        if missing_shard_roots:
+            raise ValueError(f"distributed shard root omits analyses: {missing_shard_roots}")
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     scratch_dir = REPO_ROOT / "scratch"
     scratch_dir.mkdir(exist_ok=True)
@@ -343,6 +372,7 @@ def run_replication(
         f"base_seed: {base_seed}",
         f"git_sha: {starting_git_sha}",
         f"platform: {platform.platform()}",
+        f"execution_mode: {'distributed' if shard_root is not None else 'serial'}",
         "",
     ]
     child_receipts: dict[str, dict[str, object]] = {}
@@ -362,6 +392,7 @@ def run_replication(
                 child_dir,
                 base_seed,
                 dgrp_data_dir,
+                shard_root,
             )
             transcript_sections.append(_transcript_section(index, len(ANALYSES), spec, execution))
             if execution.returncode != 0:
@@ -388,17 +419,23 @@ def run_replication(
             "\n".join(transcript_sections).rstrip() + "\n",
             encoding="utf-8",
         )
-        source_files = (
+        source_files = [
             Path(__file__).resolve(),
             Path(__file__).resolve().with_name("__main__.py"),
             REPO_ROOT / "pyproject.toml",
             REPO_ROOT / "uv.lock",
-        )
+        ]
+        if shard_root is not None:
+            source_files.append(Path(__file__).resolve().with_name("shards.py"))
         receipt = {
             "analysis": "jss_replication",
             "schema_version": 1,
             "profile": profile,
             "base_seed": base_seed,
+            "execution_mode": "distributed" if shard_root is not None else "serial",
+            "distributed_analyses": (
+                sorted(DISTRIBUTED_ANALYSES) if shard_root is not None else []
+            ),
             "analyses": [asdict(spec) for spec in ANALYSES],
             "created_utc": datetime.now(UTC).isoformat(),
             "elapsed_seconds": time.perf_counter() - suite_started,
@@ -449,6 +486,14 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_DGRP_DATA_DIR,
         help="Directory containing or receiving the pinned DGRP sources.",
     )
+    parser.add_argument(
+        "--shard-root",
+        type=Path,
+        help=(
+            "Root containing complete calibration/ and behavior/ shard trees. "
+            "When supplied, those analyses are merged through the canonical suite."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -459,6 +504,7 @@ def main() -> None:
         args.output_dir,
         base_seed=args.seed,
         dgrp_data_dir=args.dgrp_data_dir,
+        shard_root=args.shard_root,
     )
     print(f"Wrote verified JSS replication outputs to {output_dir}.")
 

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import os
+import platform
 import re
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import urllib.request
@@ -131,6 +134,28 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _git_sha(repo_root: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _git_dirty(repo_root: Path) -> bool:
+    return bool(
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    )
 
 
 def _md5_and_sha256(path: Path) -> tuple[str, str]:
@@ -801,10 +826,25 @@ def write_results(
     summarize_line_outcomes(outcomes).to_csv(summary_path, index=False)
 
     artifacts = (outcomes_path, summary_path)
+    repo_root = Path(__file__).resolve().parents[3]
+    source_files = (
+        Path(__file__).resolve(),
+        repo_root / "pyproject.toml",
+        repo_root / "uv.lock",
+    )
     receipt = {
         "analysis": "dgrp_phenotypes",
-        "schema_version": 2,
+        "schema_version": 3,
         "created_utc": datetime.now(UTC).isoformat(),
+        "git_sha": _git_sha(repo_root),
+        "git_dirty": _git_dirty(repo_root),
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "source_sha256": {str(path.relative_to(repo_root)): sha256(path) for path in source_files},
+        "versions": {
+            package: importlib.metadata.version(package)
+            for package in ("numpy", "openpyxl", "pandas")
+        },
         "source": {
             "url": PHENOTYPE_URL,
             "filename": PHENOTYPE_FILENAME,

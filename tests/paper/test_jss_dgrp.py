@@ -688,8 +688,15 @@ def test_main_invokes_genotype_pipeline_and_persists_provenance(
         "build_provenance",
     ]
     receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
-    assert receipt["schema_version"] == 2
+    assert receipt["schema_version"] == 3
     assert receipt["genotype"] == expected_provenance
+    repo_root = Path(dgrp.__file__).resolve().parents[3]
+    assert receipt["git_sha"] == dgrp._git_sha(repo_root)
+    assert isinstance(receipt["git_dirty"], bool)
+    assert receipt["source_sha256"]["paper/jss/replication/dgrp.py"] == sha256(
+        Path(dgrp.__file__).resolve()
+    )
+    assert set(receipt["versions"]) == {"numpy", "openpyxl", "pandas"}
     assert (output_dir / "line_outcomes.parquet").is_file()
     assert (output_dir / "trait_summary.csv").is_file()
     assert capsys.readouterr().out == "Wrote DGRP outcomes for 2 lines.\n"

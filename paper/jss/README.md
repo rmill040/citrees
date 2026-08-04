@@ -28,16 +28,16 @@ affiliation is Amazon Web Services.
 
 ## Evidence
 
-| Analysis                | Purpose                                                                                | Primary comparisons                                         |
-| ----------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Null calibration        | Measure feature-test and root-split rejection under independence                       | Fixed-budget p-values; exhaustive, adaptive, and simple fitting |
-| Split-variable bias     | Measure selection frequency when noise variables differ only in cardinality            | `citrees`, `partykit::ctree`, CART                          |
-| Power and recovery      | Show linear, nonlinear, correlated, and interaction boundaries                         | All compatible `citrees` selectors and multi-selector tests |
-| Reference behavior      | Compare split decisions, conditional root agreement, native feature summaries, and predictions | `citrees`, `partykit::ctree`, `partykit::cforest`           |
-| Scaling                 | Measure runtime and peak memory across controlled problem dimensions                   | `citrees`, `partykit`, scikit-learn                         |
-| DGRP application        | Demonstrate leakage-safe screening and linkage-disequilibrium-aware stability analysis | Tree, forest, linear, and marginal baselines                |
-| Tutorial                | Demonstrate the estimator interface in an executable workflow                          | Breast Cancer Wisconsin Diagnostic data                     |
-| Broad benchmark context | Summarize the corrected benchmark without duplicating it                               | Final arXiv v2 artifacts                                    |
+| Analysis                | Purpose                                                                                        | Primary comparisons                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Null calibration        | Measure feature-test and root-split rejection under independence                               | Fixed-budget p-values; exhaustive, adaptive, and simple fitting |
+| Split-variable bias     | Measure selection frequency when noise variables differ only in cardinality                    | `citrees`, `partykit::ctree`, CART                              |
+| Power and recovery      | Show linear, nonlinear, correlated, and interaction boundaries                                 | All compatible `citrees` selectors and multi-selector tests     |
+| Reference behavior      | Compare split decisions, conditional root agreement, native feature summaries, and predictions | `citrees`, `partykit::ctree`, `partykit::cforest`               |
+| Scaling                 | Measure runtime and peak memory across controlled problem dimensions                           | `citrees`, `partykit`, scikit-learn                             |
+| DGRP application        | Demonstrate leakage-safe screening and linkage-disequilibrium-aware stability analysis         | Tree, forest, linear, and marginal baselines                    |
+| Tutorial                | Demonstrate the estimator interface in an executable workflow                                  | Breast Cancer Wisconsin Diagnostic data                         |
+| Broad benchmark context | Summarize the corrected benchmark without duplicating it                                       | Final arXiv v2 artifacts                                        |
 
 The primary biomedical application is the public Drosophila Genetic Reference
 Panel cardiac dataset associated with DOI `10.7554/eLife.82459` and Zenodo DOI
@@ -75,6 +75,19 @@ Generated outputs remain below `paper/jss/results/` as ignored build artifacts.
 A full-profile receipt records the clean source revision, dependency versions,
 inputs, and output hashes before manuscript tables and figures enter the
 submission source.
+
+Run the complete replication suite from the repository root:
+
+```bash
+uv run python -m paper.jss.replication --profile quick
+uv run python -m paper.jss.replication --profile full
+```
+
+The command dispatches calibration, matched behavior, controlled performance,
+tutorial, and DGRP preparation analyses. It verifies each child receipt and
+artifact hash before atomically publishing the combined output directory. Use
+`--output-dir` for a new destination; an existing destination is rejected to
+prevent results from different executions from being mixed.
 
 ## Manuscript
 

@@ -446,6 +446,17 @@ def _selector_scenarios(profile: Profile, settings: ProfileSettings) -> list[Sel
         scenarios.extend(
             SelectorNullScenario(
                 task,
+                "rdc",
+                distribution,
+                200,
+                settings.selector_resamples,
+            )
+            for task in ("classification", "regression")
+            for distribution in ("binary", "ordinal4")
+        )
+        scenarios.extend(
+            SelectorNullScenario(
+                task,
                 selector,
                 distribution,
                 n_samples,

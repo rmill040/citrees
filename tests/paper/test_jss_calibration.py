@@ -106,6 +106,84 @@ def test_full_profile_separates_fixed_budget_and_fitted_tree_estimands() -> None
     }
 
 
+def test_smoke_and_quick_selector_scenario_inventories_are_exact() -> None:
+    expected = {
+        "smoke": {
+            ("classification", "mc", "normal", 80),
+            ("regression", "pc", "binary", 80),
+        },
+        "quick": {
+            ("classification", "mc", "normal", 200),
+            ("classification", "mc", "binary", 200),
+            ("classification", "mc", "ordinal4", 200),
+            ("classification", "mi", "normal", 200),
+            ("classification", "rdc", "normal", 200),
+            ("regression", "pc", "normal", 200),
+            ("regression", "pc", "binary", 200),
+            ("regression", "pc", "ordinal4", 200),
+            ("regression", "dc", "normal", 200),
+            ("regression", "rdc", "normal", 200),
+        },
+    }
+
+    for profile, expected_inventory in expected.items():
+        settings = _settings(profile)
+        scenarios = _selector_scenarios(profile, settings)
+        inventory = {
+            (
+                scenario.task,
+                scenario.selector,
+                scenario.feature_distribution,
+                scenario.n_samples,
+            )
+            for scenario in scenarios
+        }
+
+        assert inventory == expected_inventory
+        assert len(scenarios) == len(inventory)
+        assert {scenario.n_resamples for scenario in scenarios} == {settings.selector_resamples}
+
+
+def test_full_selector_scenario_inventory_is_exact() -> None:
+    settings = _settings("full")
+    scenarios = _selector_scenarios("full", settings)
+    inventory = {
+        (
+            scenario.task,
+            scenario.selector,
+            scenario.feature_distribution,
+            scenario.n_samples,
+        )
+        for scenario in scenarios
+    }
+    expected_at_200 = {
+        (task, selector, distribution, 200)
+        for task, selector, distributions in (
+            ("classification", "mc", ("normal", "binary", "ordinal4")),
+            ("classification", "mi", ("normal",)),
+            ("classification", "rdc", ("normal", "binary", "ordinal4")),
+            ("classification", "mc+rdc", ("normal",)),
+            ("regression", "pc", ("normal", "binary", "ordinal4")),
+            ("regression", "dc", ("normal",)),
+            ("regression", "rdc", ("normal", "binary", "ordinal4")),
+            ("regression", "pc+dc+rdc", ("normal",)),
+        )
+        for distribution in distributions
+    }
+    expected_sample_size_sensitivity = {
+        (task, selector, distribution, n_samples)
+        for task, selector in (("classification", "mc"), ("regression", "pc"))
+        for distribution in ("normal", "binary", "ordinal4")
+        for n_samples in (100, 500)
+    }
+    expected_inventory = expected_at_200 | expected_sample_size_sensitivity
+
+    assert inventory == expected_inventory
+    assert len(scenarios) == len(inventory) == 28
+    assert len({scenario.scenario for scenario in scenarios}) == len(scenarios)
+    assert {scenario.n_resamples for scenario in scenarios} == {settings.selector_resamples}
+
+
 def test_smoke_root_scenarios_cover_the_representative_design() -> None:
     scenarios = _root_scenarios("smoke", _settings("smoke"))
 

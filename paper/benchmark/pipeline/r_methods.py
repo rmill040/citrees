@@ -286,13 +286,9 @@ def _validate_inputs(X: np.ndarray, y: np.ndarray, task: str) -> None:
     if y.ndim != 1:
         raise ValueError(f"y must be one-dimensional, got shape {y.shape}")
     if X.shape[0] != y.shape[0]:
-        raise ValueError(
-            f"X and y have different sample counts: {X.shape[0]} and {y.shape[0]}"
-        )
+        raise ValueError(f"X and y have different sample counts: {X.shape[0]} and {y.shape[0]}")
     if X.shape[0] == 0 or X.shape[1] == 0:
-        raise ValueError(
-            f"X must contain at least one sample and feature, got shape {X.shape}"
-        )
+        raise ValueError(f"X must contain at least one sample and feature, got shape {X.shape}")
     if not np.isrealobj(X) or not np.isrealobj(y):
         raise ValueError("X and y must contain real values")
     try:
@@ -306,9 +302,7 @@ def _validate_inputs(X: np.ndarray, y: np.ndarray, task: str) -> None:
         int64 = np.iinfo(np.int64)
         integer_values = tuple(int(value) for value in y)
         if any(value < int64.min or value > int64.max for value in integer_values):
-            raise ValueError(
-                "classification targets must fit in signed 64-bit integers"
-            )
+            raise ValueError("classification targets must fit in signed 64-bit integers")
         integer_y = np.asarray(integer_values, dtype=np.int64)
         if not np.array_equal(y, integer_y):
             raise ValueError("classification targets must contain integer class labels")
@@ -380,18 +374,12 @@ def _feature_index_from_name(
 ) -> int:
     """Map one canonical R feature name to its zero-based Python index."""
     if not name.startswith("X") or not name[1:].isdigit():
-        raise RDiagnosticError(
-            f"Unexpected partykit {value_name} feature name: {name!r}"
-        )
+        raise RDiagnosticError(f"Unexpected partykit {value_name} feature name: {name!r}")
     feature_index = int(name[1:])
     if name != f"X{feature_index}":
-        raise RDiagnosticError(
-            f"Unexpected partykit {value_name} feature name: {name!r}"
-        )
+        raise RDiagnosticError(f"Unexpected partykit {value_name} feature name: {name!r}")
     if feature_index < 0 or feature_index >= n_features:
-        raise RDiagnosticError(
-            f"partykit {value_name} feature index is out of range: {name!r}"
-        )
+        raise RDiagnosticError(f"partykit {value_name} feature index is out of range: {name!r}")
     return feature_index
 
 
@@ -425,9 +413,7 @@ def _aligned_named_values(
             value_name=value_name,
         )
         if feature_index in seen:
-            raise RDiagnosticError(
-                f"partykit returned duplicate {value_name} feature: {name!r}"
-            )
+            raise RDiagnosticError(f"partykit returned duplicate {value_name} feature: {name!r}")
         aligned[feature_index] = value
         seen.add(feature_index)
 
@@ -454,9 +440,7 @@ def _ranking_from_importance(importance: np.ndarray) -> np.ndarray:
     """Return a complete ranking with omitted structural zeros restored."""
     values = np.asarray(importance, dtype=np.float64)
     if values.ndim != 1:
-        raise ValueError(
-            f"importance must be one-dimensional, got shape {values.shape}"
-        )
+        raise ValueError(f"importance must be one-dimensional, got shape {values.shape}")
     if np.isinf(values).any():
         raise ValueError("importance must not contain infinite values")
     ranking_values = np.where(np.isnan(values), 0.0, values)
@@ -596,9 +580,7 @@ def _r_testtype(ro: Any, testtype: str | tuple[str, ...]) -> str | Any:
     """Convert one or more partykit test-distribution controls for rpy2."""
     if isinstance(testtype, str):
         values: tuple[str, ...] = (testtype,)
-    elif isinstance(testtype, tuple) and all(
-        isinstance(value, str) for value in testtype
-    ):
+    elif isinstance(testtype, tuple) and all(isinstance(value, str) for value in testtype):
         values = testtype
     else:
         raise TypeError("testtype must be a string or tuple of strings")
@@ -608,9 +590,7 @@ def _r_testtype(ro: Any, testtype: str | tuple[str, ...]) -> str | Any:
     if unsupported:
         raise ValueError(f"unsupported partykit testtype values: {sorted(unsupported)}")
     if len(values) > 1 and set(values) != _R_COMBINED_TEST_TYPES:
-        raise ValueError(
-            "combined partykit testtype must contain Bonferroni and MonteCarlo"
-        )
+        raise ValueError("combined partykit testtype must contain Bonferroni and MonteCarlo")
     return values[0] if len(values) == 1 else ro.StrVector(values)
 
 
@@ -663,10 +643,7 @@ def _r_prediction_outputs(
     raw = stats.predict(model, newdata=new_data, type="response")
     if task == "regression":
         predictions = np.asarray(raw, dtype=np.float64).copy()
-        if (
-            predictions.shape != (X_test.shape[0],)
-            or not np.isfinite(predictions).all()
-        ):
+        if predictions.shape != (X_test.shape[0],) or not np.isfinite(predictions).all():
             raise RDiagnosticError("partykit returned invalid regression predictions")
         return predictions, None, None
 
@@ -674,9 +651,7 @@ def _r_prediction_outputs(
     try:
         predictions = np.asarray([int(value) for value in labels], dtype=np.int64)
     except ValueError as exc:
-        raise RDiagnosticError(
-            "partykit returned non-integer classification labels"
-        ) from exc
+        raise RDiagnosticError("partykit returned non-integer classification labels") from exc
     expected_classes = np.unique(y_train.astype(np.int64))
     if (
         predictions.shape != (X_test.shape[0],)
@@ -696,9 +671,7 @@ def _r_prediction_outputs(
             dtype=np.int64,
         )
     except ValueError as exc:
-        raise RDiagnosticError(
-            "partykit returned non-integer probability labels"
-        ) from exc
+        raise RDiagnosticError("partykit returned non-integer probability labels") from exc
     if (
         probabilities.shape != (X_test.shape[0], len(expected_classes))
         or not np.array_equal(probability_classes, expected_classes)
@@ -711,9 +684,7 @@ def _r_prediction_outputs(
     return predictions, probabilities, probability_classes
 
 
-def _ctree_split_usage(
-    tree: Any, *, ro: Any, n_features: int
-) -> tuple[int, np.ndarray]:
+def _ctree_split_usage(tree: Any, *, ro: Any, n_features: int) -> tuple[int, np.ndarray]:
     """Return the root and feature-aligned split counts from one ctree."""
     raw = _get_split_usage_function(ro)(tree)
     errors = [str(value) for value in raw.rx2("error")]
@@ -740,9 +711,7 @@ def _ctree_split_usage(
         value_name="split count",
         fill_value=0.0,
     )
-    if (split_counts < 0).any() or not np.equal(
-        split_counts, np.floor(split_counts)
-    ).all():
+    if (split_counts < 0).any() or not np.equal(split_counts, np.floor(split_counts)).all():
         raise RDiagnosticError("partykit returned invalid split counts")
     if (root_feature < 0) != (split_counts.sum() == 0):
         raise RDiagnosticError("partykit root and split counts are inconsistent")
@@ -831,10 +800,9 @@ def r_ctree_ranking(
     return _ranking_from_importance(split_counts)
 
 
-def r_ctree_behavior(
+def _fit_r_ctree(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    X_test: np.ndarray,
     *,
     task: str = "classification",
     teststat: str = "quadratic",
@@ -845,12 +813,12 @@ def r_ctree_behavior(
     minsplit: int = 20,
     minbucket: int = 7,
     random_state: int = 1718,
-) -> RCTreeBehavior:
-    """Fit one ctree and return structure and held-out predictions."""
+) -> tuple[Any, Any, Any, Any]:
+    """Fit one ctree and return its R bridge objects."""
     ro, _importr = _import_rpy2()
     partykit = _get_partykit()
     stats = _get_stats()
-    _validate_prediction_inputs(X_train, y_train, X_test, task)
+    _validate_inputs(X_train, y_train, task)
     _set_r_seed(ro, random_state)
 
     control_kwargs: dict[str, Any] = {
@@ -870,6 +838,69 @@ def r_ctree_behavior(
         stats.as_formula("y ~ ."),
         data=_make_r_dataframe(X_train, y_train, task),
         control=control,
+    )
+    return ro, partykit, stats, tree
+
+
+def r_ctree_fit(
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    task: str = "classification",
+    teststat: str = "quadratic",
+    testtype: str | tuple[str, ...] = "MonteCarlo",
+    mincriterion: float = 0.95,
+    nresample: int = 999,
+    maxdepth: int | None = 3,
+    minsplit: int = 20,
+    minbucket: int = 7,
+    random_state: int = 1718,
+) -> None:
+    """Fit one ctree without computing predictions or feature summaries."""
+    _fit_r_ctree(
+        X,
+        y,
+        task=task,
+        teststat=teststat,
+        testtype=testtype,
+        mincriterion=mincriterion,
+        nresample=nresample,
+        maxdepth=maxdepth,
+        minsplit=minsplit,
+        minbucket=minbucket,
+        random_state=random_state,
+    )
+
+
+def r_ctree_behavior(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    *,
+    task: str = "classification",
+    teststat: str = "quadratic",
+    testtype: str | tuple[str, ...] = "MonteCarlo",
+    mincriterion: float = 0.95,
+    nresample: int = 999,
+    maxdepth: int | None = 3,
+    minsplit: int = 20,
+    minbucket: int = 7,
+    random_state: int = 1718,
+) -> RCTreeBehavior:
+    """Fit one ctree and return structure and held-out predictions."""
+    _validate_prediction_inputs(X_train, y_train, X_test, task)
+    ro, _partykit, stats, tree = _fit_r_ctree(
+        X_train,
+        y_train,
+        task=task,
+        teststat=teststat,
+        testtype=testtype,
+        mincriterion=mincriterion,
+        nresample=nresample,
+        maxdepth=maxdepth,
+        minsplit=minsplit,
+        minbucket=minbucket,
+        random_state=random_state,
     )
     root_feature, split_counts = _ctree_split_usage(
         tree,
@@ -950,9 +981,7 @@ def r_ctree_root_diagnostics(
         statistic_feature_names=[
             str(name) for name in raw_diagnostics.rx2("statistic_feature_names")
         ],
-        p_value_feature_names=[
-            str(name) for name in raw_diagnostics.rx2("p_value_feature_names")
-        ],
+        p_value_feature_names=[str(name) for name in raw_diagnostics.rx2("p_value_feature_names")],
         statistics=np.asarray(raw_diagnostics.rx2("statistics"), dtype=np.float64),
         p_values=np.asarray(raw_diagnostics.rx2("p_values"), dtype=np.float64),
         n_features=n_features,
@@ -1073,6 +1102,46 @@ def _fit_r_cforest(
         )
     forest = partykit.cforest(stats.as_formula("y ~ ."), **forest_kwargs)
     return ro, partykit, stats, forest, n_cores
+
+
+def r_cforest_fit(
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    task: str = "classification",
+    teststat: str = "quadratic",
+    testtype: str | tuple[str, ...] = "MonteCarlo",
+    mincriterion: float = 0.95,
+    nresample: int = 999,
+    ntree: int = 100,
+    mtry: int | str | None = None,
+    maxdepth: int | None = 3,
+    minsplit: int = 20,
+    minbucket: int = 7,
+    replace: bool = True,
+    fraction: float = 1.0,
+    cores: int = 1,
+    random_state: int = 1718,
+) -> None:
+    """Fit one cforest without computing predictions or variable importance."""
+    _fit_r_cforest(
+        X,
+        y,
+        task=task,
+        teststat=teststat,
+        testtype=testtype,
+        mincriterion=mincriterion,
+        nresample=nresample,
+        ntree=ntree,
+        mtry=mtry,
+        maxdepth=maxdepth,
+        minsplit=minsplit,
+        minbucket=minbucket,
+        replace=replace,
+        fraction=fraction,
+        cores=cores,
+        random_state=random_state,
+    )
 
 
 def _r_cforest_importance(

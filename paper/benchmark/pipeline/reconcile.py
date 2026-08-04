@@ -222,32 +222,33 @@ def reconcile_manifest_artifacts(
     valid: list[str] = []
     invalid: list[ArtifactIssue] = []
     provenance_mismatches: list[ArtifactIssue] = []
-    ranking_artifacts: dict[tuple[str, str, int], LoadedArtifact] = {}
+    ranking_artifacts: dict[str, LoadedArtifact] = {}
     for key in sorted(observed):
         stage, cell = expected[key]
         config = cell.config
+        ranking_key = store.artifact_key("rankings", config)
         ranking_frame: pd.DataFrame | None = None
 
         try:
             if stage == "rankings":
-                loaded_rankings = ranking_artifacts.get(config.key)
+                loaded_rankings = ranking_artifacts.get(ranking_key)
                 if loaded_rankings is None:
                     loaded_rankings = store.load_with_payload_sha256(
                         "rankings",
                         config,
                     )
-                    ranking_artifacts[config.key] = loaded_rankings
+                    ranking_artifacts[ranking_key] = loaded_rankings
                 frame = loaded_rankings.frame
                 validate_ranking_artifact(frame, config)
             else:
                 frame = store.load("metrics", config)
-                loaded_rankings = ranking_artifacts.get(config.key)
+                loaded_rankings = ranking_artifacts.get(ranking_key)
                 if loaded_rankings is None:
                     loaded_rankings = store.load_with_payload_sha256(
                         "rankings",
                         config,
                     )
-                    ranking_artifacts[config.key] = loaded_rankings
+                    ranking_artifacts[ranking_key] = loaded_rankings
                 ranking_frame = loaded_rankings.frame
                 validate_ranking_artifact(ranking_frame, config)
                 validate_metrics_artifact(frame, config)

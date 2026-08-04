@@ -27,6 +27,7 @@ from paper.benchmark.pipeline.types import (
     ExperimentConfig,
     MethodConfig,
     StageType,
+    TaskType,
 )
 
 pytestmark = pytest.mark.paper
@@ -42,14 +43,20 @@ N_FEATURES = 4
 N_SAMPLES = 50
 
 
-def _config(seed: int, *, dataset: str = "glass") -> ExperimentConfig:
+def _config(
+    seed: int,
+    *,
+    dataset: str = "glass",
+    task: TaskType = "classification",
+    dataset_sha256: str = "d" * 64,
+) -> ExperimentConfig:
     return ExperimentConfig(
         method=MethodConfig("rf"),
         dataset=dataset,
         seed=seed,
-        task="classification",
+        task=task,
         dataset_identity=DatasetIdentity(
-            "d" * 64,
+            dataset_sha256,
             n_samples=N_SAMPLES,
             n_features=N_FEATURES,
         ),
@@ -59,11 +66,17 @@ def _config(seed: int, *, dataset: str = "glass") -> ExperimentConfig:
 def _cell(
     seed: int,
     *,
+    task: TaskType = "classification",
+    dataset_sha256: str = "d" * 64,
     stage1_required: bool = True,
     stage2_required: bool = True,
 ) -> ManifestCell:
     return ManifestCell(
-        config=_config(seed),
+        config=_config(
+            seed,
+            task=task,
+            dataset_sha256=dataset_sha256,
+        ),
         target_aws_account_id=ACCOUNT_ID,
         dataset_source="real",
         rerun_reason="adapter_correction",
@@ -259,6 +272,37 @@ def test_reconciliation_accepts_exact_valid_stage_requirements() -> None:
     }
     ranking_dependency = store.artifact_key("rankings", cells[2].config)
     assert tuple(sorted(store.loaded)) == tuple(sorted((*report.expected_keys, ranking_dependency)))
+
+
+def test_reconciliation_keeps_same_named_tasks_in_separate_cache_entries() -> None:
+    cells = (
+        _cell(0),
+        _cell(
+            0,
+            task="regression",
+            dataset_sha256="f" * 64,
+            stage2_required=False,
+        ),
+    )
+    store = _Store({})
+    store.frames = {
+        store.artifact_key("rankings", cell.config): _rankings(cell.config) for cell in cells
+    }
+    store.keys = {
+        "rankings": tuple(store.frames),
+        "metrics": (),
+    }
+
+    report = reconcile_manifest_artifacts(
+        store,
+        _manifest(*cells),
+        _provenance(),
+        stages=("rankings",),
+    )
+
+    assert report.is_complete
+    assert report.counts["valid"] == 2
+    assert sorted(store.loaded) == sorted(store.frames)
 
 
 def test_reconciliation_classifies_every_issue_without_loading_unapproved_keys() -> None:

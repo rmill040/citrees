@@ -76,6 +76,7 @@ def test_base_conditional_inference_tree_parameters():
         early_stopping_confidence_splitter=0.95,
         feature_muting=True,
         feature_scanning=True,
+        rdc_n_projections=10,
         max_features=None,
         threshold_method="exact",
         threshold_scanning=True,
@@ -288,6 +289,31 @@ class TestParameterValidation:
         """Negative max_thresholds should raise validation error."""
         with pytest.raises(ValidationError):
             ConditionalInferenceTreeClassifier(threshold_method="random", max_thresholds=-1)
+
+    @pytest.mark.parametrize("value", [0, -1, True])
+    def test_invalid_rdc_projection_count(self, value: int | bool):
+        """RDC projection count must be a positive integer."""
+        with pytest.raises(ValidationError):
+            ConditionalInferenceTreeClassifier(rdc_n_projections=value)
+
+    def test_rdc_projection_count_is_bound_to_score_and_test(self):
+        """Tree fitting should bind the configured count to both RDC call paths."""
+        X, y = make_classification(
+            n_samples=80,
+            n_features=5,
+            n_informative=3,
+            random_state=42,
+        )
+        clf = ConditionalInferenceTreeClassifier(
+            selector="rdc",
+            rdc_n_projections=5,
+            **FAST_PARAMS,
+        )
+
+        clf.fit(X, y)
+
+        assert clf._selectors["rdc"].keywords == {"n_projections": 5}
+        assert clf._selector_tests["rdc"].keywords == {"n_projections": 5}
 
 
 class TestFeatureNameValidation:

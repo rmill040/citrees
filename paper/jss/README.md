@@ -32,7 +32,6 @@ affiliation is Amazon Web Services.
 | ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | Null calibration        | Measure feature-test and root-split rejection under independence                               | Fixed-budget p-values; exhaustive, adaptive, and simple fitting |
 | Split-variable bias     | Measure selection frequency when noise variables differ only in cardinality                    | `citrees`, `partykit::ctree`, CART                              |
-| Power and recovery      | Show linear, nonlinear, correlated, and interaction boundaries                                 | All compatible `citrees` selectors and multi-selector tests     |
 | Reference behavior      | Compare split decisions, conditional root agreement, native feature summaries, and predictions | `citrees`, `partykit::ctree`, `partykit::cforest`               |
 | Scaling                 | Measure runtime and peak memory across controlled problem dimensions                           | `citrees`, `partykit`, scikit-learn                             |
 | DGRP application        | Demonstrate leakage-safe screening and linkage-disequilibrium-aware stability analysis         | Tree, forest, linear, and marginal baselines                    |
@@ -50,7 +49,7 @@ end-to-end tutorial.
 
 ## Claim Boundaries
 
-- Simulation results estimate calibration, power, and known failure boundaries
+- Simulation results estimate null calibration and split-variable selection bias
   across the specified designs.
 - Reference comparisons quantify split decisions, conditional root agreement,
   native feature-summary concordance, and held-out prediction behavior under
@@ -103,8 +102,8 @@ uv run python -m paper.jss.replication.shards behavior-shard \
 ```
 
 The calibration components are `selector`, `root`, `cardinality_tree`, and
-`cardinality_forest`. Every index from zero through `num-shards - 1` is
-required for each component. The canonical suite merges complete shard trees:
+`cardinality_forest`. Every index from zero through `num-shards - 1` is required
+for each component. The canonical suite merges complete shard trees:
 
 ```bash
 uv run python -m paper.jss.replication --profile full \
@@ -112,8 +111,8 @@ uv run python -m paper.jss.replication --profile full \
 ```
 
 The merge validates assignment coverage, source and input hashes, package and R
-versions, artifact hashes, schemas, row inventories, and execution contexts.
-The combined output includes the shard receipts used to construct each final
+versions, artifact hashes, schemas, row inventories, and execution contexts. The
+combined output includes the shard receipts used to construct each final
 analysis.
 
 ## Manuscript

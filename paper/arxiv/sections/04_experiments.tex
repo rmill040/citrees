@@ -96,7 +96,11 @@ randomized dependence coefficient (RDC) for classification, and Pearson
 correlation (PC), distance correlation (DC), and RDC for regression. The RDC
 filter keeps the empirical-CDF random feature map from
 \citet{LopezPaz2013RDC} but replaces the canonical-correlation solve with the
-maximum absolute pairwise correlation across projected columns. Distance
+maximum absolute pairwise correlation across projected columns. It uses 10
+random projections, which produce 20 sine and cosine columns. In a 5-seed,
+5-fold sensitivity analysis on the Wine and Glass datasets, increasing the
+count to 20 multiplied median selector time by 3.03$\times$ and 3.05$\times$,
+while mean balanced accuracy changed by $-0.0005$ and $-0.0026$. Distance
 correlation follows \citet{Szekely2007DistanceCorrelation}.
 
 Embedded methods rank features using tree or ensemble importance scores. These

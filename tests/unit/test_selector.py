@@ -209,6 +209,27 @@ class TestRDC:
         result = rdc_regressor(x, y, standardize=True, random_state=42)
         assert result > 0.5
 
+    def test_projection_count_reaches_classifier_and_regressor_statistics(self):
+        """Custom projection counts should reach the shared RDC statistic."""
+        x = np.linspace(-2.0, 2.0, 80)
+        y_reg = x**2 + 0.1 * np.sin(5.0 * x)
+        y_clf = (y_reg > np.median(y_reg)).astype(np.int64)
+
+        assert rdc_regressor(
+            x,
+            y_reg,
+            standardize=True,
+            random_state=42,
+            n_projections=5,
+        ) == pytest.approx(_rdc(x, y_reg, k=5, s=_RDC_S, seed=42))
+        assert rdc_classifier(
+            x,
+            y_clf,
+            n_classes=2,
+            random_state=42,
+            n_projections=5,
+        ) == pytest.approx(_rdc(x, y_clf.astype(float), k=5, s=_RDC_S, seed=42))
+
     def test_rdc_output_range(self):
         """Test RDC returns values in [0, 1]."""
         np.random.seed(42)
@@ -522,6 +543,34 @@ class TestPtestRDC:
             random_state=42,
         )
         assert pval < 0.1
+
+    def test_projection_count_reaches_parallel_permutation_kernel(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """The public permutation wrapper should forward its projection count."""
+        observed: list[int] = []
+
+        def parallel_result(**kwargs):
+            observed.append(kwargs["k"])
+            return 0.5, kwargs["n_resamples"]
+
+        monkeypatch.setattr(_selector, "_ptest_rdc_regressor_parallel_result", parallel_result)
+        x = np.linspace(0.0, 1.0, 20)
+
+        pvalue = ptest_rdc_regressor(
+            x=x,
+            y=x**2,
+            standardize=True,
+            n_resamples=200,
+            early_stopping=None,
+            alpha=0.05,
+            random_state=42,
+            n_projections=40,
+        )
+
+        assert pvalue == 0.5
+        assert observed == [40]
 
     def test_classifier_no_signal(self):
         """Test ptest_rdc_classifier gives reasonable p-value for no signal."""

@@ -1,3 +1,4 @@
+from functools import partial
 from math import ceil
 from typing import Any
 
@@ -1196,7 +1197,7 @@ def dc(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None
 #   }
 # =============================================================================
 
-_RDC_K = 10  # Number of random projections (paper uses 20, we use 10 for speed)
+_RDC_K = 10
 _RDC_S = 1.0 / 6.0  # Bandwidth parameter
 
 
@@ -1332,7 +1333,11 @@ def _rdc(x: np.ndarray, y: np.ndarray, k: int, s: float, seed: int) -> float:
 
 @ClassifierSelectors.register("rdc")
 def rdc_classifier(
-    x: np.ndarray, y: np.ndarray, n_classes: int, random_state: int | None = None
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    random_state: int | None = None,
+    n_projections: int = _RDC_K,
 ) -> float:
     """RDC for classification.
 
@@ -1346,12 +1351,12 @@ def rdc_classifier(
     seed = 42 if random_state is None else random_state
 
     if n_classes == 2:
-        return _rdc(x, y.astype(np.float64), _RDC_K, _RDC_S, seed)
+        return _rdc(x, y.astype(np.float64), n_projections, _RDC_S, seed)
 
     # Multi-class: max RDC over one-vs-all
     max_rdc = 0.0
     for c in range(n_classes):
-        rdc_c = _rdc(x, (y == c).astype(np.float64), _RDC_K, _RDC_S, seed + c)
+        rdc_c = _rdc(x, (y == c).astype(np.float64), n_projections, _RDC_S, seed + c)
         if rdc_c > max_rdc:
             max_rdc = rdc_c
     return max_rdc
@@ -1359,7 +1364,11 @@ def rdc_classifier(
 
 @RegressorSelectors.register("rdc")
 def rdc_regressor(
-    x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None = None
+    x: np.ndarray,
+    y: np.ndarray,
+    standardize: bool,
+    random_state: int | None = None,
+    n_projections: int = _RDC_K,
 ) -> float:
     """RDC for regression.
 
@@ -1371,7 +1380,7 @@ def rdc_regressor(
         y = y.ravel()
 
     seed = 42 if random_state is None else random_state
-    return _rdc(x, y, _RDC_K, _RDC_S, seed)
+    return _rdc(x, y, n_projections, _RDC_S, seed)
 
 
 @ClassifierSelectorTests.register("mc")
@@ -1693,6 +1702,7 @@ def ptest_rdc_classifier(
     alpha: float,
     random_state: int,
     confidence: float = 0.95,
+    n_projections: int = _RDC_K,
 ) -> float:
     """Perform a permutation test using the Randomized Dependence Coefficient.
 
@@ -1734,7 +1744,7 @@ def ptest_rdc_classifier(
                 x=x,
                 y=y,
                 n_classes=n_classes,
-                k=_RDC_K,
+                k=n_projections,
                 s=_RDC_S,
                 rdc_seed=random_state,
                 n_resamples=n_resamples,
@@ -1745,7 +1755,7 @@ def ptest_rdc_classifier(
                 x=x,
                 y=y,
                 n_classes=n_classes,
-                k=_RDC_K,
+                k=n_projections,
                 s=_RDC_S,
                 rdc_seed=random_state,
                 n_resamples=n_resamples,
@@ -1755,7 +1765,7 @@ def ptest_rdc_classifier(
             )
         else:
             result = _ptest_result(
-                func=rdc_classifier,
+                func=partial(rdc_classifier, n_projections=n_projections),
                 func_arg=n_classes,
                 x=x,
                 y=y,
@@ -1767,7 +1777,7 @@ def ptest_rdc_classifier(
             )
     else:
         result = _ptest_result(
-            func=rdc_classifier,
+            func=partial(rdc_classifier, n_projections=n_projections),
             func_arg=n_classes,
             x=x,
             y=y,
@@ -1791,6 +1801,7 @@ def ptest_rdc_regressor(
     alpha: float,
     random_state: int,
     confidence: float = 0.95,
+    n_projections: int = _RDC_K,
 ) -> float:
     """Perform a permutation test using the Randomized Dependence Coefficient.
 
@@ -1831,7 +1842,7 @@ def ptest_rdc_regressor(
             result = _ptest_rdc_regressor_parallel_result(
                 x=x,
                 y=y,
-                k=_RDC_K,
+                k=n_projections,
                 s=_RDC_S,
                 rdc_seed=random_state,
                 n_resamples=n_resamples,
@@ -1841,7 +1852,7 @@ def ptest_rdc_regressor(
             result = _ptest_rdc_regressor_parallel_batched_result(
                 x=x,
                 y=y,
-                k=_RDC_K,
+                k=n_projections,
                 s=_RDC_S,
                 rdc_seed=random_state,
                 n_resamples=n_resamples,
@@ -1851,7 +1862,7 @@ def ptest_rdc_regressor(
             )
         else:
             result = _ptest_result(
-                func=rdc_regressor,
+                func=partial(rdc_regressor, n_projections=n_projections),
                 func_arg=standardize,
                 x=x,
                 y=y,
@@ -1863,7 +1874,7 @@ def ptest_rdc_regressor(
             )
     else:
         result = _ptest_result(
-            func=rdc_regressor,
+            func=partial(rdc_regressor, n_projections=n_projections),
             func_arg=standardize,
             x=x,
             y=y,

@@ -1,10 +1,18 @@
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 import zlib
 
 import numpy as np
 import pytest
 from sklearn.datasets import make_classification, make_friedman1, make_regression
+
+if "NUMBA_CACHE_DIR" not in os.environ:
+    _NUMBA_TEST_CACHE = tempfile.mkdtemp(prefix="citrees-numba-")
+    os.environ["NUMBA_CACHE_DIR"] = _NUMBA_TEST_CACHE
+    atexit.register(shutil.rmtree, _NUMBA_TEST_CACHE, ignore_errors=True)
 
 # Conditional JIT disabling:
 # - JIT is DISABLED when running with coverage (--cov flag) for accurate line tracking

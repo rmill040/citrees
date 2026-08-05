@@ -236,6 +236,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         early_stopping_confidence_splitter: float,
         feature_muting: bool,
         feature_scanning: bool,
+        rdc_n_projections: int,
         threshold_scanning: bool,
         threshold_method: str,
         max_thresholds: str | float | int | None,
@@ -269,6 +270,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.early_stopping_confidence_splitter = early_stopping_confidence_splitter
         self.feature_muting = feature_muting
         self.feature_scanning = feature_scanning
+        self.rdc_n_projections = rdc_n_projections
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.max_thresholds = max_thresholds
@@ -610,6 +612,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
+        rdc_n_projections: int = 10,
         max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
@@ -644,6 +647,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         self.early_stopping_confidence_splitter = early_stopping_confidence_splitter
         self.feature_muting = feature_muting
         self.feature_scanning = feature_scanning
+        self.rdc_n_projections = rdc_n_projections
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.max_thresholds = max_thresholds
@@ -866,6 +870,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
+        rdc_n_projections: int = 10,
         max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
@@ -900,6 +905,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
             early_stopping_confidence_splitter=early_stopping_confidence_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
+            rdc_n_projections=rdc_n_projections,
             max_features=max_features,
             threshold_method=threshold_method,
             threshold_scanning=threshold_scanning,

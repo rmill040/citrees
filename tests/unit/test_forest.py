@@ -545,6 +545,33 @@ class TestForestNJobs:
         clf.fit(X, y)
         assert len(clf.estimators_) == 5
 
+    def test_rdc_projection_count_reaches_loky_trees(self, classification_data):
+        """Each process-fitted tree should use the forest projection count."""
+        try:
+            os.sysconf("SC_SEM_NSEMS_MAX")
+        except PermissionError:
+            pytest.skip("loky backend is unavailable in this environment")
+        X, y = classification_data
+        clf = ConditionalInferenceForestClassifier(
+            n_estimators=2,
+            n_jobs=2,
+            selector="rdc",
+            rdc_n_projections=5,
+            **FAST_PARAMS,
+        )
+
+        clf.fit(X, y)
+
+        assert all(estimator.rdc_n_projections == 5 for estimator in clf.estimators_)
+        assert all(
+            estimator._selectors["rdc"].keywords == {"n_projections": 5}
+            for estimator in clf.estimators_
+        )
+        assert all(
+            estimator._selector_tests["rdc"].keywords == {"n_projections": 5}
+            for estimator in clf.estimators_
+        )
+
 
 class TestForestHonesty:
     """Tests for honest forest estimation."""

@@ -10,6 +10,7 @@ import json
 import socket
 import time
 import traceback
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -23,7 +24,7 @@ from paper.benchmark.adapters.data import (
 )
 from paper.benchmark.adapters.store import Store
 from paper.benchmark.config.constants import N_SPLITS, PIPELINE_ARTIFACT_VERSION
-from paper.benchmark.pipeline.types import ExperimentConfig, Result
+from paper.benchmark.pipeline.types import ExperimentConfig, Result, TaskType
 from paper.benchmark.pipeline.validation import (
     validate_artifact_provenance,
     validate_ranking_artifact,
@@ -53,15 +54,19 @@ def filter_selector(
     X: np.ndarray,
     y: np.ndarray,
     method: str,
-    task: str,
+    task: TaskType,
     random_state: int,
+    params: dict[str, Any] | None = None,
 ) -> np.ndarray:
     """Compute feature ranking using filter methods."""
     from citrees._selector import ClassifierSelectors, RegressorSelectors
 
     n_features = X.shape[1]
     selectors = ClassifierSelectors if task == "classification" else RegressorSelectors
-    selector_fn = selectors[method]
+    selector_fn: Callable[..., float] = selectors[method]
+    selector_kwargs = (
+        {"n_projections": (params or {}).get("rdc_n_projections", 10)} if method == "rdc" else {}
+    )
     scores = np.zeros(n_features)
     rng = np.random.default_rng(random_state)
 
@@ -69,11 +74,23 @@ def filter_selector(
         y_enc, classes = _encode_labels(y)
         n_classes = len(classes)
         for j in range(n_features):
-            scores[j] = selector_fn(X[:, j], y_enc, n_classes, random_state=rng.integers(0, 2**31))
+            scores[j] = selector_fn(
+                X[:, j],
+                y_enc,
+                n_classes,
+                random_state=rng.integers(0, 2**31),
+                **selector_kwargs,
+            )
     else:
         use_abs = method == "pc"
         for j in range(n_features):
-            score = selector_fn(X[:, j], y, standardize=True, random_state=rng.integers(0, 2**31))
+            score = selector_fn(
+                X[:, j],
+                y,
+                standardize=True,
+                random_state=rng.integers(0, 2**31),
+                **selector_kwargs,
+            )
             scores[j] = abs(score) if use_abs else score
 
     return np.argsort(scores)[::-1]
@@ -118,7 +135,7 @@ def permutation_selector(
     X: np.ndarray,
     y: np.ndarray,
     method: str,
-    task: str,
+    task: TaskType,
     random_state: int,
     params: dict[str, Any] | None = None,
 ) -> np.ndarray:
@@ -154,13 +171,16 @@ def permutation_selector(
     n_resamples_raw = params.get("n_resamples", 1000)
     n_resamples = _resolve_n_resamples(n_resamples_raw, alpha)
     early_stopping = params.get("early_stopping")
+    rdc_kwargs = (
+        {"n_projections": params.get("rdc_n_projections", 10)} if method == "ptest_rdc" else {}
+    )
 
     base_method = method.replace("ptest_", "")
     n_features = X.shape[1]
     selectors = ClassifierSelectors if task == "classification" else RegressorSelectors
     selector_tests = ClassifierSelectorTests if task == "classification" else RegressorSelectorTests
-    selector_fn = selectors[base_method]
-    test_fn = selector_tests[base_method]
+    selector_fn: Callable[..., float] = selectors[base_method]
+    test_fn: Callable[..., float] = selector_tests[base_method]
 
     scores = np.zeros(n_features)
     pvalues = np.ones(n_features)
@@ -171,7 +191,13 @@ def permutation_selector(
         n_classes = len(classes)
         for j in range(n_features):
             rs = rng.integers(0, 2**31)
-            scores[j] = selector_fn(X[:, j], y_enc, n_classes, random_state=rs)
+            scores[j] = selector_fn(
+                X[:, j],
+                y_enc,
+                n_classes,
+                random_state=rs,
+                **rdc_kwargs,
+            )
             pvalues[j] = test_fn(
                 x=X[:, j],
                 y=y_enc,
@@ -180,12 +206,19 @@ def permutation_selector(
                 n_resamples=n_resamples,
                 early_stopping=early_stopping,
                 random_state=rs,
+                **rdc_kwargs,
             )
     else:
         use_abs = base_method == "pc"
         for j in range(n_features):
             rs = rng.integers(0, 2**31)
-            score = selector_fn(X[:, j], y, standardize=True, random_state=rs)
+            score = selector_fn(
+                X[:, j],
+                y,
+                standardize=True,
+                random_state=rs,
+                **rdc_kwargs,
+            )
             scores[j] = abs(score) if use_abs else score
             pvalues[j] = test_fn(
                 x=X[:, j],
@@ -195,6 +228,7 @@ def permutation_selector(
                 n_resamples=n_resamples,
                 early_stopping=early_stopping,
                 random_state=rs,
+                **rdc_kwargs,
             )
 
     return np.lexsort((-scores, pvalues))
@@ -206,7 +240,7 @@ def embedding_selector(
     X_test: np.ndarray,
     y_test: np.ndarray,
     method: str,
-    task: str,
+    task: TaskType,
     random_state: int,
     params: dict[str, Any] | None = None,
     n_jobs: int = 1,
@@ -224,7 +258,7 @@ def wrapper_selector(
     X_train: np.ndarray,
     y_train: np.ndarray,
     method: str,
-    task: str,
+    task: TaskType,
     random_state: int,
     n_jobs: int = 1,
     params: dict[str, Any] | None = None,
@@ -283,7 +317,7 @@ def run_selection(
     X: np.ndarray,
     y: np.ndarray,
     method: str,
-    task: str,
+    task: TaskType,
     seed: int,
     params: dict[str, Any] | None = None,
     n_jobs: int = 1,
@@ -311,7 +345,7 @@ def run_selection(
 
         # Select appropriate method
         if method in ["mc", "mi", "rdc", "pc", "dc"]:
-            ranking = filter_selector(X_train, y_train, method, task, rs)
+            ranking = filter_selector(X_train, y_train, method, task, rs, params=params)
         elif method.startswith("ptest_"):
             ranking = permutation_selector(X_train, y_train, method, task, rs, params=params)
         elif method in ["dt", "rt", "rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:

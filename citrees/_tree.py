@@ -1,6 +1,7 @@
 import warnings
 from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
+from functools import partial
 from math import ceil
 from types import MappingProxyType
 from typing import Any, TypedDict
@@ -82,6 +83,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     early_stopping_confidence_splitter: ConfidenceFloat
     feature_muting: bool
     feature_scanning: bool
+    rdc_n_projections: PositiveInt
     threshold_scanning: bool
     threshold_method: ThresholdMethod
     max_thresholds: MaxValuesOption
@@ -96,7 +98,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     verbose: NonNegativeInt
     check_for_unused_parameters: bool
 
-    @field_validator("max_features", "max_thresholds", mode="before")
+    @field_validator("max_features", "max_thresholds", "rdc_n_projections", mode="before")
     @classmethod
     def _reject_bool(cls, v: Any) -> Any:
         """Reject boolean values before they get coerced to int."""
@@ -456,6 +458,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         early_stopping_confidence_splitter: float,
         feature_muting: bool,
         feature_scanning: bool,
+        rdc_n_projections: int,
         threshold_scanning: bool,
         threshold_method: str,
         max_thresholds: str | float | int | None,
@@ -484,6 +487,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.early_stopping_confidence_splitter = early_stopping_confidence_splitter
         self.feature_muting = feature_muting
         self.feature_scanning = feature_scanning
+        self.rdc_n_projections = rdc_n_projections
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.max_thresholds = max_thresholds
@@ -1243,12 +1247,17 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self._multi_selector = len(selectors) > 1
         self._selector_names = selectors
 
+        def bind_rdc(function: Any, name: str) -> Any:
+            if name != "rdc":
+                return function
+            return partial(function, n_projections=self.rdc_n_projections)
+
         if self._estimator_type == EstimatorType.CLASSIFIER:
             self._selectors: dict[str, Any] = {
-                name: ClassifierSelectors[name] for name in selectors
+                name: bind_rdc(ClassifierSelectors[name], name) for name in selectors
             }
             self._selector_tests: dict[str, Any] = {
-                name: ClassifierSelectorTests[name] for name in selectors
+                name: bind_rdc(ClassifierSelectorTests[name], name) for name in selectors
             }
             self._splitter: Any = ClassifierSplitters[self.splitter]
             self._splitter_test: Any = ClassifierSplitterTests[self.splitter]
@@ -1266,8 +1275,10 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             self._label_encoder = LabelEncoder()
             y = self._label_encoder.fit_transform(y)
         else:
-            self._selectors = {name: RegressorSelectors[name] for name in selectors}
-            self._selector_tests = {name: RegressorSelectorTests[name] for name in selectors}
+            self._selectors = {name: bind_rdc(RegressorSelectors[name], name) for name in selectors}
+            self._selector_tests = {
+                name: bind_rdc(RegressorSelectorTests[name], name) for name in selectors
+            }
             self._splitter = RegressorSplitters[self.splitter]
             self._splitter_test = RegressorSplitterTests[self.splitter]
 
@@ -1608,6 +1619,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
         early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
+        rdc_n_projections: int = 10,
         max_features: str | float | int | None = None,
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
@@ -1637,6 +1649,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
             early_stopping_confidence_splitter=early_stopping_confidence_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
+            rdc_n_projections=rdc_n_projections,
             max_features=max_features,
             threshold_method=threshold_method,
             threshold_scanning=threshold_scanning,
@@ -1773,6 +1786,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
         early_stopping_confidence_splitter: float = 0.95,
         feature_muting: bool = True,
         feature_scanning: bool = True,
+        rdc_n_projections: int = 10,
         max_features: str | float | int | None = None,
         threshold_method: str = "exact",
         threshold_scanning: bool = True,
@@ -1802,6 +1816,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
             early_stopping_confidence_splitter=early_stopping_confidence_splitter,
             feature_muting=feature_muting,
             feature_scanning=feature_scanning,
+            rdc_n_projections=rdc_n_projections,
             max_features=max_features,
             threshold_method=threshold_method,
             threshold_scanning=threshold_scanning,

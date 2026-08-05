@@ -67,6 +67,9 @@ LAUNCH_RECORD_POLL_SECONDS = 2.0
 LAUNCH_RECORD_TIMEOUT_SECONDS = 300.0
 CONDITIONAL_WRITE_MAX_ATTEMPTS = 5
 CONDITIONAL_WRITE_RETRY_SECONDS = 0.1
+EC2_INSTANCE_PROPAGATION_SECONDS = 300.0
+EC2_EXACT_LOOKUP_MAX_ATTEMPTS = 3
+EC2_EXACT_LOOKUP_RETRY_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
@@ -3254,6 +3257,74 @@ def _campaign_instances(
     )
 
 
+def _exact_instance_state(
+    ec2_client: Any,
+    instance_id: str,
+) -> tuple[str, str] | None:
+    """Return one exact-ID EC2 state, or None when EC2 reports absence."""
+    try:
+        response = ec2_client.describe_instances(InstanceIds=[instance_id])
+    except ClientError as error:
+        code = str(error.response.get("Error", {}).get("Code", ""))
+        if code == "InvalidInstanceID.NotFound":
+            return None
+        raise
+    instances = [
+        instance
+        for reservation in response.get("Reservations", [])
+        for instance in reservation.get("Instances", [])
+    ]
+    if not instances:
+        return None
+    if len(instances) != 1:
+        raise RuntimeError("exact EC2 instance lookup returned multiple instances")
+    instance = instances[0]
+    observed_id = _require_string(
+        instance.get("InstanceId"),
+        "exact EC2 instance identifier",
+    )
+    if observed_id != instance_id:
+        raise RuntimeError("exact EC2 instance lookup returned a different instance")
+    state = instance.get("State")
+    if not isinstance(state, Mapping):
+        raise TypeError("exact EC2 instance state must be a mapping")
+    state_name = _require_string(state.get("Name"), "exact EC2 instance state")
+    if state_name not in {
+        "pending",
+        "running",
+        "shutting-down",
+        "terminated",
+        "stopping",
+        "stopped",
+    }:
+        raise ValueError("exact EC2 instance state is invalid")
+    transition_reason = instance.get("StateTransitionReason", "")
+    if not isinstance(transition_reason, str):
+        raise TypeError("exact EC2 instance transition reason must be a string")
+    return state_name, transition_reason
+
+
+def _reconcile_exact_instance_state(
+    record: LaunchRecord,
+    ec2_client: Any,
+) -> tuple[str, str] | None:
+    """Resolve an exact-ID state while honoring EC2's propagation window."""
+    observation = _exact_instance_state(ec2_client, record.instance_id)
+    if observation is not None:
+        return observation
+    launch_age = (
+        datetime.now(UTC) - _parse_canonical_utc(record.launch_time, "launch_time")
+    ).total_seconds()
+    if launch_age < EC2_INSTANCE_PROPAGATION_SECONDS:
+        return None
+    for retry in range(EC2_EXACT_LOOKUP_MAX_ATTEMPTS - 1):
+        time.sleep(EC2_EXACT_LOOKUP_RETRY_SECONDS * (2**retry))
+        observation = _exact_instance_state(ec2_client, record.instance_id)
+        if observation is not None:
+            return observation
+    return "terminated", "EC2.InstancePersistentlyAbsentFromExactLookup"
+
+
 def _reconcile_campaign_instances(
     campaign: CloudCampaign,
     requests: Sequence[LaunchRequest],
@@ -3261,6 +3332,7 @@ def _reconcile_campaign_instances(
     outcomes: Sequence[InstanceOutcome],
     observed: Sequence[ObservedInstance],
     *,
+    ec2_client: Any,
     s3_client: Any,
 ) -> dict[str, LaunchRecord]:
     reconciled = list(launches)
@@ -3320,6 +3392,33 @@ def _reconcile_campaign_instances(
         (outcome.spec_sha256, outcome.attempt): outcome
         for outcome in (*outcomes, *reconciled_outcomes)
     }
+    observed_attempts = {(item.launch.spec_sha256, item.launch.attempt) for item in observed}
+    for record in reconciled_records:
+        identity = (record.spec_sha256, record.attempt)
+        if identity in known_outcomes or identity in observed_attempts:
+            continue
+        exact_state = _reconcile_exact_instance_state(record, ec2_client)
+        if exact_state is None:
+            continue
+        state, transition_reason = exact_state
+        if state == "terminated":
+            known_outcomes[identity] = publish_instance_outcome(
+                campaign,
+                InstanceOutcome(
+                    spec_sha256=record.spec_sha256,
+                    attempt=record.attempt,
+                    instance_id=record.instance_id,
+                    state="terminated",
+                    state_transition_reason=transition_reason,
+                    observed_utc=datetime.now(UTC).isoformat(),
+                ),
+                launches=reconciled_records,
+                s3_client=s3_client,
+            )
+        elif state in {"stopped", "stopping"}:
+            raise RuntimeError(
+                f"campaign instance {record.instance_id} entered unexpected state {state!r}"
+            )
     active: dict[str, LaunchRecord] = {}
     for record in reconciled_records:
         if (record.spec_sha256, record.attempt) in known_outcomes:
@@ -3348,6 +3447,7 @@ def refresh_campaign_provenance(
         status.launches,
         status.instance_outcomes,
         _campaign_instances(campaign, ec2),
+        ec2_client=ec2,
         s3_client=s3,
     )
     return campaign_status(campaign, s3_client=s3)
@@ -3602,6 +3702,7 @@ def launch_missing_shards(
         status.launches,
         status.instance_outcomes,
         observed,
+        ec2_client=ec2,
         s3_client=s3,
     )
     status = campaign_status(campaign, s3_client=s3)
@@ -3639,6 +3740,7 @@ def launch_missing_shards(
         status.launches,
         status.instance_outcomes,
         observed,
+        ec2_client=ec2,
         s3_client=s3,
     )
     status = campaign_status(campaign, s3_client=s3)

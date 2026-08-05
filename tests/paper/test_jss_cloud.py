@@ -10,7 +10,7 @@ import os
 import subprocess
 import tarfile
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -40,6 +40,16 @@ def _precondition_failed(operation: str) -> ClientError:
             "ResponseMetadata": {"HTTPStatusCode": 412},
         },
         operation,
+    )
+
+
+def _ec2_error(code: str) -> ClientError:
+    return ClientError(
+        {
+            "Error": {"Code": code, "Message": "test EC2 error"},
+            "ResponseMetadata": {"HTTPStatusCode": 400},
+        },
+        "DescribeInstances",
     )
 
 
@@ -407,6 +417,73 @@ class _IdempotentTerminatedEC2(_MemoryEC2):
         return response
 
 
+class _IdempotentRunningEC2(_IdempotentTerminatedEC2):
+    def describe_instances(self, **kwargs: object) -> dict[str, object]:
+        response = super().describe_instances(**kwargs)
+        reservations = response["Reservations"]
+        assert isinstance(reservations, list)
+        for reservation in reservations:
+            assert isinstance(reservation, dict)
+            instances = reservation["Instances"]
+            assert isinstance(instances, list)
+            for instance in instances:
+                assert isinstance(instance, dict)
+                instance["State"] = {"Name": "running"}
+                instance["StateTransitionReason"] = ""
+        return response
+
+
+def _exact_instance_response(
+    instance_id: str,
+    state: str,
+    *,
+    reason: str = "",
+) -> dict[str, object]:
+    return {
+        "Reservations": [
+            {
+                "Instances": [
+                    {
+                        "InstanceId": instance_id,
+                        "State": {"Name": state},
+                        "StateTransitionReason": reason,
+                    }
+                ]
+            }
+        ]
+    }
+
+
+class _ScriptedExactLookupEC2(_MemoryEC2):
+    def __init__(
+        self,
+        instance_id: str,
+        exact_results: list[dict[str, object] | BaseException],
+    ) -> None:
+        super().__init__()
+        self.instance_id = instance_id
+        self.exact_results = exact_results
+        self.exact_calls = 0
+
+    def describe_instances(self, **kwargs: object) -> dict[str, object]:
+        self.describe_calls += 1
+        if "Filters" in kwargs:
+            return {"Reservations": []}
+        assert kwargs == {"InstanceIds": [self.instance_id]}
+        result = self.exact_results[min(self.exact_calls, len(self.exact_results) - 1)]
+        self.exact_calls += 1
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+    def run_instances(self, **kwargs: object) -> dict[str, object]:
+        response = super().run_instances(**kwargs)
+        instance = response["Instances"][0]  # type: ignore[index]
+        assert isinstance(instance, dict)
+        instance["LaunchTime"] = datetime.now(UTC) + timedelta(seconds=len(self.run_calls))
+        return response
+
+
 class _TimeoutAfterAcceptedEC2(_IdempotentTerminatedEC2):
     def __init__(self) -> None:
         super().__init__()
@@ -656,6 +733,8 @@ def _publish_runtime_launch(
     campaign: cloud.CloudCampaign,
     spec: shards.ShardSpec,
     runtime: cloud.CloudRuntime,
+    *,
+    launch_time: datetime | None = None,
 ) -> None:
     request = _publish_request(
         client,
@@ -676,14 +755,17 @@ def _publish_runtime_launch(
             client_token=request.client_token,
             instance_id=runtime.instance_id,
             availability_zone=runtime.availability_zone,
-            launch_time=datetime(
-                2026,
-                8,
-                4,
-                0,
-                0,
-                runtime.attempt - 1,
-                tzinfo=UTC,
+            launch_time=(
+                launch_time
+                or datetime(
+                    2026,
+                    8,
+                    4,
+                    0,
+                    0,
+                    runtime.attempt - 1,
+                    tzinfo=UTC,
+                )
             ).isoformat(),
             logical_cpus=2,
         ),
@@ -1252,7 +1334,7 @@ def test_launch_intents_and_capacity_observations_converge_across_controllers() 
     campaign = _campaign()
     spec = campaign.specs[0]
     client = _MemoryS3()
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "requests": (),
         "launches": (),
         "market": "spot",
@@ -1526,7 +1608,7 @@ def test_unterminated_launch_is_not_retried(
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    ec2 = _MemoryEC2()
+    ec2 = _IdempotentRunningEC2()
     _patch_launch_prerequisites(monkeypatch)
 
     first = cloud.launch_missing_shards(
@@ -1549,6 +1631,228 @@ def test_unterminated_launch_is_not_retried(
     assert second[0].spec != first[0].spec
     assert all(record.attempt == 1 for record in (*first, *second))
     assert len(ec2.run_calls) == 2
+
+
+@pytest.mark.parametrize("state", ["pending", "running", "shutting-down"])
+def test_tag_discovery_miss_exact_lookup_active_state_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+    state: str,
+) -> None:
+    campaign = _campaign()
+    client = _MemoryS3()
+    runtime = _runtime(instance_id=f"i-{state}", attempt=1, market="spot")
+    _publish_runtime_launch(client, campaign, campaign.specs[0], runtime)
+    ec2 = _ScriptedExactLookupEC2(
+        runtime.instance_id,
+        [_exact_instance_response(runtime.instance_id, state)],
+    )
+    _patch_launch_prerequisites(monkeypatch)
+
+    records = cloud.launch_missing_shards(
+        campaign,
+        spot_count=0,
+        max_new_instances=1,
+        ec2_client=ec2,
+        s3_client=client,
+    )
+
+    assert [(record.spec, record.attempt) for record in records] == [(campaign.specs[1], 1)]
+    assert cloud.campaign_status(campaign, s3_client=client).instance_outcomes == ()
+    assert ec2.exact_calls == 2
+
+
+def test_tag_discovery_miss_exact_lookup_terminated_records_actual_reason_and_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = _campaign()
+    client = _MemoryS3()
+    terminated = _runtime(instance_id="i-terminated", attempt=1, market="spot")
+    _publish_runtime_launch(client, campaign, campaign.specs[0], terminated)
+    ec2 = _ScriptedExactLookupEC2(
+        terminated.instance_id,
+        [
+            _exact_instance_response(
+                terminated.instance_id,
+                "terminated",
+                reason="Server.SpotInstanceTermination",
+            )
+        ],
+    )
+    _patch_launch_prerequisites(monkeypatch)
+
+    records = cloud.launch_missing_shards(
+        campaign,
+        spot_count=0,
+        max_new_instances=1,
+        ec2_client=ec2,
+        s3_client=client,
+    )
+
+    assert [(record.spec, record.attempt, record.market) for record in records] == [
+        (campaign.specs[0], 2, "on-demand")
+    ]
+    outcomes = cloud.campaign_status(campaign, s3_client=client).instance_outcomes
+    assert len(outcomes) == 1
+    assert outcomes[0].instance_id == terminated.instance_id
+    assert outcomes[0].state_transition_reason == "Server.SpotInstanceTermination"
+    assert ec2.exact_calls == 1
+
+
+@pytest.mark.parametrize(
+    "exact_result",
+    [
+        {"Reservations": []},
+        _ec2_error("InvalidInstanceID.NotFound"),
+    ],
+    ids=["empty-response", "not-found"],
+)
+def test_recent_exact_lookup_absence_is_indeterminate_and_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+    exact_result: dict[str, object] | BaseException,
+) -> None:
+    campaign = _campaign()
+    client = _MemoryS3()
+    runtime = _runtime(instance_id="i-recent", attempt=1, market="spot")
+    _publish_runtime_launch(
+        client,
+        campaign,
+        campaign.specs[0],
+        runtime,
+        launch_time=datetime.now(UTC),
+    )
+    ec2 = _ScriptedExactLookupEC2(runtime.instance_id, [exact_result])
+    _patch_launch_prerequisites(monkeypatch)
+
+    records = cloud.launch_missing_shards(
+        campaign,
+        spot_count=0,
+        max_new_instances=1,
+        ec2_client=ec2,
+        s3_client=client,
+    )
+
+    assert [(record.spec, record.attempt) for record in records] == [(campaign.specs[1], 1)]
+    assert cloud.campaign_status(campaign, s3_client=client).instance_outcomes == ()
+    assert ec2.exact_calls == 2
+
+
+def test_old_exact_lookup_not_found_then_running_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = _campaign()
+    client = _MemoryS3()
+    runtime = _runtime(instance_id="i-delayed", attempt=1, market="spot")
+    _publish_runtime_launch(
+        client,
+        campaign,
+        campaign.specs[0],
+        runtime,
+        launch_time=datetime.now(UTC)
+        - timedelta(seconds=cloud.EC2_INSTANCE_PROPAGATION_SECONDS + 1),
+    )
+    ec2 = _ScriptedExactLookupEC2(
+        runtime.instance_id,
+        [
+            _ec2_error("InvalidInstanceID.NotFound"),
+            _exact_instance_response(runtime.instance_id, "running"),
+        ],
+    )
+    sleep_delays: list[float] = []
+    _patch_launch_prerequisites(monkeypatch)
+    monkeypatch.setattr(cloud.time, "sleep", sleep_delays.append)
+
+    records = cloud.launch_missing_shards(
+        campaign,
+        spot_count=0,
+        max_new_instances=1,
+        ec2_client=ec2,
+        s3_client=client,
+    )
+
+    assert [(record.spec, record.attempt) for record in records] == [(campaign.specs[1], 1)]
+    assert cloud.campaign_status(campaign, s3_client=client).instance_outcomes == ()
+    assert ec2.exact_calls == 3
+    assert sleep_delays == [cloud.EC2_EXACT_LOOKUP_RETRY_SECONDS]
+
+
+@pytest.mark.parametrize(
+    "exact_result",
+    [
+        {"Reservations": []},
+        _ec2_error("InvalidInstanceID.NotFound"),
+    ],
+    ids=["empty-response", "not-found"],
+)
+def test_old_persistent_exact_lookup_absence_is_recorded_and_retried(
+    monkeypatch: pytest.MonkeyPatch,
+    exact_result: dict[str, object] | BaseException,
+) -> None:
+    campaign = _campaign()
+    client = _MemoryS3()
+    expired = _runtime(instance_id="i-expired", attempt=1, market="spot")
+    _publish_runtime_launch(
+        client,
+        campaign,
+        campaign.specs[0],
+        expired,
+        launch_time=datetime.now(UTC)
+        - timedelta(seconds=cloud.EC2_INSTANCE_PROPAGATION_SECONDS + 1),
+    )
+    ec2 = _ScriptedExactLookupEC2(expired.instance_id, [exact_result])
+    sleep_delays: list[float] = []
+    _patch_launch_prerequisites(monkeypatch)
+    monkeypatch.setattr(cloud.time, "sleep", sleep_delays.append)
+
+    records = cloud.launch_missing_shards(
+        campaign,
+        spot_count=0,
+        max_new_instances=1,
+        ec2_client=ec2,
+        s3_client=client,
+    )
+
+    assert [(record.spec, record.attempt, record.market) for record in records] == [
+        (campaign.specs[0], 2, "on-demand")
+    ]
+    outcomes = cloud.campaign_status(campaign, s3_client=client).instance_outcomes
+    assert len(outcomes) == 1
+    assert outcomes[0].instance_id == expired.instance_id
+    assert outcomes[0].state_transition_reason == "EC2.InstancePersistentlyAbsentFromExactLookup"
+    assert ec2.exact_calls == cloud.EC2_EXACT_LOOKUP_MAX_ATTEMPTS
+    assert sleep_delays == [
+        cloud.EC2_EXACT_LOOKUP_RETRY_SECONDS,
+        cloud.EC2_EXACT_LOOKUP_RETRY_SECONDS * 2,
+    ]
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    ["UnauthorizedOperation", "RequestLimitExceeded", "ServiceUnavailable"],
+)
+def test_exact_lookup_operational_errors_propagate_without_outcome_or_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    error_code: str,
+) -> None:
+    campaign = _campaign()
+    client = _MemoryS3()
+    runtime = _runtime(instance_id="i-error", attempt=1, market="spot")
+    _publish_runtime_launch(client, campaign, campaign.specs[0], runtime)
+    ec2 = _ScriptedExactLookupEC2(runtime.instance_id, [_ec2_error(error_code)])
+    _patch_launch_prerequisites(monkeypatch)
+
+    with pytest.raises(ClientError) as raised:
+        cloud.launch_missing_shards(
+            campaign,
+            spot_count=0,
+            max_new_instances=1,
+            ec2_client=ec2,
+            s3_client=client,
+        )
+
+    assert raised.value.response["Error"]["Code"] == error_code
+    assert cloud.campaign_status(campaign, s3_client=client).instance_outcomes == ()
+    assert ec2.run_calls == []
+    assert ec2.exact_calls == 1
 
 
 def test_active_instance_discovery_reads_every_page() -> None:

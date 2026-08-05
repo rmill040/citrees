@@ -111,6 +111,11 @@ Compatible bounded statistics can also be combined in a max-$T$ permutation
 test \citep{Westfall+Young:1993}. This option evaluates the largest configured
 selector score within each response permutation and uses the resulting joint
 max-statistic reference distribution.
+The RDC implementation uses 10 random projections, which produce 20 sine and
+cosine columns. In a 5-seed, 5-fold sensitivity analysis on the Wine and Glass
+datasets, increasing the count to 20 multiplied median selector time by
+3.03$\times$ and 3.05$\times$, while mean balanced accuracy changed by
+$-0.0005$ and $-0.0026$.
 
 The exhaustive procedure evaluates every candidate with the requested
 permutation budget and reports fixed-$B$ $p$~values. Adaptive stopping checks

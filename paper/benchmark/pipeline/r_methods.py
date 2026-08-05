@@ -437,7 +437,7 @@ def _ranking_from_named_scores(
 
 
 def _ranking_from_importance(importance: np.ndarray) -> np.ndarray:
-    """Return a complete ranking with omitted structural zeros restored."""
+    """Rank raw importance descending after restoring omitted variables as zero."""
     values = np.asarray(importance, dtype=np.float64)
     if values.ndim != 1:
         raise ValueError(f"importance must be one-dimensional, got shape {values.shape}")

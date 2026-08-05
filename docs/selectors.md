@@ -181,7 +181,7 @@ Where:
 
 ```
 Algorithm: Randomized Dependence Coefficient
-Input: x ∈ ℝⁿ, y ∈ ℝⁿ, projections k=20, bandwidth s=1/6
+Input: x ∈ ℝⁿ, y ∈ ℝⁿ, projections k=10, bandwidth s=1/6
 
 1. Copula Transform (rank-based):
    x_copula[i] = rank(x[i]) / n
@@ -199,6 +199,15 @@ Input: x ∈ ℝⁿ, y ∈ ℝⁿ, projections k=20, bandwidth s=1/6
 
 4. Return: max pairwise correlation
 ```
+
+The default uses 10 projections, which produce 20 sine and cosine columns.
+The sensitivity study in
+`paper/benchmark/experiments/rdc_projection_sensitivity.py` compares 5, 10,
+20, and 40 projections on the Wine and Glass datasets across five seeds and
+five folds. Relative to 10 projections, 20 projections increased median
+selector time by 3.03x and 3.05x, while mean balanced accuracy changed by
+-0.0005 and -0.0026. Complete results and execution metadata are stored in
+`paper/results/rdc-projection-sensitivity/`.
 
 ### Properties (Interpretation)
 

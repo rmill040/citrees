@@ -1,0 +1,63 @@
+{
+  "analysis": "rdc_projection_sensitivity",
+  "datasets": {
+    "glass": {
+      "n_features": 10,
+      "n_samples": 214,
+      "sha256": "8f6eea990c4fdc7bcc55a2bd26743435287d88d3f49b60dd4a8dd68dc931d9de"
+    },
+    "wine": {
+      "n_features": 13,
+      "n_samples": 178,
+      "sha256": "f559edb359a04d51531da5e80a499c8d7fde49233ffb9be8949f00ee36336b9e"
+    }
+  },
+  "folds": 5,
+  "hardware": {
+    "ec2_instance_type": "unknown",
+    "logical_cpus": 12,
+    "machine": "arm64",
+    "platform": "macOS-15.7.7-arm64-arm-64bit",
+    "processor": "arm"
+  },
+  "library_versions": {
+    "boruta": "0.4.3",
+    "catboost": "1.2.10",
+    "citrees": "0.1.0",
+    "dcor": "0.7",
+    "lightgbm": "4.7.0",
+    "mrmr_selection": "0.2.8",
+    "numba": "0.66.0",
+    "numpy": "2.4.6",
+    "pandas": "3.0.5",
+    "pyarrow": "25.0.0",
+    "python": "3.12.7",
+    "rpy2": "3.6.7",
+    "scipy": "1.18.0",
+    "sklearn": "1.8.0",
+    "xgboost": "3.3.0"
+  },
+  "metric_rows": 1500,
+  "projected_columns": [
+    10,
+    20,
+    40,
+    80
+  ],
+  "projection_counts": [
+    5,
+    10,
+    20,
+    40
+  ],
+  "ranking_rows": 200,
+  "script_sha256": "2dd079517e36119b6f8eeab1bb35b6250db6c665cf9c38335a71ba3c9aaad585",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "selection_seconds_total": 152.9170879869198
+}

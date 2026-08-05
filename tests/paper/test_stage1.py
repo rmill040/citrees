@@ -164,6 +164,32 @@ class TestFilterSelector:
 
         assert np.array_equal(rank_base, rank_shift)
 
+    def test_rdc_projection_count_is_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """RDC filter rankings should use the requested projection count."""
+        from paper.benchmark.pipeline.stage1 import filter_selector
+
+        observed: list[int] = []
+
+        def selector_fn(x, y, n_classes, random_state=None, n_projections=10):
+            observed.append(n_projections)
+            return float(np.mean(x))
+
+        monkeypatch.setitem(ClassifierSelectors._registry, "rdc", selector_fn)
+        X = np.array([[0.0, 2.0], [1.0, 3.0], [2.0, 4.0]], dtype=float)
+        y = np.array([0, 1, 0], dtype=int)
+
+        ranking = filter_selector(
+            X,
+            y,
+            method="rdc",
+            task="classification",
+            random_state=0,
+            params={"rdc_n_projections": 40},
+        )
+
+        assert ranking.tolist() == [1, 0]
+        assert observed == [40, 40]
+
 
 class TestPermutationSelector:
     """Tests for permutation_selector function."""
@@ -207,6 +233,54 @@ class TestPermutationSelector:
 
         ranking = permutation_selector(X, y, method="ptest_kw", task="regression", random_state=0)
         assert ranking.shape == (X.shape[1],)
+
+    def test_rdc_projection_count_is_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """RDC permutation rankings should bind both score and test calls."""
+        from paper.benchmark.pipeline.stage1 import permutation_selector
+
+        score_counts: list[int] = []
+        test_counts: list[int] = []
+
+        def selector_fn(x, y, n_classes, random_state=None, n_projections=10):
+            score_counts.append(n_projections)
+            return float(np.mean(x))
+
+        def test_fn(
+            *,
+            x,
+            y,
+            n_classes,
+            alpha,
+            n_resamples,
+            early_stopping,
+            random_state,
+            n_projections=10,
+        ):
+            test_counts.append(n_projections)
+            return 0.5
+
+        monkeypatch.setitem(ClassifierSelectors._registry, "rdc", selector_fn)
+        monkeypatch.setitem(ClassifierSelectorTests._registry, "rdc", test_fn)
+        X = np.array([[0.0, 2.0], [1.0, 3.0], [2.0, 4.0]], dtype=float)
+        y = np.array([0, 1, 0], dtype=int)
+
+        ranking = permutation_selector(
+            X,
+            y,
+            method="ptest_rdc",
+            task="classification",
+            random_state=0,
+            params={
+                "alpha": 0.05,
+                "n_resamples": 20,
+                "early_stopping": None,
+                "rdc_n_projections": 20,
+            },
+        )
+
+        assert ranking.tolist() == [1, 0]
+        assert score_counts == [20, 20]
+        assert test_counts == [20, 20]
 
 
 class TestEmbeddingSelector:
@@ -645,6 +719,14 @@ class TestRBoundaryHelpers:
         ranking = _ranking_from_importance(importance)
 
         assert ranking.tolist() == [0, 2, 3, 1, 4]
+
+    def test_importance_ranking_preserves_near_zero_scores_and_index_ties(self) -> None:
+        tiny = np.nextafter(0.0, 1.0)
+        importance = np.array([np.nan, -tiny, tiny, 0.0, tiny, -tiny])
+
+        ranking = _ranking_from_importance(importance)
+
+        assert ranking.tolist() == [2, 4, 0, 3, 1, 5]
 
     def test_root_diagnostics_align_candidates_to_original_features(self) -> None:
         diagnostics = _root_diagnostics_from_named_values(

@@ -284,7 +284,6 @@ R_CFOREST_GRID: dict[str, list[Any]] = {
     "fraction": [0.632],
     "varimp_conditional": [False],
     "varimp_nperm": [1],
-    "cores": [1],
 }
 
 

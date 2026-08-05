@@ -465,7 +465,12 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
 
             library_versions.update(get_r_runtime_versions())
         hardware = get_hardware_metadata()
-        selection_cpus = int(params["cores"]) if method == "r_cforest" else n_jobs
+        if method == "r_cforest":
+            from paper.benchmark.pipeline.r_methods import _resolve_cores
+
+            selection_cpus = _resolve_cores(-1)
+        else:
+            selection_cpus = n_jobs
 
         # Enrich results with metadata
         for row in fold_results:

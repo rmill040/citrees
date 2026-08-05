@@ -135,6 +135,7 @@ _stats: Any | None = None
 _root_diagnostics_function: Any | None = None
 _split_usage_function: Any | None = None
 _bootstrap_weights_function: Any | None = None
+_deterministic_apply_factory: Any | None = None
 
 _R_CTREE_ROOT_DIAGNOSTICS = """
 function(tree) {
@@ -253,6 +254,54 @@ function(n_samples, n_trees) {
 }
 """
 
+_R_DETERMINISTIC_APPLY_FACTORY = """
+function(cores, base_seed, operation_stream) {
+    force(cores)
+    force(base_seed)
+    force(operation_stream)
+    function(X, FUN, ...) {
+        n_tasks <- length(X)
+        if (n_tasks == 0L) {
+            return(list())
+        }
+
+        RNGkind("L'Ecuyer-CMRG", "Inversion", "Rejection")
+        set.seed(base_seed)
+        stream <- .Random.seed
+        if (operation_stream > 0L) {
+            for (i in seq_len(operation_stream)) {
+                stream <- parallel::nextRNGStream(stream)
+            }
+        }
+
+        streams <- vector("list", n_tasks)
+        streams[[1L]] <- stream
+        if (n_tasks > 1L) {
+            for (i in 2L:n_tasks) {
+                streams[[i]] <- parallel::nextRNGSubStream(streams[[i - 1L]])
+            }
+        }
+
+        dots <- list(...)
+        worker <- function(position) {
+            assign(".Random.seed", streams[[position]], envir = .GlobalEnv)
+            do.call(FUN, c(list(X[[position]]), dots))
+        }
+        positions <- seq_len(n_tasks)
+        if (cores == 1L) {
+            return(lapply(positions, worker))
+        }
+        parallel::mclapply(
+            positions,
+            worker,
+            mc.cores = min(cores, n_tasks),
+            mc.preschedule = TRUE,
+            mc.set.seed = FALSE
+        )
+    }
+}
+"""
+
 
 def _normalize_r_seed(random_state: int) -> int:
     """Map a nonnegative random state to a distinct seed accepted by R."""
@@ -356,10 +405,15 @@ def _resolve_mtry(mtry: int | str | None, n_features: int) -> int:
 
 
 def _resolve_cores(cores: int) -> int:
-    """Resolve the R worker count, using all detected CPUs for -1."""
+    """Resolve the R worker count, respecting process CPU affinity for -1."""
     if isinstance(cores, bool) or not isinstance(cores, int):
         raise TypeError("cores must be an integer")
     if cores == -1:
+        get_affinity = getattr(os, "sched_getaffinity", None)
+        if get_affinity is not None:
+            affinity = get_affinity(0)
+            if affinity:
+                return len(affinity)
         return os.cpu_count() or 1
     if cores < 1:
         raise ValueError("cores must be -1 or a positive integer")
@@ -576,6 +630,14 @@ def _get_bootstrap_weights_function(ro: Any) -> Any:
     return _bootstrap_weights_function
 
 
+def _get_deterministic_apply_factory(ro: Any) -> Any:
+    """Compile and cache the schedule-independent R apply factory."""
+    global _deterministic_apply_factory
+    if _deterministic_apply_factory is None:
+        _deterministic_apply_factory = ro.r(_R_DETERMINISTIC_APPLY_FACTORY)
+    return _deterministic_apply_factory
+
+
 def _r_testtype(ro: Any, testtype: str | tuple[str, ...]) -> str | Any:
     """Convert one or more partykit test-distribution controls for rpy2."""
     if isinstance(testtype, str):
@@ -606,22 +668,57 @@ def get_r_runtime_versions() -> dict[str, str]:
     }
 
 
-def _make_r_dataframe(X: np.ndarray, y: np.ndarray, task: str) -> Any:
-    """Create an R data frame from numpy arrays."""
-    ro, _importr = _import_rpy2()
-    data_dict = {f"X{i}": ro.FloatVector(X[:, i]) for i in range(X.shape[1])}
-
+def _make_r_response(y: np.ndarray, task: str, ro: Any) -> Any:
+    """Create the R response vector for one validated target."""
     if task == "classification":
         integer_y = y.astype(np.int64)
         classes = np.unique(integer_y)
-        data_dict["y"] = ro.r["factor"](
+        return ro.r["factor"](
             ro.StrVector([str(value) for value in integer_y]),
             levels=ro.StrVector([str(value) for value in classes]),
         )
-    else:
-        data_dict["y"] = ro.FloatVector(y.astype(np.float64))
+    return ro.FloatVector(y.astype(np.float64))
 
+
+def _make_r_dataframe(X: np.ndarray, y: np.ndarray, task: str) -> Any:
+    """Create a formula-compatible R data frame from numpy arrays."""
+    ro, _importr = _import_rpy2()
+    data_dict = {f"X{i}": ro.FloatVector(X[:, i]) for i in range(X.shape[1])}
+    data_dict["y"] = _make_r_response(y, task, ro)
     return ro.DataFrame(data_dict)
+
+
+def _make_r_indexed_data(X: np.ndarray, y: np.ndarray, task: str, ro: Any) -> tuple[Any, Any]:
+    """Create direct partykit variable indices and a response-first data frame."""
+    data_dict = {"y": _make_r_response(y, task, ro)}
+    data_dict.update({f"X{i}": ro.FloatVector(X[:, i]) for i in range(X.shape[1])})
+    model_specification = ro.ListVector(
+        {
+            "y": ro.IntVector([1]),
+            "z": ro.IntVector(range(2, X.shape[1] + 2)),
+        }
+    )
+    return model_specification, ro.DataFrame(data_dict)
+
+
+def _make_r_formula_data(X: np.ndarray, y: np.ndarray, task: str, stats: Any) -> tuple[Any, Any]:
+    """Create the formula and data frame required for held-out prediction."""
+    return stats.as_formula("y ~ ."), _make_r_dataframe(X, y, task)
+
+
+def _make_r_apply_functions(
+    ro: Any,
+    *,
+    cores: int,
+    random_state: int,
+) -> tuple[Any, Any]:
+    """Create independent deterministic apply functions for fitting and importance."""
+    factory = _get_deterministic_apply_factory(ro)
+    base_seed = _normalize_r_seed(random_state)
+    return (
+        factory(cores, base_seed, 0),
+        factory(cores, base_seed, 1),
+    )
 
 
 def _make_r_predictor_dataframe(X: np.ndarray, ro: Any) -> Any:
@@ -767,19 +864,12 @@ def r_ctree_ranking(
     """
     ro, _importr = _import_rpy2()
     partykit = _get_partykit()
-    stats = _get_stats()
     n_features = X.shape[1]
 
     _validate_inputs(X, y, task)
     _set_r_seed(ro, random_state)
+    model_specification, r_data = _make_r_indexed_data(X, y, task, ro)
 
-    # Create R data frame
-    r_data = _make_r_dataframe(X, y, task)
-
-    # Build formula
-    formula = stats.as_formula("y ~ .")
-
-    # Build ctree_control
     control = partykit.ctree_control(
         teststat=teststat,
         testtype=_r_testtype(ro, testtype),
@@ -788,9 +878,7 @@ def r_ctree_ranking(
         minsplit=minsplit,
         minbucket=minbucket,
     )
-
-    # Fit ctree
-    tree = partykit.ctree(formula, data=r_data, control=control)
+    tree = partykit.ctree(model_specification, data=r_data, control=control)
 
     _root_feature, split_counts = _ctree_split_usage(
         tree,
@@ -948,12 +1036,11 @@ def r_ctree_root_diagnostics(
         raise TypeError("root diagnostics require one partykit testtype string")
     ro, _importr = _import_rpy2()
     partykit = _get_partykit()
-    stats = _get_stats()
 
     _validate_inputs(X, y, task)
     n_features = X.shape[1]
     _set_r_seed(ro, random_state)
-    r_data = _make_r_dataframe(X, y, task)
+    model_specification, r_data = _make_r_indexed_data(X, y, task, ro)
     control = partykit.ctree_control(
         teststat=teststat,
         testtype=_r_testtype(ro, testtype),
@@ -964,7 +1051,7 @@ def r_ctree_root_diagnostics(
         maxdepth=1,
         saveinfo=True,
     )
-    tree = partykit.ctree(stats.as_formula("y ~ ."), data=r_data, control=control)
+    tree = partykit.ctree(model_specification, data=r_data, control=control)
 
     get_root_diagnostics = _get_root_diagnostics_function(ro)
     raw_diagnostics = get_root_diagnostics(tree)
@@ -1048,8 +1135,9 @@ def _fit_r_cforest(
     fraction: float,
     cores: int,
     random_state: int,
-) -> tuple[Any, Any, Any, Any, int]:
-    """Fit one cforest and return its R bridge objects and resolved core count."""
+    indexed_data: bool,
+) -> tuple[Any, Any, Any, Any, int, Any]:
+    """Fit one cforest and return its R bridge objects and importance apply function."""
     if not isinstance(replace, (bool, np.bool_)):
         raise TypeError("replace must be a boolean")
     if isinstance(fraction, (bool, np.bool_)) or not isinstance(
@@ -1070,6 +1158,11 @@ def _fit_r_cforest(
 
     mtry_value = _resolve_mtry(mtry, X.shape[1])
     n_cores = _resolve_cores(cores)
+    fit_apply, importance_apply = _make_r_apply_functions(
+        ro,
+        cores=n_cores,
+        random_state=random_state,
+    )
     control_kwargs: dict[str, Any] = {
         "teststat": teststat,
         "testtype": _r_testtype(ro, testtype),
@@ -1083,14 +1176,17 @@ def _fit_r_cforest(
     if maxdepth is not None:
         control_kwargs["maxdepth"] = maxdepth
     control = partykit.ctree_control(**control_kwargs)
+    if indexed_data:
+        model_specification, r_data = _make_r_indexed_data(X, y, task, ro)
+    else:
+        model_specification, r_data = _make_r_formula_data(X, y, task, stats)
     forest_kwargs: dict[str, Any] = {
-        "data": _make_r_dataframe(X, y, task),
+        "data": r_data,
         "control": control,
         "ntree": ntree,
         "mtry": mtry_value,
+        "applyfun": fit_apply,
     }
-    if n_cores > 1:
-        forest_kwargs["cores"] = n_cores
     if replace_value and fraction_value == 1.0:
         forest_kwargs["weights"] = _get_bootstrap_weights_function(ro)(
             X.shape[0],
@@ -1100,8 +1196,8 @@ def _fit_r_cforest(
         forest_kwargs["perturb"] = ro.ListVector(
             {"replace": replace_value, "fraction": fraction_value}
         )
-    forest = partykit.cforest(stats.as_formula("y ~ ."), **forest_kwargs)
-    return ro, partykit, stats, forest, n_cores
+    forest = partykit.cforest(model_specification, **forest_kwargs)
+    return ro, partykit, stats, forest, n_cores, importance_apply
 
 
 def r_cforest_fit(
@@ -1120,7 +1216,7 @@ def r_cforest_fit(
     minbucket: int = 7,
     replace: bool = True,
     fraction: float = 1.0,
-    cores: int = 1,
+    cores: int = -1,
     random_state: int = 1718,
 ) -> None:
     """Fit one cforest without computing predictions or variable importance."""
@@ -1141,6 +1237,7 @@ def r_cforest_fit(
         fraction=fraction,
         cores=cores,
         random_state=random_state,
+        indexed_data=True,
     )
 
 
@@ -1152,15 +1249,14 @@ def _r_cforest_importance(
     n_features: int,
     conditional: bool,
     nperm: int,
-    cores: int,
+    applyfun: Any,
 ) -> np.ndarray:
     """Return aligned raw variable importance from one fitted cforest."""
     kwargs: dict[str, Any] = {
         "conditional": conditional,
         "nperm": nperm,
+        "applyfun": applyfun,
     }
-    if cores > 1:
-        kwargs["cores"] = cores
     raw = partykit.varimp(forest, **kwargs)
     feature_names = [str(name) for name in ro.r["names"](raw)]
     return _aligned_named_values(
@@ -1237,14 +1333,14 @@ def r_cforest_importance(
         Number of permutations for variable importance.
     cores : int
         Number of CPU cores for parallel tree growing and varimp.
-        -1 means use all available cores (via os.cpu_count()).
+        -1 means use all CPUs available to the current process.
 
     Returns
     -------
     np.ndarray
         Raw importance values aligned to the original Python feature order.
     """
-    ro, partykit, _stats, forest, n_cores = _fit_r_cforest(
+    ro, partykit, _stats, forest, _n_cores, importance_apply = _fit_r_cforest(
         X,
         y,
         task=task,
@@ -1261,6 +1357,7 @@ def r_cforest_importance(
         fraction=fraction,
         cores=cores,
         random_state=random_state,
+        indexed_data=True,
     )
     return _r_cforest_importance(
         forest,
@@ -1269,7 +1366,7 @@ def r_cforest_importance(
         n_features=X.shape[1],
         conditional=varimp_conditional,
         nperm=varimp_nperm,
-        cores=n_cores,
+        applyfun=importance_apply,
     )
 
 
@@ -1297,7 +1394,7 @@ def r_cforest_behavior(
 ) -> RCForestBehavior:
     """Fit one cforest and return importance and held-out predictions."""
     _validate_prediction_inputs(X_train, y_train, X_test, task)
-    ro, partykit, stats, forest, n_cores = _fit_r_cforest(
+    ro, partykit, stats, forest, _n_cores, importance_apply = _fit_r_cforest(
         X_train,
         y_train,
         task=task,
@@ -1314,6 +1411,7 @@ def r_cforest_behavior(
         fraction=fraction,
         cores=cores,
         random_state=random_state,
+        indexed_data=False,
     )
     importances = _r_cforest_importance(
         forest,
@@ -1322,7 +1420,7 @@ def r_cforest_behavior(
         n_features=X_train.shape[1],
         conditional=varimp_conditional,
         nperm=varimp_nperm,
-        cores=n_cores,
+        applyfun=importance_apply,
     )
     predictions, probabilities, classes = _r_prediction_outputs(
         forest,

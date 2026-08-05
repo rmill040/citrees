@@ -123,7 +123,10 @@ def test_concurrent_valid_ranking_upload_is_skipped(
         lambda: {
             "artifact_prefix": "repairs/run-001",
             "campaign_sha256": "e" * 64,
+            "canonical_manifest_sha256": "c" * 64,
+            "gate_receipt_sha256": "d" * 64,
             "manifest_sha256": "b" * 64,
+            "runtime_contract_sha256": "f" * 64,
             "aws_account_id": "123456789012",
         },
     )
@@ -546,14 +549,14 @@ class TestWrapperSelectors:
             assert len(configs) == 1
             assert configs[0].params_dict == {"step": 1}
 
-    def test_cforest_core_count_is_explicit_in_method_identity(self) -> None:
-        """Production cforest variants must not depend on worker CPU count."""
+    def test_cforest_core_count_is_runtime_provenance(self) -> None:
+        """Schedule-independent cforest variants must not encode runtime CPUs."""
         from paper.benchmark.pipeline.methods import get_full_method_configs
 
         for task in ("classification", "regression"):
             configs = get_full_method_configs(["r_cforest"], task)
             assert configs
-            assert all(config.params_dict["cores"] == 1 for config in configs)
+            assert all("cores" not in config.params_dict for config in configs)
 
     def test_rfe_uses_and_requires_single_feature_steps(
         self,
@@ -883,6 +886,7 @@ class TestRBoundaryHelpers:
             "minbucket": 2,
             "cores": 1,
             "random_state": 42,
+            "indexed_data": True,
         }
         X = np.arange(24, dtype=np.float64).reshape(12, 2)
         y = np.array([0, 1] * 6)
@@ -976,6 +980,29 @@ class TestRBoundaryHelpers:
 
         first = r_methods._get_bootstrap_weights_function(ro)
         second = r_methods._get_bootstrap_weights_function(ro)
+
+        assert first is compiled
+        assert second is compiled
+        assert len(source_calls) == 1
+
+    def test_deterministic_apply_factory_is_compiled_once(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        compiled = object()
+        source_calls: list[str] = []
+
+        def compile_r(source: str) -> object:
+            source_calls.append(source)
+            return compiled
+
+        monkeypatch.setattr(r_methods, "_deterministic_apply_factory", None)
+        ro = SimpleNamespace(r=compile_r)
+
+        first = r_methods._get_deterministic_apply_factory(ro)
+        second = r_methods._get_deterministic_apply_factory(ro)
 
         assert first is compiled
         assert second is compiled
@@ -1075,6 +1102,17 @@ class TestRBoundaryHelpers:
     def test_default_core_resolution_uses_detected_cpu_count(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        monkeypatch.setattr(
+            r_methods.os,
+            "sched_getaffinity",
+            lambda _pid: {0, 1, 2},
+            raising=False,
+        )
+        assert _resolve_cores(-1) == 3
+
+        monkeypatch.setattr(r_methods.os, "sched_getaffinity", lambda _pid: set())
         monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 8)
         assert _resolve_cores(-1) == 8
 
@@ -1478,6 +1516,110 @@ class TestRCforestRanking:
     """Regression tests for named partykit cforest importance values."""
 
     @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_indexed_cforest_matches_formula_interface(self, task: str) -> None:
+        """Direct variable indices must preserve formula-interface importance."""
+        from paper.benchmark.pipeline import r_methods
+
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((140, 8))
+        signal = X[:, 2] - 0.75 * X[:, 6] + 0.2 * rng.standard_normal(X.shape[0])
+        y = (signal > 0).astype(np.int64) if task == "classification" else signal
+        kwargs = {
+            "task": task,
+            "teststat": "quadratic",
+            "testtype": "MonteCarlo",
+            "mincriterion": 0.95,
+            "nresample": 99,
+            "ntree": 24,
+            "mtry": "sqrt",
+            "maxdepth": 3,
+            "minsplit": 20,
+            "minbucket": 7,
+            "replace": False,
+            "fraction": 0.632,
+            "cores": 2,
+            "random_state": 42,
+        }
+
+        formula_fit = r_methods._fit_r_cforest(X, y, indexed_data=False, **kwargs)
+        indexed_fit = r_methods._fit_r_cforest(X, y, indexed_data=True, **kwargs)
+        formula_importance = r_methods._r_cforest_importance(
+            formula_fit[3],
+            ro=formula_fit[0],
+            partykit=formula_fit[1],
+            n_features=X.shape[1],
+            conditional=False,
+            nperm=2,
+            applyfun=formula_fit[5],
+        )
+        indexed_importance = r_methods._r_cforest_importance(
+            indexed_fit[3],
+            ro=indexed_fit[0],
+            partykit=indexed_fit[1],
+            n_features=X.shape[1],
+            conditional=False,
+            nperm=2,
+            applyfun=indexed_fit[5],
+        )
+
+        np.testing.assert_array_equal(formula_importance, indexed_importance)
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_indexed_ctree_matches_formula_interface(self, task: str) -> None:
+        """Direct variable indices must preserve formula-interface split usage."""
+        from paper.benchmark.pipeline import r_methods
+
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((140, 8))
+        signal = X[:, 2] - 0.75 * X[:, 6] + 0.2 * rng.standard_normal(X.shape[0])
+        y = (signal > 0).astype(np.int64) if task == "classification" else signal
+        ro, _importr = r_methods._import_rpy2()
+        partykit = r_methods._get_partykit()
+        stats = r_methods._get_stats()
+        control = partykit.ctree_control(
+            teststat="quadratic",
+            testtype="MonteCarlo",
+            alpha=0.05,
+            nresample=99,
+            minsplit=20,
+            minbucket=7,
+        )
+
+        r_methods._set_r_seed(ro, 42)
+        formula_tree = partykit.ctree(
+            stats.as_formula("y ~ ."),
+            data=r_methods._make_r_dataframe(X, y, task),
+            control=control,
+        )
+        r_methods._set_r_seed(ro, 42)
+        model_specification, indexed_data = r_methods._make_r_indexed_data(
+            X,
+            y,
+            task,
+            ro,
+        )
+        indexed_tree = partykit.ctree(
+            model_specification,
+            data=indexed_data,
+            control=control,
+        )
+
+        formula_usage = r_methods._ctree_split_usage(
+            formula_tree,
+            ro=ro,
+            n_features=X.shape[1],
+        )
+        indexed_usage = r_methods._ctree_split_usage(
+            indexed_tree,
+            ro=ro,
+            n_features=X.shape[1],
+        )
+        assert formula_usage[0] == indexed_usage[0]
+        np.testing.assert_array_equal(formula_usage[1], indexed_usage[1])
+
+    @_skip_no_r
     def test_monte_carlo_diagnostics_use_corrected_nontrivial_lattice(self) -> None:
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(120)
@@ -1560,27 +1702,85 @@ class TestRCforestRanking:
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
     def test_parallel_same_seed_is_deterministic(self, task: str) -> None:
-        """The same fold seed must reproduce with multi-core forest execution."""
+        """Raw importance must be identical across core counts and repeats."""
         rng = np.random.default_rng(1718)
         X = rng.standard_normal((160, 6))
         signal = X[:, 5] + 0.25 * X[:, 2]
         y = (signal > 0).astype(int) if task == "classification" else signal
         kwargs = {
             "task": task,
-            "ntree": 50,
+            "testtype": "MonteCarlo",
+            "nresample": 99,
+            "ntree": 24,
             "mtry": "sqrt",
-            "cores": 2,
+            "maxdepth": 3,
+            "varimp_nperm": 2,
             "random_state": 42,
         }
 
-        rankings = [r_cforest_ranking(X, y, **kwargs) for _ in range(3)]
+        importances = [
+            r_cforest_importance(X, y, cores=cores, **kwargs)
+            for cores in (1, 2, 4, 4, 2, 1)
+        ]
 
-        assert all(np.array_equal(rankings[0], ranking) for ranking in rankings[1:])
+        assert all(
+            np.array_equal(importances[0], importance, equal_nan=True)
+            for importance in importances[1:]
+        )
+
+    @_skip_no_r
+    def test_cross_core_fresh_process_digests_match(self) -> None:
+        """Independent R runtimes must reproduce the same importance bytes."""
+        repo_root = Path(__file__).resolve().parents[2]
+        digests: list[str] = []
+        for cores in (1, 2, 4):
+            code = f"""
+import hashlib
+import numpy as np
+from paper.benchmark.pipeline.r_methods import r_cforest_importance
+
+rng = np.random.default_rng(1718)
+X = rng.standard_normal((140, 8))
+signal = X[:, 2] - 0.75 * X[:, 6] + 0.2 * rng.standard_normal(X.shape[0])
+y = (signal > 0).astype(np.int64)
+importance = r_cforest_importance(
+    X,
+    y,
+    testtype="MonteCarlo",
+    nresample=99,
+    ntree=24,
+    mtry="sqrt",
+    maxdepth=3,
+    varimp_nperm=2,
+    cores={cores},
+    random_state=42,
+)
+print(hashlib.sha256(np.asarray(importance, dtype="<f8").tobytes()).hexdigest())
+"""
+            completed = subprocess.run(
+                [sys.executable, "-c", code],
+                cwd=repo_root,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            assert completed.returncode == 0, completed.stderr
+            digests.append(completed.stdout.strip().splitlines()[-1])
+
+        assert len(set(digests)) == 1
 
     @_skip_no_r
     def test_default_core_path_is_reproducible(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Production's cores=-1 path must use deterministic parallel streams."""
-        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
+        from paper.benchmark.pipeline import r_methods
+
+        monkeypatch.setattr(
+            r_methods.os,
+            "sched_getaffinity",
+            lambda _pid: {0, 1},
+            raising=False,
+        )
         rng = np.random.default_rng(1718)
         X = rng.standard_normal((160, 6))
         y = (X[:, 5] + 0.25 * X[:, 2] > 0).astype(int)
@@ -1603,9 +1803,15 @@ class TestRCforestRanking:
         self, task: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Every configured R variant must return a semantically valid ranking."""
+        from paper.benchmark.pipeline import r_methods
         from paper.benchmark.pipeline.methods import get_full_method_configs
 
-        monkeypatch.setattr("paper.benchmark.pipeline.r_methods.os.cpu_count", lambda: 2)
+        monkeypatch.setattr(
+            r_methods.os,
+            "sched_getaffinity",
+            lambda _pid: {0, 1},
+            raising=False,
+        )
         rng = np.random.default_rng(1718)
         signal = rng.standard_normal(80)
         X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])
@@ -1631,10 +1837,10 @@ class TestRCforestRanking:
             assert ranking[0] == X.shape[1] - 1, config.label
 
 
-def test_cforest_production_config_ignores_worker_cpu_count(
+def test_cforest_production_uses_runtime_core_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The configured cforest core count must override host CPU discovery."""
+    """Stage 1 must leave cforest core resolution to the worker runtime."""
     from paper.benchmark.pipeline import r_methods
     from paper.benchmark.pipeline.methods import get_full_method_configs
     from paper.benchmark.pipeline.stage1 import run_selection
@@ -1645,7 +1851,7 @@ def test_cforest_production_config_ignores_worker_cpu_count(
         X: np.ndarray,
         y: np.ndarray,
         *,
-        cores: int,
+        cores: int = -1,
         **kwargs: object,
     ) -> np.ndarray:
         del y, kwargs
@@ -1658,11 +1864,7 @@ def test_cforest_production_config_ignores_worker_cpu_count(
     X = rng.standard_normal((50, 4))
     y = np.array([0, 1] * 25)
 
-    for cpu_count in (2, 64):
-        monkeypatch.setattr(
-            "paper.benchmark.pipeline.r_methods.os.cpu_count",
-            lambda value=cpu_count: value,
-        )
+    for _cpu_count in (2, 64):
         run_selection(
             X,
             y,
@@ -1672,7 +1874,7 @@ def test_cforest_production_config_ignores_worker_cpu_count(
             params=config.params_dict,
         )
 
-    assert observed_cores == [1] * 10
+    assert observed_cores == [-1] * 10
 
 
 @pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])

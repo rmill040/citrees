@@ -1,15 +1,23 @@
 {
   "analysis": "rdc_projection_sensitivity",
   "datasets": {
+    "breast-cancer": {
+      "n_features": 30,
+      "n_samples": 569,
+      "sha256": "1720d92c704161b13f5e67929cbb6912f2fb2348d0add12846f881f65aaf0604",
+      "source": "scikit-learn Breast Cancer Wisconsin (Diagnostic)"
+    },
     "glass": {
       "n_features": 10,
       "n_samples": 214,
-      "sha256": "8f6eea990c4fdc7bcc55a2bd26743435287d88d3f49b60dd4a8dd68dc931d9de"
+      "sha256": "8f6eea990c4fdc7bcc55a2bd26743435287d88d3f49b60dd4a8dd68dc931d9de",
+      "source": "benchmark parquet"
     },
     "wine": {
       "n_features": 13,
       "n_samples": 178,
-      "sha256": "f559edb359a04d51531da5e80a499c8d7fde49233ffb9be8949f00ee36336b9e"
+      "sha256": "f559edb359a04d51531da5e80a499c8d7fde49233ffb9be8949f00ee36336b9e",
+      "source": "benchmark parquet"
     }
   },
   "folds": 5,
@@ -37,7 +45,7 @@
     "sklearn": "1.8.0",
     "xgboost": "3.3.0"
   },
-  "metric_rows": 1500,
+  "metric_rows": 2700,
   "projected_columns": [
     10,
     20,
@@ -50,8 +58,8 @@
     20,
     40
   ],
-  "ranking_rows": 200,
-  "script_sha256": "2dd079517e36119b6f8eeab1bb35b6250db6c665cf9c38335a71ba3c9aaad585",
+  "ranking_rows": 300,
+  "script_sha256": "e2c466b5214a45b30803707dcd4910a4c46658ec9578097dad3351fb40a185ad",
   "seeds": [
     0,
     1,
@@ -59,5 +67,5 @@
     3,
     4
   ],
-  "selection_seconds_total": 152.9170879869198
+  "selection_seconds_total": 333.86954928419436
 }

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import time
+from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 from typing import Any, Final, Literal
@@ -14,6 +15,7 @@ from typing import Any, Final, Literal
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler
 
 from paper.benchmark.adapters.data import (
@@ -29,10 +31,8 @@ from paper.benchmark.pipeline.stage2 import (
 from paper.benchmark.utils import get_hardware_metadata, get_library_versions
 
 ROOT: Final[Path] = Path(__file__).resolve().parents[3]
-DEFAULT_OUTPUT_DIR: Final[Path] = (
-    ROOT / "paper" / "results" / "rdc-projection-sensitivity"
-)
-DATASETS: Final[tuple[str, ...]] = ("wine", "glass")
+DEFAULT_OUTPUT_DIR: Final[Path] = ROOT / "paper" / "results" / "rdc-projection-sensitivity"
+DATASETS: Final[tuple[str, ...]] = ("wine", "glass", "breast-cancer")
 TASK: Final[Literal["classification"]] = "classification"
 PROJECTION_COUNTS: Final[tuple[int, ...]] = (5, 10, 20, 40)
 N_FOLDS: Final[int] = 5
@@ -50,6 +50,83 @@ RANKING_COLUMNS: Final[tuple[str, ...]] = (
     "selection_seconds",
     "feature_ranking",
 )
+SUMMARY_FILENAMES: Final[tuple[str, ...]] = (
+    "timing-summary.csv",
+    "performance-summary.csv",
+    "stability.csv",
+    "stability-summary.csv",
+    "comparison-summary.csv",
+    "receipt.json",
+)
+
+
+@dataclass(frozen=True)
+class StudyDataset:
+    """One fixed dataset used by the projection-count sensitivity study."""
+
+    name: str
+    sha256: str
+    source: str
+    X: np.ndarray
+    y: np.ndarray
+
+    @property
+    def n_samples(self) -> int:
+        return int(self.X.shape[0])
+
+    @property
+    def n_features(self) -> int:
+        return int(self.X.shape[1])
+
+
+def _array_sha256(
+    X: np.ndarray,
+    y: np.ndarray,
+    feature_names: tuple[str, ...],
+) -> str:
+    """Hash normalized array contents, shapes, and feature names."""
+    digest = hashlib.sha256()
+    for label, array, dtype in (
+        (b"X", X, "<f8"),
+        (b"y", y, "<i8"),
+    ):
+        normalized = np.ascontiguousarray(array, dtype=np.dtype(dtype))
+        digest.update(label)
+        digest.update(np.asarray(normalized.shape, dtype="<i8").tobytes())
+        digest.update(normalized.tobytes())
+    digest.update("\0".join(feature_names).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _load_study_dataset(name: str) -> StudyDataset:
+    """Load one fixed local or scikit-learn dataset with content identity."""
+    if name == "breast-cancer":
+        bunch = load_breast_cancer()
+        X = np.asarray(bunch.data, dtype=np.float64)
+        y = np.asarray(bunch.target, dtype=np.int64)
+        feature_names = tuple(str(value) for value in bunch.feature_names)
+        return StudyDataset(
+            name=name,
+            sha256=_array_sha256(X, y, feature_names),
+            source="scikit-learn Breast Cancer Wisconsin (Diagnostic)",
+            X=X,
+            y=y,
+        )
+
+    identity = get_dataset_identity(name, TASK, source="real")
+    X, y = load_dataset(
+        name,
+        TASK,
+        identity=identity,
+        source="real",
+    )
+    return StudyDataset(
+        name=name,
+        sha256=identity.sha256,
+        source="benchmark parquet",
+        X=X,
+        y=y,
+    )
 
 
 def _parse_int_csv(value: str) -> tuple[int, ...]:
@@ -64,6 +141,17 @@ def _atomic_csv(frame: pd.DataFrame, path: Path) -> None:
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     frame.to_csv(temporary, index=False)
     temporary.replace(path)
+
+
+def _file_sha256(path: Path) -> str | None:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def _input_hashes(output_dir: Path) -> tuple[str | None, str | None]:
+    return (
+        _file_sha256(output_dir / "rankings.csv"),
+        _file_sha256(output_dir / "metrics.csv"),
+    )
 
 
 def _completed_keys(
@@ -96,11 +184,7 @@ def _completed_keys(
                 strict=False,
             )
         )
-        expected_pairs = {
-            (selected, model)
-            for selected in expected_k
-            for model in expected_models
-        }
+        expected_pairs = {(selected, model) for selected in expected_k for model in expected_models}
         if observed_pairs == expected_pairs:
             completed.add(
                 (
@@ -126,13 +210,12 @@ def _load_existing(output_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def _warm_rdc() -> None:
-    identity = get_dataset_identity("wine", TASK, source="real")
-    X, y = load_dataset("wine", TASK, identity=identity, source="real")
-    train_idx, _ = next(iter(get_cv_splitter(TASK, N_FOLDS, 0).split(X, y)))
-    X_train = StandardScaler().fit_transform(X[train_idx])
+    dataset = _load_study_dataset("wine")
+    train_idx, _ = next(iter(get_cv_splitter(TASK, N_FOLDS, 0).split(dataset.X, dataset.y)))
+    X_train = StandardScaler().fit_transform(dataset.X[train_idx])
     permutation_selector(
         X_train,
-        y[train_idx],
+        dataset.y[train_idx],
         method="ptest_rdc",
         task=TASK,
         random_state=0,
@@ -157,15 +240,10 @@ def run(
     metric_rows = metrics.to_dict("records")
 
     _warm_rdc()
-    for dataset in DATASETS:
-        identity = get_dataset_identity(dataset, TASK, source="real")
-        X, y = load_dataset(
-            dataset,
-            TASK,
-            identity=identity,
-            source="real",
-        )
-        k_values = get_requested_evaluation_k_values(identity.n_features)
+    for dataset_name in DATASETS:
+        dataset = _load_study_dataset(dataset_name)
+        X, y = dataset.X, dataset.y
+        k_values = get_requested_evaluation_k_values(dataset.n_features)
         for seed in seeds:
             cv = get_cv_splitter(TASK, N_FOLDS, seed)
             for fold, (train_idx, test_idx) in enumerate(cv.split(X, y)):
@@ -174,7 +252,7 @@ def run(
                 X_train = scaler.fit_transform(X[train_idx])
                 random_state = seed * 1000 + fold
                 for projection_count in PROJECTION_COUNTS:
-                    key = (dataset, seed, fold, projection_count)
+                    key = (dataset_name, seed, fold, projection_count)
                     if key in completed:
                         continue
                     ran_item = True
@@ -196,10 +274,10 @@ def run(
                     ranking_rows.append(
                         {
                             "task": TASK,
-                            "dataset": dataset,
-                            "dataset_sha256": identity.sha256,
-                            "n_samples": identity.n_samples,
-                            "n_features": identity.n_features,
+                            "dataset": dataset_name,
+                            "dataset_sha256": dataset.sha256,
+                            "n_samples": dataset.n_samples,
+                            "n_features": dataset.n_features,
                             "seed": seed,
                             "fold": fold,
                             "projection_count": projection_count,
@@ -222,7 +300,7 @@ def run(
                         metric_rows.append(
                             {
                                 "task": TASK,
-                                "dataset": dataset,
+                                "dataset": dataset_name,
                                 "seed": seed,
                                 "fold": fold,
                                 "projection_count": projection_count,
@@ -230,12 +308,15 @@ def run(
                                 **row,
                             }
                         )
-                rankings = pd.DataFrame(ranking_rows)
-                metrics = pd.DataFrame(metric_rows)
-                _atomic_csv(rankings, output_dir / "rankings.csv")
-                _atomic_csv(metrics, output_dir / "metrics.csv")
                 if ran_item:
-                    print(f"{dataset}: seed={seed} fold={fold} complete", flush=True)
+                    rankings = pd.DataFrame(ranking_rows)
+                    metrics = pd.DataFrame(metric_rows)
+                    _atomic_csv(rankings, output_dir / "rankings.csv")
+                    _atomic_csv(metrics, output_dir / "metrics.csv")
+                    print(
+                        f"{dataset_name}: seed={seed} fold={fold} complete",
+                        flush=True,
+                    )
     return pd.DataFrame(ranking_rows), pd.DataFrame(metric_rows)
 
 
@@ -261,9 +342,7 @@ def build_stability(rankings: pd.DataFrame) -> pd.DataFrame:
             for projection_count, ranking in by_projection.items()
         }
         for left, right in combinations(PROJECTION_COUNTS, 2):
-            rank_correlation = float(
-                spearmanr(positions[left], positions[right]).statistic
-            )
+            rank_correlation = float(spearmanr(positions[left], positions[right]).statistic)
             for selected in get_requested_evaluation_k_values(n_features):
                 left_set = set(by_projection[left][:selected])
                 right_set = set(by_projection[right][:selected])
@@ -276,8 +355,7 @@ def build_stability(rankings: pd.DataFrame) -> pd.DataFrame:
                         "projection_count_right": right,
                         "selected_features": selected,
                         "overlap_fraction": len(left_set & right_set) / selected,
-                        "jaccard": len(left_set & right_set)
-                        / len(left_set | right_set),
+                        "jaccard": len(left_set & right_set) / len(left_set | right_set),
                         "spearman_complete_ranking": rank_correlation,
                     }
                 )
@@ -302,9 +380,7 @@ def summarize(
         max_seconds=("selection_seconds", "max"),
     )
     reference_median = (
-        timing[timing["projection_count"] == 10]
-        .set_index("dataset")["median_seconds"]
-        .to_dict()
+        timing[timing["projection_count"] == 10].set_index("dataset")["median_seconds"].to_dict()
     )
     timing["median_ratio_to_10"] = timing.apply(
         lambda row: row["median_seconds"] / reference_median[row["dataset"]],
@@ -318,18 +394,15 @@ def summarize(
         balanced_accuracy_std=("balanced_accuracy", "std"),
         folds=("balanced_accuracy", "count"),
     )
-    stability_summary = (
-        stability.groupby(
-            [
-                "dataset",
-                "projection_count_left",
-                "projection_count_right",
-                "selected_features",
-            ],
-            as_index=False,
-        )[["overlap_fraction", "jaccard", "spearman_complete_ranking"]]
-        .mean()
-    )
+    stability_summary = stability.groupby(
+        [
+            "dataset",
+            "projection_count_left",
+            "projection_count_right",
+            "selected_features",
+        ],
+        as_index=False,
+    )[["overlap_fraction", "jaccard", "spearman_complete_ranking"]].mean()
     _atomic_csv(timing, output_dir / "timing-summary.csv")
     _atomic_csv(performance, output_dir / "performance-summary.csv")
     _atomic_csv(stability, output_dir / "stability.csv")
@@ -342,29 +415,23 @@ def summarize(
         columns="projection_count",
         values="balanced_accuracy",
     )
-    for dataset in DATASETS:
-        timing_rows = timing[timing["dataset"] == dataset].set_index(
-            "projection_count"
-        )
-        metric_rows = paired_metrics.xs(dataset, level="dataset")
+    for dataset_name in DATASETS:
+        timing_rows = timing[timing["dataset"] == dataset_name].set_index("projection_count")
+        metric_rows = paired_metrics.xs(dataset_name, level="dataset")
         stability_rows = stability[
-            (stability["dataset"] == dataset)
+            (stability["dataset"] == dataset_name)
             & (stability["projection_count_left"] == 10)
             & (stability["projection_count_right"] == 20)
         ]
         comparison_rows.append(
             {
-                "dataset": dataset,
+                "dataset": dataset_name,
                 "projection_count_reference": 10,
                 "projection_count_comparison": 20,
                 "median_runtime_ratio": timing_rows.loc[20, "median_seconds"]
                 / timing_rows.loc[10, "median_seconds"],
-                "balanced_accuracy_mean_difference": (
-                    metric_rows[20] - metric_rows[10]
-                ).mean(),
-                "selected_set_overlap_mean": stability_rows[
-                    "overlap_fraction"
-                ].mean(),
+                "balanced_accuracy_mean_difference": (metric_rows[20] - metric_rows[10]).mean(),
+                "selected_set_overlap_mean": stability_rows["overlap_fraction"].mean(),
                 "complete_ranking_spearman_mean": stability_rows[
                     "spearman_complete_ranking"
                 ].mean(),
@@ -376,12 +443,13 @@ def summarize(
     )
 
     dataset_identities = {}
-    for dataset in DATASETS:
-        identity = get_dataset_identity(dataset, TASK, source="real")
-        dataset_identities[dataset] = {
-            "sha256": identity.sha256,
-            "n_samples": identity.n_samples,
-            "n_features": identity.n_features,
+    for dataset_name in DATASETS:
+        dataset = _load_study_dataset(dataset_name)
+        dataset_identities[dataset_name] = {
+            "sha256": dataset.sha256,
+            "n_samples": dataset.n_samples,
+            "n_features": dataset.n_features,
+            "source": dataset.source,
         }
     script_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     receipt = {
@@ -404,6 +472,26 @@ def summarize(
     )
 
 
+def execute(
+    *,
+    seeds: tuple[int, ...],
+    output_dir: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Run missing cells and rebuild summaries only when their inputs change."""
+    hashes_before = _input_hashes(output_dir)
+    rankings, metrics = run(seeds=seeds, output_dir=output_dir)
+    hashes_after = _input_hashes(output_dir)
+    summaries_complete = all((output_dir / filename).exists() for filename in SUMMARY_FILENAMES)
+    if hashes_before != hashes_after or not summaries_complete:
+        summarize(rankings, metrics, output_dir=output_dir)
+    else:
+        receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
+        script_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        if receipt.get("script_sha256") != script_sha256:
+            raise RuntimeError("existing results were generated by a different script revision")
+    return rankings, metrics
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -423,15 +511,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     seeds = _parse_int_csv(args.seeds)
-    rankings, metrics = run(seeds=seeds, output_dir=args.output_dir)
-    summarize(
-        rankings,
-        metrics,
-        output_dir=args.output_dir,
-    )
+    rankings, metrics = execute(seeds=seeds, output_dir=args.output_dir)
     print(
-        f"completed rankings={len(rankings)} metrics={len(metrics)} "
-        f"output={args.output_dir}",
+        f"completed rankings={len(rankings)} metrics={len(metrics)} output={args.output_dir}",
         flush=True,
     )
     return 0

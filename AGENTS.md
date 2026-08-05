@@ -459,8 +459,8 @@ uv sync --group paper
 | `citrees-exp infra ecr build`         | Build + push Docker image to ECR   |
 | `citrees-exp infra ecr clean`         | Delete all ECR images              |
 | `citrees-exp infra launch-api`        | Launch API server on EC2           |
-| `citrees-exp infra api-url`           | Print running API server URL       |
-| `citrees-exp infra terminate-api`     | Terminate API server instance      |
+| `citrees-exp infra api-url`           | Print exact campaign API URL       |
+| `citrees-exp infra terminate-api`     | Terminate exact campaign API       |
 | `citrees-exp infra launch-workers`    | Launch EC2 worker instances        |
 | `citrees-exp infra list-workers`      | List running worker instances      |
 | `citrees-exp infra terminate-workers` | Terminate all workers              |
@@ -586,7 +586,10 @@ citrees-exp check --manifest scratch/manifest.csv    # exact S3 reconciliation
 
 # 4. Tear down
 citrees-exp infra terminate-workers
-citrees-exp infra terminate-api
+citrees-exp infra terminate-api \
+    --artifact-prefix "$CITREES_ARTIFACT_PREFIX" \
+    --campaign-sha256 "$CITREES_CAMPAIGN_SHA256" \
+    --stage rankings
 ```
 
 ---

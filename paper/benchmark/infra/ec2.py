@@ -1130,8 +1130,6 @@ def launch_api(
 
     Returns dict with instance_id, public_ip, and api_url.
     """
-    if get_api_scope(region) is not None:
-        raise RuntimeError("A citrees API server is already pending or running")
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be a positive integer")
     if type(max_cell_attempts) is not int or max_cell_attempts <= 0:
@@ -1156,6 +1154,18 @@ def launch_api(
     canonical_manifest_s3_key = str(manifest_info["canonical_manifest_s3_key"])
     canonical_manifest_sha256 = str(manifest_info["canonical_manifest_sha256"])
     campaign_sha256 = str(manifest_info["campaign_sha256"])
+    if (
+        get_api_scope(
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            stage=stage,
+            region=region,
+        )
+        is not None
+    ):
+        raise RuntimeError(
+            "A citrees API server is already pending or running for the exact campaign scope"
+        )
     git_sha = validate_image_revision(image_uri, region=region)
     _require_image_matches_runtime(image_uri, git_sha, runtime_contract)
     ec2 = boto3.client("ec2", region_name=region)
@@ -1323,15 +1333,50 @@ def launch_api(
     return {"instance_id": instance_id, "public_ip": public_ip, "api_url": api_url}
 
 
-def get_api_scope(region: str = DEFAULT_REGION) -> ApiScope | None:
-    """Return the immutable scope of the single running API server."""
+def _api_instance_filters(
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    states: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Return exact EC2 filters for one immutable API campaign scope."""
+    artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
+    from paper.benchmark.pipeline.manifest import validate_manifest_sha256
+
+    campaign_sha256 = validate_manifest_sha256(campaign_sha256)
+    return [
+        {"Name": f"tag:{TAG_KEY}", "Values": [API_TAG_VALUE]},
+        {
+            "Name": "tag:citrees-artifact-prefix",
+            "Values": [artifact_prefix],
+        },
+        {
+            "Name": "tag:citrees-campaign-sha256",
+            "Values": [campaign_sha256],
+        },
+        {"Name": "tag:citrees-stage", "Values": [stage]},
+        {"Name": "instance-state-name", "Values": list(states)},
+    ]
+
+
+def get_api_scope(
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    region: str = DEFAULT_REGION,
+) -> ApiScope | None:
+    """Return the running API server for one immutable campaign scope."""
     ec2 = boto3.client("ec2", region_name=region)
 
     response = ec2.describe_instances(
-        Filters=[
-            {"Name": f"tag:{TAG_KEY}", "Values": [API_TAG_VALUE]},
-            {"Name": "instance-state-name", "Values": ["pending", "running"]},
-        ]
+        Filters=_api_instance_filters(
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            stage=stage,
+            states=("pending", "running"),
+        )
     )
 
     instances = [
@@ -1343,7 +1388,9 @@ def get_api_scope(region: str = DEFAULT_REGION) -> ApiScope | None:
         return None
     if len(instances) != 1:
         instance_ids = sorted(instance["InstanceId"] for instance in instances)
-        raise RuntimeError(f"Expected one running API server, found {instance_ids}")
+        raise RuntimeError(
+            f"Expected one running API server for the exact campaign scope, found {instance_ids}"
+        )
 
     instance = instances[0]
     private_ip = instance.get("PrivateIpAddress")
@@ -1426,27 +1473,43 @@ def get_api_scope(region: str = DEFAULT_REGION) -> ApiScope | None:
     )
 
 
-def get_api_url(region: str = DEFAULT_REGION) -> str | None:
-    """Return the private URL of the single running API server."""
-    scope = get_api_scope(region)
+def get_api_url(
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    region: str = DEFAULT_REGION,
+) -> str | None:
+    """Return the private URL of one campaign-scoped API server."""
+    scope = get_api_scope(
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        region=region,
+    )
     return scope.api_url if scope is not None else None
 
 
-def terminate_api(region: str = DEFAULT_REGION) -> str | None:
-    """Terminate the API server instance.
+def terminate_api(
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    region: str = DEFAULT_REGION,
+) -> str | None:
+    """Terminate the API server for one immutable campaign scope.
 
     Returns the terminated instance ID, or None if no API instance found.
     """
     ec2 = boto3.client("ec2", region_name=region)
 
     response = ec2.describe_instances(
-        Filters=[
-            {"Name": f"tag:{TAG_KEY}", "Values": [API_TAG_VALUE]},
-            {
-                "Name": "instance-state-name",
-                "Values": ["pending", "running", "stopping"],
-            },
-        ]
+        Filters=_api_instance_filters(
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            stage=stage,
+            states=("pending", "running", "stopping"),
+        )
     )
 
     instance_ids = []
@@ -1455,8 +1518,12 @@ def terminate_api(region: str = DEFAULT_REGION) -> str | None:
             instance_ids.append(inst["InstanceId"])
 
     if not instance_ids:
-        info("No API server instance found")
+        info("No API server instance found for the exact campaign scope")
         return None
+    if len(instance_ids) != 1:
+        raise RuntimeError(
+            f"Expected one API server for the exact campaign scope, found {sorted(instance_ids)}"
+        )
 
     ec2.terminate_instances(InstanceIds=instance_ids)
     terminated = instance_ids[0]
@@ -1542,7 +1609,12 @@ def launch_workers(
     canonical_manifest_s3_key = str(manifest_info["canonical_manifest_s3_key"])
     canonical_manifest_sha256 = str(manifest_info["canonical_manifest_sha256"])
     campaign_sha256 = str(manifest_info["campaign_sha256"])
-    api_scope = get_api_scope(region)
+    api_scope = get_api_scope(
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        region=region,
+    )
     if api_scope is None:
         raise RuntimeError(
             "No running API server found. Launch one with: citrees-exp infra launch-api"

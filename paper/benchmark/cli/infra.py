@@ -339,43 +339,93 @@ def launch_api_cmd(
 
 
 @app.command(name="api-url")
-def api_url_cmd() -> None:
-    """Print the running API server URL (public IP for external access).
+def api_url_cmd(
+    artifact_prefix: Annotated[
+        str,
+        typer.Option(
+            "--artifact-prefix",
+            envvar="CITREES_ARTIFACT_PREFIX",
+            help="Exact API server artifact prefix",
+        ),
+    ] = "",
+    campaign_sha256: Annotated[
+        str,
+        typer.Option(
+            "--campaign-sha256",
+            envvar="CITREES_CAMPAIGN_SHA256",
+            help="Exact API server campaign digest",
+        ),
+    ] = "",
+    stage: Annotated[
+        Literal["rankings", "metrics"],
+        typer.Option(
+            "--stage",
+            envvar="CITREES_STAGE",
+            help="Exact API server phase",
+        ),
+    ] = "rankings",
+) -> None:
+    """Print the public URL for one campaign-scoped API server."""
+    from paper.benchmark.infra.ec2 import get_api_scope
 
-    Finds the EC2 instance tagged as the API server and prints its URL.
-    Useful for scripting: $(citrees-exp infra api-url)
-    """
-    import boto3
+    if not artifact_prefix or not campaign_sha256:
+        error("--artifact-prefix and --campaign-sha256 are required")
+        raise typer.Exit(2)
 
-    from paper.benchmark.infra.aws import DEFAULT_REGION
-    from paper.benchmark.infra.ec2 import API_TAG_VALUE, TAG_KEY
-
-    ec2 = boto3.client("ec2", region_name=DEFAULT_REGION)
-    response = ec2.describe_instances(
-        Filters=[
-            {"Name": f"tag:{TAG_KEY}", "Values": [API_TAG_VALUE]},
-            {"Name": "instance-state-name", "Values": ["pending", "running"]},
-        ]
+    scope = get_api_scope(
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
     )
-    for reservation in response.get("Reservations", []):
-        for inst in reservation.get("Instances", []):
-            ip = inst.get("PublicIpAddress")
-            if ip:
-                console.print(f"http://{ip}:8000")
-                return
+    if scope is not None:
+        console.print(scope.public_api_url)
+        return
 
-    error("No running API server found")
+    error("No running API server found for the exact campaign scope")
     raise typer.Exit(1)
 
 
 @app.command(name="terminate-api")
-def terminate_api_cmd() -> None:
-    """Terminate the API server instance."""
+def terminate_api_cmd(
+    artifact_prefix: Annotated[
+        str,
+        typer.Option(
+            "--artifact-prefix",
+            envvar="CITREES_ARTIFACT_PREFIX",
+            help="Exact API server artifact prefix",
+        ),
+    ] = "",
+    campaign_sha256: Annotated[
+        str,
+        typer.Option(
+            "--campaign-sha256",
+            envvar="CITREES_CAMPAIGN_SHA256",
+            help="Exact API server campaign digest",
+        ),
+    ] = "",
+    stage: Annotated[
+        Literal["rankings", "metrics"],
+        typer.Option(
+            "--stage",
+            envvar="CITREES_STAGE",
+            help="Exact API server phase",
+        ),
+    ] = "rankings",
+) -> None:
+    """Terminate one campaign-scoped API server."""
     from paper.benchmark.infra.ec2 import terminate_api
+
+    if not artifact_prefix or not campaign_sha256:
+        error("--artifact-prefix and --campaign-sha256 are required")
+        raise typer.Exit(2)
 
     heading("Terminating API Server")
 
-    result = terminate_api()
+    result = terminate_api(
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+    )
     if result:
         success(f"Terminated: {result}")
     else:

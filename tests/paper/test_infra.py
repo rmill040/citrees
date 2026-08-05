@@ -45,6 +45,7 @@ from paper.benchmark.infra.ec2 import (
     launch_api,
     launch_mechanism_workers,
     launch_workers,
+    terminate_api,
     validate_image_digest_uri,
 )
 from paper.benchmark.pipeline.runtime_contract import (
@@ -462,6 +463,46 @@ def test_runtime_contract_cli_parameters_are_explicit() -> None:
         assert "runtime_contract_s3_key" not in parameters
 
 
+@pytest.mark.parametrize("command", ["api-url", "terminate-api"])
+def test_api_lifecycle_cli_requires_exact_campaign_scope(command: str) -> None:
+    result = CliRunner().invoke(infra_app, [command])
+
+    assert result.exit_code == 2
+    assert "--artifact-prefix" in result.output
+    assert "--campaign-sha256" in result.output
+
+
+def test_api_lifecycle_cli_forwards_exact_campaign_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get_scope = MagicMock(return_value=SimpleNamespace(public_api_url="http://203.0.113.10:8000"))
+    terminate = MagicMock(return_value="i-api")
+    monkeypatch.setattr(ec2_infra, "get_api_scope", get_scope)
+    monkeypatch.setattr(ec2_infra, "terminate_api", terminate)
+    arguments = [
+        "--artifact-prefix",
+        "repairs/run-001",
+        "--campaign-sha256",
+        CAMPAIGN_SHA256,
+        "--stage",
+        "rankings",
+    ]
+
+    url_result = CliRunner().invoke(infra_app, ["api-url", *arguments])
+    terminate_result = CliRunner().invoke(infra_app, ["terminate-api", *arguments])
+
+    assert url_result.exit_code == 0, url_result.output
+    assert "http://203.0.113.10:8000" in url_result.output
+    assert terminate_result.exit_code == 0, terminate_result.output
+    expected = {
+        "artifact_prefix": "repairs/run-001",
+        "campaign_sha256": CAMPAIGN_SHA256,
+        "stage": "rankings",
+    }
+    get_scope.assert_called_once_with(**expected)
+    terminate.assert_called_once_with(**expected)
+
+
 def test_mechanism_launch_has_no_mutable_output_or_overwrite_controls() -> None:
     for command in (launch_mechanism_workers_cmd, launch_mechanism_workers):
         parameters = inspect.signature(command).parameters
@@ -830,12 +871,17 @@ def _mock_api_launch(
     ec2_resource = MagicMock()
     ec2_resource.Instance.return_value = instance
 
-    monkeypatch.setattr(ec2_infra, "get_api_scope", lambda region: None)
+    monkeypatch.setattr(ec2_infra, "get_api_scope", lambda **kwargs: None)
     monkeypatch.setattr(ec2_infra, "validate_image_revision", lambda image_uri, region: "a" * 40)
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: {
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: {
             "key": MANIFEST_KEY,
             "sha256": MANIFEST_SHA256,
             "campaign_sha256": CAMPAIGN_SHA256,
@@ -993,7 +1039,11 @@ def test_running_api_scope_requires_complete_immutable_tags(
     }
     monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: client)
 
-    scope = get_api_scope()
+    scope = get_api_scope(
+        artifact_prefix="repairs/run-001",
+        campaign_sha256=CAMPAIGN_SHA256,
+        stage="rankings",
+    )
 
     assert scope == ApiScope(
         api_url="http://10.0.0.10:8000",
@@ -1025,8 +1075,121 @@ def test_running_api_scope_requires_complete_immutable_tags(
     ):
         instance["Tags"] = [tag for tag in complete_tags if tag["Key"] != missing_key]
         with pytest.raises(RuntimeError, match="missing scope tags"):
-            get_api_scope()
+            get_api_scope(
+                artifact_prefix="repairs/run-001",
+                campaign_sha256=CAMPAIGN_SHA256,
+                stage="rankings",
+            )
     instance["Tags"] = complete_tags
+
+
+def test_api_discovery_and_termination_are_isolated_by_campaign_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    second_campaign_sha256 = "f" * 64
+
+    def instance(
+        *,
+        instance_id: str,
+        artifact_prefix: str,
+        campaign_sha256: str,
+        stage: str,
+        private_ip: str,
+        public_ip: str,
+    ) -> dict[str, object]:
+        return {
+            "InstanceId": instance_id,
+            "PrivateIpAddress": private_ip,
+            "PublicIpAddress": public_ip,
+            "Tags": [
+                {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
+                {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
+                {
+                    "Key": "citrees-canonical-manifest-key",
+                    "Value": CANONICAL_MANIFEST_KEY,
+                },
+                {
+                    "Key": "citrees-canonical-manifest-sha256",
+                    "Value": CANONICAL_MANIFEST_SHA256,
+                },
+                {"Key": "citrees-gate-receipt-key", "Value": GATE_RECEIPT_KEY},
+                {
+                    "Key": "citrees-gate-receipt-sha256",
+                    "Value": GATE_RECEIPT_SHA256,
+                },
+                {"Key": "citrees-image-uri", "Value": DIGEST_URI},
+                {"Key": "citrees-manifest-key", "Value": MANIFEST_KEY},
+                {"Key": "citrees-manifest-sha256", "Value": MANIFEST_SHA256},
+                {"Key": "citrees-max-cell-attempts", "Value": "3"},
+                {
+                    "Key": "citrees-runtime-contract-key",
+                    "Value": RUNTIME_CONTRACT_KEY,
+                },
+                {
+                    "Key": "citrees-runtime-contract-sha256",
+                    "Value": RUNTIME_CONTRACT_SHA256,
+                },
+                {"Key": "citrees-stage", "Value": stage},
+            ],
+        }
+
+    instances = {
+        ("repairs/run-001", CAMPAIGN_SHA256, "rankings"): instance(
+            instance_id="i-first",
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            stage="rankings",
+            private_ip="10.0.0.10",
+            public_ip="203.0.113.10",
+        ),
+        ("repairs/run-002", second_campaign_sha256, "rankings"): instance(
+            instance_id="i-second",
+            artifact_prefix="repairs/run-002",
+            campaign_sha256=second_campaign_sha256,
+            stage="rankings",
+            private_ip="10.0.0.20",
+            public_ip="203.0.113.20",
+        ),
+    }
+    client = MagicMock()
+
+    def describe_instances(*, Filters: list[dict[str, object]]) -> dict[str, object]:
+        filters = {item["Name"]: item["Values"] for item in Filters}
+        key = (
+            filters["tag:citrees-artifact-prefix"][0],
+            filters["tag:citrees-campaign-sha256"][0],
+            filters["tag:citrees-stage"][0],
+        )
+        selected = instances.get(key)
+        return {"Reservations": ([{"Instances": [selected]}] if selected is not None else [])}
+
+    client.describe_instances.side_effect = describe_instances
+    monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: client)
+
+    first = get_api_scope(
+        artifact_prefix="repairs/run-001",
+        campaign_sha256=CAMPAIGN_SHA256,
+        stage="rankings",
+    )
+    second = get_api_scope(
+        artifact_prefix="repairs/run-002",
+        campaign_sha256=second_campaign_sha256,
+        stage="rankings",
+    )
+
+    assert first is not None
+    assert first.public_api_url == "http://203.0.113.10:8000"
+    assert second is not None
+    assert second.public_api_url == "http://203.0.113.20:8000"
+    assert (
+        terminate_api(
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            stage="rankings",
+        )
+        == "i-first"
+    )
+    client.terminate_instances.assert_called_once_with(InstanceIds=["i-first"])
 
 
 def _mock_api_status_client(
@@ -1168,13 +1331,16 @@ def test_api_launch_rejects_unattested_runtime_contract_before_ec2(
 
     ec2_client = MagicMock()
     validate_image_revision = MagicMock(return_value="a" * 40)
-    monkeypatch.setattr(ec2_infra, "get_api_scope", lambda region: None)
+    monkeypatch.setattr(ec2_infra, "get_api_scope", lambda **kwargs: None)
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
-            publication
-        ),
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: (publication),
     )
     monkeypatch.setattr(ec2_infra, "validate_image_revision", validate_image_revision)
     monkeypatch.setattr(ec2_infra.boto3, "client", MagicMock(return_value=ec2_client))
@@ -1214,14 +1380,17 @@ def test_worker_launch_rejects_runtime_contract_scope_mismatch_before_ec2(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
-            _published_manifest()
-        ),
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: (_published_manifest()),
     )
     monkeypatch.setattr(
         ec2_infra,
         "get_api_scope",
-        lambda region: ApiScope(
+        lambda **kwargs: ApiScope(
             api_url="http://10.0.0.10:8000",
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/run-001",
@@ -1279,14 +1448,17 @@ def test_worker_launch_rejects_scope_mismatch_before_ec2_launch(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
-            _published_manifest()
-        ),
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: (_published_manifest()),
     )
     monkeypatch.setattr(
         ec2_infra,
         "get_api_scope",
-        lambda region: ApiScope(
+        lambda **kwargs: ApiScope(
             api_url="http://10.0.0.10:8000",
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/other-run",
@@ -1337,14 +1509,17 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
-            _published_manifest()
-        ),
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: (_published_manifest()),
     )
     monkeypatch.setattr(
         ec2_infra,
         "get_api_scope",
-        lambda region: ApiScope(
+        lambda **kwargs: ApiScope(
             api_url="http://10.0.0.10:8000",
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/run-001",
@@ -1430,14 +1605,17 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
-            _published_manifest()
-        ),
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: (_published_manifest()),
     )
     monkeypatch.setattr(
         ec2_infra,
         "get_api_scope",
-        lambda region: ApiScope(
+        lambda **kwargs: ApiScope(
             api_url="http://10.0.0.10:8000",
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/run-001",
@@ -1562,14 +1740,17 @@ def _mock_worker_launch_dependencies(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
-            _published_manifest()
-        ),
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: (_published_manifest()),
     )
     monkeypatch.setattr(
         ec2_infra,
         "get_api_scope",
-        lambda region: ApiScope(
+        lambda **kwargs: ApiScope(
             api_url="http://10.0.0.10:8000",
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/run-001",

@@ -3718,6 +3718,7 @@ def launch_missing_shards(
     instance_profile_name = ensure_campaign_iam_profile(
         output_prefix=campaign.output_prefix,
         campaign_sha256=campaign.campaign_sha256,
+        read_keys=(campaign.manifest_key,),
         write_prefixes=(f"{campaign.output_prefix}/shards",),
         region=campaign.region,
     )

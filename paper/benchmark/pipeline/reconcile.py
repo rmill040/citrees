@@ -182,6 +182,12 @@ def _validate_scope(
             "campaign digest does not match expected provenance: "
             f"{manifest.campaign_sha256!r} != {provenance['campaign_sha256']!r}"
         )
+    if provenance["runtime_contract_sha256"] != manifest.runtime_contract_sha256:
+        raise ValueError(
+            "runtime contract digest does not match expected provenance: "
+            f"{manifest.runtime_contract_sha256!r} != "
+            f"{provenance['runtime_contract_sha256']!r}"
+        )
     if manifest.account_ids != (provenance["aws_account_id"],):
         raise ValueError(
             "manifest account binding does not match expected provenance: "

@@ -1,12 +1,6 @@
 {
   "analysis": "rdc_projection_sensitivity",
   "datasets": {
-    "breast-cancer": {
-      "n_features": 30,
-      "n_samples": 569,
-      "sha256": "1720d92c704161b13f5e67929cbb6912f2fb2348d0add12846f881f65aaf0604",
-      "source": "scikit-learn Breast Cancer Wisconsin (Diagnostic)"
-    },
     "glass": {
       "n_features": 10,
       "n_samples": 214,
@@ -19,11 +13,11 @@
       "sha256": "8c624c057ab20b49e8ce2b4b222ae5655a7652e3991aa997d100570ef9c3f438",
       "source": "OpenML dataset 53, version 1 (UCI Statlog Heart)"
     },
-    "ionosphere": {
-      "n_features": 34,
-      "n_samples": 351,
-      "sha256": "6693050c2f2a6ece1e4abccd19658743bc17d2a132dcd981c4b6ca1c2d24bffd",
-      "source": "OpenML dataset 59, version 1 (UCI Ionosphere)"
+    "parkinsons": {
+      "n_features": 22,
+      "n_samples": 195,
+      "sha256": "f7d1985c10604b4f65c5a0444767a4b1433395016e155009892abe1cf854f91f",
+      "source": "OpenML dataset 1488, version 1 (UCI Parkinsons)"
     },
     "wine": {
       "n_features": 13,
@@ -32,6 +26,11 @@
       "source": "benchmark parquet"
     }
   },
+  "downstream_models": [
+    "lr",
+    "svm",
+    "knn"
+  ],
   "folds": 5,
   "hardware": {
     "ec2_instance_type": "unknown",
@@ -57,7 +56,8 @@
     "sklearn": "1.8.0",
     "xgboost": "3.3.0"
   },
-  "metric_rows": 4800,
+  "metric_rows": 3300,
+  "preprocessing": "StandardScaler fit on each training fold",
   "projected_columns": [
     10,
     20,
@@ -70,13 +70,8 @@
     20,
     40
   ],
-  "ranking_rows": 500,
+  "ranking_rows": 400,
   "reduced_feature_counts": {
-    "breast-cancer": [
-      5,
-      10,
-      25
-    ],
     "glass": [
       5
     ],
@@ -84,17 +79,16 @@
       5,
       10
     ],
-    "ionosphere": [
+    "parkinsons": [
       5,
-      10,
-      25
+      10
     ],
     "wine": [
       5,
       10
     ]
   },
-  "script_sha256": "aa37a7392e6d51cbd3548d3fd3750d691521d72dba9e71aae36fdfea65e5a0d6",
+  "script_sha256": "6fa9d1f996ff2d10b94cc4936d2d127dc41b2c2daa07e4dcb3a03b865ebe6371",
   "seeds": [
     0,
     1,
@@ -102,5 +96,27 @@
     3,
     4
   ],
-  "selection_seconds_total": 468.5748202421091
+  "selection_seconds_total": 216.01688991984702,
+  "selector": {
+    "alpha": 0.05,
+    "early_stopping": "adaptive",
+    "method": "ptest_rdc",
+    "n_resamples": "auto",
+    "projection_counts": [
+      5,
+      10,
+      20,
+      40
+    ]
+  },
+  "timing": {
+    "clock": "time.perf_counter",
+    "projection_order": [
+      5,
+      10,
+      20,
+      40
+    ],
+    "scope": "permutation_selector call"
+  }
 }

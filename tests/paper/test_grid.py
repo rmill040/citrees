@@ -32,16 +32,20 @@ def test_grid_includes_every_high_dimensional_r_and_cit_cell() -> None:
     )
 
     keys = {config.key for config in grid}
-    required_cells = {(config.label, "dexter", seed) for config in r_configs for seed in range(5)}
+    required_cells = {
+        ("classification", "dexter", config.label, seed)
+        for config in r_configs
+        for seed in range(5)
+    }
     required_cells.update(
         {
-            (ctree_monte_carlo.label, "gisette", 3),
-            (ctree_monte_carlo.label, "isolet", 2),
-            (ctree_monte_carlo.label, "isolet", 3),
-            (cit_rdc.label, "gisette", 0),
-            (cit_rdc.label, "gisette", 1),
-            (cit_rdc.label, "gisette", 3),
-            (cit_rdc.label, "orlraws10P", 1),
+            ("classification", "gisette", ctree_monte_carlo.label, 3),
+            ("classification", "isolet", ctree_monte_carlo.label, 2),
+            ("classification", "isolet", ctree_monte_carlo.label, 3),
+            ("classification", "gisette", cit_rdc.label, 0),
+            ("classification", "gisette", cit_rdc.label, 1),
+            ("classification", "gisette", cit_rdc.label, 3),
+            ("classification", "orlraws10P", cit_rdc.label, 1),
         }
     )
 

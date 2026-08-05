@@ -25,6 +25,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
@@ -700,7 +701,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """CLI entry point."""
-    sys.stdout.reconfigure(line_buffering=True)
+    if isinstance(sys.stdout, TextIOWrapper):
+        sys.stdout.reconfigure(line_buffering=True)
     args = parse_args()
 
     tasks = _expand_choices(_split_csv(args.tasks), all_value="all", allowed=TASKS, label="tasks")

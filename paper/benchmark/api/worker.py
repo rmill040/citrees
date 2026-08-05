@@ -18,7 +18,7 @@ import threading
 import time
 import traceback
 import uuid
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 from loguru import logger
@@ -32,12 +32,17 @@ from paper.benchmark.config.constants import (
     WORKER_MAX_API_FAILURES,
 )
 from paper.benchmark.pipeline.types import (
+    CellKey,
     DatasetIdentity,
     ExperimentConfig,
     MethodConfig,
     Result,
     StageType,
+    TaskType,
 )
+
+if TYPE_CHECKING:
+    from paper.benchmark.pipeline.campaign_gate import ApprovedCampaignGate
 
 _shutdown = False
 _ACK_ATTEMPTS = 5
@@ -89,6 +94,7 @@ def _validate_assignment(
     data: dict[str, Any],
     store: S3Store,
     *,
+    approved_configs: dict[CellKey, ExperimentConfig],
     worker_id: str,
     request_id: str,
 ) -> ExperimentConfig:
@@ -108,6 +114,9 @@ def _validate_assignment(
     if data.get("worker_id") != worker_id or data.get("request_id") != request_id:
         raise RuntimeError("API returned an assignment owned by another worker request")
     config = _deserialize_config(data)
+    approved_config = approved_configs.get(config.key)
+    if approved_config != config:
+        raise RuntimeError(f"API returned assignment outside the active manifest: {config}")
     from paper.benchmark.pipeline.validation import derive_assignment_id
 
     expected_assignment_id = derive_assignment_id(
@@ -122,6 +131,25 @@ def _validate_assignment(
             f"expected {expected_assignment_id!r}"
         )
     return config
+
+
+def _approved_configs_for_stage(
+    approved_gate: ApprovedCampaignGate,
+    stage: StageType,
+) -> dict[CellKey, ExperimentConfig]:
+    """Build a collision-free approval map across both task queues."""
+    configs = [
+        config
+        for task in ("classification", "regression")
+        for config in approved_gate.manifest.configs_for(
+            cast(TaskType, task),
+            stage,
+        )
+    ]
+    approved_configs = {config.key: config for config in configs}
+    if len(approved_configs) != len(configs):
+        raise RuntimeError("active manifest contains colliding experiment cell keys")
+    return approved_configs
 
 
 def _expected_worker_provenance(store: S3Store) -> dict[str, str]:
@@ -145,10 +173,38 @@ def _expected_worker_provenance(store: S3Store) -> dict[str, str]:
     return expected
 
 
+def _load_gate_approved_campaign(store: S3Store) -> ApprovedCampaignGate:
+    """Load the complete gate-approved campaign before leasing work."""
+    from paper.benchmark.experiments.r_cforest_reproducibility import (
+        require_running_runtime_contract,
+    )
+    from paper.benchmark.pipeline.campaign_gate import (
+        configured_campaign_gate_identity,
+        load_approved_campaign_gate,
+    )
+
+    approved = load_approved_campaign_gate(
+        store,
+        configured_campaign_gate_identity(),
+    )
+    require_running_runtime_contract(approved.runtime_contract)
+    return approved
+
+
 def _validate_api_scope(data: dict[str, Any], store: S3Store) -> None:
     """Reject an API server outside the worker's immutable queue scope."""
     expected = {
         **_expected_worker_provenance(store),
+        "canonical_manifest_s3_key": os.environ.get(
+            "CITREES_CANONICAL_MANIFEST_S3_KEY", ""
+        ).strip(),
+        "canonical_manifest_sha256": os.environ.get(
+            "CITREES_CANONICAL_MANIFEST_SHA256", ""
+        ).strip(),
+        "gate_receipt_s3_key": os.environ.get("CITREES_GATE_RECEIPT_S3_KEY", "").strip(),
+        "gate_receipt_sha256": os.environ.get("CITREES_GATE_RECEIPT_SHA256", "").strip(),
+        "manifest_s3_key": os.environ.get("CITREES_MANIFEST_S3_KEY", "").strip(),
+        "runtime_contract_s3_key": os.environ.get("CITREES_RUNTIME_CONTRACT_S3_KEY", "").strip(),
         "stage": os.environ.get("CITREES_STAGE", "").strip(),
     }
     observed = {field: data.get(field) for field in expected}
@@ -610,11 +666,13 @@ def _execute_assignment(
         store.clear_write_guard()
 
 
-def _queue_has_outstanding_work(client: httpx.Client) -> bool:
+def _queue_has_outstanding_work(client: httpx.Client, store: S3Store) -> bool:
     """Return whether any queue still has available or in-flight cells."""
     response = client.get("/status")
     response.raise_for_status()
-    queues = response.json().get("queues", {})
+    data = response.json()
+    _validate_api_scope(data, store)
+    queues = data.get("queues", {})
     return any(int(queue.get("pending", 0)) > 0 for queue in queues.values())
 
 
@@ -638,6 +696,14 @@ def run_worker(
     from paper.benchmark.pipeline.stage2 import _run_evaluation
 
     store = S3Store.from_env(validate_uploads=True)
+    approved_gate = _load_gate_approved_campaign(store)
+    configured_stage = os.environ.get("CITREES_STAGE", "").strip()
+    if configured_stage not in {"rankings", "metrics"}:
+        raise RuntimeError("CITREES_STAGE must be rankings or metrics")
+    approved_configs = _approved_configs_for_stage(
+        approved_gate,
+        cast(StageType, configured_stage),
+    )
     if poll_interval < 0:
         raise ValueError("poll_interval must be non-negative")
     if max_api_failures <= 0:
@@ -688,7 +754,7 @@ def run_worker(
             if resp.status_code == 204:
                 request_id = uuid.uuid4().hex
                 try:
-                    outstanding = _queue_has_outstanding_work(client)
+                    outstanding = _queue_has_outstanding_work(client, store)
                 except httpx.HTTPError as exc:
                     consecutive_api_failures = _record_api_failure(
                         exc,
@@ -710,6 +776,7 @@ def run_worker(
             cfg = _validate_assignment(
                 data,
                 store,
+                approved_configs=approved_configs,
                 worker_id=worker_id,
                 request_id=request_id,
             )

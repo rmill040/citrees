@@ -15,7 +15,7 @@ import os
 RANDOM_STATE = 1718
 N_SEEDS = 5
 N_SPLITS = 5
-PIPELINE_ARTIFACT_VERSION = 4
+PIPELINE_ARTIFACT_VERSION = 5
 
 # =============================================================================
 # Control Plane

@@ -16,6 +16,7 @@ from paper.benchmark.pipeline.methods import (
     get_methods,
 )
 from paper.benchmark.pipeline.types import (
+    CellKey,
     DatasetIdentity,
     ExperimentConfig,
     MethodConfig,
@@ -111,13 +112,13 @@ class ExperimentGrid:
         """Total number of configurations in the grid."""
         return len(self.methods) * len(self.datasets) * len(self.seeds)
 
-    def filter_pending(self, completed: set[tuple[str, str, int]]) -> list[ExperimentConfig]:
+    def filter_pending(self, completed: set[CellKey]) -> list[ExperimentConfig]:
         """Get list of configurations not in the completed set.
 
         Parameters
         ----------
-        completed : set[tuple[str, str, int]]
-            Set of (method_label, dataset, seed) tuples already completed.
+        completed : set[CellKey]
+            Set of task-inclusive experiment cell keys already completed.
 
         Returns
         -------
@@ -126,13 +127,13 @@ class ExperimentGrid:
         """
         return list(self.iter_pending(completed))
 
-    def iter_pending(self, completed: set[tuple[str, str, int]]) -> Iterator[ExperimentConfig]:
+    def iter_pending(self, completed: set[CellKey]) -> Iterator[ExperimentConfig]:
         """Iterate over configurations not in the completed set."""
         for cfg in self:
             if cfg.key not in completed:
                 yield cfg
 
-    def count_pending(self, completed: set[tuple[str, str, int]]) -> int:
+    def count_pending(self, completed: set[CellKey]) -> int:
         """Count configurations not in the completed set (no materialization)."""
         return sum(1 for cfg in self if cfg.key not in completed)
 
@@ -143,7 +144,7 @@ class ExperimentGrid:
     @classmethod
     def from_cli(
         cls,
-        task: str,
+        task: TaskType,
         *,
         methods: str | None = None,
         datasets: str | None = None,
@@ -185,8 +186,6 @@ class ExperimentGrid:
         ValueError
             If unknown methods, datasets, or invalid seeds are specified.
         """
-        task: TaskType = task  # type: ignore[assignment]
-
         # Get method names for task
         method_names = get_methods(task)
 

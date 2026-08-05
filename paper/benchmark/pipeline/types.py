@@ -17,6 +17,7 @@ import pandas as pd
 TaskType = Literal["classification", "regression"]
 StatusType = Literal["done", "failed", "skipped", "no_rankings"]
 StageType = Literal["rankings", "metrics"]
+type CellKey = tuple[TaskType, str, str, int]
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -111,12 +112,12 @@ class ExperimentConfig:
     dataset_identity: DatasetIdentity
 
     @property
-    def key(self) -> tuple[str, str, int]:
-        """Tuple key for S3 lookups: (method_label, dataset, seed)."""
-        return (self.method.label, self.dataset, self.seed)
+    def key(self) -> CellKey:
+        """Return the globally unique task, dataset, method, and seed key."""
+        return (self.task, self.dataset, self.method.label, self.seed)
 
     def __str__(self) -> str:
-        return f"{self.method.label}/{self.dataset}/seed{self.seed}"
+        return f"{self.task}/{self.dataset}/{self.method.label}/seed{self.seed}"
 
 
 @dataclass

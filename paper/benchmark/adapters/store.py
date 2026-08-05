@@ -14,14 +14,14 @@ import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 import boto3
 import pandas as pd
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 
-from paper.benchmark.pipeline.types import ExperimentConfig, StageType, TaskType
+from paper.benchmark.pipeline.types import CellKey, ExperimentConfig, StageType, TaskType
 
 # Module-level S3 client cache
 _S3_CLIENTS: dict[str | None, Any] = {}
@@ -207,7 +207,7 @@ class Store(Protocol):
         """Load an artifact with the digest of its exact stored bytes."""
         ...
 
-    def list_completed(self, stage: StageType, task: TaskType) -> set[tuple[str, str, int]]:
+    def list_completed(self, stage: StageType, task: TaskType) -> set[CellKey]:
         """List completed artifacts for a stage.
 
         Parameters
@@ -219,8 +219,8 @@ class Store(Protocol):
 
         Returns
         -------
-        set[tuple[str, str, int]]
-            Set of (method_label, dataset, seed) tuples.
+        set[CellKey]
+            Set of task-inclusive experiment cell keys.
         """
         ...
 
@@ -553,15 +553,17 @@ class S3Store:
         """Validate and persist one immutable assignment-attempt receipt."""
         from paper.benchmark.pipeline.validation import validate_attempt_receipt
 
-        attempt = receipt.get("attempt")
+        attempt = cast(int, receipt.get("attempt"))
+        request_id = cast(str, receipt.get("request_id"))
+        worker_id = cast(str, receipt.get("worker_id"))
         validate_attempt_receipt(
             receipt,
             config,
             stage=stage,
             assignment_id=assignment_id,
             attempt=attempt,
-            request_id=receipt.get("request_id"),
-            worker_id=receipt.get("worker_id"),
+            request_id=request_id,
+            worker_id=worker_id,
             expected_provenance=expected_provenance,
         )
         return self._put_immutable_json(
@@ -581,15 +583,17 @@ class S3Store:
         """Validate and persist one immutable failed-attempt receipt."""
         from paper.benchmark.pipeline.validation import validate_failure_receipt
 
-        attempt = receipt.get("attempt")
+        attempt = cast(int, receipt.get("attempt"))
+        request_id = cast(str, receipt.get("request_id"))
+        worker_id = cast(str, receipt.get("worker_id"))
         validate_failure_receipt(
             receipt,
             config,
             stage=stage,
             assignment_id=assignment_id,
             attempt=attempt,
-            request_id=receipt.get("request_id"),
-            worker_id=receipt.get("worker_id"),
+            request_id=request_id,
+            worker_id=worker_id,
             expected_provenance=expected_provenance,
         )
         return self._put_immutable_json(
@@ -668,14 +672,14 @@ class S3Store:
             )
         return tuple(receipts)
 
-    def list_completed(self, stage: StageType, task: TaskType) -> set[tuple[str, str, int]]:
+    def list_completed(self, stage: StageType, task: TaskType) -> set[CellKey]:
         """List completed artifacts for a stage.
 
-        Parses object keys to extract (method_label, dataset, seed) tuples.
+        Parses object keys into task-inclusive experiment cell keys.
         """
         prefix = self._stage_prefix(stage, task)
         paginator = self.client.get_paginator("list_objects_v2")
-        completed: set[tuple[str, str, int]] = set()
+        completed: set[CellKey] = set()
 
         for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
             for obj in page.get("Contents", []):
@@ -699,7 +703,7 @@ class S3Store:
                     seed = int(seed_str)
                 except ValueError:
                     continue
-                completed.add((method_label, dataset, seed))
+                completed.add((task, dataset, method_label, seed))
 
         return completed
 
@@ -798,7 +802,7 @@ class IgnoreExistsStore:
         """Delegate exact-byte loading to the inner store."""
         return self._store.load_with_payload_sha256(stage, config)
 
-    def list_completed(self, stage: StageType, task: TaskType) -> set[tuple[str, str, int]]:
+    def list_completed(self, stage: StageType, task: TaskType) -> set[CellKey]:
         """Delegate to inner store."""
         return self._store.list_completed(stage, task)
 

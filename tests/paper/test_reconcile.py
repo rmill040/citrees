@@ -38,7 +38,10 @@ CONTAINER_IMAGE = "repository@sha256:" + "a" * 64
 GIT_SHA = "a" * 40
 MANIFEST_SHA256 = "b" * 64
 CAMPAIGN_SHA256 = "e" * 64
+CANONICAL_MANIFEST_SHA256 = "a" * 64
+GATE_RECEIPT_SHA256 = "d" * 64
 RANKING_PAYLOAD_SHA256 = "c" * 64
+RUNTIME_CONTRACT_SHA256 = "f" * 64
 N_FEATURES = 4
 N_SAMPLES = 50
 
@@ -90,6 +93,7 @@ def _manifest(*cells: ManifestCell) -> RerunManifest:
     return RerunManifest(
         sha256=MANIFEST_SHA256,
         campaign_sha256=CAMPAIGN_SHA256,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         cells=tuple(cells),
     )
 
@@ -99,9 +103,12 @@ def _provenance() -> dict[str, str]:
         "artifact_prefix": ARTIFACT_PREFIX,
         "aws_account_id": ACCOUNT_ID,
         "campaign_sha256": CAMPAIGN_SHA256,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
         "container_image": CONTAINER_IMAGE,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": GIT_SHA,
         "manifest_sha256": MANIFEST_SHA256,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
     }
 
 
@@ -111,10 +118,12 @@ def _common(config: ExperimentConfig) -> dict[str, object]:
         "artifact_prefix": ARTIFACT_PREFIX,
         "aws_account_id": ACCOUNT_ID,
         "campaign_sha256": CAMPAIGN_SHA256,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
         "container_image": CONTAINER_IMAGE,
         "created_at_utc": "2026-08-03T12:00:00+00:00",
         "dataset": config.dataset,
         "dataset_sha256": config.dataset_identity.sha256,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": GIT_SHA,
         "hardware": {"logical_cpus": 32},
         "library_versions": {"python": "3.12.7", "sklearn": "1.8.0"},
@@ -127,6 +136,7 @@ def _common(config: ExperimentConfig) -> dict[str, object]:
             separators=(",", ":"),
         ),
         "manifest_sha256": MANIFEST_SHA256,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
         "n_features": N_FEATURES,
         "n_samples": N_SAMPLES,
         "seed": config.seed,
@@ -170,11 +180,14 @@ def _metrics(config: ExperimentConfig) -> pd.DataFrame:
                 "ranking_artifact_version": PIPELINE_ARTIFACT_VERSION,
                 "ranking_artifact_prefix": ARTIFACT_PREFIX,
                 "ranking_aws_account_id": ACCOUNT_ID,
+                "ranking_canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
                 "ranking_container_image": CONTAINER_IMAGE,
                 "ranking_dataset_sha256": config.dataset_identity.sha256,
+                "ranking_gate_receipt_sha256": GATE_RECEIPT_SHA256,
                 "ranking_git_sha": GIT_SHA,
                 "ranking_manifest_sha256": MANIFEST_SHA256,
                 "ranking_payload_sha256": RANKING_PAYLOAD_SHA256,
+                "ranking_runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
                 "roc_auc": 0.85,
             }
             for fold, model in product(range(5), CLF_DOWNSTREAM_MODELS)
@@ -367,6 +380,7 @@ def test_reconciliation_classifies_every_issue_without_loading_unapproved_keys()
         ("artifact_prefix", "other/run", "artifact prefix"),
         ("aws_account_id", "210987654321", "account binding"),
         ("manifest_sha256", "c" * 64, "manifest digest"),
+        ("runtime_contract_sha256", "c" * 64, "runtime contract digest"),
     ],
 )
 def test_reconciliation_rejects_scope_mismatch_before_listing(
@@ -472,7 +486,11 @@ def test_reconciliation_cli_is_a_failing_gate(
         lambda: {
             "artifact_prefix": ARTIFACT_PREFIX,
             "aws_account_id": ACCOUNT_ID,
+            "campaign_sha256": CAMPAIGN_SHA256,
+            "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
+            "gate_receipt_sha256": GATE_RECEIPT_SHA256,
             "manifest_sha256": MANIFEST_SHA256,
+            "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
         },
     )
     monkeypatch.setattr(env, "get_container_image", lambda: CONTAINER_IMAGE)

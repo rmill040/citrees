@@ -92,7 +92,7 @@ def _audit_task(
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object]]:
     """Audit one task against the current ExperimentGrid."""
     grid = ExperimentGrid.from_cli(task, source="all")
-    expected_keys = {cfg.key for cfg in grid}
+    expected_keys = {(cfg.method.label, cfg.dataset, cfg.seed) for cfg in grid}
     ranking_keys = _collect_keys(local_dir, "rankings", task)
     metric_keys = _collect_keys(local_dir, "metrics", task)
 

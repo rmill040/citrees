@@ -26,11 +26,13 @@ _COMMON_COLUMNS = {
     "artifact_prefix",
     "aws_account_id",
     "campaign_sha256",
+    "canonical_manifest_sha256",
     "container_image",
     "created_at_utc",
     "dataset",
     "dataset_sha256",
     "git_sha",
+    "gate_receipt_sha256",
     "hardware",
     "library_versions",
     "method",
@@ -40,6 +42,7 @@ _COMMON_COLUMNS = {
     "manifest_sha256",
     "n_features",
     "n_samples",
+    "runtime_contract_sha256",
     "seed",
     "task",
 }
@@ -61,11 +64,14 @@ _METRIC_COLUMNS = _COMMON_COLUMNS | {
     "ranking_artifact_version",
     "ranking_artifact_prefix",
     "ranking_aws_account_id",
+    "ranking_canonical_manifest_sha256",
     "ranking_container_image",
     "ranking_dataset_sha256",
     "ranking_git_sha",
+    "ranking_gate_receipt_sha256",
     "ranking_manifest_sha256",
     "ranking_payload_sha256",
+    "ranking_runtime_contract_sha256",
 }
 
 _CLASSIFICATION_METRICS = {
@@ -90,11 +96,13 @@ _ATTEMPT_RECEIPT_FIELDS = {
     "attempt",
     "aws_account_id",
     "campaign_sha256",
+    "canonical_manifest_sha256",
     "container_image",
     "created_at_utc",
     "dataset",
     "dataset_sha256",
     "git_sha",
+    "gate_receipt_sha256",
     "lease_seconds",
     "manifest_sha256",
     "method_base",
@@ -107,6 +115,7 @@ _ATTEMPT_RECEIPT_FIELDS = {
     "status",
     "task",
     "request_id",
+    "runtime_contract_sha256",
     "worker_id",
 }
 _FAILURE_RECEIPT_FIELDS = _ATTEMPT_RECEIPT_FIELDS - {"lease_seconds"} | {
@@ -199,11 +208,14 @@ def _require_control_receipt_identity(
         "attempt": attempt,
         "aws_account_id": provenance["aws_account_id"],
         "campaign_sha256": provenance["campaign_sha256"],
+        "canonical_manifest_sha256": provenance["canonical_manifest_sha256"],
         "container_image": provenance["container_image"],
         "dataset": config.dataset,
         "dataset_sha256": config.dataset_identity.sha256,
+        "gate_receipt_sha256": provenance["gate_receipt_sha256"],
         "git_sha": provenance["git_sha"],
         "manifest_sha256": provenance["manifest_sha256"],
+        "runtime_contract_sha256": provenance["runtime_contract_sha256"],
         "method_base": config.method.name,
         "method_id": config.method.label,
         "method_params_json": json.dumps(
@@ -313,9 +325,12 @@ def validate_expected_provenance(
         "artifact_prefix",
         "aws_account_id",
         "campaign_sha256",
+        "canonical_manifest_sha256",
         "container_image",
+        "gate_receipt_sha256",
         "git_sha",
         "manifest_sha256",
+        "runtime_contract_sha256",
     }
     if set(provenance) != required:
         raise ArtifactValidationError(
@@ -333,12 +348,24 @@ def validate_expected_provenance(
         raise ArtifactValidationError("aws_account_id must contain 12 decimal digits")
     if not _SHA256_PATTERN.fullmatch(validated["campaign_sha256"]):
         raise ArtifactValidationError("campaign_sha256 must be 64 lowercase hexadecimal characters")
+    if not _SHA256_PATTERN.fullmatch(validated["canonical_manifest_sha256"]):
+        raise ArtifactValidationError(
+            "canonical_manifest_sha256 must be 64 lowercase hexadecimal characters"
+        )
     if not _IMAGE_DIGEST_PATTERN.fullmatch(validated["container_image"]):
         raise ArtifactValidationError("container_image must be an immutable digest URI")
     if not _GIT_SHA_PATTERN.fullmatch(validated["git_sha"]):
         raise ArtifactValidationError("git_sha must be a full hexadecimal commit ID")
+    if not _SHA256_PATTERN.fullmatch(validated["gate_receipt_sha256"]):
+        raise ArtifactValidationError(
+            "gate_receipt_sha256 must be 64 lowercase hexadecimal characters"
+        )
     if not _SHA256_PATTERN.fullmatch(validated["manifest_sha256"]):
         raise ArtifactValidationError("manifest_sha256 must be 64 lowercase hexadecimal characters")
+    if not _SHA256_PATTERN.fullmatch(validated["runtime_contract_sha256"]):
+        raise ArtifactValidationError(
+            "runtime_contract_sha256 must be 64 lowercase hexadecimal characters"
+        )
     return validated
 
 
@@ -392,9 +419,12 @@ def validate_artifact_provenance(
         ranking_columns = {
             "artifact_prefix": "ranking_artifact_prefix",
             "aws_account_id": "ranking_aws_account_id",
+            "canonical_manifest_sha256": "ranking_canonical_manifest_sha256",
             "container_image": "ranking_container_image",
+            "gate_receipt_sha256": "ranking_gate_receipt_sha256",
             "git_sha": "ranking_git_sha",
             "manifest_sha256": "ranking_manifest_sha256",
+            "runtime_contract_sha256": "ranking_runtime_contract_sha256",
         }
         for source, column in ranking_columns.items():
             expected_value = validated[source]
@@ -475,10 +505,13 @@ def _require_constant_identity(
         "artifact_prefix",
         "aws_account_id",
         "campaign_sha256",
+        "canonical_manifest_sha256",
         "container_image",
         "created_at_utc",
+        "gate_receipt_sha256",
         "git_sha",
         "manifest_sha256",
+        "runtime_contract_sha256",
     ):
         if (
             not frame[column]
@@ -501,13 +534,25 @@ def _require_constant_identity(
         raise ArtifactValidationError(
             "artifact campaign_sha256 must be 64 lowercase hexadecimal characters"
         )
+    if not _SHA256_PATTERN.fullmatch(str(frame["canonical_manifest_sha256"].iloc[0])):
+        raise ArtifactValidationError(
+            "artifact canonical_manifest_sha256 must be 64 lowercase hexadecimal characters"
+        )
     if not _IMAGE_DIGEST_PATTERN.fullmatch(str(frame["container_image"].iloc[0])):
         raise ArtifactValidationError("artifact container_image must be an immutable digest URI")
     if not _GIT_SHA_PATTERN.fullmatch(str(frame["git_sha"].iloc[0])):
         raise ArtifactValidationError("artifact git_sha must be a full hexadecimal commit ID")
+    if not _SHA256_PATTERN.fullmatch(str(frame["gate_receipt_sha256"].iloc[0])):
+        raise ArtifactValidationError(
+            "artifact gate_receipt_sha256 must be 64 lowercase hexadecimal characters"
+        )
     if not _SHA256_PATTERN.fullmatch(str(frame["manifest_sha256"].iloc[0])):
         raise ArtifactValidationError(
             "artifact manifest_sha256 must be 64 lowercase hexadecimal characters"
+        )
+    if not _SHA256_PATTERN.fullmatch(str(frame["runtime_contract_sha256"].iloc[0])):
+        raise ArtifactValidationError(
+            "artifact runtime_contract_sha256 must be 64 lowercase hexadecimal characters"
         )
 
     for column in ("hardware", "library_versions"):
@@ -636,11 +681,14 @@ def validate_metrics_artifact(
     for column in (
         "ranking_artifact_prefix",
         "ranking_aws_account_id",
+        "ranking_canonical_manifest_sha256",
         "ranking_container_image",
         "ranking_dataset_sha256",
         "ranking_git_sha",
+        "ranking_gate_receipt_sha256",
         "ranking_manifest_sha256",
         "ranking_payload_sha256",
+        "ranking_runtime_contract_sha256",
     ):
         if (
             not frame[column]
@@ -674,6 +722,27 @@ def validate_metrics_artifact(
         raise ArtifactValidationError(
             "metrics artifact ranking_git_sha must be a full hexadecimal commit ID"
         )
+    ranking_canonical_manifest_sha256 = str(frame["ranking_canonical_manifest_sha256"].iloc[0])
+    if not _SHA256_PATTERN.fullmatch(ranking_canonical_manifest_sha256):
+        raise ArtifactValidationError(
+            "metrics artifact ranking_canonical_manifest_sha256 must be "
+            "64 lowercase hexadecimal characters"
+        )
+    if ranking_canonical_manifest_sha256 != str(frame["canonical_manifest_sha256"].iloc[0]):
+        raise ArtifactValidationError(
+            "metrics artifact ranking_canonical_manifest_sha256 does not match "
+            "canonical_manifest_sha256"
+        )
+    ranking_gate_receipt_sha256 = str(frame["ranking_gate_receipt_sha256"].iloc[0])
+    if not _SHA256_PATTERN.fullmatch(ranking_gate_receipt_sha256):
+        raise ArtifactValidationError(
+            "metrics artifact ranking_gate_receipt_sha256 must be "
+            "64 lowercase hexadecimal characters"
+        )
+    if ranking_gate_receipt_sha256 != str(frame["gate_receipt_sha256"].iloc[0]):
+        raise ArtifactValidationError(
+            "metrics artifact ranking_gate_receipt_sha256 does not match gate_receipt_sha256"
+        )
     if not _SHA256_PATTERN.fullmatch(str(frame["ranking_manifest_sha256"].iloc[0])):
         raise ArtifactValidationError(
             "metrics artifact ranking_manifest_sha256 must be 64 lowercase hexadecimal characters"
@@ -681,6 +750,18 @@ def validate_metrics_artifact(
     if not _SHA256_PATTERN.fullmatch(str(frame["ranking_payload_sha256"].iloc[0])):
         raise ArtifactValidationError(
             "metrics artifact ranking_payload_sha256 must be 64 lowercase hexadecimal characters"
+        )
+    ranking_runtime_contract_sha256 = str(frame["ranking_runtime_contract_sha256"].iloc[0])
+    if not _SHA256_PATTERN.fullmatch(ranking_runtime_contract_sha256):
+        raise ArtifactValidationError(
+            "metrics artifact ranking_runtime_contract_sha256 must be "
+            "64 lowercase hexadecimal characters"
+        )
+    runtime_contract_sha256 = str(frame["runtime_contract_sha256"].iloc[0])
+    if ranking_runtime_contract_sha256 != runtime_contract_sha256:
+        raise ArtifactValidationError(
+            "metrics artifact ranking_runtime_contract_sha256 does not match "
+            "runtime_contract_sha256"
         )
 
     numeric_metrics: dict[str, np.ndarray] = {}

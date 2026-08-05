@@ -83,7 +83,7 @@ _CAPACITY_ERROR_CODES = frozenset(
     }
 )
 _AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
-_WORKER_LAUNCH_SCHEMA_VERSION = 1
+_WORKER_LAUNCH_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -94,11 +94,37 @@ class ApiScope:
     public_api_url: str
     artifact_prefix: str
     campaign_sha256: str
+    canonical_manifest_s3_key: str
+    canonical_manifest_sha256: str
+    gate_receipt_s3_key: str
+    gate_receipt_sha256: str
     image_uri: str
     manifest_s3_key: str
     manifest_sha256: str
     max_cell_attempts: int
+    runtime_contract_s3_key: str
+    runtime_contract_sha256: str
     stage: str
+
+
+@dataclass(frozen=True)
+class RuntimeLaunchContract:
+    """Launch-critical fields from one canonical runtime contract."""
+
+    ami_id: str
+    container_image_digest: str
+    git_sha: str
+    instance_type: str
+    s3_key: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class GateReceiptIdentity:
+    """Content identity for one complete reproducibility-gate receipt."""
+
+    s3_key: str
+    sha256: str
 
 
 def _csv_arg(values: Sequence[str | int]) -> str:
@@ -461,6 +487,156 @@ def _validate_queue_scope(
     return normalized_prefix, stage
 
 
+def _validate_runtime_contract_scope(
+    runtime_contract_sha256: object,
+    runtime_contract_s3_key: object,
+) -> tuple[str, str]:
+    """Validate one immutable runtime contract digest and S3 key."""
+    from paper.benchmark.pipeline.runtime_contract import (
+        runtime_contract_s3_key as canonical_runtime_contract_s3_key,
+    )
+    from paper.benchmark.pipeline.runtime_contract import validate_runtime_contract_sha256
+
+    if not isinstance(runtime_contract_sha256, str):
+        raise ValueError("runtime_contract_sha256 must be a string")
+    digest = validate_runtime_contract_sha256(runtime_contract_sha256)
+    if not isinstance(runtime_contract_s3_key, str):
+        raise ValueError("runtime_contract_s3_key must be a string")
+    expected_key = canonical_runtime_contract_s3_key(digest)
+    if runtime_contract_s3_key != expected_key:
+        raise ValueError(
+            f"runtime_contract_s3_key must be the content-addressed key {expected_key!r}"
+        )
+    return digest, runtime_contract_s3_key
+
+
+def _validate_gate_receipt_scope(
+    gate_receipt_sha256: object,
+    gate_receipt_s3_key: object,
+) -> tuple[str, str]:
+    """Validate one immutable gate receipt digest and S3 key."""
+    from paper.benchmark.experiments.r_cforest_reproducibility import (
+        gate_receipt_s3_key as canonical_gate_receipt_s3_key,
+    )
+    from paper.benchmark.experiments.r_cforest_reproducibility import (
+        validate_gate_receipt_sha256,
+    )
+
+    if not isinstance(gate_receipt_sha256, str):
+        raise ValueError("gate_receipt_sha256 must be a string")
+    digest = validate_gate_receipt_sha256(gate_receipt_sha256)
+    if not isinstance(gate_receipt_s3_key, str):
+        raise ValueError("gate_receipt_s3_key must be a string")
+    expected_key = canonical_gate_receipt_s3_key(digest)
+    if gate_receipt_s3_key != expected_key:
+        raise ValueError(f"gate_receipt_s3_key must be the content-addressed key {expected_key!r}")
+    return digest, gate_receipt_s3_key
+
+
+def _load_runtime_launch_contract(
+    path: Path,
+) -> RuntimeLaunchContract:
+    """Load launch-critical fields from one canonical runtime contract."""
+    from paper.benchmark.pipeline.runtime_contract import (
+        parse_runtime_contract,
+        runtime_contract_s3_key,
+        runtime_contract_sha256,
+    )
+
+    contract = parse_runtime_contract(path.read_bytes())
+    digest = runtime_contract_sha256(contract)
+    runtime = contract["runtime"]
+    return RuntimeLaunchContract(
+        ami_id=str(runtime["ami_id"]),
+        container_image_digest=str(runtime["container_image_digest"]),
+        git_sha=str(runtime["git_sha"]),
+        instance_type=str(runtime["instance_type"]),
+        s3_key=runtime_contract_s3_key(digest),
+        sha256=digest,
+    )
+
+
+def _load_gate_receipt_identity(path: Path) -> GateReceiptIdentity:
+    """Derive the immutable identity of one local gate receipt."""
+    from paper.benchmark.experiments.r_cforest_reproducibility import (
+        gate_receipt_s3_key,
+    )
+
+    payload = path.read_bytes()
+    digest = hashlib.sha256(payload).hexdigest()
+    return GateReceiptIdentity(
+        s3_key=gate_receipt_s3_key(digest),
+        sha256=digest,
+    )
+
+
+def _verify_published_runtime_contract(
+    manifest_info: dict[str, str | int],
+    expected: RuntimeLaunchContract,
+) -> None:
+    """Require manifest publication to attest the supplied runtime contract."""
+    try:
+        observed = _validate_runtime_contract_scope(
+            manifest_info["runtime_contract_sha256"],
+            manifest_info["runtime_contract_s3_key"],
+        )
+    except KeyError as exc:
+        raise RuntimeError(
+            "Published manifest omits the runtime contract digest or S3 key"
+        ) from exc
+    except ValueError as exc:
+        raise RuntimeError("Published manifest has an invalid runtime contract scope") from exc
+    expected_scope = (expected.sha256, expected.s3_key)
+    if observed != expected_scope:
+        raise RuntimeError(
+            "Published manifest runtime contract does not match launch inputs: "
+            f"expected sha256={expected.sha256!r}, s3_key={expected.s3_key!r}; "
+            f"observed sha256={observed[0]!r}, s3_key={observed[1]!r}"
+        )
+
+
+def _verify_published_gate_receipt(
+    manifest_info: dict[str, str | int],
+    expected: GateReceiptIdentity,
+) -> None:
+    """Require manifest publication to attest the supplied gate receipt."""
+    try:
+        observed = _validate_gate_receipt_scope(
+            manifest_info["gate_receipt_sha256"],
+            manifest_info["gate_receipt_s3_key"],
+        )
+    except KeyError as exc:
+        raise RuntimeError("Published manifest omits the gate receipt digest or S3 key") from exc
+    except ValueError as exc:
+        raise RuntimeError("Published manifest has an invalid gate receipt scope") from exc
+    expected_scope = (expected.sha256, expected.s3_key)
+    if observed != expected_scope:
+        raise RuntimeError(
+            "Published manifest gate receipt does not match launch inputs: "
+            f"expected sha256={expected.sha256!r}, s3_key={expected.s3_key!r}; "
+            f"observed sha256={observed[0]!r}, s3_key={observed[1]!r}"
+        )
+
+
+def _require_image_matches_runtime(
+    image_uri: str,
+    git_sha: str,
+    runtime_contract: RuntimeLaunchContract,
+) -> None:
+    """Require the account-local image to match the frozen runtime identity."""
+    image_digest = image_uri.rsplit("@", maxsplit=1)[1]
+    if image_digest != runtime_contract.container_image_digest:
+        raise ValueError(
+            "image_uri digest differs from the runtime contract: "
+            f"{image_digest!r} != {runtime_contract.container_image_digest!r}"
+        )
+    if git_sha != runtime_contract.git_sha:
+        raise ValueError(
+            "image Git revision differs from the runtime contract: "
+            f"{git_sha!r} != {runtime_contract.git_sha!r}"
+        )
+
+
 def _api_client_token(
     *,
     ami_id: str,
@@ -489,8 +665,14 @@ def _wait_for_api_ready(
     *,
     artifact_prefix: str,
     campaign_sha256: str,
+    canonical_manifest_s3_key: str,
+    canonical_manifest_sha256: str,
+    gate_receipt_s3_key: str,
+    gate_receipt_sha256: str,
     manifest_sha256: str,
     max_cell_attempts: int,
+    runtime_contract_s3_key: str,
+    runtime_contract_sha256: str,
     stage: str,
     timeout_seconds: float = API_READINESS_TIMEOUT_SECONDS,
     poll_interval: float = API_POLL_INTERVAL_SECONDS,
@@ -507,15 +689,27 @@ def _wait_for_api_ready(
                 observed = {
                     "artifact_prefix": status.get("artifact_prefix"),
                     "campaign_sha256": status.get("campaign_sha256"),
+                    "canonical_manifest_s3_key": status.get("canonical_manifest_s3_key"),
+                    "canonical_manifest_sha256": status.get("canonical_manifest_sha256"),
+                    "gate_receipt_s3_key": status.get("gate_receipt_s3_key"),
+                    "gate_receipt_sha256": status.get("gate_receipt_sha256"),
                     "manifest_sha256": status.get("manifest_sha256"),
                     "max_cell_attempts": status.get("max_cell_attempts"),
+                    "runtime_contract_s3_key": status.get("runtime_contract_s3_key"),
+                    "runtime_contract_sha256": status.get("runtime_contract_sha256"),
                     "stage": status.get("stage"),
                 }
                 expected = {
                     "artifact_prefix": artifact_prefix,
                     "campaign_sha256": campaign_sha256,
+                    "canonical_manifest_s3_key": canonical_manifest_s3_key,
+                    "canonical_manifest_sha256": canonical_manifest_sha256,
+                    "gate_receipt_s3_key": gate_receipt_s3_key,
+                    "gate_receipt_sha256": gate_receipt_sha256,
                     "manifest_sha256": manifest_sha256,
                     "max_cell_attempts": max_cell_attempts,
+                    "runtime_contract_s3_key": runtime_contract_s3_key,
+                    "runtime_contract_sha256": runtime_contract_sha256,
                     "stage": stage,
                 }
                 if observed == expected:
@@ -573,7 +767,14 @@ def _make_worker_user_data(
     instance_type: str,
     artifact_prefix: str,
     campaign_sha256: str,
+    canonical_manifest_s3_key: str,
+    canonical_manifest_sha256: str,
+    gate_receipt_s3_key: str,
+    gate_receipt_sha256: str,
+    manifest_s3_key: str,
     manifest_sha256: str,
+    runtime_contract_s3_key: str,
+    runtime_contract_sha256: str,
     stage: str,
 ) -> str:
     """Generate EC2 user data script that pulls and runs the worker container."""
@@ -591,12 +792,24 @@ def _make_worker_user_data(
         trap shutdown_instance EXIT
 
         # Instance metadata (IMDSv2)
-        TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \\
+        TOKEN=$(curl --fail --silent --show-error --request PUT \\
+            "http://169.254.169.254/latest/api/token" \\
             -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
-        INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \\
+        test -n "$TOKEN"
+        INSTANCE_ID=$(curl --fail --silent --show-error \\
+            -H "X-aws-ec2-metadata-token: $TOKEN" \\
             http://169.254.169.254/latest/meta-data/instance-id)
+        AVAILABILITY_ZONE=$(curl --fail --silent --show-error \\
+            -H "X-aws-ec2-metadata-token: $TOKEN" \\
+            http://169.254.169.254/latest/meta-data/placement/availability-zone)
+        AMI_ID=$(curl --fail --silent --show-error \\
+            -H "X-aws-ec2-metadata-token: $TOKEN" \\
+            http://169.254.169.254/latest/meta-data/ami-id)
+        test -n "$INSTANCE_ID"
+        test -n "$AVAILABILITY_ZONE"
+        test -n "$AMI_ID"
 
-        echo "Instance: $INSTANCE_ID"
+        echo "Instance: $INSTANCE_ID ($AVAILABILITY_ZONE, $AMI_ID)"
 
         # Install Docker + SSM agent
         yum install -y docker amazon-ssm-agent
@@ -624,11 +837,20 @@ def _make_worker_user_data(
             -e CITREES_API_URL={api_url} \\
             -e CITREES_ARTIFACT_PREFIX={shlex.quote(artifact_prefix)} \\
             -e CITREES_CAMPAIGN_SHA256={campaign_sha256} \\
+            -e CITREES_CANONICAL_MANIFEST_S3_KEY={shlex.quote(canonical_manifest_s3_key)} \\
+            -e CITREES_CANONICAL_MANIFEST_SHA256={canonical_manifest_sha256} \\
+            -e CITREES_GATE_RECEIPT_S3_KEY={shlex.quote(gate_receipt_s3_key)} \\
+            -e CITREES_GATE_RECEIPT_SHA256={gate_receipt_sha256} \\
+            -e CITREES_MANIFEST_S3_KEY={shlex.quote(manifest_s3_key)} \\
             -e CITREES_MANIFEST_SHA256={manifest_sha256} \\
+            -e CITREES_RUNTIME_CONTRACT_S3_KEY={shlex.quote(runtime_contract_s3_key)} \\
+            -e CITREES_RUNTIME_CONTRACT_SHA256={runtime_contract_sha256} \\
             -e CITREES_STAGE={stage} \\
             -e CITREES_IMAGE_URI={image_uri} \\
+            -e EC2_AMI_ID=$AMI_ID \\
+            -e EC2_AVAILABILITY_ZONE=$AVAILABILITY_ZONE \\
+            -e EC2_INSTANCE_ID=$INSTANCE_ID \\
             -e EC2_INSTANCE_TYPE={shlex.quote(instance_type)} \\
-            -e AWS_ACCOUNT_ID={bucket.removeprefix("citrees-")} \\
             -e AWS_DEFAULT_REGION={region} \\
             -e GIT_SHA={git_sha} \\
             {image_uri} \\
@@ -653,8 +875,14 @@ def _make_api_user_data(
     instance_type: str,
     artifact_prefix: str,
     campaign_sha256: str,
+    canonical_manifest_s3_key: str,
+    canonical_manifest_sha256: str,
+    gate_receipt_s3_key: str,
+    gate_receipt_sha256: str,
     manifest_s3_key: str,
     manifest_sha256: str,
+    runtime_contract_s3_key: str,
+    runtime_contract_sha256: str,
     stage: str,
     lease_seconds: int,
     max_cell_attempts: int,
@@ -674,12 +902,24 @@ def _make_api_user_data(
         trap shutdown_instance EXIT
 
         # Instance metadata (IMDSv2)
-        TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \\
+        TOKEN=$(curl --fail --silent --show-error --request PUT \\
+            "http://169.254.169.254/latest/api/token" \\
             -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
-        INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \\
+        test -n "$TOKEN"
+        INSTANCE_ID=$(curl --fail --silent --show-error \\
+            -H "X-aws-ec2-metadata-token: $TOKEN" \\
             http://169.254.169.254/latest/meta-data/instance-id)
+        AVAILABILITY_ZONE=$(curl --fail --silent --show-error \\
+            -H "X-aws-ec2-metadata-token: $TOKEN" \\
+            http://169.254.169.254/latest/meta-data/placement/availability-zone)
+        AMI_ID=$(curl --fail --silent --show-error \\
+            -H "X-aws-ec2-metadata-token: $TOKEN" \\
+            http://169.254.169.254/latest/meta-data/ami-id)
+        test -n "$INSTANCE_ID"
+        test -n "$AVAILABILITY_ZONE"
+        test -n "$AMI_ID"
 
-        echo "Instance: $INSTANCE_ID"
+        echo "Instance: $INSTANCE_ID ($AVAILABILITY_ZONE, $AMI_ID)"
 
         # Install Docker + SSM agent
         yum install -y docker amazon-ssm-agent
@@ -707,14 +947,22 @@ def _make_api_user_data(
             -e S3_BUCKET={bucket} \\
             -e CITREES_ARTIFACT_PREFIX={shlex.quote(artifact_prefix)} \\
             -e CITREES_CAMPAIGN_SHA256={campaign_sha256} \\
+            -e CITREES_CANONICAL_MANIFEST_S3_KEY={shlex.quote(canonical_manifest_s3_key)} \\
+            -e CITREES_CANONICAL_MANIFEST_SHA256={canonical_manifest_sha256} \\
+            -e CITREES_GATE_RECEIPT_S3_KEY={shlex.quote(gate_receipt_s3_key)} \\
+            -e CITREES_GATE_RECEIPT_SHA256={gate_receipt_sha256} \\
             -e CITREES_MANIFEST_S3_KEY={shlex.quote(manifest_s3_key)} \\
             -e CITREES_MANIFEST_SHA256={manifest_sha256} \\
+            -e CITREES_RUNTIME_CONTRACT_S3_KEY={shlex.quote(runtime_contract_s3_key)} \\
+            -e CITREES_RUNTIME_CONTRACT_SHA256={runtime_contract_sha256} \\
             -e CITREES_STAGE={stage} \\
             -e CITREES_LEASE_SECONDS={lease_seconds} \\
             -e CITREES_MAX_CELL_ATTEMPTS={max_cell_attempts} \\
             -e CITREES_IMAGE_URI={image_uri} \\
+            -e EC2_AMI_ID=$AMI_ID \\
+            -e EC2_AVAILABILITY_ZONE=$AVAILABILITY_ZONE \\
+            -e EC2_INSTANCE_ID=$INSTANCE_ID \\
             -e EC2_INSTANCE_TYPE={shlex.quote(instance_type)} \\
-            -e AWS_ACCOUNT_ID={bucket.removeprefix("citrees-")} \\
             -e AWS_DEFAULT_REGION={region} \\
             -e GIT_SHA={git_sha} \\
             {image_uri} \\
@@ -869,7 +1117,10 @@ def launch_api(
     image_uri: str,
     *,
     artifact_prefix: str,
+    canonical_manifest_path: Path,
+    gate_receipt_path: Path,
     manifest_path: Path,
+    runtime_contract_path: Path,
     stage: str,
     lease_seconds: int,
     max_cell_attempts: int,
@@ -887,11 +1138,26 @@ def launch_api(
         raise ValueError("max_cell_attempts must be a positive integer")
     image_uri = validate_image_digest_uri(image_uri)
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
-    git_sha = validate_image_revision(image_uri, region=region)
-    manifest_info = publish_rerun_manifest(manifest_path, region=region)
+    runtime_contract = _load_runtime_launch_contract(runtime_contract_path)
+    gate_receipt = _load_gate_receipt_identity(gate_receipt_path)
+    manifest_info = publish_rerun_manifest(
+        manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        region=region,
+    )
+    _verify_published_runtime_contract(manifest_info, runtime_contract)
+    _verify_published_gate_receipt(manifest_info, gate_receipt)
+    runtime_contract_sha256 = runtime_contract.sha256
+    runtime_contract_s3_key = runtime_contract.s3_key
     manifest_s3_key = str(manifest_info["key"])
     manifest_sha256 = str(manifest_info["sha256"])
+    canonical_manifest_s3_key = str(manifest_info["canonical_manifest_s3_key"])
+    canonical_manifest_sha256 = str(manifest_info["canonical_manifest_sha256"])
     campaign_sha256 = str(manifest_info["campaign_sha256"])
+    git_sha = validate_image_revision(image_uri, region=region)
+    _require_image_matches_runtime(image_uri, git_sha, runtime_contract)
     ec2 = boto3.client("ec2", region_name=region)
     account_id = get_aws_account_id()
     bucket = get_resource_name(account_id)
@@ -900,10 +1166,16 @@ def launch_api(
     instance_profile_name = ensure_campaign_iam_profile(
         output_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        read_keys=(
+            canonical_manifest_s3_key,
+            gate_receipt.s3_key,
+            manifest_s3_key,
+            runtime_contract_s3_key,
+        ),
         write_prefixes=(artifact_prefix,),
         region=region,
     )
-    ami_id = get_ami(region)
+    ami_id = runtime_contract.ami_id
 
     user_data = _make_api_user_data(
         region=region,
@@ -914,8 +1186,14 @@ def launch_api(
         instance_type=instance_type,
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        canonical_manifest_s3_key=canonical_manifest_s3_key,
+        canonical_manifest_sha256=canonical_manifest_sha256,
+        gate_receipt_s3_key=gate_receipt.s3_key,
+        gate_receipt_sha256=gate_receipt.sha256,
         manifest_s3_key=manifest_s3_key,
         manifest_sha256=manifest_sha256,
+        runtime_contract_s3_key=runtime_contract_s3_key,
+        runtime_contract_sha256=runtime_contract_sha256,
         stage=stage,
         lease_seconds=lease_seconds,
         max_cell_attempts=max_cell_attempts,
@@ -941,7 +1219,11 @@ def launch_api(
         MaxCount=1,
         IamInstanceProfile={"Name": instance_profile_name},
         UserData=base64.b64encode(user_data.encode()).decode(),
-        MetadataOptions={"HttpPutResponseHopLimit": 2},
+        MetadataOptions={
+            "HttpEndpoint": "enabled",
+            "HttpPutResponseHopLimit": 2,
+            "HttpTokens": "required",
+        },
         SecurityGroupIds=[sg_id],
         InstanceInitiatedShutdownBehavior="terminate",
         ClientToken=client_token,
@@ -953,9 +1235,33 @@ def launch_api(
                     {"Key": "Name", "Value": "citrees-api"},
                     {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
                     {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
+                    {
+                        "Key": "citrees-canonical-manifest-key",
+                        "Value": canonical_manifest_s3_key,
+                    },
+                    {
+                        "Key": "citrees-canonical-manifest-sha256",
+                        "Value": canonical_manifest_sha256,
+                    },
+                    {
+                        "Key": "citrees-gate-receipt-key",
+                        "Value": gate_receipt.s3_key,
+                    },
+                    {
+                        "Key": "citrees-gate-receipt-sha256",
+                        "Value": gate_receipt.sha256,
+                    },
                     {"Key": "citrees-manifest-key", "Value": manifest_s3_key},
                     {"Key": "citrees-manifest-sha256", "Value": manifest_sha256},
                     {"Key": "citrees-image-uri", "Value": image_uri},
+                    {
+                        "Key": "citrees-runtime-contract-key",
+                        "Value": runtime_contract_s3_key,
+                    },
+                    {
+                        "Key": "citrees-runtime-contract-sha256",
+                        "Value": runtime_contract_sha256,
+                    },
                     {"Key": "citrees-stage", "Value": stage},
                     {"Key": "citrees-lease-seconds", "Value": str(lease_seconds)},
                     {
@@ -999,8 +1305,14 @@ def launch_api(
             api_url,
             artifact_prefix=artifact_prefix,
             campaign_sha256=campaign_sha256,
+            canonical_manifest_s3_key=canonical_manifest_s3_key,
+            canonical_manifest_sha256=canonical_manifest_sha256,
+            gate_receipt_s3_key=gate_receipt.s3_key,
+            gate_receipt_sha256=gate_receipt.sha256,
             manifest_sha256=manifest_sha256,
             max_cell_attempts=max_cell_attempts,
+            runtime_contract_s3_key=runtime_contract_s3_key,
+            runtime_contract_sha256=runtime_contract_sha256,
             stage=stage,
         )
     except Exception:
@@ -1044,10 +1356,16 @@ def get_api_scope(region: str = DEFAULT_REGION) -> ApiScope | None:
     required_tags = {
         "citrees-artifact-prefix",
         "citrees-campaign-sha256",
+        "citrees-canonical-manifest-key",
+        "citrees-canonical-manifest-sha256",
+        "citrees-gate-receipt-key",
+        "citrees-gate-receipt-sha256",
         "citrees-image-uri",
         "citrees-manifest-key",
         "citrees-manifest-sha256",
         "citrees-max-cell-attempts",
+        "citrees-runtime-contract-key",
+        "citrees-runtime-contract-sha256",
         "citrees-stage",
     }
     missing = sorted(required_tags - set(tags))
@@ -1062,12 +1380,27 @@ def get_api_scope(region: str = DEFAULT_REGION) -> ApiScope | None:
     )
     image_uri = validate_image_digest_uri(tags["citrees-image-uri"])
     campaign_sha256 = validate_manifest_sha256(tags["citrees-campaign-sha256"])
+    canonical_manifest_sha256 = validate_manifest_sha256(tags["citrees-canonical-manifest-sha256"])
+    canonical_manifest_key = manifest_s3_key(canonical_manifest_sha256)
+    if tags["citrees-canonical-manifest-key"] != canonical_manifest_key:
+        raise RuntimeError(
+            "API server canonical manifest key is not content-addressed: "
+            f"{tags['citrees-canonical-manifest-key']!r}"
+        )
+    gate_receipt_sha256, gate_receipt_s3_key = _validate_gate_receipt_scope(
+        tags["citrees-gate-receipt-sha256"],
+        tags["citrees-gate-receipt-key"],
+    )
     manifest_sha256 = validate_manifest_sha256(tags["citrees-manifest-sha256"])
     manifest_key = manifest_s3_key(manifest_sha256)
     if tags["citrees-manifest-key"] != manifest_key:
         raise RuntimeError(
             f"API server manifest key is not content-addressed: {tags['citrees-manifest-key']!r}"
         )
+    runtime_contract_sha256, runtime_contract_s3_key = _validate_runtime_contract_scope(
+        tags["citrees-runtime-contract-sha256"],
+        tags["citrees-runtime-contract-key"],
+    )
     try:
         max_cell_attempts = int(tags["citrees-max-cell-attempts"])
     except ValueError as exc:
@@ -1079,10 +1412,16 @@ def get_api_scope(region: str = DEFAULT_REGION) -> ApiScope | None:
         public_api_url=f"http://{public_ip}:8000",
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        canonical_manifest_s3_key=canonical_manifest_key,
+        canonical_manifest_sha256=canonical_manifest_sha256,
+        gate_receipt_s3_key=gate_receipt_s3_key,
+        gate_receipt_sha256=gate_receipt_sha256,
         image_uri=image_uri,
         manifest_s3_key=manifest_key,
         manifest_sha256=manifest_sha256,
         max_cell_attempts=max_cell_attempts,
+        runtime_contract_s3_key=runtime_contract_s3_key,
+        runtime_contract_sha256=runtime_contract_sha256,
         stage=stage,
     )
 
@@ -1133,12 +1472,14 @@ def terminate_api(region: str = DEFAULT_REGION) -> str | None:
 
 def launch_workers(
     n: int,
-    instance_type: str,
     image_uri: str,
     *,
     artifact_prefix: str,
+    canonical_manifest_path: Path,
+    gate_receipt_path: Path,
     launch_id: str,
     manifest_path: Path,
+    runtime_contract_path: Path,
     stage: str,
     spot: bool = False,
     region: str = DEFAULT_REGION,
@@ -1154,8 +1495,6 @@ def launch_workers(
     ----------
     n : int
         Number of instances to launch.
-    instance_type : str
-        EC2 instance type (e.g., "m5.8xlarge").
     image_uri : str
         Full ECR image URI.
     launch_id : str
@@ -1178,15 +1517,30 @@ def launch_workers(
     if n < 1:
         raise ValueError("n must be >= 1")
     launch_id = _validate_worker_launch_id(launch_id)
+    image_uri = validate_image_digest_uri(image_uri)
+    runtime_contract = _load_runtime_launch_contract(runtime_contract_path)
+    gate_receipt = _load_gate_receipt_identity(gate_receipt_path)
+    instance_type = runtime_contract.instance_type
     instance_type = instance_type.strip()
     instance_family, separator, instance_size = instance_type.partition(".")
     if not instance_family or not separator or not instance_size:
         raise ValueError("instance_type must include an EC2 family and size")
-    image_uri = validate_image_digest_uri(image_uri)
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
-    manifest_info = publish_rerun_manifest(manifest_path, region=region)
+    manifest_info = publish_rerun_manifest(
+        manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        region=region,
+    )
+    _verify_published_runtime_contract(manifest_info, runtime_contract)
+    _verify_published_gate_receipt(manifest_info, gate_receipt)
+    runtime_contract_sha256 = runtime_contract.sha256
+    runtime_contract_s3_key = runtime_contract.s3_key
     manifest_s3_key = str(manifest_info["key"])
     manifest_sha256 = str(manifest_info["sha256"])
+    canonical_manifest_s3_key = str(manifest_info["canonical_manifest_s3_key"])
+    canonical_manifest_sha256 = str(manifest_info["canonical_manifest_sha256"])
     campaign_sha256 = str(manifest_info["campaign_sha256"])
     api_scope = get_api_scope(region)
     if api_scope is None:
@@ -1196,17 +1550,29 @@ def launch_workers(
     expected_scope = {
         "artifact_prefix": artifact_prefix,
         "campaign_sha256": campaign_sha256,
+        "canonical_manifest_s3_key": canonical_manifest_s3_key,
+        "canonical_manifest_sha256": canonical_manifest_sha256,
+        "gate_receipt_s3_key": gate_receipt.s3_key,
+        "gate_receipt_sha256": gate_receipt.sha256,
         "image_uri": image_uri,
         "manifest_s3_key": manifest_s3_key,
         "manifest_sha256": manifest_sha256,
+        "runtime_contract_s3_key": runtime_contract_s3_key,
+        "runtime_contract_sha256": runtime_contract_sha256,
         "stage": stage,
     }
     observed_scope = {
         "artifact_prefix": api_scope.artifact_prefix,
         "campaign_sha256": api_scope.campaign_sha256,
+        "canonical_manifest_s3_key": api_scope.canonical_manifest_s3_key,
+        "canonical_manifest_sha256": api_scope.canonical_manifest_sha256,
+        "gate_receipt_s3_key": api_scope.gate_receipt_s3_key,
+        "gate_receipt_sha256": api_scope.gate_receipt_sha256,
         "image_uri": api_scope.image_uri,
         "manifest_s3_key": api_scope.manifest_s3_key,
         "manifest_sha256": api_scope.manifest_sha256,
+        "runtime_contract_s3_key": api_scope.runtime_contract_s3_key,
+        "runtime_contract_sha256": api_scope.runtime_contract_sha256,
         "stage": api_scope.stage,
     }
     if observed_scope != expected_scope:
@@ -1215,10 +1581,17 @@ def launch_workers(
             f"observed {observed_scope}"
         )
     git_sha = validate_image_revision(image_uri, region=region)
+    _require_image_matches_runtime(image_uri, git_sha, runtime_contract)
     sg_id = ensure_security_group(region)
     instance_profile_name = ensure_campaign_iam_profile(
         output_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        read_keys=(
+            canonical_manifest_s3_key,
+            gate_receipt.s3_key,
+            manifest_s3_key,
+            runtime_contract_s3_key,
+        ),
         write_prefixes=(artifact_prefix,),
         region=region,
     )
@@ -1226,8 +1599,14 @@ def launch_workers(
         api_scope.public_api_url,
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        canonical_manifest_s3_key=canonical_manifest_s3_key,
+        canonical_manifest_sha256=canonical_manifest_sha256,
+        gate_receipt_s3_key=gate_receipt.s3_key,
+        gate_receipt_sha256=gate_receipt.sha256,
         manifest_sha256=manifest_sha256,
         max_cell_attempts=api_scope.max_cell_attempts,
+        runtime_contract_s3_key=runtime_contract_s3_key,
+        runtime_contract_sha256=runtime_contract_sha256,
         stage=stage,
     )
     api_url = api_scope.api_url
@@ -1245,13 +1624,7 @@ def launch_workers(
         key=intent_key,
         record_kind="worker-launch-intent",
     )
-    if existing_intent is None:
-        ami_id = get_ami(region)
-    else:
-        observed_ami_id = existing_intent.get("ami_id")
-        if not isinstance(observed_ami_id, str) or not observed_ami_id:
-            raise RuntimeError(f"Worker launch intent has no AMI ID: s3://{bucket}/{intent_key}")
-        ami_id = observed_ami_id
+    ami_id = runtime_contract.ami_id
 
     user_data = _make_worker_user_data(
         region=region,
@@ -1263,7 +1636,14 @@ def launch_workers(
         instance_type=instance_type,
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        canonical_manifest_s3_key=canonical_manifest_s3_key,
+        canonical_manifest_sha256=canonical_manifest_sha256,
+        gate_receipt_s3_key=gate_receipt.s3_key,
+        gate_receipt_sha256=gate_receipt.sha256,
+        manifest_s3_key=manifest_s3_key,
         manifest_sha256=manifest_sha256,
+        runtime_contract_s3_key=runtime_contract_s3_key,
+        runtime_contract_sha256=runtime_contract_sha256,
         stage=stage,
     )
 
@@ -1275,7 +1655,11 @@ def launch_workers(
         "MaxCount": 1,
         "IamInstanceProfile": {"Name": instance_profile_name},
         "UserData": encoded_user_data,
-        "MetadataOptions": {"HttpPutResponseHopLimit": 2},
+        "MetadataOptions": {
+            "HttpEndpoint": "enabled",
+            "HttpPutResponseHopLimit": 2,
+            "HttpTokens": "required",
+        },
         "SecurityGroupIds": [sg_id],
         "InstanceInitiatedShutdownBehavior": "terminate",
     }
@@ -1298,17 +1682,27 @@ def launch_workers(
             "api_url": api_scope.api_url,
             "artifact_prefix": api_scope.artifact_prefix,
             "campaign_sha256": api_scope.campaign_sha256,
+            "canonical_manifest_s3_key": api_scope.canonical_manifest_s3_key,
+            "canonical_manifest_sha256": api_scope.canonical_manifest_sha256,
+            "gate_receipt_s3_key": api_scope.gate_receipt_s3_key,
+            "gate_receipt_sha256": api_scope.gate_receipt_sha256,
             "image_uri": api_scope.image_uri,
             "manifest_s3_key": api_scope.manifest_s3_key,
             "manifest_sha256": api_scope.manifest_sha256,
             "max_cell_attempts": api_scope.max_cell_attempts,
             "public_api_url": api_scope.public_api_url,
+            "runtime_contract_s3_key": api_scope.runtime_contract_s3_key,
+            "runtime_contract_sha256": api_scope.runtime_contract_sha256,
             "stage": api_scope.stage,
         },
         "artifact_prefix": artifact_prefix,
         "aws_account_id": account_id,
         "bucket": bucket,
         "campaign_sha256": campaign_sha256,
+        "canonical_manifest_s3_key": canonical_manifest_s3_key,
+        "canonical_manifest_sha256": canonical_manifest_sha256,
+        "gate_receipt_s3_key": gate_receipt.s3_key,
+        "gate_receipt_sha256": gate_receipt.sha256,
         "image_git_sha": git_sha,
         "image_uri": image_uri,
         "instance_family": instance_family,
@@ -1322,6 +1716,8 @@ def launch_workers(
         "region": region,
         "request_contract": request_contract,
         "requested_instances": n,
+        "runtime_contract_s3_key": runtime_contract_s3_key,
+        "runtime_contract_sha256": runtime_contract_sha256,
         "schema_version": _WORKER_LAUNCH_SCHEMA_VERSION,
         "security_group_id": sg_id,
         "stage": stage,
@@ -1360,10 +1756,17 @@ def launch_workers(
             "Name": "citrees-worker",
             "citrees-artifact-prefix": artifact_prefix,
             "citrees-campaign-sha256": campaign_sha256,
+            "citrees-canonical-manifest-key": canonical_manifest_s3_key,
+            "citrees-canonical-manifest-sha256": canonical_manifest_sha256,
+            "citrees-gate-receipt-key": gate_receipt.s3_key,
+            "citrees-gate-receipt-sha256": gate_receipt.sha256,
             "citrees-image-uri": image_uri,
             "citrees-instance-family": instance_family,
+            "citrees-manifest-key": manifest_s3_key,
             "citrees-manifest-sha256": manifest_sha256,
             "citrees-market": market,
+            "citrees-runtime-contract-key": runtime_contract_s3_key,
+            "citrees-runtime-contract-sha256": runtime_contract_sha256,
             "citrees-stage": stage,
             "citrees-worker-client-token": client_token,
             "citrees-worker-intent-sha256": intent_sha256,
@@ -1521,6 +1924,7 @@ def launch_mechanism_workers(
     instance_profile_name = ensure_campaign_iam_profile(
         output_prefix=output_prefix,
         campaign_sha256=specification_sha256,
+        read_keys=(),
         write_prefixes=(output_prefix,),
         region=region,
     )
@@ -1570,7 +1974,11 @@ def launch_mechanism_workers(
             "MaxCount": 1,
             "IamInstanceProfile": {"Name": instance_profile_name},
             "UserData": base64.b64encode(user_data.encode()).decode(),
-            "MetadataOptions": {"HttpPutResponseHopLimit": 2},
+            "MetadataOptions": {
+                "HttpEndpoint": "enabled",
+                "HttpPutResponseHopLimit": 2,
+                "HttpTokens": "required",
+            },
             "SecurityGroupIds": [sg_id],
             "InstanceInitiatedShutdownBehavior": "terminate",
             "TagSpecifications": [
@@ -1631,16 +2039,22 @@ def launch_mechanism_workers(
     return instance_ids
 
 
-def list_workers(region: str = DEFAULT_REGION) -> list[dict[str, str]]:
-    """List running citrees worker instances.
+def list_workers(launch_id: str, region: str = DEFAULT_REGION) -> list[dict[str, str]]:
+    """List running workers from one exact launch.
 
-    Returns a list of dicts with keys: instance_id, state, instance_type, launch_time.
+    Returns a list of dicts with keys: instance_id, state, instance_type,
+    launch_time, and launch_id.
     """
+    launch_id = _validate_worker_launch_id(launch_id)
     ec2 = boto3.client("ec2", region_name=region)
 
     response = ec2.describe_instances(
         Filters=[
             {"Name": f"tag:{TAG_KEY}", "Values": [WORKER_TAG_VALUE]},
+            {
+                "Name": "tag:citrees-worker-launch-id",
+                "Values": [launch_id],
+            },
             {
                 "Name": "instance-state-name",
                 "Values": ["pending", "running", "stopping"],
@@ -1651,6 +2065,12 @@ def list_workers(region: str = DEFAULT_REGION) -> list[dict[str, str]]:
     workers = []
     for reservation in response.get("Reservations", []):
         for inst in reservation.get("Instances", []):
+            tags = {tag["Key"]: tag["Value"] for tag in inst.get("Tags", [])}
+            if (
+                tags.get(TAG_KEY) != WORKER_TAG_VALUE
+                or tags.get("citrees-worker-launch-id") != launch_id
+            ):
+                raise RuntimeError("EC2 returned a worker outside the exact launch identity")
             workers.append(
                 {
                     "instance_id": inst["InstanceId"],
@@ -1659,6 +2079,7 @@ def list_workers(region: str = DEFAULT_REGION) -> list[dict[str, str]]:
                     "launch_time": (
                         inst.get("LaunchTime", "").isoformat() if inst.get("LaunchTime") else ""
                     ),
+                    "launch_id": launch_id,
                 }
             )
 
@@ -1699,20 +2120,21 @@ def list_mechanism_workers(region: str = DEFAULT_REGION) -> list[dict[str, str]]
     return workers
 
 
-def terminate_workers(region: str = DEFAULT_REGION) -> list[str]:
-    """Terminate all running citrees worker instances.
+def terminate_workers(launch_id: str, region: str = DEFAULT_REGION) -> list[str]:
+    """Terminate running workers from one exact launch.
 
     Returns list of terminated instance IDs.
     """
+    launch_id = _validate_worker_launch_id(launch_id)
     ec2 = boto3.client("ec2", region_name=region)
 
-    workers = list_workers(region)
+    workers = list_workers(launch_id, region)
     if not workers:
-        info("No worker instances found")
+        info(f"No worker instances found for launch {launch_id}")
         return []
 
     instance_ids = [w["instance_id"] for w in workers]
-    info(f"Terminating {len(instance_ids)} worker instances...")
+    info(f"Terminating {len(instance_ids)} worker instances from launch {launch_id}...")
 
     ec2.terminate_instances(InstanceIds=instance_ids)
 

@@ -32,7 +32,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
 from paper.benchmark.pipeline.manifest import RerunManifest
-from paper.benchmark.pipeline.types import StageType, TaskType
+from paper.benchmark.pipeline.types import CellKey, StageType, TaskType
 
 if TYPE_CHECKING:
     from paper.benchmark.adapters.store import S3Store
@@ -75,7 +75,6 @@ _VALID_STAGES: tuple[StageType, ...] = ("rankings", "metrics")
 
 # Queue key: "{stage}/{task}" -> e.g. "rankings/classification"
 QueueKey = str
-CellKey = tuple[str, str, int]
 
 
 @dataclass
@@ -491,7 +490,12 @@ class AssignmentRequest(BaseModel):
 _queues: dict[QueueKey, QueueState] = {}
 _store: S3Store | None = None
 _manifest: RerunManifest | None = None
+_canonical_manifest_s3_key = ""
+_canonical_manifest_sha256 = ""
+_gate_receipt_s3_key = ""
+_gate_receipt_sha256 = ""
 _manifest_s3_key = ""
+_runtime_contract_s3_key = ""
 _active_stage: StageType = "rankings"
 _active_methods: tuple[str, ...] = ()
 _lease_seconds = 900
@@ -542,57 +546,6 @@ def _configured_max_cell_attempts() -> int:
     return max_attempts
 
 
-def _load_configured_manifest(store: S3Store) -> tuple[RerunManifest, str]:
-    """Load the exact content-addressed manifest configured for this server."""
-    from botocore.exceptions import ClientError
-
-    from paper.benchmark.pipeline.manifest import (
-        manifest_s3_key,
-        parse_rerun_manifest,
-        validate_manifest_sha256,
-    )
-
-    expected_sha256 = validate_manifest_sha256(os.environ.get("CITREES_MANIFEST_SHA256", ""))
-    configured_key = os.environ.get("CITREES_MANIFEST_S3_KEY", "").strip()
-    expected_key = manifest_s3_key(expected_sha256)
-    if configured_key != expected_key:
-        raise RuntimeError(
-            "CITREES_MANIFEST_S3_KEY must be the content-addressed key "
-            f"{expected_key!r}, got {configured_key!r}"
-        )
-
-    try:
-        response = store.client.get_object(Bucket=store.bucket, Key=configured_key)
-    except ClientError as exc:
-        code = exc.response.get("Error", {}).get("Code", "")
-        if code in {"404", "NoSuchKey", "NotFound"}:
-            raise FileNotFoundError(
-                f"Manifest not found: s3://{store.bucket}/{configured_key}"
-            ) from exc
-        raise
-    expected_account_id = os.environ.get("AWS_ACCOUNT_ID", "").strip()
-    observed_account_id = response.get("Metadata", {}).get("target-aws-account-id")
-    if observed_account_id != expected_account_id:
-        raise RuntimeError(
-            "manifest S3 metadata target account does not match AWS_ACCOUNT_ID: "
-            f"expected {expected_account_id!r}, observed {observed_account_id!r}"
-        )
-    expected_campaign_sha256 = os.environ.get("CITREES_CAMPAIGN_SHA256", "").strip()
-    observed_campaign_sha256 = response.get("Metadata", {}).get("campaign-sha256")
-    if observed_campaign_sha256 != expected_campaign_sha256:
-        raise RuntimeError(
-            "manifest S3 metadata campaign digest does not match "
-            "CITREES_CAMPAIGN_SHA256: "
-            f"expected {expected_campaign_sha256!r}, "
-            f"observed {observed_campaign_sha256!r}"
-        )
-    payload = response["Body"].read()
-    return (
-        parse_rerun_manifest(payload, expected_sha256=expected_sha256),
-        configured_key,
-    )
-
-
 def _preflight_manifest_datasets(store: S3Store, manifest: RerunManifest) -> int:
     """Validate every unique manifest dataset object before serving work."""
     from paper.benchmark.adapters.data import get_dataset_s3_payload
@@ -624,7 +577,7 @@ def _preflight_manifest_datasets(store: S3Store, manifest: RerunManifest) -> int
 def _validated_ranking_feature_count(
     store: S3Store,
     cfg: ExperimentConfig,
-    completed_rankings: set[tuple[str, str, int]],
+    completed_rankings: set[CellKey],
     *,
     expected_provenance: dict[str, str] | None = None,
 ) -> int | None:
@@ -647,7 +600,7 @@ def _validated_ranking_feature_count(
 def _needs_metrics_work(
     store: S3Store,
     cfg: ExperimentConfig,
-    completed_metrics: set[tuple[str, str, int]],
+    completed_metrics: set[CellKey],
     *,
     expected_provenance: dict[str, str] | None = None,
 ) -> bool:
@@ -763,13 +716,13 @@ def _load_durable_attempt_state(
     assignment_attempts: dict[str, RecoveredAttempt] = {}
     attempt_numbers: dict[CellKey, set[int]] = {}
     for receipt in store.list_control_receipts("attempts", stage, task):
-        key = (receipt.method_label, receipt.dataset, receipt.seed)
+        key: CellKey = (task, receipt.dataset, receipt.method_label, receipt.seed)
         config = configs_by_key.get(key)
         if config is None:
             raise RuntimeError(f"attempt receipt is outside the active manifest: {receipt.key}")
-        attempt = receipt.payload.get("attempt")
-        request_id = receipt.payload.get("request_id")
-        worker_id = receipt.payload.get("worker_id")
+        attempt = cast(int, receipt.payload.get("attempt"))
+        request_id = cast(str, receipt.payload.get("request_id"))
+        worker_id = cast(str, receipt.payload.get("worker_id"))
         validate_attempt_receipt(
             receipt.payload,
             config,
@@ -808,7 +761,7 @@ def _load_durable_attempt_state(
 
     failed_assignments: set[str] = set()
     for receipt in store.list_control_receipts("failures", stage, task):
-        key = (receipt.method_label, receipt.dataset, receipt.seed)
+        key = (task, receipt.dataset, receipt.method_label, receipt.seed)
         config = configs_by_key.get(key)
         if config is None:
             raise RuntimeError(f"failure receipt is outside the active manifest: {receipt.key}")
@@ -845,7 +798,7 @@ def _load_durable_attempt_state(
 
 def _build_queues() -> None:
     """Build the manifest-bound queue after validating existing artifacts."""
-    global _active_methods, _active_stage, _expected_provenance, _lease_seconds, _manifest, _manifest_s3_key, _max_cell_attempts, _store  # noqa: PLW0603
+    global _active_methods, _active_stage, _canonical_manifest_s3_key, _canonical_manifest_sha256, _expected_provenance, _gate_receipt_s3_key, _gate_receipt_sha256, _lease_seconds, _manifest, _manifest_s3_key, _max_cell_attempts, _runtime_contract_s3_key, _store  # noqa: PLW0603
     from loguru import logger
 
     from paper.benchmark.adapters.store import S3Store as _S3Store
@@ -856,7 +809,22 @@ def _build_queues() -> None:
     _active_stage = _configured_stage()
     _lease_seconds = _configured_lease_seconds()
     _max_cell_attempts = _configured_max_cell_attempts()
-    _manifest, _manifest_s3_key = _load_configured_manifest(store)
+    from paper.benchmark.pipeline.campaign_gate import (
+        configured_campaign_gate_identity,
+        load_approved_campaign_gate,
+    )
+
+    approved_gate = load_approved_campaign_gate(
+        store,
+        configured_campaign_gate_identity(),
+    )
+    _manifest = approved_gate.manifest
+    _canonical_manifest_s3_key = approved_gate.identity.canonical_manifest_s3_key
+    _canonical_manifest_sha256 = approved_gate.identity.canonical_manifest_sha256
+    _gate_receipt_s3_key = approved_gate.identity.gate_receipt_s3_key
+    _gate_receipt_sha256 = approved_gate.identity.gate_receipt_sha256
+    _manifest_s3_key = approved_gate.identity.manifest_s3_key
+    _runtime_contract_s3_key = approved_gate.identity.runtime_contract_s3_key
     dataset_count = _preflight_manifest_datasets(store, _manifest)
     logger.info("Validated {} unique manifest datasets", dataset_count)
     from paper.benchmark.pipeline.validation import validate_expected_provenance
@@ -873,6 +841,19 @@ def _build_queues() -> None:
         raise RuntimeError("manifest digest differs between manifest and provenance environment")
     if configured_scope["campaign_sha256"] != _manifest.campaign_sha256:
         raise RuntimeError("campaign digest differs between manifest and provenance environment")
+    if (
+        configured_scope["canonical_manifest_sha256"]
+        != approved_gate.identity.canonical_manifest_sha256
+    ):
+        raise RuntimeError(
+            "canonical manifest digest differs between gate and provenance environment"
+        )
+    if configured_scope["gate_receipt_sha256"] != approved_gate.identity.gate_receipt_sha256:
+        raise RuntimeError("gate receipt digest differs between gate and provenance environment")
+    if configured_scope["runtime_contract_sha256"] != _manifest.runtime_contract_sha256:
+        raise RuntimeError(
+            "runtime contract digest differs between manifest and provenance environment"
+        )
     if _manifest.account_ids != (configured_scope["aws_account_id"],):
         raise RuntimeError(
             f"manifest is bound to accounts {list(_manifest.account_ids)}, "
@@ -888,6 +869,29 @@ def _build_queues() -> None:
     _active_methods = _manifest.method_names
     _queues.clear()
 
+    if _active_stage == "metrics":
+        from paper.benchmark.pipeline.reconcile import reconcile_manifest_artifacts
+
+        ranking_report = reconcile_manifest_artifacts(
+            store,
+            _manifest,
+            _expected_provenance,
+            stages=("rankings",),
+        )
+        if not ranking_report.is_complete:
+            counts = ", ".join(
+                f"{category}={count}" for category, count in ranking_report.counts.items()
+            )
+            raise RuntimeError(
+                "Cannot launch metrics: exact Stage 1 namespace reconciliation failed "
+                f"for account {_expected_provenance['aws_account_id']}, "
+                f"prefix {store.artifact_prefix!r}, manifest {_manifest.sha256}: {counts}"
+            )
+        logger.info(
+            "Exact Stage 1 namespace reconciliation passed for {} ranking artifacts",
+            len(ranking_report.valid_keys),
+        )
+
     for task in _TASKS:
         configs = _manifest.configs_for(task, _active_stage)
         logger.info(
@@ -898,7 +902,7 @@ def _build_queues() -> None:
             _manifest.sha256,
         )
         completed_rankings = store.list_completed("rankings", task)
-        ranking_features: dict[tuple[str, str, int], int] = {}
+        ranking_features: dict[CellKey, int] = {}
         pending: list[ExperimentConfig] = []
         for cfg in configs:
             n_features = _validated_ranking_feature_count(
@@ -1051,8 +1055,8 @@ async def _persist_attempt_receipt(
                 stage=stage,
                 assignment_id=assignment_id,
                 attempt=attempt,
-                request_id=receipt.get("request_id"),
-                worker_id=receipt.get("worker_id"),
+                request_id=cast(str, receipt.get("request_id")),
+                worker_id=cast(str, receipt.get("worker_id")),
                 expected_provenance=_expected_provenance,
             )
         except ValueError as exc:
@@ -1074,22 +1078,36 @@ async def _pick_next(
 
     async with _queue_lock:
         _requeue_expired_assignments()
-        tasks = list(_TASKS)
-        random.shuffle(tasks)
-        for task in tasks:
+        existing_assignments: list[tuple[TaskType, str, AssignmentOffer | AssignmentLease]] = []
+        for task in _TASKS:
             queue = _queues.get(_key(_active_stage, task))
             if queue is None:
                 continue
             existing = queue.assignment_for_request(worker_id, request_id)
             if existing is not None:
                 assignment_id, assignment = existing
-                return (
-                    _active_stage,
-                    task,
-                    assignment_id,
-                    assignment.attempt,
-                    _serialize_config(assignment.config),
-                )
+                existing_assignments.append((task, assignment_id, assignment))
+        if len(existing_assignments) > 1:
+            raise RuntimeError(
+                "worker request is owned by multiple task queues: "
+                f"worker_id={worker_id} request_id={request_id}"
+            )
+        if existing_assignments:
+            task, assignment_id, assignment = existing_assignments[0]
+            return (
+                _active_stage,
+                task,
+                assignment_id,
+                assignment.attempt,
+                _serialize_config(assignment.config),
+            )
+
+        tasks = list(_TASKS)
+        random.shuffle(tasks)
+        for task in tasks:
+            queue = _queues.get(_key(_active_stage, task))
+            if queue is None:
+                continue
             candidate = queue.next_candidate()
             if candidate is None:
                 continue
@@ -1382,10 +1400,16 @@ async def get_status() -> dict[str, Any]:
             "artifact_prefix": _expected_provenance.get("artifact_prefix"),
             "aws_account_id": _expected_provenance.get("aws_account_id"),
             "campaign_sha256": _expected_provenance.get("campaign_sha256"),
+            "canonical_manifest_s3_key": _canonical_manifest_s3_key or None,
+            "canonical_manifest_sha256": _canonical_manifest_sha256 or None,
             "container_image": _expected_provenance.get("container_image"),
+            "gate_receipt_s3_key": _gate_receipt_s3_key or None,
+            "gate_receipt_sha256": _gate_receipt_sha256 or None,
             "git_sha": _expected_provenance.get("git_sha"),
             "manifest_s3_key": _manifest_s3_key or None,
             "manifest_sha256": _expected_provenance.get("manifest_sha256"),
+            "runtime_contract_sha256": _expected_provenance.get("runtime_contract_sha256"),
+            "runtime_contract_s3_key": _runtime_contract_s3_key or None,
             "manifest_cells": len(_manifest.cells) if _manifest is not None else 0,
             "methods": list(_active_methods),
             "stage": _active_stage,

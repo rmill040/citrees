@@ -26,6 +26,7 @@ RUN printf '%s\n' \
     gfortran=4:13.2.0-7ubuntu1 \
     git=1:2.43.0-1ubuntu7.3 \
     openssh-client=1:9.6p1-3ubuntu13.18 \
+    openssl=3.0.13-0ubuntu3.12 \
     python-is-python3=3.11.4-1 \
     python3-dev=3.12.3-0ubuntu2.1 \
     python3-venv=3.12.3-0ubuntu2.1 \
@@ -38,6 +39,7 @@ RUN printf '%s\n' \
     libssl-dev=3.0.13-0ubuntu3.12 \
     libxml2-dev=2.9.14+dfsg-1.3ubuntu3.8 \
     libzstd-dev=1.5.5+dfsg2-2build1.1 \
+    && test "$(dpkg-query --show --showformat='${Version}' openssl)" = "3.0.13-0ubuntu3.12" \
     && rm -rf /var/lib/apt/lists/*
 
 # R packages used by the partykit baselines

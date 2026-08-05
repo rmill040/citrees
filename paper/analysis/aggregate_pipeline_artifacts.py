@@ -44,7 +44,7 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "results"
 def _build_grid_config_keys(task: str) -> set[tuple[str, str, int]]:
     """Build the full set of expected (method_id, dataset, seed) tuples."""
     grid = ExperimentGrid.from_cli(task, source="all")
-    return {cfg.key for cfg in grid}
+    return {(cfg.method.label, cfg.dataset, cfg.seed) for cfg in grid}
 
 
 def _method_id_from_filename(filename: str) -> str | None:

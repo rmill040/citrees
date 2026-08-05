@@ -40,6 +40,10 @@ RESOURCE_PREFIX = "citrees"  # All resources: citrees-{account_id}
 DOCKER_PLATFORM = "linux/amd64"  # AWS EC2 instances are amd64
 _FULL_GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+_AWS_ACCOUNT_ID_PATTERN = re.compile(r"^[0-9]{12}$")
+_AWS_IDENTITY_ARN_PATTERN = re.compile(
+    r"^arn:(?:aws|aws-cn|aws-us-gov):(?:iam|sts)::(?P<account>[0-9]{12}):.+$"
+)
 _OCI_REVISION_LABEL = "org.opencontainers.image.revision"
 _ECR_MANIFEST_MEDIA_TYPES = [
     "application/vnd.docker.distribution.manifest.v2+json",
@@ -60,10 +64,36 @@ def get_public_ip() -> str:
     raise RuntimeError("Could not determine public IP from any service")
 
 
+def get_aws_caller_identity(*, client: Any | None = None) -> dict[str, str]:
+    """Return one validated live STS caller identity."""
+    sts = boto3.client("sts") if client is None else client
+    response = sts.get_caller_identity()
+    if not isinstance(response, dict):
+        raise RuntimeError("STS caller identity response is invalid")
+    account = response.get("Account")
+    arn = response.get("Arn")
+    user_id = response.get("UserId")
+    if (
+        not isinstance(account, str)
+        or not _AWS_ACCOUNT_ID_PATTERN.fullmatch(account)
+        or not isinstance(arn, str)
+        or not isinstance(user_id, str)
+        or not user_id.strip()
+    ):
+        raise RuntimeError("STS caller identity response is invalid")
+    arn_match = _AWS_IDENTITY_ARN_PATTERN.fullmatch(arn)
+    if arn_match is None or arn_match.group("account") != account:
+        raise RuntimeError("STS caller identity response is invalid")
+    return {
+        "Account": account,
+        "Arn": arn,
+        "UserId": user_id,
+    }
+
+
 def get_aws_account_id() -> str:
-    """Get the current AWS account ID."""
-    sts = boto3.client("sts")
-    return sts.get_caller_identity()["Account"]
+    """Return the current account from a validated live STS identity."""
+    return get_aws_caller_identity()["Account"]
 
 
 def get_resource_name(account_id: str) -> str:
@@ -219,6 +249,16 @@ def verify_candidate_image(
                 "assert version('scikit-learn') == '1.8.0'; "
                 "_get_partykit()"
             ),
+        ],
+        [
+            "docker",
+            "run",
+            "--rm",
+            image_tag,
+            "python",
+            "-m",
+            "paper.benchmark.experiments.r_cforest_reproducibility",
+            "--help",
         ],
         [
             "docker",
@@ -400,43 +440,25 @@ def ensure_s3_bucket(region: str = DEFAULT_REGION) -> str:
     return bucket_name
 
 
-def publish_rerun_manifest(
-    manifest_path: Path,
+def _publish_immutable_bytes(
+    client: Any,
     *,
-    region: str = DEFAULT_REGION,
-) -> dict[str, str | int]:
-    """Validate and publish a private manifest under its content hash."""
+    bucket: str,
+    key: str,
+    payload: bytes,
+    content_type: str,
+    metadata: dict[str, str],
+) -> None:
+    """Publish exact bytes once and require an identical readback."""
     from botocore.exceptions import ClientError
 
-    from paper.benchmark.pipeline.manifest import (
-        manifest_s3_key,
-        parse_rerun_manifest,
-    )
-
-    payload = manifest_path.read_bytes()
-    manifest = parse_rerun_manifest(payload)
-    account_id = get_aws_account_id()
-    if manifest.account_ids != (account_id,):
-        raise ValueError(
-            f"manifest is bound to accounts {list(manifest.account_ids)}, "
-            f"but the active AWS account is {account_id}"
-        )
-    bucket = ensure_s3_bucket(region)
-    key = manifest_s3_key(manifest.sha256)
-    s3 = boto3.client("s3", region_name=region)
-
     try:
-        s3.put_object(
+        client.put_object(
             Bucket=bucket,
             Key=key,
             Body=payload,
-            ContentType="text/csv",
-            Metadata={
-                "sha256": manifest.sha256,
-                "campaign-sha256": manifest.campaign_sha256,
-                "cell-count": str(len(manifest.cells)),
-                "target-aws-account-id": account_id,
-            },
+            ContentType=content_type,
+            Metadata=metadata,
             IfNoneMatch="*",
         )
     except ClientError as exc:
@@ -445,30 +467,185 @@ def publish_rerun_manifest(
         if code not in {"412", "PreconditionFailed"} and status != 412:
             raise
 
-    response = s3.get_object(Bucket=bucket, Key=key)
-    observed_payload = response["Body"].read()
-    observed_metadata = response.get("Metadata", {})
-    if observed_metadata.get("target-aws-account-id") != account_id:
-        raise RuntimeError(f"Published manifest account binding is invalid: s3://{bucket}/{key}")
-    if observed_metadata.get("campaign-sha256") != manifest.campaign_sha256:
-        raise RuntimeError(f"Published manifest campaign binding is invalid: s3://{bucket}/{key}")
-    observed = parse_rerun_manifest(
-        observed_payload,
-        expected_sha256=manifest.sha256,
-    )
-    if observed_payload != payload:
+    response = client.get_object(Bucket=bucket, Key=key)
+    if response["Body"].read() != payload:
         raise RuntimeError(
-            f"Content-addressed manifest differs from local bytes: s3://{bucket}/{key}"
+            f"Content-addressed object differs from local bytes: s3://{bucket}/{key}"
         )
-    if len(observed.cells) != len(manifest.cells):
-        raise RuntimeError(f"Manifest cell count changed after upload: s3://{bucket}/{key}")
+    if response.get("Metadata", {}) != metadata:
+        raise RuntimeError(f"Published object metadata is invalid: s3://{bucket}/{key}")
+
+
+def publish_rerun_manifest(
+    manifest_path: Path,
+    canonical_manifest_path: Path,
+    runtime_contract_path: Path,
+    gate_receipt_path: Path,
+    *,
+    region: str = DEFAULT_REGION,
+) -> dict[str, str | int]:
+    """Publish one canonical campaign and its exact active-account shard."""
+    from paper.benchmark.experiments.r_cforest_reproducibility import (
+        GATE_RECEIPT_PROFILE,
+        GATE_RECEIPT_SCHEMA_VERSION,
+        gate_receipt_s3_key,
+        parse_gate_receipt,
+    )
+    from paper.benchmark.pipeline.manifest import (
+        manifest_s3_key,
+        parse_rerun_manifest,
+        validate_canonical_campaign,
+        verify_account_manifest_shard,
+    )
+    from paper.benchmark.pipeline.runtime_contract import (
+        parse_runtime_contract,
+        runtime_contract_s3_key,
+        runtime_contract_sha256,
+    )
+
+    canonical_payload = canonical_manifest_path.read_bytes()
+    canonical = parse_rerun_manifest(canonical_payload)
+    validate_canonical_campaign(canonical)
+    account_id = get_aws_account_id()
+    manifest_payload = manifest_path.read_bytes()
+    manifest = verify_account_manifest_shard(
+        canonical,
+        account_id=account_id,
+        payload=manifest_payload,
+    )
+
+    runtime_payload = runtime_contract_path.read_bytes()
+    runtime_contract = parse_runtime_contract(runtime_payload)
+    runtime_sha256 = runtime_contract_sha256(runtime_contract)
+    for name, candidate in (
+        ("canonical manifest", canonical),
+        ("account manifest", manifest),
+    ):
+        if candidate.runtime_contract_sha256 != runtime_sha256:
+            raise ValueError(
+                f"{name} runtime contract digest does not match the supplied "
+                f"contract: {candidate.runtime_contract_sha256} != {runtime_sha256}"
+            )
+
+    gate_receipt_payload = gate_receipt_path.read_bytes()
+    gate_receipt = parse_gate_receipt(
+        gate_receipt_payload,
+        manifest=canonical,
+        runtime_contract=runtime_contract,
+    )
+    if gate_receipt["account_manifest_sha256"].get(account_id) != manifest.sha256:
+        raise ValueError(
+            "gate receipt does not bind the active account manifest: "
+            f"account={account_id}, manifest={manifest.sha256}"
+        )
+
+    gate_receipt_sha256 = hashlib.sha256(gate_receipt_payload).hexdigest()
+    gate_receipt_key = gate_receipt_s3_key(gate_receipt_sha256)
+    runtime_key = runtime_contract_s3_key(runtime_sha256)
+    canonical_key = manifest_s3_key(canonical.sha256)
+    manifest_key = manifest_s3_key(manifest.sha256)
+    bucket = ensure_s3_bucket(region)
+    s3 = boto3.client("s3", region_name=region)
+
+    runtime_metadata = {
+        "profile": str(runtime_contract["profile"]),
+        "schema-version": str(runtime_contract["schema_version"]),
+        "sha256": runtime_sha256,
+    }
+    _publish_immutable_bytes(
+        s3,
+        bucket=bucket,
+        key=runtime_key,
+        payload=runtime_payload,
+        content_type="application/json",
+        metadata=runtime_metadata,
+    )
+    parse_runtime_contract(runtime_payload, expected_sha256=runtime_sha256)
+
+    canonical_metadata = {
+        "campaign-sha256": canonical.campaign_sha256,
+        "cell-count": str(len(canonical.cells)),
+        "profile": "canonical-campaign",
+        "runtime-contract-key": runtime_key,
+        "runtime-contract-sha256": runtime_sha256,
+        "sha256": canonical.sha256,
+        "target-aws-account-ids": ",".join(canonical.account_ids),
+    }
+    _publish_immutable_bytes(
+        s3,
+        bucket=bucket,
+        key=canonical_key,
+        payload=canonical_payload,
+        content_type="text/csv",
+        metadata=canonical_metadata,
+    )
+    validate_canonical_campaign(
+        parse_rerun_manifest(canonical_payload, expected_sha256=canonical.sha256)
+    )
+
+    gate_receipt_metadata = {
+        "campaign-sha256": canonical.campaign_sha256,
+        "manifest-sha256": canonical.sha256,
+        "profile": GATE_RECEIPT_PROFILE,
+        "runtime-contract-sha256": runtime_sha256,
+        "schema-version": str(GATE_RECEIPT_SCHEMA_VERSION),
+        "sha256": gate_receipt_sha256,
+        "status": str(gate_receipt["report"]["status"]),
+    }
+    _publish_immutable_bytes(
+        s3,
+        bucket=bucket,
+        key=gate_receipt_key,
+        payload=gate_receipt_payload,
+        content_type="application/json",
+        metadata=gate_receipt_metadata,
+    )
+    parse_gate_receipt(
+        gate_receipt_payload,
+        manifest=canonical,
+        runtime_contract=runtime_contract,
+        expected_sha256=gate_receipt_sha256,
+    )
+
+    manifest_metadata = {
+        "campaign-sha256": manifest.campaign_sha256,
+        "canonical-manifest-key": canonical_key,
+        "canonical-manifest-sha256": canonical.sha256,
+        "cell-count": str(len(manifest.cells)),
+        "gate-receipt-key": gate_receipt_key,
+        "gate-receipt-sha256": gate_receipt_sha256,
+        "runtime-contract-key": runtime_key,
+        "runtime-contract-sha256": runtime_sha256,
+        "sha256": manifest.sha256,
+        "target-aws-account-id": account_id,
+    }
+    _publish_immutable_bytes(
+        s3,
+        bucket=bucket,
+        key=manifest_key,
+        payload=manifest_payload,
+        content_type="text/csv",
+        metadata=manifest_metadata,
+    )
+    verify_account_manifest_shard(
+        canonical,
+        account_id=account_id,
+        payload=manifest_payload,
+    )
 
     return {
         "bucket": bucket,
-        "key": key,
+        "key": manifest_key,
         "sha256": manifest.sha256,
-        "campaign_sha256": manifest.campaign_sha256,
+        "campaign_sha256": canonical.campaign_sha256,
+        "canonical_manifest_s3_key": canonical_key,
+        "canonical_manifest_sha256": canonical.sha256,
+        "gate_receipt_s3_key": gate_receipt_key,
+        "gate_receipt_sha256": gate_receipt_sha256,
+        "runtime_contract_s3_key": runtime_key,
+        "runtime_contract_sha256": runtime_sha256,
         "cells": len(manifest.cells),
+        "canonical_cells": len(canonical.cells),
     }
 
 
@@ -677,11 +854,16 @@ def campaign_instance_profile_name(
     *,
     output_prefix: str,
     campaign_sha256: str,
+    read_keys: Sequence[str],
     write_prefixes: Sequence[str],
 ) -> str:
-    """Derive one IAM identity from an immutable campaign and output prefix."""
+    """Derive one IAM identity from immutable campaign access."""
     normalized_prefix = _normalize_artifact_prefix(output_prefix)
     campaign_sha256 = validate_manifest_sha256(campaign_sha256)
+    normalized_read_keys = _normalize_campaign_read_keys(
+        read_keys,
+        output_prefix=normalized_prefix,
+    )
     normalized_write_prefixes = tuple(
         sorted({_normalize_artifact_prefix(prefix) for prefix in write_prefixes})
     )
@@ -693,9 +875,77 @@ def campaign_instance_profile_name(
     ):
         raise ValueError("campaign write prefixes must lie within the output prefix")
     identity = hashlib.sha256(
-        "\0".join((campaign_sha256, normalized_prefix, *normalized_write_prefixes)).encode()
+        "\0".join(
+            (
+                campaign_sha256,
+                normalized_prefix,
+                "read-keys",
+                *normalized_read_keys,
+                "write-prefixes",
+                *normalized_write_prefixes,
+            )
+        ).encode()
     ).hexdigest()
     return f"citrees-campaign-{identity[:32]}"
+
+
+def _normalize_campaign_read_keys(
+    read_keys: Sequence[str],
+    *,
+    output_prefix: str,
+) -> tuple[str, ...]:
+    """Validate exact immutable S3 object keys for one campaign."""
+    from paper.benchmark.experiments.r_cforest_reproducibility import (
+        GATE_RECEIPT_S3_PREFIX,
+    )
+    from paper.benchmark.pipeline.manifest import MANIFEST_S3_PREFIX
+    from paper.benchmark.pipeline.runtime_contract import (
+        RUNTIME_CONTRACT_S3_PREFIX,
+    )
+
+    if isinstance(read_keys, str):
+        raise TypeError("campaign read keys must be a sequence of strings")
+    control_prefixes = {
+        f"{MANIFEST_S3_PREFIX}/": (".csv", validate_manifest_sha256),
+        f"{RUNTIME_CONTRACT_S3_PREFIX}/": (
+            ".json",
+            validate_manifest_sha256,
+        ),
+        f"{GATE_RECEIPT_S3_PREFIX}/": (
+            ".json",
+            validate_manifest_sha256,
+        ),
+    }
+    normalized: set[str] = set()
+    for key in read_keys:
+        exact_key = _normalize_artifact_prefix(key)
+        if exact_key != key:
+            raise ValueError("campaign read keys must already be normalized")
+        if "*" in exact_key or "?" in exact_key or "${" in exact_key:
+            raise ValueError(
+                "campaign read keys must not contain IAM wildcards or policy variables"
+            )
+        matching_control_prefix = next(
+            (
+                (prefix, suffix, validator)
+                for prefix, (suffix, validator) in control_prefixes.items()
+                if exact_key.startswith(prefix)
+            ),
+            None,
+        )
+        if matching_control_prefix is not None:
+            prefix, suffix, validator = matching_control_prefix
+            if not exact_key.endswith(suffix):
+                raise ValueError("campaign control read keys must be content-addressed objects")
+            digest = exact_key.removeprefix(prefix).removesuffix(suffix)
+            validator(digest)
+        elif not exact_key.startswith(f"{output_prefix}/"):
+            raise ValueError(
+                "campaign read keys must belong to an approved control namespace "
+                "or the campaign output prefix"
+            )
+        normalized.add(exact_key)
+    return tuple(sorted(normalized))
 
 
 def _iam_policy_document(value: object, label: str) -> dict[str, Any]:
@@ -798,12 +1048,17 @@ def ensure_campaign_iam_profile(
     *,
     output_prefix: str,
     campaign_sha256: str,
+    read_keys: Sequence[str],
     write_prefixes: Sequence[str],
     region: str = DEFAULT_REGION,
 ) -> str:
     """Ensure one campaign-bound role and return its instance-profile name."""
     normalized_prefix = _normalize_artifact_prefix(output_prefix)
     campaign_sha256 = validate_manifest_sha256(campaign_sha256)
+    normalized_read_keys = _normalize_campaign_read_keys(
+        read_keys,
+        output_prefix=normalized_prefix,
+    )
     normalized_write_prefixes = tuple(
         sorted({_normalize_artifact_prefix(prefix) for prefix in write_prefixes})
     )
@@ -817,6 +1072,7 @@ def ensure_campaign_iam_profile(
     profile_name = campaign_instance_profile_name(
         output_prefix=normalized_prefix,
         campaign_sha256=campaign_sha256,
+        read_keys=normalized_read_keys,
         write_prefixes=normalized_write_prefixes,
     )
     role_name = profile_name
@@ -826,6 +1082,7 @@ def ensure_campaign_iam_profile(
     bucket_name = get_resource_name(account_id)
     bucket_arn = f"arn:aws:s3:::{bucket_name}"
     output_arn = f"{bucket_arn}/{normalized_prefix}/*"
+    read_arns = [f"{bucket_arn}/{key}" for key in normalized_read_keys]
     write_arns = [f"{bucket_arn}/{prefix}/*" for prefix in normalized_write_prefixes]
 
     trust_policy = {
@@ -851,7 +1108,6 @@ def ensure_campaign_iam_profile(
                     "StringLike": {
                         "s3:prefix": [
                             "data/*",
-                            "rerun-manifests/*",
                             f"{normalized_prefix}/*",
                         ]
                     }
@@ -863,7 +1119,7 @@ def ensure_campaign_iam_profile(
                 "Action": "s3:GetObject",
                 "Resource": [
                     f"{bucket_arn}/data/*",
-                    f"{bucket_arn}/rerun-manifests/*",
+                    *read_arns,
                     output_arn,
                 ],
             },
@@ -1032,7 +1288,6 @@ def ensure_security_group(region: str = DEFAULT_REGION) -> str:
     Creates a security group ``citrees-sg`` in the default VPC that allows:
     - Inbound TCP 8000 from within the group (worker → API)
     - Inbound TCP 8000 from the caller's public IP (CLI → API)
-    - Inbound TCP 22 from the caller's public IP (SSH for debugging)
     - All outbound (VPC default)
 
     Returns the security group ID.
@@ -1040,61 +1295,110 @@ def ensure_security_group(region: str = DEFAULT_REGION) -> str:
     ec2 = boto3.client("ec2", region_name=region)
     sg_name = "citrees-sg"
 
-    # Check if it already exists
-    resp = ec2.describe_security_groups(Filters=[{"Name": "group-name", "Values": [sg_name]}])
-    if resp["SecurityGroups"]:
-        sg_id = resp["SecurityGroups"][0]["GroupId"]
+    vpc_response = ec2.describe_vpcs(Filters=[{"Name": "is-default", "Values": ["true"]}])
+    default_vpcs = vpc_response.get("Vpcs")
+    if not isinstance(default_vpcs, list) or len(default_vpcs) != 1:
+        count = len(default_vpcs) if isinstance(default_vpcs, list) else 0
+        raise RuntimeError(f"expected exactly one default VPC, found {count}")
+    default_vpc = default_vpcs[0]
+    vpc_id = default_vpc.get("VpcId") if isinstance(default_vpc, dict) else None
+    if not isinstance(vpc_id, str) or not vpc_id:
+        raise RuntimeError("default VPC response is missing VpcId")
+
+    response = ec2.describe_security_groups(
+        Filters=[
+            {"Name": "group-name", "Values": [sg_name]},
+            {"Name": "vpc-id", "Values": [vpc_id]},
+        ]
+    )
+    security_groups = response.get("SecurityGroups")
+    if not isinstance(security_groups, list):
+        raise RuntimeError("security group lookup returned an invalid response")
+    if len(security_groups) > 1:
+        raise RuntimeError(f"multiple citrees security groups found in default VPC {vpc_id}")
+
+    if security_groups:
+        security_group = security_groups[0]
+        if not isinstance(security_group, dict):
+            raise RuntimeError("security group lookup returned an invalid response")
+        if security_group.get("VpcId") != vpc_id:
+            raise RuntimeError(f"citrees security group is outside default VPC {vpc_id}")
+        sg_id = security_group.get("GroupId")
+        if not isinstance(sg_id, str) or not sg_id:
+            raise RuntimeError("citrees security group response is missing GroupId")
         step(f"Security group exists: {sg_name} ({sg_id})")
 
-        # Update IP-based rules to current IP (idempotent)
         my_ip = get_public_ip()
         my_cidr = f"{my_ip}/32"
-        existing_rules = resp["SecurityGroups"][0].get("IpPermissions", [])
+        existing_rules = security_group.get("IpPermissions", [])
+        if not isinstance(existing_rules, list):
+            raise RuntimeError("citrees security group ingress response is invalid")
 
-        # AWS merges sources with the same protocol and port range into one
-        # IpPermission. Revoke only the stale caller ranges so a colocated
-        # security-group source remains intact.
-        for port, desc in [(22, "SSH from caller"), (8000, "API from caller")]:
-            caller_ranges = [
-                ip_range
-                for rule in existing_rules
-                if rule.get("IpProtocol") == "tcp"
-                and rule.get("FromPort") == port
-                and rule.get("ToPort") == port
-                for ip_range in rule.get("IpRanges", [])
-                if ip_range.get("Description") == desc
-            ]
-            stale_ranges = [
-                ip_range for ip_range in caller_ranges if ip_range.get("CidrIp") != my_cidr
-            ]
-            if stale_ranges:
-                ec2.revoke_security_group_ingress(
-                    GroupId=sg_id,
-                    IpPermissions=[
-                        {
-                            "IpProtocol": "tcp",
-                            "FromPort": port,
-                            "ToPort": port,
-                            "IpRanges": stale_ranges,
-                        }
-                    ],
-                )
-            if not any(ip_range.get("CidrIp") == my_cidr for ip_range in caller_ranges):
-                ec2.authorize_security_group_ingress(
-                    GroupId=sg_id,
-                    IpPermissions=[
-                        {
-                            "IpProtocol": "tcp",
-                            "FromPort": port,
-                            "ToPort": port,
-                            "IpRanges": [{"CidrIp": my_cidr, "Description": desc}],
-                        }
-                    ],
-                )
-                step(f"Updated port {port} rule to {my_cidr}")
+        def allows_ssh(rule: object) -> bool:
+            if not isinstance(rule, dict):
+                raise RuntimeError("citrees security group ingress response is invalid")
+            protocol = rule.get("IpProtocol")
+            if protocol == "-1":
+                return True
+            if protocol != "tcp":
+                return False
+            from_port = rule.get("FromPort")
+            to_port = rule.get("ToPort")
+            return (
+                isinstance(from_port, int)
+                and isinstance(to_port, int)
+                and from_port <= 22 <= to_port
+            )
+
+        revocations = [rule for rule in existing_rules if allows_ssh(rule)]
+        caller_ranges = [
+            ip_range
+            for rule in existing_rules
+            if isinstance(rule, dict)
+            and rule.get("IpProtocol") == "tcp"
+            and rule.get("FromPort") == 8000
+            and rule.get("ToPort") == 8000
+            for ip_range in rule.get("IpRanges", [])
+            if ip_range.get("Description") == "API from caller"
+        ]
+        stale_ranges = [ip_range for ip_range in caller_ranges if ip_range.get("CidrIp") != my_cidr]
+        if stale_ranges:
+            revocations.append(
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 8000,
+                    "ToPort": 8000,
+                    "IpRanges": stale_ranges,
+                }
+            )
+        if revocations:
+            ec2.revoke_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=revocations,
+            )
+
+        if not any(ip_range.get("CidrIp") == my_cidr for ip_range in caller_ranges):
+            ec2.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 8000,
+                        "ToPort": 8000,
+                        "IpRanges": [
+                            {
+                                "CidrIp": my_cidr,
+                                "Description": "API from caller",
+                            }
+                        ],
+                    }
+                ],
+            )
+            step(f"Updated port 8000 rule to {my_cidr}")
 
         has_api_self_rule = any(
-            rule.get("IpProtocol") == "tcp"
+            isinstance(rule, dict)
+            and rule.get("IpProtocol") == "tcp"
             and rule.get("FromPort") == 8000
             and rule.get("ToPort") == 8000
             and any(pair.get("GroupId") == sg_id for pair in rule.get("UserIdGroupPairs", []))
@@ -1120,20 +1424,21 @@ def ensure_security_group(region: str = DEFAULT_REGION) -> str:
 
         return sg_id
 
-    # Create new security group in default VPC
     step(f"Creating security group: {sg_name}")
     create_resp = ec2.create_security_group(
         GroupName=sg_name,
         Description="citrees API + worker instances",
+        VpcId=vpc_id,
     )
-    sg_id = create_resp["GroupId"]
+    sg_id = create_resp.get("GroupId")
+    if not isinstance(sg_id, str) or not sg_id:
+        raise RuntimeError("created citrees security group response is missing GroupId")
 
     my_ip = get_public_ip()
 
     ec2.authorize_security_group_ingress(
         GroupId=sg_id,
         IpPermissions=[
-            # API port: allow from within the security group
             {
                 "IpProtocol": "tcp",
                 "FromPort": 8000,
@@ -1142,25 +1447,17 @@ def ensure_security_group(region: str = DEFAULT_REGION) -> str:
                     {"GroupId": sg_id, "Description": "API from citrees instances"}
                 ],
             },
-            # API port: allow from caller's IP (CLI access)
             {
                 "IpProtocol": "tcp",
                 "FromPort": 8000,
                 "ToPort": 8000,
                 "IpRanges": [{"CidrIp": f"{my_ip}/32", "Description": "API from caller"}],
             },
-            # SSH: allow from caller's IP
-            {
-                "IpProtocol": "tcp",
-                "FromPort": 22,
-                "ToPort": 22,
-                "IpRanges": [{"CidrIp": f"{my_ip}/32", "Description": "SSH from caller"}],
-            },
         ],
     )
 
     success(f"Created security group: {sg_name} ({sg_id})")
-    step(f"Inbound 8000 from group, SSH from {my_ip}/32")
+    step(f"Inbound 8000 from group and {my_ip}/32")
 
     return sg_id
 

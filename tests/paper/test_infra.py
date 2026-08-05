@@ -14,13 +14,23 @@ from unittest.mock import MagicMock
 
 import pytest
 from botocore.exceptions import ClientError, ReadTimeoutError
+from typer.testing import CliRunner
 
 from paper.benchmark.cli.infra import (
+    app as infra_app,
+)
+from paper.benchmark.cli.infra import (
+    launch_api_cmd,
     launch_mechanism_workers_cmd,
     launch_workers_cmd,
 )
 from paper.benchmark.experiments.cif_mechanism_ablation import (
     mechanism_specification_sha256,
+)
+from paper.benchmark.experiments.r_cforest_reproducibility import (
+    GATE_RECEIPT_PROFILE,
+    GATE_RECEIPT_SCHEMA_VERSION,
+    gate_receipt_s3_key,
 )
 from paper.benchmark.infra import aws as aws_infra
 from paper.benchmark.infra import ec2 as ec2_infra
@@ -37,6 +47,18 @@ from paper.benchmark.infra.ec2 import (
     launch_workers,
     validate_image_digest_uri,
 )
+from paper.benchmark.pipeline.runtime_contract import (
+    EXPECTED_THREAD_VALUE,
+    PYTHON_LIBRARY_NAMES,
+    R_RUNTIME_FIELDS,
+    RUNTIME_CONTRACT_PROFILE,
+    RUNTIME_CONTRACT_SCHEMA_VERSION,
+    THREAD_ENVIRONMENT,
+    runtime_contract_s3_key,
+    runtime_contract_sha256,
+    serialize_runtime_contract,
+)
+from tests.paper.operator_attestation_fixtures import OPERATOR_PUBLIC_KEY
 
 pytestmark = pytest.mark.paper
 
@@ -45,8 +67,10 @@ DIGEST_URI = (
     "@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 MANIFEST_SHA256 = "b" * 64
+CANONICAL_MANIFEST_SHA256 = "c" * 64
 CAMPAIGN_SHA256 = "e" * 64
 MANIFEST_KEY = f"rerun-manifests/{MANIFEST_SHA256}.csv"
+CANONICAL_MANIFEST_KEY = f"rerun-manifests/{CANONICAL_MANIFEST_SHA256}.csv"
 SSM_POLICY_ARN = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 CAMPAIGN_TRUST_POLICY = {
     "Version": "2012-10-17",
@@ -60,13 +84,94 @@ CAMPAIGN_TRUST_POLICY = {
 }
 
 
+def _runtime_contract() -> dict[str, object]:
+    """Return one canonical launch contract matching the image fixture."""
+    return {
+        "schema_version": RUNTIME_CONTRACT_SCHEMA_VERSION,
+        "profile": RUNTIME_CONTRACT_PROFILE,
+        "operator_attestation_public_key": OPERATOR_PUBLIC_KEY,
+        "runtime": {
+            "ami_id": "ami-test",
+            "container_image_digest": "sha256:" + "a" * 64,
+            "cpu_model": "AMD EPYC 9R14",
+            "git_sha": "a" * 40,
+            "instance_type": "c6a.8xlarge",
+            "kernel": "6.1.0-fixture",
+            "logical_cpus": 32,
+            "machine": "x86_64",
+            "microcode": "0x1000065",
+            "openssl_version": "OpenSSL 3.0.13 30 Jan 2024",
+            "os_release": {"ID": "amzn", "VERSION_ID": "2023"},
+            "python_libraries": {name: "1.0" for name in PYTHON_LIBRARY_NAMES},
+            "r_numerical_libraries": {
+                "blas": "/usr/local/lib/R/lib/libRblas.so",
+                "lapack": "/usr/local/lib/R/lib/libRlapack.so",
+            },
+            "r_runtime": {name: "1.0" for name in R_RUNTIME_FIELDS},
+            "thread_environment": {name: EXPECTED_THREAD_VALUE for name in THREAD_ENVIRONMENT},
+            "threadpools": [
+                {
+                    "filepath": "/app/.venv/lib/libopenblas.so",
+                    "internal_api": "openblas",
+                    "num_threads": 1,
+                    "prefix": "libopenblas",
+                    "user_api": "blas",
+                }
+            ],
+        },
+    }
+
+
+RUNTIME_CONTRACT_SHA256 = runtime_contract_sha256(_runtime_contract())
+RUNTIME_CONTRACT_KEY = runtime_contract_s3_key(RUNTIME_CONTRACT_SHA256)
+GATE_RECEIPT_PAYLOAD = b'{"fixture":"complete-r-cforest-gate"}'
+GATE_RECEIPT_SHA256 = hashlib.sha256(GATE_RECEIPT_PAYLOAD).hexdigest()
+GATE_RECEIPT_KEY = gate_receipt_s3_key(GATE_RECEIPT_SHA256)
+
+
+def _write_runtime_contract(directory: Path) -> Path:
+    path = directory / "runtime-contract.json"
+    path.write_bytes(serialize_runtime_contract(_runtime_contract()))
+    return path
+
+
+def _write_gate_receipt(directory: Path) -> Path:
+    path = directory / "gate-receipt.json"
+    path.write_bytes(GATE_RECEIPT_PAYLOAD)
+    return path
+
+
+def _write_canonical_manifest(directory: Path) -> Path:
+    path = directory / "canonical-manifest.csv"
+    path.write_text("fixture", encoding="utf-8")
+    return path
+
+
+def _published_manifest() -> dict[str, str | int]:
+    return {
+        "bucket": "citrees-123456789012",
+        "key": MANIFEST_KEY,
+        "sha256": MANIFEST_SHA256,
+        "campaign_sha256": CAMPAIGN_SHA256,
+        "canonical_manifest_s3_key": CANONICAL_MANIFEST_KEY,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
+        "gate_receipt_s3_key": GATE_RECEIPT_KEY,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
+        "runtime_contract_s3_key": RUNTIME_CONTRACT_KEY,
+        "cells": 1,
+    }
+
+
 class _WorkerLaunchKwargs(TypedDict):
     n: int
-    instance_type: str
     image_uri: str
     artifact_prefix: str
+    canonical_manifest_path: Path
+    gate_receipt_path: Path
     launch_id: str
     manifest_path: Path
+    runtime_contract_path: Path
     stage: str
     spot: bool
 
@@ -226,6 +331,137 @@ def test_distributed_workers_default_to_on_demand(command: object) -> None:
     assert inspect.signature(command).parameters["spot"].default is False
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        [
+            "launch-api",
+            "--image-uri",
+            DIGEST_URI,
+            "--artifact-prefix",
+            "repairs/run-001",
+            "--manifest",
+            "{manifest}",
+            "--max-cell-attempts",
+            "3",
+        ],
+        [
+            "launch-workers",
+            "--image-uri",
+            DIGEST_URI,
+            "--artifact-prefix",
+            "repairs/run-001",
+            "--launch-id",
+            "scale-001",
+            "--manifest",
+            "{manifest}",
+        ],
+    ],
+)
+def test_runtime_contract_cli_inputs_are_required(
+    arguments: list[str],
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.csv"
+    manifest_path.write_text("fixture", encoding="utf-8")
+    resolved = [str(manifest_path) if value == "{manifest}" else value for value in arguments]
+
+    result = CliRunner().invoke(
+        infra_app,
+        resolved,
+        env={
+            "CITREES_RUNTIME_CONTRACT_SHA256": "",
+            "CITREES_RUNTIME_CONTRACT_S3_KEY": "",
+        },
+    )
+
+    assert result.exit_code == 2
+    assert "--runtime-contract" in result.output
+    assert "--gate-receipt" in result.output
+
+
+def test_runtime_contract_cli_file_is_forwarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = tmp_path / "manifest.csv"
+    manifest_path.write_text("fixture", encoding="utf-8")
+    canonical_manifest_path = _write_canonical_manifest(tmp_path)
+    runtime_contract_path = _write_runtime_contract(tmp_path)
+    gate_receipt_path = _write_gate_receipt(tmp_path)
+    launch_api_mock = MagicMock(
+        return_value={
+            "instance_id": "i-api",
+            "public_ip": "203.0.113.10",
+            "api_url": "http://203.0.113.10:8000",
+        }
+    )
+    launch_workers_mock = MagicMock(return_value=["i-worker"])
+    monkeypatch.setattr(ec2_infra, "launch_api", launch_api_mock)
+    monkeypatch.setattr(ec2_infra, "launch_workers", launch_workers_mock)
+    api_result = CliRunner().invoke(
+        infra_app,
+        [
+            "launch-api",
+            "--image-uri",
+            DIGEST_URI,
+            "--artifact-prefix",
+            "repairs/run-001",
+            "--canonical-manifest",
+            str(canonical_manifest_path),
+            "--manifest",
+            str(manifest_path),
+            "--runtime-contract",
+            str(runtime_contract_path),
+            "--gate-receipt",
+            str(gate_receipt_path),
+            "--max-cell-attempts",
+            "3",
+        ],
+    )
+    worker_result = CliRunner().invoke(
+        infra_app,
+        [
+            "launch-workers",
+            "--image-uri",
+            DIGEST_URI,
+            "--artifact-prefix",
+            "repairs/run-001",
+            "--launch-id",
+            "scale-001",
+            "--canonical-manifest",
+            str(canonical_manifest_path),
+            "--manifest",
+            str(manifest_path),
+            "--runtime-contract",
+            str(runtime_contract_path),
+            "--gate-receipt",
+            str(gate_receipt_path),
+        ],
+    )
+
+    assert api_result.exit_code == 0, api_result.output
+    assert worker_result.exit_code == 0, worker_result.output
+    assert launch_api_mock.call_args.kwargs["canonical_manifest_path"] == canonical_manifest_path
+    assert launch_api_mock.call_args.kwargs["gate_receipt_path"] == gate_receipt_path
+    assert launch_api_mock.call_args.kwargs["runtime_contract_path"] == runtime_contract_path
+    assert launch_workers_mock.call_args.kwargs["gate_receipt_path"] == gate_receipt_path
+    assert (
+        launch_workers_mock.call_args.kwargs["canonical_manifest_path"] == canonical_manifest_path
+    )
+    assert launch_workers_mock.call_args.kwargs["runtime_contract_path"] == runtime_contract_path
+
+
+def test_runtime_contract_cli_parameters_are_explicit() -> None:
+    for command in (launch_api_cmd, launch_workers_cmd):
+        parameters = inspect.signature(command).parameters
+        assert parameters["canonical_manifest_path"].default is None
+        assert parameters["gate_receipt_path"].default is None
+        assert parameters["runtime_contract_path"].default is None
+        assert "runtime_contract_sha256" not in parameters
+        assert "runtime_contract_s3_key" not in parameters
+
+
 def test_mechanism_launch_has_no_mutable_output_or_overwrite_controls() -> None:
     for command in (launch_mechanism_workers_cmd, launch_mechanism_workers):
         parameters = inspect.signature(command).parameters
@@ -267,6 +503,7 @@ def test_candidate_image_pins_complete_statistical_runtime() -> None:
     assert "UV_PYTHON=3.12.7" in dockerfile
     assert 'version("rpy2") == "3.6.7"' in dockerfile
     assert 'version("scikit-learn") == "1.8.0"' in dockerfile
+    assert "COPY paper/benchmark ./paper/benchmark" in dockerfile
     assert "COPY paper/jss/replication ./paper/jss/replication" in dockerfile
     assert "paper/jss/" not in dockerignore
     assert "!paper/jss/replication/" in dockerignore
@@ -285,6 +522,38 @@ def test_candidate_image_pins_complete_statistical_runtime() -> None:
     assert "ENV NUMBA_DISABLE_JIT=0" in dockerfile
     assert "ENV PYTHONHASHSEED=0" in dockerfile
     assert "COPY . ." not in dockerfile
+
+
+def test_candidate_image_verification_invokes_r_cforest_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    git_sha = "a" * 40
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: Any) -> SimpleNamespace:
+        del kwargs
+        commands.append(command)
+        stdout = git_sha if command[:2] == ["docker", "inspect"] else ""
+        return SimpleNamespace(returncode=0, stdout=stdout)
+
+    monkeypatch.setattr(aws_infra.subprocess, "run", run)
+
+    aws_infra.verify_candidate_image(
+        "citrees:test",
+        git_sha,
+        docker_env={},
+    )
+
+    assert [
+        "docker",
+        "run",
+        "--rm",
+        "citrees:test",
+        "python",
+        "-m",
+        "paper.benchmark.experiments.r_cforest_reproducibility",
+        "--help",
+    ] in commands
 
 
 def test_queue_scope_normalizes_prefix_and_stage() -> None:
@@ -423,11 +692,17 @@ def test_mechanism_launch_scopes_profile_to_derived_output(
     ensure_profile.assert_called_once_with(
         output_prefix=expected_prefix,
         campaign_sha256=specification_sha256,
+        read_keys=(),
         write_prefixes=(expected_prefix,),
         region="us-east-1",
     )
     assert client.run_instances.call_args.kwargs["IamInstanceProfile"] == {
         "Name": "citrees-campaign-test"
+    }
+    assert client.run_instances.call_args.kwargs["MetadataOptions"] == {
+        "HttpEndpoint": "enabled",
+        "HttpPutResponseHopLimit": 2,
+        "HttpTokens": "required",
     }
 
 
@@ -441,8 +716,14 @@ def test_api_user_data_carries_complete_queue_and_provenance_scope() -> None:
         instance_type="m5.large",
         artifact_prefix="repairs/r-baselines/run-001",
         campaign_sha256=CAMPAIGN_SHA256,
+        canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+        canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+        gate_receipt_s3_key=GATE_RECEIPT_KEY,
+        gate_receipt_sha256=GATE_RECEIPT_SHA256,
         manifest_s3_key=MANIFEST_KEY,
         manifest_sha256=MANIFEST_SHA256,
+        runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         stage="rankings",
         lease_seconds=900,
         max_cell_attempts=3,
@@ -450,14 +731,23 @@ def test_api_user_data_carries_complete_queue_and_provenance_scope() -> None:
 
     assert "-e CITREES_ARTIFACT_PREFIX=repairs/r-baselines/run-001" in script
     assert f"-e CITREES_CAMPAIGN_SHA256={CAMPAIGN_SHA256}" in script
+    assert f"-e CITREES_CANONICAL_MANIFEST_S3_KEY={CANONICAL_MANIFEST_KEY}" in script
+    assert f"-e CITREES_CANONICAL_MANIFEST_SHA256={CANONICAL_MANIFEST_SHA256}" in script
+    assert f"-e CITREES_GATE_RECEIPT_S3_KEY={GATE_RECEIPT_KEY}" in script
+    assert f"-e CITREES_GATE_RECEIPT_SHA256={GATE_RECEIPT_SHA256}" in script
     assert f"-e CITREES_MANIFEST_S3_KEY={MANIFEST_KEY}" in script
     assert f"-e CITREES_MANIFEST_SHA256={MANIFEST_SHA256}" in script
+    assert f"-e CITREES_RUNTIME_CONTRACT_S3_KEY={RUNTIME_CONTRACT_KEY}" in script
+    assert f"-e CITREES_RUNTIME_CONTRACT_SHA256={RUNTIME_CONTRACT_SHA256}" in script
     assert "-e CITREES_STAGE=rankings" in script
     assert "-e CITREES_LEASE_SECONDS=900" in script
     assert "-e CITREES_MAX_CELL_ATTEMPTS=3" in script
     assert f"-e CITREES_IMAGE_URI={DIGEST_URI}" in script
+    assert "-e EC2_AMI_ID=$AMI_ID" in script
+    assert "-e EC2_AVAILABILITY_ZONE=$AVAILABILITY_ZONE" in script
+    assert "-e EC2_INSTANCE_ID=$INSTANCE_ID" in script
     assert "-e EC2_INSTANCE_TYPE=m5.large" in script
-    assert "-e AWS_ACCOUNT_ID=123456789012" in script
+    assert "AWS_ACCOUNT_ID" not in script
     assert f"docker pull {DIGEST_URI}" in script
     assert "trap shutdown_instance EXIT" in script
     assert script.index("trap shutdown_instance EXIT") < script.index("# Instance metadata")
@@ -465,6 +755,13 @@ def test_api_user_data_carries_complete_queue_and_provenance_scope() -> None:
     assert "docker run -d --restart no" in script
     assert "--name citrees-api" in script
     assert "docker wait citrees-api" in script
+    assert "curl --fail --silent --show-error --request PUT" in script
+    assert "latest/meta-data/instance-id" in script
+    assert "latest/meta-data/placement/availability-zone" in script
+    assert "latest/meta-data/ami-id" in script
+    assert "${INSTANCE_ID:-" not in script
+    assert "${AVAILABILITY_ZONE:-" not in script
+    assert "${AMI_ID:-" not in script
 
 
 def test_worker_user_data_matches_api_scope() -> None:
@@ -478,23 +775,47 @@ def test_worker_user_data_matches_api_scope() -> None:
         instance_type="c6a.8xlarge",
         artifact_prefix="repairs/r-baselines/run-001",
         campaign_sha256=CAMPAIGN_SHA256,
+        canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+        canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+        gate_receipt_s3_key=GATE_RECEIPT_KEY,
+        gate_receipt_sha256=GATE_RECEIPT_SHA256,
+        manifest_s3_key=MANIFEST_KEY,
         manifest_sha256=MANIFEST_SHA256,
+        runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         stage="rankings",
     )
 
     assert "-e CITREES_ARTIFACT_PREFIX=repairs/r-baselines/run-001" in script
     assert f"-e CITREES_CAMPAIGN_SHA256={CAMPAIGN_SHA256}" in script
+    assert f"-e CITREES_CANONICAL_MANIFEST_S3_KEY={CANONICAL_MANIFEST_KEY}" in script
+    assert f"-e CITREES_CANONICAL_MANIFEST_SHA256={CANONICAL_MANIFEST_SHA256}" in script
+    assert f"-e CITREES_GATE_RECEIPT_S3_KEY={GATE_RECEIPT_KEY}" in script
+    assert f"-e CITREES_GATE_RECEIPT_SHA256={GATE_RECEIPT_SHA256}" in script
+    assert f"-e CITREES_MANIFEST_S3_KEY={MANIFEST_KEY}" in script
     assert f"-e CITREES_MANIFEST_SHA256={MANIFEST_SHA256}" in script
+    assert f"-e CITREES_RUNTIME_CONTRACT_S3_KEY={RUNTIME_CONTRACT_KEY}" in script
+    assert f"-e CITREES_RUNTIME_CONTRACT_SHA256={RUNTIME_CONTRACT_SHA256}" in script
     assert "-e CITREES_STAGE=rankings" in script
     assert f"-e CITREES_IMAGE_URI={DIGEST_URI}" in script
+    assert "-e EC2_AMI_ID=$AMI_ID" in script
+    assert "-e EC2_AVAILABILITY_ZONE=$AVAILABILITY_ZONE" in script
+    assert "-e EC2_INSTANCE_ID=$INSTANCE_ID" in script
     assert "-e EC2_INSTANCE_TYPE=c6a.8xlarge" in script
-    assert "-e AWS_ACCOUNT_ID=123456789012" in script
+    assert "AWS_ACCOUNT_ID" not in script
     assert "docker run -d --restart no" in script
     assert "--restart on-failure" not in script
     assert "--api-url http://10.0.0.10:8000" in script
     assert "trap shutdown_instance EXIT" in script
     assert script.index("trap shutdown_instance EXIT") < script.index("# Instance metadata")
     assert "shutdown -h now || systemctl poweroff --force --force" in script
+    assert "curl --fail --silent --show-error --request PUT" in script
+    assert "latest/meta-data/instance-id" in script
+    assert "latest/meta-data/placement/availability-zone" in script
+    assert "latest/meta-data/ami-id" in script
+    assert "${INSTANCE_ID:-" not in script
+    assert "${AVAILABILITY_ZONE:-" not in script
+    assert "${AMI_ID:-" not in script
 
 
 def _mock_api_launch(
@@ -514,10 +835,16 @@ def _mock_api_launch(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda path, region: {
+        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: {
             "key": MANIFEST_KEY,
             "sha256": MANIFEST_SHA256,
             "campaign_sha256": CAMPAIGN_SHA256,
+            "canonical_manifest_s3_key": CANONICAL_MANIFEST_KEY,
+            "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
+            "gate_receipt_sha256": GATE_RECEIPT_SHA256,
+            "gate_receipt_s3_key": GATE_RECEIPT_KEY,
+            "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
+            "runtime_contract_s3_key": RUNTIME_CONTRACT_KEY,
             "cells": 1,
         },
     )
@@ -540,7 +867,10 @@ def _launch_test_api(tmp_path: Path) -> dict[str, str]:
         instance_type="m5.large",
         image_uri=DIGEST_URI,
         artifact_prefix="repairs/run-001",
+        canonical_manifest_path=_write_canonical_manifest(tmp_path),
+        gate_receipt_path=_write_gate_receipt(tmp_path),
         manifest_path=tmp_path / "manifest.csv",
+        runtime_contract_path=_write_runtime_contract(tmp_path),
         stage="rankings",
         lease_seconds=900,
         max_cell_attempts=3,
@@ -585,6 +915,24 @@ def test_api_launch_terminates_instance_when_readiness_fails(
     client_token = ec2_client.run_instances.call_args.kwargs["ClientToken"]
     assert len(client_token) == 64
     assert client_token.startswith("citrees-api-")
+    assert ec2_client.run_instances.call_args.kwargs["MetadataOptions"] == {
+        "HttpEndpoint": "enabled",
+        "HttpPutResponseHopLimit": 2,
+        "HttpTokens": "required",
+    }
+    tags = {
+        tag["Key"]: tag["Value"]
+        for tag in ec2_client.run_instances.call_args.kwargs["TagSpecifications"][0]["Tags"]
+    }
+    assert tags["citrees-gate-receipt-key"] == GATE_RECEIPT_KEY
+    assert tags["citrees-gate-receipt-sha256"] == GATE_RECEIPT_SHA256
+    assert tags["citrees-runtime-contract-key"] == RUNTIME_CONTRACT_KEY
+    assert tags["citrees-runtime-contract-sha256"] == RUNTIME_CONTRACT_SHA256
+    readiness_call = ec2_infra._wait_for_api_ready.call_args
+    assert readiness_call.kwargs["gate_receipt_s3_key"] == GATE_RECEIPT_KEY
+    assert readiness_call.kwargs["gate_receipt_sha256"] == GATE_RECEIPT_SHA256
+    assert readiness_call.kwargs["runtime_contract_s3_key"] == RUNTIME_CONTRACT_KEY
+    assert readiness_call.kwargs["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
 
 
 def test_running_api_scope_requires_complete_immutable_tags(
@@ -605,6 +953,22 @@ def test_running_api_scope_requires_complete_immutable_tags(
                                 "Key": "citrees-campaign-sha256",
                                 "Value": CAMPAIGN_SHA256,
                             },
+                            {
+                                "Key": "citrees-canonical-manifest-key",
+                                "Value": CANONICAL_MANIFEST_KEY,
+                            },
+                            {
+                                "Key": "citrees-canonical-manifest-sha256",
+                                "Value": CANONICAL_MANIFEST_SHA256,
+                            },
+                            {
+                                "Key": "citrees-gate-receipt-key",
+                                "Value": GATE_RECEIPT_KEY,
+                            },
+                            {
+                                "Key": "citrees-gate-receipt-sha256",
+                                "Value": GATE_RECEIPT_SHA256,
+                            },
                             {"Key": "citrees-image-uri", "Value": DIGEST_URI},
                             {"Key": "citrees-manifest-key", "Value": MANIFEST_KEY},
                             {
@@ -612,6 +976,14 @@ def test_running_api_scope_requires_complete_immutable_tags(
                                 "Value": MANIFEST_SHA256,
                             },
                             {"Key": "citrees-max-cell-attempts", "Value": "3"},
+                            {
+                                "Key": "citrees-runtime-contract-key",
+                                "Value": RUNTIME_CONTRACT_KEY,
+                            },
+                            {
+                                "Key": "citrees-runtime-contract-sha256",
+                                "Value": RUNTIME_CONTRACT_SHA256,
+                            },
                             {"Key": "citrees-stage", "Value": "rankings"},
                         ],
                     }
@@ -628,16 +1000,271 @@ def test_running_api_scope_requires_complete_immutable_tags(
         public_api_url="http://203.0.113.10:8000",
         artifact_prefix="repairs/run-001",
         campaign_sha256=CAMPAIGN_SHA256,
+        canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+        canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+        gate_receipt_s3_key=GATE_RECEIPT_KEY,
+        gate_receipt_sha256=GATE_RECEIPT_SHA256,
         image_uri=DIGEST_URI,
         manifest_s3_key=MANIFEST_KEY,
         manifest_sha256=MANIFEST_SHA256,
         max_cell_attempts=3,
+        runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         stage="rankings",
     )
 
-    client.describe_instances.return_value["Reservations"][0]["Instances"][0]["Tags"].pop()
-    with pytest.raises(RuntimeError, match="missing scope tags"):
-        get_api_scope()
+    instance = client.describe_instances.return_value["Reservations"][0]["Instances"][0]
+    complete_tags = instance["Tags"]
+    for missing_key in (
+        "citrees-canonical-manifest-key",
+        "citrees-canonical-manifest-sha256",
+        "citrees-gate-receipt-key",
+        "citrees-gate-receipt-sha256",
+        "citrees-runtime-contract-key",
+        "citrees-runtime-contract-sha256",
+    ):
+        instance["Tags"] = [tag for tag in complete_tags if tag["Key"] != missing_key]
+        with pytest.raises(RuntimeError, match="missing scope tags"):
+            get_api_scope()
+    instance["Tags"] = complete_tags
+
+
+def _mock_api_status_client(
+    monkeypatch: pytest.MonkeyPatch,
+    status: dict[str, object],
+) -> MagicMock:
+    """Install one deterministic API status response."""
+    response = MagicMock()
+    response.json.return_value = status
+    client = MagicMock()
+    client.__enter__.return_value = client
+    client.get.return_value = response
+    monkeypatch.setattr(ec2_infra.httpx, "Client", MagicMock(return_value=client))
+    return client
+
+
+def test_api_readiness_accepts_exact_runtime_contract_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _mock_api_status_client(
+        monkeypatch,
+        {
+            "artifact_prefix": "repairs/run-001",
+            "campaign_sha256": CAMPAIGN_SHA256,
+            "canonical_manifest_s3_key": CANONICAL_MANIFEST_KEY,
+            "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
+            "gate_receipt_s3_key": GATE_RECEIPT_KEY,
+            "gate_receipt_sha256": GATE_RECEIPT_SHA256,
+            "manifest_sha256": MANIFEST_SHA256,
+            "max_cell_attempts": 3,
+            "runtime_contract_s3_key": RUNTIME_CONTRACT_KEY,
+            "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
+            "stage": "rankings",
+        },
+    )
+
+    ec2_infra._wait_for_api_ready(
+        "http://203.0.113.10:8000",
+        artifact_prefix="repairs/run-001",
+        campaign_sha256=CAMPAIGN_SHA256,
+        canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+        canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+        gate_receipt_s3_key=GATE_RECEIPT_KEY,
+        gate_receipt_sha256=GATE_RECEIPT_SHA256,
+        manifest_sha256=MANIFEST_SHA256,
+        max_cell_attempts=3,
+        runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
+        stage="rankings",
+        timeout_seconds=1.0,
+        poll_interval=0.0,
+    )
+
+    client.get.assert_called_once_with("/status")
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "canonical_manifest_s3_key",
+        "canonical_manifest_sha256",
+        "gate_receipt_s3_key",
+        "gate_receipt_sha256",
+        "runtime_contract_s3_key",
+        "runtime_contract_sha256",
+    ],
+)
+def test_api_readiness_rejects_runtime_contract_scope_mismatch(
+    field: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status: dict[str, object] = {
+        "artifact_prefix": "repairs/run-001",
+        "campaign_sha256": CAMPAIGN_SHA256,
+        "canonical_manifest_s3_key": CANONICAL_MANIFEST_KEY,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
+        "gate_receipt_s3_key": GATE_RECEIPT_KEY,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
+        "manifest_sha256": MANIFEST_SHA256,
+        "max_cell_attempts": 3,
+        "runtime_contract_s3_key": RUNTIME_CONTRACT_KEY,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
+        "stage": "rankings",
+    }
+    status[field] = "different"
+    _mock_api_status_client(monkeypatch, status)
+    monotonic_values = iter((0.0, 0.0, 2.0))
+    monkeypatch.setattr(ec2_infra.time, "monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(ec2_infra.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(RuntimeError, match="scope mismatch"):
+        ec2_infra._wait_for_api_ready(
+            "http://203.0.113.10:8000",
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+            canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+            gate_receipt_s3_key=GATE_RECEIPT_KEY,
+            gate_receipt_sha256=GATE_RECEIPT_SHA256,
+            manifest_sha256=MANIFEST_SHA256,
+            max_cell_attempts=3,
+            runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+            runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
+            stage="rankings",
+            timeout_seconds=1.0,
+            poll_interval=0.0,
+        )
+
+
+@pytest.mark.parametrize(
+    "issue",
+    ["missing-sha256", "missing-key", "mismatched-sha256", "mismatched-key"],
+)
+def test_api_launch_rejects_unattested_runtime_contract_before_ec2(
+    issue: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publication: dict[str, str | int] = {
+        "key": MANIFEST_KEY,
+        "sha256": MANIFEST_SHA256,
+        "campaign_sha256": CAMPAIGN_SHA256,
+        "canonical_manifest_s3_key": CANONICAL_MANIFEST_KEY,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
+        "gate_receipt_s3_key": GATE_RECEIPT_KEY,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
+        "runtime_contract_s3_key": RUNTIME_CONTRACT_KEY,
+        "cells": 1,
+    }
+    if issue == "missing-sha256":
+        publication.pop("runtime_contract_sha256")
+    elif issue == "missing-key":
+        publication.pop("runtime_contract_s3_key")
+    elif issue == "mismatched-sha256":
+        publication["runtime_contract_sha256"] = "d" * 64
+    else:
+        publication["runtime_contract_s3_key"] = "runtime-contracts/different.json"
+
+    ec2_client = MagicMock()
+    validate_image_revision = MagicMock(return_value="a" * 40)
+    monkeypatch.setattr(ec2_infra, "get_api_scope", lambda region: None)
+    monkeypatch.setattr(
+        ec2_infra,
+        "publish_rerun_manifest",
+        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
+            publication
+        ),
+    )
+    monkeypatch.setattr(ec2_infra, "validate_image_revision", validate_image_revision)
+    monkeypatch.setattr(ec2_infra.boto3, "client", MagicMock(return_value=ec2_client))
+
+    with pytest.raises(RuntimeError, match="runtime contract"):
+        launch_api(
+            instance_type="m5.large",
+            image_uri=DIGEST_URI,
+            artifact_prefix="repairs/run-001",
+            canonical_manifest_path=_write_canonical_manifest(tmp_path),
+            gate_receipt_path=_write_gate_receipt(tmp_path),
+            manifest_path=tmp_path / "manifest.csv",
+            runtime_contract_path=_write_runtime_contract(tmp_path),
+            stage="rankings",
+            lease_seconds=900,
+            max_cell_attempts=3,
+        )
+
+    validate_image_revision.assert_not_called()
+    ec2_client.run_instances.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    ["runtime_contract_sha256", "runtime_contract_s3_key"],
+)
+def test_worker_launch_rejects_runtime_contract_scope_mismatch_before_ec2(
+    mismatch: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = tmp_path / "manifest.csv"
+    manifest_path.write_text("fixture", encoding="utf-8")
+    canonical_manifest_path = _write_canonical_manifest(tmp_path)
+    runtime_contract_path = _write_runtime_contract(tmp_path)
+    gate_receipt_path = _write_gate_receipt(tmp_path)
+    monkeypatch.setattr(
+        ec2_infra,
+        "publish_rerun_manifest",
+        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
+            _published_manifest()
+        ),
+    )
+    monkeypatch.setattr(
+        ec2_infra,
+        "get_api_scope",
+        lambda region: ApiScope(
+            api_url="http://10.0.0.10:8000",
+            public_api_url="http://203.0.113.10:8000",
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+            canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+            gate_receipt_s3_key=GATE_RECEIPT_KEY,
+            gate_receipt_sha256=GATE_RECEIPT_SHA256,
+            image_uri=DIGEST_URI,
+            manifest_s3_key=MANIFEST_KEY,
+            manifest_sha256=MANIFEST_SHA256,
+            max_cell_attempts=3,
+            runtime_contract_s3_key=(
+                "runtime-contracts/different.json"
+                if mismatch == "runtime_contract_s3_key"
+                else RUNTIME_CONTRACT_KEY
+            ),
+            runtime_contract_sha256=(
+                "d" * 64 if mismatch == "runtime_contract_sha256" else RUNTIME_CONTRACT_SHA256
+            ),
+            stage="rankings",
+        ),
+    )
+    validate_image_revision = MagicMock(return_value="a" * 40)
+    ec2_client = MagicMock()
+    monkeypatch.setattr(ec2_infra, "validate_image_revision", validate_image_revision)
+    monkeypatch.setattr(ec2_infra.boto3, "client", MagicMock(return_value=ec2_client))
+
+    with pytest.raises(RuntimeError, match="does not match running API"):
+        launch_workers(
+            n=1,
+            image_uri=DIGEST_URI,
+            artifact_prefix="repairs/run-001",
+            canonical_manifest_path=canonical_manifest_path,
+            gate_receipt_path=gate_receipt_path,
+            launch_id="runtime-mismatch",
+            manifest_path=manifest_path,
+            runtime_contract_path=runtime_contract_path,
+            stage="rankings",
+        )
+
+    validate_image_revision.assert_not_called()
+    ec2_client.run_instances.assert_not_called()
 
 
 def test_worker_launch_rejects_scope_mismatch_before_ec2_launch(
@@ -646,15 +1273,15 @@ def test_worker_launch_rejects_scope_mismatch_before_ec2_launch(
 ) -> None:
     manifest_path = tmp_path / "manifest.csv"
     manifest_path.write_text("fixture")
+    canonical_manifest_path = _write_canonical_manifest(tmp_path)
+    runtime_contract_path = _write_runtime_contract(tmp_path)
+    gate_receipt_path = _write_gate_receipt(tmp_path)
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda path, region: {
-            "key": MANIFEST_KEY,
-            "sha256": MANIFEST_SHA256,
-            "campaign_sha256": CAMPAIGN_SHA256,
-            "cells": 1,
-        },
+        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
+            _published_manifest()
+        ),
     )
     monkeypatch.setattr(
         ec2_infra,
@@ -664,10 +1291,16 @@ def test_worker_launch_rejects_scope_mismatch_before_ec2_launch(
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/other-run",
             campaign_sha256=CAMPAIGN_SHA256,
+            canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+            canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+            gate_receipt_s3_key=GATE_RECEIPT_KEY,
+            gate_receipt_sha256=GATE_RECEIPT_SHA256,
             image_uri=DIGEST_URI,
             manifest_s3_key=MANIFEST_KEY,
             manifest_sha256=MANIFEST_SHA256,
             max_cell_attempts=3,
+            runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+            runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
             stage="rankings",
         ),
     )
@@ -676,11 +1309,13 @@ def test_worker_launch_rejects_scope_mismatch_before_ec2_launch(
     with pytest.raises(RuntimeError, match="does not match running API"):
         launch_workers(
             n=1,
-            instance_type="c6a.8xlarge",
             image_uri=DIGEST_URI,
             artifact_prefix="repairs/run-001",
+            canonical_manifest_path=canonical_manifest_path,
+            gate_receipt_path=gate_receipt_path,
             launch_id="scope-mismatch",
             manifest_path=manifest_path,
+            runtime_contract_path=runtime_contract_path,
             stage="rankings",
         )
 
@@ -691,6 +1326,9 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
 ) -> None:
     manifest_path = tmp_path / "manifest.csv"
     manifest_path.write_text("fixture", encoding="utf-8")
+    canonical_manifest_path = _write_canonical_manifest(tmp_path)
+    runtime_contract_path = _write_runtime_contract(tmp_path)
+    gate_receipt_path = _write_gate_receipt(tmp_path)
     events: list[str] = []
     client = MagicMock()
     s3 = _MemoryS3()
@@ -699,12 +1337,9 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda path, region: {
-            "key": MANIFEST_KEY,
-            "sha256": MANIFEST_SHA256,
-            "campaign_sha256": CAMPAIGN_SHA256,
-            "cells": 1,
-        },
+        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
+            _published_manifest()
+        ),
     )
     monkeypatch.setattr(
         ec2_infra,
@@ -714,10 +1349,16 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/run-001",
             campaign_sha256=CAMPAIGN_SHA256,
+            canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+            canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+            gate_receipt_s3_key=GATE_RECEIPT_KEY,
+            gate_receipt_sha256=GATE_RECEIPT_SHA256,
             image_uri=DIGEST_URI,
             manifest_s3_key=MANIFEST_KEY,
             manifest_sha256=MANIFEST_SHA256,
             max_cell_attempts=3,
+            runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+            runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
             stage="rankings",
         ),
     )
@@ -751,11 +1392,13 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
 
     assert launch_workers(
         n=1,
-        instance_type="c6a.8xlarge",
         image_uri=DIGEST_URI,
         artifact_prefix="repairs/run-001",
+        canonical_manifest_path=canonical_manifest_path,
+        gate_receipt_path=gate_receipt_path,
         launch_id="ingress-refresh",
         manifest_path=manifest_path,
+        runtime_contract_path=runtime_contract_path,
         stage="rankings",
     ) == ["i-worker"]
     assert events == ["security", "readiness"]
@@ -770,6 +1413,9 @@ def test_worker_launch_is_durable_idempotent_and_exact(
 ) -> None:
     manifest_path = tmp_path / "manifest.csv"
     manifest_path.write_text("fixture", encoding="utf-8")
+    canonical_manifest_path = _write_canonical_manifest(tmp_path)
+    runtime_contract_path = _write_runtime_contract(tmp_path)
+    gate_receipt_path = _write_gate_receipt(tmp_path)
     events: list[str] = []
     s3 = _MemoryS3(events)
     ec2 = MagicMock()
@@ -784,13 +1430,9 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda path, region: {
-            "bucket": "citrees-123456789012",
-            "key": MANIFEST_KEY,
-            "sha256": MANIFEST_SHA256,
-            "campaign_sha256": CAMPAIGN_SHA256,
-            "cells": 1,
-        },
+        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
+            _published_manifest()
+        ),
     )
     monkeypatch.setattr(
         ec2_infra,
@@ -800,10 +1442,16 @@ def test_worker_launch_is_durable_idempotent_and_exact(
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/run-001",
             campaign_sha256=CAMPAIGN_SHA256,
+            canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+            canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+            gate_receipt_s3_key=GATE_RECEIPT_KEY,
+            gate_receipt_sha256=GATE_RECEIPT_SHA256,
             image_uri=DIGEST_URI,
             manifest_s3_key=MANIFEST_KEY,
             manifest_sha256=MANIFEST_SHA256,
             max_cell_attempts=3,
+            runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+            runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
             stage="rankings",
         ),
     )
@@ -825,10 +1473,12 @@ def test_worker_launch_is_durable_idempotent_and_exact(
 
     launch_kwargs: _WorkerLaunchKwargs = {
         "n": 2,
-        "instance_type": "c6a.8xlarge",
         "image_uri": DIGEST_URI,
         "artifact_prefix": "repairs/run-001",
+        "canonical_manifest_path": canonical_manifest_path,
+        "gate_receipt_path": gate_receipt_path,
         "manifest_path": manifest_path,
+        "runtime_contract_path": runtime_contract_path,
         "stage": "rankings",
         "spot": True,
         "launch_id": "scale-001",
@@ -847,6 +1497,10 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         tags = {tag["Key"]: tag["Value"] for tag in call.kwargs["TagSpecifications"][0]["Tags"]}
         assert tags["citrees-instance-family"] == "c6a"
         assert tags["citrees-market"] == "spot"
+        assert tags["citrees-gate-receipt-key"] == GATE_RECEIPT_KEY
+        assert tags["citrees-gate-receipt-sha256"] == GATE_RECEIPT_SHA256
+        assert tags["citrees-runtime-contract-key"] == RUNTIME_CONTRACT_KEY
+        assert tags["citrees-runtime-contract-sha256"] == RUNTIME_CONTRACT_SHA256
         assert tags["citrees-worker-launch-id"] == "scale-001"
     assert len(client_tokens) == 2
 
@@ -855,6 +1509,14 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     assert intent["instance_family"] == "c6a"
     assert intent["market"] == "spot"
     assert intent["requested_instances"] == 2
+    assert intent["gate_receipt_s3_key"] == GATE_RECEIPT_KEY
+    assert intent["gate_receipt_sha256"] == GATE_RECEIPT_SHA256
+    assert intent["api_scope"]["gate_receipt_s3_key"] == GATE_RECEIPT_KEY
+    assert intent["api_scope"]["gate_receipt_sha256"] == GATE_RECEIPT_SHA256
+    assert intent["runtime_contract_s3_key"] == RUNTIME_CONTRACT_KEY
+    assert intent["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
+    assert intent["api_scope"]["runtime_contract_s3_key"] == RUNTIME_CONTRACT_KEY
+    assert intent["api_scope"]["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
     first_request = ec2.run_instances.call_args_list[0].kwargs
     request_contract = intent["request_contract"]
     for key, value in first_request.items():
@@ -864,6 +1526,11 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         request_contract["UserDataSha256"]
         == hashlib.sha256(first_request["UserData"].encode()).hexdigest()
     )
+    assert request_contract["MetadataOptions"] == {
+        "HttpEndpoint": "enabled",
+        "HttpPutResponseHopLimit": 2,
+        "HttpTokens": "required",
+    }
     outcome_keys = sorted(key for key in s3.objects if "/instances/" in key)
     assert len(outcome_keys) == 2
     assert {json.loads(s3.objects[key][0])["instance_id"] for key in outcome_keys} == {
@@ -886,19 +1553,18 @@ def _mock_worker_launch_dependencies(
     """Install deterministic benchmark worker launch dependencies."""
     manifest_path = tmp_path / "manifest.csv"
     manifest_path.write_text("fixture", encoding="utf-8")
+    _write_canonical_manifest(tmp_path)
+    _write_runtime_contract(tmp_path)
+    _write_gate_receipt(tmp_path)
     ec2 = MagicMock()
     ec2.describe_instances.return_value = {"Reservations": []}
     s3 = _MemoryS3()
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
-        lambda path, region: {
-            "bucket": "citrees-123456789012",
-            "key": MANIFEST_KEY,
-            "sha256": MANIFEST_SHA256,
-            "campaign_sha256": CAMPAIGN_SHA256,
-            "cells": 1,
-        },
+        lambda manifest_path, canonical_manifest_path, runtime_contract_path, gate_receipt_path, *, region: (
+            _published_manifest()
+        ),
     )
     monkeypatch.setattr(
         ec2_infra,
@@ -908,10 +1574,16 @@ def _mock_worker_launch_dependencies(
             public_api_url="http://203.0.113.10:8000",
             artifact_prefix="repairs/run-001",
             campaign_sha256=CAMPAIGN_SHA256,
+            canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
+            canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+            gate_receipt_s3_key=GATE_RECEIPT_KEY,
+            gate_receipt_sha256=GATE_RECEIPT_SHA256,
             image_uri=DIGEST_URI,
             manifest_s3_key=MANIFEST_KEY,
             manifest_sha256=MANIFEST_SHA256,
             max_cell_attempts=3,
+            runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
+            runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
             stage="rankings",
         ),
     )
@@ -943,11 +1615,13 @@ def _worker_launch_kwargs(
     """Build one complete direct worker launch invocation."""
     return {
         "n": n,
-        "instance_type": "c6a.8xlarge",
         "image_uri": DIGEST_URI,
         "artifact_prefix": "repairs/run-001",
+        "canonical_manifest_path": manifest_path.parent / "canonical-manifest.csv",
+        "gate_receipt_path": manifest_path.parent / "gate-receipt.json",
         "launch_id": "scale-001",
         "manifest_path": manifest_path,
+        "runtime_contract_path": manifest_path.parent / "runtime-contract.json",
         "stage": "rankings",
         "spot": spot,
     }
@@ -1249,11 +1923,13 @@ def test_worker_launch_rejects_invalid_identity_before_aws(
     with pytest.raises(ValueError, match="launch_id"):
         launch_workers(
             n=1,
-            instance_type="c6a.8xlarge",
             image_uri=DIGEST_URI,
             artifact_prefix="repairs/run-001",
+            canonical_manifest_path=Path("unused-canonical-manifest.csv"),
+            gate_receipt_path=Path("unused-gate-receipt.json"),
             launch_id=launch_id,
             manifest_path=Path("unused.csv"),
+            runtime_contract_path=Path("unused-runtime-contract.json"),
             stage="rankings",
         )
 
@@ -1297,6 +1973,65 @@ def test_s3_bucket_is_private_and_versioned(
     }
 
 
+@pytest.mark.parametrize(
+    "response",
+    [
+        {},
+        {
+            "Account": "not-an-account",
+            "Arn": "arn:aws:iam::123456789012:root",
+            "UserId": "fixture",
+        },
+        {
+            "Account": "123456789012",
+            "Arn": "arn:aws:iam::210987654321:root",
+            "UserId": "fixture",
+        },
+        {
+            "Account": "123456789012",
+            "Arn": "arn:aws:s3:::fixture",
+            "UserId": "fixture",
+        },
+        {
+            "Account": "123456789012",
+            "Arn": "arn:aws:sts::123456789012:assumed-role/role/session",
+            "UserId": "",
+        },
+    ],
+)
+def test_live_sts_identity_rejects_malformed_or_cross_account_response(
+    response: dict[str, str],
+) -> None:
+    client = MagicMock()
+    client.get_caller_identity.return_value = response
+
+    with pytest.raises(RuntimeError, match="STS caller identity"):
+        aws_infra.get_aws_caller_identity(client=client)
+
+
+@pytest.mark.parametrize(
+    "arn",
+    [
+        "arn:aws:iam::123456789012:root",
+        "arn:aws:sts::123456789012:assumed-role/citrees/worker",
+    ],
+)
+def test_live_sts_identity_accepts_exact_account_binding(arn: str) -> None:
+    client = MagicMock()
+    client.get_caller_identity.return_value = {
+        "Account": "123456789012",
+        "Arn": arn,
+        "UserId": "AROAEXAMPLE:worker",
+        "ResponseMetadata": {"RequestId": "ignored"},
+    }
+
+    assert aws_infra.get_aws_caller_identity(client=client) == {
+        "Account": "123456789012",
+        "Arn": arn,
+        "UserId": "AROAEXAMPLE:worker",
+    }
+
+
 def test_campaign_role_can_write_only_its_exact_output_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1304,6 +2039,7 @@ def test_campaign_role_can_write_only_its_exact_output_prefix(
     profile_name = aws_infra.campaign_instance_profile_name(
         output_prefix=output_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(MANIFEST_KEY, RUNTIME_CONTRACT_KEY),
         write_prefixes=(output_prefix,),
     )
     client = _campaign_iam_client(profile_name)
@@ -1313,6 +2049,7 @@ def test_campaign_role_can_write_only_its_exact_output_prefix(
         aws_infra.ensure_campaign_iam_profile(
             output_prefix=output_prefix,
             campaign_sha256=CAMPAIGN_SHA256,
+            read_keys=(MANIFEST_KEY, RUNTIME_CONTRACT_KEY),
             write_prefixes=(output_prefix,),
         )
         == profile_name
@@ -1320,6 +2057,7 @@ def test_campaign_role_can_write_only_its_exact_output_prefix(
     assert profile_name != aws_infra.campaign_instance_profile_name(
         output_prefix="repairs/run-002",
         campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(MANIFEST_KEY, RUNTIME_CONTRACT_KEY),
         write_prefixes=("repairs/run-002",),
     )
 
@@ -1336,17 +2074,60 @@ def test_campaign_role_can_write_only_its_exact_output_prefix(
     }
     assert statements["S3ListApprovedPrefixes"]["Condition"]["StringLike"]["s3:prefix"] == [
         "data/*",
-        "rerun-manifests/*",
         "repairs/run-001/*",
     ]
     assert statements["S3ReadInputsAndArtifacts"]["Resource"] == [
         "arn:aws:s3:::citrees-123456789012/data/*",
-        "arn:aws:s3:::citrees-123456789012/rerun-manifests/*",
+        f"arn:aws:s3:::citrees-123456789012/{MANIFEST_KEY}",
+        f"arn:aws:s3:::citrees-123456789012/{RUNTIME_CONTRACT_KEY}",
         "arn:aws:s3:::citrees-123456789012/repairs/run-001/*",
     ]
+    assert profile_name != aws_infra.campaign_instance_profile_name(
+        output_prefix=output_prefix,
+        campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(MANIFEST_KEY,),
+        write_prefixes=(output_prefix,),
+    )
     assert statements["ECRPull"]["Resource"] == (
         "arn:aws:ecr:us-east-1:123456789012:repository/citrees-123456789012"
     )
+
+
+def test_campaign_role_requires_canonical_exact_read_keys() -> None:
+    arguments = {
+        "output_prefix": "repairs/run-001",
+        "campaign_sha256": CAMPAIGN_SHA256,
+        "write_prefixes": ("repairs/run-001",),
+    }
+    expected = aws_infra.campaign_instance_profile_name(
+        **arguments,
+        read_keys=(MANIFEST_KEY, RUNTIME_CONTRACT_KEY),
+    )
+    assert expected == aws_infra.campaign_instance_profile_name(
+        **arguments,
+        read_keys=(RUNTIME_CONTRACT_KEY, MANIFEST_KEY),
+    )
+
+    with pytest.raises(TypeError, match="sequence of strings"):
+        aws_infra.campaign_instance_profile_name(
+            **arguments,
+            read_keys=MANIFEST_KEY,
+        )
+    for invalid_keys in (
+        ("rerun-manifests/*",),
+        ("rerun-manifests/not-a-digest.csv",),
+        (f"rerun-manifests/{MANIFEST_SHA256}.json",),
+        ("runtime-contracts/contract?.json",),
+        (f"runtime-contracts/{RUNTIME_CONTRACT_SHA256}.csv",),
+        (f"runtime-gate-receipts/{GATE_RECEIPT_SHA256}.csv",),
+        (f" {MANIFEST_KEY}",),
+        (f"{MANIFEST_KEY}/",),
+    ):
+        with pytest.raises(ValueError):
+            aws_infra.campaign_instance_profile_name(
+                **arguments,
+                read_keys=invalid_keys,
+            )
 
 
 def test_campaign_role_can_limit_writes_to_shard_subprefix(
@@ -1357,6 +2138,7 @@ def test_campaign_role_can_limit_writes_to_shard_subprefix(
     profile_name = aws_infra.campaign_instance_profile_name(
         output_prefix=output_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(f"{output_prefix}/campaign.json",),
         write_prefixes=(write_prefix,),
     )
     client = _campaign_iam_client(profile_name)
@@ -1366,6 +2148,7 @@ def test_campaign_role_can_limit_writes_to_shard_subprefix(
         aws_infra.ensure_campaign_iam_profile(
             output_prefix=output_prefix,
             campaign_sha256=CAMPAIGN_SHA256,
+            read_keys=(f"{output_prefix}/campaign.json",),
             write_prefixes=(write_prefix,),
         )
         == profile_name
@@ -1382,6 +2165,7 @@ def test_campaign_role_can_limit_writes_to_shard_subprefix(
     assert profile_name != aws_infra.campaign_instance_profile_name(
         output_prefix=output_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(f"{output_prefix}/campaign.json",),
         write_prefixes=(output_prefix,),
     )
 
@@ -1394,6 +2178,7 @@ def test_campaign_role_converges_dirty_existing_authorization(
     profile_name = aws_infra.campaign_instance_profile_name(
         output_prefix=output_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(f"{output_prefix}/campaign.json",),
         write_prefixes=(write_prefix,),
     )
     runtime_policy_name = f"{profile_name}-runtime"
@@ -1410,6 +2195,7 @@ def test_campaign_role_converges_dirty_existing_authorization(
         aws_infra.ensure_campaign_iam_profile(
             output_prefix=output_prefix,
             campaign_sha256=CAMPAIGN_SHA256,
+            read_keys=(f"{output_prefix}/campaign.json",),
             write_prefixes=(write_prefix,),
         )
         == profile_name
@@ -1441,6 +2227,7 @@ def test_campaign_role_rejects_permissions_boundary(
     profile_name = aws_infra.campaign_instance_profile_name(
         output_prefix=output_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(f"{output_prefix}/campaign.json",),
         write_prefixes=(write_prefix,),
     )
     client = MagicMock()
@@ -1461,6 +2248,7 @@ def test_campaign_role_rejects_permissions_boundary(
         aws_infra.ensure_campaign_iam_profile(
             output_prefix=output_prefix,
             campaign_sha256=CAMPAIGN_SHA256,
+            read_keys=(f"{output_prefix}/campaign.json",),
             write_prefixes=(write_prefix,),
         )
 
@@ -1489,6 +2277,7 @@ def test_campaign_role_rejects_postmutation_readback_mismatch(
     profile_name = aws_infra.campaign_instance_profile_name(
         output_prefix=output_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
+        read_keys=(f"{output_prefix}/campaign.json",),
         write_prefixes=(write_prefix,),
     )
     policy_name = f"{profile_name}-runtime"
@@ -1516,18 +2305,21 @@ def test_campaign_role_rejects_postmutation_readback_mismatch(
         aws_infra.ensure_campaign_iam_profile(
             output_prefix=output_prefix,
             campaign_sha256=CAMPAIGN_SHA256,
+            read_keys=(f"{output_prefix}/campaign.json",),
             write_prefixes=(write_prefix,),
         )
 
 
-def test_security_group_refresh_preserves_self_ingress(
+def test_security_group_refreshes_existing_group_in_exact_default_vpc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = MagicMock()
+    client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-default"}]}
     client.describe_security_groups.return_value = {
         "SecurityGroups": [
             {
                 "GroupId": "sg-test",
+                "VpcId": "vpc-default",
                 "IpPermissions": [
                     {
                         "IpProtocol": "tcp",
@@ -1545,18 +2337,7 @@ def test_security_group_refresh_preserves_self_ingress(
                                 "Description": "API from citrees instances",
                             }
                         ],
-                    },
-                    {
-                        "IpProtocol": "tcp",
-                        "FromPort": 22,
-                        "ToPort": 22,
-                        "IpRanges": [
-                            {
-                                "CidrIp": "203.0.113.20/32",
-                                "Description": "SSH from caller",
-                            }
-                        ],
-                    },
+                    }
                 ],
             }
         ]
@@ -1566,36 +2347,110 @@ def test_security_group_refresh_preserves_self_ingress(
 
     assert aws_infra.ensure_security_group() == "sg-test"
 
-    revoked = client.revoke_security_group_ingress.call_args.kwargs["IpPermissions"]
-    assert revoked == [
-        {
-            "IpProtocol": "tcp",
-            "FromPort": 8000,
-            "ToPort": 8000,
-            "IpRanges": [
-                {
-                    "CidrIp": "198.51.100.10/32",
-                    "Description": "API from caller",
-                }
-            ],
-        }
-    ]
-    authorized = [
-        permission
-        for call in client.authorize_security_group_ingress.call_args_list
-        for permission in call.kwargs["IpPermissions"]
-    ]
-    assert all(not permission.get("UserIdGroupPairs") for permission in authorized)
+    client.describe_vpcs.assert_called_once_with(
+        Filters=[{"Name": "is-default", "Values": ["true"]}]
+    )
+    client.describe_security_groups.assert_called_once_with(
+        Filters=[
+            {"Name": "group-name", "Values": ["citrees-sg"]},
+            {"Name": "vpc-id", "Values": ["vpc-default"]},
+        ]
+    )
+    client.create_security_group.assert_not_called()
+    client.revoke_security_group_ingress.assert_called_once_with(
+        GroupId="sg-test",
+        IpPermissions=[
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 8000,
+                "ToPort": 8000,
+                "IpRanges": [
+                    {
+                        "CidrIp": "198.51.100.10/32",
+                        "Description": "API from caller",
+                    }
+                ],
+            }
+        ],
+    )
+    client.authorize_security_group_ingress.assert_called_once_with(
+        GroupId="sg-test",
+        IpPermissions=[
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 8000,
+                "ToPort": 8000,
+                "IpRanges": [
+                    {
+                        "CidrIp": "203.0.113.20/32",
+                        "Description": "API from caller",
+                    }
+                ],
+            }
+        ],
+    )
+
+
+def test_security_group_creation_is_bound_to_default_vpc_without_ssh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-default"}]}
+    client.describe_security_groups.return_value = {"SecurityGroups": []}
+    client.create_security_group.return_value = {"GroupId": "sg-created"}
+    monkeypatch.setattr(aws_infra, "get_public_ip", lambda: "203.0.113.20")
+    monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
+
+    assert aws_infra.ensure_security_group() == "sg-created"
+
+    client.create_security_group.assert_called_once_with(
+        GroupName="citrees-sg",
+        Description="citrees API + worker instances",
+        VpcId="vpc-default",
+    )
+    client.authorize_security_group_ingress.assert_called_once_with(
+        GroupId="sg-created",
+        IpPermissions=[
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 8000,
+                "ToPort": 8000,
+                "UserIdGroupPairs": [
+                    {
+                        "GroupId": "sg-created",
+                        "Description": "API from citrees instances",
+                    }
+                ],
+            },
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 8000,
+                "ToPort": 8000,
+                "IpRanges": [
+                    {
+                        "CidrIp": "203.0.113.20/32",
+                        "Description": "API from caller",
+                    }
+                ],
+            },
+        ],
+    )
+    assert all(
+        permission.get("FromPort") != 22 and permission.get("ToPort") != 22
+        for permission in client.authorize_security_group_ingress.call_args.kwargs["IpPermissions"]
+    )
 
 
 def test_security_group_refresh_repairs_missing_self_ingress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = MagicMock()
+    client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-default"}]}
     client.describe_security_groups.return_value = {
         "SecurityGroups": [
             {
                 "GroupId": "sg-test",
+                "VpcId": "vpc-default",
                 "IpPermissions": [
                     {
                         "IpProtocol": "tcp",
@@ -1607,18 +2462,7 @@ def test_security_group_refresh_repairs_missing_self_ingress(
                                 "Description": "API from caller",
                             }
                         ],
-                    },
-                    {
-                        "IpProtocol": "tcp",
-                        "FromPort": 22,
-                        "ToPort": 22,
-                        "IpRanges": [
-                            {
-                                "CidrIp": "203.0.113.20/32",
-                                "Description": "SSH from caller",
-                            }
-                        ],
-                    },
+                    }
                 ],
             }
         ]
@@ -1645,6 +2489,144 @@ def test_security_group_refresh_repairs_missing_self_ingress(
             }
         ],
     )
+
+
+def test_security_group_rejects_wrong_vpc_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-default"}]}
+    client.describe_security_groups.return_value = {
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-wrong-vpc",
+                "VpcId": "vpc-other",
+                "IpPermissions": [],
+            }
+        ]
+    }
+    monkeypatch.setattr(aws_infra, "get_public_ip", lambda: "203.0.113.20")
+    monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
+
+    with pytest.raises(RuntimeError, match="outside default VPC vpc-default"):
+        aws_infra.ensure_security_group()
+
+    client.create_security_group.assert_not_called()
+    client.authorize_security_group_ingress.assert_not_called()
+    client.revoke_security_group_ingress.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "vpcs",
+    [
+        [],
+        [{"VpcId": "vpc-default-a"}, {"VpcId": "vpc-default-b"}],
+    ],
+)
+def test_security_group_requires_exactly_one_default_vpc(
+    monkeypatch: pytest.MonkeyPatch,
+    vpcs: list[dict[str, str]],
+) -> None:
+    client = MagicMock()
+    client.describe_vpcs.return_value = {"Vpcs": vpcs}
+    client.create_security_group.return_value = {"GroupId": "sg-created"}
+    monkeypatch.setattr(aws_infra, "get_public_ip", lambda: "203.0.113.20")
+    monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
+
+    with pytest.raises(RuntimeError, match="exactly one default VPC"):
+        aws_infra.ensure_security_group()
+
+    client.describe_security_groups.assert_not_called()
+    client.create_security_group.assert_not_called()
+
+
+def test_security_group_rejects_ambiguous_exact_vpc_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-default"}]}
+    client.describe_security_groups.return_value = {
+        "SecurityGroups": [
+            {"GroupId": "sg-a", "VpcId": "vpc-default", "IpPermissions": []},
+            {"GroupId": "sg-b", "VpcId": "vpc-default", "IpPermissions": []},
+        ]
+    }
+    monkeypatch.setattr(aws_infra, "get_public_ip", lambda: "203.0.113.20")
+    monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
+
+    with pytest.raises(RuntimeError, match="multiple citrees security groups"):
+        aws_infra.ensure_security_group()
+
+    client.create_security_group.assert_not_called()
+    client.authorize_security_group_ingress.assert_not_called()
+
+
+def test_security_group_revokes_every_stale_ssh_permission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ssh_permissions = [
+        {
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "IpRanges": [
+                {
+                    "CidrIp": "203.0.113.20/32",
+                    "Description": "SSH from caller",
+                }
+            ],
+        },
+        {
+            "IpProtocol": "tcp",
+            "FromPort": 20,
+            "ToPort": 25,
+            "Ipv6Ranges": [{"CidrIpv6": "2001:db8::/64"}],
+        },
+        {
+            "IpProtocol": "-1",
+            "UserIdGroupPairs": [{"GroupId": "sg-peer"}],
+        },
+    ]
+    client = MagicMock()
+    client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-default"}]}
+    client.describe_security_groups.return_value = {
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-test",
+                "VpcId": "vpc-default",
+                "IpPermissions": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 8000,
+                        "ToPort": 8000,
+                        "IpRanges": [
+                            {
+                                "CidrIp": "203.0.113.20/32",
+                                "Description": "API from caller",
+                            }
+                        ],
+                        "UserIdGroupPairs": [
+                            {
+                                "GroupId": "sg-test",
+                                "Description": "API from citrees instances",
+                            }
+                        ],
+                    },
+                    *ssh_permissions,
+                ],
+            }
+        ]
+    }
+    monkeypatch.setattr(aws_infra, "get_public_ip", lambda: "203.0.113.20")
+    monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
+
+    assert aws_infra.ensure_security_group() == "sg-test"
+
+    client.revoke_security_group_ingress.assert_called_once_with(
+        GroupId="sg-test",
+        IpPermissions=ssh_permissions,
+    )
+    client.authorize_security_group_ingress.assert_not_called()
 
 
 def test_ecr_repository_is_always_immutable_and_scanned(
@@ -1814,44 +2796,200 @@ def test_manifest_publish_is_content_addressed_and_round_trip_verified(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    payload = b"private manifest"
+    payload = b"account manifest"
     manifest_path = tmp_path / "manifest.csv"
     manifest_path.write_bytes(payload)
+    canonical_payload = b"canonical manifest"
+    canonical_manifest_path = tmp_path / "canonical-manifest.csv"
+    canonical_manifest_path.write_bytes(canonical_payload)
+    runtime_contract_path = _write_runtime_contract(tmp_path)
+    gate_receipt_path = _write_gate_receipt(tmp_path)
     manifest = SimpleNamespace(
         sha256=MANIFEST_SHA256,
         campaign_sha256=CAMPAIGN_SHA256,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         cells=(object(),),
         account_ids=("123456789012",),
     )
-    client = MagicMock()
-    client.get_object.return_value = {
-        "Body": io.BytesIO(payload),
-        "Metadata": {
-            "campaign-sha256": CAMPAIGN_SHA256,
-            "target-aws-account-id": "123456789012",
-        },
-    }
+    canonical = SimpleNamespace(
+        sha256=CANONICAL_MANIFEST_SHA256,
+        campaign_sha256=CAMPAIGN_SHA256,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
+        cells=(object(), object()),
+        account_ids=("123456789012", "210987654321"),
+    )
+    client = _MemoryS3()
+    parse_manifest = MagicMock(
+        side_effect=lambda body, expected_sha256=None: (
+            canonical if body == canonical_payload else manifest
+        )
+    )
     monkeypatch.setattr(
         "paper.benchmark.pipeline.manifest.parse_rerun_manifest",
-        lambda body, expected_sha256=None: manifest,
+        parse_manifest,
+    )
+    validate_canonical = MagicMock()
+    monkeypatch.setattr(
+        "paper.benchmark.pipeline.manifest.validate_canonical_campaign",
+        validate_canonical,
+    )
+    verify_shard = MagicMock(return_value=manifest)
+    monkeypatch.setattr(
+        "paper.benchmark.pipeline.manifest.verify_account_manifest_shard",
+        verify_shard,
+    )
+    parse_gate_receipt = MagicMock(
+        return_value={
+            "account_manifest_sha256": {
+                "123456789012": MANIFEST_SHA256,
+                "210987654321": "d" * 64,
+            },
+            "report": {"status": "GO"},
+        }
+    )
+    monkeypatch.setattr(
+        "paper.benchmark.experiments.r_cforest_reproducibility.parse_gate_receipt",
+        parse_gate_receipt,
     )
     monkeypatch.setattr(aws_infra, "ensure_s3_bucket", lambda region: "citrees-test")
     monkeypatch.setattr(aws_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
 
-    result = aws_infra.publish_rerun_manifest(manifest_path)
+    result = aws_infra.publish_rerun_manifest(
+        manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+    )
 
     assert result == {
         "bucket": "citrees-test",
         "key": MANIFEST_KEY,
         "sha256": MANIFEST_SHA256,
         "campaign_sha256": CAMPAIGN_SHA256,
+        "canonical_manifest_s3_key": CANONICAL_MANIFEST_KEY,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
+        "gate_receipt_s3_key": GATE_RECEIPT_KEY,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
+        "runtime_contract_s3_key": RUNTIME_CONTRACT_KEY,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
         "cells": 1,
+        "canonical_cells": 2,
     }
-    call = client.put_object.call_args
-    assert call.kwargs["Bucket"] == "citrees-test"
-    assert call.kwargs["Key"] == MANIFEST_KEY
-    assert call.kwargs["Body"] == payload
-    assert call.kwargs["IfNoneMatch"] == "*"
-    assert call.kwargs["Metadata"]["target-aws-account-id"] == "123456789012"
-    assert call.kwargs["Metadata"]["campaign-sha256"] == CAMPAIGN_SHA256
+    manifest_payload, manifest_metadata = client.objects[MANIFEST_KEY]
+    assert manifest_payload == payload
+    assert manifest_metadata["target-aws-account-id"] == "123456789012"
+    assert manifest_metadata["campaign-sha256"] == CAMPAIGN_SHA256
+    assert manifest_metadata["canonical-manifest-sha256"] == CANONICAL_MANIFEST_SHA256
+    published_canonical, canonical_metadata = client.objects[CANONICAL_MANIFEST_KEY]
+    assert published_canonical == canonical_payload
+    assert canonical_metadata["target-aws-account-ids"] == ("123456789012,210987654321")
+    runtime_payload, runtime_metadata = client.objects[RUNTIME_CONTRACT_KEY]
+    assert runtime_payload == runtime_contract_path.read_bytes()
+    assert runtime_metadata["sha256"] == RUNTIME_CONTRACT_SHA256
+    gate_payload, gate_metadata = client.objects[GATE_RECEIPT_KEY]
+    assert gate_payload == GATE_RECEIPT_PAYLOAD
+    assert gate_metadata == {
+        "campaign-sha256": CAMPAIGN_SHA256,
+        "manifest-sha256": CANONICAL_MANIFEST_SHA256,
+        "profile": GATE_RECEIPT_PROFILE,
+        "runtime-contract-sha256": RUNTIME_CONTRACT_SHA256,
+        "schema-version": str(GATE_RECEIPT_SCHEMA_VERSION),
+        "sha256": GATE_RECEIPT_SHA256,
+        "status": "GO",
+    }
+    assert parse_gate_receipt.call_count == 2
+    verify_shard.assert_called()
+
+
+def test_worker_listing_and_termination_require_one_exact_launch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launch_id = "campaign-rankings-001"
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = {
+        "Reservations": [
+            {
+                "Instances": [
+                    {
+                        "InstanceId": "i-0123456789abcdef0",
+                        "InstanceType": "c6a.8xlarge",
+                        "LaunchTime": None,
+                        "State": {"Name": "running"},
+                        "Tags": [
+                            {"Key": ec2_infra.TAG_KEY, "Value": ec2_infra.WORKER_TAG_VALUE},
+                            {"Key": "citrees-worker-launch-id", "Value": launch_id},
+                        ],
+                    }
+                ]
+            }
+        ]
+    }
+    monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: ec2)
+
+    workers = ec2_infra.list_workers(launch_id)
+    terminated = ec2_infra.terminate_workers(launch_id)
+
+    expected_filters = [
+        {"Name": f"tag:{ec2_infra.TAG_KEY}", "Values": [ec2_infra.WORKER_TAG_VALUE]},
+        {"Name": "tag:citrees-worker-launch-id", "Values": [launch_id]},
+        {
+            "Name": "instance-state-name",
+            "Values": ["pending", "running", "stopping"],
+        },
+    ]
+    assert workers == [
+        {
+            "instance_id": "i-0123456789abcdef0",
+            "state": "running",
+            "instance_type": "c6a.8xlarge",
+            "launch_time": "",
+            "launch_id": launch_id,
+        }
+    ]
+    assert terminated == ["i-0123456789abcdef0"]
+    assert ec2.describe_instances.call_count == 2
+    assert all(
+        call.kwargs == {"Filters": expected_filters}
+        for call in ec2.describe_instances.call_args_list
+    )
+    ec2.terminate_instances.assert_called_once_with(InstanceIds=["i-0123456789abcdef0"])
+
+
+def test_worker_listing_rejects_ec2_rows_outside_launch_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = {
+        "Reservations": [
+            {
+                "Instances": [
+                    {
+                        "InstanceId": "i-0123456789abcdef0",
+                        "InstanceType": "c6a.8xlarge",
+                        "LaunchTime": None,
+                        "State": {"Name": "running"},
+                        "Tags": [
+                            {"Key": ec2_infra.TAG_KEY, "Value": ec2_infra.WORKER_TAG_VALUE},
+                            {
+                                "Key": "citrees-worker-launch-id",
+                                "Value": "different-launch",
+                            },
+                        ],
+                    }
+                ]
+            }
+        ]
+    }
+    monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: ec2)
+
+    with pytest.raises(RuntimeError, match="outside the exact launch identity"):
+        ec2_infra.list_workers("campaign-rankings-001")
+
+
+@pytest.mark.parametrize("command", ["list-workers", "terminate-workers"])
+def test_worker_lifecycle_cli_requires_launch_id(command: str) -> None:
+    result = CliRunner().invoke(infra_app, [command])
+
+    assert result.exit_code == 2
+    assert "--launch-id" in result.output

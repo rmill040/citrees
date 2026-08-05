@@ -25,6 +25,8 @@ from paper.benchmark.pipeline.validation import (
 )
 
 pytestmark = pytest.mark.paper
+CANONICAL_MANIFEST_SHA256 = "c" * 64
+GATE_RECEIPT_SHA256 = "d" * 64
 
 
 def _config(method: str = "rf") -> ExperimentConfig:
@@ -52,10 +54,12 @@ def _common(config: ExperimentConfig, *, n_features: int = 4) -> dict[str, objec
         "artifact_prefix": "repairs/run-001",
         "aws_account_id": "123456789012",
         "campaign_sha256": "e" * 64,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
         "container_image": "repository@sha256:" + "a" * 64,
         "created_at_utc": "2026-08-03T12:00:00+00:00",
         "dataset": config.dataset,
         "dataset_sha256": config.dataset_identity.sha256,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": "a" * 40,
         "hardware": {"logical_cpus": 32},
         "library_versions": versions,
@@ -70,6 +74,7 @@ def _common(config: ExperimentConfig, *, n_features: int = 4) -> dict[str, objec
         "manifest_sha256": "b" * 64,
         "n_features": n_features,
         "n_samples": 50,
+        "runtime_contract_sha256": "f" * 64,
         "seed": config.seed,
         "task": config.task,
     }
@@ -117,11 +122,14 @@ def _metrics(
                 "ranking_artifact_version": PIPELINE_ARTIFACT_VERSION,
                 "ranking_artifact_prefix": "repairs/run-001",
                 "ranking_aws_account_id": "123456789012",
+                "ranking_canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
                 "ranking_container_image": "repository@sha256:" + "a" * 64,
                 "ranking_dataset_sha256": config.dataset_identity.sha256,
+                "ranking_gate_receipt_sha256": GATE_RECEIPT_SHA256,
                 "ranking_git_sha": "a" * 40,
                 "ranking_manifest_sha256": "b" * 64,
                 "ranking_payload_sha256": "c" * 64,
+                "ranking_runtime_contract_sha256": "f" * 64,
                 "roc_auc": 0.85,
             }
             for fold, k, model in product(range(5), k_values, CLF_DOWNSTREAM_MODELS)
@@ -158,11 +166,14 @@ def _regression_metrics() -> pd.DataFrame:
                 "ranking_artifact_version": PIPELINE_ARTIFACT_VERSION,
                 "ranking_artifact_prefix": "repairs/run-001",
                 "ranking_aws_account_id": "123456789012",
+                "ranking_canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
                 "ranking_container_image": "repository@sha256:" + "a" * 64,
                 "ranking_dataset_sha256": config.dataset_identity.sha256,
+                "ranking_gate_receipt_sha256": GATE_RECEIPT_SHA256,
                 "ranking_git_sha": "a" * 40,
                 "ranking_manifest_sha256": "b" * 64,
                 "ranking_payload_sha256": "c" * 64,
+                "ranking_runtime_contract_sha256": "f" * 64,
                 "rmse": 0.5,
             }
             for fold, model in product(range(5), REG_DOWNSTREAM_MODELS)
@@ -175,15 +186,22 @@ def test_valid_ranking_artifact_returns_feature_count() -> None:
     assert validate_ranking_artifact(_rankings(config), config) == 4
 
 
+def test_pipeline_artifact_schema_version_is_five() -> None:
+    assert PIPELINE_ARTIFACT_VERSION == 5
+
+
 def test_artifact_provenance_must_match_configured_run() -> None:
     config = _config()
     expected = {
         "artifact_prefix": "repairs/run-001",
         "aws_account_id": "123456789012",
         "campaign_sha256": "e" * 64,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
         "container_image": "repository@sha256:" + "a" * 64,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": "a" * 40,
         "manifest_sha256": "b" * 64,
+        "runtime_contract_sha256": "f" * 64,
     }
 
     validate_artifact_provenance(_rankings(config), expected)
@@ -231,7 +249,23 @@ def test_ranking_artifact_validates_after_parquet_round_trip(tmp_path: Path) -> 
         (lambda frame: frame.assign(aws_account_id="unknown"), "aws_account_id"),
         (lambda frame: frame.assign(container_image="unknown"), "container_image"),
         (lambda frame: frame.assign(git_sha="unknown"), "git_sha"),
+        (
+            lambda frame: frame.assign(canonical_manifest_sha256="unknown"),
+            "canonical_manifest_sha256",
+        ),
+        (
+            lambda frame: frame.assign(gate_receipt_sha256="unknown"),
+            "gate_receipt_sha256",
+        ),
         (lambda frame: frame.assign(manifest_sha256="unknown"), "manifest_sha256"),
+        (
+            lambda frame: frame.assign(runtime_contract_sha256="unknown"),
+            "runtime_contract_sha256",
+        ),
+        (
+            lambda frame: frame.assign(runtime_contract_sha256="F" * 64),
+            "runtime_contract_sha256",
+        ),
     ],
 )
 def test_ranking_artifact_rejects_schema_identity_and_fold_errors(
@@ -309,12 +343,28 @@ def test_metrics_artifact_validates_after_parquet_round_trip(tmp_path: Path) -> 
         ),
         (lambda frame: frame.assign(ranking_git_sha="unknown"), "ranking_git_sha"),
         (
+            lambda frame: frame.assign(ranking_canonical_manifest_sha256="0" * 64),
+            "ranking_canonical_manifest_sha256",
+        ),
+        (
+            lambda frame: frame.assign(ranking_gate_receipt_sha256="0" * 64),
+            "ranking_gate_receipt_sha256",
+        ),
+        (
             lambda frame: frame.assign(ranking_manifest_sha256="unknown"),
             "ranking_manifest_sha256",
         ),
         (
             lambda frame: frame.assign(ranking_payload_sha256="unknown"),
             "ranking_payload_sha256",
+        ),
+        (
+            lambda frame: frame.assign(ranking_runtime_contract_sha256="unknown"),
+            "ranking_runtime_contract_sha256",
+        ),
+        (
+            lambda frame: frame.assign(runtime_contract_sha256="F" * 64),
+            "runtime_contract_sha256",
         ),
         (
             lambda frame: frame.assign(ranking_dataset_sha256="e" * 64),
@@ -333,6 +383,17 @@ def test_metrics_artifact_rejects_incomplete_or_invalid_outputs(
     config = _config()
     with pytest.raises(ArtifactValidationError, match=match):
         validate_metrics_artifact(mutation(_metrics(config)), config)
+
+
+def test_metrics_artifact_rejects_runtime_contract_mismatch() -> None:
+    config = _config()
+    frame = _metrics(config).assign(ranking_runtime_contract_sha256="0" * 64)
+
+    with pytest.raises(
+        ArtifactValidationError,
+        match="ranking_runtime_contract_sha256 does not match runtime_contract_sha256",
+    ):
+        validate_metrics_artifact(frame, config)
 
 
 @pytest.mark.parametrize(

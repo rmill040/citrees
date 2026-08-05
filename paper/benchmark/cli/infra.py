@@ -226,6 +226,17 @@ def launch_api_cmd(
             help="Isolated S3 prefix for corrected artifacts",
         ),
     ] = "",
+    canonical_manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--canonical-manifest",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Complete two-account manifest bound to the GO receipt",
+        ),
+    ] = None,
     manifest_path: Annotated[
         Path | None,
         typer.Option(
@@ -235,6 +246,28 @@ def launch_api_cmd(
             readable=True,
             resolve_path=True,
             help="Private validated rerun manifest for this account shard",
+        ),
+    ] = None,
+    runtime_contract_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--runtime-contract",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Canonical gate-approved runtime contract bound to the manifest",
+        ),
+    ] = None,
+    gate_receipt_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--gate-receipt",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Complete immutable GO receipt for the reproducibility gate",
         ),
     ] = None,
     stage: Annotated[
@@ -270,8 +303,19 @@ def launch_api_cmd(
     """
     from paper.benchmark.infra.ec2 import launch_api
 
-    if not image_uri or not artifact_prefix or manifest_path is None or max_cell_attempts is None:
-        error("--image-uri, --artifact-prefix, --manifest, and --max-cell-attempts are required")
+    if (
+        not image_uri
+        or not artifact_prefix
+        or canonical_manifest_path is None
+        or manifest_path is None
+        or runtime_contract_path is None
+        or gate_receipt_path is None
+        or max_cell_attempts is None
+    ):
+        error(
+            "--image-uri, --artifact-prefix, --canonical-manifest, --manifest, "
+            "--runtime-contract, --gate-receipt, and --max-cell-attempts are required"
+        )
         raise typer.Exit(2)
 
     heading("Launching API Server")
@@ -280,7 +324,10 @@ def launch_api_cmd(
         instance_type=instance_type,
         image_uri=image_uri,
         artifact_prefix=artifact_prefix,
+        canonical_manifest_path=canonical_manifest_path,
+        gate_receipt_path=gate_receipt_path,
         manifest_path=manifest_path,
+        runtime_contract_path=runtime_contract_path,
         stage=stage,
         lease_seconds=lease_seconds,
         max_cell_attempts=max_cell_attempts,
@@ -350,14 +397,6 @@ def launch_workers_cmd(
             help="Number of worker instances to launch",
         ),
     ] = 1,
-    instance_type: Annotated[
-        str,
-        typer.Option(
-            "--instance-type",
-            "-i",
-            help="EC2 instance type",
-        ),
-    ] = "c6a.8xlarge",
     spot: Annotated[
         bool,
         typer.Option(
@@ -380,6 +419,17 @@ def launch_workers_cmd(
             help="Must match the API server artifact prefix",
         ),
     ] = "",
+    canonical_manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--canonical-manifest",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Complete two-account manifest bound to the GO receipt",
+        ),
+    ] = None,
     launch_id: Annotated[
         str,
         typer.Option(
@@ -396,6 +446,28 @@ def launch_workers_cmd(
             readable=True,
             resolve_path=True,
             help="Private rerun manifest; must match the running API",
+        ),
+    ] = None,
+    runtime_contract_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--runtime-contract",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Canonical gate-approved runtime contract; must match the running API",
+        ),
+    ] = None,
+    gate_receipt_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--gate-receipt",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Complete immutable GO receipt; must match the running API campaign",
         ),
     ] = None,
     stage: Annotated[
@@ -415,19 +487,32 @@ def launch_workers_cmd(
     """
     from paper.benchmark.infra.ec2 import launch_workers
 
-    if not image_uri or not artifact_prefix or not launch_id or manifest_path is None:
-        error("--image-uri, --artifact-prefix, --launch-id, and --manifest are required")
+    if (
+        not image_uri
+        or not artifact_prefix
+        or not launch_id
+        or canonical_manifest_path is None
+        or manifest_path is None
+        or runtime_contract_path is None
+        or gate_receipt_path is None
+    ):
+        error(
+            "--image-uri, --artifact-prefix, --launch-id, --canonical-manifest, "
+            "--manifest, --runtime-contract, and --gate-receipt are required"
+        )
         raise typer.Exit(2)
 
     heading(f"Launching {n} Workers")
 
     launch_workers(
         n=n,
-        instance_type=instance_type,
         image_uri=image_uri,
         artifact_prefix=artifact_prefix,
+        canonical_manifest_path=canonical_manifest_path,
+        gate_receipt_path=gate_receipt_path,
         launch_id=launch_id,
         manifest_path=manifest_path,
+        runtime_contract_path=runtime_contract_path,
         stage=stage,
         spot=spot,
     )
@@ -588,13 +673,21 @@ def launch_mechanism_workers_cmd(
 
 
 @app.command(name="list-workers")
-def list_workers_cmd() -> None:
-    """List running worker instances."""
+def list_workers_cmd(
+    launch_id: Annotated[
+        str,
+        typer.Option(
+            "--launch-id",
+            help="Exact worker launch batch to list",
+        ),
+    ],
+) -> None:
+    """List running worker instances from one exact launch."""
     from paper.benchmark.infra.ec2 import list_workers
 
     heading("Worker Instances")
 
-    workers = list_workers()
+    workers = list_workers(launch_id)
     if not workers:
         info("No worker instances found")
         return
@@ -653,13 +746,21 @@ def list_mechanism_workers_cmd() -> None:
 
 
 @app.command(name="terminate-workers")
-def terminate_workers_cmd() -> None:
-    """Terminate all running worker instances."""
+def terminate_workers_cmd(
+    launch_id: Annotated[
+        str,
+        typer.Option(
+            "--launch-id",
+            help="Exact worker launch batch to terminate",
+        ),
+    ],
+) -> None:
+    """Terminate worker instances from one exact launch."""
     from paper.benchmark.infra.ec2 import terminate_workers
 
     heading("Terminating Workers")
 
-    terminated = terminate_workers()
+    terminated = terminate_workers(launch_id)
     if terminated:
         success(f"Terminated {len(terminated)} instances")
     else:

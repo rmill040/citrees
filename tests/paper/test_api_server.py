@@ -23,7 +23,6 @@ from paper.benchmark.api.server import (
     _configured_lease_seconds,
     _configured_max_cell_attempts,
     _configured_stage,
-    _load_configured_manifest,
     _load_durable_attempt_state,
     _needs_metrics_work,
     _preflight_manifest_datasets,
@@ -35,13 +34,27 @@ from paper.benchmark.config.constants import (
     MIN_ASSIGNMENT_LEASE_SECONDS,
     PIPELINE_ARTIFACT_VERSION,
 )
+from paper.benchmark.experiments.r_cforest_reproducibility import (
+    gate_receipt_s3_key,
+)
+from paper.benchmark.pipeline.campaign_gate import (
+    ApprovedCampaignGate,
+    CampaignGateIdentity,
+)
 from paper.benchmark.pipeline.manifest import ManifestCell, RerunManifest
+from paper.benchmark.pipeline.reconcile import ArtifactIssue, ReconciliationReport
 from paper.benchmark.pipeline.types import DatasetIdentity, ExperimentConfig, MethodConfig
 from paper.benchmark.pipeline.validation import derive_assignment_id
 
 pytestmark = pytest.mark.paper
 REQUEST_ID = "1" * 32
 WORKER_ID = "2" * 32
+CANONICAL_MANIFEST_SHA256 = "c" * 64
+CANONICAL_MANIFEST_S3_KEY = f"rerun-manifests/{CANONICAL_MANIFEST_SHA256}.csv"
+GATE_RECEIPT_SHA256 = "d" * 64
+GATE_RECEIPT_S3_KEY = gate_receipt_s3_key(GATE_RECEIPT_SHA256)
+RUNTIME_CONTRACT_SHA256 = "f" * 64
+RUNTIME_CONTRACT_S3_KEY = f"runtime-contracts/{RUNTIME_CONTRACT_SHA256}.json"
 
 
 def _config(
@@ -70,10 +83,47 @@ def _expected_provenance() -> dict[str, str]:
         "artifact_prefix": "repairs/r-baselines/run-001",
         "aws_account_id": "123456789012",
         "campaign_sha256": "e" * 64,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
         "container_image": "repository@sha256:" + "a" * 64,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": "a" * 40,
         "manifest_sha256": "a" * 64,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
     }
+
+
+def _configure_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    manifest: RerunManifest,
+) -> ApprovedCampaignGate:
+    identity = CampaignGateIdentity(
+        account_id="123456789012",
+        campaign_sha256=manifest.campaign_sha256,
+        canonical_manifest_s3_key=CANONICAL_MANIFEST_S3_KEY,
+        canonical_manifest_sha256=CANONICAL_MANIFEST_SHA256,
+        gate_receipt_s3_key=GATE_RECEIPT_S3_KEY,
+        gate_receipt_sha256=GATE_RECEIPT_SHA256,
+        manifest_s3_key=f"rerun-manifests/{manifest.sha256}.csv",
+        manifest_sha256=manifest.sha256,
+        runtime_contract_s3_key=RUNTIME_CONTRACT_S3_KEY,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
+    )
+    approved = ApprovedCampaignGate(
+        identity=identity,
+        canonical_manifest=manifest,
+        manifest=manifest,
+        runtime_contract={},
+        gate_receipt={},
+    )
+    monkeypatch.setattr(
+        "paper.benchmark.pipeline.campaign_gate.configured_campaign_gate_identity",
+        lambda: identity,
+    )
+    monkeypatch.setattr(
+        "paper.benchmark.pipeline.campaign_gate.load_approved_campaign_gate",
+        lambda store, configured_identity: approved,
+    )
+    return approved
 
 
 def _assignment_id(
@@ -205,10 +255,12 @@ def _artifact_common(
         "artifact_prefix": "repairs/run-001",
         "aws_account_id": "123456789012",
         "campaign_sha256": "e" * 64,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
         "container_image": "repository@sha256:" + "a" * 64,
         "created_at_utc": "2026-08-03T12:00:00+00:00",
         "dataset": config.dataset,
         "dataset_sha256": config.dataset_identity.sha256,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": "a" * 40,
         "hardware": {"logical_cpus": 32},
         "library_versions": {"python": "3.12.7"},
@@ -217,6 +269,7 @@ def _artifact_common(
         "method_id": config.method.label,
         "method_params_json": "{}",
         "manifest_sha256": "b" * 64,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
         "n_features": n_features,
         "n_samples": 100,
         "seed": config.seed,
@@ -269,11 +322,14 @@ def _metrics(
                 "ranking_artifact_version": PIPELINE_ARTIFACT_VERSION,
                 "ranking_artifact_prefix": "repairs/run-001",
                 "ranking_aws_account_id": "123456789012",
+                "ranking_canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
                 "ranking_container_image": "repository@sha256:" + "a" * 64,
                 "ranking_dataset_sha256": config.dataset_identity.sha256,
+                "ranking_gate_receipt_sha256": GATE_RECEIPT_SHA256,
                 "ranking_git_sha": "a" * 40,
                 "ranking_manifest_sha256": "b" * 64,
                 "ranking_payload_sha256": "c" * 64,
+                "ranking_runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
                 "roc_auc": 0.85,
             }
             for fold, k, model in product(range(5), k_values, CLF_DOWNSTREAM_MODELS)
@@ -347,45 +403,6 @@ def test_configured_max_cell_attempts_rejects_invalid_values(
         _configured_max_cell_attempts()
 
 
-def test_configured_manifest_uses_content_addressed_s3_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    digest = "a" * 64
-    key = f"rerun-manifests/{digest}.csv"
-    expected = RerunManifest(
-        sha256=digest,
-        campaign_sha256="e" * 64,
-        cells=(),
-    )
-    client = MagicMock()
-    client.get_object.return_value = {
-        "Body": io.BytesIO(b"manifest"),
-        "Metadata": {
-            "campaign-sha256": "e" * 64,
-            "target-aws-account-id": "123456789012",
-        },
-    }
-    store = SimpleNamespace(bucket="citrees-fixture", client=client)
-    monkeypatch.setenv("CITREES_MANIFEST_SHA256", digest)
-    monkeypatch.setenv("CITREES_CAMPAIGN_SHA256", "e" * 64)
-    monkeypatch.setenv("CITREES_MANIFEST_S3_KEY", key)
-    monkeypatch.setenv("AWS_ACCOUNT_ID", "123456789012")
-    monkeypatch.setattr(
-        "paper.benchmark.pipeline.manifest.parse_rerun_manifest",
-        lambda payload, expected_sha256: expected,
-    )
-
-    manifest, observed_key = _load_configured_manifest(store)  # type: ignore[arg-type]
-
-    assert manifest is expected
-    assert observed_key == key
-    client.get_object.assert_called_once_with(Bucket="citrees-fixture", Key=key)
-
-    monkeypatch.setenv("CITREES_MANIFEST_S3_KEY", "rerun-manifests/other.csv")
-    with pytest.raises(RuntimeError, match="content-addressed key"):
-        _load_configured_manifest(store)  # type: ignore[arg-type]
-
-
 def _dataset_payload(*, offset: int = 0) -> bytes:
     frame = pd.DataFrame(
         {
@@ -425,6 +442,7 @@ def test_manifest_dataset_preflight_validates_each_unique_object_once() -> None:
             RerunManifest(
                 sha256="a" * 64,
                 campaign_sha256="e" * 64,
+                runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
                 cells=cells,
             ),
         )
@@ -481,6 +499,7 @@ def test_manifest_dataset_preflight_rejects_missing_or_mismatched_objects(
             RerunManifest(
                 sha256="a" * 64,
                 campaign_sha256="e" * 64,
+                runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
                 cells=(cell,),
             ),
         )
@@ -531,6 +550,7 @@ def test_queue_build_uses_only_manifest_cells_for_active_stage(
     manifest = RerunManifest(
         sha256="a" * 64,
         campaign_sha256="e" * 64,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         cells=(cell,),
     )
 
@@ -539,19 +559,21 @@ def test_queue_build_uses_only_manifest_cells_for_active_stage(
     monkeypatch.setenv("CITREES_MAX_CELL_ATTEMPTS", "3")
     monkeypatch.setenv("CITREES_ARTIFACT_PREFIX", "repairs/r-baselines/run-001")
     monkeypatch.setenv("CITREES_CAMPAIGN_SHA256", "e" * 64)
+    monkeypatch.setenv("CITREES_CANONICAL_MANIFEST_SHA256", CANONICAL_MANIFEST_SHA256)
+    monkeypatch.setenv("CITREES_GATE_RECEIPT_SHA256", GATE_RECEIPT_SHA256)
     monkeypatch.setenv("CITREES_MANIFEST_SHA256", "a" * 64)
-    monkeypatch.setenv("AWS_ACCOUNT_ID", "123456789012")
+    monkeypatch.setenv("CITREES_RUNTIME_CONTRACT_SHA256", RUNTIME_CONTRACT_SHA256)
+    monkeypatch.setattr(
+        "paper.benchmark.infra.aws.get_aws_account_id",
+        lambda: "123456789012",
+    )
     monkeypatch.setenv("CITREES_IMAGE_URI", "repository@sha256:" + "a" * 64)
     monkeypatch.setenv("GIT_SHA", "a" * 40)
     monkeypatch.setattr(
         "paper.benchmark.adapters.store.S3Store.from_env",
         lambda validate_uploads: FakeS3Store(),
     )
-    monkeypatch.setattr(
-        server,
-        "_load_configured_manifest",
-        lambda store: (manifest, f"rerun-manifests/{manifest.sha256}.csv"),
-    )
+    _configure_gate(monkeypatch, manifest)
     monkeypatch.setattr(server, "_preflight_manifest_datasets", lambda store, value: 1)
 
     server._build_queues()
@@ -562,6 +584,181 @@ def test_queue_build_uses_only_manifest_cells_for_active_stage(
     assert server._active_stage == "rankings"
     assert server._active_methods == ("r_ctree",)
     assert server._manifest is manifest
+
+
+def _ranking_reconciliation_report(
+    config: ExperimentConfig,
+    *,
+    issue: str | None = None,
+) -> ReconciliationReport:
+    key = (
+        "repairs/r-baselines/run-001/rankings/classification/"
+        f"{config.dataset}/{config.method.label}_seed{config.seed}.parquet"
+    )
+    expected = (key,)
+    valid = expected
+    missing: tuple[str, ...] = ()
+    extra: tuple[str, ...] = ()
+    malformed: tuple[str, ...] = ()
+    invalid: tuple[ArtifactIssue, ...] = ()
+    provenance_mismatches: tuple[ArtifactIssue, ...] = ()
+
+    if issue == "missing":
+        valid = ()
+        missing = expected
+    elif issue == "extra":
+        extra = (f"{key}.extra",)
+    elif issue == "malformed":
+        malformed = ("repairs/r-baselines/run-001/rankings/malformed",)
+    elif issue == "invalid":
+        valid = ()
+        invalid = (ArtifactIssue(key=key, detail="invalid ranking artifact"),)
+    elif issue == "provenance_mismatch":
+        valid = ()
+        provenance_mismatches = (ArtifactIssue(key=key, detail="ranking provenance mismatch"),)
+    elif issue is not None:
+        raise AssertionError(f"unknown reconciliation issue: {issue}")
+
+    return ReconciliationReport(
+        expected_keys=expected,
+        valid_keys=valid,
+        missing_keys=missing,
+        extra_keys=extra,
+        malformed_keys=malformed,
+        invalid_artifacts=invalid,
+        provenance_mismatches=provenance_mismatches,
+    )
+
+
+def _configure_metrics_queue_build(
+    monkeypatch: pytest.MonkeyPatch,
+    config: ExperimentConfig,
+    report: ReconciliationReport,
+) -> tuple[object, RerunManifest, MagicMock]:
+    class FakeS3Store:
+        bucket = "citrees-fixture"
+        artifact_prefix = "repairs/r-baselines/run-001"
+
+        def __init__(self) -> None:
+            self.list_completed_calls: list[tuple[str, str]] = []
+
+        def list_completed(self, stage: str, task: str):
+            self.list_completed_calls.append((stage, task))
+            if stage == "rankings" and task == "classification":
+                return {config.key}
+            return set()
+
+        def list_control_receipts(self, receipt_type: str, stage: str, task: str):
+            return ()
+
+    cell = ManifestCell(
+        config=config,
+        target_aws_account_id="123456789012",
+        dataset_source="real",
+        rerun_reason="adapter_correction",
+        historically_omitted=False,
+        stage1_required=True,
+        stage2_required=True,
+    )
+    manifest = RerunManifest(
+        sha256="a" * 64,
+        campaign_sha256="e" * 64,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
+        cells=(cell,),
+    )
+    store = FakeS3Store()
+    reconcile = MagicMock(return_value=report)
+
+    monkeypatch.setenv("CITREES_STAGE", "metrics")
+    monkeypatch.setenv("CITREES_LEASE_SECONDS", "900")
+    monkeypatch.setenv("CITREES_MAX_CELL_ATTEMPTS", "3")
+    monkeypatch.setenv("CITREES_ARTIFACT_PREFIX", store.artifact_prefix)
+    monkeypatch.setenv("CITREES_CAMPAIGN_SHA256", manifest.campaign_sha256)
+    monkeypatch.setenv("CITREES_CANONICAL_MANIFEST_SHA256", CANONICAL_MANIFEST_SHA256)
+    monkeypatch.setenv("CITREES_GATE_RECEIPT_SHA256", GATE_RECEIPT_SHA256)
+    monkeypatch.setenv("CITREES_MANIFEST_SHA256", manifest.sha256)
+    monkeypatch.setenv("CITREES_RUNTIME_CONTRACT_SHA256", RUNTIME_CONTRACT_SHA256)
+    monkeypatch.setattr(
+        "paper.benchmark.infra.aws.get_aws_account_id",
+        lambda: "123456789012",
+    )
+    monkeypatch.setenv("CITREES_IMAGE_URI", "repository@sha256:" + "a" * 64)
+    monkeypatch.setenv("GIT_SHA", "a" * 40)
+    monkeypatch.setattr(
+        "paper.benchmark.adapters.store.S3Store.from_env",
+        lambda validate_uploads: store,
+    )
+    monkeypatch.setattr(
+        "paper.benchmark.pipeline.reconcile.reconcile_manifest_artifacts",
+        reconcile,
+    )
+    _configure_gate(monkeypatch, manifest)
+    monkeypatch.setattr(server, "_preflight_manifest_datasets", lambda active_store, value: 1)
+    monkeypatch.setattr(
+        server,
+        "_validated_ranking_feature_count",
+        lambda active_store, cfg, completed, *, expected_provenance: (
+            cfg.dataset_identity.n_features if cfg.key in completed else None
+        ),
+    )
+    return store, manifest, reconcile
+
+
+def test_metrics_queue_build_requires_complete_exact_ranking_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config("r_ctree", dataset="fixture")
+    report = _ranking_reconciliation_report(config)
+    store, manifest, reconcile = _configure_metrics_queue_build(
+        monkeypatch,
+        config,
+        report,
+    )
+
+    server._build_queues()
+
+    reconcile.assert_called_once_with(
+        store,
+        manifest,
+        _expected_provenance(),
+        stages=("rankings",),
+    )
+    assert set(server._queues) == {"metrics/classification", "metrics/regression"}
+    assert server._queues["metrics/classification"].initial == 1
+    assert server._queues["metrics/regression"].initial == 0
+
+
+@pytest.mark.parametrize(
+    "issue",
+    [
+        "missing",
+        "extra",
+        "malformed",
+        "invalid",
+        "provenance_mismatch",
+    ],
+)
+def test_metrics_queue_build_rejects_any_ranking_reconciliation_issue(
+    issue: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config("r_ctree", dataset="fixture")
+    report = _ranking_reconciliation_report(config, issue=issue)
+    store, _manifest, reconcile = _configure_metrics_queue_build(
+        monkeypatch,
+        config,
+        report,
+    )
+    queue_factory = MagicMock(side_effect=AssertionError("metrics queue construction began"))
+    monkeypatch.setattr(QueueState, "from_configs", queue_factory)
+
+    with pytest.raises(RuntimeError, match=rf"{issue}=1"):
+        server._build_queues()
+
+    reconcile.assert_called_once()
+    assert store.list_completed_calls == []  # type: ignore[attr-defined]
+    queue_factory.assert_not_called()
+    assert server._queues == {}
 
 
 def test_next_assignment_includes_artifact_namespace(
@@ -583,6 +780,7 @@ def test_next_assignment_includes_artifact_namespace(
     server._manifest = RerunManifest(
         sha256="a" * 64,
         campaign_sha256="e" * 64,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         cells=(),
     )
     server._expected_provenance = _expected_provenance()
@@ -595,9 +793,12 @@ def test_next_assignment_includes_artifact_namespace(
     assert body["artifact_prefix"] == "repairs/r-baselines/run-001"
     assert body["aws_account_id"] == "123456789012"
     assert body["campaign_sha256"] == "e" * 64
+    assert body["canonical_manifest_sha256"] == CANONICAL_MANIFEST_SHA256
     assert body["container_image"] == "repository@sha256:" + "a" * 64
+    assert body["gate_receipt_sha256"] == GATE_RECEIPT_SHA256
     assert body["git_sha"] == "a" * 40
     assert body["manifest_sha256"] == "a" * 64
+    assert body["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
     assert len(body["assignment_id"]) == 32
     assert body["attempt"] == 1
     assert body["lease_seconds"] == 30
@@ -725,6 +926,94 @@ def test_lost_next_response_replays_one_uncharged_offer() -> None:
     assert queue.in_flight == 0
 
 
+def test_lost_next_response_replays_before_cross_task_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    classification_config = _config("r_ctree", dataset="classification-fixture")
+    regression_config = ExperimentConfig(
+        method=MethodConfig("r_ctree"),
+        dataset="regression-fixture",
+        seed=0,
+        task="regression",
+        dataset_identity=DatasetIdentity(
+            "d" * 64,
+            n_samples=100,
+            n_features=4,
+        ),
+    )
+    classification = QueueState.from_configs([classification_config], max_attempts=1)
+    regression = QueueState.from_configs([regression_config], max_attempts=1)
+    server._queues = {
+        "rankings/classification": classification,
+        "rankings/regression": regression,
+    }
+    server._active_stage = "rankings"
+    server._expected_provenance = _expected_provenance()
+    task_orders = iter(
+        [
+            ["classification", "regression"],
+            ["regression", "classification"],
+        ]
+    )
+    monkeypatch.setattr(
+        server.random,
+        "shuffle",
+        lambda tasks: tasks.__setitem__(slice(None), next(task_orders)),
+    )
+
+    first = asyncio.run(server._pick_next(WORKER_ID, REQUEST_ID))
+    replay = asyncio.run(server._pick_next(WORKER_ID, REQUEST_ID))
+
+    assert replay == first
+    assert classification.reserved == 1
+    assert regression.reserved == 0
+
+
+def test_cross_task_duplicate_request_ownership_is_rejected() -> None:
+    classification_config = _config("r_ctree", dataset="classification-fixture")
+    regression_config = ExperimentConfig(
+        method=MethodConfig("r_ctree"),
+        dataset="regression-fixture",
+        seed=0,
+        task="regression",
+        dataset_identity=DatasetIdentity(
+            "d" * 64,
+            n_samples=100,
+            n_features=4,
+        ),
+    )
+    classification = QueueState.from_configs([classification_config], max_attempts=1)
+    regression = QueueState.from_configs([regression_config], max_attempts=1)
+    server._queues = {
+        "rankings/classification": classification,
+        "rankings/regression": regression,
+    }
+    server._active_stage = "rankings"
+    server._expected_provenance = _expected_provenance()
+    classification_candidate = classification.next_candidate()
+    regression_candidate = regression.next_candidate()
+    assert classification_candidate is not None
+    assert regression_candidate is not None
+    for queue, (config, attempt) in (
+        (classification, classification_candidate),
+        (regression, regression_candidate),
+    ):
+        queue.offer_next(
+            server._deterministic_assignment_id(
+                config,
+                stage="rankings",
+                attempt=attempt,
+            ),
+            attempt,
+            WORKER_ID,
+            REQUEST_ID,
+            offer_seconds=30,
+        )
+
+    with pytest.raises(RuntimeError, match="multiple task queues"):
+        asyncio.run(server._pick_next(WORKER_ID, REQUEST_ID))
+
+
 def test_ambiguous_attempt_write_loads_and_validates_existing_receipt() -> None:
     config = _config("r_ctree", dataset="fixture")
     server._queues = {
@@ -739,6 +1028,7 @@ def test_ambiguous_attempt_write_loads_and_validates_existing_receipt() -> None:
     server._manifest = RerunManifest(
         sha256="a" * 64,
         campaign_sha256="e" * 64,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         cells=(),
     )
     assignment_id = server._deterministic_assignment_id(
@@ -831,6 +1121,7 @@ def test_failed_attempt_write_releases_reservation_without_consuming_attempt() -
     server._manifest = RerunManifest(
         sha256="a" * 64,
         campaign_sha256="e" * 64,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
         cells=(),
     )
     server._store = SimpleNamespace(  # type: ignore[assignment]
@@ -1097,9 +1388,12 @@ def test_worker_rejects_namespace_manifest_and_stage_mismatches(
         "artifact_prefix": "repairs/r-baselines/run-001",
         "aws_account_id": "123456789012",
         "campaign_sha256": "e" * 64,
+        "canonical_manifest_sha256": CANONICAL_MANIFEST_SHA256,
         "container_image": "repository@sha256:" + "a" * 64,
+        "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": "a" * 40,
         "manifest_sha256": "a" * 64,
+        "runtime_contract_sha256": RUNTIME_CONTRACT_SHA256,
         "stage": "rankings",
         "attempt": 1,
         "assignment_id": _assignment_id(config, 1),
@@ -1110,8 +1404,14 @@ def test_worker_rejects_namespace_manifest_and_stage_mismatches(
     monkeypatch.setenv("CITREES_STAGE", "rankings")
     monkeypatch.setenv("CITREES_ARTIFACT_PREFIX", "repairs/r-baselines/run-001")
     monkeypatch.setenv("CITREES_CAMPAIGN_SHA256", "e" * 64)
+    monkeypatch.setenv("CITREES_CANONICAL_MANIFEST_SHA256", CANONICAL_MANIFEST_SHA256)
+    monkeypatch.setenv("CITREES_GATE_RECEIPT_SHA256", GATE_RECEIPT_SHA256)
     monkeypatch.setenv("CITREES_MANIFEST_SHA256", "a" * 64)
-    monkeypatch.setenv("AWS_ACCOUNT_ID", "123456789012")
+    monkeypatch.setenv("CITREES_RUNTIME_CONTRACT_SHA256", RUNTIME_CONTRACT_SHA256)
+    monkeypatch.setattr(
+        "paper.benchmark.infra.aws.get_aws_account_id",
+        lambda: "123456789012",
+    )
     monkeypatch.setenv("CITREES_IMAGE_URI", "repository@sha256:" + "a" * 64)
     monkeypatch.setenv("GIT_SHA", "a" * 40)
 
@@ -1119,6 +1419,7 @@ def test_worker_rejects_namespace_manifest_and_stage_mismatches(
         _validate_assignment(
             payload,
             store,  # type: ignore[arg-type]
+            approved_configs={config.key: config},
             worker_id=WORKER_ID,
             request_id=REQUEST_ID,
         )
@@ -1133,6 +1434,16 @@ def test_worker_rejects_namespace_manifest_and_stage_mismatches(
         validate({**assignment, "manifest_sha256": "b" * 64})
     with pytest.raises(RuntimeError, match="provenance mismatch"):
         validate({**assignment, "aws_account_id": "999999999999"})
+
+    outside = replace(config, dataset="outside")
+    with pytest.raises(RuntimeError, match="outside the active manifest"):
+        validate(
+            {
+                **assignment,
+                "assignment_id": _assignment_id(outside, 1),
+                **server._serialize_config(outside),
+            }
+        )
 
 
 def test_needs_metrics_work_when_no_metrics_artifact_exists():

@@ -11,13 +11,10 @@ from __future__ import annotations
 import importlib.metadata
 import os
 import platform
-import re
 import subprocess
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-
-_AWS_ACCOUNT_ID_PATTERN = re.compile(r"^[0-9]{12}$")
 
 
 def get_repo_root() -> Path:
@@ -83,18 +80,29 @@ def get_container_image() -> str:
 def get_benchmark_scope() -> dict[str, str]:
     """Return the required immutable scope for a benchmark artifact."""
     from paper.benchmark.adapters.store import _normalize_artifact_prefix
+    from paper.benchmark.infra.aws import get_aws_account_id
     from paper.benchmark.pipeline.manifest import validate_manifest_sha256
 
     artifact_prefix = _normalize_artifact_prefix(os.environ.get("CITREES_ARTIFACT_PREFIX", ""))
     manifest_sha256 = validate_manifest_sha256(os.environ.get("CITREES_MANIFEST_SHA256", ""))
     campaign_sha256 = validate_manifest_sha256(os.environ.get("CITREES_CAMPAIGN_SHA256", ""))
-    aws_account_id = os.environ.get("AWS_ACCOUNT_ID", "").strip()
-    if not _AWS_ACCOUNT_ID_PATTERN.fullmatch(aws_account_id):
-        raise RuntimeError("AWS_ACCOUNT_ID must contain exactly 12 decimal digits")
+    canonical_manifest_sha256 = validate_manifest_sha256(
+        os.environ.get("CITREES_CANONICAL_MANIFEST_SHA256", "")
+    )
+    gate_receipt_sha256 = validate_manifest_sha256(
+        os.environ.get("CITREES_GATE_RECEIPT_SHA256", "")
+    )
+    runtime_contract_sha256 = validate_manifest_sha256(
+        os.environ.get("CITREES_RUNTIME_CONTRACT_SHA256", "")
+    )
+    aws_account_id = get_aws_account_id()
     return {
         "artifact_prefix": artifact_prefix,
         "campaign_sha256": campaign_sha256,
+        "canonical_manifest_sha256": canonical_manifest_sha256,
+        "gate_receipt_sha256": gate_receipt_sha256,
         "manifest_sha256": manifest_sha256,
+        "runtime_contract_sha256": runtime_contract_sha256,
         "aws_account_id": aws_account_id,
     }
 

@@ -28,7 +28,7 @@ import pandas as pd
 from paper.benchmark.adapters.runner import LocalRunner
 from paper.benchmark.adapters.store import LoadedArtifact
 from paper.benchmark.pipeline.grid import ExperimentGrid
-from paper.benchmark.pipeline.types import ExperimentConfig, StageType, TaskType
+from paper.benchmark.pipeline.types import CellKey, ExperimentConfig, StageType, TaskType
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_WORKDIR = ROOT / "scratch" / "dt_rt_ranked_feature_check"
@@ -82,15 +82,15 @@ class LocalParquetStore:
             payload_sha256=hashlib.sha256(payload).hexdigest(),
         )
 
-    def list_completed(self, stage: StageType, task: TaskType) -> set[tuple[str, str, int]]:
-        completed: set[tuple[str, str, int]] = set()
+    def list_completed(self, stage: StageType, task: TaskType) -> set[CellKey]:
+        completed: set[CellKey] = set()
         root = self.base_dir / stage / task
         if not root.exists():
             return completed
 
         for path in root.glob("*/*_seed*.parquet"):
             method_label, seed_text = path.stem.rsplit("_seed", 1)
-            completed.add((method_label, path.parent.name, int(seed_text)))
+            completed.add((task, path.parent.name, method_label, int(seed_text)))
         return completed
 
 

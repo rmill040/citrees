@@ -48,7 +48,9 @@ from citrees import (
     ConditionalInferenceForestRegressor,
 )
 from paper.benchmark.adapters.data import (
+    TaskType,
     get_cv_splitter,
+    get_dataset_identity,
     get_dataset_metadata,
     get_datasets,
     load_dataset,
@@ -473,12 +475,21 @@ def run_item(
     library_versions = get_library_versions()
     hostname = socket.gethostname()
 
-    X, y = load_dataset(item.dataset, item.task)
-    n_samples, n_features = int(X.shape[0]), int(X.shape[1])
-    dataset_meta = get_dataset_metadata(item.dataset, item.task)
-    params = load_selected_cif_params(item.task, n_jobs=n_jobs)
+    task: TaskType
+    if item.task == "classification":
+        task = "classification"
+    elif item.task == "regression":
+        task = "regression"
+    else:
+        raise ValueError(f"Unknown task: {item.task!r}")
 
-    cv = get_cv_splitter(item.task, N_SPLITS, item.seed)
+    dataset_identity = get_dataset_identity(item.dataset, task)
+    X, y = load_dataset(item.dataset, task, identity=dataset_identity)
+    n_samples, n_features = int(X.shape[0]), int(X.shape[1])
+    dataset_meta = get_dataset_metadata(item.dataset, task, identity=dataset_identity)
+    params = load_selected_cif_params(task, n_jobs=n_jobs)
+
+    cv = get_cv_splitter(task, N_SPLITS, item.seed)
     splits = list(cv.split(X, y))
     if item.fold_idx < 0 or item.fold_idx >= len(splits):
         raise ValueError(f"Invalid fold_idx={item.fold_idx}; expected 0..{len(splits) - 1}")

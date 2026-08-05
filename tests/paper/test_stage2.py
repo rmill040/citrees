@@ -315,10 +315,12 @@ def test_run_evaluation_validates_and_round_trips_complete_artifact(
         "artifact_prefix": "repairs/run-001",
         "aws_account_id": "123456789012",
         "campaign_sha256": "e" * 64,
+        "canonical_manifest_sha256": "c" * 64,
         "container_image": "repository@sha256:" + "a" * 64,
         "created_at_utc": "2026-08-03T12:00:00+00:00",
         "dataset": config.dataset,
         "dataset_sha256": config.dataset_identity.sha256,
+        "gate_receipt_sha256": "d" * 64,
         "git_sha": "a" * 40,
         "hardware": {"logical_cpus": 32},
         "library_versions": {"python": "3.12.7"},
@@ -331,6 +333,7 @@ def test_run_evaluation_validates_and_round_trips_complete_artifact(
             separators=(",", ":"),
         ),
         "manifest_sha256": "b" * 64,
+        "runtime_contract_sha256": "f" * 64,
         "n_features": X.shape[1],
         "n_samples": X.shape[0],
         "seed": config.seed,
@@ -415,7 +418,10 @@ def test_run_evaluation_validates_and_round_trips_complete_artifact(
         lambda: {
             "artifact_prefix": "repairs/run-001",
             "campaign_sha256": "e" * 64,
+            "canonical_manifest_sha256": "c" * 64,
+            "gate_receipt_sha256": "d" * 64,
             "manifest_sha256": "b" * 64,
+            "runtime_contract_sha256": "f" * 64,
             "aws_account_id": "123456789012",
         },
     )
@@ -426,6 +432,10 @@ def test_run_evaluation_validates_and_round_trips_complete_artifact(
     assert result.status == expected_status, result.error
     assert store.saved is not None
     assert store.saved["dataset_sha256"].unique().tolist() == ["d" * 64]
+    assert store.saved["canonical_manifest_sha256"].unique().tolist() == ["c" * 64]
+    assert store.saved["gate_receipt_sha256"].unique().tolist() == ["d" * 64]
     assert store.saved["ranking_dataset_sha256"].unique().tolist() == ["d" * 64]
+    assert store.saved["ranking_canonical_manifest_sha256"].unique().tolist() == ["c" * 64]
+    assert store.saved["ranking_gate_receipt_sha256"].unique().tolist() == ["d" * 64]
     assert store.saved["ranking_payload_sha256"].unique().tolist() == ["c" * 64]
     validate_metrics_artifact(store.saved, config)

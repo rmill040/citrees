@@ -111,15 +111,18 @@ Compatible bounded statistics can also be combined in a max-$T$ permutation
 test \citep{Westfall+Young:1993}. This option evaluates the largest configured
 selector score within each response permutation and uses the resulting joint
 max-statistic reference distribution.
-The RDC implementation uses 10 random projections, which produce 20 sine and
-cosine columns. We compared 5, 10, 20, and 40 projections in a 5-seed, 5-fold
-sensitivity analysis on Wine, Glass, Heart Statlog, Ionosphere, and Breast
-Cancer Wisconsin (Diagnostic), with 178 to 569 samples and 10 to 34 features
-per dataset. Increasing the count from 10 to 20 multiplied median selector time
-by 3.00$\times$ to 3.24$\times$ across datasets. Across all reduced feature
-counts and three classifiers, mean paired balanced accuracy differences ranged
-from $-0.0052$ to $0.0027$, with mean selected-set overlap from 87.5\% to
-99.9\%.
+The RDC implementation uses 10 random projections (20 sine and cosine columns).
+A 5-seed, 5-fold sensitivity analysis compared 5, 10, 20, and 40 projections on
+Wine (178 samples, 13 features), Glass (214 samples, 10 features), Heart
+Statlog (270 samples, 13 features), and Parkinsons (195 samples, 22 features).
+Across 25 paired seed-fold evaluations per dataset, median selector time with
+20 projections was 3.01 to 3.08 times that with 10. At reduced feature counts
+(5 and 10 for Wine, Heart Statlog, and Parkinsons; 5 for Glass), mean balanced
+accuracy differences (20 minus 10) ranged from $-0.0052$ to $0.0005$ across the
+three downstream classifiers, and mean overlap between selected feature sets
+ranged from 95.4\% to 99.8\%. Using 10 projections reduced median selector time
+by 66.8\% to 67.5\% relative to 20 while preserving the observed accuracy at
+these scales.
 
 The exhaustive procedure evaluates every candidate with the requested
 permutation budget and reports fixed-$B$ $p$~values. Adaptive stopping checks

@@ -12,7 +12,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from paper.benchmark.pipeline.runtime_contract import (
+    validate_runtime_contract_sha256,
+)
 from paper.benchmark.pipeline.types import (
+    CellKey,
     DatasetIdentity,
     ExperimentConfig,
     MethodConfig,
@@ -26,6 +30,7 @@ MANIFEST_COLUMNS = (
     "task",
     "target_aws_account_id",
     "campaign_sha256",
+    "runtime_contract_sha256",
     "dataset_source",
     "dataset",
     "dataset_sha256",
@@ -42,6 +47,7 @@ MANIFEST_COLUMNS = (
     "status",
 )
 MANIFEST_S3_PREFIX = "rerun-manifests"
+CANONICAL_CAMPAIGN_ACCOUNT_COUNT = 2
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _AWS_ACCOUNT_ID_PATTERN = re.compile(r"^[0-9]{12}$")
 _DATASET_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -61,14 +67,9 @@ class ManifestCell:
     stage2_required: bool
 
     @property
-    def identity(self) -> tuple[str, str, str, int]:
+    def identity(self) -> CellKey:
         """Return the globally unique cell identity."""
-        return (
-            self.config.task,
-            self.config.dataset,
-            self.config.method.label,
-            self.config.seed,
-        )
+        return self.config.key
 
     def required_for(self, stage: StageType) -> bool:
         """Return whether this cell is required for the requested stage."""
@@ -81,6 +82,7 @@ class RerunManifest:
 
     sha256: str
     campaign_sha256: str
+    runtime_contract_sha256: str
     cells: tuple[ManifestCell, ...]
 
     def configs_for(self, task: TaskType, stage: StageType) -> tuple[ExperimentConfig, ...]:
@@ -120,10 +122,15 @@ def manifest_s3_key(sha256: str) -> str:
     return f"{MANIFEST_S3_PREFIX}/{validate_manifest_sha256(sha256)}.csv"
 
 
-def compute_campaign_sha256(cells: tuple[ManifestCell, ...]) -> str:
+def compute_campaign_sha256(
+    cells: tuple[ManifestCell, ...],
+    *,
+    runtime_contract_sha256: str,
+) -> str:
     """Hash the complete canonical campaign independently of shard files."""
     if not cells:
         raise ValueError("campaign must contain at least one cell")
+    runtime_contract_sha256 = validate_runtime_contract_sha256(runtime_contract_sha256)
     records: list[dict[str, Any]] = []
     for cell in sorted(cells, key=lambda value: value.identity):
         config = cell.config
@@ -152,9 +159,13 @@ def compute_campaign_sha256(cells: tuple[ManifestCell, ...]) -> str:
             }
         )
     payload = json.dumps(
-        records,
+        {
+            "runtime_contract_sha256": runtime_contract_sha256,
+            "cells": records,
+        },
         sort_keys=True,
         separators=(",", ":"),
+        ensure_ascii=True,
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
@@ -162,11 +173,20 @@ def compute_campaign_sha256(cells: tuple[ManifestCell, ...]) -> str:
 
 def validate_canonical_campaign(manifest: RerunManifest) -> None:
     """Require a full manifest's campaign digest to match all of its cells."""
-    observed = compute_campaign_sha256(manifest.cells)
+    observed = compute_campaign_sha256(
+        manifest.cells,
+        runtime_contract_sha256=manifest.runtime_contract_sha256,
+    )
     if manifest.campaign_sha256 != observed:
         raise ValueError(
             "canonical campaign SHA-256 mismatch: "
             f"declared {manifest.campaign_sha256}, observed {observed}"
+        )
+    if len(manifest.account_ids) != CANONICAL_CAMPAIGN_ACCOUNT_COUNT:
+        raise ValueError(
+            "canonical campaign must bind exactly "
+            f"{CANONICAL_CAMPAIGN_ACCOUNT_COUNT} AWS accounts, observed "
+            f"{list(manifest.account_ids)}"
         )
 
 
@@ -242,9 +262,10 @@ def parse_rerun_manifest(
     from paper.benchmark.pipeline.methods import get_full_method_configs, get_methods
 
     methods_by_scope: dict[tuple[TaskType, str], dict[str, MethodConfig]] = {}
-    identities: set[tuple[str, str, str, int]] = set()
+    identities: set[CellKey] = set()
     dataset_identities: dict[tuple[TaskType, DataSource, str], DatasetIdentity] = {}
     campaign_sha256: str | None = None
+    runtime_contract_sha256: str | None = None
     cells: list[ManifestCell] = []
 
     for line_number, row in enumerate(reader, start=2):
@@ -268,6 +289,17 @@ def parse_rerun_manifest(
         elif campaign_sha256 != row_campaign_sha256:
             raise ValueError(
                 f"manifest line {line_number}: campaign_sha256 conflicts with an earlier row"
+            )
+
+        row_runtime_contract_sha256 = validate_runtime_contract_sha256(
+            row["runtime_contract_sha256"]
+        )
+        if runtime_contract_sha256 is None:
+            runtime_contract_sha256 = row_runtime_contract_sha256
+        elif runtime_contract_sha256 != row_runtime_contract_sha256:
+            raise ValueError(
+                f"manifest line {line_number}: runtime_contract_sha256 "
+                "conflicts with an earlier row"
             )
 
         source_raw = row["dataset_source"]
@@ -388,9 +420,11 @@ def parse_rerun_manifest(
     if not cells:
         raise ValueError("manifest must contain at least one cell")
     assert campaign_sha256 is not None
+    assert runtime_contract_sha256 is not None
     return RerunManifest(
         sha256=digest,
         campaign_sha256=campaign_sha256,
+        runtime_contract_sha256=runtime_contract_sha256,
         cells=tuple(cells),
     )
 
@@ -399,11 +433,13 @@ def serialize_rerun_manifest(
     cells: tuple[ManifestCell, ...],
     *,
     campaign_sha256: str,
+    runtime_contract_sha256: str,
 ) -> bytes:
     """Serialize cells as a canonical manifest CSV."""
     if not cells:
         raise ValueError("manifest shard must contain at least one cell")
     campaign_sha256 = validate_manifest_sha256(campaign_sha256)
+    runtime_contract_sha256 = validate_runtime_contract_sha256(runtime_contract_sha256)
 
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=MANIFEST_COLUMNS, lineterminator="\n")
@@ -415,6 +451,7 @@ def serialize_rerun_manifest(
                 "task": config.task,
                 "target_aws_account_id": cell.target_aws_account_id,
                 "campaign_sha256": campaign_sha256,
+                "runtime_contract_sha256": runtime_contract_sha256,
                 "dataset_source": cell.dataset_source,
                 "dataset": config.dataset,
                 "dataset_sha256": config.dataset_identity.sha256,
@@ -451,11 +488,43 @@ def partition_rerun_manifest_by_account(
         account_id: serialize_rerun_manifest(
             tuple(cells),
             campaign_sha256=manifest.campaign_sha256,
+            runtime_contract_sha256=manifest.runtime_contract_sha256,
         )
         for account_id, cells in sorted(cells_by_account.items())
     }
     verify_account_manifest_shards(manifest, payloads)
     return payloads
+
+
+def account_manifest_sha256_map(manifest: RerunManifest) -> dict[str, str]:
+    """Return the exact content digest of each deterministic account shard."""
+    return {
+        account_id: hashlib.sha256(payload).hexdigest()
+        for account_id, payload in partition_rerun_manifest_by_account(manifest).items()
+    }
+
+
+def verify_account_manifest_shard(
+    canonical: RerunManifest,
+    *,
+    account_id: str,
+    payload: bytes,
+) -> RerunManifest:
+    """Require one byte-exact deterministic shard of a canonical manifest."""
+    expected_payload = partition_rerun_manifest_by_account(canonical).get(account_id)
+    if expected_payload is None:
+        raise ValueError(f"account {account_id!r} is outside the canonical manifest")
+    if payload != expected_payload:
+        expected_sha256 = hashlib.sha256(expected_payload).hexdigest()
+        observed_sha256 = hashlib.sha256(payload).hexdigest()
+        raise ValueError(
+            f"account {account_id} manifest shard differs from the canonical "
+            f"partition: expected {expected_sha256}, observed {observed_sha256}"
+        )
+    return parse_rerun_manifest(
+        payload,
+        expected_sha256=hashlib.sha256(expected_payload).hexdigest(),
+    )
 
 
 def verify_account_manifest_shards(
@@ -471,13 +540,17 @@ def verify_account_manifest_shards(
         )
 
     expected = {cell.identity: cell for cell in canonical.cells}
-    observed: dict[tuple[str, str, str, int], ManifestCell] = {}
+    observed: dict[CellKey, ManifestCell] = {}
     counts: dict[str, int] = {}
     for account_id, payload in sorted(shard_payloads.items()):
         shard = parse_rerun_manifest(payload)
         if shard.campaign_sha256 != canonical.campaign_sha256:
             raise ValueError(
                 f"shard {account_id} campaign SHA-256 differs from the canonical campaign"
+            )
+        if shard.runtime_contract_sha256 != canonical.runtime_contract_sha256:
+            raise ValueError(
+                f"shard {account_id} runtime contract SHA-256 differs from the canonical campaign"
             )
         if shard.account_ids != (account_id,):
             raise ValueError(

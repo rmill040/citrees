@@ -607,6 +607,7 @@ def _patch_launch_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
         assert kwargs == {
             "output_prefix": campaign.output_prefix,
             "campaign_sha256": campaign.campaign_sha256,
+            "read_keys": (campaign.manifest_key,),
             "write_prefixes": (f"{campaign.output_prefix}/shards",),
             "region": campaign.region,
         }

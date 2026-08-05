@@ -61,9 +61,12 @@ def _expected_provenance() -> dict[str, str]:
         "artifact_prefix": ARTIFACT_PREFIX,
         "aws_account_id": "123456789012",
         "campaign_sha256": "e" * 64,
+        "canonical_manifest_sha256": "c" * 64,
         "container_image": "repository@sha256:" + "a" * 64,
+        "gate_receipt_sha256": "d" * 64,
         "git_sha": "a" * 40,
         "manifest_sha256": "b" * 64,
+        "runtime_contract_sha256": "f" * 64,
     }
 
 
@@ -652,8 +655,8 @@ def test_list_completed_is_isolated_to_prefixed_stage_and_task(stage: str) -> No
     completed = store.list_completed(stage, "classification")  # type: ignore[arg-type]
 
     assert completed == {
-        (config.method.label, "wine", 3),
-        ("r_cforest__abc123", "glass", 0),
+        ("classification", "wine", config.method.label, 3),
+        ("classification", "glass", "r_cforest__abc123", 0),
     }
     client.get_paginator.assert_called_once_with("list_objects_v2")
     paginator.paginate.assert_called_once_with(Bucket=BUCKET, Prefix=stage_prefix)

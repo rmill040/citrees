@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import sys
 import time
+from io import TextIOWrapper
 from typing import Any
 
 import numpy as np
@@ -190,7 +191,7 @@ def _process_variant(
     base_row["n_samples"] = X_base.shape[0]
 
     agg_row = dict(base_row)
-    all_metric_keys = set()
+    all_metric_keys: set[str] = set()
     for d in all_top_k:
         all_metric_keys.update(d.keys())
     for metric_key in sorted(all_metric_keys):
@@ -262,7 +263,8 @@ def run() -> pd.DataFrame:
 
 def main() -> None:
     """Entry point."""
-    sys.stdout.reconfigure(line_buffering=True)
+    if isinstance(sys.stdout, TextIOWrapper):
+        sys.stdout.reconfigure(line_buffering=True)
     print(f"=== {EXPERIMENT_NAME} ===")
     warmup_jit()
     df = run()

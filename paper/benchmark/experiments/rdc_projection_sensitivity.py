@@ -15,7 +15,6 @@ from typing import Any, Final, Literal
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
-from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler
 
 from paper.benchmark.adapters.data import (
@@ -24,6 +23,7 @@ from paper.benchmark.adapters.data import (
     get_dataset_identity,
     load_dataset,
 )
+from paper.benchmark.config.constants import CLF_DOWNSTREAM_MODELS
 from paper.benchmark.pipeline.stage1 import permutation_selector
 from paper.benchmark.pipeline.stage2 import (
     evaluate_fold,
@@ -34,21 +34,19 @@ from paper.benchmark.utils import get_hardware_metadata, get_library_versions
 ROOT: Final[Path] = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR: Final[Path] = ROOT / "paper" / "results" / "rdc-projection-sensitivity"
 STUDY_DATA_DIR: Final[Path] = ROOT / "paper" / "data" / "rdc-projection-sensitivity"
-DATASETS: Final[tuple[str, ...]] = (
-    "wine",
-    "glass",
-    "heart-statlog",
-    "ionosphere",
-    "breast-cancer",
-)
+DATASETS: Final[tuple[str, ...]] = ("wine", "glass", "heart-statlog", "parkinsons")
 SNAPSHOT_SOURCES: Final[dict[str, str]] = {
     "heart-statlog": "OpenML dataset 53, version 1 (UCI Statlog Heart)",
-    "ionosphere": "OpenML dataset 59, version 1 (UCI Ionosphere)",
+    "parkinsons": "OpenML dataset 1488, version 1 (UCI Parkinsons)",
 }
 TASK: Final[Literal["classification"]] = "classification"
 PROJECTION_COUNTS: Final[tuple[int, ...]] = (5, 10, 20, 40)
 N_FOLDS: Final[int] = 5
 DEFAULT_SEEDS: Final[tuple[int, ...]] = (0, 1, 2, 3, 4)
+SELECTOR_METHOD: Final[str] = "ptest_rdc"
+SELECTOR_ALPHA: Final[float] = 0.05
+SELECTOR_N_RESAMPLES: Final[str] = "auto"
+SELECTOR_EARLY_STOPPING: Final[str] = "adaptive"
 RANKING_COLUMNS: Final[tuple[str, ...]] = (
     "task",
     "dataset",
@@ -67,6 +65,8 @@ SUMMARY_FILENAMES: Final[tuple[str, ...]] = (
     "performance-summary.csv",
     "stability.csv",
     "stability-summary.csv",
+    "ranking-stability.csv",
+    "ranking-stability-summary.csv",
     "comparison-summary.csv",
     "receipt.json",
 )
@@ -91,53 +91,19 @@ class StudyDataset:
         return int(self.X.shape[1])
 
 
-def _array_sha256(
-    X: np.ndarray,
-    y: np.ndarray,
-    feature_names: tuple[str, ...],
-) -> str:
-    """Hash normalized array contents, shapes, and feature names."""
-    digest = hashlib.sha256()
-    for label, array, dtype in (
-        (b"X", X, "<f8"),
-        (b"y", y, "<i8"),
-    ):
-        normalized = np.ascontiguousarray(array, dtype=np.dtype(dtype))
-        digest.update(label)
-        digest.update(np.asarray(normalized.shape, dtype="<i8").tobytes())
-        digest.update(normalized.tobytes())
-    digest.update("\0".join(feature_names).encode("utf-8"))
-    return digest.hexdigest()
-
-
 def _load_study_dataset(name: str) -> StudyDataset:
-    """Load one fixed local or scikit-learn dataset with content identity."""
+    """Load one fixed benchmark dataset with content identity."""
     if name in SNAPSHOT_SOURCES:
         path = STUDY_DATA_DIR / f"{name}.parquet"
         identity = get_dataset_file_identity(path)
         frame = pd.read_parquet(path)
         feature_columns = [column for column in frame.columns if column != "y"]
-        X = frame[feature_columns].to_numpy(dtype=np.float64)
-        y = frame["y"].to_numpy(dtype=np.int64)
         return StudyDataset(
             name=name,
             sha256=identity.sha256,
             source=SNAPSHOT_SOURCES[name],
-            X=X,
-            y=y,
-        )
-
-    if name == "breast-cancer":
-        bunch = load_breast_cancer()
-        X = np.asarray(bunch.data, dtype=np.float64)
-        y = np.asarray(bunch.target, dtype=np.int64)
-        feature_names = tuple(str(value) for value in bunch.feature_names)
-        return StudyDataset(
-            name=name,
-            sha256=_array_sha256(X, y, feature_names),
-            source="scikit-learn Breast Cancer Wisconsin (Diagnostic)",
-            X=X,
-            y=y,
+            X=frame[feature_columns].to_numpy(dtype=np.float64),
+            y=frame["y"].to_numpy(dtype=np.int64),
         )
 
     identity = get_dataset_identity(name, TASK, source="real")
@@ -160,6 +126,18 @@ def _parse_int_csv(value: str) -> tuple[int, ...]:
     values = tuple(int(part.strip()) for part in value.split(",") if part.strip())
     if not values or any(seed < 0 for seed in values) or len(set(values)) != len(values):
         raise ValueError("seeds must be a nonempty comma-separated list of unique integers")
+    return values
+
+
+def _parse_dataset_csv(value: str) -> tuple[str, ...]:
+    values = tuple(part.strip() for part in value.split(",") if part.strip())
+    if not values:
+        raise ValueError("datasets must be a nonempty comma-separated list")
+    if len(set(values)) != len(values):
+        raise ValueError("datasets must not contain duplicates")
+    unknown = sorted(set(values) - set(DATASETS))
+    if unknown:
+        raise ValueError(f"unknown datasets: {', '.join(unknown)}")
     return values
 
 
@@ -187,7 +165,7 @@ def _completed_keys(
 ) -> set[tuple[str, int, int, int]]:
     if rankings.empty or metrics.empty:
         return set()
-    expected_models = {"lr", "svm", "knn"}
+    expected_models = set(CLF_DOWNSTREAM_MODELS)
     completed: set[tuple[str, int, int, int]] = set()
     for key, ranking_group in rankings.groupby(
         ["dataset", "seed", "fold", "projection_count"],
@@ -212,7 +190,7 @@ def _completed_keys(
             )
         )
         expected_pairs = {(selected, model) for selected in expected_k for model in expected_models}
-        if observed_pairs == expected_pairs:
+        if len(metric_group) == len(expected_pairs) and observed_pairs == expected_pairs:
             completed.add(
                 (
                     str(dataset),
@@ -222,6 +200,30 @@ def _completed_keys(
                 )
             )
     return completed
+
+
+def _retain_completed_rows(
+    rankings: pd.DataFrame,
+    metrics: pd.DataFrame,
+    completed: set[tuple[str, int, int, int]],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Keep only complete cells so interrupted cells are replaced on resume."""
+
+    def row_is_complete(row: Any) -> bool:
+        return (
+            str(row.dataset),
+            int(row.seed),
+            int(row.fold),
+            int(row.projection_count),
+        ) in completed
+
+    clean_rankings = rankings.loc[
+        [row_is_complete(row) for row in rankings.itertuples(index=False)]
+    ].copy()
+    clean_metrics = metrics.loc[
+        [row_is_complete(row) for row in metrics.itertuples(index=False)]
+    ].copy()
+    return clean_rankings, clean_metrics
 
 
 def _load_existing(output_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -236,6 +238,43 @@ def _load_existing(output_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     return rankings, metrics
 
 
+def _validate_existing_scope(
+    rankings: pd.DataFrame,
+    metrics: pd.DataFrame,
+    *,
+    datasets: tuple[str, ...],
+    seeds: tuple[int, ...],
+) -> None:
+    """Reject output rows outside the requested experiment scope."""
+    requested_datasets = set(datasets)
+    requested_seeds = set(seeds)
+    for label, frame in (("rankings", rankings), ("metrics", metrics)):
+        if frame.empty:
+            continue
+        unexpected_datasets = sorted(set(frame["dataset"].astype(str)) - requested_datasets)
+        if unexpected_datasets:
+            raise RuntimeError(
+                f"existing {label} contain datasets outside the requested scope: "
+                f"{', '.join(unexpected_datasets)}"
+            )
+        unexpected_seeds = sorted(set(frame["seed"].astype(int)) - requested_seeds)
+        if unexpected_seeds:
+            raise RuntimeError(
+                f"existing {label} contain seeds outside the requested scope: {unexpected_seeds}"
+            )
+        unexpected_folds = sorted(set(frame["fold"].astype(int)) - set(range(N_FOLDS)))
+        if unexpected_folds:
+            raise RuntimeError(f"existing {label} contain invalid folds: {unexpected_folds}")
+        unexpected_projection_counts = sorted(
+            set(frame["projection_count"].astype(int)) - set(PROJECTION_COUNTS)
+        )
+        if unexpected_projection_counts:
+            raise RuntimeError(
+                f"existing {label} contain invalid projection counts: "
+                f"{unexpected_projection_counts}"
+            )
+
+
 def _warm_rdc() -> None:
     dataset = _load_study_dataset("wine")
     train_idx, _ = next(iter(get_cv_splitter(TASK, N_FOLDS, 0).split(dataset.X, dataset.y)))
@@ -243,13 +282,13 @@ def _warm_rdc() -> None:
     permutation_selector(
         X_train,
         dataset.y[train_idx],
-        method="ptest_rdc",
+        method=SELECTOR_METHOD,
         task=TASK,
         random_state=0,
         params={
-            "alpha": 0.05,
-            "n_resamples": "auto",
-            "early_stopping": "adaptive",
+            "alpha": SELECTOR_ALPHA,
+            "n_resamples": SELECTOR_N_RESAMPLES,
+            "early_stopping": SELECTOR_EARLY_STOPPING,
             "rdc_n_projections": PROJECTION_COUNTS[0],
         },
     )
@@ -257,17 +296,25 @@ def _warm_rdc() -> None:
 
 def run(
     *,
+    datasets: tuple[str, ...],
     seeds: tuple[int, ...],
     output_dir: Path,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Run missing dataset, fold, and projection-count combinations."""
     rankings, metrics = _load_existing(output_dir)
+    _validate_existing_scope(
+        rankings,
+        metrics,
+        datasets=datasets,
+        seeds=seeds,
+    )
     completed = _completed_keys(rankings, metrics)
+    rankings, metrics = _retain_completed_rows(rankings, metrics, completed)
     ranking_rows = rankings.to_dict("records")
     metric_rows = metrics.to_dict("records")
 
     _warm_rdc()
-    for dataset_name in DATASETS:
+    for dataset_name in datasets:
         dataset = _load_study_dataset(dataset_name)
         X, y = dataset.X, dataset.y
         k_values = get_requested_evaluation_k_values(dataset.n_features)
@@ -287,13 +334,13 @@ def run(
                     ranking = permutation_selector(
                         X_train,
                         y[train_idx],
-                        method="ptest_rdc",
+                        method=SELECTOR_METHOD,
                         task=TASK,
                         random_state=random_state,
                         params={
-                            "alpha": 0.05,
-                            "n_resamples": "auto",
-                            "early_stopping": "adaptive",
+                            "alpha": SELECTOR_ALPHA,
+                            "n_resamples": SELECTOR_N_RESAMPLES,
+                            "early_stopping": SELECTOR_EARLY_STOPPING,
                             "rdc_n_projections": projection_count,
                         },
                     )
@@ -348,7 +395,7 @@ def run(
 
 
 def build_stability(rankings: pd.DataFrame) -> pd.DataFrame:
-    """Compare complete rankings and selected sets within matched folds."""
+    """Compare selected sets within matched folds."""
     rows: list[dict[str, Any]] = []
     for (dataset, seed, fold), group in rankings.groupby(
         ["dataset", "seed", "fold"],
@@ -364,12 +411,7 @@ def build_stability(rankings: pd.DataFrame) -> pd.DataFrame:
         if set(by_projection) != set(PROJECTION_COUNTS):
             continue
         n_features = len(next(iter(by_projection.values())))
-        positions = {
-            projection_count: np.argsort(ranking)
-            for projection_count, ranking in by_projection.items()
-        }
         for left, right in combinations(PROJECTION_COUNTS, 2):
-            rank_correlation = float(spearmanr(positions[left], positions[right]).statistic)
             for selected in get_requested_evaluation_k_values(n_features):
                 left_set = set(by_projection[left][:selected])
                 right_set = set(by_projection[right][:selected])
@@ -383,19 +425,56 @@ def build_stability(rankings: pd.DataFrame) -> pd.DataFrame:
                         "selected_features": selected,
                         "overlap_fraction": len(left_set & right_set) / selected,
                         "jaccard": len(left_set & right_set) / len(left_set | right_set),
-                        "spearman_complete_ranking": rank_correlation,
                     }
                 )
+    return pd.DataFrame(rows)
+
+
+def build_ranking_stability(rankings: pd.DataFrame) -> pd.DataFrame:
+    """Compare complete ranking positions once per matched fold and pair."""
+    rows: list[dict[str, Any]] = []
+    for (dataset, seed, fold), group in rankings.groupby(
+        ["dataset", "seed", "fold"],
+        sort=True,
+    ):
+        by_projection = {
+            int(row.projection_count): np.asarray(
+                json.loads(row.feature_ranking),
+                dtype=np.int64,
+            )
+            for row in group.itertuples()
+        }
+        if set(by_projection) != set(PROJECTION_COUNTS):
+            continue
+        positions = {
+            projection_count: np.argsort(ranking)
+            for projection_count, ranking in by_projection.items()
+        }
+        for left, right in combinations(PROJECTION_COUNTS, 2):
+            rows.append(
+                {
+                    "dataset": dataset,
+                    "seed": seed,
+                    "fold": fold,
+                    "projection_count_left": left,
+                    "projection_count_right": right,
+                    "spearman_complete_ranking": float(
+                        spearmanr(positions[left], positions[right]).statistic
+                    ),
+                }
+            )
     return pd.DataFrame(rows)
 
 
 def build_comparison_summary(
     rankings: pd.DataFrame,
     metrics: pd.DataFrame,
-    timing: pd.DataFrame,
     stability: pd.DataFrame,
+    ranking_stability: pd.DataFrame,
+    *,
+    datasets: tuple[str, ...],
 ) -> pd.DataFrame:
-    """Compare 10 and 20 projections at reduced feature counts."""
+    """Compare 10 and 20 projections with paired descriptive summaries."""
     comparison_rows: list[dict[str, Any]] = []
     metric_index = ["dataset", "seed", "fold", "k", "downstream_model"]
     paired_metrics = metrics.pivot(
@@ -404,34 +483,64 @@ def build_comparison_summary(
         values="balanced_accuracy",
     )
     n_features = rankings.groupby("dataset")["n_features"].first().astype(int).to_dict()
-    for dataset_name in DATASETS:
-        timing_rows = timing[timing["dataset"] == dataset_name].set_index("projection_count")
+    for dataset_name in datasets:
+        selection_times = rankings[
+            (rankings["dataset"] == dataset_name) & (rankings["projection_count"].isin((10, 20)))
+        ].pivot(
+            index=["seed", "fold"],
+            columns="projection_count",
+            values="selection_seconds",
+        )
+        runtime_ratios = selection_times[20] / selection_times[10]
         metric_rows = paired_metrics.xs(dataset_name, level="dataset")
         metric_rows = metric_rows[
             metric_rows.index.get_level_values("k") < n_features[dataset_name]
         ]
+        metric_differences = metric_rows[20] - metric_rows[10]
+        fold_metric_differences = metric_differences.groupby(["seed", "fold"]).mean()
         stability_rows = stability[
             (stability["dataset"] == dataset_name)
             & (stability["projection_count_left"] == 10)
             & (stability["projection_count_right"] == 20)
             & (stability["selected_features"] < n_features[dataset_name])
         ]
-        if metric_rows.empty or stability_rows.empty:
+        fold_overlaps = stability_rows.groupby(["seed", "fold"])["overlap_fraction"].mean()
+        ranking_rows = ranking_stability[
+            (ranking_stability["dataset"] == dataset_name)
+            & (ranking_stability["projection_count_left"] == 10)
+            & (ranking_stability["projection_count_right"] == 20)
+        ]["spearman_complete_ranking"]
+        reduced_feature_counts = sorted(
+            int(value) for value in metric_rows.index.get_level_values("k").unique()
+        )
+        if (
+            metric_rows.empty
+            or stability_rows.empty
+            or ranking_rows.empty
+            or len(runtime_ratios) != len(fold_metric_differences)
+            or len(runtime_ratios) != len(fold_overlaps)
+            or len(runtime_ratios) != len(ranking_rows)
+        ):
             raise RuntimeError(f"{dataset_name} has no reduced-feature comparison rows")
         comparison_rows.append(
             {
                 "dataset": dataset_name,
                 "projection_count_reference": 10,
                 "projection_count_comparison": 20,
-                "median_runtime_ratio": timing_rows.loc[20, "median_seconds"]
-                / timing_rows.loc[10, "median_seconds"],
-                "balanced_accuracy_mean_difference_reduced_k": (
-                    metric_rows[20] - metric_rows[10]
-                ).mean(),
+                "fold_pairs": len(runtime_ratios),
+                "reduced_feature_counts": ";".join(map(str, reduced_feature_counts)),
+                "runtime_ratio_median": runtime_ratios.median(),
+                "runtime_ratio_mean": runtime_ratios.mean(),
+                "runtime_ratio_std": runtime_ratios.std(),
+                "runtime_ratio_min": runtime_ratios.min(),
+                "runtime_ratio_max": runtime_ratios.max(),
+                "balanced_accuracy_pairs": len(metric_differences),
+                "balanced_accuracy_mean_difference_reduced_k": metric_differences.mean(),
+                "balanced_accuracy_fold_difference_std": fold_metric_differences.std(),
                 "selected_set_overlap_mean_reduced_k": stability_rows["overlap_fraction"].mean(),
-                "complete_ranking_spearman_mean": stability_rows[
-                    "spearman_complete_ranking"
-                ].mean(),
+                "selected_set_overlap_fold_std": fold_overlaps.std(),
+                "complete_ranking_spearman_mean": ranking_rows.mean(),
+                "complete_ranking_spearman_std": ranking_rows.std(),
             }
         )
     return pd.DataFrame(comparison_rows)
@@ -441,10 +550,12 @@ def summarize(
     rankings: pd.DataFrame,
     metrics: pd.DataFrame,
     *,
+    datasets: tuple[str, ...],
     output_dir: Path,
 ) -> None:
     """Write compact timing, accuracy, stability, and provenance outputs."""
     stability = build_stability(rankings)
+    ranking_stability = build_ranking_stability(rankings)
     timing = rankings.groupby(
         ["dataset", "projection_count"],
         as_index=False,
@@ -477,20 +588,43 @@ def summarize(
             "selected_features",
         ],
         as_index=False,
-    )[["overlap_fraction", "jaccard", "spearman_complete_ranking"]].mean()
+    )[["overlap_fraction", "jaccard"]].mean()
+    ranking_stability_summary = ranking_stability.groupby(
+        [
+            "dataset",
+            "projection_count_left",
+            "projection_count_right",
+        ],
+        as_index=False,
+    ).agg(
+        spearman_complete_ranking_mean=("spearman_complete_ranking", "mean"),
+        spearman_complete_ranking_std=("spearman_complete_ranking", "std"),
+        fold_pairs=("spearman_complete_ranking", "count"),
+    )
     _atomic_csv(timing, output_dir / "timing-summary.csv")
     _atomic_csv(performance, output_dir / "performance-summary.csv")
     _atomic_csv(stability, output_dir / "stability.csv")
     _atomic_csv(stability_summary, output_dir / "stability-summary.csv")
+    _atomic_csv(ranking_stability, output_dir / "ranking-stability.csv")
+    _atomic_csv(
+        ranking_stability_summary,
+        output_dir / "ranking-stability-summary.csv",
+    )
 
     _atomic_csv(
-        build_comparison_summary(rankings, metrics, timing, stability),
+        build_comparison_summary(
+            rankings,
+            metrics,
+            stability,
+            ranking_stability,
+            datasets=datasets,
+        ),
         output_dir / "comparison-summary.csv",
     )
 
     dataset_identities = {}
     reduced_feature_counts = {}
-    for dataset_name in DATASETS:
+    for dataset_name in datasets:
         dataset = _load_study_dataset(dataset_name)
         dataset_identities[dataset_name] = {
             "sha256": dataset.sha256,
@@ -515,6 +649,20 @@ def summarize(
         "projection_counts": list(PROJECTION_COUNTS),
         "ranking_rows": len(rankings),
         "reduced_feature_counts": reduced_feature_counts,
+        "selector": {
+            "alpha": SELECTOR_ALPHA,
+            "early_stopping": SELECTOR_EARLY_STOPPING,
+            "method": SELECTOR_METHOD,
+            "n_resamples": SELECTOR_N_RESAMPLES,
+            "projection_counts": list(PROJECTION_COUNTS),
+        },
+        "preprocessing": "StandardScaler fit on each training fold",
+        "downstream_models": list(CLF_DOWNSTREAM_MODELS),
+        "timing": {
+            "clock": "time.perf_counter",
+            "projection_order": list(PROJECTION_COUNTS),
+            "scope": "permutation_selector call",
+        },
         "selection_seconds_total": float(rankings["selection_seconds"].sum()),
         "script_sha256": script_sha256,
         "seeds": sorted(int(seed) for seed in rankings["seed"].unique()),
@@ -527,26 +675,45 @@ def summarize(
 
 def execute(
     *,
+    datasets: tuple[str, ...] = DATASETS,
     seeds: tuple[int, ...],
     output_dir: Path,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Run missing cells and rebuild summaries only when their inputs change."""
     hashes_before = _input_hashes(output_dir)
-    rankings, metrics = run(seeds=seeds, output_dir=output_dir)
+    rankings, metrics = run(
+        datasets=datasets,
+        seeds=seeds,
+        output_dir=output_dir,
+    )
     hashes_after = _input_hashes(output_dir)
     summaries_complete = all((output_dir / filename).exists() for filename in SUMMARY_FILENAMES)
     if hashes_before != hashes_after or not summaries_complete:
-        summarize(rankings, metrics, output_dir=output_dir)
+        summarize(
+            rankings,
+            metrics,
+            datasets=datasets,
+            output_dir=output_dir,
+        )
     else:
         receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
         script_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         if receipt.get("script_sha256") != script_sha256:
             raise RuntimeError("existing results were generated by a different script revision")
+        if set(receipt.get("datasets", {})) != set(datasets):
+            raise RuntimeError("existing receipt datasets do not match the requested scope")
+        if receipt.get("seeds") != sorted(seeds):
+            raise RuntimeError("existing receipt seeds do not match the requested scope")
     return rankings, metrics
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--datasets",
+        default=",".join(DATASETS),
+        help="Comma-separated dataset names",
+    )
     parser.add_argument(
         "--seeds",
         default=",".join(str(seed) for seed in DEFAULT_SEEDS),
@@ -563,8 +730,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    datasets = _parse_dataset_csv(args.datasets)
     seeds = _parse_int_csv(args.seeds)
-    rankings, metrics = execute(seeds=seeds, output_dir=args.output_dir)
+    rankings, metrics = execute(
+        datasets=datasets,
+        seeds=seeds,
+        output_dir=args.output_dir,
+    )
     print(
         f"completed rankings={len(rankings)} metrics={len(metrics)} output={args.output_dir}",
         flush=True,

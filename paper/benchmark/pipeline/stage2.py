@@ -443,9 +443,14 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
                     "ranking_git_sha": str(ranking_row["git_sha"]),
                     "ranking_container_image": str(ranking_row["container_image"]),
                     "ranking_artifact_prefix": str(ranking_row["artifact_prefix"]),
+                    "ranking_canonical_manifest_sha256": str(
+                        ranking_row["canonical_manifest_sha256"]
+                    ),
                     "ranking_dataset_sha256": str(ranking_row["dataset_sha256"]),
+                    "ranking_gate_receipt_sha256": str(ranking_row["gate_receipt_sha256"]),
                     "ranking_manifest_sha256": str(ranking_row["manifest_sha256"]),
                     "ranking_payload_sha256": ranking_payload_sha256,
+                    "ranking_runtime_contract_sha256": str(ranking_row["runtime_contract_sha256"]),
                     "ranking_aws_account_id": str(ranking_row["aws_account_id"]),
                     "dataset_source": dataset_meta.get("dataset_source"),
                     "dataset_type": dataset_meta.get("dataset_type"),

@@ -26,6 +26,7 @@ Usage:
 from __future__ import annotations
 
 import sys
+from io import TextIOWrapper
 from typing import Any
 
 import pandas as pd
@@ -213,7 +214,8 @@ def run() -> pd.DataFrame:
 
 def main() -> None:
     """Entry point."""
-    sys.stdout.reconfigure(line_buffering=True)
+    if isinstance(sys.stdout, TextIOWrapper):
+        sys.stdout.reconfigure(line_buffering=True)
     print(f"=== {EXPERIMENT_NAME} ===")
     warmup_jit()
     df = run()

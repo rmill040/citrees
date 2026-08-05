@@ -14,15 +14,45 @@ from paper.benchmark.experiments import rdc_projection_sensitivity as sensitivit
 pytestmark = pytest.mark.paper
 
 
-def test_study_uses_only_three_small_real_datasets() -> None:
-    assert sensitivity.DATASETS == ("wine", "glass", "breast-cancer")
-    for dataset_name in sensitivity.DATASETS:
+def test_study_uses_only_five_small_real_datasets() -> None:
+    expected = {
+        "wine": (
+            (178, 13),
+            3,
+            "f559edb359a04d51531da5e80a499c8d7fde49233ffb9be8949f00ee36336b9e",
+        ),
+        "glass": (
+            (214, 10),
+            6,
+            "8f6eea990c4fdc7bcc55a2bd26743435287d88d3f49b60dd4a8dd68dc931d9de",
+        ),
+        "heart-statlog": (
+            (270, 13),
+            2,
+            "8c624c057ab20b49e8ce2b4b222ae5655a7652e3991aa997d100570ef9c3f438",
+        ),
+        "ionosphere": (
+            (351, 34),
+            2,
+            "6693050c2f2a6ece1e4abccd19658743bc17d2a132dcd981c4b6ca1c2d24bffd",
+        ),
+        "breast-cancer": (
+            (569, 30),
+            2,
+            "1720d92c704161b13f5e67929cbb6912f2fb2348d0add12846f881f65aaf0604",
+        ),
+    }
+    assert tuple(expected) == sensitivity.DATASETS
+    for dataset_name, (expected_shape, expected_classes, expected_sha256) in expected.items():
         dataset = sensitivity._load_study_dataset(dataset_name)
+        assert dataset.X.shape == expected_shape
         assert dataset.X.shape == (dataset.n_samples, dataset.n_features)
         assert dataset.y.shape == (dataset.n_samples,)
         assert dataset.n_samples <= 600
-        assert dataset.n_features <= 30
-        assert len(dataset.sha256) == 64
+        assert dataset.n_features <= 34
+        assert dataset.sha256 == expected_sha256
+        assert np.isfinite(dataset.X).all()
+        assert len(np.unique(dataset.y)) == expected_classes
 
 
 def test_projection_counts_and_projected_columns_are_explicit() -> None:
@@ -152,3 +182,54 @@ def test_stability_uses_ranking_positions_and_stage2_cutoffs() -> None:
     assert set(comparison["selected_features"]) == {5, 10}
     assert np.allclose(comparison["overlap_fraction"], 1.0)
     assert comparison["spearman_complete_ranking"].iloc[0] < 1.0
+
+
+def test_comparison_summary_excludes_all_feature_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sensitivity, "DATASETS", ("tiny",))
+    rankings = pd.DataFrame([{"dataset": "tiny", "n_features": 10}])
+    metrics = pd.DataFrame(
+        [
+            {
+                "dataset": "tiny",
+                "seed": 0,
+                "fold": 0,
+                "k": selected,
+                "downstream_model": "lr",
+                "projection_count": projection_count,
+                "balanced_accuracy": accuracy,
+            }
+            for selected, projection_count, accuracy in (
+                (5, 10, 0.5),
+                (5, 20, 0.7),
+                (10, 10, 0.0),
+                (10, 20, 1.0),
+            )
+        ]
+    )
+    timing = pd.DataFrame(
+        [
+            {"dataset": "tiny", "projection_count": 10, "median_seconds": 1.0},
+            {"dataset": "tiny", "projection_count": 20, "median_seconds": 3.0},
+        ]
+    )
+    stability = pd.DataFrame(
+        [
+            {
+                "dataset": "tiny",
+                "projection_count_left": 10,
+                "projection_count_right": 20,
+                "selected_features": selected,
+                "overlap_fraction": overlap,
+                "spearman_complete_ranking": 0.9,
+            }
+            for selected, overlap in ((5, 0.8), (10, 1.0))
+        ]
+    )
+
+    result = sensitivity.build_comparison_summary(rankings, metrics, timing, stability).iloc[0]
+
+    assert result["median_runtime_ratio"] == pytest.approx(3.0)
+    assert result["balanced_accuracy_mean_difference_reduced_k"] == pytest.approx(0.2)
+    assert result["selected_set_overlap_mean_reduced_k"] == pytest.approx(0.8)

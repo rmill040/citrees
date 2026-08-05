@@ -112,11 +112,14 @@ test \citep{Westfall+Young:1993}. This option evaluates the largest configured
 selector score within each response permutation and uses the resulting joint
 max-statistic reference distribution.
 The RDC implementation uses 10 random projections, which produce 20 sine and
-cosine columns. In a 5-seed, 5-fold sensitivity analysis on Wine (178 samples,
-13 features), Glass (214 samples, 10 features), and Breast Cancer Wisconsin
-(Diagnostic) (569 samples, 30 features), increasing the count to 20 multiplied
-median selector time by 3.00$\times$, 3.06$\times$, and 3.21$\times$, while
-mean balanced accuracy changed by $-0.0005$, $-0.0026$, and $0.0000$.
+cosine columns. We compared 5, 10, 20, and 40 projections in a 5-seed, 5-fold
+sensitivity analysis on Wine, Glass, Heart Statlog, Ionosphere, and Breast
+Cancer Wisconsin (Diagnostic), with 178 to 569 samples and 10 to 34 features
+per dataset. Increasing the count from 10 to 20 multiplied median selector time
+by 3.00$\times$ to 3.24$\times$ across datasets. Across all reduced feature
+counts and three classifiers, mean paired balanced accuracy differences ranged
+from $-0.0052$ to $0.0027$, with mean selected-set overlap from 87.5\% to
+99.9\%.
 
 The exhaustive procedure evaluates every candidate with the requested
 permutation budget and reports fixed-$B$ $p$~values. Adaptive stopping checks

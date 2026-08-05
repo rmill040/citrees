@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 
 from paper.benchmark.adapters.data import (
     get_cv_splitter,
+    get_dataset_file_identity,
     get_dataset_identity,
     load_dataset,
 )
@@ -32,7 +33,18 @@ from paper.benchmark.utils import get_hardware_metadata, get_library_versions
 
 ROOT: Final[Path] = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR: Final[Path] = ROOT / "paper" / "results" / "rdc-projection-sensitivity"
-DATASETS: Final[tuple[str, ...]] = ("wine", "glass", "breast-cancer")
+STUDY_DATA_DIR: Final[Path] = ROOT / "paper" / "data" / "rdc-projection-sensitivity"
+DATASETS: Final[tuple[str, ...]] = (
+    "wine",
+    "glass",
+    "heart-statlog",
+    "ionosphere",
+    "breast-cancer",
+)
+SNAPSHOT_SOURCES: Final[dict[str, str]] = {
+    "heart-statlog": "OpenML dataset 53, version 1 (UCI Statlog Heart)",
+    "ionosphere": "OpenML dataset 59, version 1 (UCI Ionosphere)",
+}
 TASK: Final[Literal["classification"]] = "classification"
 PROJECTION_COUNTS: Final[tuple[int, ...]] = (5, 10, 20, 40)
 N_FOLDS: Final[int] = 5
@@ -100,6 +112,21 @@ def _array_sha256(
 
 def _load_study_dataset(name: str) -> StudyDataset:
     """Load one fixed local or scikit-learn dataset with content identity."""
+    if name in SNAPSHOT_SOURCES:
+        path = STUDY_DATA_DIR / f"{name}.parquet"
+        identity = get_dataset_file_identity(path)
+        frame = pd.read_parquet(path)
+        feature_columns = [column for column in frame.columns if column != "y"]
+        X = frame[feature_columns].to_numpy(dtype=np.float64)
+        y = frame["y"].to_numpy(dtype=np.int64)
+        return StudyDataset(
+            name=name,
+            sha256=identity.sha256,
+            source=SNAPSHOT_SOURCES[name],
+            X=X,
+            y=y,
+        )
+
     if name == "breast-cancer":
         bunch = load_breast_cancer()
         X = np.asarray(bunch.data, dtype=np.float64)
@@ -362,6 +389,54 @@ def build_stability(rankings: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def build_comparison_summary(
+    rankings: pd.DataFrame,
+    metrics: pd.DataFrame,
+    timing: pd.DataFrame,
+    stability: pd.DataFrame,
+) -> pd.DataFrame:
+    """Compare 10 and 20 projections at reduced feature counts."""
+    comparison_rows: list[dict[str, Any]] = []
+    metric_index = ["dataset", "seed", "fold", "k", "downstream_model"]
+    paired_metrics = metrics.pivot(
+        index=metric_index,
+        columns="projection_count",
+        values="balanced_accuracy",
+    )
+    n_features = rankings.groupby("dataset")["n_features"].first().astype(int).to_dict()
+    for dataset_name in DATASETS:
+        timing_rows = timing[timing["dataset"] == dataset_name].set_index("projection_count")
+        metric_rows = paired_metrics.xs(dataset_name, level="dataset")
+        metric_rows = metric_rows[
+            metric_rows.index.get_level_values("k") < n_features[dataset_name]
+        ]
+        stability_rows = stability[
+            (stability["dataset"] == dataset_name)
+            & (stability["projection_count_left"] == 10)
+            & (stability["projection_count_right"] == 20)
+            & (stability["selected_features"] < n_features[dataset_name])
+        ]
+        if metric_rows.empty or stability_rows.empty:
+            raise RuntimeError(f"{dataset_name} has no reduced-feature comparison rows")
+        comparison_rows.append(
+            {
+                "dataset": dataset_name,
+                "projection_count_reference": 10,
+                "projection_count_comparison": 20,
+                "median_runtime_ratio": timing_rows.loc[20, "median_seconds"]
+                / timing_rows.loc[10, "median_seconds"],
+                "balanced_accuracy_mean_difference_reduced_k": (
+                    metric_rows[20] - metric_rows[10]
+                ).mean(),
+                "selected_set_overlap_mean_reduced_k": stability_rows["overlap_fraction"].mean(),
+                "complete_ranking_spearman_mean": stability_rows[
+                    "spearman_complete_ranking"
+                ].mean(),
+            }
+        )
+    return pd.DataFrame(comparison_rows)
+
+
 def summarize(
     rankings: pd.DataFrame,
     metrics: pd.DataFrame,
@@ -408,41 +483,13 @@ def summarize(
     _atomic_csv(stability, output_dir / "stability.csv")
     _atomic_csv(stability_summary, output_dir / "stability-summary.csv")
 
-    comparison_rows: list[dict[str, Any]] = []
-    metric_index = ["dataset", "seed", "fold", "k", "downstream_model"]
-    paired_metrics = metrics.pivot(
-        index=metric_index,
-        columns="projection_count",
-        values="balanced_accuracy",
-    )
-    for dataset_name in DATASETS:
-        timing_rows = timing[timing["dataset"] == dataset_name].set_index("projection_count")
-        metric_rows = paired_metrics.xs(dataset_name, level="dataset")
-        stability_rows = stability[
-            (stability["dataset"] == dataset_name)
-            & (stability["projection_count_left"] == 10)
-            & (stability["projection_count_right"] == 20)
-        ]
-        comparison_rows.append(
-            {
-                "dataset": dataset_name,
-                "projection_count_reference": 10,
-                "projection_count_comparison": 20,
-                "median_runtime_ratio": timing_rows.loc[20, "median_seconds"]
-                / timing_rows.loc[10, "median_seconds"],
-                "balanced_accuracy_mean_difference": (metric_rows[20] - metric_rows[10]).mean(),
-                "selected_set_overlap_mean": stability_rows["overlap_fraction"].mean(),
-                "complete_ranking_spearman_mean": stability_rows[
-                    "spearman_complete_ranking"
-                ].mean(),
-            }
-        )
     _atomic_csv(
-        pd.DataFrame(comparison_rows),
+        build_comparison_summary(rankings, metrics, timing, stability),
         output_dir / "comparison-summary.csv",
     )
 
     dataset_identities = {}
+    reduced_feature_counts = {}
     for dataset_name in DATASETS:
         dataset = _load_study_dataset(dataset_name)
         dataset_identities[dataset_name] = {
@@ -451,6 +498,11 @@ def summarize(
             "n_features": dataset.n_features,
             "source": dataset.source,
         }
+        reduced_feature_counts[dataset_name] = [
+            selected
+            for selected in get_requested_evaluation_k_values(dataset.n_features)
+            if selected < dataset.n_features
+        ]
     script_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     receipt = {
         "analysis": "rdc_projection_sensitivity",
@@ -462,6 +514,7 @@ def summarize(
         "projected_columns": [2 * count for count in PROJECTION_COUNTS],
         "projection_counts": list(PROJECTION_COUNTS),
         "ranking_rows": len(rankings),
+        "reduced_feature_counts": reduced_feature_counts,
         "selection_seconds_total": float(rankings["selection_seconds"].sum()),
         "script_sha256": script_sha256,
         "seeds": sorted(int(seed) for seed in rankings["seed"].unique()),

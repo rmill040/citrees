@@ -13,6 +13,18 @@
       "sha256": "8f6eea990c4fdc7bcc55a2bd26743435287d88d3f49b60dd4a8dd68dc931d9de",
       "source": "benchmark parquet"
     },
+    "heart-statlog": {
+      "n_features": 13,
+      "n_samples": 270,
+      "sha256": "8c624c057ab20b49e8ce2b4b222ae5655a7652e3991aa997d100570ef9c3f438",
+      "source": "OpenML dataset 53, version 1 (UCI Statlog Heart)"
+    },
+    "ionosphere": {
+      "n_features": 34,
+      "n_samples": 351,
+      "sha256": "6693050c2f2a6ece1e4abccd19658743bc17d2a132dcd981c4b6ca1c2d24bffd",
+      "source": "OpenML dataset 59, version 1 (UCI Ionosphere)"
+    },
     "wine": {
       "n_features": 13,
       "n_samples": 178,
@@ -45,7 +57,7 @@
     "sklearn": "1.8.0",
     "xgboost": "3.3.0"
   },
-  "metric_rows": 2700,
+  "metric_rows": 4800,
   "projected_columns": [
     10,
     20,
@@ -58,8 +70,31 @@
     20,
     40
   ],
-  "ranking_rows": 300,
-  "script_sha256": "e2c466b5214a45b30803707dcd4910a4c46658ec9578097dad3351fb40a185ad",
+  "ranking_rows": 500,
+  "reduced_feature_counts": {
+    "breast-cancer": [
+      5,
+      10,
+      25
+    ],
+    "glass": [
+      5
+    ],
+    "heart-statlog": [
+      5,
+      10
+    ],
+    "ionosphere": [
+      5,
+      10,
+      25
+    ],
+    "wine": [
+      5,
+      10
+    ]
+  },
+  "script_sha256": "aa37a7392e6d51cbd3548d3fd3750d691521d72dba9e71aae36fdfea65e5a0d6",
   "seeds": [
     0,
     1,
@@ -67,5 +102,5 @@
     3,
     4
   ],
-  "selection_seconds_total": 333.86954928419436
+  "selection_seconds_total": 468.5748202421091
 }

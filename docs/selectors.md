@@ -204,11 +204,14 @@ The default uses 10 projections, which produce 20 sine and cosine columns.
 The sensitivity study in
 `paper/benchmark/experiments/rdc_projection_sensitivity.py` compares 5, 10,
 20, and 40 projections on Wine (178 samples, 13 features), Glass (214 samples,
-10 features), and Breast Cancer Wisconsin (Diagnostic) (569 samples, 30
-features) across five seeds and five folds. Relative to 10 projections, 20
-projections increased median selector time by 3.00x, 3.06x, and 3.21x, while
-mean balanced accuracy changed by -0.0005, -0.0026, and 0.0000. Complete
-results and execution metadata are stored in
+10 features), Heart Statlog (270 samples, 13 features), Ionosphere (351
+samples, 34 features), and Breast Cancer Wisconsin (Diagnostic) (569 samples,
+30 features) across five seeds and five folds. Relative to 10 projections, 20
+projections increased median selector time by 3.00x to 3.24x. Across the three
+downstream classifiers and all reduced feature counts, mean paired balanced
+accuracy differences ranged from -0.0052 to 0.0027, with mean selected-set
+overlap from 87.5% to 99.9%. Complete results and execution metadata are stored
+in
 `paper/results/rdc-projection-sensitivity/`.
 
 ### Properties (Interpretation)

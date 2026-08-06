@@ -575,6 +575,40 @@ def test_gate_validates_the_full_scope_and_executes_a_stratified_panel() -> None
         }
 
 
+def test_gate_accepts_a_complete_inventory_with_stage1_recovery_mask() -> None:
+    manifest = _manifest()
+    masked_cells = tuple(
+        replace(
+            cell,
+            stage1_required=(
+                index % 7 == 0
+                if cell.config.method.name == "r_cforest"
+                else cell.stage1_required
+            ),
+        )
+        for index, cell in enumerate(manifest.cells)
+    )
+    masked_manifest = replace(
+        manifest,
+        campaign_sha256=compute_campaign_sha256(
+            masked_cells,
+            runtime_contract_sha256=manifest.runtime_contract_sha256,
+        ),
+        cells=masked_cells,
+    )
+
+    inventory = gate._replacement_inventory(masked_manifest)
+    replacement_cells = tuple(
+        cell for cell in masked_cells if cell.config.method.name == "r_cforest"
+    )
+
+    assert any(cell.stage1_required for cell in replacement_cells)
+    assert any(not cell.stage1_required for cell in replacement_cells)
+    assert sum(
+        len(cells) for datasets in inventory.values() for cells in datasets.values()
+    ) == gate.EXPECTED_REPLACEMENT_CELLS
+
+
 def test_linux_process_identity_uses_boot_id_and_start_ticks(tmp_path: Path) -> None:
     boot_id = tmp_path / "boot_id"
     process_stat = tmp_path / "stat"

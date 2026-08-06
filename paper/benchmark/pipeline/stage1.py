@@ -12,9 +12,11 @@ import os
 import signal
 import socket
 import sys
+import threading
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing.connection import Connection, wait
 from typing import Any
@@ -67,6 +69,30 @@ class _RFoldProcess:
     receiver: Connection
     launch_event: Any | None = None
     process_group_id: int | None = None
+
+
+@contextmanager
+def _stage1_wall_clock_timeout(timeout_seconds: float) -> Iterator[None]:
+    """Bound one complete Python Stage 1 cell by elapsed wall time."""
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("Stage 1 selection must run in the process main thread")
+    previous_delay, previous_interval = signal.getitimer(signal.ITIMER_REAL)
+    if previous_delay > 0.0 or previous_interval > 0.0:
+        raise RuntimeError("Stage 1 selection cannot replace an active process timer")
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def raise_timeout(_signum: int, _frame: Any) -> None:
+        raise multiprocessing.TimeoutError(
+            f"Stage 1 selection exceeded its {timeout_seconds:g}-second wall-clock limit"
+        )
+
+    signal.signal(signal.SIGALRM, raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0.0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 # =============================================================================
@@ -877,50 +903,51 @@ def run_selection(
     if len(splits) != N_SPLITS:
         raise RuntimeError(f"expected {N_SPLITS} CV folds, observed {len(splits)}")
 
-    if method in _PROCESS_PARALLEL_FOLD_METHODS:
-        fold_workers = min(N_SPLITS, len(get_available_cpu_ids()))
-        if fold_workers > 1:
-            fold_calls = (
-                delayed(_run_selection_fold)(
-                    X,
-                    y,
-                    method,
-                    task,
-                    seed,
-                    normalized_params,
-                    1,
-                    fold_idx,
-                    train_idx,
-                    test_idx,
+    with _stage1_wall_clock_timeout(float(timeout_seconds)):
+        if method in _PROCESS_PARALLEL_FOLD_METHODS:
+            fold_workers = min(N_SPLITS, len(get_available_cpu_ids()))
+            if fold_workers > 1:
+                fold_calls = (
+                    delayed(_run_selection_fold)(
+                        X,
+                        y,
+                        method,
+                        task,
+                        seed,
+                        normalized_params,
+                        1,
+                        fold_idx,
+                        train_idx,
+                        test_idx,
+                    )
+                    for fold_idx, (train_idx, test_idx) in enumerate(splits)
                 )
-                for fold_idx, (train_idx, test_idx) in enumerate(splits)
-            )
-            with parallel_config(
-                backend="loky",
-                n_jobs=fold_workers,
-                inner_max_num_threads=1,
-            ):
-                with Parallel(timeout=timeout_seconds) as parallel:
-                    results: list[dict[str, Any]] = parallel(fold_calls)
-                return _require_ordered_selection_folds(results)
+                with parallel_config(
+                    backend="loky",
+                    n_jobs=fold_workers,
+                    inner_max_num_threads=1,
+                ):
+                    with Parallel() as parallel:
+                        results: list[dict[str, Any]] = parallel(fold_calls)
+                    return _require_ordered_selection_folds(results)
 
-    inner_jobs = 1 if method in _PROCESS_PARALLEL_FOLD_METHODS else n_jobs
-    results = [
-        _run_selection_fold(
-            X,
-            y,
-            method,
-            task,
-            seed,
-            normalized_params,
-            inner_jobs,
-            fold_idx,
-            train_idx,
-            test_idx,
-        )
-        for fold_idx, (train_idx, test_idx) in enumerate(splits)
-    ]
-    return _require_ordered_selection_folds(results)
+        inner_jobs = 1 if method in _PROCESS_PARALLEL_FOLD_METHODS else n_jobs
+        results = [
+            _run_selection_fold(
+                X,
+                y,
+                method,
+                task,
+                seed,
+                normalized_params,
+                inner_jobs,
+                fold_idx,
+                train_idx,
+                test_idx,
+            )
+            for fold_idx, (train_idx, test_idx) in enumerate(splits)
+        ]
+        return _require_ordered_selection_folds(results)
 
 
 def _require_ordered_selection_folds(

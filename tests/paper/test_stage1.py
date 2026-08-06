@@ -129,6 +129,28 @@ def _hold_selection_fold_for_timeout(
     return {"fold_idx": fold_idx}
 
 
+def _sleep_selection_fold_for_timeout(
+    X: np.ndarray,
+    y: np.ndarray,
+    method: str,
+    task: TaskType,
+    seed: int,
+    params: dict[str, object],
+    n_jobs: int,
+    fold_idx: int,
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+) -> dict[str, object]:
+    """Keep each fold below the cell limit while their combined waves exceed it."""
+    del X, y, method, task, n_jobs, train_idx, test_idx
+    time.sleep(float(params["sleep_seconds"]))
+    return {
+        "fold_idx": fold_idx,
+        "fold_random_state": seed * 1000 + fold_idx,
+        "feature_ranking": [0, 1, 2, 3],
+    }
+
+
 def _process_exists(pid: int) -> bool:
     """Return whether one local process identifier still exists."""
     try:
@@ -2653,9 +2675,7 @@ def test_single_core_methods_dispatch_folds_to_processes(
         "n_jobs": 3,
         "inner_max_num_threads": 1,
     }
-    assert parallel_kwargs == {
-        "timeout": stage1.STAGE1_SELECTION_TIMEOUT_SECONDS,
-    }
+    assert parallel_kwargs == {}
 
 
 @pytest.mark.parametrize(
@@ -2775,6 +2795,66 @@ def test_process_parallel_fold_timeout_stops_children(
     while any(_process_exists(pid) for pid in child_pids) and time.monotonic() < deadline:
         time.sleep(0.05)
     assert all(not _process_exists(pid) for pid in child_pids)
+
+
+def test_process_parallel_fold_timeout_is_one_absolute_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Five queued folds must share one wall-clock timeout."""
+    from paper.benchmark.pipeline import stage1
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1))
+    monkeypatch.setattr(stage1, "_run_selection_fold", _sleep_selection_fold_for_timeout)
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+
+    stage1.run_selection(
+        X,
+        y,
+        "ptest_mc",
+        "classification",
+        seed=7,
+        params={"sleep_seconds": 0.01},
+        timeout_seconds=30.0,
+    )
+
+    started = time.monotonic()
+    with pytest.raises(MultiprocessingTimeoutError, match="1-second wall-clock limit"):
+        stage1.run_selection(
+            X,
+            y,
+            "ptest_mc",
+            "classification",
+            seed=7,
+            params={"sleep_seconds": 0.7},
+            timeout_seconds=1.0,
+        )
+    assert time.monotonic() - started <= 1.5
+
+
+def test_sequential_folds_share_one_absolute_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The parent-process fallback must use the same complete-cell limit."""
+    from paper.benchmark.pipeline import stage1
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0,))
+    monkeypatch.setattr(stage1, "_run_selection_fold", _sleep_selection_fold_for_timeout)
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+
+    started = time.monotonic()
+    with pytest.raises(MultiprocessingTimeoutError, match="0.5-second wall-clock limit"):
+        stage1.run_selection(
+            X,
+            y,
+            "ptest_mc",
+            "classification",
+            seed=7,
+            params={"sleep_seconds": 0.2},
+            timeout_seconds=0.5,
+        )
+    assert time.monotonic() - started <= 0.8
 
 
 @pytest.mark.parametrize("timeout_seconds", [0.0, -1.0, float("inf"), True])
@@ -2986,7 +3066,7 @@ def test_selection_rejects_out_of_order_fold_results(
 
     class ReversingParallel:
         def __init__(self, **kwargs: object) -> None:
-            assert kwargs == {"timeout": stage1.STAGE1_SELECTION_TIMEOUT_SECONDS}
+            assert kwargs == {}
 
         def __enter__(self) -> ReversingParallel:
             return self

@@ -83,7 +83,7 @@ _CAPACITY_ERROR_CODES = frozenset(
     }
 )
 _AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
-_WORKER_LAUNCH_SCHEMA_VERSION = 3
+_WORKER_LAUNCH_SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -756,6 +756,45 @@ def get_default_subnet_ids(ec2: Any, *, instance_type: str | None = None) -> lis
     return [subnet["SubnetId"] for subnet in subnets]
 
 
+def per_boot_container_recovery_hook(container_name: str) -> str:
+    """Return an indented cloud-init hook that resumes a container after host recovery."""
+    if re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", container_name) is None:
+        raise ValueError(f"invalid container name: {container_name!r}")
+    script = textwrap.dedent(
+        f"""\
+        mkdir -p /var/lib/cloud/scripts/per-boot
+        cat > /var/lib/cloud/scripts/per-boot/{container_name}-recover <<'RECOVERY'
+        #!/bin/bash
+        set -euo pipefail
+
+        shutdown_instance() {{
+            trap - EXIT
+            echo "Terminating recovered {container_name} instance"
+            shutdown -h now || systemctl poweroff --force --force || poweroff -f || halt -f || true
+        }}
+        trap shutdown_instance EXIT
+
+        systemctl start docker
+        if ! docker inspect {container_name} >/dev/null 2>&1; then
+            echo "Container {container_name} is missing after host recovery"
+            exit 1
+        fi
+        if [ "$(docker inspect --format '{{{{.State.Running}}}}' {container_name})" = "true" ]; then
+            echo "Container {container_name} is already running"
+            trap - EXIT
+            exit 0
+        fi
+
+        echo "Restarting {container_name} after host recovery"
+        docker start {container_name}
+        docker wait {container_name}
+        RECOVERY
+        chmod 0755 /var/lib/cloud/scripts/per-boot/{container_name}-recover
+        """
+    )
+    return textwrap.indent(script, "        ").rstrip()
+
+
 def _make_worker_user_data(
     *,
     region: str,
@@ -778,6 +817,7 @@ def _make_worker_user_data(
     stage: str,
 ) -> str:
     """Generate EC2 user data script that pulls and runs the worker container."""
+    recovery_hook = per_boot_container_recovery_hook("citrees-worker")
     return textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -825,8 +865,10 @@ def _make_worker_user_data(
         aws ecr get-login-password --region {region} | \\
             docker login --username AWS --password-stdin {ecr_uri}
 
-        # Pull and run the worker image
         docker pull {image_uri}
+{recovery_hook}
+
+        # Pull and run the worker image
         docker run -d --restart no \\
             --init \\
             --name citrees-worker \\
@@ -889,6 +931,7 @@ def _make_api_user_data(
     max_cell_attempts: int,
 ) -> str:
     """Generate EC2 user data script that runs the API server container."""
+    recovery_hook = per_boot_container_recovery_hook("citrees-api")
     return textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -938,6 +981,7 @@ def _make_api_user_data(
 
         # Pull and run the API server
         docker pull {image_uri}
+{recovery_hook}
         docker run -d --restart no \\
             --name citrees-api \\
             -p 8000:8000 \\
@@ -1046,6 +1090,7 @@ def _make_mechanism_user_data(
     if datasets:
         command.extend(["--datasets", _csv_arg(datasets)])
     command_text = shlex.join(command)
+    recovery_hook = per_boot_container_recovery_hook("citrees-mechanism")
 
     return textwrap.dedent(
         f"""\
@@ -1084,6 +1129,7 @@ def _make_mechanism_user_data(
 
         # Pull and run one independent mechanism-ablation shard.
         docker pull {image_uri}
+{recovery_hook}
         docker run -d --restart no \\
             --name citrees-mechanism \\
             --log-driver=awslogs \\

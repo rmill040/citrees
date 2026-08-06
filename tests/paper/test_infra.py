@@ -133,6 +133,18 @@ GATE_RECEIPT_SHA256 = hashlib.sha256(GATE_RECEIPT_PAYLOAD).hexdigest()
 GATE_RECEIPT_KEY = gate_receipt_s3_key(GATE_RECEIPT_SHA256)
 
 
+def _assert_per_boot_recovery(script: str, container_name: str) -> None:
+    recovery_path = f"/var/lib/cloud/scripts/per-boot/{container_name}-recover"
+    assert recovery_path in script
+    assert f"docker inspect {container_name}" in script
+    assert f"docker inspect --format '{{{{.State.Running}}}}' {container_name}" in script
+    assert f"docker start {container_name}" in script
+    assert f"docker wait {container_name}" in script
+    assert "chmod 0755" in script
+    assert script.index(recovery_path) < script.index("docker run -d --restart no")
+    subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+
+
 def _write_runtime_contract(directory: Path) -> Path:
     path = directory / "runtime-contract.json"
     path.write_bytes(serialize_runtime_contract(_runtime_contract()))
@@ -653,6 +665,11 @@ def test_queue_scope_rejects_unsafe_or_ambiguous_values(
         _validate_queue_scope("experiments/run-001", "rankings")
 
 
+def test_container_recovery_hook_rejects_shell_metacharacters() -> None:
+    with pytest.raises(ValueError, match="invalid container name"):
+        ec2_infra.per_boot_container_recovery_hook("worker; reboot")
+
+
 def test_mechanism_user_data_uses_derived_distributed_scope() -> None:
     specification_sha256 = mechanism_specification_sha256(
         tasks=("classification", "regression"),
@@ -688,6 +705,7 @@ def test_mechanism_user_data_uses_derived_distributed_scope() -> None:
     assert "paper.benchmark.experiments.cif_mechanism_ablation --distributed" in script
     assert f"-e CITREES_IMAGE_URI={DIGEST_URI}" in script
     assert f"-e CITREES_MECHANISM_SPEC_SHA256={specification_sha256}" in script
+    _assert_per_boot_recovery(script, "citrees-mechanism")
 
 
 def test_mechanism_launch_scopes_profile_to_derived_output(
@@ -803,6 +821,7 @@ def test_api_user_data_carries_complete_queue_and_provenance_scope() -> None:
     assert "docker run -d --restart no" in script
     assert "--name citrees-api" in script
     assert "docker wait citrees-api" in script
+    _assert_per_boot_recovery(script, "citrees-api")
     assert "curl --fail --silent --show-error --request PUT" in script
     assert "latest/meta-data/instance-id" in script
     assert "latest/meta-data/placement/availability-zone" in script
@@ -854,6 +873,7 @@ def test_worker_user_data_matches_api_scope() -> None:
     assert "docker run -d --restart no" in script
     assert "--init" in script
     assert "--restart on-failure" not in script
+    _assert_per_boot_recovery(script, "citrees-worker")
     assert "--api-url http://10.0.0.10:8000" in script
     assert "trap shutdown_instance EXIT" in script
     assert script.index("trap shutdown_instance EXIT") < script.index("# Instance metadata")

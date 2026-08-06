@@ -39,6 +39,7 @@ from paper.benchmark.infra.aws import (
 from paper.benchmark.infra.ec2 import (
     TAG_KEY,
     get_default_subnet_ids,
+    per_boot_container_recovery_hook,
     validate_image_digest_uri,
 )
 from paper.jss.replication import shards
@@ -3027,6 +3028,7 @@ def _worker_user_data(
 ) -> str:
     attempt = _require_integer(attempt, "attempt", minimum=1)
     image_registry = campaign.image_uri.split("/", maxsplit=1)[0]
+    recovery_hook = per_boot_container_recovery_hook("citrees-jss-shard")
     return textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -3054,6 +3056,7 @@ def _worker_user_data(
         aws ecr get-login-password --region {campaign.region} | \\
             docker login --username AWS --password-stdin {image_registry}
         docker pull {campaign.image_uri}
+{recovery_hook}
         docker run -d --restart no \\
             --name citrees-jss-shard \\
             --log-driver=awslogs \\

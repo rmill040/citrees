@@ -11,6 +11,7 @@ import platform
 import re
 import socket
 import subprocess
+import sys
 import time
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -1768,12 +1769,12 @@ def main() -> None:
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
-    print(
+    sys.stdout.buffer.write(
         serialize_gate_receipt(
             receipt,
             manifest=manifest,
             runtime_contract=runtime_contract,
-        ).decode("ascii")
+        )
     )
 
 

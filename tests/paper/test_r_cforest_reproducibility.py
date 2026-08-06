@@ -5,10 +5,13 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import io
 import json
+import sys
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import boto3
@@ -1396,6 +1399,41 @@ def test_gate_receipt_parser_rejects_noncanonical_or_wrong_digest() -> None:
             manifest=manifest,
             runtime_contract=runtime_contract,
         )
+
+
+def test_compare_cli_writes_canonical_receipt_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = b'{"report":{"status":"GO"}}'
+    raw_stdout = io.BytesIO()
+    stdout = io.TextIOWrapper(raw_stdout, encoding="ascii", write_through=True)
+    args = SimpleNamespace(
+        command="compare",
+        manifest=Path("manifest.csv"),
+        operator_private_key=Path("operator-private.pem"),
+        operator_profiles=("personal", "research"),
+        runs=tuple(Path(f"run-{index}.json") for index in range(4)),
+        runtime_contract=Path("runtime-contract.json"),
+    )
+    parser = SimpleNamespace(parse_args=lambda: args)
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(gate, "_parser", lambda: parser)
+    monkeypatch.setattr(gate, "_load_manifest", lambda _path: object())
+    monkeypatch.setattr(gate, "_load_runtime_contract", lambda _path: {})
+    monkeypatch.setattr(gate, "_load_payload", lambda _path: {})
+    monkeypatch.setattr(gate, "load_operator_private_key", lambda _path: b"private")
+    monkeypatch.setattr(gate, "collect_live_operator_readbacks", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(gate, "create_gate_receipt", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        gate,
+        "serialize_gate_receipt",
+        lambda *_args, **_kwargs: expected,
+    )
+
+    gate.main()
+    stdout.flush()
+
+    assert raw_stdout.getvalue() == expected
 
 
 def test_run_gate_executes_every_panel_cell(

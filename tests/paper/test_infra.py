@@ -588,10 +588,14 @@ def test_candidate_image_verification_invokes_r_cforest_gate(
         docker_env={},
     )
 
+    docker_runs = [command for command in commands if command[:2] == ["docker", "run"]]
+    assert docker_runs
+    assert all(command[2:4] == ["--rm", "--init"] for command in docker_runs)
     assert [
         "docker",
         "run",
         "--rm",
+        "--init",
         "citrees:test",
         "python",
         "-m",

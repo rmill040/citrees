@@ -828,6 +828,7 @@ def _make_worker_user_data(
         # Pull and run the worker image
         docker pull {image_uri}
         docker run -d --restart no \\
+            --init \\
             --name citrees-worker \\
             --log-driver=awslogs \\
             --log-opt awslogs-region={region} \\

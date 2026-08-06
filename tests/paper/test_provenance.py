@@ -70,11 +70,15 @@ def test_hardware_and_image_metadata_use_explicit_worker_identity(
         "CITREES_IMAGE_URI",
         "123456789012.dkr.ecr.us-east-1.amazonaws.com/citrees@sha256:" + "a" * 64,
     )
-    monkeypatch.setattr("paper.benchmark.utils.env.os.cpu_count", lambda: 32)
+    monkeypatch.setattr(
+        "paper.benchmark.utils.env.get_available_cpu_ids",
+        lambda: tuple(range(32)),
+    )
 
     hardware = get_hardware_metadata()
 
     assert hardware["logical_cpus"] == 32
+    assert hardware["cpu_affinity"] == list(range(32))
     assert hardware["ec2_instance_type"] == "c6a.8xlarge"
     assert hardware["platform"]
     assert hardware["machine"]
@@ -173,7 +177,25 @@ def test_ranking_artifact_records_complete_r_execution_provenance(
     monkeypatch.setattr(
         stage1,
         "get_hardware_metadata",
-        lambda: {"logical_cpus": 32, "ec2_instance_type": "c6a.8xlarge"},
+        lambda: {
+            "logical_cpus": 32,
+            "cpu_affinity": list(range(32)),
+            "ec2_instance_type": "c6a.8xlarge",
+        },
+    )
+    cpu_partitions = stage1.partition_cpu_ids(tuple(range(32)), 5)
+    monkeypatch.setattr(
+        stage1,
+        "run_r_selection_parallel",
+        lambda *args, **kwargs: [
+            {
+                "fold_idx": fold,
+                "fold_random_state": 7000 + fold,
+                "feature_ranking": list(range(4)),
+                "fold_cpu_affinity": list(cpu_partitions[fold]),
+            }
+            for fold in range(5)
+        ],
     )
     monkeypatch.setattr(
         stage1,
@@ -224,7 +246,12 @@ def test_ranking_artifact_records_complete_r_execution_provenance(
         for value in saved["library_versions"]
     )
     assert all(
-        value == {"logical_cpus": 32, "ec2_instance_type": "c6a.8xlarge"}
+        value
+        == {
+            "logical_cpus": 32,
+            "cpu_affinity": list(range(32)),
+            "ec2_instance_type": "c6a.8xlarge",
+        }
         for value in saved["hardware"]
     )
 

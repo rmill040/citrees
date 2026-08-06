@@ -61,7 +61,7 @@ def _common(config: ExperimentConfig, *, n_features: int = 4) -> dict[str, objec
         "dataset_sha256": config.dataset_identity.sha256,
         "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": "a" * 40,
-        "hardware": {"logical_cpus": 32},
+        "hardware": {"logical_cpus": 32, "cpu_affinity": list(range(32))},
         "library_versions": versions,
         "method": config.method.label,
         "method_base": config.method.name,
@@ -83,14 +83,21 @@ def _common(config: ExperimentConfig, *, n_features: int = 4) -> dict[str, objec
 def _rankings(config: ExperimentConfig | None = None) -> pd.DataFrame:
     config = config or _config()
     common = _common(config)
+    full_affinity = tuple(range(32))
+    if config.method.name in {"r_ctree", "r_cforest"}:
+        from paper.benchmark.utils.env import partition_cpu_ids
+
+        fold_affinities = partition_cpu_ids(full_affinity, 5)
+    else:
+        fold_affinities = tuple(full_affinity for _fold in range(5))
     return pd.DataFrame(
         [
             {
                 **common,
                 "feature_ranking": [0, 1, 2, 3],
+                "fold_cpu_affinity": list(fold_affinities[fold]),
                 "fold_idx": fold,
                 "fold_random_state": config.seed * 1000 + fold,
-                "selection_cpus": -1,
             }
             for fold in range(5)
         ]
@@ -186,8 +193,8 @@ def test_valid_ranking_artifact_returns_feature_count() -> None:
     assert validate_ranking_artifact(_rankings(config), config) == 4
 
 
-def test_pipeline_artifact_schema_version_is_five() -> None:
-    assert PIPELINE_ARTIFACT_VERSION == 5
+def test_pipeline_artifact_schema_version_is_six() -> None:
+    assert PIPELINE_ARTIFACT_VERSION == 6
 
 
 def test_artifact_provenance_must_match_configured_run() -> None:
@@ -304,6 +311,26 @@ def test_r_artifact_requires_r_partykit_and_rpy2_versions() -> None:
     frame["library_versions"] = [{"python": "3.12.7", "rpy2": "3.6.7"} for _ in range(len(frame))]
 
     with pytest.raises(ArtifactValidationError, match="runtime versions"):
+        validate_ranking_artifact(frame, config)
+
+
+def test_r_artifact_requires_five_disjoint_runtime_cpus() -> None:
+    config = _config("r_cforest")
+    frame = _rankings(config)
+    frame["hardware"] = [
+        {"logical_cpus": 4, "cpu_affinity": [0, 1, 2, 3]} for _ in range(len(frame))
+    ]
+
+    with pytest.raises(ArtifactValidationError, match="5 disjoint fold CPU partitions"):
+        validate_ranking_artifact(frame, config)
+
+
+def test_r_artifact_rejects_wrong_or_overlapping_fold_affinity() -> None:
+    config = _config("r_cforest")
+    frame = _rankings(config)
+    frame.at[1, "fold_cpu_affinity"] = frame.at[0, "fold_cpu_affinity"]
+
+    with pytest.raises(ArtifactValidationError, match="fold_cpu_affinity"):
         validate_ranking_artifact(frame, config)
 
 

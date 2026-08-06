@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from paper.benchmark.config.constants import R_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.pipeline.manifest import (
     MANIFEST_COLUMNS,
     account_manifest_sha256_map,
@@ -52,6 +53,7 @@ def _runtime_contract(*, cpu_model: str = "AMD EPYC 9R14") -> dict[str, Any]:
         "runtime": {
             "ami_id": "ami-" + "a" * 17,
             "container_image_digest": "sha256:" + "b" * 64,
+            "cpu_affinity": list(range(32)),
             "cpu_model": cpu_model,
             "git_sha": "c" * 40,
             "instance_type": "m7i.8xlarge",
@@ -66,6 +68,7 @@ def _runtime_contract(*, cpu_model: str = "AMD EPYC 9R14") -> dict[str, Any]:
                 "blas": "/usr/local/lib/R/lib/libRblas.so",
                 "lapack": "/usr/local/lib/R/lib/libRlapack.so",
             },
+            "r_selection_timeout_seconds": R_SELECTION_TIMEOUT_SECONDS,
             "r_runtime": {name: "1.0" for name in R_RUNTIME_FIELDS},
             "thread_environment": {name: EXPECTED_THREAD_VALUE for name in THREAD_ENVIRONMENT},
             "threadpools": [

@@ -24,6 +24,7 @@ from paper.benchmark.cli.infra import (
     launch_mechanism_workers_cmd,
     launch_workers_cmd,
 )
+from paper.benchmark.config.constants import R_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.experiments.cif_mechanism_ablation import (
     mechanism_specification_sha256,
 )
@@ -94,6 +95,7 @@ def _runtime_contract() -> dict[str, object]:
         "runtime": {
             "ami_id": "ami-test",
             "container_image_digest": "sha256:" + "a" * 64,
+            "cpu_affinity": list(range(32)),
             "cpu_model": "AMD EPYC 9R14",
             "git_sha": "a" * 40,
             "instance_type": "c6a.8xlarge",
@@ -108,6 +110,7 @@ def _runtime_contract() -> dict[str, object]:
                 "blas": "/usr/local/lib/R/lib/libRblas.so",
                 "lapack": "/usr/local/lib/R/lib/libRlapack.so",
             },
+            "r_selection_timeout_seconds": R_SELECTION_TIMEOUT_SECONDS,
             "r_runtime": {name: "1.0" for name in R_RUNTIME_FIELDS},
             "thread_environment": {name: EXPECTED_THREAD_VALUE for name in THREAD_ENVIRONMENT},
             "threadpools": [
@@ -845,6 +848,7 @@ def test_worker_user_data_matches_api_scope() -> None:
     assert "-e EC2_INSTANCE_TYPE=c6a.8xlarge" in script
     assert "AWS_ACCOUNT_ID" not in script
     assert "docker run -d --restart no" in script
+    assert "--init" in script
     assert "--restart on-failure" not in script
     assert "--api-url http://10.0.0.10:8000" in script
     assert "trap shutdown_instance EXIT" in script

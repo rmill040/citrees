@@ -11,7 +11,7 @@ from typing import Any
 
 from paper.benchmark.pipeline.operator_attestation import validate_operator_public_key
 
-RUNTIME_CONTRACT_SCHEMA_VERSION = 5
+RUNTIME_CONTRACT_SCHEMA_VERSION = 6
 RUNTIME_CONTRACT_PROFILE = "r_cforest_runtime"
 RUNTIME_CONTRACT_S3_PREFIX = "runtime-contracts"
 RUNTIME_CONTRACT_FIELDS = frozenset(
@@ -26,6 +26,7 @@ RUNTIME_PROVENANCE_FIELDS = frozenset(
     {
         "ami_id",
         "container_image_digest",
+        "cpu_affinity",
         "cpu_model",
         "git_sha",
         "instance_type",
@@ -37,6 +38,7 @@ RUNTIME_PROVENANCE_FIELDS = frozenset(
         "os_release",
         "python_libraries",
         "r_numerical_libraries",
+        "r_selection_timeout_seconds",
         "r_runtime",
         "thread_environment",
         "threadpools",
@@ -133,6 +135,24 @@ def validate_openssl_version(value: Any, *, source: str = "OpenSSL version") -> 
     ):
         raise ValueError(f"{source} must be canonical one-line output from openssl version")
     return value
+
+
+def validate_cpu_affinity(
+    value: Any,
+    *,
+    logical_cpus: int,
+    source: str,
+) -> list[int]:
+    """Validate one canonical logical-CPU affinity mask."""
+    if not isinstance(value, list):
+        raise TypeError(f"{source} must be an array")
+    if (
+        len(value) != logical_cpus
+        or any(type(cpu_id) is not int or cpu_id < 0 for cpu_id in value)
+        or value != sorted(set(value))
+    ):
+        raise ValueError(f"{source} must contain {logical_cpus} sorted unique nonnegative CPU IDs")
+    return list(value)
 
 
 def _validate_version_mapping(
@@ -242,6 +262,17 @@ def validate_runtime_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
     if type(logical_cpus) is not int or logical_cpus <= 0:
         raise ValueError("runtime contract runtime.logical_cpus must be a positive integer")
     normalized_runtime["logical_cpus"] = logical_cpus
+    normalized_runtime["cpu_affinity"] = validate_cpu_affinity(
+        runtime["cpu_affinity"],
+        logical_cpus=logical_cpus,
+        source="runtime contract runtime.cpu_affinity",
+    )
+    r_selection_timeout_seconds = runtime["r_selection_timeout_seconds"]
+    if type(r_selection_timeout_seconds) is not int or r_selection_timeout_seconds <= 0:
+        raise ValueError(
+            "runtime contract runtime.r_selection_timeout_seconds must be a positive integer"
+        )
+    normalized_runtime["r_selection_timeout_seconds"] = r_selection_timeout_seconds
 
     for field, expected in _VERSION_FIELDS.items():
         normalized_runtime[field] = _validate_version_mapping(

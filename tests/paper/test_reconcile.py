@@ -125,7 +125,7 @@ def _common(config: ExperimentConfig) -> dict[str, object]:
         "dataset_sha256": config.dataset_identity.sha256,
         "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": GIT_SHA,
-        "hardware": {"logical_cpus": 32},
+        "hardware": {"logical_cpus": 32, "cpu_affinity": list(range(32))},
         "library_versions": {"python": "3.12.7", "sklearn": "1.8.0"},
         "method": config.method.label,
         "method_base": config.method.name,
@@ -151,9 +151,9 @@ def _rankings(config: ExperimentConfig) -> pd.DataFrame:
             {
                 **common,
                 "feature_ranking": list(range(N_FEATURES)),
+                "fold_cpu_affinity": list(range(32)),
                 "fold_idx": fold,
                 "fold_random_state": config.seed * 1000 + fold,
-                "selection_cpus": 32,
             }
             for fold in range(5)
         ]

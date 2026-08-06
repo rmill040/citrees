@@ -20,6 +20,7 @@ from paper.benchmark.config.constants import (
     REG_DOWNSTREAM_MODELS,
 )
 from paper.benchmark.pipeline.types import ExperimentConfig
+from paper.benchmark.utils.env import partition_cpu_ids
 
 _COMMON_COLUMNS = {
     "artifact_version",
@@ -49,9 +50,9 @@ _COMMON_COLUMNS = {
 
 _RANKING_COLUMNS = _COMMON_COLUMNS | {
     "feature_ranking",
+    "fold_cpu_affinity",
     "fold_idx",
     "fold_random_state",
-    "selection_cpus",
 }
 
 _METRIC_COLUMNS = _COMMON_COLUMNS | {
@@ -578,6 +579,36 @@ def _validated_fold_ids(frame: pd.DataFrame) -> np.ndarray:
     return folds.astype(int).to_numpy()
 
 
+def _artifact_cpu_affinity(frame: pd.DataFrame) -> tuple[int, ...]:
+    """Return one exact CPU affinity mask shared by every artifact row."""
+    observed: list[tuple[int, ...]] = []
+    for hardware in frame["hardware"]:
+        logical_cpus = hardware.get("logical_cpus")
+        affinity = hardware.get("cpu_affinity")
+        if type(logical_cpus) is not int or logical_cpus <= 0:
+            raise ArtifactValidationError(
+                "artifact hardware.logical_cpus must be a positive integer"
+            )
+        values = np.asarray(affinity)
+        if (
+            values.ndim != 1
+            or values.shape[0] != logical_cpus
+            or not np.issubdtype(values.dtype, np.integer)
+        ):
+            raise ArtifactValidationError(
+                "artifact hardware.cpu_affinity must match hardware.logical_cpus"
+            )
+        normalized = tuple(int(value) for value in values)
+        if any(value < 0 for value in normalized) or tuple(sorted(set(normalized))) != normalized:
+            raise ArtifactValidationError(
+                "artifact hardware.cpu_affinity must contain sorted unique nonnegative integers"
+            )
+        observed.append(normalized)
+    if any(value != observed[0] for value in observed[1:]):
+        raise ArtifactValidationError("artifact contains inconsistent hardware.cpu_affinity values")
+    return observed[0]
+
+
 def validate_ranking_artifact(
     frame: pd.DataFrame,
     config: ExperimentConfig,
@@ -598,6 +629,29 @@ def validate_ranking_artifact(
         raise ArtifactValidationError(
             f"rankings fold_idx values must be 0..{N_SPLITS - 1}, got {sorted(folds.tolist())}"
         )
+
+    cpu_affinity = _artifact_cpu_affinity(frame)
+    if config.method.name in {"r_ctree", "r_cforest"}:
+        try:
+            expected_fold_affinities = partition_cpu_ids(cpu_affinity, N_SPLITS)
+        except ValueError as exc:
+            raise ArtifactValidationError(
+                f"R ranking artifact cannot allocate {N_SPLITS} disjoint fold CPU partitions"
+            ) from exc
+    else:
+        expected_fold_affinities = tuple(cpu_affinity for _fold in range(N_SPLITS))
+    for row_index, fold_idx in enumerate(folds):
+        values = np.asarray(frame["fold_cpu_affinity"].iloc[row_index])
+        if values.ndim != 1 or not np.issubdtype(values.dtype, np.integer):
+            raise ArtifactValidationError(
+                f"fold {fold_idx} fold_cpu_affinity must be a one-dimensional integer array"
+            )
+        observed_affinity = tuple(int(value) for value in values)
+        expected_affinity = expected_fold_affinities[fold_idx]
+        if observed_affinity != expected_affinity:
+            raise ArtifactValidationError(
+                f"fold {fold_idx} fold_cpu_affinity does not match the runtime allocation"
+            )
 
     expected_random_states = config.seed * 1000 + folds
     observed_random_states = pd.to_numeric(frame["fold_random_state"], errors="coerce")

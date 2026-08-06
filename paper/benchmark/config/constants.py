@@ -15,7 +15,8 @@ import os
 RANDOM_STATE = 1718
 N_SEEDS = 5
 N_SPLITS = 5
-PIPELINE_ARTIFACT_VERSION = 5
+PIPELINE_ARTIFACT_VERSION = 6
+R_SELECTION_TIMEOUT_SECONDS = 6 * 60 * 60
 
 # =============================================================================
 # Control Plane

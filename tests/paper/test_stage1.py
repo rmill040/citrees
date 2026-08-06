@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import inspect
+import os
 import subprocess
 import sys
+import time
+from multiprocessing.connection import Connection
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -39,6 +42,43 @@ from paper.benchmark.pipeline.r_methods import (
 )
 
 pytestmark = pytest.mark.paper
+
+
+def _hold_r_fold_result_pipe_open(sender: Connection) -> None:
+    """Keep one real child alive long enough to exercise timeout cleanup."""
+    try:
+        time.sleep(60)
+    finally:
+        sender.close()
+
+
+def _hold_r_fold_process_group_open(sender: Connection) -> None:
+    """Create one process-group descendant and wait for cleanup signals."""
+    os.setsid()
+    descendant = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+    )
+    try:
+        sender.send(
+            {
+                "process_group_id": os.getpgrp(),
+                "descendant_pid": descendant.pid,
+            }
+        )
+        time.sleep(60)
+    finally:
+        sender.close()
+
+
+def _exit_r_fold_while_descendant_holds_pipe(sender: Connection) -> None:
+    """Exit one fold leader while a forked descendant retains its result pipe."""
+    os.setsid()
+    sender.send({"status": "ready", "process_group_id": os.getpgrp()})
+    descendant_pid = os.fork()
+    if descendant_pid == 0:
+        time.sleep(60)
+        os._exit(0)
+    os._exit(7)
 
 
 def test_concurrent_valid_ranking_upload_is_skipped(
@@ -111,7 +151,11 @@ def test_concurrent_valid_ranking_upload_is_skipped(
     )
     monkeypatch.setattr(stage1, "get_git_sha", lambda: "a" * 40)
     monkeypatch.setattr(stage1, "get_library_versions", lambda: {"python": "3.12.7"})
-    monkeypatch.setattr(stage1, "get_hardware_metadata", lambda: {"logical_cpus": 1})
+    monkeypatch.setattr(
+        stage1,
+        "get_hardware_metadata",
+        lambda: {"logical_cpus": 1, "cpu_affinity": [0]},
+    )
     monkeypatch.setattr(
         stage1,
         "get_container_image",
@@ -1719,8 +1763,7 @@ class TestRCforestRanking:
         }
 
         importances = [
-            r_cforest_importance(X, y, cores=cores, **kwargs)
-            for cores in (1, 2, 4, 4, 2, 1)
+            r_cforest_importance(X, y, cores=cores, **kwargs) for cores in (1, 2, 4, 4, 2, 1)
         ]
 
         assert all(
@@ -1875,6 +1918,569 @@ def test_cforest_production_uses_runtime_core_count(
         )
 
     assert observed_cores == [-1] * 10
+
+
+def test_r_fold_cpu_partitions_are_stable_and_exhaustive() -> None:
+    """Production-sized CPU sets must be divided once across all five folds."""
+    from paper.benchmark.utils.env import partition_cpu_ids
+
+    partitions = partition_cpu_ids(tuple(range(32)), 5)
+
+    assert [len(partition) for partition in partitions] == [7, 7, 6, 6, 6]
+    assert tuple(cpu for partition in partitions for cpu in partition) == tuple(range(32))
+
+
+def test_r_fold_cpu_partitions_reject_cpu_overlap() -> None:
+    """Five concurrent folds require five distinct logical CPUs."""
+    from paper.benchmark.utils.env import partition_cpu_ids
+
+    with pytest.raises(ValueError, match="cannot provide 5 disjoint partitions"):
+        partition_cpu_ids((0, 1, 2, 3), 5)
+
+
+def test_parallel_r_selection_submits_one_fresh_process_per_fold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production R path must submit every fold with a disjoint CPU set."""
+    from paper.benchmark.pipeline import stage1
+
+    observed: list[tuple[int, tuple[int, ...], int]] = []
+    process_names: list[str] = []
+    events: list[FakeEvent] = []
+    readiness_order: list[int] = []
+
+    class FakeEvent:
+        def __init__(self) -> None:
+            self.authorized = False
+            events.append(self)
+
+        def set(self) -> None:
+            self.authorized = True
+
+    class FakeConnection:
+        def close(self) -> None:
+            return None
+
+    class FakeProcess:
+        def __init__(self, *, target, args: tuple[object, ...], name: str) -> None:
+            del target
+            self.args = args
+            self.name = name
+            self.pid = 2_000_000_000 + len(process_names)
+            self.exitcode: int | None = None
+            self.alive = False
+
+        def start(self) -> None:
+            if process_names:
+                assert events[len(process_names) - 1].authorized
+            self.alive = True
+            process_names.append(self.name)
+
+        def is_alive(self) -> bool:
+            return self.alive
+
+        def join(self, timeout: float | None = None) -> None:
+            del timeout
+
+        def terminate(self) -> None:
+            self.alive = False
+
+        def kill(self) -> None:
+            self.alive = False
+
+    class InlineContext:
+        Process = FakeProcess
+
+        @staticmethod
+        def Event() -> FakeEvent:
+            return FakeEvent()
+
+        @staticmethod
+        def Pipe(*, duplex: bool) -> tuple[FakeConnection, FakeConnection]:
+            assert duplex is False
+            return FakeConnection(), FakeConnection()
+
+    def run_fold(
+        X: np.ndarray,
+        y: np.ndarray,
+        method: str,
+        task: str,
+        seed: int,
+        params: dict[str, object],
+        fold_idx: int,
+        train_idx: np.ndarray,
+        test_idx: np.ndarray,
+        cpu_ids: tuple[int, ...],
+    ) -> dict[str, object]:
+        del X, y, method, task, params, train_idx, test_idx
+        observed.append((fold_idx, cpu_ids, seed * 1000 + fold_idx))
+        return {
+            "fold_idx": fold_idx,
+            "fold_random_state": seed * 1000 + fold_idx,
+            "feature_ranking": [0, 1, 2, 3],
+            "fold_cpu_affinity": list(cpu_ids),
+        }
+
+    observed_collection_timeout: list[float] = []
+
+    def receive_ready(handle, *, deadline):
+        del deadline
+        if readiness_order:
+            assert events[readiness_order[-1]].authorized
+        readiness_order.append(handle.fold_idx)
+        return handle.process.pid
+
+    def collect(handles, *, timeout_seconds):
+        observed_collection_timeout.append(timeout_seconds)
+        rows = []
+        for handle in handles:
+            assert handle.launch_event.authorized
+            args = handle.process.args
+            rows.append(run_fold(*args[2:]))
+            handle.process.alive = False
+            handle.process.exitcode = 0
+        return rows
+
+    def terminate(handles):
+        for handle in handles:
+            handle.receiver.close()
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: tuple(range(12)))
+    monkeypatch.setattr(stage1.multiprocessing, "get_context", lambda method: InlineContext())
+    monkeypatch.setattr(stage1, "_receive_r_fold_process_ready", receive_ready)
+    monkeypatch.setattr(stage1, "_collect_r_fold_processes", collect)
+    monkeypatch.setattr(stage1, "_terminate_r_fold_processes", terminate)
+    monkeypatch.setattr(stage1.time, "monotonic", lambda: 100.0)
+    rng = np.random.default_rng(1718)
+    X = rng.standard_normal((50, 4))
+    y = np.array([0, 1] * 25)
+
+    rows = stage1.run_r_selection_parallel(
+        X,
+        y,
+        "r_cforest",
+        "classification",
+        seed=7,
+        timeout_seconds=1.0,
+    )
+
+    assert process_names == [f"citrees-r-fold-{fold}" for fold in range(5)]
+    assert readiness_order == [0, 1, 2, 3, 4]
+    assert [item[0] for item in observed] == [0, 1, 2, 3, 4]
+    assert [item[1] for item in observed] == [
+        (0, 1, 2),
+        (3, 4, 5),
+        (6, 7),
+        (8, 9),
+        (10, 11),
+    ]
+    assert [item[2] for item in observed] == [7000, 7001, 7002, 7003, 7004]
+    assert len(events) == 5
+    assert all(event.authorized for event in events)
+    assert observed_collection_timeout == [1.0]
+    assert [row["fold_idx"] for row in rows] == [0, 1, 2, 3, 4]
+    assert [row["fold_cpu_affinity"] for row in rows] == [
+        [0, 1, 2],
+        [3, 4, 5],
+        [6, 7],
+        [8, 9],
+        [10, 11],
+    ]
+
+
+@pytest.mark.parametrize("failure", [TimeoutError("timeout"), RuntimeError("child failed")])
+def test_parallel_r_selection_terminates_every_child_on_failure(
+    failure: Exception,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Timeouts and child failures must tear down every sibling process."""
+    from paper.benchmark.pipeline import stage1
+
+    processes: list[FakeProcess] = []
+
+    class FakeConnection:
+        def close(self) -> None:
+            return None
+
+    class FakeEvent:
+        def set(self) -> None:
+            return None
+
+    class FakeProcess:
+        def __init__(self, *, target, args: tuple[object, ...], name: str) -> None:
+            del target, args, name
+            self.alive = False
+            self.exitcode: int | None = None
+            self.terminated = False
+            processes.append(self)
+
+        def start(self) -> None:
+            self.alive = True
+
+        def is_alive(self) -> bool:
+            return self.alive
+
+        def terminate(self) -> None:
+            self.terminated = True
+            self.alive = False
+            self.exitcode = -15
+
+        def kill(self) -> None:
+            self.alive = False
+            self.exitcode = -9
+
+        def join(self, timeout: float | None = None) -> None:
+            del timeout
+
+    class FakeContext:
+        Process = FakeProcess
+
+        @staticmethod
+        def Event() -> FakeEvent:
+            return FakeEvent()
+
+        @staticmethod
+        def Pipe(*, duplex: bool) -> tuple[FakeConnection, FakeConnection]:
+            assert duplex is False
+            return FakeConnection(), FakeConnection()
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: tuple(range(10)))
+    monkeypatch.setattr(stage1.multiprocessing, "get_context", lambda method: FakeContext())
+    monkeypatch.setattr(
+        stage1,
+        "_receive_r_fold_process_ready",
+        lambda handle, **kwargs: None,
+    )
+
+    def fail_collection(*args, **kwargs):
+        del args, kwargs
+        raise failure
+
+    monkeypatch.setattr(stage1, "_collect_r_fold_processes", fail_collection)
+    X = np.arange(200, dtype=float).reshape(50, 4)
+    y = np.array([0, 1] * 25)
+
+    with pytest.raises(type(failure), match=str(failure)):
+        stage1.run_r_selection_parallel(
+            X,
+            y,
+            "r_cforest",
+            "classification",
+            seed=0,
+            timeout_seconds=1.0,
+        )
+
+    assert len(processes) == 5
+    assert all(process.terminated for process in processes)
+    assert all(not process.is_alive() for process in processes)
+
+
+class _FinishedFoldProcess:
+    def __init__(
+        self,
+        sentinel: Connection,
+        exitcode: int | None = 0,
+        *,
+        alive: bool = False,
+    ) -> None:
+        self.sentinel = sentinel
+        self.exitcode = exitcode
+        self.alive = alive
+
+    def is_alive(self) -> bool:
+        return self.alive
+
+    def join(self, timeout: float | None = None) -> None:
+        del timeout
+
+
+def test_r_fold_collection_propagates_child_error() -> None:
+    from paper.benchmark.pipeline import stage1
+
+    context = stage1.multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    sender.send(
+        {
+            "status": "error",
+            "error_type": "RuntimeError",
+            "error": "fit failed",
+            "traceback": "RuntimeError: fit failed",
+        }
+    )
+    sender.close()
+    handle = stage1._RFoldProcess(0, _FinishedFoldProcess(receiver), receiver)
+
+    try:
+        with pytest.raises(RuntimeError, match="R fold 0 failed with RuntimeError: fit failed"):
+            stage1._collect_r_fold_processes([handle], timeout_seconds=1.0)
+    finally:
+        receiver.close()
+
+
+def test_r_fold_collection_times_out_at_absolute_deadline() -> None:
+    from paper.benchmark.pipeline import stage1
+
+    context = stage1.multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    handle = stage1._RFoldProcess(
+        3,
+        _FinishedFoldProcess(receiver, exitcode=None, alive=True),
+        receiver,
+    )
+
+    try:
+        with pytest.raises(TimeoutError, match=r"pending folds \[3\]"):
+            stage1._collect_r_fold_processes([handle], timeout_seconds=0.01)
+    finally:
+        sender.close()
+        receiver.close()
+
+
+def test_r_fold_collection_rejects_child_exit_without_result() -> None:
+    from paper.benchmark.pipeline import stage1
+
+    context = stage1.multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    sender.close()
+    handle = stage1._RFoldProcess(4, _FinishedFoldProcess(receiver, exitcode=7), receiver)
+
+    try:
+        with pytest.raises(RuntimeError, match=r"R fold 4 exited without a result \(exitcode=7\)"):
+            stage1._collect_r_fold_processes([handle], timeout_seconds=1.0)
+    finally:
+        receiver.close()
+
+
+def test_r_fold_timeout_terminates_real_spawned_child() -> None:
+    from paper.benchmark.pipeline import stage1
+
+    context = stage1.multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(
+        target=_hold_r_fold_result_pipe_open,
+        args=(sender,),
+        name="citrees-test-hung-r-fold",
+    )
+    process.start()
+    sender.close()
+    handle = stage1._RFoldProcess(2, process, receiver)
+
+    try:
+        with pytest.raises(TimeoutError, match=r"pending folds \[2\]"):
+            stage1._collect_r_fold_processes([handle], timeout_seconds=0.05)
+    finally:
+        stage1._terminate_r_fold_processes([handle])
+
+    assert not process.is_alive()
+    assert process.exitcode is not None
+
+
+def test_r_fold_collection_detects_crashed_leader_with_inherited_pipe() -> None:
+    from paper.benchmark.pipeline import stage1
+
+    context = stage1.multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(
+        target=_exit_r_fold_while_descendant_holds_pipe,
+        args=(sender,),
+        name="citrees-test-crashed-r-fold",
+    )
+    process.start()
+    sender.close()
+    handle = stage1._RFoldProcess(0, process, receiver)
+    handle.process_group_id = stage1._receive_r_fold_process_ready(handle)
+
+    try:
+        with pytest.raises(RuntimeError, match=r"R fold 0 exited without a result \(exitcode=7\)"):
+            stage1._collect_r_fold_processes([handle], timeout_seconds=1.0)
+    finally:
+        stage1._terminate_r_fold_processes([handle])
+
+
+def test_r_fold_waits_for_parent_authorization() -> None:
+    from paper.benchmark.pipeline import stage1
+
+    context = stage1.multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    launch_event = context.Event()
+    X = np.arange(40, dtype=np.float64).reshape(10, 4)
+    y = np.array([0, 1] * 5)
+    process = context.Process(
+        target=stage1._run_r_selection_fold_entry,
+        args=(
+            sender,
+            launch_event,
+            X,
+            y,
+            "r_cforest",
+            "classification",
+            0,
+            {},
+            0,
+            np.arange(8),
+            np.arange(8, 10),
+            (0,),
+        ),
+        name="citrees-test-r-fold-authorization",
+    )
+    process.start()
+    sender.close()
+    handle = stage1._RFoldProcess(
+        0,
+        process,
+        receiver,
+        launch_event=launch_event,
+    )
+    handle.process_group_id = stage1._receive_r_fold_process_ready(handle)
+
+    try:
+        assert not receiver.poll(0.1)
+    finally:
+        stage1._terminate_r_fold_processes([handle])
+
+
+def test_r_fold_affinity_must_be_verifiable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from paper.benchmark.pipeline import stage1
+
+    monkeypatch.delattr(stage1.os, "sched_setaffinity", raising=False)
+    monkeypatch.delattr(stage1.os, "sched_getaffinity", raising=False)
+
+    with pytest.raises(RuntimeError, match="verifiable CPU affinity"):
+        stage1._pin_current_process((0,))
+
+
+def test_parallel_r_selection_rejects_container_pid_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from paper.benchmark.pipeline import stage1
+
+    monkeypatch.setattr(stage1.sys, "platform", "linux")
+    monkeypatch.setattr(stage1.os, "getpid", lambda: 1)
+    X = np.arange(40, dtype=np.float64).reshape(10, 4)
+    y = np.array([0, 1] * 5)
+
+    with pytest.raises(RuntimeError, match="container init process"):
+        stage1.run_r_selection_parallel(
+            X,
+            y,
+            "r_cforest",
+            "classification",
+            seed=0,
+        )
+
+
+def test_r_fold_cleanup_terminates_process_group_descendants() -> None:
+    from paper.benchmark.pipeline import stage1
+
+    context = stage1.multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(
+        target=_hold_r_fold_process_group_open,
+        args=(sender,),
+        name="citrees-test-r-fold-process-group",
+    )
+    process.start()
+    sender.close()
+    group = receiver.recv()
+    process_group_id = int(group["process_group_id"])
+    assert process_group_id == process.pid
+    assert int(group["descendant_pid"]) != process.pid
+    handle = stage1._RFoldProcess(
+        2,
+        process,
+        receiver,
+        process_group_id=process_group_id,
+    )
+
+    stage1._terminate_r_fold_processes([handle])
+
+    assert not process.is_alive()
+    assert process.exitcode is not None
+    assert not stage1._r_process_group_exists(process_group_id)
+
+
+@_skip_no_r
+@pytest.mark.skipif(
+    not hasattr(os, "sched_setaffinity") or not hasattr(os, "sched_getaffinity"),
+    reason="parallel R selection requires verifiable CPU affinity",
+)
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("method", "params"),
+    [
+        (
+            "r_ctree",
+            {
+                "teststat": "quadratic",
+                "testtype": "MonteCarlo",
+                "alpha": 0.05,
+                "nresample": 19,
+                "minsplit": 10,
+                "minbucket": 3,
+            },
+        ),
+        (
+            "r_cforest",
+            {
+                "teststat": "quadratic",
+                "testtype": "MonteCarlo",
+                "mincriterion": 0.95,
+                "nresample": 19,
+                "ntree": 10,
+                "mtry": "sqrt",
+                "maxdepth": 2,
+                "minsplit": 10,
+                "minbucket": 3,
+                "replace": True,
+                "fraction": 0.632,
+                "varimp_conditional": False,
+                "varimp_nperm": 1,
+            },
+        ),
+    ],
+)
+def test_parallel_r_selection_matches_sequential_rankings(
+    method: str,
+    params: dict[str, object],
+) -> None:
+    """Fresh fold processes must preserve R baseline rankings exactly."""
+    from paper.benchmark.pipeline.stage1 import (
+        run_r_selection_parallel,
+        run_selection,
+    )
+
+    rng = np.random.default_rng(1718)
+    X = rng.standard_normal((80, 6))
+    y = (X[:, 5] - 0.5 * X[:, 2] > 0).astype(np.int64)
+
+    sequential = run_selection(
+        X,
+        y,
+        method,
+        "classification",
+        seed=7,
+        params=params,
+    )
+    parallel = run_r_selection_parallel(
+        X,
+        y,
+        method,
+        "classification",
+        seed=7,
+        params=params,
+    )
+
+    assert [row["fold_random_state"] for row in parallel] == [
+        7000,
+        7001,
+        7002,
+        7003,
+        7004,
+    ]
+    assert [row["feature_ranking"] for row in parallel] == [
+        row["feature_ranking"] for row in sequential
+    ]
+    assert all(row["fold_cpu_affinity"] for row in parallel)
 
 
 @pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])

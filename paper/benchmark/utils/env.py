@@ -17,6 +17,43 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 
+def get_available_cpu_ids() -> tuple[int, ...]:
+    """Return the logical CPUs available to the current process."""
+    get_affinity = getattr(os, "sched_getaffinity", None)
+    if get_affinity is not None:
+        cpu_ids = tuple(sorted(get_affinity(0)))
+    else:
+        cpu_ids = tuple(range(os.cpu_count() or 1))
+    if not cpu_ids:
+        raise RuntimeError("no logical CPUs are available")
+    return cpu_ids
+
+
+def partition_cpu_ids(
+    cpu_ids: tuple[int, ...],
+    n_partitions: int,
+) -> tuple[tuple[int, ...], ...]:
+    """Partition distinct CPU IDs into stable nonempty groups."""
+    if len(set(cpu_ids)) != len(cpu_ids) or any(
+        type(cpu_id) is not int or cpu_id < 0 for cpu_id in cpu_ids
+    ):
+        raise ValueError("cpu_ids must contain unique nonnegative integers")
+    if type(n_partitions) is not int or n_partitions < 1:
+        raise ValueError("n_partitions must be positive")
+    if len(cpu_ids) < n_partitions:
+        raise ValueError(
+            f"{len(cpu_ids)} available CPUs cannot provide {n_partitions} disjoint partitions"
+        )
+    quotient, remainder = divmod(len(cpu_ids), n_partitions)
+    partitions: list[tuple[int, ...]] = []
+    offset = 0
+    for partition_idx in range(n_partitions):
+        size = quotient + int(partition_idx < remainder)
+        partitions.append(cpu_ids[offset : offset + size])
+        offset += size
+    return tuple(partitions)
+
+
 def get_repo_root() -> Path:
     """Return the repository root path.
 
@@ -61,13 +98,15 @@ def get_library_versions() -> dict[str, str]:
     return versions
 
 
-def get_hardware_metadata() -> dict[str, str | int]:
+def get_hardware_metadata() -> dict[str, str | int | list[int]]:
     """Return host metadata needed to interpret runtime measurements."""
+    cpu_affinity = get_available_cpu_ids()
     return {
         "platform": platform.platform(),
         "machine": platform.machine(),
         "processor": platform.processor() or "unknown",
-        "logical_cpus": os.cpu_count() or 1,
+        "logical_cpus": len(cpu_affinity),
+        "cpu_affinity": list(cpu_affinity),
         "ec2_instance_type": os.environ.get("EC2_INSTANCE_TYPE", "unknown"),
     }
 

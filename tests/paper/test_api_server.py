@@ -262,7 +262,7 @@ def _artifact_common(
         "dataset_sha256": config.dataset_identity.sha256,
         "gate_receipt_sha256": GATE_RECEIPT_SHA256,
         "git_sha": "a" * 40,
-        "hardware": {"logical_cpus": 32},
+        "hardware": {"logical_cpus": 32, "cpu_affinity": list(range(32))},
         "library_versions": {"python": "3.12.7"},
         "method": config.method.label,
         "method_base": config.method.name,
@@ -288,9 +288,9 @@ def _valid_rankings(
             {
                 **common,
                 "feature_ranking": list(range(n_features)),
+                "fold_cpu_affinity": list(range(32)),
                 "fold_idx": fold,
                 "fold_random_state": config.seed * 1000 + fold,
-                "selection_cpus": 32,
             }
             for fold in range(5)
         ]

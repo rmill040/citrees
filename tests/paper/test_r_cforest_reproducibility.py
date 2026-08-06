@@ -220,6 +220,9 @@ def _configuration_result(
         "method": configuration.name,
         "params": configuration.params_dict,
         "elapsed_seconds": 1.0,
+        "fold_cpu_affinity": [
+            list(cpu_ids) for cpu_ids in gate.partition_cpu_ids(tuple(range(32)), gate.N_FOLDS)
+        ],
         **gate.summarize_rankings(
             _rankings(n_features),
             n_features=n_features,
@@ -276,6 +279,7 @@ def _provenance(
             f"{aws_account_id}.dkr.ecr.us-east-1.amazonaws.com/"
             f"citrees-{aws_account_id}@sha256:" + "b" * 64
         ),
+        "cpu_affinity": list(range(32)),
         "cpu_model": CPU_MODEL,
         "git_sha": "c" * 40,
         "hostname": instance_id,
@@ -295,6 +299,7 @@ def _provenance(
             "blas": "/usr/local/lib/R/lib/libRblas.so",
             "lapack": "/usr/local/lib/R/lib/libRlapack.so",
         },
+        "r_selection_timeout_seconds": gate.R_SELECTION_TIMEOUT_SECONDS,
         "r_runtime": {
             "r": "R version 4.5.2",
             "partykit": "1.2.24",
@@ -326,7 +331,7 @@ def _payload(
     runtime_contract: dict[str, Any],
     manifest: RerunManifest,
 ) -> dict[str, Any]:
-    inventory = gate._replacement_inventory(manifest)
+    inventory = gate._gate_inventory(manifest)
     return {
         "schema_version": gate.SCHEMA_VERSION,
         "profile": "r_cforest_reproducibility",
@@ -479,9 +484,10 @@ def _compare(
     )
 
 
-def test_gate_scope_is_the_exact_production_panel() -> None:
+def test_gate_validates_the_full_scope_and_executes_a_stratified_panel() -> None:
     manifest = _manifest()
-    inventory = gate._replacement_inventory(manifest)
+    replacement_inventory = gate._replacement_inventory(manifest)
+    gate_inventory = gate._gate_inventory(manifest)
 
     replacement_cells = [cell for cell in manifest.cells if cell.config.method.name == "r_cforest"]
     assert len(manifest.cells) == 941
@@ -491,9 +497,9 @@ def test_gate_scope_is_the_exact_production_panel() -> None:
         ACCOUNT_B,
     }
     assert sum(cell.historically_omitted for cell in replacement_cells) == 20
-    assert sum(len(datasets) for datasets in inventory.values()) == 47
-    assert set(inventory) == {"classification", "regression"}
-    for task, datasets in inventory.items():
+    assert sum(len(datasets) for datasets in replacement_inventory.values()) == 47
+    assert set(replacement_inventory) == {"classification", "regression"}
+    for task, datasets in replacement_inventory.items():
         configurations = get_full_method_configs(["r_cforest"], task)
         assert len(configurations) == 4
         assert {
@@ -508,6 +514,62 @@ def test_gate_scope_is_the_exact_production_panel() -> None:
         for cells in datasets.values():
             assert len(cells) == 20
             assert {cell.config.seed for cell in cells} == set(gate.EXPECTED_SEEDS)
+
+    assert sum(len(datasets) for datasets in gate_inventory.values()) == 4
+    assert (
+        sum(len(cells) for datasets in gate_inventory.values() for cells in datasets.values()) == 8
+    )
+    for task, datasets in gate_inventory.items():
+        assert len(datasets) == 2
+        assert all(cells[0].dataset_source == "real" for cells in datasets.values())
+        assert {len(cells) for cells in datasets.values()} == {2}
+        real_datasets = {
+            dataset: cells
+            for dataset, cells in replacement_inventory[task].items()
+            if cells[0].dataset_source == "real"
+        }
+        expected_compact = min(
+            real_datasets,
+            key=lambda dataset: (
+                real_datasets[dataset][0].config.dataset_identity.n_samples
+                * real_datasets[dataset][0].config.dataset_identity.n_features,
+                real_datasets[dataset][0].config.dataset_identity.n_features,
+                real_datasets[dataset][0].config.dataset_identity.n_samples,
+                dataset,
+            ),
+        )
+        maximum_features = max(
+            cells[0].config.dataset_identity.n_features for cells in real_datasets.values()
+        )
+        expected_high_dimensional = min(
+            (
+                dataset
+                for dataset, cells in real_datasets.items()
+                if cells[0].config.dataset_identity.n_features == maximum_features
+            ),
+            key=lambda dataset: (
+                real_datasets[dataset][0].config.dataset_identity.n_samples,
+                dataset,
+            ),
+        )
+        assert set(datasets) == {expected_compact, expected_high_dimensional}
+        selected_cells = [cell for cells in datasets.values() for cell in cells]
+        assert {
+            (
+                cell.config.method.params_dict["testtype"],
+                cell.config.method.params_dict["replace"],
+            )
+            for cell in selected_cells
+        } == {
+            ("Bonferroni", False),
+            ("Bonferroni", True),
+            ("MonteCarlo", False),
+            ("MonteCarlo", True),
+        }
+        assert {cell.config.seed for cell in selected_cells} == {
+            gate.EXPECTED_SEEDS[0],
+            gate.EXPECTED_SEEDS[-1],
+        }
 
 
 def test_linux_process_identity_uses_boot_id_and_start_ticks(tmp_path: Path) -> None:
@@ -658,6 +720,7 @@ def test_provenance_derives_ec2_scope_from_signed_evidence(
         ],
     )
     monkeypatch.setattr(gate.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(gate, "get_available_cpu_ids", lambda: tuple(range(32)))
 
     provenance = gate._provenance("signed-run", instance_identity=evidence)
 
@@ -666,7 +729,10 @@ def test_provenance_derives_ec2_scope_from_signed_evidence(
     assert provenance["instance_id"] == HOST_A
     assert provenance["availability_zone_id"] == ZONE_ID_A
     assert provenance["ami_id"] == AMI_ID
+    assert provenance["cpu_affinity"] == list(range(32))
+    assert provenance["logical_cpus"] == 32
     assert provenance["openssl_version"] == OPENSSL_VERSION
+    assert provenance["r_selection_timeout_seconds"] == gate.R_SELECTION_TIMEOUT_SECONDS
     assert provenance["instance_identity"] == evidence.to_record()
 
 
@@ -776,6 +842,14 @@ def test_runtime_contract_is_content_addressed_and_excludes_host_identity() -> N
     assert payloads[0]["runtime_contract_sha256"] == gate.runtime_contract_sha256(runtime_contract)
 
 
+def test_runtime_contract_rejects_cpu_affinity_drift() -> None:
+    runtime_contract, manifest, payloads = _payloads()
+    payloads[0]["provenance"]["cpu_affinity"] = list(range(1, 33))
+
+    with pytest.raises(ValueError, match=r"frozen runtime: \['cpu_affinity'\]"):
+        _compare(runtime_contract, manifest, payloads)
+
+
 def test_openssl_provenance_is_required_and_runtime_bound() -> None:
     runtime_contract, manifest, payloads = _payloads()
 
@@ -807,9 +881,9 @@ def test_openssl_provenance_requires_exact_cross_host_equality(
 
 
 def test_openssl_change_invalidates_all_coupled_schema_versions() -> None:
-    assert gate.RUNTIME_CONTRACT_SCHEMA_VERSION == 5
-    assert gate.SCHEMA_VERSION == 5
-    assert gate.GATE_RECEIPT_SCHEMA_VERSION == 5
+    assert gate.RUNTIME_CONTRACT_SCHEMA_VERSION == 6
+    assert gate.SCHEMA_VERSION == 6
+    assert gate.GATE_RECEIPT_SCHEMA_VERSION == 6
 
     runtime_contract, manifest, payloads = _payloads()
 
@@ -819,7 +893,7 @@ def test_openssl_change_invalidates_all_coupled_schema_versions() -> None:
         gate.validate_runtime_contract(old_contract)
 
     old_payloads = copy.deepcopy(payloads)
-    old_payloads[0]["schema_version"] = 4
+    old_payloads[0]["schema_version"] = gate.SCHEMA_VERSION - 1
     with pytest.raises(ValueError, match="unexpected schema version"):
         _compare(runtime_contract, manifest, old_payloads)
 
@@ -829,7 +903,7 @@ def test_openssl_change_invalidates_all_coupled_schema_versions() -> None:
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
-    receipt["schema_version"] = 4
+    receipt["schema_version"] = gate.GATE_RECEIPT_SCHEMA_VERSION - 1
     with pytest.raises(ValueError, match="unexpected schema version"):
         gate.serialize_gate_receipt(
             receipt,
@@ -844,18 +918,17 @@ def test_compare_accepts_two_fresh_pid_one_processes_on_two_hosts() -> None:
     report = _compare(runtime_contract, manifest, payloads)
     expected_selected_sets = sum(
         len(get_requested_evaluation_k_values(cells[0].config.dataset_identity.n_features))
-        * 4
-        * len(gate.EXPECTED_SEEDS)
+        * len(cells)
         * gate.N_FOLDS
-        for datasets in gate._replacement_inventory(manifest).values()
+        for datasets in gate._gate_inventory(manifest).values()
         for cells in datasets.values()
     )
 
     assert report["status"] == "GO"
     assert report["process_incarnations"] == 4
-    assert report["dataset_task_pairs"] == 47
-    assert report["executed_cells"] == 940
-    assert report["fold_rankings"] == 4700
+    assert report["dataset_task_pairs"] == 4
+    assert report["executed_cells"] == 8
+    assert report["fold_rankings"] == 40
     assert report["selected_sets"] == expected_selected_sets
     assert report["aws_account_ids"] == [ACCOUNT_A, ACCOUNT_B]
     assert report["availability_zones"] == ["us-east-1a"]
@@ -1325,7 +1398,7 @@ def test_gate_receipt_parser_rejects_noncanonical_or_wrong_digest() -> None:
         )
 
 
-def test_run_gate_executes_every_manifest_seed(
+def test_run_gate_executes_every_panel_cell(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provenance = _provenance(
@@ -1345,8 +1418,17 @@ def test_run_gate_executes_every_manifest_seed(
         if cell.config.method.name == "r_cforest"
         and cell.config.task == "classification"
         and cell.config.dataset == "classification_fixture_0"
-        and cell.config.method.label
-        == get_full_method_configs(["r_cforest"], "classification")[0].label
+        and (
+            (
+                cell.config.method.params_dict["testtype"],
+                cell.config.method.params_dict["replace"],
+                cell.config.seed,
+            )
+            in {
+                ("Bonferroni", False, gate.EXPECTED_SEEDS[0]),
+                ("MonteCarlo", True, gate.EXPECTED_SEEDS[-1]),
+            }
+        )
     )
     inventory = {
         "classification": {"classification_fixture_0": cells},
@@ -1356,6 +1438,7 @@ def test_run_gate_executes_every_manifest_seed(
 
     monkeypatch.setattr(gate, "_provenance", lambda run_id: provenance)
     monkeypatch.setattr(gate, "_replacement_inventory", lambda value: inventory)
+    monkeypatch.setattr(gate, "_gate_inventory", lambda value: inventory)
     monkeypatch.setattr(
         gate,
         "load_dataset",
@@ -1365,29 +1448,40 @@ def test_run_gate_executes_every_manifest_seed(
         ),
     )
 
-    def run_selection(
+    def run_r_selection_parallel(
         X: Any,
         y: Any,
         method: str,
         task: str,
         seed: int,
         params: dict[str, Any],
-        n_jobs: int,
+        timeout_seconds: float,
     ) -> list[dict[str, Any]]:
-        del X, y, method, task, params, n_jobs
+        del X, y, method, task, params
+        assert timeout_seconds == gate.R_SELECTION_TIMEOUT_SECONDS
         observed_seeds.append(seed)
-        return [{"feature_ranking": list(range(9))} for _fold in range(gate.N_FOLDS)]
+        cpu_partitions = gate.partition_cpu_ids(tuple(range(32)), gate.N_FOLDS)
+        return [
+            {
+                "feature_ranking": list(range(9)),
+                "fold_cpu_affinity": list(cpu_partitions[fold]),
+            }
+            for fold in range(gate.N_FOLDS)
+        ]
 
-    monkeypatch.setattr(gate, "run_selection", run_selection)
+    monkeypatch.setattr(gate, "run_r_selection_parallel", run_r_selection_parallel)
 
     payload = gate.run_gate("gate-run", runtime_contract, manifest)
     configurations = payload["results"]["classification"]["classification_fixture_0"][
         "configurations"
     ]
 
-    assert observed_seeds == list(gate.EXPECTED_SEEDS)
-    assert len(configurations) == len(gate.EXPECTED_SEEDS)
-    assert {result["seed"] for result in configurations.values()} == set(gate.EXPECTED_SEEDS)
+    assert observed_seeds == [gate.EXPECTED_SEEDS[0], gate.EXPECTED_SEEDS[-1]]
+    assert len(configurations) == 2
+    assert {result["seed"] for result in configurations.values()} == {
+        gate.EXPECTED_SEEDS[0],
+        gate.EXPECTED_SEEDS[-1],
+    }
 
 
 @pytest.mark.parametrize(

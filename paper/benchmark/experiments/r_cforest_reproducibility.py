@@ -23,6 +23,7 @@ import numpy as np
 from threadpoolctl import threadpool_info
 
 from paper.benchmark.adapters.data import load_dataset
+from paper.benchmark.config.constants import R_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.pipeline.instance_identity import (
     SUPPORTED_REGION,
     InstanceIdentityEvidence,
@@ -63,15 +64,17 @@ from paper.benchmark.pipeline.runtime_contract import (
     THREAD_ENVIRONMENT,
     parse_runtime_contract,
     runtime_contract_sha256,
+    validate_cpu_affinity,
     validate_openssl_version,
     validate_runtime_contract,
 )
-from paper.benchmark.pipeline.stage1 import run_selection
+from paper.benchmark.pipeline.stage1 import run_r_selection_parallel
 from paper.benchmark.pipeline.stage2 import get_requested_evaluation_k_values
 from paper.benchmark.pipeline.types import TaskType
+from paper.benchmark.utils.env import get_available_cpu_ids, partition_cpu_ids
 
-SCHEMA_VERSION = 5
-GATE_RECEIPT_SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
+GATE_RECEIPT_SCHEMA_VERSION = 6
 GATE_RECEIPT_PROFILE = "r_cforest_reproducibility_gate"
 GATE_RECEIPT_S3_PREFIX = "runtime-gate-receipts"
 N_FOLDS = 5
@@ -81,6 +84,14 @@ N_EXPECTED_ACCOUNTS = 2
 EXPECTED_REPLACEMENT_CELLS = 940
 EXPECTED_DATASET_TASK_PAIRS = 47
 EXPECTED_SEEDS = (0, 1, 2, 3, 4)
+EXPECTED_GATE_CELLS = 8
+EXPECTED_GATE_DATASET_TASK_PAIRS = 4
+GATE_PANEL_SPECIFICATION = (
+    ("compact", "Bonferroni", False, EXPECTED_SEEDS[0]),
+    ("compact", "MonteCarlo", True, EXPECTED_SEEDS[-1]),
+    ("high_dimensional", "Bonferroni", True, EXPECTED_SEEDS[-1]),
+    ("high_dimensional", "MonteCarlo", False, EXPECTED_SEEDS[0]),
+)
 MAX_OPERATOR_READBACK_AGE_SECONDS = 300
 MAX_OPERATOR_READBACK_CLOCK_SKEW_SECONDS = 30
 OPENSSL_VERSION_TIMEOUT_SECONDS = 10
@@ -92,6 +103,7 @@ REQUIRED_GATE_ENVIRONMENT = (
 STATIC_PROVENANCE_FIELDS = (
     "ami_id",
     "architecture",
+    "cpu_affinity",
     "cpu_model",
     "git_sha",
     "kernel",
@@ -102,6 +114,7 @@ STATIC_PROVENANCE_FIELDS = (
     "os_release",
     "python_libraries",
     "r_numerical_libraries",
+    "r_selection_timeout_seconds",
     "r_runtime",
     "script_sha256",
     "thread_environment",
@@ -115,6 +128,7 @@ PROVENANCE_FIELDS = {
     "aws_account_id",
     "boot_id",
     "container_image",
+    "cpu_affinity",
     "cpu_model",
     "git_sha",
     "hostname",
@@ -131,6 +145,7 @@ PROVENANCE_FIELDS = {
     "process_start_ticks",
     "python_libraries",
     "r_numerical_libraries",
+    "r_selection_timeout_seconds",
     "r_runtime",
     "run_id",
     "script_sha256",
@@ -158,6 +173,7 @@ DATASET_RESULT_FIELDS = {
 }
 CONFIGURATION_RESULT_FIELDS = {
     "elapsed_seconds",
+    "fold_cpu_affinity",
     "method",
     "params",
     "rankings",
@@ -375,6 +391,7 @@ def _provenance(
     signed = evidence.identity
     boot_id, process_start_ticks = _linux_process_identity()
     script_path = Path(__file__).resolve()
+    cpu_affinity = get_available_cpu_ids()
     return {
         "run_id": run_id,
         "hostname": socket.gethostname(),
@@ -394,13 +411,15 @@ def _provenance(
         "machine": platform.machine(),
         "cpu_model": _cpu_field("model name"),
         "microcode": _cpu_field("microcode"),
-        "logical_cpus": os.cpu_count() or 1,
+        "logical_cpus": len(cpu_affinity),
+        "cpu_affinity": list(cpu_affinity),
         "kernel": platform.release(),
         "openssl_version": _openssl_version(),
         "os_release": _os_release(),
         "python_libraries": _python_libraries(),
         "r_runtime": get_r_runtime_versions(),
         "r_numerical_libraries": _r_numerical_libraries(),
+        "r_selection_timeout_seconds": R_SELECTION_TIMEOUT_SECONDS,
         "thread_environment": _thread_environment(),
         "threadpools": _canonical_threadpools(),
         "script_sha256": _sha256_bytes(script_path.read_bytes()),
@@ -500,6 +519,93 @@ def _replacement_inventory(
     return inventory
 
 
+def _gate_inventory(
+    manifest: RerunManifest,
+) -> dict[TaskType, dict[str, tuple[ManifestCell, ...]]]:
+    """Select the fixed reproducibility panel from the complete manifest."""
+    replacement_inventory = _replacement_inventory(manifest)
+    panel: dict[TaskType, dict[str, tuple[ManifestCell, ...]]] = {
+        "classification": {},
+        "regression": {},
+    }
+    for task, task_inventory in replacement_inventory.items():
+        real_datasets = {
+            dataset: cells
+            for dataset, cells in task_inventory.items()
+            if cells[0].dataset_source == "real"
+        }
+        if len(real_datasets) < 2:
+            raise ValueError(f"r_cforest gate requires two real {task} datasets")
+
+        compact_dataset = min(
+            real_datasets,
+            key=lambda dataset: (
+                real_datasets[dataset][0].config.dataset_identity.n_samples
+                * real_datasets[dataset][0].config.dataset_identity.n_features,
+                real_datasets[dataset][0].config.dataset_identity.n_features,
+                real_datasets[dataset][0].config.dataset_identity.n_samples,
+                dataset,
+            ),
+        )
+        maximum_features = max(
+            cells[0].config.dataset_identity.n_features for cells in real_datasets.values()
+        )
+        high_dimensional_dataset = min(
+            (
+                dataset
+                for dataset, cells in real_datasets.items()
+                if cells[0].config.dataset_identity.n_features == maximum_features
+            ),
+            key=lambda dataset: (
+                real_datasets[dataset][0].config.dataset_identity.n_samples,
+                dataset,
+            ),
+        )
+        if compact_dataset == high_dimensional_dataset:
+            raise ValueError(f"r_cforest gate {task} dimensional anchors must differ")
+
+        datasets = {
+            "compact": compact_dataset,
+            "high_dimensional": high_dimensional_dataset,
+        }
+        selected: dict[str, list[ManifestCell]] = defaultdict(list)
+        for profile, testtype, replace, seed in GATE_PANEL_SPECIFICATION:
+            dataset = datasets[profile]
+            matches = [
+                cell
+                for cell in real_datasets[dataset]
+                if cell.config.seed == seed
+                and cell.config.method.params_dict.get("testtype") == testtype
+                and cell.config.method.params_dict.get("replace") is replace
+            ]
+            if len(matches) != 1:
+                raise ValueError(
+                    "r_cforest gate panel does not identify exactly one "
+                    f"{task}/{dataset}/{testtype}/replace={replace}/seed={seed} cell"
+                )
+            selected[dataset].append(matches[0])
+        panel[task] = {
+            dataset: tuple(
+                sorted(cells, key=lambda cell: (cell.config.method.label, cell.config.seed))
+            )
+            for dataset, cells in sorted(selected.items())
+        }
+
+    observed_dataset_task_pairs = sum(len(task_inventory) for task_inventory in panel.values())
+    observed_cells = sum(
+        len(cells) for task_inventory in panel.values() for cells in task_inventory.values()
+    )
+    if (
+        observed_dataset_task_pairs != EXPECTED_GATE_DATASET_TASK_PAIRS
+        or observed_cells != EXPECTED_GATE_CELLS
+    ):
+        raise RuntimeError(
+            "r_cforest gate panel size differs: "
+            f"dataset_task_pairs={observed_dataset_task_pairs}, cells={observed_cells}"
+        )
+    return panel
+
+
 def _identity_payload(cell: ManifestCell) -> dict[str, Any]:
     identity = cell.config.dataset_identity
     return {
@@ -536,11 +642,12 @@ def run_gate(
         raise ValueError("replacement manifest is bound to a different runtime contract")
     provenance = _provenance(run_id)
     _require_runtime_match(provenance, runtime_contract, source="running process")
-    inventory = _replacement_inventory(manifest)
+    replacement_inventory = _replacement_inventory(manifest)
+    inventory = _gate_inventory(manifest)
     target_aws_account_ids = sorted(
         {
             cell.target_aws_account_id
-            for task_inventory in inventory.values()
+            for task_inventory in replacement_inventory.values()
             for cells in task_inventory.values()
             for cell in cells
         }
@@ -578,14 +685,14 @@ def run_gate(
             for cell in cells:
                 config = cell.config.method
                 config_started = time.monotonic()
-                rows = run_selection(
+                rows = run_r_selection_parallel(
                     X,
                     y,
                     "r_cforest",
                     task,
                     seed=cell.config.seed,
                     params=config.params_dict,
-                    n_jobs=-1,
+                    timeout_seconds=runtime_contract["runtime"]["r_selection_timeout_seconds"],
                 )
                 rankings = [list(map(int, row["feature_ranking"])) for row in rows]
                 dataset_result["configurations"][_configuration_key(cell)] = {
@@ -593,6 +700,7 @@ def run_gate(
                     "params": config.params_dict,
                     "seed": cell.config.seed,
                     "elapsed_seconds": time.monotonic() - config_started,
+                    "fold_cpu_affinity": [row["fold_cpu_affinity"] for row in rows],
                     **summarize_rankings(
                         rankings,
                         n_features=identity.n_features,
@@ -734,10 +842,22 @@ def _validate_provenance(
     if not _BOOT_ID_PATTERN.fullmatch(str(provenance["boot_id"])):
         raise ValueError(f"{source} provenance.boot_id is invalid")
 
-    for field in ("logical_cpus", "process_id", "process_start_ticks"):
+    for field in (
+        "logical_cpus",
+        "process_id",
+        "process_start_ticks",
+        "r_selection_timeout_seconds",
+    ):
         value = provenance[field]
         if type(value) is not int or value <= 0:
             raise ValueError(f"{source} provenance.{field} must be a positive integer")
+    validate_cpu_affinity(
+        provenance["cpu_affinity"],
+        logical_cpus=provenance["logical_cpus"],
+        source=f"{source} provenance.cpu_affinity",
+    )
+    if len(provenance["cpu_affinity"]) < N_FOLDS:
+        raise ValueError(f"{source} provenance.cpu_affinity cannot provide five fold partitions")
 
     _validate_version_mapping(
         provenance["os_release"],
@@ -876,7 +996,8 @@ def _validate_payload(
     runtime_contract: dict[str, Any],
     source: str,
 ) -> InstanceIdentityEvidence:
-    inventory = _replacement_inventory(manifest)
+    replacement_inventory = _replacement_inventory(manifest)
+    inventory = _gate_inventory(manifest)
     _require_exact_fields(payload, PAYLOAD_FIELDS, source=source)
     if payload.get("schema_version") != SCHEMA_VERSION:
         raise ValueError(f"{source} has an unexpected schema version")
@@ -888,7 +1009,7 @@ def _validate_payload(
         "target_aws_account_ids": sorted(
             {
                 cell.target_aws_account_id
-                for task_inventory in inventory.values()
+                for task_inventory in replacement_inventory.values()
                 for cells in task_inventory.values()
                 for cell in cells
             }
@@ -982,6 +1103,17 @@ def _validate_payload(
                         raise ValueError(
                             f"{source} {task}/{dataset}/{label} has an invalid {field}"
                         )
+                expected_cpu_affinity = [
+                    list(cpu_ids)
+                    for cpu_ids in partition_cpu_ids(
+                        tuple(provenance["cpu_affinity"]),
+                        N_FOLDS,
+                    )
+                ]
+                if result["fold_cpu_affinity"] != expected_cpu_affinity:
+                    raise ValueError(
+                        f"{source} {task}/{dataset}/{label} has invalid fold_cpu_affinity"
+                    )
     return evidence
 
 
@@ -1330,7 +1462,7 @@ def compare_payloads(
         "status": "GO",
         "runs": N_EXPECTED_RUNS,
         "hosts": N_EXPECTED_HOSTS,
-        "dataset_task_pairs": EXPECTED_DATASET_TASK_PAIRS,
+        "dataset_task_pairs": EXPECTED_GATE_DATASET_TASK_PAIRS,
         "process_incarnations": len(process_incarnations),
         "availability_zones": sorted(availability_zones),
         "availability_zone_ids": sorted(availability_zone_ids),

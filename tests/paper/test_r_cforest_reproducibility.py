@@ -302,7 +302,7 @@ def _provenance(
             "blas": "/usr/local/lib/R/lib/libRblas.so",
             "lapack": "/usr/local/lib/R/lib/libRlapack.so",
         },
-        "r_selection_timeout_seconds": gate.R_SELECTION_TIMEOUT_SECONDS,
+        "r_selection_timeout_seconds": gate.STAGE1_SELECTION_TIMEOUT_SECONDS,
         "r_runtime": {
             "r": "R version 4.5.2",
             "partykit": "1.2.24",
@@ -735,7 +735,7 @@ def test_provenance_derives_ec2_scope_from_signed_evidence(
     assert provenance["cpu_affinity"] == list(range(32))
     assert provenance["logical_cpus"] == 32
     assert provenance["openssl_version"] == OPENSSL_VERSION
-    assert provenance["r_selection_timeout_seconds"] == gate.R_SELECTION_TIMEOUT_SECONDS
+    assert provenance["r_selection_timeout_seconds"] == gate.STAGE1_SELECTION_TIMEOUT_SECONDS
     assert provenance["instance_identity"] == evidence.to_record()
 
 
@@ -1496,7 +1496,7 @@ def test_run_gate_executes_every_panel_cell(
         timeout_seconds: float,
     ) -> list[dict[str, Any]]:
         del X, y, method, task, params
-        assert timeout_seconds == gate.R_SELECTION_TIMEOUT_SECONDS
+        assert timeout_seconds == gate.STAGE1_SELECTION_TIMEOUT_SECONDS
         observed_seeds.append(seed)
         cpu_partitions = gate.partition_cpu_ids(tuple(range(32)), gate.N_FOLDS)
         return [

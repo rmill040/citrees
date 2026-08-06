@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+from multiprocessing import TimeoutError as MultiprocessingTimeoutError
 from multiprocessing.connection import Connection
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,6 +41,7 @@ from paper.benchmark.pipeline.r_methods import (
     r_ctree_behavior,
     r_ctree_root_diagnostics,
 )
+from paper.benchmark.pipeline.types import TaskType
 
 pytestmark = pytest.mark.paper
 
@@ -79,6 +81,61 @@ def _exit_r_fold_while_descendant_holds_pipe(sender: Connection) -> None:
         time.sleep(60)
         os._exit(0)
     os._exit(7)
+
+
+def _report_selection_fold_process(
+    X: np.ndarray,
+    y: np.ndarray,
+    method: str,
+    task: TaskType,
+    seed: int,
+    params: dict[str, object],
+    n_jobs: int,
+    fold_idx: int,
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+) -> dict[str, object]:
+    """Return process evidence from one real loky fold task."""
+    del X, y, method, task, params, n_jobs, train_idx, test_idx
+    time.sleep(0.2)
+    return {
+        "fold_idx": fold_idx,
+        "fold_random_state": seed * 1000 + fold_idx,
+        "feature_ranking": [0, 1, 2, 3],
+        "fold_process_id": os.getpid(),
+    }
+
+
+def _hold_selection_fold_for_timeout(
+    X: np.ndarray,
+    y: np.ndarray,
+    method: str,
+    task: TaskType,
+    seed: int,
+    params: dict[str, object],
+    n_jobs: int,
+    fold_idx: int,
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+) -> dict[str, object]:
+    """Publish the child PID before holding one loky fold open."""
+    del X, y, method, task, seed, n_jobs, train_idx, test_idx
+    pid_directory = Path(str(params["pid_directory"]))
+    (pid_directory / f"fold-{fold_idx}.pid").write_text(
+        str(os.getpid()),
+        encoding="utf-8",
+    )
+    time.sleep(60)
+    return {"fold_idx": fold_idx}
+
+
+def _process_exists(pid: int) -> bool:
+    """Return whether one local process identifier still exists."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def test_concurrent_valid_ranking_upload_is_skipped(
@@ -145,6 +202,7 @@ def test_concurrent_valid_ranking_upload_is_skipped(
                 "fold_idx": fold,
                 "fold_random_state": fold,
                 "feature_ranking": list(range(X.shape[1])),
+                "fold_cpu_affinity": [0],
             }
             for fold in range(5)
         ],
@@ -2518,6 +2576,442 @@ def test_parallel_r_selection_matches_sequential_rankings(
         row["feature_ranking"] for row in sequential
     ]
     assert all(row["fold_cpu_affinity"] for row in parallel)
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["cit", "ptest_mc", "ptest_pc", "ptest_dc", "ptest_rdc"],
+)
+def test_single_core_methods_dispatch_folds_to_processes(
+    method: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single-core methods must submit every fold with one inner job."""
+    from paper.benchmark.pipeline import stage1
+
+    parallel_config_kwargs: dict[str, object] = {}
+    parallel_kwargs: dict[str, object] = {}
+    observed: list[tuple[int, int]] = []
+
+    class ConfigContext:
+        def __enter__(self) -> None:
+            return None
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+    class InlineParallel:
+        def __init__(self, **kwargs: object) -> None:
+            parallel_kwargs.update(kwargs)
+
+        def __enter__(self) -> InlineParallel:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+        def __call__(self, tasks):
+            return [fn(*args, **kwargs) for fn, args, kwargs in tasks]
+
+    def configure(**kwargs: object) -> ConfigContext:
+        parallel_config_kwargs.update(kwargs)
+        return ConfigContext()
+
+    def run_fold(*args: object, **kwargs: object) -> dict[str, object]:
+        del kwargs
+        assert isinstance(args[4], int)
+        assert isinstance(args[6], int)
+        assert isinstance(args[7], int)
+        fold_idx = args[7]
+        observed.append((fold_idx, args[6]))
+        return {
+            "fold_idx": fold_idx,
+            "fold_random_state": args[4] * 1000 + fold_idx,
+            "feature_ranking": [0, 1, 2, 3],
+        }
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1, 2))
+    monkeypatch.setattr(stage1, "parallel_config", configure)
+    monkeypatch.setattr(stage1, "Parallel", InlineParallel)
+    monkeypatch.setattr(stage1, "_run_selection_fold", run_fold)
+
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+    rows = stage1.run_selection(
+        X,
+        y,
+        method,
+        "classification",
+        seed=7,
+        n_jobs=-1,
+    )
+
+    assert [row["fold_idx"] for row in rows] == [0, 1, 2, 3, 4]
+    assert observed == [(0, 1), (1, 1), (2, 1), (3, 1), (4, 1)]
+    assert parallel_config_kwargs == {
+        "backend": "loky",
+        "n_jobs": 3,
+        "inner_max_num_threads": 1,
+    }
+    assert parallel_kwargs == {
+        "timeout": stage1.STAGE1_SELECTION_TIMEOUT_SECONDS,
+    }
+
+
+@pytest.mark.parametrize(
+    ("method", "cpu_ids", "expected_inner_jobs"),
+    [
+        ("ptest_pc", (0,), 1),
+        ("cif", (0, 1, 2, 3, 4), -1),
+    ],
+)
+def test_stage1_avoids_process_parallel_folds_when_resources_are_owned_elsewhere(
+    method: str,
+    cpu_ids: tuple[int, ...],
+    expected_inner_jobs: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One-CPU and full-host methods must execute folds in the parent."""
+    from paper.benchmark.pipeline import stage1
+
+    observed: list[tuple[int, int]] = []
+
+    def run_fold(*args: object, **kwargs: object) -> dict[str, object]:
+        del kwargs
+        assert isinstance(args[4], int)
+        assert isinstance(args[6], int)
+        assert isinstance(args[7], int)
+        fold_idx = args[7]
+        observed.append((fold_idx, args[6]))
+        return {
+            "fold_idx": fold_idx,
+            "fold_random_state": args[4] * 1000 + fold_idx,
+            "feature_ranking": [0, 1, 2, 3],
+        }
+
+    class UnexpectedParallel:
+        def __init__(self) -> None:
+            raise AssertionError("fold process pool must not be created")
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: cpu_ids)
+    monkeypatch.setattr(stage1, "Parallel", UnexpectedParallel)
+    monkeypatch.setattr(stage1, "_run_selection_fold", run_fold)
+
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+    rows = stage1.run_selection(
+        X,
+        y,
+        method,
+        "classification",
+        seed=7,
+        n_jobs=-1,
+    )
+
+    assert [row["fold_idx"] for row in rows] == [0, 1, 2, 3, 4]
+    assert observed == [
+        (0, expected_inner_jobs),
+        (1, expected_inner_jobs),
+        (2, expected_inner_jobs),
+        (3, expected_inner_jobs),
+        (4, expected_inner_jobs),
+    ]
+
+
+def test_process_parallel_folds_execute_concurrently_in_children(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real loky path must use multiple child processes."""
+    from paper.benchmark.pipeline import stage1
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1, 2, 3, 4))
+    monkeypatch.setattr(stage1, "_run_selection_fold", _report_selection_fold_process)
+
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+    rows = stage1.run_selection(
+        X,
+        y,
+        "ptest_mc",
+        "classification",
+        seed=7,
+    )
+
+    process_ids = {row["fold_process_id"] for row in rows}
+    assert all(isinstance(process_id, int) for process_id in process_ids)
+    assert os.getpid() not in process_ids
+    assert len(process_ids) >= 2
+
+
+def test_process_parallel_fold_timeout_stops_children(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A timed-out loky fold must not leave worker processes alive."""
+    from paper.benchmark.pipeline import stage1
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1))
+    monkeypatch.setattr(stage1, "_run_selection_fold", _report_selection_fold_process)
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+    stage1.run_selection(X, y, "ptest_mc", "classification", seed=7)
+
+    monkeypatch.setattr(stage1, "_run_selection_fold", _hold_selection_fold_for_timeout)
+    with pytest.raises(MultiprocessingTimeoutError):
+        stage1.run_selection(
+            X,
+            y,
+            "ptest_mc",
+            "classification",
+            seed=7,
+            params={"pid_directory": str(tmp_path)},
+            timeout_seconds=1.0,
+        )
+
+    pid_files = tuple(tmp_path.glob("fold-*.pid"))
+    assert pid_files
+    child_pids = [int(path.read_text(encoding="utf-8")) for path in pid_files]
+    deadline = time.monotonic() + 5.0
+    while any(_process_exists(pid) for pid in child_pids) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert all(not _process_exists(pid) for pid in child_pids)
+
+
+@pytest.mark.parametrize("timeout_seconds", [0.0, -1.0, float("inf"), True])
+def test_selection_rejects_invalid_timeout(
+    timeout_seconds: float,
+) -> None:
+    """Selection timeouts must be positive finite numbers."""
+    from paper.benchmark.pipeline.stage1 import run_selection
+
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+    with pytest.raises(ValueError, match="selection timeout must be positive and finite"):
+        run_selection(
+            X,
+            y,
+            "ptest_mc",
+            "classification",
+            seed=7,
+            timeout_seconds=timeout_seconds,
+        )
+
+
+@pytest.mark.parametrize(
+    ("method", "task", "params"),
+    [
+        (
+            "cit",
+            "classification",
+            {
+                "selector": "mc",
+                "splitter": "gini",
+                "n_resamples_selector": "minimum",
+                "n_resamples_splitter": "minimum",
+                "threshold_method": "histogram",
+                "max_thresholds": 16,
+            },
+        ),
+        (
+            "ptest_mc",
+            "classification",
+            {
+                "alpha": 0.05,
+                "n_resamples": 20,
+                "early_stopping": None,
+            },
+        ),
+        (
+            "ptest_pc",
+            "regression",
+            {
+                "alpha": 0.05,
+                "n_resamples": 20,
+                "early_stopping": None,
+            },
+        ),
+        (
+            "ptest_dc",
+            "regression",
+            {
+                "alpha": 0.05,
+                "n_resamples": 20,
+                "early_stopping": None,
+            },
+        ),
+        (
+            "ptest_rdc",
+            "classification",
+            {
+                "alpha": 0.05,
+                "n_resamples": 20,
+                "early_stopping": None,
+                "rdc_n_projections": 10,
+            },
+        ),
+        (
+            "ptest_rdc",
+            "regression",
+            {
+                "alpha": 0.05,
+                "n_resamples": 20,
+                "early_stopping": None,
+                "rdc_n_projections": 10,
+            },
+        ),
+    ],
+)
+def test_process_parallel_folds_match_sequential_rankings(
+    method: str,
+    task: TaskType,
+    params: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process-parallel folds must preserve rankings and fold seeds exactly."""
+    from paper.benchmark.pipeline import stage1
+
+    rng = np.random.default_rng(1718)
+    X = rng.standard_normal((100, 8))
+    signal = X[:, 7] - 0.5 * X[:, 2]
+    y = (signal > 0).astype(np.int64) if task == "classification" else signal
+
+    with monkeypatch.context() as patch:
+        patch.setattr(stage1, "get_available_cpu_ids", lambda: (0,))
+        sequential = stage1.run_selection(
+            X,
+            y,
+            method,
+            task,
+            seed=7,
+            params=params,
+        )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1, 2, 3, 4))
+        first = stage1.run_selection(
+            X,
+            y,
+            method,
+            task,
+            seed=7,
+            params=params,
+        )
+        second = stage1.run_selection(
+            X,
+            y,
+            method,
+            task,
+            seed=7,
+            params=params,
+        )
+
+    expected_seeds = [7000, 7001, 7002, 7003, 7004]
+    assert [row["fold_random_state"] for row in sequential] == expected_seeds
+    assert [row["fold_random_state"] for row in first] == expected_seeds
+    assert all(row["fold_cpu_affinity"] for row in first)
+    assert [row["feature_ranking"] for row in first] == [
+        row["feature_ranking"] for row in sequential
+    ]
+    assert [row["feature_ranking"] for row in second] == [row["feature_ranking"] for row in first]
+
+
+@pytest.mark.parametrize(
+    ("method", "task"),
+    [
+        ("ptest_mc", "classification"),
+        ("ptest_pc", "regression"),
+        ("ptest_rdc", "classification"),
+        ("ptest_rdc", "regression"),
+    ],
+)
+def test_process_parallel_folds_match_at_parallel_selector_budget(
+    method: str,
+    task: TaskType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Loky folds must preserve rankings when selectors enter their parallel kernels."""
+    from paper.benchmark.pipeline import stage1
+
+    rng = np.random.default_rng(1718)
+    X = rng.standard_normal((40, 4))
+    signal = X[:, 3] - 0.5 * X[:, 1]
+    y = (signal > 0).astype(np.int64) if task == "classification" else signal
+    params = {
+        "alpha": 0.05,
+        "n_resamples": 200,
+        "early_stopping": None,
+        "rdc_n_projections": 10,
+    }
+
+    with monkeypatch.context() as patch:
+        patch.setattr(stage1, "get_available_cpu_ids", lambda: (0,))
+        sequential = stage1.run_selection(
+            X,
+            y,
+            method,
+            task,
+            seed=7,
+            params=params,
+        )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1, 2, 3, 4))
+        parallel = stage1.run_selection(
+            X,
+            y,
+            method,
+            task,
+            seed=7,
+            params=params,
+        )
+
+    assert [row["fold_random_state"] for row in parallel] == [7000, 7001, 7002, 7003, 7004]
+    assert [row["feature_ranking"] for row in parallel] == [
+        row["feature_ranking"] for row in sequential
+    ]
+
+
+def test_selection_rejects_out_of_order_fold_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process scheduling must not silently reorder fold artifacts."""
+    from paper.benchmark.pipeline import stage1
+
+    class ConfigContext:
+        def __enter__(self) -> None:
+            return None
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+    class ReversingParallel:
+        def __init__(self, **kwargs: object) -> None:
+            assert kwargs == {"timeout": stage1.STAGE1_SELECTION_TIMEOUT_SECONDS}
+
+        def __enter__(self) -> ReversingParallel:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+        def __call__(self, tasks):
+            rows = [fn(*args, **kwargs) for fn, args, kwargs in tasks]
+            return list(reversed(rows))
+
+    def run_fold(*args: object, **kwargs: object) -> dict[str, object]:
+        del kwargs
+        assert isinstance(args[7], int)
+        return {"fold_idx": args[7]}
+
+    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1))
+    monkeypatch.setattr(stage1, "parallel_config", lambda **kwargs: ConfigContext())
+    monkeypatch.setattr(stage1, "Parallel", ReversingParallel)
+    monkeypatch.setattr(stage1, "_run_selection_fold", run_fold)
+
+    X = np.arange(160, dtype=float).reshape(40, 4)
+    y = np.array([0, 1] * 20)
+    with pytest.raises(RuntimeError, match="fold order differs"):
+        stage1.run_selection(X, y, "ptest_mc", "classification", seed=7)
 
 
 @pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])

@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed, parallel_config
 from sklearn.preprocessing import StandardScaler
 
 from paper.benchmark.adapters.data import (
@@ -32,7 +33,7 @@ from paper.benchmark.adapters.store import Store
 from paper.benchmark.config.constants import (
     N_SPLITS,
     PIPELINE_ARTIFACT_VERSION,
-    R_SELECTION_TIMEOUT_SECONDS,
+    STAGE1_SELECTION_TIMEOUT_SECONDS,
 )
 from paper.benchmark.pipeline.types import ExperimentConfig, Result, TaskType
 from paper.benchmark.pipeline.validation import (
@@ -51,6 +52,7 @@ from paper.benchmark.utils.env import (
 )
 
 _R_METHODS = frozenset({"r_ctree", "r_cforest"})
+_PROCESS_PARALLEL_FOLD_METHODS = frozenset({"cit", "ptest_mc", "ptest_pc", "ptest_dc", "ptest_rdc"})
 _R_PROCESS_POLL_INTERVAL_SECONDS = 0.05
 _R_PROCESS_START_TIMEOUT_SECONDS = 30.0
 _R_PROCESS_EXIT_GRACE_SECONDS = 5.0
@@ -443,6 +445,7 @@ def _run_selection_fold(
         "fold_idx": fold_idx,
         "fold_random_state": rs,
         "feature_ranking": values.tolist(),
+        "fold_cpu_affinity": list(get_available_cpu_ids()),
     }
 
 
@@ -766,7 +769,7 @@ def run_r_selection_parallel(
     task: TaskType,
     seed: int,
     params: dict[str, Any] | None = None,
-    timeout_seconds: float = R_SELECTION_TIMEOUT_SECONDS,
+    timeout_seconds: float = STAGE1_SELECTION_TIMEOUT_SECONDS,
 ) -> list[dict[str, Any]]:
     """Run five R folds concurrently in independent embedded-R processes."""
     if method not in _R_METHODS:
@@ -859,11 +862,50 @@ def run_selection(
     seed: int,
     params: dict[str, Any] | None = None,
     n_jobs: int = 1,
+    timeout_seconds: float = STAGE1_SELECTION_TIMEOUT_SECONDS,
 ) -> list[dict[str, Any]]:
-    """Run feature selection sequentially across cross-validation folds."""
+    """Run feature selection across cross-validation folds."""
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or not np.isfinite(timeout_seconds)
+        or timeout_seconds <= 0
+    ):
+        raise ValueError("selection timeout must be positive and finite")
     normalized_params = dict(params or {})
-    cv = get_cv_splitter(task, N_SPLITS, seed)
-    return [
+    splits = tuple(get_cv_splitter(task, N_SPLITS, seed).split(X, y))
+    if len(splits) != N_SPLITS:
+        raise RuntimeError(f"expected {N_SPLITS} CV folds, observed {len(splits)}")
+
+    if method in _PROCESS_PARALLEL_FOLD_METHODS:
+        fold_workers = min(N_SPLITS, len(get_available_cpu_ids()))
+        if fold_workers > 1:
+            fold_calls = (
+                delayed(_run_selection_fold)(
+                    X,
+                    y,
+                    method,
+                    task,
+                    seed,
+                    normalized_params,
+                    1,
+                    fold_idx,
+                    train_idx,
+                    test_idx,
+                )
+                for fold_idx, (train_idx, test_idx) in enumerate(splits)
+            )
+            with parallel_config(
+                backend="loky",
+                n_jobs=fold_workers,
+                inner_max_num_threads=1,
+            ):
+                with Parallel(timeout=timeout_seconds) as parallel:
+                    results: list[dict[str, Any]] = parallel(fold_calls)
+                return _require_ordered_selection_folds(results)
+
+    inner_jobs = 1 if method in _PROCESS_PARALLEL_FOLD_METHODS else n_jobs
+    results = [
         _run_selection_fold(
             X,
             y,
@@ -871,13 +913,32 @@ def run_selection(
             task,
             seed,
             normalized_params,
-            n_jobs,
+            inner_jobs,
             fold_idx,
             train_idx,
             test_idx,
         )
-        for fold_idx, (train_idx, test_idx) in enumerate(cv.split(X, y))
+        for fold_idx, (train_idx, test_idx) in enumerate(splits)
     ]
+    return _require_ordered_selection_folds(results)
+
+
+def _require_ordered_selection_folds(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Require one result for each fold in deterministic order."""
+    observed: list[int] = []
+    for row in rows:
+        fold_idx = row.get("fold_idx")
+        if isinstance(fold_idx, (bool, np.bool_)) or not isinstance(fold_idx, (int, np.integer)):
+            raise RuntimeError("selection fold result has a non-integer fold_idx")
+        observed.append(int(fold_idx))
+    expected = list(range(N_SPLITS))
+    if observed != expected:
+        raise RuntimeError(
+            f"selection fold order differs: expected={expected}, observed={observed}"
+        )
+    return rows
 
 
 def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
@@ -957,8 +1018,9 @@ def _run_selection(cfg: ExperimentConfig, store: Store) -> Result:
 
         # Enrich results with metadata
         for row in fold_results:
-            if method not in _R_METHODS:
-                row["fold_cpu_affinity"] = list(cpu_affinity)
+            fold_cpu_affinity = row.get("fold_cpu_affinity")
+            if not isinstance(fold_cpu_affinity, list):
+                raise RuntimeError("selection fold did not report its CPU affinity")
             row.update(
                 {
                     "dataset": dataset,

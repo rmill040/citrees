@@ -24,7 +24,7 @@ from paper.benchmark.cli.infra import (
     launch_mechanism_workers_cmd,
     launch_workers_cmd,
 )
-from paper.benchmark.config.constants import R_SELECTION_TIMEOUT_SECONDS
+from paper.benchmark.config.constants import STAGE1_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.experiments.cif_mechanism_ablation import (
     mechanism_specification_sha256,
 )
@@ -110,7 +110,7 @@ def _runtime_contract() -> dict[str, object]:
                 "blas": "/usr/local/lib/R/lib/libRblas.so",
                 "lapack": "/usr/local/lib/R/lib/libRlapack.so",
             },
-            "r_selection_timeout_seconds": R_SELECTION_TIMEOUT_SECONDS,
+            "r_selection_timeout_seconds": STAGE1_SELECTION_TIMEOUT_SECONDS,
             "r_runtime": {name: "1.0" for name in R_RUNTIME_FIELDS},
             "thread_environment": {name: EXPECTED_THREAD_VALUE for name in THREAD_ENVIRONMENT},
             "threadpools": [

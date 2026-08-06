@@ -24,7 +24,7 @@ import numpy as np
 from threadpoolctl import threadpool_info
 
 from paper.benchmark.adapters.data import load_dataset
-from paper.benchmark.config.constants import R_SELECTION_TIMEOUT_SECONDS
+from paper.benchmark.config.constants import STAGE1_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.pipeline.instance_identity import (
     SUPPORTED_REGION,
     InstanceIdentityEvidence,
@@ -420,7 +420,7 @@ def _provenance(
         "python_libraries": _python_libraries(),
         "r_runtime": get_r_runtime_versions(),
         "r_numerical_libraries": _r_numerical_libraries(),
-        "r_selection_timeout_seconds": R_SELECTION_TIMEOUT_SECONDS,
+        "r_selection_timeout_seconds": STAGE1_SELECTION_TIMEOUT_SECONDS,
         "thread_environment": _thread_environment(),
         "threadpools": _canonical_threadpools(),
         "script_sha256": _sha256_bytes(script_path.read_bytes()),

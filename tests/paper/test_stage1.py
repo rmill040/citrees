@@ -1561,6 +1561,43 @@ class TestRCforestRanking:
 
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_indexed_importance_supports_n_out_of_n_bootstrap(self, task: str) -> None:
+        """Explicit bootstrap weights must survive the partykit model frame."""
+        rng = np.random.default_rng(1718)
+        X = np.column_stack(
+            [
+                np.repeat(np.arange(2), 40),
+                np.repeat(np.arange(4), 20),
+                rng.permutation(np.arange(80)),
+            ]
+        ).astype(np.float64)
+        rng.shuffle(X, axis=0)
+        signal = X[:, 0] + 0.1 * rng.standard_normal(X.shape[0])
+        y = (signal > np.median(signal)).astype(np.int64) if task == "classification" else signal
+
+        importance = r_cforest_importance(
+            X,
+            y,
+            task=task,
+            testtype="MonteCarlo",
+            nresample=19,
+            ntree=4,
+            mtry="all",
+            maxdepth=1,
+            minsplit=2,
+            minbucket=1,
+            replace=True,
+            fraction=1.0,
+            varimp_nperm=1,
+            cores=1,
+            random_state=42,
+        )
+
+        assert importance.shape == (X.shape[1],)
+        assert not np.isinf(importance).any()
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
     def test_indexed_cforest_matches_formula_interface(self, task: str) -> None:
         """Direct variable indices must preserve formula-interface importance."""
         from paper.benchmark.pipeline import r_methods

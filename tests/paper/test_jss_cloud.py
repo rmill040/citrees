@@ -896,6 +896,36 @@ def test_campaign_manifest_publication_is_immutable() -> None:
         cloud.publish_campaign(campaign, s3_client=client)
 
 
+def test_archive_key_membership_scales_linearly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = cloud.create_campaign(
+        "full",
+        base_seed=7,
+        git_sha=GIT_SHA,
+        image_uri=IMAGE_URI,
+        aws_account_id=ACCOUNT_ID,
+        bucket=BUCKET,
+        region="us-east-1",
+        instance_type="c6a.large",
+        ami_id=AMI_ID,
+        shard_counts={component: 100 for component in cloud.COMPONENTS},
+    )
+    original_eq = shards.ShardSpec.__eq__
+    equality_calls = 0
+
+    def counted_eq(left: object, right: object) -> bool:
+        nonlocal equality_calls
+        equality_calls += 1
+        return original_eq(left, right)
+
+    monkeypatch.setattr(shards.ShardSpec, "__eq__", counted_eq)
+    for spec in campaign.specs:
+        cloud.archive_key(campaign, spec)
+
+    assert equality_calls <= 2 * len(campaign.specs)
+
+
 def test_archive_rejects_traversal_and_symbolic_links(tmp_path: Path) -> None:
     malicious = tmp_path / "malicious.tar.gz"
     with tarfile.open(malicious, "w:gz") as archive:

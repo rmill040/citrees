@@ -1176,7 +1176,8 @@ def _fit_r_cforest(
     if maxdepth is not None:
         control_kwargs["maxdepth"] = maxdepth
     control = partykit.ctree_control(**control_kwargs)
-    if indexed_data:
+    weighted_bootstrap = replace_value and fraction_value == 1.0
+    if indexed_data and not weighted_bootstrap:
         model_specification, r_data = _make_r_indexed_data(X, y, task, ro)
     else:
         model_specification, r_data = _make_r_formula_data(X, y, task, stats)
@@ -1187,7 +1188,7 @@ def _fit_r_cforest(
         "mtry": mtry_value,
         "applyfun": fit_apply,
     }
-    if replace_value and fraction_value == 1.0:
+    if weighted_bootstrap:
         forest_kwargs["weights"] = _get_bootstrap_weights_function(ro)(
             X.shape[0],
             ntree,

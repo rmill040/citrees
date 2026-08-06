@@ -18,6 +18,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
+from functools import cached_property
 from numbers import Real
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, cast
@@ -87,6 +88,11 @@ class CloudCampaign:
     ami_id: str
     specs: tuple[shards.ShardSpec, ...]
     campaign_sha256: str
+
+    @cached_property
+    def spec_inventory(self) -> frozenset[shards.ShardSpec]:
+        """Return the constant-time membership index for the shard inventory."""
+        return frozenset(self.specs)
 
     @property
     def output_prefix(self) -> str:
@@ -651,7 +657,7 @@ def parse_campaign(payload: bytes, expected_sha256: str) -> CloudCampaign:
 
 def archive_key(campaign: CloudCampaign, spec: shards.ShardSpec) -> str:
     """Return the immutable S3 key for one shard archive."""
-    if spec not in campaign.specs:
+    if spec not in campaign.spec_inventory:
         raise ValueError("shard specification is outside the campaign")
     return (
         f"{campaign.output_prefix}/shards/{spec.target_analysis}/{spec.component}/"

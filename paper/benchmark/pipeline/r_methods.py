@@ -136,6 +136,7 @@ _root_diagnostics_function: Any | None = None
 _split_usage_function: Any | None = None
 _bootstrap_weights_function: Any | None = None
 _deterministic_apply_factory: Any | None = None
+_candidate_parallel_ctree_control_factory: Any | None = None
 
 _R_CTREE_ROOT_DIAGNOSTICS = """
 function(tree) {
@@ -299,6 +300,157 @@ function(cores, base_seed, operation_stream) {
             mc.set.seed = FALSE
         )
     }
+}
+"""
+
+_R_CANDIDATE_PARALLEL_CTREE_CONTROL_FACTORY = """
+function(control, cores, base_seed) {
+    force(control)
+    force(cores)
+    force(base_seed)
+    if (
+        length(control$mtry) != 1L ||
+        !is.infinite(control$mtry)
+    ) {
+        stop("candidate-parallel ctree requires mtry = Inf")
+    }
+    if (
+        length(control$maxsurrogate) != 1L ||
+        control$maxsurrogate != 0L
+    ) {
+        stop("candidate-parallel ctree requires maxsurrogate = 0")
+    }
+    ctree_test <- getFromNamespace(".ctree_test", "partykit")
+    modulus <- 2147483647
+
+    node_seed <- function(subset) {
+        value <- as.double(base_seed) %% modulus
+        for (item in c(length(subset), subset)) {
+            value <- (value * 48271 + as.double(item) + 1) %% modulus
+        }
+        value
+    }
+
+    candidate_seed <- function(node_value, feature_id) {
+        value <- (node_value * 48271 + as.double(feature_id) + 1) %% modulus
+        if (value < 1) {
+            value <- 1
+        }
+        as.integer(value)
+    }
+
+    control$selectfun <- function(
+        model,
+        trafo,
+        data,
+        subset,
+        weights,
+        whichvar,
+        ctrl
+    ) {
+        had_random_seed <- exists(
+            ".Random.seed",
+            envir = .GlobalEnv,
+            inherits = FALSE
+        )
+        if (had_random_seed) {
+            previous_random_seed <- get(
+                ".Random.seed",
+                envir = .GlobalEnv,
+                inherits = FALSE
+            )
+        }
+        on.exit(
+            {
+                if (had_random_seed) {
+                    assign(
+                        ".Random.seed",
+                        previous_random_seed,
+                        envir = .GlobalEnv
+                    )
+                } else if (
+                    exists(
+                        ".Random.seed",
+                        envir = .GlobalEnv,
+                        inherits = FALSE
+                    )
+                ) {
+                    rm(".Random.seed", envir = .GlobalEnv)
+                }
+            },
+            add = TRUE
+        )
+        frame <- model.frame(data)
+        criteria <- matrix(
+            NA_real_,
+            nrow = 2L,
+            ncol = ncol(frame),
+            dimnames = list(
+                c("statistic", "p.value"),
+                names(frame)
+            )
+        )
+        if (length(whichvar) == 0L) {
+            return(list(criteria = criteria))
+        }
+
+        current_node_seed <- node_seed(subset)
+        test_candidate <- function(feature_id) {
+            set.seed(candidate_seed(current_node_seed, feature_id))
+            result <- ctree_test(
+                model = model,
+                trafo = trafo,
+                data = data,
+                subset = subset,
+                weights = weights,
+                j = feature_id,
+                SPLITONLY = FALSE,
+                ctrl = ctrl
+            )
+            setNames(
+                as.numeric(c(result$statistic, result$p.value)),
+                c("statistic", "p.value")
+            )
+        }
+
+        if (cores == 1L) {
+            tested <- lapply(whichvar, test_candidate)
+        } else {
+            tested <- parallel::mclapply(
+                whichvar,
+                test_candidate,
+                mc.cores = min(cores, length(whichvar)),
+                mc.preschedule = TRUE,
+                mc.set.seed = FALSE,
+                mc.cleanup = TRUE
+            )
+        }
+        valid <- vapply(
+            tested,
+            function(value) {
+                is.numeric(value) &&
+                    length(value) == 2L
+            },
+            logical(1)
+        )
+        if (!all(valid)) {
+            first_invalid <- which(!valid)[[1]]
+            description <- paste(
+                capture.output(str(tested[[first_invalid]])),
+                collapse = " "
+            )
+            stop(
+                sprintf(
+                    "candidate test %d failed: %s",
+                    whichvar[[first_invalid]],
+                    description
+                )
+            )
+        }
+        criteria[, whichvar] <- do.call(cbind, tested)
+        list(criteria = criteria)
+    }
+    control
 }
 """
 
@@ -638,6 +790,16 @@ def _get_deterministic_apply_factory(ro: Any) -> Any:
     return _deterministic_apply_factory
 
 
+def _get_candidate_parallel_ctree_control_factory(ro: Any) -> Any:
+    """Compile and cache the candidate-parallel ctree control factory."""
+    global _candidate_parallel_ctree_control_factory
+    if _candidate_parallel_ctree_control_factory is None:
+        _candidate_parallel_ctree_control_factory = ro.r(
+            _R_CANDIDATE_PARALLEL_CTREE_CONTROL_FACTORY
+        )
+    return _candidate_parallel_ctree_control_factory
+
+
 def _r_testtype(ro: Any, testtype: str | tuple[str, ...]) -> str | Any:
     """Convert one or more partykit test-distribution controls for rpy2."""
     if isinstance(testtype, str):
@@ -719,6 +881,22 @@ def _make_r_apply_functions(
         factory(cores, base_seed, 0),
         factory(cores, base_seed, 1),
     )
+
+
+def _make_candidate_parallel_ctree_control(
+    ro: Any,
+    control: Any,
+    *,
+    cores: int,
+    random_state: int,
+) -> Any:
+    """Bind deterministic candidate-parallel selection to one ctree control."""
+    if isinstance(cores, bool) or not isinstance(cores, int):
+        raise TypeError("cores must be an integer")
+    if cores < 1:
+        raise ValueError("candidate-parallel ctree cores must be a positive integer")
+    factory = _get_candidate_parallel_ctree_control_factory(ro)
+    return factory(control, cores, _normalize_r_seed(random_state))
 
 
 def _make_r_predictor_dataframe(X: np.ndarray, ro: Any) -> Any:
@@ -821,6 +999,7 @@ def r_ctree_ranking(
     X: np.ndarray,
     y: np.ndarray,
     *,
+    cores: int,
     task: str = "classification",
     teststat: str = "quadratic",
     testtype: str | tuple[str, ...] = "Bonferroni",
@@ -834,7 +1013,9 @@ def r_ctree_ranking(
 
     For a single tree, we rank features by how often they appear in splits.
     Features used more frequently are ranked higher; ties are broken by feature
-    index.
+    index. Every node-candidate test receives a seed derived from the fit seed,
+    node sample indices, and feature index, making the fitted tree independent
+    of candidate scheduling and core count.
 
     Parameters
     ----------
@@ -842,6 +1023,8 @@ def r_ctree_ranking(
         Feature matrix of shape (n_samples, n_features).
     y : np.ndarray
         Target vector.
+    cores : int
+        Positive CPU count used to test candidate variables at each node.
     task : str
         Either "classification" or "regression".
     teststat : str
@@ -877,6 +1060,12 @@ def r_ctree_ranking(
         nresample=nresample,
         minsplit=minsplit,
         minbucket=minbucket,
+    )
+    control = _make_candidate_parallel_ctree_control(
+        ro,
+        control,
+        cores=cores,
+        random_state=random_state,
     )
     tree = partykit.ctree(model_specification, data=r_data, control=control)
 

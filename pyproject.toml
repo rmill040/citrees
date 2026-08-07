@@ -156,6 +156,7 @@ dev = [
     "pandas>=2.3.3",
     "pycryptodome>=3.23.0",
     "pyarrow>=22.0.0",
+    "pre-commit>=3.0",
     "pytest>=8.0",
     "pytest-cov>=4.0",
     "ruff>=0.4",

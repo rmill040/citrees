@@ -1,5 +1,6 @@
 [files]
 extend-exclude = [
+  "paper/benchmark/pipeline/instance_identity.py",
   "paper/jss/jss.bst",
   "paper/jss/jss.cls",
   "paper/results/**",

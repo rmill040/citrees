@@ -581,9 +581,7 @@ def test_gate_accepts_a_complete_inventory_with_stage1_recovery_mask() -> None:
         replace(
             cell,
             stage1_required=(
-                index % 7 == 0
-                if cell.config.method.name == "r_cforest"
-                else cell.stage1_required
+                index % 7 == 0 if cell.config.method.name == "r_cforest" else cell.stage1_required
             ),
         )
         for index, cell in enumerate(manifest.cells)
@@ -604,9 +602,10 @@ def test_gate_accepts_a_complete_inventory_with_stage1_recovery_mask() -> None:
 
     assert any(cell.stage1_required for cell in replacement_cells)
     assert any(not cell.stage1_required for cell in replacement_cells)
-    assert sum(
-        len(cells) for datasets in inventory.values() for cells in datasets.values()
-    ) == gate.EXPECTED_REPLACEMENT_CELLS
+    assert (
+        sum(len(cells) for datasets in inventory.values() for cells in datasets.values())
+        == gate.EXPECTED_REPLACEMENT_CELLS
+    )
 
 
 def test_linux_process_identity_uses_boot_id_and_start_ticks(tmp_path: Path) -> None:

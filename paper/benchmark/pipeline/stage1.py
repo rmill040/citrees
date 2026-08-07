@@ -404,7 +404,7 @@ def _run_selection_fold(
     fold_idx: int,
     train_idx: np.ndarray,
     test_idx: np.ndarray,
-    r_cforest_cores: int | None = None,
+    r_cores: int | None = None,
 ) -> dict[str, Any]:
     """Run and validate one fold without sharing estimator state."""
     X_train_raw, X_test_raw = X[train_idx], X[test_idx]
@@ -436,21 +436,28 @@ def _run_selection_fold(
     elif method == "r_ctree":
         from paper.benchmark.pipeline.r_methods import r_ctree_ranking
 
+        r_params = dict(params)
+        if r_cores is None:
+            raise ValueError("r_ctree requires a runtime CPU allocation")
+        if "cores" in r_params:
+            raise ValueError("R CPU count belongs to the runtime, not method params")
+        r_params["cores"] = r_cores
         ranking = r_ctree_ranking(
             X_train,
             y_train,
             task=task,
             random_state=rs,
-            **params,
+            **r_params,
         )
     elif method == "r_cforest":
         from paper.benchmark.pipeline.r_methods import r_cforest_ranking
 
         r_params = dict(params)
-        if r_cforest_cores is not None:
-            if "cores" in r_params:
-                raise ValueError("r_cforest CPU count belongs to the runtime, not method params")
-            r_params["cores"] = r_cforest_cores
+        if r_cores is None:
+            raise ValueError("r_cforest requires a runtime CPU allocation")
+        if "cores" in r_params:
+            raise ValueError("R CPU count belongs to the runtime, not method params")
+        r_params["cores"] = r_cores
         ranking = r_cforest_ranking(
             X_train,
             y_train,
@@ -533,7 +540,7 @@ def _run_r_selection_fold_process(
         fold_idx,
         train_idx,
         test_idx,
-        r_cforest_cores=len(cpu_ids) if method == "r_cforest" else None,
+        r_cores=len(cpu_ids),
     )
     row["fold_cpu_affinity"] = list(observed_cpu_ids)
     return row
@@ -802,7 +809,7 @@ def run_r_selection_parallel(
         raise ValueError(f"parallel R selection does not support method {method!r}")
     normalized_params = dict(params or {})
     if "cores" in normalized_params:
-        raise ValueError("r_cforest CPU count belongs to the runtime, not method params")
+        raise ValueError("R CPU count belongs to the runtime, not method params")
     if (
         isinstance(timeout_seconds, bool)
         or not isinstance(timeout_seconds, (int, float))
@@ -902,6 +909,11 @@ def run_selection(
     splits = tuple(get_cv_splitter(task, N_SPLITS, seed).split(X, y))
     if len(splits) != N_SPLITS:
         raise RuntimeError(f"expected {N_SPLITS} CV folds, observed {len(splits)}")
+    r_cores: int | None = None
+    if method in _R_METHODS:
+        if isinstance(n_jobs, bool) or not isinstance(n_jobs, int) or n_jobs == 0 or n_jobs < -1:
+            raise ValueError("R method n_jobs must be -1 or a positive integer")
+        r_cores = len(get_available_cpu_ids()) if n_jobs == -1 else n_jobs
 
     with _stage1_wall_clock_timeout(float(timeout_seconds)):
         if method in _PROCESS_PARALLEL_FOLD_METHODS:
@@ -944,6 +956,7 @@ def run_selection(
                 fold_idx,
                 train_idx,
                 test_idx,
+                **({"r_cores": r_cores} if r_cores is not None else {}),
             )
             for fold_idx, (train_idx, test_idx) in enumerate(splits)
         ]

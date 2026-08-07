@@ -11,6 +11,7 @@ from multiprocessing import TimeoutError as MultiprocessingTimeoutError
 from multiprocessing.connection import Connection
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -673,12 +674,13 @@ class TestWrapperSelectors:
             assert len(configs) == 1
             assert configs[0].params_dict == {"step": 1}
 
-    def test_cforest_core_count_is_runtime_provenance(self) -> None:
-        """Schedule-independent cforest variants must not encode runtime CPUs."""
+    @pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])
+    def test_r_core_count_is_runtime_provenance(self, method: str) -> None:
+        """Schedule-independent R variants must not encode runtime CPUs."""
         from paper.benchmark.pipeline.methods import get_full_method_configs
 
         for task in ("classification", "regression"):
-            configs = get_full_method_configs(["r_cforest"], task)
+            configs = get_full_method_configs([method], task)
             assert configs
             assert all("cores" not in config.params_dict for config in configs)
 
@@ -746,6 +748,100 @@ except (ImportError, OSError):
     _has_r = False
 
 _skip_no_r = pytest.mark.skipif(not _has_r, reason="R / rpy2 / partykit not available")
+
+_R_COMPLETE_CTREE_STATE = """
+function(tree) {
+    serialize(
+        list(
+            node = node_party(tree),
+            data = tree$data,
+            fitted = tree$fitted,
+            names = tree$names
+        ),
+        NULL,
+        version = 3
+    )
+}
+"""
+
+_R_CTREE_SPLIT_DECISION_STATE = """
+function(tree) {
+    all_ids <- nodeids(tree)
+    terminal_ids <- nodeids(tree, terminal = TRUE)
+    inner_ids <- setdiff(all_ids, terminal_ids)
+    splits <- lapply(
+        inner_ids,
+        function(id) {
+            split <- nodeapply(
+                tree,
+                ids = id,
+                FUN = function(node) split_node(node)
+            )[[1]]
+            list(
+                varid = varid_split(split),
+                breaks = breaks_split(split),
+                index = index_split(split),
+                right = right_split(split),
+                prob = prob_split(split)
+            )
+        }
+    )
+    serialize(
+        list(
+            all_ids = all_ids,
+            terminal_ids = terminal_ids,
+            splits = splits,
+            fitted_nodes = unname(as.integer(predict(tree, type = "node")))
+        ),
+        NULL,
+        version = 3
+    )
+}
+"""
+
+
+def _fit_indexed_ctree_for_test(
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    task: str,
+    testtype: str | tuple[str, ...],
+    nresample: int,
+    maxdepth: int,
+    random_state: int,
+    cores: int | None,
+) -> tuple[Any, Any]:
+    """Fit stock or candidate-parallel ctree through the indexed interface."""
+    from paper.benchmark.pipeline import r_methods
+
+    ro, _importr = r_methods._import_rpy2()
+    partykit = r_methods._get_partykit()
+    model_specification, r_data = r_methods._make_r_indexed_data(
+        X,
+        y,
+        task,
+        ro,
+    )
+    control = partykit.ctree_control(
+        teststat="quadratic",
+        testtype=r_methods._r_testtype(ro, testtype),
+        alpha=0.05,
+        nresample=nresample,
+        minsplit=20,
+        minbucket=7,
+        maxdepth=maxdepth,
+        saveinfo=True,
+    )
+    if cores is not None:
+        control = r_methods._make_candidate_parallel_ctree_control(
+            ro,
+            control,
+            cores=cores,
+            random_state=random_state,
+        )
+    r_methods._set_r_seed(ro, random_state)
+    tree = partykit.ctree(model_specification, data=r_data, control=control)
+    return ro, tree
 
 
 class TestRBoundaryHelpers:
@@ -929,6 +1025,11 @@ class TestRBoundaryHelpers:
         assert parameters["mincriterion"].default == 0.0
         assert parameters["minsplit"].default == 2
         assert parameters["minbucket"].default == 1
+
+    def test_ctree_ranking_requires_an_explicit_core_count(self) -> None:
+        parameters = inspect.signature(r_ctree_ranking).parameters
+
+        assert parameters["cores"].default is inspect.Parameter.empty
 
     def test_classification_targets_must_be_integer_labels(self) -> None:
         X = np.arange(12, dtype=np.float64).reshape(6, 2)
@@ -1131,6 +1232,74 @@ class TestRBoundaryHelpers:
         assert first is compiled
         assert second is compiled
         assert len(source_calls) == 1
+
+    def test_candidate_parallel_ctree_factory_is_compiled_once(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        compiled = object()
+        source_calls: list[str] = []
+
+        def compile_r(source: str) -> object:
+            source_calls.append(source)
+            return compiled
+
+        monkeypatch.setattr(
+            r_methods,
+            "_candidate_parallel_ctree_control_factory",
+            None,
+        )
+        ro = SimpleNamespace(r=compile_r)
+
+        first = r_methods._get_candidate_parallel_ctree_control_factory(ro)
+        second = r_methods._get_candidate_parallel_ctree_control_factory(ro)
+
+        assert first is compiled
+        assert second is compiled
+        assert len(source_calls) == 1
+
+    @pytest.mark.parametrize("cores", [-1, 0])
+    def test_candidate_parallel_ctree_requires_positive_cores(self, cores: int) -> None:
+        from paper.benchmark.pipeline import r_methods
+
+        with pytest.raises(ValueError, match="positive integer"):
+            r_methods._make_candidate_parallel_ctree_control(
+                None,
+                None,
+                cores=cores,
+                random_state=42,
+            )
+
+    @_skip_no_r
+    @pytest.mark.parametrize(
+        ("control_kwargs", "match"),
+        [
+            ({"mtry": 2}, "mtry = Inf"),
+            ({"maxsurrogate": 1}, "maxsurrogate = 0"),
+        ],
+    )
+    def test_candidate_parallel_ctree_rejects_external_rng_consumers(
+        self,
+        control_kwargs: dict[str, int],
+        match: str,
+    ) -> None:
+        from rpy2.rinterface_lib.embedded import RRuntimeError
+
+        from paper.benchmark.pipeline import r_methods
+
+        ro, _importr = r_methods._import_rpy2()
+        partykit = r_methods._get_partykit()
+        control = partykit.ctree_control(**control_kwargs)
+
+        with pytest.raises(RRuntimeError, match=match):
+            r_methods._make_candidate_parallel_ctree_control(
+                ro,
+                control,
+                cores=2,
+                random_state=42,
+            )
 
     def test_partykit_testtype_preserves_combined_controls(self) -> None:
         from paper.benchmark.pipeline import r_methods
@@ -1338,6 +1507,7 @@ if {method!r} == "r_ctree":
     ranking = r_ctree_ranking(
         X,
         y,
+        cores=1,
         testtype="MonteCarlo",
         nresample=19,
         minsplit=10,
@@ -1390,7 +1560,7 @@ class TestRCtreeRanking:
             n_clusters_per_class=1,
             random_state=42,
         )
-        ranking = r_ctree_ranking(X, y, task="classification")
+        ranking = r_ctree_ranking(X, y, cores=1, task="classification")
         assert ranking.shape == (10,)
         assert not np.array_equal(ranking, np.arange(10)), (
             "ranking is identity — split extraction broken"
@@ -1407,7 +1577,7 @@ class TestRCtreeRanking:
             n_informative=5,
             random_state=42,
         )
-        ranking = r_ctree_ranking(X, y, task="regression")
+        ranking = r_ctree_ranking(X, y, cores=1, task="regression")
         assert ranking.shape == (10,)
         assert not np.array_equal(ranking, np.arange(10)), (
             "ranking is identity — split extraction broken"
@@ -1419,9 +1589,9 @@ class TestRCtreeRanking:
         rng = np.random.default_rng(42)
         X = rng.standard_normal((50, 20))
         y = rng.integers(0, 2, 50)
-        ranking = r_ctree_ranking(X, y, task="classification")
+        ranking = r_ctree_ranking(X, y, cores=1, task="classification")
         assert ranking.shape == (20,)
-        # Identity is the expected fallback when no splits are made
+        # With no split counts, the stable feature-index tie break is identity.
         assert np.array_equal(ranking, np.arange(20))
 
     @_skip_no_r
@@ -1430,9 +1600,164 @@ class TestRCtreeRanking:
         from sklearn.datasets import load_iris
 
         iris = load_iris()
-        r1 = r_ctree_ranking(iris.data, iris.target, task="classification")
-        r2 = r_ctree_ranking(iris.data, iris.target, task="classification")
+        r1 = r_ctree_ranking(iris.data, iris.target, cores=1, task="classification")
+        r2 = r_ctree_ranking(iris.data, iris.target, cores=1, task="classification")
         assert np.array_equal(r1, r2)
+
+    @_skip_no_r
+    @pytest.mark.parametrize("task", ["classification", "regression"])
+    def test_candidate_parallel_complete_tree_and_ranking_match_across_cores(
+        self,
+        task: str,
+    ) -> None:
+        """The complete learned tree state and ranking must not depend on scheduling."""
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((160, 8))
+        signal = X[:, 2] - 0.75 * X[:, 6] + 0.2 * rng.standard_normal(X.shape[0])
+        y = (signal > 0).astype(np.int64) if task == "classification" else signal
+
+        serialized_states: list[bytes] = []
+        rankings: list[np.ndarray] = []
+        final_rng_states: list[np.ndarray] = []
+        for cores in (1, 2, 4):
+            ro, tree = _fit_indexed_ctree_for_test(
+                X,
+                y,
+                task=task,
+                testtype="MonteCarlo",
+                nresample=99,
+                maxdepth=3,
+                random_state=42,
+                cores=cores,
+            )
+            serialize_state = ro.r(_R_COMPLETE_CTREE_STATE)
+            serialized_states.append(bytes(serialize_state(tree)))
+            final_rng_states.append(np.asarray(ro.globalenv[".Random.seed"], dtype=np.int32).copy())
+            rankings.append(
+                r_ctree_ranking(
+                    X,
+                    y,
+                    cores=cores,
+                    task=task,
+                    testtype="MonteCarlo",
+                    nresample=99,
+                    random_state=42,
+                )
+            )
+
+        assert serialized_states[1:] == [serialized_states[0], serialized_states[0]]
+        assert all(np.array_equal(final_rng_states[0], state) for state in final_rng_states[1:])
+        assert all(np.array_equal(rankings[0], ranking) for ranking in rankings[1:])
+        assert all(np.array_equal(np.sort(ranking), np.arange(X.shape[1])) for ranking in rankings)
+
+    @_skip_no_r
+    @pytest.mark.parametrize("testtype", ["Bonferroni", "MonteCarlo"])
+    def test_candidate_parallel_matches_stock_split_and_decisions(
+        self,
+        testtype: str,
+    ) -> None:
+        """Stock and candidate-parallel selectors must make the same root decision."""
+        from paper.benchmark.pipeline import r_methods
+
+        rng = np.random.default_rng(1718)
+        X = rng.standard_normal((200, 8))
+        signal = X[:, 2] - 0.75 * X[:, 6] + 0.15 * rng.standard_normal(X.shape[0])
+        y = (signal > 0).astype(np.int64)
+        maxdepth = 3 if testtype == "Bonferroni" else 1
+        ro, stock_tree = _fit_indexed_ctree_for_test(
+            X,
+            y,
+            task="classification",
+            testtype=testtype,
+            nresample=99,
+            maxdepth=maxdepth,
+            random_state=42,
+            cores=None,
+        )
+        _ro, parallel_tree = _fit_indexed_ctree_for_test(
+            X,
+            y,
+            task="classification",
+            testtype=testtype,
+            nresample=99,
+            maxdepth=maxdepth,
+            random_state=42,
+            cores=4,
+        )
+        serialize_decisions = ro.r(_R_CTREE_SPLIT_DECISION_STATE)
+
+        stock_root, stock_counts = r_methods._ctree_split_usage(
+            stock_tree,
+            ro=ro,
+            n_features=X.shape[1],
+        )
+        parallel_root, parallel_counts = r_methods._ctree_split_usage(
+            parallel_tree,
+            ro=ro,
+            n_features=X.shape[1],
+        )
+
+        assert stock_root == parallel_root == 2
+        np.testing.assert_array_equal(stock_counts, parallel_counts)
+        assert bytes(serialize_decisions(stock_tree)) == bytes(serialize_decisions(parallel_tree))
+        if testtype == "Bonferroni":
+            serialize_state = ro.r(_R_COMPLETE_CTREE_STATE)
+            assert bytes(serialize_state(stock_tree)) == bytes(serialize_state(parallel_tree))
+
+    @_skip_no_r
+    def test_candidate_parallel_monte_carlo_null_calibration(self) -> None:
+        """A fixed null panel must retain the configured global split rate."""
+        from scipy.stats import binom
+
+        from paper.benchmark.pipeline import r_methods
+
+        n_trials = 64
+        alpha = 0.05
+        stock_decisions: list[bool] = []
+        parallel_decisions: list[bool] = []
+        for trial in range(n_trials):
+            rng = np.random.default_rng(10_000 + trial)
+            X = rng.standard_normal((80, 4))
+            y = rng.integers(0, 2, X.shape[0], dtype=np.int64)
+            random_state = 20_000 + trial
+            ro, stock_tree = _fit_indexed_ctree_for_test(
+                X,
+                y,
+                task="classification",
+                testtype=("Bonferroni", "MonteCarlo"),
+                nresample=99,
+                maxdepth=1,
+                random_state=random_state,
+                cores=None,
+            )
+            _ro, parallel_tree = _fit_indexed_ctree_for_test(
+                X,
+                y,
+                task="classification",
+                testtype=("Bonferroni", "MonteCarlo"),
+                nresample=99,
+                maxdepth=1,
+                random_state=random_state,
+                cores=2,
+            )
+            stock_root, _stock_counts = r_methods._ctree_split_usage(
+                stock_tree,
+                ro=ro,
+                n_features=X.shape[1],
+            )
+            parallel_root, _parallel_counts = r_methods._ctree_split_usage(
+                parallel_tree,
+                ro=ro,
+                n_features=X.shape[1],
+            )
+            stock_decisions.append(stock_root >= 0)
+            parallel_decisions.append(parallel_root >= 0)
+
+        upper_split_count = int(binom.ppf(0.999, n_trials, alpha))
+        assert 0 < sum(stock_decisions) <= upper_split_count
+        assert 0 < sum(parallel_decisions) <= upper_split_count
+        assert not all(stock_decisions)
+        assert not all(parallel_decisions)
 
     @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
@@ -1448,6 +1773,7 @@ class TestRCtreeRanking:
         ranking = r_ctree_ranking(
             X,
             y,
+            cores=1,
             task=task,
             testtype="Univariate",
             alpha=0.05,
@@ -1502,6 +1828,7 @@ class TestRCtreeRanking:
         X = np.column_stack([rng.standard_normal((signal.size, 3)), signal])
         y = (signal > 0).astype(int) if task == "classification" else signal
         kwargs = {
+            "cores": 2,
             "task": task,
             "testtype": ("Bonferroni", "MonteCarlo"),
             "nresample": 99,
@@ -1982,7 +2309,7 @@ print(hashlib.sha256(np.asarray(importance, dtype="<f8").tobytes()).hexdigest())
         for config in configs:
             params = config.params_dict
             ranking = (
-                r_ctree_ranking(X, y, task=task, random_state=42, **params)
+                r_ctree_ranking(X, y, cores=2, task=task, random_state=42, **params)
                 if config.name == "r_ctree"
                 else r_cforest_ranking(
                     X,
@@ -1997,13 +2324,11 @@ print(hashlib.sha256(np.asarray(importance, dtype="<f8").tobytes()).hexdigest())
             assert ranking[0] == X.shape[1] - 1, config.label
 
 
-def test_cforest_production_uses_runtime_core_count(
+def test_ctree_production_uses_fold_cpu_allocation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Stage 1 must leave cforest core resolution to the worker runtime."""
-    from paper.benchmark.pipeline import r_methods
-    from paper.benchmark.pipeline.methods import get_full_method_configs
-    from paper.benchmark.pipeline.stage1 import run_selection
+    """Stage 1 must pass one fold's allocated CPU count to r_ctree."""
+    from paper.benchmark.pipeline import r_methods, stage1
 
     observed_cores: list[int] = []
 
@@ -2011,30 +2336,58 @@ def test_cforest_production_uses_runtime_core_count(
         X: np.ndarray,
         y: np.ndarray,
         *,
-        cores: int = -1,
+        cores: int,
         **kwargs: object,
     ) -> np.ndarray:
         del y, kwargs
         observed_cores.append(cores)
         return np.arange(X.shape[1])
 
-    monkeypatch.setattr(r_methods, "r_cforest_ranking", ranking)
-    config = get_full_method_configs(["r_cforest"], "classification")[0]
+    monkeypatch.setattr(r_methods, "r_ctree_ranking", ranking)
+    monkeypatch.setattr(stage1, "_pin_current_process", lambda cpu_ids: cpu_ids)
     rng = np.random.default_rng(1718)
     X = rng.standard_normal((50, 4))
     y = np.array([0, 1] * 25)
+    train_idx = np.arange(40)
+    test_idx = np.arange(40, 50)
+    cpu_ids = (3, 7, 11)
 
-    for _cpu_count in (2, 64):
-        run_selection(
+    row = stage1._run_r_selection_fold_process(
+        X,
+        y,
+        "r_ctree",
+        "classification",
+        7,
+        {},
+        2,
+        train_idx,
+        test_idx,
+        cpu_ids,
+    )
+
+    assert observed_cores == [len(cpu_ids)]
+    assert row["fold_random_state"] == 7002
+    assert row["fold_cpu_affinity"] == list(cpu_ids)
+
+
+@pytest.mark.parametrize("method", ["r_ctree", "r_cforest"])
+def test_parallel_r_selection_rejects_method_core_params(method: str) -> None:
+    """R CPU counts must come from each fold's runtime allocation."""
+    from paper.benchmark.pipeline import stage1
+
+    X = np.arange(200, dtype=np.float64).reshape(50, 4)
+    y = np.array([0, 1] * 25)
+
+    with pytest.raises(ValueError, match="belongs to the runtime"):
+        stage1.run_r_selection_parallel(
             X,
             y,
-            "r_cforest",
+            method,
             "classification",
             seed=0,
-            params=config.params_dict,
+            params={"cores": 2},
+            timeout_seconds=1.0,
         )
-
-    assert observed_cores == [-1] * 10
 
 
 def test_r_fold_cpu_partitions_are_stable_and_exhaustive() -> None:
@@ -3101,20 +3454,21 @@ def test_r_methods_receive_fold_seed(
     task: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Stage 1 must pass its deterministic fold seed into each R method."""
+    """Stage 1 must pass its fold seed and explicit core count into each R method."""
     from paper.benchmark.pipeline import r_methods
     from paper.benchmark.pipeline.stage1 import run_selection
 
-    observed: list[int] = []
+    observed: list[tuple[int, int]] = []
 
     def ranking(
         X: np.ndarray,
         y: np.ndarray,
         *,
         random_state: int,
+        cores: int,
         **kwargs: object,
     ) -> np.ndarray:
-        observed.append(random_state)
+        observed.append((random_state, cores))
         return np.arange(X.shape[1])
 
     monkeypatch.setattr(r_methods, f"{method}_ranking", ranking)
@@ -3124,7 +3478,13 @@ def test_r_methods_receive_fold_seed(
 
     run_selection(X, y, method, task, seed=7)
 
-    assert observed == [7000, 7001, 7002, 7003, 7004]
+    assert observed == [
+        (7000, 1),
+        (7001, 1),
+        (7002, 1),
+        (7003, 1),
+        (7004, 1),
+    ]
 
 
 @pytest.mark.parametrize(

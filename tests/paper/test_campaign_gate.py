@@ -26,6 +26,7 @@ from paper.benchmark.pipeline.campaign_gate import (
 )
 from paper.benchmark.pipeline.instance_identity import validate_instance_identity_record
 from paper.benchmark.pipeline.manifest import (
+    canonical_manifest_s3_key,
     compute_campaign_sha256,
     manifest_s3_key,
     parse_rerun_manifest,
@@ -40,7 +41,6 @@ from paper.benchmark.pipeline.runtime_contract import (
 from tests.paper.test_infra import _MemoryS3
 from tests.paper.test_r_cforest_reproducibility import (
     ACCOUNT_A,
-    ACCOUNT_B,
     _accept_signature,
     _operator_readbacks,
     _payloads,
@@ -187,7 +187,7 @@ def _configure_identity_environment(
     identity = CampaignGateIdentity(
         account_id=ACCOUNT_A,
         campaign_sha256="e" * 64,
-        canonical_manifest_s3_key=manifest_s3_key("c" * 64),
+        canonical_manifest_s3_key=canonical_manifest_s3_key("c" * 64),
         canonical_manifest_sha256="c" * 64,
         gate_receipt_s3_key=gate_receipt_s3_key("d" * 64),
         gate_receipt_sha256="d" * 64,
@@ -230,7 +230,7 @@ def _replace_canonical_manifest(
         runtime_contract_sha256=identity.runtime_contract_sha256,
     )
     digest = hashlib.sha256(payload).hexdigest()
-    key = manifest_s3_key(digest)
+    key = canonical_manifest_s3_key(digest)
     _, original_metadata = client.objects[identity.canonical_manifest_s3_key]
     account_ids = sorted({cell.target_aws_account_id for cell in cells})
     metadata = {
@@ -303,10 +303,10 @@ def test_publication_loads_only_the_exact_gate_approved_account_shard(
     assert approved.identity == identity
     assert approved.canonical_manifest.sha256 == identity.canonical_manifest_sha256
     assert approved.canonical_manifest.campaign_sha256 == identity.campaign_sha256
-    assert approved.canonical_manifest.account_ids == (ACCOUNT_A, ACCOUNT_B)
+    assert approved.canonical_manifest.account_ids == (ACCOUNT_A,)
     assert len(approved.canonical_manifest.cells) == 941
     assert approved.manifest.sha256 == identity.manifest_sha256
-    assert len(approved.manifest.cells) == 473
+    assert len(approved.manifest.cells) == 941
     assert approved.manifest.account_ids == (ACCOUNT_A,)
     assert approved.runtime_contract["profile"] == "r_cforest_runtime"
     assert approved.gate_receipt["report"]["status"] == "GO"
@@ -503,14 +503,14 @@ def test_runtime_loader_rejects_non_go_gate_receipt_metadata(
         load_approved_campaign_gate(_store(client), identity)
 
 
-def test_runtime_loader_rejects_canonical_manifest_with_one_account(
+def test_runtime_loader_rejects_changed_canonical_partition(
     published_campaign: tuple[_MemoryS3, dict[str, str | int]],
 ) -> None:
     client, publication = published_campaign
     identity = _identity(publication)
     canonical_payload, _ = client.objects[identity.canonical_manifest_s3_key]
     canonical = parse_rerun_manifest(canonical_payload)
-    cells = tuple(cell for cell in canonical.cells if cell.target_aws_account_id == ACCOUNT_A)
+    cells = canonical.cells[:-1]
     campaign_sha256 = compute_campaign_sha256(
         cells,
         runtime_contract_sha256=identity.runtime_contract_sha256,
@@ -524,7 +524,7 @@ def test_runtime_loader_rejects_canonical_manifest_with_one_account(
 
     with pytest.raises(
         ValueError,
-        match="canonical campaign must bind exactly 2 AWS accounts",
+        match="manifest shard differs from the canonical partition",
     ):
         load_approved_campaign_gate(_store(client), changed_identity)
 
@@ -615,10 +615,12 @@ def test_runtime_loader_rejects_account_shard_that_differs_from_canonical_partit
     canonical_payload, _ = client.objects[identity.canonical_manifest_s3_key]
     canonical = parse_rerun_manifest(canonical_payload)
     _, metadata = client.objects[identity.manifest_s3_key]
-    client.objects[identity.manifest_s3_key] = (
-        partition_rerun_manifest_by_account(canonical)[ACCOUNT_B],
-        metadata,
+    changed_payload = serialize_rerun_manifest(
+        canonical.cells[:-1],
+        campaign_sha256=canonical.campaign_sha256,
+        runtime_contract_sha256=canonical.runtime_contract_sha256,
     )
+    client.objects[identity.manifest_s3_key] = (changed_payload, metadata)
 
     with pytest.raises(
         ValueError,

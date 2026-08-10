@@ -14,6 +14,7 @@ from paper.benchmark.config.constants import STAGE1_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.pipeline.manifest import (
     MANIFEST_COLUMNS,
     account_manifest_sha256_map,
+    canonical_manifest_s3_key,
     compute_campaign_sha256,
     manifest_s3_key,
     parse_rerun_manifest,
@@ -153,6 +154,7 @@ def test_manifest_validates_current_grid_and_exact_digest() -> None:
     assert manifest.method_counts("rankings") == {"r_ctree": 1}
     assert manifest.configs_for("classification", "metrics") == (manifest.cells[0].config,)
     assert manifest_s3_key(digest) == f"rerun-manifests/{digest}.csv"
+    assert canonical_manifest_s3_key(digest) == f"canonical-rerun-manifests/{digest}.csv"
 
 
 def test_manifest_rejects_digest_identity_and_duplicate_errors() -> None:
@@ -268,7 +270,7 @@ def test_campaign_digest_binds_runtime_contract() -> None:
     assert first_campaign != second_campaign
 
 
-def test_canonical_campaign_requires_exactly_two_accounts() -> None:
+def test_canonical_campaign_accepts_any_nonempty_account_partition() -> None:
     one_account = parse_rerun_manifest(_canonical_payload([_row(dataset="glass")]))
     three_accounts = parse_rerun_manifest(
         _canonical_payload(
@@ -291,10 +293,8 @@ def test_canonical_campaign_requires_exactly_two_accounts() -> None:
         )
     )
 
-    for manifest in (one_account, three_accounts):
-        with pytest.raises(ValueError, match="exactly 2 AWS accounts"):
-            validate_canonical_campaign(manifest)
-    validate_canonical_campaign(two_accounts)
+    for manifest in (one_account, two_accounts, three_accounts):
+        validate_canonical_campaign(manifest)
 
 
 def test_manifest_rejects_missing_or_mixed_runtime_contracts() -> None:

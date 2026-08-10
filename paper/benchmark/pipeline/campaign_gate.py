@@ -15,6 +15,7 @@ from paper.benchmark.experiments.r_cforest_reproducibility import (
 )
 from paper.benchmark.pipeline.manifest import (
     RerunManifest,
+    canonical_manifest_s3_key,
     manifest_s3_key,
     parse_rerun_manifest,
     validate_canonical_campaign,
@@ -95,7 +96,7 @@ def configured_campaign_gate_identity() -> CampaignGateIdentity:
         runtime_contract_sha256=runtime_contract_sha256,
     )
     expected_keys = {
-        "canonical manifest": manifest_s3_key(canonical_manifest_sha256),
+        "canonical manifest": canonical_manifest_s3_key(canonical_manifest_sha256),
         "manifest": manifest_s3_key(manifest_sha256),
         "gate receipt": gate_receipt_s3_key(gate_receipt_sha256),
         "runtime contract": runtime_contract_s3_key(runtime_contract_sha256),

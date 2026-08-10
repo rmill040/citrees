@@ -500,6 +500,7 @@ def publish_rerun_manifest(
         parse_gate_receipt,
     )
     from paper.benchmark.pipeline.manifest import (
+        canonical_manifest_s3_key,
         manifest_s3_key,
         parse_rerun_manifest,
         validate_canonical_campaign,
@@ -550,7 +551,7 @@ def publish_rerun_manifest(
     gate_receipt_sha256 = hashlib.sha256(gate_receipt_payload).hexdigest()
     gate_receipt_key = gate_receipt_s3_key(gate_receipt_sha256)
     runtime_key = runtime_contract_s3_key(runtime_sha256)
-    canonical_key = manifest_s3_key(canonical.sha256)
+    canonical_key = canonical_manifest_s3_key(canonical.sha256)
     manifest_key = manifest_s3_key(manifest.sha256)
     bucket = ensure_s3_bucket(region)
     s3 = boto3.client("s3", region_name=region)
@@ -906,7 +907,10 @@ def _normalize_campaign_read_keys(
     from paper.benchmark.experiments.r_cforest_reproducibility import (
         GATE_RECEIPT_S3_PREFIX,
     )
-    from paper.benchmark.pipeline.manifest import MANIFEST_S3_PREFIX
+    from paper.benchmark.pipeline.manifest import (
+        CANONICAL_MANIFEST_S3_PREFIX,
+        MANIFEST_S3_PREFIX,
+    )
     from paper.benchmark.pipeline.runtime_contract import (
         RUNTIME_CONTRACT_S3_PREFIX,
     )
@@ -914,6 +918,7 @@ def _normalize_campaign_read_keys(
     if isinstance(read_keys, str):
         raise TypeError("campaign read keys must be a sequence of strings")
     control_prefixes = {
+        f"{CANONICAL_MANIFEST_S3_PREFIX}/": (".csv", validate_manifest_sha256),
         f"{MANIFEST_S3_PREFIX}/": (".csv", validate_manifest_sha256),
         f"{RUNTIME_CONTRACT_S3_PREFIX}/": (
             ".json",

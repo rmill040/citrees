@@ -211,6 +211,13 @@ def launch_api_cmd(
             help="EC2 instance type",
         ),
     ] = "m5.large",
+    spot: Annotated[
+        bool,
+        typer.Option(
+            "--spot/--no-spot",
+            help="Use a Spot instance; --no-spot explicitly requests on-demand",
+        ),
+    ] = True,
     image_uri: Annotated[
         str,
         typer.Option(
@@ -234,7 +241,7 @@ def launch_api_cmd(
             dir_okay=False,
             readable=True,
             resolve_path=True,
-            help="Complete two-account manifest bound to the GO receipt",
+            help="Complete canonical manifest bound to the GO receipt",
         ),
     ] = None,
     manifest_path: Annotated[
@@ -331,6 +338,7 @@ def launch_api_cmd(
         stage=stage,
         lease_seconds=lease_seconds,
         max_cell_attempts=max_cell_attempts,
+        spot=spot,
     )
 
     if result["api_url"]:
@@ -451,9 +459,9 @@ def launch_workers_cmd(
         bool,
         typer.Option(
             "--spot/--no-spot",
-            help="Use Spot instances instead of on-demand instances",
+            help="Use Spot instances; --no-spot explicitly requests on-demand",
         ),
-    ] = False,
+    ] = True,
     image_uri: Annotated[
         str,
         typer.Option(
@@ -477,7 +485,7 @@ def launch_workers_cmd(
             dir_okay=False,
             readable=True,
             resolve_path=True,
-            help="Complete two-account manifest bound to the GO receipt",
+            help="Complete canonical manifest bound to the GO receipt",
         ),
     ] = None,
     launch_id: Annotated[
@@ -590,9 +598,9 @@ def launch_mechanism_workers_cmd(
         bool,
         typer.Option(
             "--spot/--no-spot",
-            help="Use Spot instances instead of on-demand instances",
+            help="Use Spot instances; --no-spot explicitly requests on-demand",
         ),
-    ] = False,
+    ] = True,
     image_uri: Annotated[
         str,
         typer.Option(

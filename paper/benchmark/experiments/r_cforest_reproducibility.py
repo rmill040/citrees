@@ -74,14 +74,14 @@ from paper.benchmark.pipeline.stage2 import get_requested_evaluation_k_values
 from paper.benchmark.pipeline.types import TaskType
 from paper.benchmark.utils.env import get_available_cpu_ids, partition_cpu_ids
 
-SCHEMA_VERSION = 6
-GATE_RECEIPT_SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
+GATE_RECEIPT_SCHEMA_VERSION = 7
 GATE_RECEIPT_PROFILE = "r_cforest_reproducibility_gate"
 GATE_RECEIPT_S3_PREFIX = "runtime-gate-receipts"
 N_FOLDS = 5
 N_EXPECTED_RUNS = 4
 N_EXPECTED_HOSTS = 2
-N_EXPECTED_ACCOUNTS = 2
+N_EXPECTED_GATE_ACCOUNTS = 1
 EXPECTED_REPLACEMENT_CELLS = 940
 EXPECTED_DATASET_TASK_PAIRS = 47
 EXPECTED_SEEDS = (0, 1, 2, 3, 4)
@@ -475,11 +475,10 @@ def _replacement_inventory(
             f"{len(replacement_cells)}"
         )
     replacement_account_ids = {cell.target_aws_account_id for cell in replacement_cells}
-    if len(replacement_account_ids) != N_EXPECTED_ACCOUNTS:
+    if len(replacement_account_ids) != N_EXPECTED_GATE_ACCOUNTS:
         raise ValueError(
-            f"r_cforest replacement cells must bind exactly {N_EXPECTED_ACCOUNTS} AWS accounts"
+            f"r_cforest replacement cells must bind exactly {N_EXPECTED_GATE_ACCOUNTS} AWS account"
         )
-
     grouped: dict[tuple[TaskType, str], list[ManifestCell]] = defaultdict(list)
     for cell in replacement_cells:
         if cell.rerun_reason != REPLACEMENT_REASON or not cell.stage2_required:
@@ -1204,19 +1203,19 @@ def collect_live_operator_readbacks(
     operator_profiles: Sequence[str],
     runtime_contract: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Collect and sign one live AWS control-plane readback per gate account."""
+    """Collect and sign one live AWS control-plane readback per gate host."""
     if (
-        len(operator_profiles) != N_EXPECTED_ACCOUNTS
-        or len(set(operator_profiles)) != N_EXPECTED_ACCOUNTS
+        len(operator_profiles) != N_EXPECTED_GATE_ACCOUNTS
+        or len(set(operator_profiles)) != N_EXPECTED_GATE_ACCOUNTS
         or any(not profile or profile != profile.strip() for profile in operator_profiles)
     ):
         raise ValueError(
-            f"operator_profiles must contain {N_EXPECTED_ACCOUNTS} unique profile names"
+            f"operator_profiles must contain exactly {N_EXPECTED_GATE_ACCOUNTS} unique profile name"
         )
     if len(payloads) != N_EXPECTED_RUNS:
         raise ValueError(f"expected {N_EXPECTED_RUNS} gate payloads, observed {len(payloads)}")
 
-    evidence_by_account: dict[str, InstanceIdentityEvidence] = {}
+    evidence_by_account: dict[str, dict[str, InstanceIdentityEvidence]] = {}
     evidence_by_instance: dict[str, InstanceIdentityEvidence] = {}
     for index, payload in enumerate(payloads):
         provenance = payload.get("provenance")
@@ -1230,12 +1229,9 @@ def collect_live_operator_readbacks(
             raise ValueError(f"instance {instance_id} has conflicting signed identity evidence")
         evidence_by_instance[instance_id] = evidence
         account_id = evidence.identity.account_id
-        existing = evidence_by_account.get(account_id)
-        if existing is not None and existing.identity.instance_id != instance_id:
-            raise ValueError(f"AWS account {account_id} contains multiple gate hosts")
-        evidence_by_account[account_id] = evidence
+        evidence_by_account.setdefault(account_id, {})[instance_id] = evidence
     if (
-        len(evidence_by_account) != N_EXPECTED_ACCOUNTS
+        len(evidence_by_account) != N_EXPECTED_GATE_ACCOUNTS
         or len(evidence_by_instance) != N_EXPECTED_HOSTS
     ):
         raise ValueError("gate payloads do not identify the exact account and host counts")
@@ -1264,24 +1260,27 @@ def collect_live_operator_readbacks(
                 "which is not a gate account"
             )
         observed_accounts.add(account_id)
-        readback = collect_operator_readback(
-            account_evidence,
-            ec2_client=session.client("ec2"),
-            iam_client=session.client("iam"),
-            sts_client=sts_client,
-        )
-        readbacks.append(
-            create_operator_attestation(
-                readback.to_record(),
-                campaign_sha256=manifest.campaign_sha256,
-                manifest_sha256=manifest.sha256,
-                observed_at_utc=utc_timestamp(),
-                private_key_pem=operator_private_key_pem,
-                public_key=normalized_runtime["operator_attestation_public_key"],
-                run_payload_sha256s=run_payload_sha256s,
-                runtime_contract_sha256=runtime_sha256,
+        ec2_client = session.client("ec2")
+        iam_client = session.client("iam")
+        for instance_id in sorted(account_evidence):
+            readback = collect_operator_readback(
+                account_evidence[instance_id],
+                ec2_client=ec2_client,
+                iam_client=iam_client,
+                sts_client=sts_client,
             )
-        )
+            readbacks.append(
+                create_operator_attestation(
+                    readback.to_record(),
+                    campaign_sha256=manifest.campaign_sha256,
+                    manifest_sha256=manifest.sha256,
+                    observed_at_utc=utc_timestamp(),
+                    private_key_pem=operator_private_key_pem,
+                    public_key=normalized_runtime["operator_attestation_public_key"],
+                    run_payload_sha256s=run_payload_sha256s,
+                    runtime_contract_sha256=runtime_sha256,
+                )
+            )
     if observed_accounts != set(evidence_by_account):
         raise ValueError("operator profiles do not cover the exact gate accounts")
     return readbacks
@@ -1373,7 +1372,7 @@ def compare_payloads(
     }
     observed_account_ids = {str(provenance["aws_account_id"]) for provenance in provenances}
     if observed_account_ids != expected_account_ids:
-        raise ValueError("gate hosts must cover the exact r_cforest target AWS accounts")
+        raise ValueError("gate hosts must run in the exact target AWS account")
     for instance_id in instance_counts:
         host_account_ids = {
             str(provenance["aws_account_id"])
@@ -1723,7 +1722,7 @@ def _parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("--runs", nargs=N_EXPECTED_RUNS, type=Path, required=True)
     compare_parser.add_argument(
         "--operator-profiles",
-        nargs=N_EXPECTED_ACCOUNTS,
+        nargs=N_EXPECTED_GATE_ACCOUNTS,
         required=True,
     )
     compare_parser.add_argument("--manifest", type=Path, required=True)

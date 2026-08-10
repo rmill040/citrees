@@ -1171,6 +1171,7 @@ def launch_api(
     stage: str,
     lease_seconds: int,
     max_cell_attempts: int,
+    spot: bool = True,
     region: str = DEFAULT_REGION,
 ) -> dict[str, str]:
     """Launch the API server on a single EC2 instance.
@@ -1256,7 +1257,8 @@ def launch_api(
         max_cell_attempts=max_cell_attempts,
     )
 
-    info(f"Launching API server: {instance_type}, AMI={ami_id}")
+    market = "spot" if spot else "on-demand"
+    info(f"Launching {market} API server: {instance_type}, AMI={ami_id}")
     step(f"Image: {image_uri}")
     step(f"Manifest: s3://{bucket}/{manifest_s3_key} ({manifest_info['cells']} cells)")
     step(f"Security group: {sg_id}")
@@ -1269,27 +1271,28 @@ def launch_api(
         user_data=user_data,
     )
 
-    response = ec2.run_instances(
-        ImageId=ami_id,
-        InstanceType=instance_type,
-        MinCount=1,
-        MaxCount=1,
-        IamInstanceProfile={"Name": instance_profile_name},
-        UserData=base64.b64encode(user_data.encode()).decode(),
-        MetadataOptions={
+    run_kwargs: dict[str, Any] = {
+        "ImageId": ami_id,
+        "InstanceType": instance_type,
+        "MinCount": 1,
+        "MaxCount": 1,
+        "IamInstanceProfile": {"Name": instance_profile_name},
+        "UserData": base64.b64encode(user_data.encode()).decode(),
+        "MetadataOptions": {
             "HttpEndpoint": "enabled",
             "HttpPutResponseHopLimit": 2,
             "HttpTokens": "required",
         },
-        SecurityGroupIds=[sg_id],
-        InstanceInitiatedShutdownBehavior="terminate",
-        ClientToken=client_token,
-        TagSpecifications=[
+        "SecurityGroupIds": [sg_id],
+        "InstanceInitiatedShutdownBehavior": "terminate",
+        "ClientToken": client_token,
+        "TagSpecifications": [
             {
                 "ResourceType": "instance",
                 "Tags": [
                     {"Key": TAG_KEY, "Value": API_TAG_VALUE},
                     {"Key": "Name", "Value": "citrees-api"},
+                    {"Key": "citrees-market", "Value": market},
                     {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
                     {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
                     {
@@ -1328,7 +1331,16 @@ def launch_api(
                 ],
             }
         ],
-    )
+    }
+    if spot:
+        run_kwargs["InstanceMarketOptions"] = {
+            "MarketType": "spot",
+            "SpotOptions": {
+                "SpotInstanceType": "one-time",
+                "InstanceInterruptionBehavior": "terminate",
+            },
+        }
+    response = ec2.run_instances(**run_kwargs)
 
     instance_id = response["Instances"][0]["InstanceId"]
     step(f"Instance: {instance_id}")
@@ -1466,7 +1478,11 @@ def get_api_scope(
     if missing:
         raise RuntimeError(f"API server {instance['InstanceId']} is missing scope tags: {missing}")
 
-    from paper.benchmark.pipeline.manifest import manifest_s3_key, validate_manifest_sha256
+    from paper.benchmark.pipeline.manifest import (
+        canonical_manifest_s3_key,
+        manifest_s3_key,
+        validate_manifest_sha256,
+    )
 
     artifact_prefix, stage = _validate_queue_scope(
         tags["citrees-artifact-prefix"],
@@ -1475,7 +1491,7 @@ def get_api_scope(
     image_uri = validate_image_digest_uri(tags["citrees-image-uri"])
     campaign_sha256 = validate_manifest_sha256(tags["citrees-campaign-sha256"])
     canonical_manifest_sha256 = validate_manifest_sha256(tags["citrees-canonical-manifest-sha256"])
-    canonical_manifest_key = manifest_s3_key(canonical_manifest_sha256)
+    canonical_manifest_key = canonical_manifest_s3_key(canonical_manifest_sha256)
     if tags["citrees-canonical-manifest-key"] != canonical_manifest_key:
         raise RuntimeError(
             "API server canonical manifest key is not content-addressed: "
@@ -1595,7 +1611,7 @@ def launch_workers(
     manifest_path: Path,
     runtime_contract_path: Path,
     stage: str,
-    spot: bool = False,
+    spot: bool = True,
     region: str = DEFAULT_REGION,
 ) -> list[str]:
     """Launch N EC2 worker instances.
@@ -1973,7 +1989,7 @@ def launch_mechanism_workers(
     instance_type: str,
     image_uri: str,
     *,
-    spot: bool = False,
+    spot: bool = True,
     region: str = DEFAULT_REGION,
     num_shards: int | None = None,
     shard_start: int = 0,

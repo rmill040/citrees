@@ -49,6 +49,10 @@ from paper.benchmark.infra.ec2 import (
     terminate_api,
     validate_image_digest_uri,
 )
+from paper.benchmark.pipeline.manifest import (
+    canonical_manifest_s3_key,
+    manifest_s3_key,
+)
 from paper.benchmark.pipeline.runtime_contract import (
     EXPECTED_THREAD_VALUE,
     PYTHON_LIBRARY_NAMES,
@@ -72,7 +76,7 @@ MANIFEST_SHA256 = "b" * 64
 CANONICAL_MANIFEST_SHA256 = "c" * 64
 CAMPAIGN_SHA256 = "e" * 64
 MANIFEST_KEY = f"rerun-manifests/{MANIFEST_SHA256}.csv"
-CANONICAL_MANIFEST_KEY = f"rerun-manifests/{CANONICAL_MANIFEST_SHA256}.csv"
+CANONICAL_MANIFEST_KEY = f"canonical-rerun-manifests/{CANONICAL_MANIFEST_SHA256}.csv"
 SSM_POLICY_ARN = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 CAMPAIGN_TRUST_POLICY = {
     "Version": "2012-10-17",
@@ -341,10 +345,10 @@ def _patch_campaign_iam(
 
 @pytest.mark.parametrize(
     "command",
-    [launch_workers_cmd, launch_mechanism_workers_cmd],
+    [launch_api_cmd, launch_workers_cmd, launch_mechanism_workers_cmd],
 )
-def test_distributed_workers_default_to_on_demand(command: object) -> None:
-    assert inspect.signature(command).parameters["spot"].default is False
+def test_distributed_launches_default_to_spot(command: object) -> None:
+    assert inspect.signature(command).parameters["spot"].default is True
 
 
 @pytest.mark.parametrize(
@@ -936,7 +940,7 @@ def _mock_api_launch(
     return ec2_client, instance
 
 
-def _launch_test_api(tmp_path: Path) -> dict[str, str]:
+def _launch_test_api(tmp_path: Path, *, spot: bool = False) -> dict[str, str]:
     return launch_api(
         instance_type="m5.large",
         image_uri=DIGEST_URI,
@@ -948,6 +952,7 @@ def _launch_test_api(tmp_path: Path) -> dict[str, str]:
         stage="rankings",
         lease_seconds=900,
         max_cell_attempts=3,
+        spot=spot,
     )
 
 
@@ -1007,6 +1012,27 @@ def test_api_launch_terminates_instance_when_readiness_fails(
     assert readiness_call.kwargs["gate_receipt_sha256"] == GATE_RECEIPT_SHA256
     assert readiness_call.kwargs["runtime_contract_s3_key"] == RUNTIME_CONTRACT_KEY
     assert readiness_call.kwargs["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
+
+
+def test_api_launch_requests_spot_without_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ec2_client, _instance = _mock_api_launch(monkeypatch, public_ip="203.0.113.10")
+    monkeypatch.setattr(ec2_infra, "_wait_for_api_ready", MagicMock())
+
+    _launch_test_api(tmp_path, spot=True)
+
+    kwargs = ec2_client.run_instances.call_args.kwargs
+    assert kwargs["InstanceMarketOptions"] == {
+        "MarketType": "spot",
+        "SpotOptions": {
+            "SpotInstanceType": "one-time",
+            "InstanceInterruptionBehavior": "terminate",
+        },
+    }
+    tags = {tag["Key"]: tag["Value"] for tag in kwargs["TagSpecifications"][0]["Tags"]}
+    assert tags["citrees-market"] == "spot"
 
 
 def test_running_api_scope_requires_complete_immutable_tags(
@@ -3109,6 +3135,36 @@ def test_manifest_publish_is_content_addressed_and_round_trip_verified(
     }
     assert parse_gate_receipt.call_count == 2
     verify_shard.assert_called()
+
+
+def test_one_account_canonical_and_shard_metadata_do_not_collide() -> None:
+    payload = b"one-account manifest"
+    digest = hashlib.sha256(payload).hexdigest()
+    canonical_key = canonical_manifest_s3_key(digest)
+    shard_key = manifest_s3_key(digest)
+    client = _MemoryS3()
+
+    aws_infra._publish_immutable_bytes(
+        client,
+        bucket="citrees-test",
+        key=canonical_key,
+        payload=payload,
+        content_type="text/csv",
+        metadata={"profile": "canonical-campaign", "sha256": digest},
+    )
+    aws_infra._publish_immutable_bytes(
+        client,
+        bucket="citrees-test",
+        key=shard_key,
+        payload=payload,
+        content_type="text/csv",
+        metadata={"target-aws-account-id": "123456789012", "sha256": digest},
+    )
+
+    assert canonical_key != shard_key
+    assert client.objects[canonical_key][0] == client.objects[shard_key][0] == payload
+    assert client.objects[canonical_key][1]["profile"] == "canonical-campaign"
+    assert client.objects[shard_key][1]["target-aws-account-id"] == "123456789012"
 
 
 def test_worker_listing_and_termination_require_one_exact_launch(

@@ -29,7 +29,9 @@ from paper.benchmark.pipeline.manifest import (
     ManifestCell,
     RerunManifest,
     compute_campaign_sha256,
+    parse_rerun_manifest,
     partition_rerun_manifest_by_account,
+    serialize_rerun_manifest,
 )
 from paper.benchmark.pipeline.methods import get_full_method_configs
 from paper.benchmark.pipeline.operator_attestation import (
@@ -167,9 +169,7 @@ def _manifest(runtime_contract_sha256: str = "f" * 64) -> RerunManifest:
                                 task=task,
                                 dataset_identity=identity,
                             ),
-                            target_aws_account_id=(
-                                ACCOUNT_A if (dataset_index + seed) % 2 == 0 else ACCOUNT_B
-                            ),
+                            target_aws_account_id=ACCOUNT_A,
                             dataset_source="real",
                             rerun_reason=gate.REPLACEMENT_REASON,
                             historically_omitted=(task == "classification" and dataset_index == 0),
@@ -338,7 +338,7 @@ def _payload(
     return {
         "schema_version": gate.SCHEMA_VERSION,
         "profile": "r_cforest_reproducibility",
-        "target_aws_account_ids": [ACCOUNT_A, ACCOUNT_B],
+        "target_aws_account_ids": [ACCOUNT_A],
         "campaign_sha256": manifest.campaign_sha256,
         "manifest_sha256": manifest.sha256,
         "runtime_contract_sha256": gate.runtime_contract_sha256(runtime_contract),
@@ -374,18 +374,18 @@ def _payloads() -> tuple[dict[str, Any], RerunManifest, list[dict[str, Any]]]:
         _provenance(
             "host-b-run-1",
             HOST_B,
-            "us-east-1a",
+            "us-east-1b",
             ZONE_ID_B,
-            ACCOUNT_B,
+            ACCOUNT_A,
             BOOT_B,
             100,
         ),
         _provenance(
             "host-b-run-2",
             HOST_B,
-            "us-east-1a",
+            "us-east-1b",
             ZONE_ID_B,
-            ACCOUNT_B,
+            ACCOUNT_A,
             BOOT_B,
             200,
         ),
@@ -495,10 +495,7 @@ def test_gate_validates_the_full_scope_and_executes_a_stratified_panel() -> None
     replacement_cells = [cell for cell in manifest.cells if cell.config.method.name == "r_cforest"]
     assert len(manifest.cells) == 941
     assert len(replacement_cells) == 940
-    assert {cell.target_aws_account_id for cell in replacement_cells} == {
-        ACCOUNT_A,
-        ACCOUNT_B,
-    }
+    assert {cell.target_aws_account_id for cell in replacement_cells} == {ACCOUNT_A}
     assert sum(cell.historically_omitted for cell in replacement_cells) == 20
     assert sum(len(datasets) for datasets in replacement_inventory.values()) == 47
     assert set(replacement_inventory) == {"classification", "regression"}
@@ -789,8 +786,7 @@ def test_gate_cli_requires_frozen_public_and_local_private_keys() -> None:
             "run-3.json",
             "run-4.json",
             "--operator-profiles",
-            "profile-a",
-            "profile-b",
+            "profile-arc",
             "--operator-private-key",
             "operator-private.pem",
             "--manifest",
@@ -815,7 +811,7 @@ def test_payload_loader_rejects_duplicate_keys(tmp_path: Path) -> None:
         gate._load_payload(payload_path)
 
 
-def test_compare_cli_requires_four_runs_and_two_operator_profiles() -> None:
+def test_compare_cli_requires_four_runs_and_one_operator_profile() -> None:
     args = gate._parser().parse_args(
         [
             "compare",
@@ -825,8 +821,7 @@ def test_compare_cli_requires_four_runs_and_two_operator_profiles() -> None:
             "run-3.json",
             "run-4.json",
             "--operator-profiles",
-            "profile-a",
-            "profile-b",
+            "profile-arc",
             "--operator-private-key",
             "operator-private.pem",
             "--manifest",
@@ -837,7 +832,7 @@ def test_compare_cli_requires_four_runs_and_two_operator_profiles() -> None:
     )
 
     assert len(args.runs) == gate.N_EXPECTED_RUNS
-    assert len(args.operator_profiles) == gate.N_EXPECTED_ACCOUNTS
+    assert len(args.operator_profiles) == gate.N_EXPECTED_GATE_ACCOUNTS
 
 
 def test_runtime_contract_enforcement_rejects_live_mismatch(
@@ -916,10 +911,10 @@ def test_openssl_provenance_requires_exact_cross_host_equality(
         _compare(runtime_contract, manifest, payloads)
 
 
-def test_openssl_change_invalidates_all_coupled_schema_versions() -> None:
+def test_gate_schema_versions_reject_prior_evidence() -> None:
     assert gate.RUNTIME_CONTRACT_SCHEMA_VERSION == 6
-    assert gate.SCHEMA_VERSION == 6
-    assert gate.GATE_RECEIPT_SCHEMA_VERSION == 6
+    assert gate.SCHEMA_VERSION == 7
+    assert gate.GATE_RECEIPT_SCHEMA_VERSION == 7
 
     runtime_contract, manifest, payloads = _payloads()
 
@@ -966,15 +961,34 @@ def test_compare_accepts_two_fresh_pid_one_processes_on_two_hosts() -> None:
     assert report["executed_cells"] == 8
     assert report["fold_rankings"] == 40
     assert report["selected_sets"] == expected_selected_sets
-    assert report["aws_account_ids"] == [ACCOUNT_A, ACCOUNT_B]
-    assert report["availability_zones"] == ["us-east-1a"]
+    assert report["aws_account_ids"] == [ACCOUNT_A]
+    assert report["availability_zones"] == ["us-east-1a", "us-east-1b"]
     assert report["availability_zone_ids"] == [ZONE_ID_A, ZONE_ID_B]
     assert report["operator_readbacks"] == 2
     assert report["instance_type"] == INSTANCE_TYPE
     assert report["cpu_model"] == CPU_MODEL
 
 
-def test_compare_uses_physical_zone_ids_across_account_specific_names() -> None:
+@pytest.mark.parametrize(
+    "target_aws_account_ids",
+    [
+        [],
+        [ACCOUNT_B],
+        [ACCOUNT_A, ACCOUNT_B],
+        [ACCOUNT_A, ACCOUNT_A],
+    ],
+)
+def test_compare_rejects_invalid_target_account_declarations(
+    target_aws_account_ids: list[str],
+) -> None:
+    runtime_contract, manifest, payloads = _payloads()
+    payloads[0]["target_aws_account_ids"] = target_aws_account_ids
+
+    with pytest.raises(ValueError, match="invalid target_aws_account_ids"):
+        _compare(runtime_contract, manifest, payloads)
+
+
+def test_compare_uses_physical_zone_ids_not_zone_names() -> None:
     runtime_contract, manifest, payloads = _payloads()
     for index in (2, 3):
         old = payloads[index]["provenance"]
@@ -983,7 +997,7 @@ def test_compare_uses_physical_zone_ids_across_account_specific_names() -> None:
             HOST_B,
             "us-east-1b",
             ZONE_ID_A,
-            ACCOUNT_B,
+            ACCOUNT_A,
             old["boot_id"],
             old["process_start_ticks"],
         )
@@ -992,13 +1006,13 @@ def test_compare_uses_physical_zone_ids_across_account_specific_names() -> None:
         _compare(runtime_contract, manifest, payloads)
 
 
-def test_live_operator_readbacks_cover_exact_profiles_accounts_and_hosts(
+def test_live_operator_readbacks_cover_both_hosts_in_one_account(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime_contract, manifest, payloads = _payloads()
-    profile_scope = {
-        "profile-a": (ACCOUNT_A, HOST_A, ZONE_ID_A),
-        "profile-b": (ACCOUNT_B, HOST_B, ZONE_ID_B),
+    host_scope = {
+        HOST_A: ("us-east-1a", ZONE_ID_A),
+        HOST_B: ("us-east-1b", ZONE_ID_B),
     }
     observed_profiles: list[str] = []
 
@@ -1016,18 +1030,14 @@ def test_live_operator_readbacks_cover_exact_profiles_accounts_and_hosts(
             }
 
     class Ec2Client:
-        def __init__(
-            self,
-            account_id: str,
-            instance_id: str,
-            zone_id: str,
-        ) -> None:
+        def __init__(self, account_id: str) -> None:
             self.account_id = account_id
-            self.instance_id = instance_id
-            self.zone_id = zone_id
 
         def describe_instances(self, **kwargs: Any) -> dict[str, Any]:
-            assert kwargs == {"InstanceIds": [self.instance_id]}
+            instance_ids = kwargs["InstanceIds"]
+            assert len(instance_ids) == 1
+            instance_id = instance_ids[0]
+            availability_zone, _zone_id = host_scope[instance_id]
             return {
                 "Reservations": [
                     {
@@ -1043,9 +1053,9 @@ def test_live_operator_readbacks_cover_exact_profiles_accounts_and_hosts(
                                     ),
                                     "Id": "AIPAGATE",
                                 },
-                                "InstanceId": self.instance_id,
+                                "InstanceId": instance_id,
                                 "InstanceType": INSTANCE_TYPE,
-                                "Placement": {"AvailabilityZone": "us-east-1a"},
+                                "Placement": {"AvailabilityZone": availability_zone},
                                 "State": {"Name": "running"},
                                 "Tags": [
                                     {
@@ -1061,12 +1071,19 @@ def test_live_operator_readbacks_cover_exact_profiles_accounts_and_hosts(
             }
 
         def describe_availability_zones(self, **kwargs: Any) -> dict[str, Any]:
-            assert kwargs == {"ZoneNames": ["us-east-1a"]}
+            zone_names = kwargs["ZoneNames"]
+            assert len(zone_names) == 1
+            availability_zone = zone_names[0]
+            zone_id = next(
+                zone_id
+                for candidate_zone, zone_id in host_scope.values()
+                if candidate_zone == availability_zone
+            )
             return {
                 "AvailabilityZones": [
                     {
-                        "ZoneName": "us-east-1a",
-                        "ZoneId": self.zone_id,
+                        "ZoneName": availability_zone,
+                        "ZoneId": zone_id,
                         "RegionName": "us-east-1",
                     }
                 ],
@@ -1094,18 +1111,15 @@ def test_live_operator_readbacks_cover_exact_profiles_accounts_and_hosts(
     class Session:
         def __init__(self, *, profile_name: str, region_name: str) -> None:
             assert region_name == "us-east-1"
+            assert profile_name == "profile-arc"
             observed_profiles.append(profile_name)
-            self.account_id, self.instance_id, self.zone_id = profile_scope[profile_name]
+            self.account_id = ACCOUNT_A
 
         def client(self, service: str):
             if service == "sts":
                 return StsClient(self.account_id)
             if service == "ec2":
-                return Ec2Client(
-                    self.account_id,
-                    self.instance_id,
-                    self.zone_id,
-                )
+                return Ec2Client(self.account_id)
             if service == "iam":
                 return IamClient(self.account_id)
             raise AssertionError(f"unexpected service {service}")
@@ -1116,11 +1130,11 @@ def test_live_operator_readbacks_cover_exact_profiles_accounts_and_hosts(
         payloads,
         manifest=manifest,
         operator_private_key_pem=OPERATOR_PRIVATE_KEY_PEM,
-        operator_profiles=("profile-b", "profile-a"),
+        operator_profiles=("profile-arc",),
         runtime_contract=runtime_contract,
     )
 
-    assert observed_profiles == ["profile-b", "profile-a"]
+    assert observed_profiles == ["profile-arc"]
     assert {record["readback"]["instance_id"] for record in readbacks} == {HOST_A, HOST_B}
     assert {record["readback"]["availability_zone_id"] for record in readbacks} == {
         ZONE_ID_A,
@@ -1444,7 +1458,7 @@ def test_compare_cli_writes_canonical_receipt_bytes(
         command="compare",
         manifest=Path("manifest.csv"),
         operator_private_key=Path("operator-private.pem"),
-        operator_profiles=("personal", "research"),
+        operator_profiles=("arc",),
         runs=tuple(Path(f"run-{index}.json") for index in range(4)),
         runtime_contract=Path("runtime-contract.json"),
     )
@@ -1592,7 +1606,7 @@ def test_compare_rejects_shared_boot_identity_across_hosts() -> None:
         _compare(runtime_contract, manifest, payloads)
 
 
-def test_compare_requires_one_gate_host_in_each_target_account() -> None:
+def test_compare_requires_both_gate_hosts_in_the_target_account() -> None:
     runtime_contract, manifest, payloads = _payloads()
     for index in (2, 3):
         old = payloads[index]["provenance"]
@@ -1601,41 +1615,39 @@ def test_compare_requires_one_gate_host_in_each_target_account() -> None:
             HOST_B,
             old["availability_zone"],
             old["availability_zone_id"],
-            ACCOUNT_A,
+            ACCOUNT_B,
             old["boot_id"],
             old["process_start_ticks"],
         )
 
-    with pytest.raises(ValueError, match="target AWS accounts"):
+    with pytest.raises(ValueError, match="exact target AWS account"):
         _compare(runtime_contract, manifest, payloads)
 
 
-def test_gate_rejects_third_account_outside_r_cforest_inventory() -> None:
-    runtime_contract, manifest, payloads = _payloads()
-    cells = (
-        *manifest.cells[:-1],
-        replace(
-            manifest.cells[-1],
-            target_aws_account_id="345678901234",
-        ),
-    )
-    changed = RerunManifest(
-        sha256=manifest.sha256,
-        campaign_sha256=compute_campaign_sha256(
-            cells,
-            runtime_contract_sha256=manifest.runtime_contract_sha256,
-        ),
+def test_gate_requires_one_target_account() -> None:
+    _runtime_contract, manifest, _payloads_value = _payloads()
+    changed_one = False
+    cells: list[ManifestCell] = []
+    for cell in manifest.cells:
+        if not changed_one and cell.config.method.name == "r_cforest":
+            cell = replace(cell, target_aws_account_id=ACCOUNT_B)
+            changed_one = True
+        cells.append(cell)
+    frozen_cells = tuple(cells)
+    campaign_sha256 = compute_campaign_sha256(
+        frozen_cells,
         runtime_contract_sha256=manifest.runtime_contract_sha256,
-        cells=cells,
+    )
+    changed = parse_rerun_manifest(
+        serialize_rerun_manifest(
+            frozen_cells,
+            campaign_sha256=campaign_sha256,
+            runtime_contract_sha256=manifest.runtime_contract_sha256,
+        )
     )
 
-    with pytest.raises(ValueError, match="exactly 2 AWS accounts"):
-        gate.create_gate_receipt(
-            payloads,
-            _operator_readbacks(payloads, runtime_contract, manifest),
-            manifest=changed,
-            runtime_contract=runtime_contract,
-        )
+    with pytest.raises(ValueError, match="exactly 1 AWS account"):
+        gate._replacement_inventory(changed)
 
 
 def test_compare_rejects_nonfrozen_runtime_even_when_all_runs_match() -> None:

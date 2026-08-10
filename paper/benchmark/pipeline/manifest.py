@@ -47,7 +47,7 @@ MANIFEST_COLUMNS = (
     "status",
 )
 MANIFEST_S3_PREFIX = "rerun-manifests"
-CANONICAL_CAMPAIGN_ACCOUNT_COUNT = 2
+CANONICAL_MANIFEST_S3_PREFIX = "canonical-rerun-manifests"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _AWS_ACCOUNT_ID_PATTERN = re.compile(r"^[0-9]{12}$")
 _DATASET_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -118,8 +118,13 @@ def validate_manifest_sha256(value: str) -> str:
 
 
 def manifest_s3_key(sha256: str) -> str:
-    """Return the content-addressed private S3 key for a manifest."""
+    """Return the content-addressed private S3 key for an account manifest."""
     return f"{MANIFEST_S3_PREFIX}/{validate_manifest_sha256(sha256)}.csv"
+
+
+def canonical_manifest_s3_key(sha256: str) -> str:
+    """Return the content-addressed private S3 key for a canonical manifest."""
+    return f"{CANONICAL_MANIFEST_S3_PREFIX}/{validate_manifest_sha256(sha256)}.csv"
 
 
 def compute_campaign_sha256(
@@ -181,12 +186,6 @@ def validate_canonical_campaign(manifest: RerunManifest) -> None:
         raise ValueError(
             "canonical campaign SHA-256 mismatch: "
             f"declared {manifest.campaign_sha256}, observed {observed}"
-        )
-    if len(manifest.account_ids) != CANONICAL_CAMPAIGN_ACCOUNT_COUNT:
-        raise ValueError(
-            "canonical campaign must bind exactly "
-            f"{CANONICAL_CAMPAIGN_ACCOUNT_COUNT} AWS accounts, observed "
-            f"{list(manifest.account_ids)}"
         )
 
 

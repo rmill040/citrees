@@ -10,6 +10,7 @@ import os
 import platform
 import re
 import shutil
+import sqlite3
 import subprocess
 import tarfile
 import tempfile
@@ -44,6 +45,8 @@ EXPECTED_GENOTYPE_SAMPLES = 205
 EXPECTED_GENOTYPE_VARIANTS = 4_438_427
 EXPECTED_GENOTYPE_BED_BYTES = 230_798_207
 EXPECTED_GENOTYPE_ONLY_LINES = 38
+DGRP_MIN_CALL_RATE = 0.95
+DGRP_MIN_MINOR_ALLELE_FREQUENCY = 0.04
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "dgrp"
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results" / "dgrp"
@@ -440,6 +443,42 @@ def validate_bim(
     return variant_count
 
 
+def load_bim_metadata(path: Path, variant_indices: Sequence[int]) -> pd.DataFrame:
+    """Load genomic metadata for selected BIM rows in variant-index order."""
+    indices = np.asarray(variant_indices, dtype=np.int64)
+    if indices.ndim != 1 or len(indices) == 0:
+        raise ValueError("variant_indices must be a nonempty one-dimensional sequence")
+    if np.any(indices < 0) or np.any(np.diff(indices) <= 0):
+        raise ValueError("variant_indices must be strictly increasing and nonnegative")
+    wanted = set(indices.tolist())
+    rows: list[dict[str, object]] = []
+    with path.open("r", encoding="ascii", newline="", buffering=1024 * 1024) as stream:
+        for variant_index, line in enumerate(stream):
+            if variant_index not in wanted:
+                continue
+            fields = line.split()
+            if len(fields) != 6:
+                raise ValueError(f"DGRP BIM row {variant_index + 1} must contain 6 fields")
+            chromosome, variant_id, _distance, position, allele_a, allele_b = fields
+            if not position.isdecimal() or int(position) <= 0:
+                raise ValueError(f"DGRP BIM row {variant_index + 1} has invalid position")
+            rows.append(
+                {
+                    "variant_index": variant_index,
+                    "chromosome": chromosome,
+                    "variant_id": variant_id,
+                    "position": int(position),
+                    "allele_a": allele_a,
+                    "allele_b": allele_b,
+                }
+            )
+            if len(rows) == len(indices):
+                break
+    if len(rows) != len(indices):
+        raise ValueError("BIM file does not contain every requested variant index")
+    return pd.DataFrame(rows)
+
+
 def variant_major_bed_bytes(sample_count: int, variant_count: int) -> int:
     """Return the exact PLINK BED size for variant-major two-bit genotypes."""
     if sample_count < 1:
@@ -471,6 +510,326 @@ def validate_bed(
             f"DGRP BED magic mismatch for {path}: "
             f"expected {expected_magic.hex()}, got {observed_magic.hex()}"
         )
+
+
+def decode_bed_variants(
+    path: Path,
+    *,
+    sample_count: int,
+    variant_count: int,
+    start_variant: int,
+    n_variants: int,
+) -> np.ndarray:
+    """Decode a contiguous variant-major PLINK BED block into dosages.
+
+    The returned array has shape ``(n_variants, sample_count)``.  PLINK's
+    two-bit missing-value code is represented as ``-1``; observed dosages are
+    represented as ``0``, ``1``, or ``2``.
+    """
+    if start_variant < 0:
+        raise ValueError("start_variant must be nonnegative")
+    if n_variants < 1:
+        raise ValueError("n_variants must be positive")
+    if start_variant + n_variants > variant_count:
+        raise ValueError("requested BED variant block exceeds variant_count")
+
+    validate_bed(path, sample_count=sample_count, variant_count=variant_count)
+    bytes_per_variant = (sample_count + 3) // 4
+    offset = len(GENOTYPE_BED_MAGIC) + start_variant * bytes_per_variant
+    expected_bytes = n_variants * bytes_per_variant
+    with path.open("rb") as stream:
+        stream.seek(offset)
+        payload = stream.read(expected_bytes)
+    if len(payload) != expected_bytes:
+        raise RuntimeError(
+            f"DGRP BED block is truncated: expected {expected_bytes} bytes, got {len(payload)}"
+        )
+
+    packed = np.frombuffer(payload, dtype=np.uint8).reshape(n_variants, bytes_per_variant)
+    shifts = (2 * np.arange(4, dtype=np.uint8)).reshape(1, 4)
+    codes = ((packed[:, :, None] >> shifts) & 0b11).reshape(n_variants, -1)
+    dosage_map = np.array([0, -1, 1, 2], dtype=np.int8)
+    return dosage_map[codes[:, :sample_count]]
+
+
+def summarize_bed_variants(
+    path: Path,
+    *,
+    sample_count: int,
+    variant_count: int,
+    block_size: int = 16_384,
+) -> pd.DataFrame:
+    """Summarize every BED variant without materializing the genotype matrix."""
+    if block_size < 1:
+        raise ValueError("block_size must be positive")
+    validate_bed(path, sample_count=sample_count, variant_count=variant_count)
+
+    rows: list[pd.DataFrame] = []
+    for start_variant in range(0, variant_count, block_size):
+        n_variants = min(block_size, variant_count - start_variant)
+        dosages = decode_bed_variants(
+            path,
+            sample_count=sample_count,
+            variant_count=variant_count,
+            start_variant=start_variant,
+            n_variants=n_variants,
+        )
+        called = dosages >= 0
+        n_called = called.sum(axis=1, dtype=np.int64)
+        allele_sum = np.where(called, dosages, 0).sum(axis=1, dtype=np.int64)
+        allele_frequency = np.full(n_variants, np.nan, dtype=np.float64)
+        observed = n_called > 0
+        allele_frequency[observed] = allele_sum[observed] / (2.0 * n_called[observed])
+        rows.append(
+            pd.DataFrame(
+                {
+                    "variant_index": np.arange(
+                        start_variant, start_variant + n_variants, dtype=np.int64
+                    ),
+                    "n_called": n_called,
+                    "call_rate": n_called / sample_count,
+                    "allele_frequency": allele_frequency,
+                    "minor_allele_frequency": np.minimum(allele_frequency, 1.0 - allele_frequency),
+                }
+            )
+        )
+    return pd.concat(rows, ignore_index=True)
+
+
+def select_qc_pass_variants(
+    summary: pd.DataFrame,
+    *,
+    min_call_rate: float = DGRP_MIN_CALL_RATE,
+    min_minor_allele_frequency: float = DGRP_MIN_MINOR_ALLELE_FREQUENCY,
+) -> pd.DataFrame:
+    """Return the deterministic variant inventory retained by genotype QC."""
+    required = {
+        "variant_index",
+        "n_called",
+        "call_rate",
+        "allele_frequency",
+        "minor_allele_frequency",
+    }
+    if set(summary.columns) != required:
+        raise ValueError("genotype summary columns differ from the required schema")
+    if not 0.0 < min_call_rate <= 1.0:
+        raise ValueError("min_call_rate must be in (0, 1]")
+    if not 0.0 <= min_minor_allele_frequency <= 0.5:
+        raise ValueError("min_minor_allele_frequency must be in [0, 0.5]")
+    if summary["variant_index"].duplicated().any():
+        raise ValueError("genotype summary contains duplicate variant indices")
+    numeric = summary[
+        ["n_called", "call_rate", "allele_frequency", "minor_allele_frequency"]
+    ].apply(pd.to_numeric, errors="coerce")
+    if numeric.isna().any().any() or not np.isfinite(numeric.to_numpy(dtype=np.float64)).all():
+        raise ValueError("genotype summary contains nonnumeric or non-finite values")
+    keep = (numeric["call_rate"] >= min_call_rate) & (
+        numeric["minor_allele_frequency"] > min_minor_allele_frequency
+    )
+    return summary.loc[keep.to_numpy()].reset_index(drop=True)
+
+
+def materialize_filtered_genotypes(
+    bed_path: Path,
+    retained_variants: pd.DataFrame,
+    output_path: Path,
+    *,
+    sample_count: int,
+    variant_count: int,
+    block_size: int = 16_384,
+) -> dict[str, int]:
+    """Write retained dosages to a row-major NumPy memmap in BED order."""
+    if block_size < 1:
+        raise ValueError("block_size must be positive")
+    required = {"variant_index"}
+    if not required.issubset(retained_variants.columns):
+        raise ValueError("retained variant inventory is missing variant_index")
+    indices = retained_variants["variant_index"].to_numpy(dtype=np.int64)
+    if indices.ndim != 1 or len(indices) == 0:
+        raise ValueError("retained variant inventory must be nonempty")
+    if np.any(indices < 0) or np.any(indices >= variant_count):
+        raise ValueError("retained variant indices are outside the BED range")
+    if np.any(np.diff(indices) <= 0):
+        raise ValueError("retained variant indices must be strictly increasing")
+
+    validate_bed(bed_path, sample_count=sample_count, variant_count=variant_count)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    matrix = np.lib.format.open_memmap(
+        output_path,
+        mode="w+",
+        dtype=np.int8,
+        shape=(len(indices), sample_count),
+    )
+    cursor = 0
+    for start_variant in range(0, variant_count, block_size):
+        stop_variant = min(start_variant + block_size, variant_count)
+        left = np.searchsorted(indices, start_variant, side="left")
+        right = np.searchsorted(indices, stop_variant, side="left")
+        if left == right:
+            continue
+        block = decode_bed_variants(
+            bed_path,
+            sample_count=sample_count,
+            variant_count=variant_count,
+            start_variant=start_variant,
+            n_variants=stop_variant - start_variant,
+        )
+        selected = indices[left:right] - start_variant
+        matrix[cursor : cursor + len(selected)] = block[selected]
+        cursor += len(selected)
+    if cursor != len(indices):
+        raise RuntimeError("filtered genotype materialization did not cover its inventory")
+    matrix.flush()
+    del matrix
+    return {
+        "variant_count": len(indices),
+        "sample_count": sample_count,
+        "matrix_bytes": len(indices) * sample_count,
+    }
+
+
+def build_line_folds(
+    line_ids: Sequence[str],
+    *,
+    n_splits: int = 5,
+    random_state: int = 1718,
+) -> tuple[np.ndarray, ...]:
+    """Create deterministic, disjoint folds over DGRP lines."""
+    if n_splits < 2:
+        raise ValueError("n_splits must be at least 2")
+    if len(line_ids) < n_splits:
+        raise ValueError("n_splits cannot exceed the number of lines")
+    if len(set(line_ids)) != len(line_ids):
+        raise ValueError("line_ids must be unique")
+    order = np.random.default_rng(random_state).permutation(len(line_ids))
+    return tuple(np.asarray(fold, dtype=np.int64) for fold in np.array_split(order, n_splits))
+
+
+def impute_fold_genotypes(
+    genotypes: np.ndarray,
+    train_indices: Sequence[int],
+    evaluation_indices: Sequence[int],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Impute train and evaluation rows using medians learned from training."""
+    matrix = np.asarray(genotypes)
+    train = np.asarray(train_indices, dtype=np.int64)
+    evaluation = np.asarray(evaluation_indices, dtype=np.int64)
+    if matrix.ndim != 2:
+        raise ValueError("genotypes must be two-dimensional")
+    if len(train) < 1 or np.any(train < 0) or np.any(train >= matrix.shape[0]):
+        raise ValueError("train_indices must contain valid rows")
+    if np.any(evaluation < 0) or np.any(evaluation >= matrix.shape[0]):
+        raise ValueError("evaluation_indices must contain valid rows")
+    train_matrix = np.asarray(matrix[train], dtype=np.float64)
+    evaluation_matrix = np.asarray(matrix[evaluation], dtype=np.float64)
+    train_matrix[train_matrix < 0] = np.nan
+    evaluation_matrix[evaluation_matrix < 0] = np.nan
+    if np.isnan(train_matrix).all(axis=0).any():
+        raise ValueError("a training-fold genotype feature has no observed values")
+    medians = np.nanmedian(train_matrix, axis=0)
+    train_missing = np.isnan(train_matrix)
+    evaluation_missing = np.isnan(evaluation_matrix)
+    if train_missing.any():
+        train_matrix[train_missing] = np.broadcast_to(medians, train_matrix.shape)[train_missing]
+    if evaluation_missing.any():
+        evaluation_matrix[evaluation_missing] = np.broadcast_to(medians, evaluation_matrix.shape)[
+            evaluation_missing
+        ]
+    return train_matrix, evaluation_matrix
+
+
+def residualize_fold_outcomes(
+    outcomes: np.ndarray,
+    covariates: np.ndarray,
+    train_indices: Sequence[int],
+    evaluation_indices: Sequence[int],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Remove covariate effects using coefficients learned on training rows."""
+    target = np.asarray(outcomes, dtype=np.float64)
+    confounders = np.asarray(covariates, dtype=np.float64)
+    train = np.asarray(train_indices, dtype=np.int64)
+    evaluation = np.asarray(evaluation_indices, dtype=np.int64)
+    if target.ndim != 1 or confounders.ndim != 2 or len(target) != len(confounders):
+        raise ValueError(
+            "outcomes and covariates must have aligned one-dimensional/two-dimensional shapes"
+        )
+    if len(train) < confounders.shape[1] + 1:
+        raise ValueError("training rows must exceed the covariate-plus-intercept dimension")
+    if np.any(train < 0) or np.any(train >= len(target)):
+        raise ValueError("train_indices must contain valid rows")
+    if np.any(evaluation < 0) or np.any(evaluation >= len(target)):
+        raise ValueError("evaluation_indices must contain valid rows")
+    if not np.isfinite(target).all() or not np.isfinite(confounders).all():
+        raise ValueError("outcomes and covariates must be finite")
+    design = np.column_stack((np.ones(len(target)), confounders))
+    coefficients, _, _, _ = np.linalg.lstsq(design[train], target[train], rcond=None)
+    return target[train] - design[train] @ coefficients, target[evaluation] - design[
+        evaluation
+    ] @ coefficients
+
+
+def collapse_ld_redundant_ranking(
+    genotypes: np.ndarray,
+    ranking: Sequence[int],
+    *,
+    r2_threshold: float = 0.8,
+) -> np.ndarray:
+    """Return rank-ordered LD representatives from a complete ranking."""
+    matrix = np.asarray(genotypes, dtype=np.float64)
+    order = np.asarray(ranking, dtype=np.int64)
+    if matrix.ndim != 2:
+        raise ValueError("genotypes must be two-dimensional")
+    if order.ndim != 1 or len(order) == 0:
+        raise ValueError("ranking must be a nonempty one-dimensional sequence")
+    if len(np.unique(order)) != len(order) or np.any(order < 0) or np.any(order >= matrix.shape[1]):
+        raise ValueError("ranking must contain unique valid feature indices")
+    if not 0.0 < r2_threshold <= 1.0:
+        raise ValueError("r2_threshold must be in (0, 1]")
+    selected = matrix[:, order]
+    centered = selected - selected.mean(axis=0)
+    norms = np.sqrt((centered * centered).sum(axis=0))
+    if not np.all(norms > 0):
+        raise ValueError("LD stability requires nonconstant ranked genotypes")
+    correlation = (centered.T @ centered) / np.outer(norms, norms)
+    representatives: list[int] = []
+    for position in range(len(order)):
+        if not any(correlation[position, prior] ** 2 >= r2_threshold for prior in representatives):
+            representatives.append(position)
+    return order[np.asarray(representatives, dtype=np.int64)]
+
+
+def rank_features_fold_local(
+    genotypes: np.ndarray,
+    outcomes: np.ndarray,
+    train_indices: Sequence[int],
+) -> np.ndarray:
+    """Rank variants using only a training fold and training-fold imputation."""
+    matrix = np.asarray(genotypes)
+    target = np.asarray(outcomes, dtype=np.float64)
+    indices = np.asarray(train_indices, dtype=np.int64)
+    if matrix.ndim != 2 or target.ndim != 1 or matrix.shape[0] != len(target):
+        raise ValueError(
+            "genotypes and outcomes must have aligned two-dimensional/one-dimensional shapes"
+        )
+    if len(indices) < 2 or np.any(indices < 0) or np.any(indices >= len(target)):
+        raise ValueError("train_indices must contain at least two valid rows")
+    if len(np.unique(indices)) != len(indices):
+        raise ValueError("train_indices must be unique")
+    y = target[indices]
+    if not np.isfinite(y).all():
+        raise ValueError("training outcomes must be finite")
+
+    x, _ = impute_fold_genotypes(matrix, indices, indices)
+
+    centered_x = x - x.mean(axis=0)
+    centered_y = y - y.mean()
+    denominator = np.sqrt((centered_x * centered_x).sum(axis=0) * (centered_y * centered_y).sum())
+    scores = np.zeros(matrix.shape[1], dtype=np.float64)
+    valid = denominator > 0
+    scores[valid] = np.abs(
+        (centered_x[:, valid] * centered_y[:, None]).sum(axis=0) / denominator[valid]
+    )
+    return np.lexsort((np.arange(matrix.shape[1]), -scores))
 
 
 def _input_paths(input_dir: Path) -> dict[str, Path]:
@@ -717,6 +1076,52 @@ def load_individual_phenotypes(path: Path) -> pd.DataFrame:
     validate_individual_phenotypes(frame)
     validate_pinned_individual_inventory(frame)
     return frame
+
+
+def load_line_covariates(
+    database_path: Path,
+    *,
+    gwas_analysis_id: int,
+    genotype_lines: Iterable[str],
+) -> pd.DataFrame:
+    """Load and validate line-level covariates from the pinned DGRP database."""
+    if gwas_analysis_id < 1:
+        raise ValueError("gwas_analysis_id must be positive")
+    expected_lines = tuple(_normalize_genotype_line(value) for value in genotype_lines)
+    if not expected_lines or len(set(expected_lines)) != len(expected_lines):
+        raise ValueError("genotype_lines must be nonempty and unique")
+
+    query = """
+        SELECT strain_number, covariable_name, covariable_value
+        FROM gwas_covariable_value
+        WHERE associated_gwasanalysis_id = ?
+        ORDER BY strain_number, covariable_name
+    """
+    with sqlite3.connect(database_path) as connection:
+        frame = pd.read_sql_query(query, connection, params=(gwas_analysis_id,))
+    required = {"strain_number", "covariable_name", "covariable_value"}
+    if set(frame.columns) != required:
+        raise RuntimeError("DGRP covariate table has an unexpected schema")
+    if frame.empty:
+        raise RuntimeError(f"No DGRP covariates found for GWAS analysis {gwas_analysis_id}")
+    frame = frame[frame["strain_number"].isin(expected_lines)].copy()
+    if frame.empty:
+        raise RuntimeError("DGRP covariates do not cover the requested genotype lines")
+    if frame[["strain_number", "covariable_name"]].duplicated().any():
+        raise RuntimeError("DGRP covariates contain duplicate line-variable pairs")
+    if set(frame["strain_number"]) != set(expected_lines):
+        raise RuntimeError("DGRP covariates do not cover the requested genotype lines")
+    values = pd.to_numeric(frame["covariable_value"], errors="coerce")
+    if values.isna().any() or not np.isfinite(values.to_numpy(dtype=np.float64)).all():
+        raise RuntimeError("DGRP covariates contain nonnumeric or non-finite values")
+    result = frame.assign(covariable_value=values.astype(np.float64)).pivot(
+        index="strain_number",
+        columns="covariable_name",
+        values="covariable_value",
+    )
+    if result.isna().any().any():
+        raise RuntimeError("DGRP covariates contain incomplete line coverage")
+    return result.reindex(expected_lines).reset_index()
 
 
 def build_line_outcomes(

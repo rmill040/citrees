@@ -83,6 +83,41 @@ def test_line_outcomes_apply_trait_specific_minimum_counts() -> None:
     assert summary.loc[TRAITS[1].name, "n_individuals"] == 15
 
 
+def test_load_line_covariates_validates_and_pivots_source(tmp_path: Path) -> None:
+    database = tmp_path / "dgrp.sqlite"
+    import sqlite3
+
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "create table gwas_covariable_value ("
+            "associated_gwasanalysis_id integer, strain_number text, "
+            "covariable_name text, covariable_value text)"
+        )
+        connection.executemany(
+            "insert into gwas_covariable_value values (?, ?, ?, ?)",
+            [
+                (7, "line_2", "cov2", "1"),
+                (7, "line_1", "cov1", "0"),
+                (7, "line_1", "cov2", "2"),
+                (7, "line_2", "cov1", "1"),
+                (7, "line_3", "cov1", "1"),
+                (7, "line_3", "cov2", "2"),
+            ],
+        )
+        connection.commit()
+
+    observed = dgrp.load_line_covariates(
+        database,
+        gwas_analysis_id=7,
+        genotype_lines=["line_2", "line_1"],
+    )
+    assert observed.columns.tolist() == ["strain_number", "cov1", "cov2"]
+    assert observed.to_dict("records") == [
+        {"strain_number": "line_2", "cov1": 1.0, "cov2": 1.0},
+        {"strain_number": "line_1", "cov1": 0.0, "cov2": 2.0},
+    ]
+
+
 def test_phenotype_validation_rejects_missing_and_duplicate_identities() -> None:
     frame = _phenotypes()
     with pytest.raises(ValueError, match="missing columns"):
@@ -354,6 +389,235 @@ def test_bed_validation_rejects_wrong_size_and_magic(tmp_path: Path) -> None:
         dgrp.validate_bed(path, sample_count=2, variant_count=5)
 
 
+def test_bed_decoder_reads_variant_blocks_and_missing_values(tmp_path: Path) -> None:
+    path = tmp_path / "dgrp2.bed"
+    matrix = np.array(
+        [
+            [0, 1, 2, -1, 1],
+            [2, 0, -1, 1, 2],
+            [1, 2, 0, 1, -1],
+        ],
+        dtype=np.int8,
+    )
+    code_for_dosage = {0: 0, 1: 2, 2: 3, -1: 1}
+    packed = bytearray(dgrp.GENOTYPE_BED_MAGIC)
+    for row in matrix:
+        encoded = [code_for_dosage[int(value)] for value in row]
+        for offset in range(0, len(encoded), 4):
+            packed.append(
+                sum(code << (2 * index) for index, code in enumerate(encoded[offset : offset + 4]))
+            )
+    path.write_bytes(bytes(packed))
+
+    observed = dgrp.decode_bed_variants(
+        path,
+        sample_count=5,
+        variant_count=3,
+        start_variant=1,
+        n_variants=2,
+    )
+    np.testing.assert_array_equal(observed, matrix[1:])
+
+
+def test_bed_decoder_rejects_invalid_blocks(tmp_path: Path) -> None:
+    path = tmp_path / "dgrp2.bed"
+    path.write_bytes(dgrp.GENOTYPE_BED_MAGIC + b"\x00")
+
+    with pytest.raises(ValueError, match="nonnegative"):
+        dgrp.decode_bed_variants(
+            path,
+            sample_count=1,
+            variant_count=1,
+            start_variant=-1,
+            n_variants=1,
+        )
+    with pytest.raises(ValueError, match="exceeds"):
+        dgrp.decode_bed_variants(
+            path,
+            sample_count=1,
+            variant_count=1,
+            start_variant=1,
+            n_variants=1,
+        )
+
+
+def test_bed_summary_streams_blocks_and_computes_qc_metrics(tmp_path: Path) -> None:
+    path = tmp_path / "dgrp2.bed"
+    matrix = np.array(
+        [
+            [0, 1, 2, -1],
+            [2, 0, -1, 1],
+            [1, 2, 0, 1],
+        ],
+        dtype=np.int8,
+    )
+    code_for_dosage = {0: 0, 1: 2, 2: 3, -1: 1}
+    packed = bytearray(dgrp.GENOTYPE_BED_MAGIC)
+    for row in matrix:
+        packed.append(
+            sum(code_for_dosage[int(value)] << (2 * index) for index, value in enumerate(row))
+        )
+    path.write_bytes(bytes(packed))
+
+    observed = dgrp.summarize_bed_variants(
+        path,
+        sample_count=4,
+        variant_count=3,
+        block_size=2,
+    )
+    np.testing.assert_array_equal(observed["n_called"], [3, 3, 4])
+    np.testing.assert_allclose(observed["call_rate"], [0.75, 0.75, 1.0])
+    np.testing.assert_allclose(observed["allele_frequency"], [0.5, 0.5, 0.5])
+    np.testing.assert_allclose(observed["minor_allele_frequency"], [0.5, 0.5, 0.5])
+
+
+def test_select_qc_pass_variants_applies_named_thresholds() -> None:
+    summary = pd.DataFrame(
+        {
+            "variant_index": [3, 7, 11],
+            "n_called": [4, 3, 4],
+            "call_rate": [1.0, 0.75, 1.0],
+            "allele_frequency": [0.5, 0.5, 0.97],
+            "minor_allele_frequency": [0.5, 0.5, 0.03],
+        }
+    )
+    observed = dgrp.select_qc_pass_variants(summary)
+    assert observed["variant_index"].tolist() == [3]
+
+    with pytest.raises(ValueError, match="columns differ"):
+        dgrp.select_qc_pass_variants(summary.drop(columns="call_rate"))
+    with pytest.raises(ValueError, match="min_call_rate"):
+        dgrp.select_qc_pass_variants(summary, min_call_rate=0.0)
+
+
+def test_select_qc_pass_variants_uses_frozen_strict_boundaries() -> None:
+    summary = pd.DataFrame(
+        {
+            "variant_index": [0, 1, 2, 3],
+            "n_called": [19, 19, 20, 18],
+            "call_rate": [0.95, 0.95, 0.96, 0.90],
+            "allele_frequency": [0.04, 0.040001, 0.96, 0.5],
+            "minor_allele_frequency": [0.04, 0.040001, 0.04, 0.5],
+        }
+    )
+
+    observed = dgrp.select_qc_pass_variants(summary)
+
+    assert observed["variant_index"].tolist() == [1]
+
+
+def test_materialize_filtered_genotypes_preserves_inventory_order(tmp_path: Path) -> None:
+    bed_path = tmp_path / "dgrp2.bed"
+    output_path = tmp_path / "filtered.npy"
+    matrix = np.array(
+        [
+            [0, 1, 2],
+            [2, 0, -1],
+            [1, 2, 0],
+            [0, -1, 1],
+        ],
+        dtype=np.int8,
+    )
+    code_for_dosage = {0: 0, 1: 2, 2: 3, -1: 1}
+    payload = bytearray(dgrp.GENOTYPE_BED_MAGIC)
+    for row in matrix:
+        payload.append(
+            sum(code_for_dosage[int(value)] << (2 * index) for index, value in enumerate(row))
+        )
+    bed_path.write_bytes(bytes(payload))
+    inventory = pd.DataFrame({"variant_index": [0, 2, 3]})
+
+    metadata = dgrp.materialize_filtered_genotypes(
+        bed_path,
+        inventory,
+        output_path,
+        sample_count=3,
+        variant_count=4,
+        block_size=2,
+    )
+    observed = np.load(output_path, mmap_mode="r")
+    assert metadata == {"variant_count": 3, "sample_count": 3, "matrix_bytes": 9}
+    np.testing.assert_array_equal(observed, matrix[[0, 2, 3]])
+
+    with pytest.raises(ValueError, match="strictly increasing"):
+        dgrp.materialize_filtered_genotypes(
+            bed_path,
+            pd.DataFrame({"variant_index": [2, 1]}),
+            tmp_path / "invalid.npy",
+            sample_count=3,
+            variant_count=4,
+        )
+
+
+def test_build_line_folds_are_deterministic_and_disjoint() -> None:
+    lines = [f"line_{index}" for index in range(11)]
+    first = dgrp.build_line_folds(lines, n_splits=5, random_state=9)
+    second = dgrp.build_line_folds(lines, n_splits=5, random_state=9)
+    assert [fold.tolist() for fold in first] == [fold.tolist() for fold in second]
+    assert sorted(np.concatenate(first).tolist()) == list(range(len(lines)))
+    assert sum(len(fold) for fold in first) == len(lines)
+
+
+def test_impute_fold_genotypes_uses_training_medians_for_evaluation_rows() -> None:
+    genotypes = np.array([[0, -1], [2, 4], [-1, 8]], dtype=np.int8)
+    train, evaluation = dgrp.impute_fold_genotypes(genotypes, [0, 1], [2])
+    np.testing.assert_array_equal(train, [[0.0, 4.0], [2.0, 4.0]])
+    np.testing.assert_array_equal(evaluation, [[1.0, 8.0]])
+
+
+def test_residualize_fold_outcomes_learns_coefficients_on_training_rows() -> None:
+    covariates = np.array([[0.0], [1.0], [2.0], [3.0], [4.0]])
+    outcomes = 10.0 + 2.0 * covariates[:, 0] + np.array([1.0, -3.0, 3.0, -1.0, 2.0])
+    train_residuals, evaluation_residuals = dgrp.residualize_fold_outcomes(
+        outcomes,
+        covariates,
+        [0, 1, 2, 3],
+        [4],
+    )
+    np.testing.assert_allclose(train_residuals, [1.0, -3.0, 3.0, -1.0])
+    np.testing.assert_allclose(evaluation_residuals, [2.0])
+
+
+def test_collapse_ld_redundant_ranking_keeps_first_of_correlated_features() -> None:
+    genotypes = np.array(
+        [
+            [0.0, 0.0, 0.0, 1.0],
+            [1.0, 1.0, 2.0, 0.0],
+            [2.0, 2.0, 1.0, 1.0],
+            [3.0, 3.0, 0.0, 0.0],
+        ]
+    )
+    representatives = dgrp.collapse_ld_redundant_ranking(
+        genotypes,
+        [1, 0, 2, 3],
+        r2_threshold=0.8,
+    )
+    assert representatives.tolist() == [1, 2, 3]
+
+
+def test_fold_local_ranking_imputes_training_only_and_returns_full_order() -> None:
+    genotypes = np.array(
+        [
+            [0, 0, 0],
+            [1, -1, 1],
+            [2, 2, 0],
+            [0, 1, 1],
+            [2, 2, 2],
+        ],
+        dtype=np.int8,
+    )
+    outcomes = np.array([0.0, 1.0, 2.0, 0.1, 1.9])
+    ranking = dgrp.rank_features_fold_local(genotypes, outcomes, [0, 1, 2, 3])
+    assert ranking.tolist() == [0, 1, 2]
+
+    with pytest.raises(ValueError, match="no observed"):
+        dgrp.rank_features_fold_local(
+            np.array([[0, -1], [1, -1]], dtype=np.int8),
+            np.array([0.0, 1.0]),
+            [0, 1],
+        )
+
+
 def test_bim_validation_rejects_duplicate_ids_and_invalid_positions(
     tmp_path: Path,
 ) -> None:
@@ -374,6 +638,33 @@ def test_bim_validation_rejects_duplicate_ids_and_invalid_positions(
     path.write_text("1 variant 0 1.5 A G\n", encoding="ascii")
     with pytest.raises(ValueError, match="invalid integer position"):
         dgrp.validate_bim(path, expected_variants=1)
+
+
+def test_load_bim_metadata_preserves_selected_variant_indices(tmp_path: Path) -> None:
+    path = tmp_path / "dgrp2.bim"
+    path.write_text(
+        "1 variant_1 0 10 A G\n1 variant_2 0 20 C T\n2 variant_3 0 30 G A\n",
+        encoding="ascii",
+    )
+    observed = dgrp.load_bim_metadata(path, [0, 2])
+    assert observed.to_dict("records") == [
+        {
+            "variant_index": 0,
+            "chromosome": "1",
+            "variant_id": "variant_1",
+            "position": 10,
+            "allele_a": "A",
+            "allele_b": "G",
+        },
+        {
+            "variant_index": 2,
+            "chromosome": "2",
+            "variant_id": "variant_3",
+            "position": 30,
+            "allele_a": "G",
+            "allele_b": "A",
+        },
+    ]
 
 
 def test_fam_validation_requires_matching_line_identities(tmp_path: Path) -> None:

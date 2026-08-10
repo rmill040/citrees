@@ -287,6 +287,33 @@ def test_reconciliation_accepts_exact_valid_stage_requirements() -> None:
     assert tuple(sorted(store.loaded)) == tuple(sorted((*report.expected_keys, ranking_dependency)))
 
 
+def test_reconciliation_requires_nothing_for_fully_excluded_cells() -> None:
+    excluded = _cell(
+        0,
+        stage1_required=False,
+        stage2_required=False,
+    )
+    store = _Store({})
+
+    report = reconcile_manifest_artifacts(
+        store,
+        _manifest(excluded),
+        _provenance(),
+    )
+
+    assert report.is_complete
+    assert report.counts == {
+        "expected": 0,
+        "valid": 0,
+        "missing": 0,
+        "extra": 0,
+        "malformed": 0,
+        "invalid": 0,
+        "provenance_mismatch": 0,
+    }
+    assert store.loaded == []
+
+
 def test_reconciliation_keeps_same_named_tasks_in_separate_cache_entries() -> None:
     cells = (
         _cell(0),

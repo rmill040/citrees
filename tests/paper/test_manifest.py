@@ -157,6 +157,29 @@ def test_manifest_validates_current_grid_and_exact_digest() -> None:
     assert canonical_manifest_s3_key(digest) == f"canonical-rerun-manifests/{digest}.csv"
 
 
+def test_manifest_retains_cells_excluded_from_both_execution_stages() -> None:
+    excluded = {
+        **_row(seed=0),
+        "rerun_reason": "deterministic_timeout_21600_seconds",
+        "stage1_required": False,
+        "stage2_required": False,
+    }
+    required = _row(seed=1)
+    manifest = parse_rerun_manifest(_canonical_payload([excluded, required]))
+
+    validate_canonical_campaign(manifest)
+    assert len(manifest.cells) == 2
+    assert manifest.cells[0].stage1_required is False
+    assert manifest.cells[0].stage2_required is False
+    assert manifest.configs_for("classification", "rankings") == (manifest.cells[1].config,)
+    assert manifest.configs_for("classification", "metrics") == (manifest.cells[1].config,)
+    assert manifest.method_counts("rankings") == {"r_ctree": 1}
+    assert manifest.campaign_sha256 != compute_campaign_sha256(
+        (manifest.cells[1],),
+        runtime_contract_sha256=manifest.runtime_contract_sha256,
+    )
+
+
 def test_manifest_rejects_digest_identity_and_duplicate_errors() -> None:
     row = _row()
     payload = _payload([row])

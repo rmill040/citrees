@@ -388,8 +388,6 @@ def parse_rerun_manifest(
             field="stage2_required",
             line_number=line_number,
         )
-        if not stage1_required and not stage2_required:
-            raise ValueError(f"manifest line {line_number}: cell is not required by any stage")
         if row["status"] != "pending":
             raise ValueError(f"manifest line {line_number}: status must be pending")
 

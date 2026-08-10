@@ -87,6 +87,8 @@ EXPECTED_DATASET_TASK_PAIRS = 47
 EXPECTED_SEEDS = (0, 1, 2, 3, 4)
 EXPECTED_GATE_CELLS = 8
 EXPECTED_GATE_DATASET_TASK_PAIRS = 4
+GATE_HOST_SLOTS = ("arc-a", "arc-b")
+GATE_REPEATS = (1, 2)
 GATE_PANEL_SPECIFICATION = (
     ("compact", "Bonferroni", False, EXPECTED_SEEDS[0]),
     ("compact", "MonteCarlo", True, EXPECTED_SEEDS[-1]),
@@ -199,6 +201,9 @@ _BOOT_ID_PATTERN = re.compile(
 )
 _GIT_SHA_PATTERN = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _IMAGE_DIGEST_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
+_GATE_IMAGE_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+_GATE_LAUNCH_NONCE_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+_GATE_SOURCE_GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -229,6 +234,36 @@ def _container_image_digest(image_uri: str) -> str:
     if not _IMAGE_DIGEST_PATTERN.fullmatch(image_uri):
         raise ValueError("container image is not an immutable digest URI")
     return image_uri.rsplit("@", maxsplit=1)[1]
+
+
+def gate_launch_identity(
+    source_git_sha: str,
+    image_digest: str,
+    launch_nonce: str,
+) -> str:
+    """Return the exact identity of one fresh Arc Spot gate attempt."""
+    if not _GATE_SOURCE_GIT_SHA_PATTERN.fullmatch(source_git_sha):
+        raise ValueError("gate source Git SHA must contain 40 lowercase hex digits")
+    if not _GATE_IMAGE_DIGEST_PATTERN.fullmatch(image_digest):
+        raise ValueError("gate image digest must be sha256 followed by 64 lowercase hex digits")
+    if not _GATE_LAUNCH_NONCE_PATTERN.fullmatch(launch_nonce):
+        raise ValueError("gate launch nonce must contain 32 lowercase hex digits")
+    return _sha256_bytes(f"{source_git_sha}\0{image_digest}\0{launch_nonce}".encode("ascii"))
+
+
+def gate_output_prefix(
+    source_git_sha: str,
+    image_digest: str,
+    launch_nonce: str,
+) -> str:
+    """Return the immutable S3 prefix for one Arc Spot gate attempt."""
+    gate_launch_identity(source_git_sha, image_digest, launch_nonce)
+    image_binding = image_digest.removeprefix("sha256:")[:16]
+    return (
+        "gates/r-cforest-reproducibility/"
+        f"source-{source_git_sha}/image-{image_binding}/"
+        f"attempt-{launch_nonce}-arc-spot2"
+    )
 
 
 def _integer_digest(values: Sequence[int]) -> str:
@@ -1117,8 +1152,10 @@ def _canonical_operator_readbacks(
     readbacks: Sequence[Mapping[str, Any]],
     *,
     evidence_by_instance: Mapping[str, InstanceIdentityEvidence],
+    gate_launch_nonce: str,
     manifest: RerunManifest,
     payloads: Sequence[Mapping[str, Any]],
+    host_slot_by_instance: Mapping[str, str],
     receipt_created_at_utc: str,
     runtime_contract: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
@@ -1169,6 +1206,38 @@ def _canonical_operator_readbacks(
             raise ValueError(
                 f"operator readback for instance {instance_id} was not collected while running"
             )
+        if readback.instance_lifecycle != "spot":
+            raise ValueError(f"operator readback for instance {instance_id} is not Spot")
+        tags = dict(readback.tags)
+        source_git_sha = str(normalized_runtime["runtime"]["git_sha"])
+        image_digest = str(normalized_runtime["runtime"]["container_image_digest"])
+        try:
+            gate_identity = gate_launch_identity(
+                source_git_sha,
+                image_digest,
+                gate_launch_nonce,
+            )
+            output_prefix = gate_output_prefix(
+                source_git_sha,
+                image_digest,
+                gate_launch_nonce,
+            )
+        except ValueError as exc:
+            raise ValueError("the trusted gate launch nonce is invalid") from exc
+        expected_tags = {
+            "citrees-artifact-prefix": output_prefix,
+            "citrees-gate-identity": gate_identity,
+            "citrees-gate-launch-nonce": gate_launch_nonce,
+            "citrees-host-slot": host_slot_by_instance[instance_id],
+            "citrees-image-digest": image_digest,
+            "citrees-market": "spot",
+            "citrees-role": "r-cforest-reproducibility-gate",
+            "citrees-source-git-sha": source_git_sha,
+        }
+        if any(tags.get(key) != value for key, value in expected_tags.items()):
+            raise ValueError(
+                f"operator readback for instance {instance_id} lacks the exact gate launch tags"
+            )
         instance_role = get_assumed_role_identity(evidence.sts_identity.arn)
         operator_role = get_assumed_role_identity(readback.operator_identity.arn)
         if (
@@ -1193,6 +1262,39 @@ def _canonical_operator_readbacks(
             key=lambda value: value[0].instance_id,
         )
     ]
+
+
+def _gate_host_slots_by_instance(
+    payloads: Sequence[Mapping[str, Any]],
+) -> dict[str, str]:
+    """Bind the exact gate run IDs to two host slots and instance IDs."""
+    expected_run_ids = {
+        f"{slot_id}-repeat-{repeat}" for slot_id in GATE_HOST_SLOTS for repeat in GATE_REPEATS
+    }
+    observed_run_ids: set[str] = set()
+    instance_by_slot: dict[str, str] = {}
+    slot_by_instance: dict[str, str] = {}
+    for payload in payloads:
+        provenance = payload.get("provenance")
+        if not isinstance(provenance, Mapping):
+            raise TypeError("gate payload provenance is not an object")
+        run_id = provenance.get("run_id")
+        instance_id = provenance.get("instance_id")
+        if not isinstance(run_id, str) or not isinstance(instance_id, str):
+            raise ValueError("gate payload lacks a run ID or instance ID")
+        if run_id not in expected_run_ids:
+            raise ValueError("gate run IDs do not cover the exact Arc host slots and repeats")
+        observed_run_ids.add(run_id)
+        slot_id = run_id.partition("-repeat-")[0]
+        prior_instance = instance_by_slot.setdefault(slot_id, instance_id)
+        prior_slot = slot_by_instance.setdefault(instance_id, slot_id)
+        if prior_instance != instance_id or prior_slot != slot_id:
+            raise ValueError("gate host slots do not map one-to-one to instance IDs")
+    if observed_run_ids != expected_run_ids:
+        raise ValueError("gate run IDs do not cover the exact Arc host slots and repeats")
+    if set(instance_by_slot) != set(GATE_HOST_SLOTS) or len(slot_by_instance) != N_EXPECTED_HOSTS:
+        raise ValueError("gate host slots do not identify the exact two instances")
+    return slot_by_instance
 
 
 def collect_live_operator_readbacks(
@@ -1290,6 +1392,7 @@ def compare_payloads(
     payloads: Sequence[dict[str, Any]],
     operator_readbacks: Sequence[Mapping[str, Any]],
     *,
+    gate_launch_nonce: str,
     manifest: RerunManifest,
     receipt_created_at_utc: str | None = None,
     runtime_contract: dict[str, Any],
@@ -1311,9 +1414,7 @@ def compare_payloads(
         )
 
     provenances = [payload["provenance"] for payload in payloads]
-    run_ids = [str(provenance.get("run_id", "")) for provenance in provenances]
-    if any(not run_id for run_id in run_ids) or len(set(run_ids)) != N_EXPECTED_RUNS:
-        raise ValueError("gate run IDs must be non-empty and unique")
+    host_slot_by_instance = _gate_host_slots_by_instance(payloads)
 
     instance_ids = [str(provenance.get("instance_id", "")) for provenance in provenances]
     instance_counts = {
@@ -1334,8 +1435,10 @@ def compare_payloads(
     canonical_readbacks = _canonical_operator_readbacks(
         operator_readbacks,
         evidence_by_instance=evidence_by_instance,
+        gate_launch_nonce=gate_launch_nonce,
         manifest=manifest,
         payloads=payloads,
+        host_slot_by_instance=host_slot_by_instance,
         receipt_created_at_utc=created_at_utc,
         runtime_contract=runtime_contract,
     )
@@ -1520,6 +1623,7 @@ def create_gate_receipt(
     payloads: Sequence[dict[str, Any]],
     operator_readbacks: Sequence[Mapping[str, Any]],
     *,
+    gate_launch_nonce: str,
     manifest: RerunManifest,
     runtime_contract: dict[str, Any],
 ) -> dict[str, Any]:
@@ -1529,6 +1633,7 @@ def create_gate_receipt(
     report = compare_payloads(
         canonical_payloads,
         operator_readbacks,
+        gate_launch_nonce=gate_launch_nonce,
         manifest=manifest,
         receipt_created_at_utc=created_at_utc,
         runtime_contract=runtime_contract,
@@ -1598,9 +1703,34 @@ def validate_gate_receipt(
     )
     if operator_readbacks != canonical_readbacks:
         raise ValueError("gate receipt operator readbacks are not canonically ordered")
+    launch_nonces: set[str] = set()
+    for index, record in enumerate(canonical_readbacks):
+        if not isinstance(record, Mapping):
+            raise TypeError(f"operator attestation[{index}] is not an object")
+        readback = record.get("readback")
+        if not isinstance(readback, Mapping):
+            raise TypeError(f"operator attestation[{index}] readback is not an object")
+        tags = readback.get("tags")
+        if not isinstance(tags, list):
+            raise TypeError(f"operator attestation[{index}] readback tags are not an array")
+        launch_nonce = next(
+            (
+                tag.get("value")
+                for tag in tags
+                if isinstance(tag, Mapping) and tag.get("key") == "citrees-gate-launch-nonce"
+            ),
+            None,
+        )
+        if not isinstance(launch_nonce, str):
+            raise ValueError(f"operator attestation[{index}] lacks a gate launch nonce")
+        launch_nonces.add(launch_nonce)
+    if len(launch_nonces) != 1:
+        raise ValueError("operator readbacks do not share one gate launch nonce")
+    gate_launch_nonce = next(iter(launch_nonces))
     expected_report = compare_payloads(
         canonical_payloads,
         canonical_readbacks,
+        gate_launch_nonce=gate_launch_nonce,
         manifest=manifest,
         receipt_created_at_utc=created_at_utc,
         runtime_contract=runtime_contract,
@@ -1726,6 +1856,7 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
     compare_parser.add_argument("--manifest", type=Path, required=True)
+    compare_parser.add_argument("--gate-launch-nonce", required=True)
     compare_parser.add_argument("--operator-private-key", type=Path, required=True)
     compare_parser.add_argument("--runtime-contract", type=Path, required=True)
     return parser
@@ -1761,6 +1892,7 @@ def main() -> None:
     receipt = create_gate_receipt(
         payloads,
         operator_readbacks,
+        gate_launch_nonce=args.gate_launch_nonce,
         manifest=manifest,
         runtime_contract=runtime_contract,
     )

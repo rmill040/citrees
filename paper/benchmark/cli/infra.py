@@ -211,13 +211,6 @@ def launch_api_cmd(
             help="EC2 instance type",
         ),
     ] = "m5.large",
-    spot: Annotated[
-        bool,
-        typer.Option(
-            "--spot/--no-spot",
-            help="Use a Spot instance; --no-spot explicitly requests on-demand",
-        ),
-    ] = True,
     image_uri: Annotated[
         str,
         typer.Option(
@@ -338,7 +331,6 @@ def launch_api_cmd(
         stage=stage,
         lease_seconds=lease_seconds,
         max_cell_attempts=max_cell_attempts,
-        spot=spot,
     )
 
     if result["api_url"]:
@@ -455,13 +447,6 @@ def launch_workers_cmd(
             help="Number of worker instances to launch",
         ),
     ] = 1,
-    spot: Annotated[
-        bool,
-        typer.Option(
-            "--spot/--no-spot",
-            help="Use Spot instances; --no-spot explicitly requests on-demand",
-        ),
-    ] = True,
     image_uri: Annotated[
         str,
         typer.Option(
@@ -572,7 +557,6 @@ def launch_workers_cmd(
         manifest_path=manifest_path,
         runtime_contract_path=runtime_contract_path,
         stage=stage,
-        spot=spot,
     )
 
 
@@ -594,13 +578,6 @@ def launch_mechanism_workers_cmd(
             help="EC2 instance type",
         ),
     ] = "c6a.8xlarge",
-    spot: Annotated[
-        bool,
-        typer.Option(
-            "--spot/--no-spot",
-            help="Use Spot instances; --no-spot explicitly requests on-demand",
-        ),
-    ] = True,
     image_uri: Annotated[
         str,
         typer.Option(
@@ -714,7 +691,6 @@ def launch_mechanism_workers_cmd(
         n=n,
         instance_type=instance_type,
         image_uri=image_uri,
-        spot=spot,
         num_shards=num_shards or None,
         shard_start=shard_start,
         subnet_ids=_split_csv(subnets),
@@ -739,13 +715,42 @@ def list_workers_cmd(
             help="Exact worker launch batch to list",
         ),
     ],
+    artifact_prefix: Annotated[
+        str,
+        typer.Option(
+            "--artifact-prefix",
+            envvar="CITREES_ARTIFACT_PREFIX",
+            help="Exact worker artifact prefix",
+        ),
+    ],
+    campaign_sha256: Annotated[
+        str,
+        typer.Option(
+            "--campaign-sha256",
+            envvar="CITREES_CAMPAIGN_SHA256",
+            help="Exact worker campaign digest",
+        ),
+    ],
+    stage: Annotated[
+        Literal["rankings", "metrics"],
+        typer.Option(
+            "--stage",
+            envvar="CITREES_STAGE",
+            help="Exact worker pipeline stage",
+        ),
+    ],
 ) -> None:
-    """List running worker instances from one exact launch."""
+    """List running worker instances from one exact campaign launch."""
     from paper.benchmark.infra.ec2 import list_workers
 
     heading("Worker Instances")
 
-    workers = list_workers(launch_id)
+    workers = list_workers(
+        launch_id,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+    )
     if not workers:
         info("No worker instances found")
         return
@@ -812,13 +817,42 @@ def terminate_workers_cmd(
             help="Exact worker launch batch to terminate",
         ),
     ],
+    artifact_prefix: Annotated[
+        str,
+        typer.Option(
+            "--artifact-prefix",
+            envvar="CITREES_ARTIFACT_PREFIX",
+            help="Exact worker artifact prefix",
+        ),
+    ],
+    campaign_sha256: Annotated[
+        str,
+        typer.Option(
+            "--campaign-sha256",
+            envvar="CITREES_CAMPAIGN_SHA256",
+            help="Exact worker campaign digest",
+        ),
+    ],
+    stage: Annotated[
+        Literal["rankings", "metrics"],
+        typer.Option(
+            "--stage",
+            envvar="CITREES_STAGE",
+            help="Exact worker pipeline stage",
+        ),
+    ],
 ) -> None:
-    """Terminate worker instances from one exact launch."""
+    """Terminate worker instances from one exact campaign launch."""
     from paper.benchmark.infra.ec2 import terminate_workers
 
     heading("Terminating Workers")
 
-    terminated = terminate_workers(launch_id)
+    terminated = terminate_workers(
+        launch_id,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+    )
     if terminated:
         success(f"Terminated {len(terminated)} instances")
     else:

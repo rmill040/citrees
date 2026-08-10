@@ -41,6 +41,7 @@ from paper.benchmark.pipeline.runtime_contract import (
 from tests.paper.test_infra import _MemoryS3
 from tests.paper.test_r_cforest_reproducibility import (
     ACCOUNT_A,
+    GATE_LAUNCH_NONCE,
     _accept_signature,
     _operator_readbacks,
     _payloads,
@@ -92,6 +93,7 @@ def _write_campaign_inputs(
     receipt = create_gate_receipt(
         payloads,
         _operator_readbacks(payloads, runtime_contract, canonical),
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=canonical,
         runtime_contract=runtime_contract,
     )

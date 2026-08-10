@@ -101,6 +101,7 @@ class ApiScope:
     image_uri: str
     manifest_s3_key: str
     manifest_sha256: str
+    market: str
     max_cell_attempts: int
     runtime_contract_s3_key: str
     runtime_contract_sha256: str
@@ -149,6 +150,13 @@ def _validate_worker_launch_id(launch_id: str) -> str:
             "and must start and end with a letter or digit"
         )
     return normalized
+
+
+def _require_spot_instance(instance: dict[str, Any], *, source: str) -> None:
+    """Require one DescribeInstances row to prove Spot lifecycle."""
+    lifecycle = instance.get("InstanceLifecycle")
+    if lifecycle != "spot":
+        raise RuntimeError(f"{source} must be Spot, but EC2 reports {lifecycle!r}")
 
 
 def _canonical_json_object(value: dict[str, Any]) -> bytes:
@@ -1171,7 +1179,6 @@ def launch_api(
     stage: str,
     lease_seconds: int,
     max_cell_attempts: int,
-    spot: bool = True,
     region: str = DEFAULT_REGION,
 ) -> dict[str, str]:
     """Launch the API server on a single EC2 instance.
@@ -1257,7 +1264,7 @@ def launch_api(
         max_cell_attempts=max_cell_attempts,
     )
 
-    market = "spot" if spot else "on-demand"
+    market = "spot"
     info(f"Launching {market} API server: {instance_type}, AMI={ami_id}")
     step(f"Image: {image_uri}")
     step(f"Manifest: s3://{bucket}/{manifest_s3_key} ({manifest_info['cells']} cells)")
@@ -1332,14 +1339,13 @@ def launch_api(
             }
         ],
     }
-    if spot:
-        run_kwargs["InstanceMarketOptions"] = {
-            "MarketType": "spot",
-            "SpotOptions": {
-                "SpotInstanceType": "one-time",
-                "InstanceInterruptionBehavior": "terminate",
-            },
-        }
+    run_kwargs["InstanceMarketOptions"] = {
+        "MarketType": "spot",
+        "SpotOptions": {
+            "SpotInstanceType": "one-time",
+            "InstanceInterruptionBehavior": "terminate",
+        },
+    }
     response = ec2.run_instances(**run_kwargs)
 
     instance_id = response["Instances"][0]["InstanceId"]
@@ -1469,6 +1475,7 @@ def get_api_scope(
         "citrees-image-uri",
         "citrees-manifest-key",
         "citrees-manifest-sha256",
+        "citrees-market",
         "citrees-max-cell-attempts",
         "citrees-runtime-contract-key",
         "citrees-runtime-contract-sha256",
@@ -1489,6 +1496,10 @@ def get_api_scope(
         tags["citrees-stage"],
     )
     image_uri = validate_image_digest_uri(tags["citrees-image-uri"])
+    market = tags["citrees-market"]
+    if market != "spot":
+        raise RuntimeError(f"API server market tag must be 'spot', got {market!r}")
+    _require_spot_instance(instance, source="API server")
     campaign_sha256 = validate_manifest_sha256(tags["citrees-campaign-sha256"])
     canonical_manifest_sha256 = validate_manifest_sha256(tags["citrees-canonical-manifest-sha256"])
     canonical_manifest_key = canonical_manifest_s3_key(canonical_manifest_sha256)
@@ -1529,6 +1540,7 @@ def get_api_scope(
         image_uri=image_uri,
         manifest_s3_key=manifest_key,
         manifest_sha256=manifest_sha256,
+        market=market,
         max_cell_attempts=max_cell_attempts,
         runtime_contract_s3_key=runtime_contract_s3_key,
         runtime_contract_sha256=runtime_contract_sha256,
@@ -1611,7 +1623,6 @@ def launch_workers(
     manifest_path: Path,
     runtime_contract_path: Path,
     stage: str,
-    spot: bool = True,
     region: str = DEFAULT_REGION,
 ) -> list[str]:
     """Launch N EC2 worker instances.
@@ -1629,8 +1640,6 @@ def launch_workers(
         Full ECR image URI.
     launch_id : str
         Stable operator-supplied identity for this exact launch batch.
-    spot : bool
-        Use spot instances instead of on-demand.
     region : str
         AWS region.
 
@@ -1656,6 +1665,7 @@ def launch_workers(
     if not instance_family or not separator or not instance_size:
         raise ValueError("instance_type must include an EC2 family and size")
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
+    market = "spot"
     manifest_info = publish_rerun_manifest(
         manifest_path,
         canonical_manifest_path,
@@ -1692,6 +1702,7 @@ def launch_workers(
         "image_uri": image_uri,
         "manifest_s3_key": manifest_s3_key,
         "manifest_sha256": manifest_sha256,
+        "market": market,
         "runtime_contract_s3_key": runtime_contract_s3_key,
         "runtime_contract_sha256": runtime_contract_sha256,
         "stage": stage,
@@ -1706,6 +1717,7 @@ def launch_workers(
         "image_uri": api_scope.image_uri,
         "manifest_s3_key": api_scope.manifest_s3_key,
         "manifest_sha256": api_scope.manifest_sha256,
+        "market": api_scope.market,
         "runtime_contract_s3_key": api_scope.runtime_contract_s3_key,
         "runtime_contract_sha256": api_scope.runtime_contract_sha256,
         "stage": api_scope.stage,
@@ -1798,19 +1810,17 @@ def launch_workers(
         "SecurityGroupIds": [sg_id],
         "InstanceInitiatedShutdownBehavior": "terminate",
     }
-    if spot:
-        base_run_kwargs["InstanceMarketOptions"] = {
-            "MarketType": "spot",
-            "SpotOptions": {
-                "SpotInstanceType": "one-time",
-                "InstanceInterruptionBehavior": "terminate",
-            },
-        }
+    base_run_kwargs["InstanceMarketOptions"] = {
+        "MarketType": "spot",
+        "SpotOptions": {
+            "SpotInstanceType": "one-time",
+            "InstanceInterruptionBehavior": "terminate",
+        },
+    }
     request_contract = dict(base_run_kwargs)
     request_contract.pop("UserData")
     request_contract["UserDataSha256"] = hashlib.sha256(encoded_user_data.encode()).hexdigest()
 
-    market = "spot" if spot else "on-demand"
     intent = {
         "ami_id": ami_id,
         "api_scope": {
@@ -1824,6 +1834,7 @@ def launch_workers(
             "image_uri": api_scope.image_uri,
             "manifest_s3_key": api_scope.manifest_s3_key,
             "manifest_sha256": api_scope.manifest_sha256,
+            "market": api_scope.market,
             "max_cell_attempts": api_scope.max_cell_attempts,
             "public_api_url": api_scope.public_api_url,
             "runtime_contract_s3_key": api_scope.runtime_contract_s3_key,
@@ -1989,7 +2000,6 @@ def launch_mechanism_workers(
     instance_type: str,
     image_uri: str,
     *,
-    spot: bool = True,
     region: str = DEFAULT_REGION,
     num_shards: int | None = None,
     shard_start: int = 0,
@@ -2064,9 +2074,8 @@ def launch_mechanism_workers(
         region=region,
     )
 
-    pricing = "spot" if spot else "on-demand"
     shard_end = shard_start + n - 1
-    info(f"Launching {n} {pricing} mechanism workers: {instance_type}, AMI={ami_id}")
+    info(f"Launching {n} spot mechanism workers: {instance_type}, AMI={ami_id}")
     step(f"Shard range: {shard_start}-{shard_end} of {total_shards}")
     step(f"Image: {image_uri}")
     step(f"Output: {output_uri}")
@@ -2131,6 +2140,7 @@ def launch_mechanism_workers(
                             "Key": "citrees-mechanism-spec-sha256",
                             "Value": specification_sha256,
                         },
+                        {"Key": "citrees-market", "Value": "spot"},
                         {"Key": "citrees-image-uri", "Value": image_uri},
                     ],
                 }
@@ -2141,14 +2151,13 @@ def launch_mechanism_workers(
                 (shard_index - shard_start) % len(placement_subnets)
             ]
 
-        if spot:
-            run_kwargs["InstanceMarketOptions"] = {
-                "MarketType": "spot",
-                "SpotOptions": {
-                    "SpotInstanceType": "one-time",
-                    "InstanceInterruptionBehavior": "terminate",
-                },
-            }
+        run_kwargs["InstanceMarketOptions"] = {
+            "MarketType": "spot",
+            "SpotOptions": {
+                "SpotInstanceType": "one-time",
+                "InstanceInterruptionBehavior": "terminate",
+            },
+        }
 
         try:
             response = ec2.run_instances(**run_kwargs)
@@ -2174,18 +2183,38 @@ def launch_mechanism_workers(
     return instance_ids
 
 
-def list_workers(launch_id: str, region: str = DEFAULT_REGION) -> list[dict[str, str]]:
-    """List running workers from one exact launch.
+def list_workers(
+    launch_id: str,
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    region: str = DEFAULT_REGION,
+) -> list[dict[str, str]]:
+    """List running workers from one exact campaign launch.
 
     Returns a list of dicts with keys: instance_id, state, instance_type,
     launch_time, and launch_id.
     """
     launch_id = _validate_worker_launch_id(launch_id)
+    artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
+    from paper.benchmark.pipeline.manifest import validate_manifest_sha256
+
+    campaign_sha256 = validate_manifest_sha256(campaign_sha256)
     ec2 = boto3.client("ec2", region_name=region)
 
     response = ec2.describe_instances(
         Filters=[
             {"Name": f"tag:{TAG_KEY}", "Values": [WORKER_TAG_VALUE]},
+            {
+                "Name": "tag:citrees-artifact-prefix",
+                "Values": [artifact_prefix],
+            },
+            {
+                "Name": "tag:citrees-campaign-sha256",
+                "Values": [campaign_sha256],
+            },
+            {"Name": "tag:citrees-stage", "Values": [stage]},
             {
                 "Name": "tag:citrees-worker-launch-id",
                 "Values": [launch_id],
@@ -2203,9 +2232,14 @@ def list_workers(launch_id: str, region: str = DEFAULT_REGION) -> list[dict[str,
             tags = {tag["Key"]: tag["Value"] for tag in inst.get("Tags", [])}
             if (
                 tags.get(TAG_KEY) != WORKER_TAG_VALUE
+                or tags.get("citrees-artifact-prefix") != artifact_prefix
+                or tags.get("citrees-campaign-sha256") != campaign_sha256
+                or tags.get("citrees-stage") != stage
                 or tags.get("citrees-worker-launch-id") != launch_id
             ):
-                raise RuntimeError("EC2 returned a worker outside the exact launch identity")
+                raise RuntimeError(
+                    "EC2 returned a worker outside the exact campaign launch identity"
+                )
             workers.append(
                 {
                     "instance_id": inst["InstanceId"],
@@ -2255,19 +2289,31 @@ def list_mechanism_workers(region: str = DEFAULT_REGION) -> list[dict[str, str]]
     return workers
 
 
-def terminate_workers(launch_id: str, region: str = DEFAULT_REGION) -> list[str]:
-    """Terminate running workers from one exact launch.
+def terminate_workers(
+    launch_id: str,
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    region: str = DEFAULT_REGION,
+) -> list[str]:
+    """Terminate running workers from one exact campaign launch.
 
     Returns list of terminated instance IDs.
     """
     launch_id = _validate_worker_launch_id(launch_id)
-    ec2 = boto3.client("ec2", region_name=region)
-
-    workers = list_workers(launch_id, region)
+    workers = list_workers(
+        launch_id,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        region=region,
+    )
     if not workers:
         info(f"No worker instances found for launch {launch_id}")
         return []
 
+    ec2 = boto3.client("ec2", region_name=region)
     instance_ids = [w["instance_id"] for w in workers]
     info(f"Terminating {len(instance_ids)} worker instances from launch {launch_id}...")
 

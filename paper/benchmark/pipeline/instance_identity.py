@@ -87,6 +87,7 @@ _OPERATOR_READBACK_FIELDS = frozenset(
         "iam_role_arn",
         "image_id",
         "instance_id",
+        "instance_lifecycle",
         "instance_type",
         "operator_identity",
         "owner_account_id",
@@ -105,6 +106,7 @@ _IAM_RESOURCE_ARN_PATTERN = re.compile(
 _INSTANCE_ID_PATTERN = re.compile(r"^i-[0-9a-f]{8}(?:[0-9a-f]{9})?$")
 _IMAGE_ID_PATTERN = re.compile(r"^ami-[0-9a-f]{8}(?:[0-9a-f]{9})?$")
 _INSTANCE_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$")
+_INSTANCE_LIFECYCLES = frozenset({"on-demand", "scheduled", "spot"})
 _AVAILABILITY_ZONE_PATTERN = re.compile(
     rf"^{SUPPORTED_REGION}(?:[a-z]|-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)$"
 )
@@ -200,6 +202,7 @@ class OperatorInstanceReadback:
     architecture: str
     instance_id: str
     image_id: str
+    instance_lifecycle: str
     instance_type: str
     region: str
     availability_zone: str
@@ -219,6 +222,7 @@ class OperatorInstanceReadback:
             "iam_role_arn": self.iam_role_arn,
             "image_id": self.image_id,
             "instance_id": self.instance_id,
+            "instance_lifecycle": self.instance_lifecycle,
             "instance_type": self.instance_type,
             "operator_identity": self.operator_identity.to_record(),
             "owner_account_id": self.owner_account_id,
@@ -269,6 +273,24 @@ def _require_concrete_string(value: Any, *, source: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
         raise ValueError(f"{source} must be a non-empty string without outer whitespace")
     return value
+
+
+def _require_instance_lifecycle(value: Any, *, source: str) -> str:
+    lifecycle = _require_concrete_string(value, source=source)
+    if lifecycle not in _INSTANCE_LIFECYCLES:
+        raise ValueError(
+            f"{source} must be one of {sorted(_INSTANCE_LIFECYCLES)}, got {lifecycle!r}"
+        )
+    return lifecycle
+
+
+def _normalize_describe_instance_lifecycle(value: Any) -> str:
+    if value is None:
+        return "on-demand"
+    return _require_instance_lifecycle(
+        value,
+        source="DescribeInstances instance.InstanceLifecycle",
+    )
 
 
 def _require_account_id(value: Any, *, source: str) -> str:
@@ -897,6 +919,10 @@ def validate_operator_readback(
             record["image_id"],
             source="operator readback.image_id",
         ),
+        instance_lifecycle=_require_instance_lifecycle(
+            record["instance_lifecycle"],
+            source="operator readback.instance_lifecycle",
+        ),
         instance_type=_require_instance_type(
             record["instance_type"],
             source="operator readback.instance_type",
@@ -1136,6 +1162,9 @@ def collect_operator_readback(
             source="DescribeInstances instance.ImageId",
         ),
         "instance_id": observed_instance_id,
+        "instance_lifecycle": _normalize_describe_instance_lifecycle(
+            instance.get("InstanceLifecycle")
+        ),
         "instance_type": _require_instance_type(
             instance.get("InstanceType"),
             source="DescribeInstances instance.InstanceType",

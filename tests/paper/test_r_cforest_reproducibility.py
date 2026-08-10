@@ -60,6 +60,7 @@ FEATURE_COUNTS = (9, 10, 13, 120, 166)
 AMI_ID = "ami-" + "a" * 17
 ZONE_ID_A = "use1-az1"
 ZONE_ID_B = "use1-az2"
+GATE_LAUNCH_NONCE = "c" * 32
 TASK_DATASET_COUNTS: tuple[tuple[TaskType, int], ...] = (
     ("classification", 24),
     ("regression", 23),
@@ -354,7 +355,7 @@ def _payload(
 def _payloads() -> tuple[dict[str, Any], RerunManifest, list[dict[str, Any]]]:
     provenances = [
         _provenance(
-            "host-a-run-1",
+            "arc-a-repeat-1",
             HOST_A,
             "us-east-1a",
             ZONE_ID_A,
@@ -363,7 +364,7 @@ def _payloads() -> tuple[dict[str, Any], RerunManifest, list[dict[str, Any]]]:
             100,
         ),
         _provenance(
-            "host-a-run-2",
+            "arc-a-repeat-2",
             HOST_A,
             "us-east-1a",
             ZONE_ID_A,
@@ -372,7 +373,7 @@ def _payloads() -> tuple[dict[str, Any], RerunManifest, list[dict[str, Any]]]:
             200,
         ),
         _provenance(
-            "host-b-run-1",
+            "arc-b-repeat-1",
             HOST_B,
             "us-east-1b",
             ZONE_ID_B,
@@ -381,7 +382,7 @@ def _payloads() -> tuple[dict[str, Any], RerunManifest, list[dict[str, Any]]]:
             100,
         ),
         _provenance(
-            "host-b-run-2",
+            "arc-b-repeat-2",
             HOST_B,
             "us-east-1b",
             ZONE_ID_B,
@@ -399,6 +400,43 @@ def _payloads() -> tuple[dict[str, Any], RerunManifest, list[dict[str, Any]]]:
     )
 
 
+def _gate_tags(
+    runtime_contract: dict[str, Any],
+    host_slot: str,
+) -> list[dict[str, str]]:
+    runtime = runtime_contract["runtime"]
+    source_git_sha = str(runtime["git_sha"])
+    image_digest = str(runtime["container_image_digest"])
+    return [
+        {"key": "Name", "value": "citrees-r-cforest-gate"},
+        {
+            "key": "citrees-artifact-prefix",
+            "value": gate.gate_output_prefix(
+                source_git_sha,
+                image_digest,
+                GATE_LAUNCH_NONCE,
+            ),
+        },
+        {
+            "key": "citrees-gate-identity",
+            "value": gate.gate_launch_identity(
+                source_git_sha,
+                image_digest,
+                GATE_LAUNCH_NONCE,
+            ),
+        },
+        {"key": "citrees-gate-launch-nonce", "value": GATE_LAUNCH_NONCE},
+        {"key": "citrees-host-slot", "value": host_slot},
+        {"key": "citrees-image-digest", "value": image_digest},
+        {"key": "citrees-market", "value": "spot"},
+        {
+            "key": "citrees-role",
+            "value": "r-cforest-reproducibility-gate",
+        },
+        {"key": "citrees-source-git-sha", "value": source_git_sha},
+    ]
+
+
 def _operator_readbacks(
     payloads: list[dict[str, Any]],
     runtime_contract: dict[str, Any],
@@ -407,6 +445,7 @@ def _operator_readbacks(
     observed_at_utc: str | None = None,
 ) -> list[dict[str, Any]]:
     records: dict[str, dict[str, Any]] = {}
+    host_slot_by_instance = {HOST_A: "arc-a", HOST_B: "arc-b"}
     for payload in payloads:
         provenance = payload["provenance"]
         instance_id = provenance["instance_id"]
@@ -427,15 +466,16 @@ def _operator_readbacks(
             "iam_role_arn": f"arn:aws:iam::{signed.account_id}:role/citrees-gate-instance",
             "image_id": signed.image_id,
             "instance_id": signed.instance_id,
+            "instance_lifecycle": "spot",
             "instance_type": signed.instance_type,
             "operator_identity": _operator_caller(signed.account_id).to_record(),
             "owner_account_id": signed.account_id,
             "region": signed.region,
             "state": "running",
-            "tags": [
-                {"key": "Name", "value": "citrees-r-cforest-gate"},
-                {"key": "Role", "value": "reproducibility-gate"},
-            ],
+            "tags": _gate_tags(
+                runtime_contract,
+                host_slot_by_instance[instance_id],
+            ),
         }
     return [
         _attest_operator_readback(
@@ -482,9 +522,47 @@ def _compare(
             if operator_readbacks is None
             else operator_readbacks
         ),
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
+
+
+def test_gate_attempt_identity_and_prefix_bind_fresh_nonce() -> None:
+    source_git_sha = "a" * 40
+    image_digest = "sha256:" + "b" * 64
+
+    assert gate.gate_launch_identity(
+        source_git_sha,
+        image_digest,
+        GATE_LAUNCH_NONCE,
+    ) != gate.gate_launch_identity(
+        source_git_sha,
+        image_digest,
+        "d" * 32,
+    )
+    assert gate.gate_output_prefix(
+        source_git_sha,
+        image_digest,
+        GATE_LAUNCH_NONCE,
+    ).endswith(f"attempt-{GATE_LAUNCH_NONCE}-arc-spot2")
+
+
+@pytest.mark.parametrize(
+    ("source_git_sha", "image_digest", "launch_nonce"),
+    [
+        ("invalid", "sha256:" + "b" * 64, "c" * 32),
+        ("a" * 40, "invalid", "c" * 32),
+        ("a" * 40, "sha256:" + "b" * 64, "invalid"),
+    ],
+)
+def test_gate_attempt_identity_rejects_invalid_inputs(
+    source_git_sha: str,
+    image_digest: str,
+    launch_nonce: str,
+) -> None:
+    with pytest.raises(ValueError):
+        gate.gate_launch_identity(source_git_sha, image_digest, launch_nonce)
 
 
 def test_gate_validates_the_full_scope_and_executes_a_stratified_panel() -> None:
@@ -787,6 +865,8 @@ def test_gate_cli_requires_frozen_public_and_local_private_keys() -> None:
             "run-4.json",
             "--operator-profiles",
             "profile-arc",
+            "--gate-launch-nonce",
+            GATE_LAUNCH_NONCE,
             "--operator-private-key",
             "operator-private.pem",
             "--manifest",
@@ -797,6 +877,7 @@ def test_gate_cli_requires_frozen_public_and_local_private_keys() -> None:
     )
 
     assert freeze.operator_public_key == Path("operator-public.pem")
+    assert compare.gate_launch_nonce == GATE_LAUNCH_NONCE
     assert compare.operator_private_key == Path("operator-private.pem")
 
 
@@ -822,6 +903,8 @@ def test_compare_cli_requires_four_runs_and_one_operator_profile() -> None:
             "run-4.json",
             "--operator-profiles",
             "profile-arc",
+            "--gate-launch-nonce",
+            GATE_LAUNCH_NONCE,
             "--operator-private-key",
             "operator-private.pem",
             "--manifest",
@@ -931,6 +1014,7 @@ def test_gate_schema_versions_reject_prior_evidence() -> None:
     receipt = gate.create_gate_receipt(
         payloads,
         _operator_readbacks(payloads, runtime_contract, manifest),
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
@@ -967,6 +1051,27 @@ def test_compare_accepts_two_fresh_pid_one_processes_on_two_hosts() -> None:
     assert report["operator_readbacks"] == 2
     assert report["instance_type"] == INSTANCE_TYPE
     assert report["cpu_model"] == CPU_MODEL
+
+
+@pytest.mark.parametrize(
+    "run_id",
+    [
+        "arc-a-repeat-3",
+        "arc-c-repeat-1",
+        "host-a-run-1",
+    ],
+)
+def test_compare_rejects_run_ids_outside_exact_arc_host_repeats(
+    run_id: str,
+) -> None:
+    runtime_contract, manifest, payloads = _payloads()
+    payloads[0]["provenance"]["run_id"] = run_id
+
+    with pytest.raises(
+        ValueError,
+        match="run IDs do not cover the exact Arc host slots and repeats",
+    ):
+        _compare(runtime_contract, manifest, payloads)
 
 
 @pytest.mark.parametrize(
@@ -1038,6 +1143,7 @@ def test_live_operator_readbacks_cover_both_hosts_in_one_account(
             assert len(instance_ids) == 1
             instance_id = instance_ids[0]
             availability_zone, _zone_id = host_scope[instance_id]
+            host_slot = {HOST_A: "arc-a", HOST_B: "arc-b"}[instance_id]
             return {
                 "Reservations": [
                     {
@@ -1054,14 +1160,16 @@ def test_live_operator_readbacks_cover_both_hosts_in_one_account(
                                     "Id": "AIPAGATE",
                                 },
                                 "InstanceId": instance_id,
+                                "InstanceLifecycle": "spot",
                                 "InstanceType": INSTANCE_TYPE,
                                 "Placement": {"AvailabilityZone": availability_zone},
                                 "State": {"Name": "running"},
                                 "Tags": [
-                                    {
-                                        "Key": "Name",
-                                        "Value": "citrees-r-cforest-gate",
-                                    }
+                                    {"Key": tag["key"], "Value": tag["value"]}
+                                    for tag in _gate_tags(
+                                        runtime_contract,
+                                        host_slot,
+                                    )
                                 ],
                             }
                         ],
@@ -1140,11 +1248,26 @@ def test_live_operator_readbacks_cover_both_hosts_in_one_account(
         ZONE_ID_A,
         ZONE_ID_B,
     }
+    assert {record["readback"]["instance_lifecycle"] for record in readbacks} == {"spot"}
 
 
 @pytest.mark.parametrize(
     "mutation",
-    ["missing", "duplicate", "state", "operator", "same_role"],
+    [
+        "missing",
+        "duplicate",
+        "state",
+        "instance_lifecycle",
+        "market_tag",
+        "artifact_prefix_tag",
+        "gate_identity_tag",
+        "launch_nonce_tag",
+        "host_slot_tag",
+        "image_digest_tag",
+        "source_git_sha_tag",
+        "operator",
+        "same_role",
+    ],
 )
 def test_compare_requires_two_independent_contemporaneous_operator_readbacks(
     mutation: str,
@@ -1159,6 +1282,26 @@ def test_compare_requires_two_independent_contemporaneous_operator_readbacks(
         readback = copy.deepcopy(readbacks[0]["readback"])
         if mutation == "state":
             readback["state"] = "stopped"
+        elif mutation == "instance_lifecycle":
+            readback["instance_lifecycle"] = "on-demand"
+        elif mutation == "market_tag":
+            next(tag for tag in readback["tags"] if tag["key"] == "citrees-market")["value"] = (
+                "on-demand"
+            )
+        elif mutation.endswith("_tag"):
+            tag_mutations = {
+                "artifact_prefix_tag": (
+                    "citrees-artifact-prefix",
+                    "gates/r-cforest-reproducibility/wrong",
+                ),
+                "gate_identity_tag": ("citrees-gate-identity", "d" * 64),
+                "launch_nonce_tag": ("citrees-gate-launch-nonce", "d" * 32),
+                "host_slot_tag": ("citrees-host-slot", "arc-b"),
+                "image_digest_tag": ("citrees-image-digest", "sha256:" + "d" * 64),
+                "source_git_sha_tag": ("citrees-source-git-sha", "d" * 40),
+            }
+            key, value = tag_mutations[mutation]
+            next(tag for tag in readback["tags"] if tag["key"] == key)["value"] = value
         elif mutation == "operator":
             evidence = validate_instance_identity_record(
                 payloads[0]["provenance"]["instance_identity"],
@@ -1181,6 +1324,45 @@ def test_compare_requires_two_independent_contemporaneous_operator_readbacks(
         )
 
     with pytest.raises(ValueError):
+        _compare(
+            runtime_contract,
+            manifest,
+            payloads,
+            operator_readbacks=readbacks,
+        )
+
+
+def test_compare_rejects_coordinated_resigned_alternate_gate_attempt() -> None:
+    runtime_contract, manifest, payloads = _payloads()
+    readbacks = _operator_readbacks(payloads, runtime_contract, manifest)
+    runtime = runtime_contract["runtime"]
+    alternate_nonce = "d" * 32
+    alternate_values = {
+        "citrees-artifact-prefix": gate.gate_output_prefix(
+            runtime["git_sha"],
+            runtime["container_image_digest"],
+            alternate_nonce,
+        ),
+        "citrees-gate-identity": gate.gate_launch_identity(
+            runtime["git_sha"],
+            runtime["container_image_digest"],
+            alternate_nonce,
+        ),
+        "citrees-gate-launch-nonce": alternate_nonce,
+    }
+    for index, attestation in enumerate(readbacks):
+        readback = copy.deepcopy(attestation["readback"])
+        for tag in readback["tags"]:
+            if tag["key"] in alternate_values:
+                tag["value"] = alternate_values[tag["key"]]
+        readbacks[index] = _attest_operator_readback(
+            readback,
+            payloads,
+            runtime_contract,
+            manifest,
+        )
+
+    with pytest.raises(ValueError, match="exact gate launch tags"):
         _compare(
             runtime_contract,
             manifest,
@@ -1217,6 +1399,7 @@ def test_compare_rejects_stale_or_future_operator_attestations(
         gate.compare_payloads(
             payloads,
             readbacks,
+            gate_launch_nonce=GATE_LAUNCH_NONCE,
             manifest=manifest,
             receipt_created_at_utc=_timestamp(created_at),
             runtime_contract=runtime_contract,
@@ -1264,6 +1447,7 @@ def test_gate_receipt_embeds_and_revalidates_complete_evidence() -> None:
     receipt = gate.create_gate_receipt(
         list(reversed(payloads)),
         list(reversed(_operator_readbacks(payloads, runtime_contract, manifest))),
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
@@ -1349,6 +1533,7 @@ def test_gate_receipt_rechecks_real_pkcs7_evidence(
     receipt = gate.create_gate_receipt(
         payloads,
         _operator_readbacks(payloads, runtime_contract, manifest),
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
@@ -1406,6 +1591,7 @@ def test_gate_receipt_rejects_tampering(mutation) -> None:
     receipt = gate.create_gate_receipt(
         payloads,
         _operator_readbacks(payloads, runtime_contract, manifest),
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
@@ -1424,6 +1610,7 @@ def test_gate_receipt_parser_rejects_noncanonical_or_wrong_digest() -> None:
     receipt = gate.create_gate_receipt(
         payloads,
         _operator_readbacks(payloads, runtime_contract, manifest),
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=manifest,
         runtime_contract=runtime_contract,
     )
@@ -1456,6 +1643,7 @@ def test_compare_cli_writes_canonical_receipt_bytes(
     stdout = io.TextIOWrapper(raw_stdout, encoding="ascii", write_through=True)
     args = SimpleNamespace(
         command="compare",
+        gate_launch_nonce=GATE_LAUNCH_NONCE,
         manifest=Path("manifest.csv"),
         operator_private_key=Path("operator-private.pem"),
         operator_profiles=("arc",),

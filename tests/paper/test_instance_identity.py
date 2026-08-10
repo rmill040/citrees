@@ -288,6 +288,7 @@ def _instance() -> dict[str, Any]:
             "Id": "AIPATEST",
         },
         "InstanceId": INSTANCE_ID,
+        "InstanceLifecycle": "spot",
         "InstanceType": INSTANCE_TYPE,
         "Placement": {
             "AvailabilityZone": AVAILABILITY_ZONE,
@@ -351,6 +352,7 @@ def _operator_record(
         "iam_role_arn": INSTANCE_ROLE_ARN,
         "image_id": identity.image_id,
         "instance_id": identity.instance_id,
+        "instance_lifecycle": "spot",
         "instance_type": identity.instance_type,
         "operator_identity": _caller().to_record(),
         "owner_account_id": identity.account_id,
@@ -890,6 +892,49 @@ def test_operator_readback_rejects_duplicate_instance_tags() -> None:
     ec2 = _Ec2Client(instance_response=_describe_instances_response([_reservation([instance])]))
 
     with pytest.raises(ValueError, match="duplicate tag key 'Name'"):
+        collect_operator_readback(
+            _identity(),
+            ec2_client=ec2,
+            iam_client=_IamClient(),
+            sts_client=_StsClient(_sts_response()),
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("spot", "spot"),
+        (None, "on-demand"),
+    ],
+)
+def test_operator_readback_records_ec2_instance_lifecycle(
+    value: str | None,
+    expected: str,
+) -> None:
+    instance = _instance()
+    if value is None:
+        del instance["InstanceLifecycle"]
+    else:
+        instance["InstanceLifecycle"] = value
+    ec2 = _Ec2Client(instance_response=_describe_instances_response([_reservation([instance])]))
+
+    readback = collect_operator_readback(
+        _identity(),
+        ec2_client=ec2,
+        iam_client=_IamClient(),
+        sts_client=_StsClient(_sts_response()),
+    )
+
+    assert readback.instance_lifecycle == expected
+    assert readback.to_record()["instance_lifecycle"] == expected
+
+
+def test_operator_readback_rejects_unsupported_instance_lifecycle() -> None:
+    instance = _instance()
+    instance["InstanceLifecycle"] = "capacity-block"
+    ec2 = _Ec2Client(instance_response=_describe_instances_response([_reservation([instance])]))
+
+    with pytest.raises(ValueError, match="InstanceLifecycle"):
         collect_operator_readback(
             _identity(),
             ec2_client=ec2,

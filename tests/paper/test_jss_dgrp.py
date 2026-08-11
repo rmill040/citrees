@@ -72,6 +72,64 @@ def _phenotypes() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _synthetic_analysis_inputs() -> tuple[
+    np.ndarray,
+    pd.DataFrame,
+    tuple[str, ...],
+    pd.DataFrame,
+    pd.DataFrame,
+]:
+    rng = np.random.default_rng(17)
+    n_lines = 60
+    n_variants = 30
+    line_ids = tuple(f"line_{index + 1}" for index in range(n_lines))
+    genotypes = rng.binomial(2, 0.35, size=(n_variants, n_lines)).astype(np.int8)
+    covariate_values = rng.integers(0, 2, size=(n_lines, len(dgrp.DGRP_COVARIATES))).astype(
+        np.float64
+    )
+    outcomes = pd.DataFrame(
+        {
+            "strain_number": [f"dgrp{index + 1}" for index in range(n_lines)],
+            "trait": "EDD",
+            "source_column": "synthetic_edd",
+            "unit": "synthetic units",
+            "n_individuals": 7,
+            "outcome": (
+                1.5 * genotypes[0] + 0.2 * covariate_values[:, 0] + rng.normal(0.0, 0.3, n_lines)
+            ),
+        }
+    )
+    covariates = pd.DataFrame(covariate_values, columns=dgrp.DGRP_COVARIATES)
+    covariates.insert(0, "strain_number", line_ids)
+    variants = pd.DataFrame(
+        {
+            "variant_index": np.arange(n_variants, dtype=np.int64),
+            "chromosome": ["2L"] * 15 + ["3R"] * 15,
+            "variant_id": [f"variant_{index}" for index in range(n_variants)],
+            "position": np.arange(1, n_variants + 1, dtype=np.int64),
+            "allele_a": "A",
+            "allele_b": "G",
+        }
+    )
+    return genotypes, variants, line_ids, outcomes, covariates
+
+
+@pytest.fixture(scope="module")
+def synthetic_analysis_results() -> dict[str, pd.DataFrame]:
+    """Return one validated synthetic DGRP smoke result set."""
+    return dgrp.run_dgrp_analysis(
+        "smoke",
+        *_synthetic_analysis_inputs(),
+        base_seed=5,
+    )
+
+
+def _copy_results(
+    results: dict[str, pd.DataFrame],
+) -> dict[str, pd.DataFrame]:
+    return {name: frame.copy(deep=True) for name, frame in results.items()}
+
+
 def test_line_outcomes_apply_trait_specific_minimum_counts() -> None:
     outcomes = build_line_outcomes(_phenotypes(), min_individuals=7)
     summary = summarize_line_outcomes(outcomes).set_index("trait")
@@ -96,12 +154,9 @@ def test_load_line_covariates_validates_and_pivots_source(tmp_path: Path) -> Non
         connection.executemany(
             "insert into gwas_covariable_value values (?, ?, ?, ?)",
             [
-                (7, "line_2", "cov2", "1"),
-                (7, "line_1", "cov1", "0"),
-                (7, "line_1", "cov2", "2"),
-                (7, "line_2", "cov1", "1"),
-                (7, "line_3", "cov1", "1"),
-                (7, "line_3", "cov2", "2"),
+                (7, line_id, covariate, str((line_position + covariate_position) % 3))
+                for line_position, line_id in enumerate(("line_1", "line_2", "line_3"))
+                for covariate_position, covariate in enumerate(dgrp.DGRP_COVARIATES)
             ],
         )
         connection.commit()
@@ -111,11 +166,10 @@ def test_load_line_covariates_validates_and_pivots_source(tmp_path: Path) -> Non
         gwas_analysis_id=7,
         genotype_lines=["line_2", "line_1"],
     )
-    assert observed.columns.tolist() == ["strain_number", "cov1", "cov2"]
-    assert observed.to_dict("records") == [
-        {"strain_number": "line_2", "cov1": 1.0, "cov2": 1.0},
-        {"strain_number": "line_1", "cov1": 0.0, "cov2": 2.0},
-    ]
+    assert observed.columns.tolist() == ["strain_number", *dgrp.DGRP_COVARIATES]
+    assert observed["strain_number"].tolist() == ["line_2", "line_1"]
+    assert observed.loc[0, "cov1"] == 1.0
+    assert observed.loc[1, "cov17"] == 1.0
 
 
 def test_phenotype_validation_rejects_missing_and_duplicate_identities() -> None:
@@ -506,7 +560,9 @@ def test_select_qc_pass_variants_uses_frozen_strict_boundaries() -> None:
     assert observed["variant_index"].tolist() == [1]
 
 
-def test_materialize_filtered_genotypes_preserves_inventory_order(tmp_path: Path) -> None:
+def test_materialize_filtered_genotypes_preserves_inventory_order(
+    tmp_path: Path,
+) -> None:
     bed_path = tmp_path / "dgrp2.bed"
     output_path = tmp_path / "filtered.npy"
     matrix = np.array(
@@ -578,6 +634,28 @@ def test_residualize_fold_outcomes_learns_coefficients_on_training_rows() -> Non
     np.testing.assert_allclose(evaluation_residuals, [2.0])
 
 
+def test_residualize_fold_genotypes_learns_coefficients_on_training_rows() -> None:
+    covariates = np.array([[0.0], [1.0], [2.0], [3.0], [4.0]])
+    residuals = np.array(
+        [
+            [1.0, 1.0],
+            [-3.0, -1.0],
+            [3.0, -1.0],
+            [-1.0, 1.0],
+            [2.0, 4.0],
+        ]
+    )
+    genotypes = 10.0 + 2.0 * covariates + residuals
+    train_residuals, evaluation_residuals = dgrp.residualize_fold_genotypes(
+        genotypes,
+        covariates,
+        [0, 1, 2, 3],
+        [4],
+    )
+    np.testing.assert_allclose(train_residuals, residuals[:4])
+    np.testing.assert_allclose(evaluation_residuals, residuals[4:])
+
+
 def test_collapse_ld_redundant_ranking_keeps_first_of_correlated_features() -> None:
     genotypes = np.array(
         [
@@ -587,12 +665,34 @@ def test_collapse_ld_redundant_ranking_keeps_first_of_correlated_features() -> N
             [3.0, 3.0, 0.0, 0.0],
         ]
     )
-    representatives = dgrp.collapse_ld_redundant_ranking(
+    groups = dgrp.collapse_ld_redundant_ranking(
         genotypes,
         [1, 0, 2, 3],
+        ["2L", "2L", "3R", "4"],
         r2_threshold=0.8,
     )
-    assert representatives.tolist() == [1, 2, 3]
+    assert groups.loc[groups["is_representative"], "feature_index"].tolist() == [
+        1,
+        2,
+        3,
+    ]
+    assert groups.loc[groups["feature_index"] == 0, "representative_feature_index"].item() == 1
+    assert groups.loc[
+        groups["feature_index"] == 0,
+        "r2_to_representative",
+    ].item() == pytest.approx(1.0)
+
+
+def test_collapse_ld_redundant_ranking_never_merges_chromosomes() -> None:
+    signal = np.arange(6.0)
+    genotypes = np.column_stack((signal, signal))
+    groups = dgrp.collapse_ld_redundant_ranking(
+        genotypes,
+        [0, 1],
+        ["2L", "3R"],
+    )
+    assert groups["is_representative"].tolist() == [True, True]
+    assert groups["ld_group_id"].tolist() == [1, 2]
 
 
 def test_fold_local_ranking_imputes_training_only_and_returns_full_order() -> None:
@@ -607,14 +707,451 @@ def test_fold_local_ranking_imputes_training_only_and_returns_full_order() -> No
         dtype=np.int8,
     )
     outcomes = np.array([0.0, 1.0, 2.0, 0.1, 1.9])
-    ranking = dgrp.rank_features_fold_local(genotypes, outcomes, [0, 1, 2, 3])
+    covariates = np.empty((len(outcomes), 0))
+    ranking = dgrp.rank_features_fold_local(
+        genotypes,
+        outcomes,
+        covariates,
+        [0, 1, 2, 3],
+    )
     assert ranking.tolist() == [0, 1, 2]
 
     with pytest.raises(ValueError, match="no observed"):
         dgrp.rank_features_fold_local(
             np.array([[0, -1], [1, -1]], dtype=np.int8),
             np.array([0.0, 1.0]),
+            np.empty((2, 0)),
             [0, 1],
+        )
+
+
+def test_screen_fold_candidates_uses_partial_genotype_association() -> None:
+    covariate = np.arange(-3.5, 4.5)[:, None]
+    design = np.column_stack((np.ones(len(covariate)), covariate[:, 0]))
+    signal = np.array([1.0, -2.0, 3.0, -4.0, -4.0, 3.0, -2.0, 1.0])
+    signal -= design @ np.linalg.lstsq(design, signal, rcond=None)[0]
+    signal /= np.linalg.norm(signal)
+    distractor = np.array([1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0])
+    augmented = np.column_stack((design, signal))
+    distractor -= augmented @ np.linalg.lstsq(augmented, distractor, rcond=None)[0]
+    distractor /= np.linalg.norm(distractor)
+    genotypes = np.vstack(
+        (
+            1_000.0 + 100.0 * covariate[:, 0] + signal,
+            10.0 + 0.8 * signal + 0.6 * distractor,
+        )
+    )
+    outcomes = 10.0 * covariate[:, 0] + signal
+
+    candidates = dgrp.screen_fold_candidates(
+        genotypes,
+        [10, 20],
+        np.arange(len(outcomes)),
+        outcomes,
+        covariate,
+        np.arange(len(outcomes)),
+        candidate_count=2,
+        block_size=1,
+    )
+
+    assert candidates["variant_index"].tolist() == [10, 20]
+    assert candidates["screen_score"].iloc[0] == pytest.approx(1.0)
+    assert candidates["screen_score"].iloc[1] == pytest.approx(0.8)
+
+
+def test_fit_fold_rankings_returns_complete_deterministic_orders() -> None:
+    rng = np.random.default_rng(4)
+    genotypes = rng.normal(size=(30, 3))
+    outcomes = genotypes[:, 0] + 0.1 * rng.normal(size=30)
+    first = dgrp.fit_fold_rankings(
+        genotypes,
+        outcomes,
+        [1, 2, 3],
+        [0.9, 0.5, 0.1],
+        n_trees=2,
+        random_state=7,
+    )
+    second = dgrp.fit_fold_rankings(
+        genotypes,
+        outcomes,
+        [1, 2, 3],
+        [0.9, 0.5, 0.1],
+        n_trees=2,
+        random_state=7,
+    )
+
+    assert set(first) == set(dgrp.DGRP_METHODS)
+    for method in dgrp.DGRP_METHODS:
+        np.testing.assert_array_equal(first[method][0], second[method][0])
+        np.testing.assert_allclose(first[method][1], second[method][1])
+        assert sorted(first[method][0].tolist()) == [0, 1, 2]
+    assert first["cit"][0][0] == 0
+
+
+def test_ld_matching_is_one_to_one_and_chromosome_aware() -> None:
+    signal = np.arange(8, dtype=np.int8)
+    genotypes = np.vstack((signal, signal, signal, signal[::-1]))
+    variants = pd.DataFrame(
+        {
+            "variant_index": [10, 11, 12, 13],
+            "chromosome": ["2L", "2L", "3R", "2L"],
+        }
+    )
+    matches = dgrp.match_ranked_variants(
+        genotypes,
+        variants,
+        [0, 1],
+        [1, 2, 3],
+        np.arange(genotypes.shape[1]),
+    )
+
+    assert len(matches) == 2
+    assert len({right for _, right, _ in matches}) == 2
+    assert all(
+        variants.iloc[[0, 1][left]]["chromosome"] == variants.iloc[[1, 2, 3][right]]["chromosome"]
+        for left, right, _ in matches
+    )
+
+
+def test_corrected_repeated_kfold_test_uses_fold_level_variance() -> None:
+    differences = np.tile(np.array([-1.0, -1.0, -1.0, 1.0, 1.0]), 10)
+    result = dgrp.corrected_repeated_kfold_test(
+        differences,
+        np.full(len(differences), 0.25),
+    )
+
+    assert result.n_fold_differences == 50
+    assert result.mean_difference == pytest.approx(-0.2)
+    assert result.sample_variance == pytest.approx(np.var(differences, ddof=1))
+    assert result.mean_test_train_ratio == pytest.approx(0.25)
+    assert result.variance_correction == pytest.approx(1.0 / 50.0 + 0.25)
+    assert result.standard_error == pytest.approx(
+        np.sqrt(result.variance_correction * result.sample_variance)
+    )
+    assert result.degrees_of_freedom == 49
+    assert result.test_statistic == pytest.approx(result.mean_difference / result.standard_error)
+    assert result.lower_tail_p_value == pytest.approx(0.3495215809357179)
+
+
+def test_inference_aggregates_repeated_predictions_by_fold() -> None:
+    rows: list[dict[str, object]] = []
+    for repeat in range(10):
+        for fold, difference in enumerate((-1.0, -1.0, -1.0, 1.0, 1.0)):
+            for line in range(4):
+                for method, squared_error in (
+                    ("marginal", 1.0),
+                    ("cif", 1.0 + difference),
+                ):
+                    rows.append(
+                        {
+                            "trait": "EDD",
+                            "repeat": repeat,
+                            "fold": fold,
+                            "method": method,
+                            "k": 10,
+                            "line_id": f"line_{fold}_{line}",
+                            "squared_error": squared_error,
+                        }
+                    )
+    primary, secondary = dgrp.build_inference_tables(
+        pd.DataFrame(rows),
+        dgrp._settings("full"),
+        base_seed=1718,
+    )
+
+    assert primary["n_fold_differences"].item() == 50
+    assert primary["n_lines"].item() == 20
+    assert primary["test"].item() == dgrp.DGRP_INFERENCE_TEST
+    assert primary["raw_p_value"].item() == pytest.approx(0.3495215809357179)
+    assert not secondary["test_defined"].any()
+
+
+def test_specification_matches_profiled_repeated_cv_contract() -> None:
+    specification = json.loads(dgrp.SPECIFICATION_PATH.read_text(encoding="ascii"))
+    assert specification["schema"] == "citrees-jss-dgrp-specification-v3"
+    for profile in ("smoke", "quick", "full"):
+        settings = dgrp._settings(profile)
+        frozen = specification["profiles"][profile]
+        assert frozen["traits"] == list(settings.traits)
+        assert frozen["repeats"] == settings.n_repeats
+        assert frozen["folds"] == settings.n_splits
+        assert frozen["candidate_count"] == settings.candidate_count
+        assert frozen["trees"] == settings.n_trees
+        assert frozen["inference_status"] == dgrp.DGRP_PROFILE_INFERENCE_STATUS[profile]
+
+
+def test_smoke_analysis_writes_complete_schemas_and_receipt(
+    tmp_path: Path,
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    results = synthetic_analysis_results
+    line_ids = tuple(f"line_{index + 1}" for index in range(60))
+
+    assert set(results) == set(dgrp.DGRP_RESULT_SCHEMAS)
+    assert len(results["primary_inference"]) == 1
+    assert results["primary_inference"]["trait"].item() == "EDD"
+    assert results["primary_inference"]["n_fold_differences"].item() == 4
+    assert results["primary_inference"]["degrees_of_freedom"].item() == 3
+    assert results["primary_inference"]["inference_status"].item() == "pipeline_validation"
+    assert results["secondary_holm"]["trait"].tolist() == list(dgrp.DGRP_SECONDARY_TRAITS)
+    assert not results["secondary_holm"]["test_defined"].any()
+    assert (
+        results["screening_rankings"]
+        .groupby(["trait", "repeat", "fold", "method"])
+        .size()
+        .eq(25)
+        .all()
+    )
+    assert results["screening_rankings"]["candidate_screen"].eq(dgrp.DGRP_CANDIDATE_SCREEN).all()
+    assert (
+        results["screening_rankings"]["screen_tie_breaker"].eq(dgrp.DGRP_SCREEN_TIE_BREAKER).all()
+    )
+    assert (
+        results["screening_rankings"]["ranking_tie_breaker"].eq(dgrp.DGRP_RANKING_TIE_BREAKER).all()
+    )
+    assert (
+        results["predictions"]
+        .groupby(["repeat", "method", "k"])["line_id"]
+        .nunique()
+        .eq(len(line_ids))
+        .all()
+    )
+    assert "predictive_r2" in results["fold_metrics"]
+    assert "r2" not in results["fold_metrics"]
+    assert results["fold_metrics"]["downstream_model"].eq(dgrp.DGRP_DOWNSTREAM_MODEL).all()
+    assert results["fold_metrics"].groupby(["repeat", "fold"])["split_seed"].nunique().eq(1).all()
+    assert results["fold_metrics"].groupby(["repeat", "fold"])["model_seed"].nunique().eq(1).all()
+
+    output_dir = tmp_path / "dgrp-output"
+    observed = dgrp.write_results(
+        results,
+        output_dir,
+        profile="smoke",
+        base_seed=5,
+        input_sha256={"synthetic": "a" * 64},
+        genotype_provenance={"schema_version": 1},
+        derived_genotype_receipt={"schema": "synthetic"},
+        elapsed_seconds=1.0,
+    )
+    assert observed == output_dir.resolve()
+    receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
+    assert receipt["analysis"] == "dgrp"
+    assert receipt["schema_version"] == 2
+    assert receipt["semantic_validation"] == "citrees-jss-dgrp-results-v1"
+    assert receipt["profile"] == "smoke"
+    assert "scipy" in receipt["versions"]
+    assert receipt["specification"]["sha256"] == sha256(dgrp.SPECIFICATION_PATH)
+    assert set(receipt["tables"]) == set(dgrp.DGRP_RESULT_SCHEMAS)
+    assert set(receipt["artifacts"]) == {
+        *(f"{name}.parquet" for name in dgrp.DGRP_RESULT_SCHEMAS),
+        "trait_summary.csv",
+        "fold_metrics.csv",
+        "stability_summary.csv",
+        "primary_inference.csv",
+        "secondary_holm.csv",
+    }
+    for name, metadata in receipt["artifacts"].items():
+        path = output_dir / name
+        assert metadata["bytes"] == path.stat().st_size
+        assert metadata["sha256"] == sha256(path)
+
+
+@pytest.mark.parametrize(
+    ("table", "column", "message"),
+    [
+        ("predictions", "squared_error", "prediction squared errors"),
+        ("fold_metrics", "mean_squared_error", "fold metrics differ"),
+        ("primary_inference", "raw_p_value", "primary inference differs"),
+        (
+            "secondary_holm",
+            "holm_adjusted_p_value",
+            "secondary Holm inference differs",
+        ),
+        ("stability_summary", "jaccard", "stability summary differs"),
+    ],
+)
+def test_semantic_validator_rejects_corrupted_derived_values(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+    table: str,
+    column: str,
+    message: str,
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    corrupted[table].loc[0, column] = float(corrupted[table].loc[0, column]) + 0.25
+
+    with pytest.raises(ValueError, match=message):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_rejects_corrupted_execution_seed(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    corrupted["predictions"].loc[0, "model_seed"] += 1
+
+    with pytest.raises(ValueError, match="execution seeds differ"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_rejects_duplicate_repeated_partition(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    assignments = corrupted["fold_assignments"]
+    first_roles = (
+        assignments[assignments["repeat"] == 0].set_index(["fold", "line_id"])["role"].to_dict()
+    )
+    second_repeat = assignments["repeat"] == 1
+    assignments.loc[second_repeat, "role"] = [
+        first_roles[(fold, line_id)]
+        for fold, line_id in assignments.loc[
+            second_repeat,
+            ["fold", "line_id"],
+        ].itertuples(index=False, name=None)
+    ]
+
+    with pytest.raises(ValueError, match="repeated partitions are duplicated"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_ties_assignment_lines_to_outcomes(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    for table in ("fold_assignments", "predictions"):
+        corrupted[table]["line_id"] = corrupted[table]["line_id"].replace({"line_1": "line_999"})
+
+    with pytest.raises(ValueError, match="assignment lines differ from line outcomes"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_rejects_missing_ranking_group(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    rankings = corrupted["screening_rankings"]
+    missing_group = rankings["repeat"].eq(0) & rankings["fold"].eq(0) & rankings["method"].eq("cif")
+    corrupted["screening_rankings"] = rankings.loc[~missing_group].reset_index(drop=True)
+
+    with pytest.raises(ValueError, match="ranking group inventory"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_rejects_inconsistent_candidate_mapping(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    rankings = corrupted["screening_rankings"]
+    row = rankings[
+        rankings["repeat"].eq(0)
+        & rankings["fold"].eq(0)
+        & rankings["method"].eq("ridge")
+        & rankings["candidate_rank"].eq(1)
+    ].index.item()
+    rankings.loc[row, "variant_index"] = int(rankings["variant_index"].max()) + 1
+
+    with pytest.raises(ValueError, match="shared candidate identity differs"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_rejects_ranking_order_inconsistent_with_scores(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    rankings = corrupted["screening_rankings"]
+    group = rankings[
+        rankings["repeat"].eq(0) & rankings["fold"].eq(0) & rankings["method"].eq("ridge")
+    ].sort_values("rank")
+    first, second = group.index[:2]
+    rankings.loc[first, "score"] = float(rankings.loc[second, "score"]) - 1.0
+
+    with pytest.raises(ValueError, match="ranking order differs from scores"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_rejects_prediction_scale_change(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    corrupted["predictions"].loc[0, "prediction_scale"] = "unadjusted_outcome_units"
+
+    with pytest.raises(ValueError, match="prediction method metadata differs"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_rejects_invalid_ld_representative_value(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    ld_groups = corrupted["ld_groups"]
+    representative = ld_groups[ld_groups["is_representative"]].index[0]
+    ld_groups.loc[representative, "r2_to_representative"] = 0.9
+
+    with pytest.raises(ValueError, match="LD representative metadata is inconsistent"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
+        )
+
+
+def test_semantic_validator_recomputes_exact_stability_matches(
+    synthetic_analysis_results: dict[str, pd.DataFrame],
+) -> None:
+    corrupted = _copy_results(synthetic_analysis_results)
+    matches = corrupted["stability_matches"]
+    removed_index = matches[matches["match_type"].eq("exact_snp")].index[0]
+    removed = matches.loc[removed_index]
+    corrupted["stability_matches"] = matches.drop(index=removed_index).reset_index(drop=True)
+    key = ["trait", "repeat", "method", "fold_a", "fold_b", "k", "match_type"]
+    summary = corrupted["stability_summary"]
+    summary_row = np.logical_and.reduce(
+        [summary[column].eq(removed[column]).to_numpy() for column in key]
+    )
+    new_count = int(summary.loc[summary_row, "matches"].item()) - 1
+    k = int(removed["k"])
+    new_union = 2 * k - new_count
+    summary.loc[summary_row, "matches"] = new_count
+    summary.loc[summary_row, "union_size"] = new_union
+    summary.loc[summary_row, "jaccard"] = new_count / new_union
+
+    with pytest.raises(ValueError, match="exact stability matches differ"):
+        dgrp.validate_dgrp_results(
+            corrupted,
+            dgrp._settings("smoke"),
+            base_seed=5,
         )
 
 
@@ -889,7 +1426,7 @@ def test_genotype_extraction_rolls_back_after_keyboard_interrupt(
     assert unrelated.read_bytes() == b"preserve this source"
 
 
-def test_main_invokes_genotype_pipeline_and_persists_provenance(
+def test_main_runs_profiled_analysis_with_all_pinned_sources(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -901,12 +1438,30 @@ def test_main_invokes_genotype_pipeline_and_persists_provenance(
     phenotype_source.write_bytes(b"synthetic phenotype source")
     genotype_archive = data_dir / dgrp.GENOTYPE_ARCHIVE_FILENAME
     genotype_archive.write_bytes(b"synthetic genotype source")
+    covariate_archive = data_dir / dgrp.COVARIATE_ARCHIVE_FILENAME
+    covariate_archive.write_bytes(b"synthetic covariate archive")
     genotype_input = data_dir / "input"
     genotype_input.mkdir()
+    covariate_database = genotype_input / dgrp.COVARIATE_DATABASE_FILENAME
+    covariate_database.write_bytes(b"synthetic covariate database")
+    matrix_path = data_dir / "filtered.npy"
+    np.save(matrix_path, np.zeros((2, 3), dtype=np.int8))
+    variants_path = data_dir / "variants.parquet"
+    pd.DataFrame({"variant_index": [0, 1]}).to_parquet(variants_path, index=False)
     frame = _phenotypes()
+    outcomes = build_line_outcomes(frame)
+    covariates = pd.DataFrame({"strain_number": ["line_1", "line_2", "line_3"]})
+    analysis_results: dict[str, pd.DataFrame] = {}
+    derived_receipt = {
+        "artifacts": {
+            dgrp.DERIVED_GENOTYPE_MATRIX: {"sha256": "b" * 64},
+            dgrp.DERIVED_VARIANT_INVENTORY: {"sha256": "c" * 64},
+        }
+    }
     expected_provenance = {
         "schema_version": 1,
         "source": {"sha256": "a" * 64},
+        "files": {spec.member_name: {"sha256": spec.sha256} for spec in dgrp.GENOTYPE_FILE_SPECS},
         "inventory": {"samples": 3, "variants": 2},
         "line_overlap": {
             "phenotype_source_lines": 3,
@@ -939,6 +1494,17 @@ def test_main_invokes_genotype_pipeline_and_persists_provenance(
         calls.append("extract_genotypes")
         return genotype_input
 
+    def acquire_covariates(observed_data_dir: Path) -> Path:
+        assert observed_data_dir == data_dir
+        calls.append("acquire_covariates")
+        return covariate_archive
+
+    def extract_covariates(observed_archive: Path, observed_data_dir: Path) -> Path:
+        assert observed_archive == covariate_archive
+        assert observed_data_dir == data_dir
+        calls.append("extract_covariates")
+        return covariate_database
+
     def build_provenance(
         observed_archive: Path,
         observed_input: Path,
@@ -954,9 +1520,72 @@ def test_main_invokes_genotype_pipeline_and_persists_provenance(
     monkeypatch.setattr(dgrp, "load_individual_phenotypes", load_phenotypes)
     monkeypatch.setattr(dgrp, "acquire_genotype_archive", acquire_genotypes)
     monkeypatch.setattr(dgrp, "extract_genotype_archive", extract_genotypes)
+    monkeypatch.setattr(dgrp, "acquire_covariate_archive", acquire_covariates)
+    monkeypatch.setattr(dgrp, "extract_covariate_database", extract_covariates)
     monkeypatch.setattr(dgrp, "build_genotype_source_receipt", build_provenance)
-    monkeypatch.setattr(dgrp, "verify_source", lambda path: None)
+    monkeypatch.setattr(dgrp, "build_line_outcomes", lambda observed: outcomes)
     monkeypatch.setattr(dgrp, "validate_pinned_line_outcomes", lambda outcomes: None)
+    monkeypatch.setattr(
+        dgrp,
+        "validate_genotype_files",
+        lambda observed_input: dgrp.GenotypeInventory(
+            genotype_lines=("line_1", "line_2", "line_3"),
+            variant_count=2,
+            bed_bytes=4,
+        ),
+    )
+    monkeypatch.setattr(
+        dgrp,
+        "load_line_covariates",
+        lambda database, *, gwas_analysis_id, genotype_lines: covariates,
+    )
+    monkeypatch.setattr(
+        dgrp,
+        "prepare_derived_genotypes",
+        lambda observed_data_dir, observed_input: (
+            matrix_path,
+            variants_path,
+            derived_receipt,
+        ),
+    )
+
+    def run_analysis(
+        profile: dgrp.Profile,
+        genotypes: np.ndarray,
+        variants: pd.DataFrame,
+        genotype_lines: tuple[str, ...],
+        observed_outcomes: pd.DataFrame,
+        observed_covariates: pd.DataFrame,
+        *,
+        base_seed: int,
+    ) -> dict[str, pd.DataFrame]:
+        assert profile == "smoke"
+        assert genotypes.shape == (2, 3)
+        assert variants["variant_index"].tolist() == [0, 1]
+        assert genotype_lines == ("line_1", "line_2", "line_3")
+        assert observed_outcomes is outcomes
+        assert observed_covariates is covariates
+        assert base_seed == 7
+        calls.append("run_analysis")
+        return analysis_results
+
+    def write_analysis(
+        results: dict[str, pd.DataFrame],
+        observed_output: Path,
+        **kwargs: object,
+    ) -> Path:
+        assert results is analysis_results
+        assert observed_output == output_dir
+        assert kwargs["profile"] == "smoke"
+        assert kwargs["base_seed"] == 7
+        assert kwargs["genotype_provenance"] is expected_provenance
+        assert kwargs["derived_genotype_receipt"] is derived_receipt
+        observed_output.mkdir()
+        calls.append("write_results")
+        return observed_output
+
+    monkeypatch.setattr(dgrp, "run_dgrp_analysis", run_analysis)
+    monkeypatch.setattr(dgrp, "write_results", write_analysis)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -966,6 +1595,10 @@ def test_main_invokes_genotype_pipeline_and_persists_provenance(
             str(data_dir),
             "--output-dir",
             str(output_dir),
+            "--profile",
+            "smoke",
+            "--seed",
+            "7",
         ],
     )
 
@@ -976,18 +1609,10 @@ def test_main_invokes_genotype_pipeline_and_persists_provenance(
         "load_phenotypes",
         "acquire_genotypes",
         "extract_genotypes",
+        "acquire_covariates",
+        "extract_covariates",
         "build_provenance",
+        "run_analysis",
+        "write_results",
     ]
-    receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
-    assert receipt["schema_version"] == 3
-    assert receipt["genotype"] == expected_provenance
-    repo_root = Path(dgrp.__file__).resolve().parents[3]
-    assert receipt["git_sha"] == dgrp._git_sha(repo_root)
-    assert isinstance(receipt["git_dirty"], bool)
-    assert receipt["source_sha256"]["paper/jss/replication/dgrp.py"] == sha256(
-        Path(dgrp.__file__).resolve()
-    )
-    assert set(receipt["versions"]) == {"numpy", "openpyxl", "pandas"}
-    assert (output_dir / "line_outcomes.parquet").is_file()
-    assert (output_dir / "trait_summary.csv").is_file()
-    assert capsys.readouterr().out == "Wrote DGRP outcomes for 2 lines.\n"
+    assert capsys.readouterr().out == f"Wrote verified DGRP smoke artifacts to {output_dir}.\n"

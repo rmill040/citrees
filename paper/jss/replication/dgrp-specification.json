@@ -1,0 +1,139 @@
+{
+  "candidate_screen": {
+    "count": 100,
+    "fit_scope": "training_fold",
+    "method": "covariate_adjusted_marginal_absolute_correlation",
+    "tie_breaker": "variant_index_ascending"
+  },
+  "claims_scope": "predictive screening and stability",
+  "conditional_methods": {
+    "cif": {
+      "trees": 10
+    },
+    "cit": {
+      "trees": 1
+    },
+    "rdc_n_projections": 10,
+    "ranking_tie_breaker": "candidate_screen_rank",
+    "selector": "rdc"
+  },
+  "covariates": [
+    "cov1",
+    "cov2",
+    "cov3",
+    "cov4",
+    "cov5",
+    "cov6",
+    "cov7",
+    "cov8",
+    "cov9",
+    "cov10",
+    "cov11",
+    "cov12",
+    "cov13",
+    "cov14",
+    "cov15",
+    "cov16",
+    "cov17"
+  ],
+  "genotype_qc": {
+    "call_rate_min": 0.95,
+    "call_rate_operator": "greater_or_equal",
+    "hardy_weinberg_filter": null,
+    "maf_min": 0.04,
+    "maf_operator": "strict_greater_than",
+    "scope": "fixed_full_dgrp_genotype_panel"
+  },
+  "gwas_analysis_id": 7,
+  "outer_folds": {
+    "n_splits": 5,
+    "repeats": 10,
+    "random_state": 1718,
+    "training_only_covariate_adjustment": true,
+    "training_only_genotype_imputation": true,
+    "unit": "dgrp_line"
+  },
+  "prediction": {
+    "feature_counts": [5, 10, 25, 50, 100],
+    "methods": ["marginal", "ridge", "cit", "cif"],
+    "model": "ridge_alpha_1",
+    "predictive_r2_baseline": "training_fold_residual_outcome_mean",
+    "scale": "training_fold_residual_outcome_units"
+  },
+  "primary_test": {
+    "alternative": "cif_lower",
+    "contrast": "cif_minus_marginal",
+    "degrees_of_freedom": 49,
+    "feature_count": 10,
+    "folds": 5,
+    "inference_status": "manuscript_inference",
+    "metric": "held_out_mean_squared_error",
+    "downstream_model": "ridge_alpha_1",
+    "estimand": "cif_minus_marginal_top10_ridge_mean_squared_error",
+    "repeats": 10,
+    "test": "corrected_repeated_kfold_t",
+    "unit_of_analysis": "outer_fold_mean_squared_error_difference",
+    "variance": "(1/(repeats*folds)+mean(n_test/n_train))*sample_variance",
+    "reference": "Bouckaert and Frank 2004, doi:10.1007/978-3-540-24775-3_3"
+  },
+  "primary_trait": "EDD",
+  "profiles": {
+    "full": {
+      "candidate_count": 100,
+      "folds": 5,
+      "inference_status": "manuscript_inference",
+      "repeats": 10,
+      "traits": ["EDD", "DI", "SI", "HP", "ESD", "FS", "AI"],
+      "trees": 10
+    },
+    "quick": {
+      "candidate_count": 100,
+      "folds": 3,
+      "inference_status": "exploratory",
+      "repeats": 3,
+      "traits": ["EDD", "DI", "SI", "HP", "ESD", "FS", "AI"],
+      "trees": 5
+    },
+    "smoke": {
+      "candidate_count": 25,
+      "folds": 2,
+      "inference_status": "pipeline_validation",
+      "repeats": 2,
+      "traits": ["EDD"],
+      "trees": 2
+    }
+  },
+  "provenance": {
+    "covariate_receipt": "a25325542b01b6de0f18826e4b03cd5e954fc3b2f23c0d071b3358fb236ec895",
+    "qc_receipt": "5e2d48c45981b6096a618d929950c77ea838f37bdd0ebdf93d4bc26c102cef9d",
+    "ranking_receipt": "6125a712c6dbd3200037466eddd54c7c4050f88451cae61f79c07f912cb7a7b3"
+  },
+  "schema": "citrees-jss-dgrp-specification-v3",
+  "secondary_trait_inference": {
+    "adjustment": "holm",
+    "alpha": 0.05,
+    "family_size": 6,
+    "hypothesis_per_trait": {
+      "alternative": "cif_lower",
+      "contrast": "cif_minus_marginal",
+      "degrees_of_freedom": 49,
+      "feature_count": 10,
+      "folds": 5,
+      "inference_status": "manuscript_inference",
+      "metric": "held_out_mean_squared_error",
+      "downstream_model": "ridge_alpha_1",
+      "estimand": "cif_minus_marginal_top10_ridge_mean_squared_error",
+      "repeats": 10,
+      "test": "corrected_repeated_kfold_t",
+      "unit_of_analysis": "outer_fold_mean_squared_error_difference",
+      "variance": "(1/(repeats*folds)+mean(n_test/n_train))*sample_variance"
+    }
+  },
+  "secondary_traits": ["DI", "SI", "HP", "ESD", "FS", "AI"],
+  "stability": {
+    "feature_counts": [5, 10, 25],
+    "ld_matching": "maximum_cardinality_one_to_one_within_chromosome",
+    "primary": "top10_exact_snp",
+    "secondary": ["top5_exact_snp", "top25_exact_snp", "ld_matched_r2_ge_0.8"]
+  }
+}

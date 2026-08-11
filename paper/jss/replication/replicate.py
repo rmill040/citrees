@@ -78,8 +78,8 @@ ANALYSES = (
     AnalysisSpec(
         name="dgrp",
         module="paper.jss.replication.dgrp",
-        expected_analysis="dgrp_phenotypes",
-        profiled=False,
+        expected_analysis="dgrp",
+        profiled=True,
     ),
 )
 
@@ -151,7 +151,7 @@ def _analysis_command(
     ]
     if spec.profiled:
         command.extend(("--profile", profile, "--seed", str(base_seed)))
-    else:
+    if spec.name == "dgrp":
         command.extend(("--data-dir", str(dgrp_data_dir)))
     return tuple(command)
 

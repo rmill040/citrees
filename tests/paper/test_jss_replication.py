@@ -89,13 +89,14 @@ def test_analysis_inventory_covers_every_implemented_replication_module() -> Non
         "behavior",
         "performance",
         "tutorial",
-        "dgrp_phenotypes",
+        "dgrp",
     ]
-    assert all(spec.profiled for spec in ANALYSES[:-1])
-    assert not ANALYSES[-1].profiled
+    assert all(spec.profiled for spec in ANALYSES)
 
 
-def test_child_commands_forward_profile_seed_output_and_dgrp_data(tmp_path: Path) -> None:
+def test_child_commands_forward_profile_seed_output_and_dgrp_data(
+    tmp_path: Path,
+) -> None:
     profiled = _analysis_command(
         ANALYSES[0],
         "quick",
@@ -119,8 +120,11 @@ def test_child_commands_forward_profile_seed_output_and_dgrp_data(tmp_path: Path
         tmp_path / "dgrp-data",
         None,
     )
-    assert "--profile" not in dgrp
-    assert "--seed" not in dgrp
+    assert dgrp[dgrp.index("--profile") : dgrp.index("--profile") + 2] == (
+        "--profile",
+        "quick",
+    )
+    assert dgrp[dgrp.index("--seed") : dgrp.index("--seed") + 2] == ("--seed", "7")
     assert dgrp[-2:] == ("--data-dir", str(tmp_path / "dgrp-data"))
 
 
@@ -403,7 +407,9 @@ def test_child_receipt_validation_rejects_artifact_corruption(tmp_path: Path) ->
         )
 
 
-def test_child_receipt_validation_rejects_source_or_revision_mismatch(tmp_path: Path) -> None:
+def test_child_receipt_validation_rejects_source_or_revision_mismatch(
+    tmp_path: Path,
+) -> None:
     spec = ANALYSES[0]
     data_dir = tmp_path / "dgrp-data"
     data_dir.mkdir()

@@ -320,7 +320,6 @@ linear and nonlinear selector choices and fixed or sequential permutation
 budgets. These implementations answer related but different modeling needs,
 and predictive comparisons should retain both.
 
-\Needspace{22\baselineskip}
 Table~\ref{tab:software-comparison} summarizes the language, model families,
 feature-screening procedure, and estimator interfaces.
 
@@ -344,39 +343,117 @@ procedure and its defaults.}
 
 \section{Evaluation and replication design} \label{sec:evaluation}
 
-The software evaluation separates statistical behavior from predictive
-benchmarking. Null simulations measure selector rejection and root-split rates
-for fixed and sequential permutation modes. A second experiment permutes the
-column order of independent ordered discrete predictors with 2, 4, 10, 20, and
-200 levels, then measures how often each predictor is selected at the root.
-The comparison includes \citrees, \pkg{partykit}, and CART under matched
-depth and stopping controls.
+The evaluation separates fixed-test calibration, fitted-model behavior, and
+computation. The full profile defines every reported estimate. A reduced quick
+profile retains the same datasets, metrics, output schemas, and validation
+rules for local replication.
 
-Behavioral comparisons use identical training folds. Each implementation
-receives the same integer seed through its own \proglang{Python} or \proglang{R}
-random-number stream. Both receive the profile's nominal permutation setting.
-\citrees expands its per-candidate permutation count by the nodewise Bonferroni
-factor, while \pkg{partykit} passes the nominal setting to its native Monte Carlo
-distribution control. Tree summaries compare split decisions and root
-variables, with root identity evaluated when both trees split. Feature
-concordance compares split counts for trees and the documented native importance
-measure for each forest implementation. Rank concordance is evaluated when both
-native summaries distinguish among features. Held-out predictions and exact
-same-seed replication of the reported roots, feature summaries, and predictions
-provide additional behavioral comparisons. Repeat-level means and percentile
-bootstrap intervals quantify variation across data-partition seeds for each
-fixed dataset.
-Computational experiments vary sample size, predictor count, selector,
-permutation budget, and forest size on fixed hardware, reporting elapsed time
-and peak memory.
+\subsection{Null calibration} \label{sec:calibration}
 
-Replication materials provide a quick profile intended for a regular computer
-and a full profile for the reported simulation and scaling estimates. Both
-profiles record random seeds, software versions, source hashes, platform
-metadata, and generated artifact names. The quick profile uses fewer folds,
-smaller permutation and forest budgets, and fewer importance permutations while
-retaining the datasets, metric definitions, output schemas, and validation
-rules. The full profile is the source for manuscript results.
+Fixed-budget selector experiments generate predictors independently of the
+response. Classification responses contain equal class counts, and regression
+responses follow a standard normal distribution. Predictors follow standard
+normal, binary, or four-level ordinal distributions. The full profile covers
+28 combinations of task, selector, predictor distribution, and sample size,
+including the compatible max-$T$ selector combinations. Each combination uses
+5,000 replicates and 999 response permutations. The primary estimate is the
+proportion of corrected Monte Carlo values below 0.05.
+
+Root-level experiments fit depth-one trees under the global null. Separate
+conditions activate the feature gate, the threshold gate, or both gates.
+Exhaustive, adaptive, and simple permutation modes are crossed with the
+applicable feature- and threshold-scanning controls. The design also varies the
+number and distribution of candidate predictors and the threshold search. The
+full profile contains 78 conditions with 5,000 replicates per condition.
+Root-split frequency measures the fitted decision, while recorded selector and
+splitter permutation counts measure the computation used to reach it.
+
+\subsection{Variable cardinality} \label{sec:cardinality}
+
+The cardinality experiment uses 200 observations and five independent ordered
+discrete predictors with exactly 2, 4, 10, 20, and 200 observed levels. Every
+level occurs equally often within a predictor. Values within columns and the
+five column positions are shuffled independently in each replicate, and the
+response is generated independently of all predictors.
+
+Tree comparisons use 10,000 replicates for classification and regression.
+\citrees and \pkg{partykit} use a familywise threshold of 0.05 with Bonferroni
+adjustment across the five predictors and a nominal budget of 999 permutations.
+\citrees evaluates each candidate with 4,995 permutations to retain resolution
+at the adjusted threshold, while \pkg{partykit} uses its native Monte Carlo
+distribution with 999 permutations. CART stumps provide the impurity-based
+comparison. The analysis retains candidate statistics, corrected permutation
+values, native root decisions, ties, and the no-split outcome.
+
+Forest comparisons use 2,500 replicates and 100 depth-one trees per forest.
+Every tree receives all five predictors and a bootstrap sample of 200
+observations. The comparison includes \citrees forests, \pkg{partykit}
+conditional inference forests, and \sklearn random forests. Each implementation
+contributes its documented native feature summary: normalized impurity decrease
+for \citrees and \sklearn, and unconditional permutation importance with 10
+permutations for \pkg{partykit}. Positive associations between cardinality and
+selection or importance are tested with 9,999 label randomizations. Holm
+adjustment is applied to the prespecified family of 14 tree and forest trend
+tests.
+
+\subsection{Matched implementation behavior} \label{sec:behavior}
+
+Matched comparisons use the Breast Cancer Wisconsin Diagnostic classification
+data and the \sklearn diabetes regression data. Each dataset is partitioned by
+10 repeats of five-fold cross-validation. Trees and forests from \citrees and
+\pkg{partykit} receive identical training and evaluation rows and the same
+integer seed through their native random-number streams. Structural controls
+use maximum depth 3, minimum split size 20, minimum leaf size 7, all predictors,
+and 999 nominal response permutations. Forests contain 100 trees and use
+full-size bootstrap samples.
+
+Tree comparisons record whether each implementation splits and whether the
+root predictors agree when both split. Tree feature summaries count accepted
+splits. Forest summaries use normalized impurity decrease for \citrees and
+unconditional permutation importance with 10 permutations for \pkg{partykit}.
+When both summaries distinguish among predictors, concordance is measured by
+Kendall's $\tau_b$ and the Jaccard similarity of the top five sets, including
+ties at the fifth position.
+
+Held-out classification comparisons report balanced accuracy, prediction
+agreement, probability differences and rank correlation, area under the
+receiver operating characteristic curve, and log loss. Regression comparisons
+report root mean squared error, mean absolute error, prediction correlation,
+and the mean absolute difference between predictions. Every fit is repeated
+with the same seed to test exact reproducibility of roots, feature summaries,
+probabilities, and predictions. Estimates first average folds within each
+partition repeat, then average the 10 repeat means. Percentile intervals use
+9,999 bootstrap samples of repeat means. The full design contains 200 paired
+dataset, partition, and model-family comparisons.
+
+\subsection{Controlled computation} \label{sec:performance}
+
+Computational comparisons use synthetic classification and regression data
+with signal in the first five predictors. The reference condition has 1,000
+observations, 50 predictors, 999 permutations, and 100 trees. One-factor
+comparisons vary sample size between 250 and 4,000, predictor count between 10
+and 200, permutation budget between 99 and 9,999, and forest size between 25
+and 500 trees. Additional \citrees conditions evaluate mutual information and
+the randomized dependence coefficient for classification, and distance
+correlation and the randomized dependence coefficient for regression.
+
+The full profile contains 960 measured cells across classification, regression,
+trees, forests, \citrees, \pkg{partykit}, and \sklearn. Each cell runs in a
+fresh single-threaded process after a small fit of the same method removes
+one-time initialization and, where applicable, JIT compilation from timing.
+Elapsed time covers model construction and fitting. Peak resident memory and
+the increase over the pre-fit process high-water mark are recorded. Each
+condition is repeated 10 times and summarized by its median and interquartile
+range on fixed hardware.
+
+\subsection{Replication records} \label{sec:replication}
+
+The quick profile uses fewer simulation replicates, three-fold
+cross-validation, smaller permutation and forest budgets, and two timing
+repeats. Both profiles record random seeds, software versions, source and input
+hashes, platform metadata, raw outputs, and generated artifact hashes. The
+top-level replication command validates each component before publishing a
+combined output directory.
 
 \section{Discussion} \label{sec:discussion}
 

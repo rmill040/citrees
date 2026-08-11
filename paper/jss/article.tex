@@ -446,6 +446,81 @@ the increase over the pre-fit process high-water mark are recorded. Each
 condition is repeated 10 times and summarized by its median and interquartile
 range on fixed hardware.
 
+\subsection{DGRP cardiac application} \label{sec:dgrp}
+
+The biomedical application reanalyzes public cardiac measurements from the
+\textit{Drosophila} Genetic Reference Panel (DGRP). The source study analyzed
+1,956 one-week-old females from 167 sequenced inbred lines
+\citep{Saha+Spinelli+CastroMondragon:2022}. The pinned, outlier-filtered
+worksheet used here contains 2,032 individual records across the same 167
+lines. We compute one mean outcome per line for seven traits after requiring
+at least seven recorded individuals: diastolic interval, systolic interval,
+heart period, end diastolic diameter, end systolic diameter, fractional
+shortening, and arrhythmia index. This rule retains 157 to 166 lines per trait.
+End diastolic diameter is the prespecified primary trait. The other six traits
+form a prespecified secondary family.
+
+The DGRP2 genotypes and Phenosnip covariates come from the associated
+ArchiHeart deposit \citep{Saha+Spinelli+CastroMondragon:2021Data}. Genotype
+quality control is computed once across its full 205-line panel, which contains
+the 167 phenotype-source lines and 38 additional genotype lines. Variants are
+retained when their call rate is at least 0.95 and their minor allele frequency
+is greater than 0.04. The deposited database supplies 17 numeric covariates
+used by the source analysis to encode \textit{Wolbachia} infection and common
+polymorphic inversions. For each trait, the eligible lines are assigned to 10
+independently shuffled five-fold partitions. Within each training fold,
+missing genotypes are imputed by training-set medians. Least-squares
+coefficients estimated from the training lines remove the covariate effects
+from both the outcome and each genotype in the corresponding training and
+evaluation sets.
+
+All retained variants are screened within each training set by the absolute
+correlation between the adjusted genotype and adjusted outcome. The 100
+highest-scoring variants enter four ranking methods: marginal correlation,
+absolute coefficients from ridge regression with penalty 1, a conditional
+inference tree, and a 10-tree conditional inference forest. The tree and forest
+use the randomized dependence coefficient with 10 random projections and rank
+variables by normalized impurity decrease. Both models use squared-error
+splitting, 0.05 Bonferroni-adjusted feature and threshold gates, automatic
+permutation budgets with adaptive stopping, feature scanning and muting, exact
+threshold search, unrestricted depth, minimum split and leaf sizes of 2 and 1,
+and the same samples for structure and leaf estimation. The tree passes its
+active candidate pool to each node. The forest uses full-size bootstrap
+samples, square-root predictor sampling at each node, and one execution thread.
+Score ties are resolved by the initial screening order, which is itself
+resolved by source variant order.
+Each ranking is evaluated with the same ridge regression model at 5, 10, 25,
+50, and 100 selected variants. Standardization is estimated from the training
+set. Held-out performance is measured by mean squared error and by predictive
+$R^2$ relative to the mean adjusted outcome in the training set.
+
+Feature stability is evaluated within each repeat by comparing every pair of
+training folds. The prespecified primary stability endpoint is the exact
+Jaccard similarity of the top 10 variants. Secondary summaries use exact sets
+of 5 and 25 variants and linkage-disequilibrium-aware sets at all three feature
+counts. The latter use maximum-cardinality one-to-one matching between variants
+on the same chromosome when their squared correlation is at least 0.8.
+Correlations are computed from unadjusted genotype dosages among DGRP lines
+shared by the two training sets, using pairwise-complete observations.
+
+The primary inferential contrast is the held-out mean squared error of the
+forest ranking minus that of the marginal ranking at 10 selected variants for
+end diastolic diameter. Let $d_{ij}$ be this difference for fold $i$ of repeat
+$j$, let $s_d^2$ be the sample variance of the 50 fold differences, and let
+$\bar{q}$ be the mean evaluation-to-training sample-size ratio. The
+lower-tailed corrected repeated-cross-validation statistic is
+%
+\begin{equation}
+  t =
+  \frac{\bar{d}}
+       {\sqrt{\left(1/50 + \bar{q}\right)s_d^2}},
+  \label{eq:dgrp-corrected-cv}
+\end{equation}
+%
+with 49 degrees of freedom \citep{Bouckaert+Frank:2004}. Negative differences
+favor the forest ranking. The same contrast is evaluated for the six secondary
+traits, and their $p$~values are adjusted together by Holm's method.
+
 \subsection{Replication records} \label{sec:replication}
 
 The quick profile uses fewer simulation replicates, three-fold
@@ -454,6 +529,62 @@ repeats. Both profiles record random seeds, software versions, source and input
 hashes, platform metadata, raw outputs, and generated artifact hashes. The
 top-level replication command validates each component before publishing a
 combined output directory.
+
+\section{DGRP application results} \label{sec:dgrp-results}
+
+For the primary end diastolic diameter analysis, mean held-out squared error at
+10 selected variants was 166.61 for the forest ranking and 171.15 for the
+marginal ranking. The mean difference, forest minus marginal, was $-4.54$
+squared micrometers, with a corrected repeated-cross-validation statistic of
+$t(49)=-0.297$ and a lower-tailed $p$~value of 0.384. At the same feature
+count, the forest ranking had the lowest mean squared error for five of the
+seven traits; the tree ranking had the lowest value for end systolic diameter,
+and the marginal ranking had the lowest value for arrhythmia index.
+Table~\ref{tab:dgrp-inference} reports the prespecified contrast for every
+trait. The difference was negative for five of the six secondary traits. All
+six Holm-adjusted $p$~values were at least 0.849.
+
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\hline
+Trait & Lines & Marginal & Forest & Difference & Raw $p$ & Holm $p$ \\ \hline
+EDD & 159 & 171.2 & 166.6 & $-4.540$ & 0.384 & n/a \\
+DI  & 165 & 0.05363 & 0.04540 & $-0.008228$ & 0.226 & 1.000 \\
+SI  & 166 & 0.0008509 & 0.0007874 & $-0.00006344$ & 0.231 & 1.000 \\
+HP  & 165 & 0.06736 & 0.04668 & $-0.02069$ & 0.142 & 0.849 \\
+ESD & 157 & 70.02 & 69.25 & $-0.7691$ & 0.459 & 1.000 \\
+FS  & 158 & 0.002541 & 0.002507 & $-0.00003372$ & 0.436 & 1.000 \\
+AI  & 166 & 0.04017 & 0.04186 & $+0.001686$ & 0.633 & 1.000 \\ \hline
+\end{tabular}
+\captionof{table}{\label{tab:dgrp-inference} Mean held-out squared error after
+selecting 10 variants and the corrected repeated-cross-validation comparison
+of the forest and marginal rankings. Difference is forest minus marginal, so a
+negative value favors the forest. The raw $p$~values are lower-tailed. The six
+secondary traits form the Holm family; n/a identifies the separately tested
+primary trait. EDD is end diastolic diameter, DI is diastolic interval, SI is
+systolic interval, HP is heart period, ESD is end systolic diameter, FS is
+fractional shortening, and AI is arrhythmia index. Squared-error scales are
+trait-specific.}
+\end{center}
+
+Across the 28 combinations of trait and feature count at 5, 10, 25, and 50
+variants, the forest ranking had the lowest mean squared error in 21, the tree
+in 4, the marginal ranking in 2, and the ridge ranking in 1. At 100 variants,
+all four methods supplied the same candidate set to the downstream model and
+therefore produced identical predictions. The mean adjusted outcome from the
+training set yielded lower average squared error than every ranking evaluated
+with ridge regression. Mean predictive $R^2$ across the 140 configurations
+ranged from $-4.180$ to $-0.201$; at 10 variants, it ranged from $-1.163$ to
+$-0.248$.
+
+The selected variants were also sensitive to the training fold. Across 100
+fold pairs for each trait and method, mean exact top-10 Jaccard similarity
+ranged from 0.0058 to 0.0790. Linkage-disequilibrium-aware matching gave a
+range of 0.0081 to 0.0811. For end diastolic diameter, exact top-10 similarity
+was 0.0177 for the marginal ranking, 0.0070 for ridge, 0.0123 for the tree, and
+0.0080 for the forest; the corresponding linkage-disequilibrium-aware values
+were 0.0205, 0.0081, 0.0128, and 0.0090. The variation across folds makes the
+ranked variants hypotheses that require evaluation in independent data.
 
 \section{Discussion} \label{sec:discussion}
 
@@ -472,6 +603,23 @@ quantifies fixed-node permutation calibration, while adaptive tree construction
 produces fitted predictive models. Applications should evaluate predictive
 performance, feature stability, and runtime against both conditional inference
 and CART-style alternatives.
+
+The DGRP application demonstrates the package in genome-scale screening within
+each training fold. Conditional forest rankings frequently reduced held-out
+squared error relative to the other rankings. The training-set mean baseline
+had lower average error than every fitted model, and selected feature sets
+varied substantially across folds. Researchers using ranked features should
+pair the ordered list with held-out prediction and stability summaries.
+
+\subsection{Limitations}
+
+The DGRP estimates describe one public panel with 157 to 166 eligible lines per
+trait. The fixed genotype filters, covariates, 100-variant screen, and ridge
+downstream model define the reported comparison. Independent cardiac panels
+are needed to assess the transportability of individual variants and ranking
+advantages. More generally, permutation testing makes \citrees substantially
+more computationally intensive than impurity-only trees, particularly for
+large forests and high-dimensional predictors.
 
 \section*{Acknowledgments}
 

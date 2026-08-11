@@ -114,6 +114,39 @@ def _synthetic_analysis_inputs() -> tuple[
     return genotypes, variants, line_ids, outcomes, covariates
 
 
+def test_image_source_identity_uses_bound_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_sha = "1" * 40
+    monkeypatch.setenv("GIT_SHA", expected_sha)
+    monkeypatch.setenv("CITREES_SOURCE_CLEAN", "1")
+
+    assert dgrp._git_sha(tmp_path) == expected_sha
+    assert dgrp._git_dirty(tmp_path) is False
+
+
+def test_image_source_identity_rejects_invalid_revision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_SHA", "invalid")
+
+    with pytest.raises(RuntimeError, match="lowercase 40-character Git revision"):
+        dgrp._git_sha(tmp_path)
+
+
+def test_image_source_identity_requires_clean_source_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_SHA", "1" * 40)
+    monkeypatch.delenv("CITREES_SOURCE_CLEAN", raising=False)
+
+    with pytest.raises(RuntimeError, match="set GIT_SHA and CITREES_SOURCE_CLEAN=1"):
+        dgrp._git_dirty(tmp_path)
+
+
 @pytest.fixture(scope="module")
 def synthetic_analysis_results() -> dict[str, pd.DataFrame]:
     """Return one validated synthetic DGRP smoke result set."""

@@ -474,6 +474,7 @@ GENOTYPE_FILE_SPECS = (
 
 _PHENOTYPE_LINE_PATTERN = re.compile(r"dgrp([0-9]+)")
 _GENOTYPE_LINE_PATTERN = re.compile(r"line_([0-9]+)")
+_FULL_GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 
 def sha256(path: Path) -> str:
@@ -486,24 +487,47 @@ def sha256(path: Path) -> str:
 
 
 def _git_sha(repo_root: Path) -> str:
-    return subprocess.run(
+    expected = os.environ.get("GIT_SHA")
+    if expected is not None and not _FULL_GIT_SHA_PATTERN.fullmatch(expected):
+        raise RuntimeError("GIT_SHA must be a lowercase 40-character Git revision")
+    completed = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo_root,
-        check=True,
         capture_output=True,
         text=True,
-    ).stdout.strip()
+        check=False,
+    )
+    if completed.returncode == 0:
+        observed = completed.stdout.strip()
+        if not _FULL_GIT_SHA_PATTERN.fullmatch(observed):
+            raise RuntimeError(f"Git returned an invalid source revision: {observed!r}")
+        if expected is not None and expected != observed:
+            raise RuntimeError(
+                f"GIT_SHA {expected!r} differs from the checked-out revision {observed!r}"
+            )
+        return observed
+    if expected is None:
+        raise RuntimeError(
+            "Source revision is unavailable: run inside a Git worktree or set GIT_SHA"
+        )
+    return expected
 
 
 def _git_dirty(repo_root: Path) -> bool:
-    return bool(
-        subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=repo_root,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+    completed = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode == 0:
+        return bool(completed.stdout.strip())
+    if os.environ.get("GIT_SHA") is not None and os.environ.get("CITREES_SOURCE_CLEAN") == "1":
+        return False
+    raise RuntimeError(
+        "Source cleanliness is unavailable outside a Git worktree; "
+        "set GIT_SHA and CITREES_SOURCE_CLEAN=1 for a verified image"
     )
 
 

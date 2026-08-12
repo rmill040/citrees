@@ -3028,7 +3028,10 @@ def _worker_user_data(
 ) -> str:
     attempt = _require_integer(attempt, "attempt", minimum=1)
     image_registry = campaign.image_uri.split("/", maxsplit=1)[0]
-    recovery_hook = per_boot_container_recovery_hook("citrees-jss-shard")
+    recovery_hook = per_boot_container_recovery_hook(
+        "citrees-jss-shard",
+        restart_container=False,
+    )
     return textwrap.dedent(
         f"""\
         #!/bin/bash

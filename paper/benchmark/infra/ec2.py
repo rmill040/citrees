@@ -83,7 +83,7 @@ _CAPACITY_ERROR_CODES = frozenset(
     }
 )
 _AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
-_WORKER_LAUNCH_SCHEMA_VERSION = 4
+_WORKER_LAUNCH_SCHEMA_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -764,10 +764,30 @@ def get_default_subnet_ids(ec2: Any, *, instance_type: str | None = None) -> lis
     return [subnet["SubnetId"] for subnet in subnets]
 
 
-def per_boot_container_recovery_hook(container_name: str) -> str:
-    """Return an indented cloud-init hook that resumes a container after host recovery."""
+def per_boot_container_recovery_hook(
+    container_name: str,
+    *,
+    restart_container: bool,
+) -> str:
+    """Return a per-boot hook with an explicit control-plane or compute policy."""
     if re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", container_name) is None:
         raise ValueError(f"invalid container name: {container_name!r}")
+    if not restart_container:
+        script = textwrap.dedent(
+            f"""\
+            mkdir -p /var/lib/cloud/scripts/per-boot
+            cat > /var/lib/cloud/scripts/per-boot/{container_name}-recover <<'RECOVERY'
+            #!/bin/bash
+            set -euo pipefail
+
+            echo "Terminating recovered {container_name} instance"
+            shutdown -h now || systemctl poweroff --force --force || poweroff -f || halt -f
+            RECOVERY
+            chmod 0755 /var/lib/cloud/scripts/per-boot/{container_name}-recover
+            """
+        )
+        return textwrap.indent(script, "        ").rstrip()
+
     script = textwrap.dedent(
         f"""\
         mkdir -p /var/lib/cloud/scripts/per-boot
@@ -825,7 +845,10 @@ def _make_worker_user_data(
     stage: str,
 ) -> str:
     """Generate EC2 user data script that pulls and runs the worker container."""
-    recovery_hook = per_boot_container_recovery_hook("citrees-worker")
+    recovery_hook = per_boot_container_recovery_hook(
+        "citrees-worker",
+        restart_container=False,
+    )
     return textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -939,7 +962,10 @@ def _make_api_user_data(
     max_cell_attempts: int,
 ) -> str:
     """Generate EC2 user data script that runs the API server container."""
-    recovery_hook = per_boot_container_recovery_hook("citrees-api")
+    recovery_hook = per_boot_container_recovery_hook(
+        "citrees-api",
+        restart_container=True,
+    )
     return textwrap.dedent(
         f"""\
         #!/bin/bash
@@ -1098,7 +1124,10 @@ def _make_mechanism_user_data(
     if datasets:
         command.extend(["--datasets", _csv_arg(datasets)])
     command_text = shlex.join(command)
-    recovery_hook = per_boot_container_recovery_hook("citrees-mechanism")
+    recovery_hook = per_boot_container_recovery_hook(
+        "citrees-mechanism",
+        restart_container=False,
+    )
 
     return textwrap.dedent(
         f"""\

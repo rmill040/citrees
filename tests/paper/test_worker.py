@@ -349,7 +349,7 @@ def test_no_rankings_becomes_durable_failed_assignment(
     client.post.return_value = response
     result = Result(config=_config(), status="no_rankings", elapsed_seconds=1.25)
 
-    worker._finalize_assignment(
+    reusable = worker._finalize_assignment(
         client,
         store,  # type: ignore[arg-type]
         "metrics",
@@ -361,6 +361,7 @@ def test_no_rankings_becomes_durable_failed_assignment(
         poll_interval=0,
     )
 
+    assert not reusable
     assert store.receipt is not None
     assert store.receipt["error_type"] == "MissingRankingArtifact"
     assert store.receipt["elapsed_seconds"] == pytest.approx(1.25)
@@ -405,7 +406,7 @@ def test_receipt_failure_leaves_lease_unacknowledged(
         error_type="RuntimeError",
     )
 
-    worker._finalize_assignment(
+    reusable = worker._finalize_assignment(
         client,
         store,  # type: ignore[arg-type]
         "rankings",
@@ -417,6 +418,7 @@ def test_receipt_failure_leaves_lease_unacknowledged(
         poll_interval=0,
     )
 
+    assert not reusable
     client.post.assert_not_called()
 
 
@@ -457,7 +459,7 @@ def test_ambiguous_failure_receipt_is_loaded_and_acknowledged(
     client.post.return_value = MagicMock(status_code=200)
     assignment_id = _assignment_id()
 
-    worker._finalize_assignment(
+    reusable = worker._finalize_assignment(
         client,
         store,  # type: ignore[arg-type]
         "rankings",
@@ -476,6 +478,7 @@ def test_ambiguous_failure_receipt_is_loaded_and_acknowledged(
         poll_interval=0,
     )
 
+    assert not reusable
     assert store.load_calls == 1
     client.post.assert_called_once()
 
@@ -491,7 +494,7 @@ def test_acknowledgement_failure_does_not_escape_worker(
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("API unavailable")),
     )
 
-    worker._finalize_assignment(
+    reusable = worker._finalize_assignment(
         MagicMock(),
         _FailureStore(),  # type: ignore[arg-type]
         "rankings",
@@ -502,6 +505,29 @@ def test_acknowledgement_failure_does_not_escape_worker(
         Result(config=_config(), status=status),  # type: ignore[arg-type]
         poll_interval=0,
     )
+    assert not reusable
+
+
+@pytest.mark.parametrize("status", ["done", "skipped"])
+def test_successful_acknowledgement_allows_worker_reuse(
+    status: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(worker, "_acknowledge_assignment", lambda *args, **kwargs: None)
+
+    reusable = worker._finalize_assignment(
+        MagicMock(),
+        _FailureStore(),  # type: ignore[arg-type]
+        "rankings",
+        "c" * 32,
+        1,
+        WORKER_ID,
+        REQUEST_ID,
+        Result(config=_config(), status=status),  # type: ignore[arg-type]
+        poll_interval=0,
+    )
+
+    assert reusable
 
 
 def test_unexpected_execution_exception_is_recorded_and_does_not_escape(
@@ -533,7 +559,7 @@ def test_unexpected_execution_exception_is_recorded_and_does_not_escape(
     clock = iter([100.0, 103.5])
     monkeypatch.setattr(worker.time, "perf_counter", lambda: next(clock))
 
-    worker._execute_assignment(
+    reusable = worker._execute_assignment(
         MagicMock(),
         _FailureStore(),  # type: ignore[arg-type]
         "http://127.0.0.1:8000",
@@ -548,11 +574,84 @@ def test_unexpected_execution_exception_is_recorded_and_does_not_escape(
         poll_interval=0,
     )
 
+    assert not reusable
     assert captured["attempt"] == 2
     assert captured["elapsed_seconds"] == pytest.approx(3.5)
     assert captured["error"] == "unexpected cell failure"
     assert captured["error_type"] == "ValueError"
     assert "ValueError: unexpected cell failure" in str(captured["traceback"])
+
+
+def test_timeout_failure_allows_worker_reuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(worker, "_heartbeat_loop", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        worker,
+        "_save_failure_receipt",
+        lambda *args, **kwargs: "s3://bucket/failure.json",
+    )
+    monkeypatch.setattr(worker, "_acknowledge_assignment", lambda *args, **kwargs: None)
+
+    reusable = worker._execute_assignment(
+        MagicMock(),
+        _FailureStore(),  # type: ignore[arg-type]
+        "http://127.0.0.1:8000",
+        "rankings",
+        "d" * 32,
+        1,
+        WORKER_ID,
+        REQUEST_ID,
+        30,
+        _config(),
+        lambda config, store: Result(  # noqa: ARG005
+            config=config,
+            status="failed",
+            error="selection exceeded its wall-clock limit",
+            error_type="TimeoutError",
+        ),
+        poll_interval=0,
+    )
+
+    assert reusable
+
+
+def test_non_reusable_assignment_stops_before_second_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _ScriptedClient(
+        gets=[_response(200, _scope_payload())],
+        posts=[],
+    )
+    _configure_worker(monkeypatch, client)
+    assignment = _response(
+        200,
+        {
+            "stage": "rankings",
+            "assignment_id": "a" * 32,
+            "attempt": 1,
+            "lease_seconds": 60,
+        },
+    )
+    next_assignment = MagicMock(
+        side_effect=[
+            assignment,
+            AssertionError("worker polled after a non-reusable outcome"),
+        ]
+    )
+    monkeypatch.setattr(worker, "_next_assignment", next_assignment)
+    monkeypatch.setattr(worker, "_validate_assignment", lambda *args, **kwargs: _config())
+    monkeypatch.setattr(worker, "_start_assignment", lambda *args, **kwargs: None)
+    monkeypatch.setattr(worker, "_execute_assignment", lambda *args, **kwargs: False)
+
+    worker.run_worker(
+        "http://api.test",
+        poll_interval=0,
+        max_api_failures=2,
+    )
+
+    assert next_assignment.call_count == 1
+    assert client.closed
 
 
 @pytest.mark.parametrize(
@@ -777,7 +876,7 @@ def test_lost_lease_is_not_acknowledged(
     monkeypatch.setattr(worker, "_heartbeat_loop", lose_lease)
     monkeypatch.setattr(worker, "_finalize_assignment", finalize)
 
-    worker._execute_assignment(
+    reusable = worker._execute_assignment(
         MagicMock(),
         _FailureStore(),  # type: ignore[arg-type]
         "http://api.test",
@@ -793,3 +892,4 @@ def test_lost_lease_is_not_acknowledged(
     )
 
     assert not finalized
+    assert not reusable

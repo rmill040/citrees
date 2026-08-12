@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 
 _shutdown = False
 _ACK_ATTEMPTS = 5
+_REUSABLE_FAILURE_TYPES = frozenset({"TimeoutError"})
 
 
 def _handle_signal(signum: int, frame: Any) -> None:
@@ -509,8 +510,8 @@ def _finalize_assignment(
     result: Result,
     *,
     poll_interval: float,
-) -> None:
-    """Persist terminal evidence and acknowledge without terminating the worker."""
+) -> bool:
+    """Persist terminal evidence and return whether this process may take more work."""
     if result.is_no_rankings:
         result = _failed_result(
             result.config,
@@ -536,7 +537,7 @@ def _finalize_assignment(
                 "leaving the lease unacknowledged",
                 assignment_id,
             )
-            return
+            return False
 
         logger.error(
             "Failed: {} - {}: {} (receipt={})",
@@ -559,10 +560,11 @@ def _finalize_assignment(
                 "Could not acknowledge failed assignment {}; the durable receipt remains available",
                 assignment_id,
             )
-        return
+            return False
+        return result.error_type in _REUSABLE_FAILURE_TYPES
 
     if result.status not in {"done", "skipped"}:
-        _finalize_assignment(
+        return _finalize_assignment(
             client,
             store,
             stage,
@@ -578,7 +580,6 @@ def _finalize_assignment(
             ),
             poll_interval=poll_interval,
         )
-        return
 
     try:
         _acknowledge_assignment(
@@ -595,8 +596,9 @@ def _finalize_assignment(
             "the immutable artifact remains available",
             assignment_id,
         )
-        return
+        return False
     logger.info("Done: {} (status={})", result.config, result.status)
+    return True
 
 
 def _execute_assignment(
@@ -613,8 +615,8 @@ def _execute_assignment(
     run_fn: Any,
     *,
     poll_interval: float,
-) -> None:
-    """Execute and finalize one valid assignment while keeping the fleet alive."""
+) -> bool:
+    """Execute one assignment and return whether the worker process is reusable."""
     heartbeat_stop = threading.Event()
     lease_lost = threading.Event()
     heartbeat_thread = threading.Thread(
@@ -632,6 +634,7 @@ def _execute_assignment(
     )
     store.bind_write_guard(lambda: not lease_lost.is_set())
     heartbeat_thread.start()
+    reusable = False
     try:
         execution_started = time.perf_counter()
         try:
@@ -649,18 +652,18 @@ def _execute_assignment(
                 "Not acknowledging assignment {} because its lease was lost",
                 assignment_id,
             )
-            return
-        _finalize_assignment(
-            client,
-            store,
-            stage,
-            assignment_id,
-            attempt,
-            worker_id,
-            request_id,
-            result,
-            poll_interval=poll_interval,
-        )
+        else:
+            reusable = _finalize_assignment(
+                client,
+                store,
+                stage,
+                assignment_id,
+                attempt,
+                worker_id,
+                request_id,
+                result,
+                poll_interval=poll_interval,
+            )
     finally:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=WORKER_HEARTBEAT_TIMEOUT_SECONDS + 5.0)
@@ -669,7 +672,9 @@ def _execute_assignment(
                 "Heartbeat thread did not stop for assignment {}",
                 assignment_id,
             )
+            reusable = False
         store.clear_write_guard()
+    return reusable
 
 
 def _queue_has_outstanding_work(client: httpx.Client, store: S3Store) -> bool:
@@ -840,7 +845,7 @@ def run_worker(
             )
 
             run_fn = _run_selection if stage == "rankings" else _run_evaluation
-            _execute_assignment(
+            reusable = _execute_assignment(
                 client,
                 store,
                 api_url,
@@ -854,6 +859,12 @@ def run_worker(
                 run_fn,
                 poll_interval=poll_interval,
             )
+            if not reusable:
+                logger.error(
+                    "Worker stopping after non-reusable assignment outcome: {}",
+                    assignment_id,
+                )
+                break
 
     logger.info("Worker shutting down")
 

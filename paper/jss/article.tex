@@ -199,6 +199,7 @@ import numpy as np
 from citrees import (ConditionalInferenceForestClassifier,
                      ConditionalInferenceTreeClassifier)
 from sklearn.datasets import load_breast_cancer
+from sklearn.metrics import balanced_accuracy_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 
 data = load_breast_cancer(as_frame=True)
@@ -218,11 +219,15 @@ common = dict(
 tree = ConditionalInferenceTreeClassifier(max_depth=3, **common)
 tree.fit(X_train, y_train)
 tree_predictions = tree.predict(X_test)
+tree_probabilities = tree.predict_proba(X_test)[:, 1]
+tree_balanced_accuracy = balanced_accuracy_score(
+    y_test, tree_predictions
+)
+tree_roc_auc = roc_auc_score(y_test, tree_probabilities)
 tree_path = tree.decision_path(X_test)
 tree_leaves = tree.apply(X_test)
-leading = tree.feature_names_in_[
-    np.argsort(-tree.feature_importances_)[:5]
-]
+leading_order = np.argsort(-tree.feature_importances_)[:5]
+leading = tree.feature_names_in_[leading_order]
 
 forest = ConditionalInferenceForestClassifier(
     n_estimators=100,
@@ -234,6 +239,12 @@ forest = ConditionalInferenceForestClassifier(
 )
 forest.fit(X_train, y_train)
 forest_predictions = forest.predict(X_test)
+forest_probabilities = forest.predict_proba(X_test)[:, 1]
+forest_balanced_accuracy = balanced_accuracy_score(
+    y_test, forest_predictions
+)
+forest_roc_auc = roc_auc_score(y_test, forest_probabilities)
+forest_oob_accuracy = forest.oob_score_
 forest_leaves = forest.apply(X_test)
 \end{Code}
 
@@ -620,6 +631,34 @@ are needed to assess the transportability of individual variants and ranking
 advantages. More generally, permutation testing makes \citrees substantially
 more computationally intensive than impurity-only trees, particularly for
 large forests and high-dimensional predictors.
+
+\section{Software and data availability} \label{sec:availability}
+
+Version 0.1.0 of \citrees, the article source, and the replication programs are
+available at \url{https://github.com/rmill040/citrees} under the MIT license.
+The package requires \proglang{Python} 3.12 or later. The locked
+\proglang{Python} environment and the reference container specification are
+included in the repository. The reference container pins \proglang{R} 4.5.2,
+\pkg{partykit} 1.2-24, and the numerical packages used by the
+\proglang{Python}--\proglang{R} bridge.
+
+The top-level replication command provides smoke, quick, and full profiles.
+Each execution writes to a new result directory and validates every component
+before publishing the combined result tree. The full profile requires a clean
+source tree at the beginning and throughout execution. Component receipts
+record the profile, random seed, source revision, software versions, platform,
+elapsed time, source and input hashes, and output hashes. Distributed
+calibration and behavioral comparisons additionally validate complete shard
+assignment and preserve realized cloud-compute accounting.
+
+Simulation inputs are generated from recorded seeds. The tutorial data are
+distributed with \sklearn. The DGRP workflow acquires the cited phenotype,
+genotype, and covariate sources
+\citep{Saha+Spinelli+CastroMondragon:2022,
+Saha+Spinelli+CastroMondragon:2021Data}. It verifies pinned file sizes and
+cryptographic hashes before extraction and records the validated input hashes
+in the analysis receipt. A configurable shared data directory permits the
+validated DGRP inputs to be reused across replication profiles.
 
 \section*{Acknowledgments}
 

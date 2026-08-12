@@ -1581,8 +1581,9 @@ def test_worker_user_data_preserves_shell_continuations() -> None:
     assert "EXIT_CODE=$(docker wait citrees-jss-shard)" in script
     recovery_path = "/var/lib/cloud/scripts/per-boot/citrees-jss-shard-recover"
     assert recovery_path in script
-    assert "docker inspect citrees-jss-shard" in script
-    assert "docker start citrees-jss-shard" in script
+    assert "Terminating recovered citrees-jss-shard instance" in script
+    assert "docker inspect citrees-jss-shard" not in script
+    assert "docker start citrees-jss-shard" not in script
     assert script.index(recovery_path) < script.index("docker run -d --restart no")
     subprocess.run(
         ["bash", "-n"],

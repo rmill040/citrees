@@ -60,33 +60,63 @@ end-to-end tutorial.
   uncertainty over these lines.
 - Benchmark context comes only from final corrected arXiv v2 artifacts.
 
-## Replication
+## Replication Setup
 
-The final submission provides a single entry point with two profiles:
+The replication suite requires Python 3.12 or later, R, and the R package
+`partykit`. Install the locked Python environment from the repository root:
 
+```bash
+uv sync --group paper
+```
+
+The exact Linux reference environment is defined in
+`paper/benchmark/infra/docker/Dockerfile`. It pins R 4.5.2, `Formula` 1.2-5,
+`inum` 1.0-5, `libcoin` 1.0-10, `mvtnorm` 1.3-3, and `partykit` 1.2-24.
+Replication receipts record the R and Python package versions actually used.
+
+The suite provides three profiles:
+
+- `smoke` exercises every analysis and validation path with the smallest
+  workload.
 - `quick` retains the datasets, metric definitions, output schemas, and
-  validation rules with reduced folds and computational budgets for a regular
-  computer.
-- `full` rebuilds the reported simulation estimates and computational
-  measurements and may require parallel hardware.
+  validation rules with reduced folds and computational budgets.
+- `full` rebuilds the manuscript analyses and computational measurements and may
+  require parallel hardware.
 
 Generated outputs remain below `paper/jss/results/` as ignored build artifacts.
 A full-profile receipt records the clean source revision, dependency versions,
 inputs, and output hashes before manuscript tables and figures enter the
 submission source.
 
-Run the complete replication suite from the repository root:
+Run the complete replication suite from the repository root. Each output
+directory must be new:
 
 ```bash
-uv run python -m paper.jss.replication --profile quick
-uv run python -m paper.jss.replication --profile full
+uv run python -m paper.jss.replication --profile smoke \
+  --output-dir paper/jss/results/replication-smoke
+uv run python -m paper.jss.replication --profile quick \
+  --output-dir paper/jss/results/replication-quick
+uv run python -m paper.jss.replication --profile full \
+  --output-dir paper/jss/results/replication-full
 ```
 
 The command dispatches calibration, matched behavior, controlled performance,
 tutorial, and DGRP preparation analyses. It verifies each child receipt and
 artifact hash before atomically publishing the combined output directory. Use
 `--output-dir` for a new destination; an existing destination is rejected to
-prevent results from different executions from being mixed.
+prevent results from different executions from being mixed. The full profile
+also requires a clean Git worktree and rejects source changes during execution.
+
+The DGRP inputs are acquired automatically and validated before use. The pinned
+inputs include a 1.32 GB covariate archive that extracts to a 7.22 GB SQLite
+database and a 97.9 MB genotype archive. Use `--dgrp-data-dir` to place these
+inputs on a volume with sufficient free space and to reuse them across runs:
+
+```bash
+uv run python -m paper.jss.replication --profile quick \
+  --dgrp-data-dir /path/to/dgrp-data \
+  --output-dir paper/jss/results/replication-quick
+```
 
 Calibration and matched behavior support deterministic distributed execution.
 Each worker runs one indexed shard into the corresponding analysis directory:

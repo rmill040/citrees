@@ -484,11 +484,13 @@ def _failed_result(
     error: str,
     error_type: str,
     traceback_text: str | None = None,
+    elapsed_seconds: float = 0.0,
 ) -> Result:
     """Create a terminal failed result for worker-level execution errors."""
     return Result(
         config=config,
         status="failed",
+        elapsed_seconds=elapsed_seconds,
         error=error,
         error_type=error_type,
         traceback=traceback_text,
@@ -514,6 +516,7 @@ def _finalize_assignment(
             result.config,
             error="ranking artifact was unavailable for a metrics assignment",
             error_type="MissingRankingArtifact",
+            elapsed_seconds=result.elapsed_seconds,
         )
 
     if result.is_failure:
@@ -571,6 +574,7 @@ def _finalize_assignment(
                 result.config,
                 error=f"assignment returned non-terminal status {result.status!r}",
                 error_type="InvalidResultStatus",
+                elapsed_seconds=result.elapsed_seconds,
             ),
             poll_interval=poll_interval,
         )
@@ -629,6 +633,7 @@ def _execute_assignment(
     store.bind_write_guard(lambda: not lease_lost.is_set())
     heartbeat_thread.start()
     try:
+        execution_started = time.perf_counter()
         try:
             result = run_fn(config, store)
         except Exception as exc:
@@ -637,6 +642,7 @@ def _execute_assignment(
                 error=str(exc),
                 error_type=type(exc).__name__,
                 traceback_text=traceback.format_exc(),
+                elapsed_seconds=time.perf_counter() - execution_started,
             )
         if lease_lost.is_set():
             logger.error(

@@ -347,7 +347,7 @@ def test_no_rankings_becomes_durable_failed_assignment(
     response = MagicMock(status_code=200)
     client = MagicMock()
     client.post.return_value = response
-    result = Result(config=_config(), status="no_rankings")
+    result = Result(config=_config(), status="no_rankings", elapsed_seconds=1.25)
 
     worker._finalize_assignment(
         client,
@@ -363,6 +363,7 @@ def test_no_rankings_becomes_durable_failed_assignment(
 
     assert store.receipt is not None
     assert store.receipt["error_type"] == "MissingRankingArtifact"
+    assert store.receipt["elapsed_seconds"] == pytest.approx(1.25)
     assert store.receipt["artifact_prefix"] == "repairs/run-001"
     assert store.receipt["canonical_manifest_sha256"] == CANONICAL_MANIFEST_SHA256
     assert store.receipt["gate_receipt_sha256"] == GATE_RECEIPT_SHA256
@@ -515,6 +516,7 @@ def test_unexpected_execution_exception_is_recorded_and_does_not_escape(
             captured.update(
                 {
                     "attempt": attempt,
+                    "elapsed_seconds": result.elapsed_seconds,
                     "error": result.error,
                     "error_type": result.error_type,
                     "traceback": result.traceback,
@@ -527,6 +529,9 @@ def test_unexpected_execution_exception_is_recorded_and_does_not_escape(
 
     def crash(config: ExperimentConfig, store: object) -> Result:
         raise ValueError("unexpected cell failure")
+
+    clock = iter([100.0, 103.5])
+    monkeypatch.setattr(worker.time, "perf_counter", lambda: next(clock))
 
     worker._execute_assignment(
         MagicMock(),
@@ -544,6 +549,7 @@ def test_unexpected_execution_exception_is_recorded_and_does_not_escape(
     )
 
     assert captured["attempt"] == 2
+    assert captured["elapsed_seconds"] == pytest.approx(3.5)
     assert captured["error"] == "unexpected cell failure"
     assert captured["error_type"] == "ValueError"
     assert "ValueError: unexpected cell failure" in str(captured["traceback"])

@@ -357,18 +357,20 @@ def run_evaluation(
 def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
     """Run evaluation for a single configuration."""
     task = cfg.task
+    started = time.perf_counter()
     hostname = socket.gethostname()
-    git_sha = get_git_sha()
-
-    # Check if rankings exist
-    if not store.exists("rankings", cfg):
-        return Result(
-            config=cfg,
-            status="no_rankings",
-            hostname=hostname,
-        )
 
     try:
+        git_sha = get_git_sha()
+        # Check if rankings exist
+        if not store.exists("rankings", cfg):
+            return Result(
+                config=cfg,
+                status="no_rankings",
+                elapsed_seconds=time.perf_counter() - started,
+                hostname=hostname,
+            )
+
         benchmark_scope = get_benchmark_scope()
         container_image = get_container_image()
         expected_provenance = {
@@ -504,6 +506,7 @@ def _run_evaluation(cfg: ExperimentConfig, store: Store) -> Result:
         return Result(
             config=cfg,
             status="failed",
+            elapsed_seconds=time.perf_counter() - started,
             error=str(e),
             error_type=type(e).__name__,
             traceback=traceback.format_exc(),

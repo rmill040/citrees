@@ -262,6 +262,81 @@ def test_concurrent_valid_ranking_upload_is_skipped(
     assert result.data is not None
 
 
+def test_failed_selection_records_elapsed_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed Stage 1 result must retain its measured wall-clock duration."""
+    from paper.benchmark.pipeline import stage1
+    from paper.benchmark.pipeline.types import (
+        DatasetIdentity,
+        ExperimentConfig,
+        MethodConfig,
+    )
+
+    config = ExperimentConfig(
+        method=MethodConfig("dt"),
+        dataset="fixture",
+        seed=0,
+        task="classification",
+        dataset_identity=DatasetIdentity("d" * 64, n_samples=20, n_features=4),
+    )
+    X = np.arange(80, dtype=float).reshape(20, 4)
+    y = np.array([0, 1] * 10)
+
+    class EmptyStore:
+        def exists(self, stage: str, cfg: ExperimentConfig) -> bool:
+            del stage, cfg
+            return False
+
+    def fail_selection(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        del args, kwargs
+        raise RuntimeError("deterministic selection failure")
+
+    clock = iter([100.0, 101.0, 103.5])
+    monkeypatch.setattr(stage1.time, "perf_counter", lambda: next(clock))
+    monkeypatch.setattr(stage1, "get_git_sha", lambda: "a" * 40)
+    monkeypatch.setattr(
+        stage1,
+        "get_benchmark_scope",
+        lambda: {
+            "artifact_prefix": "repairs/test",
+            "campaign_sha256": "b" * 64,
+            "canonical_manifest_sha256": "c" * 64,
+            "gate_receipt_sha256": "d" * 64,
+            "manifest_sha256": "e" * 64,
+            "runtime_contract_sha256": "f" * 64,
+            "aws_account_id": "123456789012",
+        },
+    )
+    monkeypatch.setattr(
+        stage1,
+        "get_container_image",
+        lambda: "repository@sha256:" + "1" * 64,
+    )
+    monkeypatch.setattr(
+        stage1,
+        "load_dataset",
+        lambda dataset, task, *, identity: (X, y),
+    )
+    monkeypatch.setattr(
+        stage1,
+        "get_dataset_metadata",
+        lambda dataset, task, *, identity: {
+            "dataset_source": "fixture",
+            "dataset_type": "real",
+            "dataset_family": "test",
+            "n_informative": 1,
+        },
+    )
+    monkeypatch.setattr(stage1, "run_selection", fail_selection)
+
+    result = stage1._run_selection(config, EmptyStore())  # type: ignore[arg-type]
+
+    assert result.is_failure
+    assert result.error_type == "RuntimeError"
+    assert result.elapsed_seconds == pytest.approx(3.5)
+
+
 class TestFilterSelector:
     """Tests for filter_selector function."""
 

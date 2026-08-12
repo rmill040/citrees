@@ -280,6 +280,94 @@ def test_stage2_keys_rankings_by_fold_id_when_rows_are_shuffled(
     }
 
 
+def test_failed_evaluation_records_elapsed_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed Stage 2 result must retain its measured wall-clock duration."""
+    from paper.benchmark.pipeline import stage2
+    from paper.benchmark.pipeline.types import (
+        DatasetIdentity,
+        ExperimentConfig,
+        MethodConfig,
+    )
+
+    config = ExperimentConfig(
+        method=MethodConfig("rf"),
+        dataset="fixture",
+        seed=0,
+        task="classification",
+        dataset_identity=DatasetIdentity("d" * 64, n_samples=20, n_features=4),
+    )
+    X = np.arange(80, dtype=float).reshape(20, 4)
+    y = np.array([0, 1] * 10)
+
+    class RankingStore:
+        def exists(self, stage: str, cfg: ExperimentConfig) -> bool:
+            del cfg
+            return stage == "rankings"
+
+        def load_with_payload_sha256(
+            self,
+            stage: str,
+            cfg: ExperimentConfig,
+        ) -> LoadedArtifact:
+            del stage, cfg
+            return LoadedArtifact(
+                frame=pd.DataFrame({"fold_idx": [0]}),
+                payload_sha256="c" * 64,
+            )
+
+    def fail_evaluation(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        del args, kwargs
+        raise RuntimeError("deterministic evaluation failure")
+
+    clock = iter([100.0, 101.0, 103.5])
+    monkeypatch.setattr(stage2.time, "perf_counter", lambda: next(clock))
+    monkeypatch.setattr(stage2, "get_git_sha", lambda: "a" * 40)
+    monkeypatch.setattr(
+        stage2,
+        "get_benchmark_scope",
+        lambda: {
+            "artifact_prefix": "repairs/test",
+            "campaign_sha256": "b" * 64,
+            "canonical_manifest_sha256": "c" * 64,
+            "gate_receipt_sha256": "d" * 64,
+            "manifest_sha256": "e" * 64,
+            "runtime_contract_sha256": "f" * 64,
+            "aws_account_id": "123456789012",
+        },
+    )
+    monkeypatch.setattr(
+        stage2,
+        "get_container_image",
+        lambda: "repository@sha256:" + "1" * 64,
+    )
+    monkeypatch.setattr(stage2, "validate_ranking_artifact", lambda *args, **kwargs: None)
+    monkeypatch.setattr(stage2, "validate_artifact_provenance", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        stage2,
+        "load_dataset",
+        lambda dataset, task, *, identity: (X, y),
+    )
+    monkeypatch.setattr(
+        stage2,
+        "get_dataset_metadata",
+        lambda dataset, task, *, identity: {
+            "dataset_source": "fixture",
+            "dataset_type": "real",
+            "dataset_family": "test",
+            "n_informative": 1,
+        },
+    )
+    monkeypatch.setattr(stage2, "run_evaluation", fail_evaluation)
+
+    result = stage2._run_evaluation(config, RankingStore())  # type: ignore[arg-type]
+
+    assert result.is_failure
+    assert result.error_type == "RuntimeError"
+    assert result.elapsed_seconds == pytest.approx(3.5)
+
+
 @pytest.mark.parametrize(
     ("duplicate_upload", "expected_status"),
     [(False, "done"), (True, "skipped")],

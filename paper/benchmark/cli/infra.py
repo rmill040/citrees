@@ -303,7 +303,7 @@ def launch_api_cmd(
         ),
     ] = None,
 ) -> None:
-    """Launch a Spot API server behind a stable private DNS endpoint.
+    """Launch an on-demand API server behind a stable private DNS endpoint.
 
     Workers use one campaign-scoped endpoint across API replacements.
     """

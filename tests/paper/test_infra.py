@@ -203,7 +203,7 @@ def _api_scope(
     *,
     api_url: str = API_URL,
     artifact_prefix: str = "repairs/run-001",
-    market: str = "spot",
+    market: str = "on-demand",
     public_api_url: str = "http://203.0.113.10:8000",
     runtime_contract_s3_key: str = RUNTIME_CONTRACT_KEY,
     runtime_contract_sha256: str = RUNTIME_CONTRACT_SHA256,
@@ -233,8 +233,8 @@ def _api_instance(
     *,
     api_endpoint: str = API_HOSTNAME,
     launch_id: str = "api-initial",
-    market: str = "spot",
-    instance_lifecycle: str | None = "spot",
+    market: str = "on-demand",
+    instance_lifecycle: str | None = None,
 ) -> dict[str, Any]:
     """Return one API DescribeInstances row with immutable scope tags."""
     instance: dict[str, Any] = {
@@ -502,7 +502,6 @@ class _MemoryEc2:
         tags = [dict(tag) for tag in kwargs["TagSpecifications"][0]["Tags"]]
         self.instances[instance_id] = {
             "InstanceId": instance_id,
-            "InstanceLifecycle": "spot",
             "PrivateIpAddress": f"10.0.0.{index * 10}",
             "PublicIpAddress": f"203.0.113.{index * 10}",
             "State": {"Name": "running"},
@@ -536,7 +535,7 @@ class _MemoryEc2:
         return {}
 
     def interrupt(self, instance_id: str) -> None:
-        """Simulate one completed Spot interruption without endpoint cleanup."""
+        """Simulate one completed instance loss without endpoint cleanup."""
         self.instances[instance_id]["State"] = {"Name": "terminated"}
 
 
@@ -685,7 +684,8 @@ def _patch_campaign_iam(
     "command",
     [launch_api_cmd, launch_workers_cmd, launch_mechanism_workers_cmd],
 )
-def test_distributed_launches_are_spot_only(command: object) -> None:
+def test_distributed_launch_market_is_not_operator_selectable(command: object) -> None:
+    assert "market" not in inspect.signature(command).parameters
     assert "spot" not in inspect.signature(command).parameters
 
 
@@ -1405,7 +1405,7 @@ def test_api_launch_terminates_instance_when_readiness_fails(
     assert readiness_call.kwargs["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
 
 
-def test_api_launch_requests_spot_without_fallback(
+def test_api_launch_requests_on_demand_without_market_options(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1415,18 +1415,12 @@ def test_api_launch_requests_spot_without_fallback(
     _launch_test_api(tmp_path)
 
     kwargs = ec2_client.run_instances.call_args.kwargs
-    assert kwargs["InstanceMarketOptions"] == {
-        "MarketType": "spot",
-        "SpotOptions": {
-            "SpotInstanceType": "one-time",
-            "InstanceInterruptionBehavior": "terminate",
-        },
-    }
+    assert "InstanceMarketOptions" not in kwargs
     tags = {tag["Key"]: tag["Value"] for tag in kwargs["TagSpecifications"][0]["Tags"]}
-    assert tags["citrees-market"] == "spot"
+    assert tags["citrees-market"] == "on-demand"
 
 
-def test_campaign_endpoint_supports_spot_api_replacement_and_scoped_teardown(
+def test_campaign_endpoint_supports_api_replacement_and_scoped_teardown(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1501,9 +1495,7 @@ def test_campaign_endpoint_supports_spot_api_replacement_and_scoped_teardown(
     assert len(ec2.run_requests) == 2
     assert ec2.run_requests[0]["UserData"] == ec2.run_requests[1]["UserData"]
     assert ec2.run_requests[0]["ClientToken"] != ec2.run_requests[1]["ClientToken"]
-    assert {request["InstanceMarketOptions"]["MarketType"] for request in ec2.run_requests} == {
-        "spot"
-    }
+    assert all("InstanceMarketOptions" not in request for request in ec2.run_requests)
     launch_ids = [
         {tag["Key"]: tag["Value"] for tag in request["TagSpecifications"][0]["Tags"]}[
             "citrees-api-launch-id"
@@ -1588,7 +1580,7 @@ def test_running_api_scope_requires_complete_immutable_tags(
         image_uri=DIGEST_URI,
         manifest_s3_key=MANIFEST_KEY,
         manifest_sha256=MANIFEST_SHA256,
-        market="spot",
+        market="on-demand",
         max_cell_attempts=3,
         runtime_contract_s3_key=RUNTIME_CONTRACT_KEY,
         runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
@@ -1619,9 +1611,9 @@ def test_running_api_scope_requires_complete_immutable_tags(
 @pytest.mark.parametrize(
     ("market", "instance_lifecycle", "message"),
     [
-        ("spot", None, "must be Spot"),
-        ("on-demand", "spot", "market tag must be 'spot'"),
-        ("invalid", "spot", "market tag must be 'spot'"),
+        ("on-demand", "spot", "must be on-demand"),
+        ("spot", None, "market tag must be 'on-demand'"),
+        ("invalid", None, "market tag must be 'on-demand'"),
     ],
 )
 def test_running_api_scope_rejects_unproven_market(
@@ -1670,7 +1662,6 @@ def test_api_discovery_and_termination_are_isolated_by_campaign_scope(
         endpoint = f"api.{stage}.{campaign_sha256[:32]}.{campaign_sha256[32:]}.citrees.internal"
         return {
             "InstanceId": instance_id,
-            "InstanceLifecycle": "spot",
             "PrivateIpAddress": private_ip,
             "PublicIpAddress": public_ip,
             "Tags": [
@@ -1694,7 +1685,7 @@ def test_api_discovery_and_termination_are_isolated_by_campaign_scope(
                 {"Key": "citrees-image-uri", "Value": DIGEST_URI},
                 {"Key": "citrees-manifest-key", "Value": MANIFEST_KEY},
                 {"Key": "citrees-manifest-sha256", "Value": MANIFEST_SHA256},
-                {"Key": "citrees-market", "Value": "spot"},
+                {"Key": "citrees-market", "Value": "on-demand"},
                 {"Key": "citrees-max-cell-attempts", "Value": "3"},
                 {
                     "Key": "citrees-runtime-contract-key",
@@ -2207,7 +2198,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         client_tokens.add(call.kwargs["ClientToken"])
         tags = {tag["Key"]: tag["Value"] for tag in call.kwargs["TagSpecifications"][0]["Tags"]}
         assert tags["citrees-instance-family"] == "c6a"
-        assert tags["citrees-market"] == "spot"
+        assert tags["citrees-market"] == "on-demand"
         assert tags["citrees-gate-receipt-key"] == GATE_RECEIPT_KEY
         assert tags["citrees-gate-receipt-sha256"] == GATE_RECEIPT_SHA256
         assert tags["citrees-runtime-contract-key"] == RUNTIME_CONTRACT_KEY
@@ -2218,10 +2209,10 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     intent_key = "repairs/run-001/_control/worker-launches/scale-001/intent.json"
     intent = json.loads(s3.objects[intent_key][0])
     assert intent["instance_family"] == "c6a"
-    assert intent["market"] == "spot"
-    assert intent["schema_version"] == 6
+    assert intent["market"] == "on-demand"
+    assert intent["schema_version"] == 7
     assert intent["api_scope"]["api_url"] == API_URL
-    assert intent["api_scope"]["market"] == "spot"
+    assert intent["api_scope"]["market"] == "on-demand"
     assert "public_api_url" not in intent["api_scope"]
     assert intent["requested_instances"] == 2
     assert intent["gate_receipt_s3_key"] == GATE_RECEIPT_KEY
@@ -2233,6 +2224,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     assert intent["api_scope"]["runtime_contract_s3_key"] == RUNTIME_CONTRACT_KEY
     assert intent["api_scope"]["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
     first_request = ec2.run_instances.call_args_list[0].kwargs
+    assert "InstanceMarketOptions" not in first_request
     user_data = base64.b64decode(first_request["UserData"]).decode("utf-8")
     assert f"-e CITREES_API_URL={API_URL}" in user_data
     assert f"--api-url {API_URL}" in user_data
@@ -2257,7 +2249,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         "i-worker-1",
         "i-worker-2",
     }
-    assert {json.loads(s3.objects[key][0])["market"] for key in outcome_keys} == {"spot"}
+    assert {json.loads(s3.objects[key][0])["market"] for key in outcome_keys} == {"on-demand"}
     assert {json.loads(s3.objects[key][0])["instance_family"] for key in outcome_keys} == {"c6a"}
 
     ec2.run_instances.reset_mock()
@@ -2511,7 +2503,7 @@ def test_worker_launch_rejects_market_mismatch_before_ec2(
     monkeypatch.setattr(
         ec2_infra,
         "get_api_scope",
-        lambda **kwargs: _api_scope(market="on-demand"),
+        lambda **kwargs: _api_scope(market="spot"),
     )
 
     with pytest.raises(RuntimeError, match="does not match running API"):
@@ -3667,6 +3659,7 @@ def test_worker_listing_and_termination_require_one_exact_campaign_launch(
                             },
                             {"Key": "citrees-stage", "Value": "rankings"},
                             {"Key": "citrees-worker-launch-id", "Value": launch_id},
+                            {"Key": "citrees-market", "Value": "on-demand"},
                         ],
                     }
                 ]
@@ -3735,6 +3728,7 @@ def test_worker_listing_rejects_ec2_rows_outside_campaign_launch_identity(
         "citrees-campaign-sha256": CAMPAIGN_SHA256,
         "citrees-stage": "rankings",
         "citrees-worker-launch-id": "campaign-rankings-001",
+        "citrees-market": "on-demand",
     }
     tags[tag_name] = tag_value
     ec2 = MagicMock()
@@ -3756,6 +3750,53 @@ def test_worker_listing_rejects_ec2_rows_outside_campaign_launch_identity(
     monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: ec2)
 
     with pytest.raises(RuntimeError, match="outside the exact campaign launch identity"):
+        ec2_infra.list_workers(
+            "campaign-rankings-001",
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            stage="rankings",
+        )
+
+
+@pytest.mark.parametrize(
+    ("market", "instance_lifecycle"),
+    [
+        ("spot", None),
+        ("on-demand", "spot"),
+    ],
+)
+def test_worker_listing_rejects_spot_instances(
+    market: str,
+    instance_lifecycle: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = {
+        "InstanceId": "i-0123456789abcdef0",
+        "InstanceType": "c6a.8xlarge",
+        "LaunchTime": None,
+        "State": {"Name": "running"},
+        "Tags": [
+            {"Key": ec2_infra.TAG_KEY, "Value": ec2_infra.WORKER_TAG_VALUE},
+            {"Key": "citrees-artifact-prefix", "Value": "repairs/run-001"},
+            {"Key": "citrees-campaign-sha256", "Value": CAMPAIGN_SHA256},
+            {"Key": "citrees-stage", "Value": "rankings"},
+            {
+                "Key": "citrees-worker-launch-id",
+                "Value": "campaign-rankings-001",
+            },
+            {"Key": "citrees-market", "Value": market},
+        ],
+    }
+    if instance_lifecycle is not None:
+        instance["InstanceLifecycle"] = instance_lifecycle
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = {"Reservations": [{"Instances": [instance]}]}
+    monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: ec2)
+
+    with pytest.raises(
+        RuntimeError,
+        match="outside the exact campaign launch identity",
+    ):
         ec2_infra.list_workers(
             "campaign-rankings-001",
             artifact_prefix="repairs/run-001",

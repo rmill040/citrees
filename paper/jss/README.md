@@ -36,6 +36,7 @@ affiliation is Amazon Web Services.
 | Scaling                 | Measure runtime and peak memory across controlled problem dimensions                           | `citrees`, `partykit`, scikit-learn                             |
 | DGRP application        | Demonstrate leakage-safe screening and linkage-disequilibrium-aware stability analysis         | Tree, forest, linear, and marginal baselines                    |
 | Tutorial                | Demonstrate the estimator interface in an executable workflow                                  | Breast Cancer Wisconsin Diagnostic data                         |
+| RDC sensitivity         | Measure the accuracy, ranking stability, and runtime effect of random projection count         | 5, 10, 20, and 40 projections on four small datasets            |
 | Broad benchmark context | Summarize the corrected benchmark without duplicating it                                       | Final arXiv v2 artifacts                                        |
 
 The primary biomedical application is the public Drosophila Genetic Reference
@@ -83,6 +84,11 @@ The suite provides three profiles:
 - `full` rebuilds the manuscript analyses and computational measurements and may
   require parallel hardware.
 
+The RDC sensitivity child uses all four projection counts and five folds in
+every profile. `smoke` uses Wine with seed 0, `quick` uses Wine, Glass, Heart
+Statlog, and Parkinsons with seed 0, and `full` uses all four datasets with
+seeds 0 through 4.
+
 Generated outputs remain below `paper/jss/results/` as ignored build artifacts.
 A full-profile receipt records the clean source revision, dependency versions,
 inputs, and output hashes before manuscript tables and figures enter the
@@ -101,11 +107,19 @@ uv run python -m paper.jss.replication --profile full \
 ```
 
 The command dispatches calibration, matched behavior, controlled performance,
-tutorial, and DGRP preparation analyses. It verifies each child receipt and
-artifact hash before atomically publishing the combined output directory. Use
-`--output-dir` for a new destination; an existing destination is rejected to
-prevent results from different executions from being mixed. The full profile
-also requires a clean Git worktree and rejects source changes during execution.
+tutorial, DGRP preparation, and RDC projection-sensitivity analyses. It verifies
+each child receipt and artifact hash before atomically publishing the combined
+output directory. Use `--output-dir` for a new destination; an existing
+destination is rejected to prevent results from different executions from being
+mixed. The full profile also requires a clean Git worktree and rejects source
+changes during execution.
+
+Run the RDC child independently with the same new-directory rule:
+
+```bash
+uv run python -m paper.jss.replication.rdc_sensitivity --profile smoke \
+  --output-dir paper/jss/results/rdc-sensitivity-smoke
+```
 
 The DGRP inputs are acquired automatically and validated before use. The pinned
 inputs include a 1.32 GB covariate archive that extracts to a 7.22 GB SQLite

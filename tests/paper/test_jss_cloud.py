@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import inspect
 import io
 import json
 import os
 import subprocess
+import sys
 import tarfile
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import pytest
@@ -31,6 +33,13 @@ IMAGE_URI = (
     f"{ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/citrees"
     "@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 )
+SPOT_OPTIONS = {
+    "MarketType": "spot",
+    "SpotOptions": {
+        "SpotInstanceType": "one-time",
+        "InstanceInterruptionBehavior": "terminate",
+    },
+}
 
 
 def _precondition_failed(operation: str) -> ClientError:
@@ -190,7 +199,7 @@ class _MemoryEC2:
                 for spec in campaign.specs
                 if cloud.shard_spec_sha256(spec) == self.active_spec_sha256
             )
-            request = _launch_request(campaign, spec, attempt=1, market="spot")
+            request = _launch_request(campaign, spec, attempt=1)
             return {
                 "Reservations": [
                     {
@@ -246,7 +255,7 @@ class _PaginatedEC2(_MemoryEC2):
     def describe_instances(self, **kwargs: object) -> dict[str, object]:
         token = kwargs.get("NextToken")
         spec = _campaign().specs[0 if token is None else 1]
-        request = _launch_request(_campaign(), spec, attempt=1, market="spot")
+        request = _launch_request(_campaign(), spec, attempt=1)
         response: dict[str, object] = {
             "Reservations": [
                 {
@@ -299,13 +308,12 @@ class _AllActiveEC2(_MemoryEC2):
         campaign = _campaign()
         instances: list[dict[str, object]] = []
         for index, spec in enumerate(campaign.specs):
-            market: cloud.Market = "spot" if index == 0 else "on-demand"
-            request = _launch_request(campaign, spec, attempt=1, market=market)
+            request = _launch_request(campaign, spec, attempt=1)
             instances.append(
                 {
                     "InstanceId": f"i-active-{index}",
                     "InstanceType": campaign.instance_type,
-                    "InstanceLifecycle": "spot" if market == "spot" else None,
+                    "InstanceLifecycle": "spot",
                     "LaunchTime": datetime(2026, 8, 4, 0, 0, index, tzinfo=UTC),
                     "CpuOptions": {"CoreCount": 1, "ThreadsPerCore": 2},
                     "Placement": {"AvailabilityZone": "us-east-1a"},
@@ -320,7 +328,7 @@ class _AllActiveEC2(_MemoryEC2):
                             "Value": str(request.request_index),
                         },
                         {"Key": "citrees-jss-attempt", "Value": "1"},
-                        {"Key": "citrees-jss-market", "Value": market},
+                        {"Key": "citrees-jss-market", "Value": "spot"},
                         {
                             "Key": "citrees-jss-client-token",
                             "Value": request.client_token,
@@ -334,11 +342,11 @@ class _AllActiveEC2(_MemoryEC2):
 class _SpotCapacityEC2(_MemoryEC2):
     def __init__(self) -> None:
         super().__init__()
-        self.spot_attempted = False
+        self.attempt_calls: list[dict[str, object]] = []
 
     def run_instances(self, **kwargs: object) -> dict[str, object]:
-        if "InstanceMarketOptions" in kwargs and not self.spot_attempted:
-            self.spot_attempted = True
+        self.attempt_calls.append(kwargs)
+        if len(self.attempt_calls) == 1:
             raise ClientError(
                 {
                     "Error": {
@@ -355,21 +363,42 @@ class _ZonalSpotCapacityEC2(_MemoryEC2):
     def __init__(self) -> None:
         super().__init__()
         self.spot_attempts = 0
+        self.attempt_calls: list[dict[str, object]] = []
 
     def run_instances(self, **kwargs: object) -> dict[str, object]:
-        if "InstanceMarketOptions" in kwargs:
-            self.spot_attempts += 1
-            if self.spot_attempts == 1:
-                raise ClientError(
-                    {
-                        "Error": {
-                            "Code": "InsufficientInstanceCapacity",
-                            "Message": "zonal spot capacity",
-                        }
-                    },
-                    "RunInstances",
-                )
+        self.attempt_calls.append(kwargs)
+        self.spot_attempts += 1
+        if self.spot_attempts == 1:
+            raise ClientError(
+                {
+                    "Error": {
+                        "Code": "InsufficientInstanceCapacity",
+                        "Message": "zonal spot capacity",
+                    }
+                },
+                "RunInstances",
+            )
         return super().run_instances(**kwargs)
+
+
+class _OnDemandObservedEC2(_MemoryEC2):
+    def __init__(self, active_spec_sha256: str) -> None:
+        super().__init__(active_spec_sha256)
+
+    def describe_instances(self, **kwargs: object) -> dict[str, object]:
+        response = super().describe_instances(**kwargs)
+        reservations = response["Reservations"]
+        assert isinstance(reservations, list)
+        instance = reservations[0]["Instances"][0]  # type: ignore[index]
+        assert isinstance(instance, dict)
+        instance["InstanceLifecycle"] = None
+        tags = instance["Tags"]
+        assert isinstance(tags, list)
+        market_tag = next(
+            tag for tag in tags if isinstance(tag, dict) and tag.get("Key") == "citrees-jss-market"
+        )
+        market_tag["Value"] = "on-demand"
+        return response
 
 
 class _IdempotentTerminatedEC2(_MemoryEC2):
@@ -523,14 +552,13 @@ def _runtime(
     *,
     instance_id: str = "i-worker",
     attempt: int = 1,
-    market: cloud.Market = "spot",
 ) -> cloud.CloudRuntime:
     return cloud.CloudRuntime(
         aws_account_id=ACCOUNT_ID,
         instance_id=instance_id,
         instance_type="c6a.large",
         availability_zone="us-east-1a",
-        market=market,
+        market="spot",
         image_uri=IMAGE_URI,
         ami_id=AMI_ID,
         attempt=attempt,
@@ -542,7 +570,6 @@ def _launch_request(
     spec: shards.ShardSpec,
     *,
     attempt: int,
-    market: cloud.Market,
     request_index: int | None = None,
     subnet_id: str = "subnet-a",
 ) -> cloud.LaunchRequest:
@@ -554,7 +581,7 @@ def _launch_request(
         spec_sha256=cloud.shard_spec_sha256(spec),
         request_index=request_index,
         attempt=attempt,
-        market=market,
+        market="spot",
         instance_type=campaign.instance_type,
         subnet_id=subnet_id,
         instance_profile_name=instance_profile_name,
@@ -564,7 +591,6 @@ def _launch_request(
             spec,
             request_index=request_index,
             attempt=attempt,
-            market=market,
             instance_type=campaign.instance_type,
             subnet_id=subnet_id,
             instance_profile_name=instance_profile_name,
@@ -584,7 +610,6 @@ def _publish_request(
     spec: shards.ShardSpec,
     *,
     attempt: int,
-    market: cloud.Market,
     request_index: int | None = None,
     subnet_id: str = "subnet-a",
 ) -> cloud.LaunchRequest:
@@ -592,7 +617,6 @@ def _publish_request(
         campaign,
         spec,
         attempt=attempt,
-        market=market,
         request_index=request_index,
         subnet_id=subnet_id,
     )
@@ -742,7 +766,6 @@ def _publish_runtime_launch(
         campaign,
         spec,
         attempt=runtime.attempt,
-        market=runtime.market,
     )
     cloud.publish_launch_record(
         campaign,
@@ -824,10 +847,14 @@ def _upload_local_shard(
 def test_campaign_manifest_round_trip_and_tampering_rejection() -> None:
     campaign = _campaign()
     payload = cloud._manifest_bytes(campaign)
+    manifest = json.loads(payload)
 
     assert cloud.parse_campaign(payload, campaign.campaign_sha256) == campaign
+    assert campaign.market == "spot"
+    assert manifest["schema_version"] == 2
+    assert manifest["market"] == "spot"
 
-    value = json.loads(payload)
+    value = dict(manifest)
     value["base_seed"] = True
     with pytest.raises(TypeError, match="base_seed must be an integer"):
         cloud.parse_campaign(json.dumps(value).encode(), campaign.campaign_sha256)
@@ -840,6 +867,11 @@ def test_campaign_manifest_round_trip_and_tampering_rejection() -> None:
     value = json.loads(payload)
     value["specs"].reverse()
     with pytest.raises(ValueError, match="canonical inventory"):
+        cloud.parse_campaign(json.dumps(value).encode(), campaign.campaign_sha256)
+
+    value = dict(manifest)
+    value["market"] = "on-demand"
+    with pytest.raises(ValueError, match="campaign market must be 'spot'"):
         cloud.parse_campaign(json.dumps(value).encode(), campaign.campaign_sha256)
 
     with pytest.raises(ValueError, match="requested campaign"):
@@ -1043,13 +1075,20 @@ def test_cloud_worker_embeds_and_validates_runtime_provenance(
         cloud._validate_cloud_receipt(extracted, campaign, spec)
 
     receipt["git_sha"] = campaign.git_sha
-    receipt["cloud_execution"]["market"] = "invalid"
+    receipt["cloud_execution"]["market"] = "on-demand"
     (extracted / "receipt.json").write_text(
         json.dumps(receipt) + "\n",
         encoding="ascii",
     )
-    with pytest.raises(ValueError, match="worker market is invalid"):
+    with pytest.raises(ValueError, match="cloud market must be 'spot'"):
         cloud._validate_cloud_receipt(extracted, campaign, spec)
+
+    on_demand_runtime = replace(
+        runtime,
+        market=cast(cloud.Market, "on-demand"),
+    )
+    with pytest.raises(ValueError, match="worker market must be 'spot'"):
+        cloud._validate_runtime(campaign, on_demand_runtime)
 
 
 def test_cloud_worker_rejects_unverified_output_before_upload(
@@ -1158,7 +1197,8 @@ def test_campaign_status_and_materialization_validate_every_archive(
         "terminal_instance_attempts": 5,
     }
     assert accounting["markets"]["spot"]["accepted_archive_attempts"] == 5
-    assert accounting["markets"]["on-demand"]["accepted_archive_attempts"] == 0
+    assert set(accounting["markets"]) == {"spot"}
+    assert accounting["market"] == "spot"
     assert accounting["components"]["behavior"]["assignments"] == len(
         behavior.behavior_cell_inventory("smoke")
     )
@@ -1245,7 +1285,7 @@ def test_compute_accounting_records_success_after_prior_attempt(
     client = _MemoryS3()
     cloud.publish_campaign(campaign, s3_client=client)
     first_spec = campaign.specs[0]
-    interrupted = _runtime(instance_id="i-interrupted", attempt=1, market="spot")
+    interrupted = _runtime(instance_id="i-interrupted", attempt=1)
     _publish_runtime_launch(client, campaign, first_spec, interrupted)
     _publish_terminal_outcome(
         client,
@@ -1258,7 +1298,6 @@ def test_compute_accounting_records_success_after_prior_attempt(
     completed_runtime = _runtime(
         instance_id="i-recovered",
         attempt=2,
-        market="on-demand",
     )
     first_output = _local_shard(tmp_path, campaign, first_spec, completed_runtime)
     first_archive = tmp_path / "recovered.tar.gz"
@@ -1297,7 +1336,8 @@ def test_compute_accounting_records_success_after_prior_attempt(
     assert accounting["totals"]["observed_logical_cpu_capacity_seconds"] == 106.0
     assert accounting["totals"]["shards_succeeding_after_prior_attempts"] == 1
     assert accounting["markets"]["spot"]["prior_attempts_without_accepted_archive"] == 1
-    assert accounting["markets"]["on-demand"]["accepted_archive_attempts"] == 1
+    assert accounting["markets"]["spot"]["accepted_archive_attempts"] == 5
+    assert set(accounting["markets"]) == {"spot"}
     assert accounting["completed_shards"][0]["attempt"] == 2
 
 
@@ -1312,7 +1352,6 @@ def test_compute_accounting_rejects_launch_after_accepted_completion(
     invalid_runtime = _runtime(
         instance_id="i-invalid-later",
         attempt=2,
-        market="on-demand",
     )
     _publish_runtime_launch(
         client,
@@ -1368,7 +1407,6 @@ def test_launch_intents_and_capacity_observations_converge_across_controllers() 
     kwargs: dict[str, Any] = {
         "requests": (),
         "launches": (),
-        "market": "spot",
         "subnet_id": "subnet-a",
         "instance_profile_name": "citrees-campaign-test",
         "security_group_id": "sg-test",
@@ -1398,6 +1436,39 @@ def test_launch_intents_and_capacity_observations_converge_across_controllers() 
     assert status.unresolved_requests == ()
     assert len(status.launch_rejections) == 2
     assert len(status.launches) == 1
+
+
+def test_launch_request_and_record_reject_on_demand_market() -> None:
+    campaign = _campaign()
+    spec = campaign.specs[0]
+    client = _MemoryS3()
+    request = _launch_request(campaign, spec, attempt=1)
+    on_demand_request = replace(
+        request,
+        market=cast(cloud.Market, "on-demand"),
+    )
+
+    with pytest.raises(ValueError, match="launch request market must be 'spot'"):
+        cloud.publish_launch_request(campaign, on_demand_request, s3_client=client)
+    with pytest.raises(ValueError, match="launch request market must be 'spot'"):
+        cloud._run_instance_arguments(campaign, on_demand_request)
+
+    valid_request = _publish_request(client, campaign, spec, attempt=1)
+    on_demand_record = cloud.LaunchRecord(
+        spec=spec,
+        spec_sha256=cloud.shard_spec_sha256(spec),
+        request_index=valid_request.request_index,
+        attempt=1,
+        market=cast(cloud.Market, "on-demand"),
+        instance_type=campaign.instance_type,
+        client_token=valid_request.client_token,
+        instance_id="i-on-demand",
+        availability_zone="us-east-1a",
+        launch_time="2026-08-04T00:00:00+00:00",
+        logical_cpus=2,
+    )
+    with pytest.raises(ValueError, match="launch market must be 'spot'"):
+        cloud.publish_launch_record(campaign, on_demand_record, s3_client=client)
 
 
 def test_distinct_capacity_rejections_materialize_without_path_collision(
@@ -1570,7 +1641,6 @@ def test_worker_user_data_preserves_shell_continuations() -> None:
         campaign,
         campaign.specs[0],
         attempt=1,
-        market="spot",
     )
     lines = script.splitlines()
 
@@ -1593,7 +1663,7 @@ def test_worker_user_data_preserves_shell_continuations() -> None:
     )
 
 
-def test_launch_skips_completed_and_active_shards_and_splits_markets(
+def test_launch_skips_completed_and_active_shards_and_uses_spot_only(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1605,23 +1675,20 @@ def test_launch_skips_completed_and_active_shards_and_splits_markets(
         campaign,
         campaign.specs[1],
         attempt=1,
-        market="spot",
     )
     ec2 = _MemoryEC2(cloud.shard_spec_sha256(campaign.specs[1]))
 
     _patch_launch_prerequisites(monkeypatch)
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=3,
         max_new_instances=2,
         ec2_client=ec2,
         s3_client=client,
     )
 
     assert [record.spec for record in records] == list(campaign.specs[2:4])
-    assert [record.market for record in records] == ["spot", "on-demand"]
-    assert "InstanceMarketOptions" in ec2.run_calls[0]
-    assert "InstanceMarketOptions" not in ec2.run_calls[1]
+    assert [record.market for record in records] == ["spot", "spot"]
+    assert all(call["InstanceMarketOptions"] == SPOT_OPTIONS for call in ec2.run_calls)
     assert ec2.run_calls[0]["ImageId"] == AMI_ID
     assert ec2.run_calls[0]["MetadataOptions"] == {
         "HttpEndpoint": "enabled",
@@ -1650,14 +1717,12 @@ def test_unterminated_launch_is_not_retried(
 
     first = cloud.launch_missing_shards(
         campaign,
-        spot_count=1,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
     )
     second = cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
@@ -1667,6 +1732,8 @@ def test_unterminated_launch_is_not_retried(
     assert len(second) == 1
     assert second[0].spec != first[0].spec
     assert all(record.attempt == 1 for record in (*first, *second))
+    assert all(record.market == "spot" for record in (*first, *second))
+    assert all("InstanceMarketOptions" in call for call in ec2.run_calls)
     assert len(ec2.run_calls) == 2
 
 
@@ -1677,7 +1744,7 @@ def test_tag_discovery_miss_exact_lookup_active_state_is_not_retried(
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    runtime = _runtime(instance_id=f"i-{state}", attempt=1, market="spot")
+    runtime = _runtime(instance_id=f"i-{state}", attempt=1)
     _publish_runtime_launch(client, campaign, campaign.specs[0], runtime)
     ec2 = _ScriptedExactLookupEC2(
         runtime.instance_id,
@@ -1687,7 +1754,6 @@ def test_tag_discovery_miss_exact_lookup_active_state_is_not_retried(
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
@@ -1703,7 +1769,7 @@ def test_tag_discovery_miss_exact_lookup_terminated_records_actual_reason_and_re
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    terminated = _runtime(instance_id="i-terminated", attempt=1, market="spot")
+    terminated = _runtime(instance_id="i-terminated", attempt=1)
     _publish_runtime_launch(client, campaign, campaign.specs[0], terminated)
     ec2 = _ScriptedExactLookupEC2(
         terminated.instance_id,
@@ -1719,14 +1785,13 @@ def test_tag_discovery_miss_exact_lookup_terminated_records_actual_reason_and_re
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
     )
 
     assert [(record.spec, record.attempt, record.market) for record in records] == [
-        (campaign.specs[0], 2, "on-demand")
+        (campaign.specs[0], 2, "spot")
     ]
     outcomes = cloud.campaign_status(campaign, s3_client=client).instance_outcomes
     assert len(outcomes) == 1
@@ -1749,7 +1814,7 @@ def test_recent_exact_lookup_absence_is_indeterminate_and_not_retried(
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    runtime = _runtime(instance_id="i-recent", attempt=1, market="spot")
+    runtime = _runtime(instance_id="i-recent", attempt=1)
     _publish_runtime_launch(
         client,
         campaign,
@@ -1762,7 +1827,6 @@ def test_recent_exact_lookup_absence_is_indeterminate_and_not_retried(
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
@@ -1778,7 +1842,7 @@ def test_old_exact_lookup_not_found_then_running_is_not_retried(
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    runtime = _runtime(instance_id="i-delayed", attempt=1, market="spot")
+    runtime = _runtime(instance_id="i-delayed", attempt=1)
     _publish_runtime_launch(
         client,
         campaign,
@@ -1800,7 +1864,6 @@ def test_old_exact_lookup_not_found_then_running_is_not_retried(
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
@@ -1826,7 +1889,7 @@ def test_old_persistent_exact_lookup_absence_is_recorded_and_retried(
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    expired = _runtime(instance_id="i-expired", attempt=1, market="spot")
+    expired = _runtime(instance_id="i-expired", attempt=1)
     _publish_runtime_launch(
         client,
         campaign,
@@ -1842,14 +1905,13 @@ def test_old_persistent_exact_lookup_absence_is_recorded_and_retried(
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
     )
 
     assert [(record.spec, record.attempt, record.market) for record in records] == [
-        (campaign.specs[0], 2, "on-demand")
+        (campaign.specs[0], 2, "spot")
     ]
     outcomes = cloud.campaign_status(campaign, s3_client=client).instance_outcomes
     assert len(outcomes) == 1
@@ -1872,7 +1934,7 @@ def test_exact_lookup_operational_errors_propagate_without_outcome_or_launch(
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    runtime = _runtime(instance_id="i-error", attempt=1, market="spot")
+    runtime = _runtime(instance_id="i-error", attempt=1)
     _publish_runtime_launch(client, campaign, campaign.specs[0], runtime)
     ec2 = _ScriptedExactLookupEC2(runtime.instance_id, [_ec2_error(error_code)])
     _patch_launch_prerequisites(monkeypatch)
@@ -1880,7 +1942,6 @@ def test_exact_lookup_operational_errors_propagate_without_outcome_or_launch(
     with pytest.raises(ClientError) as raised:
         cloud.launch_missing_shards(
             campaign,
-            spot_count=0,
             max_new_instances=1,
             ec2_client=ec2,
             s3_client=client,
@@ -1903,24 +1964,30 @@ def test_active_instance_discovery_reads_every_page() -> None:
     assert [item.launch.instance_id for item in observed] == ["i-page-1", "i-page-2"]
 
 
+def test_active_instance_discovery_rejects_on_demand_instance() -> None:
+    campaign = _campaign()
+    spec_sha256 = cloud.shard_spec_sha256(campaign.specs[0])
+
+    with pytest.raises(ValueError, match="campaign instance market must be 'spot'"):
+        cloud._campaign_instances(campaign, _OnDemandObservedEC2(spec_sha256))
+
+
 def test_active_instances_recover_missing_launch_records(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     campaign = _campaign()
     client = _MemoryS3()
-    for index, spec in enumerate(campaign.specs):
+    for spec in campaign.specs:
         _publish_request(
             client,
             campaign,
             spec,
             attempt=1,
-            market="spot" if index == 0 else "on-demand",
         )
     _patch_launch_prerequisites(monkeypatch)
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=1,
         ec2_client=_AllActiveEC2(),
         s3_client=client,
     )
@@ -1934,7 +2001,7 @@ def test_active_instances_recover_missing_launch_records(
     }
 
 
-def test_terminated_launch_is_recovered_before_market_fallback(
+def test_terminated_launch_is_recovered_before_spot_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     campaign = _campaign()
@@ -1950,14 +2017,12 @@ def test_terminated_launch_is_recovered_before_market_fallback(
     with pytest.raises(RuntimeError, match="simulated crash"):
         cloud.launch_missing_shards(
             campaign,
-            spot_count=1,
             max_new_instances=1,
             ec2_client=ec2,
             s3_client=client,
         )
     cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
@@ -1969,8 +2034,9 @@ def test_terminated_launch_is_recovered_before_market_fallback(
     )
     assert [(record.attempt, record.market, record.instance_id) for record in launches] == [
         (1, "spot", "i-launched-1"),
-        (2, "on-demand", "i-launched-2"),
+        (2, "spot", "i-launched-2"),
     ]
+    assert all("InstanceMarketOptions" in call for call in ec2.run_calls)
     assert len(ec2.run_calls) == 2
     assert ec2.run_calls[1]["ClientToken"] != ec2.run_calls[0]["ClientToken"]
 
@@ -1991,7 +2057,6 @@ def test_timeout_after_acceptance_recovers_without_replaying_request(
     with pytest.raises(ReadTimeoutError):
         cloud.launch_missing_shards(
             campaign,
-            spot_count=1,
             max_new_instances=1,
             ec2_client=ec2,
             s3_client=client,
@@ -2002,7 +2067,6 @@ def test_timeout_after_acceptance_recovers_without_replaying_request(
 
     cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
@@ -2014,8 +2078,9 @@ def test_timeout_after_acceptance_recovers_without_replaying_request(
     )
     assert [(record.attempt, record.market, record.instance_id) for record in launches] == [
         (1, "spot", "i-launched-1"),
-        (2, "on-demand", "i-launched-2"),
+        (2, "spot", "i-launched-2"),
     ]
+    assert all("InstanceMarketOptions" in call for call in ec2.run_calls)
     assert len(ec2.run_calls) == 2
     assert ec2.run_calls[1]["ClientToken"] != ec2.run_calls[0]["ClientToken"]
 
@@ -2031,7 +2096,6 @@ def test_undiscoverable_ambiguous_launch_is_not_replayed(
     with pytest.raises(ReadTimeoutError):
         cloud.launch_missing_shards(
             campaign,
-            spot_count=1,
             max_new_instances=1,
             ec2_client=ec2,
             s3_client=client,
@@ -2039,7 +2103,6 @@ def test_undiscoverable_ambiguous_launch_is_not_replayed(
     with pytest.raises(RuntimeError, match="refusing automatic replay"):
         cloud.launch_missing_shards(
             campaign,
-            spot_count=0,
             max_new_instances=1,
             ec2_client=ec2,
             s3_client=client,
@@ -2061,21 +2124,20 @@ def test_retry_attempts_come_from_immutable_launch_history(
 
     first = cloud.launch_missing_shards(
         campaign,
-        spot_count=1,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
     )
     second = cloud.launch_missing_shards(
         campaign,
-        spot_count=0,
         max_new_instances=1,
         ec2_client=ec2,
         s3_client=client,
     )
 
     assert [first[0].attempt, second[0].attempt] == [1, 2]
-    assert [first[0].market, second[0].market] == ["spot", "on-demand"]
+    assert [first[0].market, second[0].market] == ["spot", "spot"]
+    assert all("InstanceMarketOptions" in call for call in ec2.run_calls)
     launches = cloud.list_launch_records(campaign, s3_client=client)
     assert [record.attempt for record in launches] == [1, 2]
 
@@ -2109,7 +2171,7 @@ def test_launch_history_rejects_time_reversed_attempts() -> None:
         cloud.list_launch_records(campaign, s3_client=client)
 
 
-def test_spot_capacity_limit_still_launches_on_demand_inventory(
+def test_spot_capacity_limit_stops_launch_pass_without_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     campaign = _campaign()
@@ -2119,19 +2181,21 @@ def test_spot_capacity_limit_still_launches_on_demand_inventory(
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=2,
         max_new_instances=3,
         ec2_client=ec2,
         s3_client=client,
     )
 
-    assert ec2.spot_attempted
-    assert len(records) == 1
-    assert records[0].spec == campaign.specs[2]
-    assert records[0].market == "on-demand"
+    assert len(ec2.attempt_calls) == 1
+    assert ec2.attempt_calls[0]["InstanceMarketOptions"] == SPOT_OPTIONS
+    assert records == ()
+    status = cloud.campaign_status(campaign, s3_client=client)
+    assert len(status.launch_requests) == 1
+    assert len(status.launch_rejections) == 1
+    assert status.launches == ()
 
 
-def test_zonal_spot_capacity_error_continues_across_subnets(
+def test_zonal_spot_capacity_error_stops_launch_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     campaign = _campaign()
@@ -2141,22 +2205,19 @@ def test_zonal_spot_capacity_error_continues_across_subnets(
 
     records = cloud.launch_missing_shards(
         campaign,
-        spot_count=3,
         max_new_instances=4,
         ec2_client=ec2,
         s3_client=client,
     )
 
-    assert ec2.spot_attempts == 3
-    assert [record.spec for record in records] == list(campaign.specs[1:4])
-    assert [record.market for record in records] == ["spot", "spot", "on-demand"]
+    assert ec2.spot_attempts == 1
+    assert ec2.attempt_calls[0]["InstanceMarketOptions"] == SPOT_OPTIONS
+    assert records == ()
 
 
 @pytest.mark.parametrize(
     ("argument", "value", "match"),
     [
-        ("spot_count", True, "spot_count must be an integer"),
-        ("spot_count", 1.5, "spot_count must be an integer"),
         ("max_new_instances", True, "max_new_instances must be an integer"),
         ("max_new_instances", 1.5, "max_new_instances must be an integer"),
     ],
@@ -2168,13 +2229,45 @@ def test_launch_rejects_noninteger_counts(
 ) -> None:
     campaign = _campaign()
     kwargs: dict[str, object] = {
-        "spot_count": 0,
         "max_new_instances": 1,
     }
     kwargs[argument] = value
 
     with pytest.raises(TypeError, match=match):
         cloud.launch_missing_shards(campaign, **kwargs)  # type: ignore[arg-type]
+
+
+def test_launch_api_and_cli_have_no_spot_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert "spot_count" not in inspect.signature(cloud.launch_missing_shards).parameters
+    argv = [
+        "cloud",
+        "launch",
+        "--profile",
+        "smoke",
+        "--seed",
+        "7",
+        *[
+            argument
+            for component in cloud.COMPONENTS
+            for argument in (f"--{component.replace('_', '-')}-shards", "1")
+        ],
+        "--image-uri",
+        IMAGE_URI,
+        "--instance-type",
+        "c6a.large",
+        "--ami-id",
+        AMI_ID,
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    args = cloud._parse_args()
+    assert args.command == "launch"
+    assert not hasattr(args, "spot_count")
+
+    monkeypatch.setattr(sys, "argv", [*argv, "--spot-count", "1"])
+    with pytest.raises(SystemExit):
+        cloud._parse_args()
 
 
 def test_cloud_driver_is_part_of_shard_source_identity() -> None:

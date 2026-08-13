@@ -683,6 +683,62 @@ def test_gate_accepts_a_complete_inventory_with_stage1_recovery_mask() -> None:
     )
 
 
+def test_gate_accepts_a_complete_inventory_with_execution_exclusions() -> None:
+    manifest = _manifest()
+    excluded_cells = tuple(
+        replace(
+            cell,
+            stage1_required=False,
+            stage2_required=False,
+        )
+        if index % 11 == 0 and cell.config.method.name == "r_cforest"
+        else cell
+        for index, cell in enumerate(manifest.cells)
+    )
+    excluded_manifest = replace(
+        manifest,
+        campaign_sha256=compute_campaign_sha256(
+            excluded_cells,
+            runtime_contract_sha256=manifest.runtime_contract_sha256,
+        ),
+        cells=excluded_cells,
+    )
+
+    inventory = gate._replacement_inventory(excluded_manifest)
+    replacement_cells = tuple(
+        cell for cell in excluded_cells if cell.config.method.name == "r_cforest"
+    )
+
+    assert any(not cell.stage1_required and not cell.stage2_required for cell in replacement_cells)
+    assert (
+        sum(len(cells) for datasets in inventory.values() for cells in datasets.values())
+        == gate.EXPECTED_REPLACEMENT_CELLS
+    )
+
+
+def test_gate_rejects_changed_replacement_reason() -> None:
+    manifest = _manifest()
+    changed_one = False
+    cells: list[ManifestCell] = []
+    for cell in manifest.cells:
+        if not changed_one and cell.config.method.name == "r_cforest":
+            cell = replace(cell, rerun_reason="different")
+            changed_one = True
+        cells.append(cell)
+    frozen_cells = tuple(cells)
+    changed_manifest = replace(
+        manifest,
+        campaign_sha256=compute_campaign_sha256(
+            frozen_cells,
+            runtime_contract_sha256=manifest.runtime_contract_sha256,
+        ),
+        cells=frozen_cells,
+    )
+
+    with pytest.raises(ValueError, match="cell contract differs"):
+        gate._replacement_inventory(changed_manifest)
+
+
 def test_linux_process_identity_uses_boot_id_and_start_ticks(tmp_path: Path) -> None:
     boot_id = tmp_path / "boot_id"
     process_stat = tmp_path / "stat"

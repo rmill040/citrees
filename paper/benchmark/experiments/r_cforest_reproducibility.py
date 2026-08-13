@@ -516,7 +516,7 @@ def _replacement_inventory(
         )
     grouped: dict[tuple[TaskType, str], list[ManifestCell]] = defaultdict(list)
     for cell in replacement_cells:
-        if cell.rerun_reason != REPLACEMENT_REASON or not cell.stage2_required:
+        if cell.rerun_reason != REPLACEMENT_REASON:
             raise ValueError("replacement manifest cell contract differs")
         grouped[(cell.config.task, cell.config.dataset)].append(cell)
     if len(grouped) != EXPECTED_DATASET_TASK_PAIRS:

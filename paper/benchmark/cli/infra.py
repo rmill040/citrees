@@ -226,6 +226,13 @@ def launch_api_cmd(
             help="Isolated S3 prefix for corrected artifacts",
         ),
     ] = "",
+    launch_id: Annotated[
+        str,
+        typer.Option(
+            "--launch-id",
+            help="Unique identity for this API instance; replacements require a new value",
+        ),
+    ] = "",
     canonical_manifest_path: Annotated[
         Path | None,
         typer.Option(
@@ -296,16 +303,16 @@ def launch_api_cmd(
         ),
     ] = None,
 ) -> None:
-    """Launch the API server on an EC2 instance.
+    """Launch a Spot API server behind a stable private DNS endpoint.
 
-    Starts a single instance running the FastAPI queue server on port 8000.
-    Workers connect to this server to pull and report experiment configs.
+    Workers use one campaign-scoped endpoint across API replacements.
     """
     from paper.benchmark.infra.ec2 import launch_api
 
     if (
         not image_uri
         or not artifact_prefix
+        or not launch_id
         or canonical_manifest_path is None
         or manifest_path is None
         or runtime_contract_path is None
@@ -313,8 +320,9 @@ def launch_api_cmd(
         or max_cell_attempts is None
     ):
         error(
-            "--image-uri, --artifact-prefix, --canonical-manifest, --manifest, "
-            "--runtime-contract, --gate-receipt, and --max-cell-attempts are required"
+            "--image-uri, --artifact-prefix, --launch-id, --canonical-manifest, "
+            "--manifest, --runtime-contract, --gate-receipt, and "
+            "--max-cell-attempts are required"
         )
         raise typer.Exit(2)
 
@@ -324,6 +332,7 @@ def launch_api_cmd(
         instance_type=instance_type,
         image_uri=image_uri,
         artifact_prefix=artifact_prefix,
+        launch_id=launch_id,
         canonical_manifest_path=canonical_manifest_path,
         gate_receipt_path=gate_receipt_path,
         manifest_path=manifest_path,
@@ -334,7 +343,8 @@ def launch_api_cmd(
     )
 
     if result["api_url"]:
-        console.print(f"\n  API URL: [bold cyan]{result['api_url']}[/]")
+        console.print(f"\n  Worker API URL: [bold cyan]{result['api_url']}[/]")
+        console.print(f"  Public API URL: [bold cyan]{result['public_api_url']}[/]")
         console.print("  Instance: " + result["instance_id"])
 
 
@@ -525,8 +535,7 @@ def launch_workers_cmd(
     """Launch EC2 worker instances.
 
     Each instance pulls a Docker image from ECR and runs a worker process
-    that gets work assignments from the API server. The API server's private
-    IP is auto-discovered from EC2.
+    that gets work assignments from the API server's stable private endpoint.
     """
     from paper.benchmark.infra.ec2 import launch_workers
 

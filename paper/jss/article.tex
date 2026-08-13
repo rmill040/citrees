@@ -100,8 +100,16 @@ of the response. \citrees uses the corrected Monte Carlo value
 whose minimum attainable value is $1/(B+1)$
 \citep{Phipson+Smyth:2010}. With multiplicity adjustment enabled, predictor
 $j$ passes the nodewise screen when $p_j < \alpha_{\mathrm{A}}/|F_t|$.
-With adjustment disabled, the threshold is $\alpha_{\mathrm{A}}$. The passing
-predictor with the smallest value is selected, with random tie resolution.
+The per-candidate permutation budget is recomputed at each node from this
+adjusted level. Named minimum, automatic, and maximum settings use
+$\alpha_{\mathrm{A}}/|F_t|$, while a numeric budget is multiplied by
+$|F_t|$. The minimum setting therefore uses
+$\lceil |F_t|/\alpha_{\mathrm{A}} \rceil$ permutations, the first budget that
+permits a corrected value below the adjusted gate. With adjustment disabled,
+the threshold is $\alpha_{\mathrm{A}}$. The passing predictor with the smallest
+value is selected. Exact ties among evaluated candidates are resolved by
+one-pass reservoir sampling, which gives each tied candidate equal probability
+under the fitted random seed.
 
 Classification selectors include multiple correlation, mutual information,
 and the randomized dependence coefficient. Regression selectors include
@@ -125,11 +133,14 @@ by 66.8\% to 67.5\% relative to 20 while preserving the observed accuracy at
 these scales.
 
 The exhaustive procedure evaluates every candidate with the requested
-permutation budget and reports fixed-$B$ $p$~values. Adaptive stopping checks
-its posterior criterion every 32 permutations; simple stopping checks
-significance and futility after each permutation beyond the minimum budget.
-Both sequential modes can stop at the first passing candidate and report the
-fitted decision and realized permutation count.
+permutation budget and reports fixed-$B$ $p$~values. Before sequential feature
+testing, candidates are sampled without replacement under the fitted random
+seed. Feature scanning reorders that sample by the observed selector statistic.
+Adaptive stopping checks its posterior criterion every 32 permutations; simple
+stopping checks significance and futility after each permutation beyond the
+minimum budget. Both sequential modes can stop at the first candidate whose
+value passes the adjusted gate. The fitted estimator reports the resulting
+decision and realized selector and threshold permutation counts.
 
 \subsection{Threshold selection} \label{sec:thresholds}
 
@@ -146,7 +157,10 @@ tested with response permutations using a left-tail counterpart of
 Equation~\ref{eq:permutation-p}. If no candidate passes the configured Stage B
 threshold, the node is terminal. The accepted threshold is a tree-construction
 decision after feature selection. Calibration analyses evaluate the fixed-node
-permutation gates.
+permutation gates. Stage B applies the same per-node Bonferroni budget rule
+across admissible thresholds. During sequential fitting, threshold scanning
+orders candidates by weighted impurity; otherwise their order is randomized
+under the fitted seed.
 
 \subsection{Forests and feature summaries} \label{sec:forests}
 
@@ -297,7 +311,36 @@ combinations, valid probability thresholds, feasible sample fractions, and
 forest settings with defined outputs. Random seeds are propagated through
 permutation tests, sample splitting, bootstrap sampling, and tree construction.
 Fitted estimators retain the parameters expected by \sklearn cloning and
-model-selection utilities.
+model-selection utilities. Table~\ref{tab:software-architecture} summarizes
+the responsibilities and interfaces of the main implementation components.
+
+\begin{center}
+\small
+\begin{tabular}{p{0.22\textwidth}p{0.67\textwidth}}
+\hline
+Component & Responsibility \\ \hline
+Parameter validation & Check selector compatibility, probability thresholds,
+sampling fractions, and forest settings before fitting. \\
+Nodewise testing & Resolve registered association statistics and permutation
+procedures, then retain realized permutation counts. \\
+Threshold selection & Generate admissible candidates for the selected
+predictor and evaluate registered impurity criteria and permutation tests. \\
+Tree recursion & Propagate node samples, active predictors, depth, and fitted
+random state while constructing terminal and internal nodes. \\
+Forest aggregation & Fit independently seeded trees to resampled observations
+and predictor subsets, then aggregate predictions and feature importances. \\
+Random seeds & Derive node operations from the estimator seed and
+one deterministic seed per forest tree. \\
+Model inspection & Expose the fitted tree, terminal-node assignments, sparse
+decision paths, feature importances, and realized permutation counts. \\
+Extension points & Register new association statistics, permutation tests,
+split criteria, and threshold generators behind the common estimator
+interface. \\ \hline
+\end{tabular}
+\captionof{table}{\label{tab:software-architecture} Responsibilities of the
+main software components. Registered statistical components are shared by the
+classification and regression estimators.}
+\end{center}
 
 \subsection{Computation} \label{sec:computation}
 
@@ -416,7 +459,11 @@ data and the \sklearn diabetes regression data. Each dataset is partitioned by
 integer seed through their native random-number streams. Structural controls
 use maximum depth 3, minimum split size 20, minimum leaf size 7, all predictors,
 and 999 nominal response permutations. Forests contain 100 trees and use
-full-size bootstrap samples.
+full-size bootstrap samples. These controls align the data partitions, stopping
+depth, node-size constraints, predictor availability, permutation budget,
+bootstrap size, and forest size. Each implementation retains its native
+association statistic, threshold criterion, random-number stream, and feature
+summary.
 
 Tree comparisons record whether each implementation splits and whether the
 root predictors agree when both split. Tree feature summaries count accepted
@@ -468,8 +515,9 @@ lines. We compute one mean outcome per line for seven traits after requiring
 at least seven recorded individuals: diastolic interval, systolic interval,
 heart period, end diastolic diameter, end systolic diameter, fractional
 shortening, and arrhythmia index. This rule retains 157 to 166 lines per trait.
-End diastolic diameter is the prespecified primary trait. The other six traits
-form a prespecified secondary family.
+End diastolic diameter was specified as the primary trait before the full
+profile was run. The other six traits form the secondary family specified
+before that run.
 
 The DGRP2 genotypes and Phenosnip covariates come from the associated
 ArchiHeart deposit \citep{Saha+Spinelli+CastroMondragon:2021Data}. Genotype
@@ -506,11 +554,12 @@ set. Held-out performance is measured by mean squared error and by predictive
 $R^2$ relative to the mean adjusted outcome in the training set.
 
 Feature stability is evaluated within each repeat by comparing every pair of
-training folds. The prespecified primary stability endpoint is the exact
-Jaccard similarity of the top 10 variants. Secondary summaries use exact sets
-of 5 and 25 variants and linkage-disequilibrium-aware sets at all three feature
-counts. The latter use maximum-cardinality one-to-one matching between variants
-on the same chromosome when their squared correlation is at least 0.8.
+training folds. The exact Jaccard similarity of the top 10 variants was
+specified as the primary stability endpoint before the full profile was run.
+Secondary summaries use exact sets of 5 and 25 variants and
+linkage-disequilibrium-aware sets at all three feature counts. The latter use
+maximum-cardinality one-to-one matching between variants on the same chromosome
+when their squared correlation is at least 0.8.
 Correlations are computed from unadjusted genotype dosages among DGRP lines
 shared by the two training sets, using pairwise-complete observations.
 
@@ -551,9 +600,9 @@ $t(49)=-0.297$ and a lower-tailed $p$~value of 0.384. At the same feature
 count, the forest ranking had the lowest mean squared error for five of the
 seven traits; the tree ranking had the lowest value for end systolic diameter,
 and the marginal ranking had the lowest value for arrhythmia index.
-Table~\ref{tab:dgrp-inference} reports the prespecified contrast for every
-trait. The difference was negative for five of the six secondary traits. All
-six Holm-adjusted $p$~values were at least 0.849.
+Table~\ref{tab:dgrp-inference} reports the contrast specified before the full
+profile was run for every trait. The difference was negative for five of the
+six secondary traits. All six Holm-adjusted $p$~values were at least 0.849.
 
 \begin{center}
 \begin{tabular}{lrrrrrr}
@@ -582,11 +631,11 @@ Across the 28 combinations of trait and feature count at 5, 10, 25, and 50
 variants, the forest ranking had the lowest mean squared error in 21, the tree
 in 4, the marginal ranking in 2, and the ridge ranking in 1. At 100 variants,
 all four methods supplied the same candidate set to the downstream model and
-therefore produced identical predictions. The mean adjusted outcome from the
-training set yielded lower average squared error than every ranking evaluated
-with ridge regression. Mean predictive $R^2$ across the 140 configurations
-ranged from $-4.180$ to $-0.201$; at 10 variants, it ranged from $-1.163$ to
-$-0.248$.
+therefore produced numerically identical predictions. The mean adjusted
+outcome from the training set yielded lower average squared error than every
+ranking evaluated with ridge regression. Mean predictive $R^2$ across the 140
+configurations ranged from $-4.180$ to $-0.201$; at 10 variants, it ranged from
+$-1.163$ to $-0.248$.
 
 The selected variants were also sensitive to the training fold. Across 100
 fold pairs for each trait and method, mean exact top-10 Jaccard similarity

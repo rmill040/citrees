@@ -83,6 +83,7 @@ def test_analysis_inventory_covers_every_implemented_replication_module() -> Non
         "performance",
         "tutorial",
         "dgrp",
+        "rdc_sensitivity",
     ]
     assert [spec.expected_analysis for spec in ANALYSES] == [
         "calibration",
@@ -90,6 +91,7 @@ def test_analysis_inventory_covers_every_implemented_replication_module() -> Non
         "performance",
         "tutorial",
         "dgrp",
+        "rdc_sensitivity",
     ]
     assert all(spec.profiled for spec in ANALYSES)
 
@@ -112,8 +114,9 @@ def test_child_commands_forward_profile_seed_output_and_dgrp_data(
     )
     assert profiled[-4:] == ("--profile", "quick", "--seed", "7")
 
+    dgrp_spec = next(spec for spec in ANALYSES if spec.name == "dgrp")
     dgrp = _analysis_command(
-        ANALYSES[-1],
+        dgrp_spec,
         "quick",
         tmp_path / "dgrp",
         7,
@@ -126,6 +129,23 @@ def test_child_commands_forward_profile_seed_output_and_dgrp_data(
     )
     assert dgrp[dgrp.index("--seed") : dgrp.index("--seed") + 2] == ("--seed", "7")
     assert dgrp[-2:] == ("--data-dir", str(tmp_path / "dgrp-data"))
+
+    rdc_spec = next(spec for spec in ANALYSES if spec.name == "rdc_sensitivity")
+    rdc = _analysis_command(
+        rdc_spec,
+        "quick",
+        tmp_path / "rdc-sensitivity",
+        7,
+        tmp_path / "dgrp-data",
+        None,
+    )
+    assert rdc[:3] == (
+        replicate.sys.executable,
+        "-m",
+        "paper.jss.replication.rdc_sensitivity",
+    )
+    assert rdc[-4:] == ("--profile", "quick", "--seed", "7")
+    assert "--data-dir" not in rdc
 
 
 def test_distributed_commands_merge_calibration_and_behavior_shards(

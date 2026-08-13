@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 import shlex
@@ -58,8 +59,13 @@ DEFAULT_MECHANISM_FOLDS = (0, 1, 2, 3, 4)
 DEFAULT_MECHANISM_MODEL_VARIANTS = ("cif_default",)
 DEFAULT_MECHANISM_RANKING_VARIANTS = ("split_importance", "split_count")
 _IMAGE_DIGEST_PATTERN = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
-_WORKER_LAUNCH_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
+_LAUNCH_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 _QUEUE_STAGES = frozenset({"rankings", "metrics"})
+_API_ENDPOINT_ROLE = "api-endpoint"
+_API_ENDPOINT_SUFFIX = "citrees.internal."
+_API_ENDPOINT_TTL_SECONDS = 10
+_ROUTE53_CHANGE_TIMEOUT_SECONDS = 120.0
+_ROUTE53_CHANGE_POLL_SECONDS = 2.0
 _AMBIGUOUS_EC2_ERROR_CODES = frozenset(
     {
         "InternalError",
@@ -83,7 +89,7 @@ _CAPACITY_ERROR_CODES = frozenset(
     }
 )
 _AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
-_WORKER_LAUNCH_SCHEMA_VERSION = 5
+_WORKER_LAUNCH_SCHEMA_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -106,6 +112,21 @@ class ApiScope:
     runtime_contract_s3_key: str
     runtime_contract_sha256: str
     stage: str
+
+
+@dataclass(frozen=True)
+class _ApiEndpoint:
+    """One campaign-scoped private Route53 API endpoint."""
+
+    hosted_zone_id: str
+    hosted_zone_name: str
+    hostname: str
+    record_name: str
+
+    @property
+    def api_url(self) -> str:
+        """Return the stable worker-facing API URL."""
+        return f"http://{self.hostname}:8000"
 
 
 @dataclass(frozen=True)
@@ -141,15 +162,25 @@ def validate_image_digest_uri(image_uri: str) -> str:
     return normalized
 
 
-def _validate_worker_launch_id(launch_id: str) -> str:
-    """Validate one operator-supplied immutable worker launch identity."""
+def _validate_launch_id(launch_id: str) -> str:
+    """Validate one operator-supplied immutable launch identity."""
     normalized = launch_id.strip()
-    if not _WORKER_LAUNCH_ID_PATTERN.fullmatch(normalized):
+    if not _LAUNCH_ID_PATTERN.fullmatch(normalized):
         raise ValueError(
             "launch_id must contain 1-64 lowercase letters, digits, or hyphens, "
             "and must start and end with a letter or digit"
         )
     return normalized
+
+
+def _validate_worker_launch_id(launch_id: str) -> str:
+    """Validate one immutable worker launch identity."""
+    return _validate_launch_id(launch_id)
+
+
+def _validate_api_launch_id(launch_id: str) -> str:
+    """Validate one immutable API launch identity."""
+    return _validate_launch_id(launch_id)
 
 
 def _require_spot_instance(instance: dict[str, Any], *, source: str) -> None:
@@ -495,6 +526,339 @@ def _validate_queue_scope(
     return normalized_prefix, stage
 
 
+def _api_endpoint_names(campaign_sha256: str, stage: str) -> tuple[str, str, str]:
+    """Return deterministic private DNS names for one campaign and stage."""
+    from paper.benchmark.pipeline.manifest import validate_manifest_sha256
+
+    campaign_sha256 = validate_manifest_sha256(campaign_sha256)
+    if stage not in _QUEUE_STAGES:
+        raise ValueError(f"stage must be one of {sorted(_QUEUE_STAGES)}, got {stage!r}")
+    campaign_labels = f"{campaign_sha256[:32]}.{campaign_sha256[32:]}"
+    hosted_zone_name = f"{stage}.{campaign_labels}.{_API_ENDPOINT_SUFFIX}"
+    record_name = f"api.{hosted_zone_name}"
+    return hosted_zone_name, record_name, record_name.rstrip(".")
+
+
+def _api_endpoint_tags(
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+) -> dict[str, str]:
+    """Return exact Route53 ownership tags for one API endpoint."""
+    artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
+    from paper.benchmark.pipeline.manifest import validate_manifest_sha256
+
+    campaign_sha256 = validate_manifest_sha256(campaign_sha256)
+    return {
+        TAG_KEY: _API_ENDPOINT_ROLE,
+        "citrees-artifact-prefix": artifact_prefix,
+        "citrees-campaign-sha256": campaign_sha256,
+        "citrees-stage": stage,
+    }
+
+
+def _route53_hosted_zone_id(value: object) -> str:
+    """Normalize one Route53 hosted-zone identifier."""
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError("Route53 hosted zone response is missing Id")
+    return value.removeprefix("/hostedzone/")
+
+
+def _get_default_vpc_id(ec2: Any) -> str:
+    """Return the only default VPC visible to the current account and region."""
+    response = ec2.describe_vpcs(Filters=[{"Name": "is-default", "Values": ["true"]}])
+    vpcs = response.get("Vpcs")
+    if not isinstance(vpcs, list) or len(vpcs) != 1:
+        count = len(vpcs) if isinstance(vpcs, list) else 0
+        raise RuntimeError(f"expected exactly one default VPC, found {count}")
+    vpc = vpcs[0]
+    vpc_id = vpc.get("VpcId") if isinstance(vpc, dict) else None
+    if not isinstance(vpc_id, str) or not vpc_id:
+        raise RuntimeError("default VPC response is missing VpcId")
+    return vpc_id
+
+
+def _route53_tags(route53: Any, hosted_zone_id: str) -> dict[str, str]:
+    """Read one hosted zone's exact tag mapping."""
+    response = route53.list_tags_for_resource(
+        ResourceType="hostedzone",
+        ResourceId=hosted_zone_id,
+    )
+    tag_set = response.get("ResourceTagSet")
+    tags = tag_set.get("Tags") if isinstance(tag_set, dict) else None
+    if not isinstance(tags, list):
+        raise RuntimeError(f"Route53 hosted zone {hosted_zone_id} returned invalid tags")
+    observed: dict[str, str] = {}
+    for tag in tags:
+        if not isinstance(tag, dict):
+            raise RuntimeError(f"Route53 hosted zone {hosted_zone_id} returned invalid tags")
+        key = tag.get("Key")
+        value = tag.get("Value")
+        if not isinstance(key, str) or not isinstance(value, str) or key in observed:
+            raise RuntimeError(f"Route53 hosted zone {hosted_zone_id} returned invalid tags")
+        observed[key] = value
+    return observed
+
+
+def _find_api_endpoint(
+    ec2: Any,
+    route53: Any,
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    region: str,
+) -> _ApiEndpoint | None:
+    """Find and validate one campaign-owned private API endpoint."""
+    hosted_zone_name, record_name, hostname = _api_endpoint_names(campaign_sha256, stage)
+    expected_tags = _api_endpoint_tags(
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+    )
+    response = route53.list_hosted_zones_by_name(
+        DNSName=hosted_zone_name,
+        MaxItems="100",
+    )
+    hosted_zones = response.get("HostedZones")
+    if not isinstance(hosted_zones, list):
+        raise RuntimeError("Route53 hosted zone lookup returned an invalid response")
+    exact_zones = [
+        zone
+        for zone in hosted_zones
+        if isinstance(zone, dict) and zone.get("Name") == hosted_zone_name
+    ]
+    if len(exact_zones) > 1:
+        ids = sorted(_route53_hosted_zone_id(zone.get("Id")) for zone in exact_zones)
+        raise RuntimeError(f"Multiple Route53 hosted zones exist for the exact API endpoint: {ids}")
+    if not exact_zones:
+        return None
+
+    zone = exact_zones[0]
+    config = zone.get("Config")
+    if not isinstance(config, dict) or config.get("PrivateZone") is not True:
+        raise RuntimeError(f"API endpoint hosted zone {hosted_zone_name} is not private")
+    hosted_zone_id = _route53_hosted_zone_id(zone.get("Id"))
+    detail = route53.get_hosted_zone(Id=hosted_zone_id)
+    vpcs = detail.get("VPCs")
+    default_vpc_id = _get_default_vpc_id(ec2)
+    expected_vpc = {"VPCId": default_vpc_id, "VPCRegion": region}
+    if not isinstance(vpcs, list) or vpcs != [expected_vpc]:
+        raise RuntimeError(
+            f"API endpoint hosted zone {hosted_zone_id} is not scoped only to "
+            f"default VPC {default_vpc_id} in {region}"
+        )
+    observed_tags = _route53_tags(route53, hosted_zone_id)
+    if observed_tags != expected_tags:
+        raise RuntimeError(
+            f"API endpoint hosted zone {hosted_zone_id} ownership tags differ: "
+            f"expected {expected_tags}, observed {observed_tags}"
+        )
+    return _ApiEndpoint(
+        hosted_zone_id=hosted_zone_id,
+        hosted_zone_name=hosted_zone_name,
+        hostname=hostname,
+        record_name=record_name,
+    )
+
+
+def _ensure_api_endpoint(
+    ec2: Any,
+    route53: Any,
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    launch_id: str,
+    stage: str,
+    region: str,
+) -> _ApiEndpoint:
+    """Create or validate one campaign-scoped private Route53 endpoint."""
+    existing = _find_api_endpoint(
+        ec2,
+        route53,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        region=region,
+    )
+    if existing is not None:
+        return existing
+
+    launch_id = _validate_api_launch_id(launch_id)
+    hosted_zone_name, _record_name, _hostname = _api_endpoint_names(campaign_sha256, stage)
+    vpc_id = _get_default_vpc_id(ec2)
+    caller_reference = hashlib.sha256(
+        f"{campaign_sha256}:{stage}:{launch_id}".encode("ascii")
+    ).hexdigest()
+    response = route53.create_hosted_zone(
+        Name=hosted_zone_name,
+        VPC={"VPCId": vpc_id, "VPCRegion": region},
+        CallerReference=f"citrees-api-{caller_reference}",
+        HostedZoneConfig={
+            "Comment": f"citrees API endpoint for {stage} campaign {campaign_sha256}",
+            "PrivateZone": True,
+        },
+    )
+    zone = response.get("HostedZone")
+    hosted_zone_id = _route53_hosted_zone_id(zone.get("Id") if isinstance(zone, dict) else None)
+    try:
+        tags = _api_endpoint_tags(
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            stage=stage,
+        )
+        route53.change_tags_for_resource(
+            ResourceType="hostedzone",
+            ResourceId=hosted_zone_id,
+            AddTags=[{"Key": key, "Value": value} for key, value in sorted(tags.items())],
+        )
+        endpoint = _find_api_endpoint(
+            ec2,
+            route53,
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            stage=stage,
+            region=region,
+        )
+    except Exception:
+        route53.delete_hosted_zone(Id=hosted_zone_id)
+        raise
+    if endpoint is None:
+        route53.delete_hosted_zone(Id=hosted_zone_id)
+        raise RuntimeError("Route53 did not return the newly created API endpoint")
+    return endpoint
+
+
+def _wait_for_route53_change(route53: Any, response: dict[str, Any]) -> None:
+    """Wait until one Route53 record change is globally committed."""
+    change_info = response.get("ChangeInfo")
+    if not isinstance(change_info, dict):
+        raise RuntimeError("Route53 record change response is missing ChangeInfo")
+    change_id = change_info.get("Id")
+    status = change_info.get("Status")
+    if not isinstance(change_id, str) or not change_id:
+        raise RuntimeError("Route53 record change response is missing Id")
+    deadline = time.monotonic() + _ROUTE53_CHANGE_TIMEOUT_SECONDS
+    while status != "INSYNC":
+        if status != "PENDING":
+            raise RuntimeError(f"Route53 record change {change_id} has invalid status {status!r}")
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Route53 record change {change_id} did not reach INSYNC")
+        time.sleep(_ROUTE53_CHANGE_POLL_SECONDS)
+        observed = route53.get_change(Id=change_id).get("ChangeInfo")
+        if not isinstance(observed, dict):
+            raise RuntimeError(f"Route53 record change {change_id} returned invalid status")
+        status = observed.get("Status")
+
+
+def _get_api_endpoint_record(route53: Any, endpoint: _ApiEndpoint) -> dict[str, Any] | None:
+    """Return the campaign endpoint A record when it exists."""
+    response = route53.list_resource_record_sets(
+        HostedZoneId=endpoint.hosted_zone_id,
+        StartRecordName=endpoint.record_name,
+        StartRecordType="A",
+        MaxItems="1",
+    )
+    records = response.get("ResourceRecordSets")
+    if not isinstance(records, list):
+        raise RuntimeError("Route53 record lookup returned an invalid response")
+    if not records:
+        return None
+    record = records[0]
+    if not isinstance(record, dict):
+        raise RuntimeError("Route53 record lookup returned an invalid response")
+    if record.get("Name") != endpoint.record_name or record.get("Type") != "A":
+        return None
+    return record
+
+
+def _upsert_api_endpoint(route53: Any, endpoint: _ApiEndpoint, private_ip: str) -> None:
+    """Point the stable campaign endpoint at one ready API instance."""
+    try:
+        address = ipaddress.ip_address(private_ip)
+    except ValueError as exc:
+        raise RuntimeError(f"API instance private IP is invalid: {private_ip!r}") from exc
+    if not isinstance(address, ipaddress.IPv4Address) or not address.is_private:
+        raise RuntimeError(f"API instance private IP is invalid: {private_ip!r}")
+    record = {
+        "Name": endpoint.record_name,
+        "Type": "A",
+        "TTL": _API_ENDPOINT_TTL_SECONDS,
+        "ResourceRecords": [{"Value": str(address)}],
+    }
+    response = route53.change_resource_record_sets(
+        HostedZoneId=endpoint.hosted_zone_id,
+        ChangeBatch={
+            "Comment": "Point the stable citrees API endpoint at the ready Spot instance",
+            "Changes": [
+                {
+                    "Action": "UPSERT",
+                    "ResourceRecordSet": record,
+                }
+            ],
+        },
+    )
+    _wait_for_route53_change(route53, response)
+    observed = _get_api_endpoint_record(route53, endpoint)
+    if observed != record:
+        raise RuntimeError(
+            f"Route53 API endpoint readback differs: expected {record}, observed {observed}"
+        )
+
+
+def _delete_api_endpoint(
+    ec2: Any,
+    route53: Any,
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    region: str,
+) -> bool:
+    """Delete only the private endpoint owned by one exact campaign scope."""
+    endpoint = _find_api_endpoint(
+        ec2,
+        route53,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        region=region,
+    )
+    if endpoint is None:
+        return False
+    record = _get_api_endpoint_record(route53, endpoint)
+    if record is not None:
+        response = route53.change_resource_record_sets(
+            HostedZoneId=endpoint.hosted_zone_id,
+            ChangeBatch={
+                "Comment": "Delete the campaign-scoped citrees API endpoint",
+                "Changes": [
+                    {
+                        "Action": "DELETE",
+                        "ResourceRecordSet": record,
+                    }
+                ],
+            },
+        )
+        _wait_for_route53_change(route53, response)
+    inventory = route53.list_resource_record_sets(HostedZoneId=endpoint.hosted_zone_id)
+    records = inventory.get("ResourceRecordSets")
+    if not isinstance(records, list):
+        raise RuntimeError("Route53 endpoint inventory returned an invalid response")
+    non_default = [
+        item
+        for item in records
+        if not isinstance(item, dict) or item.get("Type") not in {"NS", "SOA"}
+    ]
+    if non_default:
+        raise RuntimeError(
+            f"API endpoint hosted zone {endpoint.hosted_zone_id} contains unexpected records"
+        )
+    route53.delete_hosted_zone(Id=endpoint.hosted_zone_id)
+    return True
+
+
 def _validate_runtime_contract_scope(
     runtime_contract_sha256: object,
     runtime_contract_s3_key: object,
@@ -650,6 +1014,7 @@ def _api_client_token(
     ami_id: str,
     instance_profile_name: str,
     instance_type: str,
+    launch_id: str,
     security_group_id: str,
     user_data: str,
 ) -> str:
@@ -659,6 +1024,7 @@ def _api_client_token(
             "ami_id": ami_id,
             "instance_profile_name": instance_profile_name,
             "instance_type": instance_type,
+            "launch_id": launch_id,
             "security_group_id": security_group_id,
             "user_data_sha256": hashlib.sha256(user_data.encode()).hexdigest(),
         },
@@ -1203,6 +1569,7 @@ def launch_api(
     artifact_prefix: str,
     canonical_manifest_path: Path,
     gate_receipt_path: Path,
+    launch_id: str,
     manifest_path: Path,
     runtime_contract_path: Path,
     stage: str,
@@ -1210,14 +1577,15 @@ def launch_api(
     max_cell_attempts: int,
     region: str = DEFAULT_REGION,
 ) -> dict[str, str]:
-    """Launch the API server on a single EC2 instance.
+    """Launch one Spot API server behind a stable private DNS endpoint.
 
-    Returns dict with instance_id, public_ip, and api_url.
+    Returns instance identity plus stable worker and public operator URLs.
     """
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be a positive integer")
     if type(max_cell_attempts) is not int or max_cell_attempts <= 0:
         raise ValueError("max_cell_attempts must be a positive integer")
+    launch_id = _validate_api_launch_id(launch_id)
     image_uri = validate_image_digest_uri(image_uri)
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
     runtime_contract = _load_runtime_launch_contract(runtime_contract_path)
@@ -1238,21 +1606,22 @@ def launch_api(
     canonical_manifest_s3_key = str(manifest_info["canonical_manifest_s3_key"])
     canonical_manifest_sha256 = str(manifest_info["canonical_manifest_sha256"])
     campaign_sha256 = str(manifest_info["campaign_sha256"])
-    if (
-        get_api_scope(
-            artifact_prefix=artifact_prefix,
-            campaign_sha256=campaign_sha256,
-            stage=stage,
-            region=region,
-        )
-        is not None
-    ):
+    ec2 = boto3.client("ec2", region_name=region)
+    route53 = boto3.client("route53")
+    active_instances = _api_instances(
+        ec2,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        states=("pending", "running", "stopping"),
+    )
+    if active_instances:
+        instance_ids = sorted(str(instance["InstanceId"]) for instance in active_instances)
         raise RuntimeError(
-            "A citrees API server is already pending or running for the exact campaign scope"
+            f"A citrees API server is already active for the exact campaign scope: {instance_ids}"
         )
     git_sha = validate_image_revision(image_uri, region=region)
     _require_image_matches_runtime(image_uri, git_sha, runtime_contract)
-    ec2 = boto3.client("ec2", region_name=region)
     account_id = get_aws_account_id()
     bucket = get_resource_name(account_id)
     ecr_uri = image_uri.split("/")[0]
@@ -1295,6 +1664,7 @@ def launch_api(
 
     market = "spot"
     info(f"Launching {market} API server: {instance_type}, AMI={ami_id}")
+    step(f"Launch identity: {launch_id}")
     step(f"Image: {image_uri}")
     step(f"Manifest: s3://{bucket}/{manifest_s3_key} ({manifest_info['cells']} cells)")
     step(f"Security group: {sg_id}")
@@ -1303,110 +1673,121 @@ def launch_api(
         ami_id=ami_id,
         instance_profile_name=instance_profile_name,
         instance_type=instance_type,
+        launch_id=launch_id,
         security_group_id=sg_id,
         user_data=user_data,
     )
-
-    run_kwargs: dict[str, Any] = {
-        "ImageId": ami_id,
-        "InstanceType": instance_type,
-        "MinCount": 1,
-        "MaxCount": 1,
-        "IamInstanceProfile": {"Name": instance_profile_name},
-        "UserData": base64.b64encode(user_data.encode()).decode(),
-        "MetadataOptions": {
-            "HttpEndpoint": "enabled",
-            "HttpPutResponseHopLimit": 2,
-            "HttpTokens": "required",
-        },
-        "SecurityGroupIds": [sg_id],
-        "InstanceInitiatedShutdownBehavior": "terminate",
-        "ClientToken": client_token,
-        "TagSpecifications": [
-            {
-                "ResourceType": "instance",
-                "Tags": [
-                    {"Key": TAG_KEY, "Value": API_TAG_VALUE},
-                    {"Key": "Name", "Value": "citrees-api"},
-                    {"Key": "citrees-market", "Value": market},
-                    {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
-                    {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
-                    {
-                        "Key": "citrees-canonical-manifest-key",
-                        "Value": canonical_manifest_s3_key,
-                    },
-                    {
-                        "Key": "citrees-canonical-manifest-sha256",
-                        "Value": canonical_manifest_sha256,
-                    },
-                    {
-                        "Key": "citrees-gate-receipt-key",
-                        "Value": gate_receipt.s3_key,
-                    },
-                    {
-                        "Key": "citrees-gate-receipt-sha256",
-                        "Value": gate_receipt.sha256,
-                    },
-                    {"Key": "citrees-manifest-key", "Value": manifest_s3_key},
-                    {"Key": "citrees-manifest-sha256", "Value": manifest_sha256},
-                    {"Key": "citrees-image-uri", "Value": image_uri},
-                    {
-                        "Key": "citrees-runtime-contract-key",
-                        "Value": runtime_contract_s3_key,
-                    },
-                    {
-                        "Key": "citrees-runtime-contract-sha256",
-                        "Value": runtime_contract_sha256,
-                    },
-                    {"Key": "citrees-stage", "Value": stage},
-                    {"Key": "citrees-lease-seconds", "Value": str(lease_seconds)},
-                    {
-                        "Key": "citrees-max-cell-attempts",
-                        "Value": str(max_cell_attempts),
-                    },
-                ],
-            }
-        ],
-    }
-    run_kwargs["InstanceMarketOptions"] = {
-        "MarketType": "spot",
-        "SpotOptions": {
-            "SpotInstanceType": "one-time",
-            "InstanceInterruptionBehavior": "terminate",
-        },
-    }
-    response = ec2.run_instances(**run_kwargs)
-
-    instance_id = response["Instances"][0]["InstanceId"]
-    step(f"Instance: {instance_id}")
-
-    # Wait for public IP assignment
-    info("Waiting for public IP...")
-    ec2_resource = boto3.resource("ec2", region_name=region)
-    instance = ec2_resource.Instance(instance_id)
-    instance.wait_until_running()
-    instance.reload()
-
-    public_ip = instance.public_ip_address
-    if not public_ip:
-        # Retry a few times — IP can take a moment after running state
-        for _ in range(10):
-            time.sleep(2)
-            instance.reload()
-            public_ip = instance.public_ip_address
-            if public_ip:
-                break
-
-    if not public_ip:
-        warn("Instance running but no public IP assigned")
-        ec2.terminate_instances(InstanceIds=[instance_id])
-        raise RuntimeError(f"API instance {instance_id} has no public IP")
-
-    api_url = f"http://{public_ip}:8000"
-    info(f"Waiting for API readiness at {api_url}...")
+    endpoint: _ApiEndpoint | None = None
+    instance_id: str | None = None
     try:
+        endpoint = _ensure_api_endpoint(
+            ec2,
+            route53,
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            launch_id=launch_id,
+            stage=stage,
+            region=region,
+        )
+        step(f"Stable worker endpoint: {endpoint.api_url}")
+        run_kwargs: dict[str, Any] = {
+            "ImageId": ami_id,
+            "InstanceType": instance_type,
+            "MinCount": 1,
+            "MaxCount": 1,
+            "IamInstanceProfile": {"Name": instance_profile_name},
+            "UserData": base64.b64encode(user_data.encode()).decode(),
+            "MetadataOptions": {
+                "HttpEndpoint": "enabled",
+                "HttpPutResponseHopLimit": 2,
+                "HttpTokens": "required",
+            },
+            "SecurityGroupIds": [sg_id],
+            "InstanceInitiatedShutdownBehavior": "terminate",
+            "ClientToken": client_token,
+            "TagSpecifications": [
+                {
+                    "ResourceType": "instance",
+                    "Tags": [
+                        {"Key": TAG_KEY, "Value": API_TAG_VALUE},
+                        {"Key": "Name", "Value": "citrees-api"},
+                        {"Key": "citrees-api-endpoint", "Value": endpoint.hostname},
+                        {"Key": "citrees-api-launch-id", "Value": launch_id},
+                        {"Key": "citrees-market", "Value": market},
+                        {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
+                        {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
+                        {
+                            "Key": "citrees-canonical-manifest-key",
+                            "Value": canonical_manifest_s3_key,
+                        },
+                        {
+                            "Key": "citrees-canonical-manifest-sha256",
+                            "Value": canonical_manifest_sha256,
+                        },
+                        {
+                            "Key": "citrees-gate-receipt-key",
+                            "Value": gate_receipt.s3_key,
+                        },
+                        {
+                            "Key": "citrees-gate-receipt-sha256",
+                            "Value": gate_receipt.sha256,
+                        },
+                        {"Key": "citrees-manifest-key", "Value": manifest_s3_key},
+                        {"Key": "citrees-manifest-sha256", "Value": manifest_sha256},
+                        {"Key": "citrees-image-uri", "Value": image_uri},
+                        {
+                            "Key": "citrees-runtime-contract-key",
+                            "Value": runtime_contract_s3_key,
+                        },
+                        {
+                            "Key": "citrees-runtime-contract-sha256",
+                            "Value": runtime_contract_sha256,
+                        },
+                        {"Key": "citrees-stage", "Value": stage},
+                        {"Key": "citrees-lease-seconds", "Value": str(lease_seconds)},
+                        {
+                            "Key": "citrees-max-cell-attempts",
+                            "Value": str(max_cell_attempts),
+                        },
+                    ],
+                }
+            ],
+            "InstanceMarketOptions": {
+                "MarketType": "spot",
+                "SpotOptions": {
+                    "SpotInstanceType": "one-time",
+                    "InstanceInterruptionBehavior": "terminate",
+                },
+            },
+        }
+        response = ec2.run_instances(**run_kwargs)
+        instance_id = _single_instance_id(response)
+        step(f"Instance: {instance_id}")
+
+        info("Waiting for API instance addresses...")
+        ec2_resource = boto3.resource("ec2", region_name=region)
+        instance = ec2_resource.Instance(instance_id)
+        instance.wait_until_running()
+        instance.reload()
+        public_ip = instance.public_ip_address
+        private_ip = instance.private_ip_address
+        if not public_ip or not private_ip:
+            for _ in range(10):
+                time.sleep(2)
+                instance.reload()
+                public_ip = instance.public_ip_address
+                private_ip = instance.private_ip_address
+                if public_ip and private_ip:
+                    break
+        if not public_ip:
+            raise RuntimeError(f"API instance {instance_id} has no public IP")
+        if not private_ip:
+            raise RuntimeError(f"API instance {instance_id} has no private IP")
+
+        public_api_url = f"http://{public_ip}:8000"
+        info(f"Waiting for API readiness at {public_api_url}...")
         _wait_for_api_ready(
-            api_url,
+            public_api_url,
             artifact_prefix=artifact_prefix,
             campaign_sha256=campaign_sha256,
             canonical_manifest_s3_key=canonical_manifest_s3_key,
@@ -1419,12 +1800,52 @@ def launch_api(
             runtime_contract_sha256=runtime_contract_sha256,
             stage=stage,
         )
-    except Exception:
-        ec2.terminate_instances(InstanceIds=[instance_id])
+        observed_instances = _api_instances(
+            ec2,
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            stage=stage,
+            states=("pending", "running", "stopping"),
+        )
+        observed_ids = sorted(str(item["InstanceId"]) for item in observed_instances)
+        if observed_ids != [instance_id]:
+            raise RuntimeError(
+                "API replacement is not the sole active server for the exact campaign: "
+                f"{observed_ids}"
+            )
+        _upsert_api_endpoint(route53, endpoint, private_ip)
+    except Exception as exc:
+        cleanup_errors: list[str] = []
+        if instance_id is not None:
+            try:
+                ec2.terminate_instances(InstanceIds=[instance_id])
+            except Exception as cleanup_exc:
+                cleanup_errors.append(f"instance termination failed: {cleanup_exc}")
+        if endpoint is not None:
+            try:
+                _delete_api_endpoint(
+                    ec2,
+                    route53,
+                    artifact_prefix=artifact_prefix,
+                    campaign_sha256=campaign_sha256,
+                    stage=stage,
+                    region=region,
+                )
+            except Exception as cleanup_exc:
+                cleanup_errors.append(f"endpoint deletion failed: {cleanup_exc}")
+        if cleanup_errors:
+            raise RuntimeError(
+                "API launch failed and scoped cleanup was incomplete: " + "; ".join(cleanup_errors)
+            ) from exc
         raise
-    success(f"API server ready at {api_url}")
-
-    return {"instance_id": instance_id, "public_ip": public_ip, "api_url": api_url}
+    success(f"API server ready at {endpoint.api_url}")
+    return {
+        "instance_id": instance_id,
+        "launch_id": launch_id,
+        "public_ip": public_ip,
+        "api_url": endpoint.api_url,
+        "public_api_url": public_api_url,
+    }
 
 
 def _api_instance_filters(
@@ -1454,6 +1875,35 @@ def _api_instance_filters(
     ]
 
 
+def _api_instances(
+    ec2: Any,
+    *,
+    artifact_prefix: str,
+    campaign_sha256: str,
+    stage: str,
+    states: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Return API instances in one exact campaign scope and state set."""
+    response = ec2.describe_instances(
+        Filters=_api_instance_filters(
+            artifact_prefix=artifact_prefix,
+            campaign_sha256=campaign_sha256,
+            stage=stage,
+            states=states,
+        )
+    )
+    instances = [
+        instance
+        for reservation in response.get("Reservations", [])
+        for instance in reservation.get("Instances", [])
+    ]
+    for instance in instances:
+        instance_id = instance.get("InstanceId") if isinstance(instance, dict) else None
+        if not isinstance(instance_id, str) or not instance_id:
+            raise RuntimeError("EC2 returned an API server without an instance ID")
+    return instances
+
+
 def get_api_scope(
     *,
     artifact_prefix: str,
@@ -1463,21 +1913,13 @@ def get_api_scope(
 ) -> ApiScope | None:
     """Return the running API server for one immutable campaign scope."""
     ec2 = boto3.client("ec2", region_name=region)
-
-    response = ec2.describe_instances(
-        Filters=_api_instance_filters(
-            artifact_prefix=artifact_prefix,
-            campaign_sha256=campaign_sha256,
-            stage=stage,
-            states=("pending", "running"),
-        )
+    instances = _api_instances(
+        ec2,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        states=("pending", "running"),
     )
-
-    instances = [
-        instance
-        for reservation in response.get("Reservations", [])
-        for instance in reservation.get("Instances", [])
-    ]
     if not instances:
         return None
     if len(instances) != 1:
@@ -1495,6 +1937,8 @@ def get_api_scope(
         raise RuntimeError(f"API server {instance['InstanceId']} has no public IP")
     tags = {tag["Key"]: tag["Value"] for tag in instance.get("Tags", [])}
     required_tags = {
+        "citrees-api-endpoint",
+        "citrees-api-launch-id",
         "citrees-artifact-prefix",
         "citrees-campaign-sha256",
         "citrees-canonical-manifest-key",
@@ -1524,12 +1968,22 @@ def get_api_scope(
         tags["citrees-artifact-prefix"],
         tags["citrees-stage"],
     )
+    _validate_api_launch_id(tags["citrees-api-launch-id"])
     image_uri = validate_image_digest_uri(tags["citrees-image-uri"])
     market = tags["citrees-market"]
     if market != "spot":
         raise RuntimeError(f"API server market tag must be 'spot', got {market!r}")
     _require_spot_instance(instance, source="API server")
     campaign_sha256 = validate_manifest_sha256(tags["citrees-campaign-sha256"])
+    _hosted_zone_name, _record_name, endpoint_hostname = _api_endpoint_names(
+        campaign_sha256,
+        stage,
+    )
+    if tags["citrees-api-endpoint"] != endpoint_hostname:
+        raise RuntimeError(
+            "API server endpoint tag differs from the deterministic campaign endpoint: "
+            f"{tags['citrees-api-endpoint']!r} != {endpoint_hostname!r}"
+        )
     canonical_manifest_sha256 = validate_manifest_sha256(tags["citrees-canonical-manifest-sha256"])
     canonical_manifest_key = canonical_manifest_s3_key(canonical_manifest_sha256)
     if tags["citrees-canonical-manifest-key"] != canonical_manifest_key:
@@ -1558,7 +2012,7 @@ def get_api_scope(
     if max_cell_attempts <= 0 or str(max_cell_attempts) != tags["citrees-max-cell-attempts"]:
         raise RuntimeError("API server max-cell-attempts tag is invalid")
     return ApiScope(
-        api_url=f"http://{private_ip}:8000",
+        api_url=f"http://{endpoint_hostname}:8000",
         public_api_url=f"http://{public_ip}:8000",
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
@@ -1601,38 +2055,43 @@ def terminate_api(
     stage: str,
     region: str = DEFAULT_REGION,
 ) -> str | None:
-    """Terminate the API server for one immutable campaign scope.
+    """Terminate the API and delete its campaign-scoped private endpoint.
 
     Returns the terminated instance ID, or None if no API instance found.
     """
     ec2 = boto3.client("ec2", region_name=region)
-
-    response = ec2.describe_instances(
-        Filters=_api_instance_filters(
-            artifact_prefix=artifact_prefix,
-            campaign_sha256=campaign_sha256,
-            stage=stage,
-            states=("pending", "running", "stopping"),
-        )
+    route53 = boto3.client("route53")
+    instances = _api_instances(
+        ec2,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        states=("pending", "running", "stopping"),
     )
-
-    instance_ids = []
-    for reservation in response.get("Reservations", []):
-        for inst in reservation.get("Instances", []):
-            instance_ids.append(inst["InstanceId"])
-
-    if not instance_ids:
-        info("No API server instance found for the exact campaign scope")
-        return None
+    instance_ids = [str(instance["InstanceId"]) for instance in instances]
     if len(instance_ids) != 1:
-        raise RuntimeError(
-            f"Expected one API server for the exact campaign scope, found {sorted(instance_ids)}"
-        )
-
-    ec2.terminate_instances(InstanceIds=instance_ids)
-    terminated = instance_ids[0]
-    success(f"Terminated API server: {terminated}")
-
+        if instance_ids:
+            raise RuntimeError(
+                f"Expected one API server for the exact campaign scope, "
+                f"found {sorted(instance_ids)}"
+            )
+        terminated = None
+    else:
+        ec2.terminate_instances(InstanceIds=instance_ids)
+        terminated = instance_ids[0]
+        success(f"Terminated API server: {terminated}")
+    endpoint_deleted = _delete_api_endpoint(
+        ec2,
+        route53,
+        artifact_prefix=artifact_prefix,
+        campaign_sha256=campaign_sha256,
+        stage=stage,
+        region=region,
+    )
+    if endpoint_deleted:
+        success("Deleted campaign-scoped API endpoint")
+    if terminated is None:
+        info("No API server instance found for the exact campaign scope")
     return terminated
 
 
@@ -1656,10 +2115,9 @@ def launch_workers(
 ) -> list[str]:
     """Launch N EC2 worker instances.
 
-    The API server's private IP and immutable scope are auto-discovered.
-    Each instance runs a Docker container that pulls configs from the API
-    server and executes them. Workers get their stage/task assignment from
-    the server via POST /next.
+    The API server's stable private DNS endpoint and immutable scope are
+    auto-discovered. Each instance runs a Docker container that pulls configs
+    from the API server and executes them.
 
     Parameters
     ----------
@@ -1865,7 +2323,6 @@ def launch_workers(
             "manifest_sha256": api_scope.manifest_sha256,
             "market": api_scope.market,
             "max_cell_attempts": api_scope.max_cell_attempts,
-            "public_api_url": api_scope.public_api_url,
             "runtime_contract_s3_key": api_scope.runtime_contract_s3_key,
             "runtime_contract_sha256": api_scope.runtime_contract_sha256,
             "stage": api_scope.stage,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import inspect
 import io
@@ -77,6 +78,9 @@ DIGEST_URI = (
 MANIFEST_SHA256 = "b" * 64
 CANONICAL_MANIFEST_SHA256 = "c" * 64
 CAMPAIGN_SHA256 = "e" * 64
+API_HOSTED_ZONE_NAME = f"rankings.{CAMPAIGN_SHA256[:32]}.{CAMPAIGN_SHA256[32:]}.citrees.internal."
+API_HOSTNAME = f"api.{API_HOSTED_ZONE_NAME}".rstrip(".")
+API_URL = f"http://{API_HOSTNAME}:8000"
 MANIFEST_KEY = f"rerun-manifests/{MANIFEST_SHA256}.csv"
 CANONICAL_MANIFEST_KEY = f"canonical-rerun-manifests/{CANONICAL_MANIFEST_SHA256}.csv"
 SSM_POLICY_ARN = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -197,15 +201,17 @@ def _published_manifest() -> dict[str, str | int]:
 
 def _api_scope(
     *,
+    api_url: str = API_URL,
     artifact_prefix: str = "repairs/run-001",
     market: str = "spot",
+    public_api_url: str = "http://203.0.113.10:8000",
     runtime_contract_s3_key: str = RUNTIME_CONTRACT_KEY,
     runtime_contract_sha256: str = RUNTIME_CONTRACT_SHA256,
 ) -> ApiScope:
     """Return one complete running API scope for worker-launch tests."""
     return ApiScope(
-        api_url="http://10.0.0.10:8000",
-        public_api_url="http://203.0.113.10:8000",
+        api_url=api_url,
+        public_api_url=public_api_url,
         artifact_prefix=artifact_prefix,
         campaign_sha256=CAMPAIGN_SHA256,
         canonical_manifest_s3_key=CANONICAL_MANIFEST_KEY,
@@ -225,6 +231,8 @@ def _api_scope(
 
 def _api_instance(
     *,
+    api_endpoint: str = API_HOSTNAME,
+    launch_id: str = "api-initial",
     market: str = "spot",
     instance_lifecycle: str | None = "spot",
 ) -> dict[str, Any]:
@@ -234,6 +242,8 @@ def _api_instance(
         "PrivateIpAddress": "10.0.0.10",
         "PublicIpAddress": "203.0.113.10",
         "Tags": [
+            {"Key": "citrees-api-endpoint", "Value": api_endpoint},
+            {"Key": "citrees-api-launch-id", "Value": launch_id},
             {"Key": "citrees-artifact-prefix", "Value": "repairs/run-001"},
             {"Key": "citrees-campaign-sha256", "Value": CAMPAIGN_SHA256},
             {
@@ -282,6 +292,19 @@ class _WorkerLaunchKwargs(TypedDict):
     stage: str
 
 
+class _ApiLaunchKwargs(TypedDict):
+    instance_type: str
+    image_uri: str
+    artifact_prefix: str
+    canonical_manifest_path: Path
+    gate_receipt_path: Path
+    manifest_path: Path
+    runtime_contract_path: Path
+    stage: str
+    lease_seconds: int
+    max_cell_attempts: int
+
+
 class _MemoryS3:
     """In-memory S3 double with conditional immutable writes."""
 
@@ -318,6 +341,235 @@ class _MemoryS3:
             )
         payload, metadata = self.objects[key]
         return {"Body": io.BytesIO(payload), "Metadata": metadata}
+
+
+class _MemoryRoute53:
+    """In-memory private hosted-zone and record-set double."""
+
+    def __init__(self) -> None:
+        self.zones: dict[str, dict[str, Any]] = {}
+        self.change_count = 0
+
+    def list_hosted_zones_by_name(self, **kwargs: Any) -> dict[str, object]:
+        dns_name = str(kwargs["DNSName"])
+        zones = [
+            {
+                "Id": f"/hostedzone/{zone_id}",
+                "Name": zone["name"],
+                "Config": {"PrivateZone": True},
+            }
+            for zone_id, zone in sorted(self.zones.items())
+            if str(zone["name"]) >= dns_name
+        ]
+        return {"HostedZones": zones, "IsTruncated": False}
+
+    def create_hosted_zone(self, **kwargs: Any) -> dict[str, object]:
+        zone_id = f"Z{len(self.zones) + 1:08d}"
+        self.zones[zone_id] = {
+            "name": str(kwargs["Name"]),
+            "vpcs": [dict(kwargs["VPC"])],
+            "tags": {},
+            "records": {},
+        }
+        return {
+            "HostedZone": {
+                "Id": f"/hostedzone/{zone_id}",
+                "Name": kwargs["Name"],
+                "Config": {"PrivateZone": True},
+            }
+        }
+
+    def change_tags_for_resource(self, **kwargs: Any) -> dict[str, object]:
+        zone = self.zones[str(kwargs["ResourceId"])]
+        tags = zone["tags"]
+        assert isinstance(tags, dict)
+        for tag in kwargs.get("AddTags", []):
+            tags[str(tag["Key"])] = str(tag["Value"])
+        return {}
+
+    def list_tags_for_resource(self, **kwargs: Any) -> dict[str, object]:
+        zone_id = str(kwargs["ResourceId"])
+        tags = self.zones[zone_id]["tags"]
+        assert isinstance(tags, dict)
+        return {
+            "ResourceTagSet": {
+                "ResourceType": "hostedzone",
+                "ResourceId": zone_id,
+                "Tags": [{"Key": key, "Value": value} for key, value in sorted(tags.items())],
+            }
+        }
+
+    def get_hosted_zone(self, **kwargs: Any) -> dict[str, object]:
+        zone = self.zones[str(kwargs["Id"])]
+        return {"VPCs": list(zone["vpcs"])}
+
+    def change_resource_record_sets(self, **kwargs: Any) -> dict[str, object]:
+        zone = self.zones[str(kwargs["HostedZoneId"])]
+        records = zone["records"]
+        assert isinstance(records, dict)
+        for change in kwargs["ChangeBatch"]["Changes"]:
+            record = dict(change["ResourceRecordSet"])
+            key = (str(record["Name"]), str(record["Type"]))
+            if change["Action"] == "UPSERT":
+                records[key] = record
+            elif change["Action"] == "DELETE":
+                assert records[key] == record
+                del records[key]
+            else:
+                raise AssertionError(f"unsupported Route53 action: {change['Action']}")
+        self.change_count += 1
+        return {
+            "ChangeInfo": {
+                "Id": f"/change/C{self.change_count:08d}",
+                "Status": "INSYNC",
+            }
+        }
+
+    def get_change(self, **kwargs: Any) -> dict[str, object]:
+        return {"ChangeInfo": {"Id": kwargs["Id"], "Status": "INSYNC"}}
+
+    def list_resource_record_sets(self, **kwargs: Any) -> dict[str, object]:
+        zone = self.zones[str(kwargs["HostedZoneId"])]
+        zone_name = str(zone["name"])
+        records = [
+            {
+                "Name": zone_name,
+                "Type": "NS",
+                "TTL": 172800,
+                "ResourceRecords": [{"Value": "ns.example.internal."}],
+            },
+            {
+                "Name": zone_name,
+                "Type": "SOA",
+                "TTL": 900,
+                "ResourceRecords": [
+                    {
+                        "Value": "ns.example.internal. hostmaster.example.internal. 1 7200 900 1209600 86400"
+                    }
+                ],
+            },
+        ]
+        custom_records = zone["records"]
+        assert isinstance(custom_records, dict)
+        records.extend(dict(record) for record in custom_records.values())
+        records.sort(key=lambda record: (str(record["Name"]), str(record["Type"])))
+        start_name = kwargs.get("StartRecordName")
+        start_type = kwargs.get("StartRecordType")
+        if isinstance(start_name, str):
+            records = [
+                record
+                for record in records
+                if (str(record["Name"]), str(record["Type"])) >= (start_name, str(start_type or ""))
+            ]
+        max_items = kwargs.get("MaxItems")
+        if max_items is not None:
+            records = records[: int(max_items)]
+        return {"ResourceRecordSets": records, "IsTruncated": False}
+
+    def delete_hosted_zone(self, **kwargs: Any) -> dict[str, object]:
+        zone_id = str(kwargs["Id"])
+        records = self.zones[zone_id]["records"]
+        assert records == {}
+        del self.zones[zone_id]
+        return {}
+
+    def target(self) -> str | None:
+        """Return the only custom A-record target."""
+        targets = [
+            str(record["ResourceRecords"][0]["Value"])
+            for zone in self.zones.values()
+            for record in zone["records"].values()
+        ]
+        assert len(targets) <= 1
+        return targets[0] if targets else None
+
+
+class _MemoryEc2:
+    """In-memory EC2 API-instance lifecycle double."""
+
+    def __init__(self) -> None:
+        self.instances: dict[str, dict[str, Any]] = {}
+        self.run_requests: list[dict[str, Any]] = []
+
+    def describe_vpcs(self, **kwargs: Any) -> dict[str, object]:
+        assert kwargs["Filters"] == [{"Name": "is-default", "Values": ["true"]}]
+        return {"Vpcs": [{"VpcId": "vpc-default"}]}
+
+    def run_instances(self, **kwargs: Any) -> dict[str, object]:
+        self.run_requests.append(kwargs)
+        index = len(self.run_requests)
+        instance_id = f"i-api-{index}"
+        tags = [dict(tag) for tag in kwargs["TagSpecifications"][0]["Tags"]]
+        self.instances[instance_id] = {
+            "InstanceId": instance_id,
+            "InstanceLifecycle": "spot",
+            "PrivateIpAddress": f"10.0.0.{index * 10}",
+            "PublicIpAddress": f"203.0.113.{index * 10}",
+            "State": {"Name": "running"},
+            "Tags": tags,
+        }
+        return {"Instances": [{"InstanceId": instance_id}]}
+
+    def describe_instances(self, **kwargs: Any) -> dict[str, object]:
+        filters = kwargs["Filters"]
+        selected: list[dict[str, Any]] = []
+        for instance in self.instances.values():
+            tags = {tag["Key"]: tag["Value"] for tag in instance["Tags"]}
+            state = str(instance["State"]["Name"])
+            matches = True
+            for item in filters:
+                name = str(item["Name"])
+                values = [str(value) for value in item["Values"]]
+                if name == "instance-state-name":
+                    matches = matches and state in values
+                elif name.startswith("tag:"):
+                    matches = matches and tags.get(name.removeprefix("tag:")) in values
+                else:
+                    raise AssertionError(f"unsupported EC2 filter: {name}")
+            if matches:
+                selected.append(instance)
+        return {"Reservations": ([{"Instances": selected}] if selected else [])}
+
+    def terminate_instances(self, **kwargs: Any) -> dict[str, object]:
+        for instance_id in kwargs["InstanceIds"]:
+            self.instances[str(instance_id)]["State"] = {"Name": "terminated"}
+        return {}
+
+    def interrupt(self, instance_id: str) -> None:
+        """Simulate one completed Spot interruption without endpoint cleanup."""
+        self.instances[instance_id]["State"] = {"Name": "terminated"}
+
+
+class _MemoryEc2Instance:
+    """Boto3 resource view over one in-memory EC2 instance."""
+
+    def __init__(self, ec2: _MemoryEc2, instance_id: str) -> None:
+        self.ec2 = ec2
+        self.instance_id = instance_id
+
+    @property
+    def public_ip_address(self) -> str:
+        return str(self.ec2.instances[self.instance_id]["PublicIpAddress"])
+
+    @property
+    def private_ip_address(self) -> str:
+        return str(self.ec2.instances[self.instance_id]["PrivateIpAddress"])
+
+    def wait_until_running(self) -> None:
+        assert self.ec2.instances[self.instance_id]["State"] == {"Name": "running"}
+
+    def reload(self) -> None:
+        return None
+
+
+class _MemoryEc2Resource:
+    """Boto3 EC2 resource double."""
+
+    def __init__(self, ec2: _MemoryEc2) -> None:
+        self.ec2 = ec2
+
+    def Instance(self, instance_id: str) -> _MemoryEc2Instance:
+        return _MemoryEc2Instance(self.ec2, instance_id)
 
 
 class _NoSuchEntityError(Exception):
@@ -446,6 +698,8 @@ def test_distributed_launches_are_spot_only(command: object) -> None:
             DIGEST_URI,
             "--artifact-prefix",
             "repairs/run-001",
+            "--launch-id",
+            "api-initial",
             "--manifest",
             "{manifest}",
             "--max-cell-attempts",
@@ -498,8 +752,10 @@ def test_runtime_contract_cli_file_is_forwarded(
     launch_api_mock = MagicMock(
         return_value={
             "instance_id": "i-api",
+            "launch_id": "api-initial",
             "public_ip": "203.0.113.10",
-            "api_url": "http://203.0.113.10:8000",
+            "api_url": API_URL,
+            "public_api_url": "http://203.0.113.10:8000",
         }
     )
     launch_workers_mock = MagicMock(return_value=["i-worker"])
@@ -513,6 +769,8 @@ def test_runtime_contract_cli_file_is_forwarded(
             DIGEST_URI,
             "--artifact-prefix",
             "repairs/run-001",
+            "--launch-id",
+            "api-initial",
             "--canonical-manifest",
             str(canonical_manifest_path),
             "--manifest",
@@ -548,6 +806,7 @@ def test_runtime_contract_cli_file_is_forwarded(
 
     assert api_result.exit_code == 0, api_result.output
     assert worker_result.exit_code == 0, worker_result.output
+    assert launch_api_mock.call_args.kwargs["launch_id"] == "api-initial"
     assert launch_api_mock.call_args.kwargs["canonical_manifest_path"] == canonical_manifest_path
     assert launch_api_mock.call_args.kwargs["gate_receipt_path"] == gate_receipt_path
     assert launch_api_mock.call_args.kwargs["runtime_contract_path"] == runtime_contract_path
@@ -723,6 +982,7 @@ def test_api_client_token_is_deterministic_over_complete_request() -> None:
         "ami_id": "ami-test",
         "instance_profile_name": "citrees-campaign-test",
         "instance_type": "m5.large",
+        "launch_id": "api-initial",
         "security_group_id": "sg-test",
         "user_data": "#!/bin/bash\ntrue\n",
     }
@@ -949,7 +1209,7 @@ def test_worker_user_data_matches_api_scope() -> None:
         region="us-east-1",
         ecr_uri="123456789012.dkr.ecr.us-east-1.amazonaws.com",
         image_uri=DIGEST_URI,
-        api_url="http://10.0.0.10:8000",
+        api_url=API_URL,
         bucket="citrees-123456789012",
         git_sha="abc123",
         instance_type="c6a.8xlarge",
@@ -991,7 +1251,9 @@ def test_worker_user_data_matches_api_scope() -> None:
         "citrees-worker",
         restart_container=False,
     )
-    assert "--api-url http://10.0.0.10:8000" in script
+    assert f"-e CITREES_API_URL={API_URL}" in script
+    assert f"--api-url {API_URL}" in script
+    assert "10.0.0.10" not in script
     assert "trap shutdown_instance EXIT" in script
     assert script.index("trap shutdown_instance EXIT") < script.index("# Instance metadata")
     assert "shutdown -h now || systemctl poweroff --force --force" in script
@@ -1013,10 +1275,24 @@ def _mock_api_launch(
     ec2_client.run_instances.return_value = {"Instances": [{"InstanceId": "i-api"}]}
     instance = MagicMock()
     instance.public_ip_address = public_ip
+    instance.private_ip_address = "10.0.0.10"
     ec2_resource = MagicMock()
     ec2_resource.Instance.return_value = instance
+    endpoint = ec2_infra._ApiEndpoint(
+        hosted_zone_id="ZTEST",
+        hosted_zone_name=API_HOSTED_ZONE_NAME,
+        hostname=API_HOSTNAME,
+        record_name=f"{API_HOSTNAME}.",
+    )
 
-    monkeypatch.setattr(ec2_infra, "get_api_scope", lambda **kwargs: None)
+    monkeypatch.setattr(
+        ec2_infra,
+        "_api_instances",
+        MagicMock(side_effect=[[], [{"InstanceId": "i-api"}]]),
+    )
+    monkeypatch.setattr(ec2_infra, "_ensure_api_endpoint", MagicMock(return_value=endpoint))
+    monkeypatch.setattr(ec2_infra, "_upsert_api_endpoint", MagicMock())
+    monkeypatch.setattr(ec2_infra, "_delete_api_endpoint", MagicMock(return_value=True))
     monkeypatch.setattr(ec2_infra, "validate_image_revision", lambda image_uri, region: "a" * 40)
     monkeypatch.setattr(
         ec2_infra,
@@ -1058,6 +1334,7 @@ def _launch_test_api(tmp_path: Path) -> dict[str, str]:
         instance_type="m5.large",
         image_uri=DIGEST_URI,
         artifact_prefix="repairs/run-001",
+        launch_id="api-initial",
         canonical_manifest_path=_write_canonical_manifest(tmp_path),
         gate_receipt_path=_write_gate_receipt(tmp_path),
         manifest_path=tmp_path / "manifest.csv",
@@ -1115,6 +1392,8 @@ def test_api_launch_terminates_instance_when_readiness_fails(
         tag["Key"]: tag["Value"]
         for tag in ec2_client.run_instances.call_args.kwargs["TagSpecifications"][0]["Tags"]
     }
+    assert tags["citrees-api-endpoint"] == API_HOSTNAME
+    assert tags["citrees-api-launch-id"] == "api-initial"
     assert tags["citrees-gate-receipt-key"] == GATE_RECEIPT_KEY
     assert tags["citrees-gate-receipt-sha256"] == GATE_RECEIPT_SHA256
     assert tags["citrees-runtime-contract-key"] == RUNTIME_CONTRACT_KEY
@@ -1147,6 +1426,142 @@ def test_api_launch_requests_spot_without_fallback(
     assert tags["citrees-market"] == "spot"
 
 
+def test_campaign_endpoint_supports_spot_api_replacement_and_scoped_teardown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ec2 = _MemoryEc2()
+    route53 = _MemoryRoute53()
+    monkeypatch.setattr(
+        ec2_infra,
+        "publish_rerun_manifest",
+        lambda manifest_path,
+        canonical_manifest_path,
+        runtime_contract_path,
+        gate_receipt_path,
+        *,
+        region: (_published_manifest()),
+    )
+    monkeypatch.setattr(
+        ec2_infra,
+        "validate_image_revision",
+        lambda image_uri, region: "a" * 40,
+    )
+    monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
+    monkeypatch.setattr(ec2_infra, "ensure_security_group", lambda region: "sg-test")
+    monkeypatch.setattr(
+        ec2_infra,
+        "ensure_campaign_iam_profile",
+        lambda **kwargs: "citrees-campaign-test",
+    )
+    monkeypatch.setattr(ec2_infra, "_wait_for_api_ready", MagicMock())
+    monkeypatch.setattr(
+        ec2_infra.boto3,
+        "client",
+        lambda service, **kwargs: {"ec2": ec2, "route53": route53}[service],
+    )
+    monkeypatch.setattr(
+        ec2_infra.boto3,
+        "resource",
+        lambda service, **kwargs: _MemoryEc2Resource(ec2),
+    )
+    manifest_path = tmp_path / "manifest.csv"
+    manifest_path.write_text("fixture", encoding="utf-8")
+    launch_kwargs: _ApiLaunchKwargs = {
+        "instance_type": "m5.large",
+        "image_uri": DIGEST_URI,
+        "artifact_prefix": "repairs/run-001",
+        "canonical_manifest_path": _write_canonical_manifest(tmp_path),
+        "gate_receipt_path": _write_gate_receipt(tmp_path),
+        "manifest_path": manifest_path,
+        "runtime_contract_path": _write_runtime_contract(tmp_path),
+        "stage": "rankings",
+        "lease_seconds": 900,
+        "max_cell_attempts": 1,
+    }
+
+    first = launch_api(launch_id="api-initial", **launch_kwargs)
+    assert first["api_url"] == API_URL
+    assert first["public_api_url"] == "http://203.0.113.10:8000"
+    assert route53.target() == "10.0.0.10"
+    assert len(route53.zones) == 1
+    first_zone = next(iter(route53.zones.values()))
+    assert first_zone["name"] == API_HOSTED_ZONE_NAME
+    assert first_zone["vpcs"] == [{"VPCId": "vpc-default", "VPCRegion": "us-east-1"}]
+    first_record = next(iter(first_zone["records"].values()))
+    assert first_record["TTL"] == 10
+
+    ec2.interrupt(first["instance_id"])
+    replacement = launch_api(launch_id="api-replacement", **launch_kwargs)
+
+    assert replacement["api_url"] == first["api_url"] == API_URL
+    assert replacement["public_api_url"] == "http://203.0.113.20:8000"
+    assert route53.target() == "10.0.0.20"
+    assert len(route53.zones) == 1
+    assert len(ec2.run_requests) == 2
+    assert ec2.run_requests[0]["UserData"] == ec2.run_requests[1]["UserData"]
+    assert ec2.run_requests[0]["ClientToken"] != ec2.run_requests[1]["ClientToken"]
+    assert {request["InstanceMarketOptions"]["MarketType"] for request in ec2.run_requests} == {
+        "spot"
+    }
+    launch_ids = [
+        {tag["Key"]: tag["Value"] for tag in request["TagSpecifications"][0]["Tags"]}[
+            "citrees-api-launch-id"
+        ]
+        for request in ec2.run_requests
+    ]
+    assert launch_ids == ["api-initial", "api-replacement"]
+    active = ec2.describe_instances(
+        Filters=ec2_infra._api_instance_filters(
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            stage="rankings",
+            states=("pending", "running", "stopping"),
+        )
+    )
+    assert [
+        instance["InstanceId"]
+        for reservation in active["Reservations"]
+        for instance in reservation["Instances"]
+    ] == [replacement["instance_id"]]
+    scope = get_api_scope(
+        artifact_prefix="repairs/run-001",
+        campaign_sha256=CAMPAIGN_SHA256,
+        stage="rankings",
+    )
+    assert scope is not None
+    assert scope.api_url == API_URL
+    assert scope.public_api_url == replacement["public_api_url"]
+
+    with pytest.raises(RuntimeError, match="already active"):
+        launch_api(launch_id="api-concurrent", **launch_kwargs)
+    assert len(ec2.run_requests) == 2
+
+    unrelated_campaign = "f" * 64
+    unrelated_endpoint = ec2_infra._ensure_api_endpoint(
+        ec2,
+        route53,
+        artifact_prefix="repairs/run-002",
+        campaign_sha256=unrelated_campaign,
+        launch_id="api-unrelated",
+        stage="rankings",
+        region="us-east-1",
+    )
+    ec2_infra._upsert_api_endpoint(route53, unrelated_endpoint, "10.0.0.99")
+    ec2.interrupt(replacement["instance_id"])
+
+    assert (
+        terminate_api(
+            artifact_prefix="repairs/run-001",
+            campaign_sha256=CAMPAIGN_SHA256,
+            stage="rankings",
+        )
+        is None
+    )
+    assert len(route53.zones) == 1
+    assert route53.target() == "10.0.0.99"
+
+
 def test_running_api_scope_requires_complete_immutable_tags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1162,7 +1577,7 @@ def test_running_api_scope_requires_complete_immutable_tags(
     )
 
     assert scope == ApiScope(
-        api_url="http://10.0.0.10:8000",
+        api_url=API_URL,
         public_api_url="http://203.0.113.10:8000",
         artifact_prefix="repairs/run-001",
         campaign_sha256=CAMPAIGN_SHA256,
@@ -1182,6 +1597,8 @@ def test_running_api_scope_requires_complete_immutable_tags(
 
     complete_tags = list(instance["Tags"])
     for missing_key in (
+        "citrees-api-endpoint",
+        "citrees-api-launch-id",
         "citrees-canonical-manifest-key",
         "citrees-canonical-manifest-sha256",
         "citrees-gate-receipt-key",
@@ -1250,12 +1667,15 @@ def test_api_discovery_and_termination_are_isolated_by_campaign_scope(
         private_ip: str,
         public_ip: str,
     ) -> dict[str, object]:
+        endpoint = f"api.{stage}.{campaign_sha256[:32]}.{campaign_sha256[32:]}.citrees.internal"
         return {
             "InstanceId": instance_id,
             "InstanceLifecycle": "spot",
             "PrivateIpAddress": private_ip,
             "PublicIpAddress": public_ip,
             "Tags": [
+                {"Key": "citrees-api-endpoint", "Value": endpoint},
+                {"Key": "citrees-api-launch-id", "Value": f"api-{instance_id}"},
                 {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
                 {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
                 {
@@ -1319,6 +1739,8 @@ def test_api_discovery_and_termination_are_isolated_by_campaign_scope(
         return {"Reservations": ([{"Instances": [selected]}] if selected is not None else [])}
 
     client.describe_instances.side_effect = describe_instances
+    delete_endpoint = MagicMock(return_value=True)
+    monkeypatch.setattr(ec2_infra, "_delete_api_endpoint", delete_endpoint)
     monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: client)
 
     first = get_api_scope(
@@ -1333,8 +1755,13 @@ def test_api_discovery_and_termination_are_isolated_by_campaign_scope(
     )
 
     assert first is not None
+    assert first.api_url == API_URL
     assert first.public_api_url == "http://203.0.113.10:8000"
     assert second is not None
+    assert second.api_url == (
+        f"http://api.rankings.{second_campaign_sha256[:32]}."
+        f"{second_campaign_sha256[32:]}.citrees.internal:8000"
+    )
     assert second.public_api_url == "http://203.0.113.20:8000"
     assert (
         terminate_api(
@@ -1345,6 +1772,14 @@ def test_api_discovery_and_termination_are_isolated_by_campaign_scope(
         == "i-first"
     )
     client.terminate_instances.assert_called_once_with(InstanceIds=["i-first"])
+    delete_endpoint.assert_called_once_with(
+        client,
+        client,
+        artifact_prefix="repairs/run-001",
+        campaign_sha256=CAMPAIGN_SHA256,
+        stage="rankings",
+        region="us-east-1",
+    )
 
 
 def _mock_api_status_client(
@@ -1505,6 +1940,7 @@ def test_api_launch_rejects_unattested_runtime_contract_before_ec2(
             instance_type="m5.large",
             image_uri=DIGEST_URI,
             artifact_prefix="repairs/run-001",
+            launch_id="api-invalid-runtime",
             canonical_manifest_path=_write_canonical_manifest(tmp_path),
             gate_receipt_path=_write_gate_receipt(tmp_path),
             manifest_path=tmp_path / "manifest.csv",
@@ -1724,11 +2160,13 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         *,
         region: (_published_manifest()),
     )
-    monkeypatch.setattr(
-        ec2_infra,
-        "get_api_scope",
-        lambda **kwargs: _api_scope(),
+    api_scopes = MagicMock(
+        side_effect=[
+            _api_scope(public_api_url="http://203.0.113.10:8000"),
+            _api_scope(public_api_url="http://203.0.113.20:8000"),
+        ]
     )
+    monkeypatch.setattr(ec2_infra, "get_api_scope", api_scopes)
     monkeypatch.setattr(ec2_infra, "ensure_security_group", lambda region: "sg-test")
     monkeypatch.setattr(
         ec2_infra,
@@ -1781,7 +2219,10 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     intent = json.loads(s3.objects[intent_key][0])
     assert intent["instance_family"] == "c6a"
     assert intent["market"] == "spot"
+    assert intent["schema_version"] == 6
+    assert intent["api_scope"]["api_url"] == API_URL
     assert intent["api_scope"]["market"] == "spot"
+    assert "public_api_url" not in intent["api_scope"]
     assert intent["requested_instances"] == 2
     assert intent["gate_receipt_s3_key"] == GATE_RECEIPT_KEY
     assert intent["gate_receipt_sha256"] == GATE_RECEIPT_SHA256
@@ -1792,6 +2233,11 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     assert intent["api_scope"]["runtime_contract_s3_key"] == RUNTIME_CONTRACT_KEY
     assert intent["api_scope"]["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
     first_request = ec2.run_instances.call_args_list[0].kwargs
+    user_data = base64.b64decode(first_request["UserData"]).decode("utf-8")
+    assert f"-e CITREES_API_URL={API_URL}" in user_data
+    assert f"--api-url {API_URL}" in user_data
+    assert "10.0.0.10" not in user_data
+    assert "10.0.0.20" not in user_data
     request_contract = intent["request_contract"]
     for key, value in first_request.items():
         if key not in {"ClientToken", "TagSpecifications", "UserData"}:
@@ -1818,6 +2264,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     events.clear()
     assert launch_workers(**launch_kwargs) == ["i-worker-1", "i-worker-2"]
     ec2.run_instances.assert_not_called()
+    assert api_scopes.call_count == 2
 
 
 def _mock_worker_launch_dependencies(

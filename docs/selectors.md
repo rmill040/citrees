@@ -200,20 +200,20 @@ Input: x ∈ ℝⁿ, y ∈ ℝⁿ, projections k=10, bandwidth s=1/6
 4. Return: max pairwise correlation
 ```
 
-The default uses 10 projections (20 sine and cosine columns). The sensitivity study in
-`paper/benchmark/experiments/rdc_projection_sensitivity.py` compares 5, 10,
-20, and 40 projections on Wine (178 samples, 13 features), Glass (214 samples,
-10 features), Heart Statlog (270 samples, 13 features), and Parkinsons (195
+The default uses 10 projections (20 sine and cosine columns). The sensitivity
+study in `paper/jss/replication/rdc_sensitivity.py` compares 5, 10, 20, and 40
+projections on Wine (178 samples, 13 features), Glass (214 samples, 10
+features), Heart Statlog (270 samples, 13 features), and Parkinsons (195
 samples, 22 features) across five seeds and five folds. Across 25 paired
 seed-fold evaluations per dataset, median selector time with 20 projections was
 3.01 to 3.08 times that with 10. At reduced feature counts (5 and 10 for Wine,
 Heart Statlog, and Parkinsons; 5 for Glass), mean balanced accuracy differences
 (20 minus 10) ranged from -0.0052 to 0.0005 across the three downstream
-classifiers, and mean overlap between selected feature sets ranged from 95.4%
-to 99.8%. Mean Spearman correlations between complete rankings ranged from
-0.982 to 0.998. Using 10 projections reduced median selector time by 66.8% to
-67.5% relative to 20 while preserving the observed accuracy at these scales.
-Complete results and execution metadata are stored in
+classifiers, and mean overlap between selected feature sets ranged from 95.4% to
+99.8%. Mean Spearman correlations between complete rankings ranged from 0.982 to
+0.998. Using 10 projections reduced median selector time by 66.8% to 67.5%
+relative to 20 while preserving the observed accuracy at these scales. Complete
+results and execution metadata are stored in
 `paper/results/rdc-projection-sensitivity/`.
 
 ### Properties (Interpretation)

@@ -81,6 +81,12 @@ ANALYSES = (
         expected_analysis="dgrp",
         profiled=True,
     ),
+    AnalysisSpec(
+        name="rdc_sensitivity",
+        module="paper.jss.replication.rdc_sensitivity",
+        expected_analysis="rdc_sensitivity",
+        profiled=True,
+    ),
 )
 
 AnalysisRunner = Callable[

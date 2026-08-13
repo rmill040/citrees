@@ -44,9 +44,10 @@ from paper.benchmark.infra.ec2 import (
 )
 from paper.jss.replication import shards
 
-Market = Literal["spot", "on-demand"]
+Market = Literal["spot"]
+SPOT_MARKET: Market = "spot"
 COMPONENTS = (*shards.CALIBRATION_COMPONENTS, "behavior")
-CAMPAIGN_SCHEMA_VERSION = 1
+CAMPAIGN_SCHEMA_VERSION = 2
 ARCHIVE_METADATA_SCHEMA_VERSION = "1"
 ROLE_TAG_VALUE = "jss-shard"
 LOG_GROUP = "/citrees/jss"
@@ -54,9 +55,14 @@ COMPUTE_ACCOUNTING_FILENAME = "cloud_compute_accounting.json"
 CLOUD_PROVENANCE_DIRECTORY = "cloud_provenance"
 MATERIALIZED_CAMPAIGN_MANIFEST = f"{CLOUD_PROVENANCE_DIRECTORY}/campaign.json"
 _AMI_ID_PATTERN = re.compile(r"^ami-[0-9a-f]{8,17}$")
-_SPOT_LIMIT_ERRORS = frozenset({"MaxSpotInstanceCountExceeded"})
-_ACCOUNT_CAPACITY_ERRORS = frozenset({"InstanceLimitExceeded", "VcpuLimitExceeded"})
-_CAPACITY_ERRORS = _SPOT_LIMIT_ERRORS | _ACCOUNT_CAPACITY_ERRORS | {"InsufficientInstanceCapacity"}
+_CAPACITY_ERRORS = frozenset(
+    {
+        "InsufficientInstanceCapacity",
+        "InstanceLimitExceeded",
+        "MaxSpotInstanceCountExceeded",
+        "VcpuLimitExceeded",
+    }
+)
 _CONDITIONAL_WRITE_CONFLICT_CODES = frozenset(
     {
         "409",
@@ -85,6 +91,7 @@ class CloudCampaign:
     aws_account_id: str
     bucket: str
     region: str
+    market: Market
     instance_type: str
     ami_id: str
     specs: tuple[shards.ShardSpec, ...]
@@ -332,6 +339,13 @@ def _require_string(value: object, label: str) -> str:
     return normalized
 
 
+def _require_spot_market(value: object, label: str) -> Market:
+    market = _require_string(value, label)
+    if market != SPOT_MARKET:
+        raise ValueError(f"{label} must be {SPOT_MARKET!r}")
+    return SPOT_MARKET
+
+
 def _is_conditional_write_conflict(error: ClientError) -> bool:
     code = str(error.response.get("Error", {}).get("Code", ""))
     status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
@@ -476,6 +490,7 @@ def _campaign_payload(
     aws_account_id: str,
     bucket: str,
     region: str,
+    market: Market,
     instance_type: str,
     ami_id: str,
     specs: Sequence[shards.ShardSpec],
@@ -490,6 +505,7 @@ def _campaign_payload(
         "aws_account_id": aws_account_id,
         "bucket": bucket,
         "region": region,
+        "market": market,
         "instance_type": instance_type,
         "ami_id": ami_id,
         "specs": [asdict(spec) for spec in specs],
@@ -533,6 +549,7 @@ def create_campaign(
         aws_account_id=aws_account_id,
         bucket=bucket,
         region=region,
+        market=SPOT_MARKET,
         instance_type=instance_type,
         ami_id=ami_id,
         specs=specs,
@@ -546,6 +563,7 @@ def create_campaign(
         aws_account_id=aws_account_id,
         bucket=bucket,
         region=region,
+        market=SPOT_MARKET,
         instance_type=instance_type,
         ami_id=ami_id,
         specs=specs,
@@ -563,6 +581,7 @@ def campaign_payload(campaign: CloudCampaign) -> dict[str, object]:
         aws_account_id=campaign.aws_account_id,
         bucket=campaign.bucket,
         region=campaign.region,
+        market=campaign.market,
         instance_type=campaign.instance_type,
         ami_id=campaign.ami_id,
         specs=campaign.specs,
@@ -609,6 +628,7 @@ def parse_campaign(payload: bytes, expected_sha256: str) -> CloudCampaign:
         "aws_account_id",
         "bucket",
         "region",
+        "market",
         "instance_type",
         "ami_id",
         "specs",
@@ -637,6 +657,7 @@ def parse_campaign(payload: bytes, expected_sha256: str) -> CloudCampaign:
         _require_string(value["profile"], "profile"),
     )
     base_seed = _require_integer(value["base_seed"], "base_seed", minimum=0)
+    _require_spot_market(value["market"], "campaign market")
     reconstructed = create_campaign(
         profile,
         base_seed=base_seed,
@@ -721,6 +742,7 @@ def _cloud_receipt(
     runtime: CloudRuntime,
     key: str,
 ) -> None:
+    _validate_runtime(campaign, runtime)
     receipt_path = output_dir / "receipt.json"
     receipt = json.loads(receipt_path.read_text(encoding="ascii"))
     if not isinstance(receipt, dict) or receipt.get("analysis") != "jss_shard":
@@ -894,8 +916,8 @@ def _validate_runtime(campaign: CloudCampaign, runtime: CloudRuntime) -> None:
         raise ValueError("worker image differs from the campaign")
     if runtime.ami_id != campaign.ami_id:
         raise ValueError("worker AMI differs from the campaign")
-    if runtime.market not in ("spot", "on-demand"):
-        raise ValueError("worker market is invalid")
+    if _require_spot_market(runtime.market, "worker market") != campaign.market:
+        raise ValueError("worker market differs from the campaign")
     _require_string(runtime.instance_id, "worker instance_id")
     if _require_string(runtime.instance_type, "worker instance_type") != campaign.instance_type:
         raise ValueError("worker instance type differs from the campaign")
@@ -949,7 +971,7 @@ def _validate_cloud_receipt(
             execution["availability_zone"],
             "cloud availability_zone",
         ),
-        market=cast(Market, _require_string(execution["market"], "cloud market")),
+        market=_require_spot_market(execution["market"], "cloud market"),
         image_uri=_require_string(execution["image_uri"], "cloud image_uri"),
         ami_id=_require_ami_id(execution["ami_id"]),
         attempt=_require_integer(execution["attempt"], "cloud attempt", minimum=1),
@@ -1178,8 +1200,8 @@ def _parse_launch_request(
         minimum=1,
     )
     attempt = _require_integer(value["attempt"], "launch request attempt", minimum=1)
-    market = _require_string(value["market"], "launch request market")
-    if market not in ("spot", "on-demand"):
+    market = _require_spot_market(value["market"], "launch request market")
+    if market != campaign.market:
         raise ValueError(f"JSS launch request market differs: {key}")
     instance_type = _require_string(
         value["instance_type"],
@@ -1204,7 +1226,6 @@ def _parse_launch_request(
         spec,
         request_index=request_index,
         attempt=attempt,
-        market=cast(Market, market),
         instance_type=instance_type,
         subnet_id=subnet_id,
         instance_profile_name=instance_profile_name,
@@ -1222,7 +1243,7 @@ def _parse_launch_request(
         spec_sha256=spec_sha256,
         request_index=request_index,
         attempt=attempt,
-        market=cast(Market, market),
+        market=market,
         instance_type=instance_type,
         subnet_id=subnet_id,
         instance_profile_name=instance_profile_name,
@@ -1502,8 +1523,8 @@ def _parse_launch_record(
         minimum=1,
     )
     attempt = _require_integer(value["attempt"], "launch attempt", minimum=1)
-    market = _require_string(value["market"], "launch market")
-    if market not in ("spot", "on-demand"):
+    market = _require_spot_market(value["market"], "launch market")
+    if market != campaign.market:
         raise ValueError(f"JSS launch record market differs: {key}")
     instance_type = _require_string(value["instance_type"], "launch instance_type")
     if instance_type != campaign.instance_type:
@@ -1537,7 +1558,7 @@ def _parse_launch_record(
         spec_sha256=spec_sha256,
         request_index=request_index,
         attempt=attempt,
-        market=cast(Market, market),
+        market=market,
         instance_type=instance_type,
         client_token=client_token,
         instance_id=instance_id,
@@ -1556,6 +1577,7 @@ def _validate_launch_history(
     grouped: dict[str, list[LaunchRecord]] = {}
     records = tuple(stored.record for stored in stored_records)
     for record in records:
+        _require_spot_market(record.market, "launch record market")
         grouped.setdefault(record.spec_sha256, []).append(record)
     for spec_sha256, spec_records in grouped.items():
         attempts = [record.attempt for record in spec_records]
@@ -1832,6 +1854,10 @@ def _validate_launch_ledger(
     requests = tuple(stored.request for stored in request_objects)
     rejections = tuple(stored.rejection for stored in rejection_objects)
     launches = tuple(stored.record for stored in launch_objects)
+    for request in requests:
+        _require_spot_market(request.market, "launch request market")
+    for launch in launches:
+        _require_spot_market(launch.market, "launch record market")
     request_by_identity = {
         (request.spec_sha256, request.request_index): request for request in requests
     }
@@ -1854,25 +1880,25 @@ def _validate_launch_ledger(
         raise ValueError("JSS launch ledger contains duplicate request outcomes")
 
     for rejection in rejections:
-        request = request_by_identity.get((rejection.spec_sha256, rejection.request_index))
-        if request is None:
+        matched_request = request_by_identity.get((rejection.spec_sha256, rejection.request_index))
+        if matched_request is None:
             raise ValueError("JSS launch rejection has no matching request")
         if (
-            rejection.client_token != request.client_token
+            rejection.client_token != matched_request.client_token
             or rejection.error_code not in _CAPACITY_ERRORS
         ):
             raise ValueError("JSS launch rejection differs from its request")
 
     for identity, launch in launch_by_identity.items():
-        request = request_by_identity.get(identity)
-        if request is None:
+        matched_request = request_by_identity.get(identity)
+        if matched_request is None:
             raise ValueError("JSS launch record has no matching request")
         if (
-            launch.spec != request.spec
-            or launch.attempt != request.attempt
-            or launch.market != request.market
-            or launch.instance_type != request.instance_type
-            or launch.client_token != request.client_token
+            launch.spec != matched_request.spec
+            or launch.attempt != matched_request.attempt
+            or launch.market != matched_request.market
+            or launch.instance_type != matched_request.instance_type
+            or launch.client_token != matched_request.client_token
         ):
             raise ValueError("JSS launch record differs from its request")
 
@@ -2286,41 +2312,18 @@ def compute_accounting_payload(
     if campaign_wall_seconds <= 0.0:
         raise ValueError("campaign launch-to-receipt duration must be positive")
 
-    markets: dict[str, dict[str, int | float]] = {}
-    for market in ("spot", "on-demand"):
-        market_completed = tuple(shard for shard in completed if shard.runtime.market == market)
-        market_launches = tuple(launch for launch in launches if launch.market == market)
-        market_prior_attempts = tuple(
-            launch for launch in prior_attempts if launch.market == market
-        )
-        market_launch_identities = {
-            (launch.spec_sha256, launch.attempt) for launch in market_launches
+    spot_totals = _compute_totals(
+        completed,
+        launches=launches,
+        prior_attempts=prior_attempts,
+        outcomes=outcomes,
+    )
+    spot_totals.update(
+        {
+            "launch_intents": len(requests),
+            "distinct_capacity_rejections": len(rejections),
         }
-        market_outcomes = tuple(
-            outcome
-            for outcome in outcomes
-            if (outcome.spec_sha256, outcome.attempt) in market_launch_identities
-        )
-        markets[market] = _compute_totals(
-            market_completed,
-            launches=market_launches,
-            prior_attempts=market_prior_attempts,
-            outcomes=market_outcomes,
-        )
-        markets[market].update(
-            {
-                "launch_intents": sum(request.market == market for request in requests),
-                "distinct_capacity_rejections": sum(
-                    request.market == market
-                    for rejection in rejections
-                    for request in requests
-                    if (
-                        request.spec_sha256 == rejection.spec_sha256
-                        and request.request_index == rejection.request_index
-                    )
-                ),
-            }
-        )
+    )
 
     totals = _compute_totals(
         completed,
@@ -2432,6 +2435,7 @@ def compute_accounting_payload(
         "aws_account_id": campaign.aws_account_id,
         "bucket": campaign.bucket,
         "region": campaign.region,
+        "market": campaign.market,
         "instance_type": campaign.instance_type,
         "ami_id": campaign.ami_id,
         "campaign_window_utc": {
@@ -2440,7 +2444,7 @@ def compute_accounting_payload(
             "last_terminal_observation": last_terminal_observation.isoformat(),
         },
         "totals": totals,
-        "markets": markets,
+        "markets": {SPOT_MARKET: spot_totals},
         "launch_attempts_by_availability_zone": availability_zones,
         "components": component_summaries,
         "launch_requests": [
@@ -3024,7 +3028,6 @@ def _worker_user_data(
     spec: shards.ShardSpec,
     *,
     attempt: int,
-    market: Market,
 ) -> str:
     attempt = _require_integer(attempt, "attempt", minimum=1)
     image_registry = campaign.image_uri.split("/", maxsplit=1)[0]
@@ -3076,7 +3079,7 @@ def _worker_user_data(
             -e EC2_INSTANCE_ID=$INSTANCE_ID \\
             -e EC2_INSTANCE_TYPE={shlex.quote(campaign.instance_type)} \\
             -e EC2_LAUNCH_ATTEMPT={attempt} \\
-            -e EC2_MARKET={market} \\
+            -e EC2_MARKET={campaign.market} \\
             -e GIT_SHA={campaign.git_sha} \\
             -e S3_BUCKET={campaign.bucket} \\
             {campaign.image_uri} \\
@@ -3173,14 +3176,12 @@ def _campaign_instances(
                         tags.get("citrees-jss-client-token"),
                         "campaign instance launch client token",
                     )
-                    market = _require_string(
+                    market = _require_spot_market(
                         tags.get("citrees-jss-market"),
                         "campaign instance market",
                     )
-                    if market not in ("spot", "on-demand"):
-                        raise ValueError("campaign instance market is invalid")
                     lifecycle = instance.get("InstanceLifecycle")
-                    if (market == "spot") != (lifecycle == "spot"):
+                    if lifecycle != SPOT_MARKET:
                         raise ValueError("campaign instance lifecycle differs from its market tag")
                     instance_type = _require_string(
                         instance.get("InstanceType"),
@@ -3228,7 +3229,7 @@ def _campaign_instances(
                                     "campaign instance launch attempt",
                                     minimum=1,
                                 ),
-                                market=cast(Market, market),
+                                market=market,
                                 instance_type=instance_type,
                                 client_token=client_token,
                                 instance_id=_require_string(
@@ -3471,7 +3472,6 @@ def _client_token(
     *,
     request_index: int,
     attempt: int,
-    market: Market,
     instance_type: str,
     subnet_id: str,
     instance_profile_name: str,
@@ -3483,7 +3483,7 @@ def _client_token(
             "spec_sha256": shard_spec_sha256(spec),
             "request_index": request_index,
             "attempt": attempt,
-            "market": market,
+            "market": campaign.market,
             "instance_type": instance_type,
             "subnet_id": subnet_id,
             "instance_profile_name": instance_profile_name,
@@ -3499,7 +3499,6 @@ def _create_launch_request(
     *,
     requests: Sequence[LaunchRequest],
     launches: Sequence[LaunchRecord],
-    market: Market,
     subnet_id: str,
     instance_profile_name: str,
     security_group_id: str,
@@ -3512,7 +3511,7 @@ def _create_launch_request(
         spec_sha256=shard_spec_sha256(spec),
         request_index=request_index,
         attempt=attempt,
-        market=market,
+        market=campaign.market,
         instance_type=instance_type,
         subnet_id=_require_string(subnet_id, "launch request subnet"),
         instance_profile_name=_require_string(
@@ -3528,7 +3527,6 @@ def _create_launch_request(
             spec,
             request_index=request_index,
             attempt=attempt,
-            market=market,
             instance_type=instance_type,
             subnet_id=subnet_id,
             instance_profile_name=instance_profile_name,
@@ -3546,6 +3544,8 @@ def _instance_tags(
     campaign: CloudCampaign,
     request: LaunchRequest,
 ) -> list[dict[str, str]]:
+    if _require_spot_market(request.market, "launch request market") != campaign.market:
+        raise ValueError("launch request market differs from the campaign")
     return [
         {"Key": TAG_KEY, "Value": ROLE_TAG_VALUE},
         {"Key": "Name", "Value": "citrees-jss-shard"},
@@ -3578,7 +3578,6 @@ def _run_instance_arguments(
         campaign,
         request.spec,
         attempt=request.attempt,
-        market=request.market,
     )
     tags = _instance_tags(campaign, request)
     arguments: dict[str, object] = {
@@ -3602,14 +3601,13 @@ def _run_instance_arguments(
             {"ResourceType": "volume", "Tags": tags},
         ],
     }
-    if request.market == "spot":
-        arguments["InstanceMarketOptions"] = {
-            "MarketType": "spot",
-            "SpotOptions": {
-                "SpotInstanceType": "one-time",
-                "InstanceInterruptionBehavior": "terminate",
-            },
-        }
+    arguments["InstanceMarketOptions"] = {
+        "MarketType": SPOT_MARKET,
+        "SpotOptions": {
+            "SpotInstanceType": "one-time",
+            "InstanceInterruptionBehavior": "terminate",
+        },
+    }
     return arguments
 
 
@@ -3680,15 +3678,11 @@ def _execute_launch_request(
 def launch_missing_shards(
     campaign: CloudCampaign,
     *,
-    spot_count: int,
     max_new_instances: int | None = None,
     ec2_client: Any | None = None,
     s3_client: Any | None = None,
 ) -> tuple[LaunchRecord, ...]:
-    """Launch every missing, inactive shard with deterministic market assignment."""
-    spot_count = _require_integer(spot_count, "spot_count", minimum=0)
-    if spot_count > len(campaign.specs):
-        raise ValueError("spot_count must lie within the campaign inventory")
+    """Launch missing, inactive shards as immutable one-time Spot instances."""
     if max_new_instances is not None:
         max_new_instances = _require_integer(
             max_new_instances,
@@ -3743,9 +3737,6 @@ def launch_missing_shards(
 
     requests = list(status.launch_requests)
     launches = list(status.launches)
-    rejected_specs: set[shards.ShardSpec] = set()
-    spot_unavailable = False
-    account_unavailable = False
     observed = _campaign_instances(campaign, ec2)
     active = _reconcile_campaign_instances(
         campaign,
@@ -3766,12 +3757,8 @@ def launch_missing_shards(
         return ()
 
     spec_positions = {spec: index for index, spec in enumerate(campaign.specs)}
-    spot_specs = set(campaign.specs[:spot_count])
     records: list[LaunchRecord] = []
     for spec in missing:
-        market: Market = "spot" if spec in spot_specs else "on-demand"
-        if account_unavailable or spec in rejected_specs or (market == "spot" and spot_unavailable):
-            continue
         request_index = _next_request_index(requests, spec)
         subnet_id = placement_subnets[
             (spec_positions[spec] + request_index - 1) % len(placement_subnets)
@@ -3781,7 +3768,6 @@ def launch_missing_shards(
             spec,
             requests=requests,
             launches=launches,
-            market=market,
             subnet_id=subnet_id,
             instance_profile_name=instance_profile_name,
             security_group_id=security_group_id,
@@ -3796,10 +3782,9 @@ def launch_missing_shards(
             s3_client=s3,
         )
         if record is None:
-            rejected_specs.add(spec)
-            spot_unavailable = rejection_code in _SPOT_LIMIT_ERRORS
-            account_unavailable = rejection_code in _ACCOUNT_CAPACITY_ERRORS
-            continue
+            if rejection_code not in _CAPACITY_ERRORS:
+                raise AssertionError("launch rejection must identify a capacity error")
+            break
         records.append(record)
         launches.append(record)
     return tuple(records)
@@ -3827,7 +3812,7 @@ def _runtime_from_environment() -> CloudRuntime:
         instance_id=required["EC2_INSTANCE_ID"],
         instance_type=required["EC2_INSTANCE_TYPE"],
         availability_zone=required["EC2_AVAILABILITY_ZONE"],
-        market=cast(Market, required["EC2_MARKET"]),
+        market=_require_spot_market(required["EC2_MARKET"], "EC2_MARKET"),
         image_uri=required["CITREES_IMAGE_URI"],
         ami_id=required["EC2_AMI_ID"],
         attempt=_require_integer(
@@ -3876,7 +3861,6 @@ def _parse_args() -> argparse.Namespace:
 
     launch = subparsers.add_parser("launch")
     _add_campaign_arguments(launch)
-    launch.add_argument("--spot-count", type=int, required=True)
     launch.add_argument("--max-new-instances", type=int)
 
     status = subparsers.add_parser("status")
@@ -3930,7 +3914,6 @@ def main() -> None:
     if args.command == "launch":
         records = launch_missing_shards(
             campaign,
-            spot_count=args.spot_count,
             max_new_instances=args.max_new_instances,
         )
         print(f"Launched {len(records)} JSS shard instances.")

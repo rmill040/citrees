@@ -428,7 +428,7 @@ def _gate_tags(
         {"key": "citrees-gate-launch-nonce", "value": GATE_LAUNCH_NONCE},
         {"key": "citrees-host-slot", "value": host_slot},
         {"key": "citrees-image-digest", "value": image_digest},
-        {"key": "citrees-market", "value": "spot"},
+        {"key": "citrees-market", "value": gate.GATE_MARKET},
         {
             "key": "citrees-role",
             "value": "r-cforest-reproducibility-gate",
@@ -466,7 +466,7 @@ def _operator_readbacks(
             "iam_role_arn": f"arn:aws:iam::{signed.account_id}:role/citrees-gate-instance",
             "image_id": signed.image_id,
             "instance_id": signed.instance_id,
-            "instance_lifecycle": "spot",
+            "instance_lifecycle": gate.GATE_MARKET,
             "instance_type": signed.instance_type,
             "operator_identity": _operator_caller(signed.account_id).to_record(),
             "owner_account_id": signed.account_id,
@@ -545,7 +545,7 @@ def test_gate_attempt_identity_and_prefix_bind_fresh_nonce() -> None:
         source_git_sha,
         image_digest,
         GATE_LAUNCH_NONCE,
-    ).endswith(f"attempt-{GATE_LAUNCH_NONCE}-arc-spot2")
+    ).endswith(f"attempt-{GATE_LAUNCH_NONCE}-arc-on-demand2")
 
 
 @pytest.mark.parametrize(
@@ -1053,7 +1053,7 @@ def test_openssl_provenance_requires_exact_cross_host_equality(
 def test_gate_schema_versions_reject_prior_evidence() -> None:
     assert gate.RUNTIME_CONTRACT_SCHEMA_VERSION == 6
     assert gate.SCHEMA_VERSION == 7
-    assert gate.GATE_RECEIPT_SCHEMA_VERSION == 7
+    assert gate.GATE_RECEIPT_SCHEMA_VERSION == 8
 
     runtime_contract, manifest, payloads = _payloads()
 
@@ -1216,7 +1216,6 @@ def test_live_operator_readbacks_cover_both_hosts_in_one_account(
                                     "Id": "AIPAGATE",
                                 },
                                 "InstanceId": instance_id,
-                                "InstanceLifecycle": "spot",
                                 "InstanceType": INSTANCE_TYPE,
                                 "Placement": {"AvailabilityZone": availability_zone},
                                 "State": {"Name": "running"},
@@ -1304,7 +1303,7 @@ def test_live_operator_readbacks_cover_both_hosts_in_one_account(
         ZONE_ID_A,
         ZONE_ID_B,
     }
-    assert {record["readback"]["instance_lifecycle"] for record in readbacks} == {"spot"}
+    assert {record["readback"]["instance_lifecycle"] for record in readbacks} == {gate.GATE_MARKET}
 
 
 @pytest.mark.parametrize(
@@ -1339,10 +1338,10 @@ def test_compare_requires_two_independent_contemporaneous_operator_readbacks(
         if mutation == "state":
             readback["state"] = "stopped"
         elif mutation == "instance_lifecycle":
-            readback["instance_lifecycle"] = "on-demand"
+            readback["instance_lifecycle"] = "spot"
         elif mutation == "market_tag":
             next(tag for tag in readback["tags"] if tag["key"] == "citrees-market")["value"] = (
-                "on-demand"
+                "spot"
             )
         elif mutation.endswith("_tag"):
             tag_mutations = {

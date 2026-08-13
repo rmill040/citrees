@@ -75,9 +75,10 @@ from paper.benchmark.pipeline.types import TaskType
 from paper.benchmark.utils.env import get_available_cpu_ids, partition_cpu_ids
 
 SCHEMA_VERSION = 7
-GATE_RECEIPT_SCHEMA_VERSION = 7
+GATE_RECEIPT_SCHEMA_VERSION = 8
 GATE_RECEIPT_PROFILE = "r_cforest_reproducibility_gate"
 GATE_RECEIPT_S3_PREFIX = "runtime-gate-receipts"
+GATE_MARKET = "on-demand"
 N_FOLDS = 5
 N_EXPECTED_RUNS = 4
 N_EXPECTED_HOSTS = 2
@@ -241,14 +242,16 @@ def gate_launch_identity(
     image_digest: str,
     launch_nonce: str,
 ) -> str:
-    """Return the exact identity of one fresh Arc Spot gate attempt."""
+    """Return the exact identity of one fresh Arc on-demand gate attempt."""
     if not _GATE_SOURCE_GIT_SHA_PATTERN.fullmatch(source_git_sha):
         raise ValueError("gate source Git SHA must contain 40 lowercase hex digits")
     if not _GATE_IMAGE_DIGEST_PATTERN.fullmatch(image_digest):
         raise ValueError("gate image digest must be sha256 followed by 64 lowercase hex digits")
     if not _GATE_LAUNCH_NONCE_PATTERN.fullmatch(launch_nonce):
         raise ValueError("gate launch nonce must contain 32 lowercase hex digits")
-    return _sha256_bytes(f"{source_git_sha}\0{image_digest}\0{launch_nonce}".encode("ascii"))
+    return _sha256_bytes(
+        f"{source_git_sha}\0{image_digest}\0{launch_nonce}\0{GATE_MARKET}".encode("ascii")
+    )
 
 
 def gate_output_prefix(
@@ -256,13 +259,13 @@ def gate_output_prefix(
     image_digest: str,
     launch_nonce: str,
 ) -> str:
-    """Return the immutable S3 prefix for one Arc Spot gate attempt."""
+    """Return the immutable S3 prefix for one Arc on-demand gate attempt."""
     gate_launch_identity(source_git_sha, image_digest, launch_nonce)
     image_binding = image_digest.removeprefix("sha256:")[:16]
     return (
         "gates/r-cforest-reproducibility/"
         f"source-{source_git_sha}/image-{image_binding}/"
-        f"attempt-{launch_nonce}-arc-spot2"
+        f"attempt-{launch_nonce}-arc-on-demand2"
     )
 
 
@@ -1206,8 +1209,8 @@ def _canonical_operator_readbacks(
             raise ValueError(
                 f"operator readback for instance {instance_id} was not collected while running"
             )
-        if readback.instance_lifecycle != "spot":
-            raise ValueError(f"operator readback for instance {instance_id} is not Spot")
+        if readback.instance_lifecycle != GATE_MARKET:
+            raise ValueError(f"operator readback for instance {instance_id} is not on-demand")
         tags = dict(readback.tags)
         source_git_sha = str(normalized_runtime["runtime"]["git_sha"])
         image_digest = str(normalized_runtime["runtime"]["container_image_digest"])
@@ -1230,7 +1233,7 @@ def _canonical_operator_readbacks(
             "citrees-gate-launch-nonce": gate_launch_nonce,
             "citrees-host-slot": host_slot_by_instance[instance_id],
             "citrees-image-digest": image_digest,
-            "citrees-market": "spot",
+            "citrees-market": GATE_MARKET,
             "citrees-role": "r-cforest-reproducibility-gate",
             "citrees-source-git-sha": source_git_sha,
         }

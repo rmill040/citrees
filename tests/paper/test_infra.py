@@ -83,6 +83,13 @@ API_URL = f"http://{API_HOSTNAME}:8000"
 WORKER_AVAILABILITY_ZONE = "us-east-1a"
 WORKER_SUBNET_ID = "subnet-0aaaaaaaaaaaaaaa1"
 WORKER_VPC_ID = "vpc-test"
+WORKER_SPOT_OPTIONS = {
+    "MarketType": "spot",
+    "SpotOptions": {
+        "InstanceInterruptionBehavior": "terminate",
+        "SpotInstanceType": "one-time",
+    },
+}
 MANIFEST_KEY = f"rerun-manifests/{MANIFEST_SHA256}.csv"
 CANONICAL_MANIFEST_KEY = f"canonical-rerun-manifests/{CANONICAL_MANIFEST_SHA256}.csv"
 SSM_POLICY_ARN = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -105,9 +112,10 @@ def _worker_instance(
     instance_type: str = "c6a.8xlarge",
     subnet_id: str = WORKER_SUBNET_ID,
 ) -> dict[str, object]:
-    """Build one exact on-demand worker instance row."""
+    """Build one exact Spot worker instance row."""
     return {
         "InstanceId": instance_id,
+        "InstanceLifecycle": "spot",
         "InstanceType": instance_type,
         "Placement": {"AvailabilityZone": availability_zone},
         "SubnetId": subnet_id,
@@ -2292,7 +2300,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         client_tokens.add(call.kwargs["ClientToken"])
         tags = {tag["Key"]: tag["Value"] for tag in call.kwargs["TagSpecifications"][0]["Tags"]}
         assert tags["citrees-instance-family"] == "c6a"
-        assert tags["citrees-market"] == "on-demand"
+        assert tags["citrees-market"] == "spot"
         assert tags["citrees-gate-receipt-key"] == GATE_RECEIPT_KEY
         assert tags["citrees-gate-receipt-sha256"] == GATE_RECEIPT_SHA256
         assert tags["citrees-runtime-contract-key"] == RUNTIME_CONTRACT_KEY
@@ -2303,8 +2311,8 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     intent_key = "repairs/run-001/_control/worker-launches/scale-001/intent.json"
     intent = json.loads(s3.objects[intent_key][0])
     assert intent["instance_family"] == "c6a"
-    assert intent["market"] == "on-demand"
-    assert intent["schema_version"] == 8
+    assert intent["market"] == "spot"
+    assert intent["schema_version"] == 9
     assert intent["excluded_availability_zones"] == []
     assert intent["subnet_ids"] == [WORKER_SUBNET_ID]
     assert intent["slot_placements"] == [
@@ -2334,7 +2342,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     assert intent["api_scope"]["runtime_contract_s3_key"] == RUNTIME_CONTRACT_KEY
     assert intent["api_scope"]["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
     first_request = ec2.run_instances.call_args_list[0].kwargs
-    assert "InstanceMarketOptions" not in first_request
+    assert first_request["InstanceMarketOptions"] == WORKER_SPOT_OPTIONS
     assert first_request["SubnetId"] == WORKER_SUBNET_ID
     user_data = base64.b64decode(first_request["UserData"]).decode("utf-8")
     assert f"-e CITREES_API_URL={API_URL}" in user_data
@@ -2360,7 +2368,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         "i-worker-1",
         "i-worker-2",
     }
-    assert {json.loads(s3.objects[key][0])["market"] for key in outcome_keys} == {"on-demand"}
+    assert {json.loads(s3.objects[key][0])["market"] for key in outcome_keys} == {"spot"}
     assert {json.loads(s3.objects[key][0])["instance_family"] for key in outcome_keys} == {"c6a"}
     assert {json.loads(s3.objects[key][0])["subnet_id"] for key in outcome_keys} == {
         WORKER_SUBNET_ID
@@ -2600,6 +2608,10 @@ def test_worker_launch_retries_ambiguous_ec2_server_error_with_same_token(
     assert {call.kwargs["ClientToken"] for call in ec2.run_instances.call_args_list} == {
         ec2.run_instances.call_args_list[0].kwargs["ClientToken"]
     }
+    assert all(
+        call.kwargs["InstanceMarketOptions"] == WORKER_SPOT_OPTIONS
+        for call in ec2.run_instances.call_args_list
+    )
 
 
 def test_worker_launch_exhausts_ambiguous_retries_without_changing_token(
@@ -2671,24 +2683,30 @@ def test_worker_launch_reconciles_partial_capacity_on_replay(
     ec2.run_instances.side_effect = [
         {"Instances": [_worker_instance("i-worker-1")]},
         capacity_error,
+        {"Instances": [_worker_instance("i-worker-3")]},
     ]
     kwargs = _worker_launch_kwargs(manifest_path, n=3)
 
-    assert launch_workers(**kwargs) == ["i-worker-1"]
+    assert launch_workers(**kwargs) == ["i-worker-1", "i-worker-3"]
     failed_slot_token = ec2.run_instances.call_args_list[1].kwargs["ClientToken"]
+    assert all(
+        call.kwargs["InstanceMarketOptions"] == WORKER_SPOT_OPTIONS
+        for call in ec2.run_instances.call_args_list
+    )
 
     ec2.run_instances.reset_mock(side_effect=True)
-    ec2.run_instances.side_effect = [
-        {"Instances": [_worker_instance("i-worker-2")]},
-        {"Instances": [_worker_instance("i-worker-3")]},
-    ]
+    ec2.run_instances.return_value = {"Instances": [_worker_instance("i-worker-2")]}
     assert launch_workers(**kwargs) == [
         "i-worker-1",
         "i-worker-2",
         "i-worker-3",
     ]
-    assert ec2.run_instances.call_count == 2
+    assert ec2.run_instances.call_count == 1
     assert ec2.run_instances.call_args_list[0].kwargs["ClientToken"] == failed_slot_token
+    assert all(
+        call.kwargs["InstanceMarketOptions"] == WORKER_SPOT_OPTIONS
+        for call in ec2.run_instances.call_args_list
+    )
 
 
 def test_worker_launch_accounts_terminated_instance_with_exact_tags(
@@ -2805,6 +2823,22 @@ def test_worker_launch_rejects_nonexact_ec2_response(
         launch_workers(**_worker_launch_kwargs(manifest_path))
 
     assert ec2.run_instances.call_count == 1
+    assert not any("/instances/" in key for key in s3.objects)
+
+
+def test_worker_launch_rejects_on_demand_ec2_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    instance = _worker_instance("i-worker")
+    del instance["InstanceLifecycle"]
+    ec2.run_instances.return_value = {"Instances": [instance]}
+
+    with pytest.raises(RuntimeError, match="must be Spot"):
+        launch_workers(**_worker_launch_kwargs(manifest_path))
+
+    assert ec2.run_instances.call_args.kwargs["InstanceMarketOptions"] == WORKER_SPOT_OPTIONS
     assert not any("/instances/" in key for key in s3.objects)
 
 
@@ -3885,6 +3919,7 @@ def test_worker_listing_and_termination_require_one_exact_campaign_launch(
                 "Instances": [
                     {
                         "InstanceId": "i-0123456789abcdef0",
+                        "InstanceLifecycle": "spot",
                         "InstanceType": "c6a.8xlarge",
                         "LaunchTime": None,
                         "State": {"Name": "running"},
@@ -3900,7 +3935,7 @@ def test_worker_listing_and_termination_require_one_exact_campaign_launch(
                             },
                             {"Key": "citrees-stage", "Value": "rankings"},
                             {"Key": "citrees-worker-launch-id", "Value": launch_id},
-                            {"Key": "citrees-market", "Value": "on-demand"},
+                            {"Key": "citrees-market", "Value": "spot"},
                         ],
                     }
                 ]
@@ -3969,7 +4004,7 @@ def test_worker_listing_rejects_ec2_rows_outside_campaign_launch_identity(
         "citrees-campaign-sha256": CAMPAIGN_SHA256,
         "citrees-stage": "rankings",
         "citrees-worker-launch-id": "campaign-rankings-001",
-        "citrees-market": "on-demand",
+        "citrees-market": "spot",
     }
     tags[tag_name] = tag_value
     ec2 = MagicMock()
@@ -4003,10 +4038,11 @@ def test_worker_listing_rejects_ec2_rows_outside_campaign_launch_identity(
     ("market", "instance_lifecycle"),
     [
         ("spot", None),
+        ("on-demand", None),
         ("on-demand", "spot"),
     ],
 )
-def test_worker_listing_rejects_spot_instances(
+def test_worker_listing_rejects_unproven_spot_market(
     market: str,
     instance_lifecycle: str | None,
     monkeypatch: pytest.MonkeyPatch,

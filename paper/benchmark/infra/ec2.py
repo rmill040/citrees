@@ -67,7 +67,15 @@ _API_ENDPOINT_SUFFIX = "citrees.internal."
 _API_ENDPOINT_TTL_SECONDS = 10
 _ROUTE53_CHANGE_TIMEOUT_SECONDS = 120.0
 _ROUTE53_CHANGE_POLL_SECONDS = 2.0
-_BENCHMARK_MARKET = "on-demand"
+_API_MARKET = "on-demand"
+_WORKER_MARKET = "spot"
+_WORKER_SPOT_OPTIONS = {
+    "MarketType": "spot",
+    "SpotOptions": {
+        "InstanceInterruptionBehavior": "terminate",
+        "SpotInstanceType": "one-time",
+    },
+}
 _AMBIGUOUS_EC2_ERROR_CODES = frozenset(
     {
         "InternalError",
@@ -91,7 +99,7 @@ _CAPACITY_ERROR_CODES = frozenset(
     }
 )
 _AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
-_WORKER_LAUNCH_SCHEMA_VERSION = 8
+_WORKER_LAUNCH_SCHEMA_VERSION = 9
 
 
 @dataclass(frozen=True)
@@ -199,6 +207,13 @@ def _require_on_demand_instance(instance: dict[str, Any], *, source: str) -> Non
     lifecycle = instance.get("InstanceLifecycle")
     if lifecycle is not None:
         raise RuntimeError(f"{source} must be on-demand, but EC2 reports lifecycle {lifecycle!r}")
+
+
+def _require_spot_instance(instance: dict[str, Any], *, source: str) -> None:
+    """Require one DescribeInstances row to prove Spot lifecycle."""
+    lifecycle = instance.get("InstanceLifecycle")
+    if lifecycle != "spot":
+        raise RuntimeError(f"{source} must be Spot, but EC2 reports lifecycle {lifecycle!r}")
 
 
 def _canonical_json_object(value: dict[str, Any]) -> bytes:
@@ -441,7 +456,7 @@ def _validate_worker_instance_placement(
     instance_id = instance.get("InstanceId")
     if not isinstance(instance_id, str) or not instance_id:
         raise RuntimeError(f"{source} has no instance ID")
-    _require_on_demand_instance(instance, source=source)
+    _require_spot_instance(instance, source=source)
     if instance.get("InstanceType") != instance_type:
         raise RuntimeError(
             f"{source} {instance_id} has instance type "
@@ -1886,7 +1901,7 @@ def launch_api(
         max_cell_attempts=max_cell_attempts,
     )
 
-    market = _BENCHMARK_MARKET
+    market = _API_MARKET
     info(f"Launching {market} API server: {instance_type}, AMI={ami_id}")
     step(f"Launch identity: {launch_id}")
     step(f"Image: {image_uri}")
@@ -2196,8 +2211,8 @@ def get_api_scope(
     _validate_api_launch_id(tags["citrees-api-launch-id"])
     image_uri = validate_image_digest_uri(tags["citrees-image-uri"])
     market = tags["citrees-market"]
-    if market != _BENCHMARK_MARKET:
-        raise RuntimeError(f"API server market tag must be {_BENCHMARK_MARKET!r}, got {market!r}")
+    if market != _API_MARKET:
+        raise RuntimeError(f"API server market tag must be {_API_MARKET!r}, got {market!r}")
     _require_on_demand_instance(instance, source="API server")
     campaign_sha256 = validate_manifest_sha256(tags["citrees-campaign-sha256"])
     _hosted_zone_name, _record_name, endpoint_hostname = _api_endpoint_names(
@@ -2379,7 +2394,7 @@ def launch_workers(
     if not instance_family or not separator or not instance_size:
         raise ValueError("instance_type must include an EC2 family and size")
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
-    market = _BENCHMARK_MARKET
+    market = _WORKER_MARKET
     manifest_info = publish_rerun_manifest(
         manifest_path,
         canonical_manifest_path,
@@ -2416,7 +2431,7 @@ def launch_workers(
         "image_uri": image_uri,
         "manifest_s3_key": manifest_s3_key,
         "manifest_sha256": manifest_sha256,
-        "market": market,
+        "market": _API_MARKET,
         "runtime_contract_s3_key": runtime_contract_s3_key,
         "runtime_contract_sha256": runtime_contract_sha256,
         "stage": stage,
@@ -2535,6 +2550,7 @@ def launch_workers(
         },
         "SecurityGroupIds": [sg_id],
         "InstanceInitiatedShutdownBehavior": "terminate",
+        "InstanceMarketOptions": _WORKER_SPOT_OPTIONS,
     }
     request_contract = dict(base_run_kwargs)
     request_contract.pop("UserData")
@@ -2707,10 +2723,10 @@ def launch_workers(
             if code not in _CAPACITY_ERROR_CODES:
                 raise
             warn(
-                f"Stopped worker launch at slot {slot}/{n}: {code}. "
+                f"Skipped worker launch at slot {slot}/{n}: {code}. "
                 f"Accepted {len(instance_ids)} instance(s)."
             )
-            break
+            continue
 
         record = _worker_launch_record(
             artifact_prefix=artifact_prefix,
@@ -2989,8 +3005,8 @@ def list_workers(
                 or tags.get("citrees-campaign-sha256") != campaign_sha256
                 or tags.get("citrees-stage") != stage
                 or tags.get("citrees-worker-launch-id") != launch_id
-                or tags.get("citrees-market") != _BENCHMARK_MARKET
-                or inst.get("InstanceLifecycle") is not None
+                or tags.get("citrees-market") != _WORKER_MARKET
+                or inst.get("InstanceLifecycle") != "spot"
             ):
                 raise RuntimeError(
                     "EC2 returned a worker outside the exact campaign launch identity"

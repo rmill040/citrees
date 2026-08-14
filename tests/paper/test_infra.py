@@ -334,6 +334,7 @@ class _ApiLaunchKwargs(TypedDict):
     instance_type: str
     image_uri: str
     artifact_prefix: str
+    subnet_id: str
     canonical_manifest_path: Path
     gate_receipt_path: Path
     manifest_path: Path
@@ -533,6 +534,26 @@ class _MemoryEc2:
         assert kwargs["Filters"] == [{"Name": "is-default", "Values": ["true"]}]
         return {"Vpcs": [{"VpcId": "vpc-default"}]}
 
+    def describe_instance_type_offerings(self, **kwargs: Any) -> dict[str, object]:
+        assert kwargs["LocationType"] == "availability-zone"
+        return {"InstanceTypeOfferings": [{"Location": WORKER_AVAILABILITY_ZONE}]}
+
+    def describe_subnets(self, **kwargs: Any) -> dict[str, object]:
+        assert kwargs["SubnetIds"] == [WORKER_SUBNET_ID]
+        return {
+            "Subnets": [
+                {
+                    "AvailabilityZone": WORKER_AVAILABILITY_ZONE,
+                    "AvailableIpAddressCount": 100,
+                    "DefaultForAz": True,
+                    "MapPublicIpOnLaunch": True,
+                    "State": "available",
+                    "SubnetId": WORKER_SUBNET_ID,
+                    "VpcId": "vpc-default",
+                }
+            ]
+        }
+
     def run_instances(self, **kwargs: Any) -> dict[str, object]:
         self.run_requests.append(kwargs)
         index = len(self.run_requests)
@@ -542,6 +563,8 @@ class _MemoryEc2:
             "InstanceId": instance_id,
             "PrivateIpAddress": f"10.0.0.{index * 10}",
             "PublicIpAddress": f"203.0.113.{index * 10}",
+            "Placement": {"AvailabilityZone": WORKER_AVAILABILITY_ZONE},
+            "SubnetId": kwargs["SubnetId"],
             "State": {"Name": "running"},
             "Tags": tags,
         }
@@ -738,6 +761,8 @@ def test_distributed_launch_market_is_not_operator_selectable(command: object) -
             "repairs/run-001",
             "--launch-id",
             "api-initial",
+            "--subnet",
+            WORKER_SUBNET_ID,
             "--manifest",
             "{manifest}",
             "--max-cell-attempts",
@@ -809,6 +834,8 @@ def test_runtime_contract_cli_file_is_forwarded(
             "repairs/run-001",
             "--launch-id",
             "api-initial",
+            "--subnet",
+            WORKER_SUBNET_ID,
             "--canonical-manifest",
             str(canonical_manifest_path),
             "--manifest",
@@ -849,6 +876,7 @@ def test_runtime_contract_cli_file_is_forwarded(
     assert api_result.exit_code == 0, api_result.output
     assert worker_result.exit_code == 0, worker_result.output
     assert launch_api_mock.call_args.kwargs["launch_id"] == "api-initial"
+    assert launch_api_mock.call_args.kwargs["subnet_id"] == WORKER_SUBNET_ID
     assert launch_api_mock.call_args.kwargs["canonical_manifest_path"] == canonical_manifest_path
     assert launch_api_mock.call_args.kwargs["gate_receipt_path"] == gate_receipt_path
     assert launch_api_mock.call_args.kwargs["runtime_contract_path"] == runtime_contract_path
@@ -1031,6 +1059,7 @@ def test_api_client_token_is_deterministic_over_complete_request() -> None:
         "instance_type": "m5.large",
         "launch_id": "api-initial",
         "security_group_id": "sg-test",
+        "subnet_id": WORKER_SUBNET_ID,
         "user_data": "#!/bin/bash\ntrue\n",
     }
     token = _api_client_token(**request)
@@ -1378,6 +1407,7 @@ def _mock_api_launch(
     monkeypatch.setattr(ec2_infra.boto3, "client", lambda *args, **kwargs: ec2_client)
     monkeypatch.setattr(ec2_infra.boto3, "resource", lambda *args, **kwargs: ec2_resource)
     monkeypatch.setattr(ec2_infra.time, "sleep", lambda seconds: None)
+    _configure_worker_subnets(ec2_client)
     return ec2_client, instance
 
 
@@ -1387,6 +1417,7 @@ def _launch_test_api(tmp_path: Path) -> dict[str, str]:
         image_uri=DIGEST_URI,
         artifact_prefix="repairs/run-001",
         launch_id="api-initial",
+        subnet_id=WORKER_SUBNET_ID,
         canonical_manifest_path=_write_canonical_manifest(tmp_path),
         gate_receipt_path=_write_gate_receipt(tmp_path),
         manifest_path=tmp_path / "manifest.csv",
@@ -1432,6 +1463,7 @@ def test_api_launch_terminates_instance_when_readiness_fails(
     assert ec2_client.run_instances.call_args.kwargs["IamInstanceProfile"] == {
         "Name": "citrees-campaign-test"
     }
+    assert ec2_client.run_instances.call_args.kwargs["SubnetId"] == WORKER_SUBNET_ID
     client_token = ec2_client.run_instances.call_args.kwargs["ClientToken"]
     assert len(client_token) == 64
     assert client_token.startswith("citrees-api-")
@@ -1446,6 +1478,8 @@ def test_api_launch_terminates_instance_when_readiness_fails(
     }
     assert tags["citrees-api-endpoint"] == API_HOSTNAME
     assert tags["citrees-api-launch-id"] == "api-initial"
+    assert tags["citrees-availability-zone"] == WORKER_AVAILABILITY_ZONE
+    assert tags["citrees-subnet-id"] == WORKER_SUBNET_ID
     assert tags["citrees-gate-receipt-key"] == GATE_RECEIPT_KEY
     assert tags["citrees-gate-receipt-sha256"] == GATE_RECEIPT_SHA256
     assert tags["citrees-runtime-contract-key"] == RUNTIME_CONTRACT_KEY
@@ -1517,6 +1551,7 @@ def test_campaign_endpoint_supports_api_replacement_and_scoped_teardown(
         "instance_type": "m5.large",
         "image_uri": DIGEST_URI,
         "artifact_prefix": "repairs/run-001",
+        "subnet_id": WORKER_SUBNET_ID,
         "canonical_manifest_path": _write_canonical_manifest(tmp_path),
         "gate_receipt_path": _write_gate_receipt(tmp_path),
         "manifest_path": manifest_path,
@@ -1984,6 +2019,7 @@ def test_api_launch_rejects_unattested_runtime_contract_before_ec2(
             image_uri=DIGEST_URI,
             artifact_prefix="repairs/run-001",
             launch_id="api-invalid-runtime",
+            subnet_id=WORKER_SUBNET_ID,
             canonical_manifest_path=_write_canonical_manifest(tmp_path),
             gate_receipt_path=_write_gate_receipt(tmp_path),
             manifest_path=tmp_path / "manifest.csv",

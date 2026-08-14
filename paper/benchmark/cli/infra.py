@@ -233,6 +233,13 @@ def launch_api_cmd(
             help="Unique identity for this API instance; replacements require a new value",
         ),
     ] = "",
+    subnet_id: Annotated[
+        str,
+        typer.Option(
+            "--subnet",
+            help="Exact default-VPC subnet ID for the API instance",
+        ),
+    ] = "",
     canonical_manifest_path: Annotated[
         Path | None,
         typer.Option(
@@ -313,6 +320,7 @@ def launch_api_cmd(
         not image_uri
         or not artifact_prefix
         or not launch_id
+        or not subnet_id
         or canonical_manifest_path is None
         or manifest_path is None
         or runtime_contract_path is None
@@ -320,7 +328,7 @@ def launch_api_cmd(
         or max_cell_attempts is None
     ):
         error(
-            "--image-uri, --artifact-prefix, --launch-id, --canonical-manifest, "
+            "--image-uri, --artifact-prefix, --launch-id, --subnet, --canonical-manifest, "
             "--manifest, --runtime-contract, --gate-receipt, and "
             "--max-cell-attempts are required"
         )
@@ -333,6 +341,7 @@ def launch_api_cmd(
         image_uri=image_uri,
         artifact_prefix=artifact_prefix,
         launch_id=launch_id,
+        subnet_id=subnet_id,
         canonical_manifest_path=canonical_manifest_path,
         gate_receipt_path=gate_receipt_path,
         manifest_path=manifest_path,

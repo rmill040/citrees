@@ -1118,6 +1118,7 @@ def _api_client_token(
     instance_type: str,
     launch_id: str,
     security_group_id: str,
+    subnet_id: str,
     user_data: str,
 ) -> str:
     """Derive EC2 idempotency from the complete API instance request."""
@@ -1128,6 +1129,7 @@ def _api_client_token(
             "instance_type": instance_type,
             "launch_id": launch_id,
             "security_group_id": security_group_id,
+            "subnet_id": subnet_id,
             "user_data_sha256": hashlib.sha256(user_data.encode()).hexdigest(),
         },
         sort_keys=True,
@@ -1783,6 +1785,7 @@ def launch_api(
     launch_id: str,
     manifest_path: Path,
     runtime_contract_path: Path,
+    subnet_id: str,
     stage: str,
     lease_seconds: int,
     max_cell_attempts: int,
@@ -1831,6 +1834,12 @@ def launch_api(
         raise RuntimeError(
             f"A citrees API server is already active for the exact campaign scope: {instance_ids}"
         )
+    placement = _resolve_worker_subnets(
+        ec2,
+        excluded_availability_zones=(),
+        instance_type=instance_type,
+        subnet_ids=(subnet_id,),
+    )[0]
     git_sha = validate_image_revision(
         image_uri,
         runtime_contract.git_sha,
@@ -1884,12 +1893,14 @@ def launch_api(
     step(f"Manifest: s3://{bucket}/{manifest_s3_key} ({manifest_info['cells']} cells)")
     step(f"Security group: {sg_id}")
     step(f"Instance profile: {instance_profile_name}")
+    step(f"Subnet: {placement.subnet_id} ({placement.availability_zone})")
     client_token = _api_client_token(
         ami_id=ami_id,
         instance_profile_name=instance_profile_name,
         instance_type=instance_type,
         launch_id=launch_id,
         security_group_id=sg_id,
+        subnet_id=placement.subnet_id,
         user_data=user_data,
     )
     endpoint: _ApiEndpoint | None = None
@@ -1918,6 +1929,7 @@ def launch_api(
                 "HttpTokens": "required",
             },
             "SecurityGroupIds": [sg_id],
+            "SubnetId": placement.subnet_id,
             "InstanceInitiatedShutdownBehavior": "terminate",
             "ClientToken": client_token,
             "TagSpecifications": [
@@ -1929,6 +1941,11 @@ def launch_api(
                         {"Key": "citrees-api-endpoint", "Value": endpoint.hostname},
                         {"Key": "citrees-api-launch-id", "Value": launch_id},
                         {"Key": "citrees-market", "Value": market},
+                        {
+                            "Key": "citrees-availability-zone",
+                            "Value": placement.availability_zone,
+                        },
+                        {"Key": "citrees-subnet-id", "Value": placement.subnet_id},
                         {"Key": "citrees-artifact-prefix", "Value": artifact_prefix},
                         {"Key": "citrees-campaign-sha256", "Value": campaign_sha256},
                         {

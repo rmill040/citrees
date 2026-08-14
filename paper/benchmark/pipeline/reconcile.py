@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 import pandas as pd
 
@@ -142,11 +142,14 @@ def _expected_artifacts(
     store: ReconciliationStore,
     manifest: RerunManifest,
     stages: tuple[StageType, ...],
+    *,
+    rankings_required_for: Literal["rankings", "metrics"],
 ) -> dict[str, tuple[StageType, ManifestCell]]:
     expected: dict[str, tuple[StageType, ManifestCell]] = {}
     for stage in stages:
+        requirement_stage = rankings_required_for if stage == "rankings" else stage
         for cell in manifest.cells:
-            if not cell.required_for(stage):
+            if not cell.required_for(requirement_stage):
                 continue
             key = store.artifact_key(stage, cell.config)
             if not _is_structurally_valid_key(
@@ -202,11 +205,17 @@ def reconcile_manifest_artifacts(
     expected_provenance: Mapping[str, str],
     *,
     stages: Sequence[StageType] | None = None,
+    rankings_required_for: Literal["rankings", "metrics"] = "rankings",
 ) -> ReconciliationReport:
     """Validate the exact artifact set and load only manifest-approved objects."""
     selected_stages = _normalize_stages(stages)
     provenance = _validate_scope(store, manifest, expected_provenance)
-    expected = _expected_artifacts(store, manifest, selected_stages)
+    expected = _expected_artifacts(
+        store,
+        manifest,
+        selected_stages,
+        rankings_required_for=rankings_required_for,
+    )
     observed: set[str] = set()
     extra: set[str] = set()
     malformed: set[str] = set()

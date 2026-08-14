@@ -887,18 +887,19 @@ def _build_queues() -> None:
             _manifest,
             _expected_provenance,
             stages=("rankings",),
+            rankings_required_for="metrics",
         )
         if not ranking_report.is_complete:
             counts = ", ".join(
                 f"{category}={count}" for category, count in ranking_report.counts.items()
             )
             raise RuntimeError(
-                "Cannot launch metrics: exact Stage 1 namespace reconciliation failed "
+                "Cannot launch metrics: exact Stage 2 ranking-input reconciliation failed "
                 f"for account {_expected_provenance['aws_account_id']}, "
                 f"prefix {store.artifact_prefix!r}, manifest {_manifest.sha256}: {counts}"
             )
         logger.info(
-            "Exact Stage 1 namespace reconciliation passed for {} ranking artifacts",
+            "Exact Stage 2 ranking-input reconciliation passed for {} ranking artifacts",
             len(ranking_report.valid_keys),
         )
 

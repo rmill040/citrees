@@ -314,6 +314,38 @@ def test_reconciliation_requires_nothing_for_fully_excluded_cells() -> None:
     assert store.loaded == []
 
 
+def test_stage2_ranking_reconciliation_uses_stage2_requirements() -> None:
+    cell = _cell(
+        0,
+        stage1_required=False,
+        stage2_required=True,
+    )
+    store = _Store(
+        {
+            _Store({}).artifact_key("rankings", cell.config): _rankings(cell.config),
+        }
+    )
+
+    report = reconcile_manifest_artifacts(
+        store,
+        _manifest(cell),
+        _provenance(),
+        stages=("rankings",),
+        rankings_required_for="metrics",
+    )
+
+    assert report.is_complete
+    assert report.counts == {
+        "expected": 1,
+        "valid": 1,
+        "missing": 0,
+        "extra": 0,
+        "malformed": 0,
+        "invalid": 0,
+        "provenance_mismatch": 0,
+    }
+
+
 def test_reconciliation_keeps_same_named_tasks_in_separate_cache_entries() -> None:
     cells = (
         _cell(0),

@@ -722,6 +722,7 @@ def test_metrics_queue_build_requires_complete_exact_ranking_namespace(
         manifest,
         _expected_provenance(),
         stages=("rankings",),
+        rankings_required_for="metrics",
     )
     assert set(server._queues) == {"metrics/classification", "metrics/regression"}
     assert server._queues["metrics/classification"].initial == 1

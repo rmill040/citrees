@@ -57,12 +57,11 @@ from paper.benchmark.pipeline.manifest import (
     manifest_s3_key,
 )
 from paper.benchmark.pipeline.runtime_contract import (
-    EXPECTED_THREAD_VALUE,
+    EXPECTED_THREAD_ENVIRONMENT,
     PYTHON_LIBRARY_NAMES,
     R_RUNTIME_FIELDS,
     RUNTIME_CONTRACT_PROFILE,
     RUNTIME_CONTRACT_SCHEMA_VERSION,
-    THREAD_ENVIRONMENT,
     runtime_contract_s3_key,
     runtime_contract_sha256,
     serialize_runtime_contract,
@@ -161,7 +160,7 @@ def _runtime_contract() -> dict[str, object]:
             },
             "r_selection_timeout_seconds": STAGE1_SELECTION_TIMEOUT_SECONDS,
             "r_runtime": {name: "1.0" for name in R_RUNTIME_FIELDS},
-            "thread_environment": {name: EXPECTED_THREAD_VALUE for name in THREAD_ENVIRONMENT},
+            "thread_environment": dict(EXPECTED_THREAD_ENVIRONMENT),
             "threadpools": [
                 {
                     "filepath": "/app/.venv/lib/libopenblas.so",
@@ -964,7 +963,6 @@ def test_candidate_image_pins_complete_statistical_runtime() -> None:
     for variable in (
         "BLIS_NUM_THREADS",
         "MKL_NUM_THREADS",
-        "NUMBA_NUM_THREADS",
         "NUMEXPR_NUM_THREADS",
         "OMP_NUM_THREADS",
         "OPENBLAS_NUM_THREADS",
@@ -972,6 +970,7 @@ def test_candidate_image_pins_complete_statistical_runtime() -> None:
         "VECLIB_MAXIMUM_THREADS",
     ):
         assert f"ENV {variable}=1" in dockerfile
+    assert "ENV NUMBA_NUM_THREADS=32" in dockerfile
     assert "ENV NUMBA_DISABLE_JIT=0" in dockerfile
     assert "ENV PYTHONHASHSEED=0" in dockerfile
     assert "COPY . ." not in dockerfile

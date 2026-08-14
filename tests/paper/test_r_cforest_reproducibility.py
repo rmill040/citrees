@@ -313,7 +313,7 @@ def _provenance(
         "run_id": run_id,
         "script_sha256": "d" * 64,
         "thread_environment": {
-            name: gate.EXPECTED_THREAD_VALUE for name in gate.THREAD_ENVIRONMENT
+            name: gate.EXPECTED_THREAD_ENVIRONMENT[name] for name in gate.THREAD_ENVIRONMENT
         },
         "threadpools": [
             {
@@ -758,10 +758,8 @@ def test_thread_environment_requires_every_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     for name in gate.THREAD_ENVIRONMENT:
-        monkeypatch.setenv(name, gate.EXPECTED_THREAD_VALUE)
-    assert gate._thread_environment() == {
-        name: gate.EXPECTED_THREAD_VALUE for name in gate.THREAD_ENVIRONMENT
-    }
+        monkeypatch.setenv(name, gate.EXPECTED_THREAD_ENVIRONMENT[name])
+    assert gate._thread_environment() == gate.EXPECTED_THREAD_ENVIRONMENT
 
     monkeypatch.delenv(next(iter(gate.THREAD_ENVIRONMENT)))
     with pytest.raises(RuntimeError, match="thread environment"):
@@ -871,7 +869,7 @@ def test_provenance_derives_ec2_scope_from_signed_evidence(
     monkeypatch.setattr(
         gate,
         "_thread_environment",
-        lambda: {name: gate.EXPECTED_THREAD_VALUE for name in gate.THREAD_ENVIRONMENT},
+        lambda: dict(gate.EXPECTED_THREAD_ENVIRONMENT),
     )
     monkeypatch.setattr(
         gate,

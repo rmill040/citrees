@@ -3030,7 +3030,7 @@ def test_parallel_r_selection_matches_sequential_rankings(
 
 @pytest.mark.parametrize(
     "method",
-    ["cit", "ptest_mc", "ptest_pc", "ptest_dc", "ptest_rdc"],
+    ["ptest_mc", "ptest_pc", "ptest_dc", "ptest_rdc"],
 )
 def test_single_core_methods_dispatch_folds_to_processes(
     method: str,
@@ -3110,6 +3110,7 @@ def test_single_core_methods_dispatch_folds_to_processes(
     ("method", "cpu_ids", "expected_inner_jobs"),
     [
         ("ptest_pc", (0,), 1),
+        ("cit", tuple(range(32)), -1),
         ("cif", (0, 1, 2, 3, 4), -1),
     ],
 )
@@ -3163,6 +3164,59 @@ def test_stage1_avoids_process_parallel_folds_when_resources_are_owned_elsewhere
         (2, expected_inner_jobs),
         (3, expected_inner_jobs),
         (4, expected_inner_jobs),
+    ]
+
+
+def test_cit_rankings_match_across_numba_thread_budgets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CIT rankings must not depend on the available Numba thread count."""
+    import numba
+
+    from paper.benchmark.pipeline import stage1
+
+    rng = np.random.default_rng(1718)
+    X = rng.standard_normal((60, 6))
+    signal = X[:, 5] - 0.5 * X[:, 1]
+    y = (signal > 0).astype(np.int64)
+    params = {
+        "selector": "mc",
+        "splitter": "gini",
+        "n_resamples_selector": "minimum",
+        "n_resamples_splitter": "minimum",
+        "threshold_method": "histogram",
+        "max_thresholds": 16,
+    }
+    original_threads = numba.get_num_threads()
+    try:
+        numba.set_num_threads(1)
+        one_thread = stage1.run_selection(
+            X,
+            y,
+            "cit",
+            "classification",
+            seed=7,
+            params=params,
+            n_jobs=-1,
+        )
+        numba.set_num_threads(original_threads)
+        full_host = stage1.run_selection(
+            X,
+            y,
+            "cit",
+            "classification",
+            seed=7,
+            params=params,
+            n_jobs=-1,
+        )
+    finally:
+        numba.set_num_threads(original_threads)
+
+    assert [row["fold_random_state"] for row in full_host] == [
+        row["fold_random_state"] for row in one_thread
+    ]
+    assert [row["feature_ranking"] for row in full_host] == [
+        row["feature_ranking"] for row in one_thread
     ]
 
 
@@ -3308,18 +3362,6 @@ def test_selection_rejects_invalid_timeout(
 @pytest.mark.parametrize(
     ("method", "task", "params"),
     [
-        (
-            "cit",
-            "classification",
-            {
-                "selector": "mc",
-                "splitter": "gini",
-                "n_resamples_selector": "minimum",
-                "n_resamples_splitter": "minimum",
-                "threshold_method": "histogram",
-                "max_thresholds": 16,
-            },
-        ),
         (
             "ptest_mc",
             "classification",

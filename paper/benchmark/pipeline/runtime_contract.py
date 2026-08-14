@@ -68,7 +68,9 @@ THREAD_ENVIRONMENT = frozenset(
         "VECLIB_MAXIMUM_THREADS",
     }
 )
-EXPECTED_THREAD_VALUE = "1"
+EXPECTED_THREAD_ENVIRONMENT = {
+    name: ("32" if name == "NUMBA_NUM_THREADS" else "1") for name in THREAD_ENVIRONMENT
+}
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA_PATTERN = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -281,10 +283,9 @@ def validate_runtime_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
             source=f"runtime contract runtime.{field}",
         )
 
-    expected_thread_environment = {name: EXPECTED_THREAD_VALUE for name in THREAD_ENVIRONMENT}
-    if runtime["thread_environment"] != expected_thread_environment:
+    if runtime["thread_environment"] != EXPECTED_THREAD_ENVIRONMENT:
         raise ValueError("runtime contract runtime.thread_environment is not frozen")
-    normalized_runtime["thread_environment"] = dict(sorted(expected_thread_environment.items()))
+    normalized_runtime["thread_environment"] = dict(sorted(EXPECTED_THREAD_ENVIRONMENT.items()))
     normalized_runtime["threadpools"] = _validate_threadpools(runtime["threadpools"])
     operator_public_key = contract["operator_attestation_public_key"]
     if not isinstance(operator_public_key, Mapping):

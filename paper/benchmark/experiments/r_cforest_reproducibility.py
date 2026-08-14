@@ -56,7 +56,7 @@ from paper.benchmark.pipeline.operator_attestation import (
 )
 from paper.benchmark.pipeline.r_methods import get_r_runtime_versions
 from paper.benchmark.pipeline.runtime_contract import (
-    EXPECTED_THREAD_VALUE,
+    EXPECTED_THREAD_ENVIRONMENT,
     PYTHON_LIBRARY_NAMES,
     R_RUNTIME_FIELDS,
     RUNTIME_CONTRACT_PROFILE,
@@ -402,9 +402,11 @@ def _canonical_threadpools() -> list[dict[str, Any]]:
 
 def _thread_environment() -> dict[str, str]:
     values = {name: os.environ.get(name, "").strip() for name in THREAD_ENVIRONMENT}
-    invalid = {name: value for name, value in values.items() if value != EXPECTED_THREAD_VALUE}
+    invalid = {
+        name: value for name, value in values.items() if value != EXPECTED_THREAD_ENVIRONMENT[name]
+    }
     if invalid:
-        raise RuntimeError(f"thread environment must equal {EXPECTED_THREAD_VALUE!r}: {invalid}")
+        raise RuntimeError(f"thread environment differs from the frozen values: {invalid}")
     return values
 
 
@@ -918,8 +920,7 @@ def _validate_provenance(
         source=f"{source} provenance.openssl_version",
     )
 
-    expected_thread_environment = {name: EXPECTED_THREAD_VALUE for name in THREAD_ENVIRONMENT}
-    if provenance["thread_environment"] != expected_thread_environment:
+    if provenance["thread_environment"] != EXPECTED_THREAD_ENVIRONMENT:
         raise ValueError(f"{source} provenance.thread_environment is not frozen")
     threadpools = provenance["threadpools"]
     if not isinstance(threadpools, list) or not threadpools:

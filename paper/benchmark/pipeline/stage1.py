@@ -54,7 +54,7 @@ from paper.benchmark.utils.env import (
 )
 
 _R_METHODS = frozenset({"r_ctree", "r_cforest"})
-_PROCESS_PARALLEL_FOLD_METHODS = frozenset({"cit", "ptest_mc", "ptest_pc", "ptest_dc", "ptest_rdc"})
+_PROCESS_PARALLEL_FOLD_METHODS = frozenset({"ptest_mc", "ptest_pc", "ptest_dc", "ptest_rdc"})
 _R_PROCESS_POLL_INTERVAL_SECONDS = 0.05
 _R_PROCESS_START_TIMEOUT_SECONDS = 30.0
 _R_PROCESS_EXIT_GRACE_SECONDS = 5.0

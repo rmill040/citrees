@@ -1122,8 +1122,9 @@ def test_mechanism_launch_scopes_profile_to_derived_output(
     monkeypatch.setattr(
         ec2_infra,
         "validate_image_revision",
-        lambda image_uri, region: "a" * 40,
+        lambda image_uri, expected_git_sha, region: "a" * 40,
     )
+    monkeypatch.setattr(ec2_infra, "get_frozen_git_sha", lambda: "a" * 40)
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(ec2_infra, "ensure_security_group", lambda region: "sg-test")
     monkeypatch.setattr(ec2_infra, "ensure_campaign_iam_profile", ensure_profile)
@@ -1341,7 +1342,11 @@ def _mock_api_launch(
     monkeypatch.setattr(ec2_infra, "_ensure_api_endpoint", MagicMock(return_value=endpoint))
     monkeypatch.setattr(ec2_infra, "_upsert_api_endpoint", MagicMock())
     monkeypatch.setattr(ec2_infra, "_delete_api_endpoint", MagicMock(return_value=True))
-    monkeypatch.setattr(ec2_infra, "validate_image_revision", lambda image_uri, region: "a" * 40)
+    monkeypatch.setattr(
+        ec2_infra,
+        "validate_image_revision",
+        lambda image_uri, expected_git_sha, region: "a" * 40,
+    )
     monkeypatch.setattr(
         ec2_infra,
         "publish_rerun_manifest",
@@ -1487,7 +1492,7 @@ def test_campaign_endpoint_supports_api_replacement_and_scoped_teardown(
     monkeypatch.setattr(
         ec2_infra,
         "validate_image_revision",
-        lambda image_uri, region: "a" * 40,
+        lambda image_uri, expected_git_sha, region: "a" * 40,
     )
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(ec2_infra, "ensure_security_group", lambda region: "sg-test")
@@ -2143,7 +2148,7 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
     monkeypatch.setattr(
         ec2_infra,
         "validate_image_revision",
-        lambda image_uri, region: "a" * 40,
+        lambda image_uri, expected_git_sha, region: "a" * 40,
     )
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
@@ -2215,7 +2220,11 @@ def test_worker_launch_is_durable_idempotent_and_exact(
         lambda **kwargs: "citrees-campaign-test",
     )
     monkeypatch.setattr(ec2_infra, "_wait_for_api_ready", lambda *args, **kwargs: None)
-    monkeypatch.setattr(ec2_infra, "validate_image_revision", lambda image_uri, region: "a" * 40)
+    monkeypatch.setattr(
+        ec2_infra,
+        "validate_image_revision",
+        lambda image_uri, expected_git_sha, region: "a" * 40,
+    )
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
     monkeypatch.setattr(
@@ -2473,7 +2482,11 @@ def _mock_worker_launch_dependencies(
         lambda **kwargs: "citrees-campaign-test",
     )
     monkeypatch.setattr(ec2_infra, "_wait_for_api_ready", lambda *args, **kwargs: None)
-    monkeypatch.setattr(ec2_infra, "validate_image_revision", lambda image_uri, region: "a" * 40)
+    monkeypatch.setattr(
+        ec2_infra,
+        "validate_image_revision",
+        lambda image_uri, expected_git_sha, region: "a" * 40,
+    )
     monkeypatch.setattr(ec2_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(ec2_infra, "get_ami", lambda region: "ami-test")
     monkeypatch.setattr(ec2_infra.time, "sleep", lambda seconds: None)
@@ -3650,13 +3663,19 @@ def test_image_digest_must_match_tag_and_remote_revision(
         "repositories": [{"repositoryUri": repository_uri}]
     }
     client.describe_images.return_value = {"imageDetails": [{"imageTags": ["a" * 40]}]}
-    monkeypatch.setattr(aws_infra, "get_frozen_git_sha", lambda: "a" * 40)
+    monkeypatch.setattr(aws_infra, "get_frozen_git_sha", lambda: "e" * 40)
     monkeypatch.setattr(aws_infra, "get_aws_account_id", lambda: "123456789012")
     monkeypatch.setattr(aws_infra.boto3, "client", lambda *args, **kwargs: client)
     remote_revision = MagicMock(return_value="a" * 40)
     monkeypatch.setattr(aws_infra, "_remote_image_revision", remote_revision)
 
-    assert aws_infra.validate_image_revision(repository_uri + "@sha256:" + "b" * 64) == "a" * 40
+    assert (
+        aws_infra.validate_image_revision(
+            repository_uri + "@sha256:" + "b" * 64,
+            "a" * 40,
+        )
+        == "a" * 40
+    )
     remote_revision.assert_called_once_with(
         client,
         "citrees-123456789012",
@@ -3664,13 +3683,19 @@ def test_image_digest_must_match_tag_and_remote_revision(
     )
 
     client.describe_images.return_value = {"imageDetails": [{"imageTags": ["c" * 40]}]}
-    with pytest.raises(RuntimeError, match="active source revision"):
-        aws_infra.validate_image_revision(repository_uri + "@sha256:" + "b" * 64)
+    with pytest.raises(RuntimeError, match="expected source revision"):
+        aws_infra.validate_image_revision(
+            repository_uri + "@sha256:" + "b" * 64,
+            "a" * 40,
+        )
 
     client.describe_images.return_value = {"imageDetails": [{"imageTags": ["a" * 40]}]}
     remote_revision.return_value = "d" * 40
     with pytest.raises(RuntimeError, match="remote OCI revision label"):
-        aws_infra.validate_image_revision(repository_uri + "@sha256:" + "b" * 64)
+        aws_infra.validate_image_revision(
+            repository_uri + "@sha256:" + "b" * 64,
+            "a" * 40,
+        )
 
 
 def test_manifest_publish_is_content_addressed_and_round_trip_verified(

@@ -3693,6 +3693,7 @@ def launch_missing_shards(
         raise RuntimeError("active AWS account differs from the JSS campaign")
     image_revision = validate_image_revision(
         campaign.image_uri,
+        campaign.git_sha,
         region=campaign.region,
     )
     if image_revision != campaign.git_sha:

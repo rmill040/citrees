@@ -641,7 +641,7 @@ def _patch_launch_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         cloud,
         "validate_image_revision",
-        lambda image_uri, region: GIT_SHA,
+        lambda image_uri, expected_git_sha, region: GIT_SHA,
     )
     monkeypatch.setattr(cloud, "ensure_security_group", lambda region: "sg-test")
     monkeypatch.setattr(

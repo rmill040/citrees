@@ -827,11 +827,14 @@ def _remote_image_revision(ecr: Any, repository_name: str, image_digest: str) ->
 
 def validate_image_revision(
     image_uri: str,
+    expected_git_sha: str,
     *,
     region: str = DEFAULT_REGION,
 ) -> str:
-    """Require a remote image digest built from the active clean revision."""
-    git_sha = get_frozen_git_sha()
+    """Require a remote image digest built from one expected clean revision."""
+    get_frozen_git_sha()
+    if not _FULL_GIT_SHA_PATTERN.fullmatch(expected_git_sha):
+        raise ValueError("expected_git_sha must be a full hexadecimal commit ID")
     account_id = get_aws_account_id()
     repo_name = get_resource_name(account_id)
     ecr = boto3.client("ecr", region_name=region)
@@ -851,12 +854,16 @@ def validate_image_revision(
     if len(image_details) != 1:
         raise RuntimeError(f"Could not resolve image digest {image_digest}")
     tags = image_details[0].get("imageTags", [])
-    if git_sha not in tags:
-        raise RuntimeError(f"image digest is not tagged with active source revision {git_sha}")
+    if expected_git_sha not in tags:
+        raise RuntimeError(
+            f"image digest is not tagged with expected source revision {expected_git_sha}"
+        )
     remote_revision = _remote_image_revision(ecr, repo_name, image_digest)
-    if remote_revision != git_sha:
-        raise RuntimeError(f"remote OCI revision label is {remote_revision!r}, expected {git_sha}")
-    return git_sha
+    if remote_revision != expected_git_sha:
+        raise RuntimeError(
+            f"remote OCI revision label is {remote_revision!r}, expected {expected_git_sha}"
+        )
+    return expected_git_sha
 
 
 def campaign_instance_profile_name(

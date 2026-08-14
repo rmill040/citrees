@@ -41,6 +41,7 @@ from paper.benchmark.infra.aws import (
     ensure_campaign_iam_profile,
     ensure_security_group,
     get_aws_account_id,
+    get_frozen_git_sha,
     get_resource_name,
     publish_rerun_manifest,
     validate_image_revision,
@@ -1830,7 +1831,11 @@ def launch_api(
         raise RuntimeError(
             f"A citrees API server is already active for the exact campaign scope: {instance_ids}"
         )
-    git_sha = validate_image_revision(image_uri, region=region)
+    git_sha = validate_image_revision(
+        image_uri,
+        runtime_contract.git_sha,
+        region=region,
+    )
     _require_image_matches_runtime(image_uri, git_sha, runtime_contract)
     account_id = get_aws_account_id()
     bucket = get_resource_name(account_id)
@@ -2419,7 +2424,11 @@ def launch_workers(
             f"Worker scope does not match running API: expected {expected_scope}, "
             f"observed {observed_scope}"
         )
-    git_sha = validate_image_revision(image_uri, region=region)
+    git_sha = validate_image_revision(
+        image_uri,
+        runtime_contract.git_sha,
+        region=region,
+    )
     _require_image_matches_runtime(image_uri, git_sha, runtime_contract)
     sg_id = ensure_security_group(region)
     instance_profile_name = ensure_campaign_iam_profile(
@@ -2747,7 +2756,11 @@ def launch_mechanism_workers(
     if n < 1:
         raise ValueError("n must be >= 1")
     image_uri = validate_image_digest_uri(image_uri)
-    git_sha = validate_image_revision(image_uri, region=region)
+    git_sha = validate_image_revision(
+        image_uri,
+        get_frozen_git_sha(),
+        region=region,
+    )
     if total_shards < 1:
         raise ValueError("num_shards must be >= 1")
     if shard_start < 0 or shard_start >= total_shards:

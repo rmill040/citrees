@@ -1176,7 +1176,7 @@ def test_queue_rejects_heartbeat_and_terminal_update_at_expiry() -> None:
     )
 
 
-def test_expiration_and_explicit_failure_share_one_attempt_budget() -> None:
+def test_expiration_retries_but_durable_failure_is_terminal() -> None:
     config = _config("r_ctree", dataset="fixture")
     queue = QueueState.from_configs([config], max_attempts=3)
 
@@ -1197,12 +1197,8 @@ def test_expiration_and_explicit_failure_share_one_attempt_budget() -> None:
         is not None
     )
     assert queue.finish_finalization(second, failed=True)
-    assert queue.next_candidate() == (config, 3)
-
-    third = _assignment_id(config, 3)
-    _activate_lease(queue, config, third, 3, 10, now=113.0)
-    assert queue.requeue_expired(now=123.0) == 1
-    assert queue.attempts == 3
+    assert queue.next_candidate() is None
+    assert queue.attempts == 2
     assert queue.failed == 1
     assert queue.pending == 0
 
@@ -1254,14 +1250,18 @@ def test_restart_reconstructs_attempts_from_immutable_receipts() -> None:
         max_attempts=3,
     )
     restarted = QueueState.from_configs(
-        [config],
+        [],
         max_attempts=3,
         attempts=durable.counts,
+        initial=1,
+        failed=1,
     )
 
     assert durable.counts == {config.key: 2}
     assert durable.open_attempts == {}
-    assert restarted.next_candidate() == (config, 3)
+    assert durable.terminal_failures == frozenset({config.key})
+    assert restarted.next_candidate() is None
+    assert restarted.failed == 1
 
 
 def test_restart_rejects_assignment_id_unbound_to_cell_attempt() -> None:

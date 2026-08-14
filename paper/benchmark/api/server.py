@@ -398,10 +398,7 @@ class QueueState:
         if lease is None:
             return False
         if failed:
-            if lease.attempt >= self.max_attempts:
-                self.failed += 1
-            else:
-                self._available.append(lease.config)
+            self.failed += 1
         else:
             self.completed += 1
         return True
@@ -696,6 +693,7 @@ class DurableAttemptState:
 
     counts: dict[CellKey, int]
     open_attempts: dict[CellKey, RecoveredAttempt]
+    terminal_failures: frozenset[CellKey]
 
 
 def _load_durable_attempt_state(
@@ -760,6 +758,7 @@ def _load_durable_attempt_state(
             )
 
     failed_assignments: set[str] = set()
+    terminal_failures: set[CellKey] = set()
     for receipt in store.list_control_receipts("failures", stage, task):
         key = (task, receipt.dataset, receipt.method_label, receipt.seed)
         config = configs_by_key.get(key)
@@ -770,6 +769,8 @@ def _load_durable_attempt_state(
             raise RuntimeError(f"failure receipt has no matching attempt receipt: {receipt.key}")
         if receipt.assignment_id in failed_assignments:
             raise RuntimeError(f"duplicate failure receipt {receipt.assignment_id}")
+        if key in terminal_failures:
+            raise RuntimeError(f"multiple durable failures exist for {config}")
         validate_failure_receipt(
             receipt.payload,
             config,
@@ -781,6 +782,14 @@ def _load_durable_attempt_state(
             expected_provenance=_expected_provenance,
         )
         failed_assignments.add(receipt.assignment_id)
+        terminal_failures.add(key)
+
+    for assignment_id in failed_assignments:
+        assignment = assignment_attempts[assignment_id]
+        if assignment.attempt != max(attempt_numbers[assignment.config.key]):
+            raise RuntimeError(
+                f"attempt receipts continue after durable failure for {assignment.config}"
+            )
 
     open_attempts: dict[CellKey, RecoveredAttempt] = {}
     for assignment_id, assignment in assignment_attempts.items():
@@ -793,6 +802,7 @@ def _load_durable_attempt_state(
     return DurableAttemptState(
         counts={key: len(numbers) for key, numbers in attempt_numbers.items()},
         open_attempts=open_attempts,
+        terminal_failures=frozenset(terminal_failures),
     )
 
 
@@ -948,13 +958,17 @@ def _build_queues() -> None:
         exhausted = [
             config
             for config in incomplete
-            if attempt_state.counts.get(config.key, 0) >= _max_cell_attempts
-            and config.key not in attempt_state.open_attempts
+            if config.key in attempt_state.terminal_failures
+            or (
+                attempt_state.counts.get(config.key, 0) >= _max_cell_attempts
+                and config.key not in attempt_state.open_attempts
+            )
         ]
         pending = [
             config
             for config in incomplete
             if config.key not in attempt_state.open_attempts
+            and config.key not in attempt_state.terminal_failures
             and attempt_state.counts.get(config.key, 0) < _max_cell_attempts
         ]
         random.shuffle(pending)

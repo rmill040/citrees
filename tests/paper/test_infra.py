@@ -81,6 +81,9 @@ CAMPAIGN_SHA256 = "e" * 64
 API_HOSTED_ZONE_NAME = f"rankings.{CAMPAIGN_SHA256[:32]}.{CAMPAIGN_SHA256[32:]}.citrees.internal."
 API_HOSTNAME = f"api.{API_HOSTED_ZONE_NAME}".rstrip(".")
 API_URL = f"http://{API_HOSTNAME}:8000"
+WORKER_AVAILABILITY_ZONE = "us-east-1a"
+WORKER_SUBNET_ID = "subnet-0aaaaaaaaaaaaaaa1"
+WORKER_VPC_ID = "vpc-test"
 MANIFEST_KEY = f"rerun-manifests/{MANIFEST_SHA256}.csv"
 CANONICAL_MANIFEST_KEY = f"canonical-rerun-manifests/{CANONICAL_MANIFEST_SHA256}.csv"
 SSM_POLICY_ARN = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -94,6 +97,42 @@ CAMPAIGN_TRUST_POLICY = {
         }
     ],
 }
+
+
+def _worker_instance(
+    instance_id: str,
+    *,
+    availability_zone: str = WORKER_AVAILABILITY_ZONE,
+    instance_type: str = "c6a.8xlarge",
+    subnet_id: str = WORKER_SUBNET_ID,
+) -> dict[str, object]:
+    """Build one exact on-demand worker instance row."""
+    return {
+        "InstanceId": instance_id,
+        "InstanceType": instance_type,
+        "Placement": {"AvailabilityZone": availability_zone},
+        "SubnetId": subnet_id,
+    }
+
+
+def _configure_worker_subnets(ec2: MagicMock) -> None:
+    """Configure one compatible default subnet for benchmark worker tests."""
+    ec2.describe_instance_type_offerings.return_value = {
+        "InstanceTypeOfferings": [{"Location": WORKER_AVAILABILITY_ZONE}]
+    }
+    ec2.describe_subnets.return_value = {
+        "Subnets": [
+            {
+                "AvailabilityZone": WORKER_AVAILABILITY_ZONE,
+                "AvailableIpAddressCount": 100,
+                "DefaultForAz": True,
+                "MapPublicIpOnLaunch": True,
+                "State": "available",
+                "SubnetId": WORKER_SUBNET_ID,
+                "VpcId": WORKER_VPC_ID,
+            }
+        ]
+    }
 
 
 def _runtime_contract() -> dict[str, object]:
@@ -801,6 +840,10 @@ def test_runtime_contract_cli_file_is_forwarded(
             str(runtime_contract_path),
             "--gate-receipt",
             str(gate_receipt_path),
+            "--subnets",
+            "subnet-0fff,subnet-0aaa",
+            "--exclude-availability-zones",
+            "us-east-1d",
         ],
     )
 
@@ -811,6 +854,11 @@ def test_runtime_contract_cli_file_is_forwarded(
     assert launch_api_mock.call_args.kwargs["gate_receipt_path"] == gate_receipt_path
     assert launch_api_mock.call_args.kwargs["runtime_contract_path"] == runtime_contract_path
     assert launch_workers_mock.call_args.kwargs["gate_receipt_path"] == gate_receipt_path
+    assert launch_workers_mock.call_args.kwargs["subnet_ids"] == (
+        "subnet-0fff",
+        "subnet-0aaa",
+    )
+    assert launch_workers_mock.call_args.kwargs["excluded_availability_zones"] == ("us-east-1d",)
     assert (
         launch_workers_mock.call_args.kwargs["canonical_manifest_path"] == canonical_manifest_path
     )
@@ -2059,7 +2107,8 @@ def test_worker_launch_refreshes_ingress_before_api_readiness(
     events: list[str] = []
     client = MagicMock()
     s3 = _MemoryS3()
-    client.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    _configure_worker_subnets(client)
+    client.run_instances.return_value = {"Instances": [_worker_instance("i-worker")]}
     client.describe_instances.return_value = {"Reservations": []}
     monkeypatch.setattr(
         ec2_infra,
@@ -2133,12 +2182,13 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     events: list[str] = []
     s3 = _MemoryS3(events)
     ec2 = MagicMock()
+    _configure_worker_subnets(ec2)
     ec2.describe_instances.return_value = {"Reservations": []}
 
     def run_instances(**kwargs: Any) -> dict[str, object]:
         slot = len(ec2.run_instances.call_args_list)
         events.append(f"ec2:{slot}")
-        return {"Instances": [{"InstanceId": f"i-worker-{slot}"}]}
+        return {"Instances": [_worker_instance(f"i-worker-{slot}")]}
 
     ec2.run_instances.side_effect = run_instances
     monkeypatch.setattr(
@@ -2210,7 +2260,23 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     intent = json.loads(s3.objects[intent_key][0])
     assert intent["instance_family"] == "c6a"
     assert intent["market"] == "on-demand"
-    assert intent["schema_version"] == 7
+    assert intent["schema_version"] == 8
+    assert intent["excluded_availability_zones"] == []
+    assert intent["subnet_ids"] == [WORKER_SUBNET_ID]
+    assert intent["slot_placements"] == [
+        {
+            "availability_zone": WORKER_AVAILABILITY_ZONE,
+            "slot": 1,
+            "subnet_id": WORKER_SUBNET_ID,
+            "vpc_id": WORKER_VPC_ID,
+        },
+        {
+            "availability_zone": WORKER_AVAILABILITY_ZONE,
+            "slot": 2,
+            "subnet_id": WORKER_SUBNET_ID,
+            "vpc_id": WORKER_VPC_ID,
+        },
+    ]
     assert intent["api_scope"]["api_url"] == API_URL
     assert intent["api_scope"]["market"] == "on-demand"
     assert "public_api_url" not in intent["api_scope"]
@@ -2225,6 +2291,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     assert intent["api_scope"]["runtime_contract_sha256"] == RUNTIME_CONTRACT_SHA256
     first_request = ec2.run_instances.call_args_list[0].kwargs
     assert "InstanceMarketOptions" not in first_request
+    assert first_request["SubnetId"] == WORKER_SUBNET_ID
     user_data = base64.b64decode(first_request["UserData"]).decode("utf-8")
     assert f"-e CITREES_API_URL={API_URL}" in user_data
     assert f"--api-url {API_URL}" in user_data
@@ -2232,7 +2299,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     assert "10.0.0.20" not in user_data
     request_contract = intent["request_contract"]
     for key, value in first_request.items():
-        if key not in {"ClientToken", "TagSpecifications", "UserData"}:
+        if key not in {"ClientToken", "SubnetId", "TagSpecifications", "UserData"}:
             assert request_contract[key] == value
     assert (
         request_contract["UserDataSha256"]
@@ -2251,12 +2318,123 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     }
     assert {json.loads(s3.objects[key][0])["market"] for key in outcome_keys} == {"on-demand"}
     assert {json.loads(s3.objects[key][0])["instance_family"] for key in outcome_keys} == {"c6a"}
+    assert {json.loads(s3.objects[key][0])["subnet_id"] for key in outcome_keys} == {
+        WORKER_SUBNET_ID
+    }
+    assert {json.loads(s3.objects[key][0])["availability_zone"] for key in outcome_keys} == {
+        WORKER_AVAILABILITY_ZONE
+    }
 
     ec2.run_instances.reset_mock()
     events.clear()
     assert launch_workers(**launch_kwargs) == ["i-worker-1", "i-worker-2"]
     ec2.run_instances.assert_not_called()
     assert api_scopes.call_count == 2
+
+
+def test_worker_launch_rejects_explicit_subnet_in_excluded_zone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+
+    with pytest.raises(RuntimeError, match="excluded availability zone us-east-1a"):
+        launch_workers(
+            **_worker_launch_kwargs(manifest_path),
+            excluded_availability_zones=(WORKER_AVAILABILITY_ZONE,),
+            subnet_ids=(WORKER_SUBNET_ID,),
+        )
+
+    ec2.run_instances.assert_not_called()
+    assert not any("/worker-launches/" in key for key in s3.objects)
+
+
+def test_worker_launch_replay_rejects_changed_subnet_plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    second_subnet_id = "subnet-0fffffffffffffff1"
+    rows = {
+        WORKER_SUBNET_ID: {
+            "AvailabilityZone": WORKER_AVAILABILITY_ZONE,
+            "AvailableIpAddressCount": 100,
+            "DefaultForAz": True,
+            "MapPublicIpOnLaunch": True,
+            "State": "available",
+            "SubnetId": WORKER_SUBNET_ID,
+            "VpcId": WORKER_VPC_ID,
+        },
+        second_subnet_id: {
+            "AvailabilityZone": "us-east-1f",
+            "AvailableIpAddressCount": 100,
+            "DefaultForAz": True,
+            "MapPublicIpOnLaunch": True,
+            "State": "available",
+            "SubnetId": second_subnet_id,
+            "VpcId": WORKER_VPC_ID,
+        },
+    }
+    ec2.describe_instance_type_offerings.return_value = {
+        "InstanceTypeOfferings": [
+            {"Location": WORKER_AVAILABILITY_ZONE},
+            {"Location": "us-east-1f"},
+        ]
+    }
+    ec2.describe_subnets.side_effect = lambda **kwargs: {
+        "Subnets": [rows[subnet_id] for subnet_id in kwargs["SubnetIds"]]
+    }
+    ec2.run_instances.return_value = {"Instances": [_worker_instance("i-worker")]}
+    kwargs = _worker_launch_kwargs(manifest_path)
+
+    assert launch_workers(**kwargs, subnet_ids=(WORKER_SUBNET_ID,)) == ["i-worker"]
+    ec2.run_instances.reset_mock()
+
+    with pytest.raises(RuntimeError, match="different exact launch contract"):
+        launch_workers(**kwargs, subnet_ids=(second_subnet_id,))
+
+    ec2.run_instances.assert_not_called()
+
+
+def test_worker_launch_rejects_wrong_ec2_placement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.return_value = {
+        "Instances": [
+            _worker_instance(
+                "i-worker",
+                availability_zone="us-east-1f",
+                subnet_id="subnet-0fffffffffffffff1",
+            )
+        ]
+    }
+
+    with pytest.raises(RuntimeError, match="expected 'subnet-0aaaaaaaaaaaaaaa1'"):
+        launch_workers(
+            **_worker_launch_kwargs(manifest_path),
+            subnet_ids=(WORKER_SUBNET_ID,),
+        )
+
+    assert not any("/instances/" in key for key in s3.objects)
+
+
+def test_worker_launch_rejects_unknown_explicit_subnet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.describe_subnets.return_value = {"Subnets": []}
+
+    with pytest.raises(RuntimeError, match="did not return requested subnets"):
+        launch_workers(
+            **_worker_launch_kwargs(manifest_path),
+            subnet_ids=("subnet-0fffffffffffffff1",),
+        )
+
+    ec2.run_instances.assert_not_called()
+    assert not any("/worker-launches/" in key for key in s3.objects)
 
 
 def _mock_worker_launch_dependencies(
@@ -2270,6 +2448,7 @@ def _mock_worker_launch_dependencies(
     _write_runtime_contract(tmp_path)
     _write_gate_receipt(tmp_path)
     ec2 = MagicMock()
+    _configure_worker_subnets(ec2)
     ec2.describe_instances.return_value = {"Reservations": []}
     s3 = _MemoryS3()
     monkeypatch.setattr(
@@ -2332,7 +2511,7 @@ def test_worker_launch_recovers_ambiguous_timeout_with_same_token(
     manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
     ec2.run_instances.side_effect = [
         ReadTimeoutError(endpoint_url="https://ec2.us-east-1.amazonaws.com"),
-        {"Instances": [{"InstanceId": "i-recovered"}]},
+        {"Instances": [_worker_instance("i-recovered")]},
     ]
 
     assert launch_workers(**_worker_launch_kwargs(manifest_path)) == ["i-recovered"]
@@ -2365,7 +2544,7 @@ def test_worker_launch_retries_ambiguous_ec2_server_error_with_same_token(
             {"Error": {"Code": error_code, "Message": "ambiguous"}},
             "RunInstances",
         ),
-        {"Instances": [{"InstanceId": "i-recovered"}]},
+        {"Instances": [_worker_instance("i-recovered")]},
     ]
 
     assert launch_workers(**_worker_launch_kwargs(manifest_path)) == ["i-recovered"]
@@ -2414,6 +2593,7 @@ def test_worker_launch_recovers_exact_tags_after_ambiguous_timeout(
                 {
                     "Instances": [
                         {
+                            **_worker_instance("i-tag-recovered"),
                             "InstanceId": "i-tag-recovered",
                             "Tags": tags,
                         }
@@ -2441,7 +2621,7 @@ def test_worker_launch_reconciles_partial_capacity_on_replay(
         "RunInstances",
     )
     ec2.run_instances.side_effect = [
-        {"Instances": [{"InstanceId": "i-worker-1"}]},
+        {"Instances": [_worker_instance("i-worker-1")]},
         capacity_error,
     ]
     kwargs = _worker_launch_kwargs(manifest_path, n=3)
@@ -2451,8 +2631,8 @@ def test_worker_launch_reconciles_partial_capacity_on_replay(
 
     ec2.run_instances.reset_mock(side_effect=True)
     ec2.run_instances.side_effect = [
-        {"Instances": [{"InstanceId": "i-worker-2"}]},
-        {"Instances": [{"InstanceId": "i-worker-3"}]},
+        {"Instances": [_worker_instance("i-worker-2")]},
+        {"Instances": [_worker_instance("i-worker-3")]},
     ]
     assert launch_workers(**kwargs) == [
         "i-worker-1",
@@ -2468,7 +2648,7 @@ def test_worker_launch_accounts_terminated_instance_with_exact_tags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
-    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    ec2.run_instances.return_value = {"Instances": [_worker_instance("i-worker")]}
     kwargs = _worker_launch_kwargs(manifest_path)
     assert launch_workers(**kwargs) == ["i-worker"]
     tags = ec2.run_instances.call_args.kwargs["TagSpecifications"][0]["Tags"]
@@ -2480,6 +2660,7 @@ def test_worker_launch_accounts_terminated_instance_with_exact_tags(
             {
                 "Instances": [
                     {
+                        **_worker_instance("i-worker"),
                         "InstanceId": "i-worker",
                         "State": {"Name": "terminated"},
                         "Tags": tags,
@@ -2499,7 +2680,7 @@ def test_worker_launch_rejects_market_mismatch_before_ec2(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
-    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    ec2.run_instances.return_value = {"Instances": [_worker_instance("i-worker")]}
     monkeypatch.setattr(
         ec2_infra,
         "get_api_scope",
@@ -2517,7 +2698,7 @@ def test_worker_launch_replay_requires_same_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest_path, ec2, _s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
-    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker"}]}
+    ec2.run_instances.return_value = {"Instances": [_worker_instance("i-worker")]}
     assert launch_workers(**_worker_launch_kwargs(manifest_path)) == ["i-worker"]
     ec2.run_instances.reset_mock()
 
@@ -2537,7 +2718,7 @@ def test_worker_launch_preserves_prior_records_across_operational_failure(
         "RunInstances",
     )
     ec2.run_instances.side_effect = [
-        {"Instances": [{"InstanceId": "i-worker-1"}]},
+        {"Instances": [_worker_instance("i-worker-1")]},
         operational_error,
     ]
     kwargs = _worker_launch_kwargs(manifest_path, n=2)
@@ -2554,7 +2735,7 @@ def test_worker_launch_preserves_prior_records_across_operational_failure(
     failed_slot_token = ec2.run_instances.call_args_list[1].kwargs["ClientToken"]
 
     ec2.run_instances.reset_mock(side_effect=True)
-    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-worker-2"}]}
+    ec2.run_instances.return_value = {"Instances": [_worker_instance("i-worker-2")]}
     assert launch_workers(**kwargs) == ["i-worker-1", "i-worker-2"]
     assert ec2.run_instances.call_count == 1
     assert ec2.run_instances.call_args.kwargs["ClientToken"] == failed_slot_token

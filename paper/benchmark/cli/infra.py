@@ -483,6 +483,23 @@ def launch_workers_cmd(
             help="Complete canonical manifest bound to the GO receipt",
         ),
     ] = None,
+    subnets: Annotated[
+        str,
+        typer.Option(
+            "--subnets",
+            help=(
+                "Comma-separated default-VPC subnet IDs; workers rotate through "
+                "them in the supplied order"
+            ),
+        ),
+    ] = "",
+    excluded_availability_zones: Annotated[
+        str,
+        typer.Option(
+            "--exclude-availability-zones",
+            help="Comma-separated availability zones that must not receive workers",
+        ),
+    ] = "",
     launch_id: Annotated[
         str,
         typer.Option(
@@ -561,11 +578,13 @@ def launch_workers_cmd(
         image_uri=image_uri,
         artifact_prefix=artifact_prefix,
         canonical_manifest_path=canonical_manifest_path,
+        excluded_availability_zones=_split_csv(excluded_availability_zones),
         gate_receipt_path=gate_receipt_path,
         launch_id=launch_id,
         manifest_path=manifest_path,
         runtime_contract_path=runtime_contract_path,
         stage=stage,
+        subnet_ids=_split_csv(subnets),
     )
 
 

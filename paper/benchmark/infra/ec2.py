@@ -90,7 +90,7 @@ _CAPACITY_ERROR_CODES = frozenset(
     }
 )
 _AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
-_WORKER_LAUNCH_SCHEMA_VERSION = 7
+_WORKER_LAUNCH_SCHEMA_VERSION = 8
 
 
 @dataclass(frozen=True)
@@ -148,6 +148,15 @@ class GateReceiptIdentity:
 
     s3_key: str
     sha256: str
+
+
+@dataclass(frozen=True)
+class _WorkerSubnetPlacement:
+    """One validated benchmark-worker subnet."""
+
+    availability_zone: str
+    subnet_id: str
+    vpc_id: str
 
 
 def _csv_arg(values: Sequence[str | int]) -> str:
@@ -304,6 +313,7 @@ def _worker_slot_identity(intent_sha256: str, slot: int) -> tuple[str, str]:
 def _worker_launch_record(
     *,
     artifact_prefix: str,
+    availability_zone: str,
     campaign_sha256: str,
     client_token: str,
     instance_family: str,
@@ -316,10 +326,13 @@ def _worker_launch_record(
     region: str,
     request_sha256: str,
     slot: int,
+    subnet_id: str,
+    vpc_id: str,
 ) -> dict[str, Any]:
     """Build the complete deterministic record for one accepted instance."""
     return {
         "artifact_prefix": artifact_prefix,
+        "availability_zone": availability_zone,
         "campaign_sha256": campaign_sha256,
         "client_token": client_token,
         "instance_family": instance_family,
@@ -334,6 +347,8 @@ def _worker_launch_record(
         "request_sha256": request_sha256,
         "schema_version": _WORKER_LAUNCH_SCHEMA_VERSION,
         "slot": slot,
+        "subnet_id": subnet_id,
+        "vpc_id": vpc_id,
     }
 
 
@@ -341,6 +356,7 @@ def _load_worker_launch_record(
     s3: Any,
     *,
     artifact_prefix: str,
+    availability_zone: str,
     bucket: str,
     campaign_sha256: str,
     client_token: str,
@@ -353,6 +369,8 @@ def _load_worker_launch_record(
     region: str,
     request_sha256: str,
     slot: int,
+    subnet_id: str,
+    vpc_id: str,
 ) -> str | None:
     """Return a previously accepted instance after exact record validation."""
     key = f"{_worker_launch_prefix(artifact_prefix, launch_id)}/instances/{slot:06d}.json"
@@ -369,6 +387,7 @@ def _load_worker_launch_record(
         raise RuntimeError(f"Worker launch record has no instance ID: s3://{bucket}/{key}")
     expected = _worker_launch_record(
         artifact_prefix=artifact_prefix,
+        availability_zone=availability_zone,
         campaign_sha256=campaign_sha256,
         client_token=client_token,
         instance_family=instance_family,
@@ -381,6 +400,8 @@ def _load_worker_launch_record(
         region=region,
         request_sha256=request_sha256,
         slot=slot,
+        subnet_id=subnet_id,
+        vpc_id=vpc_id,
     )
     if record != expected:
         raise RuntimeError(f"Worker launch record scope mismatch at s3://{bucket}/{key}")
@@ -407,7 +428,47 @@ def _publish_worker_launch_record(
     )
 
 
-def _find_worker_for_exact_tags(ec2: Any, tags: dict[str, str]) -> str | None:
+def _validate_worker_instance_placement(
+    instance: dict[str, Any],
+    *,
+    availability_zone: str,
+    instance_type: str,
+    source: str,
+    subnet_id: str,
+) -> str:
+    """Require one worker instance to match its exact placement contract."""
+    instance_id = instance.get("InstanceId")
+    if not isinstance(instance_id, str) or not instance_id:
+        raise RuntimeError(f"{source} has no instance ID")
+    _require_on_demand_instance(instance, source=source)
+    if instance.get("InstanceType") != instance_type:
+        raise RuntimeError(
+            f"{source} {instance_id} has instance type "
+            f"{instance.get('InstanceType')!r}, expected {instance_type!r}"
+        )
+    if instance.get("SubnetId") != subnet_id:
+        raise RuntimeError(
+            f"{source} {instance_id} is in subnet {instance.get('SubnetId')!r}, "
+            f"expected {subnet_id!r}"
+        )
+    placement = instance.get("Placement")
+    observed_zone = placement.get("AvailabilityZone") if isinstance(placement, dict) else None
+    if observed_zone != availability_zone:
+        raise RuntimeError(
+            f"{source} {instance_id} is in availability zone {observed_zone!r}, "
+            f"expected {availability_zone!r}"
+        )
+    return instance_id
+
+
+def _find_worker_for_exact_tags(
+    ec2: Any,
+    tags: dict[str, str],
+    *,
+    availability_zone: str,
+    instance_type: str,
+    subnet_id: str,
+) -> str | None:
     """Recover one accepted launch in any state carrying the exact identity."""
     filters = [{"Name": f"tag:{key}", "Values": [value]} for key, value in sorted(tags.items())]
     instances: dict[str, dict[str, Any]] = {}
@@ -429,6 +490,13 @@ def _find_worker_for_exact_tags(ec2: Any, tags: dict[str, str]) -> str | None:
                     raise RuntimeError(
                         f"EC2 returned {instance_id} outside the exact worker launch identity"
                     )
+                _validate_worker_instance_placement(
+                    instance,
+                    availability_zone=availability_zone,
+                    instance_type=instance_type,
+                    source="recovered worker",
+                    subnet_id=subnet_id,
+                )
                 instances[instance_id] = instance
         token = response.get("NextToken")
         next_token = str(token) if token else None
@@ -474,13 +542,22 @@ def _is_ambiguous_ec2_error(exc: Exception) -> bool:
 def _launch_or_recover_worker(
     ec2: Any,
     *,
+    availability_zone: str,
+    instance_type: str,
     recover_before_launch: bool,
     run_kwargs: dict[str, Any],
+    subnet_id: str,
     tags: dict[str, str],
 ) -> str:
     """Recover or idempotently launch one exact worker instance."""
     if recover_before_launch:
-        recovered = _find_worker_for_exact_tags(ec2, tags)
+        recovered = _find_worker_for_exact_tags(
+            ec2,
+            tags,
+            availability_zone=availability_zone,
+            instance_type=instance_type,
+            subnet_id=subnet_id,
+        )
         if recovered is not None:
             return recovered
 
@@ -490,7 +567,13 @@ def _launch_or_recover_worker(
         except Exception as exc:
             if not _is_ambiguous_ec2_error(exc):
                 raise
-            recovered = _find_worker_for_exact_tags(ec2, tags)
+            recovered = _find_worker_for_exact_tags(
+                ec2,
+                tags,
+                availability_zone=availability_zone,
+                instance_type=instance_type,
+                subnet_id=subnet_id,
+            )
             if recovered is not None:
                 return recovered
             if attempt == len(_AMBIGUOUS_EC2_RETRY_DELAYS):
@@ -504,9 +587,26 @@ def _launch_or_recover_worker(
             continue
 
         try:
-            return _single_instance_id(response)
+            instance_id = _single_instance_id(response)
+            instance = response["Instances"][0]
+            if not isinstance(instance, dict):
+                raise RuntimeError("EC2 returned an invalid worker instance row")
+            _validate_worker_instance_placement(
+                instance,
+                availability_zone=availability_zone,
+                instance_type=instance_type,
+                source="launched worker",
+                subnet_id=subnet_id,
+            )
+            return instance_id
         except RuntimeError:
-            recovered = _find_worker_for_exact_tags(ec2, tags)
+            recovered = _find_worker_for_exact_tags(
+                ec2,
+                tags,
+                availability_zone=availability_zone,
+                instance_type=instance_type,
+                subnet_id=subnet_id,
+            )
             if recovered is not None:
                 return recovered
             raise
@@ -1129,6 +1229,115 @@ def get_default_subnet_ids(ec2: Any, *, instance_type: str | None = None) -> lis
         ),
     )
     return [subnet["SubnetId"] for subnet in subnets]
+
+
+def _resolve_worker_subnets(
+    ec2: Any,
+    *,
+    excluded_availability_zones: Sequence[str],
+    instance_type: str,
+    subnet_ids: Sequence[str],
+) -> tuple[_WorkerSubnetPlacement, ...]:
+    """Validate and order the exact subnets used by benchmark workers."""
+    normalized_subnets = tuple(subnet_id.strip() for subnet_id in subnet_ids)
+    if any(not subnet_id for subnet_id in normalized_subnets):
+        raise ValueError("subnet_ids must not contain empty values")
+    if len(set(normalized_subnets)) != len(normalized_subnets):
+        raise ValueError("subnet_ids must be unique")
+
+    excluded_zones = tuple(zone.strip() for zone in excluded_availability_zones)
+    if any(not zone for zone in excluded_zones):
+        raise ValueError("excluded_availability_zones must not contain empty values")
+    if len(set(excluded_zones)) != len(excluded_zones):
+        raise ValueError("excluded_availability_zones must be unique")
+
+    offerings = ec2.describe_instance_type_offerings(
+        LocationType="availability-zone",
+        Filters=[{"Name": "instance-type", "Values": [instance_type]}],
+    )
+    offered_zones = {
+        str(item["Location"])
+        for item in offerings.get("InstanceTypeOfferings", [])
+        if isinstance(item, dict) and item.get("Location")
+    }
+    if not offered_zones:
+        raise RuntimeError(f"EC2 returned no availability zones for {instance_type}")
+
+    if normalized_subnets:
+        response = ec2.describe_subnets(SubnetIds=list(normalized_subnets))
+    else:
+        response = ec2.describe_subnets(Filters=[{"Name": "default-for-az", "Values": ["true"]}])
+    rows = response.get("Subnets", [])
+    if not isinstance(rows, list):
+        raise RuntimeError("EC2 subnet lookup returned an invalid response")
+
+    placements_by_id: dict[str, _WorkerSubnetPlacement] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise RuntimeError("EC2 subnet lookup returned an invalid row")
+        subnet_id = row.get("SubnetId")
+        availability_zone = row.get("AvailabilityZone")
+        vpc_id = row.get("VpcId")
+        if not isinstance(subnet_id, str) or not subnet_id:
+            raise RuntimeError("EC2 subnet lookup omitted SubnetId")
+        if not isinstance(availability_zone, str) or not availability_zone:
+            raise RuntimeError("EC2 subnet lookup omitted AvailabilityZone")
+        if not isinstance(vpc_id, str) or not vpc_id:
+            raise RuntimeError("EC2 subnet lookup omitted placement identity")
+        if normalized_subnets and subnet_id not in normalized_subnets:
+            raise RuntimeError(f"EC2 returned unrequested subnet {subnet_id}")
+        if row.get("State") != "available":
+            raise RuntimeError(f"subnet {subnet_id} is not available")
+        if row.get("DefaultForAz") is not True:
+            raise RuntimeError(f"subnet {subnet_id} is outside the default VPC")
+        if row.get("MapPublicIpOnLaunch") is not True:
+            raise RuntimeError(f"subnet {subnet_id} does not assign public IP addresses")
+        available_addresses = row.get("AvailableIpAddressCount")
+        if not isinstance(available_addresses, int) or available_addresses < 1:
+            raise RuntimeError(f"subnet {subnet_id} has no available IP addresses")
+        if availability_zone not in offered_zones:
+            if normalized_subnets:
+                raise RuntimeError(
+                    f"{instance_type} is not offered in subnet {subnet_id} "
+                    f"availability zone {availability_zone}"
+                )
+            continue
+        if availability_zone in excluded_zones:
+            if normalized_subnets:
+                raise RuntimeError(
+                    f"subnet {subnet_id} is in excluded availability zone {availability_zone}"
+                )
+            continue
+        placements_by_id[subnet_id] = _WorkerSubnetPlacement(
+            availability_zone=availability_zone,
+            subnet_id=subnet_id,
+            vpc_id=vpc_id,
+        )
+
+    if normalized_subnets:
+        missing = sorted(set(normalized_subnets) - set(placements_by_id))
+        if missing:
+            raise RuntimeError(f"EC2 did not return requested subnets: {missing}")
+        placements = tuple(placements_by_id[subnet_id] for subnet_id in normalized_subnets)
+    else:
+        placements = tuple(
+            sorted(
+                placements_by_id.values(),
+                key=lambda placement: (
+                    placement.availability_zone,
+                    placement.subnet_id,
+                ),
+            )
+        )
+    if not placements:
+        raise RuntimeError(
+            f"No compatible default subnets remain for {instance_type} "
+            f"outside {sorted(excluded_zones)}"
+        )
+    vpc_ids = {placement.vpc_id for placement in placements}
+    if len(vpc_ids) != 1:
+        raise RuntimeError(f"worker subnets span multiple VPCs: {sorted(vpc_ids)}")
+    return placements
 
 
 def per_boot_container_recovery_hook(
@@ -2100,11 +2309,13 @@ def launch_workers(
     *,
     artifact_prefix: str,
     canonical_manifest_path: Path,
+    excluded_availability_zones: Sequence[str] = (),
     gate_receipt_path: Path,
     launch_id: str,
     manifest_path: Path,
     runtime_contract_path: Path,
     stage: str,
+    subnet_ids: Sequence[str] = (),
     region: str = DEFAULT_REGION,
 ) -> list[str]:
     """Launch N EC2 worker instances.
@@ -2241,6 +2452,14 @@ def launch_workers(
 
     ec2 = boto3.client("ec2", region_name=region)
     s3 = boto3.client("s3", region_name=region)
+    placements = _resolve_worker_subnets(
+        ec2,
+        excluded_availability_zones=excluded_availability_zones,
+        instance_type=instance_type,
+        subnet_ids=subnet_ids,
+    )
+    normalized_excluded_zones = sorted(zone.strip() for zone in excluded_availability_zones)
+    slot_placements = tuple(placements[(slot - 1) % len(placements)] for slot in range(1, n + 1))
     account_id = get_aws_account_id()
     bucket = get_resource_name(account_id)
     ecr_uri = image_uri.split("/")[0]
@@ -2322,6 +2541,7 @@ def launch_workers(
         "canonical_manifest_sha256": canonical_manifest_sha256,
         "gate_receipt_s3_key": gate_receipt.s3_key,
         "gate_receipt_sha256": gate_receipt.sha256,
+        "excluded_availability_zones": normalized_excluded_zones,
         "image_git_sha": git_sha,
         "image_uri": image_uri,
         "instance_family": instance_family,
@@ -2339,7 +2559,17 @@ def launch_workers(
         "runtime_contract_sha256": runtime_contract_sha256,
         "schema_version": _WORKER_LAUNCH_SCHEMA_VERSION,
         "security_group_id": sg_id,
+        "slot_placements": [
+            {
+                "availability_zone": placement.availability_zone,
+                "slot": slot,
+                "subnet_id": placement.subnet_id,
+                "vpc_id": placement.vpc_id,
+            }
+            for slot, placement in enumerate(slot_placements, start=1)
+        ],
         "stage": stage,
+        "subnet_ids": [placement.subnet_id for placement in placements],
         "user_data_sha256": hashlib.sha256(user_data.encode()).hexdigest(),
     }
     if existing_intent is not None and existing_intent != intent:
@@ -2365,15 +2595,23 @@ def launch_workers(
     step(f"Image: {image_uri}")
     step(f"Security group: {sg_id}")
     step(f"Instance profile: {instance_profile_name}")
+    step(
+        "Subnets: "
+        + ", ".join(
+            f"{placement.subnet_id} ({placement.availability_zone})" for placement in placements
+        )
+    )
     step(f"Launch intent: s3://{bucket}/{intent_key}")
 
     instance_ids: list[str] = []
     for slot in range(1, n + 1):
+        placement = slot_placements[slot - 1]
         client_token, request_sha256 = _worker_slot_identity(intent_sha256, slot)
         tags = {
             TAG_KEY: WORKER_TAG_VALUE,
             "Name": "citrees-worker",
             "citrees-artifact-prefix": artifact_prefix,
+            "citrees-availability-zone": placement.availability_zone,
             "citrees-campaign-sha256": campaign_sha256,
             "citrees-canonical-manifest-key": canonical_manifest_s3_key,
             "citrees-canonical-manifest-sha256": canonical_manifest_sha256,
@@ -2387,15 +2625,18 @@ def launch_workers(
             "citrees-runtime-contract-key": runtime_contract_s3_key,
             "citrees-runtime-contract-sha256": runtime_contract_sha256,
             "citrees-stage": stage,
+            "citrees-subnet-id": placement.subnet_id,
             "citrees-worker-client-token": client_token,
             "citrees-worker-intent-sha256": intent_sha256,
             "citrees-worker-launch-id": launch_id,
             "citrees-worker-request-sha256": request_sha256,
             "citrees-worker-slot": str(slot),
+            "citrees-vpc-id": placement.vpc_id,
         }
         existing_instance_id = _load_worker_launch_record(
             s3,
             artifact_prefix=artifact_prefix,
+            availability_zone=placement.availability_zone,
             bucket=bucket,
             campaign_sha256=campaign_sha256,
             client_token=client_token,
@@ -2408,6 +2649,8 @@ def launch_workers(
             region=region,
             request_sha256=request_sha256,
             slot=slot,
+            subnet_id=placement.subnet_id,
+            vpc_id=placement.vpc_id,
         )
         if existing_instance_id is not None:
             instance_ids.append(existing_instance_id)
@@ -2416,6 +2659,7 @@ def launch_workers(
 
         run_kwargs = dict(base_run_kwargs)
         run_kwargs["ClientToken"] = client_token
+        run_kwargs["SubnetId"] = placement.subnet_id
         run_kwargs["TagSpecifications"] = [
             {
                 "ResourceType": "instance",
@@ -2425,8 +2669,11 @@ def launch_workers(
         try:
             instance_id = _launch_or_recover_worker(
                 ec2,
+                availability_zone=placement.availability_zone,
+                instance_type=instance_type,
                 recover_before_launch=existing_intent is not None,
                 run_kwargs=run_kwargs,
+                subnet_id=placement.subnet_id,
                 tags=tags,
             )
         except ClientError as exc:
@@ -2441,6 +2688,7 @@ def launch_workers(
 
         record = _worker_launch_record(
             artifact_prefix=artifact_prefix,
+            availability_zone=placement.availability_zone,
             campaign_sha256=campaign_sha256,
             client_token=client_token,
             instance_family=instance_family,
@@ -2453,6 +2701,8 @@ def launch_workers(
             region=region,
             request_sha256=request_sha256,
             slot=slot,
+            subnet_id=placement.subnet_id,
+            vpc_id=placement.vpc_id,
         )
         _publish_worker_launch_record(
             s3,

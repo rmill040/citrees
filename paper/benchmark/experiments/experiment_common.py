@@ -43,6 +43,7 @@ from citrees import (
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
 )
+from paper.benchmark.config.constants import LOGISTIC_REGRESSION_MAX_ITER
 from paper.benchmark.utils.metrics import f1_at_k, precision_at_k, recall_at_k
 
 # =============================================================================
@@ -169,7 +170,7 @@ def make_clf_downstream(seed: int, *, n_jobs: int = 1) -> dict[str, BaseEstimato
     """Downstream classifiers matching Stage 2 canonical params."""
     return {
         "lr": LogisticRegression(
-            max_iter=1000,
+            max_iter=LOGISTIC_REGRESSION_MAX_ITER,
             class_weight="balanced",
             random_state=seed,
         ),

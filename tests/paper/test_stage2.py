@@ -9,9 +9,11 @@ import pytest
 from sklearn.metrics import roc_auc_score
 
 from paper.benchmark.adapters.store import LoadedArtifact
+from paper.benchmark.config.constants import LOGISTIC_REGRESSION_MAX_ITER
 from paper.benchmark.pipeline.stage2 import (
     compute_roc_auc,
     evaluate_fold,
+    get_clf_models,
     get_requested_evaluation_k_values,
     metrics_cover_requested_k_values,
     resolve_evaluation_k_values,
@@ -99,6 +101,12 @@ class TestEvaluateFold:
         }
         missing = required - set(row.keys())
         assert not missing, f"Missing metrics: {missing}"
+
+    def test_logistic_regression_uses_convergence_safe_iteration_budget(self):
+        """The canonical LR model must use the native-audited iteration budget."""
+        model = get_clf_models(random_state=1718)["lr"]
+
+        assert model.max_iter == LOGISTIC_REGRESSION_MAX_ITER == 5_000
 
     def test_regression_metrics_schema(self):
         """Test that regression evaluation returns required metrics."""

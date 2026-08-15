@@ -42,6 +42,7 @@ from paper.benchmark.config.constants import (
     HIGH_P_EVALUATION_EXTRA_K_FRACTIONS,
     HIGH_P_EVALUATION_EXTRA_K_VALUES,
     HIGH_P_EVALUATION_P_THRESHOLD,
+    LOGISTIC_REGRESSION_MAX_ITER,
     N_SPLITS,
     PIPELINE_ARTIFACT_VERSION,
     REG_DOWNSTREAM_MODELS,
@@ -76,7 +77,7 @@ def get_clf_models(random_state: int, *, n_jobs: int = 1) -> dict[str, Any]:
     """Get classification model instances."""
     return {
         "lr": LogisticRegression(
-            max_iter=1000,
+            max_iter=LOGISTIC_REGRESSION_MAX_ITER,
             class_weight="balanced",
             random_state=random_state,
         ),

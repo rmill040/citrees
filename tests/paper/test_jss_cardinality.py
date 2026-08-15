@@ -560,6 +560,52 @@ def test_tree_validator_rejects_corrupt_candidate_contracts() -> None:
         validate_cardinality_tree_raw(contradictory_native)
 
 
+def test_tree_validator_matches_native_winner_by_feature_position() -> None:
+    _, features = _cardinality_matrix(
+        np.random.default_rng(100),
+        CARDINALITY_N_SAMPLES,
+    )
+    budget = CARDINALITY_B * len(CARDINALITY_SUPPORTS)
+    support_indices = np.asarray([100, 200, 300, 400, 0], dtype=np.int64)
+    p_values = _plus_one_values(support_indices, budget)
+    raw = build_cardinality_tree_raw(
+        features,
+        CardinalityCandidateDiagnostics(
+            statistics=np.linspace(0.1, 0.5, len(CARDINALITY_SUPPORTS)),
+            p_values=p_values,
+            native_p_values=p_values.copy(),
+            realized_permutations=np.full(
+                len(CARDINALITY_SUPPORTS),
+                budget,
+                dtype=np.int64,
+            ),
+            native_selected_position=4,
+            native_p_value_rule="plus_one",
+        ),
+        task="classification",
+        method="citrees",
+        selector="mc",
+        replicate=0,
+        data_seed=500,
+        model_seed=700,
+    )
+    winner = raw.loc[raw["native_winner"]]
+
+    assert int(winner["feature_position"].iloc[0]) == 4
+    assert int(winner["feature_id"].iloc[0]) == 0
+    validate_cardinality_tree_raw(raw)
+
+    nonminimum = raw.copy()
+    nonminimum["native_winner"] = False
+    nonminimum.loc[nonminimum["feature_position"] == 0, "native_winner"] = True
+    nonminimum["native_selected_position"] = 0
+    nonminimum["native_selected_feature"] = int(
+        nonminimum.loc[nonminimum["feature_position"] == 0, "feature_id"].iloc[0]
+    )
+    with pytest.raises(ValueError, match="minimum candidate p-value"):
+        validate_cardinality_tree_raw(nonminimum)
+
+
 def test_tree_summaries_report_no_split_effects_as_missing() -> None:
     replicate, trend, method = summarize_cardinality_tree(_synthetic_tree_raw())
     conditional = replicate[replicate["method"].isin(["citrees", "partykit"])]

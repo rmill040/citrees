@@ -1646,8 +1646,10 @@ def validate_cardinality_tree_raw(raw: pd.DataFrame) -> None:
                 [support.index for support in native_supports],
                 dtype=np.int64,
             )
-            winner_position = int(group.loc[group["native_winner"], "feature_position"].iloc[0])
-            if native_indices[winner_position] != int(native_indices.min()):
+            winner_index = int(
+                group.loc[group["native_winner"], "native_p_value_support_index"].iloc[0]
+            )
+            if winner_index != int(native_indices.min()):
                 raise ValueError("Native winner must have a minimum candidate p-value")
         if method == "citrees" and bool(native_no_split.iloc[0]) == controlled.split:
             raise ValueError("citrees native and reconstructed adjusted split statuses disagree")

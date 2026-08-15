@@ -448,10 +448,12 @@ def build_shard_specs(
         component: _require_integer(
             shard_counts[component],
             f"{component} shard count",
-            minimum=1,
+            minimum=0,
         )
         for component in COMPONENTS
     }
+    if not any(normalized_counts.values()):
+        raise ValueError("at least one campaign component must contain shards")
     specs: list[shards.ShardSpec] = []
     for component in shards.CALIBRATION_COMPONENTS:
         count = normalized_counts[component]
@@ -643,11 +645,11 @@ def parse_campaign(payload: bytes, expected_sha256: str) -> CloudCampaign:
     if not isinstance(raw_specs, list):
         raise TypeError("campaign specs must be a JSON array")
     specs = tuple(_parse_shard_spec(item) for item in raw_specs)
-    shard_counts: dict[str, int] = {}
+    shard_counts: dict[str, int] = {component: 0 for component in COMPONENTS}
     for component in COMPONENTS:
         matching = tuple(spec for spec in specs if spec.component == component)
         if not matching:
-            raise ValueError(f"campaign specs omit component {component!r}")
+            continue
         counts = {spec.num_shards for spec in matching}
         if len(counts) != 1:
             raise ValueError(f"campaign specs disagree on {component!r} shard count")

@@ -861,7 +861,7 @@ def test_campaign_manifest_round_trip_and_tampering_rejection() -> None:
 
     value = json.loads(payload)
     value["specs"] = [spec for spec in value["specs"] if spec["component"] != "behavior"]
-    with pytest.raises(ValueError, match="omit component 'behavior'"):
+    with pytest.raises(ValueError, match="requested campaign"):
         cloud.parse_campaign(json.dumps(value).encode(), campaign.campaign_sha256)
 
     value = json.loads(payload)
@@ -897,10 +897,34 @@ def test_campaign_rejects_noninteger_shard_counts(invalid: object) -> None:
         )
 
 
-def test_campaign_rejects_zero_shard_count() -> None:
+def test_campaign_allows_completed_components_to_be_omitted() -> None:
     counts = {component: 1 for component in cloud.COMPONENTS}
     counts["selector"] = 0
-    with pytest.raises(ValueError, match="at least 1"):
+    counts["root"] = 0
+    campaign = cloud.create_campaign(
+        "smoke",
+        base_seed=7,
+        git_sha=GIT_SHA,
+        image_uri=IMAGE_URI,
+        aws_account_id=ACCOUNT_ID,
+        bucket=BUCKET,
+        region="us-east-1",
+        instance_type="c6a.large",
+        ami_id=AMI_ID,
+        shard_counts=counts,
+    )
+
+    assert {spec.component for spec in campaign.specs} == {
+        "cardinality_tree",
+        "cardinality_forest",
+        "behavior",
+    }
+    payload = cloud._manifest_bytes(campaign)
+    assert cloud.parse_campaign(payload, campaign.campaign_sha256) == campaign
+
+
+def test_campaign_rejects_an_empty_shard_inventory() -> None:
+    with pytest.raises(ValueError, match="at least one campaign component"):
         cloud.create_campaign(
             "smoke",
             base_seed=7,
@@ -911,7 +935,7 @@ def test_campaign_rejects_zero_shard_count() -> None:
             region="us-east-1",
             instance_type="c6a.large",
             ami_id=AMI_ID,
-            shard_counts=counts,
+            shard_counts={component: 0 for component in cloud.COMPONENTS},
         )
 
 

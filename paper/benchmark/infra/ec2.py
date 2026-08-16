@@ -17,7 +17,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import boto3
 import httpx
@@ -68,7 +68,8 @@ _API_ENDPOINT_TTL_SECONDS = 10
 _ROUTE53_CHANGE_TIMEOUT_SECONDS = 120.0
 _ROUTE53_CHANGE_POLL_SECONDS = 2.0
 _API_MARKET = "on-demand"
-_WORKER_MARKET = "spot"
+_WORKER_MARKET: Literal["spot"] = "spot"
+_WORKER_MARKETS = frozenset({"on-demand", "spot"})
 _WORKER_SPOT_OPTIONS = {
     "MarketType": "spot",
     "SpotOptions": {
@@ -99,7 +100,7 @@ _CAPACITY_ERROR_CODES = frozenset(
     }
 )
 _AMBIGUOUS_EC2_RETRY_DELAYS = (1.0, 2.0)
-_WORKER_LAUNCH_SCHEMA_VERSION = 9
+_WORKER_LAUNCH_SCHEMA_VERSION = 10
 
 
 @dataclass(frozen=True)
@@ -195,6 +196,16 @@ def _validate_launch_id(launch_id: str) -> str:
 def _validate_worker_launch_id(launch_id: str) -> str:
     """Validate one immutable worker launch identity."""
     return _validate_launch_id(launch_id)
+
+
+def _validate_worker_market(market: str) -> Literal["on-demand", "spot"]:
+    """Validate one explicit EC2 worker market."""
+    normalized = market.strip().lower()
+    if normalized not in _WORKER_MARKETS:
+        raise ValueError("worker market must be 'on-demand' or 'spot'")
+    if normalized == "on-demand":
+        return "on-demand"
+    return "spot"
 
 
 def _validate_api_launch_id(launch_id: str) -> str:
@@ -449,6 +460,7 @@ def _validate_worker_instance_placement(
     *,
     availability_zone: str,
     instance_type: str,
+    market: Literal["on-demand", "spot"] = _WORKER_MARKET,
     source: str,
     subnet_id: str,
 ) -> str:
@@ -456,7 +468,10 @@ def _validate_worker_instance_placement(
     instance_id = instance.get("InstanceId")
     if not isinstance(instance_id, str) or not instance_id:
         raise RuntimeError(f"{source} has no instance ID")
-    _require_spot_instance(instance, source=source)
+    if market == "spot":
+        _require_spot_instance(instance, source=source)
+    else:
+        _require_on_demand_instance(instance, source=source)
     if instance.get("InstanceType") != instance_type:
         raise RuntimeError(
             f"{source} {instance_id} has instance type "
@@ -483,6 +498,7 @@ def _find_worker_for_exact_tags(
     *,
     availability_zone: str,
     instance_type: str,
+    market: Literal["on-demand", "spot"] = _WORKER_MARKET,
     subnet_id: str,
 ) -> str | None:
     """Recover one accepted launch in any state carrying the exact identity."""
@@ -510,6 +526,7 @@ def _find_worker_for_exact_tags(
                     instance,
                     availability_zone=availability_zone,
                     instance_type=instance_type,
+                    market=market,
                     source="recovered worker",
                     subnet_id=subnet_id,
                 )
@@ -560,6 +577,7 @@ def _launch_or_recover_worker(
     *,
     availability_zone: str,
     instance_type: str,
+    market: Literal["on-demand", "spot"] = _WORKER_MARKET,
     recover_before_launch: bool,
     run_kwargs: dict[str, Any],
     subnet_id: str,
@@ -572,6 +590,7 @@ def _launch_or_recover_worker(
             tags,
             availability_zone=availability_zone,
             instance_type=instance_type,
+            market=market,
             subnet_id=subnet_id,
         )
         if recovered is not None:
@@ -588,6 +607,7 @@ def _launch_or_recover_worker(
                 tags,
                 availability_zone=availability_zone,
                 instance_type=instance_type,
+                market=market,
                 subnet_id=subnet_id,
             )
             if recovered is not None:
@@ -611,6 +631,7 @@ def _launch_or_recover_worker(
                 instance,
                 availability_zone=availability_zone,
                 instance_type=instance_type,
+                market=market,
                 source="launched worker",
                 subnet_id=subnet_id,
             )
@@ -621,6 +642,7 @@ def _launch_or_recover_worker(
                 tags,
                 availability_zone=availability_zone,
                 instance_type=instance_type,
+                market=market,
                 subnet_id=subnet_id,
             )
             if recovered is not None:
@@ -1220,7 +1242,7 @@ def get_ami(region: str) -> str:
     ami_param = ssm.get_parameter(
         Name="/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
     )
-    return ami_param["Parameter"]["Value"]
+    return str(ami_param["Parameter"]["Value"])
 
 
 def get_default_subnet_ids(ec2: Any, *, instance_type: str | None = None) -> list[str]:
@@ -2350,6 +2372,7 @@ def launch_workers(
     gate_receipt_path: Path,
     launch_id: str,
     manifest_path: Path,
+    market: Literal["on-demand", "spot"] = _WORKER_MARKET,
     runtime_contract_path: Path,
     stage: str,
     subnet_ids: Sequence[str] = (),
@@ -2394,7 +2417,7 @@ def launch_workers(
     if not instance_family or not separator or not instance_size:
         raise ValueError("instance_type must include an EC2 family and size")
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
-    market = _WORKER_MARKET
+    market = _validate_worker_market(market)
     manifest_info = publish_rerun_manifest(
         manifest_path,
         canonical_manifest_path,
@@ -2550,8 +2573,9 @@ def launch_workers(
         },
         "SecurityGroupIds": [sg_id],
         "InstanceInitiatedShutdownBehavior": "terminate",
-        "InstanceMarketOptions": _WORKER_SPOT_OPTIONS,
     }
+    if market == "spot":
+        base_run_kwargs["InstanceMarketOptions"] = _WORKER_SPOT_OPTIONS
     request_contract = dict(base_run_kwargs)
     request_contract.pop("UserData")
     request_contract["UserDataSha256"] = hashlib.sha256(encoded_user_data.encode()).hexdigest()
@@ -2713,6 +2737,7 @@ def launch_workers(
                 ec2,
                 availability_zone=placement.availability_zone,
                 instance_type=instance_type,
+                market=market,
                 recover_before_launch=existing_intent is not None,
                 run_kwargs=run_kwargs,
                 subnet_id=placement.subnet_id,
@@ -2957,6 +2982,7 @@ def list_workers(
     *,
     artifact_prefix: str,
     campaign_sha256: str,
+    market: Literal["on-demand", "spot"] = _WORKER_MARKET,
     stage: str,
     region: str = DEFAULT_REGION,
 ) -> list[dict[str, str]]:
@@ -2966,6 +2992,7 @@ def list_workers(
     launch_time, and launch_id.
     """
     launch_id = _validate_worker_launch_id(launch_id)
+    market = _validate_worker_market(market)
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
     from paper.benchmark.pipeline.manifest import validate_manifest_sha256
 
@@ -3005,12 +3032,15 @@ def list_workers(
                 or tags.get("citrees-campaign-sha256") != campaign_sha256
                 or tags.get("citrees-stage") != stage
                 or tags.get("citrees-worker-launch-id") != launch_id
-                or tags.get("citrees-market") != _WORKER_MARKET
-                or inst.get("InstanceLifecycle") != "spot"
+                or tags.get("citrees-market") != market
             ):
                 raise RuntimeError(
                     "EC2 returned a worker outside the exact campaign launch identity"
                 )
+            if market == "spot":
+                _require_spot_instance(inst, source="listed worker")
+            else:
+                _require_on_demand_instance(inst, source="listed worker")
             workers.append(
                 {
                     "instance_id": inst["InstanceId"],
@@ -3065,6 +3095,7 @@ def terminate_workers(
     *,
     artifact_prefix: str,
     campaign_sha256: str,
+    market: Literal["on-demand", "spot"] = _WORKER_MARKET,
     stage: str,
     region: str = DEFAULT_REGION,
 ) -> list[str]:
@@ -3077,6 +3108,7 @@ def terminate_workers(
         launch_id,
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        market=market,
         stage=stage,
         region=region,
     )

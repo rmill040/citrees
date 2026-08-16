@@ -549,6 +549,13 @@ def launch_workers_cmd(
             help="Complete immutable GO receipt; must match the running API campaign",
         ),
     ] = None,
+    market: Annotated[
+        Literal["on-demand", "spot"],
+        typer.Option(
+            "--market",
+            help="Explicit EC2 worker market",
+        ),
+    ] = "spot",
     stage: Annotated[
         Literal["rankings", "metrics"],
         typer.Option(
@@ -591,6 +598,7 @@ def launch_workers_cmd(
         gate_receipt_path=gate_receipt_path,
         launch_id=launch_id,
         manifest_path=manifest_path,
+        market=market,
         runtime_contract_path=runtime_contract_path,
         stage=stage,
         subnet_ids=_split_csv(subnets),
@@ -776,6 +784,13 @@ def list_workers_cmd(
             help="Exact worker pipeline stage",
         ),
     ],
+    market: Annotated[
+        Literal["on-demand", "spot"],
+        typer.Option(
+            "--market",
+            help="Exact worker EC2 market",
+        ),
+    ] = "spot",
 ) -> None:
     """List running worker instances from one exact campaign launch."""
     from paper.benchmark.infra.ec2 import list_workers
@@ -786,6 +801,7 @@ def list_workers_cmd(
         launch_id,
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        market=market,
         stage=stage,
     )
     if not workers:
@@ -878,6 +894,13 @@ def terminate_workers_cmd(
             help="Exact worker pipeline stage",
         ),
     ],
+    market: Annotated[
+        Literal["on-demand", "spot"],
+        typer.Option(
+            "--market",
+            help="Exact worker EC2 market",
+        ),
+    ] = "spot",
 ) -> None:
     """Terminate worker instances from one exact campaign launch."""
     from paper.benchmark.infra.ec2 import terminate_workers
@@ -888,6 +911,7 @@ def terminate_workers_cmd(
         launch_id,
         artifact_prefix=artifact_prefix,
         campaign_sha256=campaign_sha256,
+        market=market,
         stage=stage,
     )
     if terminated:

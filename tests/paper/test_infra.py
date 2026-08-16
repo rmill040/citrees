@@ -751,11 +751,16 @@ def _patch_campaign_iam(
 
 @pytest.mark.parametrize(
     "command",
-    [launch_api_cmd, launch_workers_cmd, launch_mechanism_workers_cmd],
+    [launch_api_cmd, launch_mechanism_workers_cmd],
 )
 def test_distributed_launch_market_is_not_operator_selectable(command: object) -> None:
     assert "market" not in inspect.signature(command).parameters
     assert "spot" not in inspect.signature(command).parameters
+
+
+def test_worker_launch_market_defaults_to_spot() -> None:
+    market = inspect.signature(launch_workers_cmd).parameters["market"]
+    assert market.default == "spot"
 
 
 @pytest.mark.parametrize(
@@ -2312,7 +2317,7 @@ def test_worker_launch_is_durable_idempotent_and_exact(
     intent = json.loads(s3.objects[intent_key][0])
     assert intent["instance_family"] == "c6a"
     assert intent["market"] == "spot"
-    assert intent["schema_version"] == 9
+    assert intent["schema_version"] == 10
     assert intent["excluded_availability_zones"] == []
     assert intent["subnet_ids"] == [WORKER_SUBNET_ID]
     assert intent["slot_placements"] == [
@@ -2707,6 +2712,44 @@ def test_worker_launch_reconciles_partial_capacity_on_replay(
         call.kwargs["InstanceMarketOptions"] == WORKER_SPOT_OPTIONS
         for call in ec2.run_instances.call_args_list
     )
+
+
+def test_worker_launch_supports_explicit_on_demand_market(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, ec2, s3 = _mock_worker_launch_dependencies(tmp_path, monkeypatch)
+    ec2.run_instances.return_value = {
+        "Instances": [
+            {
+                "InstanceId": "i-on-demand",
+                "InstanceType": "c6a.8xlarge",
+                "Placement": {"AvailabilityZone": WORKER_AVAILABILITY_ZONE},
+                "SubnetId": WORKER_SUBNET_ID,
+            }
+        ]
+    }
+
+    assert launch_workers(
+        market="on-demand",
+        **_worker_launch_kwargs(manifest_path),
+    ) == ["i-on-demand"]
+
+    request = ec2.run_instances.call_args.kwargs
+    assert "InstanceMarketOptions" not in request
+    tags = {tag["Key"]: tag["Value"] for tag in request["TagSpecifications"][0]["Tags"]}
+    assert tags["citrees-market"] == "on-demand"
+
+    intent_key = "repairs/run-001/_control/worker-launches/scale-001/intent.json"
+    intent = json.loads(s3.objects[intent_key][0])
+    assert intent["market"] == "on-demand"
+    assert intent["schema_version"] == 10
+    assert "InstanceMarketOptions" not in intent["request_contract"]
+
+    record_key = next(key for key in s3.objects if "/instances/" in key)
+    record = json.loads(s3.objects[record_key][0])
+    assert record["market"] == "on-demand"
+    assert record["schema_version"] == 10
 
 
 def test_worker_launch_accounts_terminated_instance_with_exact_tags(
@@ -4072,7 +4115,7 @@ def test_worker_listing_rejects_unproven_spot_market(
 
     with pytest.raises(
         RuntimeError,
-        match="outside the exact campaign launch identity",
+        match="outside the exact campaign launch identity|must be Spot",
     ):
         ec2_infra.list_workers(
             "campaign-rankings-001",
@@ -4144,6 +4187,7 @@ def test_worker_lifecycle_cli_forwards_exact_campaign_launch_scope(
     expected = {
         "artifact_prefix": "repairs/run-001",
         "campaign_sha256": CAMPAIGN_SHA256,
+        "market": "spot",
         "stage": "rankings",
     }
     list_workers.assert_called_once_with("campaign-rankings-001", **expected)

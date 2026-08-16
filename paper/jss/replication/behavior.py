@@ -267,6 +267,7 @@ BEHAVIOR_STORAGE_DTYPES: dict[str, dict[str, str | type[object]]] = {
         "probability": "float64",
     },
 }
+_FLOAT_COMPARISON_TOLERANCE = 1e-12
 
 SUMMARY_METRICS = (
     "split_decision_agreement",
@@ -1663,8 +1664,17 @@ def validate_behavior_results(
         :,
         BEHAVIOR_RESULT_SCHEMAS["behavior_fold_summary"],
     ]
-    if not (folds.reset_index(drop=True).convert_dtypes().equals(expected_folds.convert_dtypes())):
-        raise ValueError("Behavior fold summaries differ from the validated raw tables")
+    try:
+        pd.testing.assert_frame_equal(
+            folds.reset_index(drop=True).convert_dtypes(),
+            expected_folds.convert_dtypes(),
+            check_exact=False,
+            check_dtype=False,
+            rtol=_FLOAT_COMPARISON_TOLERANCE,
+            atol=_FLOAT_COMPARISON_TOLERANCE,
+        )
+    except AssertionError as error:
+        raise ValueError("Behavior fold summaries differ from the validated raw tables") from error
 
     numeric_fold_columns = [
         column
@@ -1904,8 +1914,8 @@ def write_results(
             pd.read_csv(csv_path).convert_dtypes(),
             results[name].convert_dtypes(),
             check_exact=False,
-            rtol=1e-12,
-            atol=1e-12,
+            rtol=_FLOAT_COMPARISON_TOLERANCE,
+            atol=_FLOAT_COMPARISON_TOLERANCE,
         )
 
     repo_root = Path(__file__).resolve().parents[3]

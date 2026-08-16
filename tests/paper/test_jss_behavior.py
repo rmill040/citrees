@@ -271,6 +271,21 @@ def test_mocked_run_is_complete_and_deterministic(
         pd.testing.assert_frame_equal(mocked_results[name], repeated[name])
 
 
+def test_validation_accepts_floating_point_recomputation_roundoff(
+    mocked_results: dict[str, pd.DataFrame],
+) -> None:
+    raw = {name: mocked_results[name].copy(deep=True) for name in behavior.BEHAVIOR_RAW_TABLES}
+    folds = raw["behavior_fold_summary"]
+    row = folds["prediction_correlation"].first_valid_index()
+    assert row is not None
+    original = float(folds.loc[row, "prediction_correlation"])
+    folds.loc[row, "prediction_correlation"] = np.nextafter(original, np.inf)
+
+    results = behavior.assemble_behavior_results(raw, "smoke", base_seed=7)
+
+    assert float(results["behavior_fold_summary"].loc[row, "prediction_correlation"]) > original
+
+
 @pytest.mark.parametrize(
     ("mutation", "match"),
     [

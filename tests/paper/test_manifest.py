@@ -45,6 +45,11 @@ CAMPAIGN_SHA256 = "e" * 64
 RUNTIME_CONTRACT_SHA256 = "c" * 64
 
 
+def test_stage1_timeout_allows_multi_day_recursive_selectors() -> None:
+    """Keep long recursive-selector recovery runs above the observed six-day tail."""
+    assert STAGE1_SELECTION_TIMEOUT_SECONDS == 14 * 24 * 60 * 60
+
+
 def _runtime_contract(*, cpu_model: str = "AMD EPYC 9R14") -> dict[str, Any]:
     return {
         "schema_version": RUNTIME_CONTRACT_SCHEMA_VERSION,

@@ -974,8 +974,6 @@ def write_results(
         dataset_metadata = _dataset_metadata(settings)
         receipt = {
             "analysis": "rdc_sensitivity",
-            "schema_version": 1,
-            "semantic_validation": "citrees-jss-rdc-sensitivity-v1",
             "profile": profile,
             "base_seed": base_seed,
             "settings": asdict(settings),

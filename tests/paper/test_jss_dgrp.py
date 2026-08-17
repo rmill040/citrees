@@ -901,7 +901,6 @@ def test_inference_aggregates_repeated_predictions_by_fold() -> None:
 
 def test_specification_matches_profiled_repeated_cv_contract() -> None:
     specification = json.loads(dgrp.SPECIFICATION_PATH.read_text(encoding="ascii"))
-    assert specification["schema"] == "citrees-jss-dgrp-specification-v3"
     for profile in ("smoke", "quick", "full"):
         settings = dgrp._settings(profile)
         frozen = specification["profiles"][profile]
@@ -962,15 +961,13 @@ def test_smoke_analysis_writes_complete_schemas_and_receipt(
         profile="smoke",
         base_seed=5,
         input_sha256={"synthetic": "a" * 64},
-        genotype_provenance={"schema_version": 1},
-        derived_genotype_receipt={"schema": "synthetic"},
+        genotype_provenance={"source": "synthetic"},
+        derived_genotype_receipt={"source": "synthetic"},
         elapsed_seconds=1.0,
     )
     assert observed == output_dir.resolve()
     receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
     assert receipt["analysis"] == "dgrp"
-    assert receipt["schema_version"] == 2
-    assert receipt["semantic_validation"] == "citrees-jss-dgrp-results-v1"
     assert receipt["profile"] == "smoke"
     assert "scipy" in receipt["versions"]
     assert receipt["specification"]["sha256"] == sha256(dgrp.SPECIFICATION_PATH)
@@ -1492,7 +1489,6 @@ def test_main_runs_profiled_analysis_with_all_pinned_sources(
         }
     }
     expected_provenance = {
-        "schema_version": 1,
         "source": {"sha256": "a" * 64},
         "files": {spec.member_name: {"sha256": spec.sha256} for spec in dgrp.GENOTYPE_FILE_SPECS},
         "inventory": {"samples": 3, "variants": 2},

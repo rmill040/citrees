@@ -532,7 +532,6 @@ def test_writer_records_controls_sources_and_artifact_hashes(
 
     receipt = json.loads((tmp_path / "receipt.json").read_text(encoding="ascii"))
     assert receipt["analysis"] == "behavior"
-    assert receipt["schema_version"] == 4
     assert receipt["profile"] == "smoke"
     assert receipt["base_seed"] == 7
     assert receipt["controls"]["partykit_selector"]["test_distribution"] == list(PARTYKIT_TESTTYPE)

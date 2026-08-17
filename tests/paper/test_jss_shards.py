@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
@@ -12,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from paper.jss.replication import behavior, calibration, replicate, shards
+from paper.jss.replication import behavior, calibration, performance, replicate, shards
 
 pytestmark = pytest.mark.paper
 
@@ -32,6 +33,7 @@ def _patch_runtime_receipts(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(behavior, "get_r_runtime_versions", lambda: r_environment)
     monkeypatch.setattr(calibration, "_r_environment", lambda: r_environment)
+    monkeypatch.setattr(performance, "_r_environment", lambda: r_environment)
 
 
 def _assert_result_sets_equal(
@@ -167,6 +169,27 @@ def _mock_behavior_fit(
 
 def _plus_one_values(indices: np.ndarray, n_resamples: int) -> np.ndarray:
     return (indices + 1) / (n_resamples + 1)
+
+
+def _fake_performance_runner(
+    cell: performance.PerformanceCell,
+    timeout_seconds: int,
+) -> dict[str, object]:
+    del timeout_seconds
+    method_scale = {"citrees": 1.0, "partykit": 1.5, "sklearn": 0.5}[cell.method]
+    elapsed = method_scale * (cell.repeat + 1) * (cell.n_samples / 100.0)
+    baseline = 100_000_000 + cell.data_seed % 10_000
+    increment = int(method_scale * cell.n_features * 1_000)
+    return {
+        **asdict(cell),
+        "worker_pid": 1,
+        "input_sha256": hashlib.sha256(str(cell.data_seed).encode("ascii")).hexdigest(),
+        "elapsed_seconds": elapsed,
+        "baseline_peak_rss_bytes": baseline,
+        "peak_rss_bytes": baseline + increment,
+        "incremental_peak_rss_bytes": increment,
+        "fit_result_size": cell.n_estimators,
+    }
 
 
 def _synthetic_cardinality_tree_raw(base_seed: int) -> pd.DataFrame:
@@ -436,6 +459,26 @@ def test_assignments_are_complete_disjoint_and_deterministic() -> None:
             }
             assert abs(counts["tree"] - counts["forest"]) <= 1
 
+    performance_cells = performance.build_performance_grid("full", base_seed=7)
+    performance_assignments = [
+        shards.performance_shard_cells(
+            shards.ShardSpec(
+                target_analysis="performance",
+                component="performance",
+                profile="full",
+                shard_index=index,
+                num_shards=len(performance_cells),
+                base_seed=7,
+            )
+        )
+        for index in range(len(performance_cells))
+    ]
+    assert all(len(assignment) == 1 for assignment in performance_assignments)
+    flattened_performance = tuple(
+        cell for assignment in performance_assignments for cell in assignment
+    )
+    assert flattened_performance == performance_cells
+
 
 @pytest.mark.parametrize("component", ["selector", "root"])
 def test_real_calibration_shards_reproduce_one_shot_rows(
@@ -694,18 +737,6 @@ def test_receipt_and_artifact_corruption_are_rejected(
     )
     with pytest.raises(ValueError, match="receipt fields differ"):
         shards.verify_shard_directory(unexpected_field_dir, expected_spec=spec)
-
-    schema_dir = tmp_path / "boolean-schema" / "shard"
-    shutil.copytree(valid_dir, schema_dir)
-    schema_receipt_path = schema_dir / "receipt.json"
-    schema_receipt = json.loads(schema_receipt_path.read_text(encoding="ascii"))
-    schema_receipt["schema_version"] = True
-    schema_receipt_path.write_text(
-        json.dumps(schema_receipt, indent=2, sort_keys=True) + "\n",
-        encoding="ascii",
-    )
-    with pytest.raises(TypeError, match="schema_version must be an integer"):
-        shards.verify_shard_directory(schema_dir, expected_spec=spec)
 
     timestamp_dir = tmp_path / "invalid-timestamp" / "shard"
     shutil.copytree(valid_dir, timestamp_dir)
@@ -986,7 +1017,7 @@ def test_merge_rejects_mixed_scientific_contexts(
     }
     changed_receipt["execution_context_sha256"] = shards._json_sha256(context_payload)
     changed_receipt["scientific_context_sha256"] = shards._json_sha256(
-        shards._scientific_context_payload(context_payload)
+        shards._scientific_context_payload(context_payload, "calibration")
     )
     changed_receipt_path.write_text(
         json.dumps(changed_receipt, indent=2, sort_keys=True) + "\n",
@@ -1149,3 +1180,71 @@ def test_behavior_smoke_direct_results_equal_merged_shards(
     _assert_table_artifacts_identical(direct_output, output_dir)
     receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
     assert receipt["distributed_execution"]["n_shards"] == num_shards
+
+
+def test_performance_smoke_direct_results_equal_merged_shards(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_runtime_receipts(monkeypatch)
+    cells = performance.build_performance_grid("smoke", base_seed=7)
+    raw = pd.DataFrame(
+        [_fake_performance_runner(cell, 600) for cell in cells],
+        columns=performance.PERFORMANCE_RAW_SCHEMA,
+    )
+    summary = performance.summarize_performance(raw)
+    performance.validate_performance_results(
+        raw,
+        summary,
+        profile="smoke",
+        base_seed=7,
+        require_unique_worker_pids=False,
+    )
+    direct_output = tmp_path / "performance-direct"
+    performance.write_results(
+        raw,
+        summary,
+        direct_output,
+        profile="smoke",
+        base_seed=7,
+        elapsed_seconds=1.0,
+        require_unique_worker_pids=False,
+    )
+
+    monkeypatch.setattr(performance, "_run_cell_subprocess", _fake_performance_runner)
+    shard_root = tmp_path / "performance-shards"
+    for shard_index in range(len(cells)):
+        spec = shards.ShardSpec(
+            target_analysis="performance",
+            component="performance",
+            profile="smoke",
+            shard_index=shard_index,
+            num_shards=len(cells),
+            base_seed=7,
+        )
+        shards.run_shard_to_directory(
+            spec,
+            shard_root / f"{shard_index:03d}",
+        )
+
+    merged, verified = shards.merge_performance_shards(
+        shard_root,
+        profile="smoke",
+        base_seed=7,
+    )
+    assert len(verified) == len(cells)
+    _assert_result_sets_equal(
+        {"performance_raw": raw, "performance_summary": summary},
+        merged,
+    )
+
+    output_dir = shards.merge_shards_to_directory(
+        "performance",
+        shard_root,
+        tmp_path / "performance-merged",
+        profile="smoke",
+        base_seed=7,
+    )
+    _assert_table_artifacts_identical(direct_output, output_dir)
+    receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
+    assert receipt["distributed_execution"]["n_shards"] == len(cells)

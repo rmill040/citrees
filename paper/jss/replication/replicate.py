@@ -26,7 +26,7 @@ BASE_SEED = 1718
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results"
 DEFAULT_DGRP_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "dgrp"
-DISTRIBUTED_ANALYSES = frozenset({"calibration", "behavior"})
+DISTRIBUTED_ANALYSES = frozenset({"calibration", "behavior", "performance"})
 
 
 @dataclass(frozen=True)
@@ -464,7 +464,6 @@ def run_replication(
             )
             cloud_accounting_metadata = {
                 "analysis": cloud_accounting["analysis"],
-                "schema_version": cloud_accounting["schema_version"],
                 "campaign_sha256": cloud_accounting["campaign_sha256"],
                 "artifact": cloud.COMPUTE_ACCOUNTING_FILENAME,
                 "bytes": accounting_artifact.stat().st_size,
@@ -473,7 +472,6 @@ def run_replication(
             source_files.append(Path(cloud.__file__).resolve())
         receipt = {
             "analysis": "jss_replication",
-            "schema_version": 1,
             "profile": profile,
             "base_seed": base_seed,
             "execution_mode": "distributed" if shard_root is not None else "serial",
@@ -494,7 +492,6 @@ def run_replication(
             "child_receipts": {
                 name: {
                     "analysis": child_receipt["analysis"],
-                    "schema_version": child_receipt["schema_version"],
                     "sha256": _sha256(staging / name / "receipt.json"),
                 }
                 for name, child_receipt in child_receipts.items()
@@ -535,7 +532,7 @@ def _parse_args() -> argparse.Namespace:
         "--shard-root",
         type=Path,
         help=(
-            "Root containing complete calibration/ and behavior/ shard trees. "
+            "Root containing complete calibration/, behavior/, and performance/ shard trees. "
             "When supplied, those analyses are merged through the canonical suite."
         ),
     )

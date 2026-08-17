@@ -757,7 +757,6 @@ def test_run_calibration_and_writer_emit_every_validated_table(
     )
     receipt = json.loads((tmp_path / "receipt.json").read_text(encoding="ascii"))
     assert receipt["analysis"] == "calibration"
-    assert receipt["schema_version"] == 4
     assert receipt["profile"] == "smoke"
     assert receipt["base_seed"] == 7
     assert isinstance(receipt["git_dirty"], bool)

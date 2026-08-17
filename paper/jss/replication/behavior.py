@@ -1942,7 +1942,6 @@ def write_results(
     datasets = load_behavior_datasets()
     receipt = {
         "analysis": "behavior",
-        "schema_version": 4,
         "profile": profile,
         "base_seed": base_seed,
         "settings": asdict(settings),

@@ -3984,7 +3984,6 @@ def write_results(
 
     receipt = {
         "analysis": "calibration",
-        "schema_version": 4,
         "profile": profile,
         "base_seed": base_seed,
         "settings": asdict(_settings(profile)),

@@ -124,7 +124,6 @@ def test_write_results_records_inputs_sources_and_artifact_hashes(
 
     receipt = json.loads((tmp_path / "receipt.json").read_text(encoding="ascii"))
     assert receipt["analysis"] == "tutorial"
-    assert receipt["schema_version"] == 1
     assert receipt["profile"] == "smoke"
     assert receipt["base_seed"] == 1718
     assert receipt["inputs"]["sklearn_breast_cancer"] == {

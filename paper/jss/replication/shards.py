@@ -25,10 +25,10 @@ import numpy as np
 import pandas as pd
 
 from paper.benchmark.pipeline.r_methods import get_r_runtime_versions
-from paper.jss.replication import behavior, calibration
+from paper.jss.replication import behavior, calibration, performance
 
 Profile = Literal["smoke", "quick", "full"]
-TargetAnalysis = Literal["calibration", "behavior"]
+TargetAnalysis = Literal["calibration", "behavior", "performance"]
 CalibrationComponent = Literal[
     "selector",
     "root",
@@ -120,7 +120,6 @@ class ExecutionContext:
 _SHARD_RECEIPT_FIELDS = frozenset(
     {
         "analysis",
-        "schema_version",
         "spec",
         "spec_sha256",
         "assignments",
@@ -155,11 +154,14 @@ def _json_sha256(value: object) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _scientific_context_payload(context: Mapping[str, object]) -> dict[str, object]:
+def _scientific_context_payload(
+    context: Mapping[str, object],
+    target_analysis: TargetAnalysis,
+) -> dict[str, object]:
     hardware = context["hardware"]
     if not isinstance(hardware, Mapping):
         raise TypeError("execution-context hardware must be a mapping")
-    return {
+    payload = {
         "git_sha": context["git_sha"],
         "git_dirty": context["git_dirty"],
         "python": context["python"],
@@ -172,6 +174,10 @@ def _scientific_context_payload(context: Mapping[str, object]) -> dict[str, obje
         "input_sha256": context["input_sha256"],
         "versions": context["versions"],
     }
+    if target_analysis == "performance":
+        payload["platform"] = context["platform"]
+        payload["processor"] = hardware["processor"]
+    return payload
 
 
 def _git_sha() -> str:
@@ -220,6 +226,16 @@ def _git_dirty() -> bool:
 
 
 def _source_files(target_analysis: TargetAnalysis) -> tuple[Path, ...]:
+    if target_analysis == "performance":
+        return tuple(
+            dict.fromkeys(
+                (
+                    Path(__file__).resolve(),
+                    REPO_ROOT / "paper" / "jss" / "replication" / "cloud.py",
+                    *performance.performance_source_files(),
+                )
+            )
+        )
     analysis_file = Path(
         calibration.__file__ if target_analysis == "calibration" else behavior.__file__
     ).resolve()
@@ -312,7 +328,9 @@ def _assignment_count(spec: ShardSpec) -> int:
     if spec.target_analysis == "calibration":
         component = cast(CalibrationComponent, spec.component)
         return _calibration_replicate_count(spec.profile, component)
-    return len(behavior.behavior_cell_inventory(spec.profile))
+    if spec.target_analysis == "behavior":
+        return len(behavior.behavior_cell_inventory(spec.profile))
+    return len(performance.build_performance_grid(spec.profile, base_seed=spec.base_seed))
 
 
 def validate_shard_spec(spec: ShardSpec) -> None:
@@ -325,6 +343,9 @@ def validate_shard_spec(spec: ShardSpec) -> None:
     elif spec.target_analysis == "behavior":
         if spec.component != "behavior":
             raise ValueError("behavior shards must use component='behavior'")
+    elif spec.target_analysis == "performance":
+        if spec.component != "performance":
+            raise ValueError("performance shards must use component='performance'")
     else:
         raise ValueError(f"unknown shard target: {spec.target_analysis!r}")
     if isinstance(spec.base_seed, bool) or not isinstance(spec.base_seed, int):
@@ -367,6 +388,20 @@ def behavior_shard_cells(spec: ShardSpec) -> tuple[behavior.BehaviorCell, ...]:
     cells = inventory[start:stop]
     if not cells:
         raise RuntimeError("behavior shard assignment is empty")
+    return cells
+
+
+def performance_shard_cells(spec: ShardSpec) -> tuple[performance.PerformanceCell, ...]:
+    """Return this performance shard's complete isolated-cell assignment."""
+    validate_shard_spec(spec)
+    if spec.target_analysis != "performance":
+        raise ValueError("performance cell assignment requires a performance shard")
+    inventory = performance.build_performance_grid(spec.profile, base_seed=spec.base_seed)
+    start = len(inventory) * spec.shard_index // spec.num_shards
+    stop = len(inventory) * (spec.shard_index + 1) // spec.num_shards
+    cells = inventory[start:stop]
+    if not cells:
+        raise RuntimeError("performance shard assignment is empty")
     return cells
 
 
@@ -543,10 +578,27 @@ def run_behavior_shard(spec: ShardSpec) -> dict[str, pd.DataFrame]:
     return tables
 
 
+def run_performance_shard(spec: ShardSpec) -> dict[str, pd.DataFrame]:
+    """Run and validate one performance shard."""
+    cells = performance_shard_cells(spec)
+    timeout_seconds = performance._settings(spec.profile).cell_timeout_seconds
+    rows = [performance._run_cell_subprocess(cell, timeout_seconds) for cell in cells]
+    raw = pd.DataFrame(rows).loc[:, performance.PERFORMANCE_RAW_SCHEMA]
+    performance.validate_performance_raw(
+        raw,
+        cells,
+        profile=spec.profile,
+        require_unique_worker_pids=True,
+    )
+    return {"performance_raw": raw}
+
+
 def _assignment_payload(spec: ShardSpec) -> list[object]:
     if spec.target_analysis == "calibration":
         return list(calibration_shard_replicates(spec))
-    return [asdict(cell) for cell in behavior_shard_cells(spec)]
+    if spec.target_analysis == "behavior":
+        return [asdict(cell) for cell in behavior_shard_cells(spec)]
+    return [asdict(cell) for cell in performance_shard_cells(spec)]
 
 
 def _validate_written_shard(
@@ -562,8 +614,17 @@ def _validate_written_shard(
             base_seed=spec.base_seed,
             replicates=calibration_shard_replicates(spec),
         )
-    else:
+    elif spec.target_analysis == "behavior":
         _validate_behavior_raw(tables, behavior_shard_cells(spec))
+    else:
+        if set(tables) != {"performance_raw"}:
+            raise ValueError("performance shard tables differ from the required inventory")
+        performance.validate_performance_raw(
+            tables["performance_raw"],
+            performance_shard_cells(spec),
+            profile=spec.profile,
+            require_unique_worker_pids=True,
+        )
 
 
 def _normalize_shard_tables(
@@ -575,7 +636,11 @@ def _normalize_shard_tables(
             name: calibration.normalize_calibration_table(name, frame)
             for name, frame in tables.items()
         }
-    return {name: behavior.normalize_behavior_table(name, frame) for name, frame in tables.items()}
+    if spec.target_analysis == "behavior":
+        return {
+            name: behavior.normalize_behavior_table(name, frame) for name, frame in tables.items()
+        }
+    return {"performance_raw": tables["performance_raw"].loc[:, performance.PERFORMANCE_RAW_SCHEMA]}
 
 
 def write_shard(
@@ -619,7 +684,6 @@ def write_shard(
         context_payload = asdict(execution_context)
         receipt = {
             "analysis": "jss_shard",
-            "schema_version": 1,
             "spec": asdict(spec),
             "spec_sha256": _json_sha256(asdict(spec)),
             "assignments": assignments,
@@ -628,7 +692,9 @@ def write_shard(
             "created_utc": datetime.now(UTC).isoformat(),
             "elapsed_seconds": elapsed_seconds,
             "execution_context_sha256": _json_sha256(context_payload),
-            "scientific_context_sha256": _json_sha256(_scientific_context_payload(context_payload)),
+            "scientific_context_sha256": _json_sha256(
+                _scientific_context_payload(context_payload, spec.target_analysis)
+            ),
             **context_payload,
             "tables": {
                 name: {"rows": len(frame), "columns": list(frame.columns)}
@@ -651,11 +717,12 @@ def run_shard_to_directory(spec: ShardSpec, output_dir: Path) -> Path:
     if spec.profile == "full" and execution_context.git_dirty:
         raise RuntimeError("full-profile shards require a clean source tree")
     started = time.perf_counter()
-    tables = (
-        run_calibration_shard(spec)
-        if spec.target_analysis == "calibration"
-        else run_behavior_shard(spec)
-    )
+    if spec.target_analysis == "calibration":
+        tables = run_calibration_shard(spec)
+    elif spec.target_analysis == "behavior":
+        tables = run_behavior_shard(spec)
+    else:
+        tables = run_performance_shard(spec)
     return write_shard(
         spec,
         tables,
@@ -693,7 +760,9 @@ def _expected_artifact_names(spec: ShardSpec) -> set[str]:
     if spec.target_analysis == "calibration":
         component = cast(CalibrationComponent, spec.component)
         return {f"{CALIBRATION_TABLES[component]}.parquet"}
-    return {f"{name}.parquet" for name in behavior.BEHAVIOR_RAW_TABLES}
+    if spec.target_analysis == "behavior":
+        return {f"{name}.parquet" for name in behavior.BEHAVIOR_RAW_TABLES}
+    return {"performance_raw.parquet"}
 
 
 def _verify_receipt_artifacts(
@@ -858,7 +927,7 @@ def _verify_execution_context(
     if receipt.get("execution_context_sha256") != _json_sha256(context_payload):
         raise ValueError("shard execution context hash differs")
     if receipt.get("scientific_context_sha256") != _json_sha256(
-        _scientific_context_payload(context_payload)
+        _scientific_context_payload(context_payload, spec.target_analysis)
     ):
         raise ValueError("shard scientific context hash differs")
 
@@ -914,8 +983,6 @@ def _verify_shard_receipt(
     spec = _parse_shard_spec(receipt.get("spec"))
     if expected_spec is not None and spec != expected_spec:
         raise ValueError("shard receipt specification differs from the requested shard")
-    if _require_json_integer(receipt.get("schema_version"), "schema_version") != 1:
-        raise ValueError("unsupported shard receipt schema")
     if receipt.get("spec_sha256") != _json_sha256(asdict(spec)):
         raise ValueError("shard spec hash differs")
     assignments = receipt.get("assignments")
@@ -1041,7 +1108,7 @@ def _validate_complete_shard_group(
 def _read_shard_table(shard: VerifiedShard, table_name: str) -> pd.DataFrame:
     artifact_name = f"{table_name}.parquet"
     artifacts = _require_mapping(shard.receipt.get("artifacts"), "shard artifacts")
-    if set(artifacts) != {artifact_name} and shard.spec.target_analysis == "calibration":
+    if set(artifacts) != _expected_artifact_names(shard.spec):
         raise ValueError(f"{shard.spec.component} shard contains unexpected artifacts")
     artifact_path = shard.output_dir / artifact_name
     if not artifact_path.is_file():
@@ -1228,6 +1295,59 @@ def merge_behavior_shards(
     return results, shards
 
 
+def merge_performance_shards(
+    shard_root: Path,
+    *,
+    profile: Profile,
+    base_seed: int = BASE_SEED,
+) -> tuple[dict[str, pd.DataFrame], tuple[VerifiedShard, ...]]:
+    """Merge a complete performance shard inventory into final tables."""
+    verified = discover_verified_shards(
+        shard_root,
+        target_analysis="performance",
+        profile=profile,
+        base_seed=base_seed,
+    )
+    if {shard.spec.component for shard in verified} != {"performance"}:
+        raise ValueError("performance shard components are invalid")
+    _validate_complete_shard_group(verified, component="performance")
+    raw = pd.concat(
+        [
+            _read_shard_table(shard, "performance_raw")
+            for shard in sorted(verified, key=lambda item: item.spec.shard_index)
+        ],
+        ignore_index=True,
+    )
+    cell_order = {
+        cell.cell_id: index
+        for index, cell in enumerate(
+            performance.build_performance_grid(profile, base_seed=base_seed)
+        )
+    }
+    raw = (
+        raw.assign(_cell_order=raw["cell_id"].map(cell_order))
+        .sort_values("_cell_order", kind="stable")
+        .drop(columns="_cell_order")
+        .reset_index(drop=True)
+    )
+    expected_cells = performance.build_performance_grid(profile, base_seed=base_seed)
+    performance.validate_performance_raw(
+        raw,
+        expected_cells,
+        profile=profile,
+        require_unique_worker_pids=False,
+    )
+    summary = performance.summarize_performance(raw)
+    performance.validate_performance_results(
+        raw,
+        summary,
+        profile=profile,
+        base_seed=base_seed,
+        require_unique_worker_pids=False,
+    )
+    return {"performance_raw": raw, "performance_summary": summary}, verified
+
+
 def _augment_final_receipt(
     output_dir: Path,
     shards: Sequence[VerifiedShard],
@@ -1277,7 +1397,6 @@ def _augment_final_receipt(
             }
         )
     receipt["distributed_execution"] = {
-        "schema_version": 1,
         "n_shards": len(shards),
         "sum_shard_elapsed_seconds": sum(shard_elapsed_seconds),
         "maximum_shard_elapsed_seconds": max(shard_elapsed_seconds),
@@ -1322,13 +1441,23 @@ def write_merged_results(
                 base_seed=base_seed,
                 elapsed_seconds=elapsed,
             )
-        else:
+        elif target_analysis == "behavior":
             behavior.write_results(
                 results,
                 staging,
                 profile=profile,
                 base_seed=base_seed,
                 elapsed_seconds=elapsed,
+            )
+        else:
+            performance.write_results(
+                results["performance_raw"],
+                results["performance_summary"],
+                staging,
+                profile=profile,
+                base_seed=base_seed,
+                elapsed_seconds=elapsed,
+                require_unique_worker_pids=False,
             )
         _augment_final_receipt(
             staging,
@@ -1356,8 +1485,14 @@ def merge_shards_to_directory(
             profile=profile,
             base_seed=base_seed,
         )
-    else:
+    elif target_analysis == "behavior":
         results, shards = merge_behavior_shards(
+            shard_root,
+            profile=profile,
+            base_seed=base_seed,
+        )
+    else:
+        results, shards = merge_performance_shards(
             shard_root,
             profile=profile,
             base_seed=base_seed,
@@ -1407,7 +1542,16 @@ def _parse_args() -> argparse.Namespace:
     behavior_shard.add_argument("--num-shards", type=int, required=True)
     behavior_shard.add_argument("--output-dir", type=Path, required=True)
 
-    for name in ("calibration-merge", "behavior-merge"):
+    performance_shard = subparsers.add_parser(
+        "performance-shard",
+        help="Run one isolated performance-cell shard.",
+    )
+    _profile_argument(performance_shard)
+    performance_shard.add_argument("--shard-index", type=int, required=True)
+    performance_shard.add_argument("--num-shards", type=int, required=True)
+    performance_shard.add_argument("--output-dir", type=Path, required=True)
+
+    for name in ("calibration-merge", "behavior-merge", "performance-merge"):
         merge = subparsers.add_parser(name, help=f"Merge complete {name[:-6]} shards.")
         _profile_argument(merge)
         merge.add_argument("--shard-root", type=Path, required=True)
@@ -1438,8 +1582,18 @@ def main() -> None:
             base_seed=args.seed,
         )
         output = run_shard_to_directory(spec, args.output_dir)
+    elif args.command == "performance-shard":
+        spec = ShardSpec(
+            target_analysis="performance",
+            component="performance",
+            profile=profile,
+            shard_index=args.shard_index,
+            num_shards=args.num_shards,
+            base_seed=args.seed,
+        )
+        output = run_shard_to_directory(spec, args.output_dir)
     else:
-        target = "calibration" if args.command == "calibration-merge" else "behavior"
+        target = args.command.removesuffix("-merge")
         output = merge_shards_to_directory(
             cast(TargetAnalysis, target),
             args.shard_root,

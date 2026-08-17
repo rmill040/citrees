@@ -632,7 +632,10 @@ def _patch_launch_prerequisites(monkeypatch: pytest.MonkeyPatch) -> None:
             "output_prefix": campaign.output_prefix,
             "campaign_sha256": campaign.campaign_sha256,
             "read_keys": (campaign.manifest_key,),
-            "write_prefixes": (f"{campaign.output_prefix}/shards",),
+            "write_prefixes": (
+                f"{campaign.output_prefix}/shards",
+                f"{campaign.output_prefix}/failures",
+            ),
             "region": campaign.region,
         }
         return "citrees-campaign-test"
@@ -730,7 +733,6 @@ def _write_base_local_shard(
         json.dumps(
             {
                 "analysis": "jss_shard",
-                "schema_version": 1,
                 "spec": vars(spec),
                 "spec_sha256": shards._json_sha256(vars(spec)),
                 "assignments": assignments,
@@ -740,7 +742,7 @@ def _write_base_local_shard(
                 "elapsed_seconds": 2.5,
                 "execution_context_sha256": shards._json_sha256(context),
                 "scientific_context_sha256": shards._json_sha256(
-                    shards._scientific_context_payload(context)
+                    shards._scientific_context_payload(context, spec.target_analysis)
                 ),
                 **context,
                 "tables": table_metadata,
@@ -851,7 +853,6 @@ def test_campaign_manifest_round_trip_and_tampering_rejection() -> None:
 
     assert cloud.parse_campaign(payload, campaign.campaign_sha256) == campaign
     assert campaign.market == "spot"
-    assert manifest["schema_version"] == 2
     assert manifest["market"] == "spot"
 
     value = dict(manifest)
@@ -918,6 +919,7 @@ def test_campaign_allows_completed_components_to_be_omitted() -> None:
         "cardinality_tree",
         "cardinality_forest",
         "behavior",
+        "performance",
     }
     payload = cloud._manifest_bytes(campaign)
     assert cloud.parse_campaign(payload, campaign.campaign_sha256) == campaign
@@ -1176,6 +1178,38 @@ def test_cloud_worker_waits_for_immutable_launch_record(
     assert client.launch_listing_calls == 2
 
 
+def test_terminal_shard_failure_is_published_and_not_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = _campaign()
+    client = _MemoryS3()
+    spec = campaign.specs[0]
+    runtime = _runtime()
+    _publish_runtime_launch(client, campaign, spec, runtime)
+
+    def fail_shard(_: shards.ShardSpec, __: Path) -> Path:
+        raise RuntimeError("deterministic failure")
+
+    monkeypatch.setattr(shards, "run_shard_to_directory", fail_shard)
+    with pytest.raises(RuntimeError, match="deterministic failure"):
+        cloud.run_cloud_shard(
+            campaign,
+            spec,
+            runtime,
+            s3_client=client,
+        )
+
+    status = cloud.campaign_status(campaign, s3_client=client)
+    assert len(status.terminal_failures) == 1
+    failure = status.terminal_failures[0]
+    assert failure.spec_sha256 == cloud.shard_spec_sha256(spec)
+    assert failure.failure_type == "software_failed"
+    assert failure.exception_type == "RuntimeError"
+    assert failure.message == "deterministic failure"
+    assert spec in status.missing
+    assert spec not in status.retryable_missing
+
+
 def test_campaign_status_and_materialization_validate_every_archive(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1204,23 +1238,23 @@ def test_campaign_status_and_materialization_validate_every_archive(
     assert accounting["analysis"] == "jss_cloud_compute_accounting"
     assert accounting["campaign_sha256"] == campaign.campaign_sha256
     assert accounting["totals"] == {
-        "accepted_archive_attempts": 5,
+        "accepted_archive_attempts": 6,
         "campaign_wall_seconds": 10.0,
         "distinct_capacity_rejections": 0,
-        "launch_attempts": 5,
-        "launch_intents": 5,
+        "launch_attempts": 6,
+        "launch_intents": 6,
         "logical_cpus_per_instance": 2,
-        "observed_instance_seconds": 50.0,
-        "observed_logical_cpu_capacity_seconds": 100.0,
+        "observed_instance_seconds": 60.0,
+        "observed_logical_cpu_capacity_seconds": 120.0,
         "prior_attempts_without_accepted_archive": 0,
         "shards_succeeding_after_prior_attempts": 0,
-        "successful_analysis_elapsed_seconds": 12.5,
-        "successful_analysis_logical_cpu_capacity_seconds": 25.0,
-        "successful_launch_to_receipt_logical_cpu_capacity_seconds": 100.0,
-        "successful_launch_to_receipt_seconds": 50.0,
-        "terminal_instance_attempts": 5,
+        "successful_analysis_elapsed_seconds": 15.0,
+        "successful_analysis_logical_cpu_capacity_seconds": 30.0,
+        "successful_launch_to_receipt_logical_cpu_capacity_seconds": 120.0,
+        "successful_launch_to_receipt_seconds": 60.0,
+        "terminal_instance_attempts": 6,
     }
-    assert accounting["markets"]["spot"]["accepted_archive_attempts"] == 5
+    assert accounting["markets"]["spot"]["accepted_archive_attempts"] == 6
     assert set(accounting["markets"]) == {"spot"}
     assert accounting["market"] == "spot"
     assert accounting["components"]["behavior"]["assignments"] == len(
@@ -1228,10 +1262,10 @@ def test_campaign_status_and_materialization_validate_every_archive(
     )
     assert accounting["campaign_manifest"]["object_key"] == campaign.manifest_key
     assert len(accounting["launch_records"][0]["object_sha256"]) == 64
-    assert len(accounting["launch_requests"]) == 5
+    assert len(accounting["launch_requests"]) == 6
     assert accounting["launch_rejections"] == []
-    assert len(accounting["completed_shards"]) == 5
-    assert len(accounting["instance_outcomes"]) == 5
+    assert len(accounting["completed_shards"]) == 6
+    assert len(accounting["instance_outcomes"]) == 6
     assert cloud.validate_compute_accounting(output) == accounting
     assert (output / cloud.MATERIALIZED_CAMPAIGN_MANIFEST).is_file()
     for launch in accounting["launch_records"]:
@@ -1352,15 +1386,15 @@ def test_compute_accounting_records_success_after_prior_attempt(
         (output / cloud.COMPUTE_ACCOUNTING_FILENAME).read_text(encoding="ascii")
     )
 
-    assert accounting["totals"]["launch_attempts"] == 6
-    assert accounting["totals"]["terminal_instance_attempts"] == 6
-    assert accounting["totals"]["accepted_archive_attempts"] == 5
+    assert accounting["totals"]["launch_attempts"] == 7
+    assert accounting["totals"]["terminal_instance_attempts"] == 7
+    assert accounting["totals"]["accepted_archive_attempts"] == 6
     assert accounting["totals"]["prior_attempts_without_accepted_archive"] == 1
-    assert accounting["totals"]["observed_instance_seconds"] == 53.0
-    assert accounting["totals"]["observed_logical_cpu_capacity_seconds"] == 106.0
+    assert accounting["totals"]["observed_instance_seconds"] == 63.0
+    assert accounting["totals"]["observed_logical_cpu_capacity_seconds"] == 126.0
     assert accounting["totals"]["shards_succeeding_after_prior_attempts"] == 1
     assert accounting["markets"]["spot"]["prior_attempts_without_accepted_archive"] == 1
-    assert accounting["markets"]["spot"]["accepted_archive_attempts"] == 5
+    assert accounting["markets"]["spot"]["accepted_archive_attempts"] == 6
     assert set(accounting["markets"]) == {"spot"}
     assert accounting["completed_shards"][0]["attempt"] == 2
 
@@ -1538,7 +1572,7 @@ def test_distinct_capacity_rejections_materialize_without_path_collision(
     assert all((output / path).is_file() for path in rejection_paths)
     totals = accounting["totals"]
     assert isinstance(totals, dict)
-    assert totals["launch_intents"] == 5
+    assert totals["launch_intents"] == 6
     assert totals["distinct_capacity_rejections"] == 2
 
 
@@ -2195,7 +2229,7 @@ def test_launch_history_rejects_time_reversed_attempts() -> None:
         cloud.list_launch_records(campaign, s3_client=client)
 
 
-def test_spot_capacity_limit_stops_launch_pass_without_fallback(
+def test_spot_capacity_limit_skips_rejected_slot_without_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     campaign = _campaign()
@@ -2210,16 +2244,16 @@ def test_spot_capacity_limit_stops_launch_pass_without_fallback(
         s3_client=client,
     )
 
-    assert len(ec2.attempt_calls) == 1
-    assert ec2.attempt_calls[0]["InstanceMarketOptions"] == SPOT_OPTIONS
-    assert records == ()
+    assert len(ec2.attempt_calls) == 3
+    assert all(call["InstanceMarketOptions"] == SPOT_OPTIONS for call in ec2.attempt_calls)
+    assert len(records) == 2
     status = cloud.campaign_status(campaign, s3_client=client)
-    assert len(status.launch_requests) == 1
+    assert len(status.launch_requests) == 3
     assert len(status.launch_rejections) == 1
-    assert status.launches == ()
+    assert status.launches == records
 
 
-def test_zonal_spot_capacity_error_stops_launch_pass(
+def test_zonal_spot_capacity_error_does_not_stop_launch_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     campaign = _campaign()
@@ -2234,9 +2268,9 @@ def test_zonal_spot_capacity_error_stops_launch_pass(
         s3_client=client,
     )
 
-    assert ec2.spot_attempts == 1
-    assert ec2.attempt_calls[0]["InstanceMarketOptions"] == SPOT_OPTIONS
-    assert records == ()
+    assert ec2.spot_attempts == 4
+    assert all(call["InstanceMarketOptions"] == SPOT_OPTIONS for call in ec2.attempt_calls)
+    assert len(records) == 3
 
 
 @pytest.mark.parametrize(

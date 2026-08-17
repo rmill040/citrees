@@ -11,6 +11,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import textwrap
@@ -45,10 +46,9 @@ from paper.benchmark.infra.ec2 import (
 from paper.jss.replication import shards
 
 Market = Literal["spot"]
+FailureType = Literal["timeout", "software_failed"]
 SPOT_MARKET: Market = "spot"
-COMPONENTS = (*shards.CALIBRATION_COMPONENTS, "behavior")
-CAMPAIGN_SCHEMA_VERSION = 2
-ARCHIVE_METADATA_SCHEMA_VERSION = "1"
+COMPONENTS = (*shards.CALIBRATION_COMPONENTS, "behavior", "performance")
 ROLE_TAG_VALUE = "jss-shard"
 LOG_GROUP = "/citrees/jss"
 COMPUTE_ACCOUNTING_FILENAME = "cloud_compute_accounting.json"
@@ -143,6 +143,9 @@ class CampaignStatus:
     launch_objects: tuple[StoredLaunchRecord, ...]
     instance_outcomes: tuple[InstanceOutcome, ...]
     outcome_objects: tuple[StoredInstanceOutcome, ...]
+    terminal_failures: tuple[ShardFailure, ...]
+    failure_objects: tuple[StoredShardFailure, ...]
+    retryable_missing: tuple[shards.ShardSpec, ...]
 
 
 @dataclass(frozen=True)
@@ -239,6 +242,29 @@ class StoredInstanceOutcome:
     object_sha256: str
     object_bytes: bytes
     outcome: InstanceOutcome
+
+
+@dataclass(frozen=True)
+class ShardFailure:
+    """One deterministic shard failure that must not be retried."""
+
+    spec_sha256: str
+    attempt: int
+    instance_id: str
+    failure_type: FailureType
+    exception_type: str
+    message: str
+    created_utc: str
+
+
+@dataclass(frozen=True)
+class StoredShardFailure:
+    """One validated shard failure with its immutable S3 identity."""
+
+    object_key: str
+    object_sha256: str
+    object_bytes: bytes
+    failure: ShardFailure
 
 
 @dataclass(frozen=True)
@@ -480,6 +506,18 @@ def build_shard_specs(
         )
         shards.validate_shard_spec(spec)
         specs.append(spec)
+    performance_count = normalized_counts["performance"]
+    for index in range(performance_count):
+        spec = shards.ShardSpec(
+            target_analysis="performance",
+            component="performance",
+            profile=profile,
+            shard_index=index,
+            num_shards=performance_count,
+            base_seed=base_seed,
+        )
+        shards.validate_shard_spec(spec)
+        specs.append(spec)
     return tuple(specs)
 
 
@@ -499,7 +537,6 @@ def _campaign_payload(
 ) -> dict[str, object]:
     return {
         "analysis": "jss_cloud_campaign",
-        "schema_version": CAMPAIGN_SCHEMA_VERSION,
         "profile": profile,
         "base_seed": base_seed,
         "git_sha": git_sha,
@@ -622,7 +659,6 @@ def parse_campaign(payload: bytes, expected_sha256: str) -> CloudCampaign:
         raise ValueError("campaign manifest must be a JSON object")
     expected_fields = {
         "analysis",
-        "schema_version",
         "profile",
         "base_seed",
         "git_sha",
@@ -636,11 +672,9 @@ def parse_campaign(payload: bytes, expected_sha256: str) -> CloudCampaign:
         "specs",
     }
     if set(value) != expected_fields:
-        raise ValueError("campaign manifest fields differ from the required schema")
+        raise ValueError("campaign manifest fields differ from the required contract")
     if value["analysis"] != "jss_cloud_campaign":
-        raise ValueError("campaign manifest identity or schema version is invalid")
-    if _require_integer(value["schema_version"], "schema_version") != CAMPAIGN_SCHEMA_VERSION:
-        raise ValueError("campaign manifest identity or schema version is invalid")
+        raise ValueError("campaign manifest identity is invalid")
     raw_specs = value["specs"]
     if not isinstance(raw_specs, list):
         raise TypeError("campaign specs must be a JSON array")
@@ -752,7 +786,6 @@ def _cloud_receipt(
     if "cloud_execution" in receipt:
         raise ValueError("cloud shard receipt already contains execution metadata")
     receipt["cloud_execution"] = {
-        "schema_version": 1,
         "campaign_sha256": campaign.campaign_sha256,
         "archive_key": key,
         "spec_sha256": shard_spec_sha256(spec),
@@ -820,7 +853,6 @@ def _archive_metadata(
     archive_sha256: str,
 ) -> dict[str, str]:
     return {
-        "schema-version": ARCHIVE_METADATA_SCHEMA_VERSION,
         "archive-sha256": _require_sha256(archive_sha256, "archive digest"),
         "campaign-sha256": campaign.campaign_sha256,
         "spec-sha256": shard_spec_sha256(spec),
@@ -838,7 +870,6 @@ def _validate_archive_head(
     if not isinstance(metadata, dict):
         raise ValueError("shard archive has no S3 metadata")
     expected = {
-        "schema-version": ARCHIVE_METADATA_SCHEMA_VERSION,
         "campaign-sha256": campaign.campaign_sha256,
         "spec-sha256": shard_spec_sha256(spec),
         "git-sha": campaign.git_sha,
@@ -943,16 +974,13 @@ def _validate_cloud_receipt(
     if not isinstance(execution, dict):
         raise TypeError("cloud_execution must be a JSON object")
     expected_fields = {
-        "schema_version",
         "campaign_sha256",
         "archive_key",
         "spec_sha256",
         *CloudRuntime.__dataclass_fields__,
     }
     if set(execution) != expected_fields:
-        raise ValueError("cloud_execution fields differ from the required schema")
-    if _require_integer(execution["schema_version"], "cloud schema_version") != 1:
-        raise ValueError("cloud_execution schema version is invalid")
+        raise ValueError("cloud_execution fields differ from the required contract")
     if execution["campaign_sha256"] != campaign.campaign_sha256:
         raise ValueError("cloud receipt campaign differs")
     if execution["archive_key"] != archive_key(campaign, spec):
@@ -1072,7 +1100,7 @@ def run_cloud_shard(
         raise ValueError("worker shard is outside the campaign")
     _validate_runtime(campaign, runtime)
     client = s3_client or boto3.client("s3", region_name=campaign.region)
-    _wait_for_matching_launch(
+    launch = _wait_for_matching_launch(
         campaign,
         spec,
         runtime,
@@ -1082,23 +1110,44 @@ def run_cloud_shard(
     with tempfile.TemporaryDirectory(prefix="citrees-jss-cloud-") as temporary:
         root = Path(temporary)
         output_dir = root / "shard"
-        written = shards.run_shard_to_directory(spec, output_dir)
-        if written.resolve() != output_dir.resolve():
-            raise RuntimeError("shard runner returned an unexpected output directory")
-        shards.verify_shard_directory(
-            output_dir,
-            expected_spec=spec,
-            expected_git_sha=campaign.git_sha,
-        )
-        _cloud_receipt(output_dir, campaign, spec, runtime, key)
-        shards.verify_shard_directory(
-            output_dir,
-            expected_spec=spec,
-            expected_git_sha=campaign.git_sha,
-            allow_cloud_execution=True,
-            require_cloud_execution=True,
-        )
-        _validate_cloud_receipt(output_dir, campaign, spec)
+        try:
+            written = shards.run_shard_to_directory(spec, output_dir)
+            if written.resolve() != output_dir.resolve():
+                raise RuntimeError("shard runner returned an unexpected output directory")
+            shards.verify_shard_directory(
+                output_dir,
+                expected_spec=spec,
+                expected_git_sha=campaign.git_sha,
+            )
+            _cloud_receipt(output_dir, campaign, spec, runtime, key)
+            shards.verify_shard_directory(
+                output_dir,
+                expected_spec=spec,
+                expected_git_sha=campaign.git_sha,
+                allow_cloud_execution=True,
+                require_cloud_execution=True,
+            )
+            _validate_cloud_receipt(output_dir, campaign, spec)
+        except Exception as error:
+            publish_shard_failure(
+                campaign,
+                ShardFailure(
+                    spec_sha256=shard_spec_sha256(spec),
+                    attempt=runtime.attempt,
+                    instance_id=runtime.instance_id,
+                    failure_type=(
+                        "timeout"
+                        if isinstance(error, subprocess.TimeoutExpired)
+                        else "software_failed"
+                    ),
+                    exception_type=type(error).__name__,
+                    message=str(error),
+                    created_utc=datetime.now(UTC).isoformat(),
+                ),
+                launches=(launch,),
+                s3_client=client,
+            )
+            raise
         archive_path = root / "shard.tar.gz"
         create_archive(output_dir, archive_path)
         return upload_archive(
@@ -1140,7 +1189,6 @@ def publish_launch_request(
         json.dumps(
             {
                 "analysis": "jss_cloud_launch_request",
-                "schema_version": 1,
                 "campaign_sha256": campaign.campaign_sha256,
                 **asdict(request),
             },
@@ -1175,7 +1223,6 @@ def _parse_launch_request(
         raise TypeError(f"JSS launch request must be a JSON object: {key}")
     expected_fields = {
         "analysis",
-        "schema_version",
         "campaign_sha256",
         *LaunchRequest.__dataclass_fields__,
     }
@@ -1183,8 +1230,6 @@ def _parse_launch_request(
         raise ValueError(f"JSS launch request fields differ: {key}")
     if value["analysis"] != "jss_cloud_launch_request":
         raise ValueError(f"JSS launch request identity differs: {key}")
-    if _require_integer(value["schema_version"], "launch request schema_version") != 1:
-        raise ValueError(f"JSS launch request schema differs: {key}")
     if value["campaign_sha256"] != campaign.campaign_sha256:
         raise ValueError(f"JSS launch request campaign differs: {key}")
     spec = _parse_shard_spec(value["spec"])
@@ -1324,7 +1369,6 @@ def publish_launch_rejection(
         json.dumps(
             {
                 "analysis": "jss_cloud_launch_rejection",
-                "schema_version": 1,
                 "campaign_sha256": campaign.campaign_sha256,
                 **asdict(rejection),
             },
@@ -1361,7 +1405,6 @@ def _parse_launch_rejection(
         raise TypeError(f"JSS launch rejection must be a JSON object: {key}")
     expected_fields = {
         "analysis",
-        "schema_version",
         "campaign_sha256",
         *LaunchRejection.__dataclass_fields__,
     }
@@ -1369,8 +1412,6 @@ def _parse_launch_rejection(
         raise ValueError(f"JSS launch rejection fields differ: {key}")
     if value["analysis"] != "jss_cloud_launch_rejection":
         raise ValueError(f"JSS launch rejection identity differs: {key}")
-    if _require_integer(value["schema_version"], "launch rejection schema_version") != 1:
-        raise ValueError(f"JSS launch rejection schema differs: {key}")
     if value["campaign_sha256"] != campaign.campaign_sha256:
         raise ValueError(f"JSS launch rejection campaign differs: {key}")
     spec_sha256 = _require_sha256(
@@ -1466,7 +1507,6 @@ def publish_launch_record(
         json.dumps(
             {
                 "analysis": "jss_cloud_launch",
-                "schema_version": 1,
                 "campaign_sha256": campaign.campaign_sha256,
                 **asdict(record),
             },
@@ -1501,7 +1541,6 @@ def _parse_launch_record(
         raise TypeError(f"JSS launch record must be a JSON object: {key}")
     expected_fields = {
         "analysis",
-        "schema_version",
         "campaign_sha256",
         *LaunchRecord.__dataclass_fields__,
     }
@@ -1509,8 +1548,6 @@ def _parse_launch_record(
         raise ValueError(f"JSS launch record fields differ: {key}")
     if value["analysis"] != "jss_cloud_launch":
         raise ValueError(f"JSS launch record identity differs: {key}")
-    if _require_integer(value["schema_version"], "launch schema_version") != 1:
-        raise ValueError(f"JSS launch record schema differs: {key}")
     if value["campaign_sha256"] != campaign.campaign_sha256:
         raise ValueError(f"JSS launch record campaign differs: {key}")
     spec = _parse_shard_spec(value["spec"])
@@ -1668,7 +1705,6 @@ def _parse_instance_outcome(
         raise TypeError(f"JSS instance outcome must be a JSON object: {key}")
     expected_fields = {
         "analysis",
-        "schema_version",
         "campaign_sha256",
         *InstanceOutcome.__dataclass_fields__,
     }
@@ -1676,8 +1712,6 @@ def _parse_instance_outcome(
         raise ValueError(f"JSS instance outcome fields differ: {key}")
     if value["analysis"] != "jss_cloud_instance_outcome":
         raise ValueError(f"JSS instance outcome identity differs: {key}")
-    if _require_integer(value["schema_version"], "instance outcome schema_version") != 1:
-        raise ValueError(f"JSS instance outcome schema differs: {key}")
     if value["campaign_sha256"] != campaign.campaign_sha256:
         raise ValueError(f"JSS instance outcome campaign differs: {key}")
     spec_sha256 = _require_sha256(
@@ -1740,7 +1774,6 @@ def publish_instance_outcome(
         json.dumps(
             {
                 "analysis": "jss_cloud_instance_outcome",
-                "schema_version": 1,
                 "campaign_sha256": campaign.campaign_sha256,
                 **asdict(outcome),
             },
@@ -1840,6 +1873,189 @@ def _load_instance_outcomes(
     if len(identities) != len(set(identities)):
         raise ValueError("JSS instance-outcome ledger contains duplicate attempts")
     return tuple(stored_outcomes)
+
+
+def _shard_failure_key(
+    campaign: CloudCampaign,
+    failure: ShardFailure,
+) -> str:
+    return f"{campaign.output_prefix}/failures/{failure.spec_sha256}/{failure.attempt:03d}.json"
+
+
+def _parse_shard_failure(
+    campaign: CloudCampaign,
+    key: str,
+    payload: bytes,
+    *,
+    launches: Sequence[LaunchRecord],
+) -> ShardFailure:
+    try:
+        value = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"JSS shard failure is not valid JSON: {key}") from error
+    if not isinstance(value, dict):
+        raise TypeError(f"JSS shard failure must be a JSON object: {key}")
+    expected_fields = {
+        "analysis",
+        "campaign_sha256",
+        *ShardFailure.__dataclass_fields__,
+    }
+    if set(value) != expected_fields:
+        raise ValueError(f"JSS shard failure fields differ: {key}")
+    if value["analysis"] != "jss_cloud_shard_failure":
+        raise ValueError(f"JSS shard failure identity differs: {key}")
+    if value["campaign_sha256"] != campaign.campaign_sha256:
+        raise ValueError(f"JSS shard failure campaign differs: {key}")
+    spec_sha256 = _require_sha256(value["spec_sha256"], "shard failure spec_sha256")
+    attempt = _require_integer(value["attempt"], "shard failure attempt", minimum=1)
+    instance_id = _require_string(value["instance_id"], "shard failure instance_id")
+    failure_type = value["failure_type"]
+    if failure_type not in ("timeout", "software_failed"):
+        raise ValueError(f"JSS shard failure type differs: {key}")
+    exception_type = _require_string(value["exception_type"], "shard failure exception type")
+    message = value["message"]
+    if not isinstance(message, str):
+        raise TypeError(f"JSS shard failure message must be a string: {key}")
+    created_utc = _parse_canonical_utc(
+        value["created_utc"],
+        "shard failure creation time",
+    ).isoformat()
+    matches = [
+        launch
+        for launch in launches
+        if launch.spec_sha256 == spec_sha256 and launch.attempt == attempt
+    ]
+    if len(matches) != 1 or matches[0].instance_id != instance_id:
+        raise ValueError(f"JSS shard failure has no unique matching launch: {key}")
+    if _parse_canonical_utc(
+        created_utc,
+        "shard failure creation time",
+    ) < _parse_canonical_utc(matches[0].launch_time, "launch_time"):
+        raise ValueError(f"JSS shard failure predates its launch: {key}")
+    expected_key = f"{campaign.output_prefix}/failures/{spec_sha256}/{attempt:03d}.json"
+    if key != expected_key:
+        raise ValueError(f"JSS shard failure key differs from its content: {key}")
+    return ShardFailure(
+        spec_sha256=spec_sha256,
+        attempt=attempt,
+        instance_id=instance_id,
+        failure_type=cast(FailureType, failure_type),
+        exception_type=exception_type,
+        message=message,
+        created_utc=created_utc,
+    )
+
+
+def publish_shard_failure(
+    campaign: CloudCampaign,
+    failure: ShardFailure,
+    *,
+    launches: Sequence[LaunchRecord],
+    s3_client: Any | None = None,
+) -> ShardFailure:
+    """Publish one deterministic terminal shard failure."""
+    key = _shard_failure_key(campaign, failure)
+    payload = (
+        json.dumps(
+            {
+                "analysis": "jss_cloud_shard_failure",
+                "campaign_sha256": campaign.campaign_sha256,
+                **asdict(failure),
+            },
+            ensure_ascii=True,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("ascii")
+    parsed = _parse_shard_failure(
+        campaign,
+        key,
+        payload,
+        launches=launches,
+    )
+    client = s3_client or boto3.client("s3", region_name=campaign.region)
+    for write_attempt in range(CONDITIONAL_WRITE_MAX_ATTEMPTS):
+        try:
+            client.put_object(
+                Bucket=campaign.bucket,
+                Key=key,
+                Body=payload,
+                ContentType="application/json",
+                IfNoneMatch="*",
+            )
+            return parsed
+        except ClientError as error:
+            if not _is_conditional_write_conflict(error):
+                raise
+            existing = _get_object_if_present(
+                client,
+                bucket=campaign.bucket,
+                key=key,
+            )
+            if existing is not None:
+                prior = _parse_shard_failure(
+                    campaign,
+                    key,
+                    existing,
+                    launches=launches,
+                )
+                if prior != parsed:
+                    raise RuntimeError(
+                        "existing JSS shard failure differs from the requested failure"
+                    ) from error
+                return prior
+            if write_attempt + 1 == CONDITIONAL_WRITE_MAX_ATTEMPTS:
+                raise RuntimeError(
+                    f"conditional S3 write did not converge for s3://{campaign.bucket}/{key}"
+                ) from error
+            time.sleep(CONDITIONAL_WRITE_RETRY_SECONDS * (2**write_attempt))
+    raise AssertionError("unreachable conditional S3 write state")
+
+
+def _load_shard_failures(
+    campaign: CloudCampaign,
+    *,
+    launches: Sequence[LaunchRecord],
+    s3_client: Any | None = None,
+) -> tuple[StoredShardFailure, ...]:
+    client = s3_client or boto3.client("s3", region_name=campaign.region)
+    prefix = f"{campaign.output_prefix}/failures/"
+    keys: list[str] = []
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=campaign.bucket, Prefix=prefix):
+        for item in page.get("Contents", []):
+            key = item.get("Key")
+            if not isinstance(key, str):
+                raise TypeError("JSS shard-failure listing contains an invalid key")
+            keys.append(key)
+    if len(keys) != len(set(keys)):
+        raise ValueError("JSS shard-failure listing contains duplicate keys")
+    stored_failures: list[StoredShardFailure] = []
+    for key in sorted(keys):
+        payload = client.get_object(Bucket=campaign.bucket, Key=key)["Body"].read()
+        stored_failures.append(
+            StoredShardFailure(
+                object_key=key,
+                object_sha256=_sha256_bytes(payload),
+                object_bytes=payload,
+                failure=_parse_shard_failure(
+                    campaign,
+                    key,
+                    payload,
+                    launches=launches,
+                ),
+            )
+        )
+    attempt_identities = [
+        (stored.failure.spec_sha256, stored.failure.attempt) for stored in stored_failures
+    ]
+    if len(attempt_identities) != len(set(attempt_identities)):
+        raise ValueError("JSS shard-failure ledger contains duplicate attempts")
+    failed_specs = [stored.failure.spec_sha256 for stored in stored_failures]
+    if len(failed_specs) != len(set(failed_specs)):
+        raise ValueError("JSS shard-failure ledger contains multiple failures for one shard")
+    return tuple(stored_failures)
 
 
 def _validate_launch_ledger(
@@ -2032,6 +2248,16 @@ def campaign_status(
         s3_client=client,
     )
     instance_outcomes = tuple(stored.outcome for stored in outcome_objects)
+    failure_objects = _load_shard_failures(
+        campaign,
+        launches=launches,
+        s3_client=client,
+    )
+    terminal_failures = tuple(stored.failure for stored in failure_objects)
+    completed_spec_sha256 = {shard_spec_sha256(spec) for spec in completed}
+    failed_spec_sha256 = {failure.spec_sha256 for failure in terminal_failures}
+    if completed_spec_sha256.intersection(failed_spec_sha256):
+        raise ValueError("campaign contains both success and terminal failure for one shard")
     for spec in completed:
         _, runtime = _validate_stored_archive(
             campaign,
@@ -2040,6 +2266,9 @@ def campaign_status(
         )
         _require_matching_launch(launches, spec, runtime)
     missing = tuple(spec for spec in campaign.specs if archive_key(campaign, spec) not in observed)
+    retryable_missing = tuple(
+        spec for spec in missing if shard_spec_sha256(spec) not in failed_spec_sha256
+    )
     return CampaignStatus(
         total=len(campaign.specs),
         completed=completed,
@@ -2053,13 +2282,35 @@ def campaign_status(
         launch_objects=launch_objects,
         instance_outcomes=instance_outcomes,
         outcome_objects=outcome_objects,
+        terminal_failures=terminal_failures,
+        failure_objects=failure_objects,
+        retryable_missing=retryable_missing,
     )
 
 
 def _materialized_path(root: Path, spec: shards.ShardSpec) -> Path:
     if spec.target_analysis == "calibration":
         return root / "calibration" / spec.component / f"{spec.shard_index:05d}"
-    return root / "behavior" / f"{spec.shard_index:05d}"
+    return root / spec.target_analysis / f"{spec.shard_index:05d}"
+
+
+def _discover_materialized_shard_groups(
+    root: Path,
+    campaign: CloudCampaign,
+) -> tuple[tuple[shards.VerifiedShard, ...], ...]:
+    groups: list[tuple[shards.VerifiedShard, ...]] = []
+    for target_analysis in ("calibration", "behavior", "performance"):
+        if not any(spec.target_analysis == target_analysis for spec in campaign.specs):
+            continue
+        groups.append(
+            shards.discover_verified_shards(
+                root / target_analysis,
+                target_analysis=cast(shards.TargetAnalysis, target_analysis),
+                profile=campaign.profile,
+                base_seed=campaign.base_seed,
+            )
+        )
+    return tuple(groups)
 
 
 def _require_verified_campaign_inventory(
@@ -2367,6 +2618,10 @@ def compute_accounting_payload(
             for outcome in outcomes
             if (outcome.spec_sha256, outcome.attempt) in component_launch_identities
         )
+        if not component_completed:
+            if component_launches or component_prior_attempts or component_outcomes:
+                raise ValueError(f"{component} has launch activity without completed shards")
+            continue
         component_first_launch = min(
             _parse_canonical_utc(launch.launch_time, "launch_time") for launch in component_launches
         )
@@ -2415,7 +2670,6 @@ def compute_accounting_payload(
     }
     return {
         "analysis": "jss_cloud_compute_accounting",
-        "schema_version": 1,
         "campaign_sha256": campaign.campaign_sha256,
         "campaign_manifest": {
             "object_key": campaign.manifest_key,
@@ -2850,21 +3104,9 @@ def validate_compute_accounting(output_dir: Path) -> dict[str, object]:
             raise ValueError("accounting shard receipt digest differs")
         completed.append(materialized)
 
-    calibration_verified = shards.discover_verified_shards(
-        root / "calibration",
-        target_analysis="calibration",
-        profile=campaign.profile,
-        base_seed=campaign.base_seed,
-    )
-    behavior_verified = shards.discover_verified_shards(
-        root / "behavior",
-        target_analysis="behavior",
-        profile=campaign.profile,
-        base_seed=campaign.base_seed,
-    )
     _require_verified_campaign_inventory(
         campaign,
-        (calibration_verified, behavior_verified),
+        _discover_materialized_shard_groups(root, campaign),
     )
 
     expected_provenance_files = {
@@ -2921,6 +3163,10 @@ def materialize_campaign(
             campaign,
             ec2_client=ec2_client,
             s3_client=client,
+        )
+    if status.terminal_failures:
+        raise RuntimeError(
+            f"campaign contains {len(status.terminal_failures)} terminal shard failures"
         )
     if status.missing:
         raise RuntimeError(f"campaign is incomplete: {len(status.missing)} shards missing")
@@ -2990,21 +3236,9 @@ def materialize_campaign(
                     archive_sha256=expected_sha256,
                 )
             )
-        calibration_verified = shards.discover_verified_shards(
-            staging / "calibration",
-            target_analysis="calibration",
-            profile=campaign.profile,
-            base_seed=campaign.base_seed,
-        )
-        behavior_verified = shards.discover_verified_shards(
-            staging / "behavior",
-            target_analysis="behavior",
-            profile=campaign.profile,
-            base_seed=campaign.base_seed,
-        )
         _require_verified_campaign_inventory(
             campaign,
-            (calibration_verified, behavior_verified),
+            _discover_materialized_shard_groups(staging, campaign),
         )
         accounting = compute_accounting_payload(
             campaign,
@@ -3715,7 +3949,9 @@ def launch_missing_shards(
         s3_client=s3,
     )
     status = campaign_status(campaign, s3_client=s3)
-    inactive_missing = [spec for spec in status.missing if shard_spec_sha256(spec) not in active]
+    inactive_missing = [
+        spec for spec in status.retryable_missing if shard_spec_sha256(spec) not in active
+    ]
     if status.unresolved_requests:
         raise RuntimeError(
             "JSS launch request has no discoverable EC2 outcome; refusing automatic replay"
@@ -3728,7 +3964,10 @@ def launch_missing_shards(
         output_prefix=campaign.output_prefix,
         campaign_sha256=campaign.campaign_sha256,
         read_keys=(campaign.manifest_key,),
-        write_prefixes=(f"{campaign.output_prefix}/shards",),
+        write_prefixes=(
+            f"{campaign.output_prefix}/shards",
+            f"{campaign.output_prefix}/failures",
+        ),
         region=campaign.region,
     )
     placement_subnets = get_default_subnet_ids(
@@ -3753,7 +3992,7 @@ def launch_missing_shards(
     status = campaign_status(campaign, s3_client=s3)
     requests = list(status.launch_requests)
     launches = list(status.launches)
-    missing = [spec for spec in status.missing if shard_spec_sha256(spec) not in active]
+    missing = [spec for spec in status.retryable_missing if shard_spec_sha256(spec) not in active]
     if max_new_instances is not None:
         missing = missing[:max_new_instances]
     if not missing:
@@ -3787,7 +4026,7 @@ def launch_missing_shards(
         if record is None:
             if rejection_code not in _CAPACITY_ERRORS:
                 raise AssertionError("launch rejection must identify a capacity error")
-            break
+            continue
         records.append(record)
         launches.append(record)
     return tuple(records)
@@ -3879,7 +4118,7 @@ def _parse_args() -> argparse.Namespace:
     worker.add_argument("--campaign-sha256", required=True)
     worker.add_argument(
         "--target-analysis",
-        choices=("calibration", "behavior"),
+        choices=("calibration", "behavior", "performance"),
         required=True,
     )
     worker.add_argument("--component", required=True)
@@ -3929,6 +4168,8 @@ def main() -> None:
                     "total": status.total,
                     "completed": len(status.completed),
                     "missing": len(status.missing),
+                    "retryable_missing": len(status.retryable_missing),
+                    "terminal_failures": len(status.terminal_failures),
                     "launch_attempts": len(status.launches),
                     "terminal_instance_attempts": len(status.instance_outcomes),
                 },

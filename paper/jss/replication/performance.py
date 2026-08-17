@@ -21,7 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -795,29 +795,25 @@ def summarize_performance(raw: pd.DataFrame) -> pd.DataFrame:
     return summary.loc[:, PERFORMANCE_SUMMARY_SCHEMA]
 
 
-def validate_performance_results(
+def validate_performance_raw(
     raw: pd.DataFrame,
-    summary: pd.DataFrame,
+    cells: Sequence[PerformanceCell],
     *,
     profile: Profile,
-    base_seed: int,
+    require_unique_worker_pids: bool = True,
 ) -> None:
-    """Validate the complete raw-cell and aggregate result contract."""
+    """Validate one exact performance-cell inventory."""
     if tuple(raw.columns) != PERFORMANCE_RAW_SCHEMA:
         raise ValueError(
             "performance raw schema differs: "
             f"expected={PERFORMANCE_RAW_SCHEMA}, observed={tuple(raw.columns)}"
         )
-    if tuple(summary.columns) != PERFORMANCE_SUMMARY_SCHEMA:
-        raise ValueError(
-            "performance summary schema differs: "
-            f"expected={PERFORMANCE_SUMMARY_SCHEMA}, observed={tuple(summary.columns)}"
-        )
-    expected_cells = build_performance_grid(profile, base_seed=base_seed)
-    expected_ids = {cell.cell_id for cell in expected_cells}
-    expected_specs = {cell.cell_id: asdict(cell) for cell in expected_cells}
+    if not cells:
+        raise ValueError("performance raw validation requires at least one cell")
+    expected_ids = {cell.cell_id for cell in cells}
+    expected_specs = {cell.cell_id: asdict(cell) for cell in cells}
     observed_ids = set(raw["cell_id"].astype(str))
-    if observed_ids != expected_ids or len(raw) != len(expected_cells):
+    if observed_ids != expected_ids or len(raw) != len(cells):
         missing = sorted(expected_ids.difference(observed_ids))
         extra = sorted(observed_ids.difference(expected_ids))
         raise ValueError(f"performance raw inventory differs: missing={missing}, extra={extra}")
@@ -837,7 +833,9 @@ def validate_performance_results(
         or not raw["elapsed_seconds"].gt(0.0).all()
     ):
         raise ValueError("performance elapsed times must be finite and positive")
-    if not raw["worker_pid"].ge(1).all() or raw["worker_pid"].nunique() != len(raw):
+    if not raw["worker_pid"].ge(1).all():
+        raise ValueError("performance worker PIDs must be positive")
+    if require_unique_worker_pids and raw["worker_pid"].nunique() != len(raw):
         raise ValueError("performance cells must come from distinct worker processes")
     for column in (
         "baseline_peak_rss_bytes",
@@ -866,6 +864,27 @@ def validate_performance_results(
     if not paired.eq(1).all(axis=None):
         raise ValueError("performance methods do not share paired data and model seeds")
 
+
+def validate_performance_results(
+    raw: pd.DataFrame,
+    summary: pd.DataFrame,
+    *,
+    profile: Profile,
+    base_seed: int,
+    require_unique_worker_pids: bool = True,
+) -> None:
+    """Validate the complete raw-cell and aggregate result contract."""
+    if tuple(summary.columns) != PERFORMANCE_SUMMARY_SCHEMA:
+        raise ValueError(
+            "performance summary schema differs: "
+            f"expected={PERFORMANCE_SUMMARY_SCHEMA}, observed={tuple(summary.columns)}"
+        )
+    validate_performance_raw(
+        raw,
+        build_performance_grid(profile, base_seed=base_seed),
+        profile=profile,
+        require_unique_worker_pids=require_unique_worker_pids,
+    )
     numeric_summary = summary.select_dtypes(include=[np.number])
     if not np.isfinite(numeric_summary.to_numpy(dtype=np.float64)).all():
         raise ValueError("performance summary contains non-finite numeric values")
@@ -938,6 +957,25 @@ def _r_environment() -> dict[str, str]:
     return get_r_runtime_versions()
 
 
+def performance_source_files() -> tuple[Path, ...]:
+    """Return the complete source inventory for performance measurements."""
+    repo_root = Path(__file__).resolve().parents[3]
+    return (
+        Path(__file__).resolve(),
+        repo_root / "paper" / "benchmark" / "pipeline" / "r_methods.py",
+        repo_root / "citrees" / "_forest.py",
+        repo_root / "citrees" / "_permutation.py",
+        repo_root / "citrees" / "_selector.py",
+        repo_root / "citrees" / "_sequential.py",
+        repo_root / "citrees" / "_splitter.py",
+        repo_root / "citrees" / "_threshold_method.py",
+        repo_root / "citrees" / "_tree.py",
+        repo_root / "citrees" / "_types.py",
+        repo_root / "pyproject.toml",
+        repo_root / "uv.lock",
+    )
+
+
 def write_results(
     raw: pd.DataFrame,
     summary: pd.DataFrame,
@@ -946,6 +984,7 @@ def write_results(
     profile: Profile,
     base_seed: int,
     elapsed_seconds: float,
+    require_unique_worker_pids: bool = True,
 ) -> None:
     """Write performance tables and a machine-readable execution receipt."""
     validate_performance_results(
@@ -953,6 +992,7 @@ def write_results(
         summary,
         profile=profile,
         base_seed=base_seed,
+        require_unique_worker_pids=require_unique_worker_pids,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_path = output_dir / "performance_raw.parquet"
@@ -969,6 +1009,7 @@ def write_results(
         written_summary,
         profile=profile,
         base_seed=base_seed,
+        require_unique_worker_pids=require_unique_worker_pids,
     )
     pd.testing.assert_frame_equal(
         pd.read_csv(summary_csv_path).convert_dtypes(),
@@ -979,20 +1020,7 @@ def write_results(
     )
 
     repo_root = Path(__file__).resolve().parents[3]
-    source_files = (
-        Path(__file__).resolve(),
-        repo_root / "paper" / "benchmark" / "pipeline" / "r_methods.py",
-        repo_root / "citrees" / "_forest.py",
-        repo_root / "citrees" / "_permutation.py",
-        repo_root / "citrees" / "_selector.py",
-        repo_root / "citrees" / "_sequential.py",
-        repo_root / "citrees" / "_splitter.py",
-        repo_root / "citrees" / "_threshold_method.py",
-        repo_root / "citrees" / "_tree.py",
-        repo_root / "citrees" / "_types.py",
-        repo_root / "pyproject.toml",
-        repo_root / "uv.lock",
-    )
+    source_files = performance_source_files()
     versions = {
         package: importlib.metadata.version(package)
         for package in ("citrees", "numpy", "pandas", "scikit-learn", "scipy")
@@ -1002,7 +1030,6 @@ def write_results(
     artifacts = (raw_path, summary_path, summary_csv_path)
     receipt = {
         "analysis": "performance",
-        "schema_version": 2,
         "profile": profile,
         "base_seed": base_seed,
         "settings": asdict(_settings(profile)),

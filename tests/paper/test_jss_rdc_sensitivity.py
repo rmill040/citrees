@@ -341,8 +341,6 @@ def test_writer_atomically_records_sources_tables_and_artifact_hashes(
     assert not list(tmp_path.glob(".rdc-output-*"))
     receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
     assert receipt["analysis"] == "rdc_sensitivity"
-    assert receipt["schema_version"] == 1
-    assert receipt["semantic_validation"] == "citrees-jss-rdc-sensitivity-v1"
     assert receipt["profile"] == "smoke"
     assert receipt["base_seed"] == 1718
     assert receipt["settings"]["datasets"] == ["wine"]

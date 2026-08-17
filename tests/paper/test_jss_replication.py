@@ -42,7 +42,6 @@ def _fake_runner(
     )
     receipt: dict[str, object] = {
         "analysis": spec.expected_analysis,
-        "schema_version": 1,
         "git_sha": replicate._git_sha(),
         "git_dirty": replicate._git_dirty(),
         "python": "3.12.0",
@@ -148,7 +147,7 @@ def test_child_commands_forward_profile_seed_output_and_dgrp_data(
     assert "--data-dir" not in rdc
 
 
-def test_distributed_commands_merge_calibration_and_behavior_shards(
+def test_distributed_commands_merge_all_sharded_analyses(
     tmp_path: Path,
 ) -> None:
     shard_root = tmp_path / "shards"
@@ -191,11 +190,13 @@ def test_distributed_commands_merge_calibration_and_behavior_shards(
     )
     assert behavior[3] == "behavior-merge"
     assert str(shard_root / "behavior") in behavior
-    assert performance[:3] == (
+    assert performance[:4] == (
         replicate.sys.executable,
         "-m",
-        "paper.jss.replication.performance",
+        "paper.jss.replication.shards",
+        "performance-merge",
     )
+    assert str(shard_root / "performance") in performance
 
 
 def test_replication_atomically_publishes_receipts_hashes_and_transcript(
@@ -216,7 +217,6 @@ def test_replication_atomically_publishes_receipts_hashes_and_transcript(
     assert output_dir.is_dir()
     receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
     assert receipt["analysis"] == "jss_replication"
-    assert receipt["schema_version"] == 1
     assert receipt["profile"] == "smoke"
     assert receipt["base_seed"] == 7
     assert receipt["execution_mode"] == "serial"
@@ -251,6 +251,7 @@ def test_replication_records_distributed_dispatch(
     shard_root = tmp_path / "shards"
     (shard_root / "calibration").mkdir(parents=True)
     (shard_root / "behavior").mkdir()
+    (shard_root / "performance").mkdir()
     observed_roots: list[Path | None] = []
 
     def distributed_runner(
@@ -282,7 +283,7 @@ def test_replication_records_distributed_dispatch(
 
     receipt = json.loads((output_dir / "receipt.json").read_text(encoding="ascii"))
     assert receipt["execution_mode"] == "distributed"
-    assert receipt["distributed_analyses"] == ["behavior", "calibration"]
+    assert receipt["distributed_analyses"] == ["behavior", "calibration", "performance"]
     assert "paper/jss/replication/shards.py" in receipt["source_sha256"]
     assert observed_roots == [shard_root.resolve()] * len(ANALYSES)
     transcript = (output_dir / "transcript.txt").read_text(encoding="utf-8")
@@ -299,6 +300,7 @@ def test_distributed_replication_binds_cloud_accounting(
     shard_root = tmp_path / "shards"
     (shard_root / "calibration").mkdir(parents=True)
     (shard_root / "behavior").mkdir()
+    (shard_root / "performance").mkdir()
     provenance = shard_root / replicate.cloud.CLOUD_PROVENANCE_DIRECTORY
     provenance.mkdir()
     (provenance / "campaign.json").write_text("{}\n", encoding="ascii")
@@ -306,7 +308,6 @@ def test_distributed_replication_binds_cloud_accounting(
     accounting_path.write_text('{"fixture": true}\n', encoding="ascii")
     accounting = {
         "analysis": "jss_cloud_compute_accounting",
-        "schema_version": 1,
         "campaign_sha256": "a" * 64,
         "profile": "smoke",
         "base_seed": 7,

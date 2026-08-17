@@ -108,7 +108,6 @@
     "qc_receipt": "5e2d48c45981b6096a618d929950c77ea838f37bdd0ebdf93d4bc26c102cef9d",
     "ranking_receipt": "6125a712c6dbd3200037466eddd54c7c4050f88451cae61f79c07f912cb7a7b3"
   },
-  "schema": "citrees-jss-dgrp-specification-v3",
   "secondary_trait_inference": {
     "adjustment": "holm",
     "alpha": 0.05,

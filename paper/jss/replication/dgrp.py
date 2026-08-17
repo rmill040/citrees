@@ -1200,8 +1200,22 @@ def validate_derived_genotypes(
             f"extra={sorted(observed_names - expected_names)}"
         )
     receipt = json.loads(receipt_path.read_text(encoding="ascii"))
-    if not isinstance(receipt, dict) or receipt.get("schema") != "citrees-jss-dgrp-genotypes-v1":
-        raise RuntimeError("DGRP derived genotype receipt has an invalid schema")
+    if not isinstance(receipt, dict):
+        raise RuntimeError("DGRP derived genotype receipt must be a JSON object")
+    expected_receipt_fields = {
+        "call_rate_threshold",
+        "minor_allele_frequency_threshold",
+        "minor_allele_frequency_operator",
+        "sample_count",
+        "source_variant_count",
+        "retained_variant_count",
+        "matrix_orientation",
+        "elapsed_seconds",
+        "source_sha256",
+        "artifacts",
+    }
+    if set(receipt) != expected_receipt_fields:
+        raise RuntimeError("DGRP derived genotype receipt fields differ")
     paths = _input_paths(input_dir)
     expected_sources = {name: sha256(path) for name, path in paths.items()}
     if receipt.get("source_sha256") != expected_sources:
@@ -1300,7 +1314,6 @@ def prepare_derived_genotypes(
         retained.to_parquet(staged_variants, index=False)
         source_hashes = {name: sha256(path) for name, path in paths.items()}
         receipt = {
-            "schema": "citrees-jss-dgrp-genotypes-v1",
             "call_rate_threshold": DGRP_MIN_CALL_RATE,
             "minor_allele_frequency_threshold": DGRP_MIN_MINOR_ALLELE_FREQUENCY,
             "minor_allele_frequency_operator": "strict_greater_than",
@@ -2072,7 +2085,6 @@ def build_genotype_source_receipt(
     )
     paths = _input_paths(input_dir)
     return {
-        "schema_version": 1,
         "source": {
             "record_id": GENOTYPE_RECORD_ID,
             "url": GENOTYPE_URL,
@@ -3652,8 +3664,6 @@ def write_results(
             artifacts.append(csv_path)
         receipt = {
             "analysis": "dgrp",
-            "schema_version": 2,
-            "semantic_validation": "citrees-jss-dgrp-results-v1",
             "profile": profile,
             "base_seed": base_seed,
             "settings": asdict(settings),

@@ -470,7 +470,6 @@ def write_results(
     }
     receipt = {
         "analysis": "tutorial",
-        "schema_version": 1,
         "profile": profile,
         "base_seed": base_seed,
         "settings": asdict(_settings(profile)),

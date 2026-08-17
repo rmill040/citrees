@@ -1,7 +1,7 @@
 """Shared constants for experiment scripts.
 
-Single source of truth for random seeds, timeouts, and downstream models.
-Method lists are defined in paper.benchmark.pipeline.methods.
+Single source of truth for random seeds, control-plane waits, and downstream
+models. Method lists are defined in paper.benchmark.pipeline.methods.
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ RANDOM_STATE = 1718
 N_SEEDS = 5
 N_SPLITS = 5
 PIPELINE_ARTIFACT_VERSION = 6
-STAGE1_SELECTION_TIMEOUT_SECONDS = 14 * 24 * 60 * 60
 
 # =============================================================================
 # Control Plane

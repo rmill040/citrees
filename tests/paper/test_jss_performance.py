@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import inspect
 import json
 import shutil
 from dataclasses import asdict
@@ -34,8 +35,7 @@ pytestmark = pytest.mark.paper
 R_AVAILABLE = shutil.which("Rscript") is not None and importlib.util.find_spec("rpy2") is not None
 
 
-def _fake_runner(cell: PerformanceCell, timeout_seconds: int) -> dict[str, object]:
-    assert timeout_seconds > 0
+def _fake_runner(cell: PerformanceCell) -> dict[str, object]:
     method_scale = {"citrees": 3.0, "partykit": 2.0, "sklearn": 1.0}[cell.method]
     elapsed = method_scale * (cell.repeat + 1) * (cell.n_samples / 100.0)
     baseline = 100_000_000 + cell.data_seed % 10_000
@@ -67,7 +67,6 @@ def test_profiles_define_explicit_controlled_workloads() -> None:
         predictor_counts=(),
         permutation_budgets=(),
         forest_sizes=(),
-        cell_timeout_seconds=600,
     )
     assert _settings("quick").repeats == 2
     assert _settings("quick").sample_sizes == (250, 1_000)
@@ -75,6 +74,13 @@ def test_profiles_define_explicit_controlled_workloads() -> None:
     assert _settings("full").permutation_budgets == (99, 9_999)
     with pytest.raises(ValueError, match="unknown performance profile"):
         _settings("unknown")  # type: ignore[arg-type]
+
+
+def test_performance_cells_have_no_elapsed_time_cutoff() -> None:
+    """Scientific performance cells must run until completion or real failure."""
+    assert "cell_timeout_seconds" not in PerformanceSettings.__dataclass_fields__
+    assert tuple(inspect.signature(_run_cell_subprocess).parameters) == ("cell",)
+    assert "timeout" not in inspect.getsource(_run_cell_subprocess)
 
 
 def test_grid_is_exact_unique_and_paired_across_methods() -> None:
@@ -208,8 +214,8 @@ def test_sklearn_cells_run_in_fresh_processes() -> None:
         and cell.task == "classification"
         and cell.model_family == "tree"
     )
-    first = _run_cell_subprocess(cell, 120)
-    second = _run_cell_subprocess(cell, 120)
+    first = _run_cell_subprocess(cell)
+    second = _run_cell_subprocess(cell)
 
     assert first["worker_pid"] != second["worker_pid"]
     assert first["input_sha256"] == second["input_sha256"]
@@ -226,7 +232,7 @@ def test_partykit_fit_only_cell_runs_in_an_isolated_process() -> None:
         for cell in build_performance_grid("smoke", base_seed=7)
         if cell.method == "partykit" and cell.task == "regression" and cell.model_family == "tree"
     )
-    result = _run_cell_subprocess(cell, 180)
+    result = _run_cell_subprocess(cell)
 
     assert result["input_sha256"]
     assert result["elapsed_seconds"] > 0.0

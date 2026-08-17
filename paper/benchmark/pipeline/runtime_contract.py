@@ -38,7 +38,6 @@ RUNTIME_PROVENANCE_FIELDS = frozenset(
         "os_release",
         "python_libraries",
         "r_numerical_libraries",
-        "r_selection_timeout_seconds",
         "r_runtime",
         "thread_environment",
         "threadpools",
@@ -269,13 +268,6 @@ def validate_runtime_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
         logical_cpus=logical_cpus,
         source="runtime contract runtime.cpu_affinity",
     )
-    r_selection_timeout_seconds = runtime["r_selection_timeout_seconds"]
-    if type(r_selection_timeout_seconds) is not int or r_selection_timeout_seconds <= 0:
-        raise ValueError(
-            "runtime contract runtime.r_selection_timeout_seconds must be a positive integer"
-        )
-    normalized_runtime["r_selection_timeout_seconds"] = r_selection_timeout_seconds
-
     for field, expected in _VERSION_FIELDS.items():
         normalized_runtime[field] = _validate_version_mapping(
             runtime[field],

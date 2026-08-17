@@ -126,7 +126,6 @@ class PerformanceSettings:
     predictor_counts: tuple[int, ...]
     permutation_budgets: tuple[int, ...]
     forest_sizes: tuple[int, ...]
-    cell_timeout_seconds: int
 
 
 @dataclass(frozen=True)
@@ -197,7 +196,7 @@ class PartykitControl(TypedDict):
     random_state: int
 
 
-CellRunner = Callable[[PerformanceCell, int], dict[str, object]]
+CellRunner = Callable[[PerformanceCell], dict[str, object]]
 
 
 def _settings(profile: Profile) -> PerformanceSettings:
@@ -212,7 +211,6 @@ def _settings(profile: Profile) -> PerformanceSettings:
             predictor_counts=(),
             permutation_budgets=(),
             forest_sizes=(),
-            cell_timeout_seconds=600,
         )
     if profile == "quick":
         return PerformanceSettings(
@@ -225,7 +223,6 @@ def _settings(profile: Profile) -> PerformanceSettings:
             predictor_counts=(10, 50),
             permutation_budgets=(99, 499),
             forest_sizes=(10, 50),
-            cell_timeout_seconds=3_600,
         )
     if profile == "full":
         return PerformanceSettings(
@@ -238,7 +235,6 @@ def _settings(profile: Profile) -> PerformanceSettings:
             predictor_counts=(10, 200),
             permutation_budgets=(99, 9_999),
             forest_sizes=(25, 500),
-            cell_timeout_seconds=21_600,
         )
     raise ValueError(f"unknown performance profile: {profile}")
 
@@ -687,10 +683,7 @@ def _worker_environment() -> dict[str, str]:
     return environment
 
 
-def _run_cell_subprocess(
-    cell: PerformanceCell,
-    timeout_seconds: int,
-) -> dict[str, object]:
+def _run_cell_subprocess(cell: PerformanceCell) -> dict[str, object]:
     repo_root = Path(__file__).resolve().parents[3]
     with tempfile.TemporaryDirectory(prefix="citrees-jss-performance-") as temporary:
         temporary_path = Path(temporary)
@@ -716,7 +709,6 @@ def _run_cell_subprocess(
             check=False,
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
         )
         if completed.returncode != 0:
             raise RuntimeError(
@@ -908,9 +900,8 @@ def run_performance(
     runner: CellRunner = _run_cell_subprocess,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Run every profile cell in a separate process and return validated tables."""
-    settings = _settings(profile)
     rows = [
-        runner(cell, settings.cell_timeout_seconds)
+        runner(cell)
         for cell in build_performance_grid(
             profile,
             base_seed=base_seed,

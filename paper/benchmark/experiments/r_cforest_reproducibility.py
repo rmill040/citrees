@@ -24,7 +24,6 @@ import numpy as np
 from threadpoolctl import threadpool_info
 
 from paper.benchmark.adapters.data import load_dataset
-from paper.benchmark.config.constants import STAGE1_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.pipeline.instance_identity import (
     SUPPORTED_REGION,
     InstanceIdentityEvidence,
@@ -118,7 +117,6 @@ STATIC_PROVENANCE_FIELDS = (
     "os_release",
     "python_libraries",
     "r_numerical_libraries",
-    "r_selection_timeout_seconds",
     "r_runtime",
     "script_sha256",
     "thread_environment",
@@ -149,7 +147,6 @@ PROVENANCE_FIELDS = {
     "process_start_ticks",
     "python_libraries",
     "r_numerical_libraries",
-    "r_selection_timeout_seconds",
     "r_runtime",
     "run_id",
     "script_sha256",
@@ -460,7 +457,6 @@ def _provenance(
         "python_libraries": _python_libraries(),
         "r_runtime": get_r_runtime_versions(),
         "r_numerical_libraries": _r_numerical_libraries(),
-        "r_selection_timeout_seconds": STAGE1_SELECTION_TIMEOUT_SECONDS,
         "thread_environment": _thread_environment(),
         "threadpools": _canonical_threadpools(),
         "script_sha256": _sha256_bytes(script_path.read_bytes()),
@@ -728,7 +724,6 @@ def run_gate(
                     task,
                     seed=cell.config.seed,
                     params=config.params_dict,
-                    timeout_seconds=runtime_contract["runtime"]["r_selection_timeout_seconds"],
                 )
                 rankings = [list(map(int, row["feature_ranking"])) for row in rows]
                 dataset_result["configurations"][_configuration_key(cell)] = {
@@ -882,7 +877,6 @@ def _validate_provenance(
         "logical_cpus",
         "process_id",
         "process_start_ticks",
-        "r_selection_timeout_seconds",
     ):
         value = provenance[field]
         if type(value) is not int or value <= 0:

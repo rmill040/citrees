@@ -581,8 +581,7 @@ def run_behavior_shard(spec: ShardSpec) -> dict[str, pd.DataFrame]:
 def run_performance_shard(spec: ShardSpec) -> dict[str, pd.DataFrame]:
     """Run and validate one performance shard."""
     cells = performance_shard_cells(spec)
-    timeout_seconds = performance._settings(spec.profile).cell_timeout_seconds
-    rows = [performance._run_cell_subprocess(cell, timeout_seconds) for cell in cells]
+    rows = [performance._run_cell_subprocess(cell) for cell in cells]
     raw = pd.DataFrame(rows).loc[:, performance.PERFORMANCE_RAW_SCHEMA]
     performance.validate_performance_raw(
         raw,

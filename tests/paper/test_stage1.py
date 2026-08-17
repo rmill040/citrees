@@ -7,7 +7,6 @@ import os
 import subprocess
 import sys
 import time
-from multiprocessing import TimeoutError as MultiprocessingTimeoutError
 from multiprocessing.connection import Connection
 from pathlib import Path
 from types import SimpleNamespace
@@ -45,14 +44,6 @@ from paper.benchmark.pipeline.r_methods import (
 from paper.benchmark.pipeline.types import TaskType
 
 pytestmark = pytest.mark.paper
-
-
-def _hold_r_fold_result_pipe_open(sender: Connection) -> None:
-    """Keep one real child alive long enough to exercise timeout cleanup."""
-    try:
-        time.sleep(60)
-    finally:
-        sender.close()
 
 
 def _hold_r_fold_process_group_open(sender: Connection) -> None:
@@ -105,60 +96,6 @@ def _report_selection_fold_process(
         "feature_ranking": [0, 1, 2, 3],
         "fold_process_id": os.getpid(),
     }
-
-
-def _hold_selection_fold_for_timeout(
-    X: np.ndarray,
-    y: np.ndarray,
-    method: str,
-    task: TaskType,
-    seed: int,
-    params: dict[str, object],
-    n_jobs: int,
-    fold_idx: int,
-    train_idx: np.ndarray,
-    test_idx: np.ndarray,
-) -> dict[str, object]:
-    """Publish the child PID before holding one loky fold open."""
-    del X, y, method, task, seed, n_jobs, train_idx, test_idx
-    pid_directory = Path(str(params["pid_directory"]))
-    (pid_directory / f"fold-{fold_idx}.pid").write_text(
-        str(os.getpid()),
-        encoding="utf-8",
-    )
-    time.sleep(60)
-    return {"fold_idx": fold_idx}
-
-
-def _sleep_selection_fold_for_timeout(
-    X: np.ndarray,
-    y: np.ndarray,
-    method: str,
-    task: TaskType,
-    seed: int,
-    params: dict[str, object],
-    n_jobs: int,
-    fold_idx: int,
-    train_idx: np.ndarray,
-    test_idx: np.ndarray,
-) -> dict[str, object]:
-    """Keep each fold below the cell limit while their combined waves exceed it."""
-    del X, y, method, task, n_jobs, train_idx, test_idx
-    time.sleep(float(params["sleep_seconds"]))
-    return {
-        "fold_idx": fold_idx,
-        "fold_random_state": seed * 1000 + fold_idx,
-        "feature_ranking": [0, 1, 2, 3],
-    }
-
-
-def _process_exists(pid: int) -> bool:
-    """Return whether one local process identifier still exists."""
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    return True
 
 
 def test_concurrent_valid_ranking_upload_is_skipped(
@@ -2461,7 +2398,6 @@ def test_parallel_r_selection_rejects_method_core_params(method: str) -> None:
             "classification",
             seed=0,
             params={"cores": 2},
-            timeout_seconds=1.0,
         )
 
 
@@ -2566,8 +2502,6 @@ def test_parallel_r_selection_submits_one_fresh_process_per_fold(
             "fold_cpu_affinity": list(cpu_ids),
         }
 
-    observed_collection_timeout: list[float] = []
-
     def receive_ready(handle, *, deadline):
         del deadline
         if readiness_order:
@@ -2575,8 +2509,7 @@ def test_parallel_r_selection_submits_one_fresh_process_per_fold(
         readiness_order.append(handle.fold_idx)
         return handle.process.pid
 
-    def collect(handles, *, timeout_seconds):
-        observed_collection_timeout.append(timeout_seconds)
+    def collect(handles):
         rows = []
         for handle in handles:
             assert handle.launch_event.authorized
@@ -2606,7 +2539,6 @@ def test_parallel_r_selection_submits_one_fresh_process_per_fold(
         "r_cforest",
         "classification",
         seed=7,
-        timeout_seconds=1.0,
     )
 
     assert process_names == [f"citrees-r-fold-{fold}" for fold in range(5)]
@@ -2622,7 +2554,6 @@ def test_parallel_r_selection_submits_one_fresh_process_per_fold(
     assert [item[2] for item in observed] == [7000, 7001, 7002, 7003, 7004]
     assert len(events) == 5
     assert all(event.authorized for event in events)
-    assert observed_collection_timeout == [1.0]
     assert [row["fold_idx"] for row in rows] == [0, 1, 2, 3, 4]
     assert [row["fold_cpu_affinity"] for row in rows] == [
         [0, 1, 2],
@@ -2712,7 +2643,6 @@ def test_parallel_r_selection_terminates_every_child_on_failure(
             "r_cforest",
             "classification",
             seed=0,
-            timeout_seconds=1.0,
         )
 
     assert len(processes) == 5
@@ -2757,27 +2687,8 @@ def test_r_fold_collection_propagates_child_error() -> None:
 
     try:
         with pytest.raises(RuntimeError, match="R fold 0 failed with RuntimeError: fit failed"):
-            stage1._collect_r_fold_processes([handle], timeout_seconds=1.0)
+            stage1._collect_r_fold_processes([handle])
     finally:
-        receiver.close()
-
-
-def test_r_fold_collection_times_out_at_absolute_deadline() -> None:
-    from paper.benchmark.pipeline import stage1
-
-    context = stage1.multiprocessing.get_context("spawn")
-    receiver, sender = context.Pipe(duplex=False)
-    handle = stage1._RFoldProcess(
-        3,
-        _FinishedFoldProcess(receiver, exitcode=None, alive=True),
-        receiver,
-    )
-
-    try:
-        with pytest.raises(TimeoutError, match=r"pending folds \[3\]"):
-            stage1._collect_r_fold_processes([handle], timeout_seconds=0.01)
-    finally:
-        sender.close()
         receiver.close()
 
 
@@ -2791,33 +2702,9 @@ def test_r_fold_collection_rejects_child_exit_without_result() -> None:
 
     try:
         with pytest.raises(RuntimeError, match=r"R fold 4 exited without a result \(exitcode=7\)"):
-            stage1._collect_r_fold_processes([handle], timeout_seconds=1.0)
+            stage1._collect_r_fold_processes([handle])
     finally:
         receiver.close()
-
-
-def test_r_fold_timeout_terminates_real_spawned_child() -> None:
-    from paper.benchmark.pipeline import stage1
-
-    context = stage1.multiprocessing.get_context("spawn")
-    receiver, sender = context.Pipe(duplex=False)
-    process = context.Process(
-        target=_hold_r_fold_result_pipe_open,
-        args=(sender,),
-        name="citrees-test-hung-r-fold",
-    )
-    process.start()
-    sender.close()
-    handle = stage1._RFoldProcess(2, process, receiver)
-
-    try:
-        with pytest.raises(TimeoutError, match=r"pending folds \[2\]"):
-            stage1._collect_r_fold_processes([handle], timeout_seconds=0.05)
-    finally:
-        stage1._terminate_r_fold_processes([handle])
-
-    assert not process.is_alive()
-    assert process.exitcode is not None
 
 
 def test_r_fold_collection_detects_crashed_leader_with_inherited_pipe() -> None:
@@ -2837,7 +2724,7 @@ def test_r_fold_collection_detects_crashed_leader_with_inherited_pipe() -> None:
 
     try:
         with pytest.raises(RuntimeError, match=r"R fold 0 exited without a result \(exitcode=7\)"):
-            stage1._collect_r_fold_processes([handle], timeout_seconds=1.0)
+            stage1._collect_r_fold_processes([handle])
     finally:
         stage1._terminate_r_fold_processes([handle])
 
@@ -3245,118 +3132,16 @@ def test_process_parallel_folds_execute_concurrently_in_children(
     assert len(process_ids) >= 2
 
 
-def test_process_parallel_fold_timeout_stops_children(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A timed-out loky fold must not leave worker processes alive."""
-    from paper.benchmark.pipeline import stage1
+def test_stage1_has_no_scientific_timeout_contract() -> None:
+    """Selection APIs and signed runtime provenance must not expose deadlines."""
+    from paper.benchmark.config import constants
+    from paper.benchmark.pipeline import runtime_contract, stage1
 
-    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1))
-    monkeypatch.setattr(stage1, "_run_selection_fold", _report_selection_fold_process)
-    X = np.arange(160, dtype=float).reshape(40, 4)
-    y = np.array([0, 1] * 20)
-    stage1.run_selection(X, y, "ptest_mc", "classification", seed=7)
-
-    monkeypatch.setattr(stage1, "_run_selection_fold", _hold_selection_fold_for_timeout)
-    with pytest.raises(MultiprocessingTimeoutError):
-        stage1.run_selection(
-            X,
-            y,
-            "ptest_mc",
-            "classification",
-            seed=7,
-            params={"pid_directory": str(tmp_path)},
-            timeout_seconds=1.0,
-        )
-
-    pid_files = tuple(tmp_path.glob("fold-*.pid"))
-    assert pid_files
-    child_pids = [int(path.read_text(encoding="utf-8")) for path in pid_files]
-    deadline = time.monotonic() + 5.0
-    while any(_process_exists(pid) for pid in child_pids) and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert all(not _process_exists(pid) for pid in child_pids)
-
-
-def test_process_parallel_fold_timeout_is_one_absolute_deadline(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Five queued folds must share one wall-clock timeout."""
-    from paper.benchmark.pipeline import stage1
-
-    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0, 1))
-    monkeypatch.setattr(stage1, "_run_selection_fold", _sleep_selection_fold_for_timeout)
-    X = np.arange(160, dtype=float).reshape(40, 4)
-    y = np.array([0, 1] * 20)
-
-    stage1.run_selection(
-        X,
-        y,
-        "ptest_mc",
-        "classification",
-        seed=7,
-        params={"sleep_seconds": 0.01},
-        timeout_seconds=30.0,
-    )
-
-    started = time.monotonic()
-    with pytest.raises(MultiprocessingTimeoutError, match="1-second wall-clock limit"):
-        stage1.run_selection(
-            X,
-            y,
-            "ptest_mc",
-            "classification",
-            seed=7,
-            params={"sleep_seconds": 0.7},
-            timeout_seconds=1.0,
-        )
-    assert time.monotonic() - started <= 1.5
-
-
-def test_sequential_folds_share_one_absolute_deadline(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The parent-process fallback must use the same complete-cell limit."""
-    from paper.benchmark.pipeline import stage1
-
-    monkeypatch.setattr(stage1, "get_available_cpu_ids", lambda: (0,))
-    monkeypatch.setattr(stage1, "_run_selection_fold", _sleep_selection_fold_for_timeout)
-    X = np.arange(160, dtype=float).reshape(40, 4)
-    y = np.array([0, 1] * 20)
-
-    started = time.monotonic()
-    with pytest.raises(MultiprocessingTimeoutError, match="0.5-second wall-clock limit"):
-        stage1.run_selection(
-            X,
-            y,
-            "ptest_mc",
-            "classification",
-            seed=7,
-            params={"sleep_seconds": 0.2},
-            timeout_seconds=0.5,
-        )
-    assert time.monotonic() - started <= 0.8
-
-
-@pytest.mark.parametrize("timeout_seconds", [0.0, -1.0, float("inf"), True])
-def test_selection_rejects_invalid_timeout(
-    timeout_seconds: float,
-) -> None:
-    """Selection timeouts must be positive finite numbers."""
-    from paper.benchmark.pipeline.stage1 import run_selection
-
-    X = np.arange(160, dtype=float).reshape(40, 4)
-    y = np.array([0, 1] * 20)
-    with pytest.raises(ValueError, match="selection timeout must be positive and finite"):
-        run_selection(
-            X,
-            y,
-            "ptest_mc",
-            "classification",
-            seed=7,
-            timeout_seconds=timeout_seconds,
-        )
+    assert not hasattr(constants, "STAGE1_SELECTION_TIMEOUT_SECONDS")
+    assert "timeout_seconds" not in inspect.signature(stage1.run_selection).parameters
+    assert "timeout_seconds" not in inspect.signature(stage1.run_r_selection_parallel).parameters
+    assert "r_selection_timeout_seconds" not in runtime_contract.RUNTIME_PROVENANCE_FIELDS
+    assert not hasattr(stage1, "_stage1_wall_clock_timeout")
 
 
 @pytest.mark.parametrize(

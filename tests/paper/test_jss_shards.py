@@ -173,9 +173,7 @@ def _plus_one_values(indices: np.ndarray, n_resamples: int) -> np.ndarray:
 
 def _fake_performance_runner(
     cell: performance.PerformanceCell,
-    timeout_seconds: int,
 ) -> dict[str, object]:
-    del timeout_seconds
     method_scale = {"citrees": 1.0, "partykit": 1.5, "sklearn": 0.5}[cell.method]
     elapsed = method_scale * (cell.repeat + 1) * (cell.n_samples / 100.0)
     baseline = 100_000_000 + cell.data_seed % 10_000
@@ -1189,7 +1187,7 @@ def test_performance_smoke_direct_results_equal_merged_shards(
     _patch_runtime_receipts(monkeypatch)
     cells = performance.build_performance_grid("smoke", base_seed=7)
     raw = pd.DataFrame(
-        [_fake_performance_runner(cell, 600) for cell in cells],
+        [_fake_performance_runner(cell) for cell in cells],
         columns=performance.PERFORMANCE_RAW_SCHEMA,
     )
     summary = performance.summarize_performance(raw)

@@ -10,7 +10,6 @@ from typing import Any
 
 import pytest
 
-from paper.benchmark.config.constants import STAGE1_SELECTION_TIMEOUT_SECONDS
 from paper.benchmark.pipeline.manifest import (
     MANIFEST_COLUMNS,
     account_manifest_sha256_map,
@@ -45,11 +44,6 @@ CAMPAIGN_SHA256 = "e" * 64
 RUNTIME_CONTRACT_SHA256 = "c" * 64
 
 
-def test_stage1_timeout_allows_multi_day_recursive_selectors() -> None:
-    """Keep long recursive-selector recovery runs above the observed six-day tail."""
-    assert STAGE1_SELECTION_TIMEOUT_SECONDS == 14 * 24 * 60 * 60
-
-
 def _runtime_contract(*, cpu_model: str = "AMD EPYC 9R14") -> dict[str, Any]:
     return {
         "schema_version": RUNTIME_CONTRACT_SCHEMA_VERSION,
@@ -73,7 +67,6 @@ def _runtime_contract(*, cpu_model: str = "AMD EPYC 9R14") -> dict[str, Any]:
                 "blas": "/usr/local/lib/R/lib/libRblas.so",
                 "lapack": "/usr/local/lib/R/lib/libRlapack.so",
             },
-            "r_selection_timeout_seconds": STAGE1_SELECTION_TIMEOUT_SECONDS,
             "r_runtime": {name: "1.0" for name in R_RUNTIME_FIELDS},
             "thread_environment": dict(EXPECTED_THREAD_ENVIRONMENT),
             "threadpools": [

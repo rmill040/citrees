@@ -12,11 +12,9 @@ import os
 import signal
 import socket
 import sys
-import threading
 import time
 import traceback
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing.connection import Connection, wait
 from typing import Any
@@ -32,11 +30,7 @@ from paper.benchmark.adapters.data import (
     load_dataset,
 )
 from paper.benchmark.adapters.store import Store
-from paper.benchmark.config.constants import (
-    N_SPLITS,
-    PIPELINE_ARTIFACT_VERSION,
-    STAGE1_SELECTION_TIMEOUT_SECONDS,
-)
+from paper.benchmark.config.constants import N_SPLITS, PIPELINE_ARTIFACT_VERSION
 from paper.benchmark.pipeline.types import ExperimentConfig, Result, TaskType
 from paper.benchmark.pipeline.validation import (
     validate_artifact_provenance,
@@ -69,30 +63,6 @@ class _RFoldProcess:
     receiver: Connection
     launch_event: Any | None = None
     process_group_id: int | None = None
-
-
-@contextmanager
-def _stage1_wall_clock_timeout(timeout_seconds: float) -> Iterator[None]:
-    """Bound one complete Python Stage 1 cell by elapsed wall time."""
-    if threading.current_thread() is not threading.main_thread():
-        raise RuntimeError("Stage 1 selection must run in the process main thread")
-    previous_delay, previous_interval = signal.getitimer(signal.ITIMER_REAL)
-    if previous_delay > 0.0 or previous_interval > 0.0:
-        raise RuntimeError("Stage 1 selection cannot replace an active process timer")
-    previous_handler = signal.getsignal(signal.SIGALRM)
-
-    def raise_timeout(_signum: int, _frame: Any) -> None:
-        raise multiprocessing.TimeoutError(
-            f"Stage 1 selection exceeded its {timeout_seconds:g}-second wall-clock limit"
-        )
-
-    signal.signal(signal.SIGALRM, raise_timeout)
-    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
-    try:
-        yield
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0.0)
-        signal.signal(signal.SIGALRM, previous_handler)
 
 
 # =============================================================================
@@ -733,23 +703,14 @@ def _terminate_r_fold_processes(handles: list[_RFoldProcess]) -> None:
             handle.receiver.close()
 
 
-def _collect_r_fold_processes(
-    handles: list[_RFoldProcess],
-    *,
-    timeout_seconds: float,
-) -> list[dict[str, Any]]:
-    """Collect all child results fail-fast within one absolute deadline."""
-    deadline = time.monotonic() + timeout_seconds
+def _collect_r_fold_processes(handles: list[_RFoldProcess]) -> list[dict[str, Any]]:
+    """Collect all child results and fail fast on process errors."""
     pending = {handle.receiver: handle for handle in handles}
     results: list[dict[str, Any]] = []
     while pending:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            pending_folds = sorted(handle.fold_idx for handle in pending.values())
-            raise TimeoutError(f"parallel R selection timed out with pending folds {pending_folds}")
         ready = wait(
             tuple(pending),
-            timeout=min(remaining, _R_PROCESS_POLL_INTERVAL_SECONDS),
+            timeout=_R_PROCESS_POLL_INTERVAL_SECONDS,
         )
         for receiver in tuple(pending):
             if receiver not in ready:
@@ -802,7 +763,6 @@ def run_r_selection_parallel(
     task: TaskType,
     seed: int,
     params: dict[str, Any] | None = None,
-    timeout_seconds: float = STAGE1_SELECTION_TIMEOUT_SECONDS,
 ) -> list[dict[str, Any]]:
     """Run five R folds concurrently in independent embedded-R processes."""
     if method not in _R_METHODS:
@@ -810,17 +770,9 @@ def run_r_selection_parallel(
     normalized_params = dict(params or {})
     if "cores" in normalized_params:
         raise ValueError("R CPU count belongs to the runtime, not method params")
-    if (
-        isinstance(timeout_seconds, bool)
-        or not isinstance(timeout_seconds, (int, float))
-        or not np.isfinite(timeout_seconds)
-        or timeout_seconds <= 0
-    ):
-        raise ValueError("parallel R selection timeout must be positive and finite")
     if sys.platform.startswith("linux") and os.getpid() == 1:
         raise RuntimeError("parallel R selection requires a container init process")
 
-    deadline = time.monotonic() + timeout_seconds
     splits = tuple(get_cv_splitter(task, N_SPLITS, seed).split(X, y))
     if len(splits) != N_SPLITS:
         raise RuntimeError(f"expected {N_SPLITS} CV folds, observed {len(splits)}")
@@ -863,26 +815,14 @@ def run_r_selection_parallel(
                 launch_event=launch_event,
             )
             handles.append(handle)
-            readiness_deadline = min(
-                deadline,
-                time.monotonic() + _R_PROCESS_START_TIMEOUT_SECONDS,
-            )
             handle.process_group_id = _receive_r_fold_process_ready(
                 handle,
-                deadline=readiness_deadline,
+                deadline=time.monotonic() + _R_PROCESS_START_TIMEOUT_SECONDS,
             )
             if handle.launch_event is None:
                 raise RuntimeError(f"R fold {handle.fold_idx} has no launch event")
             handle.launch_event.set()
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError(
-                f"parallel R selection timed out with pending folds {list(range(N_SPLITS))}"
-            )
-        return _collect_r_fold_processes(
-            handles,
-            timeout_seconds=remaining,
-        )
+        return _collect_r_fold_processes(handles)
     finally:
         _terminate_r_fold_processes(handles)
 
@@ -895,16 +835,8 @@ def run_selection(
     seed: int,
     params: dict[str, Any] | None = None,
     n_jobs: int = 1,
-    timeout_seconds: float = STAGE1_SELECTION_TIMEOUT_SECONDS,
 ) -> list[dict[str, Any]]:
     """Run feature selection across cross-validation folds."""
-    if (
-        isinstance(timeout_seconds, bool)
-        or not isinstance(timeout_seconds, (int, float))
-        or not np.isfinite(timeout_seconds)
-        or timeout_seconds <= 0
-    ):
-        raise ValueError("selection timeout must be positive and finite")
     normalized_params = dict(params or {})
     splits = tuple(get_cv_splitter(task, N_SPLITS, seed).split(X, y))
     if len(splits) != N_SPLITS:
@@ -915,52 +847,51 @@ def run_selection(
             raise ValueError("R method n_jobs must be -1 or a positive integer")
         r_cores = len(get_available_cpu_ids()) if n_jobs == -1 else n_jobs
 
-    with _stage1_wall_clock_timeout(float(timeout_seconds)):
-        if method in _PROCESS_PARALLEL_FOLD_METHODS:
-            fold_workers = min(N_SPLITS, len(get_available_cpu_ids()))
-            if fold_workers > 1:
-                fold_calls = (
-                    delayed(_run_selection_fold)(
-                        X,
-                        y,
-                        method,
-                        task,
-                        seed,
-                        normalized_params,
-                        1,
-                        fold_idx,
-                        train_idx,
-                        test_idx,
-                    )
-                    for fold_idx, (train_idx, test_idx) in enumerate(splits)
+    if method in _PROCESS_PARALLEL_FOLD_METHODS:
+        fold_workers = min(N_SPLITS, len(get_available_cpu_ids()))
+        if fold_workers > 1:
+            fold_calls = (
+                delayed(_run_selection_fold)(
+                    X,
+                    y,
+                    method,
+                    task,
+                    seed,
+                    normalized_params,
+                    1,
+                    fold_idx,
+                    train_idx,
+                    test_idx,
                 )
-                with parallel_config(
-                    backend="loky",
-                    n_jobs=fold_workers,
-                    inner_max_num_threads=1,
-                ):
-                    with Parallel() as parallel:
-                        results: list[dict[str, Any]] = parallel(fold_calls)
-                    return _require_ordered_selection_folds(results)
-
-        inner_jobs = 1 if method in _PROCESS_PARALLEL_FOLD_METHODS else n_jobs
-        results = [
-            _run_selection_fold(
-                X,
-                y,
-                method,
-                task,
-                seed,
-                normalized_params,
-                inner_jobs,
-                fold_idx,
-                train_idx,
-                test_idx,
-                **({"r_cores": r_cores} if r_cores is not None else {}),
+                for fold_idx, (train_idx, test_idx) in enumerate(splits)
             )
-            for fold_idx, (train_idx, test_idx) in enumerate(splits)
-        ]
-        return _require_ordered_selection_folds(results)
+            with parallel_config(
+                backend="loky",
+                n_jobs=fold_workers,
+                inner_max_num_threads=1,
+            ):
+                with Parallel() as parallel:
+                    results: list[dict[str, Any]] = parallel(fold_calls)
+                return _require_ordered_selection_folds(results)
+
+    inner_jobs = 1 if method in _PROCESS_PARALLEL_FOLD_METHODS else n_jobs
+    results = [
+        _run_selection_fold(
+            X,
+            y,
+            method,
+            task,
+            seed,
+            normalized_params,
+            inner_jobs,
+            fold_idx,
+            train_idx,
+            test_idx,
+            **({"r_cores": r_cores} if r_cores is not None else {}),
+        )
+        for fold_idx, (train_idx, test_idx) in enumerate(splits)
+    ]
+    return _require_ordered_selection_folds(results)
 
 
 def _require_ordered_selection_folds(

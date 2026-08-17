@@ -11,7 +11,6 @@ import os
 import re
 import shlex
 import shutil
-import subprocess
 import tarfile
 import tempfile
 import textwrap
@@ -46,7 +45,7 @@ from paper.benchmark.infra.ec2 import (
 from paper.jss.replication import shards
 
 Market = Literal["spot"]
-FailureType = Literal["timeout", "software_failed"]
+FailureType = Literal["software_failed"]
 SPOT_MARKET: Market = "spot"
 COMPONENTS = (*shards.CALIBRATION_COMPONENTS, "behavior", "performance")
 ROLE_TAG_VALUE = "jss-shard"
@@ -1135,11 +1134,7 @@ def run_cloud_shard(
                     spec_sha256=shard_spec_sha256(spec),
                     attempt=runtime.attempt,
                     instance_id=runtime.instance_id,
-                    failure_type=(
-                        "timeout"
-                        if isinstance(error, subprocess.TimeoutExpired)
-                        else "software_failed"
-                    ),
+                    failure_type="software_failed",
                     exception_type=type(error).__name__,
                     message=str(error),
                     created_utc=datetime.now(UTC).isoformat(),
@@ -1910,7 +1905,7 @@ def _parse_shard_failure(
     attempt = _require_integer(value["attempt"], "shard failure attempt", minimum=1)
     instance_id = _require_string(value["instance_id"], "shard failure instance_id")
     failure_type = value["failure_type"]
-    if failure_type not in ("timeout", "software_failed"):
+    if failure_type != "software_failed":
         raise ValueError(f"JSS shard failure type differs: {key}")
     exception_type = _require_string(value["exception_type"], "shard failure exception type")
     message = value["message"]

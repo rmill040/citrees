@@ -717,21 +717,39 @@ def _require_sha256_digest(value: object, *, context: str) -> str:
     return value
 
 
-def _load_ecr_manifest(ecr: Any, repository_name: str, image_digest: str) -> dict[str, Any]:
+def _load_ecr_manifest(
+    ecr: Any,
+    repository_name: str,
+    image_digest: str,
+    *,
+    image_tag: str | None = None,
+) -> dict[str, Any]:
     image_digest = _require_sha256_digest(image_digest, context="ECR image identity")
+    if image_tag is not None and not _FULL_GIT_SHA_PATTERN.fullmatch(image_tag):
+        raise RuntimeError("ECR image tag must be one full Git revision")
+    image_id = {"imageDigest": image_digest} if image_tag is None else {"imageTag": image_tag}
     response = ecr.batch_get_image(
         repositoryName=repository_name,
-        imageIds=[{"imageDigest": image_digest}],
+        imageIds=[image_id],
         acceptedMediaTypes=_ECR_MANIFEST_MEDIA_TYPES,
     )
     failures = response.get("failures", [])
     images = response.get("images", [])
     if failures or len(images) != 1:
-        raise RuntimeError(f"Could not load remote manifest {image_digest}: failures={failures!r}")
+        raise RuntimeError(
+            f"Could not load remote manifest {image_digest}"
+            f"{f' through tag {image_tag}' if image_tag is not None else ''}: "
+            f"failures={failures!r}"
+        )
     image = images[0]
-    observed_digest = image.get("imageId", {}).get("imageDigest")
+    returned_image_id = image.get("imageId", {})
+    observed_digest = returned_image_id.get("imageDigest")
     if observed_digest != image_digest:
         raise RuntimeError(f"ECR returned manifest {observed_digest!r}, expected {image_digest}")
+    if image_tag is not None and returned_image_id.get("imageTag") != image_tag:
+        raise RuntimeError(
+            f"ECR returned tag {returned_image_id.get('imageTag')!r}, expected {image_tag}"
+        )
     payload = image.get("imageManifest")
     if not isinstance(payload, str):
         raise RuntimeError(f"ECR manifest {image_digest} has no JSON payload")
@@ -748,10 +766,16 @@ def _remote_config_descriptor(
     image_digest: str,
     *,
     depth: int = 0,
+    image_tag: str | None = None,
 ) -> tuple[str, int | None]:
     if depth > 1:
         raise RuntimeError("ECR image index nesting exceeds one platform-selection level")
-    manifest = _load_ecr_manifest(ecr, repository_name, image_digest)
+    manifest = _load_ecr_manifest(
+        ecr,
+        repository_name,
+        image_digest,
+        image_tag=image_tag,
+    )
     config = manifest.get("config")
     manifests = manifest.get("manifests")
     if isinstance(config, dict) and manifests is None:
@@ -794,11 +818,18 @@ def _remote_config_descriptor(
     raise RuntimeError(f"ECR manifest {image_digest} is neither an image nor an image index")
 
 
-def _remote_image_revision(ecr: Any, repository_name: str, image_digest: str) -> str:
+def _remote_image_revision(
+    ecr: Any,
+    repository_name: str,
+    image_digest: str,
+    *,
+    image_tag: str | None = None,
+) -> str:
     config_digest, expected_size = _remote_config_descriptor(
         ecr,
         repository_name,
         image_digest,
+        image_tag=image_tag,
     )
     response = ecr.get_download_url_for_layer(
         repositoryName=repository_name,
@@ -858,7 +889,12 @@ def validate_image_revision(
         raise RuntimeError(
             f"image digest is not tagged with expected source revision {expected_git_sha}"
         )
-    remote_revision = _remote_image_revision(ecr, repo_name, image_digest)
+    remote_revision = _remote_image_revision(
+        ecr,
+        repo_name,
+        image_digest,
+        image_tag=expected_git_sha,
+    )
     if remote_revision != expected_git_sha:
         raise RuntimeError(
             f"remote OCI revision label is {remote_revision!r}, expected {expected_git_sha}"

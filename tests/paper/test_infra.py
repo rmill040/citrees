@@ -3764,6 +3764,67 @@ def test_remote_image_config_exposes_verified_revision_label(
     )
 
 
+def test_remote_image_revision_uses_exact_immutable_tag_when_digest_lookup_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    revision = "a" * 40
+    config_payload = json.dumps(
+        {"config": {"Labels": {"org.opencontainers.image.revision": revision}}},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    config_digest = f"sha256:{hashlib.sha256(config_payload).hexdigest()}"
+    manifest_payload = json.dumps(
+        {
+            "schemaVersion": 2,
+            "config": {
+                "digest": config_digest,
+                "size": len(config_payload),
+            },
+            "layers": [],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    manifest_digest = f"sha256:{hashlib.sha256(manifest_payload.encode()).hexdigest()}"
+    client = MagicMock()
+
+    def batch_get_image(**kwargs):
+        if kwargs["imageIds"] == [{"imageDigest": manifest_digest}]:
+            return {"images": [], "failures": []}
+        assert kwargs["imageIds"] == [{"imageTag": revision}]
+        return {
+            "images": [
+                {
+                    "imageId": {
+                        "imageDigest": manifest_digest,
+                        "imageTag": revision,
+                    },
+                    "imageManifest": manifest_payload,
+                }
+            ],
+            "failures": [],
+        }
+
+    client.batch_get_image.side_effect = batch_get_image
+    client.get_download_url_for_layer.return_value = {"downloadUrl": "https://ecr.example/config"}
+    monkeypatch.setattr(
+        aws_infra.urllib.request,
+        "urlopen",
+        lambda url, timeout: io.BytesIO(config_payload),
+    )
+
+    assert (
+        aws_infra._remote_image_revision(
+            client,
+            "citrees-test",
+            manifest_digest,
+            image_tag=revision,
+        )
+        == revision
+    )
+
+
 def test_image_digest_must_match_tag_and_remote_revision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3790,6 +3851,7 @@ def test_image_digest_must_match_tag_and_remote_revision(
         client,
         "citrees-123456789012",
         "sha256:" + "b" * 64,
+        image_tag="a" * 40,
     )
 
     client.describe_images.return_value = {"imageDetails": [{"imageTags": ["c" * 40]}]}

@@ -11,7 +11,10 @@ paper/data/s3_sync/
 paper/results/cache/
 paper/results/*.parquet
 paper/results/figures/
-paper/results/tables/cif_mechanism_ablation_metrics_flat.csv
+paper/results/tables/*
+!paper/results/tables/README.md
+!paper/results/tables/paper_benchmark_method_aggregate.csv
+!paper/results/tables/paper_presentation_practical_controls_summary.csv
 paper/arxiv/figures/boundary_story.png
 paper/arxiv/figures/fixed_panel_story.png
 

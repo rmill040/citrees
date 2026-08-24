@@ -124,12 +124,12 @@ A 5-seed, 5-fold sensitivity analysis compared 5, 10, 20, and 40 projections on
 Wine (178 samples, 13 features), Glass (214 samples, 10 features), Heart
 Statlog (270 samples, 13 features), and Parkinsons (195 samples, 22 features).
 Across 25 paired seed-fold evaluations per dataset, median selector time with
-20 projections was 3.01 to 3.08 times that with 10. At reduced feature counts
+20 projections was 3.00 to 3.06 times that with 10. At reduced feature counts
 (5 and 10 for Wine, Heart Statlog, and Parkinsons; 5 for Glass), mean balanced
 accuracy differences (20 minus 10) ranged from $-0.0052$ to $0.0005$ across the
 three downstream classifiers, and mean overlap between selected feature sets
 ranged from 95.4\% to 99.8\%. Using 10 projections reduced median selector time
-by 66.8\% to 67.5\% relative to 20 while preserving the observed accuracy at
+by 66.6\% to 67.4\% relative to 20 while preserving the observed accuracy at
 these scales.
 
 The exhaustive procedure evaluates every candidate with the requested
@@ -422,6 +422,28 @@ full profile contains 78 conditions with 5,000 replicates per condition.
 Root-split frequency measures the fitted decision, while recorded selector and
 splitter permutation counts measure the computation used to reach it.
 
+Across the 28 selector conditions, the rejection rate at the 0.05 level ranged
+from 0.0356 to 0.0550, with a mean of 0.0473. With 999 permutations and the
+add-one correction, the largest attainable rejection level is 0.049. No 95\%
+confidence interval lay entirely above the nominal level; five intervals, all
+involving binary or four-level ordinal predictors, lay entirely below 0.05,
+indicating mild conservatism for coarse predictor distributions. Each estimate
+rests on 5,000 replicates and 4,995,000 realized response permutations.
+
+Across the 78 root-level conditions, the split rate under the global null
+ranged from 0.0050 to 0.0868, with a mean of 0.0419. Stopping mode separates
+the estimates. The 14 exhaustive conditions ranged from 0.0072 to 0.0502, and
+the 32 adaptive conditions from 0.0050 to 0.0480, so adaptive stopping never
+exceeded the nominal 0.05 level. The 32 simple-stopping conditions ranged from
+0.0084 to 0.0868 and exceeded 0.05 in 22 conditions; in 14 of these, the 95\%
+confidence interval excluded 0.05 from below. In the 14 matched comparisons
+that share a design with an exhaustive condition, adaptive stopping tracked
+the exhaustive split rate closely, with a largest absolute difference of
+0.012, while using 2.0\% to 6.2\% of the exhaustive permutation count; simple stopping used 2.1\% to
+13.6\% of the exhaustive count but inflated the split rate. These results
+support adaptive stopping as the default and confine simple stopping to
+exploratory use.
+
 \subsection{Variable cardinality} \label{sec:cardinality}
 
 The cardinality experiment uses 200 observations and five independent ordered
@@ -449,6 +471,58 @@ permutations for \pkg{partykit}. Positive associations between cardinality and
 selection or importance are tested with 9,999 label randomizations. Holm
 adjustment is applied to the prespecified family of 14 tree and forest trend
 tests.
+
+Under the null, the conditional inference trees rarely split. \citrees split
+in 4.07\% of the 10,000 classification replicates and 4.81\% of the regression
+replicates at the familywise 0.05 level; the \pkg{partykit} adjusted rates
+were 3.64\% and 4.52\%, with native root decisions at 4.05\% and 4.98\%. CART
+stumps, which apply no stopping test, split in every replicate.
+Table~\ref{tab:cardinality-holm} reports the prespecified family of 14 trend
+tests. Holm adjustment rejected five hypotheses: both forced-winner
+classification tree trends, where the predictor with the largest corrected
+statistic concentrated on high-cardinality columns for \citrees and
+\pkg{partykit} alike; the \sklearn random forest importance trend in both
+tasks, with mean Kendall $\tau_b$ of 0.711 for classification and 0.718 for
+regression; and the \pkg{partykit} conditional inference forest trend for
+regression, whose mean $\tau_b$ of 0.027 is small but consistently positive.
+The \citrees conditional inference forest trend was not rejected in either
+task (mean $\tau_b$ of 0.021 for classification, Holm-adjusted $p$~value
+0.062, and $-0.014$ for regression). Conditional on a tree actually splitting,
+no cardinality trend in the winning predictor was rejected for either
+conditional inference implementation. The forced-winner rejections therefore
+reflect which predictor attains the extreme statistic, not the fitted
+decisions, which occur at close to the nominal rate and carry no rejected
+cardinality preference for \citrees.
+
+\begin{center}
+\begin{tabular}{lllrrl}
+\hline
+Implementation & Task & Trend tested & Effect & Raw $p$ & Holm $p$ \\ \hline
+\citrees tree & Classification & Forced winner & 0.119 & 0.0001 & 0.0014 \\
+\citrees tree & Classification & Winner given split & 0.022 & 0.379 & 1.000 \\
+\pkg{partykit} tree & Classification & Forced winner & 0.113 & 0.0001 & 0.0014 \\
+\pkg{partykit} tree & Classification & Winner given split & 0.019 & 0.400 & 1.000 \\
+\citrees tree & Regression & Forced winner & 0.001 & 0.488 & 1.000 \\
+\citrees tree & Regression & Winner given split & 0.059 & 0.181 & 1.000 \\
+\pkg{partykit} tree & Regression & Forced winner & $-0.002$ & 0.544 & 1.000 \\
+\pkg{partykit} tree & Regression & Winner given split & 0.106 & 0.058 & 0.460 \\
+\citrees forest & Classification & Importance concordance & 0.021 & 0.0069 & 0.0621 \\
+\pkg{partykit} forest & Classification & Importance concordance & 0.005 & 0.292 & 1.000 \\
+\sklearn forest & Classification & Importance concordance & 0.711 & 0.0001 & 0.0014 \\
+\citrees forest & Regression & Importance concordance & $-0.014$ & 0.952 & 1.000 \\
+\pkg{partykit} forest & Regression & Importance concordance & 0.027 & 0.0008 & 0.0080 \\
+\sklearn forest & Regression & Importance concordance & 0.718 & 0.0001 & 0.0014 \\ \hline
+\end{tabular}
+\captionof{table}{\label{tab:cardinality-holm} Prespecified family of 14
+cardinality trend tests with Holm adjustment at the 0.05 level. Forced winner
+tests the predictor with the smallest corrected $p$~value in every replicate;
+winner given split restricts to replicates in which the tree split; importance
+concordance is the mean Kendall $\tau_b$ between predictor cardinality and the
+native feature summary across forest replicates. Effect is the mean
+directional association between cardinality rank and the tested outcome. Raw
+$p$~values come from 9,999 joint label randomizations with the add-one rule,
+so the smallest attainable raw value is 0.0001.}
+\end{center}
 
 \subsection{Matched implementation behavior} \label{sec:behavior}
 
@@ -483,6 +557,32 @@ probabilities, and predictions. Estimates first average folds within each
 partition repeat, then average the 10 repeat means. Percentile intervals use
 9,999 bootstrap samples of repeat means. The full design contains 200 paired
 dataset, partition, and model-family comparisons.
+
+Both implementations made the same split decision in every tree comparison:
+each fit a root split in all 50 fold-level fits per dataset, so
+split-decision agreement was 1.000 for both datasets. Given that both split,
+they chose the same root predictor in 8\% of classification comparisons
+(95\% interval 2\% to 14\%) and 12\% of regression comparisons (4\% to 20\%),
+so the matched controls align whether to split far more than where. Feature
+summaries agreed more at the forest level than at the tree level. Forest
+concordance by Kendall's $\tau_b$ was 0.480 (0.465 to 0.497) for
+classification and 0.775 (0.756 to 0.798) for regression, with top-five
+Jaccard similarity of 0.616 and 0.793; the corresponding tree values were
+0.153 and 0.698.
+
+Held-out predictions from the matched forests were close. Classification
+forests agreed on 97.0\% of test predictions (96.7\% to 97.3\%), with
+balanced accuracy 0.948 for \citrees and 0.943 for \pkg{partykit}; the
+bootstrap interval for the difference, 0.002 to 0.008, excludes zero but is
+small on the accuracy scale. Regression forest predictions correlated at
+0.978, with root mean squared error 57.3 for \citrees and 57.6 for
+\pkg{partykit}. Tree-level predictions differed more, with 91.4\%
+classification agreement and a regression prediction correlation of 0.789.
+Refitting every model with the same seed reproduced feature summaries,
+probabilities, and predictions exactly for both implementations in all 200
+comparisons. Distinct algorithmic choices at individual nodes therefore
+coexist with matched split decisions, concordant forest summaries, and
+deterministic replication.
 
 \subsection{Controlled computation} \label{sec:performance}
 

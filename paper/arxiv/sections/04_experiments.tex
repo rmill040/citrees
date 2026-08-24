@@ -49,20 +49,22 @@ means over downstream models and over the standard $k$ values available for the
 methods in that comparison. Third, the tables average dataset scores over
 datasets.
 
-The real-data classification benchmark contains 23 datasets. Comparisons
-involving partykit ctree and cforest use the 22-dataset subset that excludes
-\nolinkurl{dexter}; comparisons among methods with \nolinkurl{dexter} results
-use all 23 datasets. The complete-case classification analysis, used for
-bootstrap intervals and omnibus rank testing, contains 14 datasets with all
+The real-data classification benchmark contains 23 datasets. On
+\nolinkurl{gisette} and \nolinkurl{isolet}, some method runs were excluded for
+operational reasons (\cref{app:methods} lists them), so the all-method rank
+summary uses the 21 datasets with results for every method, and each pairwise
+comparison uses the datasets where both methods are present. The complete-case
+classification analysis, used for
+bootstrap intervals and omnibus rank testing, contains 13 datasets with all
 17 methods, all three downstream learners, and all five standard values of $k$.
 Regression contains 8 datasets; the analogous rank summary uses the
 6 complete-case datasets with all methods, downstream learners, and standard
 $k$ values available.
 
 By-$k$ results are reported separately for $k=5,10,25,50,100$. The corresponding
-classification dataset counts are $22, 21, 15, 15, 14$; the regression counts
+classification dataset counts are $21, 20, 14, 14, 13$; the regression counts
 are $8, 8, 7, 7, 6$. Pairwise CIF comparisons stratified by $k$ use the dataset
-counts reported with the corresponding rows. The 14-dataset classification and
+counts reported with the corresponding rows. The 13-dataset classification and
 6-dataset regression summaries are complete-case analyses, retaining only
 datasets with every method, downstream learner, and standard $k$ value.
 
@@ -154,8 +156,8 @@ treated as fixed. The selected configuration is then held fixed across datasets 
 that task. Because configuration selection and reporting use the same real-data
 benchmark, the reported scores, intervals, and rank summaries are descriptive.
 As a sensitivity check, we repeat configuration selection in leave-one-dataset-out
-(LODO) form for both tasks. In classification, each of the 14 complete-case
-datasets is evaluated using configurations chosen from the other 13 datasets. In
+(LODO) form for both tasks. In classification, each of the 13 complete-case
+datasets is evaluated using configurations chosen from the other 12 datasets. In
 regression, each of the 6 complete-case datasets is evaluated using configurations
 chosen from the other 5 datasets. The downstream models, $k$ values, and
 averaging within each dataset are unchanged.

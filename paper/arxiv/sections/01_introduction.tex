@@ -55,3 +55,14 @@ forest rankings are evaluated in the benchmarks. Finally, the
 high-$p$ and synthetic analyses show cases with weaker top-$k$ recovery and how
 forest feature sampling can reduce how often forest splits use informative
 features (\cref{sec:boundary}).
+
+\paragraph{Version note.}
+This version corrects five defects in the benchmark harness: the feature-index
+mapping used when passing data to the R ctree and cforest implementations, the
+seeding of cross-validation folds, the rank ordering returned by RF-RFE, the
+rank ordering returned by Boruta, and the correlation threshold used by
+conditional permutation importance. All benchmark results were regenerated from
+the corrected runs. The corrections move several comparators, most visibly
+RF-RFE, which now leads the classification comparison, while the conclusions
+about CIF are unchanged: CIF ties for 3rd of 17 classification methods and
+ranks 2nd of 18 regression methods.

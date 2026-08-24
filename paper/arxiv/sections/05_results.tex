@@ -5,9 +5,10 @@
 \label{sec:experiments-real}
 
 \Cref{tab:method-main-comparison} reports the main real-data comparison.
-Classification uses the 22 datasets with ctree and cforest results; the full
-classification collection has 23 datasets, with \nolinkurl{dexter} reserved for
-analyses that compare methods available on that dataset. Regression uses all 8
+Classification uses the 21 datasets with results for every method; the full
+classification collection has 23 datasets, and \nolinkurl{gisette} and
+\nolinkurl{isolet} enter only the comparisons whose methods completed there
+(\cref{app:methods} lists the excluded runs). Regression uses all 8
 datasets. Within each dataset, scores are first averaged over downstream
 learners and the standard $k$ values shared by the compared methods, then
 converted to ranks. Lower mean rank is better.
@@ -24,36 +25,36 @@ converted to ranks. Lower mean rank is better.
     \cmidrule(lr){1-2}\cmidrule(l){3-4}
     \tablehead{Method} & {Mean rank} & \tablehead{Method} & {Mean rank} \\
     \midrule
-    LightGBM & 5.17 & ExtraTrees & 6.56 \\
-    XGBoost & 5.58 & CatBoost & 6.97 \\
-    CatBoost & 5.85 & CIF & 7.07 \\
-    CIF & 6.08 & RF & 8.09 \\
-    RF & 6.27 & RT & 8.37 \\
-    RF-RFE & 6.98 & DT & 8.68 \\
-    ExtraTrees & 7.45 & LightGBM & 8.76 \\
-    DT & 7.67 & RDC filter & 8.83 \\
-    RT & 10.05 & CIT & 9.19 \\
-    CIT & 10.34 & PC filter & 9.35 \\
-    Boruta & 10.51 & DC filter & 9.77 \\
-    MC filter & 10.65 & XGBoost & 9.96 \\
-    PI & 10.76 & Boruta & 10.00 \\
-    cforest & 11.36 & PI & 10.19 \\
-    RDC filter & 12.29 & RF-RFE & 10.41 \\
-    ctree & 12.86 & cforest & 12.20 \\
-    CPI & 13.13 & ctree & 12.99 \\
-    \multicolumn{2}{c}{} & CPI & 13.61 \\
+    RF-RFE & 4.19 & ExtraTrees & 5.00 \\
+    XGBoost & 5.81 & CIF & 6.25 \\
+    CIF & 5.86 & CatBoost & 6.75 \\
+    RF & 5.86 & RF-RFE & 6.88 \\
+    LightGBM & 6.05 & RF & 7.63 \\
+    Boruta & 6.62 & RT & 8.25 \\
+    CatBoost & 6.76 & cforest & 8.75 \\
+    ExtraTrees & 7.33 & DT & 9.38 \\
+    cforest & 8.33 & Boruta & 9.50 \\
+    DT & 8.62 & PC filter & 9.88 \\
+    RDC filter & 11.05 & LightGBM & 10.13 \\
+    PI & 11.67 & XGBoost & 10.13 \\
+    MC filter & 11.86 & RDC filter & 11.00 \\
+    RT & 12.81 & CIT & 11.13 \\
+    ctree & 12.86 & ctree & 11.38 \\
+    CIT & 13.14 & PI & 11.75 \\
+    CPI & 14.19 & DC filter & 12.25 \\
+    \multicolumn{2}{c}{} & CPI & 15.00 \\
     \bottomrule
   \end{tabular}
   \caption{Main real-data comparison. Ranks are computed within each dataset
   after scores are averaged over downstream learners and the standard $k$ values
   shared by the compared methods, then averaged across datasets. Classification
-  uses the 22 datasets with ctree and cforest results; regression uses all 8
+  uses the 21 datasets with results for every method; regression uses all 8
   datasets.}
   \label{tab:method-main-comparison}
 \end{table}
 
-With selected configurations fixed, CIF ranks 4th of 17 classification methods
-and 3rd of 18 regression methods.
+With selected configurations fixed, CIF ties RF for 3rd of 17 classification
+methods and ranks 2nd of 18 regression methods.
 \Cref{tab:conditional-inference-comparisons} compares CIF directly with ctree,
 cforest, and CIT.
 \Cref{app:benchmark-stability} gives the learner-by-$k$ tables
@@ -73,12 +74,12 @@ each analysis reports its dataset count.
     \toprule
     \tablehead{Task} & \tablehead{Compared with} & {Datasets} & {Mean diff.} & W--L \\
     \midrule
-    Classification & ctree & 22 & +0.088 & \winloss{22}{0} \\
-    Classification & cforest & 22 & +0.072 & \winloss{19}{3} \\
+    Classification & ctree & 21 & +0.037 & \winloss{19}{2} \\
+    Classification & cforest & 22 & +0.010 & \winloss{17}{5} \\
     Classification & CIT & 23 & +0.032 & \winloss{22}{1} \\
-    Regression & ctree & 8 & +0.226 & \winloss{7}{1} \\
-    Regression & cforest & 8 & +0.721 & \winloss{7}{1} \\
-    Regression & CIT & 8 & +0.360 & \winloss{6}{2} \\
+    Regression & ctree & 8 & +0.157 & \winloss{6}{2} \\
+    Regression & cforest & 8 & +0.021 & \winloss{6}{2} \\
+    Regression & CIT & 8 & +0.234 & \winloss{7}{1} \\
     \bottomrule
   \end{tabular}
   \caption{Direct CIF comparisons against ctree, cforest, and CIT. Mean
@@ -94,13 +95,13 @@ each analysis reports its dataset count.
 \Cref{tab:conditional-inference-comparisons} shows CIF ahead on average in all
 six direct pairings. On the complete-case datasets, CIF is also ahead of ctree,
 cforest, and CIT in both tasks. The 95\% bootstrap CIs for mean
-CIF-minus-comparator differences are as follows. Classification (14 datasets):
-ctree [+0.068, +0.154], cforest [+0.067, +0.160], CIT [+0.023, +0.060]. Regression
-(6 datasets): ctree [+0.113, +0.529], cforest [+0.040, +2.570], CIT
-[-0.007, +1.224]. The regression interval for CIF versus CIT crosses zero; the
-other complete-case intervals are positive. The regression intervals are wider
-because fewer datasets are available and some comparator mean $R^2$ values are
-negative.
+CIF-minus-comparator differences are as follows. Classification (13 datasets):
+ctree [+0.026, +0.073], cforest [+0.002, +0.024], CIT [+0.027, +0.062].
+Regression (6 datasets): ctree [+0.029, +0.421], cforest [-0.032, +0.090], CIT
+[-0.002, +0.766]. The regression intervals for CIF versus cforest and versus
+CIT cross zero; the classification intervals and the regression ctree interval
+are positive. The regression intervals are wider because fewer datasets are
+available and some comparator mean $R^2$ values are negative.
 
 \paragraph{CIF ablations.}
 \Cref{tab:cif-ranking-ablation} compares the selected CIF configuration with
@@ -151,18 +152,20 @@ $+0.000$, while disabling bootstrap sampling changes classification by $+0.001$
 and regression by $-0.208$.
 
 The complete-case Friedman tests use dataset-level method means.
-Classification: $\chi^2(16)=141.32$, $p<0.001$, Kendall's $W=0.63$.
-Regression: $\chi^2(17)=33.79$, $p=0.0089$, Kendall's $W=0.33$. The regression
-panel has 6 datasets, so the $p$-value should be read with the effect sizes,
-intervals, and LODO results. These intervals and rank tests summarize the
+Classification: $\chi^2(16)=140.46$, $p<0.001$, Kendall's $W=0.68$.
+Regression: $\chi^2(17)=26.15$, $p=0.072$, Kendall's $W=0.26$, which does not
+reach the 0.05 level, so the regression rank ordering is reported as a
+descriptive summary of the 6-dataset panel rather than as evidence of
+method differences. These intervals and rank summaries describe the
 benchmark-selected configurations. The LODO analysis below checks whether those
 configurations are stable under one-dataset holdout.
 
-In the 14-dataset classification panel, LODO ranks CIF fifth of 17 on average
-(mean rank 5.64), and CIF reselects the main-benchmark configuration in all 14
-holdouts. In the 6-dataset regression panel, LODO ties CIF with CatBoost for
-second on average (mean rank 5.50), behind ExtraTrees; CIF reselects the global
-regression configuration in 5 of 6 holdouts.
+In the 13-dataset classification panel, LODO ranks CIF eighth of 17 on average
+(mean rank 6.85), and CIF reselects the main-benchmark configuration in 11 of
+13 holdouts, using 2 distinct configurations. In the 6-dataset regression
+panel, LODO ranks CIF sixth of 18 on average (mean rank 7.33), behind
+ExtraTrees, CatBoost, RF-RFE, RF, and RT; CIF reselects the global regression
+configuration in 4 of 6 holdouts.
 \Cref{tab:cif-ci-comparisons,tab:lodo-config-sensitivity}
 give the confidence intervals and LODO details.
 
@@ -178,41 +181,43 @@ top 3 and how often it beats tree baselines.
     \toprule
     \tablehead{Summary} & Classification & Regression \\
     \midrule
-    Main rank & \countfrac{4}{17} & \countfrac{3}{18} \\
-    Top half & \countfrac{21}{22} & \countfrac{6}{8} \\
-    Top 3 & \countfrac{5}{22} & \countfrac{2}{8} \\
-    Win vs ctree & \countfrac{22}{22} & \countfrac{7}{8} \\
-    Win vs cforest & \countfrac{19}{22} & \countfrac{7}{8} \\
-    Win vs CIT & \countfrac{22}{23} & \countfrac{6}{8} \\
-    Win vs DT & \countfrac{14}{23} & \countfrac{6}{8} \\
+    Main rank & \countfrac{3.5}{17} & \countfrac{2}{18} \\
+    Top half & \countfrac{17}{21} & \countfrac{5}{8} \\
+    Top 3 & \countfrac{4}{21} & \countfrac{2}{8} \\
+    Win vs ctree & \countfrac{19}{21} & \countfrac{6}{8} \\
+    Win vs cforest & \countfrac{17}{22} & \countfrac{6}{8} \\
+    Win vs CIT & \countfrac{22}{23} & \countfrac{7}{8} \\
+    Win vs DT & \countfrac{16}{23} & \countfrac{5}{8} \\
     Win vs RT & \countfrac{21}{23} & \countfrac{5}{8} \\
     \bottomrule
   \end{tabular}
   \caption{Dataset breadth for the selected CIF configuration. Top half and
   Top 3 counts use the datasets from \cref{tab:method-main-comparison}. Direct
-  win rows use datasets where both methods were run.}
+  win rows use datasets where both methods were run. The fractional
+  classification main rank reflects a tie with RF.}
   \label{tab:cif-breadth-summary}
 \end{table}
 
-In classification, CIF is in the top half on 21 of the 22 datasets with ctree
-and cforest results, and in the top 3 on 5 of 22. In regression, CIF is in the
-top half on 6 of 8 datasets and in the top 3 on 2 of 8. Against the greedy
-single-tree baselines, CIF beats DT on 14/23 classification datasets and 6/8
+In classification, CIF is in the top half on 17 of the 21 all-method datasets,
+and in the top 3 on 4 of 21. In regression, CIF is in the
+top half on 5 of 8 datasets and in the top 3 on 2 of 8. Against the greedy
+single-tree baselines, CIF beats DT on 16/23 classification datasets and 5/8
 regression datasets, and beats RT on 21/23 classification datasets. The RT
 regression comparison is close: CIF is ahead on 5/8 datasets, with a mean
 difference near zero.
 
 \Cref{fig:k-trajectory,fig:regression-k-trajectory} report mean rank separately
-by $k$. In classification, CIF's mean rank is 6.2 at $k=5$, 7.4 at $k=10$,
-5.5 at $k=50$, and 5.0 at $k=100$.
-In regression, CIF's mean rank is 8.9 at $k=5$, 5.6 at $k=50$, and 7.3 at
+by $k$. In classification, CIF's mean rank is 6.9 at $k=5$, 8.2 at $k=10$,
+6.2 at $k=50$, and 5.6 at $k=100$.
+In regression, CIF's mean rank is 8.3 at $k=5$, 7.1 at $k=25$, and 8.3 at
 $k=100$. These by-$k$ results add context to
 \Cref{tab:method-main-comparison}: CIF is strongest at larger displayed $k$
-values in classification and at $k=50$ in regression. The aggregate ctree and
-cforest comparisons use 22 classification datasets. For $k=5,10,25,50,100$,
-the classification columns use 22, 21, 15, 15, and 14 datasets, respectively;
+values in classification and at $k=25$ in regression. The aggregate ctree
+comparison uses 21 classification datasets and the cforest comparison uses 22.
+For $k=5,10,25,50,100$,
+the classification columns use 21, 20, 14, 14, and 13 datasets, respectively;
 the regression columns use 8, 8, 7, 7, and 6 datasets, respectively.
-Complete-case analyses use 14 classification datasets and 6 regression datasets.
+Complete-case analyses use 13 classification datasets and 6 regression datasets.
 
 \FloatBarrier
 
@@ -222,7 +227,7 @@ Complete-case analyses use 14 classification datasets and 6 regression datasets.
   \caption{Classification mean rank by number of selected features. Rows show
   all 17 feature selection methods in the classification benchmark, averaged
   across downstream models at each value of $k$. Lower ranks are better.
-  The columns for $k=5,10,25,50,100$ use 22, 21, 15, 15, and 14 datasets,
+  The columns for $k=5,10,25,50,100$ use 21, 20, 14, 14, and 13 datasets,
   respectively.}
   \label{fig:k-trajectory}
 \end{figure}
@@ -330,21 +335,21 @@ recovery on synthetic datasets changes across values of $k$, and how feature
 sampling inside the forest affects how often splits use informative
 features.
 Across the 15 classification datasets with more than 100 features, CIF first
-reaches its best score at an intermediate value of $k$ ($100 < k < p$) in 30 of 45
+reaches its best score at an intermediate value of $k$ ($100 < k < p$) in 29 of 45
 dataset-learner combinations. It first reaches its best score at the full
-feature set ($k=p$) in only 5 of 45 combinations.
+feature set ($k=p$) in only 7 of 45 combinations.
 \Cref{fig:high-p-boundary} shows this pattern by downstream learner; regression
 is summarized next. Classification scores most often peak at
-intermediate $k$: 11 of 15 LR datasets, 9 of 15 SVM datasets, and 10 of 15 KNN
+intermediate $k$: 8 of 15 LR datasets, 12 of 15 SVM datasets, and 9 of 15 KNN
 datasets. The full feature set is mainly an LR exception. Moving from $k{=}100$
-to $k{=}p$ gives a mean $k{=}p$ minus $k{=}100$ score change of $+0.022$ for LR,
-and $k=p$ matches the best observed LR score in 6 of 15 datasets. For SVM and
-KNN, the corresponding mean changes are $-0.058$ and $-0.075$, and $k=p$ is
+to $k{=}p$ gives a mean $k{=}p$ minus $k{=}100$ score change of $+0.026$ for LR,
+and $k=p$ matches the best observed LR score in 7 of 15 datasets. For SVM and
+KNN, the corresponding mean changes are $-0.053$ and $-0.071$, and $k=p$ is
 best in only 1 of 15 datasets for each learner.
 
 In the 6 high-$p$ regression datasets, full-feature evaluation is rarely best.
-Across the 18 dataset-learner combinations, 11 peak at or below $k{=}100$, only
-2 peak at $k=p$, and the mean $k{=}p$ minus $k{=}100$ score change is $-0.308$.
+Across the 18 dataset-learner combinations, 12 peak at or below $k{=}100$, only
+2 peak at $k=p$, and the mean $k{=}p$ minus $k{=}100$ score change is $-0.270$.
 The main full-feature exception remains the classification LR result in
 \Cref{fig:high-p-boundary}.
 
@@ -360,17 +365,20 @@ The main full-feature exception remains the classification LR result in
 \end{figure}
 
 \paragraph{Synthetic feature recovery.}
-Across synthetic classification datasets, 34\% of the features in CIF's top-$k$
+Across synthetic classification datasets, 35.3\% of the features in CIF's top-$k$
 list are truly informative on average over the evaluated $k$ values, ranked
-8th of 17, and its top-1 hit rate is 64\%, ranked 12th of 17. Across synthetic
-regression datasets, the corresponding values are 39\%, ranked 10th of 18, and
-81\%, ranked 15th of 18. In both tasks, CIF recovers true features within the
+8th of the 15 methods with synthetic classification runs, and its top-1 hit
+rate is 65.5\%, ranked 10th of 15. Across synthetic
+regression datasets, the corresponding values are 39.1\%, ranked 11th of the
+16 methods with synthetic regression runs, and
+84.5\%, ranked 10th of 16. In both tasks, CIF recovers true features within the
 top-$k$ list more reliably than it places one first.
 \Cref{tab:synthetic-head} summarizes this contrast, and
 \Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows. The percentage of
 selected features that are informative falls as $k$ grows. On
 redundant-feature synthetic designs, most selected features correspond to true
-signals or redundant proxies: 83\% for classification and 84\% for regression.
+signals or redundant proxies: 82.4\% for classification and 83.8\% for
+regression.
 
 \begin{table}[!htbp]
   \centering
@@ -382,17 +390,18 @@ signals or redundant proxies: 83\% for classification and 84\% for regression.
     \cmidrule(lr){2-3}\cmidrule(l){4-5}
     \tablehead{Metric} & {Value} & Rank & {Value} & Rank \\
     \midrule
-    Selected features that are informative & 34\% & \countfrac{8}{17} & 39\% & \countfrac{10}{18} \\
-    Top-1 hit rate & 64\% & \countfrac{12}{17} & 81\% & \countfrac{15}{18} \\
-    Selected features that are true or redundant & 83\% & \countfrac{5}{17} & 84\% & \countfrac{2.5}{18} \\
+    Selected features that are informative & 35.3\% & \countfrac{8}{15} & 39.1\% & \countfrac{11}{16} \\
+    Top-1 hit rate & 65.5\% & \countfrac{10}{15} & 84.5\% & \countfrac{10}{16} \\
+    Selected features that are true or redundant & 82.4\% & \countfrac{7.5}{15} & 83.8\% & \countfrac{1}{16} \\
     \bottomrule
   \end{tabular}
   \caption{Synthetic feature recovery for CIF. The first row averages, over
   $k = 5, 10, 25, 50$, and $100$, the percentage of selected features that are
   truly informative. The top-1 hit rate is computed at $k=1$. The final row is
   computed and ranked only on the redundant-feature design for each task and
-  counts true informative plus redundant features. Fractional ranks indicate
-  averaged ties.}
+  counts true informative plus redundant features. Ranks are among the 15
+  classification and 16 regression methods with synthetic runs; fractional
+  ranks indicate averaged ties.}
   \label{tab:synthetic-head}
 \end{table}
 

@@ -87,12 +87,14 @@ For per-method and direct pairwise summaries, each comparison uses the datasets,
 downstream learners, and standard values of $k$ where the methods in that
 comparison are present. Analyses that compare all methods restrict to datasets
 with every method, downstream learner, and standard value of $k$ present. These
-rules give 14 classification and 6 regression datasets for complete-case
-analyses. Comparisons involving partykit ctree or cforest exclude
-\nolinkurl{dexter}, because those R-method runs are absent; non-R comparisons
-can still use \nolinkurl{dexter} when both methods are present.
-\Cref{tab:coverage-skips} lists the classification seed skips and the R
-ctree/cforest \texttt{dexter} exclusion.
+rules give 13 classification and 6 regression datasets for complete-case
+analyses. On \nolinkurl{gisette}, \nolinkurl{isolet}, and
+\nolinkurl{orlraws10P}, 34 classification runs were excluded from the benchmark
+for operational reasons: 15 partykit ctree and cforest runs inherited from the
+earlier compute campaign did not complete on those datasets, and 19
+RDC-selector CIT and CIF runs on the same datasets were excluded by author
+direction. Comparisons that involve an affected method on an affected dataset
+use the remaining datasets. \Cref{tab:coverage-skips} lists the excluded runs.
 
 \subsection{Randomness and reproducibility}
 
@@ -105,19 +107,24 @@ sharing a mutable generator across parallel loop iterations.
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}lll@{}}
+  \begin{tabular}{@{}llccl@{}}
     \toprule
-    \tablehead{Method/config} & \tablehead{Dataset} & \tablehead{Seeds} \\
+    \tablehead{Dataset} & \tablehead{Method} & {Configurations} & {Seed runs} & \tablehead{Basis} \\
     \midrule
-    R ctree \texttt{MonteCarlo} & \texttt{gisette} & \multicolumn{1}{c}{3} \\
-    R ctree \texttt{MonteCarlo} & \texttt{isolet} & \multicolumn{1}{c}{2, 3} \\
-    CIT with selector \texttt{rdc} & \texttt{gisette} & \multicolumn{1}{c}{0, 1, 3} \\
-    CIT with selector \texttt{rdc} & \texttt{orlraws10P} & \multicolumn{1}{c}{1} \\
-    partykit ctree, cforest & \texttt{dexter} & all seeds excluded for these R methods \\
+    \texttt{gisette} & CIT with selector \texttt{rdc} & 2 & 8 & author directed \\
+    \texttt{gisette} & R ctree & 1 & 5 & inherited \\
+    \texttt{isolet} & CIF with selector \texttt{rdc} & 2 & 4 & author directed \\
+    \texttt{isolet} & CIT with selector \texttt{rdc} & 2 & 6 & author directed \\
+    \texttt{isolet} & R cforest & 1 & 5 & inherited \\
+    \texttt{isolet} & R ctree & 1 & 5 & inherited \\
+    \texttt{orlraws10P} & CIT with selector \texttt{rdc} & 1 & 1 & author directed \\
     \bottomrule
   \end{tabular}
-  \caption{Classification benchmark exclusions. The \texttt{dexter} row is a
-  method-level exclusion for partykit ctree and cforest; the other rows are
-  seed-level skips.}
+  \caption{Classification benchmark exclusions. Each seed run is one method
+  configuration on one dataset with one seed; 34 runs are excluded in total,
+  and all are operational exclusions. Inherited rows are partykit ctree and
+  cforest runs that did not complete in the earlier compute campaign;
+  author-directed rows are RDC-selector CIT and CIF runs excluded by author
+  direction. No regression runs are excluded.}
   \label{tab:coverage-skips}
 \end{table}

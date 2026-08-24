@@ -22,11 +22,11 @@ present.
     Classification datasets & Regression datasets &
     \multicolumn{1}{>{\centering\arraybackslash}X}{Purpose} \\
     \midrule
-    Main real-data comparison & 22 & 8 & Primary rank summary on real datasets \\
-    Complete-case CIF and rank checks & 14 & 6 & Bootstrap intervals and omnibus rank summaries \\
-    LODO configuration sensitivity & 14 & 6 & Held-out-dataset configuration checks \\
-    Learner $\times$ $k$ sensitivity & 22, 21, 15, 15, 14 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and value of $k$ \\
-    Seed sensitivity & 12 & 6 & Seed variation on datasets complete across seeds \\
+    Main real-data comparison & 21 & 8 & Primary rank summary on real datasets \\
+    Complete-case CIF and rank checks & 13 & 6 & Bootstrap intervals and omnibus rank summaries \\
+    LODO configuration sensitivity & 13 & 6 & Held-out-dataset configuration checks \\
+    Learner $\times$ $k$ sensitivity & 21, 20, 14, 14, 13 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and value of $k$ \\
+    Seed sensitivity & 13 & 6 & Seed variation on datasets complete across seeds \\
     \bottomrule
   \end{tabularx}
   \caption{Dataset counts for benchmark analyses. The learner-by-$k$ row lists
@@ -51,12 +51,12 @@ and $k \in \{5,10,25,50,100\}$.
     \toprule
     \tablehead{Task} & \tablehead{Compared method} & {Mean $\Delta$} & 95\% CI & W--L \\
     \midrule
-    Classification & ctree & 0.109 & [0.068, 0.154] & \winloss{14}{0} \\
-    Classification & cforest & 0.111 & [0.067, 0.160] & \winloss{13}{1} \\
-    Classification & CIT & 0.041 & [0.023, 0.060] & \winloss{13}{1} \\
-    Regression & ctree & 0.297 & [0.113, 0.529] & \winloss{6}{0} \\
-    Regression & cforest & 0.957 & [0.040, 2.570] & \winloss{5}{1} \\
-    Regression & CIT & 0.480 & [-0.007, 1.224] & \winloss{5}{1} \\
+    Classification & ctree & 0.049 & [0.026, 0.073] & \winloss{11}{2} \\
+    Classification & cforest & 0.013 & [0.002, 0.024] & \winloss{9}{4} \\
+    Classification & CIT & 0.044 & [0.027, 0.062] & \winloss{13}{0} \\
+    Regression & ctree & 0.202 & [0.029, 0.421] & \winloss{4}{2} \\
+    Regression & cforest & 0.027 & [-0.032, 0.090] & \winloss{5}{1} \\
+    Regression & CIT & 0.308 & [-0.002, 0.766] & \winloss{5}{1} \\
     \bottomrule
   \end{tabular}
   \caption{Complete-case CIF differences against ctree, cforest, and CIT. Mean
@@ -73,10 +73,11 @@ deltas after configuration selection. Large positive regression differences can
 reflect negative mean $R^2$ for the comparator.
 
 The Friedman checks use dataset-level method means after averaging the 15
-learner-by-$k$ combinations. Classification: $\chi^2(16)=141.32$, $p<0.001$,
-Kendall's $W=0.63$. Regression: $\chi^2(17)=33.79$, $p=0.0089$, Kendall's
-$W=0.33$. For the 6-dataset regression panel, read the $p$-value together with
-Kendall's $W$ and the LODO table.
+learner-by-$k$ combinations. Classification (13 datasets):
+$\chi^2(16)=140.46$, $p<0.001$,
+Kendall's $W=0.68$. Regression (6 datasets): $\chi^2(17)=26.15$, $p=0.072$,
+Kendall's $W=0.26$, which does not reach the 0.05 level; the regression rank
+ordering is therefore a descriptive summary of this panel.
 
 \subsection{LODO configuration sensitivity}
 
@@ -84,9 +85,11 @@ Kendall's $W$ and the LODO table.
 task. Each run selects configurations on all but one complete-case dataset in
 that task, evaluates the held-out dataset, and averages scores and ranks over
 downstream learners and standard top-$k$ values. CIF reselects the
-main-benchmark configuration in all 14 classification holdouts. In regression, it uses
-two configurations, reselects the global regression configuration in 5 of 6 holdouts, and
-ties CatBoost for second by mean LODO rank behind ExtraTrees.
+main-benchmark configuration in 11 of the 13 classification holdouts, using 2
+distinct configurations. In regression, it also uses
+two configurations, reselects the global regression configuration in 4 of 6
+holdouts, and is sixth by mean LODO rank behind ExtraTrees, CatBoost, RF-RFE,
+RF, and RT.
 
 \begin{table}[!htbp]
   \centering
@@ -111,24 +114,24 @@ ties CatBoost for second by mean LODO rank behind ExtraTrees.
     \tablehead{Method} & {Rank} & {Score} & {Settings} & {Main} &
     \tablehead{Method} & {Rank} & {Score} & {Settings} & {Main} \\
     \midrule
-    LightGBM & 3.14 & 0.816 & 1 & \countfrac{14}{14} & ExtraTrees & 4.17 & 0.292 & 1 & \countfrac{6}{6} \\
-    CatBoost & 4.29 & 0.805 & 1 & \countfrac{14}{14} & CatBoost & 5.50 & 0.229 & 1 & \countfrac{6}{6} \\
-    RF & 4.79 & 0.802 & 1 & \countfrac{14}{14} & CIF & 5.50 & 0.214 & 2 & \countfrac{5}{6} \\
-    XGBoost & 4.79 & 0.809 & 2 & \countfrac{6}{14} & RF & 6.00 & 0.260 & 1 & \countfrac{6}{6} \\
-    CIF & 5.64 & 0.798 & 1 & \countfrac{14}{14} & RT & 6.00 & 0.266 & 1 & \countfrac{6}{6} \\
-    ExtraTrees & 5.79 & 0.789 & 1 & \countfrac{14}{14} & DT & 8.00 & 0.124 & 1 & \countfrac{6}{6} \\
-    RF-RFE & 6.57 & 0.795 & 1 & \countfrac{14}{14} & XGBoost & 8.50 & 0.149 & 2 & \countfrac{5}{6} \\
-    DT & 7.43 & 0.774 & 1 & \countfrac{14}{14} & LightGBM & 9.67 & -0.214 & 1 & \countfrac{6}{6} \\
-    Boruta & 9.14 & 0.747 & 1 & \countfrac{14}{14} & PI & 9.83 & -0.033 & 1 & \countfrac{6}{6} \\
-    RT & 10.64 & 0.752 & 1 & \countfrac{14}{14} & PC filter & 9.83 & 0.098 & 1 & \countfrac{6}{6} \\
-    CIT & 10.79 & 0.757 & 1 & \countfrac{14}{14} & RDC filter & 10.00 & -0.038 & 1 & \countfrac{6}{6} \\
-    MC filter & 11.43 & 0.734 & 1 & \countfrac{14}{14} & CIT & 11.33 & -0.291 & 2 & \countfrac{5}{6} \\
-    RDC filter & 11.86 & 0.707 & 1 & \countfrac{14}{14} & DC filter & 11.50 & -0.009 & 1 & \countfrac{6}{6} \\
-    cforest & 13.29 & 0.687 & 1 & \countfrac{14}{14} & Boruta & 11.83 & 0.109 & 1 & \countfrac{6}{6} \\
-    ctree & 13.64 & 0.689 & 1 & \countfrac{14}{14} & RF-RFE & 11.83 & 0.109 & 1 & \countfrac{6}{6} \\
-    PI & 13.75 & 0.689 & 1 & \countfrac{14}{14} & CPI & 13.50 & -0.552 & 1 & \countfrac{6}{6} \\
-    CPI & 16.04 & 0.598 & 1 & \countfrac{14}{14} & ctree & 13.83 & -0.035 & 1 & \countfrac{6}{6} \\
-    \multicolumn{5}{c}{} & cforest & 14.17 & -0.925 & 2 & \countfrac{5}{6} \\
+    RF-RFE & 2.54 & 0.825 & 1 & \countfrac{13}{13} & ExtraTrees & 4.67 & 0.292 & 1 & \countfrac{6}{6} \\
+    LightGBM & 4.31 & 0.813 & 1 & \countfrac{13}{13} & CatBoost & 6.17 & 0.229 & 1 & \countfrac{6}{6} \\
+    RF & 5.08 & 0.802 & 1 & \countfrac{13}{13} & RF-RFE & 6.67 & 0.333 & 1 & \countfrac{6}{6} \\
+    CatBoost & 5.54 & 0.801 & 1 & \countfrac{13}{13} & RF & 6.83 & 0.260 & 1 & \countfrac{6}{6} \\
+    XGBoost & 5.69 & 0.808 & 2 & \countfrac{11}{13} & RT & 7.00 & 0.266 & 1 & \countfrac{6}{6} \\
+    Boruta & 6.23 & 0.791 & 1 & \countfrac{13}{13} & CIF & 7.33 & 0.240 & 2 & \countfrac{4}{6} \\
+    ExtraTrees & 6.62 & 0.792 & 1 & \countfrac{13}{13} & XGBoost & 8.50 & 0.149 & 2 & \countfrac{5}{6} \\
+    CIF & 6.85 & 0.793 & 2 & \countfrac{11}{13} & DT & 8.67 & 0.124 & 1 & \countfrac{6}{6} \\
+    cforest & 8.23 & 0.785 & 1 & \countfrac{13}{13} & Boruta & 9.17 & 0.118 & 1 & \countfrac{6}{6} \\
+    DT & 9.38 & 0.763 & 1 & \countfrac{13}{13} & LightGBM & 10.50 & -0.214 & 1 & \countfrac{6}{6} \\
+    RDC filter & 10.69 & 0.764 & 1 & \countfrac{13}{13} & CIT & 10.67 & -0.206 & 2 & \countfrac{5}{6} \\
+    ctree & 11.77 & 0.749 & 1 & \countfrac{13}{13} & cforest & 10.67 & 0.092 & 2 & \countfrac{5}{6} \\
+    CIT & 12.15 & 0.754 & 1 & \countfrac{13}{13} & PI & 11.00 & -0.024 & 1 & \countfrac{6}{6} \\
+    MC filter & 12.69 & 0.737 & 1 & \countfrac{13}{13} & ctree & 11.33 & 0.051 & 1 & \countfrac{6}{6} \\
+    RT & 13.00 & 0.737 & 1 & \countfrac{13}{13} & PC filter & 11.67 & 0.099 & 1 & \countfrac{6}{6} \\
+    PI & 15.73 & 0.676 & 1 & \countfrac{13}{13} & RDC filter & 12.50 & -0.082 & 1 & \countfrac{6}{6} \\
+    CPI & 16.50 & 0.600 & 1 & \countfrac{13}{13} & DC filter & 13.50 & -0.009 & 1 & \countfrac{6}{6} \\
+    \multicolumn{5}{c}{} & CPI & 14.17 & -0.554 & 1 & \countfrac{6}{6} \\
     \bottomrule
   \end{tabular*}
   \caption{LODO configuration sensitivity. Lower rank is better; rows are
@@ -179,23 +182,23 @@ top 5.
     \tablehead{Method} & {KNN} & {LR} & {SVM} & {Mean position} & {Mean rank} & {Best--worst} &
     \shortstack{Top 3\\of 15} & \shortstack{Top 5\\of 15} \\
     \midrule
-    LightGBM & 3.0 & 1.6 & 1.6 & 2.1 & 4.5 & 1.0--7.0 & \countfrac{14}{15} & \countfrac{14}{15} \\
-    XGBoost & 4.0 & 2.2 & 2.2 & 2.8 & 5.0 & 1.0--5.0 & \countfrac{12}{15} & \countfrac{15}{15} \\
-    CatBoost & 2.9 & 3.4 & 3.4 & 3.2 & 5.2 & 1.0--7.0 & \countfrac{11}{15} & \countfrac{12}{15} \\
-    CIF & 3.0 & 5.6 & 4.6 & 4.4 & 6.0 & 1.0--8.0 & \countfrac{3}{15} & \countfrac{12}{15} \\
-    RF & 4.8 & 4.6 & 4.8 & 4.7 & 6.2 & 1.0--7.0 & \countfrac{1}{15} & \countfrac{11}{15} \\
-    RF-RFE & 5.5 & 5.8 & 5.6 & 5.6 & 6.9 & 1.5--8.0 & \countfrac{2}{15} & \countfrac{5}{15} \\
-    ExtraTrees & 6.4 & 6.2 & 8.0 & 6.9 & 7.2 & 4.0--9.0 & \countfrac{0}{15} & \countfrac{2}{15} \\
-    DT & 8.1 & 6.9 & 7.0 & 7.3 & 8.0 & 3.0--12.0 & \countfrac{2}{15} & \countfrac{4}{15} \\
-    RT & 10.6 & 9.8 & 10.0 & 10.1 & 9.9 & 8.0--12.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CIT & 11.2 & 9.8 & 10.2 & 10.4 & 10.1 & 8.0--15.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    Boruta & 9.6 & 11.5 & 9.8 & 10.3 & 9.5 & 6.0--14.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    MC filter & 10.7 & 11.8 & 12.0 & 11.5 & 10.8 & 9.0--13.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    PI & 13.4 & 15.0 & 13.2 & 13.9 & 12.1 & 10.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    cforest & 14.2 & 12.4 & 14.6 & 13.7 & 12.1 & 11.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    RDC filter & 13.4 & 14.1 & 13.6 & 13.7 & 12.1 & 10.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    ctree & 15.6 & 15.5 & 15.4 & 15.5 & 13.0 & 13.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CPI & 16.6 & 16.8 & 17.0 & 16.8 & 14.4 & 15.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    RF-RFE & 1.7 & 5.0 & 1.8 & 2.8 & 5.2 & 1.0--8.0 & \countfrac{10}{15} & \countfrac{13}{15} \\
+    XGBoost & 5.4 & 2.7 & 3.4 & 3.8 & 5.8 & 2.0--8.0 & \countfrac{9}{15} & \countfrac{11}{15} \\
+    CIF & 4.2 & 4.4 & 5.7 & 4.8 & 6.7 & 2.0--7.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
+    RF & 3.6 & 5.1 & 5.1 & 4.6 & 6.4 & 1.5--7.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
+    LightGBM & 4.2 & 2.2 & 2.0 & 2.8 & 5.5 & 1.0--6.0 & \countfrac{11}{15} & \countfrac{13}{15} \\
+    Boruta & 5.2 & 8.6 & 7.8 & 7.2 & 7.5 & 1.0--9.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
+    CatBoost & 6.1 & 3.4 & 4.1 & 4.5 & 6.3 & 1.0--8.0 & \countfrac{5}{15} & \countfrac{10}{15} \\
+    ExtraTrees & 6.8 & 7.6 & 8.8 & 7.7 & 7.7 & 2.0--12.0 & \countfrac{1}{15} & \countfrac{1}{15} \\
+    cforest & 9.5 & 7.6 & 9.3 & 8.8 & 8.2 & 5.0--11.0 & \countfrac{0}{15} & \countfrac{1}{15} \\
+    DT & 10.4 & 9.2 & 8.4 & 9.3 & 9.5 & 4.0--13.5 & \countfrac{0}{15} & \countfrac{2}{15} \\
+    RDC filter & 11.2 & 12.0 & 12.6 & 11.9 & 10.8 & 10.0--15.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    PI & 15.3 & 15.8 & 15.8 & 15.6 & 13.4 & 13.5--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    MC filter & 12.0 & 13.6 & 13.8 & 13.1 & 11.3 & 10.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    RT & 15.0 & 13.0 & 13.5 & 13.8 & 11.9 & 10.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    ctree & 12.1 & 13.0 & 12.4 & 12.5 & 11.0 & 10.0--15.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CIT & 13.3 & 12.8 & 11.7 & 12.6 & 11.0 & 9.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CPI & 17.0 & 17.0 & 16.8 & 16.9 & 14.8 & 16.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
   \caption{Classification sensitivity by downstream learner and value of $k$.
@@ -205,14 +208,14 @@ top 5.
   positions over the 15 combinations; mean rank averages the underlying
   dataset-level ranks. The dataset counts at
   $k=5,10,25,50,100$ are
-  22, 21, 15, 15, and 14.}
+  21, 20, 14, 14, and 13.}
   \label{tab:classification-learner-k-sensitivity}
 \end{table}
 
-In the classification learner-by-$k$ sensitivity table, CIF is top five in 12 of
+In the classification learner-by-$k$ sensitivity table, CIF is top five in 10 of
 the 15 learner-by-$k$ combinations and top three in 3 of 15. Its mean position
 is close to RF's and is better than the single-tree and filter baselines in the
-mean-position summary. LightGBM, XGBoost, and CatBoost have lower mean
+mean-position summary. RF-RFE, LightGBM, XGBoost, and CatBoost have lower mean
 positions.
 
 \begin{table}[H]
@@ -233,24 +236,24 @@ positions.
     \tablehead{Method} & {KNN} & {Ridge} & {SVR} & {Mean position} & {Mean rank} & {Best--worst} &
     \shortstack{Top 3\\of 15} & \shortstack{Top 5\\of 15} \\
     \midrule
-    ExtraTrees & 5.1 & 2.7 & 2.1 & 3.3 & 6.3 & 1.0--9.0 & \countfrac{10}{15} & \countfrac{12}{15} \\
-    CatBoost & 1.4 & 7.1 & 3.0 & 3.8 & 6.9 & 1.0--12.5 & \countfrac{8}{15} & \countfrac{12}{15} \\
-    CIF & 3.2 & 7.2 & 3.4 & 4.6 & 7.1 & 1.0--10.0 & \countfrac{7}{15} & \countfrac{10}{15} \\
-    RF & 6.7 & 3.0 & 8.4 & 6.0 & 7.9 & 1.0--11.5 & \countfrac{4}{15} & \countfrac{6}{15} \\
-    RT & 4.2 & 8.2 & 5.6 & 6.0 & 8.0 & 1.5--13.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
-    DT & 5.9 & 8.4 & 7.3 & 7.2 & 8.5 & 1.0--14.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
-    LightGBM & 7.5 & 9.0 & 8.7 & 8.4 & 8.9 & 1.0--16.5 & \countfrac{3}{15} & \countfrac{4}{15} \\
-    RDC filter & 9.8 & 12.2 & 5.3 & 9.1 & 9.3 & 3.0--17.5 & \countfrac{1}{15} & \countfrac{3}{15} \\
-    CIT & 12.4 & 4.1 & 12.1 & 9.5 & 9.4 & 2.0--16.0 & \countfrac{2}{15} & \countfrac{3}{15} \\
-    PC filter & 10.9 & 11.5 & 9.3 & 10.6 & 9.8 & 7.5--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    DC filter & 13.7 & 14.0 & 7.4 & 11.7 & 10.3 & 4.0--17.0 & \countfrac{0}{15} & \countfrac{1}{15} \\
-    XGBoost & 6.0 & 14.8 & 9.1 & 10.0 & 9.5 & 2.0--16.0 & \countfrac{1}{15} & \countfrac{4}{15} \\
-    Boruta & 12.4 & 7.1 & 12.6 & 10.7 & 9.8 & 2.0--16.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
-    PI & 10.2 & 6.2 & 13.8 & 10.1 & 9.7 & 2.0--15.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
-    RF-RFE & 14.8 & 11.0 & 12.4 & 12.7 & 10.8 & 3.0--18.0 & \countfrac{1}{15} & \countfrac{1}{15} \\
-    cforest & 17.3 & 12.7 & 16.1 & 15.4 & 12.5 & 5.5--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    ctree & 12.6 & 16.0 & 17.8 & 15.5 & 12.9 & 8.0--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CPI & 16.9 & 15.8 & 16.6 & 16.4 & 13.2 & 9.0--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    ExtraTrees & 6.2 & 2.4 & 2.6 & 3.7 & 6.8 & 1.0--11.0 & \countfrac{9}{15} & \countfrac{11}{15} \\
+    CIF & 4.6 & 9.9 & 2.4 & 5.6 & 7.8 & 1.0--12.0 & \countfrac{7}{15} & \countfrac{8}{15} \\
+    CatBoost & 2.0 & 8.9 & 3.2 & 4.7 & 7.3 & 1.0--15.0 & \countfrac{6}{15} & \countfrac{12}{15} \\
+    RF-RFE & 3.2 & 3.0 & 5.9 & 4.0 & 7.1 & 1.0--9.0 & \countfrac{7}{15} & \countfrac{11}{15} \\
+    RF & 7.8 & 4.2 & 10.0 & 7.3 & 8.3 & 2.0--13.0 & \countfrac{2}{15} & \countfrac{4}{15} \\
+    RT & 4.4 & 10.0 & 6.1 & 6.8 & 8.5 & 2.0--17.0 & \countfrac{3}{15} & \countfrac{7}{15} \\
+    cforest & 11.4 & 11.7 & 9.9 & 11.0 & 10.1 & 6.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    DT & 6.7 & 9.4 & 9.1 & 8.4 & 9.0 & 4.0--16.0 & \countfrac{0}{15} & \countfrac{2}{15} \\
+    Boruta & 12.5 & 4.4 & 11.9 & 9.6 & 9.4 & 2.0--16.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
+    PC filter & 12.8 & 12.0 & 11.0 & 11.9 & 10.7 & 8.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    LightGBM & 9.2 & 10.4 & 9.8 & 9.8 & 9.6 & 1.0--17.0 & \countfrac{3}{15} & \countfrac{3}{15} \\
+    XGBoost & 6.5 & 15.9 & 9.3 & 10.6 & 9.9 & 1.5--18.0 & \countfrac{1}{15} & \countfrac{4}{15} \\
+    RDC filter & 14.3 & 10.1 & 6.5 & 10.3 & 9.8 & 3.0--16.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
+    CIT & 14.7 & 12.4 & 14.7 & 13.9 & 11.0 & 8.5--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    ctree & 8.2 & 9.2 & 17.4 & 11.6 & 10.9 & 1.0--18.0 & \countfrac{2}{15} & \countfrac{4}{15} \\
+    PI & 12.3 & 7.1 & 14.4 & 11.3 & 10.2 & 3.0--16.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
+    DC filter & 16.4 & 13.9 & 9.6 & 13.3 & 11.1 & 7.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CPI & 17.8 & 16.1 & 17.2 & 17.0 & 13.6 & 9.5--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
   \caption{Regression sensitivity by downstream learner and value of $k$.
@@ -264,11 +267,11 @@ positions.
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 
-CIF has the third-lowest regression mean position in this breakdown, after
-ExtraTrees and CatBoost, and remains ahead of ctree, cforest, CIT, and most
-filter and wrapper methods in this summary. The pairwise figures use the
+CIF has the fourth-lowest regression mean position in this breakdown, after
+ExtraTrees, RF-RFE, and CatBoost, and remains ahead of ctree, cforest, CIT, and
+most filter and wrapper methods in this summary. The pairwise figures use the
 datasets available for each comparator; the complete-case panels above use the
-14/6 all-method dataset sets.
+13/6 all-method dataset sets.
 
 \begin{figure}[H]
   \centering
@@ -277,8 +280,8 @@ datasets available for each comparator; the complete-case panels above use the
   downstream learner and value of $k$. Each plotted value is the
   mean balanced-accuracy difference, CIF minus comparator, for one
   downstream learner and one value of $k$; positive values favor CIF. Dataset
-  counts by $k$ are 22, 21, 15, 15, and 14 for ctree and cforest, and
-  23, 22, 16, 16, and 15 for CIT.}
+  counts by $k$ are 21, 20, 14, 14, and 13 for ctree, 22, 21, 15, 15, and 14
+  for cforest, and 23, 22, 16, 16, and 15 for CIT.}
   \label{fig:benchmark-pairwise-sensitivity}
 \end{figure}
 
@@ -297,7 +300,7 @@ datasets available for each comparator; the complete-case panels above use the
 
 For the seed checks, each method is ranked separately within each fixed seed.
 Keeping only datasets with results for every method, downstream learner,
-standard top-$k$ value, and seed leaves 12 classification datasets and 6
+standard top-$k$ value, and seed leaves 13 classification datasets and 6
 regression datasets complete across all five seeds. These tables summarize seed
 variation by rank without intervals or tests. In these tables, a seed column is
 the method's ordinal position after sorting that seed's averaged dataset-level
@@ -320,26 +323,26 @@ follow the main benchmark order.
     \toprule
     \tablehead{Method} & {Seed 1} & {Seed 2} & {Seed 3} & {Seed 4} & {Seed 5} & {Mean position} & {Mean rank} \\
     \midrule
-    LightGBM & 2 & 1 & 2 & 1 & 1 & 1.4 & 4.7 \\
-    XGBoost & 1 & 3 & 1 & 2 & 2 & 1.8 & 5.0 \\
-    CatBoost & 3 & 2 & 5 & 3 & 4 & 3.4 & 5.7 \\
-    CIF & 5 & 5 & 4 & 4 & 7 & 5.0 & 6.1 \\
-    RF & 4 & 4 & 3 & 6 & 3 & 4.0 & 6.0 \\
-    RF-RFE & 7 & 7 & 7 & 5 & 6 & 6.4 & 7.2 \\
-    ExtraTrees & 6 & 6 & 6 & 7 & 5 & 6.0 & 6.5 \\
-    DT & 8 & 9 & 9 & 8 & 8 & 8.4 & 8.5 \\
-    RT & 11 & 10 & 12 & 12 & 11 & 11.2 & 10.0 \\
-    CIT & 10 & 11 & 10 & 10 & 10 & 10.2 & 9.7 \\
-    Boruta & 9 & 8 & 8 & 9 & 9 & 8.6 & 8.4 \\
-    MC filter & 12 & 12 & 11 & 11 & 12 & 11.6 & 10.4 \\
-    PI & 16 & 16 & 16 & 16 & 16 & 16.0 & 13.1 \\
-    cforest & 15 & 15 & 15 & 14 & 15 & 14.8 & 12.6 \\
-    RDC filter & 13 & 13 & 13 & 13 & 13 & 13.0 & 11.5 \\
-    ctree & 14 & 14 & 14 & 15 & 14 & 14.2 & 12.5 \\
-    CPI & 17 & 17 & 17 & 17 & 17 & 17.0 & 15.3 \\
+    RF-RFE & 1 & 1 & 1 & 1 & 1 & 1.0 & 4.9 \\
+    XGBoost & 2 & 4 & 2 & 3 & 3 & 2.8 & 5.8 \\
+    CIF & 6 & 5 & 6 & 5 & 7 & 5.8 & 6.9 \\
+    RF & 5 & 6 & 4 & 6 & 4 & 5.0 & 6.6 \\
+    LightGBM & 3 & 2 & 3 & 2 & 2 & 2.4 & 5.6 \\
+    Boruta & 7 & 7 & 8 & 7 & 8 & 7.4 & 7.6 \\
+    CatBoost & 4 & 3 & 5 & 4 & 5 & 4.2 & 6.4 \\
+    ExtraTrees & 8 & 8 & 7 & 8 & 6 & 7.4 & 7.5 \\
+    cforest & 9 & 9 & 9 & 9 & 9 & 9.0 & 8.3 \\
+    DT & 10 & 10 & 11 & 10 & 10 & 10.2 & 9.6 \\
+    RDC filter & 11 & 11 & 12 & 13 & 12 & 11.8 & 10.4 \\
+    PI & 16 & 16 & 16 & 16 & 16 & 16.0 & 14.2 \\
+    MC filter & 13 & 14 & 14 & 14 & 15 & 14.0 & 11.1 \\
+    RT & 15 & 15 & 15 & 15 & 14 & 14.8 & 11.6 \\
+    ctree & 14 & 12 & 10 & 12 & 11 & 11.8 & 10.4 \\
+    CIT & 12 & 13 & 13 & 11 & 13 & 12.4 & 10.5 \\
+    CPI & 17 & 17 & 17 & 17 & 17 & 17.0 & 15.7 \\
     \bottomrule
   \end{tabular}
-  \caption{Classification seed sensitivity on the 12 datasets complete across
+  \caption{Classification seed sensitivity on the 13 datasets complete across
   all five seeds. Each seed column is the method's ordinal position after
   sorting methods by their averaged dataset-level ranks for that seed. Mean
   position averages those five ordinal positions; mean rank reports the averaged
@@ -363,29 +366,30 @@ follow the main benchmark order.
     \toprule
     \tablehead{Method} & {Seed 1} & {Seed 2} & {Seed 3} & {Seed 4} & {Seed 5} & {Mean position} & {Mean rank} \\
     \midrule
-    ExtraTrees & 2 & 1 & 1 & 2 & 2 & 1.6 & 6.8 \\
-    CatBoost & 1 & 6 & 3 & 1 & 1 & 2.4 & 6.9 \\
-    CIF & 5 & 5 & 5 & 4 & 6 & 5.0 & 7.9 \\
-    RF & 4 & 3 & 4 & 6 & 5 & 4.4 & 8.0 \\
-    RT & 3 & 2 & 2 & 5 & 4 & 3.2 & 7.6 \\
-    DT & 11 & 4 & 7 & 3 & 3 & 5.6 & 8.1 \\
-    LightGBM & 7 & 8 & 8 & 8 & 7 & 7.6 & 8.7 \\
-    RDC filter & 12 & 11 & 9 & 12 & 11 & 11.0 & 9.8 \\
-    CIT & 8 & 9 & 12 & 10 & 13 & 10.4 & 9.4 \\
-    PC filter & 13 & 13 & 13 & 13 & 12 & 12.8 & 10.5 \\
-    DC filter & 15 & 15 & 14 & 15 & 14 & 14.6 & 11.1 \\
-    XGBoost & 6 & 7 & 10 & 7 & 8 & 7.6 & 8.8 \\
-    Boruta & 10 & 12 & 11 & 11 & 9 & 10.6 & 9.7 \\
-    PI & 9 & 10 & 6 & 9 & 10 & 8.8 & 9.1 \\
-    RF-RFE & 14 & 14 & 15 & 14 & 15 & 14.4 & 10.9 \\
-    cforest & 16 & 17 & 16 & 16 & 17 & 16.4 & 12.3 \\
-    ctree & 18 & 18 & 18 & 17 & 18 & 17.8 & 13.1 \\
-    CPI & 17 & 16 & 17 & 18 & 16 & 16.8 & 12.3 \\
+    ExtraTrees & 3 & 2 & 3 & 3 & 3 & 2.8 & 7.4 \\
+    CIF & 6 & 5 & 8 & 8 & 4 & 6.2 & 8.6 \\
+    CatBoost & 2 & 7 & 4 & 1 & 1 & 3.0 & 7.4 \\
+    RF-RFE & 1 & 1 & 1.5 & 4 & 2 & 1.9 & 7.2 \\
+    RF & 5 & 3 & 5 & 7 & 7 & 5.4 & 8.5 \\
+    RT & 4 & 4 & 1.5 & 5 & 6 & 4.1 & 8.2 \\
+    cforest & 15 & 13 & 13 & 12 & 11 & 12.8 & 10.2 \\
+    DT & 14 & 6 & 7 & 2 & 5 & 6.8 & 8.6 \\
+    Boruta & 9 & 10 & 10 & 11 & 8 & 9.6 & 9.3 \\
+    PC filter & 16 & 16 & 15 & 14 & 16 & 15.4 & 11.3 \\
+    LightGBM & 8 & 9 & 9 & 10 & 10 & 9.2 & 9.3 \\
+    XGBoost & 7 & 8 & 11 & 6 & 12 & 8.8 & 9.2 \\
+    RDC filter & 10 & 14 & 14 & 13 & 14 & 13.0 & 10.4 \\
+    CIT & 12 & 12 & 17 & 17 & 9 & 13.4 & 10.7 \\
+    ctree & 13 & 15 & 12 & 15 & 13 & 13.6 & 10.6 \\
+    PI & 11 & 11 & 6 & 9 & 15 & 10.4 & 9.7 \\
+    DC filter & 17 & 17 & 16 & 16 & 17 & 16.6 & 11.9 \\
+    CPI & 18 & 18 & 18 & 18 & 18 & 18.0 & 12.8 \\
     \bottomrule
   \end{tabular}
   \caption{Regression seed sensitivity on the 6 datasets complete across all
   five seeds. Each seed column is the method's ordinal position after sorting
-  methods by their averaged dataset-level ranks for that seed. Mean position
+  methods by their averaged dataset-level ranks for that seed; fractional
+  positions indicate ties. Mean position
   averages those five ordinal positions; mean rank reports the averaged
   dataset-level rank value itself. Lower values are better.}
   \label{tab:regression-seed-sensitivity}

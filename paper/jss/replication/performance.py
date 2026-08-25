@@ -1,9 +1,11 @@
 """Measure fit time and peak memory for matched tree and forest implementations.
 
-Each measured cell runs in a fresh single-threaded subprocess. This isolates the
-process peak resident-set size, excludes one-time imports and JIT compilation
-from fit timing, and prevents an earlier large fit from contaminating a later
-cell's memory high-water mark.
+Each measured cell runs in a fresh subprocess with each implementation's native
+full-machine parallelism (citrees via Numba threading, scikit-learn forests via
+n_jobs=-1, partykit as shipped). The fresh subprocess isolates the process peak
+resident-set size, excludes one-time imports and JIT compilation from fit
+timing, and prevents an earlier large fit from contaminating a later cell's
+memory high-water mark.
 """
 
 from __future__ import annotations
@@ -53,13 +55,15 @@ MAX_DEPTH = 3
 MIN_SAMPLES_SPLIT = 20
 MIN_SAMPLES_LEAF = 7
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results" / "performance"
+# BLAS pools stay at one thread to avoid nested oversubscription; Numba carries
+# the citrees parallelism and scikit-learn forests parallelize over trees.
 THREAD_ENVIRONMENT = {
     "OMP_NUM_THREADS": "1",
     "OPENBLAS_NUM_THREADS": "1",
     "MKL_NUM_THREADS": "1",
     "NUMEXPR_NUM_THREADS": "1",
     "VECLIB_MAXIMUM_THREADS": "1",
-    "NUMBA_NUM_THREADS": "1",
+    "NUMBA_NUM_THREADS": "32",
     "NUMBA_DISABLE_JIT": "0",
 }
 
@@ -581,7 +585,7 @@ def _fit_sklearn(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         "n_estimators": cell.n_estimators,
         "max_features": None,
         "bootstrap": True,
-        "n_jobs": 1,
+        "n_jobs": -1,
     }
     forest = (
         RandomForestClassifier(**forest_common)

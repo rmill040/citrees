@@ -1627,9 +1627,11 @@ def _validate_launch_history(
             raise ValueError(
                 f"JSS launch attempt times are not strictly increasing for shard {spec_sha256}"
             )
-    instance_ids = [record.instance_id for record in records]
-    if len(instance_ids) != len(set(instance_ids)):
-        raise ValueError("JSS launch records reuse an EC2 instance identifier")
+    # One instance may execute several shards sequentially (batched execution);
+    # each (instance, shard) pairing must still be unique.
+    instance_shards = [(record.instance_id, record.spec_sha256) for record in records]
+    if len(instance_shards) != len(set(instance_shards)):
+        raise ValueError("JSS launch records reuse an EC2 instance for the same shard")
     return tuple(stored_records)
 
 

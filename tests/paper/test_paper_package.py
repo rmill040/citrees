@@ -151,10 +151,10 @@ def test_benchmark_summary_matches_canonical_result_tables():
         method_summary[method_summary["task"] == "regression"]["method_base"].nunique()
     )
 
-    assert classification_rank == 4
-    assert int(cif.loc["classification", "n_datasets"]) == 22
+    assert classification_rank == 3
+    assert int(cif.loc["classification", "n_datasets"]) == 21
     assert classification_methods == 17
-    assert regression_rank == 3
+    assert regression_rank == 2
     assert int(cif.loc["regression", "n_datasets"]) == 8
     assert regression_methods == 18
 

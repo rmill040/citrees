@@ -2,7 +2,8 @@
 
 Each measured cell runs in a fresh subprocess with each implementation's native
 full-machine parallelism (citrees via Numba threading, scikit-learn forests via
-n_jobs=-1, partykit as shipped). The fresh subprocess isolates the process peak
+n_jobs=-1, partykit cforest via cores=32; single trees are serial in every
+implementation). The fresh subprocess isolates the process peak
 resident-set size, excludes one-time imports and JIT compilation from fit
 timing, and prevents an earlier large fit from contaminating a later cell's
 memory high-water mark.
@@ -555,7 +556,7 @@ def _fit_partykit(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         mtry="all",
         replace=True,
         fraction=1.0,
-        cores=1,
+        cores=32,
         **common,
     )
     return cell.n_estimators

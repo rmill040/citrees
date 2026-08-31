@@ -484,7 +484,40 @@ def _fit_citrees(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         ConditionalInferenceTreeRegressor,
     )
 
-    common: CitreesControl = {
+    # CITREES_PERF_VARIANT=defaults measures the shipped configuration
+    # (adaptive stopping, muting, scanning, histogram thresholds); the default
+    # "matched" variant forces the exhaustive procedure comparable to partykit.
+    if os.environ.get("CITREES_PERF_VARIANT") == "defaults":
+        common: CitreesControl = {
+            "selector": cell.selector,
+            "alpha_selector": ALPHA,
+            "max_depth": MAX_DEPTH,
+            "min_samples_split": MIN_SAMPLES_SPLIT,
+            "min_samples_leaf": MIN_SAMPLES_LEAF,
+            "random_state": cell.model_seed,
+            "verbose": 0,
+        }
+        if cell.model_family == "tree":
+            model = (
+                ConditionalInferenceTreeClassifier(**common)
+                if cell.task == "classification"
+                else ConditionalInferenceTreeRegressor(**common)
+            )
+            model.fit(X, y)
+            return int(model.depth_) + 1
+        forest = (
+            ConditionalInferenceForestClassifier(
+                **common, n_estimators=cell.n_estimators
+            )
+            if cell.task == "classification"
+            else ConditionalInferenceForestRegressor(
+                **common, n_estimators=cell.n_estimators
+            )
+        )
+        forest.fit(X, y)
+        return cell.n_estimators
+
+    common = {
         "selector": cell.selector,
         "alpha_selector": ALPHA,
         "adjust_alpha_selector": True,
@@ -556,7 +589,7 @@ def _fit_partykit(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         mtry="all",
         replace=True,
         fraction=1.0,
-        cores=32,
+        cores=int(os.environ.get("PARTYKIT_CORES", "1")),
         **common,
     )
     return cell.n_estimators

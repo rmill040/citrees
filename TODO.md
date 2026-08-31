@@ -27,6 +27,23 @@ objection.
       constants).
 - [ ] Performance section: report partykit default (serial) and `cores=32` side
       by side; state both libraries' parallelism provenance explicitly.
+- [ ] **citrees shipped-defaults supplement (same supplementary campaign):** the
+      main harness measures citrees matched-procedure only (all optimizations
+      OFF — early_stopping=None, muting/scanning off, exact thresholds), which
+      is citrees' worst case by design. Add citrees-only cells at the shipped
+      defaults (adaptive stopping etc.) so the section reports (1) matched
+      procedure, (2) shipped defaults, (3) partykit cores=32. Cheap: defaults
+      are 4–8× faster per the ablation. NEVER present matched-procedure numbers
+      as "citrees performance" without the defaults row.
+
+## Grid endgame (2026-08-31, author directive: run to FULL completion)
+
+No freeze, no truncation: all 960 cells run to completion, all 10 repeats per
+family. The 38 remaining cells are citrees' costliest selector×forest arms
+(mi/dc/rdc selectors and p=200; 3.5–8 h per cell); the 16-box fleet grinds them
+with duplication eliminated. Analysis prep proceeds in parallel from the 922
+banked cells (config-matched cuts only — pooled medians across sweep arms are
+misleading and banned); final tables regenerate from the complete grid.
 
 ## Remaining pipeline gates (running autonomously)
 

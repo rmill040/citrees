@@ -488,9 +488,25 @@ def _fit_citrees(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
     # (adaptive stopping, muting, scanning, histogram thresholds); the default
     # "matched" variant forces the exhaustive procedure comparable to partykit.
     if os.environ.get("CITREES_PERF_VARIANT") == "defaults":
+        # The benchmark's selected CIF/CIT configuration (see
+        # paper_benchmark_selected_config_details.csv): minimum resamples with
+        # adaptive stopping, feature muting and scanning, histogram thresholds.
         common: CitreesControl = {
             "selector": cell.selector,
             "alpha_selector": ALPHA,
+            "adjust_alpha_selector": True,
+            "n_resamples_selector": "minimum",
+            "early_stopping_selector": "adaptive",
+            "early_stopping_confidence_selector": 0.95,
+            "n_resamples_splitter": "minimum",
+            "adjust_alpha_splitter": True,
+            "early_stopping_splitter": "adaptive",
+            "early_stopping_confidence_splitter": 0.95,
+            "feature_muting": True,
+            "feature_scanning": True,
+            "threshold_scanning": True,
+            "threshold_method": "histogram",
+            "max_thresholds": 256,
             "max_depth": MAX_DEPTH,
             "min_samples_split": MIN_SAMPLES_SPLIT,
             "min_samples_leaf": MIN_SAMPLES_LEAF,
@@ -506,13 +522,9 @@ def _fit_citrees(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
             model.fit(X, y)
             return int(model.depth_) + 1
         forest = (
-            ConditionalInferenceForestClassifier(
-                **common, n_estimators=cell.n_estimators
-            )
+            ConditionalInferenceForestClassifier(**common, n_estimators=cell.n_estimators)
             if cell.task == "classification"
-            else ConditionalInferenceForestRegressor(
-                **common, n_estimators=cell.n_estimators
-            )
+            else ConditionalInferenceForestRegressor(**common, n_estimators=cell.n_estimators)
         )
         forest.fit(X, y)
         return cell.n_estimators

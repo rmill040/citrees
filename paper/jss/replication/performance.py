@@ -564,7 +564,9 @@ def _fit_citrees(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         "max_features": None,
         "bootstrap": True,
         "max_samples": None,
-        "n_jobs": 1,
+        # Forests fit trees in parallel, matching scikit-learn's n_jobs=-1 and
+        # partykit's cores; Numba threads stay available for within-tree work.
+        "n_jobs": -1,
     }
     if cell.task == "classification":
         forest = ConditionalInferenceForestClassifier(

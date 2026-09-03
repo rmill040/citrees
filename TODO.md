@@ -48,10 +48,17 @@ budget** in the performance table (standard timeout practice), not as
 measurements. Never narrate per-cell durations in the manuscript. All straggler
 and spot grid fleets are terminated; the relauncher is stopped.
 
-The matched-procedure arm is reported only as the implementation-efficiency
-control; the headline citrees numbers come from the supplement (selected
-configuration: minimum resamples, adaptive stopping, muting/scanning, histogram
-thresholds, parallel forests).
+**Section framing (author, 2026-09-02):** exhaustive conditional inference at
+the reference procedure is computationally impractical (matched-arm cells
+censored at the 48 h budget); the same statistical procedure with citrees'
+optimizations (minimum resamples, adaptive stopping, muting/scanning, histogram
+thresholds, parallel forests) runs in seconds to minutes. Censored cells are the
+motivation for the optimizations, not a caveat.
+
+**Selector scope:** report ONLY the linear selectors — `mc` (classification) and
+`pc` (regression). Drop the selector-sweep axis (mi/rdc/dc) from the performance
+section entirely; it is where nearly all censored cells live. Remaining censored
+cells (p=200 matched-arm forests) are reported as censored.
 
 ## Remaining pipeline gates (running autonomously)
 

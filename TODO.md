@@ -36,19 +36,27 @@ objection.
       are 4–8× faster per the ablation. NEVER present matched-procedure numbers
       as "citrees performance" without the defaults row.
 
-## Grid endgame (2026-08-31, author directive: run to FULL completion)
+## Grid endgame (2026-09-02, author directive: censor, do not wait)
 
-No freeze, no truncation: all 960 cells run to completion, all 10 repeats per
-family. The 38 remaining cells are citrees' costliest selector×forest arms
-(mi/dc/rdc selectors and p=200; 3.5–8 h per cell); the 16-box fleet grinds them
-with duplication eliminated. Analysis prep proceeds in parallel from the 922
-banked cells (config-matched cuts only — pooled medians across sweep arms are
-misleading and banned); final tables regenerate from the complete grid.
+Campaign 3 is closed at 947/960 measured cells (932 spot-campaign shards plus 15
+cells re-measured on dedicated on-demand boxes with market provenance recorded
+truthfully). The 13 unmeasured cells are all citrees forests in the
+matched-procedure (exhaustive) arm with the mi/dc/rdc selectors or p=200: serial
+trees under the campaign's frozen `n_jobs=1` image, each cell still running
+after >48 h of wall clock. Report them as **censored at a 48-hour wall-clock
+budget** in the performance table (standard timeout practice), not as
+measurements. Never narrate per-cell durations in the manuscript. All straggler
+and spot grid fleets are terminated; the relauncher is stopped.
+
+The matched-procedure arm is reported only as the implementation-efficiency
+control; the headline citrees numbers come from the supplement (selected
+configuration: minimum resamples, adaptive stopping, muting/scanning, histogram
+thresholds, parallel forests).
 
 ## Remaining pipeline gates (running autonomously)
 
-- [ ] JSS grid campaign 3 drain (~155 cells left) → materialize/merge with
-      receipt validation → write JSS performance section.
+- [ ] JSS grid: assemble 947 measured cells + 13 censored → write JSS
+      performance section once supplement completes.
 - [ ] CIF mechanism ablation rerun (8 boxes, 40-way) → rebuild
       `tab:cif-ranking-ablation` (arXiv V1) from corrected surface.
 - [ ] EC2 knob/threshold ablation → `tab:cit-runtime-hyperparams` runtime ratios

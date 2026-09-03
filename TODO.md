@@ -69,10 +69,18 @@ under contention; 12 trees in parallel was slower than 12 trees serial.
 Threading backend is far worse (GIL-bound tree building, ~300 s vs 150 s
 serial), so loky stays. **Fix landed:** dcor is now imported lazily inside the
 dc selector (import 6.5 s → 3.2 s; 100-tree forest 46–57 s → 33–54 s locally).
-The JSS supplement was measured on the pre-fix image; the difference is modest
-and the section reports forests as measured. Remaining parallel inefficiency
-(per-worker interpreter startup) is a release-engineering item, not a paper
-blocker.
+**EC2 verification (2026-09-03, c6a.8xlarge, campaign image):** the harness
+reference cell reproduces 134 s for the recommended citrees forest under every
+thread setting, with or without the lazy-dcor fix (the harness warm-up fit
+already spawns the worker pool, so worker import cost is outside the timed
+region). On strong-signal data the same forest takes 27 s (19 s with lazy dcor);
+the harness's weak decaying signals (coefficients 1.0 to 0.25, unit noise) keep
+p-values near the threshold where adaptive stopping cannot stop early. The 130 s
+in the paper is therefore a fair hard-case measurement, and partykit on the same
+data and box took 289 s (1 core) and 14.7 s (32 cores). Raw results:
+s3://citrees-856480643277/debug/forest-timing-matrix/{run1,run2}. Remaining
+parallel inefficiency (per-worker interpreter startup) is a release-engineering
+item, not a paper blocker.
 
 ## Remaining pipeline gates (running autonomously)
 

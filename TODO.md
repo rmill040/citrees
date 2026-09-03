@@ -15,19 +15,20 @@ the "default configuration" comparison.
 performance section. This pre-empts the "you handicapped the baseline" reviewer
 objection.
 
-- [ ] Code change exists as an UNCOMMITTED working-tree edit (`cores=32` in
-      `paper/jss/replication/performance.py:559` + docstring; tests pass).
-      Decide whether to land it as a separate supplement profile instead of
-      changing the main harness, since campaign 3's identity is bound to the
-      `cores=1` source.
-- [ ] Scope: only cells with `method == "partykit"` and forest model family
+- [x] Code change landed (env-driven `PARTYKIT_CORES`, `CITREES_PERF_VARIANT`)
+      (`cores=32` in `paper/jss/replication/performance.py:559` + docstring;
+      tests pass). Decide whether to land it as a separate supplement profile
+      instead of changing the main harness, since campaign 3's identity is bound
+      to the `cores=1` source.
+- [x] Scope: only cells with `method == "partykit"` and forest model family
       (~100–200 of 960); these run 10–20× faster parallel.
-- [ ] New (small) campaign under the changed source; batch drivers in
+- [x] New (small) campaign under the changed source; batch drivers in
       `scratch/jss_batch_driver.py` are reusable (update PREFIX/campaign/profile
       constants).
-- [ ] Performance section: report partykit default (serial) and `cores=32` side
-      by side; state both libraries' parallelism provenance explicitly.
-- [ ] **citrees shipped-defaults supplement (same supplementary campaign):** the
+- [x] Performance section written (2026-09-02): exhaustive procedure,
+      recommended configuration, partykit 1 core and 32 cores, sklearn CART; two
+      tables.
+- [x] **citrees shipped-defaults supplement (same supplementary campaign):** the
       main harness measures citrees matched-procedure only (all optimizations
       OFF — early_stopping=None, muting/scanning off, exact thresholds), which
       is citrees' worst case by design. Add citrees-only cells at the shipped
@@ -75,8 +76,8 @@ blocker.
 
 ## Remaining pipeline gates (running autonomously)
 
-- [ ] JSS grid: assemble 947 measured cells + 13 censored → write JSS
-      performance section once supplement completes.
+- [x] JSS grid: 880 non-selector cells complete (0 censored after dropping the
+      selector axis); performance section written and visually inspected.
 - [ ] CIF mechanism ablation rerun (8 boxes, 40-way) → rebuild
       `tab:cif-ranking-ablation` (arXiv V1) from corrected surface.
 - [ ] EC2 knob/threshold ablation → `tab:cit-runtime-hyperparams` runtime ratios

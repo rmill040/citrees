@@ -591,18 +591,118 @@ with signal in the first five predictors. The reference condition has 1,000
 observations, 50 predictors, 999 permutations, and 100 trees. One-factor
 comparisons vary sample size between 250 and 4,000, predictor count between 10
 and 200, permutation budget between 99 and 9,999, and forest size between 25
-and 500 trees. Additional \citrees conditions evaluate mutual information and
-the randomized dependence coefficient for classification, and distance
-correlation and the randomized dependence coefficient for regression.
+and 500 trees. Classification uses the multiple correlation selector and
+regression uses the Pearson correlation selector throughout.
 
-The full profile contains 960 measured cells across classification, regression,
-trees, forests, \citrees, \pkg{partykit}, and \sklearn. Each cell runs in a
-fresh single-threaded process after a small fit of the same method removes
-one-time initialization and, where applicable, JIT compilation from timing.
-Elapsed time covers model construction and fitting. Peak resident memory and
-the increase over the pre-fit process high-water mark are recorded. Each
-condition is repeated 10 times and summarized by its median and interquartile
-range on fixed hardware.
+Three configurations are timed. In the first, every library fits the same
+exhaustive procedure: the full permutation budget with no early stopping, exact
+threshold search, and no feature muting or scanning, so the comparison
+isolates implementation efficiency at identical statistical work. In the
+second, \citrees runs its recommended configuration: the minimum permutation
+budget with adaptive stopping, feature muting and scanning, histogram threshold
+search with 256 candidate thresholds, and forest trees fit in parallel. In the
+third, \pkg{partykit} forests use 32 cores instead of the single core they use
+by default. The permutation-budget comparison applies only to the exhaustive
+procedure, because the recommended configuration sets its own budget. The
+exhaustive procedure contributes 880 cells across the three libraries, the
+recommended \citrees configuration 320, and the 32-core \pkg{partykit} forests
+180. Each cell runs in a fresh process on identical 32-core cloud instances
+after a small fit of the same method removes one-time initialization and,
+where applicable, JIT compilation from timing. Each library uses its own
+parallelism: \citrees uses its compiled thread pool and fits forest trees in
+parallel, \sklearn forests use all cores, and \pkg{partykit} runs on one core
+except in the 32-core condition. Elapsed time covers model construction and
+fitting. Peak resident memory and its increase over the pre-fit process are
+recorded. Every condition is repeated 10 times and summarized by its median
+and interquartile range.
+
+Table~\ref{tab:performance-reference} reports the reference condition. The
+exhaustive procedure is expensive in both conditional inference
+implementations: a 100-tree classification forest took 781 seconds in \citrees
+and 286 seconds in \pkg{partykit}, and the regression forests took 309 and 287
+seconds. The recommended \citrees configuration fit the same forests in 130
+and 89 seconds, 6.0 and 3.5 times faster than the exhaustive procedure and 2.2
+and 3.2 times faster than \pkg{partykit} on one core. Single trees show the
+same pattern with a larger margin: 1.5 and 0.3 seconds for the recommended
+configuration against 7.7 and 3.0 seconds for the exhaustive procedure and 2.9
+seconds for \pkg{partykit}. With 32 cores, \pkg{partykit} forests took 13.0
+seconds for both tasks, 10.0 and 6.8 times faster than the recommended
+\citrees forests, because its tree construction is compiled C code while
+\citrees builds trees in Python and pays a process start for each parallel
+worker. CART in \sklearn fits the reference forests in 0.16 and 0.12 seconds;
+it performs no permutation test at any node and is included to place the cost
+of conditional inference on a familiar scale.
+
+\begin{center}
+\small
+\begin{tabular}{lrrrr}
+\hline
+ & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
+Configuration & Tree & Forest & Tree & Forest \\ \hline
+\citrees, exhaustive & 7.7 [7.6, 7.7] & 781 [779, 782] & 3.0 [3.0, 3.0] & 309 [308, 310] \\
+\citrees, recommended & 1.5 [0.4, 3.8] & 130 [110, 156] & 0.3 [0.3, 2.1] & 89 [82, 106] \\
+\pkg{partykit}, 1 core & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
+\pkg{partykit}, 32 cores & n/a & 13.0 [13.0, 13.0] & n/a & 13.0 [13.0, 13.0] \\
+\sklearn CART & 0.01 [0.01, 0.01] & 0.16 [0.16, 0.16] & 0.01 [0.01, 0.01] & 0.12 [0.12, 0.12] \\ \hline
+\end{tabular}
+\captionof{table}{\label{tab:performance-reference} Median fitting time in
+seconds with the interquartile range in brackets over 10 repeats at the
+reference condition of 1,000 observations, 50 predictors, 999 permutations
+where applicable, and 100 trees. The exhaustive procedure uses the full
+permutation budget without early stopping, exact threshold search, and no
+feature muting or scanning. The recommended \citrees configuration uses the
+minimum permutation budget with adaptive stopping, feature muting and scanning,
+histogram threshold search, and parallel tree fitting. Single trees have no
+32-core condition because \pkg{partykit} parallelizes only across trees.}
+\end{center}
+
+Table~\ref{tab:performance-scaling} shows how forest fitting time changes
+along each design factor. The exhaustive \citrees procedure grows fastest with
+predictor count, reaching 12,080 seconds for classification at 200 predictors,
+where the recommended configuration took 129 seconds and \pkg{partykit} took
+1,143 seconds on one core and 52 seconds on 32 cores. Feature muting and
+scanning make the recommended configuration nearly insensitive to predictor
+count: its classification forests took 105 seconds at 10 predictors and 129
+seconds at 200, while one-core \pkg{partykit} grew from 58 to 1,143 seconds.
+Increasing the permutation budget from 99 to 9,999 raised the exhaustive
+\citrees classification forest from 83 to 7,686 seconds and one-core
+\pkg{partykit} from 34 to 2,800 seconds; adaptive stopping removes this axis
+from the recommended configuration entirely. Sample size and forest size scale
+all implementations roughly linearly. For single trees the recommended
+\citrees configuration took at most 2.8 seconds in every condition, whereas
+\pkg{partykit} took 11.3 seconds at 4,000 observations, 11.7 seconds at 200
+predictors, and 28.6 seconds at 9,999 permutations. The increase in peak
+resident memory over the pre-fit process was at most 22 MB in every condition
+and library, so memory did not separate the implementations at these sizes.
+Together these results locate the practical cost of conditional inference in
+the permutation budget and the candidate-feature sweep rather than in tree
+construction, which is exactly where adaptive stopping, muting, and scanning
+act.
+
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lrrrrrrrrrr}
+\hline
+ & \multicolumn{2}{c}{\citrees exhaustive} & \multicolumn{2}{c}{\citrees recommended} & \multicolumn{2}{c}{\pkg{partykit}, 1 core} & \multicolumn{2}{c}{\pkg{partykit}, 32 cores} & \multicolumn{2}{c}{\sklearn CART} \\
+Condition & Class. & Regr. & Class. & Regr. & Class. & Regr. & Class. & Regr. & Class. & Regr. \\ \hline
+250 observations & 253 & 127 & 20 & 13 & 76 & 78 & 4 & 4 & 0.1 & 0.1 \\
+4,000 observations & 2,829 & 1,024 & 329 & 309 & 1,118 & 1,118 & 50 & 50 & 0.2 & 0.2 \\
+10 predictors & 35 & 15 & 105 & 50 & 58 & 58 & 3 & 3 & 0.2 & 0.1 \\
+200 predictors & 12,080 & 4,670 & 129 & 112 & 1,143 & 1,144 & 52 & 52 & 0.2 & 0.2 \\
+25 trees & 196 & 76 & 37 & 19 & 72 & 72 & 3 & 3 & 0.0 & 0.0 \\
+500 trees & 3,898 & 1,553 & 692 & 469 & 1,430 & 1,430 & 53 & 53 & 0.8 & 0.5 \\
+99 permutations & 83 & 34 & n/a & n/a & 34 & 34 & 2 & 2 & n/a & n/a \\
+9,999 permutations & 7,686 & 3,100 & n/a & n/a & 2,800 & 2,802 & 125 & 126 & n/a & n/a \\ \hline
+\end{tabular}
+\captionof{table}{\label{tab:performance-scaling} Median forest fitting time in
+seconds over 10 repeats when one factor departs from the reference condition
+of 1,000 observations, 50 predictors, 999 permutations, and 100 trees, for
+classification (Class.) and regression (Regr.). The permutation budget applies
+only to the exhaustive procedure and to \pkg{partykit}; the recommended
+\citrees configuration sets its own budget through adaptive stopping, and
+\sklearn performs no permutation test.}
+\end{center}
 
 \subsection{DGRP cardiac application} \label{sec:dgrp}
 

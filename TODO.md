@@ -82,6 +82,16 @@ s3://citrees-856480643277/debug/forest-timing-matrix/{run1,run2}. Remaining
 parallel inefficiency (per-worker interpreter startup) is a release-engineering
 item, not a paper blocker.
 
+## Compute budget rule (author, 2026-09-03)
+
+Every experiment has a hard 48-hour wall-clock budget from its (re)launch. Boxes
+carry a 48 h self-destruct (sync, then terminate). Whatever is incomplete at the
+cutoff is **censored, not waited for**: the table builders run in non-strict
+mode, the completeness table names the excluded cells, and the manuscript states
+the count of excluded datasets/cells and the budget in the caption. Never
+narrate per-cell durations. Applies now to the CIF mechanism ablation
+(relaunched 2026-09-03 ~15:00 UTC, expected ~6 h) and the knob/threshold runner.
+
 ## Remaining pipeline gates (running autonomously)
 
 - [x] JSS grid: 880 non-selector cells complete (0 censored after dropping the

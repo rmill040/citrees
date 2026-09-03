@@ -60,6 +60,18 @@ motivation for the optimizations, not a caveat.
 section entirely; it is where nearly all censored cells live. Remaining censored
 cells (p=200 matched-arm forests) are reported as censored.
 
+## Library follow-up: forest parallel efficiency (found 2026-09-02)
+
+`import citrees` costs ~6.5 s (half is `dcor`, imported eagerly for the dc
+selector). Forest fits use loky _processes_, so every worker pays that import
+under contention (~25 s per worker with 12+ workers); 12 trees in parallel is
+slower than 12 trees serial. Threading backend is far worse (GIL-bound tree
+building, 300 s vs 150 s serial) — loky stays. Lazy-importing dcor halves import
+time and speeds small forests, but made 100-tree forests ~6× slower in a
+reproducible A/B (338 s vs 46–57 s); mechanism unknown, change reverted. Worth a
+proper investigation before the next library release; NOT a paper blocker. The
+performance section reports forests as measured.
+
 ## Remaining pipeline gates (running autonomously)
 
 - [ ] JSS grid: assemble 947 measured cells + 13 censored → write JSS

@@ -3,8 +3,6 @@ from math import ceil
 from typing import Any
 
 import numpy as np
-from dcor import distance_correlation as _d_correlation
-from dcor import distance_covariance as _d_covariance
 from numba import njit
 from numba import prange as _numba_prange
 from sklearn.feature_selection import mutual_info_classif
@@ -1178,6 +1176,12 @@ def dc(x: np.ndarray, y: np.ndarray, standardize: bool, random_state: int | None
         x = x.ravel()
     if y.ndim > 1:
         y = y.ravel()
+
+    # Imported lazily: dcor costs ~3 s at import and is only needed for the
+    # distance-correlation selector, which would otherwise be paid by every
+    # forest worker process at startup.
+    from dcor import distance_correlation as _d_correlation
+    from dcor import distance_covariance as _d_covariance
 
     return float(_d_correlation(x, y)) if standardize else float(_d_covariance(x, y))
 

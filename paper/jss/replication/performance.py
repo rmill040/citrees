@@ -733,18 +733,9 @@ def _cell_from_payload(payload: dict[str, object]) -> PerformanceCell:
     return cell
 
 
-def _worker_environment(cell: PerformanceCell | None = None) -> dict[str, str]:
-    """Thread settings for one measured cell.
-
-    Forests that fit trees in parallel worker processes get one Numba thread per
-    worker; 32 workers x 32 Numba threads oversubscribes the machine by 32x and
-    was measured to slow the permutation kernel by up to 34x. Single trees and
-    any cell that does not fork workers use the full Numba thread pool.
-    """
+def _worker_environment() -> dict[str, str]:
     environment = os.environ.copy()
     environment.update(THREAD_ENVIRONMENT)
-    if cell is not None and cell.method == "citrees" and cell.model_family == "forest":
-        environment["NUMBA_NUM_THREADS"] = "1"
     return environment
 
 
@@ -770,7 +761,7 @@ def _run_cell_subprocess(cell: PerformanceCell) -> dict[str, object]:
         completed = subprocess.run(
             command,
             cwd=repo_root,
-            env=_worker_environment(cell),
+            env=_worker_environment(),
             check=False,
             capture_output=True,
             text=True,

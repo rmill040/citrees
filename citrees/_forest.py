@@ -2,8 +2,9 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from multiprocessing import cpu_count
 
+import numba
 import numpy as np
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, effective_n_jobs
 from pydantic import BaseModel, model_validator
 from scipy.sparse import csr_matrix, hstack
 from sklearn.base import ClassifierMixin, RegressorMixin, clone
@@ -39,6 +40,24 @@ _PRINT_FACTOR = {
 }
 
 
+def _threads_per_worker(n_jobs: int | None) -> int:
+    """Numba threads each tree-fitting worker may use.
+
+    Forest trees are fit in separate worker processes. Each process inherits the
+    full Numba thread pool, so ``n_jobs`` workers would run ``n_jobs`` times the
+    machine's thread count and oversubscribe it badly (measured up to 34x slower
+    on 32 cores). Divide the pool across workers instead, never below one.
+    """
+    workers = effective_n_jobs(1 if n_jobs is None else n_jobs)
+    total = numba.get_num_threads()
+    return total if workers <= 1 else max(1, total // workers)
+
+
+def _limit_numba_threads(numba_threads: int) -> None:
+    if numba.get_num_threads() != numba_threads:
+        numba.set_num_threads(numba_threads)
+
+
 def _parallel_fit_classifier(
     *,
     estimator: ConditionalInferenceTreeClassifier,
@@ -50,6 +69,7 @@ def _parallel_fit_classifier(
     bootstrap: bool,
     sampling_method: str | None,
     verbose: int,
+    numba_threads: int | None = None,
 ) -> ConditionalInferenceTreeClassifier:
     """Build classification trees in parallel.
 
@@ -90,6 +110,8 @@ def _parallel_fit_classifier(
         Fitted estimator.
 
     """
+    if numba_threads is not None:
+        _limit_numba_threads(numba_threads)
     if verbose and estimator_idx % _PRINT_FACTOR[verbose] == 0:
         print(f"Building tree {estimator_idx}/{n_estimators}")
 
@@ -124,6 +146,7 @@ def _parallel_fit_regressor(
     n_estimators: int,
     bootstrap: bool,
     verbose: int,
+    numba_threads: int | None = None,
 ) -> ConditionalInferenceTreeRegressor:
     """Build regression trees in parallel.
 
@@ -161,6 +184,8 @@ def _parallel_fit_regressor(
         Fitted estimator.
 
     """
+    if numba_threads is not None:
+        _limit_numba_threads(numba_threads)
     if verbose and estimator_idx % _PRINT_FACTOR[verbose] == 0:
         print(f"Building tree {estimator_idx}/{n_estimators}")
 
@@ -408,7 +433,8 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
             base_estimator.random_state = self._random_state + j
             self.estimators_.append(base_estimator)
 
-        # Train estimators
+        # Train estimators; split the Numba thread pool across worker processes
+        numba_threads = _threads_per_worker(self._n_jobs)
         if self._estimator_type == EstimatorType.CLASSIFIER:
             self.estimators_ = Parallel(n_jobs=self._n_jobs, verbose=self._verbose, backend="loky")(
                 delayed(_parallel_fit_classifier)(
@@ -421,6 +447,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     bootstrap=self._bootstrap,
                     sampling_method=self._sampling_method,
                     verbose=self._verbose,
+                    numba_threads=numba_threads,
                 )
                 for estimator_idx, estimator in enumerate(self.estimators_, 1)
             )
@@ -435,6 +462,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
                     n_estimators=self._n_estimators,
                     bootstrap=self._bootstrap,
                     verbose=self._verbose,
+                    numba_threads=numba_threads,
                 )
                 for estimator_idx, estimator in enumerate(self.estimators_, 1)
             )

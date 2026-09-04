@@ -459,6 +459,15 @@ def main() -> None:
     )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument(
+        "--complete-datasets-only",
+        action="store_true",
+        help=(
+            "Censor at the dataset level: a dataset enters a paired comparison only when "
+            "both the candidate and the reference have complete standard-k support; "
+            "excluded datasets are written to cif_mechanism_ablation_censored_datasets.csv"
+        ),
+    )
+    parser.add_argument(
         "--expected-seeds",
         type=int,
         default=DEFAULT_EXPECTED_SEEDS,
@@ -507,6 +516,19 @@ def main() -> None:
     )
     cells = build_cell_scores(metrics)
     scores = build_dataset_scores(cells)
+    if args.complete_datasets_only:
+        censored = scores[
+            ~scores["scores_complete"]
+            | (scores["min_fold_seed_rows"] < args.expected_seeds * args.expected_folds)
+        ]
+        censored.to_csv(
+            args.output_dir / "cif_mechanism_ablation_censored_datasets.csv", index=False
+        )
+        print(f"Censored dataset x variant rows (incomplete support): {len(censored)}")
+        scores = scores[
+            scores["scores_complete"]
+            & (scores["min_fold_seed_rows"] >= args.expected_seeds * args.expected_folds)
+        ].copy()
     method_summary = build_method_summary(scores)
     cell_deltas = build_paired_cell_deltas(cells)
     dataset_deltas = build_paired_dataset_deltas(scores)

@@ -92,6 +92,15 @@ the count of excluded datasets/cells and the budget in the caption. Never
 narrate per-cell durations. Applies now to the CIF mechanism ablation
 (relaunched 2026-09-03 ~15:00 UTC, expected ~6 h) and the knob/threshold runner.
 
+**Censoring mechanics:** the CIF mechanism table is built with
+`--complete-datasets-only`: a dataset enters a variant-vs-default comparison
+only when both have complete seed x fold support for every downstream learner
+and k; excluded datasets are listed in
+`cif_mechanism_ablation_censored_datasets.csv`, and the manuscript caption
+states the per-row dataset count and the 48 h budget. The knob runner's finished
+CSV was rescued to S3 (`_control/ablation-rerun/`), with a watcher copying the
+threshold-search CSV out every 10 min once it exists.
+
 ## Remaining pipeline gates (running autonomously)
 
 - [x] JSS grid: 880 non-selector cells complete (0 censored after dropping the

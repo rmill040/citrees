@@ -522,9 +522,13 @@ def _fit_citrees(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
             model.fit(X, y)
             return int(model.depth_) + 1
         forest = (
-            ConditionalInferenceForestClassifier(**common, n_estimators=cell.n_estimators)
+            ConditionalInferenceForestClassifier(
+                **common, n_estimators=cell.n_estimators, n_jobs=-1
+            )
             if cell.task == "classification"
-            else ConditionalInferenceForestRegressor(**common, n_estimators=cell.n_estimators)
+            else ConditionalInferenceForestRegressor(
+                **common, n_estimators=cell.n_estimators, n_jobs=-1
+            )
         )
         forest.fit(X, y)
         return cell.n_estimators

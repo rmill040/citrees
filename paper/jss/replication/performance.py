@@ -604,7 +604,10 @@ def _fit_partykit(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         X,
         y,
         ntree=cell.n_estimators,
-        mtry="all",
+        # "all" matches the exhaustive citrees arm (max_features=None); "sqrt"
+        # is partykit's own default (ceil(sqrt(p))) and matches the citrees
+        # default of max_features="sqrt".
+        mtry=os.environ.get("PARTYKIT_MTRY", "all"),
         replace=True,
         fraction=1.0,
         cores=int(os.environ.get("PARTYKIT_CORES", "1")),

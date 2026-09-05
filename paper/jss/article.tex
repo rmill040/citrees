@@ -625,8 +625,9 @@ data with 20 or 100 predictors at 500 to 32,000 observations. Each library
 runs at its default configuration with all 32 cores available, and
 \pkg{partykit} is also timed on one core. Two \citrees variants isolate the
 threshold test: one drops the Bonferroni adjustment over candidate thresholds
-and one omits the threshold test. Each fit is repeated twice, once for the
-three largest \pkg{partykit} fits, and no fit reached the one-hour limit. For
+and one omits the threshold test. Each fit is repeated twice, except on
+letter, isolet, and gisette, where every configuration is fit once, and no fit
+reached the one-hour limit. For
 every dataset we also record the mean number of distinct candidate thresholds
 per predictor, capped at the 256 the histogram search considers.
 
@@ -674,10 +675,11 @@ across trees.}
 \end{center}
 
 The second study reverses this ordering on real data.
-Table~\ref{tab:performance-real} shows that on the seven largest datasets the
-recommended \citrees configuration fits the forest 2.7 to 15 times faster than
-\pkg{partykit} on 32 cores and 22 to 260 times faster than \pkg{partykit} on
-one core, with the largest margins at the largest sample sizes: 4.7 seconds
+Table~\ref{tab:performance-real} shows that the recommended \citrees
+configuration fits the forest faster than \pkg{partykit} on 32 cores on seven
+of the ten datasets, by 1.1 to 15 times, and faster than \pkg{partykit} on one
+core on every dataset, by 7.9 to 260 times, with the largest margins at the
+largest sample sizes: 4.7 seconds
 against 70 and 1,218 seconds on letter, 20 against 171 and 3,024 seconds on
 isolet, and 34 against 144 and 2,431 seconds on gisette. \pkg{partykit} on 32
 cores is faster on gamma, madelon, and vowel. The candidate-threshold column
@@ -695,9 +697,10 @@ the full 256 candidates, the adjusted level is 0.05/256, and the threshold test
 alone needs about 5,000 permutations of the sample at every node. The clearest
 case is gamma, with nine continuous predictors: 42 seconds with the adjustment
 and 3.5 seconds without it. Without the adjustment the recommended
-configuration is faster than \pkg{partykit} on 32 cores on every one of the
-ten datasets, by 1.2 times on vowel and 20 times on letter, and omitting the
-threshold test entirely changes these times by at most a few seconds.
+configuration is faster than \pkg{partykit} on 32 cores on nine of the ten
+datasets, by 2.4 times on madelon and 19 times on letter, and within 0.3
+seconds of it on vowel. Omitting the threshold test entirely changes these
+times by at most 0.4 seconds, except on isolet, where it adds 7 seconds.
 
 \begin{center}
 \footnotesize
@@ -723,23 +726,23 @@ least 500 observations, each library at its default configuration on a 32-core
 machine. Candidates is the mean number of distinct candidate thresholds per
 predictor, capped at 256. No adjustment is the recommended \citrees configuration
 without the Bonferroni adjustment over candidate thresholds in the threshold
-test. Medians are over two repeats, or one repeat for the
-\pkg{partykit} fits on letter, isolet, and gisette.}
+test. Medians are over two repeats, or a single fit on letter, isolet, and
+gisette.}
 \end{center}
 
 Synthetic Gaussian predictors are the continuous case throughout, and
 Table~\ref{tab:performance-scaling} shows the consequence as the sample size
 grows. The recommended configuration is 1.1 to 2.8 times faster than
-\pkg{partykit} on one core at every sample size, its advantage widening with
-the sample size, and 7 to 17 times slower than \pkg{partykit} on 32 cores;
-without the threshold adjustment it is 3 to 11 times faster than
-\pkg{partykit} on 32 cores and its cost is nearly flat in the number of
-predictors. Strong signals, with equal coefficients and half the noise, change
-these times by less than 10 percent except at 8,000 observations and 20
-predictors, where the recommended configuration takes 120 rather than 71
-seconds. The increase in peak resident memory over the pre-fit process was at
-most 22 MB in every condition of the first study, so memory did not separate
-the implementations. Together the two studies locate the cost of conditional
+\pkg{partykit} on one core at every sample size and 7 to 16 times slower than
+\pkg{partykit} on 32 cores. Without the threshold adjustment it is within a
+factor of 1.6 of \pkg{partykit} on 32 cores at 2,000 observations and 3.2 to
+8.6 times faster at 8,000 and 32,000 observations. Strong signals, with equal
+coefficients and half the noise, change the times of the recommended
+configuration by at most 16 percent except at 8,000 observations and 20
+predictors, where it takes 120 rather than 71 seconds, and change the
+\pkg{partykit} times by at most 19 percent. The increase in peak resident
+memory over the pre-fit process was at most 49 MB in every condition of the
+first study, so memory did not separate the implementations. Together the two studies locate the cost of conditional
 inference in how permutations are spent rather than in tree construction:
 adaptive stopping, muting, and scanning remove most of the fixed budget that
 \pkg{partykit} pays, and the one remaining fixed cost in \citrees, the
@@ -761,7 +764,7 @@ Observations & Predictors & Recommended & No adjustment & 1 core & 32 cores \\ \
 32,000 & 100 & 554 & 10 & 1,218 & 76 \\ \hline
 \end{tabular}
 \captionof{table}{\label{tab:performance-scaling} Median fitting time in
-seconds over two repeats for 100-tree classification forests on synthetic
+seconds over at least two repeats for 100-tree classification forests on synthetic
 Gaussian predictors with weak signal in the first five, each library at its
 default configuration on a 32-core machine. Columns are as in
 Table~\ref{tab:performance-real}; the no-adjustment variant was not run at 500

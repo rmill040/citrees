@@ -147,10 +147,17 @@ changes; the paper currently reports both settings.
       (460 fits); abstract sentence updated. Adaptive stopping: 6.1-6.5x
       synthetic / 483-717x real (CIF), 3.2-8.3x (CIT, with deeper trees and
       top-10 recovery changes up to 0.40).
-- [ ] Independent factual review of arXiv v2 (fresh-eyes subagent, running
-      2026-09-05); arXiv PDF rebuilt (39 pages, 0 overfull) and page 10
-      inspected.
+- [x] Independent factual review of arXiv v2 (2026-09-05): 5 rounding /
+      aggregation discrepancies found and fixed (two CI bounds, two
+      rounded-upward table cells, CIT depth sentence). PDF rebuilt (39 pages, 0
+      overfull), page 10 inspected.
+- [x] Independent factual review of the JSS performance section (2026-09-05): 13
+      prose-level discrepancies (ranges stated too favorably, repeat counts,
+      memory bound) rewritten from the head-to-head tables; all 119 table cells
+      verified.
 - [ ] JSS top-level replication run (`--profile quick`, started 2026-09-05,
       output `paper/jss/results/replication-quick`).
-- [ ] AWS teardown (`scratch/aws_teardown_plan.sh`, CONFIRM=yes) after the
-      replication run; the two non-project instances in the account stay.
+- [x] AWS teardown done 2026-09-05: 22 citrees IAM roles and instance profiles
+      deleted (including the AdministratorAccess supervisor role); no project
+      instances remain; S3 debug prefixes kept. The two non-project instances in
+      the account were left alone.

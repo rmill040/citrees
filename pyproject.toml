@@ -117,6 +117,7 @@ exclude = [
     "/paper/arxiv/*.pdf",
     "/paper/data",
     "/paper/results",
+    "/paper/results/**",
 ]
 
 [tool.ruff]

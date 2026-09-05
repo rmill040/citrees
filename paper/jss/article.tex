@@ -586,122 +586,185 @@ deterministic replication.
 
 \subsection{Controlled computation} \label{sec:performance}
 
-Computational comparisons use synthetic classification and regression data
-with signal in the first five predictors. The reference condition has 1,000
-observations, 50 predictors, 999 permutations, and 100 trees. One-factor
-comparisons vary sample size between 250 and 4,000, predictor count between 10
-and 200, permutation budget between 99 and 9,999, and forest size between 25
-and 500 trees. Classification uses the multiple correlation selector and
-regression uses the Pearson correlation selector throughout.
+Two computational studies time model fitting on identical 32-core cloud
+instances. Every fit runs in a fresh process after a small fit of the same
+method has removed one-time initialization and, where applicable, JIT
+compilation; elapsed time covers model construction and fitting only, and
+each library uses its own parallelism. \citrees fits forest trees in parallel
+worker processes and divides its compiled thread pool among them; \sklearn
+forests use all cores; \pkg{partykit} runs on one core by default and is also
+timed with 32 cores. Trees have depth at most 3 with minimum split and leaf
+sizes of 20 and 7 in every library, forests have 100 trees, and the
+significance level is 0.05 with Bonferroni adjustment across predictors.
 
-Three configurations are timed. In the first, every library fits the same
-exhaustive procedure: the full permutation budget with no early stopping, exact
-threshold search, and no feature muting or scanning, so the comparison
-isolates implementation efficiency at identical statistical work. In the
-second, \citrees runs its recommended configuration: the minimum permutation
-budget with adaptive stopping, feature muting and scanning, histogram threshold
-search with 256 candidate thresholds, and forest trees fit in parallel. In the
-third, \pkg{partykit} forests use 32 cores instead of the single core they use
-by default. The permutation-budget comparison applies only to the exhaustive
-procedure, because the recommended configuration sets its own budget. The
-exhaustive procedure contributes 880 cells across the three libraries, the
-recommended \citrees configuration 320, and the 32-core \pkg{partykit} forests
-180. Each cell runs in a fresh process on identical 32-core cloud instances
-after a small fit of the same method removes one-time initialization and,
-where applicable, JIT compilation from timing. Each library uses its own
-parallelism: \citrees uses its compiled thread pool and fits forest trees in
-parallel, \sklearn forests use all cores, and \pkg{partykit} runs on one core
-except in the 32-core condition. Elapsed time covers model construction and
-fitting. Peak resident memory and its increase over the pre-fit process are
-recorded. Every condition is repeated 10 times and summarized by its median
-and interquartile range.
+The first study uses synthetic Gaussian predictors with signal in the first
+five, a reference condition of 1,000 observations and 50 predictors, and
+one-factor changes to 250 or 4,000 observations, 10 or 200 predictors, 25 or
+500 trees, and 99 or 9,999 permutations. It times four configurations. The
+exhaustive procedure spends the full permutation budget at every node with no
+early stopping, exact threshold search, and every predictor tested at every
+node, and is run in all three libraries so that implementation efficiency is
+compared at identical statistical work. The recommended \citrees
+configuration is its default: the minimum permutation budget with adaptive
+stopping, feature muting and scanning, histogram threshold search with at most
+256 candidate thresholds, a Bonferroni-adjusted permutation test of the chosen
+threshold, and square-root predictor sampling in forests. \pkg{partykit} is
+timed at its own default, which also samples square-root predictors, on one
+core and on 32 cores, and additionally with every predictor on 32 cores as the
+parallel counterpart of the exhaustive procedure. Classification uses the
+multiple correlation selector and regression the Pearson correlation selector.
+Every condition is repeated 10 times and summarized by its median and
+interquartile range; the study comprises 880 exhaustive cells, 320 recommended
+\citrees cells, and 540 \pkg{partykit} cells.
 
-Table~\ref{tab:performance-reference} reports the reference condition. The
-exhaustive procedure is expensive in both conditional inference
-implementations: a 100-tree classification forest took 781 seconds in \citrees
-and 286 seconds in \pkg{partykit}, and the regression forests took 309 and 287
-seconds. The recommended \citrees configuration fit the same forests in 130
-and 89 seconds, 6.0 and 3.5 times faster than the exhaustive procedure and 2.2
-and 3.2 times faster than \pkg{partykit} on one core. Single trees show the
-same pattern with a larger margin: 1.5 and 0.3 seconds for the recommended
-configuration against 7.7 and 3.0 seconds for the exhaustive procedure and 2.9
-seconds for \pkg{partykit}. With 32 cores, \pkg{partykit} forests took 13.0
-seconds for both tasks, 10.0 and 6.8 times faster than the recommended
-\citrees forests, because its tree construction is compiled C code while
-\citrees builds trees in Python and pays a process start for each parallel
-worker. CART in \sklearn fits the reference forests in 0.16 and 0.12 seconds;
-it performs no permutation test at any node and is included to place the cost
-of conditional inference on a familiar scale.
+The second study times 100-tree classification forests on the ten real
+benchmark datasets with at least 500 observations, from vowel (990
+observations, 10 predictors) to letter (20,000 observations, 16 predictors)
+and gisette (6,000 observations, 5,000 predictors), and on synthetic Gaussian
+data with 20 or 100 predictors at 500 to 32,000 observations. Each library
+runs at its default configuration with all 32 cores available, and
+\pkg{partykit} is also timed on one core. Two \citrees variants isolate the
+threshold test: one drops the Bonferroni adjustment over candidate thresholds
+and one omits the threshold test. Each fit is repeated twice, once for the
+three largest \pkg{partykit} fits, and no fit reached the one-hour limit. For
+every dataset we also record the mean number of distinct candidate thresholds
+per predictor, capped at the 256 the histogram search considers.
+
+Table~\ref{tab:performance-reference} reports the reference condition of the
+first study. At identical exhaustive work \pkg{partykit} is the faster
+implementation: 286 seconds against 781 seconds for a classification forest on
+one core, and 13 seconds with 32 cores. The recommended \citrees configuration
+reaches 20 and 18 seconds for the classification and regression forests, 39
+and 17 times faster than its own exhaustive procedure and 1.7 and 1.9 times
+faster than \pkg{partykit} on one core, but 11 and 10 times slower than
+\pkg{partykit} on 32 cores. Single trees favor \citrees at 0.3 seconds
+against 2.9 seconds. The permutation budget is the dominant cost of the
+exhaustive procedure in both libraries, 83 to 7,686 seconds in \citrees and 34
+to 2,800 seconds in \pkg{partykit} between 99 and 9,999 permutations, and
+adaptive stopping removes that axis from the recommended configuration, which
+sets its own budget. CART in \sklearn fits the reference forests in 0.16 and
+0.12 seconds; it performs no permutation test and is included to place the
+cost of conditional inference on a familiar scale.
 
 \begin{center}
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
 \hline
  & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
 Configuration & Tree & Forest & Tree & Forest \\ \hline
-\citrees, exhaustive & 7.7 [7.6, 7.7] & 781 [779, 782] & 3.0 [3.0, 3.0] & 309 [308, 310] \\
-\citrees, recommended & 1.5 [0.4, 3.8] & 130 [110, 156] & 0.3 [0.3, 2.1] & 89 [82, 106] \\
-\pkg{partykit}, 1 core & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
-\pkg{partykit}, 32 cores & n/a & 13.0 [13.0, 13.0] & n/a & 13.0 [13.0, 13.0] \\
+\citrees, exhaustive, all predictors & 7.7 [7.6, 7.7] & 781 [779, 782] & 3.0 [3.0, 3.0] & 309 [308, 310] \\
+\citrees, recommended & 0.3 [0.3, 2.0] & 20 [19, 21] & 0.3 [0.3, 0.3] & 18 [17, 18] \\
+\pkg{partykit}, exhaustive, all predictors, 1 core & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
+\pkg{partykit}, all predictors, 32 cores & n/a & 13 [13, 13] & n/a & 13 [13, 13] \\
+\pkg{partykit}, default, 1 core & n/a & 34 [33, 35] & n/a & 35 [34, 36] \\
+\pkg{partykit}, default, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.8, 2.0] \\
 \sklearn CART & 0.01 [0.01, 0.01] & 0.16 [0.16, 0.16] & 0.01 [0.01, 0.01] & 0.12 [0.12, 0.12] \\ \hline
 \end{tabular}
 \captionof{table}{\label{tab:performance-reference} Median fitting time in
 seconds with the interquartile range in brackets over 10 repeats at the
-reference condition of 1,000 observations, 50 predictors, 999 permutations
-where applicable, and 100 trees. The exhaustive procedure uses the full
-permutation budget without early stopping, exact threshold search, and no
-feature muting or scanning. The recommended \citrees configuration uses the
-minimum permutation budget with adaptive stopping, feature muting and scanning,
-histogram threshold search, and parallel tree fitting. Single trees have no
-32-core condition because \pkg{partykit} parallelizes only across trees.}
+reference condition of 1,000 observations, 50 Gaussian predictors, 999
+permutations where applicable, and 100 trees. The exhaustive procedure uses the
+full permutation budget without early stopping, exact threshold search, and
+every predictor at every node. The recommended \citrees configuration and the
+\pkg{partykit} default both sample square-root predictors in forests. Single
+trees have no 32-core condition because \pkg{partykit} parallelizes only
+across trees.}
 \end{center}
 
-Table~\ref{tab:performance-scaling} shows how forest fitting time changes
-along each design factor. The exhaustive \citrees procedure grows fastest with
-predictor count, reaching 12,080 seconds for classification at 200 predictors,
-where the recommended configuration took 129 seconds and \pkg{partykit} took
-1,143 seconds on one core and 52 seconds on 32 cores. Feature muting and
-scanning make the recommended configuration nearly insensitive to predictor
-count: its classification forests took 105 seconds at 10 predictors and 129
-seconds at 200, while one-core \pkg{partykit} grew from 58 to 1,143 seconds.
-Increasing the permutation budget from 99 to 9,999 raised the exhaustive
-\citrees classification forest from 83 to 7,686 seconds and one-core
-\pkg{partykit} from 34 to 2,800 seconds; adaptive stopping removes this axis
-from the recommended configuration entirely. Sample size and forest size scale
-all implementations roughly linearly. For single trees the recommended
-\citrees configuration took at most 2.8 seconds in every condition, whereas
-\pkg{partykit} took 11.3 seconds at 4,000 observations, 11.7 seconds at 200
-predictors, and 28.6 seconds at 9,999 permutations. The increase in peak
-resident memory over the pre-fit process was at most 22 MB in every condition
-and library, so memory did not separate the implementations at these sizes.
-Together these results locate the practical cost of conditional inference in
-the permutation budget and the candidate-feature sweep rather than in tree
-construction, which is exactly where adaptive stopping, muting, and scanning
-act.
+The second study reverses this ordering on real data.
+Table~\ref{tab:performance-real} shows that on the seven largest datasets the
+recommended \citrees configuration fits the forest 2.7 to 15 times faster than
+\pkg{partykit} on 32 cores and 22 to 260 times faster than \pkg{partykit} on
+one core, with the largest margins at the largest sample sizes: 4.7 seconds
+against 70 and 1,218 seconds on letter, 20 against 171 and 3,024 seconds on
+isolet, and 34 against 144 and 2,431 seconds on gisette. \pkg{partykit} on 32
+cores is faster on gamma, madelon, and vowel. The candidate-threshold column
+explains both patterns. \pkg{partykit} runs one Monte Carlo test per node with
+a fixed budget of 999 permutations and then chooses the split by maximizing the
+statistic, so its cost at every node is the budget times the sample size,
+independent of the data. The recommended \citrees configuration stops each
+predictor's test as soon as the evidence is decisive and mutes predictors that
+have already failed, but it also tests the chosen threshold with a Bonferroni
+adjustment over the candidate thresholds present at that node. Predictors
+with few distinct values, such as the 16 integer levels of letter, admit few
+candidates, so this test stops after tens of permutations and the fixed budget
+of \pkg{partykit} is almost entirely wasted work. Continuous predictors admit
+the full 256 candidates, the adjusted level is 0.05/256, and the threshold test
+alone needs about 5,000 permutations of the sample at every node. The clearest
+case is gamma, with nine continuous predictors: 42 seconds with the adjustment
+and 3.5 seconds without it. Without the adjustment the recommended
+configuration is faster than \pkg{partykit} on 32 cores on every one of the
+ten datasets, by 1.2 times on vowel and 20 times on letter, and omitting the
+threshold test entirely changes these times by at most a few seconds.
 
 \begin{center}
 \footnotesize
-\setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{lrrrrrrrrrr}
+\setlength{\tabcolsep}{2.2pt}
+\begin{tabular}{lrrrrrrr}
 \hline
- & \multicolumn{2}{c}{\citrees exhaustive} & \multicolumn{2}{c}{\citrees recommended} & \multicolumn{2}{c}{\pkg{partykit}, 1 core} & \multicolumn{2}{c}{\pkg{partykit}, 32 cores} & \multicolumn{2}{c}{\sklearn CART} \\
-Condition & Class. & Regr. & Class. & Regr. & Class. & Regr. & Class. & Regr. & Class. & Regr. \\ \hline
-250 observations & 253 & 127 & 20 & 13 & 76 & 78 & 4 & 4 & 0.1 & 0.1 \\
-4,000 observations & 2,829 & 1,024 & 329 & 309 & 1,118 & 1,118 & 50 & 50 & 0.2 & 0.2 \\
-10 predictors & 35 & 15 & 105 & 50 & 58 & 58 & 3 & 3 & 0.2 & 0.1 \\
-200 predictors & 12,080 & 4,670 & 129 & 112 & 1,143 & 1,144 & 52 & 52 & 0.2 & 0.2 \\
-25 trees & 196 & 76 & 37 & 19 & 72 & 72 & 3 & 3 & 0.0 & 0.0 \\
-500 trees & 3,898 & 1,553 & 692 & 469 & 1,430 & 1,430 & 53 & 53 & 0.8 & 0.5 \\
-99 permutations & 83 & 34 & n/a & n/a & 34 & 34 & 2 & 2 & n/a & n/a \\
-9,999 permutations & 7,686 & 3,100 & n/a & n/a & 2,800 & 2,802 & 125 & 126 & n/a & n/a \\ \hline
+ & & & & \multicolumn{2}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}} \\
+Dataset & Observations & Predictors & Candidates & Recommended & No adjustment & 1 core & 32 cores \\ \hline
+letter & 20,000 & 16 & 16 & 4.7 & 3.7 & 1,218 & 70 \\
+gamma & 19,020 & 9 & 256 & 42 & 3.5 & 336 & 15 \\
+pendigits & 10,992 & 16 & 100 & 7.5 & 3.0 & 394 & 21 \\
+isolet & 7,797 & 616 & 243 & 20 & 6.4 & 3,024 & 171 \\
+musk & 6,597 & 166 & 247 & 10 & 3.4 & 478 & 22 \\
+gisette & 6,000 & 5,000 & 162 & 34 & 18 & 2,431 & 144 \\
+page-blocks & 5,473 & 10 & 241 & 6.8 & 2.6 & 152 & 7.6 \\
+spam & 4,601 & 57 & 182 & 5.4 & 2.8 & 206 & 9.5 \\
+madelon & 2,000 & 500 & 132 & 21 & 4.4 & 194 & 11 \\
+vowel & 990 & 10 & 256 & 3.9 & 2.5 & 41 & 2.2 \\ \hline
 \end{tabular}
-\captionof{table}{\label{tab:performance-scaling} Median forest fitting time in
-seconds over 10 repeats when one factor departs from the reference condition
-of 1,000 observations, 50 predictors, 999 permutations, and 100 trees, for
-classification (Class.) and regression (Regr.). The permutation budget applies
-only to the exhaustive procedure and to \pkg{partykit}; the recommended
-\citrees configuration sets its own budget through adaptive stopping, and
-\sklearn performs no permutation test.}
+\captionof{table}{\label{tab:performance-real} Median fitting time in seconds
+for 100-tree classification forests on the real benchmark datasets with at
+least 500 observations, each library at its default configuration on a 32-core
+machine. Candidates is the mean number of distinct candidate thresholds per
+predictor, capped at 256. No adjustment is the recommended \citrees configuration
+without the Bonferroni adjustment over candidate thresholds in the threshold
+test. Medians are over two repeats, or one repeat for the
+\pkg{partykit} fits on letter, isolet, and gisette.}
+\end{center}
+
+Synthetic Gaussian predictors are the continuous case throughout, and
+Table~\ref{tab:performance-scaling} shows the consequence as the sample size
+grows. The recommended configuration is 1.1 to 2.8 times faster than
+\pkg{partykit} on one core at every sample size, its advantage widening with
+the sample size, and 7 to 17 times slower than \pkg{partykit} on 32 cores;
+without the threshold adjustment it is 3 to 11 times faster than
+\pkg{partykit} on 32 cores and its cost is nearly flat in the number of
+predictors. Strong signals, with equal coefficients and half the noise, change
+these times by less than 10 percent except at 8,000 observations and 20
+predictors, where the recommended configuration takes 120 rather than 71
+seconds. The increase in peak resident memory over the pre-fit process was at
+most 22 MB in every condition of the first study, so memory did not separate
+the implementations. Together the two studies locate the cost of conditional
+inference in how permutations are spent rather than in tree construction:
+adaptive stopping, muting, and scanning remove most of the fixed budget that
+\pkg{partykit} pays, and the one remaining fixed cost in \citrees, the
+adjusted threshold test on continuous predictors, is an option the user
+controls.
+
+\begin{center}
+\small
+\begin{tabular}{rrrrrr}
+\hline
+ & & \multicolumn{2}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}} \\
+Observations & Predictors & Recommended & No adjustment & 1 core & 32 cores \\ \hline
+500 & 20 & 12 & n/a & 12 & 0.7 \\
+2,000 & 20 & 36 & 2.5 & 51 & 2.6 \\
+2,000 & 100 & 34 & 6.5 & 74 & 4.0 \\
+8,000 & 20 & 71 & 3.0 & 200 & 9.6 \\
+8,000 & 100 & 124 & 4.3 & 306 & 15 \\
+32,000 & 20 & 539 & 4.9 & 810 & 42 \\
+32,000 & 100 & 554 & 10 & 1,218 & 76 \\ \hline
+\end{tabular}
+\captionof{table}{\label{tab:performance-scaling} Median fitting time in
+seconds over two repeats for 100-tree classification forests on synthetic
+Gaussian predictors with weak signal in the first five, each library at its
+default configuration on a 32-core machine. Columns are as in
+Table~\ref{tab:performance-real}; the no-adjustment variant was not run at 500
+observations.}
 \end{center}
 
 \subsection{DGRP cardiac application} \label{sec:dgrp}

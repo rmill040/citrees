@@ -172,9 +172,11 @@ def test_adaptive_stopping_summary_matches_reported_bounds():
 
     assert set(rows["task"]) == {"classification", "regression"}
     assert set(rows["dataset_group"]) == {"real", "synthetic"}
-    assert rows["runtime_ratio_vs_default"].min() >= 3.95
-    assert rows["runtime_ratio_vs_default"].max() <= 8.45
-    assert rows["downstream_delta_vs_default"].abs().max() <= 0.006
+    # Reported in the arXiv v2 runtime table: 6.1--6.5x synthetic, 483--717x real,
+    # downstream score changes at most 0.010.
+    assert rows["runtime_ratio_vs_default"].min() >= 6.1
+    assert rows["runtime_ratio_vs_default"].max() <= 717.5
+    assert rows["downstream_delta_vs_default"].abs().max() <= 0.010
 
 
 def _load_arxiv_bundle_module():

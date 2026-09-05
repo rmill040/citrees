@@ -88,9 +88,9 @@ def test_grid_is_exact_unique_and_paired_across_methods() -> None:
     quick = build_performance_grid("quick", base_seed=7)
     full = build_performance_grid("full", base_seed=7)
 
-    assert len(smoke) == 20
-    assert len(quick) == 192
-    assert len(full) == 960
+    assert len(smoke) == 12
+    assert len(quick) == 176
+    assert len(full) == 880
     assert len({cell.cell_id for cell in full}) == len(full)
     assert {cell.method for cell in smoke} == {"citrees", "partykit", "sklearn"}
     assert {cell.model_family for cell in smoke} == {"tree", "forest"}
@@ -132,8 +132,8 @@ def test_fake_run_recomputes_complete_summary_and_reference_ratios() -> None:
 
     assert tuple(raw.columns) == PERFORMANCE_RAW_SCHEMA
     assert tuple(summary.columns) == PERFORMANCE_SUMMARY_SCHEMA
-    assert len(raw) == 20
-    assert len(summary) == 20
+    assert len(raw) == 12
+    assert len(summary) == 12
     assert summary["elapsed_ratio_to_reference"].eq(1.0).all()
     assert summary["peak_rss_ratio_to_reference"].eq(1.0).all()
     validate_performance_results(raw, summary, profile="smoke", base_seed=7)
@@ -190,7 +190,7 @@ def test_writer_records_controls_sources_and_artifact_hashes(
     assert receipt["base_seed"] == 7
     assert receipt["controls"]["process_isolation"] == ("one_fresh_process_per_measured_cell")
     assert receipt["controls"]["thread_environment"] == performance.THREAD_ENVIRONMENT
-    assert receipt["tables"]["performance_raw"]["rows"] == 20
+    assert receipt["tables"]["performance_raw"]["rows"] == 12
     assert "paper/jss/replication/performance.py" in receipt["source_sha256"]
     assert "paper/benchmark/pipeline/r_methods.py" in receipt["source_sha256"]
     assert "citrees/_tree.py" in receipt["source_sha256"]

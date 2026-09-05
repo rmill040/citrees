@@ -248,10 +248,6 @@ def _default_selector(task: Task) -> str:
     return "mc" if task == "classification" else "pc"
 
 
-def _selector_alternatives(task: Task) -> tuple[str, ...]:
-    return ("mi", "rdc") if task == "classification" else ("dc", "rdc")
-
-
 def _stable_seed(base_seed: int, stream: str, values: tuple[object, ...]) -> int:
     descriptor = json.dumps(
         [stream, *values],
@@ -420,17 +416,6 @@ def build_performance_grid(
                             repeat=repeat,
                             n_resamples=n_resamples,
                         )
-
-                for selector in _selector_alternatives(task):
-                    append(
-                        task=task,
-                        family=family,
-                        method="citrees",
-                        axis="selector",
-                        axis_value=selector,
-                        repeat=repeat,
-                        selector=selector,
-                    )
 
             for n_estimators in settings.forest_sizes:
                 for method in METHODS:

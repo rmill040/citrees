@@ -655,7 +655,7 @@ cost of conditional inference on a familiar scale.
 Configuration & Tree & Forest & Tree & Forest \\ \hline
 \citrees, exhaustive, all predictors & 7.7 [7.6, 7.7] & 781 [779, 782] & 3.0 [3.0, 3.0] & 309 [308, 310] \\
 \citrees, recommended & 0.3 [0.3, 2.0] & 20 [19, 21] & 0.3 [0.3, 0.3] & 18 [17, 18] \\
-\pkg{partykit}, exhaustive, all predictors, 1 core & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
+\pkg{partykit}, exhaustive, all predictors & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
 \pkg{partykit}, all predictors, 32 cores & n/a & 13 [13, 13] & n/a & 13 [13, 13] \\
 \pkg{partykit}, default, 1 core & n/a & 34 [33, 35] & n/a & 35 [34, 36] \\
 \pkg{partykit}, default, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.8, 2.0] \\
@@ -666,8 +666,9 @@ seconds with the interquartile range in brackets over 10 repeats at the
 reference condition of 1,000 observations, 50 Gaussian predictors, 999
 permutations where applicable, and 100 trees. The exhaustive procedure uses the
 full permutation budget without early stopping, exact threshold search, and
-every predictor at every node. The recommended \citrees configuration and the
-\pkg{partykit} default both sample square-root predictors in forests. Single
+every predictor at every node and runs on one core in \pkg{partykit}. The
+recommended \citrees configuration and the \pkg{partykit} default both sample
+square-root predictors in forests. Single
 trees have no 32-core condition because \pkg{partykit} parallelizes only
 across trees.}
 \end{center}

@@ -101,10 +101,37 @@ states the per-row dataset count and the 48 h budget. The knob runner's finished
 CSV was rescued to S3 (`_control/ablation-rerun/`), with a watcher copying the
 threshold-search CSV out every 10 min once it exists.
 
+## Performance section: final state (2026-09-05)
+
+Rewritten and pushed (`5da547d`). Three harness bugs were found and fixed on the
+way: recommended-configuration forests ran serial (no `n_jobs`); 32 loky workers
+x 32 Numba threads oversubscribed the permutation kernel (now the forest divides
+the Numba pool across workers, in the library); partykit was forced to
+`mtry = all` while citrees used its `sqrt` default (now both defaults are timed,
+plus the all-predictor exhaustive control). The exhaustive campaign numbers were
+correct all along.
+
+Head-to-head (real datasets n >= 500, both libraries at defaults, 32 cores
+available): citrees recommended is 2.7-15x faster than 32-core partykit on the
+seven largest datasets and 22-260x faster than 1-core partykit; slower than
+32-core partykit on gamma, madelon, vowel. Mechanism, measured: the
+Bonferroni-adjusted threshold permutation test costs ~candidates/alpha
+permutations per node; continuous predictors give 256 candidates (~5,000
+permutations of O(n)), discrete ones few. Without that adjustment citrees beats
+32-core partykit on every real dataset and on the synthetic grid to n=32,000.
+Raw data: s3://citrees-856480643277/debug/head-to-head/ (results\*, threshold
+diag) and `_control/perf-citrees-rerun/` (harness cells).
+
+**Library design question for the author (not changed):** the threshold test
+adjusts alpha by Bonferroni over up to 256 candidates. A max-type statistic over
+thresholds within one permutation test would give the same validity at ~1/256 of
+the cost on continuous predictors. Decide before release whether the default
+changes; the paper currently reports both settings.
+
 ## Remaining pipeline gates (running autonomously)
 
-- [x] JSS grid: 880 non-selector cells complete (0 censored after dropping the
-      selector axis); performance section written and visually inspected.
+- [x] JSS performance section rewritten on corrected timings + head-to-head (see
+      "Performance section: final state").
 - [ ] CIF mechanism ablation rerun (8 boxes, 40-way) → rebuild
       `tab:cif-ranking-ablation` (arXiv V1) from corrected surface.
 - [ ] EC2 knob/threshold ablation → `tab:cit-runtime-hyperparams` runtime ratios

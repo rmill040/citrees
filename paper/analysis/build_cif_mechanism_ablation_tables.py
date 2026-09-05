@@ -41,6 +41,7 @@ DEFAULT_REFERENCE_RANKING: Final[str] = "split_importance"
 DEFAULT_EXPECTED_SEEDS: Final[int] = 5
 DEFAULT_EXPECTED_FOLDS: Final[int] = 5
 DEFAULT_N_BOOT: Final[int] = 20_000
+DEFAULT_MIN_PAIRED_FOLD_SEEDS: Final[int] = 5
 BOOTSTRAP_SEED: Final[int] = 1718
 SCORE_TOL: Final[float] = 1e-12
 
@@ -393,6 +394,92 @@ def _delta_summary(delta: pd.Series, *, n_boot: int, rng: np.random.Generator) -
     }
 
 
+def build_paired_fold_seed_deltas(
+    metrics: pd.DataFrame,
+    *,
+    reference_model: str = DEFAULT_REFERENCE_MODEL,
+    reference_ranking: str = DEFAULT_REFERENCE_RANKING,
+    n_boot: int = DEFAULT_N_BOOT,
+    min_paired_fold_seeds: int = DEFAULT_MIN_PAIRED_FOLD_SEEDS,
+    seed: int = 0,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Pair each candidate against the reference at the fold x seed replicate level.
+
+    A candidate score for (dataset, seed, fold, learner, k) is matched with the
+    reference score from the same replicate, so only replicates both variants
+    finished contribute. Replicate deltas are averaged over learners and standard
+    k, then over the paired replicates of each dataset. Datasets with fewer than
+    ``min_paired_fold_seeds`` paired replicates for a comparison are excluded from
+    that comparison and reported with ``included == False``. Returns the
+    dataset-level frame and the per-comparison summary (bootstrap over datasets).
+    """
+    df = standard_metric_rows(metrics)
+    replicate_key = ["task", "dataset", "seed", "fold_idx", "downstream_model", "k"]
+    is_ref = (df["model_variant"] == reference_model) & (df["ranking_variant"] == reference_ranking)
+    ref = df.loc[is_ref, [*replicate_key, "score"]].rename(columns={"score": "reference_score"})
+    cand = df.loc[~is_ref, [*replicate_key, "model_variant", "ranking_variant", "score"]].rename(
+        columns={"score": "candidate_score"}
+    )
+    paired = cand.merge(ref, on=replicate_key, how="inner").dropna(
+        subset=["candidate_score", "reference_score"]
+    )
+    paired["delta_vs_reference"] = paired["candidate_score"] - paired["reference_score"]
+    per_replicate = (
+        paired.groupby(["task", "dataset", "model_variant", "ranking_variant", "seed", "fold_idx"])
+        .agg(
+            delta_vs_reference=("delta_vs_reference", "mean"),
+            n_learner_k=("delta_vs_reference", "size"),
+        )
+        .reset_index()
+    )
+    per_dataset = (
+        per_replicate.groupby(["task", "dataset", "model_variant", "ranking_variant"])
+        .agg(
+            delta_vs_reference=("delta_vs_reference", "mean"),
+            n_paired_fold_seeds=("delta_vs_reference", "size"),
+            n_learner_k=("n_learner_k", "max"),
+        )
+        .reset_index()
+    )
+    per_dataset["reference_model_variant"] = reference_model
+    per_dataset["reference_ranking_variant"] = reference_ranking
+    per_dataset["included"] = per_dataset["n_paired_fold_seeds"] >= min_paired_fold_seeds
+
+    rng = np.random.default_rng(seed)
+    rows: list[dict[str, object]] = []
+    group_cols = ["task", "model_variant", "ranking_variant"]
+    for (task, model_variant, ranking_variant), group in per_dataset.groupby(group_cols, sort=True):
+        included = group[group["included"]]
+        rows.append(
+            {
+                "task": task,
+                "model_variant": model_variant,
+                "ranking_variant": ranking_variant,
+                "reference_model_variant": reference_model,
+                "reference_ranking_variant": reference_ranking,
+                "support_type": "dataset_mean_over_paired_fold_seed_replicates",
+                "min_paired_fold_seeds": int(min_paired_fold_seeds),
+                "n_datasets": int(len(included)),
+                "n_datasets_excluded": int((~group["included"]).sum()),
+                "datasets": ";".join(sorted(included["dataset"].astype(str))),
+                "excluded_datasets": ";".join(
+                    sorted(group.loc[~group["included"], "dataset"].astype(str))
+                ),
+                "min_paired_fold_seeds_used": (
+                    int(included["n_paired_fold_seeds"].min()) if len(included) else 0
+                ),
+                "max_paired_fold_seeds_used": (
+                    int(included["n_paired_fold_seeds"].max()) if len(included) else 0
+                ),
+                **_delta_summary(included["delta_vs_reference"], n_boot=n_boot, rng=rng),
+            }
+        )
+    summary = pd.DataFrame(rows)
+    return per_dataset.sort_values(
+        ["task", "model_variant", "ranking_variant", "dataset"]
+    ).reset_index(drop=True), summary
+
+
 def build_pairwise_by_downstream_k(
     cell_deltas: pd.DataFrame, *, n_boot: int = DEFAULT_N_BOOT
 ) -> pd.DataFrame:
@@ -486,6 +573,15 @@ def main() -> None:
         help="Bootstrap replicates for mean-delta confidence intervals",
     )
     parser.add_argument(
+        "--min-paired-fold-seeds",
+        type=int,
+        default=DEFAULT_MIN_PAIRED_FOLD_SEEDS,
+        help=(
+            "Minimum fold x seed replicates a dataset must have for both the candidate and the "
+            "reference to enter the replicate-paired comparison"
+        ),
+    )
+    parser.add_argument(
         "--strict-complete",
         action="store_true",
         help="Fail if any standard-k cell is missing expected fold/seed support",
@@ -534,6 +630,9 @@ def main() -> None:
     dataset_deltas = build_paired_dataset_deltas(scores)
     by_downstream_k = build_pairwise_by_downstream_k(cell_deltas, n_boot=args.n_boot)
     pairwise = build_pairwise_vs_reference(dataset_deltas, n_boot=args.n_boot)
+    fold_seed_dataset_deltas, fold_seed_pairwise = build_paired_fold_seed_deltas(
+        metrics, n_boot=args.n_boot, min_paired_fold_seeds=args.min_paired_fold_seeds
+    )
 
     outputs = {
         "cif_mechanism_ablation_metrics_flat.csv": metrics_flat,
@@ -545,6 +644,8 @@ def main() -> None:
         "cif_mechanism_ablation_paired_dataset_deltas_vs_default.csv": dataset_deltas,
         "cif_mechanism_ablation_pairwise_by_downstream_k_vs_default.csv": by_downstream_k,
         "cif_mechanism_ablation_pairwise_vs_default.csv": pairwise,
+        "cif_mechanism_ablation_paired_foldseed_dataset_deltas_vs_default.csv": fold_seed_dataset_deltas,
+        "cif_mechanism_ablation_paired_foldseed_vs_default.csv": fold_seed_pairwise,
     }
     for filename, frame in outputs.items():
         frame.to_csv(args.output_dir / filename, index=False)

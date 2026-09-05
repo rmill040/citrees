@@ -132,13 +132,25 @@ changes; the paper currently reports both settings.
 
 - [x] JSS performance section rewritten on corrected timings + head-to-head (see
       "Performance section: final state").
-- [ ] CIF mechanism ablation rerun (8 boxes, 40-way) → rebuild
-      `tab:cif-ranking-ablation` (arXiv V1) from corrected surface.
+- [x] CIF ranking ablation (arXiv V1, 2026-09-05): the forest variants finished
+      on 8 classification datasets and no regression datasets (author stopped
+      the fleet). `tab:cif-ranking-ablation` replaced by one paragraph built
+      from the replicate-paired comparison
+      (`build_cif_mechanism_ablation_tables.py`, new
+      `cif_mechanism_ablation_paired_foldseed_vs_default.csv`, standard k
+      only, >= 5 paired fold x seed replicates per dataset): one tree -0.115
+      [-0.170, -0.068], 0-8; bootstrap / muting / split-count within 0.005 with
+      intervals covering zero. Regression ablation claims removed. An earlier
+      -0.075 figure was wrong (it included non-standard k); do not reuse it.
 - [x] arXiv V2 done (2026-09-05): CIF runtime table from the EC2 knob/threshold
       rerun; CIT runtime table from the EC2 `cit_cif_runtime_ablation` rerun
       (460 fits); abstract sentence updated. Adaptive stopping: 6.1-6.5x
       synthetic / 483-717x real (CIF), 3.2-8.3x (CIT, with deeper trees and
       top-10 recovery changes up to 0.40).
-- [ ] Independent factual review of arXiv v2 (fresh-eyes subagent) after V1/V2
-      land; then rebuild + visually inspect both PDFs.
-- [ ] JSS top-level replication run last (validates the whole chain).
+- [ ] Independent factual review of arXiv v2 (fresh-eyes subagent, running
+      2026-09-05); arXiv PDF rebuilt (39 pages, 0 overfull) and page 10
+      inspected.
+- [ ] JSS top-level replication run (`--profile quick`, started 2026-09-05,
+      output `paper/jss/results/replication-quick`).
+- [ ] AWS teardown (`scratch/aws_teardown_plan.sh`, CONFIRM=yes) after the
+      replication run; the two non-project instances in the account stay.

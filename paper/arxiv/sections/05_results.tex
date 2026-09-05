@@ -104,52 +104,21 @@ are positive. The regression intervals are wider because fewer datasets are
 available and some comparator mean $R^2$ values are negative.
 
 \paragraph{CIF ablations.}
-\Cref{tab:cif-ranking-ablation} compares the selected CIF configuration with
-four targeted changes: split-count ranking, disabling bootstrap sampling,
-disabling feature muting, and using one tree.
-
-\begin{table}[H]
-  \centering
-  \scriptsize
-  \setlength{\tabcolsep}{4pt}
-  \renewcommand{\arraystretch}{1.08}
-  \begin{tabular}{@{}llS[table-format=+1.3]cc@{}}
-    \toprule
-    \tablehead{Task} & \tablehead{CIF change} & {Mean diff.} & 95\% CI & W--L \\
-    \midrule
-    Classification & Split-count ranking & -0.003 & [-0.007, +0.001] & 10--13 \\
-    Classification & Disable bootstrap & +0.001 & [-0.003, +0.004] & 10--12 \\
-    Classification & Disable feature muting & +0.000 & [-0.001, +0.002] & 13--8 \\
-    Classification & Use one tree & -0.061 & [-0.091, -0.035] & 1--22 \\
-    \addlinespace
-    Regression & Split-count ranking & -0.022 & [-0.060, +0.000] & 3--5 \\
-    Regression & Disable bootstrap & -0.208 & [-0.604, -0.004] & 3--5 \\
-    Regression & Disable feature muting & +0.000 & [-0.011, +0.009] & 5--3 \\
-    Regression & Use one tree & -0.552 & [-1.328, -0.073] & 0--8 \\
-    \bottomrule
-  \end{tabular}
-  \caption{CIF ablations on the real-data benchmark. Mean differences compare
-  each changed variant with the selected CIF configuration using
-  split-importance ranking. Scores are averaged within each dataset over
-  downstream learners and supported standard values of $k$. Classification uses
-  balanced accuracy; regression uses
-  $R^2$. The confidence intervals are percentile bootstrap intervals over
-  dataset-level differences from 20{,}000 replicates. Positive values favor the
-  changed CIF variant. W--L counts datasets where the changed variant is higher
-  or lower than the reference; exact ties are omitted. The classification rows
-  use 23 datasets and the regression rows use 8 datasets.}
-  \label{tab:cif-ranking-ablation}
-\end{table}
-
-\FloatBarrier
-
-Reducing CIF to one tree has the largest effect: $-0.061$ balanced accuracy in
-classification and $-0.552$ $R^2$ in regression. Replacing fitted split
-importance with split counts changes the
-mean score by $-0.003$ in classification and $-0.022$ in regression, with
-intervals that include zero. Disabling feature muting changes both tasks by
-$+0.000$, while disabling bootstrap sampling changes classification by $+0.001$
-and regression by $-0.208$.
+The CIF ranking ablation compares the selected CIF configuration with four
+targeted changes on the eight classification datasets with paired replicates:
+split-count ranking, disabling bootstrap sampling, disabling feature muting, and
+using one tree (\nolinkurl{ALLAML}, \nolinkurl{CLL\_SUB\_111},
+\nolinkurl{ORL}, \nolinkurl{TOX\_171}, \nolinkurl{Yale}, \nolinkurl{arcene},
+\nolinkurl{dexter}, and \nolinkurl{gamma}). Each changed variant is paired with
+the reference in the same seed and fold, scores are averaged over downstream
+learners and supported standard values of $k$, and the intervals are percentile
+bootstrap intervals over dataset-level differences from 20{,}000 replicates.
+Reducing CIF to one tree has the only material effect: $-0.115$ balanced
+accuracy, 95\% CI $[-0.170, -0.068]$, lower on all eight datasets. Split-count
+ranking ($+0.000$, $[-0.004, +0.005]$), disabling bootstrap sampling ($+0.003$,
+$[-0.002, +0.010]$), and disabling feature muting ($+0.000$, $[-0.003, +0.003]$)
+each change the mean score by less than $0.005$ with intervals that include
+zero.
 
 The complete-case Friedman tests use dataset-level method means.
 Classification: $\chi^2(16)=140.46$, $p<0.001$, Kendall's $W=0.68$.

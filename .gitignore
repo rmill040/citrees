@@ -15,6 +15,11 @@ paper/results/tables/*
 !paper/results/tables/README.md
 !paper/results/tables/paper_benchmark_method_aggregate.csv
 !paper/results/tables/paper_presentation_practical_controls_summary.csv
+!paper/results/tables/cif_mechanism_ablation_paired_foldseed_vs_default.csv
+!paper/results/tables/cif_mechanism_ablation_paired_foldseed_dataset_deltas_vs_default.csv
+!paper/results/tables/cit_cif_runtime_ablation_summary.csv
+!paper/results/tables/paper_mirrored_knob_ablation_summary.csv
+!paper/results/tables/paper_threshold_ablation_summary.csv
 paper/arxiv/figures/boundary_story.png
 paper/arxiv/figures/fixed_panel_story.png
 

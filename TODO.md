@@ -155,8 +155,15 @@ changes; the paper currently reports both settings.
       prose-level discrepancies (ranges stated too favorably, repeat counts,
       memory bound) rewritten from the head-to-head tables; all 119 table cells
       verified.
-- [ ] JSS top-level replication run (`--profile quick`, started 2026-09-05,
-      output `paper/jss/results/replication-quick`).
+- [x] JSS top-level replication run (`--profile quick`, 2026-09-05): all six
+      analyses published on a clean tree at `5d79d40` in 44 minutes (calibration
+      336 s, behavior 158 s, performance 1,147 s, tutorial 26 s, DGRP 923 s, RDC
+      sensitivity 54 s); output `paper/jss/results/replication-quick` (ignored).
+      Two fixes on the way: the performance harness dropped the unreported
+      selector-sweep axis (one `mi` cell alone ran >28 min), and a stale local
+      DGRP derived-genotype cache from 2026-08-10 (pre-17e51eb `schema` field)
+      had to be deleted so the current writer rebuilt it. Paper tests 1,154
+      passed; library tests 698 passed.
 - [x] AWS teardown done 2026-09-05: 22 citrees IAM roles and instance profiles
       deleted (including the AdministratorAccess supervisor role); no project
       instances remain; S3 debug prefixes kept. The two non-project instances in

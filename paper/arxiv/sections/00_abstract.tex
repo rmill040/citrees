@@ -11,9 +11,10 @@ control nodewise rejection under the complete permutation null. CIF ties for
 regression methods on 8 datasets.
 With Bonferroni correction held fixed, the CIF runtime ablations indicate that
 adaptive stopping and the number of thresholds searched have the largest measured
-effect on runtime: turning off adaptive stopping and using exact threshold
-search increase fitting time by 4.0--8.4$\times$ and 1.9--10.8$\times$,
-respectively, while downstream score changes are at most 0.011. Sparse high-$p$
+effect on runtime: turning off adaptive stopping increases fitting time by
+6.1--6.5$\times$ on synthetic data and 483--717$\times$ on real data, and exact
+threshold search by 1.1--21$\times$, while downstream score changes are at most
+0.010. Sparse high-$p$
 simulations indicate that forest feature sampling can leave informative features
 out of many split decisions. Overall,
 the results support CIF as a top-$k$ feature-ranking method in the

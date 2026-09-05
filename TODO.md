@@ -134,9 +134,11 @@ changes; the paper currently reports both settings.
       "Performance section: final state").
 - [ ] CIF mechanism ablation rerun (8 boxes, 40-way) → rebuild
       `tab:cif-ranking-ablation` (arXiv V1) from corrected surface.
-- [ ] EC2 knob/threshold ablation → `tab:cit-runtime-hyperparams` runtime ratios
-      (arXiv V2). **No laptop timings in the paper** — fixed-hardware EC2
-      numbers only; laptop run is a score-only cross-check.
+- [x] arXiv V2 done (2026-09-05): CIF runtime table from the EC2 knob/threshold
+      rerun; CIT runtime table from the EC2 `cit_cif_runtime_ablation` rerun
+      (460 fits); abstract sentence updated. Adaptive stopping: 6.1-6.5x
+      synthetic / 483-717x real (CIF), 3.2-8.3x (CIT, with deeper trees and
+      top-10 recovery changes up to 0.40).
 - [ ] Independent factual review of arXiv v2 (fresh-eyes subagent) after V1/V2
       land; then rebuild + visually inspect both PDFs.
 - [ ] JSS top-level replication run last (validates the whole chain).

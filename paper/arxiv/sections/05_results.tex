@@ -266,9 +266,9 @@ performance comparison.
     \toprule
     \tablehead{CIT change} & Runtime ratio & \shortstack{Largest top-10\\F1 change} \\
     \midrule
-    Disable adaptive stopping & 0.18--1.14$\times$ & $\le 0.026$ \\
-    Exact threshold search & 0.98--2.51$\times$ & $\le 0.008$ \\
-    Disable feature scanning & 0.69--1.46$\times$ & $\le 0.017$ \\
+    Disable adaptive stopping & 3.2--8.3$\times$ & $\le 0.40$ \\
+    Exact threshold search & 0.82--1.10$\times$ & $\le 0.06$ \\
+    Disable feature scanning & 0.57--3.16$\times$ & $\le 0.38$ \\
     \bottomrule
   \end{tabular}
   \caption{CIT runtime ablations. Runtime ratios are paired by seed and dataset
@@ -284,11 +284,17 @@ performance comparison.
 \end{table}
 
 \paragraph{CIT runtime ablations.}
-\Cref{tab:cit-runtime-hyperparams} shows that CIT timing effects vary by data
-regime. Disabling adaptive stopping reduces runtime in the synthetic runs and has
-less consistent timing on real datasets. For a single fitted tree, changing this
-option can also change the realized sequence of features, thresholds, and nodes
-evaluated. These rows focus on timing and synthetic feature-recovery changes.
+\Cref{tab:cit-runtime-hyperparams} shows that adaptive stopping is the setting
+that matters for a single tree. Disabling it makes fits 3.2--8.3$\times$
+slower by median dataset-level ratios in all four task groups. It also changes
+the fitted tree: without early stopping the mean depth on the synthetic
+datasets rises from 6.6 to between 9 and 11, and top-10 feature recovery moves
+by up to 0.40, with the largest changes on the Toeplitz and confounder designs
+and none on the weak-signal designs. A single tree exposes every difference in
+the realized sequence of features, thresholds, and nodes, which the forest
+averages away. Exact threshold search and feature scanning change runtime by
+less than a factor of 3.2 in either direction and recovery by at most 0.06 and
+0.38.
 
 \begin{table}[H]
   \centering
@@ -298,9 +304,9 @@ evaluated. These rows focus on timing and synthetic feature-recovery changes.
     \toprule
     \tablehead{CIF change} & Runtime ratio & \shortstack{Downstream\\score change} & \shortstack{Synthetic feature\\recovery change} \\
     \midrule
-    Disable adaptive stopping & 4.0--8.4$\times$ & $\le 0.006$ & $\le 0.006$ \\
-    Exact threshold search & 1.9--10.8$\times$ & $\le 0.011$ & $\le 0.017$ \\
-    Disable feature scanning & 0.89--1.83$\times$ & $\le 0.006$ & $\le 0.010$ \\
+    Disable adaptive stopping & 6.1--6.5$\times$ synthetic; 483--717$\times$ real & $\le 0.010$ & $\le 0.007$ \\
+    Exact threshold search & 1.1--21$\times$ & $\le 0.009$ & $\le 0.010$ \\
+    Disable feature scanning & 1.2--4.2$\times$ & $\le 0.006$ & $\le 0.002$ \\
     \bottomrule
   \end{tabular}
   \caption{CIF runtime ablations with score changes. Runtime ratios are relative to
@@ -314,16 +320,20 @@ evaluated. These rows focus on timing and synthetic feature-recovery changes.
 \end{table}
 
 \paragraph{CIF runtime ablations.}
-\Cref{tab:cif-runtime-hyperparams} shows consistent slowdowns for two CIF
-changes. Disabling adaptive stopping makes fits 4.0--8.4$\times$ slower by
-median dataset-level ratios. In the separate threshold-search ablation, exact
-threshold search is 1.9--10.8$\times$ slower than histogram-256 by ratios of
-group mean elapsed times. Downstream score changes and synthetic
-feature-recovery changes are at most 0.011 and 0.017. The feature-scanning effect
-is smaller and less consistent once adaptive stopping is enabled. Removing
-Bonferroni correction is faster for both CIT and CIF, but it changes the
-statistical rule and yields trees with more selected features; the selected
-setting keeps Bonferroni correction.
+\Cref{tab:cif-runtime-hyperparams} shows that adaptive stopping is also the
+dominant control for forests, and that its value depends on the data. On the
+synthetic datasets, disabling it makes fits 6.1--6.5$\times$ slower by median
+dataset-level ratios. On the real datasets the same change makes fits
+483--717$\times$ slower: with hundreds of predictors and a Bonferroni-adjusted
+level, a null predictor needs thousands of permutations to be rejected without
+early stopping, and adaptive stopping dismisses it after a few dozen. Exact
+threshold search is 1.1--21$\times$ slower than histogram-256 by group mean
+elapsed times, with the largest ratio on the real regression datasets, and
+disabling feature scanning costs 1.2--4.2$\times$. Downstream score changes
+are at most 0.010 and synthetic feature-recovery changes at most 0.010 across
+all three rows. Removing Bonferroni correction is faster for both CIT and CIF,
+but it changes the statistical rule and yields trees with more selected
+features; the selected setting keeps Bonferroni correction.
 \FloatBarrier
 
 \section{High-dimensional and synthetic analyses}

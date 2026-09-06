@@ -132,16 +132,27 @@ changes; the paper currently reports both settings.
 
 - [x] JSS performance section rewritten on corrected timings + head-to-head (see
       "Performance section: final state").
-- [x] CIF ranking ablation (arXiv V1, 2026-09-05): the forest variants finished
-      on 8 classification datasets and no regression datasets (author stopped
-      the fleet). `tab:cif-ranking-ablation` replaced by one paragraph built
-      from the replicate-paired comparison
-      (`build_cif_mechanism_ablation_tables.py`, new
-      `cif_mechanism_ablation_paired_foldseed_vs_default.csv`, standard k
-      only, >= 5 paired fold x seed replicates per dataset): one tree -0.115
-      [-0.170, -0.068], 0-8; bootstrap / muting / split-count within 0.005 with
-      intervals covering zero. Regression ablation claims removed. An earlier
-      -0.075 figure was wrong (it included non-standard k); do not reuse it.
+- [x] CIF ranking ablation (arXiv V1, finished 2026-09-06): the full ablation
+      (selected CIF vs one tree / no bootstrap / no muting / split-count
+      ranking; 5 seeds x 5 folds) is complete on 22 classification and 8
+      regression real-data datasets, 3,034 metric files, zero failures. **isolet
+      is excluded by author decision** (its 617-feature rdc forests hard-locked
+      32-worker hosts; never run it again). `tab:cif-ranking-ablation` restored
+      as a full table (mean, median, 95% CI, W-L) from
+      `cif_mechanism_ablation_paired_foldseed_vs_default.csv` (replicate-paired
+      at seed x fold, standard k only, builder `--exclude-datasets isolet`). One
+      tree: -0.071 [-0.101, -0.045], 0-22 (clf); -0.658 [-1.692, -0.054], 0-8
+      (reg). The other three changes are within 0.001 in classification; their
+      regression means are pulled by the three coepra datasets (medians within
+      0.007 of zero). Interim 8-dataset figures (-0.115) and the earlier -0.075
+      are superseded; do not reuse. Fleet notes: the first two fleets (35
+      on-demand + 35 spot, then 70 hardened boxes) hard-locked (journal ends
+      abruptly, no OOM record, reboot ~20 min later, EC2 status impaired) on
+      isolet at 32 workers; gisette peaked at 48-54 GB RSS with 32 workers;
+      letter needed 16 workers. Fleet 3 used a systemd-resumed per-item runner
+      (docker --memory=56g, per-dataset worker counts, S3 skip-if-done,
+      terminate on done) and finished with two sweep boxes. All boxes and the
+      fleet IAM role/profile `citrees-mech-finish-20260905` are deleted.
 - [x] arXiv V2 done (2026-09-05): CIF runtime table from the EC2 knob/threshold
       rerun; CIT runtime table from the EC2 `cit_cif_runtime_ablation` rerun
       (460 fits); abstract sentence updated. Adaptive stopping: 6.1-6.5x

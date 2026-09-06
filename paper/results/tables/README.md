@@ -15,8 +15,8 @@ Tracked tables:
   `cif_mechanism_ablation_paired_foldseed_dataset_deltas_vs_default.csv`: CIF
   component ablation (one tree, no bootstrap, no muting, split-count ranking)
   paired against the selected CIF configuration at the fold x seed replicate
-  level on the eight classification datasets with at least five paired
-  replicates. Built by `paper/analysis/build_cif_mechanism_ablation_tables.py`
+  level on 22 classification and 8 regression real-data benchmark datasets
+  (isolet excluded by author decision). Built by `paper/analysis/build_cif_mechanism_ablation_tables.py`
   from `s3://citrees-856480643277/repairs/benchmark-rerun/source-05ee3cd7.../campaign-d805868f.../_control/cif-mechanism-ablation/metrics`.
 
 Everything else should be regenerated locally and left untracked.

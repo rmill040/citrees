@@ -104,21 +104,52 @@ are positive. The regression intervals are wider because fewer datasets are
 available and some comparator mean $R^2$ values are negative.
 
 \paragraph{CIF ablations.}
-The CIF ranking ablation compares the selected CIF configuration with four
-targeted changes on the eight classification datasets with paired replicates:
-split-count ranking, disabling bootstrap sampling, disabling feature muting, and
-using one tree (\nolinkurl{ALLAML}, \nolinkurl{CLL\_SUB\_111},
-\nolinkurl{ORL}, \nolinkurl{TOX\_171}, \nolinkurl{Yale}, \nolinkurl{arcene},
-\nolinkurl{dexter}, and \nolinkurl{gamma}). Each changed variant is paired with
-the reference in the same seed and fold, scores are averaged over downstream
-learners and supported standard values of $k$, and the intervals are percentile
-bootstrap intervals over dataset-level differences from 20{,}000 replicates.
-Reducing CIF to one tree has the only material effect: $-0.115$ balanced
-accuracy, 95\% CI $[-0.170, -0.067]$, lower on all eight datasets. Split-count
-ranking ($+0.000$, $[-0.004, +0.005]$), disabling bootstrap sampling ($+0.003$,
-$[-0.002, +0.009]$), and disabling feature muting ($+0.000$, $[-0.003, +0.003]$)
-each change the mean score by less than $0.005$ with intervals that include
-zero.
+\Cref{tab:cif-ranking-ablation} compares the selected CIF configuration with
+four targeted changes on the real-data benchmark datasets: split-count ranking,
+disabling bootstrap sampling, disabling feature muting, and using one tree.
+Each changed variant is paired with the reference in the same seed and fold.
+Reducing CIF to one tree is the only change with a material effect: it lowers
+the score on every dataset in both tasks, by $0.071$ balanced accuracy on
+average in classification. Split-count ranking, disabling bootstrap sampling,
+and disabling feature muting change classification balanced accuracy by at most
+$0.001$ on average, with intervals that include zero. The regression means for
+these three changes are pulled down by the three small \nolinkurl{coepra}
+datasets, where $R^2$ is unstable across folds; their medians are within
+$0.007$ of zero and their win--loss counts are near even.
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.08}
+  \begin{tabular}{@{}llS[table-format=+1.3]S[table-format=+1.3]cc@{}}
+    \toprule
+    \tablehead{Task} & \tablehead{CIF change} & {Mean diff.} & {Median diff.} & 95\% CI & W--L \\
+    \midrule
+    Classification & Split-count ranking & -0.001 & 0.000 & [-0.005, +0.002] & 12--9 \\
+    Classification & Disable bootstrap & -0.001 & 0.000 & [-0.004, +0.003] & 9--12 \\
+    Classification & Disable feature muting & +0.001 & 0.000 & [-0.001, +0.002] & 13--5 \\
+    Classification & Use one tree & -0.071 & -0.043 & [-0.101, -0.045] & 0--22 \\
+    \addlinespace
+    Regression & Split-count ranking & -0.053 & -0.003 & [-0.142, -0.002] & 2--6 \\
+    Regression & Disable bootstrap & -0.064 & -0.007 & [-0.128, -0.010] & 4--4 \\
+    Regression & Disable feature muting & -0.157 & 0.000 & [-0.468, +0.001] & 4--4 \\
+    Regression & Use one tree & -0.658 & -0.059 & [-1.692, -0.054] & 0--8 \\
+    \bottomrule
+  \end{tabular}
+  \caption{CIF ablations on the real-data benchmark. Differences compare each
+  changed variant with the selected CIF configuration using split-importance
+  ranking, paired within seed and fold. Scores are averaged within each dataset
+  over downstream learners, supported standard values of $k$, and the 25 paired
+  fold~$\times$~seed replicates. Classification uses balanced accuracy;
+  regression uses $R^2$. The confidence intervals are percentile bootstrap
+  intervals for the mean over dataset-level differences from 20{,}000
+  replicates. Positive values favor the changed CIF variant. W--L counts
+  datasets where the changed variant is higher or lower than the reference;
+  exact ties are omitted. The classification rows use 22 datasets and the
+  regression rows use 8 datasets.}
+  \label{tab:cif-ranking-ablation}
+\end{table}
 
 The complete-case Friedman tests use dataset-level method means.
 Classification: $\chi^2(16)=140.46$, $p<0.001$, Kendall's $W=0.68$.

@@ -586,10 +586,22 @@ def main() -> None:
         action="store_true",
         help="Fail if any standard-k cell is missing expected fold/seed support",
     )
+    parser.add_argument(
+        "--exclude-datasets",
+        nargs="*",
+        default=[],
+        metavar="DATASET",
+        help="Datasets removed from the ablation before any table is built",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metrics = load_metrics(args.input_uri)
+    if args.exclude_datasets:
+        excluded = set(args.exclude_datasets)
+        n_before = len(metrics)
+        metrics = metrics[~metrics["dataset"].astype(str).isin(excluded)].reset_index(drop=True)
+        print(f"Excluded datasets {sorted(excluded)}: dropped {n_before - len(metrics)} rows")
     metric_sort_cols = [
         col
         for col in [

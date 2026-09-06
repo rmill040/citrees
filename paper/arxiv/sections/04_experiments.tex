@@ -172,8 +172,9 @@ and honesty; CIF is run as a bootstrap forest.
 Each CIF runtime ablation changes one setting.
 
 To isolate which parts of the CIF ranking matter, we run a ranking ablation on
-eight real-data classification benchmark datasets. The ablation holds the
-selected CIF configuration fixed and changes one component at a time: replacing
+the real-data benchmark datasets (22 classification and 8 regression). The
+ablation holds the selected CIF configuration fixed and changes one component
+at a time: replacing
 fitted split importance with split counts, disabling feature muting, disabling
 bootstrap sampling, or reducing the forest to one tree. Each variant is evaluated
 with the same downstream learners, folds, seeds, and standard top-$k$ values as

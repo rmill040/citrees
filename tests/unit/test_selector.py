@@ -1,10 +1,14 @@
 """Tests for citrees._selector.py."""
 
+import json
 import os
 from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 import numba
 import numpy as np
+import pandas as pd
 import pytest
 from scipy.stats import kstest
 
@@ -1500,6 +1504,8 @@ class TestJitParity:
     _Y_REG = 2.0 * _X + _RNG.standard_normal(120) * 0.5
     _X_2D = _RNG.standard_normal((60, 3))
     _Y_2D = _RNG.standard_normal((60, 3))
+    _W0 = _RNG.standard_normal(_RDC_K) * _RDC_S
+    _W1 = _RNG.standard_normal(_RDC_K) * _RDC_S
 
     KERNELS = {
         "mc": (_selector.mc, (_X, _Y_CLF, 2, 1718)),
@@ -1508,8 +1514,19 @@ class TestJitParity:
         "_covariance": (_selector._covariance, (_X, _Y_REG)),
         "_rdc": (_selector._rdc, (_X, _Y_REG, _RDC_K, _RDC_S, 1718)),
         "_rdc_cancor": (_selector._rdc_cancor, (_X_2D, _Y_2D)),
+        "_rdc_standardize_columns": (_selector._rdc_standardize_columns, (_X_2D.copy(),)),
+        "_rdc_max_abs_corr": (_selector._rdc_max_abs_corr, (_X_2D, _Y_2D)),
         "_rdc_ecdf": (_selector._rdc_ecdf, (_X,)),
         "_rdc_features": (_selector._rdc_features, (_X, _RDC_K, _RDC_S, 1718)),
+        "_rdc_projection_weights": (_selector._rdc_projection_weights, (_RDC_K, _RDC_S, 1718)),
+        "_rdc_fill_ecdf_features": (
+            _selector._rdc_fill_ecdf_features,
+            (_X, _RDC_K, _W0, _W1, np.empty((120, 2 * _RDC_K))),
+        ),
+        "_rdc_fill_indicator_features": (
+            _selector._rdc_fill_indicator_features,
+            (_Y_CLF, 1, _RDC_K, _W0, _W1, np.empty((120, 2 * _RDC_K))),
+        ),
         "_beta_cdf": (_selector._beta_cdf, (0.3, 2.0, 5.0)),
         "_ptest_mc_parallel_result": (
             _selector._ptest_mc_parallel_result,
@@ -1529,19 +1546,19 @@ class TestJitParity:
         ),
         "_ptest_rdc_classifier_parallel_result": (
             _selector._ptest_rdc_classifier_parallel_result,
-            (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718),
+            (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718, 2),
         ),
         "_ptest_rdc_classifier_parallel_batched_result": (
             _selector._ptest_rdc_classifier_parallel_batched_result,
-            (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95),
+            (_X, _Y_CLF, 2, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95, 2),
         ),
         "_ptest_rdc_regressor_parallel_result": (
             _selector._ptest_rdc_regressor_parallel_result,
-            (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718),
+            (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718, 2),
         ),
         "_ptest_rdc_regressor_parallel_batched_result": (
             _selector._ptest_rdc_regressor_parallel_batched_result,
-            (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95),
+            (_X, _Y_REG, _RDC_K, _RDC_S, 1718, 250, 1718, 0.05, 0.95, 2),
         ),
     }
 
@@ -1747,3 +1764,109 @@ def test_adaptive_early_stopping_retains_power() -> None:
         random_state=1718,
     )
     assert pval < ALPHA, f"adaptive early stopping failed to detect a strong signal (p={pval:.4f})"
+
+
+# =============================================================================
+# RDC KERNEL IDENTITY
+# =============================================================================
+# The parallel rdc kernels reuse per-thread buffers and a sort-free indicator
+# ECDF. These tests pin them, bit for bit, to the outputs of the allocating
+# kernels they replaced (recorded on tests/data/clf_glass before the change) and
+# prove that the result does not depend on the thread count.
+
+
+def _glass_arrays() -> tuple[np.ndarray, np.ndarray]:
+    frame = pd.read_parquet(Path(__file__).parents[1] / "data" / "clf_glass.snappy.parquet")
+    target = [c for c in frame.columns if c.lower() in ("target", "y", "label", "class")][0]
+    X = frame.drop(columns=[target]).to_numpy(dtype=np.float64)
+    _, y = np.unique(frame[target].to_numpy(), return_inverse=True)
+    return X, y.astype(np.int64)
+
+
+def _rdc_kernel_outputs(
+    x: np.ndarray, y: np.ndarray, n_classes: int, n_threads: int
+) -> dict[str, Any]:
+    yb = (y == 1).astype(np.int64)
+    yreg = x * 0.0 + _glass_arrays()[0][:, 0]
+    return {
+        "clf_full": list(
+            _selector._ptest_rdc_classifier_parallel_result(
+                x, y, n_classes, _RDC_K, _RDC_S, 1718, 250, 1718, n_threads
+            )
+        ),
+        "clf_batched": list(
+            _selector._ptest_rdc_classifier_parallel_batched_result(
+                x, y, n_classes, _RDC_K, _RDC_S, 1718, 500, 1718, 0.05, 0.95, n_threads
+            )
+        ),
+        "bin_full": list(
+            _selector._ptest_rdc_classifier_parallel_result(
+                x, yb, 2, _RDC_K, _RDC_S, 1718, 250, 1718, n_threads
+            )
+        ),
+        "bin_batched": list(
+            _selector._ptest_rdc_classifier_parallel_batched_result(
+                x, yb, 2, _RDC_K, _RDC_S, 1718, 500, 1718, 0.05, 0.95, n_threads
+            )
+        ),
+        "reg_full": list(
+            _selector._ptest_rdc_regressor_parallel_result(
+                x, yreg, _RDC_K, _RDC_S, 1718, 250, 1718, n_threads
+            )
+        ),
+        "reg_batched": list(
+            _selector._ptest_rdc_regressor_parallel_batched_result(
+                x, yreg, _RDC_K, _RDC_S, 1718, 500, 1718, 0.05, 0.95, n_threads
+            )
+        ),
+        "stat_clf": float(_selector.rdc_classifier(x, y, n_classes, 1718)),
+        "stat_bin": float(_selector.rdc_classifier(x, yb, 2, 1718)),
+        "stat_reg": float(_selector.rdc_regressor(x, yreg, True, 1718)),
+    }
+
+
+class TestRdcKernelIdentity:
+    """Buffered rdc kernels reproduce the recorded outputs of the allocating kernels exactly."""
+
+    FIXTURE = Path(__file__).parents[1] / "data" / "rdc_kernel_identity_glass.json"
+
+    def test_recorded_outputs_reproduced_exactly(self):
+        """Every p-value, permutation count and statistic equals the recorded value."""
+        expected = json.loads(self.FIXTURE.read_text())
+        X, y = _glass_arrays()
+        n_classes = int(y.max() + 1)
+        assert expected["n_classes"] == n_classes
+        for j in range(X.shape[1]):
+            got = _rdc_kernel_outputs(X[:, j].copy(), y, n_classes, n_threads=2)
+            assert got == expected["cases"][f"f{j}"], f"feature {j}"
+
+    @pytest.mark.parametrize("n_threads", [1, 3, 7])
+    def test_outputs_independent_of_thread_count(self, n_threads):
+        """Permutation i is always seeded with random_state + i, whatever the slot layout."""
+        X, y = _glass_arrays()
+        n_classes = int(y.max() + 1)
+        for j in (0, 4):
+            x = X[:, j].copy()
+            assert _rdc_kernel_outputs(x, y, n_classes, n_threads) == _rdc_kernel_outputs(
+                x, y, n_classes, 2
+            )
+
+    def test_indicator_features_match_explicit_indicator(self):
+        """The sort-free indicator path equals _rdc_features on the 0/1 indicator to rounding.
+
+        The only admissible difference is one ulp in the non-member ECDF value,
+        whose fast-math division the compiler may emit as a reciprocal multiply;
+        through the cosine and sine that is at most a few ulps of 1.
+        """
+        rng = np.random.default_rng(7)
+        w0, w1 = _selector._rdc_projection_weights(_RDC_K, _RDC_S, 2718)
+        for n in [2, 3, 5, 6, 7, 64, 213, 1000, 7797]:
+            for n_members in sorted({0, 1, n // 3, n - 1, n} & set(range(n + 1))):
+                y = np.zeros(n, dtype=np.int64)
+                y[rng.choice(n, n_members, replace=False)] = 1
+                out = np.empty((n, 2 * _RDC_K))
+                _selector._rdc_fill_indicator_features(y, 1, _RDC_K, w0, w1, out)
+                reference = _selector._rdc_features(
+                    (y == 1).astype(np.float64), _RDC_K, _RDC_S, 2718
+                )
+                assert np.abs(out - reference).max() <= 4 * np.finfo(np.float64).eps, (n, n_members)

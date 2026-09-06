@@ -37,6 +37,45 @@ objection.
       are 4–8× faster per the ablation. NEVER present matched-procedure numbers
       as "citrees performance" without the defaults row.
 
+## rdc permutation kernels: buffered rewrite (2026-09-06)
+
+The four parallel rdc kernels (`_ptest_rdc_*_parallel*` in
+`citrees/_selector.py`) allocated fresh matrices and copied X inside every
+permutation; on 26-class data that was 235,301 Numba allocations per
+1,000-permutation test. They now standardize X once, keep one label buffer and
+one projected-Y buffer per thread slot, and build one-vs-all indicator ECDFs
+without a sort. The thread count is a kernel argument so Numba can still cache
+them.
+
+- Identity: 42/42 recorded outputs (p-values, permutation counts, statistics;
+  multi-class, binary, regression; full and adaptive) and 200/200 null p-values
+  identical to the old kernels on real isolet at 32 and 8 threads on x86
+  (c6a.8xlarge); 90/90 on glass locally; results independent of thread count (1,
+  2, 3, 7). Unit tests pin this
+  (`tests/unit/test_selector.py::TestRdcKernelIdentity`, fixture
+  `tests/data/rdc_kernel_identity_glass.json`). The indicator ECDF differs from
+  the old path by one ulp in the non-member value (fast-math division compiled
+  as a reciprocal multiply in some contexts); no output changed.
+- Speed: 1.2-1.4x at 32 threads, 1.0-1.1x at 8 threads; allocations 235,301 to
+  69 per call; peak RSS 631 to 587 MB. The change is a memory-churn fix, not a
+  speedup.
+- End-to-end identity: one rdc CIT fit at the ablation settings on a 3,000-row
+  isolet subsample gives the same 215 nodes and the same sha256 of importances
+  and node structure before and after (`scratch/rdc_tree_identity.py`).
+- Host lock-ups are NOT explained by allocation churn: the new kernels hung a
+  c6a.8xlarge four minutes into a single-process 32-thread run (silent console,
+  both reachability checks failed), while the old kernels ran 18 minutes on the
+  same box. A rerun of the identical workload on the recovered box completed. A
+  second AMD box hung at the same point and was terminated; an Intel c6i.8xlarge
+  ran the whole sequence (32-thread, 8-thread, both tree fits) without a single
+  status-check failure. **The lock-up cause is still unidentified**; the
+  evidence now points at the AMD host/hypervisor rather than at citrees, so do
+  not treat this rewrite as a fix for it. Raw data under
+  s3://citrees-856480643277/debug/rdc-bench/out/; all boxes terminated and the
+  IAM role/profile citrees-rdc-bench-20260906 deleted.
+- No benchmark or timing result needs rerunning: outputs are identical and all
+  timing sections use the mc/pc selectors.
+
 ## Grid endgame (2026-09-02, author directive: censor, do not wait)
 
 Campaign 3 is closed at 947/960 measured cells (932 spot-campaign shards plus 15

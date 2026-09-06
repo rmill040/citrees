@@ -2,6 +2,7 @@ from functools import partial
 from math import ceil
 from typing import Any
 
+import numba
 import numpy as np
 from numba import njit
 from numba import prange as _numba_prange
@@ -581,8 +582,21 @@ def _ptest_pc_parallel_batched_result(
     return (extreme_count + 1) / (n_resamples + 1), n_resamples
 
 
-# Parallel permutation test for RDC (regressor), no early stopping.
-# Precomputes X features and Y projection weights once, then runs permutations in parallel.
+# Parallel permutation tests for RDC.
+#
+# All four kernels share one layout. The projected X features are computed and
+# standardized once, because x never changes across permutations. The prange
+# runs over the ``n_threads`` thread slots; slot ``t`` owns one permuted-label
+# buffer and one projected-Y buffer, allocated once per test, and processes
+# permutations ``t, t + n_threads, ...``. Permutation ``i`` is always seeded with
+# ``random_state + i``, so the result is independent of the thread count. The
+# earlier versions allocated fresh matrices (and copied X) inside every
+# permutation, which on 26-class data meant more than a hundred multi-megabyte
+# allocations per permutation across all threads. Multi-class targets are
+# handled as the maximum RDC over one-vs-all indicators, whose ECDF needs no
+# sort. The thread count is an argument (``numba.get_num_threads()`` at the call
+# site) because reading it inside the kernel would disable Numba's on-disk cache.
+#
 # Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
@@ -595,8 +609,13 @@ def _ptest_rdc_regressor_parallel_result(
     rdc_seed: int,
     n_resamples: int,
     random_state: int,
+    n_threads: int,
 ) -> PermutationTestResult:
     """Full parallel permutation test for RDC (regression), no early stopping.
+
+    ``n_threads`` is the size of the Numba thread pool; each thread owns one set
+    of scratch buffers and processes every ``n_threads``-th permutation, so the
+    result does not depend on the thread count.
 
     Returns
     -------
@@ -605,36 +624,30 @@ def _ptest_rdc_regressor_parallel_result(
     """
     n = len(x)
     X_feat = _rdc_features(x, k, s, rdc_seed)
+    _rdc_standardize_columns(X_feat)
+    wy0, wy1 = _rdc_projection_weights(k, s, rdc_seed + 1000)
 
-    # Precompute Y projection weights (deterministic from rdc_seed + 1000)
-    np.random.seed(rdc_seed + 1000)
-    wy0 = np.empty(k, dtype=np.float64)
-    wy1 = np.empty(k, dtype=np.float64)
-    for j in range(k):
-        wy0[j] = np.random.randn() * s
-        wy1[j] = np.random.randn() * s
+    Y_buf = np.empty((n_threads, n, 2 * k), dtype=np.float64)
+    y_buf = np.empty((n_threads, n), dtype=np.float64)
 
     # Observed statistic
-    Y_feat_obs = _rdc_features(y, k, s, rdc_seed + 1000)
-    theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
+    _rdc_fill_ecdf_features(_rdc_ecdf(y), k, wy0, wy1, Y_buf[0])
+    _rdc_standardize_columns(Y_buf[0])
+    theta = _rdc_max_abs_corr(X_feat, Y_buf[0])
 
     # Full parallel permutation
     theta_p = np.empty(n_resamples, dtype=np.float64)
-    for i in prange(n_resamples):
-        np.random.seed(random_state + i)
-        y_perm = y.copy()
-        np.random.shuffle(y_perm)
+    for t in prange(n_threads):
+        y_perm = y_buf[t]
+        Y_perm = Y_buf[t]
+        for i in range(t, n_resamples, n_threads):
+            np.random.seed(random_state + i)
+            y_perm[:] = y
+            np.random.shuffle(y_perm)
 
-        ecdf_y = _rdc_ecdf(y_perm)
-        Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
-        for ii in range(n):
-            for jj in range(k):
-                proj = ecdf_y[ii] * wy0[jj] + wy1[jj]
-                Y_feat_perm[ii, jj] = np.cos(proj)
-                Y_feat_perm[ii, k + jj] = np.sin(proj)
-
-        rdc_val = _rdc_cancor(X_feat.copy(), Y_feat_perm)
-        theta_p[i] = rdc_val
+            _rdc_fill_ecdf_features(_rdc_ecdf(y_perm), k, wy0, wy1, Y_perm)
+            _rdc_standardize_columns(Y_perm)
+            theta_p[i] = _rdc_max_abs_corr(X_feat, Y_perm)
 
     # +1 correction (Phipson & Smyth 2010)
     p_value = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
@@ -654,8 +667,13 @@ def _ptest_rdc_regressor_parallel_batched_result(
     random_state: int,
     alpha: float,
     confidence: float,
+    n_threads: int,
 ) -> PermutationTestResult:
     """Parallel batched permutation test for RDC (regression) with adaptive stopping.
+
+    ``n_threads`` is the size of the Numba thread pool; each thread owns one set
+    of scratch buffers and processes every ``n_threads``-th permutation, so the
+    result does not depend on the thread count.
 
     Returns
     -------
@@ -663,21 +681,17 @@ def _ptest_rdc_regressor_parallel_batched_result(
         P-value and realized number of permutations.
     """
     n = len(x)
-
-    # Precompute X features (x never changes across permutations)
     X_feat = _rdc_features(x, k, s, rdc_seed)
+    _rdc_standardize_columns(X_feat)
+    wy0, wy1 = _rdc_projection_weights(k, s, rdc_seed + 1000)
 
-    # Precompute Y projection weights (deterministic from rdc_seed + 1000)
-    np.random.seed(rdc_seed + 1000)
-    wy0 = np.empty(k, dtype=np.float64)
-    wy1 = np.empty(k, dtype=np.float64)
-    for j in range(k):
-        wy0[j] = np.random.randn() * s
-        wy1[j] = np.random.randn() * s
+    Y_buf = np.empty((n_threads, n, 2 * k), dtype=np.float64)
+    y_buf = np.empty((n_threads, n), dtype=np.float64)
 
     # Observed statistic
-    Y_feat_obs = _rdc_features(y, k, s, rdc_seed + 1000)
-    theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
+    _rdc_fill_ecdf_features(_rdc_ecdf(y), k, wy0, wy1, Y_buf[0])
+    _rdc_standardize_columns(Y_buf[0])
+    theta = _rdc_max_abs_corr(X_feat, Y_buf[0])
     if theta <= 0.0:
         return 1.0, 0
 
@@ -692,22 +706,18 @@ def _ptest_rdc_regressor_parallel_batched_result(
         batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
 
-        for i in prange(batch_size):
-            np.random.seed(random_state + m + i)
-            y_perm = y.copy()
-            np.random.shuffle(y_perm)
+        for t in prange(n_threads):
+            y_perm = y_buf[t]
+            Y_perm = Y_buf[t]
+            for i in range(t, batch_size, n_threads):
+                np.random.seed(random_state + m + i)
+                y_perm[:] = y
+                np.random.shuffle(y_perm)
 
-            ecdf_y = _rdc_ecdf(y_perm)
-            Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
-            for ii in range(n):
-                for jj in range(k):
-                    proj = ecdf_y[ii] * wy0[jj] + wy1[jj]
-                    Y_feat_perm[ii, jj] = np.cos(proj)
-                    Y_feat_perm[ii, k + jj] = np.sin(proj)
-
-            rdc_val = _rdc_cancor(X_feat.copy(), Y_feat_perm)
-            if rdc_val >= theta:
-                batch_extreme[i] = 1
+                _rdc_fill_ecdf_features(_rdc_ecdf(y_perm), k, wy0, wy1, Y_perm)
+                _rdc_standardize_columns(Y_perm)
+                if _rdc_max_abs_corr(X_feat, Y_perm) >= theta:
+                    batch_extreme[i] = 1
 
         extreme_count += int(np.sum(batch_extreme))
         m += batch_size
@@ -727,7 +737,8 @@ def _ptest_rdc_regressor_parallel_batched_result(
 
 
 # Parallel permutation test for RDC (classifier), no early stopping.
-# Handles multi-class via max RDC over one-vs-all binary encodings.
+# Handles multi-class via max RDC over one-vs-all binary encodings; the binary
+# case tests the class-1 indicator with a single weight set.
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
 def _ptest_rdc_classifier_parallel_result(
     x: np.ndarray,
@@ -738,8 +749,13 @@ def _ptest_rdc_classifier_parallel_result(
     rdc_seed: int,
     n_resamples: int,
     random_state: int,
+    n_threads: int,
 ) -> PermutationTestResult:
     """Full parallel permutation test for RDC (classification), no early stopping.
+
+    ``n_threads`` is the size of the Numba thread pool; each thread owns one set
+    of scratch buffers and processes every ``n_threads``-th permutation, so the
+    result does not depend on the thread count.
 
     Returns
     -------
@@ -748,67 +764,46 @@ def _ptest_rdc_classifier_parallel_result(
     """
     n = len(x)
     X_feat = _rdc_features(x, k, s, rdc_seed)
+    _rdc_standardize_columns(X_feat)
+
+    n_indicators = 1 if n_classes == 2 else n_classes
+    first_class = 1 if n_classes == 2 else 0
+    wy0_all = np.empty((n_indicators, k), dtype=np.float64)
+    wy1_all = np.empty((n_indicators, k), dtype=np.float64)
+    for c in range(n_indicators):
+        w0, w1 = _rdc_projection_weights(k, s, rdc_seed + 1000 + c)
+        wy0_all[c] = w0
+        wy1_all[c] = w1
+
+    Y_buf = np.empty((n_threads, n, 2 * k), dtype=np.float64)
+    y_buf = np.empty((n_threads, n), dtype=y.dtype)
 
     # Observed statistic
-    if n_classes == 2:
-        y_float = y.astype(np.float64)
-        Y_feat_obs = _rdc_features(y_float, k, s, rdc_seed + 1000)
-        theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
-    else:
-        theta = 0.0
-        for c in range(n_classes):
-            y_bin = np.zeros(n, dtype=np.float64)
-            for i in range(n):
-                if y[i] == c:
-                    y_bin[i] = 1.0
-            Y_feat_c = _rdc_features(y_bin, k, s, rdc_seed + 1000 + c)
-            rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
-            if rdc_c > theta:
-                theta = rdc_c
-
-    # Precompute Y projection weights per class
-    n_weight_sets = 1 if n_classes == 2 else n_classes
-    wy0_all = np.empty((n_weight_sets, k), dtype=np.float64)
-    wy1_all = np.empty((n_weight_sets, k), dtype=np.float64)
-    for c in range(n_weight_sets):
-        seed_c = rdc_seed + 1000 + c if n_classes > 2 else rdc_seed + 1000
-        np.random.seed(seed_c)
-        for j in range(k):
-            wy0_all[c, j] = np.random.randn() * s
-            wy1_all[c, j] = np.random.randn() * s
+    theta = 0.0
+    for c in range(n_indicators):
+        _rdc_fill_indicator_features(y, first_class + c, k, wy0_all[c], wy1_all[c], Y_buf[0])
+        _rdc_standardize_columns(Y_buf[0])
+        rdc_c = _rdc_max_abs_corr(X_feat, Y_buf[0])
+        if rdc_c > theta:
+            theta = rdc_c
 
     # Full parallel permutation
     theta_p = np.empty(n_resamples, dtype=np.float64)
-    for i in prange(n_resamples):
-        np.random.seed(random_state + i)
-        y_perm = y.copy()
-        np.random.shuffle(y_perm)
+    for t in prange(n_threads):
+        y_perm = y_buf[t]
+        Y_perm = Y_buf[t]
+        for i in range(t, n_resamples, n_threads):
+            np.random.seed(random_state + i)
+            y_perm[:] = y
+            np.random.shuffle(y_perm)
 
-        if n_classes == 2:
-            y_float_perm = y_perm.astype(np.float64)
-            ecdf_y = _rdc_ecdf(y_float_perm)
-            Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
-            for ii in range(n):
-                for jj in range(k):
-                    proj = ecdf_y[ii] * wy0_all[0, jj] + wy1_all[0, jj]
-                    Y_feat_perm[ii, jj] = np.cos(proj)
-                    Y_feat_perm[ii, k + jj] = np.sin(proj)
-            theta_p[i] = _rdc_cancor(X_feat.copy(), Y_feat_perm)
-        else:
             rdc_perm = 0.0
-            for c in range(n_classes):
-                y_bin = np.zeros(n, dtype=np.float64)
-                for idx in range(n):
-                    if y_perm[idx] == c:
-                        y_bin[idx] = 1.0
-                ecdf_y = _rdc_ecdf(y_bin)
-                Y_feat_c = np.empty((n, 2 * k), dtype=np.float64)
-                for ii in range(n):
-                    for jj in range(k):
-                        proj = ecdf_y[ii] * wy0_all[c, jj] + wy1_all[c, jj]
-                        Y_feat_c[ii, jj] = np.cos(proj)
-                        Y_feat_c[ii, k + jj] = np.sin(proj)
-                rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
+            for c in range(n_indicators):
+                _rdc_fill_indicator_features(
+                    y_perm, first_class + c, k, wy0_all[c], wy1_all[c], Y_perm
+                )
+                _rdc_standardize_columns(Y_perm)
+                rdc_c = _rdc_max_abs_corr(X_feat, Y_perm)
                 if rdc_c > rdc_perm:
                     rdc_perm = rdc_c
             theta_p[i] = rdc_perm
@@ -832,8 +827,13 @@ def _ptest_rdc_classifier_parallel_batched_result(
     random_state: int,
     alpha: float,
     confidence: float,
+    n_threads: int,
 ) -> PermutationTestResult:
     """Parallel batched permutation test for RDC (classification) with adaptive stopping.
+
+    ``n_threads`` is the size of the Numba thread pool; each thread owns one set
+    of scratch buffers and processes every ``n_threads``-th permutation, so the
+    result does not depend on the thread count.
 
     Returns
     -------
@@ -842,37 +842,30 @@ def _ptest_rdc_classifier_parallel_batched_result(
     """
     n = len(x)
     X_feat = _rdc_features(x, k, s, rdc_seed)
+    _rdc_standardize_columns(X_feat)
+
+    n_indicators = 1 if n_classes == 2 else n_classes
+    first_class = 1 if n_classes == 2 else 0
+    wy0_all = np.empty((n_indicators, k), dtype=np.float64)
+    wy1_all = np.empty((n_indicators, k), dtype=np.float64)
+    for c in range(n_indicators):
+        w0, w1 = _rdc_projection_weights(k, s, rdc_seed + 1000 + c)
+        wy0_all[c] = w0
+        wy1_all[c] = w1
+
+    Y_buf = np.empty((n_threads, n, 2 * k), dtype=np.float64)
+    y_buf = np.empty((n_threads, n), dtype=y.dtype)
 
     # Observed statistic
-    if n_classes == 2:
-        y_float = y.astype(np.float64)
-        Y_feat_obs = _rdc_features(y_float, k, s, rdc_seed + 1000)
-        theta = _rdc_cancor(X_feat.copy(), Y_feat_obs)
-    else:
-        theta = 0.0
-        for c in range(n_classes):
-            y_bin = np.zeros(n, dtype=np.float64)
-            for i in range(n):
-                if y[i] == c:
-                    y_bin[i] = 1.0
-            Y_feat_c = _rdc_features(y_bin, k, s, rdc_seed + 1000 + c)
-            rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
-            if rdc_c > theta:
-                theta = rdc_c
-
+    theta = 0.0
+    for c in range(n_indicators):
+        _rdc_fill_indicator_features(y, first_class + c, k, wy0_all[c], wy1_all[c], Y_buf[0])
+        _rdc_standardize_columns(Y_buf[0])
+        rdc_c = _rdc_max_abs_corr(X_feat, Y_buf[0])
+        if rdc_c > theta:
+            theta = rdc_c
     if theta <= 0.0:
         return 1.0, 0
-
-    # Precompute Y projection weights per class
-    n_weight_sets = 1 if n_classes == 2 else n_classes
-    wy0_all = np.empty((n_weight_sets, k), dtype=np.float64)
-    wy1_all = np.empty((n_weight_sets, k), dtype=np.float64)
-    for c in range(n_weight_sets):
-        seed_c = rdc_seed + 1000 + c if n_classes > 2 else rdc_seed + 1000
-        np.random.seed(seed_c)
-        for j in range(k):
-            wy0_all[c, j] = np.random.randn() * s
-            wy1_all[c, j] = np.random.randn() * s
 
     # Parallel batched permutation
     min_resamples = int(np.ceil(1.0 / alpha))
@@ -885,41 +878,25 @@ def _ptest_rdc_classifier_parallel_batched_result(
         batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
 
-        for i in prange(batch_size):
-            np.random.seed(random_state + m + i)
-            y_perm = y.copy()
-            np.random.shuffle(y_perm)
+        for t in prange(n_threads):
+            y_perm = y_buf[t]
+            Y_perm = Y_buf[t]
+            for i in range(t, batch_size, n_threads):
+                np.random.seed(random_state + m + i)
+                y_perm[:] = y
+                np.random.shuffle(y_perm)
 
-            if n_classes == 2:
-                y_float_perm = y_perm.astype(np.float64)
-                ecdf_y = _rdc_ecdf(y_float_perm)
-                Y_feat_perm = np.empty((n, 2 * k), dtype=np.float64)
-                for ii in range(n):
-                    for jj in range(k):
-                        proj = ecdf_y[ii] * wy0_all[0, jj] + wy1_all[0, jj]
-                        Y_feat_perm[ii, jj] = np.cos(proj)
-                        Y_feat_perm[ii, k + jj] = np.sin(proj)
-                rdc_perm = _rdc_cancor(X_feat.copy(), Y_feat_perm)
-            else:
                 rdc_perm = 0.0
-                for c in range(n_classes):
-                    y_bin = np.zeros(n, dtype=np.float64)
-                    for idx in range(n):
-                        if y_perm[idx] == c:
-                            y_bin[idx] = 1.0
-                    ecdf_y = _rdc_ecdf(y_bin)
-                    Y_feat_c = np.empty((n, 2 * k), dtype=np.float64)
-                    for ii in range(n):
-                        for jj in range(k):
-                            proj = ecdf_y[ii] * wy0_all[c, jj] + wy1_all[c, jj]
-                            Y_feat_c[ii, jj] = np.cos(proj)
-                            Y_feat_c[ii, k + jj] = np.sin(proj)
-                    rdc_c = _rdc_cancor(X_feat.copy(), Y_feat_c)
+                for c in range(n_indicators):
+                    _rdc_fill_indicator_features(
+                        y_perm, first_class + c, k, wy0_all[c], wy1_all[c], Y_perm
+                    )
+                    _rdc_standardize_columns(Y_perm)
+                    rdc_c = _rdc_max_abs_corr(X_feat, Y_perm)
                     if rdc_c > rdc_perm:
                         rdc_perm = rdc_c
-
-            if rdc_perm >= theta:
-                batch_extreme[i] = 1
+                if rdc_perm >= theta:
+                    batch_extreme[i] = 1
 
         extreme_count += int(np.sum(batch_extreme))
         m += batch_size
@@ -1252,46 +1229,33 @@ def _rdc_features(x: np.ndarray, k: int, s: float, seed: int) -> np.ndarray:
 
 
 @njit(cache=True, nogil=True, fastmath=True)
-def _rdc_cancor(X: np.ndarray, Y: np.ndarray) -> float:
-    """RDC-style max absolute pairwise correlation between feature matrices.
+def _rdc_standardize_columns(A: np.ndarray) -> None:
+    """Center every column of ``A`` in place and scale it to unit sum of squares.
 
-    This approximates the original RDC canonical-correlation step with the
-    maximum absolute correlation between standardized projected columns.
+    Columns with numerically zero variance are centered but left unscaled, so
+    they contribute nothing to any correlation.
     """
-    n, p = X.shape
-    q = Y.shape[1]
-
-    # Standardize X columns (in-place)
+    n, p = A.shape
     for j in range(p):
         mu = 0.0
         for i in range(n):
-            mu += X[i, j]
+            mu += A[i, j]
         mu /= n
         ss = 0.0
         for i in range(n):
-            X[i, j] -= mu
-            ss += X[i, j] * X[i, j]
+            A[i, j] -= mu
+            ss += A[i, j] * A[i, j]
         if ss > 1e-10:
             inv_std = 1.0 / np.sqrt(ss)
             for i in range(n):
-                X[i, j] *= inv_std
+                A[i, j] *= inv_std
 
-    # Standardize Y columns (in-place)
-    for j in range(q):
-        mu = 0.0
-        for i in range(n):
-            mu += Y[i, j]
-        mu /= n
-        ss = 0.0
-        for i in range(n):
-            Y[i, j] -= mu
-            ss += Y[i, j] * Y[i, j]
-        if ss > 1e-10:
-            inv_std = 1.0 / np.sqrt(ss)
-            for i in range(n):
-                Y[i, j] *= inv_std
 
-    # Find max |corr(X[:,j], Y[:,k])| - X,Y already standardized so corr = X'Y/n
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_max_abs_corr(X: np.ndarray, Y: np.ndarray) -> float:
+    """Maximum absolute column-pair correlation of two standardized matrices."""
+    n, p = X.shape
+    q = Y.shape[1]
     max_corr = 0.0
     for j in range(p):
         for k in range(q):
@@ -1302,8 +1266,72 @@ def _rdc_cancor(X: np.ndarray, Y: np.ndarray) -> float:
                 corr = -corr
             if corr > max_corr:
                 max_corr = corr
-
     return min(max_corr, 1.0)
+
+
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_cancor(X: np.ndarray, Y: np.ndarray) -> float:
+    """RDC-style max absolute pairwise correlation between feature matrices.
+
+    This approximates the original RDC canonical-correlation step with the
+    maximum absolute correlation between standardized projected columns. Both
+    inputs are standardized in place.
+    """
+    _rdc_standardize_columns(X)
+    _rdc_standardize_columns(Y)
+    return _rdc_max_abs_corr(X, Y)
+
+
+# Note: Uses np.random.seed() because Numba doesn't support default_rng() inside @njit.
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_projection_weights(k: int, s: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Random projection weights for the ECDF and bias inputs, drawn as in ``_rdc_features``."""
+    np.random.seed(seed)
+    w0 = np.empty(k, dtype=np.float64)
+    w1 = np.empty(k, dtype=np.float64)
+    for j in range(k):
+        w0[j] = np.random.randn() * s
+        w1[j] = np.random.randn() * s
+    return w0, w1
+
+
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_fill_ecdf_features(
+    ecdf: np.ndarray, k: int, w0: np.ndarray, w1: np.ndarray, out: np.ndarray
+) -> None:
+    """Write ``[cos(ecdf * w0 + w1), sin(ecdf * w0 + w1)]`` into ``out`` of shape (n, 2k)."""
+    n = len(ecdf)
+    for i in range(n):
+        for j in range(k):
+            proj = ecdf[i] * w0[j] + w1[j]
+            out[i, j] = np.cos(proj)
+            out[i, k + j] = np.sin(proj)
+
+
+@njit(cache=True, nogil=True, fastmath=True)
+def _rdc_fill_indicator_features(
+    y: np.ndarray, c: int, k: int, w0: np.ndarray, w1: np.ndarray, out: np.ndarray
+) -> None:
+    """Write the RDC features of the one-vs-all indicator of class ``c`` into ``out``.
+
+    The empirical CDF of a binary indicator takes two values: members sit at 1
+    and non-members at the share of non-members, so no sort is needed. The
+    result equals ``_rdc_features`` applied to the indicator with these weights
+    up to one floating-point ulp in the non-member ECDF value, whose fast-math
+    division the compiler may emit as a reciprocal multiply.
+    """
+    n = len(y)
+    n_members = 0
+    for i in range(n):
+        if y[i] == c:
+            n_members += 1
+    e_other = (n - n_members) / n
+    for i in range(n):
+        e = 1.0 if y[i] == c else e_other
+        for j in range(k):
+            proj = e * w0[j] + w1[j]
+            out[i, j] = np.cos(proj)
+            out[i, k + j] = np.sin(proj)
 
 
 @njit(cache=True, nogil=True, fastmath=True)
@@ -1753,6 +1781,7 @@ def ptest_rdc_classifier(
                 rdc_seed=random_state,
                 n_resamples=n_resamples,
                 random_state=random_state,
+                n_threads=numba.get_num_threads(),
             )
         elif early_stopping == EarlyStopping.ADAPTIVE:
             result = _ptest_rdc_classifier_parallel_batched_result(
@@ -1766,6 +1795,7 @@ def ptest_rdc_classifier(
                 random_state=random_state,
                 alpha=alpha,
                 confidence=confidence,
+                n_threads=numba.get_num_threads(),
             )
         else:
             result = _ptest_result(
@@ -1851,6 +1881,7 @@ def ptest_rdc_regressor(
                 rdc_seed=random_state,
                 n_resamples=n_resamples,
                 random_state=random_state,
+                n_threads=numba.get_num_threads(),
             )
         elif early_stopping == EarlyStopping.ADAPTIVE:
             result = _ptest_rdc_regressor_parallel_batched_result(
@@ -1863,6 +1894,7 @@ def ptest_rdc_regressor(
                 random_state=random_state,
                 alpha=alpha,
                 confidence=confidence,
+                n_threads=numba.get_num_threads(),
             )
         else:
             result = _ptest_result(

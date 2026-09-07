@@ -11,6 +11,9 @@ extend-exclude = [
 aas = "aas"
 ba = "ba"
 CLL = "CLL"
+# HGNC gene symbols used in the TCGA-BRCA application section
+STARD = "STARD"
+STARD3 = "STARD3"
 lgbm = "lgbm"
 Plas = "Plas"
 tage = "tage"

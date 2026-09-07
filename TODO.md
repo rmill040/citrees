@@ -56,10 +56,29 @@ gitignored and nothing under it was tracked. It is fully re-downloadable with
 pinned checksums from the eLife CDN and Zenodo via
 `paper/jss/replication/dgrp.py` if this decision is ever reversed.
 
-What was intentionally KEPT (18 MB, evidence only):
-`paper/jss/results/dgrp-full`, `paper/jss/results/dgrp-cloud-execution`,
-`paper/jss/results/dgrp-manuscript-summary`. Delete these only once the
-replacement application section is written and reviewed.
+The DGRP results were deleted at the author's direction (2026-09-07):
+`paper/jss/results/dgrp-full`, `dgrp-cloud-execution`, and
+`dgrp-manuscript-summary`, 18 MB, all untracked and gitignored. Together with
+the raw data this means **no DGRP number in the current `article.tex` can be
+regenerated** -- the text is now unsupported and must come out, not be revised.
+`paper/jss/results/replication-quick/dgrp` (2.7 MB) was left in place: it is a
+child of a receipt-verified whole-suite run and removing one child would
+invalidate that tree's receipt for no meaningful space. It goes stale on its own
+once the suite drops from six analyses to five.
+
+**Replacement dataset acquired (2026-09-07):** TCGA-BRCA expression at
+`paper/jss/data/tcga_brca/` (105 MB, gitignored), with `manifest.json` pinning
+all four source URLs by sha256, the filter chain, and the derived-file hashes.
+1,106 primary tumours x 17,345 protein-coding genes -- under dexter's 20,000,
+the paper's existing maximum. Outcomes are IHC/FISH receptor status, measured
+independently of the RNA-seq: ER n=787 (606/181, 23.0% minority), PR n=784
+(527/257, 32.8%), HER2 n=773 (114/659, 14.7%). Positive control passes: ESR1
+ranks first for ER (r=+0.81), PGR is top-5 for PR, and HER2 returns ERBB2 plus
+the whole 17q12 amplicon (STARD3, MIEN1, GRB7, PGAP3). **PAM50 subtype was
+considered and rejected as circular** -- it is called from the same RNA-seq --
+and its Normal class has only 23 members. Awaiting the author's sign-off on
+ER-primary with PR/HER2 secondary and on the feature scale before the
+preregistration is frozen.
 
 Still to do, in order:
 

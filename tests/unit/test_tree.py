@@ -9,10 +9,12 @@ from pydantic import ValidationError
 from sklearn.datasets import make_classification, make_regression
 
 from citrees._tree import (
+    MAX_FEASIBLE_N_RESAMPLES,
     BaseConditionalInferenceTreeParameters,
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
     Node,
+    _auto_n_resamples,
 )
 
 # Fast parameters for unit tests
@@ -1571,3 +1573,94 @@ class TestReservoirSamplingMathematical:
         for candidate in range(n_candidates):
             actual = counts.get(candidate, 0)
             assert abs(actual - expected) < 0.15 * expected
+
+
+class TestAutoResampleCountEdges:
+    """`alpha` is validated as 0 < alpha <= 1, so both ends must behave.
+
+    The AUTO heuristic is `max(ceil(1 / alpha), ceil(z**2 * (1 - alpha) / alpha))`
+    with `z = norm.isf(alpha)`. Written as `norm.ppf(1 - alpha)` it returned
+    infinity at both ends of the valid range and `ceil` raised.
+    """
+
+    @pytest.mark.parametrize("alpha", [0.5, 0.1, 0.05, 0.01, 0.001])
+    def test_matches_the_documented_formula(self, alpha: float) -> None:
+        from math import ceil
+
+        from scipy.stats import norm
+
+        z = norm.isf(alpha)
+        expected = max(ceil(1 / alpha), ceil(z * z * (1 - alpha) / alpha))
+        assert _auto_n_resamples(alpha) == expected
+
+    def test_default_alpha_is_unchanged(self) -> None:
+        # Pinned so a future change to the heuristic cannot silently move every
+        # published permutation count.
+        assert _auto_n_resamples(0.05) == 52
+
+    def test_alpha_one_yields_a_single_permutation(self) -> None:
+        # Every test rejects at alpha = 1, so the upper limit vanishes and the
+        # lower limit ceil(1 / 1) governs. This used to be an inf * 0 nan.
+        assert _auto_n_resamples(1.0) == 1
+
+    def test_count_decreases_as_alpha_increases(self) -> None:
+        alphas = [1e-6, 1e-4, 0.001, 0.01, 0.05, 0.1, 0.5, 0.9, 1.0]
+        counts = [_auto_n_resamples(alpha) for alpha in alphas]
+        assert counts == sorted(counts, reverse=True)
+
+    def test_tiny_alpha_stays_finite(self) -> None:
+        # norm.ppf(1 - 1e-17) is inf because the subtraction rounds to one.
+        assert np.isfinite(_auto_n_resamples(1e-17))
+
+    @pytest.mark.parametrize("param", ["alpha_selector", "alpha_splitter"])
+    def test_alpha_one_fits(self, param: str) -> None:
+        X = np.array([[0.0], [1.0], [2.0], [3.0]])
+        y = np.array([0, 0, 1, 1])
+        clf = ConditionalInferenceTreeClassifier(random_state=0, **{param: 1.0})
+        clf.fit(X, y)
+        assert clf.predict(X).shape == y.shape
+
+    @pytest.mark.parametrize("param", ["alpha_selector", "alpha_splitter"])
+    def test_infeasible_alpha_is_refused_by_name(self, param: str) -> None:
+        # ceil(1 / 1e-17) permutations is arithmetically fine and impossible to
+        # run; refusing it beats hanging until the caller gives up.
+        X = np.array([[0.0], [1.0], [2.0], [3.0]])
+        y = np.array([0, 0, 1, 1])
+        clf = ConditionalInferenceTreeClassifier(random_state=0, **{param: 1e-17})
+        with pytest.raises(ValueError, match=f"{param}=1e-17 implies"):
+            clf.fit(X, y)
+
+    @pytest.mark.parametrize("n_resamples", ["minimum", "maximum", "auto"])
+    def test_every_resample_rule_is_checked_for_feasibility(self, n_resamples: str) -> None:
+        X = np.array([[0.0], [1.0], [2.0], [3.0]])
+        y = np.array([0, 0, 1, 1])
+        clf = ConditionalInferenceTreeClassifier(
+            random_state=0, alpha_selector=1e-12, n_resamples_selector=n_resamples
+        )
+        with pytest.raises(ValueError, match="permutations"):
+            clf.fit(X, y)
+
+    def test_an_explicit_count_is_not_an_escape(self) -> None:
+        # Validation separately requires n_resamples >= 1 / alpha, so a small
+        # explicit count is rejected before the feasibility guard is reached.
+        # The guard's message must therefore not suggest setting one.
+        with pytest.raises(ValidationError, match="should be >="):
+            ConditionalInferenceTreeClassifier(
+                random_state=0, alpha_selector=1e-12, n_resamples_selector=1000
+            )
+
+    def test_the_feasibility_bound_admits_realistic_user_alphas(self) -> None:
+        # The guard reads the user-facing alpha, not the Bonferroni-adjusted
+        # per-node value, so the bound only has to clear alphas a caller types.
+        for alpha in (0.5, 0.05, 0.01, 0.001, 1e-4, 1e-6):
+            assert _auto_n_resamples(alpha) < MAX_FEASIBLE_N_RESAMPLES, alpha
+
+    def test_per_node_bonferroni_counts_are_not_subject_to_the_guard(self) -> None:
+        # Bonferroni over many candidates legitimately implies a large per-node
+        # budget; that mechanism is the documented cost of the threshold test and
+        # must not be refused. Pinned because the guard sits one level above it.
+        adjusted = 0.001 / 60660
+        assert _auto_n_resamples(adjusted) > MAX_FEASIBLE_N_RESAMPLES
+        X = np.array([[0.0], [1.0], [2.0], [3.0]])
+        y = np.array([0, 0, 1, 1])
+        ConditionalInferenceTreeClassifier(random_state=0, alpha_selector=0.001).fit(X, y)

@@ -51,6 +51,48 @@ from citrees._utils import (
     split_data,
 )
 
+MAX_FEASIBLE_N_RESAMPLES = 1_000_000_000
+
+
+def _auto_n_resamples(alpha: float) -> int:
+    """Number of permutations for ``NResamples.AUTO`` at significance ``alpha``.
+
+    The count is the larger of the lower limit ``ceil(1 / alpha)``, the smallest
+    number of permutations able to resolve ``alpha`` at all, and the approximate
+    upper limit ``z**2 * (1 - alpha) / alpha`` for ``z = norm.isf(alpha)``.
+
+    ``norm.isf(alpha)`` is used rather than ``norm.ppf(1 - alpha)`` because
+    ``1 - alpha`` rounds to exactly one below ``alpha ~ 1e-16``, where ``ppf``
+    returns infinity. At ``alpha == 1`` the upper limit is zero in the limit --
+    ``z**2`` grows only like ``2 * log(1 / (1 - alpha))`` while ``1 - alpha`` goes
+    to zero -- but the expression evaluates as an indeterminate ``inf * 0``, so
+    the limit is substituted and the lower limit governs. ``alpha`` is validated
+    as ``0 < alpha <= 1``, so both ends are reachable.
+    """
+    if alpha >= 1.0:
+        return ceil(1 / alpha)
+    z = norm.isf(alpha)
+    return max(ceil(1 / alpha), ceil(z * z * (1 - alpha) / alpha))
+
+
+def _check_feasible_n_resamples(n_resamples: int, alpha: float, kind: str) -> int:
+    """Reject a permutation budget that no fit could ever complete.
+
+    A permutation test needs on the order of ``1 / alpha`` resamples, so a very
+    small ``alpha`` implies a count that is arithmetically well defined and
+    computationally impossible. Refusing it names the offending parameter; without
+    this the fit runs until the caller gives up. Raising ``n_resamples_{kind}`` is
+    not an escape, because validation separately requires it to be at least
+    ``1 / alpha``, so the only remedy is a larger ``alpha``.
+    """
+    if n_resamples > MAX_FEASIBLE_N_RESAMPLES:
+        raise ValueError(
+            f"alpha_{kind}={alpha:g} implies {n_resamples:.3g} permutations, above the "
+            f"{MAX_FEASIBLE_N_RESAMPLES:.3g} that a fit can complete. Increase "
+            f"alpha_{kind}."
+        )
+    return n_resamples
+
 
 class Node(TypedDict, total=False):
     feature: int
@@ -837,9 +879,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             elif n_resamples == NResamples.MAXIMUM:
                 _n_resamples = ceil(1 / (4 * _alpha * _alpha))
             else:
-                z = norm.ppf(1 - _alpha)
-                upper_limit = ceil(z * z * (1 - _alpha) / _alpha)
-                _n_resamples = max(lower_limit, upper_limit)
+                _n_resamples = _auto_n_resamples(_alpha)
         else:
             _n_resamples = n_resamples * n_tests
 
@@ -1207,17 +1247,15 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         for param in ["n_resamples_selector", "n_resamples_splitter"]:
             value = getattr(self, param)
             if isinstance(value, str):
-                alpha = self.alpha_selector if "selector" in param else self.alpha_splitter
-                lower_limit = ceil(1 / alpha)
+                kind = "selector" if "selector" in param else "splitter"
+                alpha = self.alpha_selector if kind == "selector" else self.alpha_splitter
                 if value == NResamples.MINIMUM:
-                    value = lower_limit
+                    value = ceil(1 / alpha)
                 elif value == NResamples.MAXIMUM:
                     value = ceil(1 / (4 * alpha * alpha))
                 else:
-                    # Approximate upper limit
-                    z = norm.ppf(1 - alpha)
-                    upper_limit = ceil(z * z * (1 - alpha) / alpha)
-                    value = max(lower_limit, upper_limit)
+                    value = _auto_n_resamples(alpha)
+                value = _check_feasible_n_resamples(value, alpha, kind)
             setattr(self, f"_{param}", value)
 
         # Alpha adjustments are applied at each selector and splitter test.

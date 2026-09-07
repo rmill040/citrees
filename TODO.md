@@ -80,27 +80,36 @@ and its Normal class has only 23 members. Awaiting the author's sign-off on
 ER-primary with PR/HER2 secondary and on the feature scale before the
 preregistration is frozen.
 
+**Replacement landed (2026-09-07):** the preregistration is frozen at
+`paper/jss/replication/tcga_brca-specification.json` and implemented in
+`paper/jss/replication/tcga_brca.py`, registered in `replicate.py` in the dgrp
+slot (the suite stays at six analyses). `dgrp.py`, `dgrp-specification.json` and
+`tests/paper/test_jss_dgrp.py` are deleted; `--dgrp-data-dir` is now
+`--tcga-data-dir`. 33 new tests in `tests/paper/test_jss_tcga_brca.py`; whole
+paper suite 1,128 passed.
+
 Still to do, in order:
 
-- [ ] Choose the replacement dataset. Hard constraint: **openly downloadable
-      with no credentialed access or data-use agreement**, so a JSS reviewer can
-      run the replication suite. This is what drove the original DGRP choice and
-      it rules out UK Biobank, MIMIC, and any clinical cohort. Leading candidate
-      is human tumor gene expression from TCGA (GDC or recount3): human, cancer,
-      ~20,000 features, n in the hundreds to low thousands. Pull real cohort
-      sizes and download mechanics before committing.
-- [ ] Remove the DGRP material from `paper/jss/article.tex`:
-      `\subsection{DGRP     cardiac application}` (lines ~774-850) and
-      `\section{DGRP application     results}` (lines ~860-915), roughly 133 of
-      985 lines, plus its tables and the DGRP sentences in the discussion,
+- [x] Choose the replacement dataset: TCGA-BRCA expression, openly downloadable
+      with no credentialed access or data-use agreement, so a JSS reviewer can
+      run the suite.
+- [x] Retire `paper/jss/replication/dgrp.py` and its registration in
+      `replicate.py`.
+- [ ] Remove the DGRP material from `paper/jss/article.tex` (deferred by the
+      author): `\subsection{DGRP cardiac application}` (lines ~774-850) and
+      `\section{DGRP application results}` (lines ~860-915), roughly 133 of 985
+      lines, plus its tables and the DGRP sentences in the discussion,
       limitations (n disclosure ~line 943) and data-availability sections (9
       `DGRP` mentions total).
-- [ ] Retire `paper/jss/replication/dgrp.py` (3,820 lines) and its registration
-      in `paper/jss/replication/replicate.py`; the suite drops from six analyses
-      to five until the replacement lands.
-- [ ] Write the replacement application and results sections with pre-specified
-      primary and secondary outcomes fixed BEFORE the full run, matching the
-      discipline DGRP used.
+- [ ] Write the replacement application and results sections from the full-run
+      artifacts. **The quick profile already shows the primary contrast is a
+      null**: cif minus marginal held-out log loss at k=10 is +0.005 (ER),
+      -0.001 (PR), -0.006 (HER2), none significant. Write it as a null; do not
+      shop for a k or a metric that favors cif. The interesting positive finding
+      is stability and the positive control, where L2 logistic loses ERBB2 from
+      the HER2 top ten in 7 of 9 folds (coefficient mass spreads over the
+      co-expressed 17q12 amplicon) while cit/cif and the marginal screen keep it
+      in all 9.
 - [ ] Re-run the full replication suite and redo the factual review.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)

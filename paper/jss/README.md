@@ -34,19 +34,23 @@ affiliation is Amazon Web Services.
 | Split-variable bias     | Measure selection frequency when noise variables differ only in cardinality                    | `citrees`, `partykit::ctree`, CART                              |
 | Reference behavior      | Compare split decisions, conditional root agreement, native feature summaries, and predictions | `citrees`, `partykit::ctree`, `partykit::cforest`               |
 | Scaling                 | Measure runtime and peak memory across controlled problem dimensions                           | `citrees`, `partykit`, scikit-learn                             |
-| DGRP application        | Demonstrate leakage-safe screening and linkage-disequilibrium-aware stability analysis         | Tree, forest, linear, and marginal baselines                    |
+| TCGA-BRCA application   | Demonstrate leakage-safe screening, held-out prediction, and selection stability               | Tree, forest, linear, and marginal baselines                    |
 | Tutorial                | Demonstrate the estimator interface in an executable workflow                                  | Breast Cancer Wisconsin Diagnostic data                         |
 | RDC sensitivity         | Measure the accuracy, ranking stability, and runtime effect of random projection count         | 5, 10, 20, and 40 projections on four small datasets            |
 | Broad benchmark context | Summarize the corrected benchmark without duplicating it                                       | Final arXiv v2 artifacts                                        |
 
-The primary biomedical application is the public Drosophila Genetic Reference
-Panel cardiac dataset associated with DOI `10.7554/eLife.82459` and Zenodo DOI
-`10.5281/zenodo.5582846`. DGRP lines are the independent units. The analysis
-uses one prespecified primary cardiac trait, genotype filtering and confounder
-handling defined before model fitting, and linkage-disequilibrium-aware
-stability summaries. All outcome-dependent operations remain inside the training
-folds. The Breast Cancer Wisconsin Diagnostic data provide the executable
-end-to-end tutorial.
+The primary biomedical application is public TCGA-BRCA breast tumour gene
+expression, with predictors and outcomes drawn from independent assays: the
+predictors are protein-coding transcript abundances, and the outcomes are
+receptor statuses determined by immunohistochemistry and FISH. Tumour samples
+are the independent units. The design is frozen in
+`replication/tcga_brca-specification.json`: oestrogen-receptor status is the
+single primary outcome, progesterone-receptor and HER2 status are secondary
+under a Holm adjustment, and every outcome-dependent step -- standardization,
+the candidate screen, and model fitting -- stays inside the training fold. PAM50
+subtype was considered and rejected because it is called from the same RNA-seq
+that supplies the predictors. The Breast Cancer Wisconsin Diagnostic data
+provide the executable end-to-end tutorial.
 
 ## Claim Boundaries
 
@@ -55,10 +59,10 @@ end-to-end tutorial.
 - Reference comparisons quantify split decisions, conditional root agreement,
   native feature-summary concordance, and held-out prediction behavior under
   identical folds and aligned structural controls.
-- Cardiac results are an adapted predictive reanalysis of screening and
-  stability among DGRP lines.
-- DGRP lines are the independent units, and repeated resampling quantifies
-  uncertainty over these lines.
+- TCGA-BRCA results are a predictive screening and stability analysis, not a
+  claim about clinical utility or about causal transcriptional mechanism.
+- Tumour samples are the independent units, and repeated stratified
+  cross-validation quantifies uncertainty over these samples.
 - Benchmark context comes only from final corrected arXiv v2 artifacts.
 
 ## Replication Setup
@@ -107,9 +111,9 @@ uv run python -m paper.jss.replication --profile full \
 ```
 
 The command dispatches calibration, matched behavior, controlled performance,
-tutorial, DGRP preparation, and RDC projection-sensitivity analyses. It verifies
-each child receipt and artifact hash before atomically publishing the combined
-output directory. Use `--output-dir` for a new destination; an existing
+tutorial, TCGA-BRCA application, and RDC projection-sensitivity analyses. It
+verifies each child receipt and artifact hash before atomically publishing the
+combined output directory. Use `--output-dir` for a new destination; an existing
 destination is rejected to prevent results from different executions from being
 mixed. The full profile also requires a clean Git worktree and rejects source
 changes during execution.
@@ -121,14 +125,14 @@ uv run python -m paper.jss.replication.rdc_sensitivity --profile smoke \
   --output-dir paper/jss/results/rdc-sensitivity-smoke
 ```
 
-The DGRP inputs are acquired automatically and validated before use. The pinned
-inputs include a 1.32 GB covariate archive that extracts to a 7.22 GB SQLite
-database and a 97.9 MB genotype archive. Use `--dgrp-data-dir` to place these
-inputs on a volume with sufficient free space and to reuse them across runs:
+The TCGA-BRCA inputs are derived once from four pinned public sources, and
+`paper/jss/data/tcga_brca/manifest.json` records every source URL, its sha256,
+the unsupervised filter chain, and the digests of the three derived files. Use
+`--tcga-data-dir` to read them from another location:
 
 ```bash
 uv run python -m paper.jss.replication --profile quick \
-  --dgrp-data-dir /path/to/dgrp-data \
+  --tcga-data-dir /path/to/tcga_brca \
   --output-dir paper/jss/results/replication-quick
 ```
 

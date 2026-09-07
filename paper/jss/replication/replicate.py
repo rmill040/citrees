@@ -25,7 +25,7 @@ Profile = Literal["smoke", "quick", "full"]
 BASE_SEED = 1718
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results"
-DEFAULT_DGRP_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "dgrp"
+DEFAULT_TCGA_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "tcga_brca"
 DISTRIBUTED_ANALYSES = frozenset({"calibration", "behavior", "performance"})
 
 
@@ -76,9 +76,9 @@ ANALYSES = (
         profiled=True,
     ),
     AnalysisSpec(
-        name="dgrp",
-        module="paper.jss.replication.dgrp",
-        expected_analysis="dgrp",
+        name="tcga_brca",
+        module="paper.jss.replication.tcga_brca",
+        expected_analysis="tcga_brca",
         profiled=True,
     ),
     AnalysisSpec(
@@ -130,7 +130,7 @@ def _analysis_command(
     profile: Profile,
     output_dir: Path,
     base_seed: int,
-    dgrp_data_dir: Path,
+    tcga_data_dir: Path,
     shard_root: Path | None,
 ) -> tuple[str, ...]:
     if shard_root is not None and spec.name in DISTRIBUTED_ANALYSES:
@@ -157,8 +157,8 @@ def _analysis_command(
     ]
     if spec.profiled:
         command.extend(("--profile", profile, "--seed", str(base_seed)))
-    if spec.name == "dgrp":
-        command.extend(("--data-dir", str(dgrp_data_dir)))
+    if spec.name == "tcga_brca":
+        command.extend(("--data-dir", str(tcga_data_dir)))
     return tuple(command)
 
 
@@ -167,7 +167,7 @@ def _run_analysis(
     profile: Profile,
     output_dir: Path,
     base_seed: int,
-    dgrp_data_dir: Path,
+    tcga_data_dir: Path,
     shard_root: Path | None,
 ) -> AnalysisExecution:
     command = _analysis_command(
@@ -175,7 +175,7 @@ def _run_analysis(
         profile,
         output_dir,
         base_seed,
-        dgrp_data_dir,
+        tcga_data_dir,
         shard_root,
     )
     started = time.perf_counter()
@@ -345,7 +345,7 @@ def run_replication(
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     *,
     base_seed: int = BASE_SEED,
-    dgrp_data_dir: Path = DEFAULT_DGRP_DATA_DIR,
+    tcga_data_dir: Path = DEFAULT_TCGA_DATA_DIR,
     shard_root: Path | None = None,
     runner: AnalysisRunner = _run_analysis,
 ) -> Path:
@@ -415,7 +415,7 @@ def run_replication(
                 profile,
                 child_dir,
                 base_seed,
-                dgrp_data_dir,
+                tcga_data_dir,
                 shard_root,
             )
             transcript_sections.append(_transcript_section(index, len(ANALYSES), spec, execution))
@@ -523,10 +523,10 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=BASE_SEED, help="Base random seed.")
     parser.add_argument(
-        "--dgrp-data-dir",
+        "--tcga-data-dir",
         type=Path,
-        default=DEFAULT_DGRP_DATA_DIR,
-        help="Directory containing or receiving the pinned DGRP sources.",
+        default=DEFAULT_TCGA_DATA_DIR,
+        help="Directory containing the pinned TCGA-BRCA derived files.",
     )
     parser.add_argument(
         "--shard-root",
@@ -545,7 +545,7 @@ def main() -> None:
         args.profile,
         args.output_dir,
         base_seed=args.seed,
-        dgrp_data_dir=args.dgrp_data_dir,
+        tcga_data_dir=args.tcga_data_dir,
         shard_root=args.shard_root,
     )
     print(f"Wrote verified JSS replication outputs to {output_dir}.")

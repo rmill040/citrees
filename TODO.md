@@ -37,6 +37,53 @@ objection.
       are 4–8× faster per the ablation. NEVER present matched-procedure numbers
       as "citrees performance" without the defaults row.
 
+## JSS application section: drop DGRP, find a replacement (author, 2026-09-07)
+
+**Decision:** the _Drosophila_ Genetic Reference Panel (DGRP) cardiac analysis
+is being **removed** as the JSS application section. The author rejected it as
+the paper's showcase use case. Do not invest further effort in it and do not
+reinstate it.
+
+Why it is being dropped: n is only 157-166 lines per trait across seven cardiac
+traits, which is too thin to carry an application section, and framing fruit-fly
+heart measurements as a "biomedical application" overclaims to any reader
+expecting human clinical relevance.
+
+What was deleted (2026-09-07): `paper/jss/data/dgrp/` in full, 8.6 GB
+(`input/Phenosnip.201612.sqlite` 6.7 GB, `dgrp2.bed`/`bim` 362 MB, the two
+source tarballs 1.3 GB, `derived-genotypes/` 236 MB). The directory was
+gitignored and nothing under it was tracked. It is fully re-downloadable with
+pinned checksums from the eLife CDN and Zenodo via
+`paper/jss/replication/dgrp.py` if this decision is ever reversed.
+
+What was intentionally KEPT (18 MB, evidence only):
+`paper/jss/results/dgrp-full`, `paper/jss/results/dgrp-cloud-execution`,
+`paper/jss/results/dgrp-manuscript-summary`. Delete these only once the
+replacement application section is written and reviewed.
+
+Still to do, in order:
+
+- [ ] Choose the replacement dataset. Hard constraint: **openly downloadable
+      with no credentialed access or data-use agreement**, so a JSS reviewer can
+      run the replication suite. This is what drove the original DGRP choice and
+      it rules out UK Biobank, MIMIC, and any clinical cohort. Leading candidate
+      is human tumor gene expression from TCGA (GDC or recount3): human, cancer,
+      ~20,000 features, n in the hundreds to low thousands. Pull real cohort
+      sizes and download mechanics before committing.
+- [ ] Remove the DGRP material from `paper/jss/article.tex`:
+      `\subsection{DGRP     cardiac application}` (lines ~774-850) and
+      `\section{DGRP application     results}` (lines ~860-915), roughly 133 of
+      985 lines, plus its tables and the DGRP sentences in the discussion,
+      limitations (n disclosure ~line 943) and data-availability sections (9
+      `DGRP` mentions total).
+- [ ] Retire `paper/jss/replication/dgrp.py` (3,820 lines) and its registration
+      in `paper/jss/replication/replicate.py`; the suite drops from six analyses
+      to five until the replacement lands.
+- [ ] Write the replacement application and results sections with pre-specified
+      primary and secondary outcomes fixed BEFORE the full run, matching the
+      discipline DGRP used.
+- [ ] Re-run the full replication suite and redo the factual review.
+
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 
 The four parallel rdc kernels (`_ptest_rdc_*_parallel*` in

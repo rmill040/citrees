@@ -305,11 +305,30 @@ permutations of O(n)), discrete ones few. Without that adjustment citrees beats
 Raw data: s3://citrees-856480643277/debug/head-to-head/ (results\*, threshold
 diag) and `_control/perf-citrees-rerun/` (harness cells).
 
-**Library design question for the author (not changed):** the threshold test
-adjusts alpha by Bonferroni over up to 256 candidates. A max-type statistic over
-thresholds within one permutation test would give the same validity at ~1/256 of
-the cost on continuous predictors. Decide before release whether the default
-changes; the paper currently reports both settings.
+**Library design question for the author, now measured (2026-09-09):** the
+opt-in `threshold_test="maxt"` (one max-type permutation test on the minimum
+impurity over the K candidate thresholds) is implemented and tested. Benchmark
+(`scratch/bench_threshold_test.py`, `scratch/bench_threshold_test.json`):
+
+- Null familywise rejection at alpha 0.05, 300 nulls, K=32: maxt 0.050 (full)
+  and 0.050 (adaptive); Bonferroni 0.020 and 0.010. Max-type is exact,
+  Bonferroni is conservative by 2.5-5x, so switching the default would make
+  every tree split more often and would change every published result.
+- Power on a weak planted signal: maxt 0.973, Bonferroni 0.960.
+- Cost per node test (K=32, n=200): maxt 1.3-1.9 ms, Bonferroni 111-184 ms
+  (about 90x).
+- Whole NHANES tree (n=3,597, p=27, 9 nodes): with adaptive stopping the two are
+  within 1.3x (3.6-5.0 s) at K=32 and K=256; **without early stopping K=256
+  Bonferroni takes 341 s and maxt 4.7 s (72x)**. The max-type test removes the
+  exhaustive-mode cliff that the performance section reports as censored cells;
+  it does not change the adaptive default's speed much.
+- Fitted trees on NHANES are the same size and accuracy under both tests;
+  importance Spearman 1.000 (K=32) and 0.999 (K=256).
+
+Recommendation: keep `bonferroni` as the default for this release so the paper
+and the receipts stay consistent, document `maxt` as the recommended setting for
+exhaustive (no early stopping) runs, and consider making it the default in the
+next major version after a null-calibration section is added for it.
 
 ## Remaining pipeline gates (running autonomously)
 

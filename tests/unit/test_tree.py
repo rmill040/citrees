@@ -1674,7 +1674,7 @@ class TestAdaptiveConfidenceFloor:
         "param", ["early_stopping_confidence_selector", "early_stopping_confidence_splitter"]
     )
     def test_below_floor_explains_why(self, param: str) -> None:
-        with pytest.raises(ValidationError, match="no exact level guarantee"):
+        with pytest.raises(ValidationError, match="at least 0.95"):
             ConditionalInferenceTreeClassifier(**{param: 0.8})
 
     def test_floor_value_is_accepted(self) -> None:

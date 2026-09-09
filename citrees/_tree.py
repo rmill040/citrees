@@ -157,10 +157,8 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
         """
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0.95:
             raise ValueError(
-                f"{info.field_name}={value} is below 0.95. Adaptive early stopping has no exact level "
-                "guarantee; below 0.95 its null rejection rate exceeds the nominal alpha (measured 0.0524 "
-                "at 0.80 for alpha 0.05). Use a value of at least 0.95, or set the corresponding "
-                "early_stopping option to None for a fixed-budget test."
+                f"{info.field_name} must be at least 0.95 (got {value}); lower values do not hold "
+                "the nominal significance level."
             )
         return value
 

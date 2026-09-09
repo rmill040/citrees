@@ -90,7 +90,16 @@ Still to do, in order:
 
 - [x] Choose the replacement dataset.
 - [x] Retire dgrp.py, then tcga_brca.py, and their registrations.
-- [ ] Run the full NHANES profile (5x10 folds, 100 trees; ~30 min locally).
+- [x] Full NHANES profile run 2026-09-08 on clean `609d6f7`, 12 min locally,
+      output `paper/jss/results/nhanes-full` (ignored, receipt-verified).
+      Primary: shuffled survey weight mean rank RF 12.1 vs citrees 23.9 (cforest
+      25.2), corrected t = -4.97, p = 4e-6. Secondaries: cardinality Spearman
+      RF-CIF +0.52 (p = 1e-20); low-cardinality clinical block mean rank RF 22.1
+      vs CIF 15.7 (p = 5e-16). Diagnosed hypertension RF 18.8 / CIF 5.8 /
+      cforest 3.8; diagnosed high cholesterol RF 20.5 / CIF 5.3 / cforest 2.3.
+      CIF-cforest rank agreement 0.76 vs RF-cforest 0.45. Top-10 held-out AUC:
+      cforest 0.837, CIF 0.835, RF 0.812. Median fit per fold: RF 0.3 s, cforest
+      5.8 s, CIF 6.9 s. Positive controls pass for all three methods.
 - [ ] Remove the DGRP material from `paper/jss/article.tex` (deferred by the
       author): `\subsection{DGRP cardiac application}` (~774-850) and
       `\section{DGRP application results}` (~860-915), plus discussion,

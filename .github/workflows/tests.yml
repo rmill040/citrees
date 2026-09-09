@@ -119,13 +119,11 @@ jobs:
         run:
           uv run ruff format --check tests/paper paper/analysis paper/benchmark
           paper/data_generation paper/jss/replication paper/maintenance
-          paper/theory
 
       - name: Lint paper support code
         run:
           uv run ruff check tests/paper paper/analysis paper/benchmark
           paper/data_generation paper/jss/replication paper/maintenance
-          paper/theory
 
       - name: Run paper support tests
         run: uv run pytest tests/paper -q

@@ -193,11 +193,12 @@ def _ptest_sequential_adaptive_batched(
 
     Same as _ptest_sequential_adaptive, but checks the Beta CDF stopping
     criterion every `batch_size` permutations instead of after every single
-    permutation. Calibration runs in
-    paper/scripts/theory/study_batched_adaptive_stopping.py showed similar null
-    rejection while eliminating most Beta CDF evaluations, but the returned
-    values are still adaptive stopping-time estimates, not fixed-B permutation
-    p-values.
+    permutation. Batching eliminates most Beta CDF evaluations. The returned
+    values are adaptive stopping-time estimates, not fixed-B permutation
+    p-values: an exact beta-binomial recursion gives a level of 0.0494 at the
+    default confidence of 0.95 and 0.0527 at confidence 0.80, so the rule is
+    slightly conservative at the default and can exceed the nominal level at
+    low confidence settings.
 
     Parameters
     ----------

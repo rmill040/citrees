@@ -20,7 +20,6 @@ prepared.
 | `paper/data/`            | Benchmark datasets used by the experiment pipeline.                        |
 | `paper/benchmark/`       | Importable benchmark CLI, pipeline, API, storage, and infrastructure code. |
 | `paper/analysis/`        | Paper table and figure builders.                                           |
-| `paper/theory/`          | Calibration and stopping-analysis support code.                            |
 | `paper/data_generation/` | Synthetic dataset generator.                                               |
 | `paper/maintenance/`     | Operational audit helpers for benchmark outputs.                           |
 
@@ -60,9 +59,9 @@ reporting use the same benchmark surface.
 distributed benchmark pipeline, API worker/server, S3 adapters, infrastructure
 helpers, and focused benchmark experiments.
 
-`paper/analysis/`, `paper/theory/`, `paper/data_generation/`, and
-`paper/maintenance/` are repo-side paper utilities. They are not shipped in the
-wheel and are not part of the public package API.
+`paper/analysis/`, `paper/data_generation/`, and `paper/maintenance/` are
+repo-side paper utilities. They are not shipped in the wheel and are not part of
+the public package API.
 
 ## Build
 

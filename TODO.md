@@ -212,11 +212,10 @@ post-selection validity of the split test after the feature was chosen using y
 (applies equally to the Bonferroni default), strong FWER, entropy/MAE
 calibration.
 
-Hygiene: `paper/theory/study_batched_adaptive_stopping.py` counts only explicit
-"reject" outcomes and ignores capped runs whose p < alpha, so its type I figure
-understates production; it is cited in neither paper (the JSS calibration
-numbers come from real tree fits in `calibration.py`), so no published number is
-affected.
+Hygiene: `paper/theory/` (three scripts, nothing imported them, one had a
+counting bug that understated adaptive rejections) deleted 2026-09-09; it was
+cited in neither paper, and the JSS calibration numbers come from real tree fits
+in `calibration.py`, so no published number is affected.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 

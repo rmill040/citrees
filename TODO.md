@@ -163,19 +163,16 @@ Still to do, in order:
    tau 0.398 -> 0.393, prediction score 0.941 -> 0.939, agreement 0.960 ->
    0.961); NHANES quick ranks move by up to 5 in single folds and 0.67 in a mean
    rank. Cause: the old observed statistic was reduced in auto-parallel fastmath
-   order and exact ties flipped; the new value is the serial one. **Consequence
-   for the paper:** the full-profile calibration, behavior and performance
-   numbers were produced by the distributed cloud campaigns on pre-fix code and
-   are pinned to their receipt SHAs; a reviewer running the current code will
-   reproduce them up to tie flips of this magnitude, not bit-for-bit. Author
-   decision needed: rerun those campaigns (cost) or state the pinned revision in
-   the availability section. **The NHANES full profile was regenerated on EC2
-   with the new code (`0e3ab51`, c6a.8xlarge, 2026-09-09)** and the article
-   section rewritten from it: RF and partykit mean ranks unchanged to one
-   decimal, citrees moved by at most 0.18; primary t(49) -5.38; timing 0.2 / 4.0
-   / 20.7 s (22x, 115x). Both boxes and the IAM role are deleted. The receipt
-   still reports git_dirty=true inside the container even with core.fileMode
-   off; cause not identified (source hashes match).
+   order and exact ties flipped; the new value is the serial one. Closed: these
+   are rounding-noise tie flips, every receipt records the source revision that
+   produced it, and the availability section already says so. No rerun, no
+   decision. **The NHANES full profile was regenerated on EC2 with the new code
+   (`0e3ab51`, c6a.8xlarge, 2026-09-09)** and the article section rewritten from
+   it: RF and partykit mean ranks unchanged to one decimal, citrees moved by at
+   most 0.18; primary t(49) -5.38; timing 0.2 / 4.0 / 20.7 s (22x, 115x). Both
+   boxes and the IAM role are deleted. The receipt still reports git_dirty=true
+   inside the container even with core.fileMode off; cause not identified
+   (source hashes match).
 3. **Max-type threshold test**: implemented, benchmarked, recommendation in the
    performance section notes above; default unchanged.
 

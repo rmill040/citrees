@@ -27,6 +27,7 @@ from citrees._splitter import (
     ClassifierSplitterTests,
     RegressorSplitters,
     RegressorSplitterTests,
+    ptest_maxt,
 )
 from citrees._threshold_method import ThresholdMethods
 from citrees._types import (
@@ -43,6 +44,7 @@ from citrees._types import (
     PositiveInt,
     ProbabilityFloat,
     ThresholdMethod,
+    ThresholdTest,
 )
 from citrees._utils import (
     calculate_max_value,
@@ -128,6 +130,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     rdc_n_projections: PositiveInt
     threshold_scanning: bool
     threshold_method: ThresholdMethod
+    threshold_test: ThresholdTest
     max_thresholds: MaxValuesOption
     max_features: MaxValuesOption
     max_depth: PositiveInt | None = None
@@ -503,6 +506,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         rdc_n_projections: int,
         threshold_scanning: bool,
         threshold_method: str,
+        threshold_test: str,
         max_thresholds: str | float | int | None,
         max_depth: int | None,
         max_features: str | float | int | None,
@@ -532,6 +536,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.rdc_n_projections = rdc_n_projections
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
+        self.threshold_test = threshold_test
         self.max_thresholds = max_thresholds
         self.max_depth = max_depth
         self.max_features = max_features
@@ -794,6 +799,23 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         # Counters for reservoir sampling tie-breaking (uniform selection among ties)
         n_best_pval = 0
         n_best_metric = 0
+
+        if self._n_resamples_splitter is not None and self.threshold_test == ThresholdTest.MAXT:
+            # One max-type test over all candidates controls the familywise error
+            # rate over thresholds, so alpha and the budget are not divided by K.
+            self._bonferroni_correction(adjust="splitter", n_tests=1)
+            best_pval, best_threshold = ptest_maxt(
+                x=x,
+                y=y,
+                thresholds=np.asarray(thresholds),
+                splitter=self.splitter,
+                n_resamples=self._n_resamples_splitter,
+                early_stopping=self._early_stopping_splitter,
+                alpha=self._alpha_splitter,
+                random_state=self._random_state,
+                confidence=self._early_stopping_confidence_splitter,
+            )
+            return best_threshold, best_pval, best_pval < self._alpha_splitter
 
         if self._adjust_alpha_splitter and self._n_resamples_splitter is not None:
             self._bonferroni_correction(adjust="splitter", n_tests=len(thresholds))
@@ -1660,6 +1682,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
         rdc_n_projections: int = 10,
         max_features: str | float | int | None = None,
         threshold_method: str = "exact",
+        threshold_test: str = "bonferroni",
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -1690,6 +1713,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
             rdc_n_projections=rdc_n_projections,
             max_features=max_features,
             threshold_method=threshold_method,
+            threshold_test=threshold_test,
             threshold_scanning=threshold_scanning,
             max_thresholds=max_thresholds,
             max_depth=max_depth,
@@ -1827,6 +1851,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
         rdc_n_projections: int = 10,
         max_features: str | float | int | None = None,
         threshold_method: str = "exact",
+        threshold_test: str = "bonferroni",
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -1857,6 +1882,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
             rdc_n_projections=rdc_n_projections,
             max_features=max_features,
             threshold_method=threshold_method,
+            threshold_test=threshold_test,
             threshold_scanning=threshold_scanning,
             max_thresholds=max_thresholds,
             max_depth=max_depth,

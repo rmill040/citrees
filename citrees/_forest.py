@@ -264,6 +264,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         rdc_n_projections: int,
         threshold_scanning: bool,
         threshold_method: str,
+        threshold_test: str,
         max_thresholds: str | float | int | None,
         max_depth: int | None,
         max_features: str | float | int | None,
@@ -298,6 +299,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.rdc_n_projections = rdc_n_projections
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
+        self.threshold_test = threshold_test
         self.max_thresholds = max_thresholds
         self.max_depth = max_depth
         self.max_features = max_features
@@ -643,6 +645,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         rdc_n_projections: int = 10,
         max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
+        threshold_test: str = "bonferroni",
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -678,6 +681,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         self.rdc_n_projections = rdc_n_projections
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
+        self.threshold_test = threshold_test
         self.max_thresholds = max_thresholds
         self.max_features = max_features
         self.max_depth = max_depth
@@ -816,6 +820,12 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
     threshold_method : {"exact", "random", "histogram", "percentile"}, default="exact"
         Method to calculate thresholds on a feature used during split selection.
 
+    threshold_test : {"bonferroni", "maxt"}, default="bonferroni"
+        Error control over the candidate thresholds at a node. "bonferroni" tests
+        each threshold at alpha / K with a budget scaled by K. "maxt" runs one
+        permutation test on the minimum impurity over all K thresholds, which
+        controls the same familywise error rate at about 1 / K of the cost.
+
     threshold_scanning : bool, default=True
         Whether to perform threshold scanning.
 
@@ -901,6 +911,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         rdc_n_projections: int = 10,
         max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
+        threshold_test: str = "bonferroni",
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -936,6 +947,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
             rdc_n_projections=rdc_n_projections,
             max_features=max_features,
             threshold_method=threshold_method,
+            threshold_test=threshold_test,
             threshold_scanning=threshold_scanning,
             max_thresholds=max_thresholds,
             max_depth=max_depth,

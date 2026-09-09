@@ -721,6 +721,8 @@ class TestJitParity:
     _Y_REG = 2.0 * _X + _RNG.standard_normal(120) * 0.5
     _Y_INT = np.array([0, 0, 1, 1, 2, 2, 0, 1], dtype=np.int64)
     _Y_FLOAT = np.array([0.5, 1.5, 2.5, 3.5, -1.0, 0.0], dtype=np.float64)
+    _MASKS = np.vstack([_X <= -0.5, _X <= 0.0, _X <= 0.5])
+    _N_LEFT = _MASKS.sum(axis=1).astype(np.int64)
 
     KERNELS = {
         "gini": (_splitter.gini, (_Y_INT,)),
@@ -751,6 +753,25 @@ class TestJitParity:
         ),
         "_mse_split_stat": (_splitter._mse_split_stat, (_Y_FLOAT[:3], _Y_FLOAT[3:], 0.5, 0.5)),
         "_mae_split_stat": (_splitter._mae_split_stat, (_Y_FLOAT[:3], _Y_FLOAT[3:], 0.5, 0.5)),
+        "_split_masks": (_splitter._split_masks, (_X, np.array([-0.5, 0.0, 0.5]))),
+        "_clf_min_split_stat": (_splitter._clf_min_split_stat, (_Y_CLF, _MASKS, _N_LEFT, 0)),
+        "_reg_min_split_stat": (_splitter._reg_min_split_stat, (_Y_REG, _MASKS, _N_LEFT, 0)),
+        "_ptest_maxt_clf_parallel_result": (
+            _splitter._ptest_maxt_clf_parallel_result,
+            (_Y_CLF, _MASKS, _N_LEFT, 0, 250, 1718),
+        ),
+        "_ptest_maxt_reg_parallel_result": (
+            _splitter._ptest_maxt_reg_parallel_result,
+            (_Y_REG, _MASKS, _N_LEFT, 0, 250, 1718),
+        ),
+        "_ptest_maxt_clf_parallel_batched_result": (
+            _splitter._ptest_maxt_clf_parallel_batched_result,
+            (_Y_CLF, _MASKS, _N_LEFT, 1, 250, 1718, 0.05, 0.95),
+        ),
+        "_ptest_maxt_reg_parallel_batched_result": (
+            _splitter._ptest_maxt_reg_parallel_batched_result,
+            (_Y_REG, _MASKS, _N_LEFT, 1, 250, 1718, 0.05, 0.95),
+        ),
     }
 
     @pytest.mark.parametrize("name", sorted(KERNELS))
@@ -762,3 +783,104 @@ class TestJitParity:
     def test_every_kernel_has_a_parity_case(self, assert_all_kernels_covered):
         """Fail when a Numba kernel is added to _splitter without a parity case."""
         assert_all_kernels_covered(_splitter, {fn for fn, _ in self.KERNELS.values()})
+
+
+# =============================================================================
+# MAX-TYPE THRESHOLD TEST
+# =============================================================================
+
+
+class TestMaxTypeThresholdTest:
+    """One permutation test on the minimum impurity over all candidate thresholds."""
+
+    @staticmethod
+    def _data(seed: int, signal: float):
+        rng = np.random.default_rng(seed)
+        x = rng.standard_normal(300)
+        y = (x * signal + rng.standard_normal(300) > 0).astype(np.int64)
+        thresholds = np.quantile(x, np.linspace(0.05, 0.95, 16))
+        return x, y, thresholds
+
+    def test_returns_a_probability_and_a_candidate_threshold(self) -> None:
+        x, y, thresholds = self._data(0, 1.0)
+        p, best = _splitter.ptest_maxt(x, y, thresholds, "gini", 200, None, 0.05, 1718)
+        assert 0.0 < p <= 1.0
+        assert best in set(thresholds.tolist())
+
+    def test_strong_signal_is_detected_and_best_threshold_is_central(self) -> None:
+        x, y, thresholds = self._data(1, 3.0)
+        p, best = _splitter.ptest_maxt(x, y, thresholds, "gini", 200, None, 0.05, 1718)
+        assert p < 0.05
+        # y flips sign at x = 0, so the impurity-minimizing threshold sits near 0.
+        assert abs(best) < 0.5
+
+    def test_best_threshold_is_the_impurity_minimizer(self) -> None:
+        x, y, thresholds = self._data(2, 2.0)
+        _, best = _splitter.ptest_maxt(x, y, thresholds, "gini", 100, None, 0.05, 1718)
+        impurities = []
+        for threshold in thresholds:
+            left = y[x <= threshold]
+            right = y[x > threshold]
+            impurities.append(
+                len(left) / len(y) * _splitter.gini(left)
+                + len(right) / len(y) * _splitter.gini(right)
+            )
+        assert best == thresholds[int(np.argmin(impurities))]
+
+    @pytest.mark.parametrize("splitter", ["gini", "entropy"])
+    def test_classifier_splitters_agree_on_direction(self, splitter: str) -> None:
+        x, y, thresholds = self._data(3, 2.5)
+        p, _ = _splitter.ptest_maxt(x, y, thresholds, splitter, 200, None, 0.05, 1718)
+        assert p < 0.05
+
+    @pytest.mark.parametrize("splitter", ["mse", "mae"])
+    def test_regressor_splitters_run(self, splitter: str) -> None:
+        rng = np.random.default_rng(4)
+        x = rng.standard_normal(300)
+        y = 2.0 * (x > 0) + rng.standard_normal(300) * 0.5
+        thresholds = np.quantile(x, np.linspace(0.05, 0.95, 16))
+        p, best = _splitter.ptest_maxt(x, y, thresholds, splitter, 200, None, 0.05, 1718)
+        assert p < 0.05 and abs(best) < 0.5
+
+    def test_adaptive_and_full_agree_on_a_clear_case(self) -> None:
+        x, y, thresholds = self._data(5, 3.0)
+        p_full, best_full = _splitter.ptest_maxt(x, y, thresholds, "gini", 400, None, 0.05, 1718)
+        p_adaptive, best_adaptive = _splitter.ptest_maxt(
+            x, y, thresholds, "gini", 400, "adaptive", 0.05, 1718
+        )
+        assert best_full == best_adaptive
+        assert p_full < 0.05 and p_adaptive < 0.05
+
+    def test_degenerate_thresholds_return_one(self) -> None:
+        x, y, _ = self._data(6, 1.0)
+        # Every candidate puts all samples on one side, so there is no split to test.
+        p, _ = _splitter.ptest_maxt(
+            x, y, np.array([x.max() + 1.0, x.max() + 2.0]), "gini", 100, None, 0.05, 1718
+        )
+        assert p == 1.0
+
+    def test_unknown_splitter_is_rejected(self) -> None:
+        x, y, thresholds = self._data(7, 1.0)
+        with pytest.raises(ValueError, match="no max-type split test"):
+            _splitter.ptest_maxt(x, y, thresholds, "nonsense", 100, None, 0.05, 1718)
+
+    def test_result_is_seed_deterministic(self) -> None:
+        x, y, thresholds = self._data(8, 1.0)
+        first = _splitter.ptest_maxt(x, y, thresholds, "gini", 300, None, 0.05, 42)
+        second = _splitter.ptest_maxt(x, y, thresholds, "gini", 300, None, 0.05, 42)
+        assert first == second
+
+    @pytest.mark.slow
+    def test_null_rejection_rate_is_controlled(self) -> None:
+        # Response independent of x: the familywise rejection rate over 16
+        # thresholds must stay at or below the nominal 5 percent (binomial slack).
+        rng = np.random.default_rng(1718)
+        rejections = 0
+        trials = 200
+        for trial in range(trials):
+            x = rng.standard_normal(200)
+            y = rng.integers(0, 2, 200).astype(np.int64)
+            thresholds = np.quantile(x, np.linspace(0.05, 0.95, 16))
+            p, _ = _splitter.ptest_maxt(x, y, thresholds, "gini", 200, None, 0.05, trial)
+            rejections += p < 0.05
+        assert rejections / trials < 0.09

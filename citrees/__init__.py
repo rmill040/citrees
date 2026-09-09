@@ -13,6 +13,7 @@ from citrees._types import (
     NResamples,
     SamplingMethod,
     ThresholdMethod,
+    ThresholdTest,
 )
 
 try:
@@ -30,6 +31,7 @@ __all__ = [
     "NResamples",
     "MaxValuesMethod",
     "ThresholdMethod",
+    "ThresholdTest",
     "SamplingMethod",
     "EstimatorType",
 ]

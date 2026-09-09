@@ -32,6 +32,21 @@ class MaxValuesMethod(StrEnum):
     LOG2 = "log2"
 
 
+class ThresholdTest(StrEnum):
+    """How the split test controls the error rate over the candidate thresholds.
+
+    BONFERRONI runs one permutation test per candidate threshold at level
+    alpha / K with a permutation budget scaled by K, so a node with K candidates
+    costs on the order of K**2 / alpha statistic evaluations. MAXT runs a single
+    permutation test on the minimum impurity over all K candidates (the max-type
+    statistic of Westfall and Young, 1993), which controls the same familywise
+    error rate at on the order of K / alpha evaluations.
+    """
+
+    BONFERRONI = "bonferroni"
+    MAXT = "maxt"
+
+
 class ThresholdMethod(StrEnum):
     EXACT = "exact"
     RANDOM = "random"

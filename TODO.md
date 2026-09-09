@@ -149,6 +149,38 @@ Still to do, in order:
       children published, every receipt clean at the same SHA; output
       `paper/jss/results/replication-quick-c851a9f` (ignored).
 
+## In flight at the 2026-09-09 restart (resume here)
+
+Items 1-3 from the author's "do 1 2 3":
+
+1. **Fresh-clone dry run of the quick replication suite** (item 1): clone of
+   `2171ce1` from GitHub at /tmp/citrees_fresh synced cleanly and got through
+   calibration and behavior before the restart killed it (performance stage was
+   running). Not yet a complete pass; rerun to completion from a fresh clone.
+   Note the local user must have R + partykit installed; rpy2 fell back to ABI
+   mode on this machine because the wheel was built for a different R.
+2. **Thread-count / n_jobs invariance fix** (item 2): DONE and pushed at
+   `6c20a2c`. Root cause: Numba auto-parallelized the observed-statistic
+   reductions in `parallel=True` kernels; fastmath summation order then depended
+   on the thread count and flipped exact ties across `>=`. Fix: serial helpers
+   shared by observed and permuted statistics. 700 library tests pass; 8 new
+   invariance tests. **Open question**: outputs shift by an ulp vs the old
+   kernels, so pinned manuscript numbers may move. A quick suite on `6c20a2c`
+   was started to diff against `replication-quick-c851a9f` and was killed by the
+   restart at the calibration stage. Rerun it and diff every artifact; if any
+   number in the JSS article moves, regenerate from the new code.
+3. **Max-type threshold test** (item 3): implemented as opt-in
+   `threshold_test="maxt"` (default stays `"bonferroni"`) across tree and forest
+   estimators, `ThresholdTest` enum exported, 4 kernels + 3 helpers in
+   `_splitter.py` with parity cases, 10 unit tests, 14 integration tests
+   (`tests/integration/test_threshold_test_option.py`). Full library suite run
+   was in progress at the restart; rerun
+   `uv run pytest tests/unit tests/integration -q`. Benchmark script
+   `scratch/bench_threshold_test.py` (null calibration, power, NHANES
+   speed/agreement at K=32 and 256) was killed mid-run; rerun it and report
+   before the author decides on the default. Early smoke on glass: maxt 0.8 s vs
+   bonferroni 7.6 s for one full tree, identical node count and accuracy.
+
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 
 The four parallel rdc kernels (`_ptest_rdc_*_parallel*` in

@@ -723,6 +723,8 @@ class TestJitParity:
     _Y_FLOAT = np.array([0.5, 1.5, 2.5, 3.5, -1.0, 0.0], dtype=np.float64)
     _MASKS = np.vstack([_X <= -0.5, _X <= 0.0, _X <= 0.5])
     _N_LEFT = _MASKS.sum(axis=1).astype(np.int64)
+    _OBS = np.array([0.30, 0.28, 0.31])
+    _PERM = np.random.default_rng(3).uniform(0.25, 0.35, size=(40, 3))
 
     KERNELS = {
         "gini": (_splitter.gini, (_Y_INT,)),
@@ -754,8 +756,9 @@ class TestJitParity:
         "_mse_split_stat": (_splitter._mse_split_stat, (_Y_FLOAT[:3], _Y_FLOAT[3:], 0.5, 0.5)),
         "_mae_split_stat": (_splitter._mae_split_stat, (_Y_FLOAT[:3], _Y_FLOAT[3:], 0.5, 0.5)),
         "_split_masks": (_splitter._split_masks, (_X, np.array([-0.5, 0.0, 0.5]))),
-        "_clf_min_split_stat": (_splitter._clf_min_split_stat, (_Y_CLF, _MASKS, _N_LEFT, 0)),
-        "_reg_min_split_stat": (_splitter._reg_min_split_stat, (_Y_REG, _MASKS, _N_LEFT, 0)),
+        "_clf_split_stats": (_splitter._clf_split_stats, (_Y_CLF, _MASKS, _N_LEFT, 0, np.empty(3))),
+        "_reg_split_stats": (_splitter._reg_split_stats, (_Y_REG, _MASKS, _N_LEFT, 0, np.empty(3))),
+        "_standardized_min_test": (_splitter._standardized_min_test, (_OBS, _PERM, 40)),
         "_ptest_maxt_clf_parallel_result": (
             _splitter._ptest_maxt_clf_parallel_result,
             (_Y_CLF, _MASKS, _N_LEFT, 0, 250, 1718),
@@ -814,18 +817,34 @@ class TestMaxTypeThresholdTest:
         # y flips sign at x = 0, so the impurity-minimizing threshold sits near 0.
         assert abs(best) < 0.5
 
-    def test_best_threshold_is_the_impurity_minimizer(self) -> None:
+    def test_best_threshold_is_the_standardized_minimizer(self) -> None:
+        # The chosen threshold minimizes the observed impurity after each candidate
+        # is standardized by the mean and standard deviation of its B + 1 values.
         x, y, thresholds = self._data(2, 2.0)
         _, best = _splitter.ptest_maxt(x, y, thresholds, "gini", 100, None, 0.05, 1718)
-        impurities = []
-        for threshold in thresholds:
-            left = y[x <= threshold]
-            right = y[x > threshold]
-            impurities.append(
-                len(left) / len(y) * _splitter.gini(left)
-                + len(right) / len(y) * _splitter.gini(right)
-            )
-        assert best == thresholds[int(np.argmin(impurities))]
+        masks, n_left = _splitter._split_masks(x, thresholds)
+        observed = np.empty(len(thresholds))
+        _splitter._clf_split_stats(y, masks, n_left, 0, observed)
+        permuted = np.empty((100, len(thresholds)))
+        for b in range(100):
+            np.random.seed(1718 + b)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+            _splitter._clf_split_stats(y_perm, masks, n_left, 0, permuted[b])
+        stacked = np.vstack([observed, permuted])
+        z = (observed - stacked.mean(axis=0)) / stacked.std(axis=0)
+        assert best == thresholds[int(np.argmin(z))]
+
+    def test_noisy_tail_candidate_does_not_win_by_variance_alone(self) -> None:
+        # Heavy-tailed target: the raw-impurity minimum tends to isolate the
+        # extreme observations at a tail threshold; the standardized statistic
+        # should prefer the planted central step instead.
+        rng = np.random.default_rng(11)
+        x = rng.standard_normal(400)
+        y = 1.0 * (x > 0.0) + rng.standard_t(1.5, size=400)
+        thresholds = np.quantile(x, np.linspace(0.02, 0.98, 25))
+        _, best = _splitter.ptest_maxt(x, y, thresholds, "mse", 200, None, 0.05, 1718)
+        assert abs(best) < 0.6
 
     @pytest.mark.parametrize("splitter", ["gini", "entropy"])
     def test_classifier_splitters_agree_on_direction(self, splitter: str) -> None:

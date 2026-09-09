@@ -66,6 +66,7 @@ nav:
   - Home: index.md
   - User Guide:
       - Algorithm: algorithm.md
+      - Max-type split test: maxt.md
       - Selectors: selectors.md
       - Splitters: splitters.md
       - Permutation Tests: permutation-tests.md

@@ -792,23 +792,34 @@ def ptest_mae(
 
 
 # =============================================================================
-# Max-type split test over all candidate thresholds
+# Standardized max-type split test over all candidate thresholds
 # =============================================================================
-# One permutation test on the minimum impurity over the K candidate thresholds
-# (Westfall and Young, 1993). Under the permutation null (labels exchangeable
-# given the feature) the minimum over the same K candidates is recomputed for
-# every permuted response, so the p-value is the inclusive rank of the observed
-# minimum among B + 1 exchangeable values and satisfies P(p <= alpha) <= alpha for
-# every alpha. This is weak familywise control over the K thresholds: under the
-# global null the chance of declaring any split is at most alpha, regardless of
-# how the thresholds are correlated. Ties count as extreme, which makes the test
-# conservative rather than exact. The budget is about 1 / alpha permutations
-# instead of K tests of K / alpha permutations each.
+# One permutation test on all K candidate thresholds at once. For every
+# permutation b (and for the observed labels, row 0) the weighted child impurity
+# is computed at every candidate, giving a (B + 1) x K matrix. Each column is
+# standardized by the mean and standard deviation of its B + 1 entries, and the
+# test statistic of a row is the minimum standardized impurity across candidates
+# (the max-T construction of Westfall and Young, 1993; the same standardization
+# that conditional inference trees apply to their split statistics, Hothorn,
+# Hornik and Zeileis, 2006, Section 3). Standardizing puts noisy candidates,
+# such as thresholds that isolate a few extreme observations, on the same scale
+# as the others, so the minimum is not dominated by whichever candidate has the
+# widest null distribution.
+#
+# Validity: under label exchangeability given the feature, the B + 1 rows are
+# exchangeable. Column standardization uses symmetric functions of the rows and
+# the row minimum is a fixed function of each row, so the B + 1 row statistics
+# stay exchangeable, and the inclusive-rank p-value
+# (1 + #{permuted <= observed}) / (B + 1) satisfies P(p <= alpha) <= alpha for
+# every alpha. This is weak familywise control over the K thresholds; ties count
+# as extreme, so the test is conservative rather than exact. The chosen threshold
+# is the candidate with the smallest observed standardized impurity. Candidates
+# that leave one side empty, or whose impurity is constant across permutations,
+# carry no information and are excluded from the minimum. See docs/maxt.md.
 #
 # Classifier and regressor kernels are separate because the impurity helpers
 # need integer labels for bincount and floating targets for means and medians.
-# The metric code is 0 = gini, 1 = entropy for classifiers and 0 = mse, 1 = mae
-# for regressors. Observed and permuted statistics use the same serial helpers.
+# Metric codes: 0 = gini, 1 = entropy (classifier); 0 = mse, 1 = mae (regressor).
 #
 # Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
@@ -837,57 +848,97 @@ def _split_masks(x: np.ndarray, thresholds: np.ndarray) -> tuple[np.ndarray, np.
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def _clf_min_split_stat(
-    y: np.ndarray, masks: np.ndarray, n_left: np.ndarray, metric: int
-) -> tuple[float, int]:
-    """Minimum classification impurity over thresholds and the index attaining it."""
+def _clf_split_stats(
+    y: np.ndarray, masks: np.ndarray, n_left: np.ndarray, metric: int, out: np.ndarray
+) -> None:
+    """Weighted classification impurity at every threshold; inf where a side is empty."""
     n = y.shape[0]
-    best = np.inf
-    best_j = -1
     for j in range(masks.shape[0]):
         nl = n_left[j]
         nr = n - nl
         if nl == 0 or nr == 0:
+            out[j] = np.inf
             continue
         y_left = y[masks[j]]
         y_right = y[~masks[j]]
-        w_left = nl / n
-        w_right = nr / n
         if metric == 0:
-            value = _gini_split_stat(y_left, y_right, nl, nr, w_left, w_right)
+            out[j] = _gini_split_stat(y_left, y_right, nl, nr, nl / n, nr / n)
         else:
-            value = _entropy_split_stat(y_left, y_right, nl, nr, w_left, w_right)
-        if value < best:
-            best = value
-            best_j = j
-    return best, best_j
+            out[j] = _entropy_split_stat(y_left, y_right, nl, nr, nl / n, nr / n)
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def _reg_min_split_stat(
-    y: np.ndarray, masks: np.ndarray, n_left: np.ndarray, metric: int
-) -> tuple[float, int]:
-    """Minimum regression impurity over thresholds and the index attaining it."""
+def _reg_split_stats(
+    y: np.ndarray, masks: np.ndarray, n_left: np.ndarray, metric: int, out: np.ndarray
+) -> None:
+    """Weighted regression impurity at every threshold; inf where a side is empty."""
     n = y.shape[0]
-    best = np.inf
-    best_j = -1
     for j in range(masks.shape[0]):
         nl = n_left[j]
         nr = n - nl
         if nl == 0 or nr == 0:
+            out[j] = np.inf
             continue
         y_left = y[masks[j]]
         y_right = y[~masks[j]]
-        w_left = nl / n
-        w_right = nr / n
         if metric == 0:
-            value = _mse_split_stat(y_left, y_right, w_left, w_right)
+            out[j] = _mse_split_stat(y_left, y_right, nl / n, nr / n)
         else:
-            value = _mae_split_stat(y_left, y_right, w_left, w_right)
-        if value < best:
-            best = value
-            best_j = j
-    return best, best_j
+            out[j] = _mae_split_stat(y_left, y_right, nl / n, nr / n)
+
+
+@njit(cache=True, fastmath=True, nogil=True)
+def _standardized_min_test(
+    observed: np.ndarray, permuted: np.ndarray, m: int
+) -> tuple[float, int, int]:
+    """Standardized max-type test from the observed row and the first ``m`` permuted rows.
+
+    Returns the p-value, the number of permuted rows at least as extreme as the
+    observed row, and the index of the candidate with the smallest observed
+    standardized impurity (-1 when no candidate is informative).
+    """
+    k = observed.shape[0]
+    count_rows = m + 1
+    mean = np.empty(k)
+    scale = np.empty(k)
+    usable = np.zeros(k, dtype=np.bool_)
+    for j in range(k):
+        if not np.isfinite(observed[j]):
+            continue
+        total = observed[j]
+        for b in range(m):
+            total += permuted[b, j]
+        mu = total / count_rows
+        ss = (observed[j] - mu) ** 2
+        for b in range(m):
+            d = permuted[b, j] - mu
+            ss += d * d
+        sd = np.sqrt(ss / count_rows)
+        if sd > 0.0:
+            mean[j] = mu
+            scale[j] = sd
+            usable[j] = True
+    theta = np.inf
+    best_j = -1
+    for j in range(k):
+        if usable[j]:
+            z = (observed[j] - mean[j]) / scale[j]
+            if z < theta:
+                theta = z
+                best_j = j
+    if best_j < 0:
+        return 1.0, 0, -1
+    extreme = 0
+    for b in range(m):
+        row_min = np.inf
+        for j in range(k):
+            if usable[j]:
+                z = (permuted[b, j] - mean[j]) / scale[j]
+                if z < row_min:
+                    row_min = z
+        if row_min <= theta:
+            extreme += 1
+    return (1.0 + extreme) / (1.0 + m), extreme, best_j
 
 
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
@@ -899,17 +950,19 @@ def _ptest_maxt_clf_parallel_result(
     n_resamples: int,
     random_state: int,
 ) -> tuple[float, int, int]:
-    """Full max-type permutation test for a classifier; returns p, permutations, best index."""
-    theta, best_j = _clf_min_split_stat(y, masks, n_left, metric)
-    if best_j < 0:
-        return 1.0, 0, 0
-    theta_p = np.empty(n_resamples)
+    """Full-budget standardized max-type test for a classifier; returns p, permutations, best index."""
+    k = masks.shape[0]
+    observed = np.empty(k)
+    _clf_split_stats(y, masks, n_left, metric, observed)
+    permuted = np.empty((n_resamples, k))
     for i in prange(n_resamples):
         np.random.seed(random_state + i)
         y_perm = y.copy()
         np.random.shuffle(y_perm)
-        theta_p[i] = _clf_min_split_stat(y_perm, masks, n_left, metric)[0]
-    p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+        _clf_split_stats(y_perm, masks, n_left, metric, permuted[i])
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    if best_j < 0:
+        return 1.0, 0, -1
     return p_value, n_resamples, best_j
 
 
@@ -922,17 +975,19 @@ def _ptest_maxt_reg_parallel_result(
     n_resamples: int,
     random_state: int,
 ) -> tuple[float, int, int]:
-    """Full max-type permutation test for a regressor; returns p, permutations, best index."""
-    theta, best_j = _reg_min_split_stat(y, masks, n_left, metric)
-    if best_j < 0:
-        return 1.0, 0, 0
-    theta_p = np.empty(n_resamples)
+    """Full-budget standardized max-type test for a regressor; returns p, permutations, best index."""
+    k = masks.shape[0]
+    observed = np.empty(k)
+    _reg_split_stats(y, masks, n_left, metric, observed)
+    permuted = np.empty((n_resamples, k))
     for i in prange(n_resamples):
         np.random.seed(random_state + i)
         y_perm = y.copy()
         np.random.shuffle(y_perm)
-        theta_p[i] = _reg_min_split_stat(y_perm, masks, n_left, metric)[0]
-    p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
+        _reg_split_stats(y_perm, masks, n_left, metric, permuted[i])
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    if best_j < 0:
+        return 1.0, 0, -1
     return p_value, n_resamples, best_j
 
 
@@ -947,31 +1002,40 @@ def _ptest_maxt_clf_parallel_batched_result(
     alpha: float,
     confidence: float,
 ) -> tuple[float, int, int]:
-    """Adaptive max-type permutation test for a classifier (Beta posterior stopping)."""
-    theta, best_j = _clf_min_split_stat(y, masks, n_left, metric)
-    if best_j < 0:
-        return 1.0, 0, 0
+    """Adaptive standardized max-type test for a classifier (Beta posterior stopping).
+
+    The column moments are recomputed from all permutations drawn so far after
+    each batch, so the standardized observed value is re-evaluated as the
+    budget grows; the reported value is a stopping-time estimate, as for the
+    other adaptive kernels.
+    """
+    k = masks.shape[0]
+    observed = np.empty(k)
+    _clf_split_stats(y, masks, n_left, metric, observed)
     min_resamples = int(np.ceil(1.0 / alpha))
     if n_resamples < min_resamples:
         n_resamples = min_resamples
-    extreme_count = 0
+    permuted = np.empty((n_resamples, k))
     m = 0
     while m < n_resamples:
         batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
-        batch_extreme = np.zeros(batch_size, dtype=np.int64)
         for i in prange(batch_size):
             np.random.seed(random_state + m + i)
             y_perm = y.copy()
             np.random.shuffle(y_perm)
-            if _clf_min_split_stat(y_perm, masks, n_left, metric)[0] <= theta:
-                batch_extreme[i] = 1
-        extreme_count += int(np.sum(batch_extreme))
+            _clf_split_stats(y_perm, masks, n_left, metric, permuted[m + i])
         m += batch_size
         if m >= min_resamples:
-            prob_sig = _beta_cdf(alpha, 1.0 + extreme_count, 1.0 + m - extreme_count)
+            p_value, extreme, best_j = _standardized_min_test(observed, permuted, m)
+            if best_j < 0:
+                return 1.0, 0, -1
+            prob_sig = _beta_cdf(alpha, 1.0 + extreme, 1.0 + m - extreme)
             if prob_sig >= confidence or (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1), m, best_j
-    return (extreme_count + 1) / (n_resamples + 1), n_resamples, best_j
+                return p_value, m, best_j
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    if best_j < 0:
+        return 1.0, 0, -1
+    return p_value, n_resamples, best_j
 
 
 @njit(cache=True, fastmath=True, nogil=True, parallel=True)
@@ -985,31 +1049,34 @@ def _ptest_maxt_reg_parallel_batched_result(
     alpha: float,
     confidence: float,
 ) -> tuple[float, int, int]:
-    """Adaptive max-type permutation test for a regressor (Beta posterior stopping)."""
-    theta, best_j = _reg_min_split_stat(y, masks, n_left, metric)
-    if best_j < 0:
-        return 1.0, 0, 0
+    """Adaptive standardized max-type test for a regressor (Beta posterior stopping)."""
+    k = masks.shape[0]
+    observed = np.empty(k)
+    _reg_split_stats(y, masks, n_left, metric, observed)
     min_resamples = int(np.ceil(1.0 / alpha))
     if n_resamples < min_resamples:
         n_resamples = min_resamples
-    extreme_count = 0
+    permuted = np.empty((n_resamples, k))
     m = 0
     while m < n_resamples:
         batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
-        batch_extreme = np.zeros(batch_size, dtype=np.int64)
         for i in prange(batch_size):
             np.random.seed(random_state + m + i)
             y_perm = y.copy()
             np.random.shuffle(y_perm)
-            if _reg_min_split_stat(y_perm, masks, n_left, metric)[0] <= theta:
-                batch_extreme[i] = 1
-        extreme_count += int(np.sum(batch_extreme))
+            _reg_split_stats(y_perm, masks, n_left, metric, permuted[m + i])
         m += batch_size
         if m >= min_resamples:
-            prob_sig = _beta_cdf(alpha, 1.0 + extreme_count, 1.0 + m - extreme_count)
+            p_value, extreme, best_j = _standardized_min_test(observed, permuted, m)
+            if best_j < 0:
+                return 1.0, 0, -1
+            prob_sig = _beta_cdf(alpha, 1.0 + extreme, 1.0 + m - extreme)
             if prob_sig >= confidence or (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1), m, best_j
-    return (extreme_count + 1) / (n_resamples + 1), n_resamples, best_j
+                return p_value, m, best_j
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    if best_j < 0:
+        return 1.0, 0, -1
+    return p_value, n_resamples, best_j
 
 
 def ptest_maxt(
@@ -1023,12 +1090,13 @@ def ptest_maxt(
     random_state: int,
     confidence: float = 0.95,
 ) -> tuple[float, float]:
-    """Max-type permutation test over all candidate thresholds.
+    """Standardized max-type permutation test over all candidate thresholds.
 
-    Returns the p-value of the minimum impurity over ``thresholds`` and the
-    threshold attaining it. With ``early_stopping`` set to None the full budget
-    is used; otherwise the adaptive Beta-posterior rule stops the test early
-    (the simple rule is mapped to the adaptive rule for this test).
+    Returns the p-value of the minimum standardized impurity over ``thresholds``
+    and the threshold attaining it (NaN when no candidate is informative). With
+    ``early_stopping`` set to None the full budget is used; otherwise the
+    adaptive Beta-posterior rule stops the test early (the simple rule is mapped
+    to the adaptive rule for this test).
     """
     thresholds = np.ascontiguousarray(thresholds, dtype=np.float64)
     if thresholds.size == 0:
@@ -1059,9 +1127,9 @@ def ptest_maxt(
     else:
         raise ValueError(f"splitter '{splitter}' has no max-type split test")
     record_permutation_test("splitter", (float(p_value), int(realized)))
-    if realized == 0:
-        # Every candidate left one side empty: nothing was tested, so no
-        # threshold attained the statistic. The p-value of 1.0 already blocks
-        # the split; report the threshold as undefined rather than inventing one.
+    if best_j < 0:
+        # No candidate was informative (every side empty, or impurity constant
+        # across permutations). The p-value of 1.0 blocks the split; report the
+        # threshold as undefined rather than inventing one.
         return float(p_value), float("nan")
     return float(p_value), float(thresholds[best_j])

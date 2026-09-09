@@ -128,7 +128,9 @@ Still to do, in order:
       bibliography. Declined (structure, author's prior layout): folding the
       results section into the design subsection; the pre-existing one-line
       paragraph in the performance section is left for the author.
-- [ ] Whole-suite quick replication on the final SHA so all six receipts match.
+- [x] Whole-suite quick replication on clean `c851a9f` (2026-09-09): all six
+      children published, every receipt clean at the same SHA; output
+      `paper/jss/results/replication-quick-c851a9f` (ignored).
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 

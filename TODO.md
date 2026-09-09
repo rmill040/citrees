@@ -112,7 +112,23 @@ Still to do, in order:
       30 checks, 2 prose defects found and fixed (permuted age is ahead of 13
       real predictors, not 14; the discussion now quotes mean ranks 18.8 and
       20.5 rather than table positions 19 and 21).
-- [ ] Independent factual review of the whole article by a second reviewer.
+- [x] Independent two-lane review (Claude and a second model, read-only,
+      2026-09-09). Confirmed and fixed: partykit cforest had sampled all 30
+      predictors per node (wrapper maps an omitted mtry to all) instead of its
+      default 6; its importance used 1 permutation instead of the 10 used in the
+      synthetic sections; the random forest was timed on one core against two
+      all-core forests. Code fixed, amendment logged in the specification, full
+      profile rerun on clean `b560ab6`: RF and citrees numbers identical, all
+      partykit numbers regenerated (shuffled weight 26.4, agreement with citrees
+      0.84, 20.9 s per fold). Prose: cohort cardinality 3,464 vs fold median
+      2,790 separated; prediction and discussion claims restated as descriptive;
+      denominators, standardization, Spearman-vs-Kendall clause, and the
+      Bouckaert-Frank approximation note added; en dash removed. Both lanes
+      verified every other number and found no DGRP residue and a balanced
+      bibliography. Declined (structure, author's prior layout): folding the
+      results section into the design subsection; the pre-existing one-line
+      paragraph in the performance section is left for the author.
+- [ ] Whole-suite quick replication on the final SHA so all six receipts match.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 

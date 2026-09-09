@@ -795,35 +795,40 @@ creatinine, alanine aminotransferase, uric acid, and gamma-glutamyl
 transferase), and questionnaire items (ever smoked, alcohol frequency,
 sedentary minutes, sleep hours, health insurance, and reported diagnoses of
 heart disease, hypertension, and high cholesterol). Their numbers of distinct
-values run from 2 for the binary items to 2,790 for the sampling weight, a
-survey-design quantity retained as a natural high-cardinality predictor. Three
+values in the cohort run from 2 for the binary items to 3,464 for the sampling
+weight, a survey-design quantity retained as a natural high-cardinality
+predictor. Three
 further columns are independent permutations of the sampling weight, age, and
 sex, drawn once from the recorded seed. They carry no information about the
 outcome by construction while preserving each source's marginal distribution
-and its cardinality of 2,790, 61, and 2. All 30 columns are passed as numeric
+and its cohort cardinality of 3,464, 61, and 2. All 30 columns are passed as numeric
 values to every method, so no method receives factor typing.
 
 Three forests are compared on 10 independently shuffled stratified five-fold
-partitions of the participants. The \sklearn random forest uses its shipped
-defaults with 100 trees and ranks predictors by normalized impurity decrease.
-The \citrees forest uses the multiple correlation selector, histogram threshold
-candidates with 32 bins, 100 trees, and otherwise shipped defaults, and ranks
-by normalized impurity decrease. The \pkg{partykit} conditional inference
-forest uses its shipped defaults with 100 trees and ranks by unconditional
-permutation importance. Each method is fitted on the training fold, and its
-importances are converted to ranks from 1 to 30 with tied importances
-receiving their mean rank. Held-out predictive performance is reported
-descriptively: a ridge-penalized logistic regression is fitted to the 5 or 10
-highest-ranked columns of each method on the training fold and scored on the
-evaluation fold by log loss, area under the receiver operating characteristic
-curve, and Brier score.
+partitions of the participants, each fitted with 100 trees on every available
+core. The \sklearn random forest uses its shipped defaults and ranks
+predictors by normalized impurity decrease. The \citrees forest uses the
+multiple correlation selector, histogram threshold candidates with 32 bins,
+and otherwise shipped defaults, and ranks by normalized impurity decrease.
+The \pkg{partykit} conditional inference forest uses its shipped defaults,
+including a candidate set of 6 predictors per node, and ranks by unconditional
+permutation importance with 10 permutations, as in
+Sections~\ref{sec:cardinality} and~\ref{sec:behavior}. Each method is fitted
+on the training fold, and its importances are converted to ranks from 1 to 30
+with tied importances receiving their mean rank. Held-out predictive
+performance is reported descriptively without a hypothesis test: predictors
+are standardized on the training fold, a ridge-penalized logistic regression
+is fitted to the 5 or 10 highest-ranked columns of each method, and the
+evaluation fold is scored by log loss, area under the receiver operating
+characteristic curve, and Brier score.
 
 The primary inferential contrast, specified before the full profile was run,
 is the rank of the permuted sampling weight under the random forest minus its
 rank under the \citrees forest. Let $d_{ij}$ be this difference for fold $i$
 of repeat $j$, let $s_d^2$ be the sample variance of the 50 fold differences,
-and let $\bar{q}$ be the mean evaluation-to-training sample-size ratio. The
-lower-tailed corrected repeated-cross-validation statistic is
+and let $\bar{q}$ be the mean ratio of evaluation to training sample size.
+The lower-tailed corrected repeated cross-validation statistic of
+Equation~\ref{eq:nhanes-corrected-cv} is
 %
 \begin{equation}
   t =
@@ -832,15 +837,21 @@ lower-tailed corrected repeated-cross-validation statistic is
   \label{eq:nhanes-corrected-cv}
 \end{equation}
 %
-with 49 degrees of freedom \citep{Bouckaert+Frank:2004}. A negative difference
+with 49 degrees of freedom \citep{Bouckaert+Frank:2004}. The correction was
+derived for differences in held-out performance and is used here as an
+approximate allowance for the overlap of training folds. A negative difference
 means that the random forest treats the noise column as more important than
 \citrees does. Two secondary contrasts use the same statistic with the upper
 tail and are adjusted together by Holm's method: the Spearman correlation
-between a method's importances and the predictors' numbers of distinct
-training values, random forest minus \citrees; and the mean rank of the eight
-predictors with at most three levels (sex, birth in the United States, ever
-smoked, health insurance, marital status, and the three reported diagnoses),
-random forest minus \citrees. Agreement between methods is summarized by the
+between a method's importances and the columns' numbers of distinct training
+values, random forest minus \citrees; and the mean rank of the eight
+predictors with at most three distinct values (sex, birth in the United
+States, ever smoked, health insurance, marital status, and the three reported
+diagnoses), random forest minus \citrees. The Spearman statistic differs from
+the Kendall concordance of Section~\ref{sec:cardinality}, and among real
+predictors the number of distinct values is confounded with being a
+continuous laboratory measurement, so only the permuted columns isolate
+cardinality from information. Agreement between methods is summarized by the
 Spearman correlation of their ranks within each fold. Two checks were
 specified in advance as sanity conditions rather than hypotheses: at least one
 of waist circumference, total cholesterol, triglycerides, and HDL cholesterol
@@ -860,89 +871,92 @@ combined output directory.
 
 The permuted sampling weight, which carries no information about diabetes,
 had a mean rank of 12.1 of 30 under the random forest, 23.9 under the
-\citrees forest, and 25.2 under the \pkg{partykit} forest. The primary
+\citrees forest, and 26.4 under the \pkg{partykit} forest. The primary
 difference, random forest minus \citrees, was $-11.82$ ranks with a corrected
-repeated-cross-validation statistic of $t(49)=-4.97$ and a lower-tailed
+repeated cross-validation statistic of $t(49)=-4.97$ and a lower-tailed
 $p$~value below 0.001. Table~\ref{tab:nhanes-ranks} reports the mean rank of
-every column under each method. The random forest also placed the permuted
-copy of age at 15.6, ahead of 13 real predictors, while the two conditional
-inference forests placed it at 21.3 and 23.3. Permuted sex was ranked near the
-bottom by all three methods, at 27.1, 25.4, and 24.8, so the disagreement
-concerns cardinality rather than permutation itself.
+every column under each method. The random forest placed the permuted copy of
+age at 15.6 of 30, ahead of 13 real predictors, while the two conditional
+inference forests placed it at 21.3 and 26.9. All three methods ranked
+permuted sex in the bottom six, at 27.1, 25.4, and 25.6, so the methods
+disagree on the high-cardinality noise column and agree on the binary one.
 
 Both secondary contrasts were in the specified direction with Holm-adjusted
 $p$~values below 0.001. The Spearman correlation between importance and number
 of distinct values averaged 0.86 for the random forest, 0.34 for \citrees, and
-0.14 for \pkg{partykit}; the random forest minus \citrees difference was 0.52
-with $t(49)=15.3$. The eight predictors with at most three levels had a mean
-rank of 25.1 under the random forest, 18.7 under \citrees, and 15.8 under
-\pkg{partykit}; the difference was 6.42 ranks with $t(49)=11.7$. The largest
-individual displacements were reported diagnoses of hypertension (18.8 under
-the random forest, 5.8 under \citrees, 3.8 under \pkg{partykit}) and high
-cholesterol (20.5, 5.3, and 2.3), followed by education (21.6, 8.5, and 6.2).
-Both conditional inference forests also ranked the binary items born in the
-United States and health insurance at or near the bottom, so the difference
-is not a uniform promotion of low-cardinality predictors.
+0.23 for \pkg{partykit}; the random forest minus \citrees difference was 0.52
+with $t(49)=15.3$. The eight predictors with at most three distinct values had
+a mean rank of 25.1 of 30 under the random forest, 18.7 under \citrees, and
+16.6 under \pkg{partykit}; the difference was 6.42 ranks with $t(49)=11.7$.
+The largest individual displacements were reported diagnoses of hypertension
+(18.8 of 30 under the random forest, 5.8 under \citrees, and 3.5 under
+\pkg{partykit}) and high cholesterol (20.5, 5.3, and 3.0), followed by
+education (21.6, 8.5, and 7.9). The two conditional inference forests also
+ranked the binary items born in the United States and health insurance in the
+lower half, at 27.0 and 28.5 for \citrees and 20.0 and 24.5 for
+\pkg{partykit}, so they separate informative from uninformative binary items
+rather than promoting every low-cardinality column.
 
 \begin{center}
 \begin{tabular}{lrrrr}
 \hline
 Column & Distinct values & Random forest & \citrees & \pkg{partykit} \\ \hline
-Total cholesterol & 230 & 1.2 & 1.6 & 1.2 \\
-Waist circumference & 702 & 1.8 & 2.1 & 2.8 \\
-Triglycerides & 370 & 3.4 & 7.5 & 5.5 \\
-Body mass index & 342 & 4.6 & 7.3 & 18.7 \\
-HDL cholesterol & 95 & 5.0 & 4.1 & 9.1 \\
-Creatinine & 145 & 5.4 & 13.5 & 11.2 \\
-Age & 61 & 6.7 & 6.0 & 7.5 \\
-Uric acid & 88 & 8.6 & 10.7 & 9.9 \\
-Sampling weight & 2,790 & 9.3 & 17.8 & 22.3 \\
-Gamma-glutamyl transferase & 166 & 9.4 & 15.0 & 12.6 \\
-Income to poverty ratio & 418 & 11.6 & 10.9 & 11.2 \\
-Permuted sampling weight & 2,790 & 12.1 & 23.9 & 25.2 \\
-Alanine aminotransferase & 103 & 13.7 & 18.6 & 17.6 \\
-Systolic blood pressure & 108 & 13.8 & 19.7 & 23.4 \\
-Diastolic blood pressure & 75 & 14.0 & 16.7 & 21.7 \\
-Permuted age & 61 & 15.6 & 21.3 & 23.3 \\
-Sleep hours & 23 & 17.5 & 20.5 & 20.8 \\
-Sedentary minutes & 39 & 18.5 & 21.4 & 24.9 \\
-Hypertension diagnosis & 2 & 18.8 & 5.8 & 3.8 \\
-Alcohol frequency & 11 & 20.1 & 19.0 & 18.6 \\
-High cholesterol diagnosis & 2 & 20.5 & 5.3 & 2.3 \\
-Education & 5 & 21.6 & 8.5 & 6.2 \\
-Race and ethnicity & 6 & 23.2 & 23.8 & 19.7 \\
+Total cholesterol & 230 & 1.2 & 1.6 & 2.3 \\
+Waist circumference & 702 & 1.8 & 2.1 & 2.4 \\
+Triglycerides & 370 & 3.4 & 7.5 & 7.1 \\
+Body mass index & 342 & 4.6 & 7.3 & 8.0 \\
+HDL cholesterol & 95 & 5.0 & 4.1 & 7.6 \\
+Creatinine & 145 & 5.4 & 13.5 & 13.2 \\
+Age & 61 & 6.7 & 6.0 & 3.8 \\
+Uric acid & 88 & 8.6 & 10.7 & 14.0 \\
+Sampling weight & 2,790 & 9.3 & 17.8 & 18.3 \\
+Gamma-glutamyl transferase & 166 & 9.4 & 15.0 & 13.4 \\
+Income to poverty ratio & 418 & 11.6 & 10.9 & 10.7 \\
+Permuted sampling weight & 2,790 & 12.1 & 23.9 & 26.4 \\
+Alanine aminotransferase & 103 & 13.7 & 18.6 & 17.5 \\
+Systolic blood pressure & 108 & 13.8 & 19.7 & 19.8 \\
+Diastolic blood pressure & 75 & 14.0 & 16.7 & 19.6 \\
+Permuted age & 61 & 15.6 & 21.3 & 26.9 \\
+Sleep hours & 23 & 17.5 & 20.5 & 24.1 \\
+Sedentary minutes & 39 & 18.5 & 21.4 & 25.0 \\
+Hypertension diagnosis & 2 & 18.8 & 5.8 & 3.5 \\
+Alcohol frequency & 11 & 20.1 & 19.0 & 17.4 \\
+High cholesterol diagnosis & 2 & 20.5 & 5.3 & 3.0 \\
+Education & 5 & 21.6 & 8.5 & 7.9 \\
+Race and ethnicity & 6 & 23.2 & 23.8 & 21.6 \\
 Heart disease diagnosis & 2 & 23.9 & 12.3 & 10.7 \\
-Marital status & 3 & 25.0 & 23.9 & 22.7 \\
-Ever smoked & 2 & 27.0 & 24.2 & 23.1 \\
-Sex & 2 & 27.0 & 22.7 & 22.9 \\
-Permuted sex & 2 & 27.1 & 25.4 & 24.8 \\
-Born in the United States & 2 & 29.1 & 27.0 & 19.7 \\
-Health insurance & 2 & 29.9 & 28.5 & 21.4 \\
+Marital status & 3 & 25.0 & 23.9 & 23.7 \\
+Ever smoked & 2 & 27.0 & 24.2 & 23.9 \\
+Sex & 2 & 27.0 & 22.7 & 23.2 \\
+Permuted sex & 2 & 27.1 & 25.4 & 25.6 \\
+Born in the United States & 2 & 29.1 & 27.0 & 20.0 \\
+Health insurance & 2 & 29.9 & 28.5 & 24.5 \\
 \hline
 \end{tabular}
 \captionof{table}{\label{tab:nhanes-ranks} Mean rank over 50 training folds of
 each of the 30 columns under the three forests, ordered by the random forest
 rank. Rank 1 is the most important column and tied importances receive their
 mean rank. Distinct values is the median number of distinct training-fold
-values. The three permuted columns are independent permutations of the
-sampling weight, age, and sex and carry no information about the outcome.}
+values; each training fold holds 2,877 or 2,878 of the 3,597 participants. The
+three permuted columns are independent permutations of the sampling weight,
+age, and sex and carry no information about the outcome.}
 \end{center}
 
 The two conditional inference forests agreed with each other more closely than
 either agreed with the random forest. The Spearman correlation of per-fold
-ranks averaged 0.76 (standard deviation 0.06 over folds) between \citrees and
-\pkg{partykit}, 0.45 between the random forest and \pkg{partykit}, and 0.66
-between the random forest and \citrees. The ranking differences did not come
-at a predictive cost. With the 10 highest-ranked columns, held-out area under
-the receiver operating characteristic curve averaged 0.837 for
-\pkg{partykit}, 0.835 for \citrees, and 0.812 for the random forest, with log
-loss of 0.319, 0.320, and 0.333. With 5 columns the values were 0.812, 0.795,
-and 0.777 for area under the curve. All three methods placed at least one of
-the four metabolic measurements in their top 5 in all 50 folds. Permuted sex
-fell outside the top 20 in 50 folds for the random forest, 44 for \citrees,
-and 41 for \pkg{partykit}. Median fitting time per training fold of 2,877
-participants was 0.3 seconds for the random forest, 5.8 seconds for
-\pkg{partykit}, and 6.9 seconds for \citrees on the machine recorded in the
+ranks averaged 0.84 (standard deviation 0.04 over the 50 folds) between
+\citrees and \pkg{partykit}, 0.54 between the random forest and
+\pkg{partykit}, and 0.66 between the random forest and \citrees. In the
+descriptive prediction comparison, held-out area under the receiver operating
+characteristic curve with the 10 highest-ranked columns averaged 0.836 for
+\pkg{partykit}, 0.835 for \citrees, and 0.812 for the random forest over the
+50 folds, with log loss of 0.319, 0.320, and 0.333; with 5 columns the areas
+were 0.806, 0.795, and 0.777. All three methods placed at least one of the
+four metabolic measurements in their top 5 in all 50 folds, and permuted sex
+fell outside the top 20 in 50 of 50 folds for the random forest, 44 for
+\citrees, and 46 for \pkg{partykit}. Median fitting time per training fold
+with every core in use was 0.1 seconds for the random forest, 6.5 seconds for
+\citrees, and 20.9 seconds for \pkg{partykit} on the machine recorded in the
 replication receipt.
 
 \section{Discussion} \label{sec:discussion}
@@ -963,24 +977,26 @@ produces fitted predictive models. Applications should evaluate predictive
 performance, feature stability, and runtime against both conditional inference
 and CART-style alternatives.
 
-The NHANES application shows the cardinality bias of Section~\ref{sec:cardinality}
-on clinical data. A permuted survey weight with 2,790 distinct values entered
-the random forest's top half while reported diagnoses of hypertension and high
-cholesterol received mean ranks of 18.8 and 20.5; \citrees and \pkg{partykit} reversed both
-placements and agreed with each other at a rank correlation of 0.76. The
-conditional rankings predicted diabetes at least as well as the impurity
-ranking at a cost of about 20 times the fitting time of the random forest at
-this sample size. Researchers who rank mixed-type predictors with impurity
-importance should expect the number of distinct values to shape the order and
-should check the ranking against a conditional inference forest.
+The NHANES application reproduces the ordering of Section~\ref{sec:cardinality}
+on a clinical cohort for the one column whose information content is known. A
+permuted survey weight with 3,464 distinct values entered the random forest's
+top half while reported diagnoses of hypertension and high cholesterol
+received mean ranks of 18.8 and 20.5 of 30; \citrees and \pkg{partykit}
+reversed both placements and agreed with each other at a rank correlation of
+0.84. In the descriptive comparison the conditional rankings had similar or
+better mean held-out accuracy, at 65 and 209 times the fitting time of the
+random forest at this sample size. Researchers who rank predictors of mixed
+cardinality with impurity importance should check whether the number of
+distinct values is shaping the order, and a conditional inference forest is
+one direct way to do so.
 
 \subsection{Limitations}
 
-The NHANES estimates describe one survey cycle with a single outcome and a
-fixed set of 27 predictors passed as numeric codes; the three forests were
-compared at their shipped defaults rather than tuned. The application
-measures ranking behavior and does not establish that any predictor is
-clinically informative beyond its association in this cohort.
+The NHANES estimates describe one survey cycle, a single outcome, one draw
+of the permuted controls, and a fixed set of 27 predictors passed as numeric
+codes, with the three forests compared at their shipped defaults rather than
+tuned. The application measures ranking behavior; the association of any
+predictor with diabetes in this cohort is descriptive.
 More generally, permutation testing makes \citrees substantially
 more computationally intensive than impurity-only trees, particularly for
 large forests and high-dimensional predictors.
@@ -993,7 +1009,7 @@ The package requires \proglang{Python} 3.12 or later. The locked
 \proglang{Python} environment and the reference container specification are
 included in the repository. The reference container pins \proglang{R} 4.5.2,
 \pkg{partykit} 1.2-24, and the numerical packages used by the
-\proglang{Python}--\proglang{R} bridge.
+bridge between \proglang{Python} and \proglang{R}.
 
 The top-level replication command provides smoke, quick, and full profiles.
 Each execution writes to a new result directory and validates every component

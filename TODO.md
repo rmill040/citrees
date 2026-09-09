@@ -201,6 +201,44 @@ p-value after the joint test). Investigate before maxt becomes a default
 anywhere. (The n_nodes column in the CSV is a dict-key count, not a node count;
 ignore it.)
 
+## Max-type split test: standardized version, budget, and the facebook question (2026-09-09)
+
+After the heavy-tailed finding, `maxt` was changed to the standardized max-T
+statistic (column-wise null moments over all B+1 rows, minimum standardized
+impurity; `docs/maxt.md` states the statistic, a four-step proof, and the
+references). Two independent reviewers (Opus; Codex on the runtime default
+model, NOT gpt-5.6, which the runtime does not expose) verified all four proof
+steps, reconstructed the returned p-values from the kernels, and ran their own
+2,000-10,000-null simulations: null rates 0.035-0.054 in every cell, no
+inflation. Both found the standardized test localizes a planted step far better
+than Bonferroni on Student-t(1.5) noise (193/200 and 77/79 near the step vs
+166/200 and 62/80). Reviewer fixes applied: qualified prior-art wording (single
+step max-T style; Pollard-van der Laan empirical null scaling; Hothorn et al.
+standardize a linear statistic by exact moments), Hemerik-Goeman citation,
+explicit empty-side mask instead of an isfinite check under fastmath, "simple"
+mapped to adaptive documented, 999-permutation budget for exhaustive maxt under
+named resample rules (Bonferroni's K-scaled budget is a precondition, maxt's is
+a precision choice).
+
+**Author's doubt, answered with data (3 seeds, 5 folds, budget 999):** glass:
+maxt >= Bonferroni in every cell (adaptive 0.942/0.973 vs 0.931/0.972;
+exhaustive 0.897/0.902 vs 0.841/0.816) at 4-40x less time in exhaustive mode.
+facebook (n=500, y median 124, max 6,334): adaptive maxt 0.77/0.75 vs Bonferroni
+0.65/0.79; exhaustive K=16 maxt 0.60 vs 0.31; exhaustive K=64 maxt 0.16 (sd
+0.47) vs 0.62. The K=64 exhaustive collapse is one seed (R^2 -0.30): in one fold
+a single test point fell into a one-observation leaf holding the 6,334 maximum
+and alone made up 99% of the squared error; Bonferroni's trees have the same
+single-point domination (shares 0.95-0.98) and swing from 0.27 to 0.86 across
+seeds. Held-out R^2 on this target is not a discriminating metric; it is decided
+by where one extreme observation lands. Neither method is "terrible"; both grow
+one-observation leaves because min_samples_leaf defaults to 1. A fair regression
+benchmark for the two tests needs a robust loss or a larger leaf minimum.
+
+Status: `maxt` remains opt-in. Evidence for it: valid (proved twice), same or
+better power, better localization, 5-40x cheaper in exhaustive mode. Evidence
+against promoting it now: it changes every published tree, and the regression
+comparison on heavy tails is inconclusive with the default leaf size.
+
 ## Max-type split test: two-model mathematical review (2026-09-09)
 
 Author asked for Codex (GPT-5.6, max reasoning) and Claude Opus to prove or

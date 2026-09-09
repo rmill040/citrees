@@ -771,82 +771,81 @@ Table~\ref{tab:performance-real}; the no-adjustment variant was not run at 500
 observations.}
 \end{center}
 
-\subsection{DGRP cardiac application} \label{sec:dgrp}
+\subsection{NHANES diabetes application} \label{sec:nhanes}
 
-The biomedical application reanalyzes public cardiac measurements from the
-\textit{Drosophila} Genetic Reference Panel (DGRP). The source study analyzed
-1,956 one-week-old females from 167 sequenced inbred lines
-\citep{Saha+Spinelli+CastroMondragon:2022}. The pinned, outlier-filtered
-worksheet used here contains 2,032 individual records across the same 167
-lines. We compute one mean outcome per line for seven traits after requiring
-at least seven recorded individuals: diastolic interval, systolic interval,
-heart period, end diastolic diameter, end systolic diameter, fractional
-shortening, and arrhythmia index. This rule retains 157 to 166 lines per trait.
-End diastolic diameter was specified as the primary trait before the full
-profile was run. The other six traits form the secondary family specified
-before that run.
+The biomedical application uses the public National Health and Nutrition
+Examination Survey (NHANES) for August 2021 through August 2023
+\citep{NCHS:2024}. It asks whether the cardinality bias measured under the
+null in Section~\ref{sec:cardinality} is visible on real clinical predictors,
+where impurity-based random forests remain a common default. The cohort
+contains the 3,597 adults aged 20 or older with a glycohemoglobin measurement
+and complete data on 27 predictors after the documented refused and unknown
+response codes are set to missing. The outcome is diabetes, defined as
+glycohemoglobin of at least 6.5\% or a reported physician diagnosis, with
+prevalence 14.5\%. Glycohemoglobin, fasting glucose, and the diabetes
+questionnaire are excluded from the predictors because they define the
+outcome.
 
-The DGRP2 genotypes and Phenosnip covariates come from the associated
-ArchiHeart deposit \citep{Saha+Spinelli+CastroMondragon:2021Data}. Genotype
-quality control is computed once across its full 205-line panel, which contains
-the 167 phenotype-source lines and 38 additional genotype lines. Variants are
-retained when their call rate is at least 0.95 and their minor allele frequency
-is greater than 0.04. The deposited database supplies 17 numeric covariates
-used by the source analysis to encode \textit{Wolbachia} infection and common
-polymorphic inversions. For each trait, the eligible lines are assigned to 10
-independently shuffled five-fold partitions. Within each training fold,
-missing genotypes are imputed by training-set medians. Least-squares
-coefficients estimated from the training lines remove the covariate effects
-from both the outcome and each genotype in the corresponding training and
-evaluation sets.
+The 27 predictors are demographic (age, sex, race and ethnicity, education,
+marital status, birth in the United States, family income relative to the
+poverty threshold, and the examination sampling weight), examination
+measurements (body mass index, waist circumference, and systolic and diastolic
+blood pressure), laboratory values (total and HDL cholesterol, triglycerides,
+creatinine, alanine aminotransferase, uric acid, and gamma-glutamyl
+transferase), and questionnaire items (ever smoked, alcohol frequency,
+sedentary minutes, sleep hours, health insurance, and reported diagnoses of
+heart disease, hypertension, and high cholesterol). Their numbers of distinct
+values run from 2 for the binary items to 2,790 for the sampling weight, a
+survey-design quantity retained as a natural high-cardinality predictor. Three
+further columns are independent permutations of the sampling weight, age, and
+sex, drawn once from the recorded seed. They carry no information about the
+outcome by construction while preserving each source's marginal distribution
+and its cardinality of 2,790, 61, and 2. All 30 columns are passed as numeric
+values to every method, so no method receives factor typing.
 
-All retained variants are screened within each training set by the absolute
-correlation between the adjusted genotype and adjusted outcome. The 100
-highest-scoring variants enter four ranking methods: marginal correlation,
-absolute coefficients from ridge regression with penalty 1, a conditional
-inference tree, and a 10-tree conditional inference forest. The tree and forest
-use the randomized dependence coefficient with 10 random projections and rank
-variables by normalized impurity decrease. Both models use squared-error
-splitting, 0.05 Bonferroni-adjusted feature and threshold gates, automatic
-permutation budgets with adaptive stopping, feature scanning and muting, exact
-threshold search, unrestricted depth, minimum split and leaf sizes of 2 and 1,
-and the same samples for structure and leaf estimation. The tree passes its
-active candidate pool to each node. The forest uses full-size bootstrap
-samples, square-root predictor sampling at each node, and one execution thread.
-Score ties are resolved by the initial screening order, which is itself
-resolved by source variant order.
-Each ranking is evaluated with the same ridge regression model at 5, 10, 25,
-50, and 100 selected variants. Standardization is estimated from the training
-set. Held-out performance is measured by mean squared error and by predictive
-$R^2$ relative to the mean adjusted outcome in the training set.
+Three forests are compared on 10 independently shuffled stratified five-fold
+partitions of the participants. The \sklearn random forest uses its shipped
+defaults with 100 trees and ranks predictors by normalized impurity decrease.
+The \citrees forest uses the multiple correlation selector, histogram threshold
+candidates with 32 bins, 100 trees, and otherwise shipped defaults, and ranks
+by normalized impurity decrease. The \pkg{partykit} conditional inference
+forest uses its shipped defaults with 100 trees and ranks by unconditional
+permutation importance. Each method is fitted on the training fold, and its
+importances are converted to ranks from 1 to 30 with tied importances
+receiving their mean rank. Held-out predictive performance is reported
+descriptively: a ridge-penalized logistic regression is fitted to the 5 or 10
+highest-ranked columns of each method on the training fold and scored on the
+evaluation fold by log loss, area under the receiver operating characteristic
+curve, and Brier score.
 
-Feature stability is evaluated within each repeat by comparing every pair of
-training folds. The exact Jaccard similarity of the top 10 variants was
-specified as the primary stability endpoint before the full profile was run.
-Secondary summaries use exact sets of 5 and 25 variants and
-linkage-disequilibrium-aware sets at all three feature counts. The latter use
-maximum-cardinality one-to-one matching between variants on the same chromosome
-when their squared correlation is at least 0.8.
-Correlations are computed from unadjusted genotype dosages among DGRP lines
-shared by the two training sets, using pairwise-complete observations.
-
-The primary inferential contrast is the held-out mean squared error of the
-forest ranking minus that of the marginal ranking at 10 selected variants for
-end diastolic diameter. Let $d_{ij}$ be this difference for fold $i$ of repeat
-$j$, let $s_d^2$ be the sample variance of the 50 fold differences, and let
-$\bar{q}$ be the mean evaluation-to-training sample-size ratio. The
+The primary inferential contrast, specified before the full profile was run,
+is the rank of the permuted sampling weight under the random forest minus its
+rank under the \citrees forest. Let $d_{ij}$ be this difference for fold $i$
+of repeat $j$, let $s_d^2$ be the sample variance of the 50 fold differences,
+and let $\bar{q}$ be the mean evaluation-to-training sample-size ratio. The
 lower-tailed corrected repeated-cross-validation statistic is
 %
 \begin{equation}
   t =
   \frac{\bar{d}}
        {\sqrt{\left(1/50 + \bar{q}\right)s_d^2}},
-  \label{eq:dgrp-corrected-cv}
+  \label{eq:nhanes-corrected-cv}
 \end{equation}
 %
-with 49 degrees of freedom \citep{Bouckaert+Frank:2004}. Negative differences
-favor the forest ranking. The same contrast is evaluated for the six secondary
-traits, and their $p$~values are adjusted together by Holm's method.
+with 49 degrees of freedom \citep{Bouckaert+Frank:2004}. A negative difference
+means that the random forest treats the noise column as more important than
+\citrees does. Two secondary contrasts use the same statistic with the upper
+tail and are adjusted together by Holm's method: the Spearman correlation
+between a method's importances and the predictors' numbers of distinct
+training values, random forest minus \citrees; and the mean rank of the eight
+predictors with at most three levels (sex, birth in the United States, ever
+smoked, health insurance, marital status, and the three reported diagnoses),
+random forest minus \citrees. Agreement between methods is summarized by the
+Spearman correlation of their ranks within each fold. Two checks were
+specified in advance as sanity conditions rather than hypotheses: at least one
+of waist circumference, total cholesterol, triglycerides, and HDL cholesterol
+appears in each method's top 5 in a majority of folds, and permuted sex falls
+outside each method's top 20 in a majority of folds.
 
 \subsection{Replication records} \label{sec:replication}
 
@@ -857,61 +856,94 @@ hashes, platform metadata, raw outputs, and generated artifact hashes. The
 top-level replication command validates each component before publishing a
 combined output directory.
 
-\section{DGRP application results} \label{sec:dgrp-results}
+\section{NHANES application results} \label{sec:nhanes-results}
 
-For the primary end diastolic diameter analysis, mean held-out squared error at
-10 selected variants was 166.61 for the forest ranking and 171.15 for the
-marginal ranking. The mean difference, forest minus marginal, was $-4.54$
-squared micrometers, with a corrected repeated-cross-validation statistic of
-$t(49)=-0.297$ and a lower-tailed $p$~value of 0.384. At the same feature
-count, the forest ranking had the lowest mean squared error for five of the
-seven traits; the tree ranking had the lowest value for end systolic diameter,
-and the marginal ranking had the lowest value for arrhythmia index.
-Table~\ref{tab:dgrp-inference} reports the contrast specified before the full
-profile was run for every trait. The difference was negative for five of the
-six secondary traits. All six Holm-adjusted $p$~values were at least 0.849.
+The permuted sampling weight, which carries no information about diabetes,
+had a mean rank of 12.1 of 30 under the random forest, 23.9 under the
+\citrees forest, and 25.2 under the \pkg{partykit} forest. The primary
+difference, random forest minus \citrees, was $-11.82$ ranks with a corrected
+repeated-cross-validation statistic of $t(49)=-4.97$ and a lower-tailed
+$p$~value below 0.001. Table~\ref{tab:nhanes-ranks} reports the mean rank of
+every column under each method. The random forest also placed the permuted
+copy of age at 15.6, ahead of 14 real predictors, while the two conditional
+inference forests placed it at 21.3 and 23.3. Permuted sex was ranked near the
+bottom by all three methods, at 27.1, 25.4, and 24.8, so the disagreement
+concerns cardinality rather than permutation itself.
+
+Both secondary contrasts were in the specified direction with Holm-adjusted
+$p$~values below 0.001. The Spearman correlation between importance and number
+of distinct values averaged 0.86 for the random forest, 0.34 for \citrees, and
+0.14 for \pkg{partykit}; the random forest minus \citrees difference was 0.52
+with $t(49)=15.3$. The eight predictors with at most three levels had a mean
+rank of 25.1 under the random forest, 18.7 under \citrees, and 15.8 under
+\pkg{partykit}; the difference was 6.42 ranks with $t(49)=11.7$. The largest
+individual displacements were reported diagnoses of hypertension (18.8 under
+the random forest, 5.8 under \citrees, 3.8 under \pkg{partykit}) and high
+cholesterol (20.5, 5.3, and 2.3), followed by education (21.6, 8.5, and 6.2).
+Both conditional inference forests also ranked the binary items born in the
+United States and health insurance at or near the bottom, so the difference
+is not a uniform promotion of low-cardinality predictors.
 
 \begin{center}
-\begin{tabular}{lrrrrrr}
+\begin{tabular}{lrrrr}
 \hline
-Trait & Lines & Marginal & Forest & Difference & Raw $p$ & Holm $p$ \\ \hline
-EDD & 159 & 171.2 & 166.6 & $-4.540$ & 0.384 & n/a \\
-DI  & 165 & 0.05363 & 0.04540 & $-0.008228$ & 0.226 & 1.000 \\
-SI  & 166 & 0.0008509 & 0.0007874 & $-0.00006344$ & 0.231 & 1.000 \\
-HP  & 165 & 0.06736 & 0.04668 & $-0.02069$ & 0.142 & 0.849 \\
-ESD & 157 & 70.02 & 69.25 & $-0.7691$ & 0.459 & 1.000 \\
-FS  & 158 & 0.002541 & 0.002507 & $-0.00003372$ & 0.436 & 1.000 \\
-AI  & 166 & 0.04017 & 0.04186 & $+0.001686$ & 0.633 & 1.000 \\ \hline
+Column & Distinct values & Random forest & \citrees & \pkg{partykit} \\ \hline
+Total cholesterol & 230 & 1.2 & 1.6 & 1.2 \\
+Waist circumference & 702 & 1.8 & 2.1 & 2.8 \\
+Triglycerides & 370 & 3.4 & 7.5 & 5.5 \\
+Body mass index & 342 & 4.6 & 7.3 & 18.7 \\
+HDL cholesterol & 95 & 5.0 & 4.1 & 9.1 \\
+Creatinine & 145 & 5.4 & 13.5 & 11.2 \\
+Age & 61 & 6.7 & 6.0 & 7.5 \\
+Uric acid & 88 & 8.6 & 10.7 & 9.9 \\
+Sampling weight & 2,790 & 9.3 & 17.8 & 22.3 \\
+Gamma-glutamyl transferase & 166 & 9.4 & 15.0 & 12.6 \\
+Income to poverty ratio & 418 & 11.6 & 10.9 & 11.2 \\
+Permuted sampling weight & 2,790 & 12.1 & 23.9 & 25.2 \\
+Alanine aminotransferase & 103 & 13.7 & 18.6 & 17.6 \\
+Systolic blood pressure & 108 & 13.8 & 19.7 & 23.4 \\
+Diastolic blood pressure & 75 & 14.0 & 16.7 & 21.7 \\
+Permuted age & 61 & 15.6 & 21.3 & 23.3 \\
+Sleep hours & 23 & 17.5 & 20.5 & 20.8 \\
+Sedentary minutes & 39 & 18.5 & 21.4 & 24.9 \\
+Hypertension diagnosis & 2 & 18.8 & 5.8 & 3.8 \\
+Alcohol frequency & 11 & 20.1 & 19.0 & 18.6 \\
+High cholesterol diagnosis & 2 & 20.5 & 5.3 & 2.3 \\
+Education & 5 & 21.6 & 8.5 & 6.2 \\
+Race and ethnicity & 6 & 23.2 & 23.8 & 19.7 \\
+Heart disease diagnosis & 2 & 23.9 & 12.3 & 10.7 \\
+Marital status & 3 & 25.0 & 23.9 & 22.7 \\
+Ever smoked & 2 & 27.0 & 24.2 & 23.1 \\
+Sex & 2 & 27.0 & 22.7 & 22.9 \\
+Permuted sex & 2 & 27.1 & 25.4 & 24.8 \\
+Born in the United States & 2 & 29.1 & 27.0 & 19.7 \\
+Health insurance & 2 & 29.9 & 28.5 & 21.4 \\
+\hline
 \end{tabular}
-\captionof{table}{\label{tab:dgrp-inference} Mean held-out squared error after
-selecting 10 variants and the corrected repeated-cross-validation comparison
-of the forest and marginal rankings. Difference is forest minus marginal, so a
-negative value favors the forest. The raw $p$~values are lower-tailed. The six
-secondary traits form the Holm family; n/a identifies the separately tested
-primary trait. EDD is end diastolic diameter, DI is diastolic interval, SI is
-systolic interval, HP is heart period, ESD is end systolic diameter, FS is
-fractional shortening, and AI is arrhythmia index. Squared-error scales are
-trait-specific.}
+\captionof{table}{\label{tab:nhanes-ranks} Mean rank over 50 training folds of
+each of the 30 columns under the three forests, ordered by the random forest
+rank. Rank 1 is the most important column and tied importances receive their
+mean rank. Distinct values is the median number of distinct training-fold
+values. The three permuted columns are independent permutations of the
+sampling weight, age, and sex and carry no information about the outcome.}
 \end{center}
 
-Across the 28 combinations of trait and feature count at 5, 10, 25, and 50
-variants, the forest ranking had the lowest mean squared error in 21, the tree
-in 4, the marginal ranking in 2, and the ridge ranking in 1. At 100 variants,
-all four methods supplied the same candidate set to the downstream model and
-therefore produced numerically identical predictions. The mean adjusted
-outcome from the training set yielded lower average squared error than every
-ranking evaluated with ridge regression. Mean predictive $R^2$ across the 140
-configurations ranged from $-4.180$ to $-0.201$; at 10 variants, it ranged from
-$-1.163$ to $-0.248$.
-
-The selected variants were also sensitive to the training fold. Across 100
-fold pairs for each trait and method, mean exact top-10 Jaccard similarity
-ranged from 0.0058 to 0.0790. Linkage-disequilibrium-aware matching gave a
-range of 0.0081 to 0.0811. For end diastolic diameter, exact top-10 similarity
-was 0.0177 for the marginal ranking, 0.0070 for ridge, 0.0123 for the tree, and
-0.0080 for the forest; the corresponding linkage-disequilibrium-aware values
-were 0.0205, 0.0081, 0.0128, and 0.0090. The variation across folds makes the
-ranked variants hypotheses that require evaluation in independent data.
+The two conditional inference forests agreed with each other more closely than
+either agreed with the random forest. The Spearman correlation of per-fold
+ranks averaged 0.76 (standard deviation 0.06 over folds) between \citrees and
+\pkg{partykit}, 0.45 between the random forest and \pkg{partykit}, and 0.66
+between the random forest and \citrees. The ranking differences did not come
+at a predictive cost. With the 10 highest-ranked columns, held-out area under
+the receiver operating characteristic curve averaged 0.837 for
+\pkg{partykit}, 0.835 for \citrees, and 0.812 for the random forest, with log
+loss of 0.319, 0.320, and 0.333. With 5 columns the values were 0.812, 0.795,
+and 0.777 for area under the curve. All three methods placed at least one of
+the four metabolic measurements in their top 5 in all 50 folds. Permuted sex
+fell outside the top 20 in 50 folds for the random forest, 44 for \citrees,
+and 41 for \pkg{partykit}. Median fitting time per training fold of 2,877
+participants was 0.3 seconds for the random forest, 5.8 seconds for
+\pkg{partykit}, and 6.9 seconds for \citrees on the machine recorded in the
+replication receipt.
 
 \section{Discussion} \label{sec:discussion}
 
@@ -931,20 +963,25 @@ produces fitted predictive models. Applications should evaluate predictive
 performance, feature stability, and runtime against both conditional inference
 and CART-style alternatives.
 
-The DGRP application demonstrates the package in genome-scale screening within
-each training fold. Conditional forest rankings frequently reduced held-out
-squared error relative to the other rankings. The training-set mean baseline
-had lower average error than every fitted model, and selected feature sets
-varied substantially across folds. Researchers using ranked features should
-pair the ordered list with held-out prediction and stability summaries.
+The NHANES application shows the cardinality bias of Section~\ref{sec:cardinality}
+on clinical data. A permuted survey weight with 2,790 distinct values entered
+the random forest's top half while reported diagnoses of hypertension and high
+cholesterol fell to ranks 19 and 21; \citrees and \pkg{partykit} reversed both
+placements and agreed with each other at a rank correlation of 0.76. The
+conditional rankings predicted diabetes at least as well as the impurity
+ranking at a cost of about 20 times the fitting time of the random forest at
+this sample size. Researchers who rank mixed-type predictors with impurity
+importance should expect the number of distinct values to shape the order and
+should check the ranking against a conditional inference forest.
 
 \subsection{Limitations}
 
-The DGRP estimates describe one public panel with 157 to 166 eligible lines per
-trait. The fixed genotype filters, covariates, 100-variant screen, and ridge
-downstream model define the reported comparison. Independent cardiac panels
-are needed to assess the transportability of individual variants and ranking
-advantages. More generally, permutation testing makes \citrees substantially
+The NHANES estimates describe one survey cycle with a single outcome and a
+fixed set of 27 predictors passed as numeric codes; the three forests were
+compared at their shipped defaults rather than tuned. The application
+measures ranking behavior and does not establish that any predictor is
+clinically informative beyond its association in this cohort.
+More generally, permutation testing makes \citrees substantially
 more computationally intensive than impurity-only trees, particularly for
 large forests and high-dimensional predictors.
 
@@ -968,13 +1005,12 @@ calibration and behavioral comparisons additionally validate complete shard
 assignment and preserve realized cloud-compute accounting.
 
 Simulation inputs are generated from recorded seeds. The tutorial data are
-distributed with \sklearn. The DGRP workflow acquires the cited phenotype,
-genotype, and covariate sources
-\citep{Saha+Spinelli+CastroMondragon:2022,
-Saha+Spinelli+CastroMondragon:2021Data}. It verifies pinned file sizes and
-cryptographic hashes before extraction and records the validated input hashes
-in the analysis receipt. A configurable shared data directory permits the
-validated DGRP inputs to be reused across replication profiles.
+distributed with \sklearn. The NHANES workflow downloads the 15 public
+component files from the National Center for Health Statistics on first use
+\citep{NCHS:2024}, verifies their cryptographic hashes against values fixed in
+the analysis specification, and records the validated input hashes in the
+analysis receipt. A configurable shared data directory permits the validated
+inputs to be reused across replication profiles.
 
 \section*{Acknowledgments}
 

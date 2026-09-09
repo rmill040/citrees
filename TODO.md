@@ -100,14 +100,10 @@ Still to do, in order:
       CIF-cforest rank agreement 0.76 vs RF-cforest 0.45. Top-10 held-out AUC:
       cforest 0.837, CIF 0.835, RF 0.812. Median fit per fold: RF 0.3 s, cforest
       5.8 s, CIF 6.9 s. Positive controls pass for all three methods.
-- [ ] Remove the DGRP material from `paper/jss/article.tex` (deferred by the
-      author): `\subsection{DGRP cardiac application}` (~774-850) and
-      `\section{DGRP application results}` (~860-915), plus discussion,
-      limitations and data-availability mentions (9 `DGRP` total).
-- [ ] Write the NHANES application and results sections from the full-run
-      artifacts. Headline is ranking under cardinality, with the shuffled
-      controls table; prediction is descriptive only; runtime reported honestly
-      (RF 0.1 s, CIF and cforest ~20 s per fold at this size).
+- [x] DGRP removed from `paper/jss/article.tex` and `refs.bib` (2026-09-08);
+      NHANES design subsection, results section with the 30-row rank table,
+      discussion paragraph, limitations and availability written from the
+      full-run artifacts. Builds at 19 pages, 0 overfull.
 - [ ] Re-run the full replication suite and redo the factual review.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)

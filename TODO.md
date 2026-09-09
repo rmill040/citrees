@@ -169,8 +169,13 @@ Still to do, in order:
    are pinned to their receipt SHAs; a reviewer running the current code will
    reproduce them up to tie flips of this magnitude, not bit-for-bit. Author
    decision needed: rerun those campaigns (cost) or state the pinned revision in
-   the availability section. The NHANES full profile is cheap and is being
-   regenerated on EC2 with the new code (see below).
+   the pinned revision in the availability section. **The NHANES full profile
+   was regenerated on EC2 with the new code (`0e3ab51`, c6a.8xlarge,
+   2026-09-09)** and the article section rewritten from it: RF and partykit mean
+   ranks unchanged to one decimal, citrees moved by at most 0.18; primary t(49)
+   -5.38; timing 0.2 / 4.0 / 20.7 s (22x, 115x). Both boxes and the IAM role are
+   deleted. The receipt still reports git_dirty=true inside the container even
+   with core.fileMode off; cause not identified (source hashes match).
 3. **Max-type threshold test**: implemented, benchmarked, recommendation in the
    performance section notes above; default unchanged.
 

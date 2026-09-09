@@ -137,7 +137,8 @@ def _importances(
 
     out: dict[str, tuple[np.ndarray, float]] = {}
     start = time.perf_counter()
-    rf = RandomForestClassifier(n_estimators=trees, random_state=seed).fit(X, y)
+    # Every forest is fitted with all available cores so the timings are comparable.
+    rf = RandomForestClassifier(n_estimators=trees, n_jobs=-1, random_state=seed).fit(X, y)
     out["rf"] = (rf.feature_importances_, time.perf_counter() - start)
 
     start = time.perf_counter()
@@ -152,7 +153,12 @@ def _importances(
     out["cif"] = (cif.feature_importances_, time.perf_counter() - start)
 
     start = time.perf_counter()
-    importance = r_cforest_importance(X, y, ntree=trees, random_state=seed)
+    # mtry="sqrt" is partykit's own default, ceiling(sqrt(p)); the wrapper maps an
+    # omitted mtry to all predictors. Ten importance permutations match Sections
+    # 5.2 and 5.3 of the article.
+    importance = r_cforest_importance(
+        X, y, ntree=trees, mtry="sqrt", varimp_nperm=10, cores=-1, random_state=seed
+    )
     out["cforest"] = (np.asarray(importance, dtype=np.float64), time.perf_counter() - start)
     return out
 

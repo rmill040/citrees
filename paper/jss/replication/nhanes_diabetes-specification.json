@@ -90,10 +90,11 @@
     "construction": "each is an independent permutation of the source column drawn once from numpy default_rng(base_seed), so it is noise by construction with the source's marginal distribution and cardinality"
   },
   "methods": {
-    "rf": "scikit-learn RandomForestClassifier at shipped defaults, n_estimators = profile trees; importance = impurity decrease (feature_importances_)",
-    "cif": "citrees ConditionalInferenceForestClassifier, selector mc, threshold_method histogram, max_thresholds 32, n_estimators = profile trees, other parameters shipped defaults; importance = feature_importances_",
-    "cforest": "partykit::cforest via paper.benchmark.pipeline.r_methods.r_cforest_importance at partykit shipped defaults (teststat quadratic, testtype Univariate, mincriterion 0, mtry ceiling(sqrt(p)), replace FALSE, fraction 0.632), ntree = profile trees; importance = varimp(conditional = FALSE)",
-    "ranking": "features ranked 1 (largest importance) to p+3 within each training fold; tied importances, which are common when a conditional-inference forest never selects a feature, receive their midrank so that unselected features are not ordered arbitrarily"
+    "rf": "scikit-learn RandomForestClassifier at shipped defaults except n_jobs = all cores, n_estimators = profile trees; importance = impurity decrease (feature_importances_)",
+    "cif": "citrees ConditionalInferenceForestClassifier, selector mc, threshold_method histogram, max_thresholds 32, n_estimators = profile trees, n_jobs = all cores, other parameters shipped defaults; importance = feature_importances_",
+    "cforest": "partykit::cforest via paper.benchmark.pipeline.r_methods.r_cforest_importance at partykit shipped defaults (teststat quadratic, testtype Univariate, mincriterion 0, mtry ceiling(sqrt(p)) passed explicitly as 'sqrt' because the wrapper maps an omitted mtry to all predictors, replace FALSE, fraction 0.632), ntree = profile trees, all cores; importance = varimp(conditional = FALSE) with 10 permutations, matching the article's synthetic cardinality and behavior sections",
+    "ranking": "features ranked 1 (largest importance) to p+3 within each training fold; tied importances, which are common when a conditional-inference forest never selects a feature, receive their midrank so that unselected features are not ordered arbitrarily",
+    "timing_note": "all three forests use every available core, so per-fold fitting times are comparable; the machine is recorded in the receipt"
   },
   "outer_folds": {
     "n_splits": 5,
@@ -190,5 +191,12 @@
     "hypertension_dx": [7, 9],
     "high_chol_dx": [7, 9]
   },
-  "missing_codes_note": "NHANES refused / don't-know codes, per variable as documented in the cycle L codebooks; other predictors are measurements with no reserved codes"
+  "missing_codes_note": "NHANES refused / don't-know codes, per variable as documented in the cycle L codebooks; other predictors are measurements with no reserved codes",
+  "amendment_log": [
+    {
+      "date": "2026-09-09",
+      "before_or_after_full_run": "after a first full run, whose artifacts were discarded",
+      "change": "cforest mtry was unintentionally all predictors (wrapper default for an omitted argument) instead of the specified ceiling(sqrt(p)); cforest importance permutations set to 10 instead of the wrapper default of 1; random forest given all cores so timings are matched. Found by independent review before any manuscript submission; the full profile is rerun and every partykit-dependent number regenerated."
+    }
+  ]
 }

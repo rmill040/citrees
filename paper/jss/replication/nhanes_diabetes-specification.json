@@ -198,5 +198,6 @@
       "before_or_after_full_run": "after a first full run, whose artifacts were discarded",
       "change": "cforest mtry was unintentionally all predictors (wrapper default for an omitted argument) instead of the specified ceiling(sqrt(p)); cforest importance permutations set to 10 instead of the wrapper default of 1; random forest given all cores so timings are matched. Found by independent review before any manuscript submission; the full profile is rerun and every partykit-dependent number regenerated."
     }
-  ]
+  ],
+  "execution_note": "manuscript numbers come from the full profile run on a single 32-core x86 cloud instance (c6a.8xlarge) inside the reference container, matching the hardware class of the article's performance section; local runs are for replication of the ranking results, whose fitting times are not comparable"
 }

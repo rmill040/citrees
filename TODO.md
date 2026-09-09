@@ -128,6 +128,23 @@ Still to do, in order:
       bibliography. Declined (structure, author's prior layout): folding the
       results section into the design subsection; the pre-existing one-line
       paragraph in the performance section is left for the author.
+- [x] **NHANES manuscript artifacts now come from EC2 (2026-09-09).** The author
+      pointed out that timing on the laptop is not comparable to the performance
+      section, which used 32-core cloud instances. Full profile rerun on one
+      c6a.8xlarge (32 vCPU) inside the pinned reference container with the repo
+      at `e9abf5b` mounted; box self-terminated, IAM role
+      `citrees-nhanes-timing-20260909` deleted, zero project instances left.
+      Artifacts under s3 debug/nhanes-timing/out/e9abf5b and installed at
+      `paper/jss/results/nhanes-full`. All-core medians per fold: RF 0.18 s,
+      citrees 4.15 s, partykit 21.0 s (23x and 114x; the laptop had said 65x and
+      209x). Ranks moved by at most 0.12 (RF), 0.48 (citrees), 0.10 (partykit);
+      primary t(49) = -5.37, all conclusions unchanged; every number in the
+      section regenerated from the EC2 artifacts. Two honest caveats recorded:
+      the receipt says git_dirty=true because the Docker bind mount changed file
+      modes (the same shallow clone is clean on the host; source hashes in the
+      receipt match `e9abf5b`), and citrees forest importances vary slightly
+      with the number of worker processes (library follow-up: make forest
+      importances independent of n_jobs).
 - [x] Whole-suite quick replication on clean `c851a9f` (2026-09-09): all six
       children published, every receipt clean at the same SHA; output
       `paper/jss/results/replication-quick-c851a9f` (ignored).

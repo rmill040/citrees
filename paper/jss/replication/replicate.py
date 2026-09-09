@@ -87,6 +87,12 @@ ANALYSES = (
         expected_analysis="rdc_sensitivity",
         profiled=True,
     ),
+    AnalysisSpec(
+        name="threshold_test",
+        module="paper.jss.replication.threshold_test",
+        expected_analysis="threshold_test",
+        profiled=True,
+    ),
 )
 
 AnalysisRunner = Callable[

@@ -37,6 +37,7 @@ affiliation is Amazon Web Services.
 | NHANES application      | Show variable-ranking behavior under mixed predictor cardinality with shuffled noise controls  | citrees forest, partykit::cforest, scikit-learn random forest   |
 | Tutorial                | Demonstrate the estimator interface in an executable workflow                                  | Breast Cancer Wisconsin Diagnostic data                         |
 | RDC sensitivity         | Measure the accuracy, ranking stability, and runtime effect of random projection count         | 5, 10, 20, and 40 projections on four small datasets            |
+| Threshold test          | Compare Bonferroni and max-type split tests: null calibration, scaling, six real datasets      | mc and pc selectors, adaptive and exhaustive stopping           |
 | Broad benchmark context | Summarize the corrected benchmark without duplicating it                                       | Final arXiv v2 artifacts                                        |
 
 The primary biomedical application is the public NHANES 2021-2023 survey. The
@@ -111,12 +112,12 @@ uv run python -m paper.jss.replication --profile full \
 ```
 
 The command dispatches calibration, matched behavior, controlled performance,
-tutorial, NHANES application, and RDC projection-sensitivity analyses. It
-verifies each child receipt and artifact hash before atomically publishing the
-combined output directory. Use `--output-dir` for a new destination; an existing
-destination is rejected to prevent results from different executions from being
-mixed. The full profile also requires a clean Git worktree and rejects source
-changes during execution.
+tutorial, NHANES application, RDC projection-sensitivity, and threshold-test
+analyses. It verifies each child receipt and artifact hash before atomically
+publishing the combined output directory. Use `--output-dir` for a new
+destination; an existing destination is rejected to prevent results from
+different executions from being mixed. The full profile also requires a clean
+Git worktree and rejects source changes during execution.
 
 Run the RDC child independently with the same new-directory rule:
 

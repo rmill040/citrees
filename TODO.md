@@ -201,6 +201,30 @@ p-value after the joint test). Investigate before maxt becomes a default
 anywhere. (The n_nodes column in the CSV is a dict-key count, not a node count;
 ignore it.)
 
+## Threshold-test benchmark for the paper (2026-09-09, author: "the speed is incredible, show it")
+
+New seventh replication analysis `paper/jss/replication/threshold_test.py`
+(registered in `replicate.py`, 12 tests): null calibration grid (n in
+{100,200,500}, K in {16,64,256}, mc and pc, both stopping modes, 2,000 nulls),
+synthetic scaling (n in {1k,4k,16k}, K in {16,64,256}, seconds per tree, both
+tests, both modes), and a real subset (vowel, spam, page-blocks; imports-85,
+residential, facebook; K=256, 5 folds; score, depth, seconds, importance
+agreement). No rdc anywhere. Full profile running locally with `--skip-timing`
+(calibration, accuracy, depth, agreement are machine-independent); the synthetic
+scaling timings are for ONE bounded EC2 job on the performance section's 32-core
+class, small/medium data only, when the author says go. Not launched.
+
+Facebook heavy-tail question settled: with `min_samples_leaf=5` the exhaustive
+K=64 collapse disappears (maxt 0.60 / Bonferroni 0.68; at 10, 0.62 / 0.53), so
+it was one-observation leaves around the 6,334 maximum, not the test.
+
+Paper plan: a short subsection under statistical components introducing the two
+tests (Bonferroni valid but conservative, K^2/alpha; max-type valid, near
+nominal, K/alpha, same construction partykit uses), one calibration table, one
+scaling table with the ratio, one line in the performance section on what
+happens to the exhaustive cells, and the real subset showing equal accuracy and
+importance agreement. Bonferroni stays the default for reproducibility.
+
 ## Max-type split test: standardized version, budget, and the facebook question (2026-09-09)
 
 After the heavy-tailed finding, `maxt` was changed to the standardized max-T

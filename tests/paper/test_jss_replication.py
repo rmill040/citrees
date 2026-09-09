@@ -83,6 +83,7 @@ def test_analysis_inventory_covers_every_implemented_replication_module() -> Non
         "tutorial",
         "nhanes_diabetes",
         "rdc_sensitivity",
+        "threshold_test",
     ]
     assert [spec.expected_analysis for spec in ANALYSES] == [
         "calibration",
@@ -91,6 +92,7 @@ def test_analysis_inventory_covers_every_implemented_replication_module() -> Non
         "tutorial",
         "nhanes_diabetes",
         "rdc_sensitivity",
+        "threshold_test",
     ]
     assert all(spec.profiled for spec in ANALYSES)
 

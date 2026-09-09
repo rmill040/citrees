@@ -231,23 +231,31 @@ class TestConfidenceFloat:
     """Tests for ConfidenceFloat type alias."""
 
     def test_valid_values(self):
-        """Test valid confidence values (0.5, 1.0)."""
+        """Confidence values in [0.95, 1.0) are accepted."""
 
         class Model(BaseModel):
             value: ConfidenceFloat
 
-        Model(value=0.51)
         Model(value=0.95)
+        Model(value=0.975)
         Model(value=0.99)
 
-    def test_invalid_at_boundary(self):
-        """Test that boundaries are invalid."""
+    def test_below_floor_is_rejected_with_reason(self):
+        """Below 0.95 the adaptive rule can exceed the nominal level, so it is refused."""
 
         class Model(BaseModel):
             value: ConfidenceFloat
 
+        with pytest.raises(ValidationError, match="0.95"):
+            Model(value=0.949)
         with pytest.raises(ValidationError):
-            Model(value=0.5)  # Must be > 0.5
+            Model(value=0.80)
+
+    def test_invalid_at_boundary(self):
+        """The upper boundary is exclusive."""
+
+        class Model(BaseModel):
+            value: ConfidenceFloat
 
         with pytest.raises(ValidationError):
             Model(value=1.0)  # Must be < 1.0

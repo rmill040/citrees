@@ -1665,3 +1665,19 @@ class TestAutoResampleCountEdges:
         X = np.array([[0.0], [1.0], [2.0], [3.0]])
         y = np.array([0, 0, 1, 1])
         ConditionalInferenceTreeClassifier(random_state=0, alpha_selector=0.001).fit(X, y)
+
+
+class TestAdaptiveConfidenceFloor:
+    """Adaptive-stopping confidence below 0.95 is refused with the reason."""
+
+    @pytest.mark.parametrize(
+        "param", ["early_stopping_confidence_selector", "early_stopping_confidence_splitter"]
+    )
+    def test_below_floor_explains_why(self, param: str) -> None:
+        with pytest.raises(ValidationError, match="no exact level guarantee"):
+            ConditionalInferenceTreeClassifier(**{param: 0.8})
+
+    def test_floor_value_is_accepted(self) -> None:
+        ConditionalInferenceTreeClassifier(
+            early_stopping_confidence_selector=0.95, early_stopping_confidence_splitter=0.95
+        )

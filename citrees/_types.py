@@ -10,7 +10,22 @@ type ProbabilityFloat = Annotated[float, Field(gt=0.0, le=1.0)]
 type PositiveInt = Annotated[int, Field(gt=0)]
 type NonNegativeInt = Annotated[int, Field(ge=0)]
 type NonNegativeFloat = Annotated[float, Field(ge=0.0)]
-type ConfidenceFloat = Annotated[float, Field(gt=0.5, lt=1.0)]
+# The adaptive stopping rule has no level theorem; its null rejection rate was
+# measured by exact recursion and simulation at 0.0496-0.0498 for confidence 0.95
+# and 0.0524 for confidence 0.80 at a nominal 0.05. Values below 0.95 are
+# therefore not accepted.
+type ConfidenceFloat = Annotated[
+    float,
+    Field(
+        ge=0.95,
+        lt=1.0,
+        description=(
+            "Posterior confidence for adaptive early stopping. Must be at least 0.95: "
+            "below that the stopping rule can exceed the nominal significance level "
+            "(measured 0.0524 at confidence 0.80 for alpha 0.05)."
+        ),
+    ),
+]
 type HonestyFraction = Annotated[float, Field(gt=0.0, lt=1.0)]
 type MinSamplesSplit = Annotated[int, Field(ge=2)]
 

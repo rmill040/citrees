@@ -143,6 +143,27 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     verbose: NonNegativeInt
     check_for_unused_parameters: bool
 
+    @field_validator(
+        "early_stopping_confidence_selector", "early_stopping_confidence_splitter", mode="before"
+    )
+    @classmethod
+    def _confidence_floor(cls, value: Any, info: Any) -> Any:
+        """Refuse adaptive-stopping confidence below 0.95 and say why.
+
+        The Beta-posterior stopping rule has no exact level guarantee. Exact
+        recursion and simulation put its null rejection at 0.0496-0.0498 for
+        confidence 0.95 and 0.0524 for 0.80 at a nominal 0.05, so values below
+        0.95 are refused rather than silently inflating the significance level.
+        """
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0.95:
+            raise ValueError(
+                f"{info.field_name}={value} is below 0.95. Adaptive early stopping has no exact level "
+                "guarantee; below 0.95 its null rejection rate exceeds the nominal alpha (measured 0.0524 "
+                "at 0.80 for alpha 0.05). Use a value of at least 0.95, or set the corresponding "
+                "early_stopping option to None for a fixed-budget test."
+            )
+        return value
+
     @field_validator("max_features", "max_thresholds", "rdc_n_projections", mode="before")
     @classmethod
     def _reject_bool(cls, v: Any) -> Any:
@@ -1634,10 +1655,14 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
         Early stopping method for split selection permutation tests.
 
     early_stopping_confidence_selector : float, default=0.95
-        Confidence threshold for adaptive stopping in feature selection.
+        Confidence threshold for adaptive stopping in feature selection. Must be
+        at least 0.95; lower values let the stopping rule exceed the nominal
+        significance level.
 
     early_stopping_confidence_splitter : float, default=0.95
-        Confidence threshold for adaptive stopping in split selection.
+        Confidence threshold for adaptive stopping in split selection. Must be
+        at least 0.95; lower values let the stopping rule exceed the nominal
+        significance level.
 
     feature_muting : bool, default=True
         If True, tested features that fail the node's Stage A gate are removed
@@ -1803,10 +1828,14 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
         Early stopping method for split selection permutation tests.
 
     early_stopping_confidence_selector : float, default=0.95
-        Confidence threshold for adaptive stopping in feature selection.
+        Confidence threshold for adaptive stopping in feature selection. Must be
+        at least 0.95; lower values let the stopping rule exceed the nominal
+        significance level.
 
     early_stopping_confidence_splitter : float, default=0.95
-        Confidence threshold for adaptive stopping in split selection.
+        Confidence threshold for adaptive stopping in split selection. Must be
+        at least 0.95; lower values let the stopping rule exceed the nominal
+        significance level.
 
     feature_muting : bool, default=True
         If True, tested features that fail the node's Stage A gate are removed

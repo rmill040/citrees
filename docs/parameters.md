@@ -51,12 +51,12 @@ Bonferroni behavior:
 
 ### Early Stopping
 
-| Parameter                            | Type                  | Default                  | Description                                                               |
-| ------------------------------------ | --------------------- | ------------------------ | ------------------------------------------------------------------------- |
-| `early_stopping_selector`            | EarlyStopping or None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for selector permutation tests                   |
-| `early_stopping_splitter`            | EarlyStopping or None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests                   |
-| `early_stopping_confidence_selector` | float                 | 0.95                     | Posterior-confidence threshold γ for `EarlyStopping.ADAPTIVE` (selectors) |
-| `early_stopping_confidence_splitter` | float                 | 0.95                     | Posterior-confidence threshold γ for `EarlyStopping.ADAPTIVE` (splitters) |
+| Parameter                            | Type                  | Default                  | Description                                                                             |
+| ------------------------------------ | --------------------- | ------------------------ | --------------------------------------------------------------------------------------- |
+| `early_stopping_selector`            | EarlyStopping or None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for selector permutation tests                                 |
+| `early_stopping_splitter`            | EarlyStopping or None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests                                 |
+| `early_stopping_confidence_selector` | float                 | 0.95                     | Posterior-confidence threshold γ for `EarlyStopping.ADAPTIVE` (selectors); minimum 0.95 |
+| `early_stopping_confidence_splitter` | float                 | 0.95                     | Posterior-confidence threshold γ for `EarlyStopping.ADAPTIVE` (splitters); minimum 0.95 |
 
 Notes:
 

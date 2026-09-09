@@ -198,13 +198,13 @@ return a NaN threshold instead of thresholds[0]; empty threshold arrays raise.
 Left as is: ties in the observed argmin go to the first index (Bonferroni branch
 samples uniformly); cosmetic.
 
-**Open, author decision (affects the whole library, not just maxt):** the
-Beta-posterior adaptive stopping rule has no level theorem. Codex's exact
-beta-binomial recursion: at the default confidence 0.95 the level is 0.0494
-(fine); at confidence 0.80, which validation permits, it is **0.0527 > 0.05**.
-Options: (a) require confidence >= 0.95, (b) allow early stopping only for
-futility and run the full budget before any rejection (theorem-backed, slower on
-clear rejections), (c) leave as is and document. Also unverified by either lane:
+**Closed (author, 2026-09-09):** the Beta-posterior adaptive stopping rule has
+no level theorem. Codex's exact beta-binomial recursion and an independent
+400,000-run simulation agree: null rejection 0.0496-0.0498 at the default
+confidence 0.95, 0.0524 at 0.80, for a nominal 0.05. The author chose to raise
+the floor: `early_stopping_confidence_*` now requires >= 0.95 (was > 0.5), and
+the validation error states the reason. No published result used a value below
+0.95. Still unverified by either lane and left open as research questions:
 post-selection validity of the split test after the feature was chosen using y
 (applies equally to the Bonferroni default), strong FWER, entropy/MAE
 calibration.

@@ -149,37 +149,30 @@ Still to do, in order:
       children published, every receipt clean at the same SHA; output
       `paper/jss/results/replication-quick-c851a9f` (ignored).
 
-## In flight at the 2026-09-09 restart (resume here)
+## Resolved after the 2026-09-09 restart (items 1-3)
 
-Items 1-3 from the author's "do 1 2 3":
-
-1. **Fresh-clone dry run of the quick replication suite** (item 1): clone of
-   `2171ce1` from GitHub at /tmp/citrees_fresh synced cleanly and got through
-   calibration and behavior before the restart killed it (performance stage was
-   running). Not yet a complete pass; rerun to completion from a fresh clone.
-   Note the local user must have R + partykit installed; rpy2 fell back to ABI
-   mode on this machine because the wheel was built for a different R.
-2. **Thread-count / n_jobs invariance fix** (item 2): DONE and pushed at
-   `6c20a2c`. Root cause: Numba auto-parallelized the observed-statistic
-   reductions in `parallel=True` kernels; fastmath summation order then depended
-   on the thread count and flipped exact ties across `>=`. Fix: serial helpers
-   shared by observed and permuted statistics. 700 library tests pass; 8 new
-   invariance tests. **Open question**: outputs shift by an ulp vs the old
-   kernels, so pinned manuscript numbers may move. A quick suite on `6c20a2c`
-   was started to diff against `replication-quick-c851a9f` and was killed by the
-   restart at the calibration stage. Rerun it and diff every artifact; if any
-   number in the JSS article moves, regenerate from the new code.
-3. **Max-type threshold test** (item 3): implemented as opt-in
-   `threshold_test="maxt"` (default stays `"bonferroni"`) across tree and forest
-   estimators, `ThresholdTest` enum exported, 4 kernels + 3 helpers in
-   `_splitter.py` with parity cases, 10 unit tests, 14 integration tests
-   (`tests/integration/test_threshold_test_option.py`). Full library suite run
-   after the restart: **733 passed** (the one failure was a hand-built parameter
-   fixture missing the new field; fixed 2026-09-09). Benchmark script
-   `scratch/bench_threshold_test.py` (null calibration, power, NHANES
-   speed/agreement at K=32 and 256) was killed mid-run; rerun it and report
-   before the author decides on the default. Early smoke on glass: maxt 0.8 s vs
-   bonferroni 7.6 s for one full tree, identical node count and accuracy.
+1. **Fresh-clone dry run: PASS.** A clone of `2171ce1` from GitHub,
+   `uv sync --group paper`, then the quick suite: all six analyses published and
+   receipt-verified with no manual step (R + partykit must already be on the
+   machine; NHANES data downloads itself). Clone deleted afterwards.
+2. **Thread-count / n_jobs invariance fix landed (`6c20a2c`), and it moves
+   results at the tie level.** Quick-suite diff, `c851a9f` (old kernels) vs
+   `0e3ab51` (new): rdc sensitivity identical except timings; calibration
+   differs in one cell (regression splitter, exhaustive, histogram16: 2 -> 3
+   rejections of 100); behavior differs only in the WDBC forest rows (Kendall
+   tau 0.398 -> 0.393, prediction score 0.941 -> 0.939, agreement 0.960 ->
+   0.961); NHANES quick ranks move by up to 5 in single folds and 0.67 in a mean
+   rank. Cause: the old observed statistic was reduced in auto-parallel fastmath
+   order and exact ties flipped; the new value is the serial one. **Consequence
+   for the paper:** the full-profile calibration, behavior and performance
+   numbers were produced by the distributed cloud campaigns on pre-fix code and
+   are pinned to their receipt SHAs; a reviewer running the current code will
+   reproduce them up to tie flips of this magnitude, not bit-for-bit. Author
+   decision needed: rerun those campaigns (cost) or state the pinned revision in
+   the availability section. The NHANES full profile is cheap and is being
+   regenerated on EC2 with the new code (see below).
+3. **Max-type threshold test**: implemented, benchmarked, recommendation in the
+   performance section notes above; default unchanged.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 

@@ -176,6 +176,31 @@ Still to do, in order:
 3. **Max-type threshold test**: implemented, benchmarked, recommendation in the
    performance section notes above; default unchanged.
 
+## Local knob study: threshold_test bonferroni vs maxt, mc/pc only (2026-09-09)
+
+`scratch/knob_calibration_study.py` ->
+`paper/results/tables/knob_calibration_study_local.csv`. Depth-1 tree, n=200,
+p=5 Gaussian predictors, alpha 0.05, 2,000 nulls and 500 power replicates per
+cell; K in {16, 64}; adaptive and exhaustive; no rdc, no EC2. Whole-node
+false-split rate (selector gate + split test) is conservative under both tests:
+Bonferroni 0.012-0.025, maxt 0.025-0.031, all CIs below 0.05. Power on a weak
+planted step: maxt +2 to +4 points for the classifier, -1 to -2 for the
+regressor, within the 2.2-point SE. Cost at K=64 exhaustive: 27 ms vs 3 ms per
+null fit, 310 ms vs 4 ms per power fit.
+
+**Finding that blocks any default change:** on the heavy-tailed facebook
+regression sample (n=1,500, 5 folds, one seed) exhaustive maxt gave held-out R^2
+of -0.69 and -0.87 versus +0.75 and +0.71 for Bonferroni, and adaptive maxt at
+K=64 gave 0.49 versus 0.87. Glass accuracy was fine (0.89-0.99 for maxt). Likely
+cause, flagged by the Codex review: maxt picks the threshold by minimum raw
+impurity, which on a heavy-tailed target favors splits that isolate a few
+extreme values, whereas the Bonferroni branch picks the threshold with the
+smallest p-value. The test is valid; the threshold _choice_ needs a standardized
+statistic (max-T on a scaled statistic, or choose the threshold by per-candidate
+p-value after the joint test). Investigate before maxt becomes a default
+anywhere. (The n_nodes column in the CSV is a dict-key count, not a node count;
+ignore it.)
+
 ## Max-type split test: two-model mathematical review (2026-09-09)
 
 Author asked for Codex (GPT-5.6, max reasoning) and Claude Opus to prove or

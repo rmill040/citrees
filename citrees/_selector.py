@@ -316,6 +316,61 @@ def _ptest_multi(
 
 
 # Parallel permutation test for multiple correlation (classifier)
+# Serial statistic helpers for the parallel kernels.
+#
+# Inside an ``@njit(parallel=True)`` function Numba auto-parallelizes top-level
+# array reductions such as ``x.mean()`` and ``np.sum(...)``, and under fastmath the
+# summation order then depends on the thread count. The permuted statistic inside
+# the ``prange`` body is reduced serially. Computing the observed value with the
+# same auto-parallel reductions therefore moved ``theta`` by an ulp relative to
+# ``theta_p`` and flipped exact ties across ``>=``, which made p-values, trees, and
+# forests depend on the Numba thread count (and so on ``n_jobs``). These helpers
+# are compiled without ``parallel=True`` and are used for both the observed and
+# the permuted statistic, so the two share bit-identical arithmetic.
+@njit(cache=True, fastmath=True, nogil=True)
+def _mc_moments(x: np.ndarray) -> tuple[float, float]:
+    """Serial mean and total sum of squares of ``x``."""
+    n = x.shape[0]
+    total = 0.0
+    for i in range(n):
+        total += x[i]
+    mu = total / n
+    sst = 0.0
+    for i in range(n):
+        d = x[i] - mu
+        sst += d * d
+    return mu, sst
+
+
+@njit(cache=True, fastmath=True, nogil=True)
+def _mc_between_sum(x: np.ndarray, y: np.ndarray, n_classes: int, mu: float) -> float:
+    """Serial between-class sum of squares of ``x`` grouped by ``y``."""
+    sums = np.zeros(n_classes)
+    counts = np.zeros(n_classes)
+    for i in range(x.shape[0]):
+        sums[y[i]] += x[i]
+        counts[y[i]] += 1.0
+    ssb = 0.0
+    for j in range(n_classes):
+        if counts[j] > 0:
+            d = sums[j] / counts[j] - mu
+            ssb += counts[j] * d * d
+    return ssb
+
+
+@njit(cache=True, fastmath=True, nogil=True)
+def _pc_cross_sums(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
+    """Serial ``sum(y)``, ``sum(y * y)``, and ``sum(x * y)``."""
+    sy = 0.0
+    sy2 = 0.0
+    sxy = 0.0
+    for i in range(x.shape[0]):
+        sy += y[i]
+        sy2 += y[i] * y[i]
+        sxy += x[i] * y[i]
+    return sy, sy2, sxy
+
+
 # Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
@@ -334,19 +389,11 @@ def _ptest_mc_parallel_result(
     tuple[float, int]
         P-value and realized number of permutations.
     """
-    # Compute observed statistic
-    mu = x.mean()
-    sst = np.sum((x - mu) ** 2)
+    # Compute observed statistic with the same serial arithmetic as the permutations
+    mu, sst = _mc_moments(x)
     if sst == 0:
         return 1.0, 0
-    ssb = 0.0
-    for j in range(n_classes):
-        x_j = x[y == j]
-        n_j = len(x_j)
-        if n_j > 0:
-            mu_j = x_j.mean()
-            ssb += n_j * (mu_j - mu) ** 2
-    theta = np.sqrt(ssb / sst)
+    theta = np.sqrt(_mc_between_sum(x, y, n_classes, mu) / sst)
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -355,14 +402,7 @@ def _ptest_mc_parallel_result(
         y_perm = y.copy()
         np.random.shuffle(y_perm)
 
-        ssb_perm = 0.0
-        for j in range(n_classes):
-            x_j = x[y_perm == j]
-            n_j = len(x_j)
-            if n_j > 0:
-                mu_j = x_j.mean()
-                ssb_perm += n_j * (mu_j - mu) ** 2
-        theta_p[i] = np.sqrt(ssb_perm / sst)
+        theta_p[i] = np.sqrt(_mc_between_sum(x, y_perm, n_classes, mu) / sst)
 
     # +1 correction (Phipson & Smyth 2010)
     p_value = (1 + np.sum(np.abs(theta_p) >= theta)) / (1 + n_resamples)
@@ -388,11 +428,9 @@ def _ptest_pc_parallel_result(
         P-value and realized number of permutations.
     """
     n = len(x)
-    sx = x.sum()
-    sx2 = np.sum(x * x)
-    sy = y.sum()
-    sy2 = np.sum(y * y)
-    sxy = np.sum(x * y)
+    # Serial sums so the observed and permuted statistics share identical arithmetic
+    sx, sx2, _ = _pc_cross_sums(x, x)
+    sy, sy2, sxy = _pc_cross_sums(x, y)
 
     cov = n * sxy - sx * sy
     ssx = n * sx2 - sx * sx
@@ -409,9 +447,7 @@ def _ptest_pc_parallel_result(
         y_perm = y.copy()
         np.random.shuffle(y_perm)
 
-        sy_perm = y_perm.sum()
-        sy2_perm = np.sum(y_perm * y_perm)
-        sxy_perm = np.sum(x * y_perm)
+        sy_perm, sy2_perm, sxy_perm = _pc_cross_sums(x, y_perm)
 
         cov_perm = n * sxy_perm - sx * sy_perm
         ssy_perm = n * sy2_perm - sy_perm * sy_perm
@@ -447,19 +483,11 @@ def _ptest_mc_parallel_batched_result(
     tuple[float, int]
         P-value and realized number of permutations.
     """
-    # Compute observed statistic
-    mu = x.mean()
-    sst = np.sum((x - mu) ** 2)
+    # Compute observed statistic with the same serial arithmetic as the permutations
+    mu, sst = _mc_moments(x)
     if sst == 0:
         return 1.0, 0
-    ssb = 0.0
-    for j in range(n_classes):
-        x_j = x[y == j]
-        n_j = len(x_j)
-        if n_j > 0:
-            mu_j = x_j.mean()
-            ssb += n_j * (mu_j - mu) ** 2
-    theta = np.sqrt(ssb / sst)
+    theta = np.sqrt(_mc_between_sum(x, y, n_classes, mu) / sst)
 
     min_resamples = int(np.ceil(1.0 / alpha))
     if n_resamples < min_resamples:
@@ -476,14 +504,7 @@ def _ptest_mc_parallel_batched_result(
             y_perm = y.copy()
             np.random.shuffle(y_perm)
 
-            ssb_perm = 0.0
-            for j in range(n_classes):
-                x_j = x[y_perm == j]
-                n_j = len(x_j)
-                if n_j > 0:
-                    mu_j = x_j.mean()
-                    ssb_perm += n_j * (mu_j - mu) ** 2
-            theta_p = np.sqrt(ssb_perm / sst)
+            theta_p = np.sqrt(_mc_between_sum(x, y_perm, n_classes, mu) / sst)
             if np.abs(theta_p) >= theta:
                 batch_extreme[i] = 1
 
@@ -524,11 +545,9 @@ def _ptest_pc_parallel_batched_result(
         P-value and realized number of permutations.
     """
     n = len(x)
-    sx = x.sum()
-    sx2 = np.sum(x * x)
-    sy = y.sum()
-    sy2 = np.sum(y * y)
-    sxy = np.sum(x * y)
+    # Serial sums so the observed and permuted statistics share identical arithmetic
+    sx, sx2, _ = _pc_cross_sums(x, x)
+    sy, sy2, sxy = _pc_cross_sums(x, y)
 
     cov = n * sxy - sx * sy
     ssx = n * sx2 - sx * sx
@@ -553,9 +572,7 @@ def _ptest_pc_parallel_batched_result(
             y_perm = y.copy()
             np.random.shuffle(y_perm)
 
-            sy_perm = y_perm.sum()
-            sy2_perm = np.sum(y_perm * y_perm)
-            sxy_perm = np.sum(x * y_perm)
+            sy_perm, sy2_perm, sxy_perm = _pc_cross_sums(x, y_perm)
 
             cov_perm = n * sxy_perm - sx * sy_perm
             ssy_perm = n * sy2_perm - sy_perm * sy_perm

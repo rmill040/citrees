@@ -152,6 +152,65 @@ def _ptest_result(
 
 
 # Parallel permutation test for Gini index (classifier)
+# Serial split-statistic helpers for the parallel kernels. See the note above the
+# selector helpers in ``_selector.py``: top-level array reductions inside an
+# ``@njit(parallel=True)`` function are auto-parallelized and their fastmath
+# summation order depends on the thread count, so the observed statistic must be
+# computed by the same serial code as the permuted statistics.
+@njit(cache=True, fastmath=True, nogil=True)
+def _gini_split_stat(
+    y_left: np.ndarray,
+    y_right: np.ndarray,
+    n_left: int,
+    n_right: int,
+    w_left: float,
+    w_right: float,
+) -> float:
+    p_left = np.bincount(y_left) / n_left
+    p_right = np.bincount(y_right) / n_right
+    return w_left * (1 - np.sum(p_left * p_left)) + w_right * (1 - np.sum(p_right * p_right))
+
+
+@njit(cache=True, fastmath=True, nogil=True)
+def _mse_split_stat(
+    y_left: np.ndarray, y_right: np.ndarray, w_left: float, w_right: float
+) -> float:
+    dev_left = y_left - y_left.mean()
+    dev_right = y_right - y_right.mean()
+    return w_left * np.mean(dev_left * dev_left) + w_right * np.mean(dev_right * dev_right)
+
+
+@njit(cache=True, fastmath=True, nogil=True)
+def _entropy_split_stat(
+    y_left: np.ndarray,
+    y_right: np.ndarray,
+    n_left: int,
+    n_right: int,
+    w_left: float,
+    w_right: float,
+) -> float:
+    p_left = np.bincount(y_left) / n_left
+    entropy_left = 0.0
+    for p in p_left:
+        if p > 0:
+            entropy_left -= p * np.log2(p)
+    p_right = np.bincount(y_right) / n_right
+    entropy_right = 0.0
+    for p in p_right:
+        if p > 0:
+            entropy_right -= p * np.log2(p)
+    return w_left * entropy_left + w_right * entropy_right
+
+
+@njit(cache=True, fastmath=True, nogil=True)
+def _mae_split_stat(
+    y_left: np.ndarray, y_right: np.ndarray, w_left: float, w_right: float
+) -> float:
+    dev_left = np.abs(y_left - np.median(y_left))
+    dev_right = np.abs(y_right - np.median(y_right))
+    return w_left * np.mean(dev_left) + w_right * np.mean(dev_right)
+
+
 # Note: Uses np.random.seed() because Numba's Generator support is not thread-safe.
 # Per-iteration seeding with (random_state + i) in prange is the recommended pattern
 # for reproducible parallel RNG in Numba. See: https://github.com/numba/numba/issues/7686
@@ -183,9 +242,7 @@ def _ptest_gini_parallel_result(
     w_left = n_left / n
     w_right = n_right / n
 
-    p_left = np.bincount(y_left) / n_left
-    p_right = np.bincount(y_right) / n_right
-    theta = w_left * (1 - np.sum(p_left * p_left)) + w_right * (1 - np.sum(p_right * p_right))
+    theta = _gini_split_stat(y_left, y_right, n_left, n_right, w_left, w_right)
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -197,11 +254,7 @@ def _ptest_gini_parallel_result(
         y_left_perm = y_perm[idx]
         y_right_perm = y_perm[~idx]
 
-        p_left_perm = np.bincount(y_left_perm) / n_left
-        p_right_perm = np.bincount(y_right_perm) / n_right
-        theta_p[i] = w_left * (1 - np.sum(p_left_perm * p_left_perm)) + w_right * (
-            1 - np.sum(p_right_perm * p_right_perm)
-        )
+        theta_p[i] = _gini_split_stat(y_left_perm, y_right_perm, n_left, n_right, w_left, w_right)
 
         # +1 correction (Phipson & Smyth 2010)
     p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
@@ -240,9 +293,7 @@ def _ptest_mse_parallel_result(
     w_right = n_right / n
 
     # Compute observed statistic
-    dev_left = y_left - y_left.mean()
-    dev_right = y_right - y_right.mean()
-    theta = w_left * np.mean(dev_left * dev_left) + w_right * np.mean(dev_right * dev_right)
+    theta = _mse_split_stat(y_left, y_right, w_left, w_right)
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -254,11 +305,7 @@ def _ptest_mse_parallel_result(
         y_left_perm = y_perm[idx]
         y_right_perm = y_perm[~idx]
 
-        dev_left_perm = y_left_perm - y_left_perm.mean()
-        dev_right_perm = y_right_perm - y_right_perm.mean()
-        theta_p[i] = w_left * np.mean(dev_left_perm * dev_left_perm) + w_right * np.mean(
-            dev_right_perm * dev_right_perm
-        )
+        theta_p[i] = _mse_split_stat(y_left_perm, y_right_perm, w_left, w_right)
 
         # +1 correction (Phipson & Smyth 2010)
     p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
@@ -297,21 +344,7 @@ def _ptest_entropy_parallel_result(
     w_left = n_left / n
     w_right = n_right / n
 
-    # Entropy left
-    p_left = np.bincount(y_left) / n_left
-    entropy_left = 0.0
-    for p in p_left:
-        if p > 0:
-            entropy_left -= p * np.log2(p)
-
-    # Entropy right
-    p_right = np.bincount(y_right) / n_right
-    entropy_right = 0.0
-    for p in p_right:
-        if p > 0:
-            entropy_right -= p * np.log2(p)
-
-    theta = w_left * entropy_left + w_right * entropy_right
+    theta = _entropy_split_stat(y_left, y_right, n_left, n_right, w_left, w_right)
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -323,21 +356,9 @@ def _ptest_entropy_parallel_result(
         y_left_perm = y_perm[idx]
         y_right_perm = y_perm[~idx]
 
-        # Entropy left perm
-        p_left_perm = np.bincount(y_left_perm) / n_left
-        entropy_left_perm = 0.0
-        for p in p_left_perm:
-            if p > 0:
-                entropy_left_perm -= p * np.log2(p)
-
-        # Entropy right perm
-        p_right_perm = np.bincount(y_right_perm) / n_right
-        entropy_right_perm = 0.0
-        for p in p_right_perm:
-            if p > 0:
-                entropy_right_perm -= p * np.log2(p)
-
-        theta_p[i] = w_left * entropy_left_perm + w_right * entropy_right_perm
+        theta_p[i] = _entropy_split_stat(
+            y_left_perm, y_right_perm, n_left, n_right, w_left, w_right
+        )
 
         # +1 correction (Phipson & Smyth 2010)
     p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
@@ -376,9 +397,7 @@ def _ptest_mae_parallel_result(
     w_right = n_right / n
 
     # Compute observed statistic
-    dev_left = np.abs(y_left - np.median(y_left))
-    dev_right = np.abs(y_right - np.median(y_right))
-    theta = w_left * np.mean(dev_left) + w_right * np.mean(dev_right)
+    theta = _mae_split_stat(y_left, y_right, w_left, w_right)
 
     # Parallel permutation
     theta_p = np.empty(n_resamples)
@@ -390,9 +409,7 @@ def _ptest_mae_parallel_result(
         y_left_perm = y_perm[idx]
         y_right_perm = y_perm[~idx]
 
-        dev_left_perm = np.abs(y_left_perm - np.median(y_left_perm))
-        dev_right_perm = np.abs(y_right_perm - np.median(y_right_perm))
-        theta_p[i] = w_left * np.mean(dev_left_perm) + w_right * np.mean(dev_right_perm)
+        theta_p[i] = _mae_split_stat(y_left_perm, y_right_perm, w_left, w_right)
 
     p_value = (1 + np.sum(theta_p <= theta)) / (1 + n_resamples)
     return p_value, n_resamples

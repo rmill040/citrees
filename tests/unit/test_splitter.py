@@ -744,6 +744,13 @@ class TestJitParity:
             (_X, _Y_REG, 0.0, 250, 1718),
         ),
         "_beta_cdf": (_splitter._beta_cdf, (0.3, 2.0, 5.0)),
+        "_gini_split_stat": (_splitter._gini_split_stat, (_Y_INT[:4], _Y_INT[4:], 4, 4, 0.5, 0.5)),
+        "_entropy_split_stat": (
+            _splitter._entropy_split_stat,
+            (_Y_INT[:4], _Y_INT[4:], 4, 4, 0.5, 0.5),
+        ),
+        "_mse_split_stat": (_splitter._mse_split_stat, (_Y_FLOAT[:3], _Y_FLOAT[3:], 0.5, 0.5)),
+        "_mae_split_stat": (_splitter._mae_split_stat, (_Y_FLOAT[:3], _Y_FLOAT[3:], 0.5, 0.5)),
     }
 
     @pytest.mark.parametrize("name", sorted(KERNELS))

@@ -1528,6 +1528,9 @@ class TestJitParity:
             (_Y_CLF, 1, _RDC_K, _W0, _W1, np.empty((120, 2 * _RDC_K))),
         ),
         "_beta_cdf": (_selector._beta_cdf, (0.3, 2.0, 5.0)),
+        "_mc_moments": (_selector._mc_moments, (_X,)),
+        "_mc_between_sum": (_selector._mc_between_sum, (_X, _Y_CLF, 2, float(_X.mean()))),
+        "_pc_cross_sums": (_selector._pc_cross_sums, (_X, _Y_REG)),
         "_ptest_mc_parallel_result": (
             _selector._ptest_mc_parallel_result,
             (_X, _Y_CLF, 2, 250, 1718),

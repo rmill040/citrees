@@ -799,9 +799,11 @@ def ptest_mae(
 # is computed at every candidate, giving a (B + 1) x K matrix. Each column is
 # standardized by the mean and standard deviation of its B + 1 entries, and the
 # test statistic of a row is the minimum standardized impurity across candidates
-# (the max-T construction of Westfall and Young, 1993; the same standardization
-# that conditional inference trees apply to their split statistics, Hothorn,
-# Hornik and Zeileis, 2006, Section 3). Standardizing puts noisy candidates,
+# (a single-step max-T style statistic in the sense of Westfall and Young, 1993,
+# with candidate moments estimated from the resampled rows; the same
+# standardize-then-optimize shape that conditional inference trees use for
+# their split statistics, Hothorn, Hornik and Zeileis, 2006, Section 3, which
+# standardize a linear statistic by its exact conditional moments). Standardizing puts noisy candidates,
 # such as thresholds that isolate a few extreme observations, on the same scale
 # as the others, so the minimum is not dominated by whichever candidate has the
 # widest null distribution.
@@ -889,9 +891,14 @@ def _reg_split_stats(
 
 @njit(cache=True, fastmath=True, nogil=True)
 def _standardized_min_test(
-    observed: np.ndarray, permuted: np.ndarray, m: int
+    observed: np.ndarray, permuted: np.ndarray, m: int, valid: np.ndarray
 ) -> tuple[float, int, int]:
     """Standardized max-type test from the observed row and the first ``m`` permuted rows.
+
+    ``valid[j]`` marks candidates with both sides non-empty; it depends on the
+    feature and thresholds only, never on the labels, so it is identical for
+    every row and excluding those columns preserves the row symmetry the
+    validity argument needs.
 
     Returns the p-value, the number of permuted rows at least as extreme as the
     observed row, and the index of the candidate with the smallest observed
@@ -903,7 +910,7 @@ def _standardized_min_test(
     scale = np.empty(k)
     usable = np.zeros(k, dtype=np.bool_)
     for j in range(k):
-        if not np.isfinite(observed[j]):
+        if not valid[j]:
             continue
         total = observed[j]
         for b in range(m):
@@ -954,13 +961,14 @@ def _ptest_maxt_clf_parallel_result(
     k = masks.shape[0]
     observed = np.empty(k)
     _clf_split_stats(y, masks, n_left, metric, observed)
+    valid = (n_left > 0) & (n_left < y.shape[0])
     permuted = np.empty((n_resamples, k))
     for i in prange(n_resamples):
         np.random.seed(random_state + i)
         y_perm = y.copy()
         np.random.shuffle(y_perm)
         _clf_split_stats(y_perm, masks, n_left, metric, permuted[i])
-    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples, valid)
     if best_j < 0:
         return 1.0, 0, -1
     return p_value, n_resamples, best_j
@@ -979,13 +987,14 @@ def _ptest_maxt_reg_parallel_result(
     k = masks.shape[0]
     observed = np.empty(k)
     _reg_split_stats(y, masks, n_left, metric, observed)
+    valid = (n_left > 0) & (n_left < y.shape[0])
     permuted = np.empty((n_resamples, k))
     for i in prange(n_resamples):
         np.random.seed(random_state + i)
         y_perm = y.copy()
         np.random.shuffle(y_perm)
         _reg_split_stats(y_perm, masks, n_left, metric, permuted[i])
-    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples, valid)
     if best_j < 0:
         return 1.0, 0, -1
     return p_value, n_resamples, best_j
@@ -1012,6 +1021,7 @@ def _ptest_maxt_clf_parallel_batched_result(
     k = masks.shape[0]
     observed = np.empty(k)
     _clf_split_stats(y, masks, n_left, metric, observed)
+    valid = (n_left > 0) & (n_left < y.shape[0])
     min_resamples = int(np.ceil(1.0 / alpha))
     if n_resamples < min_resamples:
         n_resamples = min_resamples
@@ -1026,13 +1036,13 @@ def _ptest_maxt_clf_parallel_batched_result(
             _clf_split_stats(y_perm, masks, n_left, metric, permuted[m + i])
         m += batch_size
         if m >= min_resamples:
-            p_value, extreme, best_j = _standardized_min_test(observed, permuted, m)
+            p_value, extreme, best_j = _standardized_min_test(observed, permuted, m, valid)
             if best_j < 0:
                 return 1.0, 0, -1
             prob_sig = _beta_cdf(alpha, 1.0 + extreme, 1.0 + m - extreme)
             if prob_sig >= confidence or (1.0 - prob_sig) >= confidence:
                 return p_value, m, best_j
-    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples, valid)
     if best_j < 0:
         return 1.0, 0, -1
     return p_value, n_resamples, best_j
@@ -1053,6 +1063,7 @@ def _ptest_maxt_reg_parallel_batched_result(
     k = masks.shape[0]
     observed = np.empty(k)
     _reg_split_stats(y, masks, n_left, metric, observed)
+    valid = (n_left > 0) & (n_left < y.shape[0])
     min_resamples = int(np.ceil(1.0 / alpha))
     if n_resamples < min_resamples:
         n_resamples = min_resamples
@@ -1067,13 +1078,13 @@ def _ptest_maxt_reg_parallel_batched_result(
             _reg_split_stats(y_perm, masks, n_left, metric, permuted[m + i])
         m += batch_size
         if m >= min_resamples:
-            p_value, extreme, best_j = _standardized_min_test(observed, permuted, m)
+            p_value, extreme, best_j = _standardized_min_test(observed, permuted, m, valid)
             if best_j < 0:
                 return 1.0, 0, -1
             prob_sig = _beta_cdf(alpha, 1.0 + extreme, 1.0 + m - extreme)
             if prob_sig >= confidence or (1.0 - prob_sig) >= confidence:
                 return p_value, m, best_j
-    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples)
+    p_value, _, best_j = _standardized_min_test(observed, permuted, n_resamples, valid)
     if best_j < 0:
         return 1.0, 0, -1
     return p_value, n_resamples, best_j

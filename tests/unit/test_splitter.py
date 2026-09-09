@@ -758,7 +758,10 @@ class TestJitParity:
         "_split_masks": (_splitter._split_masks, (_X, np.array([-0.5, 0.0, 0.5]))),
         "_clf_split_stats": (_splitter._clf_split_stats, (_Y_CLF, _MASKS, _N_LEFT, 0, np.empty(3))),
         "_reg_split_stats": (_splitter._reg_split_stats, (_Y_REG, _MASKS, _N_LEFT, 0, np.empty(3))),
-        "_standardized_min_test": (_splitter._standardized_min_test, (_OBS, _PERM, 40)),
+        "_standardized_min_test": (
+            _splitter._standardized_min_test,
+            (_OBS, _PERM, 40, np.array([True, True, True])),
+        ),
         "_ptest_maxt_clf_parallel_result": (
             _splitter._ptest_maxt_clf_parallel_result,
             (_Y_CLF, _MASKS, _N_LEFT, 0, 250, 1718),

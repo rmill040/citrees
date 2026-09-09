@@ -54,6 +54,8 @@ from citrees._utils import (
 )
 
 MAX_FEASIBLE_N_RESAMPLES = 1_000_000_000
+# Monte Carlo budget for the exhaustive max-type split test under a named resample rule.
+MAXT_DEFAULT_RESAMPLES = 999
 
 
 def _auto_n_resamples(alpha: float) -> int:
@@ -824,12 +826,23 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             # over thresholds (level alpha under the global null at this node),
             # so alpha and the budget are not divided by K.
             self._bonferroni_correction(adjust="splitter", n_tests=1)
+            # Under a named resample rule the Bonferroni branch scales its budget
+            # with K to resolve alpha / K. The max-type test only has to resolve
+            # alpha, but a larger budget sharpens the ranking of candidates and
+            # the p-value, so it uses the Monte Carlo budget partykit uses (999)
+            # unless the caller gave an explicit integer. Cost is 999 * K impurity
+            # evaluations against about K**2 / alpha for the Bonferroni branch.
+            n_resamples = (
+                self._n_resamples_splitter
+                if isinstance(self.n_resamples_splitter, int)
+                else max(self._n_resamples_splitter, MAXT_DEFAULT_RESAMPLES)
+            )
             best_pval, best_threshold = ptest_maxt(
                 x=x,
                 y=y,
                 thresholds=np.asarray(thresholds),
                 splitter=self.splitter,
-                n_resamples=self._n_resamples_splitter,
+                n_resamples=n_resamples,
                 early_stopping=self._early_stopping_splitter,
                 alpha=self._alpha_splitter,
                 random_state=self._random_state,

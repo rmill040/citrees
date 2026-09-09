@@ -34,23 +34,22 @@ affiliation is Amazon Web Services.
 | Split-variable bias     | Measure selection frequency when noise variables differ only in cardinality                    | `citrees`, `partykit::ctree`, CART                              |
 | Reference behavior      | Compare split decisions, conditional root agreement, native feature summaries, and predictions | `citrees`, `partykit::ctree`, `partykit::cforest`               |
 | Scaling                 | Measure runtime and peak memory across controlled problem dimensions                           | `citrees`, `partykit`, scikit-learn                             |
-| TCGA-BRCA application   | Demonstrate leakage-safe screening, held-out prediction, and selection stability               | Tree, forest, linear, and marginal baselines                    |
+| NHANES application      | Show variable-ranking behavior under mixed predictor cardinality with shuffled noise controls  | citrees forest, partykit::cforest, scikit-learn random forest   |
 | Tutorial                | Demonstrate the estimator interface in an executable workflow                                  | Breast Cancer Wisconsin Diagnostic data                         |
 | RDC sensitivity         | Measure the accuracy, ranking stability, and runtime effect of random projection count         | 5, 10, 20, and 40 projections on four small datasets            |
 | Broad benchmark context | Summarize the corrected benchmark without duplicating it                                       | Final arXiv v2 artifacts                                        |
 
-The primary biomedical application is public TCGA-BRCA breast tumour gene
-expression, with predictors and outcomes drawn from independent assays: the
-predictors are protein-coding transcript abundances, and the outcomes are
-receptor statuses determined by immunohistochemistry and FISH. Tumour samples
-are the independent units. The design is frozen in
-`replication/tcga_brca-specification.json`: oestrogen-receptor status is the
-single primary outcome, progesterone-receptor and HER2 status are secondary
-under a Holm adjustment, and every outcome-dependent step -- standardization,
-the candidate screen, and model fitting -- stays inside the training fold. PAM50
-subtype was considered and rejected because it is called from the same RNA-seq
-that supplies the predictors. The Breast Cancer Wisconsin Diagnostic data
-provide the executable end-to-end tutorial.
+The primary biomedical application is the public NHANES 2021-2023 survey. The
+outcome is diabetes, defined from glycohemoglobin and self-reported diagnosis,
+and the 27 predictors are demographics, examination measurements, laboratory
+values, and questionnaire items whose number of distinct values runs from 2 to
+roughly the sample size. Three shuffled copies of real columns are noise by
+construction at binary, medium, and high cardinality. The design is frozen in
+`replication/nhanes_diabetes-specification.json`: the primary hypothesis is that
+impurity-based random-forest importance ranks the high-cardinality noise column
+as more important than citrees does, with the partykit reference fitted on
+identical input. The Breast Cancer Wisconsin Diagnostic data provide the
+executable end-to-end tutorial.
 
 ## Claim Boundaries
 
@@ -59,10 +58,11 @@ provide the executable end-to-end tutorial.
 - Reference comparisons quantify split decisions, conditional root agreement,
   native feature-summary concordance, and held-out prediction behavior under
   identical folds and aligned structural controls.
-- TCGA-BRCA results are a predictive screening and stability analysis, not a
-  claim about clinical utility or about causal transcriptional mechanism.
-- Tumour samples are the independent units, and repeated stratified
-  cross-validation quantifies uncertainty over these samples.
+- NHANES results describe variable-ranking behavior under mixed predictor
+  cardinality; they are not a clinical prediction model or an aetiological
+  claim.
+- Survey participants are the independent units, and repeated stratified
+  cross-validation quantifies uncertainty over these participants.
 - Benchmark context comes only from final corrected arXiv v2 artifacts.
 
 ## Replication Setup
@@ -111,7 +111,7 @@ uv run python -m paper.jss.replication --profile full \
 ```
 
 The command dispatches calibration, matched behavior, controlled performance,
-tutorial, TCGA-BRCA application, and RDC projection-sensitivity analyses. It
+tutorial, NHANES application, and RDC projection-sensitivity analyses. It
 verifies each child receipt and artifact hash before atomically publishing the
 combined output directory. Use `--output-dir` for a new destination; an existing
 destination is rejected to prevent results from different executions from being
@@ -125,14 +125,13 @@ uv run python -m paper.jss.replication.rdc_sensitivity --profile smoke \
   --output-dir paper/jss/results/rdc-sensitivity-smoke
 ```
 
-The TCGA-BRCA inputs are derived once from four pinned public sources, and
-`paper/jss/data/tcga_brca/manifest.json` records every source URL, its sha256,
-the unsupervised filter chain, and the digests of the three derived files. Use
-`--tcga-data-dir` to read them from another location:
+The NHANES inputs are 15 public SAS transport files (14 MB) downloaded from the
+CDC on first use and verified against the digests pinned in the specification.
+Use `--nhanes-data-dir` to keep them in another location:
 
 ```bash
 uv run python -m paper.jss.replication --profile quick \
-  --tcga-data-dir /path/to/tcga_brca \
+  --nhanes-data-dir /path/to/nhanes_2021_2023 \
   --output-dir paper/jss/results/replication-quick
 ```
 

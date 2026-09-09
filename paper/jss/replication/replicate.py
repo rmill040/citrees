@@ -25,7 +25,7 @@ Profile = Literal["smoke", "quick", "full"]
 BASE_SEED = 1718
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "results"
-DEFAULT_TCGA_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "tcga_brca"
+DEFAULT_NHANES_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "nhanes_2021_2023"
 DISTRIBUTED_ANALYSES = frozenset({"calibration", "behavior", "performance"})
 
 
@@ -76,9 +76,9 @@ ANALYSES = (
         profiled=True,
     ),
     AnalysisSpec(
-        name="tcga_brca",
-        module="paper.jss.replication.tcga_brca",
-        expected_analysis="tcga_brca",
+        name="nhanes_diabetes",
+        module="paper.jss.replication.nhanes_diabetes",
+        expected_analysis="nhanes_diabetes",
         profiled=True,
     ),
     AnalysisSpec(
@@ -130,7 +130,7 @@ def _analysis_command(
     profile: Profile,
     output_dir: Path,
     base_seed: int,
-    tcga_data_dir: Path,
+    nhanes_data_dir: Path,
     shard_root: Path | None,
 ) -> tuple[str, ...]:
     if shard_root is not None and spec.name in DISTRIBUTED_ANALYSES:
@@ -157,8 +157,8 @@ def _analysis_command(
     ]
     if spec.profiled:
         command.extend(("--profile", profile, "--seed", str(base_seed)))
-    if spec.name == "tcga_brca":
-        command.extend(("--data-dir", str(tcga_data_dir)))
+    if spec.name == "nhanes_diabetes":
+        command.extend(("--data-dir", str(nhanes_data_dir)))
     return tuple(command)
 
 
@@ -167,7 +167,7 @@ def _run_analysis(
     profile: Profile,
     output_dir: Path,
     base_seed: int,
-    tcga_data_dir: Path,
+    nhanes_data_dir: Path,
     shard_root: Path | None,
 ) -> AnalysisExecution:
     command = _analysis_command(
@@ -175,7 +175,7 @@ def _run_analysis(
         profile,
         output_dir,
         base_seed,
-        tcga_data_dir,
+        nhanes_data_dir,
         shard_root,
     )
     started = time.perf_counter()
@@ -345,7 +345,7 @@ def run_replication(
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     *,
     base_seed: int = BASE_SEED,
-    tcga_data_dir: Path = DEFAULT_TCGA_DATA_DIR,
+    nhanes_data_dir: Path = DEFAULT_NHANES_DATA_DIR,
     shard_root: Path | None = None,
     runner: AnalysisRunner = _run_analysis,
 ) -> Path:
@@ -415,7 +415,7 @@ def run_replication(
                 profile,
                 child_dir,
                 base_seed,
-                tcga_data_dir,
+                nhanes_data_dir,
                 shard_root,
             )
             transcript_sections.append(_transcript_section(index, len(ANALYSES), spec, execution))
@@ -523,10 +523,10 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=BASE_SEED, help="Base random seed.")
     parser.add_argument(
-        "--tcga-data-dir",
+        "--nhanes-data-dir",
         type=Path,
-        default=DEFAULT_TCGA_DATA_DIR,
-        help="Directory containing the pinned TCGA-BRCA derived files.",
+        default=DEFAULT_NHANES_DATA_DIR,
+        help="Directory containing or receiving the pinned NHANES source files.",
     )
     parser.add_argument(
         "--shard-root",
@@ -545,7 +545,7 @@ def main() -> None:
         args.profile,
         args.output_dir,
         base_seed=args.seed,
-        tcga_data_dir=args.tcga_data_dir,
+        nhanes_data_dir=args.nhanes_data_dir,
         shard_root=args.shard_root,
     )
     print(f"Wrote verified JSS replication outputs to {output_dir}.")

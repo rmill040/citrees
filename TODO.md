@@ -66,50 +66,39 @@ child of a receipt-verified whole-suite run and removing one child would
 invalidate that tree's receipt for no meaningful space. It goes stale on its own
 once the suite drops from six analyses to five.
 
-**Replacement dataset acquired (2026-09-07):** TCGA-BRCA expression at
-`paper/jss/data/tcga_brca/` (105 MB, gitignored), with `manifest.json` pinning
-all four source URLs by sha256, the filter chain, and the derived-file hashes.
-1,106 primary tumours x 17,345 protein-coding genes -- under dexter's 20,000,
-the paper's existing maximum. Outcomes are IHC/FISH receptor status, measured
-independently of the RNA-seq: ER n=787 (606/181, 23.0% minority), PR n=784
-(527/257, 32.8%), HER2 n=773 (114/659, 14.7%). Positive control passes: ESR1
-ranks first for ER (r=+0.81), PGR is top-5 for PR, and HER2 returns ERBB2 plus
-the whole 17q12 amplicon (STARD3, MIEN1, GRB7, PGAP3). **PAM50 subtype was
-considered and rejected as circular** -- it is called from the same RNA-seq --
-and its Normal class has only 23 members. Awaiting the author's sign-off on
-ER-primary with PR/HER2 secondary and on the feature scale before the
-preregistration is frozen.
+**TCGA-BRCA tried and dropped (2026-09-07/08):** a preregistered receptor-status
+analysis ran quick and showed a predictive null (cif, RF and a marginal screen
+all at held-out log loss 0.175-0.181) with cif 40x slower than RF;
+all-continuous expression is the one setting where RF importance is not biased,
+so it cannot show what the library is for. The author killed the full run. Code,
+spec, tests and 105 MB of data removed. Also tried and rejected: UCI Adult
+(1994, stale) and ACS PUMS (census microdata, not a biomedical audience).
 
-**Replacement landed (2026-09-07):** the preregistration is frozen at
-`paper/jss/replication/tcga_brca-specification.json` and implemented in
-`paper/jss/replication/tcga_brca.py`, registered in `replicate.py` in the dgrp
-slot (the suite stays at six analyses). `dgrp.py`, `dgrp-specification.json` and
-`tests/paper/test_jss_dgrp.py` are deleted; `--dgrp-data-dir` is now
-`--tcga-data-dir`. 33 new tests in `tests/paper/test_jss_tcga_brca.py`; whole
-paper suite 1,128 passed.
+**Replacement landed (2026-09-08): NHANES 2021-2023 diabetes.** n=3,597 adults,
+27 mixed-cardinality predictors (2 to ~n distinct values) plus three shuffled
+noise controls; RF vs citrees CIF vs partykit::cforest on identical numeric
+input. Preregistration
+`paper/jss/replication/nhanes_diabetes-specification.json`, module
+`nhanes_diabetes.py`, 25 tests. Quick profile (exploratory): RF ranks the
+shuffled survey weight 12.3 of 30, citrees 21.0, cforest 22.4; all three
+preregistered hypotheses in the predicted direction; positive controls pass.
+Design lesson recorded in the spec: the first cohort count (2,975) was wrong
+because 7/9 were recoded as missing in columns where they are valid answers;
+fixed from the codebooks and re-pinned to 3,597 before any fold ran.
 
 Still to do, in order:
 
-- [x] Choose the replacement dataset: TCGA-BRCA expression, openly downloadable
-      with no credentialed access or data-use agreement, so a JSS reviewer can
-      run the suite.
-- [x] Retire `paper/jss/replication/dgrp.py` and its registration in
-      `replicate.py`.
+- [x] Choose the replacement dataset.
+- [x] Retire dgrp.py, then tcga_brca.py, and their registrations.
+- [ ] Run the full NHANES profile (5x10 folds, 100 trees; ~30 min locally).
 - [ ] Remove the DGRP material from `paper/jss/article.tex` (deferred by the
-      author): `\subsection{DGRP cardiac application}` (lines ~774-850) and
-      `\section{DGRP application results}` (lines ~860-915), roughly 133 of 985
-      lines, plus its tables and the DGRP sentences in the discussion,
-      limitations (n disclosure ~line 943) and data-availability sections (9
-      `DGRP` mentions total).
-- [ ] Write the replacement application and results sections from the full-run
-      artifacts. **The quick profile already shows the primary contrast is a
-      null**: cif minus marginal held-out log loss at k=10 is +0.005 (ER),
-      -0.001 (PR), -0.006 (HER2), none significant. Write it as a null; do not
-      shop for a k or a metric that favors cif. The interesting positive finding
-      is stability and the positive control, where L2 logistic loses ERBB2 from
-      the HER2 top ten in 7 of 9 folds (coefficient mass spreads over the
-      co-expressed 17q12 amplicon) while cit/cif and the marginal screen keep it
-      in all 9.
+      author): `\subsection{DGRP cardiac application}` (~774-850) and
+      `\section{DGRP application results}` (~860-915), plus discussion,
+      limitations and data-availability mentions (9 `DGRP` total).
+- [ ] Write the NHANES application and results sections from the full-run
+      artifacts. Headline is ranking under cardinality, with the shuffled
+      controls table; prediction is descriptive only; runtime reported honestly
+      (RF 0.1 s, CIF and cforest ~20 s per fold at this size).
 - [ ] Re-run the full replication suite and redo the factual review.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)

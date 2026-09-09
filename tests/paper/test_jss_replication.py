@@ -26,11 +26,11 @@ def _fake_runner(
     profile: replicate.Profile,
     output_dir: Path,
     base_seed: int,
-    tcga_data_dir: Path,
+    nhanes_data_dir: Path,
     shard_root: Path | None,
 ) -> AnalysisExecution:
     assert base_seed == 7
-    assert tcga_data_dir.name == "tcga-data"
+    assert nhanes_data_dir.name == "nhanes-data"
     del shard_root
     output_dir.mkdir(parents=True)
     artifact = output_dir / f"{spec.name}.txt"
@@ -81,7 +81,7 @@ def test_analysis_inventory_covers_every_implemented_replication_module() -> Non
         "behavior",
         "performance",
         "tutorial",
-        "tcga_brca",
+        "nhanes_diabetes",
         "rdc_sensitivity",
     ]
     assert [spec.expected_analysis for spec in ANALYSES] == [
@@ -89,13 +89,13 @@ def test_analysis_inventory_covers_every_implemented_replication_module() -> Non
         "behavior",
         "performance",
         "tutorial",
-        "tcga_brca",
+        "nhanes_diabetes",
         "rdc_sensitivity",
     ]
     assert all(spec.profiled for spec in ANALYSES)
 
 
-def test_child_commands_forward_profile_seed_output_and_tcga_data(
+def test_child_commands_forward_profile_seed_output_and_nhanes_data(
     tmp_path: Path,
 ) -> None:
     profiled = _analysis_command(
@@ -103,7 +103,7 @@ def test_child_commands_forward_profile_seed_output_and_tcga_data(
         "quick",
         tmp_path / "calibration",
         7,
-        tmp_path / "tcga-data",
+        tmp_path / "nhanes-data",
         None,
     )
     assert profiled[:3] == (
@@ -113,21 +113,21 @@ def test_child_commands_forward_profile_seed_output_and_tcga_data(
     )
     assert profiled[-4:] == ("--profile", "quick", "--seed", "7")
 
-    tcga_spec = next(spec for spec in ANALYSES if spec.name == "tcga_brca")
-    tcga = _analysis_command(
-        tcga_spec,
+    nhanes_spec = next(spec for spec in ANALYSES if spec.name == "nhanes_diabetes")
+    nhanes = _analysis_command(
+        nhanes_spec,
         "quick",
-        tmp_path / "tcga_brca",
+        tmp_path / "nhanes_diabetes",
         7,
-        tmp_path / "tcga-data",
+        tmp_path / "nhanes-data",
         None,
     )
-    assert tcga[tcga.index("--profile") : tcga.index("--profile") + 2] == (
+    assert nhanes[nhanes.index("--profile") : nhanes.index("--profile") + 2] == (
         "--profile",
         "quick",
     )
-    assert tcga[tcga.index("--seed") : tcga.index("--seed") + 2] == ("--seed", "7")
-    assert tcga[-2:] == ("--data-dir", str(tmp_path / "tcga-data"))
+    assert nhanes[nhanes.index("--seed") : nhanes.index("--seed") + 2] == ("--seed", "7")
+    assert nhanes[-2:] == ("--data-dir", str(tmp_path / "nhanes-data"))
 
     rdc_spec = next(spec for spec in ANALYSES if spec.name == "rdc_sensitivity")
     rdc = _analysis_command(
@@ -135,7 +135,7 @@ def test_child_commands_forward_profile_seed_output_and_tcga_data(
         "quick",
         tmp_path / "rdc-sensitivity",
         7,
-        tmp_path / "tcga-data",
+        tmp_path / "nhanes-data",
         None,
     )
     assert rdc[:3] == (
@@ -156,7 +156,7 @@ def test_distributed_commands_merge_all_sharded_analyses(
         "full",
         tmp_path / "calibration",
         7,
-        tmp_path / "tcga-data",
+        tmp_path / "nhanes-data",
         shard_root,
     )
     behavior = _analysis_command(
@@ -164,7 +164,7 @@ def test_distributed_commands_merge_all_sharded_analyses(
         "full",
         tmp_path / "behavior",
         7,
-        tmp_path / "tcga-data",
+        tmp_path / "nhanes-data",
         shard_root,
     )
     performance = _analysis_command(
@@ -172,7 +172,7 @@ def test_distributed_commands_merge_all_sharded_analyses(
         "full",
         tmp_path / "performance",
         7,
-        tmp_path / "tcga-data",
+        tmp_path / "nhanes-data",
         shard_root,
     )
 
@@ -203,13 +203,13 @@ def test_replication_atomically_publishes_receipts_hashes_and_transcript(
     tmp_path: Path,
 ) -> None:
     output_dir = tmp_path / "replication-output"
-    tcga_data_dir = tmp_path / "tcga-data"
-    tcga_data_dir.mkdir()
+    nhanes_data_dir = tmp_path / "nhanes-data"
+    nhanes_data_dir.mkdir()
     observed = run_replication(
         "smoke",
         output_dir,
         base_seed=7,
-        tcga_data_dir=tcga_data_dir,
+        nhanes_data_dir=nhanes_data_dir,
         runner=_fake_runner,
     )
 
@@ -246,8 +246,8 @@ def test_replication_records_distributed_dispatch(
     tmp_path: Path,
 ) -> None:
     output_dir = tmp_path / "replication-output"
-    tcga_data_dir = tmp_path / "tcga-data"
-    tcga_data_dir.mkdir()
+    nhanes_data_dir = tmp_path / "nhanes-data"
+    nhanes_data_dir.mkdir()
     shard_root = tmp_path / "shards"
     (shard_root / "calibration").mkdir(parents=True)
     (shard_root / "behavior").mkdir()
@@ -276,7 +276,7 @@ def test_replication_records_distributed_dispatch(
         "smoke",
         output_dir,
         base_seed=7,
-        tcga_data_dir=tcga_data_dir,
+        nhanes_data_dir=nhanes_data_dir,
         shard_root=shard_root,
         runner=distributed_runner,
     )
@@ -295,8 +295,8 @@ def test_distributed_replication_binds_cloud_accounting(
     tmp_path: Path,
 ) -> None:
     output_dir = tmp_path / "replication-output"
-    tcga_data_dir = tmp_path / "tcga-data"
-    tcga_data_dir.mkdir()
+    nhanes_data_dir = tmp_path / "nhanes-data"
+    nhanes_data_dir.mkdir()
     shard_root = tmp_path / "shards"
     (shard_root / "calibration").mkdir(parents=True)
     (shard_root / "behavior").mkdir()
@@ -323,7 +323,7 @@ def test_distributed_replication_binds_cloud_accounting(
         "smoke",
         output_dir,
         base_seed=7,
-        tcga_data_dir=tcga_data_dir,
+        nhanes_data_dir=nhanes_data_dir,
         shard_root=shard_root,
         runner=_fake_runner,
     )
@@ -362,15 +362,15 @@ def test_replication_rejects_existing_output(tmp_path: Path) -> None:
             "smoke",
             output_dir,
             base_seed=7,
-            tcga_data_dir=tmp_path / "tcga-data",
+            nhanes_data_dir=tmp_path / "nhanes-data",
             runner=_fake_runner,
         )
 
 
 def test_failed_child_is_not_published(tmp_path: Path) -> None:
     output_dir = tmp_path / "failed-output"
-    tcga_data_dir = tmp_path / "tcga-data"
-    tcga_data_dir.mkdir()
+    nhanes_data_dir = tmp_path / "nhanes-data"
+    nhanes_data_dir.mkdir()
 
     def fail_runner(
         spec: AnalysisSpec,
@@ -403,7 +403,7 @@ def test_failed_child_is_not_published(tmp_path: Path) -> None:
             "smoke",
             output_dir,
             base_seed=7,
-            tcga_data_dir=tcga_data_dir,
+            nhanes_data_dir=nhanes_data_dir,
             runner=fail_runner,
         )
     assert not output_dir.exists()
@@ -412,7 +412,7 @@ def test_failed_child_is_not_published(tmp_path: Path) -> None:
 def test_child_receipt_validation_rejects_artifact_corruption(tmp_path: Path) -> None:
     spec = ANALYSES[0]
     output_dir = tmp_path / spec.name
-    data_dir = tmp_path / "tcga-data"
+    data_dir = tmp_path / "nhanes-data"
     data_dir.mkdir()
     _fake_runner(spec, "smoke", output_dir, 7, data_dir, None)
     artifact = output_dir / f"{spec.name}.txt"
@@ -432,7 +432,7 @@ def test_child_receipt_validation_rejects_source_or_revision_mismatch(
     tmp_path: Path,
 ) -> None:
     spec = ANALYSES[0]
-    data_dir = tmp_path / "tcga-data"
+    data_dir = tmp_path / "nhanes-data"
     data_dir.mkdir()
 
     wrong_source_dir = tmp_path / "wrong-source"

@@ -1,0 +1,194 @@
+{
+  "claims_scope": "variable-ranking behavior under mixed predictor cardinality; not clinical prediction or aetiology",
+  "dataset": {
+    "cohort": "NHANES August 2021 - August 2023 (cycle L), adults aged 20 and older with a glycohemoglobin measurement",
+    "source": "CDC National Center for Health Statistics public-use SAS transport files",
+    "url_template": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/{file}.xpt",
+    "source_sha256": {
+      "ALQ_L.xpt": "24debf0555c8253e34cce8d6a2e21766c84b10559e0c979c1a36fb4dd86789d9",
+      "BIOPRO_L.xpt": "912b345aad6b71d53a3bc299a7f3bb0d5530e9fa5b6e76d2d00103979861a476",
+      "BMX_L.xpt": "44440c416d9ad709e8b1708a5975378ab4d5b18edc39eb5015c2ae7186500170",
+      "BPQ_L.xpt": "0acde3af0526c375942fe0735e3bf69a0422bcbc606f98a478209d2f47baa4b5",
+      "BPXO_L.xpt": "189aa9bed689d2c69cf8d780b01de85073276fea5694dd52cdf696229f9054a6",
+      "DEMO_L.xpt": "ca4374a158b493b8b0163e1388da21d57a18d1b9cecff2aa4e2fa2bec494fe23",
+      "DIQ_L.xpt": "9535a023673ae869afae19d842d8679e06f6a464606ac15900686b41ef05090f",
+      "GHB_L.xpt": "67aee0353160e2392dc0a33bece99b90764a630c76d82415ac4639105ad9dd03",
+      "HDL_L.xpt": "c1bb43df5ca366f470b411c043f4aee7ae6552a7f4bca1178bc87b24fb9a7300",
+      "HIQ_L.xpt": "dc380a8c8f36b3261998fa6df44267978818912bfd9518e9426156de9ee0d59f",
+      "MCQ_L.xpt": "0889bb3eaa5adedf1a11c4af2d4776fc4c4c3cfdeea24fcedb77c4636b478f61",
+      "PAQ_L.xpt": "de34acfed4523f10f52bea06e64ed33c8db973cb38d3539eeceb2b68039248c8",
+      "SLQ_L.xpt": "918c3258b2f466ac1cae55ea45330c736dbdc573ee4dc72306e3d2b222764741",
+      "SMQ_L.xpt": "abbefebfa5585b1e19c079fa14be20c113a4649318070197214b258d05b93c50",
+      "TCHOL_L.xpt": "5c3312e555bb0706fd97cbd63fcbc9e78f00bda8d2d149732d9dd368169b25d3"
+    },
+    "cohort_filters": [
+      "RIDAGEYR >= 20",
+      "LBXGH (glycohemoglobin) measured",
+      "complete cases on all 27 predictors after recoding each variable's documented refused/don't-know codes to missing"
+    ],
+    "expected_n": 3597,
+    "expected_p": 27,
+    "expected_prevalence": 0.145,
+    "filter_leakage_note": "cohort filters and missing-code recoding never read the outcome and are applied once outside cross-validation; the three shuffled control columns are permuted once from the base seed and then treated as fixed data columns",
+    "cohort_note": "an earlier design-verification probe reported n = 2975 because it recoded 7 and 9 as missing in every questionnaire column, which are valid answers for alcohol frequency and sedentary minutes; the per-variable codes here are taken from the cycle L codebooks and were fixed before any fold was run"
+  },
+  "outcome": {
+    "name": "diabetes",
+    "definition": "LBXGH >= 6.5 percent OR DIQ010 == 1 (told by a doctor you have diabetes)",
+    "encoding": "1 = diabetes, 0 = no diabetes",
+    "excluded_from_predictors": [
+      "GHB_L (glycohemoglobin)",
+      "GLU_L (fasting glucose)",
+      "DIQ_L (entire diabetes questionnaire)"
+    ],
+    "exclusion_note": "these define or restate the outcome; including any of them would be circular"
+  },
+  "predictors": {
+    "age": ["DEMO_L", "RIDAGEYR"],
+    "sex": ["DEMO_L", "RIAGENDR"],
+    "race_eth": ["DEMO_L", "RIDRETH3"],
+    "education": ["DEMO_L", "DMDEDUC2"],
+    "marital": ["DEMO_L", "DMDMARTZ"],
+    "born_us": ["DEMO_L", "DMDBORN4"],
+    "income_ratio": ["DEMO_L", "INDFMPIR"],
+    "mec_weight": ["DEMO_L", "WTMEC2YR"],
+    "bmi": ["BMX_L", "BMXBMI"],
+    "waist": ["BMX_L", "BMXWAIST"],
+    "sbp": ["BPXO_L", "BPXOSY1"],
+    "dbp": ["BPXO_L", "BPXODI1"],
+    "total_chol": ["TCHOL_L", "LBXTC"],
+    "hdl": ["HDL_L", "LBDHDD"],
+    "triglycerides": ["BIOPRO_L", "LBXSTR"],
+    "creatinine": ["BIOPRO_L", "LBXSCR"],
+    "alt": ["BIOPRO_L", "LBXSATSI"],
+    "uric_acid": ["BIOPRO_L", "LBXSUA"],
+    "ggt": ["BIOPRO_L", "LBXSGTSI"],
+    "smoked_100": ["SMQ_L", "SMQ020"],
+    "alcohol_freq": ["ALQ_L", "ALQ121"],
+    "sedentary_min": ["PAQ_L", "PAD680"],
+    "sleep_hours": ["SLQ_L", "SLD012"],
+    "insured": ["HIQ_L", "HIQ011"],
+    "heart_disease_dx": ["MCQ_L", "MCQ160C"],
+    "hypertension_dx": ["BPQ_L", "BPQ020"],
+    "high_chol_dx": ["BPQ_L", "BPQ080"]
+  },
+  "encoding_note": "all predictors are numeric NHANES codes or measurements and are passed identically to every method; no method receives factor typing, so the comparison is on matched input",
+  "mec_weight_note": "WTMEC2YR is the examination sampling weight, a survey-design quantity with close to one distinct value per participant; it is retained as a natural high-cardinality predictor whose association with the outcome is not of clinical interest",
+  "shuffled_controls": {
+    "shuffled_mec_weight": {
+      "source": "mec_weight",
+      "cardinality_class": "high (approximately n distinct values)"
+    },
+    "shuffled_age": {
+      "source": "age",
+      "cardinality_class": "medium (61 distinct values)"
+    },
+    "shuffled_sex": {
+      "source": "sex",
+      "cardinality_class": "binary"
+    },
+    "construction": "each is an independent permutation of the source column drawn once from numpy default_rng(base_seed), so it is noise by construction with the source's marginal distribution and cardinality"
+  },
+  "methods": {
+    "rf": "scikit-learn RandomForestClassifier at shipped defaults, n_estimators = profile trees; importance = impurity decrease (feature_importances_)",
+    "cif": "citrees ConditionalInferenceForestClassifier, selector mc, threshold_method histogram, max_thresholds 32, n_estimators = profile trees, other parameters shipped defaults; importance = feature_importances_",
+    "cforest": "partykit::cforest via paper.benchmark.pipeline.r_methods.r_cforest_importance at partykit shipped defaults (teststat quadratic, testtype Univariate, mincriterion 0, mtry ceiling(sqrt(p)), replace FALSE, fraction 0.632), ntree = profile trees; importance = varimp(conditional = FALSE)",
+    "ranking": "features ranked 1 (largest importance) to p+3 within each training fold; tied importances, which are common when a conditional-inference forest never selects a feature, receive their midrank so that unselected features are not ordered arbitrarily"
+  },
+  "outer_folds": {
+    "n_splits": 5,
+    "repeats": 10,
+    "random_state": 1718,
+    "stratified": true,
+    "unit": "participant",
+    "note": "importances and ranks are computed on the training fold; held-out data are used only for the descriptive prediction metrics"
+  },
+  "primary_test": {
+    "estimand": "mean over folds of rank(shuffled_mec_weight | rf) - rank(shuffled_mec_weight | cif)",
+    "alternative": "rf_lower_rank",
+    "alternative_note": "a lower rank number means the method treats the noise column as more important; the hypothesis is that RF ranks the high-cardinality noise column as more important than citrees does",
+    "test": "corrected_repeated_kfold_t",
+    "variance": "(1/(repeats*folds)+mean(n_test/n_train))*sample_variance",
+    "degrees_of_freedom": 49,
+    "reference": "Bouckaert and Frank 2004, doi:10.1007/978-3-540-24775-3_3",
+    "inference_status": "manuscript_inference"
+  },
+  "secondary_inference": {
+    "adjustment": "holm",
+    "alpha": 0.05,
+    "family_size": 2,
+    "hypotheses": {
+      "cardinality_correlation": {
+        "estimand": "mean over folds of spearman(importance_rf, n_unique_train) - spearman(importance_cif, n_unique_train)",
+        "alternative": "rf_higher",
+        "note": "n_unique is computed on the training fold for all 30 columns"
+      },
+      "low_cardinality_clinical_block": {
+        "estimand": "mean over folds of mean_rank(block | rf) - mean_rank(block | cif)",
+        "block": [
+          "sex",
+          "born_us",
+          "smoked_100",
+          "insured",
+          "heart_disease_dx",
+          "hypertension_dx",
+          "high_chol_dx",
+          "marital"
+        ],
+        "alternative": "rf_higher_rank_number",
+        "note": "the eight predictors with at most three levels, excluding the shuffled controls; the hypothesis is that RF ranks this block as less important than citrees does"
+      }
+    },
+    "test": "corrected_repeated_kfold_t",
+    "degrees_of_freedom": 49
+  },
+  "descriptive": {
+    "reference_agreement": "per-fold spearman between cif and cforest ranks, and between rf and cforest ranks, reported with fold means and 95 percent bootstrap intervals over repeats; no hypothesis test",
+    "shuffled_sex_negative_control": "rank of shuffled_sex under every method; expected near the bottom for all methods, showing the contrast is about cardinality and not about shuffling",
+    "shuffled_age_control": "rank of shuffled_age under every method, the medium-cardinality point between the two",
+    "prediction": {
+      "model": "logistic_regression_l2_C1 on the top-k features of each method, fit on the training fold, scored on the held-out fold",
+      "feature_counts": [5, 10],
+      "metrics": ["log_loss", "roc_auc", "brier_score"],
+      "note": "reported to show that the ranking differences do not come from one method being a weaker predictor; no hypothesis test"
+    },
+    "runtime": "wall-clock seconds per method per fold, reported as medians"
+  },
+  "positive_control": {
+    "status": "prespecified_sanity_check_not_a_hypothesis",
+    "rule": "waist or total_chol or triglycerides or hdl must be in the top 5 of every method in a majority of folds; and shuffled_sex must be outside the top 20 for every method in a majority of folds",
+    "note": "the first checks the pipeline recovers known metabolic correlates; the second checks the shuffled controls really are noise"
+  },
+  "profiles": {
+    "full": {
+      "folds": 5,
+      "repeats": 10,
+      "trees": 100,
+      "inference_status": "manuscript_inference"
+    },
+    "quick": {
+      "folds": 3,
+      "repeats": 3,
+      "trees": 50,
+      "inference_status": "exploratory"
+    },
+    "smoke": {
+      "folds": 2,
+      "repeats": 2,
+      "trees": 10,
+      "inference_status": "pipeline_validation"
+    }
+  },
+  "missing_codes": {
+    "education": [7, 9],
+    "marital": [77, 99],
+    "smoked_100": [7, 9],
+    "alcohol_freq": [77, 99],
+    "sedentary_min": [7777, 9999],
+    "insured": [7, 9],
+    "heart_disease_dx": [7, 9],
+    "hypertension_dx": [7, 9],
+    "high_chol_dx": [7, 9]
+  },
+  "missing_codes_note": "NHANES refused / don't-know codes, per variable as documented in the cycle L codebooks; other predictors are measurements with no reserved codes"
+}

@@ -865,7 +865,7 @@ difference, random forest minus \citrees, was $-11.82$ ranks with a corrected
 repeated-cross-validation statistic of $t(49)=-4.97$ and a lower-tailed
 $p$~value below 0.001. Table~\ref{tab:nhanes-ranks} reports the mean rank of
 every column under each method. The random forest also placed the permuted
-copy of age at 15.6, ahead of 14 real predictors, while the two conditional
+copy of age at 15.6, ahead of 13 real predictors, while the two conditional
 inference forests placed it at 21.3 and 23.3. Permuted sex was ranked near the
 bottom by all three methods, at 27.1, 25.4, and 24.8, so the disagreement
 concerns cardinality rather than permutation itself.
@@ -966,7 +966,7 @@ and CART-style alternatives.
 The NHANES application shows the cardinality bias of Section~\ref{sec:cardinality}
 on clinical data. A permuted survey weight with 2,790 distinct values entered
 the random forest's top half while reported diagnoses of hypertension and high
-cholesterol fell to ranks 19 and 21; \citrees and \pkg{partykit} reversed both
+cholesterol received mean ranks of 18.8 and 20.5; \citrees and \pkg{partykit} reversed both
 placements and agreed with each other at a rank correlation of 0.76. The
 conditional rankings predicted diabetes at least as well as the impurity
 ranking at a cost of about 20 times the fitting time of the random forest at

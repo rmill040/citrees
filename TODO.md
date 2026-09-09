@@ -104,7 +104,15 @@ Still to do, in order:
       NHANES design subsection, results section with the 30-row rank table,
       discussion paragraph, limitations and availability written from the
       full-run artifacts. Builds at 19 pages, 0 overfull.
-- [ ] Re-run the full replication suite and redo the factual review.
+- [x] Whole-suite quick replication on clean `350e94b` (2026-09-08): all six
+      analyses published, every child receipt clean at the same SHA, output
+      `paper/jss/results/replication-quick-350e94b` (ignored). Older
+      `replication-quick` and `tcga-brca-quick` trees deleted.
+- [x] Numeric claim trace of the NHANES section against the full-run artifacts:
+      30 checks, 2 prose defects found and fixed (permuted age is ahead of 13
+      real predictors, not 14; the discussion now quotes mean ranks 18.8 and
+      20.5 rather than table positions 19 and 21).
+- [ ] Independent factual review of the whole article by a second reviewer.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 

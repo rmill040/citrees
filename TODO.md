@@ -179,6 +179,45 @@ Still to do, in order:
 3. **Max-type threshold test**: implemented, benchmarked, recommendation in the
    performance section notes above; default unchanged.
 
+## Max-type split test: two-model mathematical review (2026-09-09)
+
+Author asked for Codex (GPT-5.6, max reasoning) and Claude Opus to prove or
+refute the `threshold_test="maxt"` math. Both lanes independent, both ran their
+own 2,000-null simulations with the real kernels (scripts kept under
+`scratch/maxt_*`).
+
+Agreed by both: the fixed-budget max-type p-value is **valid** (inclusive rank
+of the observed minimum among B+1 exchangeable values, so P(p <= alpha) <=
+floor(alpha(B+1))/(B+1)); the "<=" tie rule and both +1 terms are load-bearing;
+it is _weak_ familywise control (level alpha under the node's global null) and
+conservative under ties, not "exact"; Bonferroni is valid and strictly
+conservative because adjacent thresholds correlate at about 0.71; the
+implementation matches the math line by line. Null rates in every simulated cell
+0.036-0.055 (Opus, B=1,999) and 0.040-0.049 (Codex, B=100); power gain over
+Bonferroni +6.0 points (paired SE 1.1) at K=16.
+
+Fixed 2026-09-09: comments no longer say "exactly"; all-invalid threshold sets
+return a NaN threshold instead of thresholds[0]; empty threshold arrays raise.
+Left as is: ties in the observed argmin go to the first index (Bonferroni branch
+samples uniformly); cosmetic.
+
+**Open, author decision (affects the whole library, not just maxt):** the
+Beta-posterior adaptive stopping rule has no level theorem. Codex's exact
+beta-binomial recursion: at the default confidence 0.95 the level is 0.0494
+(fine); at confidence 0.80, which validation permits, it is **0.0527 > 0.05**.
+Options: (a) require confidence >= 0.95, (b) allow early stopping only for
+futility and run the full budget before any rejection (theorem-backed, slower on
+clear rejections), (c) leave as is and document. Also unverified by either lane:
+post-selection validity of the split test after the feature was chosen using y
+(applies equally to the Bonferroni default), strong FWER, entropy/MAE
+calibration.
+
+Hygiene: `paper/theory/study_batched_adaptive_stopping.py` counts only explicit
+"reject" outcomes and ignores capped runs whose p < alpha, so its type I figure
+understates production; it is cited in neither paper (the JSS calibration
+numbers come from real tree fits in `calibration.py`), so no published number is
+affected.
+
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 
 The four parallel rdc kernels (`_ptest_rdc_*_parallel*` in

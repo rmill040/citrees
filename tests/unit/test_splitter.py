@@ -851,13 +851,20 @@ class TestMaxTypeThresholdTest:
         assert best_full == best_adaptive
         assert p_full < 0.05 and p_adaptive < 0.05
 
-    def test_degenerate_thresholds_return_one(self) -> None:
+    def test_degenerate_thresholds_return_one_and_no_threshold(self) -> None:
         x, y, _ = self._data(6, 1.0)
-        # Every candidate puts all samples on one side, so there is no split to test.
-        p, _ = _splitter.ptest_maxt(
+        # Every candidate puts all samples on one side, so there is no split to test
+        # and no candidate attained the statistic.
+        p, best = _splitter.ptest_maxt(
             x, y, np.array([x.max() + 1.0, x.max() + 2.0]), "gini", 100, None, 0.05, 1718
         )
         assert p == 1.0
+        assert np.isnan(best)
+
+    def test_empty_threshold_set_is_rejected(self) -> None:
+        x, y, _ = self._data(6, 1.0)
+        with pytest.raises(ValueError, match="at least one candidate threshold"):
+            _splitter.ptest_maxt(x, y, np.array([]), "gini", 100, None, 0.05, 1718)
 
     def test_unknown_splitter_is_rejected(self) -> None:
         x, y, thresholds = self._data(7, 1.0)

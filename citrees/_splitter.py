@@ -795,10 +795,15 @@ def ptest_mae(
 # Max-type split test over all candidate thresholds
 # =============================================================================
 # One permutation test on the minimum impurity over the K candidate thresholds
-# (Westfall and Young, 1993). Under the permutation null the minimum over the
-# same K candidates is recomputed for every permuted response, so the p-value
-# controls the familywise error rate over thresholds exactly, with a budget of
-# about 1 / alpha permutations instead of K tests of K / alpha permutations each.
+# (Westfall and Young, 1993). Under the permutation null (labels exchangeable
+# given the feature) the minimum over the same K candidates is recomputed for
+# every permuted response, so the p-value is the inclusive rank of the observed
+# minimum among B + 1 exchangeable values and satisfies P(p <= alpha) <= alpha for
+# every alpha. This is weak familywise control over the K thresholds: under the
+# global null the chance of declaring any split is at most alpha, regardless of
+# how the thresholds are correlated. Ties count as extreme, which makes the test
+# conservative rather than exact. The budget is about 1 / alpha permutations
+# instead of K tests of K / alpha permutations each.
 #
 # Classifier and regressor kernels are separate because the impurity helpers
 # need integer labels for bincount and floating targets for means and medians.
@@ -1026,6 +1031,8 @@ def ptest_maxt(
     (the simple rule is mapped to the adaptive rule for this test).
     """
     thresholds = np.ascontiguousarray(thresholds, dtype=np.float64)
+    if thresholds.size == 0:
+        raise ValueError("ptest_maxt requires at least one candidate threshold")
     masks, n_left = _split_masks(np.ascontiguousarray(x, dtype=np.float64), thresholds)
     if splitter in _CLF_METRIC_CODES:
         metric = _CLF_METRIC_CODES[splitter]
@@ -1052,4 +1059,9 @@ def ptest_maxt(
     else:
         raise ValueError(f"splitter '{splitter}' has no max-type split test")
     record_permutation_test("splitter", (float(p_value), int(realized)))
+    if realized == 0:
+        # Every candidate left one side empty: nothing was tested, so no
+        # threshold attained the statistic. The p-value of 1.0 already blocks
+        # the split; report the threshold as undefined rather than inventing one.
+        return float(p_value), float("nan")
     return float(p_value), float(thresholds[best_j])

@@ -801,8 +801,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         n_best_metric = 0
 
         if self._n_resamples_splitter is not None and self.threshold_test == ThresholdTest.MAXT:
-            # One max-type test over all candidates controls the familywise error
-            # rate over thresholds, so alpha and the budget are not divided by K.
+            # One max-type test over all candidates gives weak familywise control
+            # over thresholds (level alpha under the global null at this node),
+            # so alpha and the budget are not divided by K.
             self._bonferroni_correction(adjust="splitter", n_tests=1)
             best_pval, best_threshold = ptest_maxt(
                 x=x,

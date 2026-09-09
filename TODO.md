@@ -174,13 +174,12 @@ Items 1-3 from the author's "do 1 2 3":
    estimators, `ThresholdTest` enum exported, 4 kernels + 3 helpers in
    `_splitter.py` with parity cases, 10 unit tests, 14 integration tests
    (`tests/integration/test_threshold_test_option.py`). Full library suite run
-   finished just before the restart with **1 failed, 732 passed** (name not
-   captured). First on resume: `uv run pytest tests/unit tests/integration -q`
-   and fix that one. Benchmark script `scratch/bench_threshold_test.py` (null
-   calibration, power, NHANES speed/agreement at K=32 and 256) was killed
-   mid-run; rerun it and report before the author decides on the default. Early
-   smoke on glass: maxt 0.8 s vs bonferroni 7.6 s for one full tree, identical
-   node count and accuracy.
+   after the restart: **733 passed** (the one failure was a hand-built parameter
+   fixture missing the new field; fixed 2026-09-09). Benchmark script
+   `scratch/bench_threshold_test.py` (null calibration, power, NHANES
+   speed/agreement at K=32 and 256) was killed mid-run; rerun it and report
+   before the author decides on the default. Early smoke on glass: maxt 0.8 s vs
+   bonferroni 7.6 s for one full tree, identical node count and accuracy.
 
 ## rdc permutation kernels: buffered rewrite (2026-09-06)
 

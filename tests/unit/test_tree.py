@@ -81,6 +81,7 @@ def test_base_conditional_inference_tree_parameters():
         rdc_n_projections=10,
         max_features=None,
         threshold_method="exact",
+        threshold_test="bonferroni",
         threshold_scanning=True,
         max_thresholds=None,
         max_depth=None,

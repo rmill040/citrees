@@ -870,26 +870,26 @@ combined output directory.
 \section{NHANES application results} \label{sec:nhanes-results}
 
 The permuted sampling weight, which carries no information about diabetes,
-had a mean rank of 12.1 of 30 under the random forest, 23.5 under the
+had a mean rank of 12.1 of 30 under the random forest, 23.4 under the
 \citrees forest, and 26.4 under the \pkg{partykit} forest. The primary
-difference, random forest minus \citrees, was $-11.38$ ranks with a corrected
-repeated cross-validation statistic of $t(49)=-5.37$ and a lower-tailed
+difference, random forest minus \citrees, was $-11.34$ ranks with a corrected
+repeated cross-validation statistic of $t(49)=-5.38$ and a lower-tailed
 $p$~value below 0.001. Table~\ref{tab:nhanes-ranks} reports the mean rank of
 every column under each method. The random forest placed the permuted copy of
 age at 15.6 of 30, ahead of 13 real predictors, while the two conditional
-inference forests placed it at 21.2 and 26.9. All three methods ranked
-permuted sex in the bottom three, at 27.0, 25.5, and 25.6, so the methods
+inference forests placed it at 21.3 and 26.9. All three methods ranked
+permuted sex in the bottom three, at 27.0, 25.6, and 25.6, so the methods
 disagree on the high-cardinality noise column and agree on the binary one.
 
 Both secondary contrasts were in the specified direction with Holm-adjusted
 $p$~values below 0.001. The Spearman correlation between importance and number
 of distinct values averaged 0.86 for the random forest, 0.35 for \citrees, and
 0.23 for \pkg{partykit}; the random forest minus \citrees difference was 0.51
-with $t(49)=15.6$. The eight predictors with at most three distinct values had
+with $t(49)=15.8$. The eight predictors with at most three distinct values had
 a mean rank of 25.1 of 30 under the random forest, 18.7 under \citrees, and
-16.5 under \pkg{partykit}; the difference was 6.39 ranks with $t(49)=11.4$.
+16.5 under \pkg{partykit}; the difference was 6.39 ranks with $t(49)=11.5$.
 The largest individual displacements were reported diagnoses of hypertension
-(18.8 of 30 under the random forest, 5.8 under \citrees, and 3.5 under
+(18.8 of 30 under the random forest, 5.7 under \citrees, and 3.5 under
 \pkg{partykit}) and high cholesterol (20.5, 5.2, and 3.0), followed by
 education (21.6, 8.6, and 7.9). The two conditional inference forests also
 ranked the binary items born in the United States and health insurance in the
@@ -904,31 +904,31 @@ Column & Distinct values & Random forest & \citrees & \pkg{partykit} \\ \hline
 Total cholesterol & 230 & 1.1 & 1.7 & 2.3 \\
 Waist circumference & 702 & 1.9 & 2.1 & 2.4 \\
 Triglycerides & 370 & 3.4 & 7.3 & 7.2 \\
-Body mass index & 342 & 4.5 & 7.3 & 8.0 \\
-HDL cholesterol & 95 & 5.0 & 3.8 & 7.5 \\
+Body mass index & 342 & 4.5 & 7.4 & 8.0 \\
+HDL cholesterol & 95 & 5.0 & 3.9 & 7.5 \\
 Creatinine & 145 & 5.4 & 13.9 & 13.2 \\
-Age & 61 & 6.7 & 6.2 & 3.9 \\
+Age & 61 & 6.7 & 6.1 & 3.9 \\
 Uric acid & 88 & 8.5 & 10.9 & 13.9 \\
-Sampling weight & 2,790 & 9.2 & 17.3 & 18.3 \\
+Sampling weight & 2,790 & 9.2 & 17.4 & 18.3 \\
 Gamma-glutamyl transferase & 166 & 9.5 & 14.6 & 13.5 \\
-Income to poverty ratio & 418 & 11.6 & 11.1 & 10.6 \\
-Permuted sampling weight & 2,790 & 12.1 & 23.5 & 26.4 \\
-Alanine aminotransferase & 103 & 13.7 & 18.6 & 17.5 \\
+Income to poverty ratio & 418 & 11.6 & 11.2 & 10.6 \\
+Permuted sampling weight & 2,790 & 12.1 & 23.4 & 26.4 \\
+Alanine aminotransferase & 103 & 13.7 & 18.5 & 17.5 \\
 Systolic blood pressure & 108 & 13.7 & 19.7 & 19.9 \\
 Diastolic blood pressure & 75 & 14.0 & 16.5 & 19.7 \\
-Permuted age & 61 & 15.6 & 21.2 & 26.9 \\
+Permuted age & 61 & 15.6 & 21.3 & 26.9 \\
 Sleep hours & 23 & 17.6 & 20.4 & 24.1 \\
-Sedentary minutes & 39 & 18.4 & 21.6 & 24.9 \\
-Hypertension diagnosis & 2 & 18.8 & 5.8 & 3.5 \\
-Alcohol frequency & 11 & 20.1 & 19.1 & 17.4 \\
+Sedentary minutes & 39 & 18.4 & 21.8 & 24.9 \\
+Hypertension diagnosis & 2 & 18.8 & 5.7 & 3.5 \\
+Alcohol frequency & 11 & 20.1 & 19.0 & 17.4 \\
 High cholesterol diagnosis & 2 & 20.5 & 5.2 & 3.0 \\
 Education & 5 & 21.6 & 8.6 & 7.9 \\
 Race and ethnicity & 6 & 23.2 & 23.9 & 21.6 \\
 Heart disease diagnosis & 2 & 23.8 & 12.6 & 10.7 \\
-Marital status & 3 & 25.0 & 24.1 & 23.6 \\
+Marital status & 3 & 25.0 & 24.0 & 23.6 \\
 Ever smoked & 2 & 26.9 & 24.3 & 23.9 \\
-Sex & 2 & 27.0 & 22.5 & 23.2 \\
-Permuted sex & 2 & 27.0 & 25.5 & 25.6 \\
+Sex & 2 & 27.0 & 22.6 & 23.2 \\
+Permuted sex & 2 & 27.0 & 25.6 & 25.6 \\
 Born in the United States & 2 & 29.2 & 27.0 & 20.0 \\
 Health insurance & 2 & 29.8 & 28.5 & 24.5 \\
 \hline
@@ -951,12 +951,12 @@ descriptive prediction comparison, held-out area under the receiver operating
 characteristic curve with the 10 highest-ranked columns averaged 0.836 for
 \pkg{partykit}, 0.835 for \citrees, and 0.813 for the random forest over the
 50 folds, with log loss of 0.319, 0.320, and 0.333; with 5 columns the areas
-were 0.806, 0.793, and 0.776. All three methods placed at least one of the
+were 0.806, 0.794, and 0.776. All three methods placed at least one of the
 four metabolic measurements in their top 5 in all 50 folds, and permuted sex
 fell outside the top 20 in 50 of 50 folds for the random forest, 45 for
 \citrees, and 46 for \pkg{partykit}. Median fitting time per training fold
-with every core in use was 0.2 seconds for the random forest, 4.1 seconds for
-\citrees, and 21.0 seconds for \pkg{partykit} on a 32-core cloud instance of the
+with every core in use was 0.2 seconds for the random forest, 4.0 seconds for
+\citrees, and 20.7 seconds for \pkg{partykit} on a 32-core cloud instance of the
 type used in Section~\ref{sec:performance}.
 
 \section{Discussion} \label{sec:discussion}
@@ -984,7 +984,7 @@ top half while reported diagnoses of hypertension and high cholesterol
 received mean ranks of 18.8 and 20.5 of 30; \citrees and \pkg{partykit}
 reversed both placements and agreed with each other at a rank correlation of
 0.84. In the descriptive comparison the conditional rankings had similar or
-better mean held-out accuracy, at 23 and 114 times the fitting time of the
+better mean held-out accuracy, at 22 and 115 times the fitting time of the
 random forest at this sample size. Researchers who rank predictors of mixed
 cardinality with impurity importance should check whether the number of
 distinct values is shaping the order, and a conditional inference forest is

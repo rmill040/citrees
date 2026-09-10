@@ -245,13 +245,19 @@ real-data gains are on datasets with few or discrete predictors. Raw:
 `scratch/maxt_timing/results_synthetic_0.json` and `h2h_synthetic.log`. Box
 i-07537b48a02048c18 terminated itself after Part C.
 
-Part A FAILED on the first box: fork() after OpenMP threads had started killed
-the timed-fit child (BrokenProcessPool). Fixed by spawning the child
-(`33c2b27`). The calibration grid completed on the box before the failure and
-matches the laptop to four decimals; artifacts were not written. Part A
-relaunched on box i-014836b38c821ae9b from `c3d9550` (2026-09-10 ~04:00 UTC);
-output s3 debug/maxt-timing/out/c3d9550. Delete the role and confirm zero
-instances when done.
+Part A relaunched on box i-014836b38c821ae9b from `c3d9550` (2026-09-10 ~04:00
+UTC). **DONE 08:35 UTC, rc 0**; artifacts
+`paper/jss/results/threshold-test-full` (ignored) and s3
+debug/maxt-timing/out/c3d9550. Both boxes terminated, role deleted, zero
+instances. c6a.8xlarge, seconds per tree, median of 3: exhaustive
+maxt/Bonferroni ratio 2-6x at K=16, 14-49x at K=64, 119-318x at K=256 (n=1k-4k;
+Bonferroni censored at 900 s for n=16k K=256, maxt 6.7 / 6.2 s); adaptive
+1.6-4.7x at K=16, 3-16x at K=64, 6-84x at K=256. Real subset (K=256, 5 folds):
+maxt >= Bonferroni in 11 of 12 cells; 1.4-30x faster adaptive, 60-155x faster
+exhaustive (spam 190 -> 9 s, page-blocks 402 -> 2.6 s, vowel 60 -> 0.6 s);
+facebook exhaustive remains the outlier case (0.677 vs 0.630). Null calibration:
+Bonferroni 0.004-0.029, maxt 0.025-0.038, all below 0.05. Receipt git_dirty=true
+from the bind mount again.
 
 ## Early-stopping proof: deferred with a stated reason (author, 2026-09-09)
 

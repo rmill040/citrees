@@ -43,10 +43,7 @@ $B$ permutations.
   \label{tab:fixed-node-notation}
 \end{table}
 
-The guarantee applies only to fixed-node Stage~A. It does not cover Stage~B
-threshold search, adaptive stopping, response-dependent feature muting,
-response-selected internal nodes, bootstrap forests, honesty, or
-$p$-values after feature selection or other post-selection steps; see
+The guarantee applies to fixed-node, fixed-$B$ tests: the Stage~A feature tests and, in \cref{cor:stageB-maxt}, the max-type Stage~B test for a feature and candidate set fixed without reference to the responses. It does not cover the per-threshold Stage~B search, adaptive stopping, response-dependent feature muting, response-selected internal nodes, bootstrap forests, honesty, or $p$-values after feature selection or other post-selection steps; see
 \cref{sec:method,app:methods,app:complexity-details}.
 
 \subsection{Assumptions and theorem scope}
@@ -78,14 +75,10 @@ additional randomness, independent of $(X_t,Y_t,U)$, and are not included in
 $U$.
 
 \paragraph{A0.5 (Conservative ties).}\label{assump:ties}
-For right-tail tests, the Stage~A $+1$ Monte Carlo $p$-value counts ties
-conservatively using $\ind\{T_b \ge T_{\mathrm{obs}}\}$. If several features tie
+For right-tail tests, the Stage~A $+1$ Monte Carlo $p$-value counts ties conservatively using $\ind\{T_b \ge T_{\mathrm{obs}}\}$; left-tail tests, including the max-type Stage~B test, use $\ind\{T_b \le T_{\mathrm{obs}}\}$. If several features tie
 after testing, any random tie break is label-independent and does not affect the
 Stage~A reject/no-reject event.
 
 \subsection{Results using these assumptions}
 
-Both fixed-node results in \cref{sec:theory} use Assumptions A0.1--A0.5.
-Theorem~\ref{thm:plusone-superuniform} proves $+1$ Monte Carlo permutation
-$p$-value superuniformity. Corollary~\ref{cor:stageA-global-null} gives Stage~A
-complete-null control.
+The fixed-node results in \cref{sec:theory} use Assumptions A0.1--A0.5. Theorem~\ref{thm:plusone-superuniform} proves $+1$ Monte Carlo permutation $p$-value superuniformity. Corollary~\ref{cor:stageA-global-null} gives Stage~A complete-null control, and Corollary~\ref{cor:stageB-maxt} gives complete-null control for the max-type Stage~B test at a fixed node.

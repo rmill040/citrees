@@ -27,13 +27,7 @@ and is not treated as a runtime shortcut. For ranking quality, forest size
 matters more than the split-count and feature-muting variants tested here, so the
 selected CIF configuration is the relevant ranking reference when ranking
 quality is the priority.
-The Stage~B construction is a further control. The per-threshold Bonferroni
-rule used throughout the benchmark is valid and increasingly conservative as the
-candidate count grows; the max-type rule holds the level at a fraction of the
-cost, most of all when early stopping is off, and it grows different trees.
-The benchmark ran with adaptive stopping, where the two rules agree closely in
-runtime, so its rankings stand; the max-type rule is the option to reach for
-when exhaustive testing is required.
+The Stage~B construction is a further control. The per-threshold Bonferroni rule used throughout the benchmark is valid and increasingly conservative as the candidate count grows; the max-type rule keeps the complete-node false-split rate below the nominal level at a fraction of the cost, most of all when early stopping is off, and it grows different trees. The benchmark rankings are Bonferroni rankings: the ranking benchmark was not rerun under the max-type rule, whose importance agreement with the per-threshold rule ranged from 0.40 to 0.95 on six datasets, so its effect on the full-benchmark rankings is unmeasured.
 
 The adaptive stopping rule is a heuristic. After each batch of 32 permutations
 it evaluates a Beta posterior on the exceedance proportion and stops once that

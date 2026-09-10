@@ -182,11 +182,7 @@ a fixed function, so the minima stay exchangeable and the test controls the
 probability of any split under the node's global null. Standardization matters
 because candidates near the tails of a predictor isolate few observations and
 have wide null distributions; the unstandardized minimum is drawn to them on
-heavy-tailed responses. The max-type test costs on the order of $K/\alpha$
-impurity evaluations and uses a fixed budget of 999 permutations under the
-named resample rules. The default remains the per-candidate construction,
-which produced every result in this article; Section~\ref{sec:threshold-test}
-compares the two. During sequential fitting, threshold scanning orders
+heavy-tailed responses. Validity needs only about $1/\alpha$ permutations; the implementation uses $B = 999$ under the named resample rules, so the max-type test costs on the order of $BK$ impurity evaluations against $K^2/\alpha$ for the default. The construction is selected with \code{threshold_test = "maxt"}; the default \code{"bonferroni"} produced the benchmark, calibration, behavior, and application results in this article, and Section~\ref{sec:threshold-test} compares the two. During sequential fitting, threshold scanning orders
 candidates by weighted impurity; otherwise their order is randomized under the
 fitted seed.
 
@@ -728,11 +724,7 @@ and 3.5 seconds without it. Without the adjustment the recommended
 configuration is faster than \pkg{partykit} on 32 cores on nine of the ten
 datasets, by 2.4 times on madelon and 19 times on letter, and within 0.3
 seconds of it on vowel. Omitting the threshold test entirely changes these
-times by at most 0.4 seconds, except on isolet, where it adds 7 seconds. The
-max-type test keeps the threshold test and recovers most of that time where
-candidates are continuous: 21 to 4.8 seconds on madelon, ahead of
-\pkg{partykit} on 32 cores, and 42 to 23 seconds on gamma; on the other six datasets it changes the time
-by at most 0.8 seconds.
+times by at most 0.4 seconds, except on isolet, where it adds 7 seconds. The max-type test keeps the threshold test and recovers most of that time where candidates are continuous. In the run that produced the max-type column, which also refit the recommended configuration, madelon went from 21 to 4.8 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds; the other five datasets changed by less than one second.
 
 \begin{center}
 \footnotesize
@@ -758,9 +750,7 @@ least 500 observations, each library at its default configuration on a 32-core
 machine. Candidates is the mean number of distinct candidate thresholds per
 predictor, capped at 256. No adjustment is the recommended \citrees configuration
 without the Bonferroni adjustment over candidate thresholds in the threshold
-test. Max-type is the recommended configuration with the max-type threshold test
-of Section~\ref{sec:thresholds}, measured on the same machine class in a
-later run; it was not run (n/r) on isolet and gisette. Medians are over two
+test. Max-type is the recommended configuration with the max-type threshold test of Section~\ref{sec:thresholds}, measured on the same machine class in a separate run; it was not run (n/r) on isolet and gisette. Medians are over two
 repeats, or a single fit on letter, isolet, and gisette.}
 \end{center}
 
@@ -770,10 +760,7 @@ grows. The recommended configuration is 1.1 to 2.8 times faster than
 \pkg{partykit} on one core at every sample size and 7 to 16 times slower than
 \pkg{partykit} on 32 cores. Without the threshold adjustment it is within a
 factor of 1.6 of \pkg{partykit} on 32 cores at 2,000 observations and 3.2 to
-8.6 times faster at 8,000 and 32,000 observations. The max-type test, which
-keeps the threshold test, is 4.3 to 15 times faster than the recommended
-configuration on these predictors, within a factor of 1.5 of \pkg{partykit}
-on 32 cores at 2,000 observations, and faster than it at 8,000 observations. Strong signals, with equal
+8.6 times faster at 8,000 and 32,000 observations. The max-type test, which keeps the threshold test, is 4.5 to 15 times faster than the recommended configuration refit in the same run on these predictors, within a factor of 1.5 of the \pkg{partykit} times on 32 cores at 2,000 observations, and below them at 8,000 observations. Strong signals, with equal
 coefficients and half the noise, change the times of the recommended
 configuration by at most 16 percent except at 8,000 observations and 20
 predictors, where it takes 120 rather than 71 seconds, and change the
@@ -810,41 +797,21 @@ observations and the max-type variant was not run at 32,000.}
 
 \subsection{Threshold test comparison} \label{sec:threshold-test}
 
-The threshold test comparison measures the two Stage B constructions of
-Section~\ref{sec:thresholds} under the mc and pc selectors, with adaptive and
-exhaustive stopping, in three parts. The first estimates the false-split rate
-of a depth-one tree under the global null: five independent Gaussian
-predictors, a response drawn independently of them, sample sizes 100, 200, and
-500, and 16, 64, or 256 candidate thresholds, with 2,000 replicates per cell.
-The rate counts the fraction of replicates in which the node splits, so it
-combines the Stage A gate over five predictors with the Stage B test. The
-second times one tree on Gaussian predictors with a planted linear signal at
-1,000, 4,000, and 16,000 observations and the same candidate counts, as the
-median of three fits with a 900-second cap per fit. The third fits one tree on
-six benchmark datasets chosen by size before any result was seen, three
-classification (vowel, spam, page-blocks) and three regression (imports-85,
-residential, facebook), with 256 candidates and five-fold cross-validation,
+The threshold test comparison measures the two Stage B constructions of Section~\ref{sec:thresholds} under the multiple correlation and Pearson correlation selectors, with adaptive and exhaustive stopping, in three parts. Candidate thresholds come from the histogram method at settings of 16, 64, and 256 bins, which yields one more candidate than the setting, capped at the number of distinct values in the node; at 100 and 200 observations the 256-bin setting therefore yields 100 and 200 candidates. The first part estimates the false-split rate of a depth-one tree under the global null: five independent Gaussian predictors, a response drawn independently of them, sample sizes 100, 200, and 500, and the three bin settings, with 2,000 replicates per cell. The rate counts the fraction of replicates in which the node splits, so it measures the complete node decision, the Stage A gate over five predictors followed by the Stage B test, and is below the Stage B level alone. The second times one tree on Gaussian predictors with a planted linear signal at 1,000, 4,000, and 16,000 observations and the same bin settings, as the median of three fits with a 900-second cap per fit. The third fits one tree on six benchmark datasets fixed in advance by size, three classification (vowel, spam, page-blocks) and three regression (imports-85, residential, facebook), with the 256-bin setting and five-fold cross-validation,
 recording held-out accuracy or $R^2$, tree depth, fitting time, and the Spearman
 agreement of the two tests' feature importances within each fold. All fits ran
 on one 32-core cloud instance of the type used in
 Section~\ref{sec:performance}; a fit that exceeded the cap is reported as
 censored.
 
-Both constructions hold the nominal level in every one of the 36 null cells
-(Table~\ref{tab:threshold-calibration}), and they differ in how far below it
-they sit. The per-candidate Bonferroni test grows more conservative as the
-candidate count grows, from 0.0145 at 16 candidates to 0.0040 at 256 in
-classification with 500 observations and exhaustive stopping, because adjacent thresholds induce
-nearly identical splits and the union bound charges for all of them. The
-max-type test stays between 0.025 and 0.038 across every cell, with no trend in
-the candidate count.
+The complete-node false-split rate is below 0.05 for both constructions in all 36 design cells, 72 measurements (Table~\ref{tab:threshold-calibration}); the constructions differ in how far below. Under the per-candidate Bonferroni test the rate falls as the bin setting grows, from 0.0145 at 16 bins to 0.0040 at 256 in classification with 500 observations and exhaustive stopping, because adjacent thresholds induce nearly identical splits and the union bound charges for all of them. Under the max-type test it stays between 0.025 and 0.038 across every cell and rises slightly with the bin setting, with cell means of 0.030, 0.032, and 0.032 at 16, 64, and 256 bins.
 
 \begin{center}
 \small
 \begin{tabular}{lrrrrrr}
 \hline
  & & & \multicolumn{2}{c}{Bonferroni} & \multicolumn{2}{c}{Max-type} \\
-Task & Observations & Candidates & Adaptive & Exhaustive & Adaptive & Exhaustive \\ \hline
+Task & Observations & Bins & Adaptive & Exhaustive & Adaptive & Exhaustive \\ \hline
 Classification & 100 & 16 & 0.0180 & 0.0185 & 0.0320 & 0.0350 \\
  & 100 & 64 & 0.0130 & 0.0135 & 0.0355 & 0.0370 \\
  & 100 & 256 & 0.0095 & 0.0075 & 0.0355 & 0.0375 \\
@@ -865,11 +832,7 @@ Regression & 100 & 16 & 0.0240 & 0.0285 & 0.0310 & 0.0340 \\
  & 500 & 256 & 0.0125 & 0.0120 & 0.0270 & 0.0295 \\
 \hline
 \end{tabular}
-\captionof{table}{\label{tab:threshold-calibration} False-split rate of a
-depth-one tree under the global null at the 0.05 level, by Stage B construction
-and stopping mode, over 2,000 replicates per cell with five independent
-Gaussian predictors and an independent response. Every 95\% confidence
-interval lies below 0.05; the widest half-width is 0.008.}
+\captionof{table}{\label{tab:threshold-calibration} False-split rate of a depth-one tree under the global null at the 0.05 level, by Stage B construction and stopping mode, over 2,000 replicates per cell with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Wald confidence interval lies below 0.05; the widest half-width is below 0.009.}
 \end{center}
 
 The cost difference is where the constructions separate
@@ -877,12 +840,7 @@ The cost difference is where the constructions separate
 256 candidates takes 60 seconds at 1,000 observations and 426 to 486 seconds at
 4,000 under the Bonferroni test, and exceeds the 900-second cap at 16,000; the
 max-type test takes 0.5, 1.5 to 1.6, and 6.2 to 6.7 seconds at the same
-settings. The exhaustive ratio grows with the candidate count, from 2.0 to 6.4
-at 16 candidates to 14 to 49 at 64 and 119 to 318 at 256, as the
-$K^2/\alpha$ against $K/\alpha$ accounting predicts. With adaptive stopping the
-Bonferroni test dismisses most candidates after a few dozen permutations, and
-the ratio is 1.6 to 4.7 at 16 candidates, 3.2 to 16 at 64, and 5.9 to 84 at
-256. The constructions also grow different trees on these data. With adaptive stopping the max-type trees are deeper, 5.3 to 11.0 levels against 4.0 to 10.0; with exhaustive stopping the Bonferroni trees are deeper, 6.7 to 18.3 levels against 5.0 to 10.3. The planted signal here is linear in three predictors, so every split down the tree carries signal and depth records the power of the construction at small nodes rather than false splits; the real-data scores below are the measure of which trees predict better.
+settings. The exhaustive ratio grows with the bin setting, from 2.0 to 6.4 at 16 bins to 14 to 49 at 64 and 119 to 318 at 256, faster than the linear growth in $K$ that the $K^2/\alpha$ against $BK$ accounting alone predicts. With adaptive stopping the Bonferroni test dismisses most candidates after a few dozen permutations, and the ratio is 1.6 to 4.7 at 16 bins, 3.2 to 16 at 64, and 5.9 to 84 at 256. The constructions also grow different trees on these data. With adaptive stopping the max-type trees are deeper, 5.3 to 11.0 levels against 4.0 to 10.0; with exhaustive stopping the Bonferroni trees are deeper, 6.7 to 18.3 levels against 5.0 to 10.3. The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores below are the measure of which trees predict better.
 
 \begin{center}
 \small
@@ -890,7 +848,7 @@ the ratio is 1.6 to 4.7 at 16 candidates, 3.2 to 16 at 64, and 5.9 to 84 at
 \begin{tabular}{lrrrrrr}
 \hline
  & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{2}{c}{Exhaustive} \\
-Task & Observations & Candidates & Bonferroni & Max-type & Bonferroni & Max-type \\ \hline
+Task & Observations & Bins & Bonferroni & Max-type & Bonferroni & Max-type \\ \hline
 Classification & 1,000 & 16 & 0.49 & 0.31 & 0.58 & 0.29 \\
  & 1,000 & 64 & 1.64 & 0.36 & 5.11 & 0.37 \\
  & 1,000 & 256 & 12.6 & 0.36 & 60.0 & 0.50 \\
@@ -911,27 +869,14 @@ Regression & 1,000 & 16 & 0.62 & 0.34 & 0.60 & 0.30 \\
  & 16,000 & 256 & 134 & 1.92 & censored & 6.24 \\
 \hline
 \end{tabular}
-\captionof{table}{\label{tab:threshold-scaling} Median fitting time in seconds
-over three fits of one tree on ten Gaussian predictors with a planted linear
-signal, by Stage B construction and stopping mode, on a 32-core cloud instance.
-Censored marks a cell whose fits exceeded 900 seconds.}
+\captionof{table}{\label{tab:threshold-scaling} Median fitting time in seconds over three fits of one tree on ten Gaussian predictors with a planted linear signal, by Stage B construction and stopping mode, on a 32-core cloud instance. Bins is the histogram threshold setting as in Table~\ref{tab:threshold-calibration}. Censored marks a cell whose fits exceeded 900 seconds.}
 \end{center}
 
 On the six real datasets (Table~\ref{tab:threshold-real}) the max-type test
 gave held-out scores at least as high as the Bonferroni test in 10 of the 12
 dataset and stopping-mode cells, by 0.002 to 0.10 with exhaustive stopping and
 by 0.005 to 0.031 with adaptive stopping; the two exceptions are page-blocks with
-adaptive stopping, lower by 0.002, and facebook with exhaustive stopping. It
-fit 0.9 to 30 times faster with adaptive stopping and 1.5 to 155 times faster
-with exhaustive stopping. On facebook with exhaustive stopping the scores are
-0.677 against 0.630, where
-the response has a median of 124 and a maximum of 6,334 and a single held-out
-observation falling into a one-observation leaf decides the fold's $R^2$ under
-either construction. The two constructions choose different splits at 256
-candidates: the Spearman agreement of their feature importances ranges from
-0.40 to 0.95 across datasets and stopping modes, so the max-type test is a
-different ranking rather than a faster route to the same one, and the scores
-say it is at least as good on these data.
+adaptive stopping, lower by 0.002, and facebook with exhaustive stopping. Its fitting time was 0.9 to 30 times shorter than the Bonferroni test's with adaptive stopping and 1.5 to 155 times shorter with exhaustive stopping. On facebook with exhaustive stopping the scores are 0.677 against 0.630; the response has a median of 123.5 and a maximum of 6,334, so a single extreme held-out observation can decide a fold's $R^2$ under either construction. The two constructions choose different splits at the 256-bin setting: the Spearman agreement of their feature importances ranges from 0.40 to 0.95 across datasets and stopping modes, so the max-type test produces a different ranking rather than a faster route to the same one.
 
 \begin{center}
 \footnotesize
@@ -949,11 +894,7 @@ residential & 372 & 107 & 0.928 & 0.936 & 4.78 & 5.46 & 0.862 & 0.879 & 3.13 & 2
 facebook & 500 & 21 & 0.829 & 0.842 & 5.28 & 0.70 & 0.677 & 0.630 & 11.7 & 0.45 \\
 \hline
 \end{tabular}
-\captionof{table}{\label{tab:threshold-real} Five-fold held-out score
-(accuracy for the three classification datasets, $R^2$ for the three regression
-datasets) and median fitting time in seconds of one tree with 256 candidate
-thresholds, by Stage B construction (Bonf.\ is the per-candidate Bonferroni
-test, Max-T the max-type test) and stopping mode, on a 32-core cloud instance.}
+\captionof{table}{\label{tab:threshold-real} Five-fold held-out score (accuracy for the three classification datasets, $R^2$ for the three regression datasets) and median fitting time in seconds of one tree at the 256-bin histogram setting, by Stage B construction (Bonf.\ is the per-candidate Bonferroni test, Max-T the max-type test) and stopping mode, on a 32-core cloud instance.}
 \end{center}
 
 \subsection{NHANES diabetes application} \label{sec:nhanes}

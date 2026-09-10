@@ -65,20 +65,10 @@ forests.
 
 \begin{corollary}[Stage~B max-type control at a fixed node]
 \label{cor:stageB-maxt}
-Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$ with
-a fixed selected feature and a fixed finite candidate set $C$ determined by
-$(X_t,U)$. Let $p^{\max}_t$ be the max-type Stage~B $p$-value of
-\cref{eq:maxt-stat} with column moments computed over all $B+1$ rows. Under the
-nodewise complete permutation null, conditional on $(X_t,U)$,
-$\PP(p^{\max}_t \le \alpha \mid X_t,U) \le \alpha$ for every
-$\alpha\in[0,1]$.
+Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$, with the tested feature and the finite candidate set $C$ fixed as functions of $(X_t,U)$ alone, a fixed budget $B$ with no optional stopping, and left-tail ties counted with $\le$. Let $p^{\max}_t$ be the max-type Stage~B $p$-value of \cref{eq:maxt-stat} with column moments computed over all $B+1$ rows. Under the nodewise complete permutation null, conditional on $(X_t,U)$, $\PP(p^{\max}_t \le \alpha \mid X_t,U) \le \alpha$ for every $\alpha\in[0,1]$.
 \end{corollary}
 
-The argument reduces to \cref{thm:plusone-superuniform} in four steps. Under
-the complete null the $B+1$ rows of the impurity matrix $(S_{b,c})$ are
-exchangeable, since row $0$ is the observed labels and rows $1,\dots,B$ are
-independent uniform permutations of them with the identity adjoined
-\citep{HemerikGoeman2018ExactTestingRandomPermutations}. Column
+The argument reduces to \cref{thm:plusone-superuniform} in four steps. Under the complete null the $B+1$ rows of the impurity matrix $(S_{b,c})$ are exchangeable: row $0$ is the observed labels and rows $1,\dots,B$ are independent uniform permutations of them with the identity adjoined \citep{HemerikGoeman2018ExactTestingRandomPermutations}, and \cref{lem:identity-vs-random} applies verbatim to the vector-valued statistic $c \mapsto S_{b,c}$ in $\mathbb{R}^{K}$, since nothing in its proof uses that the statistic is scalar. Column
 standardization uses the mean and standard deviation of all $B+1$ entries of
 each column, which are symmetric functions of the rows, so the standardized
 matrix has exchangeable rows as well; the exclusion of candidates with an empty
@@ -86,9 +76,4 @@ child or zero column variance is likewise a function of the whole column. The
 row minimum is one fixed function applied to every row, so $T_0,\dots,T_B$ are
 exchangeable. The inclusive-rank $p$-value of an exchangeable tuple is
 superuniform by the proof of \cref{thm:plusone-superuniform}, applied to $-T$
-for the left tail. The moments must include row $0$: estimating them from the
-permuted rows alone singles out the observed row and is anti-conservative. The
-guarantee is weak familywise control over the $K$ candidates, the probability
-of declaring any split under the node's global null, and, like the Stage~A
-results above, it is a fixed-node statement given the selected feature rather
-than a post-selection $p$-value.
+for the left tail. The moments must include row $0$: estimating them from the permuted rows alone singles out the observed row, breaks the symmetry the argument uses, and can be anti-conservative. The guarantee is weak familywise control over the $K$ candidates, the probability of declaring any split under the node's global null. It is a fixed-node, fixed-$B$ statement for a feature fixed without reference to $Y_t$; it does not cover the adaptive variant, whose column moments and chosen threshold move with the stopping time, and it is not a post-selection $p$-value for a feature chosen by Stage~A from the same responses.

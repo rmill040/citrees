@@ -135,8 +135,7 @@ column moments replacing the exact conditional moments of
 statistic. Standardization is what makes the minimum meaningful: candidates
 near the tails of $X_{t,j_t^\star}$ isolate few observations and have wide null
 distributions, and the unstandardized minimum is drawn to them on heavy-tailed
-responses. The cost is on the order of $K/\alpha_{\mathrm{split}}$ evaluations;
-the implementation uses $B=999$ under the named budget rules.
+responses. Validity needs only about $1/\alpha_{\mathrm{split}}$ permutations; the implementation uses $B=999$ under the named budget rules, so the cost is on the order of $BK$ evaluations against $K^2/\alpha_{\mathrm{split}}$ for the per-threshold rule. When every candidate is excluded the test returns $p^{\max}_t=1$ and no split.
 \Cref{cor:stageB-maxt} gives the fixed-node guarantee and
 \cref{sec:results-stageB} the measured calibration, cost, and behavior. The
 benchmark configurations in this paper use the per-threshold rule, which remains

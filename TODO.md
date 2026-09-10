@@ -279,6 +279,40 @@ Paragraph added to the JSS limitations and the arXiv discussion (with Gandy,
 Robbins, Howard et al. references; the 0.0494 figure is now called what it is,
 an exact recursion result, not simulation).
 
+## Threshold-test sections written into both papers and reviewed (2026-09-10)
+
+JSS: two-construction paragraph in the threshold-selection subsection (names
+`threshold_test = "maxt"`), Max-type column in tab:performance-real and
+tab:performance-scaling from the head-to-head run, and a new subsection
+"Threshold test comparison" with calibration, scaling, and real-subset tables.
+arXiv: "Joint Stage B test (max-type)" paragraph in the method, Corollary
+cor:stageB-maxt with a four-step argument in the theory section, design
+subsection, results subsection with the three tables, discussion paragraph,
+appendix A scope synchronized. Both papers build with 0 overfull (JSS 24 pp,
+arXiv 43 pp). Quick suite with all seven analyses published on `0edc8a3`.
+
+Two-lane review (Opus, Codex default model) of the new sections, findings
+verified and applied: (1) the "K candidates" label was the histogram SETTING,
+not the realized count (setting K yields K+1 candidates, capped at the number of
+distinct values: 100 and 200 candidates at n=100/200 for the 256 setting);
+tables now say "Bins" and the design text states the mapping. (2) "Holds the
+nominal level" replaced by "complete-node false-split rate below 0.05" because
+the null study measures the Stage A gate plus Stage B, not Stage B alone. (3)
+Cost stated as BK with B=999 vs K^2/alpha, not K/alpha; the "as the accounting
+predicts" claim dropped (measured growth is superlinear). (4) Head-to-head prose
+uses within-run refits (musk 12 -> 9.2 s; synthetic 4.6-15x), not table-to-table
+differences. (5) Discussion no longer claims benchmark rankings "stand"; they
+are Bonferroni rankings and the max-type effect on rankings is unmeasured. (6)
+Corollary scoped to fixed B, no optional stopping, feature and candidate set
+fixed without the responses, vector-valued lemma clause added, appendix A
+statement that the guarantee excludes Stage B corrected. (7) "no trend in K"
+removed (means 0.030/0.032/0.032 rise slightly); "at least as good" conclusion
+removed; "every split carries signal" softened; "0.9 to 30 times faster" ->
+"shorter"; facebook median 123.5; half-width "below 0.009" (0.0083). Declined:
+none. Both lanes verified every table value (276 per paper) against the
+artifacts. Receipts do not record core count; the 32-core claim rests on the
+instance type in TODO/S3 paths.
+
 ## Threshold-test benchmark for the paper (2026-09-09, author: "the speed is incredible, show it")
 
 New seventh replication analysis `paper/jss/replication/threshold_test.py`

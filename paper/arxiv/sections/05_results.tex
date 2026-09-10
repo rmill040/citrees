@@ -340,13 +340,7 @@ features; the selected setting keeps Bonferroni correction.
 \subsection{Stage~B construction comparison}
 \label{sec:results-stageB}
 
-Both Stage~B constructions hold the nominal level in all 36 null cells
-(\cref{tab:stageB-calibration}), and they differ in how far below it they sit.
-The per-threshold Bonferroni rule grows more conservative as the candidate count
-grows, from 0.0145 at $K=16$ to 0.0040 at $K=256$ in classification with
-$n=500$ and exhaustive stopping, because adjacent thresholds induce nearly
-identical splits and the union bound charges for each. The max-type rule stays
-between 0.025 and 0.038 in every cell with no trend in $K$.
+The complete-node false-split rate is below 0.05 for both Stage~B constructions in all 36 design cells, 72 measurements (\cref{tab:stageB-calibration}); the constructions differ in how far below. Under the per-threshold Bonferroni rule the rate falls as the bin setting grows, from 0.0145 at 16 bins to 0.0040 at 256 in classification with $n=500$ and exhaustive stopping, because adjacent thresholds induce nearly identical splits and the union bound charges for each. Under the max-type rule it stays between 0.025 and 0.038 in every cell and rises slightly with the bin setting, with cell means of 0.030, 0.032, and 0.032.
 
 \begin{table}[H]
   \centering
@@ -355,7 +349,7 @@ between 0.025 and 0.038 in every cell with no trend in $K$.
   \begin{tabular}{@{}lrrrrrr@{}}
     \toprule
      & & & \multicolumn{2}{c}{Bonferroni} & \multicolumn{2}{c}{Max-type} \\
-    \tablehead{Task} & $n$ & $K$ & Adaptive & Exhaustive & Adaptive & Exhaustive \\
+    \tablehead{Task} & $n$ & Bins & Adaptive & Exhaustive & Adaptive & Exhaustive \\
     \midrule
     Classification & 100 & 16 & 0.0180 & 0.0185 & 0.0320 & 0.0350 \\
      & 100 & 64 & 0.0130 & 0.0135 & 0.0355 & 0.0370 \\
@@ -379,28 +373,19 @@ between 0.025 and 0.038 in every cell with no trend in $K$.
   \end{tabular}
   \caption{False-split rate of a depth-one tree under the global null at level
   0.05, by Stage~B construction and stopping mode, over 2,000 replicates per
-  cell with five independent Gaussian predictors and an independent response.
-  Every 95\% confidence interval lies below 0.05; the widest half-width is
-  0.008.}
+  cell with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Wald confidence interval lies below 0.05; the widest half-width is below 0.009.}
   \label{tab:stageB-calibration}
 \end{table}
 
 The cost difference is where the constructions separate
-(\cref{tab:stageB-scaling}). With exhaustive stopping, one tree with 256
-candidates takes 60 seconds at $n=1{,}000$ and 426 to 486 seconds at
+(\cref{tab:stageB-scaling}). With exhaustive stopping, one tree at the 256-bin
+setting takes 60 seconds at $n=1{,}000$ and 426 to 486 seconds at
 $n=4{,}000$ under the Bonferroni rule and exceeds the 900-second cap at
 $n=16{,}000$; the max-type rule takes 0.5, 1.5 to 1.6, and 6.2 to 6.7 seconds
-at the same settings. The exhaustive ratio grows with $K$, from 2.0--6.4 at
-$K=16$ to 14--49 at $K=64$ and 119--318 at $K=256$, as the $K^2/\alpha$
-against $K/\alpha$ accounting predicts. With adaptive stopping the Bonferroni
-rule dismisses most candidates after a few dozen permutations and the ratio is
-1.6--4.7 at $K=16$, 3.2--16 at $K=64$, and 5.9--84 at $K=256$. The rules also
+at the same settings. The exhaustive ratio grows with the bin setting, from 2.0--6.4 at 16 bins to 14--49 at 64 and 119--318 at 256, faster than the linear growth in $K$ that the $K^2/\alpha$ against $BK$ accounting alone predicts. With adaptive stopping the Bonferroni rule dismisses most candidates after a few dozen permutations and the ratio is 1.6--4.7 at 16 bins, 3.2--16 at 64, and 5.9--84 at 256. The rules also
 grow different trees on these data: with adaptive stopping the max-type trees
 are deeper (5.3--11.0 levels against 4.0--10.0), and with exhaustive stopping
-the Bonferroni trees are deeper (6.7--18.3 against 5.0--10.3). The planted
-signal is linear in three predictors, so depth here records power at small
-nodes rather than false splits; the real-data scores are the measure of which
-trees predict better.
+the Bonferroni trees are deeper (6.7--18.3 against 5.0--10.3). The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores are the measure of which trees predict better.
 
 \begin{table}[H]
   \centering
@@ -409,7 +394,7 @@ trees predict better.
   \begin{tabular}{@{}lrrrrrr@{}}
     \toprule
      & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{2}{c}{Exhaustive} \\
-    \tablehead{Task} & $n$ & $K$ & Bonferroni & Max-type & Bonferroni & Max-type \\
+    \tablehead{Task} & $n$ & Bins & Bonferroni & Max-type & Bonferroni & Max-type \\
     \midrule
     Classification & 1,000 & 16 & 0.49 & 0.31 & 0.58 & 0.29 \\
      & 1,000 & 64 & 1.64 & 0.36 & 5.11 & 0.37 \\
@@ -433,29 +418,14 @@ trees predict better.
   \end{tabular}
   \caption{Median fitting time in seconds over three fits of one tree on ten
   Gaussian predictors with a planted linear signal, by Stage~B construction and
-  stopping mode, on a 32-core cloud instance. Censored marks a cell whose fits
-  exceeded 900 seconds.}
+  stopping mode, on a 32-core cloud instance. Bins is the histogram threshold setting as in \cref{tab:stageB-calibration}. Censored marks a cell whose fits exceeded 900 seconds.}
   \label{tab:stageB-scaling}
 \end{table}
 
 On the six real datasets (\cref{tab:stageB-real}) the max-type rule gave
 held-out scores at least as high as the Bonferroni rule in 10 of the 12
 dataset and stopping-mode cells, by 0.002 to 0.10 with exhaustive stopping and
-by 0.005 to 0.031 with adaptive stopping; the exceptions are page-blocks with
-adaptive stopping, lower by 0.002, and facebook with exhaustive stopping, where
-the response has a median of 124 and a maximum of 6,334 and one held-out
-observation in a one-observation leaf decides a fold's $R^2$ under either rule.
-It fit 0.9 to 30 times faster with adaptive stopping and 1.5 to 155 times
-faster with exhaustive stopping. The Spearman agreement of the two rules'
-feature importances ranges from 0.40 to 0.95, so the max-type rule produces a
-different ranking rather than a faster route to the same one. In the
-head-to-head forest timing on the recommended configuration, the max-type rule
-is 4.3--15$\times$ faster than the per-threshold rule on synthetic Gaussian
-predictors at $n\in\{500, 2{,}000, 8{,}000\}$, and on the real datasets it
-reduces madelon from 21 to 4.8 seconds and gamma from 42 to 23 seconds while
-changing the other six datasets by at most 0.8 seconds; where predictors are
-continuous the threshold test dominates, and where they are discrete it does
-not.
+by 0.005 to 0.031 with adaptive stopping; the exceptions are page-blocks with adaptive stopping, lower by 0.002, and facebook with exhaustive stopping, where the response has a median of 123.5 and a maximum of 6,334, so a single extreme held-out observation can decide a fold's $R^2$ under either rule. Its fitting time was 0.9 to 30 times shorter with adaptive stopping and 1.5 to 155 times shorter with exhaustive stopping. The Spearman agreement of the two rules' feature importances ranges from 0.40 to 0.95, so the max-type rule produces a different ranking rather than a faster route to the same one. In the head-to-head forest timing on the recommended configuration, with both rules refit in one run, the max-type rule is 4.5--15$\times$ faster than the per-threshold rule on synthetic Gaussian predictors at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$; on the eight real datasets it reduces madelon from 21 to 4.8 seconds, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds, and changes the other five by less than one second.
 
 \begin{table}[H]
   \centering
@@ -477,7 +447,7 @@ not.
   \end{tabular}
   \caption{Five-fold held-out score (accuracy for the three classification
   datasets, $R^2$ for the three regression datasets) and median fitting time
-  in seconds of one tree with 256 candidate thresholds, by Stage~B construction
+  in seconds of one tree at the 256-bin histogram setting, by Stage~B construction
   (Bonf.\ is the per-threshold Bonferroni rule, Max-T the max-type rule) and
   stopping mode, on a 32-core cloud instance.}
   \label{tab:stageB-real}

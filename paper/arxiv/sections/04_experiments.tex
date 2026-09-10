@@ -184,22 +184,8 @@ configuration within seed and fold.
 \subsection{Stage~B construction comparison}
 \label{sec:experiments-stageB}
 
-A separate study compares the per-threshold Bonferroni rule and the max-type
-rule of \cref{eq:maxt-stat} under the mc and pc selectors with adaptive and
-exhaustive stopping. Three parts were fixed before any result was seen. The
-first estimates the false-split rate of a depth-one tree under the global null
-with five independent Gaussian predictors and an independent response, at
-$n\in\{100,200,500\}$ and $K\in\{16,64,256\}$ candidate thresholds, with 2,000
-replicates per cell; the rate combines the Stage~A gate over five predictors
-with the Stage~B test. The second times one tree on ten Gaussian predictors
-with a planted linear signal in three of them at $n\in\{1{,}000,4{,}000,16{,}000\}$
-and the same $K$, as the median of three fits with a 900-second cap. The third
-fits one tree on six benchmark datasets chosen by size, three classification
-(vowel, spam, page-blocks) and three regression (imports-85, residential,
-facebook), with $K=256$ and five-fold cross-validation, recording held-out
+A separate study compares the per-threshold Bonferroni rule and the max-type rule of \cref{eq:maxt-stat} under the multiple correlation and Pearson correlation selectors with adaptive and exhaustive stopping; its three parts were fixed in advance. Candidate thresholds come from the histogram method at settings of 16, 64, and 256 bins, which yields one more candidate than the setting, capped at the number of distinct values in the node, so the 256-bin setting yields 100 and 200 candidates at $n=100$ and $n=200$. The first part estimates the false-split rate of a depth-one tree under the global null with five independent Gaussian predictors and an independent response, at $n\in\{100,200,500\}$ and the three bin settings, with 2,000 replicates per cell; the rate measures the complete node decision, the Stage~A gate over five predictors followed by the Stage~B test, and is therefore below the Stage~B level alone. The second times one tree on ten Gaussian predictors with a planted linear signal in three of them at $n\in\{1{,}000,4{,}000,16{,}000\}$ and the same bin settings, as the median of three fits with a 900-second cap. The third fits one tree on six benchmark datasets fixed by size, three classification (vowel, spam, page-blocks) and three regression (imports-85, residential, facebook), at the 256-bin setting with five-fold cross-validation, recording held-out
 score, tree depth, fitting time, and the Spearman agreement of the two rules'
 feature importances within each fold. All fits ran on one 32-core cloud
 instance of the class used for the runtime ablations; a fit exceeding the cap is
-reported as censored. A companion head-to-head timing on the recommended
-forest configuration adds the max-type rule to the real datasets with at least
-500 observations and to the synthetic scaling grid.
+reported as censored. A companion head-to-head timing on the recommended forest configuration adds the max-type rule to eight of the ten real datasets with at least 500 observations (isolet and gisette were not run) and to the synthetic scaling grid at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$, refitting the per-threshold configuration in the same run.

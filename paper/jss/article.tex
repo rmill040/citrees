@@ -836,8 +836,8 @@ Regression & 100 & 16 & 0.0240 & 0.0285 & 0.0310 & 0.0340 \\
 \end{center}
 
 The cost difference is where the constructions separate
-(Table~\ref{tab:threshold-scaling}). With exhaustive stopping, one tree with
-256 candidates takes 60 seconds at 1,000 observations and 426 to 486 seconds at
+(Table~\ref{tab:threshold-scaling}). With exhaustive stopping, one tree at
+the 256-bin setting takes 60 seconds at 1,000 observations and 426 to 486 seconds at
 4,000 under the Bonferroni test, and exceeds the 900-second cap at 16,000; the
 max-type test takes 0.5, 1.5 to 1.6, and 6.2 to 6.7 seconds at the same
 settings. The exhaustive ratio grows with the bin setting, from 2.0 to 6.4 at 16 bins to 14 to 49 at 64 and 119 to 318 at 256, faster than the linear growth in $K$ that the $K^2/\alpha$ against $BK$ accounting alone predicts. With adaptive stopping the Bonferroni test dismisses most candidates after a few dozen permutations, and the ratio is 1.6 to 4.7 at 16 bins, 3.2 to 16 at 64, and 5.9 to 84 at 256. The constructions also grow different trees on these data. With adaptive stopping the max-type trees are deeper, 5.3 to 11.0 levels against 4.0 to 10.0; with exhaustive stopping the Bonferroni trees are deeper, 6.7 to 18.3 levels against 5.0 to 10.3. The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores below are the measure of which trees predict better.

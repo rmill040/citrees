@@ -21,6 +21,7 @@ import argparse
 import concurrent.futures
 import hashlib
 import json
+import multiprocessing
 import platform
 import subprocess
 import sys
@@ -157,7 +158,11 @@ def timed_fit(
     performance section applies to its 48-hour cells. The child is killed so a
     runaway Bonferroni cell cannot stall the study.
     """
-    executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+    # Spawn, never fork: the parent has already started Numba/OpenMP threads and
+    # forking such a process is unsafe on Linux (the child is killed on start).
+    executor = concurrent.futures.ProcessPoolExecutor(
+        max_workers=1, mp_context=multiprocessing.get_context("spawn")
+    )
     future = executor.submit(_fit_worker, (task, test, stopping, k, seed, extra, X, y))
     try:
         return future.result(timeout=timeout)

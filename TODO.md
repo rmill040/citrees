@@ -201,6 +201,26 @@ p-value after the joint test). Investigate before maxt becomes a default
 anywhere. (The n_nodes column in the CSV is a dict-key count, not a node count;
 ignore it.)
 
+## Early-stopping proof: deferred with a stated reason (author, 2026-09-09)
+
+Two independent lanes (Opus; Codex on the runtime default model) assessed
+replacing the Beta-posterior stopping rule with a theorem-backed sequential
+Monte Carlo rule (Gandy 2009; Robbins 1970 / Howard et al. 2021 confidence
+sequences; level <= alpha + epsilon). Both: the author's worry that martingales
+assume too much about the data is unfounded (the martingale is over our own
+independent permutation draws, given the data); the proposal is sound but not a
+one-day job (3-5 days plus reruns; needs a decision-valued kernel interface, an
+epsilon/K allocation across the K feature tests, a larger minimum budget than
+AUTO's 52, and a pilot freeze for the standardized max-type kernel); exact
+computation shows 3-5x more permutations than the Beta rule on clear rejections
+at epsilon 0.001; Lean is not warranted (exact DP at p = alpha plus state
+enumeration is the right check). Opus: add as opt-in, do not replace the default
+before JSS. Codex: worth doing properly if 3-5 days are available, otherwise
+keep the heuristic. Decision: defer to future work and say so in both papers.
+Paragraph added to the JSS limitations and the arXiv discussion (with Gandy,
+Robbins, Howard et al. references; the 0.0494 figure is now called what it is,
+an exact recursion result, not simulation).
+
 ## Threshold-test benchmark for the paper (2026-09-09, author: "the speed is incredible, show it")
 
 New seventh replication analysis `paper/jss/replication/threshold_test.py`

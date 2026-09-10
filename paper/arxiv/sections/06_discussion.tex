@@ -28,6 +28,30 @@ matters more than the split-count and feature-muting variants tested here, so th
 selected CIF configuration is the relevant ranking reference when ranking
 quality is the priority.
 
+The adaptive stopping rule is a heuristic. After each batch of 32 permutations
+it evaluates a Beta posterior on the exceedance proportion and stops once that
+posterior places probability at least 0.95 on one side of the significance
+level, reporting the exceedance proportion at the stopping time. No level
+theorem exists for this rule, and the reported value is a stopping-time
+estimate rather than a fixed-budget permutation $p$-value. Exact recursion over
+the stopping process gives a null rejection probability of 0.0494 at the
+default confidence of 0.95 for a nominal 0.05, and 0.0527 at a confidence of
+0.80, which is why confidence values below 0.95 are not accepted. A
+theorem-backed alternative exists: the sequential Monte Carlo rule of
+\citet{Gandy2009SequentialImplementationMonteCarloTests}, or equivalently a time-uniform confidence sequence for the
+exceedance proportion \citep{Robbins1970LawIteratedLogarithm,Howard2021TimeUniformConfidenceSequences},
+bounds the probability that early stopping alters the infinite-permutation
+decision by a chosen $\varepsilon$, so that the nodewise level is at most
+$\alpha + \varepsilon$. The bound is paid for in permutations: exact
+computation at $\varepsilon = 0.001$ shows the bounded-risk rule spending three
+to five times as many permutations as the heuristic on clearly significant
+tests, and both rules exhausting the budget when the true $p$-value lies near
+$\alpha$, which is where a tree spends most of its testing effort. Because the
+package prioritizes fast approximate inference over per-test guarantees, and
+because the theorem-backed rule also requires a decision-valued interface and a
+larger minimum budget, we retain the heuristic as the default and leave the
+bounded-risk rule to future work.
+
 In sparse high-$p$ settings, feature use should be monitored directly.
 The simulations show that CIF feature sampling can leave informative features
 out of many forest split decisions, especially in sparse classification designs.

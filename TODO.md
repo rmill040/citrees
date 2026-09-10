@@ -218,12 +218,26 @@ Facebook heavy-tail question settled: with `min_samples_leaf=5` the exhaustive
 K=64 collapse disappears (maxt 0.60 / Bonferroni 0.68; at 10, 0.62 / 0.53), so
 it was one-observation leaves around the 6,334 maximum, not the test.
 
+**Correction (2026-09-09, from reading performance.py):** the 48-hour censored
+cells are in the matched-procedure arm, which turns the split permutation test
+OFF (no splitter test, no Bonferroni) and is bound by the exhaustive selector
+test over 200 predictors. Max-type does NOT rescue them; do not claim it. The
+threshold cost bites in the shipped-defaults configuration on real data (the
+head-to-head found the 256-candidate Bonferroni test dominant on continuous
+predictors, and citrees ahead of 32-core partykit everywhere without it). The
+real max-type claim to test: rerun the head-to-head recommended-configuration
+cells (real datasets n >= 500, mc/pc, defaults) with `threshold_test="maxt"` and
+see whether citrees moves ahead on gamma, madelon and vowel. Same c6a 32-core
+class and container as before, one bounded self-terminating box, per fit cap, no
+rdc, no wide data. Not launched.
+
 Paper plan: a short subsection under statistical components introducing the two
 tests (Bonferroni valid but conservative, K^2/alpha; max-type valid, near
 nominal, K/alpha, same construction partykit uses), one calibration table, one
-scaling table with the ratio, one line in the performance section on what
-happens to the exhaustive cells, and the real subset showing equal accuracy and
-importance agreement. Bonferroni stays the default for reproducibility.
+scaling table with the ratio, one line in the performance section on the
+head-to-head recommended configuration with max-type, and the real subset
+showing equal accuracy and importance agreement. Bonferroni stays the default
+for reproducibility.
 
 ## Max-type split test: standardized version, budget, and the facebook question (2026-09-09)
 

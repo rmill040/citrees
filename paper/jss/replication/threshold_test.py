@@ -18,6 +18,7 @@ performance section uses.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import platform
@@ -41,6 +42,7 @@ REPO_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR: Final = REPO_ROOT / "paper" / "jss" / "results" / "threshold-test"
 ANALYSIS: Final = "threshold_test"
 ALPHA: Final = 0.05
+DEFAULT_FIT_TIMEOUT: Final = 1200.0
 TESTS: Final = ("bonferroni", "maxt")
 STOPPING: Final = ("adaptive", None)
 REAL_DATASETS: Final = {
@@ -126,6 +128,47 @@ def _wilson(rate: float, n: int) -> tuple[float, float]:
     return max(0.0, rate - half), min(1.0, rate + half)
 
 
+def _fit_worker(args: tuple[Any, ...]) -> dict[str, Any]:
+    task, test, stopping, k, seed, extra, X, y = args
+    start = time.perf_counter()
+    tree = _estimator(task, test, stopping, k, seed, **extra).fit(X, y)
+    return {
+        "seconds": time.perf_counter() - start,
+        "depth": _depth(tree.tree_),
+        "importances": np.asarray(tree.feature_importances_),
+        "tree": tree,
+    }
+
+
+def timed_fit(
+    task: str,
+    test: str,
+    stopping: str | None,
+    k: int,
+    seed: int,
+    X: np.ndarray,
+    y: np.ndarray,
+    timeout: float,
+    **extra: Any,
+) -> dict[str, Any] | None:
+    """Fit in a child process; return None when the fit exceeds ``timeout`` seconds.
+
+    A fit that cannot finish within the cap is censored, the same rule the
+    performance section applies to its 48-hour cells. The child is killed so a
+    runaway Bonferroni cell cannot stall the study.
+    """
+    executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+    future = executor.submit(_fit_worker, (task, test, stopping, k, seed, extra, X, y))
+    try:
+        return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        for proc in getattr(executor, "_processes", {}).values():
+            proc.kill()
+        return None
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
 def null_calibration(profile: dict[str, Any], seed: int) -> pd.DataFrame:
     rows = []
     for task in ("classification", "regression"):
@@ -172,7 +215,9 @@ def null_calibration(profile: dict[str, Any], seed: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def synthetic_scaling(profile: dict[str, Any], seed: int) -> pd.DataFrame:
+def synthetic_scaling(
+    profile: dict[str, Any], seed: int, timeout: float = DEFAULT_FIT_TIMEOUT
+) -> pd.DataFrame:
     rows = []
     for task in ("classification", "regression"):
         for n in profile["scale_n"]:
@@ -188,12 +233,14 @@ def synthetic_scaling(profile: dict[str, Any], seed: int) -> pd.DataFrame:
                 for test in TESTS:
                     for stopping in STOPPING:
                         _estimator(task, test, stopping, k, seed).fit(X[:200], y[:200])  # warm JIT
-                        seconds, depths = [], []
+                        seconds, depths, censored = [], [], False
                         for r in range(profile["scale_reps"]):
-                            start = time.perf_counter()
-                            tree = _estimator(task, test, stopping, k, seed + r).fit(X, y)
-                            seconds.append(time.perf_counter() - start)
-                            depths.append(_depth(tree.tree_))
+                            result = timed_fit(task, test, stopping, k, seed + r, X, y, timeout)
+                            if result is None:
+                                censored = True
+                                break
+                            seconds.append(result["seconds"])
+                            depths.append(result["depth"])
                         rows.append(
                             {
                                 "study": "synthetic_scaling",
@@ -202,15 +249,20 @@ def synthetic_scaling(profile: dict[str, Any], seed: int) -> pd.DataFrame:
                                 "k": k,
                                 "threshold_test": test,
                                 "stopping": stopping or "exhaustive",
-                                "repeats": profile["scale_reps"],
-                                "seconds_per_fit": float(np.median(seconds)),
-                                "seconds_min": float(np.min(seconds)),
-                                "seconds_max": float(np.max(seconds)),
-                                "depth": float(np.mean(depths)),
+                                "repeats": len(seconds),
+                                "censored": censored,
+                                "timeout_seconds": timeout,
+                                "seconds_per_fit": float(np.median(seconds))
+                                if seconds
+                                else float("nan"),
+                                "seconds_min": float(np.min(seconds)) if seconds else float("nan"),
+                                "seconds_max": float(np.max(seconds)) if seconds else float("nan"),
+                                "depth": float(np.mean(depths)) if depths else float("nan"),
                             }
                         )
+                        shown = "censored" if censored else f"{np.median(seconds):.2f}s"
                         print(
-                            f"  scale {task[:3]} n={n} k={k} {test} {stopping or 'exhaustive'}: {np.median(seconds):.2f}s",
+                            f"  scale {task[:3]} n={n} k={k} {test} {stopping or 'exhaustive'}: {shown}",
                             flush=True,
                         )
     return pd.DataFrame(rows)
@@ -229,7 +281,9 @@ def _load_real(task: str, name: str) -> tuple[np.ndarray, np.ndarray]:
     return X, y.astype(np.float64) if task == "regression" else y
 
 
-def real_subset(profile: dict[str, Any], seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def real_subset(
+    profile: dict[str, Any], seed: int, timeout: float = DEFAULT_FIT_TIMEOUT
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows, agreement = [], []
     k = profile["real_k"]
     for task, names in REAL_DATASETS.items():
@@ -240,15 +294,21 @@ def real_subset(profile: dict[str, Any], seed: int) -> tuple[pd.DataFrame, pd.Da
             )
             for stopping in STOPPING:
                 importances: dict[str, list[np.ndarray]] = {t: [] for t in TESTS}
+                censored_any = False
                 for test in TESTS:
-                    scores, depths, seconds = [], [], []
+                    scores, depths, seconds, censored = [], [], [], False
                     for train, test_idx in splitter.split(X, y):
-                        start = time.perf_counter()
-                        tree = _estimator(task, test, stopping, k, seed).fit(X[train], y[train])
-                        seconds.append(time.perf_counter() - start)
-                        scores.append(tree.score(X[test_idx], y[test_idx]))
-                        depths.append(_depth(tree.tree_))
-                        importances[test].append(tree.feature_importances_)
+                        result = timed_fit(
+                            task, test, stopping, k, seed, X[train], y[train], timeout
+                        )
+                        if result is None:
+                            censored = True
+                            break
+                        seconds.append(result["seconds"])
+                        scores.append(result["tree"].score(X[test_idx], y[test_idx]))
+                        depths.append(result["depth"])
+                        importances[test].append(result["importances"])
+                    censored_any = censored_any or censored
                     rows.append(
                         {
                             "study": "real_subset",
@@ -259,21 +319,27 @@ def real_subset(profile: dict[str, Any], seed: int) -> tuple[pd.DataFrame, pd.Da
                             "k": k,
                             "threshold_test": test,
                             "stopping": stopping or "exhaustive",
-                            "folds": profile["real_folds"],
-                            "score_mean": float(np.mean(scores)),
-                            "score_sd": float(np.std(scores, ddof=1)) if len(scores) > 1 else 0.0,
-                            "depth_mean": float(np.mean(depths)),
-                            "seconds_per_fit": float(np.median(seconds)),
+                            "folds": len(scores),
+                            "censored": censored,
+                            "timeout_seconds": timeout,
+                            "score_mean": float(np.mean(scores)) if scores else float("nan"),
+                            "score_sd": float(np.std(scores, ddof=1))
+                            if len(scores) > 1
+                            else float("nan"),
+                            "depth_mean": float(np.mean(depths)) if depths else float("nan"),
+                            "seconds_per_fit": float(np.median(seconds))
+                            if seconds
+                            else float("nan"),
                         }
                     )
-                    print(
-                        f"  real {name} {test} {stopping or 'exhaustive'}: score {np.mean(scores):.3f} {np.median(seconds):.2f}s",
-                        flush=True,
+                    shown = (
+                        "censored"
+                        if censored
+                        else f"score {np.mean(scores):.3f} {np.median(seconds):.2f}s"
                     )
-                rhos = [
-                    spearmanr(a, b)[0]
-                    for a, b in zip(importances["bonferroni"], importances["maxt"], strict=True)
-                ]
+                    print(f"  real {name} {test} {stopping or 'exhaustive'}: {shown}", flush=True)
+                pairs = list(zip(importances["bonferroni"], importances["maxt"], strict=False))
+                rhos = [spearmanr(a, b)[0] for a, b in pairs]
                 agreement.append(
                     {
                         "study": "real_subset_agreement",
@@ -281,9 +347,12 @@ def real_subset(profile: dict[str, Any], seed: int) -> tuple[pd.DataFrame, pd.Da
                         "dataset": name,
                         "stopping": stopping or "exhaustive",
                         "k": k,
-                        "folds": profile["real_folds"],
-                        "importance_spearman_mean": float(np.nanmean(rhos)),
-                        "importance_spearman_min": float(np.nanmin(rhos)),
+                        "folds_compared": len(pairs),
+                        "censored": censored_any,
+                        "importance_spearman_mean": float(np.nanmean(rhos))
+                        if rhos
+                        else float("nan"),
+                        "importance_spearman_min": float(np.nanmin(rhos)) if rhos else float("nan"),
                     }
                 )
     return pd.DataFrame(rows), pd.DataFrame(agreement)
@@ -326,16 +395,34 @@ def main() -> None:
         action="store_true",
         help="Skip the synthetic scaling study (timings belong on the cloud class).",
     )
+    parser.add_argument(
+        "--studies",
+        nargs="+",
+        choices=("calibration", "scaling", "real"),
+        default=("calibration", "scaling", "real"),
+    )
+    parser.add_argument(
+        "--fit-timeout",
+        type=float,
+        default=DEFAULT_FIT_TIMEOUT,
+        help="Seconds allowed per fit before the cell is censored.",
+    )
     args = parser.parse_args()
+    studies = set(args.studies)
+    if args.skip_timing:
+        studies.discard("scaling")
     profile = PROFILES[args.profile]
     print(f"profile={args.profile} seed={args.seed}", flush=True)
 
-    frames = {"null_calibration": null_calibration(profile, args.seed)}
-    if not args.skip_timing:
-        frames["synthetic_scaling"] = synthetic_scaling(profile, args.seed)
-    real, agreement = real_subset(profile, args.seed)
-    frames["real_subset"] = real
-    frames["real_subset_agreement"] = agreement
+    frames: dict[str, pd.DataFrame] = {}
+    if "calibration" in studies:
+        frames["null_calibration"] = null_calibration(profile, args.seed)
+    if "scaling" in studies:
+        frames["synthetic_scaling"] = synthetic_scaling(profile, args.seed, args.fit_timeout)
+    if "real" in studies:
+        real, agreement = real_subset(profile, args.seed, args.fit_timeout)
+        frames["real_subset"] = real
+        frames["real_subset_agreement"] = agreement
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for stale in args.output_dir.iterdir():
@@ -350,21 +437,22 @@ def main() -> None:
             )
             artifacts[path.name] = path
     write_receipt(args.output_dir, args.profile, artifacts)
-    print("\n== null calibration ==")
-    print(
-        frames["null_calibration"][
-            [
-                "task",
-                "n",
-                "k",
-                "threshold_test",
-                "stopping",
-                "false_split_rate",
-                "ci_low",
-                "ci_high",
-            ]
-        ].to_string(index=False)
-    )
+    if "null_calibration" in frames:
+        print("\n== null calibration ==")
+        print(
+            frames["null_calibration"][
+                [
+                    "task",
+                    "n",
+                    "k",
+                    "threshold_test",
+                    "stopping",
+                    "false_split_rate",
+                    "ci_low",
+                    "ci_high",
+                ]
+            ].to_string(index=False)
+        )
     if "synthetic_scaling" in frames:
         print("\n== synthetic scaling (seconds per fit) ==")
         print(
@@ -377,13 +465,22 @@ def main() -> None:
             .round(3)
             .to_string()
         )
-    print("\n== real subset ==")
-    print(
-        real[
-            ["dataset", "threshold_test", "stopping", "score_mean", "depth_mean", "seconds_per_fit"]
-        ].to_string(index=False)
-    )
-    print(agreement.to_string(index=False))
+    if "real_subset" in frames:
+        print("\n== real subset ==")
+        print(
+            frames["real_subset"][
+                [
+                    "dataset",
+                    "threshold_test",
+                    "stopping",
+                    "censored",
+                    "score_mean",
+                    "depth_mean",
+                    "seconds_per_fit",
+                ]
+            ].to_string(index=False)
+        )
+        print(frames["real_subset_agreement"].to_string(index=False))
 
 
 if __name__ == "__main__":

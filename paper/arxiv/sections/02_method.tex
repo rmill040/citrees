@@ -103,6 +103,45 @@ for the benchmarked CIT and CIF configurations, stores two values at each split:
 the Stage~A permutation $p$-value for the selected feature and the Stage~B
 permutation $p$-value for the selected threshold.
 
+\paragraph{Joint Stage~B test (max-type).}
+The per-threshold rule above tests each candidate $c \in C_{t,j_t^\star}$
+separately at level $\alpha_{\mathrm{split}}/K$ with $K=|C_{t,j_t^\star}|$, and
+the permutation budget must scale with $K$ so that the adjusted level can be
+resolved, which costs on the order of $K^2/\alpha_{\mathrm{split}}$ impurity
+evaluations per node. The implementation also provides a joint construction. Write
+$S_{b,c}$ for the weighted child impurity at candidate $c$ under the observed
+response ($b=0$) and under permutation $b=1,\dots,B$. Each column is
+standardized by the mean $\mu_c$ and standard deviation $\sigma_c$ of its $B+1$
+entries, candidates with $\sigma_c=0$ or an empty child are dropped, and the row
+statistic is
+%
+\begin{equation}
+  T_b := \min_{c} \frac{S_{b,c}-\mu_c}{\sigma_c},
+  \qquad
+  p^{\max}_{t} := \frac{1+\sum_{b=1}^{B}\ind\{T_b \le T_0\}}{B+1},
+  \label{eq:maxt-stat}
+\end{equation}
+%
+with the split placed at $\arg\min_c (S_{0,c}-\mu_c)/\sigma_c$. Stage~B rejects
+when $p^{\max}_t<\alpha_{\mathrm{split}}$, without division by $K$. This is a
+single-step max-T statistic in the sense of
+\citet{WestfallYoung1993ResamplingBasedMultipleTesting}, applied to a minimum
+because smaller impurity is more extreme, with the empirical null
+standardization of \citet{PollardVanDerLaan2004NullDistribution}; it has the
+same standardize-then-optimize form as the conditional inference split
+statistic of \citet{Hothorn2006UnbiasedRecursivePartitioning}, with Monte Carlo
+column moments replacing the exact conditional moments of
+\citet{StrasserWeber1999PermutationStatistics} because impurity is not a linear
+statistic. Standardization is what makes the minimum meaningful: candidates
+near the tails of $X_{t,j_t^\star}$ isolate few observations and have wide null
+distributions, and the unstandardized minimum is drawn to them on heavy-tailed
+responses. The cost is on the order of $K/\alpha_{\mathrm{split}}$ evaluations;
+the implementation uses $B=999$ under the named budget rules.
+\Cref{cor:stageB-maxt} gives the fixed-node guarantee and
+\cref{sec:results-stageB} the measured calibration, cost, and behavior. The
+benchmark configurations in this paper use the per-threshold rule, which remains
+the default.
+
 \subsection{Monte Carlo permutation \texorpdfstring{$p$}{p}-values}
 \label{sec:plusone}
 

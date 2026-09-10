@@ -180,3 +180,26 @@ bootstrap sampling, or reducing the forest to one tree. Each variant is evaluate
 with the same downstream learners, folds, seeds, and standard top-$k$ values as
 the main benchmark, and every comparison is paired with the reference
 configuration within seed and fold.
+
+\subsection{Stage~B construction comparison}
+\label{sec:experiments-stageB}
+
+A separate study compares the per-threshold Bonferroni rule and the max-type
+rule of \cref{eq:maxt-stat} under the mc and pc selectors with adaptive and
+exhaustive stopping. Three parts were fixed before any result was seen. The
+first estimates the false-split rate of a depth-one tree under the global null
+with five independent Gaussian predictors and an independent response, at
+$n\in\{100,200,500\}$ and $K\in\{16,64,256\}$ candidate thresholds, with 2,000
+replicates per cell; the rate combines the Stage~A gate over five predictors
+with the Stage~B test. The second times one tree on ten Gaussian predictors
+with a planted linear signal in three of them at $n\in\{1{,}000,4{,}000,16{,}000\}$
+and the same $K$, as the median of three fits with a 900-second cap. The third
+fits one tree on six benchmark datasets chosen by size, three classification
+(vowel, spam, page-blocks) and three regression (imports-85, residential,
+facebook), with $K=256$ and five-fold cross-validation, recording held-out
+score, tree depth, fitting time, and the Spearman agreement of the two rules'
+feature importances within each fold. All fits ran on one 32-core cloud
+instance of the class used for the runtime ablations; a fit exceeding the cap is
+reported as censored. A companion head-to-head timing on the recommended
+forest configuration adds the max-type rule to the real datasets with at least
+500 observations and to the synthetic scaling grid.

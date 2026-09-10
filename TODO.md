@@ -236,12 +236,22 @@ the large gains are exhaustive-mode. Raw log
 `scratch/maxt_timing/h2h_real_fe64b00.log` (the results JSON was overwritten by
 Part C's file of the same name; the log has every fit).
 
-Part A FAILED on the box: fork() after OpenMP threads had started killed the
-timed-fit child (BrokenProcessPool). Fixed by spawning the child (`33c2b27`).
-The calibration grid completed on the box before the failure and matches the
-laptop to four decimals; artifacts were not written. Relaunch Part A on a fresh
-box from `33c2b27` once this box finishes Part C. Delete the role and confirm
-zero instances when done.
+Part C result (synthetic head-to-head, recommended configuration, adaptive
+stopping, 100-tree forests, Gaussian predictors, same box): maxt over the
+current default is 4.0-5.0x at n=500, 5.6-8.9x at n=2,000, 8.0-15.7x at n=8,000,
+across p = 20 / 100 / 500 and weak / strong signal, growing with n. On
+continuous predictors the shipped adaptive configuration gains a lot; the modest
+real-data gains are on datasets with few or discrete predictors. Raw:
+`scratch/maxt_timing/results_synthetic_0.json` and `h2h_synthetic.log`. Box
+i-07537b48a02048c18 terminated itself after Part C.
+
+Part A FAILED on the first box: fork() after OpenMP threads had started killed
+the timed-fit child (BrokenProcessPool). Fixed by spawning the child
+(`33c2b27`). The calibration grid completed on the box before the failure and
+matches the laptop to four decimals; artifacts were not written. Part A
+relaunched on box i-014836b38c821ae9b from `c3d9550` (2026-09-10 ~04:00 UTC);
+output s3 debug/maxt-timing/out/c3d9550. Delete the role and confirm zero
+instances when done.
 
 ## Early-stopping proof: deferred with a stated reason (author, 2026-09-09)
 

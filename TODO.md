@@ -201,6 +201,31 @@ p-value after the joint test). Investigate before maxt becomes a default
 anywhere. (The n_nodes column in the CSV is a dict-key count, not a node count;
 ignore it.)
 
+## Threshold-test results so far (2026-09-09/10)
+
+Local (laptop, machine-independent quantities only; copies in
+`scratch/threshold_test_local/`):
+
+- Null calibration grid, 72 cells x 2,000 nulls: every cell below 0.05.
+  Bonferroni falls with K (classification n=500: 0.0145 / 0.0090 / 0.0040 at K =
+  16 / 64 / 256); maxt flat (0.0255 / 0.0280 / 0.0295). Regression same pattern.
+  Cloud run reproduces the laptop cells to four decimals.
+- Real subset, K=256, 5 folds: maxt >= Bonferroni in 11 of 12 cells (+0.02 to
+  +0.12 in exhaustive mode; vowel 0.535 -> 0.651, imports-85 0.571 -> 0.676);
+  the exception is facebook exhaustive (0.721 -> 0.630, fold sd 0.44, the
+  single-outlier case). One Bonferroni cell censored at the 20-min cap
+  (page-blocks exhaustive). Importance Spearman between the two tests 0.40-0.95:
+  they choose different splits at 256 candidates; accuracy favours maxt.
+
+Cloud (c6a.8xlarge, same container, box i-07537b48a02048c18 launched 2026-09-10
+~01:45 UTC, 10 h hard stop, 900/1200 s fit caps, role
+`citrees-maxt-timing-20260909`): Part A threshold_test full profile (all three
+studies), Part B head-to-head real datasets (letter, gamma, pendigits, musk,
+page-blocks, spam, madelon, vowel-context; configs citrees, citrees_maxt,
+partykit_sqrt_32, sklearn_rf), Part C synthetic head-to-head (n 500/2k/8k;
+citrees vs citrees_maxt). Output s3 debug/maxt-timing/out/fe64b00. Delete the
+role and confirm zero instances when done.
+
 ## Early-stopping proof: deferred with a stated reason (author, 2026-09-09)
 
 Two independent lanes (Opus; Codex on the runtime default model) assessed

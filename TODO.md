@@ -223,8 +223,25 @@ Cloud (c6a.8xlarge, same container, box i-07537b48a02048c18 launched 2026-09-10
 studies), Part B head-to-head real datasets (letter, gamma, pendigits, musk,
 page-blocks, spam, madelon, vowel-context; configs citrees, citrees_maxt,
 partykit_sqrt_32, sklearn_rf), Part C synthetic head-to-head (n 500/2k/8k;
-citrees vs citrees_maxt). Output s3 debug/maxt-timing/out/fe64b00. Delete the
-role and confirm zero instances when done.
+citrees vs citrees_maxt). Output s3 debug/maxt-timing/out/fe64b00.
+
+Part B result (head-to-head, recommended configuration, adaptive stopping,
+100-tree forests, median of 2 fresh-process fits, c6a.8xlarge): maxt over the
+current citrees default is 4.4x on madelon (21.3 -> 4.8 s; partykit-32 10.5 s,
+so citrees goes from behind to 2.2x ahead), 1.9x on gamma (42.1 -> 22.6 s,
+partykit 15.2 s, still behind), 1.3x on musk, 1.0-1.2x on letter, pendigits,
+spam, page-blocks, vowel. In the shipped adaptive configuration the gain is
+modest except where many continuous predictors make the threshold test dominant;
+the large gains are exhaustive-mode. Raw log
+`scratch/maxt_timing/h2h_real_fe64b00.log` (the results JSON was overwritten by
+Part C's file of the same name; the log has every fit).
+
+Part A FAILED on the box: fork() after OpenMP threads had started killed the
+timed-fit child (BrokenProcessPool). Fixed by spawning the child (`33c2b27`).
+The calibration grid completed on the box before the failure and matches the
+laptop to four decimals; artifacts were not written. Relaunch Part A on a fresh
+box from `33c2b27` once this box finishes Part C. Delete the role and confirm
+zero instances when done.
 
 ## Early-stopping proof: deferred with a stated reason (author, 2026-09-09)
 

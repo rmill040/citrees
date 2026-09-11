@@ -82,64 +82,74 @@ ordering is therefore a descriptive summary of this panel.
 \subsection{LODO configuration sensitivity}
 
 \Cref{tab:lodo-config-sensitivity} reports LODO configuration selection for each
-task. Each run selects configurations on all but one complete-case dataset in
-that task, evaluates the held-out dataset, and averages scores and ranks over
-downstream learners and standard top-$k$ values. CIF reselects the
-main-benchmark configuration in 11 of the 13 classification holdouts, using 2
-distinct configurations. In regression, it also uses
-two configurations, reselects the global regression configuration in 4 of 6
-holdouts, and is sixth by mean LODO rank behind ExtraTrees, CatBoost, RF-RFE,
-RF, and RT.
+task next to the fixed-configuration rank on the same panel. Each LODO run
+selects configurations on all but one complete-case dataset in that task,
+evaluates the held-out dataset, and averages scores and ranks over downstream
+learners and standard top-$k$ values. In classification, CIF reselects the
+main-benchmark configuration in 11 of the 13 holdouts, using 2 distinct
+configurations; its mean rank moves from 6.38 (tied 6th) under the fixed
+configuration to 6.85 (8th) under LODO. In regression, CIF also uses two
+configurations, reselects the global configuration in 4 of 6 holdouts, and
+moves from 7.00 (tied 5th) to 7.33 (6th). The gap between these panel ranks
+and the main-table ranks of 3rd and 2nd comes from the panel: on the 13- and
+6-dataset panels the fixed configuration already ranks CIF 6th and 5th, and
+reselection adds less than half a rank.
 
 \begin{table}[!htbp]
   \centering
   \fontsize{8}{9.1}\selectfont
-  \setlength{\tabcolsep}{3pt}
+  \setlength{\tabcolsep}{2.5pt}
   \renewcommand{\arraystretch}{1.0}
-  \begin{tabular*}{0.96\linewidth}{@{\extracolsep{\fill}}l
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}l
+    S[table-format=2.2]
     S[table-format=2.2]
     S[table-format=1.3]
     S[table-format=1.0]
     c
-    @{\hspace{0.9em}}
+    @{\hspace{0.8em}}
     l
+    S[table-format=2.2]
     S[table-format=2.2]
     S[table-format=-1.3]
     S[table-format=1.0]
     c@{}}
     \toprule
-    \multicolumn{5}{c}{Classification} &
-    \multicolumn{5}{c}{Regression} \\
-    \cmidrule(lr){1-5}\cmidrule(l){6-10}
-    \tablehead{Method} & {Rank} & {Score} & {Settings} & {Main} &
-    \tablehead{Method} & {Rank} & {Score} & {Settings} & {Main} \\
+    \multicolumn{6}{c}{Classification} &
+    \multicolumn{6}{c}{Regression} \\
+    \cmidrule(lr){1-6}\cmidrule(l){7-12}
+    \tablehead{Method} & {LODO} & {Fixed} & {Score} & {Settings} & {Main} &
+    \tablehead{Method} & {LODO} & {Fixed} & {Score} & {Settings} & {Main} \\
     \midrule
-    RF-RFE & 2.54 & 0.825 & 1 & \countfrac{13}{13} & ExtraTrees & 4.67 & 0.292 & 1 & \countfrac{6}{6} \\
-    LightGBM & 4.31 & 0.813 & 1 & \countfrac{13}{13} & CatBoost & 6.17 & 0.229 & 1 & \countfrac{6}{6} \\
-    RF & 5.08 & 0.802 & 1 & \countfrac{13}{13} & RF-RFE & 6.67 & 0.333 & 1 & \countfrac{6}{6} \\
-    CatBoost & 5.54 & 0.801 & 1 & \countfrac{13}{13} & RF & 6.83 & 0.260 & 1 & \countfrac{6}{6} \\
-    XGBoost & 5.69 & 0.808 & 2 & \countfrac{11}{13} & RT & 7.00 & 0.266 & 1 & \countfrac{6}{6} \\
-    Boruta & 6.23 & 0.791 & 1 & \countfrac{13}{13} & CIF & 7.33 & 0.240 & 2 & \countfrac{4}{6} \\
-    ExtraTrees & 6.62 & 0.792 & 1 & \countfrac{13}{13} & XGBoost & 8.50 & 0.149 & 2 & \countfrac{5}{6} \\
-    CIF & 6.85 & 0.793 & 2 & \countfrac{11}{13} & DT & 8.67 & 0.124 & 1 & \countfrac{6}{6} \\
-    cforest & 8.23 & 0.785 & 1 & \countfrac{13}{13} & Boruta & 9.17 & 0.118 & 1 & \countfrac{6}{6} \\
-    DT & 9.38 & 0.763 & 1 & \countfrac{13}{13} & LightGBM & 10.50 & -0.214 & 1 & \countfrac{6}{6} \\
-    RDC filter & 10.69 & 0.764 & 1 & \countfrac{13}{13} & CIT & 10.67 & -0.206 & 2 & \countfrac{5}{6} \\
-    ctree & 11.77 & 0.749 & 1 & \countfrac{13}{13} & cforest & 10.67 & 0.092 & 2 & \countfrac{5}{6} \\
-    CIT & 12.15 & 0.754 & 1 & \countfrac{13}{13} & PI & 11.00 & -0.024 & 1 & \countfrac{6}{6} \\
-    MC filter & 12.69 & 0.737 & 1 & \countfrac{13}{13} & ctree & 11.33 & 0.051 & 1 & \countfrac{6}{6} \\
-    RT & 13.00 & 0.737 & 1 & \countfrac{13}{13} & PC filter & 11.67 & 0.099 & 1 & \countfrac{6}{6} \\
-    PI & 15.73 & 0.676 & 1 & \countfrac{13}{13} & RDC filter & 12.50 & -0.082 & 1 & \countfrac{6}{6} \\
-    CPI & 16.50 & 0.600 & 1 & \countfrac{13}{13} & DC filter & 13.50 & -0.009 & 1 & \countfrac{6}{6} \\
-    \multicolumn{5}{c}{} & CPI & 14.17 & -0.554 & 1 & \countfrac{6}{6} \\
+    RF-RFE & 2.54 & 2.54 & 0.825 & 1 & \countfrac{13}{13} & ExtraTrees & 4.67 & 4.67 & 0.292 & 1 & \countfrac{6}{6} \\
+    LightGBM & 4.31 & 4.46 & 0.813 & 1 & \countfrac{13}{13} & CatBoost & 6.17 & 6.33 & 0.229 & 1 & \countfrac{6}{6} \\
+    RF & 5.08 & 5.23 & 0.802 & 1 & \countfrac{13}{13} & RF-RFE & 6.67 & 6.67 & 0.333 & 1 & \countfrac{6}{6} \\
+    CatBoost & 5.54 & 5.69 & 0.801 & 1 & \countfrac{13}{13} & RF & 6.83 & 7.00 & 0.260 & 1 & \countfrac{6}{6} \\
+    XGBoost & 5.69 & 4.92 & 0.808 & 2 & \countfrac{11}{13} & RT & 7.00 & 7.00 & 0.266 & 1 & \countfrac{6}{6} \\
+    Boruta & 6.23 & 6.38 & 0.791 & 1 & \countfrac{13}{13} & CIF & 7.33 & 7.00 & 0.240 & 2 & \countfrac{4}{6} \\
+    ExtraTrees & 6.62 & 6.77 & 0.792 & 1 & \countfrac{13}{13} & XGBoost & 8.50 & 8.67 & 0.149 & 2 & \countfrac{5}{6} \\
+    CIF & 6.85 & 6.38 & 0.793 & 2 & \countfrac{11}{13} & DT & 8.67 & 8.83 & 0.124 & 1 & \countfrac{6}{6} \\
+    cforest & 8.23 & 8.46 & 0.785 & 1 & \countfrac{13}{13} & Boruta & 9.17 & 9.33 & 0.118 & 1 & \countfrac{6}{6} \\
+    DT & 9.38 & 9.46 & 0.763 & 1 & \countfrac{13}{13} & LightGBM & 10.50 & 10.50 & -0.214 & 1 & \countfrac{6}{6} \\
+    RDC filter & 10.69 & 10.85 & 0.764 & 1 & \countfrac{13}{13} & CIT & 10.67 & 10.50 & -0.206 & 2 & \countfrac{5}{6} \\
+    ctree & 11.77 & 11.77 & 0.749 & 1 & \countfrac{13}{13} & cforest & 10.67 & 9.67 & 0.092 & 2 & \countfrac{5}{6} \\
+    CIT & 12.15 & 12.15 & 0.754 & 1 & \countfrac{13}{13} & PI & 11.00 & 11.00 & -0.024 & 1 & \countfrac{6}{6} \\
+    MC filter & 12.69 & 12.69 & 0.737 & 1 & \countfrac{13}{13} & ctree & 11.33 & 11.50 & 0.051 & 1 & \countfrac{6}{6} \\
+    RT & 13.00 & 13.00 & 0.737 & 1 & \countfrac{13}{13} & PC filter & 11.67 & 11.83 & 0.099 & 1 & \countfrac{6}{6} \\
+    PI & 15.73 & 15.73 & 0.676 & 1 & \countfrac{13}{13} & RDC filter & 12.50 & 12.67 & -0.082 & 1 & \countfrac{6}{6} \\
+    CPI & 16.50 & 16.50 & 0.600 & 1 & \countfrac{13}{13} & DC filter & 13.50 & 13.67 & -0.009 & 1 & \countfrac{6}{6} \\
+    \multicolumn{6}{c}{} & CPI & 14.17 & 14.17 & -0.554 & 1 & \countfrac{6}{6} \\
     \bottomrule
   \end{tabular*}
-  \caption{LODO configuration sensitivity. Lower rank is better; rows are
-  ordered by mean LODO rank within each task. Score is the mean held-out metric.
-  Settings reports the number of distinct selected configurations; Main reports
-  how often the main benchmark configuration is reselected. Ranks are computed
-  within held-out datasets
-  before averaging, so score order need not match rank order.}
+  \caption{LODO configuration sensitivity on the complete-case panels (13
+  classification and 6 regression datasets). LODO is the mean rank when each
+  held-out dataset is scored with configurations selected on the other
+  datasets; Fixed is the mean rank on the same panel under the configuration
+  selected on the full benchmark. Lower rank is better; rows are ordered by LODO
+  rank within each task. Score is the mean held-out metric under LODO
+  selection. Settings reports the number of distinct selected configurations;
+  Main reports how often the main benchmark configuration is reselected. Ranks
+  are computed within held-out datasets before averaging, so score order need
+  not match rank order.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 

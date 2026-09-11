@@ -160,12 +160,17 @@ method differences. These intervals and rank summaries describe the
 benchmark-selected configurations. The LODO analysis below checks whether those
 configurations are stable under one-dataset holdout.
 
-In the 13-dataset classification panel, LODO ranks CIF eighth of 17 on average
-(mean rank 6.85), and CIF reselects the main-benchmark configuration in 11 of
-13 holdouts, using 2 distinct configurations. In the 6-dataset regression
-panel, LODO ranks CIF sixth of 18 on average (mean rank 7.33), behind
-ExtraTrees, CatBoost, RF-RFE, RF, and RT; CIF reselects the global regression
-configuration in 4 of 6 holdouts.
+The complete-case panels rank CIF lower than the main table does, and the
+LODO reselection accounts for little of the difference. On the 13-dataset
+classification panel, the benchmark-selected CIF configuration has mean rank
+6.38 (tied 6th of 17); LODO reselection moves it to 6.85 (8th) and reselects the
+main-benchmark configuration in 11 of 13 holdouts. On the 6-dataset regression
+panel, the fixed configuration has mean rank 7.00 (tied 5th of 18) and LODO
+moves it to 7.33 (6th), behind ExtraTrees, CatBoost, RF-RFE, RF, and RT,
+reselecting the global configuration in 4 of 6 holdouts. The 3rd and 2nd
+places in \cref{tab:method-main-comparison} are therefore properties of the
+21- and 8-dataset panels; the smaller complete-case panels drop CIF by three to
+four places, and configuration reselection adds less than half a rank.
 \Cref{tab:cif-ci-comparisons,tab:lodo-config-sensitivity}
 give the confidence intervals and LODO details.
 

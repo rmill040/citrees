@@ -261,6 +261,13 @@ def test_wait_for_runtime_contract_requires_binding_to_the_attempt(
     s3.objects[attempt.runtime_contract_key(digest)] = payload
     assert gate.wait_for_runtime_contract(attempt, timeout_seconds=0, s3=s3) == (digest, payload)
 
+    # A freeze that printed JSON with a trailing newline is normalized and republished.
+    s3 = _S3()
+    noisy = payload + b"\n"
+    s3.objects[attempt.runtime_contract_key(hashlib.sha256(noisy).hexdigest())] = noisy
+    assert gate.wait_for_runtime_contract(attempt, timeout_seconds=0, s3=s3) == (digest, payload)
+    assert s3.objects[attempt.runtime_contract_key(digest)] == payload
+
     drifted = _matching_contract(attempt)
     drifted["runtime"]["git_sha"] = "f" * 40
     s3 = _S3()

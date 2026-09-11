@@ -51,8 +51,9 @@ from paper.benchmark.pipeline.operator_attestation import (
     load_operator_public_key,
 )
 from paper.benchmark.pipeline.runtime_contract import (
-    parse_runtime_contract,
     runtime_contract_sha256,
+    serialize_runtime_contract,
+    validate_runtime_contract,
 )
 
 GATE_INSTANCE_TYPE = "c6a.8xlarge"
@@ -215,7 +216,7 @@ def make_freeze_user_data(attempt: GateAttempt, *, operator_public_key_pem: byte
         __OPERATOR_PUBLIC_KEY_PEM__
         KEY
         run_gate_module freeze-runtime --operator-public-key /gate/operator-public-key.pem \\
-            > /root/gate/runtime-contract.json
+            | tr -d '\\n' > /root/gate/runtime-contract.json
         SHA=$(sha256sum /root/gate/runtime-contract.json | cut -d' ' -f1)
         put_once {shlex.quote(attempt.control_prefix)}/runtime-contract-$SHA.json /root/gate/runtime-contract.json
         echo "Published runtime contract $SHA"
@@ -457,11 +458,27 @@ def wait_for_runtime_contract(
         time.sleep(poll_seconds)
     if len(keys) != 1:
         raise RuntimeError(f"expected one runtime contract, found {len(keys)}: {keys}")
-    payload = _get_bytes(client, bucket=attempt.bucket, key=keys[0])
-    contract = parse_runtime_contract(payload)
+    raw = _get_bytes(client, bucket=attempt.bucket, key=keys[0])
+    # The freeze prints JSON with a trailing newline; the contract format is the
+    # canonical serialization, so normalize and republish under the canonical key.
+    contract = validate_runtime_contract(json.loads(raw.decode("utf-8")))
+    payload = serialize_runtime_contract(contract)
     digest = runtime_contract_sha256(contract)
-    if keys[0] != attempt.runtime_contract_key(digest):
-        raise RuntimeError(f"runtime contract key {keys[0]} does not match its digest {digest}")
+    canonical_key = attempt.runtime_contract_key(digest)
+    if keys[0] != canonical_key:
+        try:
+            client.put_object(
+                Bucket=attempt.bucket,
+                Key=canonical_key,
+                Body=payload,
+                ContentType="application/json",
+                IfNoneMatch="*",
+            )
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") not in {"PreconditionFailed", "412"}:
+                raise
+        if _get_bytes(client, bucket=attempt.bucket, key=canonical_key) != payload:
+            raise RuntimeError(f"s3://{attempt.bucket}/{canonical_key} holds different bytes")
     runtime = contract["runtime"]
     mismatches = {
         name: (observed, expected)

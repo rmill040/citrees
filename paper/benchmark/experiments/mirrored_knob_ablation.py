@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Mirrored knob ablation: symmetric CIF knob study across CLF and REG.
 
-Tests 7 CIF variants (default, no_adaptive, no_scan, no_mute, no_bootstrap,
-no_bonferroni, all_off) + 3 baselines (RF, ET, CIT) on all synthetic and real
+Tests 9 CIF variants (default, no_adaptive, no_scan, no_threshold_scan, no_mute,
+no_bootstrap, no_bonferroni, maxt, all_off) + 3 baselines (RF, ET, CIT) on all
+synthetic and real
 datasets for BOTH classification and regression. Evaluates all downstream models
 (LR, SVM, KNN for clf; Ridge, SVR, KNN for reg) at multiple k values.
 
@@ -58,6 +59,7 @@ KNOB_VARIANTS: dict[str, dict[str, Any]] = {
     "cif_no_mute": dict(feature_muting=False),
     "cif_no_bootstrap": dict(bootstrap=False, sampling_method=None),
     "cif_no_bonferroni": dict(adjust_alpha_selector=False, adjust_alpha_splitter=False),
+    "cif_maxt": dict(threshold_test="maxt"),
     "cif_all_off": dict(
         early_stopping_selector=None,
         early_stopping_splitter=None,

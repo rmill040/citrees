@@ -37,13 +37,17 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       `repairs/runtime-ablation-rerun/source-6444421c…` names the HEAD at
       launch, whose experiment code is identical to c9855d0 (only gate tooling
       differed).
-- [ ] Max-type ranking extension campaign in progress (2026-09-11): image
-      sha256:5609d400 (c9855d0); runtime contract 79153d56…; manifest 7a466b00…;
-      campaign 40f9761d…; 1,792 Stage 1 cells, 88 excluded. Gate hosts arc-a
-      i-0bc74033eff56f06a (1b) and arc-b i-0cda75654973918d6 (1c) running the
-      panel. Remaining: `gate-complete` (operator profile), `launch-api`,
-      `launch-workers --market on-demand --target-droplets ...`; then Stage 2
-      (metrics) with the same artifacts. Attempt files under
+- [ ] Max-type ranking extension campaign RUNNING since 2026-09-11 ~20:20 UTC.
+      Image sha256:5609d400 (c9855d0); runtime contract 79153d56…; manifest
+      7a466b00…; campaign 40f9761d…; GO receipt 66e1b1b9…; artifact prefix
+      `repairs/maxt-extension/source-c9855d09…/campaign-40f9761d…`. API
+      i-05048dcdb225d67cf (http://32.197.212.208:8000/status). Workers: launch
+      maxt-ext-workers-001 (4 on droplet 29.81.7.184; the other droplets had no
+      capacity) and maxt-ext-workers-002 (12 untargeted on-demand in 1b/1c/1d).
+      Stage 1 queue at launch: 1,152 classification + 640 regression cells.
+      Next: when rankings drain, `terminate-workers`, then relaunch the API and
+      workers with `--stage metrics` using the same attempt files; then
+      `manifest reconcile`. Attempt files:
       `scratch/maxt-campaign/attempt-c9855d0/`; step script
       `scratch/maxt-campaign/run_campaign.sh`.
 - [ ] Rebuild `paper_presentation_practical_controls_summary.csv` with

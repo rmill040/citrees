@@ -6,9 +6,14 @@ feature-ranking methods for downstream prediction using real-data benchmarks,
 runtime ablations, and synthetic feature-recovery experiments.
 At a fixed node, if the features and permutation budget do not depend on the
 node responses, Bonferroni-corrected $+1$ Monte Carlo permutation $p$-values
-control nodewise rejection under the complete permutation null. CIF ties for
+control nodewise rejection under the complete permutation null; the same
+argument covers a max-type Stage~B threshold test that replaces the
+per-threshold Bonferroni rule and cuts the permutation cost of a node from
+order $K^2/\alpha$ to order $BK$ for $K$ candidate thresholds. CIF ties for
 3rd among 17 classification methods on 21 datasets and ranks 2nd among 18
-regression methods on 8 datasets.
+regression methods on 8 datasets; on the smaller complete-case panels it ranks
+6th and 5th, and leave-one-dataset-out configuration selection moves it by
+less than half a rank.
 With Bonferroni correction held fixed, the CIF runtime ablations indicate that
 adaptive stopping and the number of thresholds searched have the largest measured
 effect on runtime: turning off adaptive stopping increases fitting time by

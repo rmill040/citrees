@@ -1,0 +1,67 @@
+\section{Stage~B construction: cost and real-data tables}
+\label{app:stageB-tables}
+
+\Cref{tab:stageB-scaling,tab:stageB-real} give the fitting-time and real-data
+results for the Stage~B construction comparison summarized in
+\cref{sec:results-stageB}; the design is in \cref{sec:experiments-stageB}.
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lrrrrrr@{}}
+    \toprule
+     & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{2}{c}{Exhaustive} \\
+    \tablehead{Task} & $n$ & Bins & Bonferroni & Max-type & Bonferroni & Max-type \\
+    \midrule
+    Classification & 1,000 & 16 & 0.49 & 0.31 & 0.58 & 0.29 \\
+     & 1,000 & 64 & 1.64 & 0.36 & 5.11 & 0.37 \\
+     & 1,000 & 256 & 12.6 & 0.36 & 60.0 & 0.50 \\
+     & 4,000 & 16 & 0.94 & 0.45 & 1.64 & 0.50 \\
+     & 4,000 & 64 & 5.30 & 0.48 & 25.3 & 0.73 \\
+     & 4,000 & 256 & 40.2 & 0.62 & 426 & 1.60 \\
+     & 16,000 & 16 & 3.39 & 0.72 & 6.74 & 1.24 \\
+     & 16,000 & 64 & 16.0 & 1.01 & 117 & 2.43 \\
+     & 16,000 & 256 & 134 & 1.61 & censored & 6.67 \\
+    Regression & 1,000 & 16 & 0.62 & 0.34 & 0.60 & 0.30 \\
+     & 1,000 & 64 & 1.26 & 0.40 & 5.27 & 0.37 \\
+     & 1,000 & 256 & 2.44 & 0.42 & 60.5 & 0.50 \\
+     & 4,000 & 16 & 1.23 & 0.55 & 2.14 & 0.55 \\
+     & 4,000 & 64 & 5.42 & 0.60 & 28.0 & 0.76 \\
+     & 4,000 & 256 & 18.7 & 0.76 & 486 & 1.53 \\
+     & 16,000 & 16 & 4.09 & 1.03 & 8.47 & 1.33 \\
+     & 16,000 & 64 & 16.9 & 1.35 & 122 & 2.50 \\
+     & 16,000 & 256 & 134 & 1.92 & censored & 6.24 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Median fitting time in seconds over three fits of one tree on ten
+  Gaussian predictors with a planted linear signal, by Stage~B construction and
+  stopping mode, on a 32-core cloud instance. Bins is the histogram threshold setting as in \cref{tab:stageB-calibration}. Censored marks a cell whose fits exceeded 900 seconds.}
+  \label{tab:stageB-scaling}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{3.5pt}
+  \begin{tabular}{@{}lrrrrrrrrrr@{}}
+    \toprule
+     & & & \multicolumn{4}{c}{Adaptive} & \multicolumn{4}{c}{Exhaustive} \\
+     & & & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} \\
+    \tablehead{Dataset} & $n$ & $p$ & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T \\
+    \midrule
+    vowel & 990 & 10 & 0.690 & 0.721 & 3.12 & 0.50 & 0.586 & 0.649 & 60.1 & 0.64 \\
+    spam & 4,601 & 57 & 0.907 & 0.912 & 5.14 & 1.75 & 0.888 & 0.903 & 190 & 9.00 \\
+    page-blocks & 5,473 & 10 & 0.965 & 0.963 & 17.6 & 0.59 & 0.958 & 0.961 & 402 & 2.59 \\
+    imports-85 & 205 & 76 & 0.745 & 0.773 & 0.66 & 0.57 & 0.573 & 0.676 & 0.71 & 0.45 \\
+    residential & 372 & 107 & 0.928 & 0.936 & 4.78 & 5.46 & 0.862 & 0.879 & 3.13 & 2.16 \\
+    facebook & 500 & 21 & 0.829 & 0.842 & 5.28 & 0.70 & 0.677 & 0.630 & 11.7 & 0.45 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Five-fold held-out score (accuracy for the three classification
+  datasets, $R^2$ for the three regression datasets) and median fitting time
+  in seconds of one tree at the 256-bin histogram setting, by Stage~B construction
+  (Bonf.\ is the per-threshold Bonferroni rule, Max-T the max-type rule) and
+  stopping mode, on a 32-core cloud instance.}
+  \label{tab:stageB-real}
+\end{table}

@@ -212,17 +212,11 @@ regression comparison is close: CIF is ahead on 5/8 datasets, with a mean
 difference near zero.
 
 \Cref{fig:k-trajectory,fig:regression-k-trajectory} report mean rank separately
-by $k$. In classification, CIF's mean rank is 6.9 at $k=5$, 8.2 at $k=10$,
-6.2 at $k=50$, and 5.6 at $k=100$.
-In regression, CIF's mean rank is 8.2 at $k=5$, 7.1 at $k=25$, and 8.3 at
-$k=100$. These by-$k$ results add context to
+by $k$. In classification, CIF's mean rank is 6.9, 8.2, 6.6, 6.2, and 5.6 at
+$k=5,10,25,50,100$. In regression, it is 8.2, 7.8, 7.1, 7.5, and 8.3 at the
+same values of $k$. These by-$k$ results add context to
 \Cref{tab:method-main-comparison}: CIF is strongest at larger displayed $k$
-values in classification and at $k=25$ in regression. The aggregate ctree
-comparison uses 21 classification datasets and the cforest comparison uses 22.
-For $k=5,10,25,50,100$,
-the classification columns use 21, 20, 14, 14, and 13 datasets, respectively;
-the regression columns use 8, 8, 7, 7, and 6 datasets, respectively.
-Complete-case analyses use 13 classification datasets and 6 regression datasets.
+values in classification and at $k=25$ in regression. The dataset counts behind each column are given in the figure captions.
 
 \FloatBarrier
 
@@ -383,7 +377,7 @@ The complete-node false-split rate is below 0.05 for both Stage~B constructions 
 \end{table}
 
 The cost difference is where the constructions separate
-(\cref{tab:stageB-scaling}). With exhaustive stopping, one tree at the 256-bin
+(\cref{tab:stageB-scaling}, \cref{app:stageB-tables}). With exhaustive stopping, one tree at the 256-bin
 setting takes 60 seconds at $n=1{,}000$ and 426 to 486 seconds at
 $n=4{,}000$ under the Bonferroni rule and exceeds the 900-second cap at
 $n=16{,}000$; the max-type rule takes 0.5, 1.5 to 1.6, and 6.2 to 6.7 seconds
@@ -392,199 +386,9 @@ grow different trees on these data: with adaptive stopping the max-type trees
 are deeper (5.3--11.0 levels against 4.0--10.0), and with exhaustive stopping
 the Bonferroni trees are deeper (6.7--18.3 against 5.0--10.3). The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores are the measure of which trees predict better.
 
-\begin{table}[H]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}lrrrrrr@{}}
-    \toprule
-     & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{2}{c}{Exhaustive} \\
-    \tablehead{Task} & $n$ & Bins & Bonferroni & Max-type & Bonferroni & Max-type \\
-    \midrule
-    Classification & 1,000 & 16 & 0.49 & 0.31 & 0.58 & 0.29 \\
-     & 1,000 & 64 & 1.64 & 0.36 & 5.11 & 0.37 \\
-     & 1,000 & 256 & 12.6 & 0.36 & 60.0 & 0.50 \\
-     & 4,000 & 16 & 0.94 & 0.45 & 1.64 & 0.50 \\
-     & 4,000 & 64 & 5.30 & 0.48 & 25.3 & 0.73 \\
-     & 4,000 & 256 & 40.2 & 0.62 & 426 & 1.60 \\
-     & 16,000 & 16 & 3.39 & 0.72 & 6.74 & 1.24 \\
-     & 16,000 & 64 & 16.0 & 1.01 & 117 & 2.43 \\
-     & 16,000 & 256 & 134 & 1.61 & censored & 6.67 \\
-    Regression & 1,000 & 16 & 0.62 & 0.34 & 0.60 & 0.30 \\
-     & 1,000 & 64 & 1.26 & 0.40 & 5.27 & 0.37 \\
-     & 1,000 & 256 & 2.44 & 0.42 & 60.5 & 0.50 \\
-     & 4,000 & 16 & 1.23 & 0.55 & 2.14 & 0.55 \\
-     & 4,000 & 64 & 5.42 & 0.60 & 28.0 & 0.76 \\
-     & 4,000 & 256 & 18.7 & 0.76 & 486 & 1.53 \\
-     & 16,000 & 16 & 4.09 & 1.03 & 8.47 & 1.33 \\
-     & 16,000 & 64 & 16.9 & 1.35 & 122 & 2.50 \\
-     & 16,000 & 256 & 134 & 1.92 & censored & 6.24 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Median fitting time in seconds over three fits of one tree on ten
-  Gaussian predictors with a planted linear signal, by Stage~B construction and
-  stopping mode, on a 32-core cloud instance. Bins is the histogram threshold setting as in \cref{tab:stageB-calibration}. Censored marks a cell whose fits exceeded 900 seconds.}
-  \label{tab:stageB-scaling}
-\end{table}
-
-On the six real datasets (\cref{tab:stageB-real}) the max-type rule gave
+On the six real datasets (\cref{tab:stageB-real}, \cref{app:stageB-tables}) the max-type rule gave
 held-out scores at least as high as the Bonferroni rule in 10 of the 12
 dataset and stopping-mode cells, by 0.002 to 0.10 with exhaustive stopping and
 by 0.005 to 0.031 with adaptive stopping; the exceptions are page-blocks with adaptive stopping, lower by 0.002, and facebook with exhaustive stopping, where the response has a median of 123.5 and a maximum of 6,334, so a single extreme held-out observation can decide a fold's $R^2$ under either rule. Its fitting time was 0.9 to 30 times shorter with adaptive stopping and 1.5 to 155 times shorter with exhaustive stopping. The Spearman agreement of the two rules' feature importances ranges from 0.40 to 0.95, so the max-type rule produces a different ranking rather than a faster route to the same one. In the head-to-head forest timing on the recommended configuration, with both rules refit in one run, the max-type rule is 4.5--15$\times$ faster than the per-threshold rule on synthetic Gaussian predictors at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$; on the eight real datasets it reduces madelon from 21 to 4.8 seconds, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds, and changes the other five by less than one second.
-
-\begin{table}[H]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{3.5pt}
-  \begin{tabular}{@{}lrrrrrrrrrr@{}}
-    \toprule
-     & & & \multicolumn{4}{c}{Adaptive} & \multicolumn{4}{c}{Exhaustive} \\
-     & & & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} \\
-    \tablehead{Dataset} & $n$ & $p$ & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T \\
-    \midrule
-    vowel & 990 & 10 & 0.690 & 0.721 & 3.12 & 0.50 & 0.586 & 0.649 & 60.1 & 0.64 \\
-    spam & 4,601 & 57 & 0.907 & 0.912 & 5.14 & 1.75 & 0.888 & 0.903 & 190 & 9.00 \\
-    page-blocks & 5,473 & 10 & 0.965 & 0.963 & 17.6 & 0.59 & 0.958 & 0.961 & 402 & 2.59 \\
-    imports-85 & 205 & 76 & 0.745 & 0.773 & 0.66 & 0.57 & 0.573 & 0.676 & 0.71 & 0.45 \\
-    residential & 372 & 107 & 0.928 & 0.936 & 4.78 & 5.46 & 0.862 & 0.879 & 3.13 & 2.16 \\
-    facebook & 500 & 21 & 0.829 & 0.842 & 5.28 & 0.70 & 0.677 & 0.630 & 11.7 & 0.45 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Five-fold held-out score (accuracy for the three classification
-  datasets, $R^2$ for the three regression datasets) and median fitting time
-  in seconds of one tree at the 256-bin histogram setting, by Stage~B construction
-  (Bonf.\ is the per-threshold Bonferroni rule, Max-T the max-type rule) and
-  stopping mode, on a 32-core cloud instance.}
-  \label{tab:stageB-real}
-\end{table}
-\FloatBarrier
-
-\section{High-dimensional and synthetic analyses}
-\label{sec:boundary}
-
-\paragraph{High-dimensional real datasets.}
-These analyses study where CIF's scores peak as $k$ grows, how feature
-recovery on synthetic datasets changes across values of $k$, and how feature
-sampling inside the forest affects how often splits use informative
-features.
-Across the 15 classification datasets with more than 100 features, CIF first
-reaches its best score at an intermediate value of $k$ ($100 < k < p$) in 29 of 45
-dataset-learner combinations. It first reaches its best score at the full
-feature set ($k=p$) in only 7 of 45 combinations.
-\Cref{fig:high-p-boundary} shows this pattern by downstream learner; regression
-is summarized next. Classification scores most often peak at
-intermediate $k$: 8 of 15 LR datasets, 12 of 15 SVM datasets, and 9 of 15 KNN
-datasets. The full feature set is mainly an LR exception. Moving from $k{=}100$
-to $k{=}p$ gives a mean $k{=}p$ minus $k{=}100$ score change of $+0.026$ for LR,
-and $k=p$ matches the best observed LR score in 7 of 15 datasets. For SVM and
-KNN, the corresponding mean changes are $-0.053$ and $-0.071$, and $k=p$ is
-best in only 1 of 15 datasets for each learner.
-
-In the 6 high-$p$ regression datasets, full-feature evaluation is rarely best.
-Across the 18 dataset-learner combinations, 12 peak at or below $k{=}100$, only
-2 peak at $k=p$, and the mean $k{=}p$ minus $k{=}100$ score change is $-0.270$.
-The main full-feature exception remains the classification LR result in
-\Cref{fig:high-p-boundary}.
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.84\linewidth]{figures/high_p_boundary_summary.png}
-  \caption{Where CIF's classification scores peak as $k$ increases, by downstream learner.
-  (A) shows, for each learner, the percentage of 15 datasets where the first
-  evaluated $k$ attaining the best observed CIF score falls below 100, at 100,
-  between 100 and $p$, or at $k{=}p$. (B) shows the mean balanced accuracy
-  change from $k{=}100$ to $k{=}p$.}
-  \label{fig:high-p-boundary}
-\end{figure}
-
-\paragraph{Synthetic feature recovery.}
-Across synthetic classification datasets, 35.3\% of the features in CIF's top-$k$
-list are truly informative on average over the evaluated $k$ values, ranked
-8th of the 15 methods with synthetic classification runs, and its top-1 hit
-rate is 65.5\%, ranked 10th of 15. Across synthetic
-regression datasets, the corresponding values are 39.1\%, ranked 11th of the
-16 methods with synthetic regression runs, and
-84.5\%, ranked 10th of 16. In both tasks, CIF recovers true features within the
-top-$k$ list more reliably than it places one first.
-\Cref{tab:synthetic-head} summarizes this contrast, and
-\Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows. The percentage of
-selected features that are informative falls as $k$ grows. On
-redundant-feature synthetic designs, most selected features correspond to true
-signals or redundant proxies: 82.4\% for classification and 83.8\% for
-regression.
-
-\begin{table}[!htbp]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{6pt}
-  \begin{tabular}{@{}lcccc@{}}
-    \toprule
-    & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
-    \cmidrule(lr){2-3}\cmidrule(l){4-5}
-    \tablehead{Metric} & {Value} & Rank & {Value} & Rank \\
-    \midrule
-    Selected features that are informative & 35.3\% & \countfrac{8}{15} & 39.1\% & \countfrac{11}{16} \\
-    Top-1 hit rate & 65.5\% & \countfrac{10}{15} & 84.5\% & \countfrac{10}{16} \\
-    Selected features that are true or redundant & 82.4\% & \countfrac{7.5}{15} & 83.8\% & \countfrac{1}{16} \\
-    \bottomrule
-  \end{tabular}
-  \caption{Synthetic feature recovery for CIF. The first row averages, over
-  $k = 5, 10, 25, 50$, and $100$, the percentage of selected features that are
-  truly informative. The top-1 hit rate is computed at $k=1$. The final row is
-  computed and ranked only on the redundant-feature design for each task and
-  counts true informative plus redundant features. Ranks are among the 15
-  classification and 16 regression methods with synthetic runs; fractional
-  ranks indicate averaged ties.}
-  \label{tab:synthetic-head}
-\end{table}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.84\linewidth]{figures/synthetic_topk_focus_curves.png}
-  \caption{Synthetic top-$k$ recovery curves. Columns compare single trees,
-  forests, and boosted trees; rows show classification and regression. Each
-  value is the percentage of selected features that are truly informative.}
-  \label{fig:synthetic-topk-curves}
-\end{figure}
-
-\paragraph{Feature sampling in forests.}
-A sparse simulation asks whether forest feature sampling makes splits less
-likely to use informative features in classification and regression settings.
-\Cref{fig:candidate-forest-counts} shows one sparse classification
-design comparing CIF with CIF-all. CIF samples a subset of features at each
-split; CIF-all considers every nonconstant feature in Stage~A.
-\Cref{app:candidate-availability} gives the classification and regression
-results over $p \in \{100,500,1{,}000\}$.
-
-In the single-tree simulations, CIT uses informative features in 100.0\% of
-classification splits and 93.5\% of regression splits. In this fixed design,
-informative features are usually selected when every nonconstant feature is
-considered. In forests, sampling a subset of features reduces how often informative
-features are used for splits. Across the classification forest
-simulations with 1,000 trees, CIF uses informative features in 33.2\% of
-splits, compared with 91.7\% for CIF-all, 8.4\% for RF, and 6.5\% for ET.
-CIF also uses more distinct noise features than CIF-all, 265 versus 93
-on average. For the $p{=}1{,}000$ classification setting with two informative
-features, CIF uses informative features in 9.0\% of splits, while CIF-all uses
-them in 100.0\%. In regression, CIF-all uses informative features more often
-than CIF, 42.3\% versus 27.8\%, but uses more distinct noise features, 528.8
-versus 367.7.
-CIF-all isolates feature subsampling because feature muting and
-the other tree settings are held fixed. In these sparse high-$p$ simulations,
-splits use informative features most often when every nonconstant feature can
-enter Stage~A. When the sampled feature subset rarely includes an informative
-feature at a node, Stage~A selects from that subset.
-
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
-  \caption{Tree-level feature use in one sparse classification forest design
-  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
-  the number of trees using each feature in at least one split. CIF samples a
-  subset of features; CIF-all evaluates all nonconstant
-  features. Each subplot has its own
-  y-axis range because counts differ across methods.}
-  \label{fig:candidate-forest-counts}
-\end{figure}
 
 \FloatBarrier

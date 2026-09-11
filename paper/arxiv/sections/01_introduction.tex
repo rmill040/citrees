@@ -50,7 +50,10 @@ ctree, cforest, CIT, and other baselines in classification and companion
 regression analyses, and includes ablations of the main CIT/CIF runtime
 hyperparameters. The paper also states the fixed-node, exhaustive fixed-$B$
 Stage~A guarantee
-(\cref{thm:plusone-superuniform,cor:stageA-global-null}); the full tree and
+(\cref{thm:plusone-superuniform,cor:stageA-global-null}) and extends it to a
+max-type Stage~B threshold test (\cref{cor:stageB-maxt}) that holds the
+complete-node false-split rate below the nominal level at a fraction of the
+per-threshold rule's cost (\cref{sec:results-stageB}); the full tree and
 forest rankings are evaluated in the benchmarks. Finally, the
 high-$p$ and synthetic analyses show cases with weaker top-$k$ recovery and how
 forest feature sampling can reduce how often forest splits use informative

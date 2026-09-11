@@ -53,20 +53,14 @@ The real-data classification benchmark contains 23 datasets. On
 \nolinkurl{gisette} and \nolinkurl{isolet}, some method runs were excluded for
 operational reasons (\cref{app:methods} lists them), so the all-method rank
 summary uses the 21 datasets with results for every method, and each pairwise
-comparison uses the datasets where both methods are present. The complete-case
-classification analysis, used for
-bootstrap intervals and omnibus rank testing, contains 13 datasets with all
-17 methods, all three downstream learners, and all five standard values of $k$.
-Regression contains 8 datasets; the analogous rank summary uses the
-6 complete-case datasets with all methods, downstream learners, and standard
-$k$ values available.
-
-By-$k$ results are reported separately for $k=5,10,25,50,100$. The corresponding
-classification dataset counts are $21, 20, 14, 14, 13$; the regression counts
-are $8, 8, 7, 7, 6$. Pairwise CIF comparisons stratified by $k$ use the dataset
-counts reported with the corresponding rows. The 13-dataset classification and
-6-dataset regression summaries are complete-case analyses, retaining only
-datasets with every method, downstream learner, and standard $k$ value.
+comparison uses the datasets where both methods are present. Regression
+contains 8 datasets with every method present. Two smaller complete-case
+panels, used for bootstrap intervals, omnibus rank tests, and LODO
+configuration checks, retain only datasets with every method, every downstream
+learner, and all five standard values of $k$: 13 classification datasets and 6
+regression datasets. By-$k$ results are reported separately for
+$k=5,10,25,50,100$; the corresponding classification dataset counts are
+$21, 20, 14, 14, 13$ and the regression counts are $8, 8, 7, 7, 6$.
 
 \subsection{Datasets}
 \label{sec:experiments-datasets}

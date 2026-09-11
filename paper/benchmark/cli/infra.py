@@ -1260,3 +1260,27 @@ def gate_terminate_cmd(
 
     terminated = terminate_gate_hosts(GateAttempt.load(attempt_path))
     success(f"Terminated: {terminated}" if terminated else "No live gate hosts")
+
+
+@app.command(name="gate-logs")
+def gate_logs_cmd(
+    attempt_path: Annotated[
+        Path,
+        typer.Option(
+            "--attempt", exists=True, dir_okay=False, resolve_path=True, help="attempt.json"
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir", file_okay=False, resolve_path=True, help="Where logs are written"
+        ),
+    ],
+) -> None:
+    """Download the user-data logs that gate hosts ship before terminating."""
+    from paper.benchmark.infra.gate import GateAttempt, fetch_gate_logs
+
+    written = fetch_gate_logs(GateAttempt.load(attempt_path), output_dir=output_dir)
+    for path in written:
+        step(str(path))
+    success(f"{len(written)} log(s) written" if written else "No shipped logs yet")

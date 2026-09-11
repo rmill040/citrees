@@ -89,6 +89,10 @@ class GateAttempt:
     def manifest_key(self, sha256: str) -> str:
         return f"{self.control_prefix}/manifest-{sha256}.csv"
 
+    @property
+    def logs_prefix(self) -> str:
+        return f"{self.prefix}/logs"
+
     def runs_prefix(self, manifest_sha256: str) -> str:
         return f"{self.prefix}/runs/manifest-{manifest_sha256}"
 
@@ -138,17 +142,34 @@ def gate_instance_profile(attempt: GateAttempt) -> str:
     )
 
 
-def _user_data_head(attempt: GateAttempt) -> str:
+def _user_data_head(attempt: GateAttempt, *, role_label: str) -> str:
     ecr_uri = attempt.image_uri.split("/")[0]
     return textwrap.dedent(
         f"""\
         #!/bin/bash
         exec > >(tee /var/log/user-data.log) 2>&1
         set -euo pipefail
+        ROLE={shlex.quote(role_label)}
+
+        put_once() {{
+            # Create-only upload; the instance role forbids overwrites.
+            aws s3api put-object --bucket {attempt.bucket} --key "$1" --body "$2" \\
+                --if-none-match '*' --region {attempt.region} >/dev/null
+        }}
+
+        TOKEN=$(curl --fail --silent --show-error --request PUT \\
+            "http://169.254.169.254/latest/api/token" \\
+            -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+        INSTANCE_ID=$(curl --fail --silent --show-error \\
+            -H "X-aws-ec2-metadata-token: $TOKEN" \\
+            http://169.254.169.254/latest/meta-data/instance-id)
+        echo "Gate role $ROLE on $INSTANCE_ID"
 
         shutdown_instance() {{
+            set +e
             trap - EXIT
-            echo "Terminating gate instance"
+            echo "Shipping user-data log and terminating gate instance"
+            put_once {shlex.quote(attempt.logs_prefix)}/$ROLE-$INSTANCE_ID.log /var/log/user-data.log || true
             shutdown -h now || systemctl poweroff --force --force || poweroff -f || halt -f || true
         }}
         trap shutdown_instance EXIT
@@ -157,16 +178,18 @@ def _user_data_head(attempt: GateAttempt) -> str:
         systemctl enable --now docker
         systemctl enable --now amazon-ssm-agent
 
+        # The instance profile was created moments before launch; wait for credentials.
+        for attempt in $(seq 1 18); do
+            if aws sts get-caller-identity --region {attempt.region} >/dev/null 2>&1; then break; fi
+            echo "Waiting for instance credentials ($attempt)"; sleep 10
+        done
+        aws sts get-caller-identity --region {attempt.region}
+
         aws ecr get-login-password --region {attempt.region} | \\
             docker login --username AWS --password-stdin {ecr_uri}
         docker pull {attempt.image_uri}
         mkdir -p /root/gate
 
-        put_once() {{
-            # Create-only upload; the instance role forbids overwrites.
-            aws s3api put-object --bucket {attempt.bucket} --key "$1" --body "$2" \\
-                --if-none-match '*' --region {attempt.region} >/dev/null
-        }}
         run_gate_module() {{
             docker run --rm --init \\
                 -e CITREES_IMAGE_URI={attempt.image_uri} \\
@@ -184,7 +207,7 @@ def _user_data_head(attempt: GateAttempt) -> str:
 def make_freeze_user_data(attempt: GateAttempt, *, operator_public_key: Mapping[str, str]) -> str:
     """Freeze the runtime contract on one host and publish it create-only."""
     public_key_json = json.dumps(dict(operator_public_key), sort_keys=True, separators=(",", ":"))
-    return _user_data_head(attempt) + textwrap.dedent(
+    return _user_data_head(attempt, role_label="freeze") + textwrap.dedent(
         f"""\
         cat > /root/gate/operator-public-key.json <<'KEY'
         {public_key_json}
@@ -212,7 +235,7 @@ def make_gate_run_user_data(
     contract_key = attempt.runtime_contract_key(runtime_contract_sha256)
     runs_prefix = attempt.runs_prefix(manifest_sha256)
     repeats = " ".join(str(repeat) for repeat in GATE_REPEATS)
-    return _user_data_head(attempt) + textwrap.dedent(
+    return _user_data_head(attempt, role_label=host_slot) + textwrap.dedent(
         f"""\
         aws s3 cp s3://{attempt.bucket}/{manifest_key} /root/gate/manifest.csv --region {attempt.region}
         aws s3 cp s3://{attempt.bucket}/{contract_key} /root/gate/runtime-contract.json --region {attempt.region}
@@ -223,7 +246,7 @@ def make_gate_run_user_data(
             RUN_ID={host_slot}-repeat-$REPEAT
             run_gate_module run --run-id $RUN_ID --manifest /gate/manifest.csv \\
                 --runtime-contract /gate/runtime-contract.json \\
-                > /root/gate/$RUN_ID.json 2> /root/gate/$RUN_ID.json.stderr.log
+                > /root/gate/$RUN_ID.json 2> >(tee /root/gate/$RUN_ID.json.stderr.log >&2)
             put_once {shlex.quote(runs_prefix)}/$RUN_ID.json /root/gate/$RUN_ID.json
             put_once {shlex.quote(runs_prefix)}/$RUN_ID.json.stderr.log /root/gate/$RUN_ID.json.stderr.log
             echo "Published $RUN_ID"
@@ -568,3 +591,15 @@ def terminate_gate_hosts(attempt: GateAttempt, *, ec2: Any | None = None) -> lis
     if instance_ids:
         client.terminate_instances(InstanceIds=instance_ids)
     return instance_ids
+
+
+def fetch_gate_logs(attempt: GateAttempt, *, output_dir: Path, s3: Any | None = None) -> list[Path]:
+    """Download every shipped user-data log of this attempt."""
+    client = boto3.client("s3", region_name=attempt.region) if s3 is None else s3
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for key in _list_keys(client, bucket=attempt.bucket, prefix=f"{attempt.logs_prefix}/"):
+        path = output_dir / key.rsplit("/", maxsplit=1)[1]
+        path.write_bytes(_get_bytes(client, bucket=attempt.bucket, key=key))
+        written.append(path)
+    return written

@@ -173,6 +173,9 @@ def test_freeze_host_launch_request_and_user_data(
     assert f"-e GIT_SHA={GIT_SHA}" in text and f"-e CITREES_IMAGE_URI={IMAGE_URI}" in text
     assert "--if-none-match '*'" in text
     assert f"{attempt.control_prefix}/runtime-contract-$SHA.json" in text
+    assert "ROLE=freeze" in text
+    assert "aws sts get-caller-identity" in text
+    assert f"put_once {attempt.logs_prefix}/$ROLE-$INSTANCE_ID.log /var/log/user-data.log" in text
 
 
 def test_freeze_host_targets_a_droplet_when_asked(
@@ -232,6 +235,8 @@ def test_gate_hosts_need_two_zones_and_run_every_repeat(attempt: gate.GateAttemp
     assert attempt.runs_prefix("e" * 64) in text
     assert f"sleep {gate.GATE_KEEPALIVE_SECONDS}" in text
     assert "RUN_ID=arc-b-repeat-$REPEAT" in _user_data(second)
+    assert "ROLE=arc-a" in text and "ROLE=arc-b" in _user_data(second)
+    assert "tee /root/gate/$RUN_ID.json.stderr.log" in text
     assert gate.list_gate_instances(attempt, ec2=ec2) == [
         {"instance_id": "i-gate-1", "role": "run", "slot": "arc-a", "state": "running"},
         {"instance_id": "i-gate-2", "role": "run", "slot": "arc-b", "state": "running"},
@@ -347,3 +352,12 @@ def test_worker_slots_rotate_across_droplets_within_the_cap() -> None:
         ec2_infra._slot_target_droplets(1, ["droplet-a"])
     with pytest.raises(ValueError, match="unique"):
         ec2_infra._slot_target_droplets(2, ["10.0.0.1", "10.0.0.1"])
+
+
+def test_fetch_gate_logs_downloads_shipped_logs(attempt: gate.GateAttempt, tmp_path: Path) -> None:
+    s3 = _S3()
+    assert gate.fetch_gate_logs(attempt, output_dir=tmp_path / "logs", s3=s3) == []
+    s3.objects[f"{attempt.logs_prefix}/freeze-i-1.log"] = b"boom"
+    written = gate.fetch_gate_logs(attempt, output_dir=tmp_path / "logs", s3=s3)
+    assert [p.name for p in written] == ["freeze-i-1.log"]
+    assert written[0].read_bytes() == b"boom"

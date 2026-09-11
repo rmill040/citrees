@@ -192,3 +192,55 @@ citrees-exp infra terminate-api \
     --campaign-sha256 "$CITREES_CAMPAIGN_SHA256" \
     --stage rankings
 ```
+
+## Extension campaign runbook
+
+An extension campaign adds grid-alias methods (for example `cit_maxt` and
+`cif_maxt`) to the completed benchmark without touching completed cells. The API
+server verifies a runtime contract, a manifest bound to it, and a GO receipt
+from the R-cforest reproducibility gate against the running image, so the
+sequence below regenerates all three for a new image. Every step is a CLI
+command; paths below are examples. The operator key pair lives outside the
+repository and the AWS profile is passed on the command line, never committed.
+
+```bash
+# 0. Commit everything; the image and every gate artifact bind the clean HEAD.
+citrees-exp infra ecr build                      # prints the image digest URI
+IMG=<repository>@sha256:<digest>
+OUT=scratch/maxt-campaign/attempt-$(git rev-parse --short HEAD)
+
+# 1. Freeze the runtime contract on one c6a.8xlarge (any zone).
+citrees-exp infra gate-freeze --image-uri "$IMG" --subnet <subnet> \
+    --operator-public-key ~/.config/citrees/operator/operator.pub --output-dir "$OUT"
+
+# 2. Build the manifest: prior inventory carried, alias cells added, exclusions applied.
+citrees-exp manifest extend --source <prior canonical manifest.csv> \
+    --runtime-contract "$OUT/runtime-contract.json" --methods cit_maxt,cif_maxt \
+    --rerun-reason max_type_stage_b_ranking_extension \
+    --exclusions paper/benchmark/config/maxt_extension_exclusions.csv --output-dir "$OUT/manifest"
+
+# 3. Run the gate panel on two hosts in two availability zones (loaner droplets optional).
+citrees-exp infra gate-run --attempt "$OUT/attempt.json" --manifest "$OUT/manifest/manifest.csv" \
+    --runtime-contract "$OUT/runtime-contract.json" --subnets <subnet-zone-1>,<subnet-zone-2> \
+    --output-dir "$OUT"
+
+# 4. Sign the live readback while the hosts are up and write the GO receipt.
+citrees-exp infra gate-complete --attempt "$OUT/attempt.json" --manifest "$OUT/manifest/manifest.csv" \
+    --runtime-contract "$OUT/runtime-contract.json" --runs-dir "$OUT/runs" \
+    --operator-private-key ~/.config/citrees/operator/operator.pem --operator-profile <aws profile> \
+    --output "$OUT/gate-receipt.json"
+
+# 5. Launch the campaign. Workers take the instance type and AMI from the contract.
+PREFIX=repairs/maxt-extension/source-$(git rev-parse HEAD)/campaign-<campaign_sha256>
+citrees-exp infra launch-api --image-uri "$IMG" --artifact-prefix "$PREFIX" --launch-id <id> \
+    --subnet <subnet> --canonical-manifest "$OUT/manifest/manifest.csv" \
+    --manifest "$OUT/manifest/account-<account>.csv" --runtime-contract "$OUT/runtime-contract.json" \
+    --gate-receipt "$OUT/gate-receipt.json" --stage rankings --max-cell-attempts 3
+citrees-exp infra launch-workers --count 16 --market on-demand --target-droplets <ip1>,<ip2>,<ip3> \
+    --image-uri "$IMG" --artifact-prefix "$PREFIX" --launch-id <id> --subnets <droplet subnet> \
+    --canonical-manifest "$OUT/manifest/manifest.csv" --manifest "$OUT/manifest/account-<account>.csv" \
+    --runtime-contract "$OUT/runtime-contract.json" --gate-receipt "$OUT/gate-receipt.json" --stage rankings
+```
+
+Campaign roles grant create-only S3 writes (`PutObject` with `If-None-Match`),
+so any upload from a box must set that header; `aws s3 sync` is denied.

@@ -30,15 +30,6 @@ uv sync --group paper
 | `citrees-exp smoke` | Quick local smoke test (no API needed)  |
 | `citrees-exp check` | Reconcile manifest artifacts in S3      |
 
-### `config` Subgroup
-
-| Command                       | Description                     |
-| ----------------------------- | ------------------------------- |
-| `citrees-exp config show`     | Display current config          |
-| `citrees-exp config init`     | Initialize config from template |
-| `citrees-exp config validate` | Validate config schema          |
-| `citrees-exp config path`     | Show config file paths          |
-
 ### `list` Subgroup
 
 | Command                     | Description                    |
@@ -48,21 +39,32 @@ uv sync --group paper
 
 ### `infra` Subgroup (AWS)
 
-| Command                               | Description                        |
-| ------------------------------------- | ---------------------------------- |
-| `citrees-exp infra setup`             | Create S3 and build Docker image   |
-| `citrees-exp infra s3`                | Create S3 bucket                   |
-| `citrees-exp infra upload-data`       | Upload datasets to S3              |
-| `citrees-exp infra ecr create`        | Create ECR repository              |
-| `citrees-exp infra ecr build`         | Build + push Docker image to ECR   |
-| `citrees-exp infra ecr clean`         | Delete all ECR images              |
-| `citrees-exp infra launch-api`        | Launch API server on EC2           |
-| `citrees-exp infra api-url`           | Print exact campaign API URL       |
-| `citrees-exp infra terminate-api`     | Terminate exact campaign API       |
-| `citrees-exp infra launch-workers`    | Launch EC2 worker instances        |
-| `citrees-exp infra list-workers`      | List running worker instances      |
-| `citrees-exp infra terminate-workers` | Terminate all workers              |
-| `citrees-exp infra logs`              | Fetch CloudWatch logs (api/worker) |
+| Command                                         | Description                                           |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `citrees-exp infra setup`                       | Create the S3 bucket and build the immutable image    |
+| `citrees-exp infra s3`                          | Create the S3 bucket                                  |
+| `citrees-exp infra upload-data`                 | Publish datasets to content-addressed S3 keys         |
+| `citrees-exp infra ecr create`                  | Create the ECR repository                             |
+| `citrees-exp infra ecr build`                   | Build and push the Docker image (tagged by git SHA)   |
+| `citrees-exp infra ecr clean`                   | Delete all ECR images                                 |
+| `citrees-exp infra launch-api`                  | Launch the campaign API server on EC2                 |
+| `citrees-exp infra api-url`                     | Print the exact campaign API URL                      |
+| `citrees-exp infra terminate-api`               | Terminate the exact campaign API                      |
+| `citrees-exp infra launch-workers`              | Launch EC2 worker instances for a campaign            |
+| `citrees-exp infra list-workers`                | List running workers from one launch                  |
+| `citrees-exp infra terminate-workers`           | Terminate workers from one launch                     |
+| `citrees-exp infra launch-mechanism-workers`    | Launch sharded workers for the CIF mechanism ablation |
+| `citrees-exp infra list-mechanism-workers`      | List running mechanism-ablation workers               |
+| `citrees-exp infra terminate-mechanism-workers` | Terminate mechanism-ablation workers                  |
+| `citrees-exp infra logs`                        | Fetch CloudWatch logs (api/worker)                    |
+
+### `manifest` Subgroup
+
+| Command                          | Description                                            |
+| -------------------------------- | ------------------------------------------------------ |
+| `citrees-exp manifest shard`     | Write one manifest shard per bound AWS account         |
+| `citrees-exp manifest verify`    | Prove shards are account-bound, disjoint, and complete |
+| `citrees-exp manifest reconcile` | Fail unless manifest artifacts in S3 are exact         |
 
 ### `cluster` Subgroup (Local Processes)
 
@@ -140,23 +142,24 @@ until queues drain or idle timeout.
 
 Methods are defined in `paper/benchmark/pipeline/methods.py`:
 
-| Category   | Classification                                                         | Regression                                                             |
-| ---------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Perm. test | `ptest_mc`, `ptest_rdc`                                                | `ptest_pc`, `ptest_dc`, `ptest_rdc`                                    |
-| Embedding  | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` | `cit`, `cif`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` |
-| Wrapper    | `boruta`, `pi`, `cpi`, `rfe`                                           | `boruta`, `pi`, `cpi`, `rfe`                                           |
+| Category   | Classification                                                                                 | Regression                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Perm. test | `ptest_mc`, `ptest_rdc`                                                                        | `ptest_pc`, `ptest_dc`, `ptest_rdc`                                                            |
+| Embedding  | `cit`, `cif`, `cit_maxt`, `cif_maxt`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` | `cit`, `cif`, `cit_maxt`, `cif_maxt`, `rf`, `et`, `xgb`, `lgbm`, `cat`, `r_ctree`, `r_cforest` |
+| Wrapper    | `boruta`, `pi`, `cpi`, `rfe`                                                                   | `boruta`, `pi`, `cpi`, `rfe`                                                                   |
+
+`cit_maxt` and `cif_maxt` are grid aliases: the CIT and CIF grids plus an
+explicit `threshold_test="maxt"` axis, registered under their own names so the
+completed Bonferroni artifacts keep their identities. Dispatch resolves them to
+the CIT/CIF estimators through `base_method()` in
+`paper/benchmark/pipeline/methods.py`.
 
 ## Configuration
 
-**Config file**: `paper/benchmark/infra/config.yaml` (created via
-`citrees-exp config init` from `config.example.yaml`)
-
-**Key settings** (`paper/benchmark/config/settings.py`):
-
-- `aws_region`: Default `us-east-1`
-- `s3_bucket`: Auto-derived as `citrees-{account_id}`
-- `experiment.n_seeds`: Default 5
-- `experiment.s3_validate_uploads`: Default True
+There is no configuration file. The AWS region defaults to `us-east-1` and the
+S3 bucket and ECR repository are derived as `citrees-{account_id}` in
+`paper/benchmark/infra/aws.py`. AWS credentials come from the environment or the
+active profile; profile names are never written into the repository.
 
 **Constants** (`paper/benchmark/config/constants.py`):
 

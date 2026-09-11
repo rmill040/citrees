@@ -196,6 +196,17 @@ REG_CIF_GRID: dict[str, list[Any]] = {
     "n_jobs": [-1],
 }
 
+# Max-type Stage B extension. These grids equal the CIT/CIF grids plus an explicit
+# threshold_test="maxt" axis and are registered under separate method names so the
+# completed Bonferroni artifacts keep their identities. See TODO.md, Deferred
+# migrations, for the planned fold back into a single threshold_test axis.
+_MAXT_STAGE_B: dict[str, list[Any]] = {"threshold_test": ["maxt"]}
+
+CLF_CIT_MAXT_GRID: dict[str, list[Any]] = {**CLF_CIT_GRID, **_MAXT_STAGE_B}
+CLF_CIF_MAXT_GRID: dict[str, list[Any]] = {**CLF_CIF_GRID, **_MAXT_STAGE_B}
+REG_CIT_MAXT_GRID: dict[str, list[Any]] = {**REG_CIT_GRID, **_MAXT_STAGE_B}
+REG_CIF_MAXT_GRID: dict[str, list[Any]] = {**REG_CIF_GRID, **_MAXT_STAGE_B}
+
 
 # =============================================================================
 # REGRESSION PARAMETER GRIDS
@@ -328,6 +339,14 @@ def clf_cif() -> list[dict[str, Any]]:
     return _generate_filtered_grid(CLF_CIF_GRID, "cif", _is_valid_threshold_combo)
 
 
+def clf_cit_maxt() -> list[dict[str, Any]]:
+    return _generate_filtered_grid(CLF_CIT_MAXT_GRID, "cit_maxt", _is_valid_threshold_combo)
+
+
+def clf_cif_maxt() -> list[dict[str, Any]]:
+    return _generate_filtered_grid(CLF_CIF_MAXT_GRID, "cif_maxt", _is_valid_threshold_combo)
+
+
 def clf_boruta() -> list[dict[str, Any]]:
     return _generate_simple_grid(CLF_BORUTA_GRID, "boruta")
 
@@ -392,6 +411,14 @@ def reg_cif() -> list[dict[str, Any]]:
     return _generate_filtered_grid(REG_CIF_GRID, "cif", _is_valid_threshold_combo)
 
 
+def reg_cit_maxt() -> list[dict[str, Any]]:
+    return _generate_filtered_grid(REG_CIT_MAXT_GRID, "cit_maxt", _is_valid_threshold_combo)
+
+
+def reg_cif_maxt() -> list[dict[str, Any]]:
+    return _generate_filtered_grid(REG_CIF_MAXT_GRID, "cif_maxt", _is_valid_threshold_combo)
+
+
 def reg_boruta() -> list[dict[str, Any]]:
     return _generate_simple_grid(REG_BORUTA_GRID, "boruta")
 
@@ -432,6 +459,8 @@ CLF_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
     "cat": clf_cat,
     "cit": clf_cit,
     "cif": clf_cif,
+    "cit_maxt": clf_cit_maxt,
+    "cif_maxt": clf_cif_maxt,
     # R methods
     "r_ctree": clf_r_ctree,
     "r_cforest": clf_r_cforest,
@@ -455,6 +484,8 @@ REG_CONFIG_GENERATORS: dict[str, Callable[[], list[dict[str, Any]]]] = {
     "cat": reg_cat,
     "cit": reg_cit,
     "cif": reg_cif,
+    "cit_maxt": reg_cit_maxt,
+    "cif_maxt": reg_cif_maxt,
     # R methods
     "r_ctree": reg_r_ctree,
     "r_cforest": reg_r_cforest,

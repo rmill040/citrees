@@ -33,6 +33,7 @@ from citrees import (
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
 )
+from paper.benchmark.pipeline.methods import base_method
 
 _DEFAULT_N_JOBS = 1
 
@@ -49,7 +50,8 @@ def get_embedding_model(
     Parameters
     ----------
     method : str
-        Model name: dt, rt, rf, et, xgb, lgbm, cat, cit, cif.
+        Model name: dt, rt, rf, et, xgb, lgbm, cat, cit, cif, or a grid alias
+        such as cit_maxt or cif_maxt (see base_method).
     task : str
         "classification" or "regression".
     random_state : int
@@ -65,6 +67,7 @@ def get_embedding_model(
         Fitted model with feature_importances_ attribute.
     """
     params = params or {}
+    method = base_method(method)
 
     if task == "classification":
         if method == "dt":

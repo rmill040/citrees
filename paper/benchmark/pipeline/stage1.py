@@ -31,6 +31,7 @@ from paper.benchmark.adapters.data import (
 )
 from paper.benchmark.adapters.store import Store
 from paper.benchmark.config.constants import N_SPLITS, PIPELINE_ARTIFACT_VERSION
+from paper.benchmark.pipeline.methods import EMBEDDING_METHODS
 from paper.benchmark.pipeline.types import ExperimentConfig, Result, TaskType
 from paper.benchmark.pipeline.validation import (
     validate_artifact_provenance,
@@ -389,7 +390,7 @@ def _run_selection_fold(
         ranking = filter_selector(X_train, y_train, method, task, rs, params=params)
     elif method.startswith("ptest_"):
         ranking = permutation_selector(X_train, y_train, method, task, rs, params=params)
-    elif method in ["dt", "rt", "rf", "et", "xgb", "lgbm", "cat", "cit", "cif"]:
+    elif method in EMBEDDING_METHODS:
         ranking = embedding_selector(
             X_train,
             y_train,

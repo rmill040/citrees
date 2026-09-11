@@ -82,6 +82,20 @@ METHOD_INFO: dict[str, MethodInfo] = {
         category="embedding",
         tasks=frozenset({"classification", "regression"}),
     ),
+    "cit_maxt": MethodInfo(
+        name="cit_maxt",
+        display_name="CIT (max-type)",
+        description="CIT with the max-type Stage B threshold test",
+        category="embedding",
+        tasks=frozenset({"classification", "regression"}),
+    ),
+    "cif_maxt": MethodInfo(
+        name="cif_maxt",
+        display_name="CIF (max-type)",
+        description="CIF with the max-type Stage B threshold test",
+        category="embedding",
+        tasks=frozenset({"classification", "regression"}),
+    ),
     "dt": MethodInfo(
         name="dt",
         display_name="DT",
@@ -178,7 +192,7 @@ METHOD_INFO: dict[str, MethodInfo] = {
 }
 
 
-# Classification methods (17 total)
+# Classification methods (19 total)
 CLF_METHODS = [
     # Permutation test methods
     "ptest_mc",
@@ -186,6 +200,8 @@ CLF_METHODS = [
     # Embedding methods (tree-based)
     "cit",
     "cif",
+    "cit_maxt",
+    "cif_maxt",
     "dt",
     "rt",
     "rf",
@@ -204,7 +220,7 @@ CLF_METHODS = [
 ]
 
 
-# Regression methods (18 total)
+# Regression methods (20 total)
 REG_METHODS = [
     # Permutation test methods
     "ptest_pc",
@@ -213,6 +229,8 @@ REG_METHODS = [
     # Embedding methods (tree-based)
     "cit",
     "cif",
+    "cit_maxt",
+    "cif_maxt",
     "dt",
     "rt",
     "rf",
@@ -246,7 +264,32 @@ THREADED_METHODS = {
 
 
 # Embedding methods (have feature_importances_ and can make predictions)
-EMBEDDING_METHODS = {"cit", "cif", "dt", "rt", "rf", "et", "xgb", "lgbm", "cat"}
+EMBEDDING_METHODS = {
+    "cit",
+    "cif",
+    "cit_maxt",
+    "cif_maxt",
+    "dt",
+    "rt",
+    "rf",
+    "et",
+    "xgb",
+    "lgbm",
+    "cat",
+}
+
+# Method names that share an estimator with a base method and differ only in
+# their parameter grid. Dispatch resolves through base_method(); identities
+# (labels, artifacts, manifests) keep the alias name.
+BASE_METHOD_ALIASES: dict[str, str] = {
+    "cit_maxt": "cit",
+    "cif_maxt": "cif",
+}
+
+
+def base_method(name: str) -> str:
+    """Return the estimator-dispatch name for a method, resolving grid aliases."""
+    return BASE_METHOD_ALIASES.get(name, name)
 
 
 def get_methods(task: str) -> list[str]:

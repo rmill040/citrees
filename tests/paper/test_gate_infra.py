@@ -164,7 +164,10 @@ def test_freeze_host_launch_request_and_user_data(
     assert request["InstanceInitiatedShutdownBehavior"] == "terminate"
     assert "AdditionalInfo" not in request
     tags = {t["Key"]: t["Value"] for t in request["TagSpecifications"][0]["Tags"]}
-    assert tags[ec2_infra.TAG_KEY] == gate.GATE_TAG_VALUE
+    assert tags[ec2_infra.TAG_KEY] == "r-cforest-reproducibility-gate"
+    assert tags["citrees-market"] == "on-demand" and tags["citrees-image-digest"] == DIGEST
+    assert tags["citrees-gate-launch-nonce"] == NONCE and tags["citrees-source-git-sha"] == GIT_SHA
+    assert tags["citrees-artifact-prefix"] == attempt.prefix
     assert tags["citrees-gate-role"] == "freeze"
     assert tags["citrees-gate-identity"] == attempt.identity
     text = _user_data(request)

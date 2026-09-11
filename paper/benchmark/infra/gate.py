@@ -28,6 +28,7 @@ from botocore.exceptions import ClientError
 from paper.benchmark.cli.console_output import info, step
 from paper.benchmark.experiments.r_cforest_reproducibility import (
     GATE_HOST_SLOTS,
+    GATE_MARKET,
     GATE_REPEATS,
     collect_live_operator_readbacks,
     create_gate_receipt,
@@ -58,6 +59,7 @@ from paper.benchmark.pipeline.runtime_contract import (
 
 GATE_INSTANCE_TYPE = "c6a.8xlarge"
 GATE_TAG_VALUE = "gate"
+GATE_ROLE_TAG_VALUE = "r-cforest-reproducibility-gate"
 GATE_KEEPALIVE_SECONDS = 6 * 3600
 GATE_MODULE = "paper.benchmark.experiments.r_cforest_reproducibility"
 ATTEMPT_FILE_NAME = "attempt.json"
@@ -278,17 +280,22 @@ def _run_instance(
     target_droplet: str | None,
 ) -> str:
     encoded = base64.b64encode(user_data.encode()).decode()
+    # The receipt's live readback requires this exact tag set on every gate host.
     tags = {
-        TAG_KEY: GATE_TAG_VALUE,
         "Name": f"citrees-gate-{role}" if host_slot is None else f"citrees-gate-{host_slot}",
+        "citrees-artifact-prefix": attempt.prefix,
         "citrees-gate-identity": attempt.identity,
-        "citrees-gate-nonce": attempt.launch_nonce,
+        "citrees-gate-launch-nonce": attempt.launch_nonce,
         "citrees-gate-role": role,
+        "citrees-image-digest": attempt.image_digest,
         "citrees-image-uri": attempt.image_uri,
+        "citrees-market": GATE_MARKET,
+        TAG_KEY: GATE_ROLE_TAG_VALUE,
+        "citrees-source-git-sha": attempt.source_git_sha,
         "citrees-subnet-id": subnet_id,
     }
     if host_slot is not None:
-        tags["citrees-gate-slot"] = host_slot
+        tags["citrees-host-slot"] = host_slot
     if target_droplet is not None:
         tags["citrees-target-droplet"] = target_droplet
     token_payload = json.dumps(
@@ -589,7 +596,7 @@ def list_gate_instances(attempt: GateAttempt, *, ec2: Any | None = None) -> list
     client = boto3.client("ec2", region_name=attempt.region) if ec2 is None else ec2
     response = client.describe_instances(
         Filters=[
-            {"Name": f"tag:{TAG_KEY}", "Values": [GATE_TAG_VALUE]},
+            {"Name": f"tag:{TAG_KEY}", "Values": [GATE_ROLE_TAG_VALUE]},
             {"Name": "tag:citrees-gate-identity", "Values": [attempt.identity]},
             {"Name": "instance-state-name", "Values": ["pending", "running", "stopping"]},
         ]
@@ -602,7 +609,7 @@ def list_gate_instances(attempt: GateAttempt, *, ec2: Any | None = None) -> list
                 {
                     "instance_id": str(instance["InstanceId"]),
                     "role": tags.get("citrees-gate-role", ""),
-                    "slot": tags.get("citrees-gate-slot", ""),
+                    "slot": tags.get("citrees-host-slot", ""),
                     "state": str(instance.get("State", {}).get("Name", "")),
                 }
             )

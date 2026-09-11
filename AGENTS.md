@@ -45,25 +45,26 @@ citrees/
 │   ├── data/               # Test datasets (parquet format)
 │   ├── unit/               # Unit tests for citrees/* modules
 │   ├── integration/        # Integration tests for citrees/* (tree, forest, parameters, edge_cases)
-│   └── paper/              # Tests for paper/scripts/* (use -m "not paper" to skip)
+│   └── paper/              # Tests for paper/benchmark/* (use -m "not paper" to skip)
 ├── docs/                   # MkDocs documentation source
 ├── tools/                  # Development tools
 │   └── hooks/              # Pre-commit hook scripts
 └── paper/                  # Research paper experiments
     ├── arxiv/              # LaTeX manuscript (arXiv source)
-    ├── docs/               # Experiment runbook, infra guide, claims tracker
+    ├── jss/                # JSS article source and replication suite
     ├── data/               # Experiment datasets (parquet)
-    ├── results/            # Experiment outputs (parquet, figures, tables)
-    └── scripts/
+    ├── results/            # Tracked result tables used by the manuscripts
+    ├── analysis/           # Table and figure builders
+    ├── data_generation/    # Synthetic dataset generation
+    ├── maintenance/        # Operational audit helpers
+    └── benchmark/
         ├── adapters/       # External system adapters (S3, data loading, runner)
         ├── api/            # FastAPI queue server and pull-based worker
-        ├── analysis/       # Statistical tests, visualizations, figures
         ├── cli/            # Typer CLI (citrees-exp entry point)
         ├── config/         # Configuration (settings, constants)
-        ├── data_generation/# Synthetic dataset generation
+        ├── experiments/    # Ablation drivers (runtime, threshold, mechanism)
         ├── infra/          # AWS setup (IAM, S3, ECR, EC2, Docker)
         ├── pipeline/       # Core experiment pipeline (stage1, stage2, grid, methods)
-        ├── theory/         # Sequential stopping analysis scripts
         └── utils/          # Shared utilities (env, metrics)
 ```
 
@@ -109,20 +110,21 @@ Available registries:
 
 ### Key Parameters
 
-| Parameter              | Description                             | Default                    |
-| ---------------------- | --------------------------------------- | -------------------------- |
-| `selector`             | Feature selection method: str or list   | 'mc' (clf) / 'pc' (reg)    |
-| `splitter`             | Split criterion                         | 'gini' (clf) / 'mse' (reg) |
-| `alpha_selector`       | P-value threshold for feature selection | 0.05                       |
-| `alpha_splitter`       | P-value threshold for split selection   | 0.05                       |
-| `n_resamples_selector` | NResamples enum or int                  | NResamples.AUTO            |
-| `adjust_alpha_*`       | Bonferroni correction                   | True                       |
-| `early_stopping_*`     | EarlyStopping enum or None              | EarlyStopping.ADAPTIVE     |
-| `feature_muting`       | Remove uninformative features           | True                       |
-| `feature_scanning`     | Sort features by promise before testing | True                       |
-| `threshold_method`     | ThresholdMethod enum                    | ThresholdMethod.EXACT      |
-| `max_features`         | MaxValuesMethod enum, float, or int     | None (all)                 |
-| `max_thresholds`       | MaxValuesMethod enum, float, or int     | None (all)                 |
+| Parameter              | Description                                                    | Default                    |
+| ---------------------- | -------------------------------------------------------------- | -------------------------- |
+| `selector`             | Feature selection method: str or list                          | 'mc' (clf) / 'pc' (reg)    |
+| `splitter`             | Split criterion                                                | 'gini' (clf) / 'mse' (reg) |
+| `alpha_selector`       | P-value threshold for feature selection                        | 0.05                       |
+| `alpha_splitter`       | P-value threshold for split selection                          | 0.05                       |
+| `n_resamples_selector` | NResamples enum or int                                         | NResamples.AUTO            |
+| `adjust_alpha_*`       | Bonferroni correction                                          | True                       |
+| `early_stopping_*`     | EarlyStopping enum or None                                     | EarlyStopping.ADAPTIVE     |
+| `feature_muting`       | Remove uninformative features                                  | True                       |
+| `feature_scanning`     | Sort features by promise before testing                        | True                       |
+| `threshold_method`     | ThresholdMethod enum                                           | ThresholdMethod.EXACT      |
+| `threshold_test`       | ThresholdTest enum: per-threshold Bonferroni or joint max-type | ThresholdTest.BONFERRONI   |
+| `max_features`         | MaxValuesMethod enum, float, or int                            | None (all)                 |
+| `max_thresholds`       | MaxValuesMethod enum, float, or int                            | None (all)                 |
 
 ### Selector Parameter
 
@@ -413,7 +415,7 @@ Defined in `pyproject.toml` as:
 
 ```toml
 [project.scripts]
-citrees-exp = "paper.scripts.cli.entrypoint:main"
+citrees-exp = "paper.benchmark.cli.entrypoint:main"
 ```
 
 Install with the `paper` dependency group:
@@ -512,12 +514,12 @@ that one prefix.
 └────────┘  └────────┘
 ```
 
-**API server** (`paper/scripts/api/server.py`): FastAPI app with 4 lazy queues
+**API server** (`paper/benchmark/api/server.py`): FastAPI app with 4 lazy queues
 (rankings/classification, rankings/regression, metrics/classification,
 metrics/regression). On startup it builds the full experiment grid and subtracts
 completed S3 artifacts. Workers call `POST /next` to get work.
 
-**Worker** (`paper/scripts/api/worker.py`): Pull-based loop. Gets config from
+**Worker** (`paper/benchmark/api/worker.py`): Pull-based loop. Gets config from
 API, runs `_run_selection()` or `_run_evaluation()`, saves result to S3, repeats
 until queues drain or idle timeout.
 
@@ -540,7 +542,7 @@ until queues drain or idle timeout.
 
 ## Method Categories
 
-Methods are defined in `paper/scripts/pipeline/methods.py`:
+Methods are defined in `paper/benchmark/pipeline/methods.py`:
 
 | Category   | Classification                                                         | Regression                                                             |
 | ---------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -550,17 +552,17 @@ Methods are defined in `paper/scripts/pipeline/methods.py`:
 
 ## Configuration
 
-**Config file**: `paper/scripts/infra/config.yaml` (created via
+**Config file**: `paper/benchmark/infra/config.yaml` (created via
 `citrees-exp config init` from `config.example.yaml`)
 
-**Key settings** (`paper/scripts/config/settings.py`):
+**Key settings** (`paper/benchmark/config/settings.py`):
 
 - `aws_region`: Default `us-east-1`
 - `s3_bucket`: Auto-derived as `citrees-{account_id}`
 - `experiment.n_seeds`: Default 5
 - `experiment.s3_validate_uploads`: Default True
 
-**Constants** (`paper/scripts/config/constants.py`):
+**Constants** (`paper/benchmark/config/constants.py`):
 
 - `RANDOM_STATE`: 1718
 - `N_SEEDS`: 5, `N_SPLITS`: 5

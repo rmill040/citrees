@@ -86,11 +86,12 @@ Notes:
 
 ### Threshold Generation
 
-| Parameter            | Type                                 | Default                 | Description                      |
-| -------------------- | ------------------------------------ | ----------------------- | -------------------------------- |
-| `threshold_method`   | ThresholdMethod                      | `ThresholdMethod.EXACT` | How to generate split candidates |
-| `max_thresholds`     | MaxValuesMethod, int, float, or None | None                    | Maximum thresholds per feature   |
-| `threshold_scanning` | bool                                 | True                    | Test promising thresholds first  |
+| Parameter            | Type                                 | Default                    | Description                      |
+| -------------------- | ------------------------------------ | -------------------------- | -------------------------------- |
+| `threshold_method`   | ThresholdMethod                      | `ThresholdMethod.EXACT`    | How to generate split candidates |
+| `max_thresholds`     | MaxValuesMethod, int, float, or None | None                       | Maximum thresholds per feature   |
+| `threshold_scanning` | bool                                 | True                       | Test promising thresholds first  |
+| `threshold_test`     | ThresholdTest                        | `ThresholdTest.BONFERRONI` | Stage B test over candidates     |
 
 Options for `threshold_method`:
 
@@ -98,6 +99,13 @@ Options for `threshold_method`:
 - `ThresholdMethod.RANDOM`: Random subset of **midpoints**
 - `ThresholdMethod.PERCENTILE`: Quantile-based **midpoints**
 - `ThresholdMethod.HISTOGRAM`: Histogram bin edges over **midpoints**
+
+Options for `threshold_test` (see [maxt.md](maxt.md)):
+
+- `ThresholdTest.BONFERRONI`: one permutation test per candidate at level
+  `alpha_splitter / K`, budget scaled by `K`
+- `ThresholdTest.MAXT`: one joint test on the minimum standardized impurity over
+  all `K` candidates at level `alpha_splitter`, fixed budget
 
 Notes:
 

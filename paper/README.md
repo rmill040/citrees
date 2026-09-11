@@ -6,15 +6,15 @@ supporting analyses, and the experiment pipeline.
 
 ## Status
 
-Version 1 is published as `arXiv:2607.01417`. The `paper/arxiv/` source records
-that published version and is frozen unless a deliberate new arXiv version is
-prepared.
+Version 1 is published as `arXiv:2607.01417`. The `paper/arxiv/` source is the
+working copy of the next arXiv version; `TODO.md` at the repository root lists
+what remains before it and the JSS article are submitted.
 
 ## Layout
 
 | Path                     | Purpose                                                                    |
 | ------------------------ | -------------------------------------------------------------------------- |
-| `paper/arxiv/`           | Frozen LaTeX source and PDF for the published arXiv manuscript.            |
+| `paper/arxiv/`           | LaTeX source and PDF of the arXiv manuscript.                              |
 | `paper/jss/`             | JSS manuscript source and standalone replication materials.                |
 | `paper/results/`         | Small set of tracked result tables used to verify paper claims.            |
 | `paper/data/`            | Benchmark datasets used by the experiment pipeline.                        |

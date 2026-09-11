@@ -31,15 +31,21 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       2026-09-11 18:03 UTC (image 50e2e6d2). Its uploads were failing until an
       inline write policy was added to its role at 18:49 UTC; the periodic and
       final uploads now succeed.
-- [ ] Relaunch `mirrored_knob_ablation` (now includes `cif_maxt`) from the image
-      built at current HEAD once us-east-1f has capacity; the retry loop was
-      stopped so the pre-maxt image never runs.
-- [ ] Max-type ranking extension campaign (`cit_maxt`, `cif_maxt`; 1,792 Stage 1
-      cells, 88 excluded as never-completed Bonferroni counterparts). Runbook:
-      the "Extension campaign runbook" in `paper/AGENTS.md`. Steps: image from
-      clean HEAD; `infra gate-freeze`; `manifest extend`; `infra gate-run` on
-      two zones; `infra gate-complete`; `infra launch-api`;
-      `infra launch-workers     --market on-demand --target-droplets ...`.
+- [x] `mirrored_knob_ablation` (with `cif_maxt`) relaunched 2026-09-11 ~19:50
+      UTC on droplet 29.81.7.184 as i-0a0803712c76cb728 from image
+      sha256:5609d400 (built at c9855d0); output prefix
+      `repairs/runtime-ablation-rerun/source-6444421c…` names the HEAD at
+      launch, whose experiment code is identical to c9855d0 (only gate tooling
+      differed).
+- [ ] Max-type ranking extension campaign in progress (2026-09-11): image
+      sha256:5609d400 (c9855d0); runtime contract 79153d56…; manifest 7a466b00…;
+      campaign 40f9761d…; 1,792 Stage 1 cells, 88 excluded. Gate hosts arc-a
+      i-0bc74033eff56f06a (1b) and arc-b i-0cda75654973918d6 (1c) running the
+      panel. Remaining: `gate-complete` (operator profile), `launch-api`,
+      `launch-workers --market on-demand --target-droplets ...`; then Stage 2
+      (metrics) with the same artifacts. Attempt files under
+      `scratch/maxt-campaign/attempt-c9855d0/`; step script
+      `scratch/maxt-campaign/run_campaign.sh`.
 - [ ] Rebuild `paper_presentation_practical_controls_summary.csv` with
       `paper/analysis/build_manuscript_summary_tables.py`, then rewrite the CIF
       runtime table, its caption, the Section 5.2 paragraph, and the three

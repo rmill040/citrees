@@ -13,6 +13,7 @@ from paper.benchmark.cli.console_output import (
     error,
     heading,
     info,
+    step,
     success,
     warn,
 )
@@ -564,6 +565,13 @@ def launch_workers_cmd(
             help="Must match the API server phase",
         ),
     ] = "rankings",
+    target_droplets: Annotated[
+        str,
+        typer.Option(
+            "--target-droplets",
+            help="Comma-separated loaner droplet IPs; slots rotate across them, six per droplet",
+        ),
+    ] = "",
 ) -> None:
     """Launch EC2 worker instances.
 
@@ -602,6 +610,7 @@ def launch_workers_cmd(
         runtime_contract_path=runtime_contract_path,
         stage=stage,
         subnet_ids=_split_csv(subnets),
+        target_droplets=_split_csv(target_droplets),
     )
 
 
@@ -993,3 +1002,261 @@ def logs(
 
     for event in events:
         console.print(event["message"], highlight=False)
+
+
+# ---------------------------------------------------------------------------
+# Reproducibility gate hosts
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="gate-freeze")
+def gate_freeze_cmd(
+    image_uri: Annotated[
+        str,
+        typer.Option(
+            "--image-uri", help="Immutable ECR image URI in repository@sha256:digest form"
+        ),
+    ],
+    subnet_id: Annotated[str, typer.Option("--subnet", help="Subnet for the freeze host")],
+    operator_public_key_path: Annotated[
+        Path,
+        typer.Option(
+            "--operator-public-key",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Operator attestation public key (PEM) embedded in the runtime contract",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", file_okay=False, resolve_path=True, help="Attempt directory"),
+    ],
+    target_droplet: Annotated[
+        str, typer.Option("--target-droplet", help="Optional loaner droplet IP for the freeze host")
+    ] = "",
+    wait: Annotated[bool, typer.Option("--wait/--no-wait", help="Wait for the contract")] = True,
+    timeout_seconds: Annotated[int, typer.Option("--timeout-seconds", min=60)] = 1800,
+) -> None:
+    """Start a fresh gate attempt and freeze the runtime contract on one host."""
+    from paper.benchmark.infra.gate import (
+        ATTEMPT_FILE_NAME,
+        create_gate_attempt,
+        launch_freeze_host,
+        wait_for_runtime_contract,
+    )
+
+    heading("Gate Attempt: Runtime Freeze")
+    attempt = create_gate_attempt(image_uri)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    attempt.save(output_dir / ATTEMPT_FILE_NAME)
+    step(f"Attempt identity: {attempt.identity}")
+    step(f"Output prefix: s3://{attempt.bucket}/{attempt.prefix}")
+    instance_id = launch_freeze_host(
+        attempt,
+        operator_public_key_path=operator_public_key_path,
+        subnet_id=subnet_id,
+        target_droplet=target_droplet or None,
+    )
+    step(f"Freeze host: {instance_id}")
+    if not wait:
+        success(f"Attempt saved to {output_dir / ATTEMPT_FILE_NAME}; rerun with --wait later")
+        return
+    info("Waiting for the frozen runtime contract...")
+    digest, payload = wait_for_runtime_contract(attempt, timeout_seconds=timeout_seconds)
+    contract_path = output_dir / "runtime-contract.json"
+    contract_path.write_bytes(payload)
+    success(f"Runtime contract {digest} written to {contract_path}")
+
+
+@app.command(name="gate-run")
+def gate_run_cmd(
+    attempt_path: Annotated[
+        Path,
+        typer.Option(
+            "--attempt", exists=True, dir_okay=False, resolve_path=True, help="attempt.json"
+        ),
+    ],
+    manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--manifest", exists=True, dir_okay=False, resolve_path=True, help="Canonical manifest"
+        ),
+    ],
+    runtime_contract_path: Annotated[
+        Path,
+        typer.Option(
+            "--runtime-contract",
+            exists=True,
+            dir_okay=False,
+            resolve_path=True,
+            help="Frozen runtime contract from gate-freeze",
+        ),
+    ],
+    subnets: Annotated[
+        str,
+        typer.Option(
+            "--subnets", help="Two subnets in distinct availability zones, comma-separated"
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", file_okay=False, resolve_path=True, help="Attempt directory"),
+    ],
+    target_droplets: Annotated[
+        str,
+        typer.Option("--target-droplets", help="Optional two loaner droplet IPs, comma-separated"),
+    ] = "",
+    wait: Annotated[bool, typer.Option("--wait/--no-wait", help="Wait for all four runs")] = True,
+    timeout_seconds: Annotated[int, typer.Option("--timeout-seconds", min=60)] = 3 * 3600,
+) -> None:
+    """Publish the manifest to the attempt and run the gate panel on two hosts."""
+    from paper.benchmark.infra.gate import (
+        GateAttempt,
+        launch_gate_hosts,
+        upload_gate_manifest,
+        wait_for_gate_runs,
+    )
+    from paper.benchmark.pipeline.manifest import parse_rerun_manifest, validate_canonical_campaign
+    from paper.benchmark.pipeline.runtime_contract import (
+        parse_runtime_contract,
+        runtime_contract_sha256,
+    )
+
+    heading("Gate Attempt: Panel Runs")
+    attempt = GateAttempt.load(attempt_path)
+    manifest_payload = manifest_path.read_bytes()
+    manifest = parse_rerun_manifest(manifest_payload)
+    validate_canonical_campaign(manifest)
+    contract_sha256 = runtime_contract_sha256(
+        parse_runtime_contract(runtime_contract_path.read_bytes())
+    )
+    if manifest.runtime_contract_sha256 != contract_sha256:
+        error("manifest is bound to a different runtime contract")
+        raise typer.Exit(2)
+    key = upload_gate_manifest(attempt, manifest_payload=manifest_payload)
+    step(f"Manifest {manifest.sha256} at s3://{attempt.bucket}/{key}")
+    launched = launch_gate_hosts(
+        attempt,
+        manifest_sha256=manifest.sha256,
+        runtime_contract_sha256=contract_sha256,
+        subnet_ids=_split_csv(subnets),
+        target_droplets=_split_csv(target_droplets),
+    )
+    if not wait:
+        success(f"Gate hosts launched: {launched}; rerun with --wait later")
+        return
+    info("Waiting for the four gate run payloads...")
+    payloads = wait_for_gate_runs(
+        attempt, manifest_sha256=manifest.sha256, timeout_seconds=timeout_seconds
+    )
+    runs_dir = output_dir / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    for run_id, payload in payloads.items():
+        (runs_dir / f"{run_id}.json").write_bytes(payload)
+    success(f"Wrote {len(payloads)} run payloads to {runs_dir}; hosts stay up for gate-complete")
+
+
+@app.command(name="gate-complete")
+def gate_complete_cmd(
+    attempt_path: Annotated[
+        Path,
+        typer.Option(
+            "--attempt", exists=True, dir_okay=False, resolve_path=True, help="attempt.json"
+        ),
+    ],
+    manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--manifest", exists=True, dir_okay=False, resolve_path=True, help="Canonical manifest"
+        ),
+    ],
+    runtime_contract_path: Annotated[
+        Path,
+        typer.Option(
+            "--runtime-contract",
+            exists=True,
+            dir_okay=False,
+            resolve_path=True,
+            help="Runtime contract",
+        ),
+    ],
+    runs_dir: Annotated[
+        Path,
+        typer.Option(
+            "--runs-dir", exists=True, file_okay=False, resolve_path=True, help="Run payloads"
+        ),
+    ],
+    operator_private_key_path: Annotated[
+        Path,
+        typer.Option(
+            "--operator-private-key",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Operator attestation private key (PEM); never committed",
+        ),
+    ],
+    operator_profile: Annotated[
+        str, typer.Option("--operator-profile", help="AWS profile that signs the live readback")
+    ],
+    output_path: Annotated[
+        Path, typer.Option("--output", dir_okay=False, resolve_path=True, help="gate-receipt.json")
+    ],
+    terminate: Annotated[
+        bool, typer.Option("--terminate/--keep", help="Terminate gate hosts after the receipt")
+    ] = True,
+) -> None:
+    """Sign live readbacks of the gate hosts and write the GO receipt."""
+    from paper.benchmark.experiments.r_cforest_reproducibility import (
+        _load_payload,
+        gate_receipt_s3_key,
+    )
+    from paper.benchmark.infra.gate import (
+        EXPECTED_RUN_IDS,
+        GateAttempt,
+        complete_gate,
+        terminate_gate_hosts,
+    )
+    from paper.benchmark.pipeline.manifest import parse_rerun_manifest
+    from paper.benchmark.pipeline.runtime_contract import parse_runtime_contract
+
+    heading("Gate Attempt: GO Receipt")
+    attempt = GateAttempt.load(attempt_path)
+    manifest = parse_rerun_manifest(manifest_path.read_bytes())
+    runtime_contract = parse_runtime_contract(runtime_contract_path.read_bytes())
+    payloads = [_load_payload(runs_dir / f"{run_id}.json") for run_id in EXPECTED_RUN_IDS]
+    digest = complete_gate(
+        attempt,
+        manifest=manifest,
+        runtime_contract=runtime_contract,
+        payloads=payloads,
+        operator_private_key_path=operator_private_key_path,
+        operator_profile=operator_profile,
+        output_path=output_path,
+    )
+    step(f"Receipt: {output_path}")
+    step(f"Receipt digest: {digest}")
+    step(f"Receipt key: {gate_receipt_s3_key(digest)}")
+    if terminate:
+        terminated = terminate_gate_hosts(attempt)
+        step(f"Terminated gate hosts: {terminated}")
+    success("GO receipt written; launch-api publishes it with the manifest")
+
+
+@app.command(name="gate-terminate")
+def gate_terminate_cmd(
+    attempt_path: Annotated[
+        Path,
+        typer.Option(
+            "--attempt", exists=True, dir_okay=False, resolve_path=True, help="attempt.json"
+        ),
+    ],
+) -> None:
+    """Terminate every live host of one gate attempt."""
+    from paper.benchmark.infra.gate import GateAttempt, terminate_gate_hosts
+
+    terminated = terminate_gate_hosts(GateAttempt.load(attempt_path))
+    success(f"Terminated: {terminated}" if terminated else "No live gate hosts")

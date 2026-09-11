@@ -70,6 +70,27 @@ _ROUTE53_CHANGE_POLL_SECONDS = 2.0
 _API_MARKET = "on-demand"
 _WORKER_MARKET: Literal["spot"] = "spot"
 _WORKER_MARKETS = frozenset({"on-demand", "spot"})
+# Loaner capacity is addressed per droplet; the EC2 team allows six instances each.
+WORKER_MAX_PER_DROPLET = 6
+_DROPLET_PATTERN = re.compile(r"^[0-9]{1,3}(?:\.[0-9]{1,3}){3}$")
+
+
+def _slot_target_droplets(n: int, target_droplets: Sequence[str]) -> tuple[str | None, ...]:
+    """Assign worker slots to loaner droplets round-robin, at most six per droplet."""
+    droplets = tuple(droplet.strip() for droplet in target_droplets)
+    if not droplets:
+        return tuple(None for _ in range(n))
+    if any(not _DROPLET_PATTERN.fullmatch(droplet) for droplet in droplets):
+        raise ValueError("target_droplets must be IPv4 addresses")
+    if len(set(droplets)) != len(droplets):
+        raise ValueError("target_droplets must be unique")
+    if n > WORKER_MAX_PER_DROPLET * len(droplets):
+        raise ValueError(
+            f"{n} workers exceed {WORKER_MAX_PER_DROPLET} per droplet across {len(droplets)} droplets"
+        )
+    return tuple(droplets[slot % len(droplets)] for slot in range(n))
+
+
 _WORKER_SPOT_OPTIONS = {
     "MarketType": "spot",
     "SpotOptions": {
@@ -2376,6 +2397,7 @@ def launch_workers(
     runtime_contract_path: Path,
     stage: str,
     subnet_ids: Sequence[str] = (),
+    target_droplets: Sequence[str] = (),
     region: str = DEFAULT_REGION,
 ) -> list[str]:
     """Launch N EC2 worker instances.
@@ -2418,6 +2440,11 @@ def launch_workers(
         raise ValueError("instance_type must include an EC2 family and size")
     artifact_prefix, stage = _validate_queue_scope(artifact_prefix, stage)
     market = _validate_worker_market(market)
+    slot_droplets = _slot_target_droplets(n, target_droplets)
+    if any(slot_droplets) and market != "on-demand":
+        raise ValueError(
+            "target_droplets address on-demand loaner capacity; use market='on-demand'"
+        )
     manifest_info = publish_rerun_manifest(
         manifest_path,
         canonical_manifest_path,
@@ -2636,6 +2663,7 @@ def launch_workers(
         ],
         "stage": stage,
         "subnet_ids": [placement.subnet_id for placement in placements],
+        "target_droplets": [droplet for droplet in slot_droplets if droplet is not None],
         "user_data_sha256": hashlib.sha256(user_data.encode()).hexdigest(),
     }
     if existing_intent is not None and existing_intent != intent:
@@ -2699,6 +2727,9 @@ def launch_workers(
             "citrees-worker-slot": str(slot),
             "citrees-vpc-id": placement.vpc_id,
         }
+        slot_droplet = slot_droplets[slot - 1]
+        if slot_droplet is not None:
+            tags["citrees-target-droplet"] = slot_droplet
         existing_instance_id = _load_worker_launch_record(
             s3,
             artifact_prefix=artifact_prefix,
@@ -2726,6 +2757,8 @@ def launch_workers(
         run_kwargs = dict(base_run_kwargs)
         run_kwargs["ClientToken"] = client_token
         run_kwargs["SubnetId"] = placement.subnet_id
+        if slot_droplet is not None:
+            run_kwargs["AdditionalInfo"] = f"target-droplet={slot_droplet}"
         run_kwargs["TagSpecifications"] = [
             {
                 "ResourceType": "instance",

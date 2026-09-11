@@ -1085,6 +1085,16 @@ with every core in use was 0.2 seconds for the random forest, 4.0 seconds for
 \citrees, and 20.7 seconds for \pkg{partykit} on a 32-core cloud instance of the
 type used in Section~\ref{sec:performance}.
 
+The finding is that on a clinical cohort with predictors of mixed cardinality,
+impurity importance ranks a permuted survey weight above two reported
+diagnoses that are established correlates of diabetes, and conditional
+inference reverses that order while predicting held-out status at least as
+well. The ranking difference is a property of the importance statistic, not of
+the data: the same forests, on the same predictors, agree on the metabolic
+measurements and disagree exactly where the number of distinct values differs.
+For a user choosing between impurity and conditional importance on mixed-type
+data, that is the practical result.
+
 \section{Discussion} \label{sec:discussion}
 
 \citrees makes conditional-inference-style trees and forests available as

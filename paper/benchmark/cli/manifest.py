@@ -7,7 +7,7 @@ from typing import Annotated, Literal, cast
 
 import typer
 
-from paper.benchmark.cli.console_output import console, error, heading, success
+from paper.benchmark.cli.console_output import console, error, heading, step, success
 from paper.benchmark.pipeline.manifest import (
     parse_rerun_manifest,
     partition_rerun_manifest_by_account,
@@ -176,3 +176,103 @@ def reconcile_manifest(
         error(f"Reconciliation failed with {report.issue_count} issue(s)")
         raise typer.Exit(1)
     success(f"Exact reconciliation passed for {len(report.valid_keys)} artifacts")
+
+
+@app.command("extend")
+def extend_manifest(
+    source_path: Annotated[
+        Path,
+        typer.Option(
+            "--source",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Completed canonical manifest whose inventory is carried forward",
+        ),
+    ],
+    runtime_contract_path: Annotated[
+        Path,
+        typer.Option(
+            "--runtime-contract",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Frozen runtime contract the new campaign binds",
+        ),
+    ],
+    methods: Annotated[
+        str,
+        typer.Option(
+            "--methods", help="Comma-separated grid aliases, for example cit_maxt,cif_maxt"
+        ),
+    ],
+    rerun_reason: Annotated[
+        str,
+        typer.Option("--rerun-reason", help="Reason recorded on every added cell"),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            file_okay=False,
+            resolve_path=True,
+            help="Directory for manifest.csv, account shards, and receipt.json",
+        ),
+    ],
+    exclusions_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--exclusions",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Completed-benchmark cells whose extension counterparts are skipped",
+        ),
+    ] = None,
+) -> None:
+    """Add grid-alias cells to a completed inventory and write the campaign files."""
+    from paper.benchmark.pipeline.extension_manifest import (
+        build_extension_cells,
+        load_extension_exclusions,
+        write_extension_campaign,
+    )
+    from paper.benchmark.pipeline.runtime_contract import (
+        parse_runtime_contract,
+        runtime_contract_sha256,
+    )
+
+    source = parse_rerun_manifest(source_path.read_bytes())
+    if len(source.account_ids) != 1:
+        raise typer.BadParameter("source manifest must bind exactly one AWS account")
+    contract_sha256 = runtime_contract_sha256(
+        parse_runtime_contract(runtime_contract_path.read_bytes())
+    )
+    exclusions = (
+        load_extension_exclusions(exclusions_path.read_bytes())
+        if exclusions_path is not None
+        else ()
+    )
+    build = build_extension_cells(
+        source,
+        methods=[m.strip() for m in methods.split(",") if m.strip()],
+        rerun_reason=rerun_reason,
+        target_aws_account_id=source.account_ids[0],
+        exclusions=exclusions,
+    )
+    receipt = write_extension_campaign(
+        build,
+        runtime_contract_sha256=contract_sha256,
+        output_dir=output_dir,
+    )
+
+    heading("Extension Campaign Manifest")
+    step(f"Source inventory: {receipt['source_manifest_sha256']} ({len(source.cells)} cells)")
+    step(f"Runtime contract: {receipt['runtime_contract_sha256']}")
+    step(f"Added: {receipt['added']} cells {receipt['added_counts']}")
+    step(f"Excluded: {len(receipt['excluded'])} cells")
+    step(f"Campaign: {receipt['campaign_sha256']}")
+    step(f"Manifest: {receipt['manifest_sha256']}")
+    success(f"Wrote manifest.csv, account shards, and receipt.json to {output_dir}")

@@ -29,7 +29,13 @@
   inferential scope, the software architecture and estimator interface, and
   the relationship to \pkg{partykit} and CART implementations. Accompanying
   replication analyses evaluate null calibration, split-variable selection,
-  matched behavior across implementations, and computational scaling.
+  matched behavior across implementations, computational scaling, and a
+  max-type threshold test that holds the false-split rate below the nominal
+  level at a fraction of the per-threshold cost. An application to the
+  NHANES 2021--2023 diabetes cohort shows impurity importance ranking a
+  permuted survey weight above reported diagnoses of hypertension and high
+  cholesterol, an order that conditional inference forests reverse while
+  predicting held-out status at least as well.
 }
 
 \Keywords{conditional inference trees, random forests, permutation tests,
@@ -73,6 +79,17 @@ selector choices, threshold approximations, sequential computation, forest
 sampling controls, and model inspection methods designed for
 \proglang{Python} workflows. Each statistical and computational choice is an
 explicit fitted-estimator parameter.
+
+Section~\ref{sec:procedure} states the nodewise procedure and the scope of its
+inferential guarantees, Section~\ref{sec:software} describes the estimator
+interface with an executable tutorial, and Section~\ref{sec:comparison} places
+the package relative to \pkg{partykit} and \sklearn. Section~\ref{sec:evaluation}
+reports the replication analyses: null calibration of the fixed-node tests,
+split-variable selection under varying cardinality, matched behavior against
+\pkg{partykit}, controlled computation, a comparison of the two threshold-test
+constructions, and the NHANES diabetes application in which one column's
+information content is known by construction. Section~\ref{sec:discussion}
+discusses scope and limitations.
 
 \section{Statistical procedure} \label{sec:procedure}
 
@@ -119,19 +136,6 @@ Compatible bounded statistics can also be combined in a max-$T$ permutation
 test \citep{Westfall+Young:1993}. This option evaluates the largest configured
 selector score within each response permutation and uses the resulting joint
 max-statistic reference distribution.
-The RDC implementation uses 10 random projections (20 sine and cosine columns).
-A 5-seed, 5-fold sensitivity analysis compared 5, 10, 20, and 40 projections on
-Wine (178 samples, 13 features), Glass (214 samples, 10 features), Heart
-Statlog (270 samples, 13 features), and Parkinsons (195 samples, 22 features).
-Across 25 paired seed-fold evaluations per dataset, median selector time with
-20 projections was 3.00 to 3.06 times that with 10. At reduced feature counts
-(5 and 10 for Wine, Heart Statlog, and Parkinsons; 5 for Glass), mean balanced
-accuracy differences (20 minus 10) ranged from $-0.0052$ to $0.0005$ across the
-three downstream classifiers, and mean overlap between selected feature sets
-ranged from 95.4\% to 99.8\%. Using 10 projections reduced median selector time
-by 66.6\% to 67.4\% relative to 20 while preserving the observed accuracy at
-these scales.
-
 The exhaustive procedure evaluates every candidate with the requested
 permutation budget and reports fixed-$B$ $p$~values. Before sequential feature
 testing, candidates are sampled without replacement under the fitted random
@@ -338,7 +342,8 @@ Fitted estimators retain the parameters expected by \sklearn cloning and
 model-selection utilities. Table~\ref{tab:software-architecture} summarizes
 the responsibilities and interfaces of the main implementation components.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \small
 \begin{tabular}{p{0.22\textwidth}p{0.67\textwidth}}
 \hline
@@ -361,10 +366,11 @@ Extension points & Register new association statistics, permutation tests,
 split criteria, and threshold generators behind the common estimator
 interface. \\ \hline
 \end{tabular}
-\captionof{table}{\label{tab:software-architecture} Responsibilities of the
+\caption{Responsibilities of the
 main software components. Registered statistical components are shared by the
 classification and regression estimators.}
-\end{center}
+\label{tab:software-architecture}
+\end{table}
 
 \subsection{Computation} \label{sec:computation}
 
@@ -401,7 +407,8 @@ and predictive comparisons should retain both.
 Table~\ref{tab:software-comparison} summarizes the language, model families,
 feature-screening procedure, and estimator interfaces.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \begin{tabular}{llll}
 \hline
 Capability & \citrees & \pkg{partykit} & \sklearn \\ \hline
@@ -412,17 +419,19 @@ Single trees and forests & Yes & Yes & Yes \\
 Nonlinear selector choices & Yes & Framework-dependent & No \\
 \sklearn estimator protocol & Yes & No & Yes \\ \hline
 \end{tabular}
-\captionof{table}{\label{tab:software-comparison} High-level comparison of the software
+\caption{High-level comparison of the software
 interfaces relevant to \citrees. ``Conditional feature screen'' denotes a
 predictor-response test before threshold optimization. The packages expose
 different statistical procedures; behavioral comparisons account for each
 procedure and its defaults.}
-\end{center}
+\label{tab:software-comparison}
+\end{table}
 
 \section{Evaluation and replication design} \label{sec:evaluation}
 
-The evaluation separates fixed-test calibration, fitted-model behavior, and
-computation. The full profile defines every reported estimate. A reduced quick
+The evaluation separates fixed-test calibration, fitted-model behavior,
+computation, the two threshold-test constructions, and one clinical
+application. The full profile defines every reported estimate. A reduced quick
 profile retains the same datasets, metrics, output schemas, and validation
 rules for local replication.
 
@@ -467,6 +476,21 @@ the exhaustive split rate closely, with a largest absolute difference of
 13.6\% of the exhaustive count but inflated the split rate. These results
 support adaptive stopping as the default and confine simple stopping to
 exploratory use.
+
+\subsection{Selector projection sensitivity} \label{sec:rdc-sensitivity}
+
+The RDC implementation uses 10 random projections (20 sine and cosine columns).
+A 5-seed, 5-fold sensitivity analysis compared 5, 10, 20, and 40 projections on
+Wine (178 samples, 13 features), Glass (214 samples, 10 features), Heart
+Statlog (270 samples, 13 features), and Parkinsons (195 samples, 22 features).
+Across 25 paired seed-fold evaluations per dataset, median selector time with
+20 projections was 3.00 to 3.06 times that with 10. At reduced feature counts
+(5 and 10 for Wine, Heart Statlog, and Parkinsons; 5 for Glass), mean balanced
+accuracy differences (20 minus 10) ranged from $-0.0052$ to $0.0005$ across the
+three downstream classifiers, and mean overlap between selected feature sets
+ranged from 95.4\% to 99.8\%. Using 10 projections reduced median selector time
+by 66.6\% to 67.4\% relative to 20 while preserving the observed accuracy at
+these scales.
 
 \subsection{Variable cardinality} \label{sec:cardinality}
 
@@ -518,7 +542,8 @@ reflect which predictor attains the extreme statistic, not the fitted
 decisions, which occur at close to the nominal rate and carry no rejected
 cardinality preference for \citrees.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \begin{tabular}{lllrrl}
 \hline
 Implementation & Task & Trend tested & Effect & Raw $p$ & Holm $p$ \\ \hline
@@ -537,7 +562,7 @@ Implementation & Task & Trend tested & Effect & Raw $p$ & Holm $p$ \\ \hline
 \pkg{partykit} forest & Regression & Importance concordance & 0.027 & 0.0008 & 0.0080 \\
 \sklearn forest & Regression & Importance concordance & 0.718 & 0.0001 & 0.0014 \\ \hline
 \end{tabular}
-\captionof{table}{\label{tab:cardinality-holm} Prespecified family of 14
+\caption{Prespecified family of 14
 cardinality trend tests with Holm adjustment at the 0.05 level. Forced winner
 tests the predictor with the smallest corrected $p$~value in every replicate;
 winner given split restricts to replicates in which the tree split; importance
@@ -546,7 +571,8 @@ native feature summary across forest replicates. Effect is the mean
 directional association between cardinality rank and the tested outcome. Raw
 $p$~values come from 9,999 joint label randomizations with the add-one rule,
 so the smallest attainable raw value is 0.0001.}
-\end{center}
+\label{tab:cardinality-holm}
+\end{table}
 
 \subsection{Matched implementation behavior} \label{sec:behavior}
 
@@ -671,7 +697,8 @@ sets its own budget. CART in \sklearn fits the reference forests in 0.16 and
 0.12 seconds; it performs no permutation test and is included to place the
 cost of conditional inference on a familiar scale.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
@@ -686,7 +713,7 @@ Configuration & Tree & Forest & Tree & Forest \\ \hline
 \pkg{partykit}, default, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.8, 2.0] \\
 \sklearn CART & 0.01 [0.01, 0.01] & 0.16 [0.16, 0.16] & 0.01 [0.01, 0.01] & 0.12 [0.12, 0.12] \\ \hline
 \end{tabular}
-\captionof{table}{\label{tab:performance-reference} Median fitting time in
+\caption{Median fitting time in
 seconds with the interquartile range in brackets over 10 repeats at the
 reference condition of 1,000 observations, 50 Gaussian predictors, 999
 permutations where applicable, and 100 trees. The exhaustive procedure uses the
@@ -696,7 +723,8 @@ recommended \citrees configuration and the \pkg{partykit} default both sample
 square-root predictors in forests. Single
 trees have no 32-core condition because \pkg{partykit} parallelizes only
 across trees.}
-\end{center}
+\label{tab:performance-reference}
+\end{table}
 
 The second study reverses this ordering on real data.
 Table~\ref{tab:performance-real} shows that the recommended \citrees
@@ -726,7 +754,8 @@ datasets, by 2.4 times on madelon and 19 times on letter, and within 0.3
 seconds of it on vowel. Omitting the threshold test entirely changes these
 times by at most 0.4 seconds, except on isolet, where it adds 7 seconds. The max-type test keeps the threshold test and recovers most of that time where candidates are continuous. In the run that produced the max-type column, which also refit the recommended configuration, madelon went from 21 to 4.8 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds; the other five datasets changed by less than one second.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \footnotesize
 \setlength{\tabcolsep}{2.2pt}
 \begin{tabular}{lrrrrrrrr}
@@ -744,7 +773,7 @@ spam & 4,601 & 57 & 182 & 5.4 & 2.8 & 4.7 & 206 & 9.5 \\
 madelon & 2,000 & 500 & 132 & 21 & 4.4 & 4.8 & 194 & 11 \\
 vowel & 990 & 10 & 256 & 3.9 & 2.5 & 3.3 & 41 & 2.2 \\ \hline
 \end{tabular}
-\captionof{table}{\label{tab:performance-real} Median fitting time in seconds
+\caption{Median fitting time in seconds
 for 100-tree classification forests on the real benchmark datasets with at
 least 500 observations, each library at its default configuration on a 32-core
 machine. Candidates is the mean number of distinct candidate thresholds per
@@ -752,7 +781,8 @@ predictor, capped at 256. No adjustment is the recommended \citrees configuratio
 without the Bonferroni adjustment over candidate thresholds in the threshold
 test. Max-type is the recommended configuration with the max-type threshold test of Section~\ref{sec:thresholds}, measured on the same machine class in a separate run; it was not run (n/r) on isolet and gisette. Medians are over two
 repeats, or a single fit on letter, isolet, and gisette.}
-\end{center}
+\label{tab:performance-real}
+\end{table}
 
 Synthetic Gaussian predictors are the continuous case throughout, and
 Table~\ref{tab:performance-scaling} shows the consequence as the sample size
@@ -773,7 +803,8 @@ adaptive stopping, muting, and scanning remove most of the fixed budget that
 adjusted threshold test on continuous predictors, is an option the user
 controls.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \small
 \begin{tabular}{rrrrrrr}
 \hline
@@ -787,13 +818,14 @@ Observations & Predictors & Recommended & No adjustment & Max-type & 1 core & 32
 32,000 & 20 & 539 & 4.9 & n/r & 810 & 42 \\
 32,000 & 100 & 554 & 10 & n/r & 1,218 & 76 \\ \hline
 \end{tabular}
-\captionof{table}{\label{tab:performance-scaling} Median fitting time in
+\caption{Median fitting time in
 seconds over at least two repeats for 100-tree classification forests on synthetic
 Gaussian predictors with weak signal in the first five, each library at its
 default configuration on a 32-core machine. Columns are as in
 Table~\ref{tab:performance-real}; the no-adjustment variant was not run at 500
 observations and the max-type variant was not run at 32,000.}
-\end{center}
+\label{tab:performance-scaling}
+\end{table}
 
 \subsection{Threshold test comparison} \label{sec:threshold-test}
 
@@ -806,7 +838,8 @@ censored.
 
 The complete-node false-split rate is below 0.05 for both constructions in all 36 design cells, 72 measurements (Table~\ref{tab:threshold-calibration}); the constructions differ in how far below. Under the per-candidate Bonferroni test the rate falls as the bin setting grows, from 0.0145 at 16 bins to 0.0040 at 256 in classification with 500 observations and exhaustive stopping, because adjacent thresholds induce nearly identical splits and the union bound charges for all of them. Under the max-type test it stays between 0.025 and 0.038 across every cell and rises slightly with the bin setting, with cell means of 0.030, 0.032, and 0.032 at 16, 64, and 256 bins.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \small
 \begin{tabular}{lrrrrrr}
 \hline
@@ -832,8 +865,9 @@ Regression & 100 & 16 & 0.0240 & 0.0285 & 0.0310 & 0.0340 \\
  & 500 & 256 & 0.0125 & 0.0120 & 0.0270 & 0.0295 \\
 \hline
 \end{tabular}
-\captionof{table}{\label{tab:threshold-calibration} False-split rate of a depth-one tree under the global null at the 0.05 level, by Stage B construction and stopping mode, over 2,000 replicates per cell with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Wald confidence interval lies below 0.05; the widest half-width is below 0.009.}
-\end{center}
+\caption{False-split rate of a depth-one tree under the global null at the 0.05 level, by Stage B construction and stopping mode, over 2,000 replicates per cell with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Wald confidence interval lies below 0.05; the widest half-width is below 0.009.}
+\label{tab:threshold-calibration}
+\end{table}
 
 The cost difference is where the constructions separate
 (Table~\ref{tab:threshold-scaling}). With exhaustive stopping, one tree at
@@ -842,7 +876,8 @@ the 256-bin setting takes 60 seconds at 1,000 observations and 426 to 486 second
 max-type test takes 0.5, 1.5 to 1.6, and 6.2 to 6.7 seconds at the same
 settings. The exhaustive ratio grows with the bin setting, from 2.0 to 6.4 at 16 bins to 14 to 49 at 64 and 119 to 318 at 256, faster than the linear growth in $K$ that the $K^2/\alpha$ against $BK$ accounting alone predicts. With adaptive stopping the Bonferroni test dismisses most candidates after a few dozen permutations, and the ratio is 1.6 to 4.7 at 16 bins, 3.2 to 16 at 64, and 5.9 to 84 at 256. The constructions also grow different trees on these data. With adaptive stopping the max-type trees are deeper, 5.3 to 11.0 levels against 4.0 to 10.0; with exhaustive stopping the Bonferroni trees are deeper, 6.7 to 18.3 levels against 5.0 to 10.3. The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores below are the measure of which trees predict better.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \small
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrrrr}
@@ -869,8 +904,9 @@ Regression & 1,000 & 16 & 0.62 & 0.34 & 0.60 & 0.30 \\
  & 16,000 & 256 & 134 & 1.92 & censored & 6.24 \\
 \hline
 \end{tabular}
-\captionof{table}{\label{tab:threshold-scaling} Median fitting time in seconds over three fits of one tree on ten Gaussian predictors with a planted linear signal, by Stage B construction and stopping mode, on a 32-core cloud instance. Bins is the histogram threshold setting as in Table~\ref{tab:threshold-calibration}. Censored marks a cell whose fits exceeded 900 seconds.}
-\end{center}
+\caption{Median fitting time in seconds over three fits of one tree on ten Gaussian predictors with a planted linear signal, by Stage B construction and stopping mode, on a 32-core cloud instance. Bins is the histogram threshold setting as in Table~\ref{tab:threshold-calibration}. Censored marks a cell whose fits exceeded 900 seconds.}
+\label{tab:threshold-scaling}
+\end{table}
 
 On the six real datasets (Table~\ref{tab:threshold-real}) the max-type test
 gave held-out scores at least as high as the Bonferroni test in 10 of the 12
@@ -878,7 +914,8 @@ dataset and stopping-mode cells, by 0.002 to 0.10 with exhaustive stopping and
 by 0.005 to 0.031 with adaptive stopping; the two exceptions are page-blocks with
 adaptive stopping, lower by 0.002, and facebook with exhaustive stopping. Its fitting time was 0.9 to 30 times shorter than the Bonferroni test's with adaptive stopping and 1.5 to 155 times shorter with exhaustive stopping. On facebook with exhaustive stopping the scores are 0.677 against 0.630; the response has a median of 123.5 and a maximum of 6,334, so a single extreme held-out observation can decide a fold's $R^2$ under either construction. The two constructions choose different splits at the 256-bin setting: the Spearman agreement of their feature importances ranges from 0.40 to 0.95 across datasets and stopping modes, so the max-type test produces a different ranking rather than a faster route to the same one.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{lrrrrrrrrrr}
@@ -894,8 +931,9 @@ residential & 372 & 107 & 0.928 & 0.936 & 4.78 & 5.46 & 0.862 & 0.879 & 3.13 & 2
 facebook & 500 & 21 & 0.829 & 0.842 & 5.28 & 0.70 & 0.677 & 0.630 & 11.7 & 0.45 \\
 \hline
 \end{tabular}
-\captionof{table}{\label{tab:threshold-real} Five-fold held-out score (accuracy for the three classification datasets, $R^2$ for the three regression datasets) and median fitting time in seconds of one tree at the 256-bin histogram setting, by Stage B construction (Bonf.\ is the per-candidate Bonferroni test, Max-T the max-type test) and stopping mode, on a 32-core cloud instance.}
-\end{center}
+\caption{Five-fold held-out score (accuracy for the three classification datasets, $R^2$ for the three regression datasets) and median fitting time in seconds of one tree at the 256-bin histogram setting, by Stage B construction (Bonf.\ is the per-candidate Bonferroni test, Max-T the max-type test) and stopping mode, on a 32-core cloud instance.}
+\label{tab:threshold-real}
+\end{table}
 
 \subsection{NHANES diabetes application} \label{sec:nhanes}
 
@@ -984,17 +1022,6 @@ of waist circumference, total cholesterol, triglycerides, and HDL cholesterol
 appears in each method's top 5 in a majority of folds, and permuted sex falls
 outside each method's top 20 in a majority of folds.
 
-\subsection{Replication records} \label{sec:replication}
-
-The quick profile uses fewer simulation replicates, three-fold
-cross-validation, smaller permutation and forest budgets, and two timing
-repeats. Both profiles record random seeds, software versions, source and input
-hashes, platform metadata, raw outputs, and generated artifact hashes. The
-top-level replication command validates each component before publishing a
-combined output directory.
-
-\section{NHANES application results} \label{sec:nhanes-results}
-
 The permuted sampling weight, which carries no information about diabetes,
 had a mean rank of 12.1 of 30 under the random forest, 23.4 under the
 \citrees forest, and 26.4 under the \pkg{partykit} forest. The primary
@@ -1023,7 +1050,8 @@ lower half, at 27.0 and 28.5 for \citrees and 20.0 and 24.5 for
 \pkg{partykit}, so they separate informative from uninformative binary items
 rather than promoting every low-cardinality column.
 
-\begin{center}
+\begin{table}[t!]
+\centering
 \begin{tabular}{lrrrr}
 \hline
 Column & Distinct values & Random forest & \citrees & \pkg{partykit} \\ \hline
@@ -1059,14 +1087,15 @@ Born in the United States & 2 & 29.2 & 27.0 & 20.0 \\
 Health insurance & 2 & 29.8 & 28.5 & 24.5 \\
 \hline
 \end{tabular}
-\captionof{table}{\label{tab:nhanes-ranks} Mean rank over 50 training folds of
+\caption{Mean rank over 50 training folds of
 each of the 30 columns under the three forests, ordered by the random forest
 rank. Rank 1 is the most important column and tied importances receive their
 mean rank. Distinct values is the median number of distinct training-fold
 values; each training fold holds 2,877 or 2,878 of the 3,597 participants. The
 three permuted columns are independent permutations of the sampling weight,
 age, and sex and carry no information about the outcome.}
-\end{center}
+\label{tab:nhanes-ranks}
+\end{table}
 
 The two conditional inference forests agreed with each other more closely than
 either agreed with the random forest. The Spearman correlation of per-fold
@@ -1094,6 +1123,15 @@ the data: the same forests, on the same predictors, agree on the metabolic
 measurements and disagree exactly where the number of distinct values differs.
 For a user choosing between impurity and conditional importance on mixed-type
 data, that is the practical result.
+
+\subsection{Replication records} \label{sec:replication}
+
+The quick profile uses fewer simulation replicates, three-fold
+cross-validation, smaller permutation and forest budgets, and two timing
+repeats. Both profiles record random seeds, software versions, source and input
+hashes, platform metadata, raw outputs, and generated artifact hashes. The
+top-level replication command validates each component before publishing a
+combined output directory.
 
 \section{Discussion} \label{sec:discussion}
 

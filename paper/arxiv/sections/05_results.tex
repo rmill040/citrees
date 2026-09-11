@@ -277,8 +277,11 @@ performance comparison.
   harmonic mean of precision and recall for recovering informative features among
   the first 10 ranked features. Numbers are rounded for
   display. The final column is the largest absolute top-10 F1 change across the
-  synthetic task groups. The dataset-type counts are 7 real classification,
-  8 synthetic classification, 2 real regression, and 6 synthetic regression.}
+  synthetic task groups. The real datasets in the runtime ablations are not the
+  benchmark datasets: 7 classification (iris, wine, breast cancer, digits,
+  optdigits, waveform, madelon) and 2 regression (california, diabetes) from
+  scikit-learn and OpenML; the synthetic groups have 8 classification and 6
+  regression designs.}
   \label{tab:cit-runtime-hyperparams}
 \end{table}
 
@@ -324,9 +327,7 @@ less than a factor of 3.2 in either direction and recovery by at most 0.06 and
 dominant control for forests, and that its value depends on the data. On the
 synthetic datasets, disabling it makes fits 6.1--6.5$\times$ slower by median
 dataset-level ratios. On the real datasets the same change makes fits
-483--717$\times$ slower: with hundreds of predictors and a Bonferroni-adjusted
-level, a null predictor needs thousands of permutations to be rejected without
-early stopping, and adaptive stopping dismisses it after a few dozen. Exact
+483--717$\times$ slower. Exact
 threshold search is 1.1--21$\times$ slower than histogram-256 by group mean
 elapsed times, with the largest ratio on the real regression datasets, and
 disabling feature scanning costs 1.2--4.2$\times$. Downstream score changes

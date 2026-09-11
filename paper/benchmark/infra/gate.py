@@ -17,7 +17,7 @@ import secrets
 import shlex
 import textwrap
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -204,20 +204,26 @@ def _user_data_head(attempt: GateAttempt, *, role_label: str) -> str:
     )
 
 
-def make_freeze_user_data(attempt: GateAttempt, *, operator_public_key: Mapping[str, str]) -> str:
+def make_freeze_user_data(attempt: GateAttempt, *, operator_public_key_pem: bytes) -> str:
     """Freeze the runtime contract on one host and publish it create-only."""
-    public_key_json = json.dumps(dict(operator_public_key), sort_keys=True, separators=(",", ":"))
-    return _user_data_head(attempt, role_label="freeze") + textwrap.dedent(
+    pem = operator_public_key_pem.decode("ascii").strip()
+    if "BEGIN PUBLIC KEY" not in pem:
+        raise ValueError("operator public key must be a PEM public key")
+    body = textwrap.dedent(
         f"""\
-        cat > /root/gate/operator-public-key.json <<'KEY'
-        {public_key_json}
+        cat > /root/gate/operator-public-key.pem <<'KEY'
+        __OPERATOR_PUBLIC_KEY_PEM__
         KEY
-        run_gate_module freeze-runtime --operator-public-key /gate/operator-public-key.json \\
+        run_gate_module freeze-runtime --operator-public-key /gate/operator-public-key.pem \\
             > /root/gate/runtime-contract.json
         SHA=$(sha256sum /root/gate/runtime-contract.json | cut -d' ' -f1)
         put_once {shlex.quote(attempt.control_prefix)}/runtime-contract-$SHA.json /root/gate/runtime-contract.json
         echo "Published runtime contract $SHA"
         """
+    )
+    # Substitute after dedent so the multi-line PEM keeps every line at column zero.
+    return _user_data_head(attempt, role_label="freeze") + body.replace(
+        "__OPERATOR_PUBLIC_KEY_PEM__", pem
     )
 
 
@@ -336,12 +342,14 @@ def launch_freeze_host(
     ec2: Any | None = None,
 ) -> str:
     """Launch the single host that freezes the runtime contract."""
-    public_key = load_operator_public_key(operator_public_key_path)
+    load_operator_public_key(operator_public_key_path)  # validate before launching
     client = boto3.client("ec2", region_name=attempt.region) if ec2 is None else ec2
     instance_id = _run_instance(
         client,
         attempt,
-        user_data=make_freeze_user_data(attempt, operator_public_key=public_key),
+        user_data=make_freeze_user_data(
+            attempt, operator_public_key_pem=operator_public_key_path.read_bytes()
+        ),
         subnet_id=subnet_id,
         instance_profile_name=gate_instance_profile(attempt),
         security_group_id=ensure_security_group(attempt.region),

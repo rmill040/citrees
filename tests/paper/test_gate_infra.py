@@ -168,8 +168,10 @@ def test_freeze_host_launch_request_and_user_data(
     assert tags["citrees-gate-role"] == "freeze"
     assert tags["citrees-gate-identity"] == attempt.identity
     text = _user_data(request)
-    assert "freeze-runtime --operator-public-key /gate/operator-public-key.json" in text
-    assert public_key["public_key_sha256"] in text
+    assert "freeze-runtime --operator-public-key /gate/operator-public-key.pem" in text
+    pem = (tmp_path / "op.pub").read_text().strip()
+    assert f"<<'KEY'\n{pem}\nKEY\n" in text
+    assert public_key["algorithm"] == "ed25519"
     assert f"-e GIT_SHA={GIT_SHA}" in text and f"-e CITREES_IMAGE_URI={IMAGE_URI}" in text
     assert "--if-none-match '*'" in text
     assert f"{attempt.control_prefix}/runtime-contract-$SHA.json" in text

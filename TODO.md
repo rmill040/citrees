@@ -48,6 +48,51 @@ ECR image digest, instance profile
       workers, and add a max-type rankings subsection to both papers. If no:
       both papers keep the sentence that the effect on rankings is unmeasured.
 
+## Codex review findings (gpt-6-astra, 2026-09-11)
+
+Full review in `scratch/reviews/codex_review.md`. Each fix is proposed to the
+author one at a time before editing; none is applied from the review alone
+without independent verification. Verified so far: JSS default-vs-recommended
+config (constructor defaults are auto/exact/none, timing uses
+minimum/histogram/256) and the Table 9 "0.9x shorter" self-contradiction.
+
+Top blockers:
+
+- [ ] Scope Stage B validity correctly in both papers (arXiv `06_discussion.tex:30`,
+      `03_theory.tex:68`; JSS `article.tex:166`): the theorem needs a
+      response-independent feature and fixed budget; distinguish the fixed-feature
+      theorem, complete-node empirical rejection rates, and adaptive fitted-tree
+      behavior wherever "valid" appears.
+- [ ] JSS timing claims (`article.tex:657`, `:653`): call the timed setting the
+      recommended benchmark configuration, not "default"; drop "identical
+      statistical work" (citrees multiplies the selector budget by predictor count
+      under Bonferroni) and interpret timings as procedure costs.
+- [ ] JSS Table 9 / arXiv Stage B (`article.tex:915`): report the residential
+      slowdown (5.46 vs 4.78 s) explicitly; use a consistently defined runtime
+      ratio instead of "0.9 to 30 times shorter".
+- [ ] NHANES over-claims (`article.tex:1117`, `:35`, `:983`): remove causal
+      attribution to "the importance statistic" (the forests are not the same
+      procedure) and the predictive-parity claim (predictions are logistic
+      regression on selected columns, not the forests).
+- [ ] Disclose the modified RDC statistic in JSS (`article.tex:131`): max pairwise
+      projected correlation, not canonical correlation, matching the arXiv
+      disclosure.
+- [ ] arXiv reproducibility: add a configuration table (selected selectors,
+      honesty split, forest sizes, feature sampling, comparator grids)
+      (`04_experiments.tex:144`, `appendix_D_methods.tex:70`).
+- [ ] arXiv rank/k consistency (`05_results.tex:163`, `:214`): report both mean
+      rank and ordinal position (classification moves tied-6th to 8th); show the
+      k-trajectory on a constant dataset panel (currently 21 datasets at k=5 vs 13
+      at k=100).
+- [ ] arXiv synthetic recovery (`06_boundary.tex:40`): remove the "more reliable
+      within top-k than at top one" sentence; regression CIF ranks 11th/10th.
+- [ ] arXiv ablation narrative (`05_results.tex:111`): restrict the
+      negligible-effect statement to classification; report regression's
+      heterogeneous single-tree effects (-0.053, -0.064, intervals excluding zero).
+- [ ] arXiv presentation (`05_results.tex:18`, `:223`): enlarge the 8-point
+      ranking table and the recovery-figure legends; specify aggregation unit and
+      uncertainty in captions.
+
 ## arXiv manuscript
 
 - [ ] Replace the CIF runtime numbers (blocked on the reruns above).

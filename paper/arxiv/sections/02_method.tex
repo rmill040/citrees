@@ -137,9 +137,7 @@ near the tails of $X_{t,j_t^\star}$ isolate few observations and have wide null
 distributions, and the unstandardized minimum is drawn to them on heavy-tailed
 responses. Validity needs only about $1/\alpha_{\mathrm{split}}$ permutations; the implementation uses $B=999$ under the named budget rules, so the cost is on the order of $BK$ evaluations against $K^2/\alpha_{\mathrm{split}}$ for the per-threshold rule. When every candidate is excluded the test returns $p^{\max}_t=1$ and no split.
 \Cref{cor:stageB-maxt} gives the fixed-node guarantee and
-\cref{sec:results-stageB} the measured calibration, cost, and behavior. The
-benchmark configurations in this paper use the per-threshold rule, which remains
-the default.
+\cref{sec:results-stageB} the measured calibration, cost, and behavior. The max-type rule was added after the benchmark had been run, when the cost of the per-threshold rule was traced to its $K$-scaled budget, so the benchmark configurations in this paper use the per-threshold rule, which remains the default in this version.
 
 \subsection{Monte Carlo permutation \texorpdfstring{$p$}{p}-values}
 \label{sec:plusone}

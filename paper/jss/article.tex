@@ -182,7 +182,7 @@ a fixed function, so the minima stay exchangeable and the test controls the
 probability of any split under the node's global null. Standardization matters
 because candidates near the tails of a predictor isolate few observations and
 have wide null distributions; the unstandardized minimum is drawn to them on
-heavy-tailed responses. Validity needs only about $1/\alpha$ permutations; the implementation uses $B = 999$ under the named resample rules, so the max-type test costs on the order of $BK$ impurity evaluations against $K^2/\alpha$ for the default. The construction is selected with \code{threshold_test = "maxt"}; the default \code{"bonferroni"} produced the benchmark, calibration, behavior, and application results in this article, and Section~\ref{sec:threshold-test} compares the two. During sequential fitting, threshold scanning orders
+heavy-tailed responses. Validity needs only about $1/\alpha$ permutations; the implementation uses $B = 999$ under the named resample rules, so the max-type test costs on the order of $BK$ impurity evaluations against $K^2/\alpha$ for the default. The construction is selected with \code{threshold_test = "maxt"}. It was added after the benchmark and application results in this article had been produced, when the cost of the per-candidate test was traced to its $K$-scaled budget, so those results use the default \code{"bonferroni"}; Section~\ref{sec:threshold-test} compares the two, and the default will change in the next major version. During sequential fitting, threshold scanning orders
 candidates by weighted impurity; otherwise their order is randomized under the
 fitted seed.
 

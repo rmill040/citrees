@@ -37,10 +37,12 @@ from paper.benchmark.experiments.experiment_common import (
     build_baseline,
     build_cif,
     get_tree_stats,
+    load_checkpoint,
     load_real_clf,
     load_real_reg,
     make_clf_downstream,
     make_reg_downstream,
+    save_checkpoint,
     save_results,
     warmup_jit,
 )
@@ -234,11 +236,18 @@ def run() -> pd.DataFrame:
         for ds_fn in datasets:
             X_base, _, _, dtype = ds_fn(RANDOM_STATE)
             print(f"\n  {dtype} (n={X_base.shape[0]}, p={X_base.shape[1]})")
+            cached = load_checkpoint(EXPERIMENT_NAME, task, dtype)
+            if cached is not None:
+                rows.extend(cached)
+                print(f"  {dtype}: resumed {len(cached)} rows from checkpoint")
+                continue
+            start = len(rows)
 
             for vname, overrides in KNOB_VARIANTS.items():
                 _process_variant(vname, task, dtype, ds_fn, overrides, False, rows)
             for method in BASELINES:
                 _process_variant(method, task, dtype, ds_fn, {}, True, rows)
+            save_checkpoint(EXPERIMENT_NAME, task, dtype, rows[start:])
 
     # Real datasets
     for task, ds_names, loader in [
@@ -254,11 +263,18 @@ def run() -> pd.DataFrame:
                 continue
             print(f"\n  {dtype} (n={X.shape[0]}, p={X.shape[1]})")
 
+            cached = load_checkpoint(EXPERIMENT_NAME, task, dtype)
+            if cached is not None:
+                rows.extend(cached)
+                print(f"  {dtype}: resumed {len(cached)} rows from checkpoint")
+                continue
+            start = len(rows)
             ds_tuple = (X, y, None)
             for vname, overrides in KNOB_VARIANTS.items():
                 _process_variant(vname, task, dtype, ds_tuple, overrides, False, rows)
             for method in BASELINES:
                 _process_variant(method, task, dtype, ds_tuple, {}, True, rows)
+            save_checkpoint(EXPERIMENT_NAME, task, dtype, rows[start:])
 
     return pd.DataFrame(rows)
 

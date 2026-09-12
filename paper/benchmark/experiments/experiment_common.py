@@ -876,3 +876,59 @@ def warmup_jit() -> None:
     )
     cit.fit(X, y_clf)
     print("JIT warmup complete.")
+
+
+# =============================================================================
+# Per-dataset checkpoints
+# =============================================================================
+
+
+def checkpoint_dir(name: str) -> Path:
+    """Directory of per-dataset partial results for one experiment."""
+    return DATA_DIR / f"{name}.partials"
+
+
+def checkpoint_path(name: str, task: str, dtype: str) -> Path:
+    safe = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in dtype)
+    return checkpoint_dir(name) / f"{task}__{safe}.csv"
+
+
+def load_checkpoint(name: str, task: str, dtype: str) -> list[dict[str, Any]] | None:
+    """Return the saved rows for one dataset, or None when it has not completed."""
+    path = checkpoint_path(name, task, dtype)
+    if not path.exists():
+        return None
+    return pd.read_csv(path).to_dict("records")
+
+
+def save_checkpoint(name: str, task: str, dtype: str, rows: list[dict[str, Any]]) -> Path:
+    """Write one dataset's rows so a relaunch can resume instead of recomputing."""
+    path = checkpoint_path(name, task, dtype)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return path
+
+
+def run_dataset_checkpointed(
+    name: str,
+    task: str,
+    dtype: str,
+    rows: list[dict[str, Any]],
+    work: Any,
+) -> bool:
+    """Run ``work(local_rows)`` for one dataset unless a checkpoint already covers it.
+
+    Rows land in ``rows`` either way. Returns True when the dataset was resumed
+    from its checkpoint. Results are written only after the dataset finishes, so
+    a box lost mid-dataset repeats at most that one dataset.
+    """
+    cached = load_checkpoint(name, task, dtype)
+    if cached is not None:
+        rows.extend(cached)
+        print(f"  {dtype}: resumed {len(cached)} rows from checkpoint")
+        return True
+    local: list[dict[str, Any]] = []
+    work(local)
+    save_checkpoint(name, task, dtype, local)
+    rows.extend(local)
+    return False

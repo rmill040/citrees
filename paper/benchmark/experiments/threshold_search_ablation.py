@@ -44,8 +44,11 @@ from paper.benchmark.experiments.experiment_common import (
     build_cif,
     fit_and_evaluate_with_structure,
     format_line_with_structure,
+    load_checkpoint,
     load_real_clf,
     load_real_reg,
+    run_dataset_checkpointed,
+    save_checkpoint,
     save_results,
     warmup_jit,
 )
@@ -72,6 +75,12 @@ def _run_synthetic(rows: list[dict[str, Any]]) -> None:
             is_conf = "confounder" in dtype
             n_base = X_base.shape[1] - 20 if is_conf else None
             print(f"\n  {dtype} (n={X_base.shape[0]}, p={X_base.shape[1]})")
+            cached = load_checkpoint(EXPERIMENT_NAME, task, dtype)
+            if cached is not None:
+                rows.extend(cached)
+                print(f"  {dtype}: resumed {len(cached)} rows from checkpoint")
+                continue
+            start = len(rows)
 
             for vname, overrides in THRESHOLD_VARIANTS.items():
                 seed_results: list[dict[str, float]] = []
@@ -132,6 +141,7 @@ def _run_synthetic(rows: list[dict[str, Any]]) -> None:
                 agg = aggregate_seeds(seed_results, base_row)
                 rows.append(agg)
                 print(format_line_with_structure(method, agg, is_conf))
+            save_checkpoint(EXPERIMENT_NAME, task, dtype, rows[start:])
 
 
 def _run_real(rows: list[dict[str, Any]]) -> None:
@@ -143,7 +153,13 @@ def _run_real(rows: list[dict[str, Any]]) -> None:
         except Exception as e:
             print(f"\n  SKIP {ds_name}: {e}")
             continue
-        _run_on_real_dataset(X, y, dtype, "clf", rows)
+        run_dataset_checkpointed(
+            EXPERIMENT_NAME,
+            "clf",
+            dtype,
+            rows,
+            lambda local, X=X, y=y, dtype=dtype: _run_on_real_dataset(X, y, dtype, "clf", local),
+        )
 
     print("\n--- REAL REG DATASETS ---")
     for ds_name in REAL_REG_NAMES:
@@ -152,7 +168,13 @@ def _run_real(rows: list[dict[str, Any]]) -> None:
         except Exception as e:
             print(f"\n  SKIP {ds_name}: {e}")
             continue
-        _run_on_real_dataset(X, y, dtype, "reg", rows)
+        run_dataset_checkpointed(
+            EXPERIMENT_NAME,
+            "reg",
+            dtype,
+            rows,
+            lambda local, X=X, y=y, dtype=dtype: _run_on_real_dataset(X, y, dtype, "reg", local),
+        )
 
 
 def _run_on_real_dataset(

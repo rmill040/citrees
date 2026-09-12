@@ -45,6 +45,12 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       maxt-ext-workers-001 (4 on droplet 29.81.7.184; the other droplets had no
       capacity) and maxt-ext-workers-002 (12 untargeted on-demand in 1b/1c/1d).
       Stage 1 queue at launch: 1,152 classification + 640 regression cells.
+      Incident 2026-09-12 00:4x UTC: worker i-0ab21726a67f5a77e died without a
+      traceback on classification/letter cif_maxt (rdc, honesty) seed0 during
+      fold 2, likely memory pressure from 32 parallel RDC forests on 20,000
+      rows; replaced by maxt-ext-workers-003. The monitor now replaces dead
+      workers automatically; the API's three-attempt cap censors any cell that
+      keeps killing workers. 29 letter/isolet RDC cells remain in the queue.
       Next: when rankings drain, `terminate-workers`, then relaunch the API and
       workers with `--stage metrics` using the same attempt files; then
       `manifest reconcile`. Attempt files:

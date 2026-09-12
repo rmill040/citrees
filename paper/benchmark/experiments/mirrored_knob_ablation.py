@@ -34,6 +34,7 @@ from paper.benchmark.experiments.experiment_common import (
     REAL_CLF_NAMES,
     REAL_REG_NAMES,
     REG_ALL,
+    assemble_checkpoints,
     build_baseline,
     build_cif,
     get_tree_stats,
@@ -44,6 +45,7 @@ from paper.benchmark.experiments.experiment_common import (
     make_reg_downstream,
     save_checkpoint,
     save_results,
+    shard_indices,
     warmup_jit,
 )
 from paper.benchmark.utils.metrics import f1_at_k, precision_at_k, recall_at_k
@@ -230,14 +232,29 @@ def _process_variant(
     print(f"  {variant_name:22s}: {p_str} ds@10={ds_lr_10:.3f} depth={depth:.1f} t={t:.1f}s")
 
 
-def run() -> pd.DataFrame:
-    """Run the full mirrored knob ablation experiment."""
+def _dataset_plan() -> list[tuple[str, str, Any]]:
+    """Ordered (kind, task, dataset) work items; the order is the sharding contract."""
+    plan: list[tuple[str, str, Any]] = []
+    for task, datasets in [("clf", CLF_ALL), ("reg", REG_ALL)]:
+        plan.extend(("synthetic", task, ds_fn) for ds_fn in datasets)
+    plan.extend(("real", "clf", name) for name in REAL_CLF_NAMES)
+    plan.extend(("real", "reg", name) for name in REAL_REG_NAMES)
+    return plan
+
+
+def run(shard: int = 0, num_shards: int = 1) -> pd.DataFrame:
+    """Run the mirrored knob ablation for one shard of the dataset plan."""
     rows: list[dict] = []
+    plan = _dataset_plan()
+    mine = shard_indices(len(plan), shard, num_shards)
+    print(f"shard {shard + 1}/{num_shards}: {len(mine)} of {len(plan)} datasets")
 
     # Synthetic datasets
     for task, datasets in [("clf", CLF_ALL), ("reg", REG_ALL)]:
         print(f"\n--- {task.upper()} SYNTHETIC ---")
         for ds_fn in datasets:
+            if plan.index(("synthetic", task, ds_fn)) not in mine:
+                continue
             X_base, _, _, dtype = ds_fn(RANDOM_STATE)
             print(f"\n  {dtype} (n={X_base.shape[0]}, p={X_base.shape[1]})")
             cached = load_checkpoint(EXPERIMENT_NAME, task, dtype)
@@ -260,6 +277,8 @@ def run() -> pd.DataFrame:
     ]:
         print(f"\n--- REAL {task.upper()} DATASETS ---")
         for ds_name in ds_names:
+            if plan.index(("real", task, ds_name)) not in mine:
+                continue
             try:
                 X, y, dtype = loader(ds_name)
             except Exception as e:
@@ -284,12 +303,30 @@ def run() -> pd.DataFrame:
 
 
 def main() -> None:
-    """Entry point."""
+    """Entry point.
+
+    ``--shard i --num-shards n`` runs one round-robin slice of the dataset plan and
+    leaves per-dataset checkpoints; ``--assemble`` concatenates all checkpoints
+    into the final CSV. Without arguments the full experiment runs on one box.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description=EXPERIMENT_NAME)
+    parser.add_argument("--shard", type=int, default=0)
+    parser.add_argument("--num-shards", type=int, default=1)
+    parser.add_argument("--assemble", action="store_true")
+    args = parser.parse_args()
     if isinstance(sys.stdout, TextIOWrapper):
         sys.stdout.reconfigure(line_buffering=True)
     print(f"=== {EXPERIMENT_NAME} ===")
-    warmup_jit()
-    df = run()
+    if args.assemble:
+        df = assemble_checkpoints(EXPERIMENT_NAME)
+    else:
+        warmup_jit()
+        df = run(args.shard, args.num_shards)
+        if args.num_shards > 1:
+            print(f"\nShard {args.shard + 1}/{args.num_shards} done: {len(df)} rows checkpointed")
+            return
     path = save_results(df, EXPERIMENT_NAME)
     print(f"\nSaved: {path} ({len(df)} rows)")
 

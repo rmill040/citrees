@@ -44,3 +44,21 @@ def test_run_dataset_checkpointed_runs_once_then_resumes(
     assert calls == [1]
     assert [r["variant"] for r in resumed] == ["earlier", "a", "b"]
     assert "resumed 2 rows" in capsys.readouterr().out
+
+
+def test_shard_indices_partition_the_plan() -> None:
+    parts = [ec.shard_indices(23, i, 8) for i in range(8)]
+    assert sorted(set().union(*parts)) == list(range(23))
+    assert sum(len(p) for p in parts) == 23
+    assert ec.shard_indices(5, 0, 1) == set(range(5))
+    with pytest.raises(ValueError):
+        ec.shard_indices(5, 3, 3)
+
+
+def test_assemble_checkpoints_concatenates_every_dataset(data_dir: Path) -> None:
+    ec.save_checkpoint("exp", "clf", "a", [{"variant": "x", "v": 1.0}])
+    ec.save_checkpoint("exp", "reg", "b", [{"variant": "y", "v": 2.0}, {"variant": "z", "v": 3.0}])
+    df = ec.assemble_checkpoints("exp")
+    assert len(df) == 3 and set(df["variant"]) == {"x", "y", "z"}
+    with pytest.raises(FileNotFoundError):
+        ec.assemble_checkpoints("missing")

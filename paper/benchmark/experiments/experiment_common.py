@@ -932,3 +932,18 @@ def run_dataset_checkpointed(
     save_checkpoint(name, task, dtype, local)
     rows.extend(local)
     return False
+
+
+def shard_indices(n_items: int, shard: int, num_shards: int) -> set[int]:
+    """Indices of items handled by one shard when work is split round-robin across boxes."""
+    if num_shards < 1 or not (0 <= shard < num_shards):
+        raise ValueError("shard must satisfy 0 <= shard < num_shards")
+    return {i for i in range(n_items) if i % num_shards == shard}
+
+
+def assemble_checkpoints(name: str) -> pd.DataFrame:
+    """Concatenate every per-dataset checkpoint of an experiment into one frame."""
+    paths = sorted(checkpoint_dir(name).glob("*.csv"))
+    if not paths:
+        raise FileNotFoundError(f"no checkpoints under {checkpoint_dir(name)}")
+    return pd.concat([pd.read_csv(path) for path in paths], ignore_index=True)

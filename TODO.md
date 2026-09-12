@@ -67,9 +67,16 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       CLL_SUB_111, ALLAML, arcene, warp\* cit_maxt rdc; coepra cit_maxt;
       letter/isolet/gisette cif_maxt rdc, which die after ~2 h per attempt);
       fleet doubled to 32 workers (maxt-ext-workers-007), projected finish about
-      two days from launch. Next: when rankings drain, `terminate-workers`, then
-      relaunch the API and workers with `--stage metrics` using the same attempt
-      files; then `manifest reconcile`. Attempt files:
+      two days from launch. 2026-09-12 15:55 UTC: first cell censored after
+      three attempts; the failing family is cif_maxt with the rdc selector and
+      honesty off (label 19b65c92…) on isolet and gisette, whose containers die
+      after ~2 h (memory: full-data forests, 32 parallel RDC tests); the
+      honesty-on twin (e807f31a…) completes. Censored cells are listed by
+      `manifest     reconcile` after Stage 1 and are reported as operational
+      exclusions alongside the isolet/gisette RDC cells of the main benchmark.
+      Next: when rankings drain, `terminate-workers`, then relaunch the API and
+      workers with `--stage metrics` using the same attempt files; then
+      `manifest reconcile`. Attempt files:
       `scratch/maxt-campaign/attempt-c9855d0/`; step script
       `scratch/maxt-campaign/run_campaign.sh`.
 - [ ] Rebuild `paper_presentation_practical_controls_summary.csv` with

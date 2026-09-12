@@ -51,8 +51,13 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       rows; replaced by maxt-ext-workers-003. The monitor now replaces dead
       workers automatically; the API's three-attempt cap censors any cell that
       keeps killing workers. 29 letter/isolet RDC cells remain in the queue.
-      Next: when rankings drain, `terminate-workers`, then relaunch the API and
-      workers with `--stage metrics` using the same attempt files; then
+      Incident 2026-09-12 ~04:00 UTC: all four droplet-hosted workers (launch
+      001, droplet 29.81.7.184, us-east-1f) terminated together mid-cell on
+      unrelated cells; the loaner host itself went away. Replaced by
+      maxt-ext-workers-004 (untargeted, 1b/1c/1d). The fleet is now entirely
+      untargeted on-demand; droplets are not used for replacements. Next: when
+      rankings drain, `terminate-workers`, then relaunch the API and workers
+      with `--stage metrics` using the same attempt files; then
       `manifest reconcile`. Attempt files:
       `scratch/maxt-campaign/attempt-c9855d0/`; step script
       `scratch/maxt-campaign/run_campaign.sh`.

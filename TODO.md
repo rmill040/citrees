@@ -36,6 +36,10 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       the CSV is written only at the end, so eleven and eight hours were lost.
       Partial stdout logs are in S3 under the old prefixes with suffix
       `_droplet-reboot.stdout`. Never place multi-hour experiments on droplets.
+      Since bc78401 both ablations checkpoint per dataset
+      (`DATA_DIR/<experiment>.partials/`) and resume from S3 on relaunch; the
+      templates take `__IMG__` and `__SHA__`. The two boxes running now predate
+      that commit; any relaunch must use an image built from bc78401 or later.
 - [ ] Max-type ranking extension campaign RUNNING since 2026-09-11 ~20:20 UTC.
       Image sha256:5609d400 (c9855d0); runtime contract 79153d56…; manifest
       7a466b00…; campaign 40f9761d…; GO receipt 66e1b1b9…; artifact prefix

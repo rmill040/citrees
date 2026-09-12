@@ -116,8 +116,12 @@ proposition, remark, discussion, and method wording; the JSS scope and
 discussion sentences; and the library change that makes feature and threshold
 scanning independent of early stopping (default behavior unchanged).
 
-- [ ] Rerun `mirrored_knob_ablation` from an image built at c0c69f4 or later so
-      `no_adaptive` measures the stopping rule alone and `no_scan` /
+- [ ] Decoupled `mirrored_knob_ablation` LAUNCHED 2026-09-12 ~16:40 UTC:
+      i-029547db839ab7c6a (us-east-1d), image sha256:b0b25f43 (7a4f012),
+      checkpointing template, output prefix
+      `repairs/runtime-ablation-rerun/source-7a4f0122…/mirrored_knob_ablation`.
+      Rationale: rerun `mirrored_knob_ablation` from an image built at c0c69f4
+      or later so `no_adaptive` measures the stopping rule alone and `no_scan` /
       `no_threshold_scan` measure scanning alone. The run started 05:20 UTC on
       i-0d1bdf2a59b623c4f uses the coupled semantics; keep it for the other
       knobs, but report the stopping and scanning rows from the decoupled run.

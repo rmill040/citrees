@@ -27,6 +27,10 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
 `IfNoneMatch="*"`; `aws s3 sync` and `aws s3 cp` are denied. Templates live in
 `scratch/rerun-2026-09-11/`.
 
+- [x] `threshold_search_ablation` COMPLETE 2026-09-12 15:03 UTC (9.7 h on
+      i-0535d285d978cb032):
+      `repairs/runtime-ablation-rerun/source-6444421c…/     threshold_search_ablation/threshold_search_ablation.csv`
+      (+ full stdout).
 - [ ] Both ablation reruns RESTARTED 2026-09-12 ~05:20 UTC off-droplet from
       image sha256:5609d400 (create-only upload templates, profile for prefix
       `repairs/runtime-ablation-rerun/source-6444421c…`): `threshold_search`

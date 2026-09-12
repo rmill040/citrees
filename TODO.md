@@ -116,15 +116,18 @@ proposition, remark, discussion, and method wording; the JSS scope and
 discussion sentences; and the library change that makes feature and threshold
 scanning independent of early stopping (default behavior unchanged).
 
-- [ ] Decoupled `mirrored_knob_ablation` LAUNCHED 2026-09-12 ~16:40 UTC:
-      i-029547db839ab7c6a (us-east-1d), image sha256:b0b25f43 (7a4f012),
-      checkpointing template, output prefix
-      `repairs/runtime-ablation-rerun/source-7a4f0122…/mirrored_knob_ablation`.
-      Rationale: rerun `mirrored_knob_ablation` from an image built at c0c69f4
-      or later so `no_adaptive` measures the stopping rule alone and `no_scan` /
-      `no_threshold_scan` measure scanning alone. The run started 05:20 UTC on
-      i-0d1bdf2a59b623c4f uses the coupled semantics; keep it for the other
-      knobs, but report the stopping and scanning rows from the decoupled run.
+- [ ] Decoupled `mirrored_knob_ablation` running as 8 dataset shards since
+      2026-09-12 ~17:05 UTC (image sha256:5ffc09f5 at d3c0edf; 1b/1c/1d;
+      i-0bbbb4140e5e9766f i-02d1db2870b022727 i-0e259ec036307515b
+      i-09427eff1fea24931 i-0a80a617fcb0544b0 i-0e3ff5235dc4567e2
+      i-05594e4abe871e342 i-087affa21ebf73c5d). Checkpoints land under
+      `repairs/runtime-ablation-rerun/source-7a4f0122…/mirrored_knob_ablation/     mirrored_knob_ablation.partials/`
+      (three datasets were already there from the single box, which was
+      terminated along with the coupled run). When all 23 checkpoints exist:
+      `aws s3 cp --recursive` them into
+      `../data/ablation/mirrored_knob_ablation.partials/` and run
+      `python -m paper.benchmark.experiments.mirrored_knob_ablation --assemble`.
+      EC2 on-demand vCPU quota increase 1,152 -> 2,304 requested (pending).
 - [ ] Rewrite the arXiv runtime ablation rows and captions from the decoupled
       run: under `minimum` budgets the stopping row must be ~1x by the
       proposition's remark; whatever the coupled knob showed was scanning.

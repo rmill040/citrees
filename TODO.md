@@ -109,32 +109,21 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       cell-count equality check. The aliases exist because adding a key to the
       shared grid rehashes every completed CIT/CIF identity.
 
-## Adaptive stopping theory (found 2026-09-12; scripts in `scratch/maxt_theory/`)
+## Adaptive stopping theory and scanning decoupling (2026-09-12)
 
-- [ ] Add a proposition to the arXiv theory section: for Stage A and
-      per-threshold Stage B tests (fixed statistic per permutation) under the
-      fixed-node exchangeability assumptions, the implemented adaptive rule
-      (batches of 32, floor ceil(1/alpha), Beta(1+k, 1+m-k) posterior, stop at
-      confidence c or 1-c, return (k+1)/(m+1)) has an exactly computable null
-      size via the Polya urn recursion; ties can only lower it. Values at c =
-      0.95: 0.04948 (B = 999), 0.04907 (B = 1,537), below alpha for every B in
-      20..3,000; 0.05229 at c = 0.80. Verified: code Beta CDF matches scipy on
-      all 16,903 stop decisions; 150k Monte Carlo of the real rule 0.04989 +/-
-      0.00112. Not covered: the adaptive max-type kernel (column moments
-      recomputed per batch), which keeps its empirical calibration evidence.
-- [ ] State in both papers that under `n_resamples="minimum"` with Bonferroni
-      (the benchmark grid) the floor equals the budget, so early stopping never
-      triggers: every benchmark Stage A and per-threshold Stage B p-value is an
-      exact fixed-B +1 permutation p-value. Verified by instrumenting a fitted
-      tree (370/370 adaptive calls used exactly their budget).
-- [ ] The `no_adaptive` ablation knob sets early_stopping=None, which also
-      disables feature and threshold scanning (`_tree.py` gates both on early
-      stopping). Under minimum budgets the stopping component is zero, so the
-      knob measures scanning order. Rename or split the knob in the ablation
-      write-up and captions; the running `mirrored_knob` rerun carries the same
-      confound.
-- [ ] Promote `scratch/maxt_theory/adaptive_level.py` into `paper/theory/` with
-      a test that regenerates the size table used in the manuscript.
+Done in c0c69f4: `paper/theory/adaptive_stopping_size.py` plus test; the arXiv
+proposition, remark, discussion, and method wording; the JSS scope and
+discussion sentences; and the library change that makes feature and threshold
+scanning independent of early stopping (default behavior unchanged).
+
+- [ ] Rerun `mirrored_knob_ablation` from an image built at c0c69f4 or later so
+      `no_adaptive` measures the stopping rule alone and `no_scan` /
+      `no_threshold_scan` measure scanning alone. The run started 05:20 UTC on
+      i-0d1bdf2a59b623c4f uses the coupled semantics; keep it for the other
+      knobs, but report the stopping and scanning rows from the decoupled run.
+- [ ] Rewrite the arXiv runtime ablation rows and captions from the decoupled
+      run: under `minimum` budgets the stopping row must be ~1x by the
+      proposition's remark; whatever the coupled knob showed was scanning.
 
 ## Codex review findings (gpt-6-astra, 2026-09-11)
 

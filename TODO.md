@@ -83,15 +83,13 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       `paper/analysis/build_manuscript_summary_tables.py`, then rewrite the CIF
       runtime table, its caption, the Section 5.2 paragraph, and the three
       abstract figures in the arXiv manuscript from the new numbers.
-- [ ] Head-to-head max-type cells RUNNING 2026-09-12 ~19:05 UTC on four boxes
-      (isolet i-044bd6b815e45091f, gisette i-0e23445520818808e, synthetic
-      32,000x20 i-07afa2933d3ff0810, 32,000x100 i-0bf8ff0907e545a50), image
-      sha256:5ffc09f5 (d3c0edf), scratch protocol of `scratch/h2h/h2h_maxt.py`
-      (fresh process, warm-up, 1 h cap, single fit on isolet/gisette, two on
-      synthetic). Results land as JSONL under
-      `repairs/h2h-maxt/source-d3c0edf6…/`; they fill the n/r cells of the JSS
-      real and scaling tables. Promoting the protocol into
-      `paper/jss/replication` as a receipted component remains open.
+- [x] Head-to-head max-type cells DONE 2026-09-12 19:20 UTC: isolet 13.9 s,
+      gisette 34.6 s, synthetic 32,000x20 32.1/33.0 s, 32,000x100 24.1/24.3 s
+      (image sha256:5ffc09f5 at d3c0edf, c6a.8xlarge, scratch protocol). Filled
+      into the JSS real and scaling tables and the dependent sentences;
+      re-derivable from `paper/results/tables/h2h_maxt_fill_cells.csv` and the
+      JSONL under `repairs/h2h-maxt/source-d3c0edf6…/`. Promoting the protocol
+      into `paper/jss/replication` as a receipted component remains open.
 - [ ] After the extension campaign lands: aggregate `cit_maxt`/`cif_maxt`
       through the benchmark analysis (display names in `paper/analysis/*.py`
       currently know only `cit`/`cif`), add a max-type ranking subsection to the

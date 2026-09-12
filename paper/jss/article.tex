@@ -758,7 +758,7 @@ and 3.5 seconds without it. Without the adjustment the recommended
 configuration is faster than \pkg{partykit} on 32 cores on nine of the ten
 datasets, by 2.4 times on madelon and 19 times on letter, and within 0.3
 seconds of it on vowel. Omitting the threshold test entirely changes these
-times by at most 0.4 seconds, except on isolet, where it adds 7 seconds. The max-type test keeps the threshold test and recovers most of that time where candidates are continuous. In the run that produced the max-type column, which also refit the recommended configuration, madelon went from 21 to 4.8 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds; the other five datasets changed by less than one second.
+times by at most 0.4 seconds, except on isolet, where it adds 7 seconds. The max-type test keeps the threshold test and recovers most of that time where candidates are continuous. In the run that produced the max-type column, which also refit the recommended configuration, madelon went from 21 to 4.8 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds; the other five datasets changed by less than one second. A later run on the same machine class, without a refit of the recommended configuration, timed the max-type test at 14 seconds on isolet and 35 seconds on gisette, against 20 and 34 seconds for the recommended configuration in the original run.
 
 \begin{table}[t!]
 \centering
@@ -771,9 +771,9 @@ Dataset & Observations & Predictors & Candidates & Recommended & No adjustment &
 letter & 20,000 & 16 & 16 & 4.7 & 3.7 & 4.8 & 1,218 & 70 \\
 gamma & 19,020 & 9 & 256 & 42 & 3.5 & 23 & 336 & 15 \\
 pendigits & 10,992 & 16 & 100 & 7.5 & 3.0 & 6.9 & 394 & 21 \\
-isolet & 7,797 & 616 & 243 & 20 & 6.4 & n/r & 3,024 & 171 \\
+isolet & 7,797 & 616 & 243 & 20 & 6.4 & 14 & 3,024 & 171 \\
 musk & 6,597 & 166 & 247 & 10 & 3.4 & 9.2 & 478 & 22 \\
-gisette & 6,000 & 5,000 & 162 & 34 & 18 & n/r & 2,431 & 144 \\
+gisette & 6,000 & 5,000 & 162 & 34 & 18 & 35 & 2,431 & 144 \\
 page-blocks & 5,473 & 10 & 241 & 6.8 & 2.6 & 6.4 & 152 & 7.6 \\
 spam & 4,601 & 57 & 182 & 5.4 & 2.8 & 4.7 & 206 & 9.5 \\
 madelon & 2,000 & 500 & 132 & 21 & 4.4 & 4.8 & 194 & 11 \\
@@ -785,7 +785,7 @@ least 500 observations, each library at its default configuration on a 32-core
 machine. Candidates is the mean number of distinct candidate thresholds per
 predictor, capped at 256. No adjustment is the recommended \citrees configuration
 without the Bonferroni adjustment over candidate thresholds in the threshold
-test. Max-type is the recommended configuration with the max-type threshold test of Section~\ref{sec:thresholds}, measured on the same machine class in a separate run; it was not run (n/r) on isolet and gisette. Medians are over two
+test. Max-type is the recommended configuration with the max-type threshold test of Section~\ref{sec:thresholds}, measured on the same machine class in separate runs. Medians are over two
 repeats, or a single fit on letter, isolet, and gisette.}
 \label{tab:performance-real}
 \end{table}
@@ -796,7 +796,7 @@ grows. The recommended configuration is 1.1 to 2.8 times faster than
 \pkg{partykit} on one core at every sample size and 7 to 16 times slower than
 \pkg{partykit} on 32 cores. Without the threshold adjustment it is within a
 factor of 1.6 of \pkg{partykit} on 32 cores at 2,000 observations and 3.2 to
-8.6 times faster at 8,000 and 32,000 observations. The max-type test, which keeps the threshold test, is 4.5 to 15 times faster than the recommended configuration refit in the same run on these predictors, within a factor of 1.5 of the \pkg{partykit} times on 32 cores at 2,000 observations, and below them at 8,000 observations. Strong signals, with equal
+8.6 times faster at 8,000 and 32,000 observations. The max-type test, which keeps the threshold test, is 4.5 to 23 times faster than the recommended configuration on these predictors, within a factor of 1.5 of the \pkg{partykit} times on 32 cores at 2,000 observations, and below them at 8,000 and 32,000 observations; the 32,000-observation max-type cells come from a later run on the same machine class without a refit of the recommended configuration. Strong signals, with equal
 coefficients and half the noise, change the times of the recommended
 configuration by at most 16 percent except at 8,000 observations and 20
 predictors, where it takes 120 rather than 71 seconds, and change the
@@ -821,15 +821,16 @@ Observations & Predictors & Recommended & No adjustment & Max-type & 1 core & 32
 2,000 & 100 & 34 & 6.5 & 4.3 & 74 & 4.0 \\
 8,000 & 20 & 71 & 3.0 & 9.0 & 200 & 9.6 \\
 8,000 & 100 & 124 & 4.3 & 8.1 & 306 & 15 \\
-32,000 & 20 & 539 & 4.9 & n/r & 810 & 42 \\
-32,000 & 100 & 554 & 10 & n/r & 1,218 & 76 \\ \hline
+32,000 & 20 & 539 & 4.9 & 33 & 810 & 42 \\
+32,000 & 100 & 554 & 10 & 24 & 1,218 & 76 \\ \hline
 \end{tabular}
 \caption{Median fitting time in
 seconds over at least two repeats for 100-tree classification forests on synthetic
 Gaussian predictors with weak signal in the first five, each library at its
 default configuration on a 32-core machine. Columns are as in
 Table~\ref{tab:performance-real}; the no-adjustment variant was not run at 500
-observations and the max-type variant was not run at 32,000.}
+observations, and the max-type cells at 32,000 observations come from a later
+run on the same machine class.}
 \label{tab:performance-scaling}
 \end{table}
 

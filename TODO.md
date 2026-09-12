@@ -27,16 +27,15 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
 `IfNoneMatch="*"`; `aws s3 sync` and `aws s3 cp` are denied. Templates live in
 `scratch/rerun-2026-09-11/`.
 
-- [x] `threshold_search_ablation` running on i-0a920be7c2c2fb135 since
-      2026-09-11 18:03 UTC (image 50e2e6d2). Its uploads were failing until an
-      inline write policy was added to its role at 18:49 UTC; the periodic and
-      final uploads now succeed.
-- [x] `mirrored_knob_ablation` (with `cif_maxt`) relaunched 2026-09-11 ~19:50
-      UTC on droplet 29.81.7.184 as i-0a0803712c76cb728 from image
-      sha256:5609d400 (built at c9855d0); output prefix
-      `repairs/runtime-ablation-rerun/source-6444421c…` names the HEAD at
-      launch, whose experiment code is identical to c9855d0 (only gate tooling
-      differed).
+- [ ] Both ablation reruns RESTARTED 2026-09-12 ~05:20 UTC off-droplet from
+      image sha256:5609d400 (create-only upload templates, profile for prefix
+      `repairs/runtime-ablation-rerun/source-6444421c…`): `threshold_search`
+      i-0535d285d978cb032 (1b), `mirrored_knob` (with `cif_maxt`) in 1c. The
+      first runs (18:03 and 19:50 UTC on droplet 29.81.7.184) died when that
+      loaner host rebooted at ~04:00 UTC; containers do not survive a reboot and
+      the CSV is written only at the end, so eleven and eight hours were lost.
+      Partial stdout logs are in S3 under the old prefixes with suffix
+      `_droplet-reboot.stdout`. Never place multi-hour experiments on droplets.
 - [ ] Max-type ranking extension campaign RUNNING since 2026-09-11 ~20:20 UTC.
       Image sha256:5609d400 (c9855d0); runtime contract 79153d56…; manifest
       7a466b00…; campaign 40f9761d…; GO receipt 66e1b1b9…; artifact prefix

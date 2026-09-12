@@ -78,7 +78,10 @@ Notes:
 
 Notes:
 
-- `feature_scanning` only applies when `early_stopping_selector` is not `None`.
+- `feature_scanning` orders the sampled features by their observed selector
+  score and stops Stage A at the first rejecting feature. With it off, every
+  sampled feature is tested and the smallest p-value wins. It is independent of
+  `early_stopping_selector`, which shortens each permutation test.
 - `feature_muting` is subtree-local model pruning: a tested feature that fails
   the node's Stage A gate is removed from descendant feature pools in that
   subtree. The gate uses the node-adjusted alpha when
@@ -109,8 +112,10 @@ Options for `threshold_test` (see [maxt.md](maxt.md)):
 
 Notes:
 
-- `threshold_scanning` only applies when `early_stopping_splitter` is not
-  `None`.
+- `threshold_scanning` orders the retained thresholds by weighted child impurity
+  and stops Stage B at the first rejecting threshold. With it off, every
+  retained threshold is tested and the smallest p-value wins. It is independent
+  of `early_stopping_splitter`.
 - If `threshold_method != ThresholdMethod.EXACT` and `max_thresholds=None`, all
   midpoints are tested (can be slow).
 

@@ -120,7 +120,7 @@ Available registries:
 | `adjust_alpha_*`       | Bonferroni correction                                          | True                       |
 | `early_stopping_*`     | EarlyStopping enum or None                                     | EarlyStopping.ADAPTIVE     |
 | `feature_muting`       | Remove uninformative features                                  | True                       |
-| `feature_scanning`     | Sort features by promise before testing                        | True                       |
+| `feature_scanning`     | Test features in order of promise, stop at first rejection     | True                       |
 | `threshold_method`     | ThresholdMethod enum                                           | ThresholdMethod.EXACT      |
 | `threshold_test`       | ThresholdTest enum: per-threshold Bonferroni or joint max-type | ThresholdTest.BONFERRONI   |
 | `max_features`         | MaxValuesMethod enum, float, or int                            | None (all)                 |

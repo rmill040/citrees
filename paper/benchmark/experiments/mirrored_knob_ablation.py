@@ -50,6 +50,10 @@ from paper.benchmark.utils.metrics import f1_at_k, precision_at_k, recall_at_k
 
 EXPERIMENT_NAME = "mirrored_knob_ablation"
 
+# Each knob switches one control off. Since scanning was decoupled from early
+# stopping, no_adaptive measures the permutation stopping rule alone and
+# no_scan / no_threshold_scan measure candidate ordering with stop-at-first-
+# rejection alone; earlier runs of this ablation conflated the two.
 KNOB_VARIANTS: dict[str, dict[str, Any]] = {
     "cif_default": dict(),
     "cif_no_adaptive": dict(

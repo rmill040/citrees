@@ -139,11 +139,12 @@ max-statistic reference distribution.
 The exhaustive procedure evaluates every candidate with the requested
 permutation budget and reports fixed-$B$ $p$~values. Before sequential feature
 testing, candidates are sampled without replacement under the fitted random
-seed. Feature scanning reorders that sample by the observed selector statistic.
-Adaptive stopping checks its posterior criterion every 32 permutations; simple
-stopping checks significance and futility after each permutation beyond the
-minimum budget. Both sequential modes can stop at the first candidate whose
-value passes the adjusted gate. The fitted estimator reports the resulting
+seed. Feature scanning reorders that sample by the observed selector statistic and
+stops at the first candidate whose value passes the adjusted gate; it is
+independent of the stopping rule inside each permutation test. Adaptive
+stopping checks its posterior criterion every 32 permutations; simple stopping
+checks significance and futility after each permutation beyond the minimum
+budget. The fitted estimator reports the resulting
 decision and realized selector and threshold permutation counts.
 
 \subsection{Threshold selection} \label{sec:thresholds}
@@ -214,7 +215,12 @@ Monte Carlo interpretation. A fitted tree adds response-dependent node
 creation, repeated tests, optional feature ordering and muting, and threshold
 selection. Forests add bootstrap samples, predictor sampling, and aggregation.
 Equation~\ref{eq:permutation-p} defines the fixed-node permutation test used
-during tree construction. The fitted tree and forest analyses target predictive
+during tree construction. For a fixed statistic the adaptive stopping rule has an
+exactly computable null size: under exchangeability the running exceedance
+count is a P\'olya urn, and the rule rejects with probability 0.0495 at the
+default confidence for a 999-permutation budget and below the nominal level for
+every budget in the package; under the \code{minimum} budget with Bonferroni
+correction the floor equals the budget and the rule never stops early. The fitted tree and forest analyses target predictive
 behavior, feature stability, and computation under adaptive construction.
 
 \section{Software design and interface} \label{sec:software}
@@ -1175,16 +1181,14 @@ More generally, permutation testing makes \citrees substantially
 more computationally intensive than impurity-only trees, particularly for
 large forests and high-dimensional predictors.
 
-The adaptive stopping rule is a heuristic: it stops a permutation test once a
-Beta posterior on the exceedance proportion places probability at least 0.95
-on one side of the significance level, and no level theorem exists for it.
-Simulation shows approximately nominal null rejection at the default
-confidence. A theorem-backed
-replacement is available in the sequential Monte Carlo rule of
-\citet{Gandy:2009} and in time-uniform confidence sequences for a proportion
-\citep{Robbins:1970,Howard+Ramdas+McAuliffe+Sekhon:2021}, which bound the
-probability that early stopping alters the fixed-budget decision; we leave its
-implementation to future work.
+The adaptive stopping rule stops a permutation test once a Beta posterior on
+the exceedance proportion places probability at least 0.95 on one side of the
+significance level. For a fixed statistic its null size is an exact finite
+computation (0.0495 at the default confidence for 999 permutations; 0.0523 at
+confidence 0.80, which is why 0.95 is the minimum allowed), and the calibration
+study above agrees with it. The adaptive max-type test recomputes its column
+moments as permutations accumulate and is covered by the calibration study
+only.
 
 \section{Software and data availability} \label{sec:availability}
 

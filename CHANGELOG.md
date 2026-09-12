@@ -15,6 +15,11 @@ with version numbers matching `pyproject.toml` and GitHub release tags.
 
 ### Changed
 
+- Feature and threshold scanning no longer require early stopping. Scanning
+  (order candidates by promise, stop at the first rejection) and early stopping
+  (shorten each permutation test) are independent switches; with scanning off
+  every candidate is tested and the smallest p-value wins. Default behavior is
+  unchanged.
 - Forests divide the Numba thread pool across tree-fitting workers instead of
   multiplying it.
 - Permutation kernels give identical results for every Numba thread count and

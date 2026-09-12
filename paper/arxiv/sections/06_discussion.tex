@@ -29,16 +29,14 @@ selected CIF configuration is the relevant ranking reference when ranking
 quality is the priority.
 The Stage~B construction is a further control. The per-threshold Bonferroni rule used throughout the benchmark is valid and increasingly conservative as the candidate count grows; the max-type rule keeps the complete-node false-split rate below the nominal level at a fraction of the cost, most of all when early stopping is off, and it grows different trees. The benchmark rankings are Bonferroni rankings: the ranking benchmark was not rerun under the max-type rule, whose importance agreement with the per-threshold rule ranged from 0.40 to 0.95 on six datasets, so its effect on the full-benchmark rankings is unmeasured.
 
-The adaptive stopping rule is a heuristic: it stops a permutation test once a
-Beta posterior on the exceedance proportion places probability at least 0.95
-on one side of the significance level, and no level theorem exists for it.
-Simulation shows approximately nominal null rejection at the default
-confidence. A theorem-backed
-replacement is available in the sequential Monte Carlo rule of
-\citet{Gandy2009SequentialImplementationMonteCarloTests} and in time-uniform confidence sequences for a proportion
-\citep{Robbins1970LawIteratedLogarithm,Howard2021TimeUniformConfidenceSequences}, which bound the
-probability that early stopping alters the fixed-budget decision; we leave its
-implementation to future work.
+Adaptive stopping is a stopping rule on the running exceedance count with an
+exactly computable null size (\cref{prop:adaptive-size}): 0.0495 at the default
+confidence for the 999-permutation budget the max-type splitter uses, and below
+the nominal level for every budget we ship; at confidence 0.80 it exceeds the
+level, which is why 0.95 is the default. In the benchmark configuration the rule
+never stops early, so every benchmark $p$-value is a fixed-budget permutation
+$p$-value. The adaptive max-type kernel is the one setting the proposition does
+not reach; its calibration rests on the complete-node simulation.
 
 In sparse high-$p$ settings, feature use should be monitored directly.
 The simulations show that CIF feature sampling can leave informative features

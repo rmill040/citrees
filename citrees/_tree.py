@@ -442,16 +442,14 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             - feature_muting = False
             - early_stopping_selector = None
 
-        2. early_stopping_selector is None =>
-            - feature_scanning == False
-
         Splitter constraints:
         1. n_resamples_splitter is None =>
             - adjust_alpha_splitter = False
             - early_stopping_splitter = None
 
-        2. early_stopping_splitter is None =>
-            - threshold_scanning = False
+        Feature and threshold scanning are independent of early stopping: scanning
+        orders candidates by promise and stops the candidate loop at the first
+        rejection, while early stopping shortens each permutation test.
         """
         params = self.get_params()
 
@@ -473,13 +471,6 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
                 stacklevel=2,
             )
 
-        if params["early_stopping_selector"] is None and params["feature_scanning"]:
-            warnings.warn(
-                "Unused hyperparameter detected: When early_stopping_selector=None, hyperparameter "
-                "('feature_scanning') should be False",
-                stacklevel=2,
-            )
-
         flags = []
         if params["n_resamples_splitter"] is None:
             flags = [
@@ -489,13 +480,6 @@ class BaseConditionalInferenceTreeEstimator(BaseEstimator, metaclass=ABCMeta):
             warnings.warn(
                 "Unused hyperparameter(s) detected: When n_resamples_splitter=None, hyperparameter(s) "
                 f"({', '.join(flags)}) should be False",
-                stacklevel=2,
-            )
-
-        if params["early_stopping_splitter"] is None and params["threshold_scanning"]:
-            warnings.warn(
-                "Unused hyperparameters detected: When early_stopping_splitter=None, hyperparameter "
-                "('threshold_scanning') should be False",
                 stacklevel=2,
             )
 
@@ -742,8 +726,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     n_best_pval = 1
                     reject_H0 = best_pval < self._alpha_selector
 
-                    # Check for early stopping
-                    if self._early_stopping_selector is not None and reject_H0:
+                    # Feature scanning stops at the first rejecting feature; without it
+                    # every sampled feature is tested and the smallest p-value wins.
+                    if self._feature_scanning and reject_H0:
                         break
                 elif pval_feature == best_pval:
                     # Reservoir sampling: probability 1/k for k-th tie
@@ -875,8 +860,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     n_best_pval = 1
                     reject_H0 = best_pval < self._alpha_splitter
 
-                    # Check for early stopping
-                    if self._early_stopping_splitter is not None and reject_H0:
+                    # Threshold scanning stops at the first rejecting threshold; without it
+                    # every retained threshold is tested and the smallest p-value wins.
+                    if self._threshold_scanning and reject_H0:
                         break
                 elif pval_threshold == best_pval:
                     # Reservoir sampling: probability 1/k for k-th tie
@@ -1162,11 +1148,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                     if len(local_available) > 1
                     else local_available
                 )
-                if (
-                    self._early_stopping_selector is not None
-                    and self._feature_scanning
-                    and len(features) > 1
-                ):
+                if self._feature_scanning and len(features) > 1:
                     features = self._scan_features(X, y, features)
                 best_feature, best_pval_feature, reject_H0_feature, local_available = (
                     self._select_best_feature(
@@ -1216,12 +1198,8 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
                 self._max_thresholds = len(thresholds)
 
             if len(thresholds):
-                if self._early_stopping_splitter:
-                    thresholds = (
-                        self._scan_thresholds(x, y, thresholds)
-                        if self._threshold_scanning and len(thresholds) > 1
-                        else self._rng.permutation(thresholds)
-                    )
+                if self._threshold_scanning and len(thresholds) > 1:
+                    thresholds = self._scan_thresholds(x, y, thresholds)
                 best_threshold, best_pval_threshold, reject_H0_threshold = self._select_best_split(
                     x, y, thresholds
                 )

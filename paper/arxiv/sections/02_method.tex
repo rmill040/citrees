@@ -26,8 +26,9 @@ Bonferroni denominator for that node.
 Any label-independent auxiliary randomness used by a selector is denoted by $U$
 and is held fixed in the fixed-node guarantee.
 
-When adaptive stopping is enabled during tree growing, Stage~A can evaluate
-features sequentially and stop before every feature in $F_t$ has been tested.
+When feature scanning is enabled during tree growing, Stage~A tests the
+features in order of their observed selector statistic and stops at the first
+rejection, so not every feature in $F_t$ is tested.
 Let $E_t \subseteq F_t$ denote the evaluated subset; in the exhaustive fixed-$B$
 reference rule, $E_t=F_t$. The fixed-node theorem in \cref{sec:theory} applies
 to that reference rule: the features in $F_t$ and the budget $B$ are fixed
@@ -87,9 +88,9 @@ weighted child impurity
 \]
 where $\mathrm{Imp}$ is the chosen node impurity measure. This statistic is used
 in a left-tail test, and the exhaustive fixed-$B$ rule chooses the threshold with
-the smallest Stage~B $p$-value, with uniform tie breaking. During adaptive tree
-growing, threshold scanning may reorder thresholds and stop after the first
-rejecting threshold, so the returned Stage~B score is a tree-construction score
+the smallest Stage~B $p$-value, with uniform tie breaking. When threshold
+scanning is enabled, thresholds are tested in order of weighted child impurity
+and the search stops after the first rejecting threshold, so the returned Stage~B score is a tree-construction score
 rather than a global minimum over all retained thresholds. Let
 $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/|C_{t,j_t^\star}|$ when
 Bonferroni is enabled for Stage~B and
@@ -216,9 +217,10 @@ stopping, and features carried into the node. Adaptive stopping changes the
 number of permutations evaluated for each test
 \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
 Histogram thresholding reduces the Stage~B threshold set by replacing exhaustive
-cutpoints with binned thresholds. Feature and threshold scanning change the
-order in which features or thresholds are tested under early stopping; feature
-muting can reduce the feature pool inherited by descendants.
+cutpoints with binned thresholds. Feature and threshold scanning order candidates by
+promise and stop at the first rejection, independently of the stopping rule
+inside each permutation test; feature muting can reduce the feature pool
+inherited by descendants.
 Appendix~\ref{app:methods} gives algorithm and
 reproducibility details, Appendix~\ref{app:complexity-details} gives runtime and
 memory accounting, and \cref{sec:results-practical} reports the measured timing

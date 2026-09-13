@@ -242,6 +242,15 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       With seed 0 from the full run this gives 5 x 2,000 replications per cell
       and closes the JSS "one seed at present" caveat.
 
+- [ ] CIT auto-budget variants (`cit_auto_budget`,
+      `cit_auto_budget_no_adaptive`, added in a653a03; image sha256:5b581546)
+      launched 2026-09-13 ~18:25 UTC as 6 shards (Name citrees-cit-autobudget),
+      outputs
+      `repairs/runtime-ablation-rerun/source-a653a03c…/cit_cif_runtime_ablation/     cit_autobudget_shard{i}_raw.csv`.
+      Measures adaptive stopping where the rule can stop (auto budget exceeds
+      the floor), to pair with the inert minimum-budget row in the arXiv runtime
+      section.
+
 When all five land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose
 "stops each predictor's test as soon as the evidence is decisive" is wrong under

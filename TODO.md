@@ -228,10 +228,15 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       06_discussion "at a fraction of the cost"; JSS threshold-test subsection
       tables and prose.
 
-- [ ] Multi-seed null calibration (threshold-test study,
-      `--studies     calibration --seed {1,2,3,4}`) launched 2026-09-13 ~17:00
-      UTC on four boxes (i-0cda65ba6ebbd6553, i-0d52c9015261d6646,
-      i-0e64fcf0aad812304, i-0a19dbbc9b3e23f0b), template
+- [x] Multi-seed null calibration DONE 2026-09-13 17:50 UTC: seeds 0-4 pooled in
+      `paper/results/tables/paper_threshold_test_calibration_5seeds.csv` (10,000
+      replications per cell); all 72 cells have a Clopper-Pearson upper limit
+      below 0.05 (max rate 0.0384, max-type at 256 bins); Bonferroni
+      0.007-0.029, max-type 0.029-0.038. Proposal: replace the JSS calibration
+      table with the pooled rates and intervals and drop the single-seed caveat.
+      (Threshold-test study, `--studies     calibration --seed {1,2,3,4}`)
+      launched 2026-09-13 ~17:00 UTC on four boxes (i-0cda65ba6ebbd6553,
+      i-0d52c9015261d6646, i-0e64fcf0aad812304, i-0a19dbbc9b3e23f0b), template
       `h2h-e78d84a/threshold_test_calibration_seedN.sh`, outputs
       `repairs/h2h-rerun/source-e78d84a4…/threshold-test-calibration-seed{N}/`.
       With seed 0 from the full run this gives 5 x 2,000 replications per cell

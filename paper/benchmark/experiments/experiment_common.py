@@ -6,6 +6,7 @@ infrastructure so individual experiment scripts stay DRY and consistent.
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -482,6 +483,49 @@ REAL_CLF_NAMES = [
 ]
 REAL_REG_NAMES = ["diabetes", "california"]
 
+# Benchmark datasets from paper/data, for runtime work at realistic sample sizes.
+# Loaded from $CITREES_PAPER_DATA/<task>/real/<prefix>_<name>.parquet when that
+# variable is set (containers mount the files there), else from the repo tree.
+PAPER_REAL_CLF_NAMES = [
+    "paper_letter",
+    "paper_gamma",
+    "paper_pendigits",
+    "paper_isolet",
+    "paper_musk",
+    "paper_gisette",
+    "paper_page-blocks",
+    "paper_spam",
+    "paper_vowel-context",
+]
+PAPER_REAL_REG_NAMES = [
+    "paper_facebook",
+    "paper_imports-85",
+    "paper_residential",
+    "paper_community_crime",
+    "paper_comm_violence",
+]
+
+
+def _paper_data_root() -> Path:
+    override = os.environ.get("CITREES_PAPER_DATA")
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parents[2] / "data"
+
+
+def _load_paper_real(task: str, name: str) -> tuple[np.ndarray, np.ndarray]:
+    """Load a benchmark dataset (``paper_<name>``) from the parquet files under paper/data."""
+    import pandas as pd
+
+    folder = "classification" if task == "clf" else "regression"
+    prefix = "clf" if task == "clf" else "reg"
+    frame = pd.read_parquet(_paper_data_root() / folder / "real" / f"{prefix}_{name}.parquet")
+    y = frame["y"].to_numpy()
+    X = frame.drop(columns=["y"]).to_numpy(dtype=np.float64)
+    if task == "clf":
+        y = pd.factorize(y)[0].astype(np.int64)
+    return X, y.astype(np.float64) if task == "reg" else y
+
 
 def load_real_clf(name: str) -> RealDataset:
     """Load a real classification dataset from sklearn/openml."""
@@ -495,6 +539,8 @@ def load_real_clf(name: str) -> RealDataset:
     if name in loaders:
         data = loaders[name]()
         X, y = data.data, data.target
+    elif name.startswith("paper_"):
+        X, y = _load_paper_real("clf", name[len("paper_") :])
     elif name == "openml_madelon":
         from sklearn.datasets import fetch_openml
 
@@ -522,6 +568,8 @@ def load_real_reg(name: str) -> RealDataset:
     if name == "diabetes":
         data = load_diabetes()
         X, y = data.data, data.target
+    elif name.startswith("paper_"):
+        X, y = _load_paper_real("reg", name[len("paper_") :])
     elif name == "california":
         data = fetch_california_housing()
         rng = np.random.RandomState(RANDOM_STATE)

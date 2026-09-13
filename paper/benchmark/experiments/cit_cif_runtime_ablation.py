@@ -48,6 +48,8 @@ from sklearn.tree import (
 from paper.benchmark.experiments.experiment_common import (
     CLF_ALL,
     N_ESTIMATORS,
+    PAPER_REAL_CLF_NAMES,
+    PAPER_REAL_REG_NAMES,
     RANDOM_STATE,
     REAL_CLF_NAMES,
     REAL_REG_NAMES,
@@ -390,8 +392,8 @@ def _real_specs(
     """Build real dataset specs."""
     specs: list[DatasetSpec] = []
     real_names: tuple[tuple[str, Sequence[str]], ...] = (
-        ("clf", REAL_CLF_NAMES),
-        ("reg", REAL_REG_NAMES),
+        ("clf", [*REAL_CLF_NAMES, *PAPER_REAL_CLF_NAMES]),
+        ("reg", [*REAL_REG_NAMES, *PAPER_REAL_REG_NAMES]),
     )
     for task, names in real_names:
         if task not in tasks:

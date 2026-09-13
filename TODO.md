@@ -280,6 +280,24 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       With seed 0 this gives 5 seeds x 3 fits per scaling cell and 5 x 5 folds
       per real cell, so the rewritten Stage B tables carry intervals.
 
+- [ ] DROPLET QUEUE (2026-09-13 evening; launcher
+      `scratch/droplets/launch_on_droplets.py`, rule: droplets only). Running on
+      droplet 29.81.7.184 (6 of 6 slots): Stage B power study seeds 0-4
+      (`--studies power`, new in 848411f; outputs
+      `repairs/h2h-rerun/source-e78d84a4…/threshold-test-power-seed{N}/`) and
+      CIF auto-budget shard 0 (image sha256:39df4379 at 9ad58b9, prefix
+      `repairs/runtime-ablation-rerun/source-9ad58b9c…/`, outputs
+      `cif_autobudget_shard{i}_raw.csv`). The other three droplets
+      (30.99.51.144, 30.185.247.177, 17.123.20.180) refuse every launch with
+      InsufficientInstanceCapacity; ask the EC2 team. Waiting for slots, in
+      order: CIF auto-budget shards 1-5
+      (`scratch/droplets/cif-autobudget/shard_{1..5}.sh`); wide-dataset CIT/CIF
+      runtime ablation on the nine `paper_*` classification and five regression
+      benchmark datasets (loaders in 62c5f40; needs the image built from HEAD
+      4e60fbe, log `scratch/rerun-2026-09-11/ecr_build_wide.log`, and the
+      parquet files mounted at CITREES_PAPER_DATA); scaling curves
+      (`paper.benchmark.experiments.scaling_curves`, 20 cells, shard by cell).
+
 When all five land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose
 "stops each predictor's test as soon as the evidence is decisive" is wrong under

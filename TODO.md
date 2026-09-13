@@ -147,9 +147,15 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       (docker exit + OOMKilled flag), dmesg.txt, free.txt, lscpu.txt, and the
       cell stdout/stderr to
       `repairs/runtime-ablation-rerun/source-d3c0edf6…/     amd-diagnostic/<instance type>/`.
-      Hypothesis (author): the seven censored cells are AMD-specific faults in
-      compiled kernels, not memory. Decide the exclusion wording in both papers
-      from the outcome.
+      Author determination (2026-09-13): the seven censored cells and the
+      isolet/gisette RDC exclusions of the main benchmark are an EC2 host
+      failure on the AMD (c6a, EPYC 7R13) fleet, not a defect in the algorithm:
+      the containers died without a Python traceback after ~2 h, always on the
+      largest RDC forests, on AMD hosts only (every campaign box was c6a), and
+      the same cells' other seeds and honesty-on twins completed. The A/B repro
+      above supplies the exit codes to state this in both papers; once it
+      confirms, word the exclusion as a hardware fault on the compute host, cite
+      the instance type, and keep the cells listed as operational exclusions.
 
 ## Adaptive stopping theory and scanning decoupling (2026-09-12)
 

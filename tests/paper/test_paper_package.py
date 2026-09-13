@@ -172,11 +172,11 @@ def test_adaptive_stopping_summary_matches_reported_bounds():
 
     assert set(rows["task"]) == {"classification", "regression"}
     assert set(rows["dataset_group"]) == {"real", "synthetic"}
-    # Reported in the arXiv v2 runtime table: 6.1--6.5x synthetic, 483--717x real,
-    # downstream score changes at most 0.010.
-    assert rows["runtime_ratio_vs_default"].min() >= 6.1
-    assert rows["runtime_ratio_vs_default"].max() <= 717.5
-    assert rows["downstream_delta_vs_default"].abs().max() <= 0.010
+    # Reported in the arXiv v3 runtime table: adaptive stopping is inert at the
+    # minimum budget (0.96--0.99x) with no downstream score change.
+    assert rows["runtime_ratio_vs_default"].min() >= 0.90
+    assert rows["runtime_ratio_vs_default"].max() <= 1.05
+    assert rows["downstream_delta_vs_default"].abs().max() <= 0.001
 
 
 def _load_arxiv_bundle_module():

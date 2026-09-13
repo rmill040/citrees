@@ -248,13 +248,15 @@ values in classification and at $k=25$ in regression. The dataset counts behind 
 
 The runtime ablations identify which benchmark settings have the largest effect
 on fitting time and report how much the ranking scores move when those settings
-change. Each row changes one setting and reports elapsed wall-clock fit time
-relative to the selected configuration for the same estimator. Ratios above 1 are
-slower than that reference, and ratios below 1 are faster. CIT and CIF are shown
-separately because the CIT
-run records fit time and synthetic top-10 feature recovery, while the CIF runs
-also record downstream score changes. The main benchmark remains the primary
-performance comparison.
+change. Each row switches one control off and reports elapsed wall-clock fit time
+relative to the selected configuration for the same estimator, as the median
+over datasets of the per-dataset ratio, in each of the four task groups
+(classification and regression, real and synthetic). Ratios above 1 are slower
+than the reference and ratios below 1 are faster. Scanning and early stopping are
+independent switches, so each row measures one mechanism. CIT and CIF are shown
+separately because the CIT run records fit time and synthetic top-10 feature
+recovery, while the CIF runs also record downstream score changes. The main
+benchmark remains the primary performance comparison.
 \Cref{app:complexity-details} links each ablation to the affected work terms.
 
 \begin{table}[H]
@@ -265,39 +267,48 @@ performance comparison.
     \toprule
     \tablehead{CIT change} & Runtime ratio & \shortstack{Largest top-10\\F1 change} \\
     \midrule
-    Disable adaptive stopping & 3.2--8.3$\times$ & $\le 0.40$ \\
-    Exact threshold search & 0.82--1.10$\times$ & $\le 0.06$ \\
-    Disable feature scanning & 0.57--3.16$\times$ & $\le 0.38$ \\
+    Disable adaptive stopping (minimum budget) & 0.87--0.98$\times$ & 0 \\
+    Auto budget, adaptive stopping & 1.15--1.54$\times$ & $\le 0.016$ \\
+    Auto budget, no early stopping & 3.5--7.9$\times$ & $\le 0.016$ \\
+    Disable threshold scanning & 2.7--32$\times$ & $\le 0.034$ \\
+    Disable feature scanning & 0.57--2.6$\times$ & $\le 0.058$ \\
+    Exact threshold search & 0.90--1.06$\times$ & $\le 0.005$ \\
+    Disable feature muting & 0.98--0.99$\times$ & $\le 0.001$ \\
+    Disable Bonferroni correction & 0.48--1.7$\times$ & $\le 0.063$ \\
     \bottomrule
   \end{tabular}
-  \caption{CIT runtime ablations. Runtime ratios are paired by seed and dataset
-  against the selected CIT configuration and summarized across the real and synthetic
-  classification and regression runs. Top-10 F1 changes are absolute changes on
-  synthetic datasets with known informative features, where top-10 F1 is the
-  harmonic mean of precision and recall for recovering informative features among
-  the first 10 ranked features. Numbers are rounded for
-  display. The final column is the largest absolute top-10 F1 change across the
-  synthetic task groups. The real datasets in the runtime ablations are not the
-  benchmark datasets: 7 classification (iris, wine, breast cancer, digits,
-  optdigits, waveform, madelon) and 2 regression (california, diabetes) from
-  scikit-learn and OpenML; the synthetic groups have 8 classification and 6
-  regression designs.}
+  \caption{CIT runtime ablations. Runtime ratios are medians over datasets of the
+  per-dataset ratio to the selected CIT configuration, given as the range over the
+  four task groups; five seeds per dataset on 23 datasets (15 classification, 8
+  regression; 9 real). The F1 column is the largest change in mean top-10 F1 on
+  the synthetic datasets across the task groups. Fits ran on one 32-core cloud
+  instance with the full thread pool per tree. The two auto-budget rows use the
+  \texttt{auto} permutation budget, which exceeds the $\lceil 1/\alpha \rceil$
+  floor, so the stopping rule can act.}
   \label{tab:cit-runtime-hyperparams}
 \end{table}
 
 \paragraph{CIT runtime ablations.}
-\Cref{tab:cit-runtime-hyperparams} shows that adaptive stopping is the setting
-that matters for a single tree. Disabling it makes fits 3.2--8.3$\times$
-slower by median dataset-level ratios in all four task groups. It also changes
-the fitted tree: without early stopping the mean depth on the synthetic
-datasets rises from 5.8 to 9.0 (4.8 to 7.7 in classification, 7.1 to 10.6 in
-regression), and top-10 feature recovery moves
-by up to 0.40, with the largest changes on the Toeplitz and confounder designs
-and none on the weak-signal designs. A single tree exposes every difference in
-the realized sequence of features, thresholds, and nodes, which the forest
-averages away. Exact threshold search and feature scanning change runtime by
-less than a factor of 3.2 in either direction and recovery by at most 0.06 and
-0.38.
+\Cref{tab:cit-runtime-hyperparams} separates two things the earlier coupled
+knob conflated. Under the benchmark's \texttt{minimum} budget the adaptive
+stopping rule is inert by construction (\cref{prop:adaptive-size}): the budget
+equals the floor below which the rule cannot stop, so switching it off changes
+fitting time by 0.87--0.98$\times$ and leaves every tree, and therefore every
+recovery score, unchanged. Where the rule can act it earns its place: at the
+\texttt{auto} budget the adaptive tree costs 1.15--1.54$\times$ the default
+while the same budget without stopping costs 3.5--7.9$\times$, so adaptive
+stopping recovers about 85 percent of the larger budget's cost at a recovery
+change of at most 0.016. The control that matters for a single tree is the
+threshold scan: testing candidate thresholds in order of promise and stopping at
+the first rejection makes fits 2.7--32$\times$ faster than testing every
+candidate, with the largest ratio on the real regression datasets where
+predictors admit the full 256 candidates. Feature scanning matters less for a
+single tree (0.57--2.6$\times$, faster in one group because the prescan itself
+has a cost), and exact threshold search and feature muting are within a few
+percent of the default. Removing the Bonferroni correction changes the
+statistical rule: trees grow from a mean depth of 4.8 and 6.9 to 9.9 and 14.4
+levels and top-10 recovery moves by up to 0.063, so it is not a runtime
+control.
 
 \begin{table}[H]
   \centering
@@ -307,34 +318,47 @@ less than a factor of 3.2 in either direction and recovery by at most 0.06 and
     \toprule
     \tablehead{CIF change} & Runtime ratio & \shortstack{Downstream\\score change} & \shortstack{Synthetic feature\\recovery change} \\
     \midrule
-    Disable adaptive stopping & 6.1--6.5$\times$ synthetic; 483--717$\times$ real & $\le 0.010$ & $\le 0.007$ \\
-    Exact threshold search & 1.1--21$\times$ & $\le 0.010$ & $\le 0.010$ \\
-    Disable feature scanning & 1.2--4.2$\times$ & $\le 0.006$ & $\le 0.003$ \\
+    Disable adaptive stopping & 0.96--0.99$\times$ & 0 & 0 \\
+    Disable threshold scanning & 7.9--29$\times$ & $\le 0.003$ & $\le 0.010$ \\
+    Disable feature scanning & 0.99--5.1$\times$ & $\le 0.003$ & $\le 0.008$ \\
+    Exact threshold search & 1.1--21$\times$ & $\le 0.005$ & $\le 0.010$ \\
+    Histogram with 32 bins & 0.05--0.16$\times$ & $\le 0.002$ & $\le 0.010$ \\
+    Disable feature muting & 0.91--1.00$\times$ & $\le 0.001$ & $\le 0.003$ \\
+    Disable bootstrap sampling & 0.93--1.67$\times$ & $\le 0.012$ & $\le 0.011$ \\
+    Max-type Stage~B test & 0.14--0.55$\times$ & $\le 0.005$ & $\le 0.007$ \\
+    Disable Bonferroni correction & 0.03--0.34$\times$ & $\le 0.004$ & $\le 0.011$ \\
     \bottomrule
   \end{tabular}
-  \caption{CIF runtime ablations with score changes. Runtime ratios are relative to
-  the selected CIF configuration. Adaptive stopping and feature scanning use median dataset-level
-  ratios. The exact-threshold row compares group mean elapsed time with the
-  histogram-256 reference. The score columns give the largest absolute downstream
-  score change and synthetic feature-recovery change across the task groups
-  used for each row. Inequality entries are rounded upward to the nearest 0.001.
-  The task-group coverage matches \cref{tab:cit-runtime-hyperparams}.}
+  \caption{CIF runtime ablations with score changes. Runtime ratios are medians
+  over datasets of the per-dataset ratio to the selected CIF configuration,
+  given as the range over the four task groups; five seeds per dataset on 23
+  datasets. The exact-threshold and 32-bin rows come from the threshold-search
+  ablation and compare with the 256-bin histogram reference. The score columns
+  give the largest absolute change in the dataset-mean downstream score and in
+  synthetic feature recovery across the task groups; inequality entries are
+  rounded upward to the nearest 0.001. Forests fit 100 trees with one worker per
+  tree and one Numba thread per worker on a 32-core cloud instance.}
   \label{tab:cif-runtime-hyperparams}
 \end{table}
 
 \paragraph{CIF runtime ablations.}
-\Cref{tab:cif-runtime-hyperparams} shows that adaptive stopping is also the
-dominant control for forests, and that its value depends on the data. On the
-synthetic datasets, disabling it makes fits 6.1--6.5$\times$ slower by median
-dataset-level ratios. On the real datasets the same change makes fits
-483--717$\times$ slower. Exact
-threshold search is 1.1--21$\times$ slower than histogram-256 by group mean
-elapsed times, with the largest ratio on the real regression datasets, and
-disabling feature scanning costs 1.2--4.2$\times$. Downstream score changes
-are at most 0.010 and synthetic feature-recovery changes at most 0.010 across
-all three rows. Removing Bonferroni correction is faster for both CIT and CIF,
-but it changes the statistical rule and yields trees with more selected
-features; the selected setting keeps Bonferroni correction.
+\Cref{tab:cif-runtime-hyperparams} tells the same story for forests. Adaptive
+stopping is inert at the benchmark budget (0.96--0.99$\times$, no score
+change), and a single-worker forest confirms that the result does not depend on
+the trees hiding behind the thread pool: with one worker and the full thread
+pool per tree, switching the rule off changes fitting time by 0.79--1.10$\times$
+across 21 datasets. The threshold scan is again the dominant control, at
+7.9--29$\times$ by group medians, and the number of candidates is the next:
+exact threshold search is 1.1--21$\times$ slower than the 256-bin histogram
+and a 32-bin histogram is 6--20$\times$ faster, in every case with downstream
+score changes of at most 0.005 and recovery changes of at most 0.010. Feature
+scanning costs 0.99--5.1$\times$, with its largest effect on the real regression
+datasets. The max-type Stage~B test fits in 0.14--0.55 of the default time with
+downstream changes of at most 0.005; \cref{sec:results-stageB} reports its
+calibration, power, and ranking effect. Removing the Bonferroni correction is
+the fastest change for both CIT and CIF, but it changes the statistical rule and
+yields deeper trees with more selected features; the selected setting keeps
+Bonferroni correction.
 \FloatBarrier
 
 \subsection{Stage~B construction comparison}

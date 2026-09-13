@@ -163,7 +163,15 @@ benchmarked CIT and CIF configurations use adaptive sequential stopping, Bonferr
 correction, feature muting, feature scanning, threshold scanning, and 256-bin
 histogram thresholding. The benchmarked CIT and CIF variants differ in selector
 and honesty; CIF is run as a bootstrap forest.
-Each CIF runtime ablation changes one setting.
+The runtime ablation refits the selected CIT and CIF configurations with one
+control switched off at a time: adaptive sequential stopping, feature scanning,
+threshold scanning, feature muting, the Bonferroni adjustment, and the 256-bin
+histogram (replaced by exact thresholds or a 32-bin histogram), plus the max-type
+Stage~B rule as an alternative, the \texttt{auto} permutation budget with and
+without adaptive stopping for CIT, and a single-worker forest for CIF. Scanning
+and stopping are independent switches, so each row measures one mechanism. Fits
+run on one 32-core cloud instance, five seeds per dataset, single trees with the
+full thread pool and forests with one Numba thread per tree worker.
 
 To isolate which parts of the CIF ranking matter, we run a ranking ablation on
 the real-data benchmark datasets (22 classification and 8 regression). The

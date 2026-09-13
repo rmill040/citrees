@@ -20,9 +20,13 @@ forest-based screening methods such as Boruta, permutation or conditional
 permutation importance, and RF-RFE
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}.
 
-The ablations show that adaptive stopping and histogram-256 thresholding account
-for the largest measured CIF runtime changes, with small downstream score changes
-in these experiments. Bonferroni correction is part of the Stage~A testing rule
+The ablations locate the runtime of both estimators in the threshold search:
+scanning candidate thresholds in order of promise and bounding their number with
+the 256-bin histogram account for the largest measured changes, with downstream
+score changes of at most 0.005. Adaptive stopping is inert at the benchmark's
+minimum permutation budget, as \cref{prop:adaptive-size} predicts, and earns
+its place only when the budget exceeds the floor, where it recovers most of the
+larger budget's cost. Bonferroni correction is part of the Stage~A testing rule
 and is not treated as a runtime shortcut. For ranking quality, forest size
 matters more than the split-count and feature-muting variants tested here, so the
 selected CIF configuration is the relevant ranking reference when ranking

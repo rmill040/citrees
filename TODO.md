@@ -168,6 +168,12 @@ scanning independent of early stopping (default behavior unchanged).
       `tests/paper/test_paper_package.py::     test_adaptive_stopping_summary_matches_reported_bounds`
       still encode the contaminated 6.1-717x figures and move with the
       manuscript rewrite.
+- [ ] CIT runtime ablation rerun: first single-box attempt (i-03d106f052d33920c)
+      was killed at fit 781/805 by its own 6 h cap (california
+      exhaustive-threshold fits take ~5 min each) and the module writes only at
+      the end, so it was lost; relaunched 2026-09-13 ~10:15 UTC as 6 dataset
+      shards (`--datasets`/`--output-name cit_runtime_shard{i}`, 48 h cap) under
+      the same prefix; concatenate the shard CSVs locally and summarize.
 - [ ] CIT runtime ablation rerun (decoupled knobs, image sha256:5ffc09f5 at
       d3c0edf) LAUNCHED 2026-09-13 03:35 UTC on i-03d106f052d33920c; variants
       cit_default, no_adaptive, no_feature_scan, no_threshold_scan,

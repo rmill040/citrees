@@ -165,11 +165,15 @@ information is unbounded [0, ∞) while `'mc'` and `'rdc'` are on [0,1] scale.
 The `early_stopping_selector` and `early_stopping_splitter` parameters control
 how permutation tests terminate:
 
-- `EarlyStopping.ADAPTIVE` (default): Bayesian Beta CDF stopping - valid Type I
-  error (~5%), 95% faster
-- `EarlyStopping.SIMPLE`: Futility + significance stopping - inflates Type I
-  error to ~9%
-- `None`: Full permutation test - no early stopping
+- `EarlyStopping.ADAPTIVE` (default): Beta-posterior stopping checked every 32
+  permutations. Exact null size 0.0495 at the defaults (999 permutations,
+  confidence 0.95); in the JSS calibration study it used 2 to 6 percent of the
+  exhaustive permutation count at budgets above the `ceil(1/alpha)` floor and is
+  inert (runs the full budget) when the budget equals the floor
+  (`n_resamples="minimum"`).
+- `EarlyStopping.SIMPLE`: futility + significance stopping; false-split rates up
+  to 0.087 in the calibration study. Exploratory use only.
+- `None`: full permutation test, no early stopping
 
 **Default mode (recommended for most applications):**
 

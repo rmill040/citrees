@@ -744,15 +744,17 @@ cores is faster on gamma, madelon, and vowel. The candidate-threshold column
 explains both patterns. \pkg{partykit} runs one Monte Carlo test per node with
 a fixed budget of 999 permutations and then chooses the split by maximizing the
 statistic, so its cost at every node is the budget times the sample size,
-independent of the data. The recommended \citrees configuration stops each
-predictor's test as soon as the evidence is decisive and mutes predictors that
-have already failed, but it also tests the chosen threshold with a Bonferroni
-adjustment over the candidate thresholds present at that node. Predictors
-with few distinct values, such as the 16 integer levels of letter, admit few
-candidates, so this test stops after tens of permutations and the fixed budget
-of \pkg{partykit} is almost entirely wasted work. Continuous predictors admit
-the full 256 candidates, the adjusted level is 0.05/256, and the threshold test
-alone needs about 5,000 permutations of the sample at every node. The clearest
+independent of the data. The recommended \citrees configuration sizes each
+permutation budget to the adjusted level it must resolve, tests predictors in
+order of promise and stops at the first rejection, and mutes predictors that
+have already failed; the adaptive stopping rule cannot end a test before that
+budget (Section~\ref{sec:screening}), so the budget itself sets the cost. The
+threshold test is adjusted over the candidate thresholds present at the node.
+Predictors with few distinct values, such as the 16 integer levels of letter,
+admit few candidates, so that test resolves 0.05/16 with 320 permutations and
+the fixed budget of \pkg{partykit} is largely wasted work. Continuous predictors
+admit the full 256 candidates, the adjusted level is 0.05/256, and the threshold
+test alone needs about 5,000 permutations of the sample at every node. The clearest
 case is gamma, with nine continuous predictors: 42 seconds with the adjustment
 and 3.5 seconds without it. Without the adjustment the recommended
 configuration is faster than \pkg{partykit} on 32 cores on nine of the ten
@@ -804,8 +806,8 @@ predictors, where it takes 120 rather than 71 seconds, and change the
 memory over the pre-fit process was at most 49 MB in every condition of the
 first study, so memory did not separate the implementations. Together the two studies locate the cost of conditional
 inference in how permutations are spent rather than in tree construction:
-adaptive stopping, muting, and scanning remove most of the fixed budget that
-\pkg{partykit} pays, and the one remaining fixed cost in \citrees, the
+budgets sized to the adjusted level, muting, and scanning remove most of the
+fixed budget that \pkg{partykit} pays, and the one remaining fixed cost in \citrees, the
 adjusted threshold test on continuous predictors, is an option the user
 controls.
 

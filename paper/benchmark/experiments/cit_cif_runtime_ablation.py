@@ -166,6 +166,20 @@ CIT_VARIANTS: tuple[VariantSpec, ...] = (
 
 CIF_VARIANTS: tuple[VariantSpec, ...] = (
     VariantSpec("cif_default", "cif", {}, "CIF with the paper default runtime controls"),
+    # Forests hide the per-tree cost of a control because trees saturate the cores;
+    # the single-worker forest exposes it (n_jobs=1, thread pool inside each tree).
+    VariantSpec(
+        "cif_n_jobs1",
+        "cif",
+        {"n_jobs": 1},
+        "CIF fit with one forest worker (per-tree cost exposed)",
+    ),
+    VariantSpec(
+        "cif_n_jobs1_no_adaptive",
+        "cif",
+        {"n_jobs": 1, "early_stopping_selector": None, "early_stopping_splitter": None},
+        "CIF with one forest worker and full permutation tests",
+    ),
     VariantSpec(
         "cif_no_adaptive",
         "cif",
@@ -310,7 +324,8 @@ def _build_model(
     if spec.method_family == "cit":
         return build_cit(task, seed, **spec.overrides)
     if spec.method_family == "cif":
-        return build_cif(task, seed, n_estimators=n_estimators, n_jobs=n_jobs, **spec.overrides)
+        kwargs: dict[str, Any] = {"n_estimators": n_estimators, "n_jobs": n_jobs, **spec.overrides}
+        return build_cif(task, seed, **kwargs)
     return _build_reference(spec.name, task, seed, n_jobs, n_estimators)
 
 

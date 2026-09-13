@@ -52,6 +52,9 @@ REAL_DATASETS: Final = {
 }
 PROFILES: Final = {
     "full": {
+        "power_reps": 500,
+        "power_effects_classification": (0.05, 0.10, 0.20),
+        "power_effects_regression": (0.2, 0.4, 0.8),
         "null_reps": 2000,
         "null_n": (100, 200, 500),
         "null_k": (16, 64, 256),
@@ -62,6 +65,9 @@ PROFILES: Final = {
         "real_k": 256,
     },
     "quick": {
+        "power_reps": 100,
+        "power_effects_classification": (0.10, 0.20),
+        "power_effects_regression": (0.4, 0.8),
         "null_reps": 300,
         "null_n": (200,),
         "null_k": (16, 64),
@@ -72,6 +78,9 @@ PROFILES: Final = {
         "real_k": 64,
     },
     "smoke": {
+        "power_reps": 10,
+        "power_effects_classification": (0.20,),
+        "power_effects_regression": (0.8,),
         "null_reps": 20,
         "null_n": (100,),
         "null_k": (16,),
@@ -217,6 +226,72 @@ def null_calibration(profile: dict[str, Any], seed: int) -> pd.DataFrame:
                             f"  null {task[:3]} n={n} k={k} {test} {stopping or 'exhaustive'}: {rate:.4f}",
                             flush=True,
                         )
+    return pd.DataFrame(rows)
+
+
+def power_study(profile: dict[str, Any], seed: int) -> pd.DataFrame:
+    """Detection of a planted root split by the two constructions.
+
+    Five Gaussian predictors; the response depends on the first through a step at
+    zero: in classification P(y=1) = 1/2 + delta on one side and 1/2 - delta on the
+    other, in regression y = delta * 1[x_1 > 0] + noise. The same grid of sample
+    sizes and candidate counts as the null calibration. Recorded per cell: the
+    rate of any root split (power), the rate of a split on the planted predictor,
+    and the median absolute error of the chosen threshold.
+    """
+    rows = []
+    for task in ("classification", "regression"):
+        effects = profile[f"power_effects_{task}"]
+        for delta in effects:
+            for n in profile["null_n"]:
+                for k in profile["null_k"]:
+                    for test in TESTS:
+                        for stopping in STOPPING:
+                            rng = np.random.default_rng(seed)
+                            detected = correct = 0
+                            errors: list[float] = []
+                            start = time.perf_counter()
+                            for r in range(profile["power_reps"]):
+                                X = rng.normal(size=(n, 5))
+                                side = X[:, 0] > 0.0
+                                if task == "classification":
+                                    prob = np.where(side, 0.5 + delta, 0.5 - delta)
+                                    y = (rng.uniform(size=n) < prob).astype(np.int64)
+                                else:
+                                    y = delta * side.astype(float) + rng.normal(size=n)
+                                tree = _estimator(
+                                    task, test, stopping, k, seed + r, max_depth=1
+                                ).fit(X, y)
+                                node = tree.tree_
+                                if _split_made(node):
+                                    detected += 1
+                                    if int(node["feature"]) == 0:
+                                        correct += 1
+                                        errors.append(abs(float(node["threshold"])))
+                            reps = profile["power_reps"]
+                            rows.append(
+                                {
+                                    "study": "power",
+                                    "task": task,
+                                    "effect": delta,
+                                    "n": n,
+                                    "k": k,
+                                    "threshold_test": test,
+                                    "stopping": stopping or "exhaustive",
+                                    "replicates": reps,
+                                    "power": detected / reps,
+                                    "correct_feature_rate": correct / reps,
+                                    "threshold_abs_error_median": (
+                                        float(np.median(errors)) if errors else float("nan")
+                                    ),
+                                    "seconds_per_fit": (time.perf_counter() - start) / reps,
+                                }
+                            )
+                            print(
+                                f"power {task} delta={delta} n={n} k={k} {test} "
+                                f"{stopping or 'exhaustive'}: {detected / reps:.3f}",
+                                flush=True,
+                            )
     return pd.DataFrame(rows)
 
 
@@ -403,7 +478,7 @@ def main() -> None:
     parser.add_argument(
         "--studies",
         nargs="+",
-        choices=("calibration", "scaling", "real"),
+        choices=("calibration", "scaling", "real", "power"),
         default=("calibration", "scaling", "real"),
     )
     parser.add_argument(
@@ -422,6 +497,8 @@ def main() -> None:
     frames: dict[str, pd.DataFrame] = {}
     if "calibration" in studies:
         frames["null_calibration"] = null_calibration(profile, args.seed)
+    if "power" in studies:
+        frames["power"] = power_study(profile, args.seed)
     if "scaling" in studies:
         frames["synthetic_scaling"] = synthetic_scaling(profile, args.seed, args.fit_timeout)
     if "real" in studies:

@@ -168,6 +168,13 @@ scanning independent of early stopping (default behavior unchanged).
       `tests/paper/test_paper_package.py::     test_adaptive_stopping_summary_matches_reported_bounds`
       still encode the contaminated 6.1-717x figures and move with the
       manuscript rewrite.
+- [ ] CIT runtime ablation rerun (decoupled knobs, image sha256:5ffc09f5 at
+      d3c0edf) LAUNCHED 2026-09-13 03:35 UTC on i-03d106f052d33920c; variants
+      cit_default, no_adaptive, no_feature_scan, no_threshold_scan,
+      no_feature_mute, exact_thresholds, no_bonferroni; output under
+      `repairs/runtime-ablation-rerun/source-d3c0edf6…/cit_cif_runtime_ablation/`
+      (csv + `_summary.csv`). Replaces the coupled-knob CIT rows of the arXiv
+      runtime table (`cit_cif_runtime_ablation_summary.csv`).
 - [ ] Rewrite the arXiv runtime ablation rows and captions from the decoupled
       run: under `minimum` budgets the stopping row must be ~1x by the
       proposition's remark; whatever the coupled knob showed was scanning.

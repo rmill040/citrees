@@ -84,8 +84,6 @@ editing):
       the causal attribution to "the importance statistic" and the
       predictive-parity claim (predictions are logistic regression on selected
       columns).
-- [ ] Disclose the modified RDC statistic in JSS (max pairwise projected
-      correlation, not canonical correlation), matching the arXiv disclosure.
 - [ ] arXiv reproducibility: configuration table (selected selectors, honesty
       split, forest sizes, feature sampling, comparator grids).
 - [ ] arXiv rank/k consistency: report mean rank and ordinal position together;
@@ -149,9 +147,6 @@ runtime runs.
       `cif_mechanism_ablation.build_cif` shadows the shared helper's name.
 - [ ] Parameter tables triplicated (README, docs/parameters.md, AGENTS.md); keep
       docs/parameters.md as the source and shorten the others.
-- [ ] `paper/results/tables`: delete `cit_cif_runtime_ablation_summary.csv` and
-      `paper_h2h_maxt_fill_cells.csv` (superseded; manuscripts no longer cite
-      them) and update the tables README.
 - [ ] Promote the head-to-head timing protocol (`scratch/h2h/h2h_maxt.py`) into
       `paper/jss/replication` as a receipted component, or document it as a
       scratch protocol in the JSS replication README.

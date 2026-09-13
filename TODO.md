@@ -183,7 +183,12 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       `python -m paper.jss.replication.cloud status` with the same launch
       arguments; `materialize` into a new `paper/jss/results/` directory when
       complete. Replaces the JSS reference-condition table (single trees and
-      forests at 1,000 x 50, 999 permutations).
+      forests at 1,000 x 50, 999 permutations). Each instance runs one shard and
+      shuts down, so the campaign is topped up by re-running `cloud launch` with
+      the same arguments; the tool requires HEAD == the image's commit
+      (e78d84a), so run it from the detached worktree `/tmp/wt-e78d84a` with
+      `UV_PROJECT_ENVIRONMENT` pointing at the main `.venv` and
+      `uv run --no-sync`. First top-up 14:55 UTC (3 shards done, 8 launched).
 
 When all four land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose

@@ -340,7 +340,7 @@ features; the selected setting keeps Bonferroni correction.
 \subsection{Stage~B construction comparison}
 \label{sec:results-stageB}
 
-The complete-node false-split rate is below 0.05 for both Stage~B constructions in all 36 design cells, 72 measurements (\cref{tab:stageB-calibration}); the constructions differ in how far below. Under the per-threshold Bonferroni rule the rate falls as the bin setting grows, from 0.0145 at 16 bins to 0.0040 at 256 in classification with $n=500$ and exhaustive stopping, because adjacent thresholds induce nearly identical splits and the union bound charges for each. Under the max-type rule it stays between 0.025 and 0.038 in every cell and rises slightly with the bin setting, with cell means of 0.030, 0.032, and 0.032.
+The complete-node false-split rate is below 0.05 for both Stage~B constructions in all 36 design cells, 72 measurements pooled over five seeds (\cref{tab:stageB-calibration}); the constructions differ in how far below. Under the per-threshold Bonferroni rule the rate falls as the bin setting grows, from 0.0196 at 16 bins to 0.0070 at 256 in classification with $n=500$ and exhaustive stopping, because adjacent thresholds induce nearly identical splits and the union bound charges for each. Under the max-type rule it stays between 0.028 and 0.038 in every cell and rises slightly with the bin setting, with cell means of 0.032, 0.034, and 0.034.
 
 \begin{table}[H]
   \centering
@@ -351,46 +351,39 @@ The complete-node false-split rate is below 0.05 for both Stage~B constructions 
      & & & \multicolumn{2}{c}{Bonferroni} & \multicolumn{2}{c}{Max-type} \\
     \tablehead{Task} & $n$ & Bins & Adaptive & Exhaustive & Adaptive & Exhaustive \\
     \midrule
-    Classification & 100 & 16 & 0.0180 & 0.0185 & 0.0320 & 0.0350 \\
-     & 100 & 64 & 0.0130 & 0.0135 & 0.0355 & 0.0370 \\
-     & 100 & 256 & 0.0095 & 0.0075 & 0.0355 & 0.0375 \\
-     & 200 & 16 & 0.0150 & 0.0165 & 0.0280 & 0.0295 \\
-     & 200 & 64 & 0.0095 & 0.0100 & 0.0300 & 0.0300 \\
-     & 200 & 256 & 0.0070 & 0.0075 & 0.0300 & 0.0310 \\
-     & 500 & 16 & 0.0130 & 0.0145 & 0.0250 & 0.0255 \\
-     & 500 & 64 & 0.0105 & 0.0090 & 0.0275 & 0.0280 \\
-     & 500 & 256 & 0.0045 & 0.0040 & 0.0280 & 0.0295 \\
-    Regression & 100 & 16 & 0.0240 & 0.0285 & 0.0310 & 0.0340 \\
-     & 100 & 64 & 0.0195 & 0.0195 & 0.0345 & 0.0360 \\
-     & 100 & 256 & 0.0155 & 0.0160 & 0.0335 & 0.0370 \\
-     & 200 & 16 & 0.0285 & 0.0250 & 0.0285 & 0.0310 \\
-     & 200 & 64 & 0.0240 & 0.0235 & 0.0320 & 0.0335 \\
-     & 200 & 256 & 0.0110 & 0.0115 & 0.0305 & 0.0345 \\
-     & 500 & 16 & 0.0240 & 0.0250 & 0.0290 & 0.0295 \\
-     & 500 & 64 & 0.0195 & 0.0180 & 0.0265 & 0.0290 \\
-     & 500 & 256 & 0.0125 & 0.0120 & 0.0270 & 0.0295 \\
+    Classification & 100 & 16 & 0.0182 & 0.0183 & 0.0342 & 0.0352 \\
+     & 100 & 64 & 0.0127 & 0.0130 & 0.0353 & 0.0370 \\
+     & 100 & 256 & 0.0091 & 0.0096 & 0.0360 & 0.0384 \\
+     & 200 & 16 & 0.0200 & 0.0203 & 0.0326 & 0.0342 \\
+     & 200 & 64 & 0.0144 & 0.0147 & 0.0333 & 0.0344 \\
+     & 200 & 256 & 0.0086 & 0.0092 & 0.0329 & 0.0345 \\
+     & 500 & 16 & 0.0196 & 0.0196 & 0.0295 & 0.0314 \\
+     & 500 & 64 & 0.0142 & 0.0142 & 0.0322 & 0.0332 \\
+     & 500 & 256 & 0.0072 & 0.0070 & 0.0319 & 0.0339 \\
+    Regression & 100 & 16 & 0.0272 & 0.0269 & 0.0315 & 0.0328 \\
+     & 100 & 64 & 0.0174 & 0.0185 & 0.0337 & 0.0348 \\
+     & 100 & 256 & 0.0138 & 0.0145 & 0.0335 & 0.0347 \\
+     & 200 & 16 & 0.0282 & 0.0287 & 0.0323 & 0.0347 \\
+     & 200 & 64 & 0.0234 & 0.0237 & 0.0351 & 0.0368 \\
+     & 200 & 256 & 0.0124 & 0.0127 & 0.0356 & 0.0380 \\
+     & 500 & 16 & 0.0262 & 0.0264 & 0.0286 & 0.0295 \\
+     & 500 & 64 & 0.0198 & 0.0202 & 0.0288 & 0.0311 \\
+     & 500 & 256 & 0.0106 & 0.0108 & 0.0285 & 0.0315 \\
     \bottomrule
   \end{tabular}
   \caption{False-split rate of a depth-one tree under the global null at level
-  0.05, by Stage~B construction and stopping mode, over 2,000 replicates per
-  cell with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Wald confidence interval lies below 0.05; the widest half-width is below 0.009.}
+  0.05, by Stage~B construction and stopping mode, over 10,000 replicates per
+  cell (five seeds of 2,000) with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Clopper--Pearson interval lies below 0.05 (largest upper limit 0.042); the widest half-width is below 0.004.}
   \label{tab:stageB-calibration}
 \end{table}
 
 The cost difference is where the constructions separate
 (\cref{tab:stageB-scaling}, \cref{app:stageB-tables}). With exhaustive stopping, one tree at the 256-bin
-setting takes 60 seconds at $n=1{,}000$ and 426 to 486 seconds at
-$n=4{,}000$ under the Bonferroni rule and exceeds the 900-second cap at
-$n=16{,}000$; the max-type rule takes 0.5, 1.5 to 1.6, and 6.2 to 6.7 seconds
-at the same settings. The exhaustive ratio grows with the bin setting, from 2.0--6.4 at 16 bins to 14--49 at 64 and 119--318 at 256, faster than the linear growth in $K$ that the $K^2/\alpha$ against $BK$ accounting alone predicts. With adaptive stopping the Bonferroni rule dismisses most candidates after a few dozen permutations and the ratio is 1.6--4.7 at 16 bins, 3.2--16 at 64, and 5.9--84 at 256. The rules also
-grow different trees on these data: with adaptive stopping the max-type trees
-are deeper (5.3--11.0 levels against 4.0--10.0), and with exhaustive stopping
-the Bonferroni trees are deeper (6.7--18.3 against 5.0--10.3). The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores are the measure of which trees predict better.
+setting takes 5.7 seconds at $n=1{,}000$, 14 seconds at $n=4{,}000$, and 60 seconds at $n=16{,}000$ under the Bonferroni rule in classification (1.1, 8.3, and 51 seconds in regression); the max-type rule takes 0.5, 1.6, and 6.5 seconds at the same settings. The ratio grows with the bin setting as the $K^2/\alpha$ against $BK$ accounting predicts: the two rules cost the same at 16 bins, the exhaustive ratio is 1.2--1.9 at 64 and 2.0--11 at 256. Adaptive stopping shortens the Bonferroni test once its budget exceeds the $\lceil 1/\alpha \rceil$ floor, by 1.3--3.0$\times$ at 64 bins and 2.3--6.9$\times$ at 256, so with adaptive stopping the max-type advantage is 1.0--1.8 at 64 bins and 1.3--6.4 at 256. Depth barely separates the rules on these data: over the grid the max-type trees have 5.0--11.0 levels and the Bonferroni trees 4.0--10.0 under either stopping mode. The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores are the measure of which trees predict better.
 
-On the six real datasets (\cref{tab:stageB-real}, \cref{app:stageB-tables}) the max-type rule gave
-held-out scores at least as high as the Bonferroni rule in 10 of the 12
-dataset and stopping-mode cells, by 0.002 to 0.10 with exhaustive stopping and
-by 0.005 to 0.031 with adaptive stopping; the exceptions are page-blocks with adaptive stopping, lower by 0.002, and facebook with exhaustive stopping, where the response has a median of 123.5 and a maximum of 6,334, so a single extreme held-out observation can decide a fold's $R^2$ under either rule. Its fitting time was 0.9 to 30 times shorter with adaptive stopping and 1.5 to 155 times shorter with exhaustive stopping. The Spearman agreement of the two rules' feature importances ranges from 0.40 to 0.95, so the max-type rule produces a different ranking rather than a faster route to the same one. In the head-to-head forest timing on the recommended configuration, with both rules refit in one run, the max-type rule is 4.5--15$\times$ faster than the per-threshold rule on synthetic Gaussian predictors at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$; on the eight real datasets it reduces madelon from 21 to 4.8 seconds, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds, and changes the other five by less than one second; in the separate run, isolet fits in 14 seconds against 20 and gisette in 35 against 34.
+On the six real datasets (\cref{tab:stageB-real}, \cref{app:stageB-tables}), with scores taken as the median over five seeds of the fold assignment, the max-type rule matched or exceeded the Bonferroni rule in 8 of the 12 dataset and stopping-mode cells: by 0.022 and 0.026 on vowel, 0.069 and 0.026 on facebook, 0.061 and 0.033 on imports-85, and 0.008 and 0.004 on residential; on page-blocks and spam it was lower by at most 0.004. Its fitting time was 0.9 to 2.3 times shorter with adaptive stopping and 0.9 to 4.8 times shorter with exhaustive stopping, the largest savings on the two datasets with the most continuous predictors per node. The Spearman agreement of the two rules' feature importances ranges from 0.30 to 0.91, so the max-type rule produces a different ranking rather than a faster route to the same one. In the head-to-head forest timing on the recommended configuration, with both rules refit in one run on the same hosts, the max-type rule is 2.9--12$\times$ faster than the per-threshold rule on synthetic Gaussian predictors at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$ and 20--32$\times$ faster at $n=32{,}000$; on the ten real datasets it reduces madelon from 24 to 4.8 seconds, gamma from 45 to 22 seconds, and isolet from 19 to 11 seconds, and changes the other seven by at most 2 seconds.
+
+The power study (\cref{tab:stageB-power}, \cref{app:stageB-tables}) plants a step in one of five Gaussian predictors and records how often a depth-one tree splits at all and how often on the planted predictor. The max-type rule has higher power than the Bonferroni rule in every cell short of saturation, by 0.03 on average and up to 0.12, and the gap grows with the candidate count: 0.015 at 16 bins, 0.029 at 64, and 0.049 at 256, because the max-type power is flat in the bin setting while the Bonferroni power falls as the adjustment tightens. Adaptive and exhaustive stopping agree within 0.014. The cost of the joint test is precision: the max-type threshold sits a median 0.19 standard deviations from the planted cut against 0.15 for the Bonferroni rule, and 87 rather than 90 percent of its detections fall on the planted predictor. The max-type rule is therefore calibrated, cheaper on continuous predictors, and more powerful at the node, with a small loss in the location of the chosen threshold.
 
 Rerunning the four CIT and four CIF configurations under the max-type rule on the full ranking benchmark answers what the rule does to the rankings (\cref{tab:maxt-benchmark-rankings}). Of the 1,792 Stage~A cells, 1,785 completed; the seven that did not are CIF with the RDC selector and honesty off on isolet, gisette, and letter, which terminate the compute host in the same way as the RDC exclusions of the per-threshold benchmark (\cref{app:methods}); their sibling seeds and honesty-on twins completed, so on letter the max-type CIF score averages the three seeds that completed. Selecting one configuration per family and ranking on the complete-case panels exactly as in \cref{sec:experiments-real}, the max-type forest moves from position 3.5 to 5 of 17 in classification (mean rank 5.86 to 6.31) and from 2 to 4 of 18 in regression (6.25 to 7.50), and the max-type tree keeps its position in both tasks (16 of 17 and 14 of 18). Paired on the cells both rules completed, the per-threshold rule scores higher by 0.0014 (CIF) and 0.0022 (CIT) balanced accuracy in classification and by 0.0001 (CIF) and 0.0085 (CIT) $R^2$ in regression, and is the higher of the two on 59 to 63 percent of datasets. The max-type rule is therefore a cost and calibration choice, not a ranking gain: it changes which features the trees rank, as the importance agreement above shows, without changing how the rankings perform downstream.
 

@@ -261,6 +261,13 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       the floor), to pair with the inert minimum-budget row in the arXiv runtime
       section.
 
+- [ ] Single-worker CIF variants (`cif_n_jobs1`, `cif_n_jobs1_no_adaptive`,
+      added in 24c66ac; image sha256:fc3e057f) launched 2026-09-13 ~20:00 UTC as
+      4 shards on the smaller datasets (Name citrees-cif-njobs1; shards 2-5 of
+      the CIT plan, waveform and california skipped), outputs
+      `repairs/runtime-ablation-rerun/source-24c66ac…/cit_cif_runtime_ablation/     cif_njobs1_shard{i}_raw.csv`.
+      Exposes the per-tree adaptive cost that a 32-worker forest hides.
+
 When all five land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose
 "stops each predictor's test as soon as the evidence is decisive" is wrong under

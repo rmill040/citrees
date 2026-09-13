@@ -21,6 +21,9 @@ paper/results/tables/*
 !paper/results/tables/paper_mirrored_knob_ablation_summary.csv
 !paper/results/tables/paper_threshold_ablation_summary.csv
 !paper/results/tables/paper_h2h_maxt_fill_cells.csv
+!paper/results/tables/paper_maxt_extension_method_aggregate.csv
+!paper/results/tables/paper_maxt_extension_pairwise.csv
+!paper/results/tables/paper_maxt_extension_swap_aggregate.csv
 paper/arxiv/figures/boundary_story.png
 paper/arxiv/figures/fixed_panel_story.png
 

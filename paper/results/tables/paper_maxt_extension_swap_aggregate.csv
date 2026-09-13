@@ -1,0 +1,36 @@
+task,metric,method_base,display_name,method_id,n_datasets,mean_dataset_cells,mean_rank,median_rank,mean_score,support_type,rank_position
+classification,balanced_accuracy,rfe,RF-RFE,rfe__f0ef53dcc6eb8440,21,11.714285714285714,4.285714285714286,2.0,0.8374841994089066,maxt_replaces_bonferroni_counterparts,1.0
+classification,balanced_accuracy,xgb,XGBoost,xgb__1c62fadfc5e2988f,21,11.714285714285714,5.738095238095238,4.5,0.8279401425933367,maxt_replaces_bonferroni_counterparts,2.0
+classification,balanced_accuracy,rf,RF,rf__27caa3a0a3b84fd9,21,11.714285714285714,5.785714285714286,5.0,0.8234799144336349,maxt_replaces_bonferroni_counterparts,3.0
+classification,balanced_accuracy,lgbm,LightGBM,lgbm__71ba9ba402678146,21,11.714285714285714,5.976190476190476,4.5,0.829019361160102,maxt_replaces_bonferroni_counterparts,4.0
+classification,balanced_accuracy,cif_maxt,CIF (max-type),cif_maxt__19b65c92023416b0,21,11.714285714285714,6.309523809523809,6.0,0.8202236762286338,maxt_replaces_bonferroni_counterparts,5.0
+classification,balanced_accuracy,boruta,Boruta,boruta__7f986516a1727870,21,11.714285714285714,6.571428571428571,7.0,0.816038463455532,maxt_replaces_bonferroni_counterparts,6.0
+classification,balanced_accuracy,cat,CatBoost,cat__024a0842d4337711,21,11.714285714285714,6.738095238095238,7.0,0.8217115193508929,maxt_replaces_bonferroni_counterparts,7.0
+classification,balanced_accuracy,et,ExtraTrees,et__f5580a1865f967c8,21,11.714285714285714,7.190476190476191,8.0,0.8165447143096513,maxt_replaces_bonferroni_counterparts,8.0
+classification,balanced_accuracy,r_cforest,cforest,r_cforest__37be32340835a93b,21,11.714285714285714,8.285714285714286,7.0,0.8117362169134642,maxt_replaces_bonferroni_counterparts,9.0
+classification,balanced_accuracy,dt,DT,dt__99914b932bd37a50,21,11.714285714285714,8.666666666666666,9.0,0.7987579225878053,maxt_replaces_bonferroni_counterparts,10.0
+classification,balanced_accuracy,ptest_rdc,RDC filter,ptest_rdc__307d6fc3284c28e2,21,11.714285714285714,11.19047619047619,12.0,0.7940196856681425,maxt_replaces_bonferroni_counterparts,11.0
+classification,balanced_accuracy,pi,PI,pi__6e89acc5e72da5a8,21,11.714285714285714,11.642857142857142,14.0,0.7454687139616807,maxt_replaces_bonferroni_counterparts,12.0
+classification,balanced_accuracy,ptest_mc,MC filter,ptest_mc__307d6fc3284c28e2,21,11.714285714285714,11.80952380952381,12.0,0.7778221388899954,maxt_replaces_bonferroni_counterparts,13.0
+classification,balanced_accuracy,rt,RT,rt__99914b932bd37a50,21,11.714285714285714,12.761904761904763,14.0,0.7803152221182462,maxt_replaces_bonferroni_counterparts,14.0
+classification,balanced_accuracy,r_ctree,ctree,r_ctree__b6e09ceb0eb26367,21,11.714285714285714,12.904761904761905,14.0,0.7845048347851756,maxt_replaces_bonferroni_counterparts,15.0
+classification,balanced_accuracy,cit_maxt,CIT (max-type),cit_maxt__a12ca44bd3b4f742,21,11.714285714285714,13.0,13.0,0.786590410585567,maxt_replaces_bonferroni_counterparts,16.0
+classification,balanced_accuracy,cpi,CPI,cpi__6e89acc5e72da5a8,21,11.714285714285714,14.142857142857142,17.0,0.6944432725725527,maxt_replaces_bonferroni_counterparts,17.0
+regression,r2,et,ExtraTrees,et__f09eb85fc7f75870,8,13.5,5.0,3.5,0.35328782801914826,maxt_replaces_bonferroni_counterparts,1.0
+regression,r2,cat,CatBoost,cat__024a0842d4337711,8,13.5,6.625,7.0,0.30435084938307666,maxt_replaces_bonferroni_counterparts,2.0
+regression,r2,rfe,RF-RFE,rfe__f0ef53dcc6eb8440,8,13.5,6.875,5.5,0.3821705408829191,maxt_replaces_bonferroni_counterparts,3.0
+regression,r2,cif_maxt,CIF (max-type),cif_maxt__f5bb611437935b7a,8,13.5,7.5,6.5,0.32332861103675925,maxt_replaces_bonferroni_counterparts,4.0
+regression,r2,rf,RF,rf__aed17443e3db937d,8,13.5,7.75,6.5,0.32680784724747375,maxt_replaces_bonferroni_counterparts,5.0
+regression,r2,rt,RT,rt__99914b932bd37a50,8,13.5,8.0,8.5,0.330099277246818,maxt_replaces_bonferroni_counterparts,6.0
+regression,r2,r_cforest,cforest,r_cforest__5c2653de657569d8,8,13.5,8.625,7.0,0.30226693171473695,maxt_replaces_bonferroni_counterparts,7.0
+regression,r2,dt,DT,dt__99914b932bd37a50,8,13.5,9.25,9.0,0.22475414663390797,maxt_replaces_bonferroni_counterparts,8.0
+regression,r2,ptest_pc,PC filter,ptest_pc__307d6fc3284c28e2,8,13.5,9.625,11.0,0.20705644279263066,maxt_replaces_bonferroni_counterparts,9.0
+regression,r2,boruta,Boruta,boruta__7f986516a1727870,8,13.5,9.75,9.5,0.22059190209682222,maxt_replaces_bonferroni_counterparts,10.0
+regression,r2,lgbm,LightGBM,lgbm__71ba9ba402678146,8,13.5,10.125,11.5,-0.028198859150671718,maxt_replaces_bonferroni_counterparts,11.5
+regression,r2,xgb,XGBoost,xgb__c2661145d45caaf6,8,13.5,10.125,10.0,0.2696716563020971,maxt_replaces_bonferroni_counterparts,11.5
+regression,r2,ptest_rdc,RDC filter,ptest_rdc__307d6fc3284c28e2,8,13.5,10.75,12.5,0.07134161075842858,maxt_replaces_bonferroni_counterparts,13.0
+regression,r2,cit_maxt,CIT (max-type),cit_maxt__6b6c19f731529961,8,13.5,10.875,12.0,0.0809805303854716,maxt_replaces_bonferroni_counterparts,14.0
+regression,r2,r_ctree,ctree,r_ctree__b6e09ceb0eb26367,8,13.5,11.25,12.0,0.16676491257843368,maxt_replaces_bonferroni_counterparts,15.0
+regression,r2,pi,PI,pi__6e89acc5e72da5a8,8,13.5,11.75,11.5,0.11162836088566802,maxt_replaces_bonferroni_counterparts,16.0
+regression,r2,ptest_dc,DC filter,ptest_dc__307d6fc3284c28e2,8,13.5,12.25,14.5,0.1258735933780865,maxt_replaces_bonferroni_counterparts,17.0
+regression,r2,cpi,CPI,cpi__6e89acc5e72da5a8,8,13.5,14.875,17.5,-0.2921979771138804,maxt_replaces_bonferroni_counterparts,18.0

@@ -272,9 +272,19 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       `repairs/runtime-ablation-rerun/source-24c66ac…/cit_cif_runtime_ablation/     cif_njobs1_shard{i}_raw.csv`.
       Exposes the per-tree adaptive cost that a 32-worker forest hides.
 
-- [ ] Stage B scaling + real-subset studies at seeds 1-4 (threshold-test study,
-      `--studies scaling real`), launched 2026-09-13 ~20:35 UTC on four boxes
-      (Name citrees-threshold-test-scaling-real-seed{N}), template
+- [x] Stage B scaling + real-subset studies at seeds 1-4 DONE 2026-09-13 21:30
+      UTC: pooled with seed 0 in
+      `paper/results/tables/     paper_threshold_test_scaling_real_5seeds.csv`
+      (5-seed medians and ranges; no censored cell at the 1,200 s cap).
+      Bonferroni/max-type time ratio at 256 bins: 1.3-6.4 adaptive, 2.0-11.1
+      exhaustive (16 bins ~1). Real subset, max-type minus Bonferroni score
+      (5-seed median): vowel +0.022/+0.026, facebook +0.069/+0.026, imports-85
+      +0.061/+0.033, residential +0.008/+0.004, page-blocks -0.001/0.000, spam
+      -0.004/-0.001, so max-type is at least as good in 8 of 12 cells (was "10
+      of 12" on one seed) with the four exceptions within 0.004. Use these in
+      the Stage B rewrite. (Launched as `--studies scaling real`), launched
+      2026-09-13 ~20:35 UTC on four boxes (Name
+      citrees-threshold-test-scaling-real-seed{N}), template
       `h2h-e78d84a/threshold_test_scaling_real_seedN.sh`, outputs
       `repairs/h2h-rerun/source-e78d84a4…/threshold-test-scaling-real-seed{N}/`.
       With seed 0 this gives 5 seeds x 3 fits per scaling cell and 5 x 5 folds

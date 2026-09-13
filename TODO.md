@@ -268,6 +268,14 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       `repairs/runtime-ablation-rerun/source-24c66ac…/cit_cif_runtime_ablation/     cif_njobs1_shard{i}_raw.csv`.
       Exposes the per-tree adaptive cost that a 32-worker forest hides.
 
+- [ ] Stage B scaling + real-subset studies at seeds 1-4 (threshold-test study,
+      `--studies scaling real`), launched 2026-09-13 ~20:35 UTC on four boxes
+      (Name citrees-threshold-test-scaling-real-seed{N}), template
+      `h2h-e78d84a/threshold_test_scaling_real_seedN.sh`, outputs
+      `repairs/h2h-rerun/source-e78d84a4…/threshold-test-scaling-real-seed{N}/`.
+      With seed 0 this gives 5 seeds x 3 fits per scaling cell and 5 x 5 folds
+      per real cell, so the rewritten Stage B tables carry intervals.
+
 When all five land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose
 "stops each predictor's test as soon as the evidence is decisive" is wrong under

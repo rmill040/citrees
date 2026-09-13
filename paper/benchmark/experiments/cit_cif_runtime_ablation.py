@@ -141,6 +141,27 @@ CIT_VARIANTS: tuple[VariantSpec, ...] = (
         "CIT without Bonferroni correction",
         changes_statistical_rule=True,
     ),
+    # Under the `minimum` budget the adaptive rule cannot stop before the budget
+    # (the floor equals the budget). The two `auto` variants measure the rule where
+    # it can stop: the same tree with the larger constructor budget, with and
+    # without adaptive stopping.
+    VariantSpec(
+        "cit_auto_budget",
+        "cit",
+        {"n_resamples_selector": "auto", "n_resamples_splitter": "auto"},
+        "CIT with the auto permutation budget and adaptive stopping",
+    ),
+    VariantSpec(
+        "cit_auto_budget_no_adaptive",
+        "cit",
+        {
+            "n_resamples_selector": "auto",
+            "n_resamples_splitter": "auto",
+            "early_stopping_selector": None,
+            "early_stopping_splitter": None,
+        },
+        "CIT with the auto permutation budget and full permutation tests",
+    ),
 )
 
 CIF_VARIANTS: tuple[VariantSpec, ...] = (

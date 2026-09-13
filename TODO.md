@@ -116,11 +116,11 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       the JSONL under `repairs/h2h-maxt/source-d3c0edf6…/`. Promoting the
       protocol into `paper/jss/replication` as a receipted component remains
       open.
-- [ ] After the extension campaign lands: aggregate `cit_maxt`/`cif_maxt`
-      through the benchmark analysis (display names in `paper/analysis/*.py`
-      currently know only `cit`/`cif`), add a max-type ranking subsection to the
-      arXiv results, cite it from JSS, and delete the "effect on rankings is
-      unmeasured" sentence from both papers.
+- [x] Max-type rankings analysed and written up 2026-09-13
+      (`paper/analysis/     build_maxt_extension_tables.py`; tables
+      `paper_maxt_extension_*.csv`; arXiv Table `tab:maxt-benchmark-rankings`,
+      discussion, abstract; JSS threshold-test section cites the companion
+      article). The "unmeasured" sentence is gone from both papers.
 
 ## Deferred migrations
 

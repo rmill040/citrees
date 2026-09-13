@@ -242,10 +242,20 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       With seed 0 from the full run this gives 5 x 2,000 replications per cell
       and closes the JSS "one seed at present" caveat.
 
-- [ ] CIT auto-budget variants (`cit_auto_budget`,
-      `cit_auto_budget_no_adaptive`, added in a653a03; image sha256:5b581546)
-      launched 2026-09-13 ~18:25 UTC as 6 shards (Name citrees-cit-autobudget),
-      outputs
+- [x] CIT auto-budget variants DONE 2026-09-13 19:05 UTC (345 fits, 23 datasets;
+      `paper/results/tables/cit_autobudget_ablation_summary.csv`, raw in
+      `../data/ablation/cit_autobudget_ablation_raw.csv`). At the `auto` budget
+      adaptive stopping cuts fitting time to 0.15 (clf) / 0.16 (reg) of the
+      exhaustive test (range 0.07-0.90); the auto-budget adaptive tree costs
+      1.21 / 1.13 of the minimum-budget default (0.62-1.99) while the exhaustive
+      auto-budget tree costs 7.8 / 6.9 (0.78-12.4); precision@10 changes by
+      +0.001 on average (range -0.06 to +0.04). Default fitting times reproduce
+      the d6c0696 run within 2 percent per dataset (ratio 0.98-1.05). Story:
+      under `minimum` the rule is inert (proposition remark); under `auto` it
+      recovers most of the larger budget's cost at no ranking cost. (Variants
+      `cit_auto_budget`, `cit_auto_budget_no_adaptive`, added in a653a03; image
+      sha256:5b581546) launched 2026-09-13 ~18:25 UTC as 6 shards (Name
+      citrees-cit-autobudget), outputs
       `repairs/runtime-ablation-rerun/source-a653a03c…/cit_cif_runtime_ablation/     cit_autobudget_shard{i}_raw.csv`.
       Measures adaptive stopping where the rule can stop (auto budget exceeds
       the floor), to pair with the inert minimum-budget row in the arXiv runtime

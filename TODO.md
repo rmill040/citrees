@@ -211,19 +211,18 @@ scanning independent of early stopping (default behavior unchanged).
       unchanged (one chunk when the budget equals the floor). Laptop check
       (1,000 x 20, minimum budgets): adaptive 8.8 s -> 3.2 s vs 2.5 s
       exhaustive; the selector test is at parity.
-- [ ] CIT runtime ablation RERUN from d6c0696 (image sha256:8dba68ec…) LAUNCHED
-      2026-09-13 ~09:25 local as 6 dataset shards on c6a.8xlarge
-      (i-06eb78b7a80fac996 shard0 waveform, i-04908526dbcd69d16 shard1
-      california, i-07d03e77fc87eed13 shard2, i-00141b4be0bc3852b shard3,
-      i-0249464b9265c4b9c shard4, i-090d52107fa8a8dc8 shard5); role policy
-      extended to prefix `repairs/runtime-ablation-rerun/source-d6c0696f…/`;
-      outputs `cit_cif_runtime_ablation/cit_runtime_shard{i}_raw.csv`. User-data
-      in `scratch/rerun-2026-09-11/cit-d6c0696/`. When done: concatenate,
-      `summarize`, replace `cit_runtime_ablation_decoupled_summary.csv`, and the
-      adaptive row should sit near 1x. The d3c0edf run stays as the pre-fix
-      measurement. The CIF mirrored-knob numbers (0.93x) predate the fix but are
-      unaffected in mechanism (forest threads saturate the cores); rerun only if
-      the paper claims a CIF adaptive ratio to two decimals.
+- [x] CIT runtime ablation RERUN from d6c0696 (image sha256:8dba68ec…) COMPLETE
+      2026-09-13 13:51 UTC: 6 shards, 805 fits, 23 datasets, ~12 min wall-clock
+      per shard (the pre-fix run took ~4 h). Raw
+      `../data/ablation/cit_runtime_ablation_decoupled_raw.csv` (pre-fix raw
+      kept as `cit_cif_runtime_ablation_rerun_raw.csv`); summary
+      `paper/results/tables/cit_runtime_ablation_decoupled_summary.csv`. Median
+      ratios vs cit_default (clf / reg): no_adaptive 0.95 / 0.88 (range
+      0.73-1.00), no_feature_scan 1.53 / 0.94, no_threshold_scan 9.9 / 11.3
+      (1.0-57), exact_thresholds 1.02 / 0.96, no_feature_mute 0.99 / 0.97,
+      no_bonferroni 0.63 / 1.68. Default CIT fits are 6-14x faster than before
+      the fix (e.g. madelon 96 s -> 15 s, waveform 33 s -> 2.4 s). This is the
+      table the arXiv runtime rows are rewritten from.
 - [ ] Rewrite the arXiv runtime ablation rows and captions from the decoupled
       run: under `minimum` budgets the stopping row must be ~1x by the
       proposition's remark; whatever the coupled knob showed was scanning.

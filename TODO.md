@@ -138,6 +138,19 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       cell-count equality check. The aliases exist because adding a key to the
       shared grid rehashes every completed CIT/CIF identity.
 
+## Censored-cell diagnosis (2026-09-13)
+
+- [ ] AMD-vs-Intel repro of a censored cell launched ~10:45 UTC: isolet,
+      `cif_maxt__19b65c92…` (rdc, honesty off, 100 trees, n_jobs=-1), image
+      sha256:5ffc09f5, on c6a.8xlarge i-0a17494c2f13820ed (AMD EPYC) and
+      c6i.8xlarge i-00aa9c8e4dfb9db8e (Intel). Each uploads exit_code.txt
+      (docker exit + OOMKilled flag), dmesg.txt, free.txt, lscpu.txt, and the
+      cell stdout/stderr to
+      `repairs/runtime-ablation-rerun/source-d3c0edf6…/     amd-diagnostic/<instance type>/`.
+      Hypothesis (author): the seven censored cells are AMD-specific faults in
+      compiled kernels, not memory. Decide the exclusion wording in both papers
+      from the outcome.
+
 ## Adaptive stopping theory and scanning decoupling (2026-09-12)
 
 Done in c0c69f4: `paper/theory/adaptive_stopping_size.py` plus test; the arXiv

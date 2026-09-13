@@ -282,6 +282,95 @@ performance tables and prose, then rerun the pinned-bounds test. The JSS prose
 `minimum` budgets (the rule cannot stop before the floor) and is rewritten with
 the tables.
 
+## Cleanup and reference release (inventory 2026-09-13)
+
+Survey of the repository, local data, and all four S3 buckets. Safe fixes were
+applied in the hygiene commit of 2026-09-13 (docs, changelog, orphan fixture,
+stale ignore path, account ID). Everything below deletes or moves data and waits
+for the author's yes.
+
+Local (`../data`):
+
+- [ ] Delete `../data/merged-v2` (2.0 GB, referenced nowhere).
+- [ ] Delete the 14 March-2026 ablation CSVs in `../data/ablation` that no
+      manuscript or analysis references (alpha_sweep, bootstrap_vs_subsampling,
+      max_t_selector, n_estimators_sweep, noise_robustness,
+      optimization_ablation, power_analysis, r_baselines_real,
+      r_baselines_synthetic, real_dataset_ablation, resamples_and_honesty,
+      sample_size_curves, scaling_curves, strictness_continuum); keep
+      mirrored_knob_ablation, threshold_search_ablation, the CIT runtime raws,
+      and the partials.
+- [ ] `../data/rankings`, `metrics`, `data` (400 MB): the local mirror of the
+      canonical benchmark; keep, and record which S3 campaign it mirrors.
+- [ ] `scratch/personal-data-backup` (22 MB, two content-addressed blobs):
+      identify and delete or move out of the repo tree.
+- [ ] `scratch/maxt-campaign` (59 MB attempt files): keep until the alias
+      fold-back migration; then delete.
+
+S3, account 856480643277 (the working bucket):
+
+- [ ] `debug/` 3.6 GB: delete `sde-delivery` (1.5 GB), `supervisor` (1.0 GB),
+      `local-archive` (0.4 GB), `nhanes-timing` (0.3 GB),
+      `forest-timing-matrix`, `head-to-head`, `rdc-bench`,
+      `amd-sync-flood-repro`; keep `maxt-timing/out/c3d9550/threshold-test-full`
+      (the pre-fix Stage B run) by copying it to `reference/superseded/`.
+- [ ] `repairs/benchmark-rerun`: 21 campaigns under 10 source SHAs (1.0 GB);
+      only `source-05ee3cd7…/campaign-d805868f…` is canonical. Delete the other
+      20 after the reference copy exists.
+- [ ] Delete `repairs/corrected-stage1-*`, `repairs/sev2-*`,
+      `repairs/stage2-spot-gate`, `repairs/r-cforest-launch-smoke`,
+      `repairs/h2h-maxt` (superseded by h2h-rerun), and
+      `repairs/runtime-ablation-rerun/source-d3c0edf6…` (pre-fix timings) once
+      the manuscripts no longer cite them.
+- [ ] `jss/replication`: keep `source-e78d84a4…` (the post-fix performance
+      campaign) and `combined/`; delete `dgrp/` (dropped application) and the
+      four pre-fix campaign sources after the reference copy exists.
+
+S3, other accounts:
+
+- [ ] `citrees-891377167619` (allen, 1.8 GB) and `citrees-619322353947` (team,
+      2.2 GB): the pre-rename benchmark layout (`bootstrap_method` hashes).
+      Delete after confirming the canonical campaign above reproduces every cell
+      they hold.
+- [ ] `citrees-837116549485` (personal, 23 GB): `delivery/` 6.7 GB, `backups/`
+      3.6 GB, `snapshots/` 0.8 GB and many adhoc prefixes. Author decides;
+      nothing in the manuscripts references this bucket.
+
+Reference layout for researchers (proposed; copy, never move, after the running
+campaigns finish):
+
+```
+s3://<bucket>/reference/v3/
+  README.md                      what each prefix is, how to cite, hashes
+  datasets/                      the 47 parquet files, content-addressed
+  benchmark/rankings/ metrics/   canonical campaign d805868f (Bonferroni)
+  benchmark/maxt-extension/      campaigns 40f9761d + b0144d26 (cit_maxt, cif_maxt)
+  benchmark/manifests/           canonical manifest, runtime contract, gate receipts
+  ablations/                     runtime (CIT, CIF knobs, auto-budget, single-worker),
+                                 threshold search, head-to-head, threshold-test
+                                 study + calibration seeds, each with receipt/stdout
+  jss/performance-full/          materialized JSS performance campaign
+  locked_cells.csv               the 28 host-fault cells
+  superseded/                    pre-fix runs kept for the record
+```
+
+Code (from the survey; small, do after the reruns land):
+
+- [ ] Fourteen `paper/analysis` builders and
+      `paper/data_generation/     generate_synthetic_datasets.py` are referenced
+      by nothing; add a `paper/analysis/README.md` mapping each to the figure or
+      table it produces, and delete any whose output is no longer in a
+      manuscript.
+- [ ] `tools/hooks/check_no_aws_configs.py` guards a path that no longer exists;
+      point it at `paper/benchmark/infra/config.yaml` or drop it.
+- [ ] `_split_csv` duplicated in two experiment modules;
+      `cif_mechanism_ablation     .build_cif` shadows the shared helper's name.
+- [ ] Parameter tables are triplicated (README, docs/parameters.md, AGENTS.md);
+      keep docs/parameters.md as the source and shorten the others.
+- [ ] `paper/results/tables`: delete `cit_cif_runtime_ablation_summary.csv` and
+      `paper_h2h_maxt_fill_cells.csv` once the manuscripts are rewritten from
+      their replacements.
+
 ## Adaptive stopping theory and scanning decoupling (2026-09-12)
 
 Done in c0c69f4: `paper/theory/adaptive_stopping_size.py` plus test; the arXiv

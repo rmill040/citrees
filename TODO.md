@@ -5,6 +5,10 @@ completion is verified. History lives in git.
 
 ## Standing decisions
 
+- EVERY EC2 launch targets the loaner droplets (`--target-droplets`, at most six
+  instances per droplet). Never launch untargeted on-demand or spot instances,
+  for anything. The JSS cloud tool is spot-only and is not used until it targets
+  droplets. Reboot risk is covered by per-dataset checkpoints.
 - Timing numbers in either paper come only from c6a.8xlarge runs inside the
   pinned container; laptop times never enter a manuscript.
 - Timing and performance work uses the linear selectors (`mc`, `pc`) only. The

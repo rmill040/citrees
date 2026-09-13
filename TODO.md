@@ -44,9 +44,16 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       (`DATA_DIR/<experiment>.partials/`) and resume from S3 on relaunch; the
       templates take `__IMG__` and `__SHA__`. The two boxes running now predate
       that commit; any relaunch must use an image built from bc78401 or later.
-- [ ] Max-type ranking extension campaign RUNNING since 2026-09-11 ~20:20 UTC.
-      Image sha256:5609d400 (c9855d0); runtime contract 79153d56…; manifest
-      7a466b00…; campaign 40f9761d…; GO receipt 66e1b1b9…; artifact prefix
+- [ ] Max-type ranking extension campaign: STAGE 1 COMPLETE 2026-09-13 00:10 UTC
+      (27.8 h): 1,785 of 1,792 ranking cells; 7 censored after three attempts,
+      all cif_maxt with the rdc selector and honesty off (label 19b65c92…):
+      gisette seed 3, isolet seeds 0, 1, 3, 4, letter seeds 2, 3. These join the
+      operational exclusions. Rankings API i-05048dcdb225d67cf terminated; Stage
+      2 (metrics) launching with launch ids maxt-ext-api-002 /
+      maxt-ext-workers-1xx. Original launch record follows. RUNNING since
+      2026-09-11 ~20:20 UTC. Image sha256:5609d400 (c9855d0); runtime contract
+      79153d56…; manifest 7a466b00…; campaign 40f9761d…; GO receipt 66e1b1b9…;
+      artifact prefix
       `repairs/maxt-extension/source-c9855d09…/campaign-40f9761d…`. API
       i-05048dcdb225d67cf (http://32.197.212.208:8000/status). Workers: launch
       maxt-ext-workers-001 (4 on droplet 29.81.7.184; the other droplets had no

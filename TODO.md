@@ -190,7 +190,20 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       `UV_PROJECT_ENVIRONMENT` pointing at the main `.venv` and
       `uv run --no-sync`. First top-up 14:55 UTC (3 shards done, 8 launched).
 
-When all four land: rewrite the arXiv runtime rows/abstract figures and the JSS
+- [ ] JSS threshold-test study (Bonferroni vs max-type: null calibration,
+      synthetic scaling, real subset; full profile) on i-0aa208ad043c45c1c since
+      ~16:35 UTC, template
+      `scratch/rerun-2026-09-11/h2h-e78d84a/     threshold_test_full.sh` (clones
+      the image commit from a git bundle so the receipt records e78d84a clean;
+      data mounted under paper/data). Output
+      `repairs/h2h-rerun/source-e78d84a4…/threshold-test-full/`. Its Bonferroni
+      adaptive cells used constructor budgets where the rule can stop, but the
+      Bonferroni adaptive splitter path was the serial Python loop, so every
+      adaptive-vs-exhaustive ratio in arXiv Stage B (Table stageB-scaling,
+      "1.6-4.7 / 3.2-16 / 5.9-84", "0.9 to 30 times shorter") and in the JSS
+      threshold-test subsection is inflated and is replaced from this run.
+
+When all five land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose
 "stops each predictor's test as soon as the evidence is decisive" is wrong under
 `minimum` budgets (the rule cannot stop before the floor) and is rewritten with

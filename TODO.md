@@ -187,19 +187,28 @@ scanning independent of early stopping (default behavior unchanged).
       `tests/paper/test_paper_package.py::     test_adaptive_stopping_summary_matches_reported_bounds`
       still encode the contaminated 6.1-717x figures and move with the
       manuscript rewrite.
-- [ ] CIT runtime ablation rerun: first single-box attempt (i-03d106f052d33920c)
-      was killed at fit 781/805 by its own 6 h cap (california
-      exhaustive-threshold fits take ~5 min each) and the module writes only at
-      the end, so it was lost; relaunched 2026-09-13 ~10:15 UTC as 6 dataset
-      shards (`--datasets`/`--output-name cit_runtime_shard{i}`, 48 h cap) under
-      the same prefix; concatenate the shard CSVs locally and summarize.
-- [ ] CIT runtime ablation rerun (decoupled knobs, image sha256:5ffc09f5 at
-      d3c0edf) LAUNCHED 2026-09-13 03:35 UTC on i-03d106f052d33920c; variants
-      cit_default, no_adaptive, no_feature_scan, no_threshold_scan,
-      no_feature_mute, exact_thresholds, no_bonferroni; output under
-      `repairs/runtime-ablation-rerun/source-d3c0edf6…/cit_cif_runtime_ablation/`
-      (csv + `_summary.csv`). Replaces the coupled-knob CIT rows of the arXiv
-      runtime table (`cit_cif_runtime_ablation_summary.csv`).
+- [x] CIT runtime ablation rerun (decoupled knobs, image sha256:5ffc09f5 at
+      d3c0edf) COMPLETE 2026-09-13 ~08:05 local: 6 dataset shards, 805 fits, 23
+      datasets, all boxes terminated. Raw:
+      `../data/ablation/cit_runtime_ablation_decoupled_raw.csv`; summary:
+      `paper/results/tables/cit_runtime_ablation_decoupled_summary.csv`. Median
+      runtime ratios vs cit_default: no_adaptive 0.12 (clf) / 0.08 (reg),
+      no_feature_scan 2.1, no_threshold_scan 15, exact_thresholds 1.0,
+      no_feature_mute 1.0, no_bonferroni 0.10. The no_adaptive result reverses
+      the contaminated table (3-8x slower) and is an implementation effect, not
+      a statistical one: under `minimum` budgets the rule cannot stop before the
+      budget, and the per-threshold splitter test with adaptive stopping runs a
+      pure-Python shuffle loop (`_splitter.py` around line 110) while
+      `early_stopping=None` uses the Numba parallel kernel once the budget is >=
+      200 (Bonferroni over 256 thresholds gives 5,120). The selector and the
+      max-type splitter already have parallel batched adaptive kernels; the
+      Bonferroni splitter does not. In CIF the trees saturate the cores so the
+      gap vanishes (0.93x).
+- [ ] Decide: add `_ptest_{gini,entropy,mse,mae}_parallel_batched_result`
+      (32-permutation parallel batches, Beta check at batch ends, same p-value
+      formula, so the stopping rule and its exact size are unchanged) and rerun
+      the CIT ablation (~4 h on 6 boxes), or report the current release's
+      single-tree adaptive cost as measured.
 - [ ] Rewrite the arXiv runtime ablation rows and captions from the decoupled
       run: under `minimum` budgets the stopping row must be ~1x by the
       proposition's remark; whatever the coupled knob showed was scanning.

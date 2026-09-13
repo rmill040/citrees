@@ -132,6 +132,12 @@ Classification selectors include multiple correlation, mutual information,
 and the randomized dependence coefficient. Regression selectors include
 Pearson correlation, distance correlation, and the randomized dependence
 coefficient \citep{Szekely+Rizzo+Bakirov:2007,Lopez-Paz+Hennig+Schoelkopf:2013}.
+The RDC statistic differs from the original definition: after the copula
+transform and random sine and cosine projections of both variables, \citrees
+takes the largest absolute Pearson correlation between any projected column of
+one variable and any projected column of the other, rather than the first
+canonical correlation, so it is a max-type projection statistic on the same
+$[0, 1]$ scale; the companion article documents the same choice.
 Compatible bounded statistics can also be combined in a max-$T$ permutation
 test \citep{Westfall+Young:1993}. This option evaluates the largest configured
 selector score within each response permutation and uses the resulting joint

@@ -6,10 +6,6 @@ Tracked tables:
   manuscript.
 - `paper_presentation_practical_controls_summary.csv`: adaptive-stopping
   runtime and score-delta summary reported in the manuscript.
-- `cit_cif_runtime_ablation_summary.csv`: CIT/CIF runtime and ranking deltas
-  per setting change (arXiv runtime ablation tables). SUPERSEDED: measured
-  before scanning was decoupled from stopping and before the adaptive splitter
-  kernel fix (d6c0696); kept until the manuscript rows are rewritten.
 - `cit_runtime_ablation_decoupled_summary.csv`: CIT runtime ablation with
   decoupled knobs on the fixed kernels (image sha256:8dba68ec at d6c0696,
   c6a.8xlarge, 805 fits, 23 datasets). Source of the rewritten CIT rows.
@@ -17,8 +13,7 @@ Tracked tables:
   seconds per cell and configuration: citrees recommended, no adjustment,
   max-type, partykit cforest on 1 and 32 cores, sklearn RF) on the fixed
   kernels (image sha256:a4fc734d at e78d84a, c6a.8xlarge). Source of the JSS
-  performance-real and performance-scaling tables once refilled; supersedes
-  `paper_h2h_maxt_fill_cells.csv`.
+  performance-real and performance-scaling tables.
 - `paper_maxt_extension_{method_aggregate,pairwise,swap_aggregate}.csv`: the
   max-type ranking extension of the benchmark (arXiv Table
   `tab:maxt-benchmark-rankings`). Built by

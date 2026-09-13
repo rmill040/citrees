@@ -56,10 +56,13 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       arc-b i-0084db401c490229f); then gate-complete,
       `manifest     materialize-rankings` from the Stage 1 prefix into
       `repairs/maxt-extension/source-c9855d09…/campaign-b0144d26…`, then
-      launch-api/launch-workers with `--stage metrics`. Original launch record
-      follows. RUNNING since 2026-09-11 ~20:20 UTC. Image sha256:5609d400
-      (c9855d0); runtime contract 79153d56…; manifest 7a466b00…; campaign
-      40f9761d…; GO receipt 66e1b1b9…; artifact prefix
+      launch-api/launch-workers with `--stage metrics`. DONE 2026-09-13 ~01:45
+      UTC: Stage 2 receipt 99d6e19b…, 1,785 rankings materialized (receipt under
+      `…/campaign-b0144d26…/materialization/`), metrics API i-0c5bef7bdb64a6db8
+      (http://3.88.20.106:8000), 32 workers launch maxt-ext-workers-101.
+      Original launch record follows. RUNNING since 2026-09-11 ~20:20 UTC. Image
+      sha256:5609d400 (c9855d0); runtime contract 79153d56…; manifest 7a466b00…;
+      campaign 40f9761d…; GO receipt 66e1b1b9…; artifact prefix
       `repairs/maxt-extension/source-c9855d09…/campaign-40f9761d…`. API
       i-05048dcdb225d67cf (http://32.197.212.208:8000/status). Workers: launch
       maxt-ext-workers-001 (4 on droplet 29.81.7.184; the other droplets had no

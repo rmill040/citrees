@@ -29,6 +29,8 @@ their string values.
 
 ::: citrees.ThresholdMethod
 
+::: citrees.ThresholdTest
+
 ::: citrees.SamplingMethod
 
 ## Scikit-Learn Compatibility

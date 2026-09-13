@@ -47,6 +47,7 @@ citrees addresses these issues by using **permutation tests** at each node to:
 | Document                                  | Description                              |
 | ----------------------------------------- | ---------------------------------------- |
 | [Honest Estimation](honest-estimation.md) | Sample splitting to reduce adaptive bias |
+| [Max-type split test](maxt.md)            | Joint test over candidate thresholds     |
 
 ### Reference
 

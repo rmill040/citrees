@@ -23,6 +23,11 @@ Tracked tables:
   max-type ranking extension of the benchmark (arXiv Table
   `tab:maxt-benchmark-rankings`). Built by
   `paper/analysis/build_maxt_extension_tables.py`.
+- `cit_autobudget_ablation_summary.csv`: CIT at the `auto` permutation budget with
+  and without adaptive stopping (fixed kernels, c6a.8xlarge, 345 fits).
+- `paper_threshold_test_calibration_5seeds.csv`: Stage B null false-split rates
+  pooled over seeds 0-4 (10,000 replications per cell) with Clopper-Pearson
+  intervals.
 - `locked_cells` are listed in `paper/benchmark/config/locked_cells.csv`, not here.
 - `paper_mirrored_knob_ablation_summary.csv` and
   `paper_threshold_ablation_summary.csv`: CIF knob and threshold-search
@@ -33,6 +38,6 @@ Tracked tables:
   paired against the selected CIF configuration at the fold x seed replicate
   level on 22 classification and 8 regression real-data benchmark datasets
   (isolet excluded by author decision). Built by `paper/analysis/build_cif_mechanism_ablation_tables.py`
-  from `s3://citrees-856480643277/repairs/benchmark-rerun/source-05ee3cd7.../campaign-d805868f.../_control/cif-mechanism-ablation/metrics`.
+  from `s3://<citrees bucket>/repairs/benchmark-rerun/source-05ee3cd7.../campaign-d805868f.../_control/cif-mechanism-ablation/metrics`.
 
 Everything else should be regenerated locally and left untracked.

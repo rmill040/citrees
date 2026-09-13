@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numba
 import numpy as np
 import pandas as pd
@@ -22,7 +24,9 @@ pytestmark = pytest.mark.tree
 
 @pytest.fixture(scope="module")
 def glass() -> tuple[np.ndarray, np.ndarray]:
-    frame = pd.read_parquet("tests/data/clf_glass.snappy.parquet")
+    frame = pd.read_parquet(
+        Path(__file__).resolve().parents[1] / "data" / "clf_glass.snappy.parquet"
+    )
     return frame.iloc[:, :-1].to_numpy(dtype=np.float64), LabelEncoder().fit_transform(
         frame.iloc[:, -1]
     )

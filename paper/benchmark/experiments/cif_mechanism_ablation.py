@@ -60,6 +60,7 @@ from paper.benchmark.pipeline.stage2 import (
     evaluate_fold,
     get_requested_evaluation_k_values,
 )
+from paper.benchmark.pipeline.validation import PIPELINE_ARTIFACT_VERSION
 from paper.benchmark.utils.env import get_git_sha, get_library_versions, utc_now_iso
 
 ROOT: Final[Path] = Path(__file__).resolve().parents[3]
@@ -521,7 +522,7 @@ def run_item(
         "seed": item.seed,
         "fold_idx": item.fold_idx,
         "model_variant": item.model_variant,
-        "artifact_version": 2,
+        "artifact_version": PIPELINE_ARTIFACT_VERSION,
         "n_samples": n_samples,
         "n_features": n_features,
         "fit_elapsed_seconds": float(fit_elapsed),

@@ -57,14 +57,22 @@ uv sync --group paper
 | `citrees-exp infra list-mechanism-workers`      | List running mechanism-ablation workers               |
 | `citrees-exp infra terminate-mechanism-workers` | Terminate mechanism-ablation workers                  |
 | `citrees-exp infra logs`                        | Fetch CloudWatch logs (api/worker)                    |
+| `citrees-exp infra gate-freeze`                 | Freeze the runtime contract on one host               |
+| `citrees-exp infra gate-run`                    | Run the R-cforest reproducibility gate on two hosts   |
+| `citrees-exp infra gate-complete`               | Sign the live readback and write the GO receipt       |
+| `citrees-exp infra gate-terminate`              | Terminate gate hosts                                  |
+| `citrees-exp infra gate-logs`                   | Fetch gate host logs                                  |
 
 ### `manifest` Subgroup
 
-| Command                          | Description                                            |
-| -------------------------------- | ------------------------------------------------------ |
-| `citrees-exp manifest shard`     | Write one manifest shard per bound AWS account         |
-| `citrees-exp manifest verify`    | Prove shards are account-bound, disjoint, and complete |
-| `citrees-exp manifest reconcile` | Fail unless manifest artifacts in S3 are exact         |
+| Command                                     | Description                                            |
+| ------------------------------------------- | ------------------------------------------------------ |
+| `citrees-exp manifest shard`                | Write one manifest shard per bound AWS account         |
+| `citrees-exp manifest verify`               | Prove shards are account-bound, disjoint, and complete |
+| `citrees-exp manifest reconcile`            | Fail unless manifest artifacts in S3 are exact         |
+| `citrees-exp manifest extend`               | Add grid-alias cells to a completed campaign manifest  |
+| `citrees-exp manifest stage2`               | Mask a Stage 2 manifest to cells whose ranking exists  |
+| `citrees-exp manifest materialize-rankings` | Copy Stage 1 rankings into a Stage 2 prefix            |
 
 ### `cluster` Subgroup (Local Processes)
 
@@ -173,7 +181,6 @@ active profile; profile names are never written into the repository.
 
 ```bash
 # 1. Setup infrastructure (one-time)
-citrees-exp config init
 citrees-exp infra setup           # S3 + immutable Docker image
 citrees-exp infra upload-data     # Upload datasets
 

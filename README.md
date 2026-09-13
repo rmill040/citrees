@@ -195,6 +195,8 @@ function BuildTree(X, y, depth):
 | [Splitters](docs/splitters.md)                 | Split criteria (gini, entropy, mse, mae)        |
 | [Permutation Tests](docs/permutation-tests.md) | Nodewise permutation tests and scope caveats    |
 | [Honest Estimation](docs/honest-estimation.md) | Sample splitting for leaf estimation            |
+| [Max-type split test](docs/maxt.md)            | Joint test over candidate thresholds            |
+| [Parameters](docs/parameters.md)               | Complete parameter reference                    |
 | [Basic Usage Example](examples/basic_usage.py) | Runnable classifier, regressor, and forest demo |
 
 ## Parameters Reference
@@ -225,23 +227,24 @@ function BuildTree(X, y, depth):
 
 ### Tree Structure Parameters
 
-| Parameter               | Type                           | Default                 | Description                        |
-| ----------------------- | ------------------------------ | ----------------------- | ---------------------------------- |
-| `max_depth`             | int                            | None                    | Maximum tree depth                 |
-| `min_samples_split`     | int                            | 2                       | Minimum samples to split           |
-| `min_samples_leaf`      | int                            | 1                       | Minimum samples in leaf            |
-| `min_impurity_decrease` | float                          | 0.0                     | Minimum impurity decrease to split |
-| `max_features`          | MaxValuesMethod/int/float/None | None                    | Features per split                 |
-| `threshold_method`      | ThresholdMethod                | `ThresholdMethod.EXACT` | How to generate split candidates   |
-| `max_thresholds`        | MaxValuesMethod/int/float/None | None                    | Maximum thresholds per feature     |
-| `threshold_scanning`    | bool                           | True                    | Test promising thresholds first    |
+| Parameter               | Type                           | Default                    | Description                                     |
+| ----------------------- | ------------------------------ | -------------------------- | ----------------------------------------------- |
+| `max_depth`             | int                            | None                       | Maximum tree depth                              |
+| `min_samples_split`     | int                            | 2                          | Minimum samples to split                        |
+| `min_samples_leaf`      | int                            | 1                          | Minimum samples in leaf                         |
+| `min_impurity_decrease` | float                          | 0.0                        | Minimum impurity decrease to split              |
+| `max_features`          | MaxValuesMethod/int/float/None | None                       | Features per split                              |
+| `threshold_method`      | ThresholdMethod                | `ThresholdMethod.EXACT`    | How to generate split candidates                |
+| `max_thresholds`        | MaxValuesMethod/int/float/None | None                       | Maximum thresholds per feature                  |
+| `threshold_scanning`    | bool                           | True                       | Test promising thresholds first                 |
+| `threshold_test`        | ThresholdTest                  | `ThresholdTest.BONFERRONI` | Per-threshold Bonferroni or joint max-type test |
 
 ### Honest Estimation
 
 | Parameter          | Type  | Default | Description                                         |
 | ------------------ | ----- | ------- | --------------------------------------------------- |
 | `honesty`          | bool  | False   | Enable sample splitting                             |
-| `honesty_fraction` | float | 0.5     | Fraction for estimation sample (rest for splitting) |
+| `honesty_fraction` | float | 0.5     | Fraction for estimation sample (rest for structure) |
 
 ### Forest Parameters
 

@@ -22,6 +22,7 @@ what remains before it and the JSS article are submitted.
 | `paper/analysis/`        | Paper table and figure builders.                                           |
 | `paper/data_generation/` | Synthetic dataset generator.                                               |
 | `paper/maintenance/`     | Operational audit helpers for benchmark outputs.                           |
+| `paper/theory/`          | Exact null size of the adaptive stopping rule (Pólya-urn recursion).       |
 
 Generated PDFs, LaTeX build files, local S3 syncs, figure outputs, result
 caches, and broad analysis tables are ignored.

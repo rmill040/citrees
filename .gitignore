@@ -32,7 +32,6 @@ paper/arxiv/figures/boundary_story.png
 paper/arxiv/figures/fixed_panel_story.png
 
 # User-specific experiment config (may contain AWS account info)
-paper/scripts/infra/config.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

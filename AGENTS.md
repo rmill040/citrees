@@ -57,6 +57,7 @@ citrees/
     ├── analysis/           # Table and figure builders
     ├── data_generation/    # Synthetic dataset generation
     ├── maintenance/        # Operational audit helpers
+    ├── theory/             # Exact size of the adaptive stopping rule (Pólya urn)
     └── benchmark/
         ├── adapters/       # External system adapters (S3, data loading, runner)
         ├── api/            # FastAPI queue server and pull-based worker
@@ -121,6 +122,7 @@ Available registries:
 | `early_stopping_*`     | EarlyStopping enum or None                                     | EarlyStopping.ADAPTIVE     |
 | `feature_muting`       | Remove uninformative features                                  | True                       |
 | `feature_scanning`     | Test features in order of promise, stop at first rejection     | True                       |
+| `threshold_scanning`   | Test thresholds in order of promise, stop at first rejection   | True                       |
 | `threshold_method`     | ThresholdMethod enum                                           | ThresholdMethod.EXACT      |
 | `threshold_test`       | ThresholdTest enum: per-threshold Bonferroni or joint max-type | ThresholdTest.BONFERRONI   |
 | `max_features`         | MaxValuesMethod enum, float, or int                            | None (all)                 |

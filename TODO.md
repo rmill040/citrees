@@ -170,7 +170,11 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
 - [ ] `threshold_search_ablation`, one box (i-0db774f65def12b33), same source
       prefix. Replaces the "0.9 to 30 times shorter with adaptive stopping"
       figures in the arXiv Stage B results.
-- [ ] Head-to-head forest timing, 10 shards
+- [x] Head-to-head forest timing DONE 2026-09-13 16:35 UTC (342 fits, no
+      timeouts; `paper/results/tables/paper_h2h_rerun_summary.csv`, raw JSON in
+      `../data/h2h-rerun/`). Forests move little (gamma 45 s, letter 5.0,
+      madelon 24); gisette 34 -> 20 s, max-type gisette 35 -> 18.5, isolet 14 ->
+      11; partykit and RF reproduce within a few percent. 10 shards
       (`scratch/rerun-2026-09-11/     h2h-e78d84a/`, driver = h2h*maxt.py with
       isolet/gisette single-repeat), configs citrees, no-adjustment, max-type,
       partykit 1 and 32 cores, sklearn RF; 30 cells (16+4 synthetic, 10 real);
@@ -223,6 +227,15 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       user approval: arXiv 05_results Stage B paragraphs, appendix I tables,
       06_discussion "at a fraction of the cost"; JSS threshold-test subsection
       tables and prose.
+
+- [ ] Multi-seed null calibration (threshold-test study,
+      `--studies     calibration --seed {1,2,3,4}`) launched 2026-09-13 ~17:00
+      UTC on four boxes (i-0cda65ba6ebbd6553, i-0d52c9015261d6646,
+      i-0e64fcf0aad812304, i-0a19dbbc9b3e23f0b), template
+      `h2h-e78d84a/threshold_test_calibration_seedN.sh`, outputs
+      `repairs/h2h-rerun/source-e78d84a4…/threshold-test-calibration-seed{N}/`.
+      With seed 0 from the full run this gives 5 x 2,000 replications per cell
+      and closes the JSS "one seed at present" caveat.
 
 When all five land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose

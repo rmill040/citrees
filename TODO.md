@@ -157,6 +157,17 @@ scanning independent of early stopping (default behavior unchanged).
       `../data/ablation/mirrored_knob_ablation.partials/` and run
       `python -m paper.benchmark.experiments.mirrored_knob_ablation --assemble`.
       EC2 on-demand vCPU quota increase 1,152 -> 2,304 requested (pending).
+- [x] Decoupled `mirrored_knob_ablation` COMPLETE 2026-09-13 ~03:10 UTC (8
+      shards, 23 datasets, 276 rows; assembled from checkpoints; summary tables
+      regenerated in 35027ad). Real-data median runtime ratios vs default:
+      no_adaptive 0.93 (0.60-1.25), no_scan 1.31, no_threshold_scan 16.9
+      (4.5-35), no_bonferroni 0.16, maxt 0.28 (0.12-1.42), all_off 0.91; by task
+      group no_adaptive 0.93-1.04, feature scanning 1.08-4.18, threshold
+      scanning 8.5-30, exact thresholds 1.11-21; downstream score changes at
+      most 0.005. The pinned bounds in
+      `tests/paper/test_paper_package.py::     test_adaptive_stopping_summary_matches_reported_bounds`
+      still encode the contaminated 6.1-717x figures and move with the
+      manuscript rewrite.
 - [ ] Rewrite the arXiv runtime ablation rows and captions from the decoupled
       run: under `minimum` budgets the stopping row must be ~1x by the
       proposition's remark; whatever the coupled knob showed was scanning.

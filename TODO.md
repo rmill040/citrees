@@ -290,6 +290,18 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       With seed 0 this gives 5 seeds x 3 fits per scaling cell and 5 x 5 folds
       per real cell, so the rewritten Stage B tables carry intervals.
 
+- [x] Stage B power study DONE 2026-09-13 22:10 UTC (5 seeds x 500 reps per
+      cell, `paper/results/tables/paper_threshold_test_power_5seeds.csv`).
+      Max-type has higher power than Bonferroni in every non-saturated cell:
+      mean +0.03, up to +0.12, growing with the candidate count (+0.015 at 16
+      bins, +0.029 at 64, +0.049 at 256) because max-type power is flat in k
+      while Bonferroni power falls with k. Adaptive and exhaustive stopping
+      agree within 0.014. Max-type's threshold error is slightly larger (median
+      0.19 vs 0.15 sd units) and its detections land on the planted predictor
+      slightly less often (87 vs 90 percent). Proposal: add a power paragraph
+      and a compact table to the Stage B rewrite (arXiv 05_results + appendix I;
+      JSS threshold-test subsection); the story becomes calibrated, cheaper, and
+      more powerful, with a small loss in threshold precision.
 - [ ] DROPLET QUEUE (2026-09-13 evening; launcher
       `scratch/droplets/launch_on_droplets.py`, rule: droplets only). Running on
       droplet 29.81.7.184 (6 of 6 slots): Stage B power study seeds 0-4

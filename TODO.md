@@ -204,11 +204,26 @@ scanning independent of early stopping (default behavior unchanged).
       max-type splitter already have parallel batched adaptive kernels; the
       Bonferroni splitter does not. In CIF the trees saturate the cores so the
       gap vanishes (0.93x).
-- [ ] Decide: add `_ptest_{gini,entropy,mse,mae}_parallel_batched_result`
-      (32-permutation parallel batches, Beta check at batch ends, same p-value
-      formula, so the stopping rule and its exact size are unchanged) and rerun
-      the CIT ablation (~4 h on 6 boxes), or report the current release's
-      single-tree adaptive cost as measured.
+- [x] Fixed in d6c0696: parallel batched adaptive kernels for the four
+      per-threshold splitter tests; all batched adaptive kernels (selector and
+      splitter) now draw growing parallel chunks and replay the 32-permutation
+      checkpoints, so stopping times, p-values, and the exact null size are
+      unchanged (one chunk when the budget equals the floor). Laptop check
+      (1,000 x 20, minimum budgets): adaptive 8.8 s -> 3.2 s vs 2.5 s
+      exhaustive; the selector test is at parity.
+- [ ] CIT runtime ablation RERUN from d6c0696 (image sha256:8dba68ec…) LAUNCHED
+      2026-09-13 ~09:25 local as 6 dataset shards on c6a.8xlarge
+      (i-06eb78b7a80fac996 shard0 waveform, i-04908526dbcd69d16 shard1
+      california, i-07d03e77fc87eed13 shard2, i-00141b4be0bc3852b shard3,
+      i-0249464b9265c4b9c shard4, i-090d52107fa8a8dc8 shard5); role policy
+      extended to prefix `repairs/runtime-ablation-rerun/source-d6c0696f…/`;
+      outputs `cit_cif_runtime_ablation/cit_runtime_shard{i}_raw.csv`. User-data
+      in `scratch/rerun-2026-09-11/cit-d6c0696/`. When done: concatenate,
+      `summarize`, replace `cit_runtime_ablation_decoupled_summary.csv`, and the
+      adaptive row should sit near 1x. The d3c0edf run stays as the pre-fix
+      measurement. The CIF mirrored-knob numbers (0.93x) predate the fix but are
+      unaffected in mechanism (forest threads saturate the cores); rerun only if
+      the paper claims a CIF adaptive ratio to two decimals.
 - [ ] Rewrite the arXiv runtime ablation rows and captions from the decoupled
       run: under `minimum` budgets the stopping row must be ~1x by the
       proposition's remark; whatever the coupled knob showed was scanning.

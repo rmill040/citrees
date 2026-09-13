@@ -23,6 +23,7 @@ paper/results/tables/*
 !paper/results/tables/paper_threshold_test_calibration_5seeds.csv
 !paper/results/tables/cit_autobudget_ablation_summary.csv
 !paper/results/tables/paper_threshold_test_scaling_real_5seeds.csv
+!paper/results/tables/paper_threshold_test_power_5seeds.csv
 !paper/results/tables/paper_mirrored_knob_ablation_summary.csv
 !paper/results/tables/paper_threshold_ablation_summary.csv
 !paper/results/tables/paper_h2h_maxt_fill_cells.csv

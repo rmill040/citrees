@@ -49,11 +49,17 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
       all cif_maxt with the rdc selector and honesty off (label 19b65c92…):
       gisette seed 3, isolet seeds 0, 1, 3, 4, letter seeds 2, 3. These join the
       operational exclusions. Rankings API i-05048dcdb225d67cf terminated; Stage
-      2 (metrics) launching with launch ids maxt-ext-api-002 /
-      maxt-ext-workers-1xx. Original launch record follows. RUNNING since
-      2026-09-11 ~20:20 UTC. Image sha256:5609d400 (c9855d0); runtime contract
-      79153d56…; manifest 7a466b00…; campaign 40f9761d…; GO receipt 66e1b1b9…;
-      artifact prefix
+      2 (metrics) needs a masked manifest (metrics only where a ranking exists;
+      the first metrics API refused the unmasked one): Stage 2 manifest
+      `manifest-stage2/` campaign b0144d26…, manifest b1ea9063…, 1,785 required.
+      Gate run for it launched 2026-09-13 00:50 UTC (arc-a i-0d03897098b5e0605,
+      arc-b i-0084db401c490229f); then gate-complete,
+      `manifest     materialize-rankings` from the Stage 1 prefix into
+      `repairs/maxt-extension/source-c9855d09…/campaign-b0144d26…`, then
+      launch-api/launch-workers with `--stage metrics`. Original launch record
+      follows. RUNNING since 2026-09-11 ~20:20 UTC. Image sha256:5609d400
+      (c9855d0); runtime contract 79153d56…; manifest 7a466b00…; campaign
+      40f9761d…; GO receipt 66e1b1b9…; artifact prefix
       `repairs/maxt-extension/source-c9855d09…/campaign-40f9761d…`. API
       i-05048dcdb225d67cf (http://32.197.212.208:8000/status). Workers: launch
       maxt-ext-workers-001 (4 on droplet 29.81.7.184; the other droplets had no

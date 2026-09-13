@@ -201,7 +201,28 @@ since ~14:05-15:10 UTC on c6a.8xlarge:
       Bonferroni adaptive splitter path was the serial Python loop, so every
       adaptive-vs-exhaustive ratio in arXiv Stage B (Table stageB-scaling,
       "1.6-4.7 / 3.2-16 / 5.9-84", "0.9 to 30 times shorter") and in the JSS
-      threshold-test subsection is inflated and is replaced from this run.
+      threshold-test subsection is inflated and is replaced from this run. DONE
+      2026-09-13 16:28 UTC (52 min). Results in
+      `paper/jss/results/threshold-test-full-e78d84a/` (receipt e78d84a, clean);
+      the previous run (c3d9550) is restored beside it from
+      `debug/maxt-timing/out/c3d9550/threshold-test-full/`. Two changes, both
+      expected: (a) adaptive Bonferroni cells are 3-13x faster than before (the
+      serial loop), so the max-type advantage at 256 bins is now 1.1-6.4x with
+      adaptive stopping and 1.4-12x exhaustive (was 5.9-84 and 119-318), and
+      adaptive stopping itself is worth 1.9-7.9x at 256 bins here because the
+      constructor budget exceeds the floor; (b) the old "exhaustive" cells were
+      run before scanning was decoupled from stopping (c0c69f4), so
+      early_stopping=None also switched off feature and threshold scanning;
+      their timings (60 s, 426-486 s, censored) and their much lower held-out
+      scores (vowel 0.586, facebook 0.677, imports-85 0.573) measured
+      no-scanning, not exhaustive permutation. Now exhaustive and adaptive trees
+      score identically on every dataset. Real subset: max-type >= Bonferroni in
+      10 of 12 cells (both page-blocks cells lower by 0.001), time ratio
+      0.9-4.9x, Spearman 0.38-0.96; null false-split rates all below 0.05
+      (Bonferroni 0.004-0.029, max-type 0.025-0.038). Rewrite proposal pending
+      user approval: arXiv 05_results Stage B paragraphs, appendix I tables,
+      06_discussion "at a fraction of the cost"; JSS threshold-test subsection
+      tables and prose.
 
 When all five land: rewrite the arXiv runtime rows/abstract figures and the JSS
 performance tables and prose, then rerun the pinned-bounds test. The JSS prose

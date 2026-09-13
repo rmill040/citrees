@@ -392,4 +392,25 @@ held-out scores at least as high as the Bonferroni rule in 10 of the 12
 dataset and stopping-mode cells, by 0.002 to 0.10 with exhaustive stopping and
 by 0.005 to 0.031 with adaptive stopping; the exceptions are page-blocks with adaptive stopping, lower by 0.002, and facebook with exhaustive stopping, where the response has a median of 123.5 and a maximum of 6,334, so a single extreme held-out observation can decide a fold's $R^2$ under either rule. Its fitting time was 0.9 to 30 times shorter with adaptive stopping and 1.5 to 155 times shorter with exhaustive stopping. The Spearman agreement of the two rules' feature importances ranges from 0.40 to 0.95, so the max-type rule produces a different ranking rather than a faster route to the same one. In the head-to-head forest timing on the recommended configuration, with both rules refit in one run, the max-type rule is 4.5--15$\times$ faster than the per-threshold rule on synthetic Gaussian predictors at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$; on the eight real datasets it reduces madelon from 21 to 4.8 seconds, gamma from 42 to 23 seconds, and musk from 12 to 9.2 seconds, and changes the other five by less than one second.
 
+Rerunning the four CIT and four CIF configurations under the max-type rule on the full ranking benchmark answers what the rule does to the rankings (\cref{tab:maxt-benchmark-rankings}). Of the 1,792 Stage~A cells, 1,785 completed; the seven that did not are CIF with the RDC selector and honesty off on isolet, gisette, and letter, the same forests that are operational exclusions under the per-threshold rule, so on letter the max-type CIF score averages the three seeds that completed. Selecting one configuration per family and ranking on the complete-case panels exactly as in \cref{sec:experiments-real}, the max-type forest moves from position 3.5 to 5 of 17 in classification (mean rank 5.86 to 6.31) and from 2 to 4 of 18 in regression (6.25 to 7.50), and the max-type tree keeps its position in both tasks (16 of 17 and 14 of 18). Paired on the cells both rules completed, the per-threshold rule scores higher by 0.0014 (CIF) and 0.0022 (CIT) balanced accuracy in classification and by 0.0001 (CIF) and 0.0085 (CIT) $R^2$ in regression, and is the higher of the two on 59 to 63 percent of datasets. The max-type rule is therefore a cost and calibration choice, not a ranking gain: it changes which features the trees rank, as the importance agreement above shows, without changing how the rankings perform downstream.
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}llrrrrrr@{}}
+    \toprule
+     & & \multicolumn{2}{c}{Bonferroni} & \multicolumn{2}{c}{Max-type} & \multicolumn{2}{c}{Paired difference} \\
+    \tablehead{Task} & Method & Mean rank & Position & Mean rank & Position & Score & Datasets \\
+    \midrule
+    Classification & CIF & 5.86 & 3.5 & 6.31 & 5 & $-0.0014$ & 22 \\
+     & CIT & 13.14 & 16 & 13.00 & 16 & $-0.0022$ & 23 \\
+    Regression & CIF & 6.25 & 2 & 7.50 & 4 & $-0.0001$ & 8 \\
+     & CIT & 11.13 & 14 & 10.88 & 14 & $-0.0085$ & 8 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Benchmark rankings under the two Stage~B rules. Mean rank and position are complete-case ranks among the 17 classification and 18 regression method families on 21 and 8 datasets, with the max-type family standing in for its per-threshold counterpart; the Bonferroni columns repeat \cref{tab:method-main-comparison}. The paired difference is the max-type score minus the Bonferroni score (balanced accuracy in classification, $R^2$ in regression) averaged over the datasets, downstream learners, and budgets $k \in \{5, 10, 25, 50, 100\}$ that both rules completed; Datasets is the number of datasets in that average.}
+  \label{tab:maxt-benchmark-rankings}
+\end{table}
+
 \FloatBarrier

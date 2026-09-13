@@ -153,10 +153,14 @@ loses power relative to a budget of 999. For that reason, when the resample
 setting is a named rule rather than an explicit integer, the exhaustive max-type
 test uses 999 permutations, the Monte Carlo budget partykit uses for its own
 maximally selected statistics. The node then evaluates `999 K` impurities, about
-`K / 50` of the Bonferroni cost at `alpha = 0.05`: 20 times cheaper at `K = 64`
-and 5 times at `K = 256`. An explicit integer budget is honored as given. With
-adaptive stopping the budget is chosen by the stopping rule and the two tests
-cost about the same.
+`K / 50` of the Bonferroni count at `alpha = 0.05`: comparable at `K = 64` and
+about 5 times fewer at `K = 256`. An explicit integer budget is honored as
+given. Measured on one tree with the histogram search (Stage B study, five
+seeds, 32-core host): the exhaustive max-type fit is 1.2 to 1.9 times faster
+than the Bonferroni fit at 64 bins and 2 to 11 times faster at 256 bins; with
+adaptive stopping the Bonferroni test also stops early once its budget exceeds
+the floor, and the max-type advantage is 1.0 to 1.8 times at 64 bins and 1.3 to
+6.4 times at 256 bins. At 16 bins the two cost the same.
 
 ## References
 

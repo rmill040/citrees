@@ -175,6 +175,23 @@ CIF_VARIANTS: tuple[VariantSpec, ...] = (
         "CIF fit with one forest worker (per-tree cost exposed)",
     ),
     VariantSpec(
+        "cif_auto_budget",
+        "cif",
+        {"n_resamples_selector": "auto", "n_resamples_splitter": "auto"},
+        "CIF with the auto permutation budget and adaptive stopping",
+    ),
+    VariantSpec(
+        "cif_auto_budget_no_adaptive",
+        "cif",
+        {
+            "n_resamples_selector": "auto",
+            "n_resamples_splitter": "auto",
+            "early_stopping_selector": None,
+            "early_stopping_splitter": None,
+        },
+        "CIF with the auto permutation budget and full permutation tests",
+    ),
+    VariantSpec(
         "cif_n_jobs1_no_adaptive",
         "cif",
         {"n_jobs": 1, "early_stopping_selector": None, "early_stopping_splitter": None},

@@ -20,6 +20,7 @@ paper/results/tables/*
 !paper/results/tables/cit_cif_runtime_ablation_summary.csv
 !paper/results/tables/cit_runtime_ablation_decoupled_summary.csv
 !paper/results/tables/paper_h2h_rerun_summary.csv
+!paper/results/tables/paper_threshold_test_calibration_5seeds.csv
 !paper/results/tables/paper_mirrored_knob_ablation_summary.csv
 !paper/results/tables/paper_threshold_ablation_summary.csv
 !paper/results/tables/paper_h2h_maxt_fill_cells.csv

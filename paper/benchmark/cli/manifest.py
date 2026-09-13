@@ -276,3 +276,166 @@ def extend_manifest(
     step(f"Campaign: {receipt['campaign_sha256']}")
     step(f"Manifest: {receipt['manifest_sha256']}")
     success(f"Wrote manifest.csv, account shards, and receipt.json to {output_dir}")
+
+
+def _read_cell_lines(path: Path) -> set[tuple[str, str, str, int]]:
+    """Parse ``task/dataset/method_id_seedN`` lines (one ranking artifact stem per line)."""
+    cells: set[tuple[str, str, str, int]] = set()
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        task, dataset, stem = line.split("/")
+        method_id, seed = stem.rsplit("_seed", 1)
+        cells.add((task, dataset, method_id, int(seed)))
+    return cells
+
+
+@app.command("stage2")
+def stage2_manifest(
+    source_path: Annotated[
+        Path,
+        typer.Option(
+            "--source",
+            exists=True,
+            dir_okay=False,
+            resolve_path=True,
+            help="Stage 1 canonical manifest",
+        ),
+    ],
+    completed_path: Annotated[
+        Path,
+        typer.Option(
+            "--completed",
+            exists=True,
+            dir_okay=False,
+            resolve_path=True,
+            help="File of completed ranking cells, one task/dataset/method_id_seedN per line",
+        ),
+    ],
+    runtime_contract_path: Annotated[
+        Path,
+        typer.Option("--runtime-contract", exists=True, dir_okay=False, resolve_path=True),
+    ],
+    output_dir: Annotated[Path, typer.Option("--output-dir", file_okay=False, resolve_path=True)],
+) -> None:
+    """Write the Stage 2 campaign: Stage 1 off, metrics required only where a ranking exists."""
+    from paper.benchmark.pipeline.extension_manifest import stage2_cells, write_stage2_campaign
+    from paper.benchmark.pipeline.runtime_contract import (
+        parse_runtime_contract,
+        runtime_contract_sha256,
+    )
+
+    source = parse_rerun_manifest(source_path.read_bytes())
+    completed = _read_cell_lines(completed_path)
+    cells = stage2_cells(source, completed)  # type: ignore[arg-type]
+    receipt = write_stage2_campaign(
+        cells,
+        source_manifest_sha256=source.sha256,
+        runtime_contract_sha256=runtime_contract_sha256(
+            parse_runtime_contract(runtime_contract_path.read_bytes())
+        ),
+        output_dir=output_dir,
+    )
+    heading("Stage 2 Campaign Manifest")
+    step(f"Source: {receipt['source_manifest_sha256']} ({len(source.cells)} cells)")
+    step(f"Stage 2 required: {receipt['stage2_required']} of {receipt['cells']} cells")
+    step(f"Campaign: {receipt['campaign_sha256']}")
+    step(f"Manifest: {receipt['manifest_sha256']}")
+    success(f"Wrote manifest.csv, account shards, and receipt.json to {output_dir}")
+
+
+@app.command("materialize-rankings")
+def materialize_rankings(
+    source_prefix: Annotated[str, typer.Option("--source-prefix", help="Stage 1 artifact prefix")],
+    target_manifest_path: Annotated[
+        Path, typer.Option("--target-manifest", exists=True, dir_okay=False, resolve_path=True)
+    ],
+    target_prefix: Annotated[str, typer.Option("--target-prefix", help="Stage 2 artifact prefix")],
+    canonical_manifest_path: Annotated[
+        Path, typer.Option("--canonical-manifest", exists=True, dir_okay=False, resolve_path=True)
+    ],
+    gate_receipt_sha256: Annotated[str, typer.Option("--gate-receipt-sha256")],
+    image_uri: Annotated[str, typer.Option("--image-uri")],
+    git_sha: Annotated[str, typer.Option("--git-sha")],
+) -> None:
+    """Copy Stage 1 rankings into the Stage 2 prefix with exact provenance rewriting."""
+    import hashlib
+
+    import boto3
+    import pandas as pd
+
+    from paper.benchmark.infra.aws import get_aws_account_id, get_resource_name
+    from paper.benchmark.pipeline.materialize import (
+        RankingSource,
+        materialize_canonical_rankings,
+    )
+
+    account_id = get_aws_account_id()
+    bucket = get_resource_name(account_id)
+    s3 = boto3.client("s3")
+    target = parse_rerun_manifest(target_manifest_path.read_bytes())
+    canonical = parse_rerun_manifest(canonical_manifest_path.read_bytes())
+    required = [cell for cell in target.cells if cell.stage2_required]
+    heading("Materialize Stage 1 rankings for Stage 2")
+    step(f"{len(required)} required cells; source prefix {source_prefix}")
+
+    sources: list[RankingSource] = []
+    source_provenance: dict[str, str] | None = None
+    for index, cell in enumerate(required, start=1):
+        config = cell.config
+        key = (
+            f"{source_prefix}/rankings/{config.task}/{config.dataset}/"
+            f"{config.method.label}_seed{config.seed}.parquet"
+        )
+        head = s3.head_object(Bucket=bucket, Key=key)
+        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+        if source_provenance is None:
+            frame = pd.read_parquet(__import__("io").BytesIO(body))
+            row = frame.iloc[0]
+            source_provenance = {
+                "artifact_prefix": str(row["artifact_prefix"]),
+                "aws_account_id": account_id,
+                "campaign_sha256": str(row["campaign_sha256"]),
+                "canonical_manifest_sha256": str(row["canonical_manifest_sha256"]),
+                "container_image": str(row["container_image"]),
+                "gate_receipt_sha256": str(row["gate_receipt_sha256"]),
+                "git_sha": str(row["git_sha"]),
+                "manifest_sha256": str(row["manifest_sha256"]),
+                "runtime_contract_sha256": str(row["runtime_contract_sha256"]),
+            }
+            step(f"Source provenance: campaign {source_provenance['campaign_sha256'][:12]}...")
+        sources.append(
+            RankingSource(
+                cell_key=cell.identity,
+                source_aws_account_id=account_id,
+                bucket=bucket,
+                key=key,
+                version_id=head.get("VersionId")
+                if head.get("VersionId") not in (None, "null")
+                else None,
+                payload_sha256=hashlib.sha256(body).hexdigest(),
+                expected_provenance=source_provenance,
+            )
+        )
+        if index % 200 == 0:
+            step(f"  prepared {index}/{len(required)}")
+    target_provenance = {
+        "artifact_prefix": target_prefix,
+        "aws_account_id": account_id,
+        "campaign_sha256": target.campaign_sha256,
+        "canonical_manifest_sha256": canonical.sha256,
+        "container_image": image_uri,
+        "gate_receipt_sha256": gate_receipt_sha256,
+        "git_sha": git_sha,
+        "manifest_sha256": target.sha256,
+        "runtime_contract_sha256": target.runtime_contract_sha256,
+    }
+    result = materialize_canonical_rankings(
+        sources=sources,
+        target_manifest=target,
+        target_provenance=target_provenance,
+        target_bucket=bucket,
+        s3_client=s3,
+    )
+    success(f"Materialized {len(required)} rankings; receipt {result}")

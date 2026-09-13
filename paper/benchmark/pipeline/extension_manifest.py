@@ -253,3 +253,69 @@ def write_extension_campaign(
     }
     (output_dir / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt
+
+
+def stage2_cells(
+    source: RerunManifest,
+    completed: set[CellKey],
+) -> tuple[ManifestCell, ...]:
+    """Mask a Stage 1 campaign for Stage 2: rankings done, metrics only where a ranking exists.
+
+    Every cell keeps its identity and reason. Stage 1 is switched off everywhere.
+    Stage 2 is required exactly for the cells Stage 1 required whose ranking
+    completed; cells censored in Stage 1 stay in the inventory with both stages
+    off so the reproducibility gate still sees the complete scope.
+    """
+    required = {cell.identity for cell in source.cells if cell.stage1_required}
+    unknown = completed - {cell.identity for cell in source.cells}
+    if unknown:
+        raise ValueError(f"completed cells absent from the source manifest: {sorted(unknown)[:3]}")
+    not_required = completed - required
+    if not_required:
+        raise ValueError(f"completed cells were not Stage 1 cells: {sorted(not_required)[:3]}")
+    if not completed:
+        raise ValueError("no completed Stage 1 cells")
+    return tuple(
+        replace(
+            cell,
+            stage1_required=False,
+            stage2_required=cell.identity in completed,
+        )
+        for cell in source.cells
+    )
+
+
+def write_stage2_campaign(
+    cells: tuple[ManifestCell, ...],
+    *,
+    source_manifest_sha256: str,
+    runtime_contract_sha256: str,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Serialize, re-validate, shard, and write one Stage 2 campaign."""
+    campaign_sha256 = compute_campaign_sha256(
+        cells, runtime_contract_sha256=runtime_contract_sha256
+    )
+    payload = serialize_rerun_manifest(
+        cells, campaign_sha256=campaign_sha256, runtime_contract_sha256=runtime_contract_sha256
+    )
+    manifest = parse_rerun_manifest(payload)
+    validate_canonical_campaign(manifest)
+    shards = partition_rerun_manifest_by_account(manifest)
+    shard_counts = verify_account_manifest_shards(manifest, shards)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "manifest.csv").write_bytes(payload)
+    for account_id, shard_payload in shards.items():
+        (output_dir / f"account-{account_id}.csv").write_bytes(shard_payload)
+    receipt: dict[str, Any] = {
+        "schema": "citrees-stage2-manifest-v1",
+        "source_manifest_sha256": source_manifest_sha256,
+        "runtime_contract_sha256": runtime_contract_sha256,
+        "campaign_sha256": manifest.campaign_sha256,
+        "manifest_sha256": manifest.sha256,
+        "cells": len(manifest.cells),
+        "stage2_required": sum(cell.stage2_required for cell in manifest.cells),
+        "shard_counts": shard_counts,
+    }
+    (output_dir / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    return receipt

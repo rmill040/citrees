@@ -271,3 +271,40 @@ def test_cli_extend_writes_campaign_files(tmp_path: Path) -> None:
     assert receipt["runtime_contract_sha256"] == runtime_contract_sha256(contract)
     manifest = parse_rerun_manifest((tmp_path / "out" / "manifest.csv").read_bytes())
     assert manifest.method_counts("rankings") == {"cif_maxt": 80, "cit_maxt": 80}
+
+
+def test_stage2_masks_censored_cells_and_keeps_the_inventory(tmp_path: Path) -> None:
+    from paper.benchmark.pipeline.extension_manifest import stage2_cells, write_stage2_campaign
+
+    source = _source_with_bonferroni_cells()
+    build = build_extension_cells(
+        source, methods=["cit_maxt"], rerun_reason=REASON, target_aws_account_id=ACCOUNT_A
+    )
+    write_extension_campaign(
+        build, runtime_contract_sha256=RUNTIME_CONTRACT_SHA256, output_dir=tmp_path
+    )
+    stage1 = parse_rerun_manifest((tmp_path / "manifest.csv").read_bytes())
+    added = [c.identity for c in stage1.cells if c.stage1_required]
+    completed = set(added[:-2])  # two cells censored
+    cells = stage2_cells(stage1, completed)
+    assert len(cells) == len(stage1.cells)
+    assert not any(c.stage1_required for c in cells)
+    assert sum(c.stage2_required for c in cells) == len(completed)
+    assert all(c.identity in completed for c in cells if c.stage2_required)
+    receipt = write_stage2_campaign(
+        cells,
+        source_manifest_sha256=stage1.sha256,
+        runtime_contract_sha256=RUNTIME_CONTRACT_SHA256,
+        output_dir=tmp_path / "s2",
+    )
+    stage2 = parse_rerun_manifest((tmp_path / "s2" / "manifest.csv").read_bytes())
+    assert receipt["stage2_required"] == len(completed)
+    assert stage2.campaign_sha256 != stage1.campaign_sha256
+    assert gate._replacement_inventory(stage2)  # gate scope intact
+    with pytest.raises(ValueError, match="not Stage 1 cells"):
+        stage2_cells(
+            stage1,
+            {stage1.cells[0].identity}
+            if not stage1.cells[0].stage1_required
+            else set(added[:1]) | {next(c.identity for c in stage1.cells if not c.stage1_required)},
+        )

@@ -182,4 +182,4 @@ A separate study compares the per-threshold Bonferroni rule and the max-type rul
 score, tree depth, fitting time, and the Spearman agreement of the two rules'
 feature importances within each fold. All fits ran on one 32-core cloud
 instance of the class used for the runtime ablations; a fit exceeding the cap is
-reported as censored. A companion head-to-head timing on the recommended forest configuration adds the max-type rule to eight of the ten real datasets with at least 500 observations (isolet and gisette were not run) and to the synthetic scaling grid at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$, refitting the per-threshold configuration in the same run.
+reported as censored. A companion head-to-head timing on the recommended forest configuration adds the max-type rule to the ten real datasets with at least 500 observations (isolet and gisette in a separate run on the same machine class) and to the synthetic scaling grid at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$, refitting the per-threshold configuration in the same run.

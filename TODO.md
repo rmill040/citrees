@@ -9,8 +9,11 @@ completion is verified. History lives in git.
   pinned container; laptop times never enter a manuscript.
 - Timing and performance work uses the linear selectors (`mc`, `pc`) only. The
   accuracy benchmark keeps its protocol-selected configurations, including RDC.
-- Never launch isolet or gisette RDC cells; they hard-lock 32-worker hosts and
-  are recorded as operational exclusions.
+- Never launch the 28 cells in `paper/benchmark/config/locked_cells.csv`
+  (RDC-selector CIT/CIF on isolet, gisette, letter). They terminate the EC2
+  c6a.8xlarge host; AWS reproduced the failure on 2026-09-13 and owns the root
+  cause. Both manuscripts report them as host-fault exclusions; revisit only
+  when AWS reports a fix.
 - `threshold_test="maxt"` stays opt-in for this release; `bonferroni` remains
   the default and the benchmark rankings are Bonferroni rankings.
 - Every experiment has a 48-hour wall-clock budget from launch; boxes
@@ -140,22 +143,19 @@ a box must use `aws s3api put-object --if-none-match '*'` or boto3 with
 
 ## Censored-cell diagnosis (2026-09-13)
 
-- [ ] AMD-vs-Intel repro of a censored cell launched ~10:45 UTC: isolet,
-      `cif_maxt__19b65c92…` (rdc, honesty off, 100 trees, n_jobs=-1), image
-      sha256:5ffc09f5, on c6a.8xlarge i-0a17494c2f13820ed (AMD EPYC) and
-      c6i.8xlarge i-00aa9c8e4dfb9db8e (Intel). Each uploads exit_code.txt
-      (docker exit + OOMKilled flag), dmesg.txt, free.txt, lscpu.txt, and the
-      cell stdout/stderr to
-      `repairs/runtime-ablation-rerun/source-d3c0edf6…/     amd-diagnostic/<instance type>/`.
-      Author determination (2026-09-13): the seven censored cells and the
-      isolet/gisette RDC exclusions of the main benchmark are an EC2 host
-      failure on the AMD (c6a, EPYC 7R13) fleet, not a defect in the algorithm:
-      the containers died without a Python traceback after ~2 h, always on the
-      largest RDC forests, on AMD hosts only (every campaign box was c6a), and
-      the same cells' other seeds and honesty-on twins completed. The A/B repro
-      above supplies the exit codes to state this in both papers; once it
-      confirms, word the exclusion as a hardware fault on the compute host, cite
-      the instance type, and keep the cells listed as operational exclusions.
+CLOSED. The AWS EC2 team reproduced the failure (containers running the largest
+RDC forests terminate after ~2 h on c6a.8xlarge, AMD EPYC 7R13, without a Python
+exception) and is investigating the root cause. The AMD-vs-Intel repro boxes
+(i-0a17494c2f13820ed, i-00aa9c8e4dfb9db8e) were terminated before finishing as
+redundant. The 28 affected cells are listed in
+`paper/benchmark/config/locked_cells.csv` (test
+`tests/paper/test_locked_cells.py`) and worded as host-fault exclusions in the
+arXiv manuscript (Appendix D text and table, Section 5 max-type paragraph); the
+JSS article runs no RDC cells on these datasets and needs no change.
+
+- [ ] When AWS reports the root cause, record it here and decide whether the
+      locked cells are rerun (on the fixed hosts or on Intel c6i) or stay
+      excluded for the submissions.
 
 ## Adaptive stopping theory and scanning decoupling (2026-09-12)
 

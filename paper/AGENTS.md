@@ -244,3 +244,13 @@ citrees-exp infra launch-workers --count 16 --market on-demand --target-droplets
 
 Campaign roles grant create-only S3 writes (`PutObject` with `If-None-Match`),
 so any upload from a box must set that header; `aws s3 sync` is denied.
+
+## Locked cells
+
+`paper/benchmark/config/locked_cells.csv` lists the 28 classification cells
+(RDC-selector CIT/CIF on isolet, gisette, and letter, including the seven
+censored `cif_maxt` cells of the extension campaign) that terminate the EC2
+c6a.8xlarge host after about two hours without a Python exception. AWS
+reproduced the failure on 2026-09-13 and is investigating the root cause. Until
+it is resolved these cells are never launched; the manuscripts report them as
+host-fault exclusions.

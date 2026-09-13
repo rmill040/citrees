@@ -92,9 +92,16 @@ analyses. On \nolinkurl{gisette}, \nolinkurl{isolet}, and
 \nolinkurl{orlraws10P}, 34 classification runs were excluded from the benchmark
 for operational reasons: 15 partykit ctree and cforest runs inherited from the
 earlier compute campaign did not complete on those datasets, and 19
-RDC-selector CIT and CIF runs on the same datasets were excluded by author
-direction. Comparisons that involve an affected method on an affected dataset
-use the remaining datasets. \Cref{tab:coverage-skips} lists the excluded runs.
+RDC-selector CIT and CIF runs on the same datasets could not be run: on the
+compute hosts used for the campaign (AWS c6a.8xlarge, AMD EPYC 7R13), the
+containers running the largest RDC forests terminated after about two hours
+without a Python exception, while the same cells' other seeds and their
+honesty-on twins completed. The cloud provider reproduced the failure on its
+own hosts on 2026-09-13 and is investigating the root cause; until it is
+resolved, these cells are locked and listed in
+\texttt{paper/benchmark/config/locked\_cells.csv}. Comparisons that involve an
+affected method on an affected dataset use the remaining datasets.
+\Cref{tab:coverage-skips} lists the excluded runs.
 
 \subsection{Randomness and reproducibility}
 
@@ -111,10 +118,10 @@ sharing a mutable generator across parallel loop iterations.
     \toprule
     \tablehead{Dataset} & \tablehead{Method} & {Configurations} & {Seed runs} & \tablehead{Basis} \\
     \midrule
-    \texttt{gisette} & CIT with selector \texttt{rdc} & 2 & 8 & author directed \\
+    \texttt{gisette} & CIT with selector \texttt{rdc} & 2 & 8 & host fault \\
     \texttt{gisette} & R ctree & 1 & 5 & inherited \\
-    \texttt{isolet} & CIF with selector \texttt{rdc} & 2 & 4 & author directed \\
-    \texttt{isolet} & CIT with selector \texttt{rdc} & 2 & 6 & author directed \\
+    \texttt{isolet} & CIF with selector \texttt{rdc} & 2 & 4 & host fault \\
+    \texttt{isolet} & CIT with selector \texttt{rdc} & 2 & 6 & host fault \\
     \texttt{isolet} & R cforest & 1 & 5 & inherited \\
     \texttt{isolet} & R ctree & 1 & 5 & inherited \\
     \texttt{orlraws10P} & CIT with selector \texttt{rdc} & 1 & 1 & author directed \\
@@ -124,7 +131,9 @@ sharing a mutable generator across parallel loop iterations.
   configuration on one dataset with one seed; 34 runs are excluded in total,
   and all are operational exclusions. Inherited rows are partykit ctree and
   cforest runs that did not complete in the earlier compute campaign;
-  author-directed rows are RDC-selector CIT and CIF runs excluded by author
-  direction. No regression runs are excluded.}
+  host-fault rows are RDC-selector CIT and CIF runs that terminate the compute
+  host, a failure the cloud provider has reproduced and is investigating; the
+  single orlraws10P run was excluded by author direction. No regression runs
+  are excluded.}
   \label{tab:coverage-skips}
 \end{table}

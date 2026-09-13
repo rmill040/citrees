@@ -433,11 +433,14 @@ error because it “peeks” without a validity correction.
 
 ### Benefits
 
-| Scenario            | Speedup         |
-| ------------------- | --------------- |
-| Clearly high-p case | 10-100×         |
-| Borderline case     | 1× (no speedup) |
-| Clearly low-p case  | 1× (runs full)  |
+| Scenario                                                        | Effect of adaptive stopping                                                                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Budget equal to the floor `ceil(1 / alpha)` (`"minimum"`)       | None: the rule cannot stop before the floor, so it runs the full budget                                                        |
+| Larger budget (`"auto"`, an integer), clear evidence either way | Stops at the first checkpoint after the floor; single trees ran in about 0.15 of the exhaustive time on the benchmark datasets |
+| Larger budget, borderline p-value                               | Little or no saving; the posterior stays near `alpha`                                                                          |
+
+Both rules stop on either side of `alpha`: a clearly significant test ends as
+early as a clearly null one.
 
 Enable with:
 

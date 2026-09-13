@@ -12,7 +12,7 @@ from citrees._registry import (
     RegressorSplitters,
     RegressorSplitterTests,
 )
-from citrees._sequential import _beta_cdf
+from citrees._sequential import _adaptive_chunk, _beta_cdf, _scan_adaptive_checkpoints
 from citrees._types import EarlyStopping, EarlyStoppingOption
 
 prange: Any = _numba_prange
@@ -464,6 +464,231 @@ def entropy(y: np.ndarray) -> float:
     return -np.sum(np.log2(p) * p)
 
 
+# Parallel batched adaptive kernels. Each batch of _ADAPTIVE_BATCH_SIZE permutations
+# is drawn in parallel (per-iteration seeding, see the note above the fixed-budget
+# kernels); the Beta posterior check runs at batch ends exactly as in the serial
+# adaptive path of ``_ptest_result``, so the stopping rule, its checkpoints, and the
+# (k+1)/(m+1) estimate are unchanged. Only the arithmetic is parallel.
+
+
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_gini_parallel_batched_result(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> PermutationTestResult:
+    """Adaptive (Beta posterior stopping) permutation test for Gini index, batched in parallel.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
+    idx = x <= threshold
+    y_left = y[idx]
+    y_right = y[~idx]
+    n_left = len(y_left)
+    n_right = len(y_right)
+    if n_left == 0 or n_right == 0:
+        return 1.0, 0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
+    theta = _gini_split_stat(y_left, y_right, n_left, n_right, w_left, w_right)
+
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+    while m < n_resamples:
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+            y_left_perm = y_perm[idx]
+            y_right_perm = y_perm[~idx]
+            theta_p = _gini_split_stat(y_left_perm, y_right_perm, n_left, n_right, w_left, w_right)
+            if theta_p <= theta:
+                batch_extreme[i] = 1
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
+
+
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_mse_parallel_batched_result(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> PermutationTestResult:
+    """Adaptive (Beta posterior stopping) permutation test for MSE, batched in parallel.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
+    idx = x <= threshold
+    y_left = y[idx]
+    y_right = y[~idx]
+    n_left = len(y_left)
+    n_right = len(y_right)
+    if n_left == 0 or n_right == 0:
+        return 1.0, 0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
+    theta = _mse_split_stat(y_left, y_right, w_left, w_right)
+
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+    while m < n_resamples:
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+            y_left_perm = y_perm[idx]
+            y_right_perm = y_perm[~idx]
+            theta_p = _mse_split_stat(y_left_perm, y_right_perm, w_left, w_right)
+            if theta_p <= theta:
+                batch_extreme[i] = 1
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
+
+
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_entropy_parallel_batched_result(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> PermutationTestResult:
+    """Adaptive (Beta posterior stopping) permutation test for entropy, batched in parallel.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
+    idx = x <= threshold
+    y_left = y[idx]
+    y_right = y[~idx]
+    n_left = len(y_left)
+    n_right = len(y_right)
+    if n_left == 0 or n_right == 0:
+        return 1.0, 0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
+    theta = _entropy_split_stat(y_left, y_right, n_left, n_right, w_left, w_right)
+
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+    while m < n_resamples:
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+            y_left_perm = y_perm[idx]
+            y_right_perm = y_perm[~idx]
+            theta_p = _entropy_split_stat(
+                y_left_perm, y_right_perm, n_left, n_right, w_left, w_right
+            )
+            if theta_p <= theta:
+                batch_extreme[i] = 1
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
+
+
+@njit(cache=True, fastmath=True, nogil=True, parallel=True)
+def _ptest_mae_parallel_batched_result(
+    x: np.ndarray,
+    y: np.ndarray,
+    threshold: float,
+    n_resamples: int,
+    random_state: int,
+    alpha: float,
+    confidence: float,
+) -> PermutationTestResult:
+    """Adaptive (Beta posterior stopping) permutation test for MAE, batched in parallel.
+
+    Returns
+    -------
+    tuple[float, int]
+        P-value and realized number of permutations.
+    """
+    idx = x <= threshold
+    y_left = y[idx]
+    y_right = y[~idx]
+    n_left = len(y_left)
+    n_right = len(y_right)
+    if n_left == 0 or n_right == 0:
+        return 1.0, 0
+    n = len(y)
+    w_left = n_left / n
+    w_right = n_right / n
+    theta = _mae_split_stat(y_left, y_right, w_left, w_right)
+
+    min_resamples = int(np.ceil(1.0 / alpha))
+    if n_resamples < min_resamples:
+        n_resamples = min_resamples
+    extreme_count = 0
+    m = 0
+    while m < n_resamples:
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
+        batch_extreme = np.zeros(batch_size, dtype=np.int64)
+        for i in prange(batch_size):
+            np.random.seed(random_state + m + i)
+            y_perm = y.copy()
+            np.random.shuffle(y_perm)
+            y_left_perm = y_perm[idx]
+            y_right_perm = y_perm[~idx]
+            theta_p = _mae_split_stat(y_left_perm, y_right_perm, w_left, w_right)
+            if theta_p <= theta:
+                batch_extreme[i] = 1
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
+    return (extreme_count + 1) / (n_resamples + 1), n_resamples
+
+
 @ClassifierSplitterTests.register("gini")
 def ptest_gini(
     x: np.ndarray,
@@ -516,6 +741,16 @@ def ptest_gini(
             threshold=threshold,
             n_resamples=n_resamples,
             random_state=random_state,
+        )
+    elif early_stopping == EarlyStopping.ADAPTIVE and n_resamples >= _PARALLEL_THRESHOLD:
+        result = _ptest_gini_parallel_batched_result(
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            random_state=random_state,
+            alpha=alpha,
+            confidence=confidence,
         )
     else:
         result = _ptest_result(
@@ -584,6 +819,16 @@ def ptest_entropy(
             threshold=threshold,
             n_resamples=n_resamples,
             random_state=random_state,
+        )
+    elif early_stopping == EarlyStopping.ADAPTIVE and n_resamples >= _PARALLEL_THRESHOLD:
+        result = _ptest_entropy_parallel_batched_result(
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            random_state=random_state,
+            alpha=alpha,
+            confidence=confidence,
         )
     else:
         result = _ptest_result(
@@ -708,6 +953,16 @@ def ptest_mse(
             n_resamples=n_resamples,
             random_state=random_state,
         )
+    elif early_stopping == EarlyStopping.ADAPTIVE and n_resamples >= _PARALLEL_THRESHOLD:
+        result = _ptest_mse_parallel_batched_result(
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            random_state=random_state,
+            alpha=alpha,
+            confidence=confidence,
+        )
     else:
         result = _ptest_result(
             func=mse,
@@ -775,6 +1030,16 @@ def ptest_mae(
             threshold=threshold,
             n_resamples=n_resamples,
             random_state=random_state,
+        )
+    elif early_stopping == EarlyStopping.ADAPTIVE and n_resamples >= _PARALLEL_THRESHOLD:
+        result = _ptest_mae_parallel_batched_result(
+            x=x,
+            y=y,
+            threshold=threshold,
+            n_resamples=n_resamples,
+            random_state=random_state,
+            alpha=alpha,
+            confidence=confidence,
         )
     else:
         result = _ptest_result(

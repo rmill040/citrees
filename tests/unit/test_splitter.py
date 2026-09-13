@@ -747,7 +747,28 @@ class TestJitParity:
             _splitter._ptest_mae_parallel_result,
             (_X, _Y_REG, 0.0, 250, 1718),
         ),
+        "_ptest_gini_parallel_batched_result": (
+            _splitter._ptest_gini_parallel_batched_result,
+            (_X, _Y_CLF, 0.0, 250, 1718, 0.05, 0.95),
+        ),
+        "_ptest_entropy_parallel_batched_result": (
+            _splitter._ptest_entropy_parallel_batched_result,
+            (_X, _Y_CLF, 0.0, 250, 1718, 0.05, 0.95),
+        ),
+        "_ptest_mse_parallel_batched_result": (
+            _splitter._ptest_mse_parallel_batched_result,
+            (_X, _Y_REG, 0.0, 250, 1718, 0.05, 0.95),
+        ),
+        "_ptest_mae_parallel_batched_result": (
+            _splitter._ptest_mae_parallel_batched_result,
+            (_X, _Y_REG, 0.0, 250, 1718, 0.05, 0.95),
+        ),
         "_beta_cdf": (_splitter._beta_cdf, (0.3, 2.0, 5.0)),
+        "_adaptive_chunk": (_splitter._adaptive_chunk, (100, 5000, 20)),
+        "_scan_adaptive_checkpoints": (
+            _splitter._scan_adaptive_checkpoints,
+            (np.zeros(64, dtype=np.int64), 0, 0, 64, 20, 0.05, 0.95),
+        ),
         "_gini_split_stat": (_splitter._gini_split_stat, (_Y_INT[:4], _Y_INT[4:], 4, 4, 0.5, 0.5)),
         "_entropy_split_stat": (
             _splitter._entropy_split_stat,

@@ -267,3 +267,58 @@ def _ptest_sequential_adaptive_batched(
                 return (extreme_count + 1) / (m + 1)
 
     return (extreme_count + 1) / (n_resamples + 1)
+
+
+# Parallel adaptive kernels evaluate permutations in chunks and then replay the
+# serial stopping rule over the chunk: the posterior is checked at every multiple
+# of _ADAPTIVE_BATCH_SIZE permutations (and at the budget) once the floor
+# ceil(1 / alpha) is reached, exactly as the serial path does. Extra permutations
+# in the chunk past a stop are discarded, so the stopping time, the returned
+# (k + 1) / (m + 1) estimate, and the exact null size are unchanged; only the
+# parallel efficiency differs. Chunks grow geometrically from one batch so a rule
+# that stops early wastes at most as much work as it has already done.
+_ADAPTIVE_BATCH_SIZE = 32
+_ADAPTIVE_CHUNK_MAX = 1024
+
+
+@njit(cache=True, nogil=True)
+def _adaptive_chunk(m: int, n_resamples: int, min_resamples: int) -> int:
+    """Number of permutations to draw in the next parallel chunk.
+
+    No checkpoint can fire before ``min_resamples`` permutations, so the first
+    chunk runs straight to the floor; when the budget equals the floor (the
+    Bonferroni ``minimum`` setting) the whole test is one parallel chunk.
+    """
+    grown = m if m > _ADAPTIVE_BATCH_SIZE else _ADAPTIVE_BATCH_SIZE
+    if m < min_resamples and min_resamples - m > grown:
+        grown = min_resamples - m
+    if grown > _ADAPTIVE_CHUNK_MAX:
+        grown = _ADAPTIVE_CHUNK_MAX
+    remaining = n_resamples - m
+    return grown if grown < remaining else remaining
+
+
+@njit(cache=True, nogil=True)
+def _scan_adaptive_checkpoints(
+    flags: np.ndarray,
+    m: int,
+    extreme_count: int,
+    n_resamples: int,
+    min_resamples: int,
+    alpha: float,
+    confidence: float,
+) -> tuple[bool, int, int]:
+    """Replay the serial adaptive rule over one chunk of extreme-indicator flags.
+
+    Returns ``(stopped, m, extreme_count)``. When ``stopped`` is true, ``m`` and
+    ``extreme_count`` are the values at the stopping checkpoint; otherwise they
+    cover the whole chunk.
+    """
+    for j in range(flags.shape[0]):
+        extreme_count += flags[j]
+        m += 1
+        if m >= min_resamples and (m % _ADAPTIVE_BATCH_SIZE == 0 or m == n_resamples):
+            prob_sig = _beta_cdf(alpha, 1.0 + extreme_count, 1.0 + m - extreme_count)
+            if prob_sig >= confidence or (1.0 - prob_sig) >= confidence:
+                return True, m, extreme_count
+    return False, m, extreme_count

@@ -433,6 +433,11 @@ class TestJitParity:
 
     KERNELS = {
         "_beta_cdf": (_sequential._beta_cdf, (0.3, 2.0, 5.0)),
+        "_adaptive_chunk": (_sequential._adaptive_chunk, (100, 5000, 20)),
+        "_scan_adaptive_checkpoints": (
+            _sequential._scan_adaptive_checkpoints,
+            (np.zeros(64, dtype=np.int64), 0, 0, 64, 20, 0.05, 0.95),
+        ),
     }
 
     @pytest.mark.parametrize("name", sorted(KERNELS))

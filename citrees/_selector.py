@@ -15,7 +15,7 @@ from citrees._registry import (
     RegressorSelectors,
     RegressorSelectorTests,
 )
-from citrees._sequential import _beta_cdf
+from citrees._sequential import _adaptive_chunk, _beta_cdf, _scan_adaptive_checkpoints
 from citrees._types import EarlyStopping, EarlyStoppingOption
 
 prange: Any = _numba_prange
@@ -496,7 +496,7 @@ def _ptest_mc_parallel_batched_result(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
         # Run batch in parallel
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
         for i in prange(batch_size):
@@ -508,19 +508,11 @@ def _ptest_mc_parallel_batched_result(
             if np.abs(theta_p) >= theta:
                 batch_extreme[i] = 1
 
-        extreme_count += int(np.sum(batch_extreme))
-        m += batch_size
-
-        # Check stopping criterion at batch boundary
-        if m >= min_resamples:
-            a = 1.0 + extreme_count
-            b = 1.0 + m - extreme_count
-            prob_sig = _beta_cdf(alpha, a, b)
-
-            if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1), m
-            if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1), m
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
     return (extreme_count + 1) / (n_resamples + 1), n_resamples
@@ -564,7 +556,7 @@ def _ptest_pc_parallel_batched_result(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
         # Run batch in parallel
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
         for i in prange(batch_size):
@@ -581,19 +573,11 @@ def _ptest_pc_parallel_batched_result(
             if theta_p >= theta:
                 batch_extreme[i] = 1
 
-        extreme_count += int(np.sum(batch_extreme))
-        m += batch_size
-
-        # Check stopping criterion at batch boundary
-        if m >= min_resamples:
-            a = 1.0 + extreme_count
-            b = 1.0 + m - extreme_count
-            prob_sig = _beta_cdf(alpha, a, b)
-
-            if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1), m
-            if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1), m
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
     return (extreme_count + 1) / (n_resamples + 1), n_resamples
@@ -720,7 +704,7 @@ def _ptest_rdc_regressor_parallel_batched_result(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
 
         for t in prange(n_threads):
@@ -736,18 +720,11 @@ def _ptest_rdc_regressor_parallel_batched_result(
                 if _rdc_max_abs_corr(X_feat, Y_perm) >= theta:
                     batch_extreme[i] = 1
 
-        extreme_count += int(np.sum(batch_extreme))
-        m += batch_size
-
-        # Check adaptive stopping criterion
-        if m >= min_resamples:
-            a = 1.0 + extreme_count
-            b = 1.0 + m - extreme_count
-            prob_sig = _beta_cdf(alpha, a, b)
-            if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1), m
-            if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1), m
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
     return (extreme_count + 1) / (n_resamples + 1), n_resamples
@@ -892,7 +869,7 @@ def _ptest_rdc_classifier_parallel_batched_result(
     m = 0
 
     while m < n_resamples:
-        batch_size = min(_ADAPTIVE_BATCH_SIZE, n_resamples - m)
+        batch_size = _adaptive_chunk(m, n_resamples, min_resamples)
         batch_extreme = np.zeros(batch_size, dtype=np.int64)
 
         for t in prange(n_threads):
@@ -915,18 +892,11 @@ def _ptest_rdc_classifier_parallel_batched_result(
                 if rdc_perm >= theta:
                     batch_extreme[i] = 1
 
-        extreme_count += int(np.sum(batch_extreme))
-        m += batch_size
-
-        # Check adaptive stopping criterion
-        if m >= min_resamples:
-            a = 1.0 + extreme_count
-            b = 1.0 + m - extreme_count
-            prob_sig = _beta_cdf(alpha, a, b)
-            if prob_sig >= confidence:
-                return (extreme_count + 1) / (m + 1), m
-            if (1.0 - prob_sig) >= confidence:
-                return (extreme_count + 1) / (m + 1), m
+        stopped, m, extreme_count = _scan_adaptive_checkpoints(
+            batch_extreme, m, extreme_count, n_resamples, min_resamples, alpha, confidence
+        )
+        if stopped:
+            return (extreme_count + 1) / (m + 1), m
 
     # +1 correction (Phipson & Smyth 2010)
     return (extreme_count + 1) / (n_resamples + 1), n_resamples

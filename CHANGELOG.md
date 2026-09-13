@@ -9,6 +9,14 @@ with version numbers matching `pyproject.toml` and GitHub release tags.
 
 ### Added
 
+- Parallel batched adaptive kernels for the per-threshold splitter tests
+  (`gini`, `entropy`, `mse`, `mae`), matching the selector and max-type paths.
+  All batched adaptive kernels now draw permutations in growing parallel chunks
+  (one chunk when the budget equals the `ceil(1 / alpha)` floor) and replay the
+  serial stopping rule over the chunk, so stopping times, p-values, and the
+  exact null size are unchanged while single trees no longer run the adaptive
+  splitter test serially.
+
 - `threshold_test="maxt"`: opt-in joint max-type Stage B test on the minimum
   standardized child impurity over all candidate thresholds (default remains
   `"bonferroni"`).
@@ -37,6 +45,14 @@ with version numbers matching `pyproject.toml` and GitHub release tags.
 ## 0.1.0 - 2026-07-01
 
 ### Added
+
+- Parallel batched adaptive kernels for the per-threshold splitter tests
+  (`gini`, `entropy`, `mse`, `mae`), matching the selector and max-type paths.
+  All batched adaptive kernels now draw permutations in growing parallel chunks
+  (one chunk when the budget equals the `ceil(1 / alpha)` floor) and replay the
+  serial stopping rule over the chunk, so stopping times, p-values, and the
+  exact null size are unchanged while single trees no longer run the adaptive
+  splitter test serially.
 
 - Initial Python package metadata for conditional inference trees and forests.
 - Scikit-learn-style classifier and regressor APIs for conditional inference

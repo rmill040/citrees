@@ -115,9 +115,12 @@ def _ptest(func, x, y, n_resamples, alpha, early_stopping):
 - `alpha_selector`: Significance threshold (default: 0.05)
 - `early_stopping_selector`: `"adaptive"`, `"simple"`, or `None` (fixed-$B$)
 - `early_stopping_confidence_selector`: Posterior-confidence threshold γ for
-  `"adaptive"` (default: 0.95), minimum 0.95: the adaptive rule has no exact
-  level guarantee, and below 0.95 its measured null rejection exceeds the
-  nominal level (0.0524 at γ = 0.80 for α = 0.05)
+  `"adaptive"` (default: 0.95), minimum 0.95. For a fixed statistic the rule's
+  null size is an exact finite computation (a Pólya-urn recursion over the
+  checkpoints, `paper/theory/adaptive_stopping_size.py`): 0.0495 at γ = 0.95 and
+  0.0523 at γ = 0.80 for α = 0.05 and 999 permutations, which is why 0.95 is the
+  minimum allowed. The rule cannot stop before `ceil(1 / alpha)` permutations,
+  so with `n_resamples="minimum"` it runs the full budget.
 
 ### Bonferroni Correction
 

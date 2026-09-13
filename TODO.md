@@ -157,6 +157,40 @@ JSS article runs no RDC cells on these datasets and needs no change.
       locked cells are rerun (on the fixed hosts or on Intel c6i) or stay
       excluded for the submissions.
 
+## Post-fix timing reruns (2026-09-13, image sha256:a4fc734d at e78d84a / sha256:8dba68ec at d6c0696)
+
+Every timing table in both papers was measured before the adaptive splitter
+kernel fix (d6c0696), so each is being re-measured from the fixed image. Running
+since ~14:05-15:10 UTC on c6a.8xlarge:
+
+- [ ] CIF `mirrored_knob_ablation`, 8 shards (launch_knob_shards.sh), prefix
+      `repairs/runtime-ablation-rerun/source-d6c0696f…/mirrored_knob_ablation/`;
+      assemble with `--assemble` from the partials as before. Replaces the 0.93x
+      CIF adaptive row and every other CIF knob ratio.
+- [ ] `threshold_search_ablation`, one box (i-0db774f65def12b33), same source
+      prefix. Replaces the "0.9 to 30 times shorter with adaptive stopping"
+      figures in the arXiv Stage B results.
+- [ ] Head-to-head forest timing, 10 shards
+      (`scratch/rerun-2026-09-11/     h2h-e78d84a/`, driver = h2h*maxt.py with
+      isolet/gisette single-repeat), configs citrees, no-adjustment, max-type,
+      partykit 1 and 32 cores, sklearn RF; 30 cells (16+4 synthetic, 10 real);
+      prefix
+      `repairs/h2h-rerun/source-e78d84a4…/results*{i}.json`. Replaces the JSS     performance-real and performance-scaling tables and the arXiv     head-to-head sentences (`paper_h2h_maxt_fill_cells.csv`
+      becomes obsolete).
+- [ ] JSS performance component, full profile (880 cells, 10 repeats), spot
+      campaign of 88 performance shards, 8 instances at a time, role
+      citrees-campaign-e479ceeaad5d4ac680ffaf884917e8ad; status via
+      `python -m paper.jss.replication.cloud status` with the same launch
+      arguments; `materialize` into a new `paper/jss/results/` directory when
+      complete. Replaces the JSS reference-condition table (single trees and
+      forests at 1,000 x 50, 999 permutations).
+
+When all four land: rewrite the arXiv runtime rows/abstract figures and the JSS
+performance tables and prose, then rerun the pinned-bounds test. The JSS prose
+"stops each predictor's test as soon as the evidence is decisive" is wrong under
+`minimum` budgets (the rule cannot stop before the floor) and is rewritten with
+the tables.
+
 ## Adaptive stopping theory and scanning decoupling (2026-09-12)
 
 Done in c0c69f4: `paper/theory/adaptive_stopping_size.py` plus test; the arXiv

@@ -40,11 +40,6 @@ kernel-fix, and cleanup record).
       Summarize into `paper/results/tables/wide_runtime_ablation_summary.csv`;
       then add the large-dataset rows or a sentence to the arXiv runtime
       section.
-- [ ] Scaling curves (`paper.benchmark.experiments.scaling_curves`, 20 cells,
-      CIT and CIF, adaptive vs full budget; queued in
-      `scratch/droplets/scaling-curves/`). Assemble with `--assemble` into
-      `paper/results/tables/scaling_curves.csv`; then a figure or table for
-      Appendix E.
 - [ ] JSS performance campaign (full profile, 88 shards, spot, launched before
       the droplets-only rule): 86 of 88 shards archived; shards 77 and 87 were
       lost when the last spot instances ended without archiving, and the cloud
@@ -132,7 +127,6 @@ runtime runs.
 - [ ] Promote the head-to-head timing protocol (`scratch/h2h/h2h_maxt.py`) into
       `paper/jss/replication` as a receipted component, or document it as a
       scratch protocol in the JSS replication README.
-- [ ] Promote or delete `scratch/jss_batch_driver.py`.
 - [ ] Make forest importances independent of `n_jobs` at the tie level, or
       document that they are not.
 

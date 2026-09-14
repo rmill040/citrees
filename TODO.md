@@ -40,20 +40,13 @@ kernel-fix, and cleanup record).
       Summarize into `paper/results/tables/wide_runtime_ablation_summary.csv`;
       then add the large-dataset rows or a sentence to the arXiv runtime
       section.
-- [ ] JSS performance campaign (full profile, 88 shards, spot, launched before
-      the droplets-only rule): 86 of 88 shards archived; shards 77 and 87 were
-      lost when the last spot instances ended without archiving, and the cloud
-      tool refuses to materialize an incomplete campaign. The tool is spot-only
-      at every layer (campaign, launch record, worker runtime), so the two
-      shards cannot be finished on the droplets without changing it. The JSS
-      reference-condition table (`tab:performance-reference`) therefore still
-      carries PRE-FIX single-tree timings. Options for the author: (a) permit
-      two spot instances to finish shards 77 and 87 and materialize; (b) run the
-      reference-condition cells on a droplet through a scratch protocol in the
-      head-to-head style and refill the table from that run, marking it as such;
-      (c) teach the cloud tool an on-demand droplet market (code change to the
-      provenance contract). Until one is chosen the table's caption must say the
-      single-tree rows predate the kernel fix.
+- [ ] JSS performance campaign: shards 77 and 87 relaunched on spot 2026-09-14
+      ~02:30 UTC with the author's explicit permission (the grid is mc/pc only,
+      no RDC cell). When 88 of 88 are archived, materialize from
+      `/tmp/wt-e78d84a` into `paper/jss/results/performance-full-e78d84a`,
+      refill `tab:performance-reference` and its prose (~line 695), remove the
+      pre-fix note from the caption, copy the results to
+      `reference/v3/jss/performance-full-e78d84a/`.
 
 ## Manuscript work
 

@@ -33,6 +33,72 @@ kernel-fix, and cleanup record).
 
 ## Compute in flight (2026-09-13 evening)
 
+## Review round 2 (2026-09-14): Codex gpt-6-astra, Fable 5.1, Opus 5
+
+Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
+/ YELLOW / YELLOW. Consensus blockers, verified where checkable:
+
+- [ ] Stage B calibration measures the complete node (Stage A gate x Stage B),
+      so it never isolates the Stage B test the corollary is about. Add a
+      Stage-B-only design (feature fixed without Y, no Stage A gate) at the same
+      n x bins grid; report Stage B size directly. (All three.)
+- [ ] Power is not size-matched: max-type's null rate is 0.028-0.038 against
+      Bonferroni's 0.007-0.029, and the power gap tracks the size gap. Report
+      size-adjusted power (or size/power pairs) or drop "more powerful". Also
+      report correct-feature power alongside any-split power, state every
+      aggregation denominator, and compare localization on paired detections.
+      (All three.)
+- [ ] Adaptive-size proposition: the "<= alpha for every B from 20 to 3,000"
+      statement is false at B = 79 (rho = 0.050013; verified). Restate as a
+      numerical statement with the exception, distinguish strict and non-strict
+      rejection (0.04948 vs 0.04878 at B = 999 per Codex), and state the
+      continuous-mixing idealization (Opus). Tabulate rho over the adjusted
+      alphas the tree actually uses (Fable).
+- [ ] Narrative: no single thesis; the +1 theorem is textbook and should be a
+      cited lemma; the abstract's 3rd/2nd ranks conflict with the complete-case
+      6th/5th and a non-significant regression omnibus; the max-type rule is "a
+      contribution" that worsens rankings. Reframe around: competitive but not
+      superior ranker; cost lives in Stage B; cheaper calibrated Stage B;
+      exactly sized stopping rule. Move the version note out of the intro.
+- [ ] Configuration selection: rule stated inconsistently (real-data score in
+      4.6 vs synthetic recovery in App. D caption); unequal grid sizes (CIF 4,
+      XGBoost 5 vs 1 for RF/ET/CatBoost/RF-RFE) selected on the reporting data;
+      LODO only on the 13/6 panels. Fix the caption, quantify selection
+      optimism, run LODO on the 21/8 panels.
+- [ ] cforest importance uses nperm = 1 (verified in config.py) while the JSS
+      uses 10; the CIF-vs-cforest margin may be a handicap. Rerun cforest at
+      nperm >= 10 or state the caveat.
+- [ ] Numeric inconsistencies: abstract 0.009 vs table 0.012 (bootstrap row);
+      "8-29x" vs 7.9-29x; "0.15 of exhaustive / 85 percent" mixes endpoints of
+      different groups (report within-group ratios); CIF-ablation prose vs table
+      (0.043 vs 0.053; 0.16-0.25 vs 0.157); high-p counts 7 vs 9; caption "23
+      datasets (15+8; 9 real)" inconsistent; "complete-case" used for both 21/8
+      and 13/6 panels; "1,792 Stage A cells" undefined; scaling table "Adaptive
+      slower than Full" vs "inert"; plain accuracy in the Stage B real table vs
+      balanced accuracy elsewhere; JSS "at most 1.4 s" vs pendigits 1.9; JSS "7
+      to 18x" vs 6.6-17; JSS 3,464 vs 2,790 distinct values; JSS "22 and 115
+      times" not derivable; AUC 0.814/0.795 aggregate undefined.
+- [ ] JSS duplication: four Stage B tables and prose identical to the arXiv;
+      keep one summary table and cite. NHANES contrast is split search, not the
+      importance statistic (citrees also ranks by impurity decrease);
+      corrected-CV t-test misapplied to training-fold ranks; nominal predictors
+      passed as numeric codes; matched-behavior root agreement 8-12 percent is
+      near chance. Timing table mixes two runs (needs a within-run note or a
+      single campaign). Parameter reference table missing. Simple stopping ships
+      invalid at 0.087 with only an "exploratory" label.
+- [ ] Minimum-budget degeneracy (Fable): under `minimum`, every passing
+      candidate ties at p = 1/(B+1), so "select the smallest p" is random among
+      passers unless scanning orders them; state this, and note the reverse
+      cardinality bias of per-threshold Bonferroni as the motivation for
+      max-type.
+- [ ] Missing baselines/checks flagged: Lasso or mutual-information filter; a
+      tree-based downstream learner; CPI sanity check (last by a wide margin
+      after a bug fix); RF-RFE protocol details; post-hoc test after the
+      Friedman omnibus; CIF-all recovery columns.
+- Verified non-issue: Fable's "identical power triplets" (clf delta 0.10 vs reg
+  delta 0.4 at n = 100) differ at the fourth decimal and across seeds; a
+  rounding coincidence under shared seeds, worth a footnote at most.
+
 ## Manuscript work
 
 Done 2026-09-13: Stage B section (calibration, cost, real subset, power) in both

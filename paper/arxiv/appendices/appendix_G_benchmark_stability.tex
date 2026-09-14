@@ -29,10 +29,8 @@ present.
     Seed sensitivity & 13 & 6 & Seed variation on datasets complete across seeds \\
     \bottomrule
   \end{tabularx}
-  \caption{Dataset counts for benchmark analyses. The learner-by-$k$ row lists
-  counts at $k=5,10,25,50,100$; each summary uses the datasets, downstream
-  learners, and standard top-$k$ values available for its comparison.}
-  \label{tab:benchmark-dataset-counts}
+
+
 \end{table}
 
 \subsection{Bootstrap and rank checks}
@@ -59,12 +57,8 @@ and $k \in \{5,10,25,50,100\}$.
     Regression & CIT & 0.308 & [-0.002, 0.766] & \winloss{5}{1} \\
     \bottomrule
   \end{tabular}
-  \caption{Complete-case CIF differences against ctree, cforest, and CIT. Mean
-  $\Delta$ is CIF minus comparator after averaging each dataset over the same
-  downstream learners and values of $k$. Intervals resample dataset-level paired
-  deltas with 20{,}000 percentile-bootstrap replicates. W--L gives dataset-level
-  wins and losses; no exact ties occurred.}
-  \label{tab:cif-ci-comparisons}
+
+
 \end{table}
 
 The metric is balanced accuracy for classification and $R^2$ for regression.
@@ -149,7 +143,7 @@ reselection adds less than half a rank.
   selection. Settings reports the number of distinct selected configurations;
   Main reports how often the main benchmark configuration is reselected. Ranks
   are computed within held-out datasets before averaging, so score order need
-  not match rank order.}
+  not match rank order. Entries are mean ranks over the panel datasets; the difference between the fixed and LODO columns is the reported uncertainty.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
@@ -218,7 +212,7 @@ top 5.
   positions over the 15 combinations; mean rank averages the underlying
   dataset-level ranks. The dataset counts at
   $k=5,10,25,50,100$ are
-  21, 20, 14, 14, and 13.}
+  21, 20, 14, 14, and 13. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported uncertainty.}
   \label{tab:classification-learner-k-sensitivity}
 \end{table}
 
@@ -273,7 +267,7 @@ positions.
   method positions over the 15 combinations; mean rank averages the underlying
   dataset-level ranks. The dataset counts at
   $k=5,10,25,50,100$ are
-  8, 8, 7, 7, and 6.}
+  8, 8, 7, 7, and 6. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported uncertainty.}
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 
@@ -291,7 +285,7 @@ datasets available for each comparator; the complete-case panels above use the
   mean balanced-accuracy difference, CIF minus comparator, for one
   downstream learner and one value of $k$; positive values favor CIF. Dataset
   counts by $k$ are 21, 20, 14, 14, and 13 for ctree, 22, 21, 15, 15, and 14
-  for cforest, and 23, 22, 16, 16, and 15 for CIT.}
+  for cforest, and 23, 22, 16, 16, and 15 for CIT. Values are means over datasets; the bootstrap intervals for the pooled differences are in \cref{tab:cif-ci-comparisons}.}
   \label{fig:benchmark-pairwise-sensitivity}
 \end{figure}
 
@@ -304,7 +298,7 @@ datasets available for each comparator; the complete-case panels above use the
   learner and one value of $k$; positive values favor CIF. Dataset counts by
   $k$ are 8, 8, 7, 7, and 6 for each comparison. Large positive plotted values
   can reflect negative mean $R^2$ for the comparator. Numeric labels show the
-  unclipped values; the color scale is clipped at $\pm1$ for readability.}
+  unclipped values; the color scale is clipped at $\pm1$ for readability. Values are means over datasets; the bootstrap intervals for the pooled differences are in \cref{tab:cif-ci-comparisons}.}
   \label{fig:regression-benchmark-pairwise-sensitivity}
 \end{figure}
 
@@ -356,7 +350,7 @@ follow the main benchmark order.
   all five seeds. Each seed column is the method's ordinal position after
   sorting methods by their averaged dataset-level ranks for that seed. Mean
   position averages those five ordinal positions; mean rank reports the averaged
-  dataset-level rank value itself. Lower values are better.}
+  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported uncertainty.}
   \label{tab:classification-seed-sensitivity}
 \end{table}
 
@@ -401,6 +395,6 @@ follow the main benchmark order.
   methods by their averaged dataset-level ranks for that seed; fractional
   positions indicate ties. Mean position
   averages those five ordinal positions; mean rank reports the averaged
-  dataset-level rank value itself. Lower values are better.}
+  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported uncertainty.}
   \label{tab:regression-seed-sensitivity}
 \end{table}

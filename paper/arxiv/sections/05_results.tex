@@ -45,13 +45,8 @@ converted to ranks. Lower mean rank is better.
     \multicolumn{2}{c}{} & CPI & 15.00 \\
     \bottomrule
   \end{tabular}
-  \caption{Main real-data comparison. Ranks are computed within each dataset
-  after scores are averaged over downstream learners and the standard $k$ values
-  shared by the compared methods, then averaged across datasets. Classification
-  uses the 21 datasets with results for every method; regression uses all 8
-  datasets. Mean ranks carry no interval here; bootstrap intervals for the
-  paired differences and the omnibus tests are in \cref{app:benchmark-stability}.}
-  \label{tab:method-main-comparison}
+
+
 \end{table}
 
 With selected configurations fixed, CIF ties RF for 3rd of 17 classification
@@ -83,12 +78,8 @@ each analysis reports its dataset count.
     Regression & CIT & 8 & +0.234 & \winloss{7}{1} \\
     \bottomrule
   \end{tabular}
-  \caption{Direct CIF comparisons against ctree, cforest, and CIT. Mean
-  differences are CIF minus the compared method after averaging within each
-  dataset over supported downstream learners and standard values of $k$;
-  classification uses balanced accuracy and regression uses $R^2$. W--L reports
-  wins and losses over datasets where both methods were run.}
-  \label{tab:conditional-inference-comparisons}
+
+
 \end{table}
 
 \FloatBarrier
@@ -144,18 +135,8 @@ statistics.
     Regression & Use one tree & -0.658 & -0.059 & [-1.692, -0.054] & 0--8 \\
     \bottomrule
   \end{tabular}
-  \caption{CIF ablations on the real-data benchmark. Differences compare each
-  changed variant with the selected CIF configuration using split-importance
-  ranking, paired within seed and fold. Scores are averaged within each dataset
-  over downstream learners, supported standard values of $k$, and the 25 paired
-  fold~$\times$~seed replicates. Classification uses balanced accuracy;
-  regression uses $R^2$. The confidence intervals are percentile bootstrap
-  intervals for the mean over dataset-level differences from 20{,}000
-  replicates. Positive values favor the changed CIF variant. W--L counts
-  datasets where the changed variant is higher or lower than the reference;
-  exact ties are omitted. The classification rows use 22 datasets and the
-  regression rows use 8 datasets.}
-  \label{tab:cif-ranking-ablation}
+
+
 \end{table}
 
 The complete-case Friedman tests use dataset-level method means.
@@ -206,7 +187,7 @@ top 3 and how often it beats tree baselines.
   \caption{Dataset breadth for the selected CIF configuration. Top half and
   Top 3 counts use the datasets from \cref{tab:method-main-comparison}. Direct
   win rows use datasets where both methods were run. The fractional
-  classification main rank reflects a tie with RF.}
+  classification main rank reflects a tie with RF. Counts carry no interval; the paired intervals behind them are in \cref{tab:cif-ci-comparisons}.}
   \label{tab:cif-breadth-summary}
 \end{table}
 
@@ -242,7 +223,7 @@ figure column are given in the captions.
   all 17 feature selection methods in the classification benchmark, averaged
   across downstream models at each value of $k$. Lower ranks are better.
   The columns for $k=5,10,25,50,100$ use 21, 20, 14, 14, and 13 datasets,
-  respectively.}
+  respectively. Each cell is a mean over the datasets in that column with no interval; the seed and learner sensitivity tables in \cref{app:benchmark-stability} bound its variation.}
   \label{fig:k-trajectory}
 \end{figure}
 
@@ -252,7 +233,7 @@ figure column are given in the captions.
   \caption{Regression mean rank by number of selected features. Rows show all
   18 feature selection methods in the regression benchmark, averaged across
   downstream models at each value of $k$. Lower ranks are better. The columns
-  for $k=5,10,25,50,100$ use 8, 8, 7, 7, and 6 datasets, respectively.}
+  for $k=5,10,25,50,100$ use 8, 8, 7, 7, and 6 datasets, respectively. Each cell is a mean over the datasets in that column with no interval; the seed and learner sensitivity tables in \cref{app:benchmark-stability} bound its variation.}
   \label{fig:regression-k-trajectory}
 \end{figure}
 
@@ -292,15 +273,8 @@ benchmark remains the primary performance comparison.
     Disable Bonferroni correction & 0.48--1.7$\times$ & $\le 0.063$ \\
     \bottomrule
   \end{tabular}
-  \caption{CIT runtime ablations. Runtime ratios are medians over datasets of the
-  per-dataset ratio to the selected CIT configuration, given as the range over the
-  four task groups; five seeds per dataset on 23 datasets (15 classification, 8
-  regression; 9 real). The F1 column is the largest change in mean top-10 F1 on
-  the synthetic datasets across the task groups. Fits ran on one 32-core cloud
-  instance with the full thread pool per tree. The two auto-budget rows use the
-  \texttt{auto} permutation budget, which exceeds the $\lceil 1/\alpha \rceil$
-  floor, so the stopping rule can act.}
-  \label{tab:cit-runtime-hyperparams}
+
+
 \end{table}
 
 \paragraph{CIT runtime ablations.}
@@ -346,18 +320,8 @@ control.
     Disable Bonferroni correction & 0.03--0.34$\times$ & $\le 0.004$ & $\le 0.011$ \\
     \bottomrule
   \end{tabular}
-  \caption{CIF runtime ablations with score changes. Runtime ratios are medians
-  over datasets of the per-dataset ratio to the selected CIF configuration,
-  given as the range over the four task groups; five seeds per dataset on 23
-  datasets. The exact-threshold and 32-bin rows come from the threshold-search
-  ablation and compare with the 256-bin histogram reference. The score columns
-  give the largest absolute change in the dataset-mean downstream score and in
-  synthetic feature recovery across the task groups; inequality entries are
-  rounded upward to the nearest 0.001. The auto-budget rows come from the CIT/CIF
-  runtime ablation, which records synthetic recovery but no downstream score.
-  Forests fit 100 trees with one worker per tree and one Numba thread per worker
-  on a 32-core cloud instance.}
-  \label{tab:cif-runtime-hyperparams}
+
+
 \end{table}
 
 \paragraph{CIF runtime ablations.}
@@ -417,10 +381,8 @@ The complete-node false-split rate is below 0.05 for both Stage~B constructions 
      & 500 & 256 & 0.0106 & 0.0108 & 0.0285 & 0.0315 \\
     \bottomrule
   \end{tabular}
-  \caption{False-split rate of a depth-one tree under the global null at level
-  0.05, by Stage~B construction and stopping mode, over 10,000 replicates per
-  cell (five seeds of 2,000) with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Clopper--Pearson interval lies below 0.05 (largest upper limit 0.042); the widest half-width is below 0.004.}
-  \label{tab:stageB-calibration}
+
+
 \end{table}
 
 The cost difference is where the constructions separate
@@ -448,7 +410,7 @@ Rerunning the four CIT and four CIF configurations under the max-type rule on th
      & CIT & 11.13 & 14 & 10.88 & 14 & $-0.0085$ & 8 \\
     \bottomrule
   \end{tabular}
-  \caption{Benchmark rankings under the two Stage~B rules. Mean rank and position are complete-case ranks among the 17 classification and 18 regression method families on 21 and 8 datasets, with the max-type family standing in for its per-threshold counterpart; the Bonferroni columns repeat \cref{tab:method-main-comparison}. The paired difference is the max-type score minus the Bonferroni score (balanced accuracy in classification, $R^2$ in regression) averaged over the datasets, downstream learners, and budgets $k \in \{5, 10, 25, 50, 100\}$ that both rules completed; Datasets is the number of datasets in that average.}
+  \caption{Benchmark rankings under the two Stage~B rules. Mean rank and position are complete-case ranks among the 17 classification and 18 regression method families on 21 and 8 datasets, with the max-type family standing in for its per-threshold counterpart; the Bonferroni columns repeat \cref{tab:method-main-comparison}. The paired difference is the max-type score minus the Bonferroni score (balanced accuracy in classification, $R^2$ in regression) averaged over the datasets, downstream learners, and budgets $k \in \{5, 10, 25, 50, 100\}$ that both rules completed; Datasets is the number of datasets in that average. Paired differences are means over dataset, learner, and $k$ cells; their dataset-level sign shares are in \texttt{paper\_maxt\_extension\_pairwise.csv} of the reference release.}
   \label{tab:maxt-benchmark-rankings}
 \end{table}
 

@@ -60,6 +60,7 @@ from paper.benchmark.experiments.experiment_common import (
     build_cit,
     load_real_clf,
     load_real_reg,
+    split_csv,
     warmup_jit,
 )
 from paper.benchmark.utils.metrics import f1_at_k, precision_at_k, recall_at_k
@@ -263,11 +264,6 @@ ALL_VARIANTS: dict[str, VariantSpec] = {
 }
 
 
-def _split_csv(value: str) -> tuple[str, ...]:
-    """Parse a comma-separated CLI value."""
-    return tuple(part.strip() for part in value.split(",") if part.strip())
-
-
 def _expand_choices(
     values: Sequence[str], *, all_value: str, allowed: Sequence[str], label: str
 ) -> tuple[str, ...]:
@@ -283,7 +279,7 @@ def _expand_choices(
 
 def _parse_seed_offsets(value: str) -> tuple[int, ...]:
     """Parse comma-separated seed offsets."""
-    offsets = tuple(int(part) for part in _split_csv(value))
+    offsets = tuple(int(part) for part in split_csv(value))
     if not offsets:
         raise ValueError("At least one seed offset is required")
     return offsets
@@ -760,21 +756,21 @@ def main() -> None:
         sys.stdout.reconfigure(line_buffering=True)
     args = parse_args()
 
-    tasks = _expand_choices(_split_csv(args.tasks), all_value="all", allowed=TASKS, label="tasks")
+    tasks = _expand_choices(split_csv(args.tasks), all_value="all", allowed=TASKS, label="tasks")
     dataset_sources = _expand_choices(
-        _split_csv(args.dataset_sources),
+        split_csv(args.dataset_sources),
         all_value="all",
         allowed=DATASET_SOURCES,
         label="dataset sources",
     )
     variant_names = _expand_choices(
-        _split_csv(args.variants),
+        split_csv(args.variants),
         all_value="all",
         allowed=tuple(ALL_VARIANTS),
         label="variants",
     )
     seed_offsets = _parse_seed_offsets(args.seeds)
-    dataset_names = set(_split_csv(args.datasets)) or None
+    dataset_names = set(split_csv(args.datasets)) or None
 
     dataset_specs: list[DatasetSpec] = []
     if "synthetic" in dataset_sources:

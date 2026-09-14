@@ -506,6 +506,13 @@ PAPER_REAL_REG_NAMES = [
 ]
 
 
+def split_csv(value: str | None) -> tuple[str, ...]:
+    """Parse a comma-separated CLI value; empty or None gives an empty tuple."""
+    if not value:
+        return ()
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
 def _paper_data_root() -> Path:
     override = os.environ.get("CITREES_PAPER_DATA")
     if override:

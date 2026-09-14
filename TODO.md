@@ -73,8 +73,6 @@ editing):
       split, forest sizes, feature sampling, comparator grids).
 - [ ] arXiv rank/k consistency: report mean rank and ordinal position together;
       k-trajectory on a constant dataset panel.
-- [ ] arXiv synthetic recovery: remove the "more reliable within top-k than at
-      top one" sentence; regression CIF ranks 11th/10th.
 - [ ] arXiv ablation narrative: restrict the negligible-effect statement to
       classification; report regression's heterogeneous single-tree effects.
 - [ ] arXiv presentation: enlarge the 8-point ranking table and the
@@ -128,8 +126,6 @@ runtime runs.
       table and delete the rest.
 - [ ] `tools/hooks/check_no_aws_configs.py` guards a path that no longer exists;
       point it at `paper/benchmark/infra/config.yaml` or drop it.
-- [ ] `_split_csv` duplicated in two experiment modules;
-      `cif_mechanism_ablation.build_cif` shadows the shared helper's name.
 - [ ] Parameter tables triplicated (README, docs/parameters.md, AGENTS.md); keep
       docs/parameters.md as the source and shorten the others.
 - [ ] Promote the head-to-head timing protocol (`scratch/h2h/h2h_maxt.py`) into

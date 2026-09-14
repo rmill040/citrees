@@ -43,9 +43,10 @@ list are truly informative on average over the evaluated $k$ values, ranked
 rate is 65.5\%, ranked 10th of 15. Across synthetic
 regression datasets, the corresponding values are 39.1\%, ranked 11th of the
 16 methods with synthetic regression runs, and
-84.5\%, ranked 10th of 16. In both tasks, CIF recovers true features within the
-top-$k$ list more reliably than it places one first.
-\Cref{tab:synthetic-head} summarizes this contrast, and
+84.5\%, ranked 10th of 16. On both measures and in both tasks CIF sits in the
+lower half of the methods; the two measures are not comparable to each other,
+since one is a share of the list and the other a hit rate.
+\Cref{tab:synthetic-head} summarizes both measures, and
 \Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows. The percentage of
 selected features that are informative falls as $k$ grows. On
 redundant-feature synthetic designs, most selected features correspond to true

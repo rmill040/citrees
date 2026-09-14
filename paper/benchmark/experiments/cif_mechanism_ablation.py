@@ -56,6 +56,7 @@ from paper.benchmark.adapters.data import (
     load_dataset,
 )
 from paper.benchmark.config.constants import N_SPLITS
+from paper.benchmark.experiments.experiment_common import split_csv
 from paper.benchmark.pipeline.stage2 import (
     evaluate_fold,
     get_requested_evaluation_k_values,
@@ -131,14 +132,8 @@ class WorkItem:
         return f"{self.model_variant}_seed{self.seed}_fold{self.fold_idx}"
 
 
-def _split_csv(value: str | None) -> tuple[str, ...]:
-    if not value:
-        return ()
-    return tuple(part.strip() for part in value.split(",") if part.strip())
-
-
 def _split_int_csv(value: str | None) -> tuple[int, ...]:
-    return tuple(int(part) for part in _split_csv(value))
+    return tuple(int(part) for part in split_csv(value))
 
 
 def _is_missing(value: Any) -> bool:
@@ -223,7 +218,7 @@ def apply_model_variant(params: dict[str, Any], model_variant: str) -> dict[str,
     raise ValueError(f"Unknown model variant: {model_variant}")
 
 
-def build_cif(task: str, params: dict[str, Any], random_state: int, model_variant: str):
+def build_mechanism_cif(task: str, params: dict[str, Any], random_state: int, model_variant: str):
     """Build a selected CIF estimator for a task."""
     model_params = {
         **apply_model_variant(params, model_variant),
@@ -502,7 +497,7 @@ def run_item(
     X_train = scaler.fit_transform(X_train_raw)
 
     random_state = item.seed * 1000 + item.fold_idx
-    model = build_cif(
+    model = build_mechanism_cif(
         item.task,
         params,
         random_state=random_state,
@@ -683,10 +678,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    tasks = _split_csv(args.tasks)
-    datasets = _split_csv(args.datasets)
-    model_variants = _split_csv(args.model_variants)
-    ranking_variants = _split_csv(args.ranking_variants)
+    tasks = split_csv(args.tasks)
+    datasets = split_csv(args.datasets)
+    model_variants = split_csv(args.model_variants)
+    ranking_variants = split_csv(args.ranking_variants)
     seeds = _split_int_csv(args.seeds)
     folds = _split_int_csv(args.folds)
 

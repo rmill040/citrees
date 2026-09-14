@@ -17,10 +17,10 @@ regression methods on 8 datasets; on the smaller complete-case panels it ranks
 less than half a rank.
 With Bonferroni correction held fixed, the runtime ablations locate the cost
 in the threshold search: turning off threshold scanning slows forest fits by
-8--29$\times$ and exact threshold search by 1.1--21$\times$, while adaptive
+8--29$\times$ and exact threshold search by 1.3--20$\times$, while adaptive
 stopping is inert at the benchmark's minimum permutation budget (0.9--1.0$\times$)
 and cuts a single tree at the larger auto budget to 0.15 of its exhaustive time;
-downstream score changes are at most 0.005. Sparse high-$p$
+downstream score changes are at most 0.009. Sparse high-$p$
 simulations indicate that forest feature sampling can leave informative features
 out of many split decisions. Overall,
 the results support CIF as a top-$k$ feature-ranking method in the

@@ -23,7 +23,7 @@ permutation importance, and RF-RFE
 The ablations locate the runtime of both estimators in the threshold search:
 scanning candidate thresholds in order of promise and bounding their number with
 the 256-bin histogram account for the largest measured changes, with downstream
-score changes of at most 0.005. Adaptive stopping is inert at the benchmark's
+score changes of at most 0.009. Adaptive stopping is inert at the benchmark's
 minimum permutation budget, as \cref{prop:adaptive-size} predicts, and earns
 its place only when the budget exceeds the floor, where it recovers most of the
 larger budget's cost. Bonferroni correction is part of the Stage~A testing rule

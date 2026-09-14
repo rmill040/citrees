@@ -15,7 +15,7 @@ converted to ranks. Lower mean rank is better.
 
 \begin{table}[H]
   \centering
-  \fontsize{8}{8.6}\selectfont
+  \footnotesize
   \setlength{\tabcolsep}{5pt}
   \renewcommand{\arraystretch}{0.88}
   \begin{tabular}{@{}l S[table-format=2.2] @{\hspace{2.5em}} l S[table-format=2.2]@{}}
@@ -49,7 +49,8 @@ converted to ranks. Lower mean rank is better.
   after scores are averaged over downstream learners and the standard $k$ values
   shared by the compared methods, then averaged across datasets. Classification
   uses the 21 datasets with results for every method; regression uses all 8
-  datasets.}
+  datasets. Mean ranks carry no interval here; bootstrap intervals for the
+  paired differences and the omnibus tests are in \cref{app:benchmark-stability}.}
   \label{tab:method-main-comparison}
 \end{table}
 

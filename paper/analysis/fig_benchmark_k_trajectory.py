@@ -137,7 +137,7 @@ def _annotate_heatmap(ax: plt.Axes, values: np.ndarray) -> None:
                 ha="center",
                 va="center",
                 color="black",
-                fontsize=7.5,
+                fontsize=9,
             )
 
 

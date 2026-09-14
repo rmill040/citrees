@@ -116,7 +116,7 @@ def _plot_family(
     ax.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
     ax.grid(True, axis="both")
-    ax.legend(loc="upper right", frameon=False, fontsize=8, handlelength=1.6)
+    ax.legend(loc="upper right", frameon=False, fontsize=10, handlelength=1.6)
 
 
 def main(argv: list[str] | None = None) -> None:

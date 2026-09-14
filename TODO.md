@@ -45,10 +45,6 @@ kernel-fix, and cleanup record).
       `scratch/droplets/scaling-curves/`). Assemble with `--assemble` into
       `paper/results/tables/scaling_curves.csv`; then a figure or table for
       Appendix E.
-- [ ] CIF auto-budget variants (6 shards, image sha256:39df4379 at 9ad58b9,
-      prefix `…/source-9ad58b9c…/`): 2 of 6 raw CSVs in; summarize into
-      `paper/results/tables/cif_autobudget_ablation_summary.csv` and add the row
-      to the arXiv CIF runtime table.
 - [ ] JSS performance campaign (full profile, 88 shards, spot, launched before
       the droplets-only rule; do NOT top up): 84 of 88 archived. When complete,
       materialize from the detached worktree `/tmp/wt-e78d84a` (HEAD must equal

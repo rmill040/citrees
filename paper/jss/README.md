@@ -163,6 +163,18 @@ versions, artifact hashes, schemas, row inventories, and execution contexts. The
 combined output includes the shard receipts used to construct each final
 analysis.
 
+## Head-to-head timing protocol
+
+`paper/jss/replication/head_to_head_timing.py` is the protocol behind the
+real-data and scaling performance tables: 100-tree forests, fit-only wall-clock
+time in a fresh child process per fit, six configurations (recommended
+`citrees`, without the threshold adjustment, with the max-type test, `partykit`
+cforest on 1 and 32 cores, scikit-learn RF), 30 cells (20 synthetic, 10 real),
+two repeats (one on letter, isolet, gisette), run inside the pinned image on
+c6a.8xlarge hosts. It writes one JSON record per fit; the 2026-09-13 run is
+summarized in `paper/results/tables/paper_h2h_rerun_summary.csv`. It is a
+scratch-style protocol, not part of the receipted replication suite.
+
 ## Manuscript
 
 The source uses version 3.6 of the official JSS LaTeX style downloaded from:

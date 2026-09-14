@@ -319,6 +319,8 @@ control.
     \tablehead{CIF change} & Runtime ratio & \shortstack{Downstream\\score change} & \shortstack{Synthetic feature\\recovery change} \\
     \midrule
     Disable adaptive stopping & 0.96--0.99$\times$ & 0 & 0 \\
+    Auto budget, adaptive stopping & 1.27--1.83$\times$ & -- & $\le 0.030$ \\
+    Auto budget, no early stopping & 5.2--14$\times$ & -- & $\le 0.025$ \\
     Disable threshold scanning & 7.9--29$\times$ & $\le 0.003$ & $\le 0.010$ \\
     Disable feature scanning & 0.99--5.1$\times$ & $\le 0.003$ & $\le 0.008$ \\
     Exact threshold search & 1.3--20$\times$ & $\le 0.009$ & $\le 0.018$ \\
@@ -336,8 +338,10 @@ control.
   ablation and compare with the 256-bin histogram reference. The score columns
   give the largest absolute change in the dataset-mean downstream score and in
   synthetic feature recovery across the task groups; inequality entries are
-  rounded upward to the nearest 0.001. Forests fit 100 trees with one worker per
-  tree and one Numba thread per worker on a 32-core cloud instance.}
+  rounded upward to the nearest 0.001. The auto-budget rows come from the CIT/CIF
+  runtime ablation, which records synthetic recovery but no downstream score.
+  Forests fit 100 trees with one worker per tree and one Numba thread per worker
+  on a 32-core cloud instance.}
   \label{tab:cif-runtime-hyperparams}
 \end{table}
 
@@ -347,7 +351,10 @@ stopping is inert at the benchmark budget (0.96--0.99$\times$, no score
 change), and a single-worker forest confirms that the result does not depend on
 the trees hiding behind the thread pool: with one worker and the full thread
 pool per tree, switching the rule off changes fitting time by 0.79--1.10$\times$
-across 21 datasets. The threshold scan is again the dominant control, at
+across 21 datasets. Where the rule can act, at the \texttt{auto} budget, the
+adaptive forest costs 1.27--1.83$\times$ the default and the same budget without
+stopping 5.2--14$\times$, the same 85 percent recovery as for the single tree,
+with synthetic recovery changes of at most 0.030. The threshold scan is again the dominant control, at
 7.9--29$\times$ by group medians, and the number of candidates is the next:
 exact threshold search is 1.3--20$\times$ slower than the 256-bin histogram
 and a 32-bin histogram is 7--20$\times$ faster, with downstream score changes
@@ -405,7 +412,7 @@ The cost difference is where the constructions separate
 (\cref{tab:stageB-scaling}, \cref{app:stageB-tables}). With exhaustive stopping, one tree at the 256-bin
 setting takes 5.7 seconds at $n=1{,}000$, 14 seconds at $n=4{,}000$, and 60 seconds at $n=16{,}000$ under the Bonferroni rule in classification (1.1, 8.3, and 51 seconds in regression); the max-type rule takes 0.5, 1.6, and 6.5 seconds at the same settings. The ratio grows with the bin setting as the $K^2/\alpha$ against $BK$ accounting predicts: the two rules cost the same at 16 bins, the exhaustive ratio is 1.2--1.9 at 64 and 2.0--11 at 256. Adaptive stopping shortens the Bonferroni test once its budget exceeds the $\lceil 1/\alpha \rceil$ floor, by 1.3--3.0$\times$ at 64 bins and 2.3--6.9$\times$ at 256, so with adaptive stopping the max-type advantage is 1.0--1.8 at 64 bins and 1.3--6.4 at 256. Depth barely separates the rules on these data: over the grid the max-type trees have 5.0--11.0 levels and the Bonferroni trees 4.0--10.0 under either stopping mode. The planted signal is linear in three of the ten predictors, so depth reflects both power at small nodes and splits on noise; the real-data scores are the measure of which trees predict better.
 
-On the six real datasets (\cref{tab:stageB-real}, \cref{app:stageB-tables}), with scores taken as the median over five seeds of the fold assignment, the max-type rule matched or exceeded the Bonferroni rule in 8 of the 12 dataset and stopping-mode cells: by 0.022 and 0.026 on vowel, 0.069 and 0.026 on facebook, 0.061 and 0.033 on imports-85, and 0.008 and 0.004 on residential; on page-blocks and spam it was lower by at most 0.004. Its fitting time was 0.9 to 2.3 times shorter with adaptive stopping and 0.9 to 4.8 times shorter with exhaustive stopping, the largest savings on the two datasets with the most continuous predictors per node. The Spearman agreement of the two rules' feature importances ranges from 0.30 to 0.91, so the max-type rule produces a different ranking rather than a faster route to the same one. In the head-to-head forest timing on the recommended configuration, with both rules refit in one run on the same hosts, the max-type rule is 2.9--12$\times$ faster than the per-threshold rule on synthetic Gaussian predictors at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$ and 20--32$\times$ faster at $n=32{,}000$; on the ten real datasets it reduces madelon from 24 to 4.8 seconds, gamma from 45 to 22 seconds, and isolet from 19 to 11 seconds, and changes the other seven by at most 2 seconds.
+On the six real datasets (\cref{tab:stageB-real}, \cref{app:stageB-tables}), with scores taken as the median over five seeds of the fold assignment, the max-type rule matched or exceeded the Bonferroni rule in 8 of the 12 dataset and stopping-mode cells: by 0.022 and 0.026 on vowel, 0.069 and 0.026 on facebook, 0.061 and 0.033 on imports-85, and 0.008 and 0.004 on residential; on page-blocks and spam it was lower by at most 0.004. Its fitting time was 0.9 to 2.3 times shorter with adaptive stopping and 0.9 to 4.8 times shorter with exhaustive stopping; the savings are largest on page-blocks and facebook, whose predictors admit the most candidates per node, and the max-type rule is slower only on residential, by about 10 percent, and equal on imports-85. The Spearman agreement of the two rules' feature importances ranges from 0.30 to 0.91, so the max-type rule produces a different ranking rather than a faster route to the same one. In the head-to-head forest timing on the recommended configuration, with both rules refit in one run on the same hosts, the max-type rule is 2.9--12$\times$ faster than the per-threshold rule on synthetic Gaussian predictors at $n\in\{500, 2{,}000, 8{,}000\}$ and $p\in\{20,100,500\}$ and 20--32$\times$ faster at $n=32{,}000$; on the ten real datasets it reduces madelon from 24 to 4.8 seconds, gamma from 45 to 22 seconds, and isolet from 19 to 11 seconds, and changes the other seven by at most 2 seconds.
 
 The power study (\cref{tab:stageB-power}, \cref{app:stageB-tables}) plants a step in one of five Gaussian predictors and records how often a depth-one tree splits at all and how often on the planted predictor. The max-type rule has higher power than the Bonferroni rule in every cell short of saturation, by 0.03 on average and up to 0.12, and the gap grows with the candidate count: 0.015 at 16 bins, 0.029 at 64, and 0.049 at 256, because the max-type power is flat in the bin setting while the Bonferroni power falls as the adjustment tightens. Adaptive and exhaustive stopping agree within 0.014. The cost of the joint test is precision: the max-type threshold sits a median 0.19 standard deviations from the planted cut against 0.15 for the Bonferroni rule, and 87 rather than 90 percent of its detections fall on the planted predictor. The max-type rule is therefore calibrated, cheaper on continuous predictors, and more powerful at the node, with a small loss in the location of the chosen threshold.
 

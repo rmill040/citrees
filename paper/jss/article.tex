@@ -949,8 +949,9 @@ by 0.022 and 0.026 on vowel, 0.069 and 0.026 on facebook, 0.061 and 0.033 on
 imports-85, and 0.008 and 0.004 on residential; on page-blocks and spam it was
 lower by at most 0.004. Its fitting time was 0.9 to 2.3 times shorter than the
 Bonferroni test's with adaptive stopping and 0.9 to 4.8 times shorter with
-exhaustive stopping, with the largest savings on the two datasets with the most
-continuous predictors per node. The two constructions choose different splits
+exhaustive stopping; the savings are largest on page-blocks and facebook,
+whose predictors admit the most candidates per node, and the max-type test is
+slower only on residential, by about 10 percent, and equal on imports-85. The two constructions choose different splits
 at the 256-bin setting: the Spearman agreement of their feature importances
 ranges from 0.30 to 0.91 across datasets and stopping modes, so the max-type
 test produces a different ranking rather than a faster route to the same one.

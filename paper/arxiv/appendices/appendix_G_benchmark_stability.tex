@@ -29,8 +29,10 @@ present.
     Seed sensitivity & 13 & 6 & Seed variation on datasets complete across seeds \\
     \bottomrule
   \end{tabularx}
-
-
+  \caption{Dataset counts for benchmark analyses. The learner-by-$k$ row lists
+  counts at $k=5,10,25,50,100$; each summary uses the datasets, downstream
+  learners, and standard top-$k$ values available for its comparison.}
+  \label{tab:benchmark-dataset-counts}
 \end{table}
 
 \subsection{Bootstrap and rank checks}
@@ -57,8 +59,12 @@ and $k \in \{5,10,25,50,100\}$.
     Regression & CIT & 0.308 & [-0.002, 0.766] & \winloss{5}{1} \\
     \bottomrule
   \end{tabular}
-
-
+  \caption{Complete-case CIF differences against ctree, cforest, and CIT. Mean
+  $\Delta$ is CIF minus comparator after averaging each dataset over the same
+  downstream learners and values of $k$. Intervals resample dataset-level paired
+  deltas with 20{,}000 percentile-bootstrap replicates. W--L gives dataset-level
+  wins and losses; no exact ties occurred.}
+  \label{tab:cif-ci-comparisons}
 \end{table}
 
 The metric is balanced accuracy for classification and $R^2$ for regression.

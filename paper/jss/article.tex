@@ -698,10 +698,10 @@ Table~\ref{tab:performance-reference} reports the reference condition of the
 first study. At identical exhaustive work \pkg{partykit} is the faster
 implementation: 286 seconds against 706 seconds for a classification forest on
 one core, and 13 seconds with 32 cores. The recommended \citrees configuration
-reaches 20 and 18 seconds for the classification and regression forests, 35
-and 37 times faster than its own exhaustive procedure and 1.7 and 1.9 times
+reaches 21 and 19 seconds for the classification and regression forests, 34
+and 35 times faster than its own exhaustive procedure and 1.6 and 1.8 times
 faster than \pkg{partykit} on one core, but 11 and 10 times slower than
-\pkg{partykit} on 32 cores. Single trees favor \citrees at 0.3 seconds
+\pkg{partykit} on 32 cores. Single trees favor \citrees at 0.05 seconds
 against 2.9 seconds with the recommended configuration and \pkg{partykit} at
 2.9 against 6.0 seconds under the exhaustive procedure. The permutation budget is the dominant cost of the
 exhaustive procedure in both libraries, 71 to 7,019 seconds in \citrees and 34
@@ -720,10 +720,10 @@ cost of conditional inference on a familiar scale.
  & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
 Configuration & Tree & Forest & Tree & Forest \\ \hline
 \citrees, exhaustive, all predictors & 6.0 [6.0, 6.1] & 706 [704, 707] & 5.5 [5.5, 5.5] & 666 [665, 666] \\
-\citrees, recommended & 0.3 [0.3, 2.0] & 20 [19, 21] & 0.3 [0.3, 0.3] & 18 [17, 18] \\
+\citrees, recommended & 0.05 [0.04, 0.06] & 21 [20, 22] & 0.04 [0.04, 0.04] & 19 [18, 20] \\
 \pkg{partykit}, exhaustive, all predictors & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
 \pkg{partykit}, all predictors, 32 cores & n/a & 13 [13, 13] & n/a & 13 [13, 13] \\
-\pkg{partykit}, default, 1 core & n/a & 34 [33, 35] & n/a & 35 [34, 36] \\
+\pkg{partykit}, default, 1 core & n/a & 34 [33, 35] & n/a & 35 [34, 35] \\
 \pkg{partykit}, default, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.8, 2.0] \\
 \sklearn CART & 0.01 [0.01, 0.01] & 0.16 [0.16, 0.17] & 0.01 [0.01, 0.01] & 0.12 [0.12, 0.12] \\ \hline
 \end{tabular}
@@ -736,10 +736,9 @@ every predictor at every node and runs on one core in \pkg{partykit}. The
 recommended \citrees configuration and the \pkg{partykit} default both sample
 square-root predictors in forests. Single
 trees have no 32-core condition because \pkg{partykit} parallelizes only
-across trees. The exhaustive rows come from the released build (88-shard cloud
-campaign, receipts in the reference release); the recommended and 32-core rows
-were measured on a build that preceded the parallel adaptive splitter kernels,
-so the recommended single-tree time is an upper bound.}
+across trees. All rows were measured on the released build: the exhaustive rows
+in the 88-shard cloud campaign and the remaining rows in a reference-condition
+run on the same machine class, both with receipts in the reference release.}
 \label{tab:performance-reference}
 \end{table}
 

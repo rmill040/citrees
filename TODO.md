@@ -33,22 +33,6 @@ kernel-fix, and cleanup record).
 
 ## Compute in flight (2026-09-13 evening)
 
-- [ ] JSS reference-condition table: the 88-shard campaign (all shards archived
-      2026-09-14 ~07:30 UTC, materialized to
-      `paper/jss/results/performance-full-e78d84a`, copied to
-      `reference/v3/jss/performance-full-e78d84a/`) holds only the exhaustive
-      ("matched") configuration, so its rows and the budget-axis prose are
-      refilled (bd559e4). The recommended and partykit 32-core / default rows
-      come from a reference-condition variant run launched on the droplet
-      2026-09-14 ~07:45 UTC (i-0f6ffe1f68f8fdbd3; driver
-      `scratch/droplets/jss-ref-variants/driver.py`, 4 variants x 40 cells,
-      output
-      `repairs/h2h-rerun/source-e78d84a4…/jss-reference-variants/     reference_variants.csv`).
-      When it lands: refill those rows (median and IQR over 10 repeats), the
-      dependent prose (20 and 18 seconds, 1.7 and 1.9 times, 11 and 10 times
-      slower, 0.3 seconds), drop the pre-fix caption note, rebuild, commit, copy
-      to `reference/v3/jss/reference-variants/`.
-
 ## Manuscript work
 
 Done 2026-09-13: Stage B section (calibration, cost, real subset, power) in both

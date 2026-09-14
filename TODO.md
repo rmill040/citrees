@@ -70,8 +70,6 @@ editing):
 - [ ] JSS `tab:performance-real` prose: state explicitly where the max-type test
       is slower (residential and imports-85 by under 10 percent in the Stage B
       real subset) and use one runtime-ratio definition throughout.
-- [ ] arXiv rank/k consistency: report mean rank and ordinal position together;
-      k-trajectory on a constant dataset panel.
 - [ ] arXiv presentation: enlarge the 8-point ranking table and the
       recovery-figure legends; aggregation unit and uncertainty in captions.
 

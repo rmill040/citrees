@@ -735,7 +735,10 @@ every predictor at every node and runs on one core in \pkg{partykit}. The
 recommended \citrees configuration and the \pkg{partykit} default both sample
 square-root predictors in forests. Single
 trees have no 32-core condition because \pkg{partykit} parallelizes only
-across trees.}
+across trees. The \citrees rows of this table were measured on a build that
+preceded the parallel adaptive splitter kernels of the released version, so
+the recommended single-tree time is an upper bound; the real-data and scaling
+tables were measured on the released build.}
 \label{tab:performance-reference}
 \end{table}
 

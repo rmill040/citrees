@@ -33,13 +33,6 @@ kernel-fix, and cleanup record).
 
 ## Compute in flight (2026-09-13 evening)
 
-- [ ] Wide-dataset runtime ablation (`paper_*` benchmark datasets, CIT and CIF,
-      six knobs; image built from 4e60fbe): shards 0-2 done or running, shards
-      3-6 queued in `scratch/droplets/wide-runtime/`. Outputs
-      `repairs/runtime-ablation-rerun/source-4e60fbe7…/cit_cif_runtime_ablation/     wide_shard{i}_raw.csv`.
-      Summarize into `paper/results/tables/wide_runtime_ablation_summary.csv`;
-      then add the large-dataset rows or a sentence to the arXiv runtime
-      section.
 - [ ] JSS performance campaign: shards 77 and 87 relaunched on spot 2026-09-14
       ~02:30 UTC with the author's explicit permission (the grid is mc/pc only,
       no RDC cell). When 88 of 88 are archived, materialize from

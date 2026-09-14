@@ -46,13 +46,19 @@ kernel-fix, and cleanup record).
       `paper/results/tables/scaling_curves.csv`; then a figure or table for
       Appendix E.
 - [ ] JSS performance campaign (full profile, 88 shards, spot, launched before
-      the droplets-only rule; do NOT top up): 84 of 88 archived. When complete,
-      materialize from the detached worktree `/tmp/wt-e78d84a` (HEAD must equal
-      e78d84a; `UV_PROJECT_ENVIRONMENT` at the main `.venv`,
-      `uv run --no-sync     python -m paper.jss.replication.cloud materialize …`)
-      into `paper/jss/results/performance-full-e78d84a`, then refill the JSS
-      reference-condition table (`tab:performance-reference`) and its prose ("17
-      times faster than its own exhaustive procedure", line ~695).
+      the droplets-only rule): 86 of 88 shards archived; shards 77 and 87 were
+      lost when the last spot instances ended without archiving, and the cloud
+      tool refuses to materialize an incomplete campaign. The tool is spot-only
+      at every layer (campaign, launch record, worker runtime), so the two
+      shards cannot be finished on the droplets without changing it. The JSS
+      reference-condition table (`tab:performance-reference`) therefore still
+      carries PRE-FIX single-tree timings. Options for the author: (a) permit
+      two spot instances to finish shards 77 and 87 and materialize; (b) run the
+      reference-condition cells on a droplet through a scratch protocol in the
+      head-to-head style and refill the table from that run, marking it as such;
+      (c) teach the cloud tool an on-demand droplet market (code change to the
+      provenance contract). Until one is chosen the table's caption must say the
+      single-tree rows predate the kernel fix.
 
 ## Manuscript work
 
@@ -73,8 +79,6 @@ editing):
       split, forest sizes, feature sampling, comparator grids).
 - [ ] arXiv rank/k consistency: report mean rank and ordinal position together;
       k-trajectory on a constant dataset panel.
-- [ ] arXiv ablation narrative: restrict the negligible-effect statement to
-      classification; report regression's heterogeneous single-tree effects.
 - [ ] arXiv presentation: enlarge the 8-point ranking table and the
       recovery-figure legends; aggregation unit and uncertainty in captions.
 
@@ -120,10 +124,9 @@ runtime runs.
 
 ## Code debt (small; after the in-flight runs land)
 
-- [ ] `paper/analysis`: fourteen builders and
-      `paper/data_generation/generate_synthetic_datasets.py` are referenced by
-      nothing; add `paper/analysis/README.md` mapping each to its figure or
-      table and delete the rest.
+- [ ] `paper/analysis/README.md` maps every builder to its output and consumer;
+      delete `build_cit_runtime_ablation_summary_tables.py` after v3 (superseded
+      by the experiment module's `summarize`).
 - [ ] `tools/hooks/check_no_aws_configs.py` guards a path that no longer exists;
       point it at `paper/benchmark/infra/config.yaml` or drop it.
 - [ ] Parameter tables triplicated (README, docs/parameters.md, AGENTS.md); keep

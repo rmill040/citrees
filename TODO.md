@@ -49,13 +49,6 @@ kernel-fix, and cleanup record).
       prefix `…/source-9ad58b9c…/`): 2 of 6 raw CSVs in; summarize into
       `paper/results/tables/cif_autobudget_ablation_summary.csv` and add the row
       to the arXiv CIF runtime table.
-- [ ] `threshold_search_ablation` rerun (single off-droplet box launched before
-      the droplets-only rule, i-0db774f65def12b33, mc/pc only): final CSV at
-      `repairs/runtime-ablation-rerun/source-d6c0696f…/threshold_search_ablation/`;
-      summarize with its module and regenerate
-      `paper_threshold_ablation_summary.csv`. The exact-threshold and 32-bin
-      rows of the arXiv CIF table currently come from the pre-fix run of this
-      ablation and are replaced from it.
 - [ ] JSS performance campaign (full profile, 88 shards, spot, launched before
       the droplets-only rule; do NOT top up): 84 of 88 archived. When complete,
       materialize from the detached worktree `/tmp/wt-e78d84a` (HEAD must equal
@@ -80,10 +73,6 @@ editing):
 - [ ] JSS `tab:performance-real` prose: state explicitly where the max-type test
       is slower (residential and imports-85 by under 10 percent in the Stage B
       real subset) and use one runtime-ratio definition throughout.
-- [ ] NHANES over-claims (`article.tex`, abstract, intro, application): remove
-      the causal attribution to "the importance statistic" and the
-      predictive-parity claim (predictions are logistic regression on selected
-      columns).
 - [ ] arXiv reproducibility: configuration table (selected selectors, honesty
       split, forest sizes, feature sampling, comparator grids).
 - [ ] arXiv rank/k consistency: report mean rank and ordinal position together;

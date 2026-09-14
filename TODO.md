@@ -70,8 +70,9 @@ editing):
 - [ ] JSS `tab:performance-real` prose: state explicitly where the max-type test
       is slower (residential and imports-85 by under 10 percent in the Stage B
       real subset) and use one runtime-ratio definition throughout.
-- [ ] arXiv presentation: enlarge the 8-point ranking table and the
-      recovery-figure legends; aggregation unit and uncertainty in captions.
+- [ ] arXiv presentation: table and legend sizes done; check the remaining
+      `\scriptsize` tables (conditional-inference comparisons, CIF ablation,
+      breadth) and every caption for aggregation unit and uncertainty.
 
 Other manuscript items:
 
@@ -122,9 +123,6 @@ runtime runs.
       point it at `paper/benchmark/infra/config.yaml` or drop it.
 - [ ] Parameter tables triplicated (README, docs/parameters.md, AGENTS.md); keep
       docs/parameters.md as the source and shorten the others.
-- [ ] Promote the head-to-head timing protocol (`scratch/h2h/h2h_maxt.py`) into
-      `paper/jss/replication` as a receipted component, or document it as a
-      scratch protocol in the JSS replication README.
 - [ ] Make forest importances independent of `n_jobs` at the tie level, or
       document that they are not.
 

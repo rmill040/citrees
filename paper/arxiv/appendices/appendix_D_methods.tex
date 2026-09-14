@@ -75,6 +75,50 @@ classification and standard bootstrap sampling for regression. These forest-leve
 choices affect the fitted rankings, while the fixed-node theorem covers only the
 Stage~A reference test.
 
+\subsection{Selected configurations}
+\label{app:selected-configs}
+
+\Cref{tab:selected-configs} lists the configuration each method family entered
+the benchmark with, after the selection rule of \cref{sec:experiments-real}
+picked one configuration per family by average synthetic recovery over the
+standard $k$ values. Candidates is the size of the family's configuration grid.
+Settings not listed are the library defaults recorded in the benchmark
+manifests; the seed schedule is fixed by the benchmark configuration.
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}llcl@{}}
+    \toprule
+    \tablehead{Family} & \tablehead{Task} & Candidates & \tablehead{Selected configuration} \\
+    \midrule
+    CIT & clf. & 4 & selector MC; minimum budgets with adaptive stopping; histogram, 256 thresholds; Bonferroni; no honesty \\
+    CIT & reg. & 4 & selector RDC; otherwise as classification \\
+    CIF & clf. & 4 & selector RDC; 100 trees; stratified bootstrap; square-root feature sampling; no honesty; otherwise as CIT \\
+    CIF & reg. & 4 & selector RDC; 100 trees; bootstrap; square-root feature sampling; honesty with a 0.5 split \\
+    RF, ET & both & 1 & 100 trees, library defaults, impurity importance \\
+    XGBoost & both & 5 & 500 rounds, depth 6, learning rate 0.1; importance total gain (clf.) or total cover (reg.) \\
+    LightGBM & both & 2 & 500 rounds, depth 6, learning rate 0.1; gain importance \\
+    CatBoost & both & 1 & 500 iterations, depth 6, learning rate 0.1 \\
+    partykit ctree & both & 2 & quadratic statistic, Monte Carlo test with 9,999 resamples \\
+    partykit cforest & both & 4 & as ctree; 100 trees, square-root mtry, unconditional permutation importance with one permutation \\
+    Permutation filters & both & 1 & one permutation test per feature (MC, RDC; PC, DC, RDC) \\
+    Boruta & both & 1 & 200 iterations on an auto-sized random forest \\
+    PI, CPI & both & 1 & 10 permutation repeats on a random forest \\
+    RF-RFE & both & 1 & step 1 on a random forest \\
+    \bottomrule
+  \end{tabular}
+  \caption{Configurations entered in the benchmark, one per family and task,
+  with the size of the grid the selection rule chose from. The
+  \texttt{minimum} budget is $\lceil 1/\alpha_{\mathrm{adj}} \rceil$ permutations
+  at the Bonferroni-adjusted level; the histogram search offers 256 candidate
+  thresholds per feature. Full parameter values are in
+  \texttt{paper\_benchmark\_selected\_config\_details.csv} of the reference
+  release.}
+  \label{tab:selected-configs}
+\end{table}
+
 \subsection{Benchmark coverage}
 
 \Cref{sec:experiments-protocol,sec:experiments-repro} define the benchmark

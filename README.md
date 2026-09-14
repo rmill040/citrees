@@ -201,83 +201,22 @@ function BuildTree(X, y, depth):
 
 ## Parameters Reference
 
-### Core Parameters
+The complete parameter reference with defaults and tuning guidance is
+[docs/parameters.md](docs/parameters.md). The settings most users touch:
 
-| Parameter              | Type                | Default           | Description                                                            |
-| ---------------------- | ------------------- | ----------------- | ---------------------------------------------------------------------- |
-| `selector`             | str or list         | `'mc'`/`'pc'`     | Feature selection method                                               |
-| `splitter`             | str                 | `'gini'`/`'mse'`  | Split criterion                                                        |
-| `alpha_selector`       | float               | 0.05              | P-value threshold for feature selection                                |
-| `alpha_splitter`       | float               | 0.05              | P-value threshold for split selection                                  |
-| `n_resamples_selector` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for selector (`None` disables permutation tests) |
-| `n_resamples_splitter` | NResamples/int/None | `NResamples.AUTO` | Permutation resamples for splitter (`None` disables permutation tests) |
-
-### Optimization Parameters
-
-| Parameter                            | Type               | Default                  | Description                                                        |
-| ------------------------------------ | ------------------ | ------------------------ | ------------------------------------------------------------------ |
-| `adjust_alpha_selector`              | bool               | True                     | Bonferroni correction for features                                 |
-| `adjust_alpha_splitter`              | bool               | True                     | Bonferroni correction for thresholds                               |
-| `early_stopping_selector`            | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for selector permutation tests            |
-| `early_stopping_splitter`            | EarlyStopping/None | `EarlyStopping.ADAPTIVE` | Sequential stopping rule for splitter permutation tests            |
-| `early_stopping_confidence_selector` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (selectors) |
-| `early_stopping_confidence_splitter` | float              | 0.95                     | Posterior-confidence threshold γ for adaptive stopping (splitters) |
-| `feature_muting`                     | bool               | True                     | Remove Stage A non-rejecting tested features from descendant pools |
-| `feature_scanning`                   | bool               | True                     | Test promising features first                                      |
-
-### Tree Structure Parameters
-
-| Parameter               | Type                           | Default                    | Description                                     |
-| ----------------------- | ------------------------------ | -------------------------- | ----------------------------------------------- |
-| `max_depth`             | int                            | None                       | Maximum tree depth                              |
-| `min_samples_split`     | int                            | 2                          | Minimum samples to split                        |
-| `min_samples_leaf`      | int                            | 1                          | Minimum samples in leaf                         |
-| `min_impurity_decrease` | float                          | 0.0                        | Minimum impurity decrease to split              |
-| `max_features`          | MaxValuesMethod/int/float/None | None                       | Features per split                              |
-| `threshold_method`      | ThresholdMethod                | `ThresholdMethod.EXACT`    | How to generate split candidates                |
-| `max_thresholds`        | MaxValuesMethod/int/float/None | None                       | Maximum thresholds per feature                  |
-| `threshold_scanning`    | bool                           | True                       | Test promising thresholds first                 |
-| `threshold_test`        | ThresholdTest                  | `ThresholdTest.BONFERRONI` | Per-threshold Bonferroni or joint max-type test |
-
-### Honest Estimation
-
-| Parameter          | Type  | Default | Description                                         |
-| ------------------ | ----- | ------- | --------------------------------------------------- |
-| `honesty`          | bool  | False   | Enable sample splitting                             |
-| `honesty_fraction` | float | 0.5     | Fraction for estimation sample (rest for structure) |
-
-### Forest Parameters
-
-| Parameter         | Type                | Default                     | Description                                   |
-| ----------------- | ------------------- | --------------------------- | --------------------------------------------- |
-| `n_estimators`    | int                 | 100                         | Number of trees                               |
-| `max_samples`     | int/float/None      | None                        | Bootstrap sample cap (count or fraction)      |
-| `bootstrap`       | bool                | `True`                      | Whether to use bootstrap sampling             |
-| `sampling_method` | SamplingMethod/None | `SamplingMethod.STRATIFIED` | How to sample classes during bootstrap        |
-| `n_jobs`          | int/None            | None                        | Parallel jobs (-1 for all cores)              |
-| `oob_score`       | bool                | False                       | Compute out-of-bag score (requires bootstrap) |
-
-Notes:
-
-- `sampling_method` applies to classification forests only and requires
-  `bootstrap=True`.
-- `sampling_method` options: `stratified`, `undersample`, `oversample`.
-- `max_samples` is only used when `bootstrap=True`.
-- `bootstrap=False` disables bootstrapping (and thus OOB).
-- Invalid combinations (e.g., `bootstrap=False` with `sampling_method` set)
-  raise a validation error.
-- Forest classes default `max_features=MaxValuesMethod.SQRT` (trees default
-  `None`).
-- OOB scores are computed only for samples that receive at least one OOB
-  prediction.
-
-### Miscellaneous Parameters
-
-| Parameter                     | Type     | Default | Description                                                |
-| ----------------------------- | -------- | ------- | ---------------------------------------------------------- |
-| `random_state`                | int/None | None    | Random seed for permutation tests, sampling, and bootstrap |
-| `verbose`                     | int      | 1       | Verbosity level (0=quiet; higher prints more progress)     |
-| `check_for_unused_parameters` | bool     | False   | Warn when parameters are ineffective due to other settings |
+| Parameter                                            | Default                     | Description                                                           |
+| ---------------------------------------------------- | --------------------------- | --------------------------------------------------------------------- |
+| `selector`                                           | `'mc'` (clf) / `'pc'` (reg) | Stage A statistic: `mc`, `mi`, `rdc` (clf); `pc`, `dc`, `rdc` (reg)   |
+| `alpha_selector`, `alpha_splitter`                   | 0.05                        | Significance levels of the two stages                                 |
+| `adjust_alpha_selector`, `adjust_alpha_splitter`     | True                        | Bonferroni adjustment over features and over candidate thresholds     |
+| `n_resamples_selector`, `n_resamples_splitter`       | `'auto'`                    | Permutation budget: `'minimum'`, `'auto'`, `'maximum'`, or an int     |
+| `early_stopping_selector`, `early_stopping_splitter` | `'adaptive'`                | Beta-posterior stopping; inert when the budget equals the floor       |
+| `feature_scanning`, `threshold_scanning`             | True                        | Test candidates in order of promise, stop at the first rejection      |
+| `feature_muting`                                     | True                        | Drop features that failed the selector test from descendants          |
+| `threshold_method`, `max_thresholds`                 | `'exact'`, None             | Candidate thresholds; `'histogram'` with 256 is the benchmark setting |
+| `threshold_test`                                     | `'bonferroni'`              | Per-threshold Bonferroni or joint `'maxt'` Stage B test               |
+| `honesty`, `honesty_fraction`                        | False, 0.5                  | Sample splitting for leaf estimation                                  |
+| `n_estimators`, `max_features`, `n_jobs`             | 100, `'sqrt'`, None         | Forest size, feature sampling, and workers (forests)                  |
 
 ## Use Cases
 

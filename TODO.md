@@ -63,9 +63,8 @@ editing):
 - [ ] JSS `tab:performance-real` prose: state explicitly where the max-type test
       is slower (residential and imports-85 by under 10 percent in the Stage B
       real subset) and use one runtime-ratio definition throughout.
-- [ ] arXiv presentation: table and legend sizes done; check the remaining
-      `\scriptsize` tables (conditional-inference comparisons, CIF ablation,
-      breadth) and every caption for aggregation unit and uncertainty.
+- [ ] arXiv presentation: sweep every caption in 05_results.tex and Appendix G
+      for aggregation unit and uncertainty measure.
 
 Other manuscript items:
 

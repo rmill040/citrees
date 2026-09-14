@@ -111,22 +111,16 @@ Available registries:
 
 ### Key Parameters
 
-| Parameter              | Description                                                    | Default                    |
-| ---------------------- | -------------------------------------------------------------- | -------------------------- |
-| `selector`             | Feature selection method: str or list                          | 'mc' (clf) / 'pc' (reg)    |
-| `splitter`             | Split criterion                                                | 'gini' (clf) / 'mse' (reg) |
-| `alpha_selector`       | P-value threshold for feature selection                        | 0.05                       |
-| `alpha_splitter`       | P-value threshold for split selection                          | 0.05                       |
-| `n_resamples_selector` | NResamples enum or int                                         | NResamples.AUTO            |
-| `adjust_alpha_*`       | Bonferroni correction                                          | True                       |
-| `early_stopping_*`     | EarlyStopping enum or None                                     | EarlyStopping.ADAPTIVE     |
-| `feature_muting`       | Remove uninformative features                                  | True                       |
-| `feature_scanning`     | Test features in order of promise, stop at first rejection     | True                       |
-| `threshold_scanning`   | Test thresholds in order of promise, stop at first rejection   | True                       |
-| `threshold_method`     | ThresholdMethod enum                                           | ThresholdMethod.EXACT      |
-| `threshold_test`       | ThresholdTest enum: per-threshold Bonferroni or joint max-type | ThresholdTest.BONFERRONI   |
-| `max_features`         | MaxValuesMethod enum, float, or int                            | None (all)                 |
-| `max_thresholds`       | MaxValuesMethod enum, float, or int                            | None (all)                 |
+The full reference with defaults and tuning guidance is `docs/parameters.md`.
+The settings that matter most for behavior and cost: `selector` and `splitter`;
+`alpha_*` and `adjust_alpha_*` (Bonferroni over features and over candidate
+thresholds); `n_resamples_*` (`minimum` is the benchmark budget, the floor below
+which adaptive stopping cannot act; `auto` is the constructor default);
+`early_stopping_*` (`adaptive` default); `feature_scanning`,
+`threshold_scanning`, `feature_muting`; `threshold_method` and `max_thresholds`
+(`histogram` with 256 is the benchmark setting); `threshold_test` (`bonferroni`
+default, `maxt` opt-in); `honesty`; and for forests `n_estimators`,
+`max_features`, `n_jobs`.
 
 ### Selector Parameter
 

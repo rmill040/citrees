@@ -323,7 +323,14 @@ has a cost), and exact threshold search and feature muting are within a few
 percent of the default. Removing the Bonferroni correction changes the
 statistical rule: trees grow from a mean depth of 4.8 and 6.9 to 9.9 and 14.4
 levels and top-10 recovery moves by up to 0.063, so it is not a runtime
-control.
+control. The pattern holds on the 14 benchmark-size datasets (up to 20,000
+observations and 5,000 features; five seeds each): switching adaptive stopping
+off changes single-tree time by 0.58--1.04$\times$ (medians 0.95 in
+classification and 0.80 in regression), threshold scanning saves a median
+18$\times$ in classification and up to 44$\times$ on spam, and dropping the
+Bonferroni correction runs in 0.01--1.08$\times$ of the default. The largest
+single-tree time is gisette at 31 minutes, where each of 5,000 features
+receives a Bonferroni-scaled budget.
 
 \begin{table}[H]
   \centering
@@ -380,7 +387,8 @@ downstream changes of at most 0.005; \cref{sec:results-stageB} reports its
 calibration, power, and ranking effect. Removing the Bonferroni correction is
 the fastest change for both CIT and CIF, but it changes the statistical rule and
 yields deeper trees with more selected features; the selected setting keeps
-Bonferroni correction.
+Bonferroni correction. On the 14 benchmark-size datasets the forest's
+adaptive-stopping ratio is 0.77--1.09$\times$ (medians 1.00 and 0.99).
 \FloatBarrier
 
 \subsection{Stage~B construction comparison}

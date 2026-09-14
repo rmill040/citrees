@@ -27,6 +27,7 @@ paper/results/tables/*
 !paper/results/tables/paper_mirrored_knob_ablation_summary.csv
 !paper/results/tables/cif_autobudget_ablation_summary.csv
 !paper/results/tables/scaling_curves.csv
+!paper/results/tables/wide_runtime_ablation_summary.csv
 !paper/results/tables/paper_threshold_ablation_summary.csv
 !paper/results/tables/paper_maxt_extension_method_aggregate.csv
 !paper/results/tables/paper_maxt_extension_pairwise.csv

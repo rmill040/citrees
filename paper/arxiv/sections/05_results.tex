@@ -220,9 +220,17 @@ difference near zero.
 \Cref{fig:k-trajectory,fig:regression-k-trajectory} report mean rank separately
 by $k$. In classification, CIF's mean rank is 6.9, 8.2, 6.6, 6.2, and 5.6 at
 $k=5,10,25,50,100$. In regression, it is 8.2, 7.8, 7.1, 7.5, and 8.3 at the
-same values of $k$. These by-$k$ results add context to
-\Cref{tab:method-main-comparison}: CIF is strongest at larger displayed $k$
-values in classification and at $k=25$ in regression. The dataset counts behind each column are given in the figure captions.
+same values of $k$. The dataset counts behind those columns differ (21 to 13
+datasets in classification), so the columns are not directly comparable. On the
+constant complete-case panels of 13 classification and 6 regression datasets,
+CIF's mean rank by $k$ is 7.8, 7.7, 6.5, 6.2, and 5.7
+(positions 7, 8, 6, 6, and 4 of 17) in classification and 8.2,
+8.3, 6.3, 7.0, and 7.0 (positions 6, 7, 3, 4, and 3 of 18) in
+regression. These by-$k$ results add context to
+\Cref{tab:method-main-comparison}: CIF improves steadily with $k$ in
+classification, from the middle of the field at $k=5$ to second at $k=100$,
+and is strongest at $k=25$ in regression. The dataset counts behind each
+figure column are given in the captions.
 
 \FloatBarrier
 

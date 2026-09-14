@@ -108,14 +108,20 @@ available and some comparator mean $R^2$ values are negative.
 four targeted changes on the real-data benchmark datasets: split-count ranking,
 disabling bootstrap sampling, disabling feature muting, and using one tree.
 Each changed variant is paired with the reference in the same seed and fold.
-Reducing CIF to one tree is the only change with a material effect: it lowers
-the score on every dataset in both tasks, by $0.071$ balanced accuracy on
-average in classification. Split-count ranking, disabling bootstrap sampling,
-and disabling feature muting change classification balanced accuracy by at most
-$0.001$ on average, with intervals that include zero. The regression means for
-these three changes are pulled down by the three small \nolinkurl{coepra}
-datasets, where $R^2$ is unstable across folds; their medians are within
-$0.007$ of zero and their win--loss counts are near even.
+In classification the picture is simple. Reducing CIF to one tree lowers
+balanced accuracy on every dataset, by $0.071$ on average, while split-count
+ranking, disabling bootstrap sampling, and disabling feature muting change it by
+at most $0.003$ on average, with intervals that include zero. Regression is
+heterogeneous and the negligible-effect statement does not carry over: the one
+tree loses on all eight datasets, by $0.66$ $R^2$ on average and $0.06$ at the
+median; split-count ranking and disabling bootstrap sampling lower the mean
+$R^2$ by $0.043$ to $0.064$ with intervals that exclude zero, although their
+medians are within $0.007$ of zero and the win--loss counts are 2--6 to 4--4;
+and disabling feature muting lowers the mean by $0.16$ to $0.25$ with a median
+near zero. The means are pulled down by the three small \nolinkurl{coepra}
+datasets, where $R^2$ is unstable across folds, so in regression the controls
+matter on a few datasets rather than on average, and the table reports both
+statistics.
 
 \begin{table}[H]
   \centering

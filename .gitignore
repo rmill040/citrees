@@ -25,6 +25,7 @@ paper/results/tables/*
 !paper/results/tables/paper_threshold_test_power_5seeds.csv
 !paper/results/tables/cif_njobs1_ablation_summary.csv
 !paper/results/tables/paper_mirrored_knob_ablation_summary.csv
+!paper/results/tables/cif_autobudget_ablation_summary.csv
 !paper/results/tables/paper_threshold_ablation_summary.csv
 !paper/results/tables/paper_maxt_extension_method_aggregate.csv
 !paper/results/tables/paper_maxt_extension_pairwise.csv

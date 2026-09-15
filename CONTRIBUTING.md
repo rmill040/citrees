@@ -17,6 +17,15 @@ Use `scratch/` for local experiments and temporary repro scripts. Do not commit
 large generated outputs, private credentials, or local infrastructure
 configuration.
 
+## Commit messages
+
+The subject line reads `area: what changed`, in the imperative, at most 72
+characters, with no trailing period and no `WIP` or `TODO` placeholder; the area
+is the part of the repository touched (`citrees`, `tests`, `paper`, `arXiv`,
+`JSS`, `benchmark`, `docs`, `infra`). Details, numbers, and reasons go in the
+body after a blank line, wrapped at 72 characters. A `commit-msg` hook enforces
+this; install it with `uv run pre-commit install --hook-type commit-msg`.
+
 ## Before Opening a Pull Request
 
 Run the checks that match the change:

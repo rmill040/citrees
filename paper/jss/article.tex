@@ -846,10 +846,10 @@ repeats, or a single fit on letter, isolet, and gisette.}
 Synthetic Gaussian predictors are the continuous case throughout, and
 Table~\ref{tab:performance-scaling} shows the consequence as the sample size
 grows. The recommended configuration is 1.0 to 3.1 times faster than
-\pkg{partykit} on one core at every sample size and 7 to 18 times slower than
+\pkg{partykit} on one core at every sample size and 6.6 to 17 times slower than
 \pkg{partykit} on 32 cores. Without the threshold adjustment it matches
-\pkg{partykit} on 32 cores at 2,000 observations and is 2.9 to 9 times faster
-at 8,000 and 32,000 observations. The max-type test, which keeps the threshold test, is 4.3 to 32 times faster than the recommended configuration on these predictors, within a factor of 1.5 of the \pkg{partykit} times on 32 cores at 2,000 observations, and below them at 8,000 and 32,000 observations. Strong signals, with equal
+\pkg{partykit} on 32 cores at 2,000 observations and is 2.9 to 8.8 times faster
+at 8,000 and 32,000 observations. The max-type test, which keeps the threshold test, is 4.4 to 32 times faster than the recommended configuration on these predictors, within a factor of 1.5 of the \pkg{partykit} times on 32 cores at 2,000 observations, and below them at 8,000 and 32,000 observations. Strong signals, with equal
 coefficients and half the noise, change the times of the recommended
 configuration by at most 13 percent except at 8,000 observations, where it
 takes 1.6 times longer, and change the \pkg{partykit} times by at most 19

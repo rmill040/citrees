@@ -77,16 +77,14 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       by permutation importance on the 28 real pairwise-panel datasets, locked
       cells excluded, 8 shards under `repairs/cif-perm-check/`). Add the result
       to Appendix D and the discussion when it lands.
-- [ ] Numeric inconsistencies: abstract 0.009 vs table 0.012 (bootstrap row);
-      "8-29x" vs 7.9-29x; "0.15 of exhaustive / 85 percent" mixes endpoints of
-      different groups (report within-group ratios); CIF-ablation prose vs table
-      (0.043 vs 0.053; 0.16-0.25 vs 0.157); high-p counts 7 vs 9; caption "23
-      datasets (15+8; 9 real)" inconsistent; "complete-case" used for both 21/8
-      and 13/6 panels; "1,792 Stage A cells" undefined; scaling table "Adaptive
-      slower than Full" vs "inert"; plain accuracy in the Stage B real table vs
-      balanced accuracy elsewhere; JSS "at most 1.4 s" vs pendigits 1.9; JSS "7
-      to 18x" vs 6.6-17; JSS 3,464 vs 2,790 distinct values; JSS "22 and 115
-      times" not derivable; AUC 0.814/0.795 aggregate undefined.
+- [x] Numeric inconsistencies (checked 2026-09-15): the arXiv items were either
+      already fixed or misread by the reviewers (the abstract's 0.009 is the
+      exact-search row, not the bootstrap row; the CIF-ablation prose matches
+      the table row by row; Appendix E says adaptive stopping changes neither
+      curve; the cardinality-table caption defines the 2,790 training-fold count
+      against the 3,464 cohort count). Real errors fixed: JSS scaling ratios
+      recomputed from the table (6.6-17x slower than 32-core partykit, 2.9-8.8x
+      faster without the adjustment, max-type 4.4-32x faster than recommended).
 - [ ] JSS duplication: four Stage B tables and prose identical to the arXiv;
       keep one summary table and cite. NHANES contrast is split search, not the
       importance statistic (citrees also ranks by impurity decrease);

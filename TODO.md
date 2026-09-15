@@ -42,7 +42,13 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       so it never isolates the Stage B test the corollary is about. Add a
       Stage-B-only design (feature fixed without Y, no Stage A gate) at the same
       n x bins grid; report Stage B size directly. (All three.)
-- [ ] Power is not size-matched: max-type's null rate is 0.028-0.038 against
+- [ ] Power is not size-matched (Stage-B-only study running on the droplet, 18
+      shards; first shards, seed 0 at n = 100, show both tests conservative in
+      isolation at nominal 0.05 (Bonferroni 0.006-0.016, max-type 0.018-0.042)
+      and the max-type power advantage shrinking to about +0.02 in
+      classification and about zero in regression at a matched realized size;
+      nominal grid extended to 0.35 and 0.50 for the remaining shards so
+      Bonferroni reaches size 0.05): max-type's null rate is 0.028-0.038 against
       Bonferroni's 0.007-0.029, and the power gap tracks the size gap. Report
       size-adjusted power (or size/power pairs) or drop "more powerful". Also
       report correct-feature power alongside any-split power, state every

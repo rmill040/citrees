@@ -155,9 +155,8 @@ ensemble baselines rank features by decreasing fitted importance: DT, RT, RF,
 ExtraTrees, XGBoost, LightGBM, and CatBoost. Permutation-test filters rank by
 increasing $p$-value, with dependence score as the secondary key. The ctree
 reference ranks features by split-use counts. For cforest, we use partykit's
-unconditional variable-importance scores with one permutation; CIF uses
-split-importance rankings from accepted conditional-inference splits. One permutation is partykit's default and a noisy importance estimate, so the CIF-versus-cforest margins below carry that handicap; the companion article uses ten. The
-cforest results therefore refer to this benchmarked partykit importance setting.
+unconditional out-of-bag permutation importance at its default of one permutation per tree, averaged over the 100 trees, which is the only importance the package provides for forests; CIF uses
+split-importance rankings from accepted conditional-inference splits. The two conditional-inference forests therefore differ in importance mechanism as well as in how their trees are grown (candidate thresholds, the Stage~B rule, stopping, honesty, and muting), so the CIF-versus-cforest margins below compare the two packages' rankings and do not isolate the split procedure; \cref{app:methods} reports a mechanism-matched check in which CIF is ranked by permutation importance.
 Boruta and recursive feature elimination rank by their fitted rank variables,
 with smaller ranks first. PI and CPI rank by decreasing importance; the CPI row
 uses the stratified conditional-permutation procedure described above. Ties are

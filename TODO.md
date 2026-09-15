@@ -65,9 +65,17 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       XGBoost 5 vs 1 for RF/ET/CatBoost/RF-RFE) selected on the reporting data;
       LODO only on the 13/6 panels. Fix the caption, quantify selection
       optimism, run LODO on the 21/8 panels.
-- [ ] cforest importance uses nperm = 1 (verified in config.py) while the JSS
-      uses 10; the CIF-vs-cforest margin may be a handicap. Rerun cforest at
-      nperm >= 10 or state the caveat.
+- [x] cforest importance: the review's "nperm = 1 handicap" was checked and
+      rejected (2026-09-15). partykit's varimp default is one permutation per
+      tree averaged over the 100 trees, the standard setting; the JSS uses ten
+      only in the NHANES and cardinality studies where importance variance is
+      itself measured. Handicap wording removed from Section 4, Appendix D, and
+      the limitations. The real confound is mechanism: cforest is ranked by
+      permutation importance, CIF by split importance. Running on EC2: the
+      mechanism-matched check (`cif_permutation_importance_check.py`, CIF ranked
+      by permutation importance on the 28 real pairwise-panel datasets, locked
+      cells excluded, 8 shards under `repairs/cif-perm-check/`). Add the result
+      to Appendix D and the discussion when it lands.
 - [ ] Numeric inconsistencies: abstract 0.009 vs table 0.012 (bootstrap row);
       "8-29x" vs 7.9-29x; "0.15 of exhaustive / 85 percent" mixes endpoints of
       different groups (report within-group ratios); CIF-ablation prose vs table
@@ -96,10 +104,6 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       so regenerate from the mechanism sweep artifacts in
       `reference/v3/benchmark/campaign-d805868f/_control/` with `sharey=True`
       and update the caption.
-- [ ] cforest importance at nperm = 1: the caveat is stated in Section 4 and the
-      limitations; a rerun at nperm = 10 is a full cforest campaign (31 datasets
-      x 5 seeds x 4 configurations, gisette 40 min per fit) and changes every
-      benchmark aggregate. Author decision.
 - [ ] Missing baselines/checks flagged (now stated as limitations in
       06_discussion): Lasso or mutual-information filter; a tree-based
       downstream learner; CPI sanity check (last by a wide margin after a bug

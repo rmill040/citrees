@@ -117,10 +117,11 @@ def _ptest(func, x, y, n_resamples, alpha, early_stopping):
 - `early_stopping_confidence_selector`: Posterior-confidence threshold γ for
   `"adaptive"` (default: 0.95), minimum 0.95. For a fixed statistic the rule's
   null size is an exact finite computation (a Pólya-urn recursion over the
-  checkpoints, `paper/theory/adaptive_stopping_size.py`): 0.0495 at γ = 0.95 and
-  0.0523 at γ = 0.80 for α = 0.05 and 999 permutations, which is why 0.95 is the
-  minimum allowed. The rule cannot stop before `ceil(1 / alpha)` permutations,
-  so with `n_resamples="minimum"` it runs the full budget.
+  checkpoints, `paper/theory/adaptive_stopping_size.py`): 0.0488 at γ = 0.95 and
+  0.0522 at γ = 0.80 for α = 0.05 and 999 permutations (the tree rejects when p
+  < α), which is why 0.95 is the minimum allowed. The rule cannot stop before
+  `ceil(1 / alpha)` permutations, so with `n_resamples="minimum"` it runs the
+  full budget.
 
 ### Bonferroni Correction
 

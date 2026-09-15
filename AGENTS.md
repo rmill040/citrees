@@ -160,7 +160,7 @@ The `early_stopping_selector` and `early_stopping_splitter` parameters control
 how permutation tests terminate:
 
 - `EarlyStopping.ADAPTIVE` (default): Beta-posterior stopping checked every 32
-  permutations. Exact null size 0.0495 at the defaults (999 permutations,
+  permutations. Exact null size 0.0488 at the defaults (999 permutations,
   confidence 0.95); in the JSS calibration study it used 2 to 6 percent of the
   exhaustive permutation count at budgets above the `ceil(1/alpha)` floor and is
   inert (runs the full budget) when the budget equals the floor

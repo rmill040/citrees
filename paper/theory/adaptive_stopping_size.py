@@ -8,8 +8,9 @@ permutations follows the Polya urn started from one white and one black ball:
 P(k_m = k) = 1/(m+1), and given (m, k) the next indicator is 1 with probability
 (k+1)/(m+2). The implemented rule checks the Beta(1+k, 1+m-k) posterior mass
 below alpha at batch boundaries m in {s, 2s, ...} with m >= ceil(1/alpha), stops
-when that mass is >= c or <= 1-c, and returns (k+1)/(m+1); the decision rejects
-when the returned value is <= alpha. This module computes P(reject | H0) exactly.
+when that mass is >= c or <= 1-c, and returns (k+1)/(m+1); the tree rejects when
+the returned value is strictly below alpha (``p < alpha`` in ``citrees/_tree.py``).
+This module computes P(reject | H0) exactly for either convention (``strict``).
 """
 
 from __future__ import annotations
@@ -28,8 +29,10 @@ def checkpoints(alpha: float, s: int, B: int) -> list[int]:
     return pts
 
 
-def null_size(alpha: float, c: float, s: int, B: int, decision_alpha: float | None = None) -> float:
-    """P(returned p-value <= decision_alpha) under H0, no ties (exact)."""
+def null_size(
+    alpha: float, c: float, s: int, B: int, decision_alpha: float | None = None, strict: bool = True
+) -> float:
+    """P(reject | H0), no ties, exact: p < decision_alpha (strict, the shipped rule) or p <= it."""
     dec = alpha if decision_alpha is None else decision_alpha
     B = max(B, ceil(1.0 / alpha))
     pts = checkpoints(alpha, s, B)
@@ -53,7 +56,7 @@ def null_size(alpha: float, c: float, s: int, B: int, decision_alpha: float | No
             prob_sig = float(beta.cdf(alpha, 1 + k, 1 + m - k))
             stop = (prob_sig >= c) or ((1.0 - prob_sig) >= c) or (m == B)
             if stop:
-                if (k + 1) / (m + 1) <= dec:
+                if ((k + 1) / (m + 1) < dec) if strict else ((k + 1) / (m + 1) <= dec):
                     reject += pr
             else:
                 stopped[k] = pr

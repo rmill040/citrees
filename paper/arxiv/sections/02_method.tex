@@ -88,7 +88,12 @@ weighted child impurity
 \]
 where $\mathrm{Imp}$ is the chosen node impurity measure. This statistic is used
 in a left-tail test, and the exhaustive fixed-$B$ rule chooses the threshold with
-the smallest Stage~B $p$-value, with uniform tie breaking. When threshold
+the smallest Stage~B $p$-value, with uniform tie breaking. Under the
+\texttt{minimum} budget every rejecting candidate returns the same value
+$1/(B+1)$ (zero exceedances is the only way to clear $\alpha/K$), so without
+scanning the smallest-$p$ rule is a uniform draw among the passing candidates,
+and the same holds for features in Stage~A; the scans described next are what
+make the choice deterministic. When threshold
 scanning is enabled, thresholds are tested in order of weighted child impurity
 and the search stops after the first rejecting threshold, so the returned Stage~B score is a tree-construction score
 rather than a global minimum over all retained thresholds. Let
@@ -250,6 +255,10 @@ with more possible thresholds has more chances to produce a large apparent
 impurity decrease \citep{Strobl2007BiasRFVariableImportance}. In CIT and CIF,
 Stage~A first selects a feature by a permutation test; Stage~B then searches
 thresholds only for that feature. This reduces the advantage that
-high-cardinality features get from having more possible thresholds. We use these
+high-cardinality features get from having more possible thresholds. The
+per-threshold Bonferroni rule then works in the opposite direction: more
+candidates mean a stricter adjusted level and a lower probability of any split
+(\cref{tab:stageB-calibration}), a reverse cardinality bias that the max-type
+rule removes by testing the candidates jointly. We use these
 fitted split-importance scores as rankings and evaluate them through downstream
 top-$k$ prediction and synthetic feature recovery.

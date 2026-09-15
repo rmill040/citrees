@@ -534,6 +534,14 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.n_resamples_splitter = n_resamples_splitter
         self.early_stopping_selector = early_stopping_selector
         self.early_stopping_splitter = early_stopping_splitter
+        if "simple" in {str(early_stopping_selector), str(early_stopping_splitter)}:
+            warnings.warn(
+                "early_stopping='simple' inflates the null rejection rate (up to 0.087 in the"
+                " calibration study) and is for exploratory use only; use 'adaptive' or None"
+                " for calibrated p-values.",
+                UserWarning,
+                stacklevel=2,
+            )
         self.early_stopping_confidence_selector = early_stopping_confidence_selector
         self.early_stopping_confidence_splitter = early_stopping_confidence_splitter
         self.feature_muting = feature_muting

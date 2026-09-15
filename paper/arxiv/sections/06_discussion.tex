@@ -31,16 +31,9 @@ and is not treated as a runtime shortcut. For ranking quality, forest size
 matters more than the split-count and feature-muting variants tested here, so the
 selected CIF configuration is the relevant ranking reference when ranking
 quality is the priority.
-The Stage~B construction is a further control. The per-threshold Bonferroni rule used throughout the benchmark controls the false-split rate at a fixed node for a feature chosen without the response, and the adaptive rule leaves that guarantee intact on the benchmark because it never stops before the minimum budget; in a fitted tree the tested feature is the Stage~A winner, so the Stage~B score is a screening statistic rather than a post-selection $p$-value (\cref{sec:method}). The rule is increasingly conservative as the candidate count grows; the max-type rule keeps the complete-node false-split rate below the nominal level, costs less on continuous predictors, has higher power at the node, and grows different trees. Rerun on the full benchmark, the max-type rule moves the forest from position 3.5 to 5 of 17 in classification and from 2 to 4 of 18 in regression and leaves the tree's position unchanged, with paired score differences within 0.002 balanced accuracy and 0.009 $R^2$ in favor of the per-threshold rule (\cref{tab:maxt-benchmark-rankings}); the benchmark rankings are Bonferroni rankings, and the max-type rule is a cost and calibration option rather than a ranking gain.
+The Stage~B construction is a further control, and \cref{sec:results-stageB} reports it. Its interpretation is narrow: the per-threshold Bonferroni rule controls the false-split rate at a fixed node for a feature chosen without the response, and in a fitted tree the tested feature is the Stage~A winner, so the Stage~B score is a screening statistic rather than a post-selection $p$-value (\cref{sec:method}). The max-type rule removes the reverse cardinality bias of the per-threshold rule, costs less once a node has more than about 50 candidates, and changes which features the trees rank without changing how the rankings perform downstream; the benchmark rankings remain Bonferroni rankings.
 
-Adaptive stopping is a stopping rule on the running exceedance count with an
-exactly computable null size (\cref{prop:adaptive-size}): 0.0488 at the default
-confidence for the 999-permutation budget the max-type splitter uses, and at
-most 0.0496 for every budget from 20 to 3,000; at confidence 0.80 it exceeds the
-level, which is why 0.95 is the default. In the benchmark configuration the rule
-never stops early, so every benchmark $p$-value is a fixed-budget permutation
-$p$-value. The adaptive max-type kernel is the one setting the proposition does
-not reach; its calibration rests on the complete-node simulation.
+Adaptive stopping has an exactly computable null size (\cref{prop:adaptive-size}), but on the benchmark it never acts: the \texttt{minimum} budget equals the floor below which the rule cannot stop, so every benchmark $p$-value is a fixed-budget permutation $p$-value and the runtime savings belong to scanning and the bounded threshold search. The rule pays only when the budget exceeds the floor, where it recovers most of the larger budget's cost (\cref{sec:results-practical}).
 
 In sparse high-$p$ settings, feature use should be monitored directly.
 The simulations show that CIF feature sampling can leave informative features

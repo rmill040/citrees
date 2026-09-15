@@ -10,7 +10,7 @@ nodewise budget $B$. All probabilities below condition on $(X_t,U)$, where $U$
 collects label-independent auxiliary randomness other than the Monte Carlo
 permutation draws.
 
-\begin{theorem}[$+1$ permutation $p$-values are superuniform]
+\begin{lemma}[$+1$ permutation $p$-values are superuniform; \citealp{HemerikGoeman2018ExactTestingRandomPermutations}]
 \label{thm:plusone-superuniform}
 Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise
 complete permutation null at the fixed node $t$, conditional on $(X_t,U)$, the
@@ -28,7 +28,7 @@ Then for every $\alpha \in [0,1]$,
 \begin{equation}
   \PP(p_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha.
 \end{equation}
-\end{theorem}
+\end{lemma}
 
 This is the standard exchangeable-rank result for Monte Carlo permutation tests
 \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,Ernst2004PermutationMethodsExactInference,HemerikGoeman2018ExactTestingRandomPermutations}.

@@ -131,7 +131,7 @@ ExtraTrees, XGBoost, LightGBM, and CatBoost. Permutation-test filters rank by
 increasing $p$-value, with dependence score as the secondary key. The ctree
 reference ranks features by split-use counts. For cforest, we use partykit's
 unconditional variable-importance scores with one permutation; CIF uses
-split-importance rankings from accepted conditional-inference splits. The
+split-importance rankings from accepted conditional-inference splits. One permutation is partykit's default and a noisy importance estimate, so the CIF-versus-cforest margins below carry that handicap; the companion article uses ten. The
 cforest results therefore refer to this benchmarked partykit importance setting.
 Boruta and recursive feature elimination rank by their fitted rank variables,
 with smaller ranks first. PI and CPI rank by decreasing importance; the CPI row

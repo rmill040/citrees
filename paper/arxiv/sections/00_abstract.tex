@@ -8,8 +8,9 @@ At a fixed node, if the features and permutation budget do not depend on the
 node responses, Bonferroni-corrected $+1$ Monte Carlo permutation $p$-values
 control nodewise rejection under the complete permutation null; the same
 argument covers a max-type Stage~B threshold test that replaces the
-per-threshold Bonferroni rule and cuts the permutation cost of a node from
-order $K^2/\alpha$ to order $BK$ for $K$ candidate thresholds; rerun on the
+per-threshold Bonferroni rule and, for more than about 50 candidate
+thresholds, cuts the permutation cost of a node from order $K^2/\alpha$ to order
+$BK$; rerun on the
 full benchmark it moves the forest by at most two positions. On 21
 classification datasets CIF sits in a tightly bunched group with RF, XGBoost,
 and LightGBM (mean ranks 5.8 to 6.1 among 17 methods) behind RF-RFE; on the

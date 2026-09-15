@@ -44,20 +44,23 @@ permutation reference distribution under the nodewise complete permutation null.
 The benchmarks then evaluate the tree and forest feature rankings empirically.
 
 \paragraph{Contributions.}
-This paper contributes a real-data benchmark of conditional-inference feature
-rankings for top-$k$ downstream prediction. The benchmark compares CIF with
-ctree, cforest, CIT, and other baselines in classification and companion
-regression analyses, and includes ablations of the main CIT/CIF runtime
-hyperparameters. The paper also states the fixed-node, exhaustive fixed-$B$
-Stage~A guarantee
-(\cref{thm:plusone-superuniform,cor:stageA-global-null}) and extends it to a
-max-type Stage~B threshold test (\cref{cor:stageB-maxt}) that holds the
-complete-node false-split rate below the nominal level at a fraction of the
-per-threshold rule's cost (\cref{sec:results-stageB}); the full tree and
-forest rankings are evaluated in the benchmarks. Finally, the
-high-$p$ and synthetic analyses show cases with weaker top-$k$ recovery and how
-forest feature sampling can reduce how often forest splits use informative
-features (\cref{sec:boundary}).
+The paper makes three contributions. First, a real-data benchmark of
+conditional-inference feature rankings for top-$k$ downstream prediction,
+comparing CIF and CIT with ctree, cforest, and thirteen other selectors on 31
+datasets with five seeds, together with synthetic recovery and high-$p$
+analyses (\cref{sec:results-real,sec:boundary}); the result is that CIF is a
+competitive ranker in a tightly bunched group behind RF-RFE, not a superior
+one, and that single conditional-inference trees rank poorly. Second, an
+account of where the cost of conditional inference lives: the ablations locate
+it in the per-threshold Stage~B search, whose Bonferroni budget grows as
+$K^2/\alpha$ in the number of candidate thresholds and which penalizes
+continuous features in reverse proportion to their cardinality; a max-type
+Stage~B test removes both effects at the same fixed-node guarantee
+(\cref{cor:stageB-maxt,sec:results-stageB}). Third, the exact finite-sample
+size of the adaptive stopping rule (\cref{prop:adaptive-size}), which shows
+the rule is inert at the benchmark's minimum budget and pays only at larger
+budgets. The fixed-node permutation result the guarantees rest on is standard
+and is stated as a cited lemma (\cref{thm:plusone-superuniform}).
 
 All results in this version come from a benchmark harness whose earlier
 defects were corrected and rerun in full; \cref{app:version-note} lists them and

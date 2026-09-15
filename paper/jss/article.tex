@@ -29,9 +29,10 @@
   inferential scope, the software architecture and estimator interface, and
   the relationship to \pkg{partykit} and CART implementations. Accompanying
   replication analyses evaluate null calibration, split-variable selection,
-  matched behavior across implementations, computational scaling, and a
-  max-type threshold test that holds the false-split rate below the nominal
-  level at a fraction of the per-threshold cost. An application to the
+  split decisions matched against \pkg{partykit} (with divergent split
+  variables), computational scaling, and a max-type threshold test that holds
+  the complete-node false-split rate below the nominal level at lower cost once
+  a node has more than about 50 candidate thresholds. An application to the
   NHANES 2021--2023 diabetes cohort shows a random forest with CART split
   search ranking a permuted survey weight above reported diagnoses of
   hypertension and high cholesterol, an order that conditional split screening

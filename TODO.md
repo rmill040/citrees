@@ -48,18 +48,15 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       report correct-feature power alongside any-split power, state every
       aggregation denominator, and compare localization on paired detections.
       (All three.)
-- [ ] Adaptive-size proposition: the "<= alpha for every B from 20 to 3,000"
-      statement is false at B = 79 (rho = 0.050013; verified). Restate as a
-      numerical statement with the exception, distinguish strict and non-strict
-      rejection (0.04948 vs 0.04878 at B = 999 per Codex), and state the
-      continuous-mixing idealization (Opus). Tabulate rho over the adjusted
-      alphas the tree actually uses (Fable).
-- [ ] Narrative: no single thesis; the +1 theorem is textbook and should be a
-      cited lemma; the abstract's 3rd/2nd ranks conflict with the complete-case
-      6th/5th and a non-significant regression omnibus; the max-type rule is "a
-      contribution" that worsens rankings. Reframe around: competitive but not
-      superior ranker; cost lives in Stage B; cheaper calibrated Stage B;
-      exactly sized stopping rule. Move the version note out of the intro.
+- [x] Adaptive-size proposition fixed (28c9eff): module uses the tree's strict
+      rejection; size 0.0488 at B = 999, at most 0.0496 for every B in 20-3,000
+      (non-strict fails at B = 79); continuous-mixing note. Open: tabulate rho
+      at the adjusted alphas the tree uses (Fable).
+- [x] Narrative: abstract states the bunched ranking; +1 result a cited lemma;
+      version note in Appendix J; discussion trimmed; contributions rewritten as
+      three (benchmark, Stage B cost account + max-type, exact stopping size).
+      Open: Section 2 max-type paragraph still says the rule was added after the
+      benchmark; keep, but frame it as the cost fix (done in the contributions).
 - [ ] Configuration selection: rule stated inconsistently (real-data score in
       4.6 vs synthetic recovery in App. D caption); unequal grid sizes (CIF 4,
       XGBoost 5 vs 1 for RF/ET/CatBoost/RF-RFE) selected on the reporting data;

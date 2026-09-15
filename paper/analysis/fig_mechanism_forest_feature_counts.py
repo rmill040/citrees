@@ -96,7 +96,7 @@ def main(argv: list[str] | None = None) -> None:
     noise_color = "#BFDBFE"
     signal_color = "#2F855A"
 
-    fig, axes_grid = plt.subplots(2, 2, figsize=(8.8, 6.3), sharex=True, sharey=True)
+    fig, axes_grid = plt.subplots(2, 2, figsize=(8.8, 6.3), sharex=True)
     axes = axes_grid.ravel()
 
     for ax, method in zip(axes, METHOD_ORDER, strict=True):

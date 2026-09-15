@@ -94,10 +94,20 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       passers unless scanning orders them; state this, and note the reverse
       cardinality bias of per-threshold Bonferroni as the motivation for
       max-type.
-- [ ] Missing baselines/checks flagged: Lasso or mutual-information filter; a
-      tree-based downstream learner; CPI sanity check (last by a wide margin
-      after a bug fix); RF-RFE protocol details; post-hoc test after the
-      Friedman omnibus; CIF-all recovery columns.
+- [ ] `fig:candidate-forest-counts` uses a separate y-axis per subplot (Fable,
+      Opus); the script's inputs (`paper_mechanism_grid_*.csv`) are not local,
+      so regenerate from the mechanism sweep artifacts in
+      `reference/v3/benchmark/campaign-d805868f/_control/` with `sharey=True`
+      and update the caption.
+- [ ] cforest importance at nperm = 1: the caveat is stated in Section 4 and the
+      limitations; a rerun at nperm = 10 is a full cforest campaign (31 datasets
+      x 5 seeds x 4 configurations, gisette 40 min per fit) and changes every
+      benchmark aggregate. Author decision.
+- [ ] Missing baselines/checks flagged (now stated as limitations in
+      06_discussion): Lasso or mutual-information filter; a tree-based
+      downstream learner; CPI sanity check (last by a wide margin after a bug
+      fix); RF-RFE protocol details; post-hoc test after the Friedman omnibus;
+      CIF-all recovery columns.
 - Verified non-issue: Fable's "identical power triplets" (clf delta 0.10 vs reg
   delta 0.4 at n = 100) differ at the fourth decimal and across seeds; a
   rounding coincidence under shared seeds, worth a footnote at most.

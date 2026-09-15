@@ -158,7 +158,7 @@ statistics.
   \label{tab:cif-ranking-ablation}
 \end{table}
 
-The complete-case Friedman tests use dataset-level method means.
+The complete-case Friedman tests use dataset-level method means. As the post-hoc comparison, the paired bootstrap intervals of CIF against every other method on the same panels (\cref{app:benchmark-stability} and the reference release) exclude zero in CIF's favor against CIT, ctree, cforest, the single trees, the permutation filters, PI, and CPI in classification, exclude zero against CIF for RF-RFE, XGBoost, and LightGBM, and include zero for RF, ExtraTrees, CatBoost, and Boruta; in regression no interval excludes zero against CIF, and CIF's intervals exclude zero only against the filters, PI, CPI, LightGBM, and ctree. The ranking among the bunched group is therefore not resolved by the data.
 Classification: $\chi^2(16)=140.46$, $p<0.001$, Kendall's $W=0.68$.
 Regression: $\chi^2(17)=26.15$, $p=0.072$, Kendall's $W=0.26$, which does not
 reach the 0.05 level, so the regression rank ordering is reported as a

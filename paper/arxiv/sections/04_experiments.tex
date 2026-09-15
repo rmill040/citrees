@@ -73,7 +73,7 @@ tied to one of them.
     \toprule
     \tablehead{Panel} & \tablehead{Definition} & Clf. & Reg. & \tablehead{Used for} \\
     \midrule
-    All-method & every method present & 21 & 8 & main rank table, max-type rerun, breadth counts \\
+    All-method & every method present & 21 & 8 & main rank table, max-type rerun, breadth counts, LODO \\
     Pairwise & both compared methods present & 21--23 & 8 & direct CIF comparisons \\
     Complete-case & every method, learner, and $k$ present & 13 & 6 & bootstrap intervals, omnibus tests, LODO, constant-panel $k$ trajectory \\
     Ablation & real datasets with CIF variants & 22 & 8 & CIF ranking ablation \\
@@ -174,10 +174,7 @@ treated as fixed. The selected configuration is then held fixed across datasets 
 that task. Because configuration selection and reporting use the same real-data
 benchmark, the reported scores, intervals, and rank summaries are descriptive.
 As a sensitivity check, we repeat configuration selection in leave-one-dataset-out
-(LODO) form for both tasks. In classification, each of the 13 complete-case
-datasets is evaluated using configurations chosen from the other 12 datasets. In
-regression, each of the 6 complete-case datasets is evaluated using configurations
-chosen from the other 5 datasets. The downstream models, $k$ values, and
+(LODO) form for both tasks, on the complete-case panels and on the all-method panels of the main table. Each dataset in the panel is evaluated using configurations chosen from the other datasets in that panel (12 of 13 and 20 of 21 in classification, 5 of 6 and 7 of 8 in regression). The downstream models, $k$ values, and
 averaging within each dataset are unchanged.
 
 For the synthetic analysis, configurations are selected separately from the real-data

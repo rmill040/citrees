@@ -60,11 +60,14 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       three (benchmark, Stage B cost account + max-type, exact stopping size).
       Open: Section 2 max-type paragraph still says the rule was added after the
       benchmark; keep, but frame it as the cost fix (done in the contributions).
-- [ ] Configuration selection: rule stated inconsistently (real-data score in
-      4.6 vs synthetic recovery in App. D caption); unequal grid sizes (CIF 4,
-      XGBoost 5 vs 1 for RF/ET/CatBoost/RF-RFE) selected on the reporting data;
-      LODO only on the 13/6 panels. Fix the caption, quantify selection
-      optimism, run LODO on the 21/8 panels.
+- [x] Configuration selection (2026-09-15): LODO run on the all-method panels
+      (21/8) with `--panel all-method`; single-configuration families keep their
+      fixed ranks exactly; CIF 5.86 (tied 3rd) to 6.10 (5th) in classification
+      (20 of 21 reselect, balanced accuracy -0.002) and 6.25 to 6.50 (2nd) in
+      regression (7 of 8, R^2 -0.008). Reported in Appendix G
+      (`tab:lodo-config-sensitivity-allmethod`), Section 5, the discussion.
+      Still open: the App. D caption states the selection rule as synthetic
+      recovery while 4.6 says real-data score; fix the caption.
 - [x] cforest importance: the review's "nperm = 1 handicap" was checked and
       rejected (2026-09-15). partykit's varimp default is one permutation per
       tree averaged over the 100 trees, the standard setting; the JSS uses ten
@@ -99,11 +102,9 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       passers unless scanning orders them; state this, and note the reverse
       cardinality bias of per-threshold Bonferroni as the motivation for
       max-type.
-- [ ] `fig:candidate-forest-counts` uses a separate y-axis per subplot (Fable,
-      Opus); the script's inputs (`paper_mechanism_grid_*.csv`) are not local,
-      so regenerate from the mechanism sweep artifacts in
-      `reference/v3/benchmark/campaign-d805868f/_control/` with `sharey=True`
-      and update the caption.
+- [x] `fig:candidate-forest-counts` regenerated with a shared y-axis
+      (2026-09-15) from the mechanism-grid feature-count table recovered from
+      git history (deleted in 84368a8); caption updated.
 - [ ] Missing baselines/checks flagged (now stated as limitations in
       06_discussion): Lasso or mutual-information filter; a tree-based
       downstream learner; CPI sanity check (last by a wide margin after a bug

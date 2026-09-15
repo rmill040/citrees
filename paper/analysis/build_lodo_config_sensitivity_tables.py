@@ -7,9 +7,10 @@ surface later summarized.
 Contract:
   - real datasets only,
   - standard k values only,
-  - 14-dataset benchmark datasets only,
+  - the complete-case panel (default) or, with --panel all-method, the
+    all-method panel of every dataset on which every family is present,
   - for each held-out dataset, select one config per family using the
-    remaining 14-dataset benchmark datasets,
+    remaining panel datasets,
   - evaluate the selected configs on the held-out dataset only.
 
 Outputs:
@@ -38,6 +39,7 @@ from paper.analysis.benchmark_common import (  # noqa: E402
     STANDARD_K,
     TABLES_DIR,
     TASK_CONFIG,
+    complete_case_scores,
     load_real_task_frame,
 )
 
@@ -52,6 +54,15 @@ def _load_fixed_panel_datasets(task: str) -> list[str]:
     membership = pd.read_csv(FIXED_PANEL_MEMBERSHIP_PATH)
     fixed = membership[(membership["task"] == task) & (membership["is_fixed_panel"])]
     return sorted(fixed["dataset"].tolist())
+
+
+def _all_method_panel_datasets(cell_scores: pd.DataFrame, global_best: dict[str, str]) -> list[str]:
+    """Datasets with at least one complete (learner, k) cell under the selected configurations.
+
+    This is the main-table (all-method) panel of 21 classification and 8 regression datasets.
+    """
+    selected = cell_scores[cell_scores["method_id"].isin(global_best.values())]
+    return sorted(complete_case_scores(selected)["dataset"].unique().tolist())
 
 
 def _global_best_map(task: str) -> dict[str, str]:
@@ -75,17 +86,27 @@ def _task_cell_scores(task: str) -> tuple[pd.DataFrame, str]:
     return cell, metric
 
 
-def build_lodo_tables() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Build leave-one-dataset-out sensitivity outputs for both tasks."""
+def build_lodo_tables(panel: str = "fixed") -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Build leave-one-dataset-out sensitivity outputs for both tasks.
+
+    ``panel`` is ``"fixed"`` (the complete-case panels of 13 and 6 datasets) or
+    ``"all-method"`` (the all-method panels of 21 and 8 datasets, every family
+    present on the dataset in at least one cell).
+    """
     selected_rows: list[dict[str, object]] = []
     aggregate_rows: list[dict[str, object]] = []
     stability_rows: list[dict[str, object]] = []
 
     for task in TASK_CONFIG:
         cell_scores, _metric = _task_cell_scores(task)
-        fixed_panel_datasets = _load_fixed_panel_datasets(task)
-        cell_scores = cell_scores[cell_scores["dataset"].isin(fixed_panel_datasets)].copy()
         global_best = _global_best_map(task)
+        if panel == "fixed":
+            fixed_panel_datasets = _load_fixed_panel_datasets(task)
+        elif panel == "all-method":
+            fixed_panel_datasets = _all_method_panel_datasets(cell_scores, global_best)
+        else:
+            raise ValueError(f"unknown panel {panel!r}")
+        cell_scores = cell_scores[cell_scores["dataset"].isin(fixed_panel_datasets)].copy()
 
         heldout_evals: list[pd.DataFrame] = []
 
@@ -196,9 +217,15 @@ def main() -> None:
     parser.add_argument("--selected-output", type=Path, default=SELECTED_OUT_PATH)
     parser.add_argument("--aggregate-output", type=Path, default=AGGREGATE_OUT_PATH)
     parser.add_argument("--stability-output", type=Path, default=STABILITY_OUT_PATH)
+    parser.add_argument("--panel", choices=["fixed", "all-method"], default="fixed")
     args = parser.parse_args()
+    if args.panel == "all-method":
+        for name in ("selected_output", "aggregate_output", "stability_output"):
+            path = getattr(args, name)
+            if path == parser.get_default(name):
+                setattr(args, name, path.with_name(path.stem + "_allmethod" + path.suffix))
 
-    selected, aggregate, stability = build_lodo_tables()
+    selected, aggregate, stability = build_lodo_tables(panel=args.panel)
     args.selected_output.resolve().parent.mkdir(parents=True, exist_ok=True)
     selected.to_csv(args.selected_output, index=False)
     aggregate.to_csv(args.aggregate_output, index=False)

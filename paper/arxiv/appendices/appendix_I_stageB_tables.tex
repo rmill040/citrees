@@ -105,3 +105,48 @@ results for the Stage~B construction comparison summarized in
   0.014 in every cell.}
   \label{tab:stageB-power}
 \end{table}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrrrrrrrr@{}}
+    \toprule
+     & & & \multicolumn{4}{c}{Size at nominal 0.05} & & \multicolumn{2}{c}{Size-matched power} \\
+     & & & \multicolumn{2}{c}{Bonferroni} & \multicolumn{2}{c}{Max-type} & Match & & \\
+    \tablehead{Task} & $n$ & Bins & Adapt. & Exh. & Adapt. & Exh. & size & Bonferroni & Max-type \\
+    \midrule
+    Classification & 100 & 16 & 0.013 & 0.013 & 0.032 & 0.033 & 0.050 & 0.390 & 0.379 \\
+     & 100 & 64 & 0.007 & 0.007 & 0.036 & 0.039 & 0.044 & 0.385 & 0.354 \\
+     & 100 & 256 & 0.007 & 0.007 & 0.036 & 0.042 & 0.034 & 0.335 & 0.318 \\
+     & 200 & 16 & 0.010 & 0.011 & 0.037 & 0.039 & 0.050 & 0.643 & 0.618 \\
+     & 200 & 64 & 0.008 & 0.009 & 0.035 & 0.039 & 0.050 & 0.630 & 0.615 \\
+     & 200 & 256 & 0.003 & 0.003 & 0.039 & 0.039 & 0.031 & 0.562 & 0.538 \\
+     & 500 & 16 & 0.015 & 0.015 & 0.032 & 0.037 & 0.050 & 0.958 & 0.953 \\
+     & 500 & 64 & 0.007 & 0.007 & 0.029 & 0.035 & 0.050 & 0.961 & 0.964 \\
+     & 500 & 256 & 0.000 & 0.001 & 0.023 & 0.032 & 0.034 & 0.958 & 0.952 \\
+    Regression & 100 & 16 & 0.019 & 0.019 & 0.023 & 0.031 & 0.050 & 0.292 & 0.281 \\
+     & 100 & 64 & 0.013 & 0.013 & 0.029 & 0.035 & 0.050 & 0.305 & 0.285 \\
+     & 100 & 256 & 0.011 & 0.010 & 0.031 & 0.037 & 0.050 & 0.317 & 0.299 \\
+     & 200 & 16 & 0.027 & 0.026 & 0.033 & 0.038 & 0.050 & 0.591 & 0.581 \\
+     & 200 & 64 & 0.017 & 0.017 & 0.033 & 0.043 & 0.050 & 0.619 & 0.598 \\
+     & 200 & 256 & 0.008 & 0.009 & 0.041 & 0.044 & 0.050 & 0.632 & 0.579 \\
+     & 500 & 16 & 0.026 & 0.026 & 0.031 & 0.032 & 0.050 & 0.947 & 0.942 \\
+     & 500 & 64 & 0.015 & 0.016 & 0.029 & 0.033 & 0.050 & 0.966 & 0.952 \\
+     & 500 & 256 & 0.005 & 0.006 & 0.026 & 0.034 & 0.046 & 0.963 & 0.951 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Stage-B-only study: the threshold test in isolation, with one Gaussian
+  predictor fixed without the response and the Stage~A gate disabled. Size is
+  the false-split rate of a depth-one tree at nominal level 0.05 over 1,500
+  null replicates per cell (three seeds of 500) under adaptive and exhaustive
+  stopping; every 95\% Clopper--Pearson upper limit is below 0.056.
+  Size-matched power, shown for adaptive stopping at the middle effect ($\delta
+  = 0.10$ in classification, $0.4$ in regression), is interpolated against
+  realized size over the nominal grid 0.02--0.50 (600 replicates per cell and
+  level) to the match size: 0.05, or the largest realized size both rules reach
+  where the Bonferroni rule does not reach 0.05. All effects, both stopping
+  modes, and the intervals are in \texttt{paper\_stageb\_only\_pooled.csv} and
+  \texttt{paper\_stageb\_only\_size\_matched.csv} of the reference release.}
+  \label{tab:stageB-only}
+\end{table}

@@ -79,9 +79,10 @@ Stage~A reference test.
 \label{app:selected-configs}
 
 \Cref{tab:selected-configs} lists the configuration each method family entered
-the benchmark with, after the selection rule of \cref{sec:experiments-real}
-picked one configuration per family by average synthetic recovery over the
-standard $k$ values. Candidates is the size of the family's configuration grid.
+the benchmark with, after the selection rule of \cref{sec:experiments-repro}
+picked one configuration per family by its mean real-data score over the
+downstream learners and standard $k$ values (synthetic recovery uses its own
+selection, described there). Candidates is the size of the family's configuration grid.
 Settings not listed are the library defaults recorded in the benchmark
 manifests; the seed schedule is fixed by the benchmark configuration.
 

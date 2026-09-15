@@ -15,9 +15,10 @@ is summarized next. Classification scores most often peak at
 intermediate $k$: 8 of 15 LR datasets, 12 of 15 SVM datasets, and 9 of 15 KNN
 datasets. The full feature set is mainly an LR exception. Moving from $k{=}100$
 to $k{=}p$ gives a mean $k{=}p$ minus $k{=}100$ score change of $+0.026$ for LR,
-and $k=p$ matches the best observed LR score in 7 of 15 datasets. For SVM and
+and LR first reaches its best score at $k=p$ in 5 of 15 datasets. For SVM and
 KNN, the corresponding mean changes are $-0.053$ and $-0.071$, and $k=p$ is
-best in only 1 of 15 datasets for each learner.
+first-best in only 1 of 15 datasets for each learner; the three counts sum to
+the 7 of 45 above.
 
 In the 6 high-$p$ regression datasets, full-feature evaluation is rarely best.
 Across the 18 dataset-learner combinations, 12 peak at or below $k{=}100$, only

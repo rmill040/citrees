@@ -149,7 +149,7 @@ reselection adds less than half a rank.
   selection. Settings reports the number of distinct selected configurations;
   Main reports how often the main benchmark configuration is reselected. Ranks
   are computed within held-out datasets before averaging, so score order need
-  not match rank order. Entries are mean ranks over the panel datasets; the difference between the fixed and LODO columns is the reported uncertainty.}
+  not match rank order. Entries are mean ranks over the panel datasets; the difference between the fixed and LODO columns is the reported sensitivity; no interval is given.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
@@ -218,7 +218,7 @@ top 5.
   positions over the 15 combinations; mean rank averages the underlying
   dataset-level ranks. The dataset counts at
   $k=5,10,25,50,100$ are
-  21, 20, 14, 14, and 13. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported uncertainty.}
+  21, 20, 14, 14, and 13. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
   \label{tab:classification-learner-k-sensitivity}
 \end{table}
 
@@ -273,7 +273,7 @@ positions.
   method positions over the 15 combinations; mean rank averages the underlying
   dataset-level ranks. The dataset counts at
   $k=5,10,25,50,100$ are
-  8, 8, 7, 7, and 6. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported uncertainty.}
+  8, 8, 7, 7, and 6. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 
@@ -356,7 +356,7 @@ follow the main benchmark order.
   all five seeds. Each seed column is the method's ordinal position after
   sorting methods by their averaged dataset-level ranks for that seed. Mean
   position averages those five ordinal positions; mean rank reports the averaged
-  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported uncertainty.}
+  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported sensitivity; no interval is given.}
   \label{tab:classification-seed-sensitivity}
 \end{table}
 
@@ -401,6 +401,6 @@ follow the main benchmark order.
   methods by their averaged dataset-level ranks for that seed; fractional
   positions indicate ties. Mean position
   averages those five ordinal positions; mean rank reports the averaged
-  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported uncertainty.}
+  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported sensitivity; no interval is given.}
   \label{tab:regression-seed-sensitivity}
 \end{table}

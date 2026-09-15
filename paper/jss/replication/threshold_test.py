@@ -45,6 +45,9 @@ ANALYSIS: Final = "threshold_test"
 ALPHA: Final = 0.05
 DEFAULT_FIT_TIMEOUT: Final = 1200.0
 TESTS: Final = ("bonferroni", "maxt")
+# Nominal Stage B levels for the Stage-B-only studies; the realized size at each
+# level lets power be read at a matched realized size.
+STAGEB_ALPHAS: Final = (0.02, 0.05, 0.10, 0.20)
 STOPPING: Final = ("adaptive", None)
 REAL_DATASETS: Final = {
     "classification": ("clf_vowel-context", "clf_spam", "clf_page-blocks"),
@@ -52,6 +55,8 @@ REAL_DATASETS: Final = {
 }
 PROFILES: Final = {
     "full": {
+        "stageb_size_reps": 500,
+        "stageb_power_reps": 200,
         "power_reps": 500,
         "power_effects_classification": (0.05, 0.10, 0.20),
         "power_effects_regression": (0.2, 0.4, 0.8),
@@ -65,6 +70,8 @@ PROFILES: Final = {
         "real_k": 256,
     },
     "quick": {
+        "stageb_size_reps": 200,
+        "stageb_power_reps": 100,
         "power_reps": 100,
         "power_effects_classification": (0.10, 0.20),
         "power_effects_regression": (0.4, 0.8),
@@ -78,6 +85,8 @@ PROFILES: Final = {
         "real_k": 64,
     },
     "smoke": {
+        "stageb_size_reps": 10,
+        "stageb_power_reps": 10,
         "power_reps": 10,
         "power_effects_classification": (0.20,),
         "power_effects_regression": (0.8,),
@@ -117,8 +126,8 @@ def _estimator(task: str, test: str, stopping: str | None, k: int, seed: int, **
         alpha_selector=ALPHA,
         alpha_splitter=ALPHA,
         random_state=seed,
-        **extra,
     )
+    common.update(extra)
     if task == "classification":
         return ConditionalInferenceTreeClassifier(selector="mc", **common)
     return ConditionalInferenceTreeRegressor(selector="pc", **common)
@@ -292,6 +301,103 @@ def power_study(profile: dict[str, Any], seed: int) -> pd.DataFrame:
                                 f"{stopping or 'exhaustive'}: {detected / reps:.3f}",
                                 flush=True,
                             )
+    return pd.DataFrame(rows)
+
+
+def _stageb_only_rate(
+    task: str,
+    test: str,
+    stopping: str | None,
+    k: int,
+    n: int,
+    seed: int,
+    reps: int,
+    alpha_split: float,
+    delta: float,
+) -> tuple[float, float]:
+    """Split rate of a depth-one tree on ONE predictor with the Stage A gate disabled.
+
+    ``alpha_selector=1`` lets the single predictor through Stage A unconditionally, so
+    the split decision is the Stage B test alone at nominal level ``alpha_split``,
+    with the feature fixed independently of the response, which is the setting of the
+    fixed-node Stage B corollary. ``delta`` = 0 gives the null (size); ``delta`` > 0
+    plants a step at zero (power). Returns (rate, seconds per fit).
+    """
+    rng = np.random.default_rng(seed)
+    splits = 0
+    start = time.perf_counter()
+    for r in range(reps):
+        X = rng.normal(size=(n, 1))
+        side = X[:, 0] > 0.0
+        if task == "classification":
+            prob = np.where(side, 0.5 + delta, 0.5 - delta)
+            y = (rng.uniform(size=n) < prob).astype(np.int64)
+        else:
+            y = delta * side.astype(float) + rng.normal(size=n)
+        tree = _estimator(
+            task,
+            test,
+            stopping,
+            k,
+            seed + r,
+            max_depth=1,
+            alpha_selector=1.0,
+            alpha_splitter=alpha_split,
+        ).fit(X, y)
+        splits += _split_made(tree.tree_)
+    return splits / reps, (time.perf_counter() - start) / reps
+
+
+def stageb_only(
+    profile: dict[str, Any], seed: int, tasks: tuple[str, ...], sizes: tuple[int, ...] | None = None
+) -> pd.DataFrame:
+    """Stage-B-only size and power over a grid of nominal levels.
+
+    For each task, sample size, bin setting, construction, stopping mode, and nominal
+    Stage B level, the null split rate (size) and the split rate under each planted
+    effect (power) of the Stage B test alone. Reading power at the level whose
+    realized size is 0.05 gives size-matched power.
+    """
+    rows = []
+    for task in tasks:
+        effects = (0.0,) + tuple(profile[f"power_effects_{task}"])
+        for n in sizes or profile["null_n"]:
+            for k in profile["null_k"]:
+                for test in TESTS:
+                    for stopping in STOPPING:
+                        for alpha_split in STAGEB_ALPHAS:
+                            for delta in effects:
+                                reps = (
+                                    profile["stageb_size_reps"]
+                                    if delta == 0.0
+                                    else profile["stageb_power_reps"]
+                                )
+                                rate, sec = _stageb_only_rate(
+                                    task, test, stopping, k, n, seed, reps, alpha_split, delta
+                                )
+                                low, high = _wilson(rate, reps)
+                                rows.append(
+                                    {
+                                        "study": "stageb_only",
+                                        "task": task,
+                                        "n": n,
+                                        "k": k,
+                                        "threshold_test": test,
+                                        "stopping": stopping or "exhaustive",
+                                        "nominal_alpha": alpha_split,
+                                        "effect": delta,
+                                        "replicates": reps,
+                                        "split_rate": rate,
+                                        "ci_low": low,
+                                        "ci_high": high,
+                                        "seconds_per_fit": sec,
+                                    }
+                                )
+                                print(
+                                    f"stageb {task} n={n} k={k} {test} {stopping or 'exhaustive'} "
+                                    f"alpha={alpha_split} delta={delta}: {rate:.4f}",
+                                    flush=True,
+                                )
     return pd.DataFrame(rows)
 
 
@@ -478,8 +584,22 @@ def main() -> None:
     parser.add_argument(
         "--studies",
         nargs="+",
-        choices=("calibration", "scaling", "real", "power"),
+        choices=("calibration", "scaling", "real", "power", "stageb"),
         default=("calibration", "scaling", "real"),
+    )
+    parser.add_argument(
+        "--tasks",
+        nargs="+",
+        choices=("classification", "regression"),
+        default=("classification", "regression"),
+        help="Tasks for the Stage-B-only study (for sharding).",
+    )
+    parser.add_argument(
+        "--sizes",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Sample sizes for the Stage-B-only study (for sharding).",
     )
     parser.add_argument(
         "--fit-timeout",
@@ -499,6 +619,10 @@ def main() -> None:
         frames["null_calibration"] = null_calibration(profile, args.seed)
     if "power" in studies:
         frames["power"] = power_study(profile, args.seed)
+    if "stageb" in studies:
+        frames["stageb_only"] = stageb_only(
+            profile, args.seed, tuple(args.tasks), tuple(args.sizes) if args.sizes else None
+        )
     if "scaling" in studies:
         frames["synthetic_scaling"] = synthetic_scaling(profile, args.seed, args.fit_timeout)
     if "real" in studies:

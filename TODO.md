@@ -38,22 +38,19 @@ kernel-fix, and cleanup record).
 Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
 / YELLOW / YELLOW. Consensus blockers, verified where checkable:
 
-- [ ] Stage B calibration measures the complete node (Stage A gate x Stage B),
-      so it never isolates the Stage B test the corollary is about. Add a
-      Stage-B-only design (feature fixed without Y, no Stage A gate) at the same
-      n x bins grid; report Stage B size directly. (All three.)
-- [ ] Power is not size-matched (Stage-B-only study running on the droplet, 18
-      shards; first shards, seed 0 at n = 100, show both tests conservative in
-      isolation at nominal 0.05 (Bonferroni 0.006-0.016, max-type 0.018-0.042)
-      and the max-type power advantage shrinking to about +0.02 in
-      classification and about zero in regression at a matched realized size;
-      nominal grid extended to 0.35 and 0.50 for the remaining shards so
-      Bonferroni reaches size 0.05): max-type's null rate is 0.028-0.038 against
-      Bonferroni's 0.007-0.029, and the power gap tracks the size gap. Report
-      size-adjusted power (or size/power pairs) or drop "more powerful". Also
-      report correct-feature power alongside any-split power, state every
-      aggregation denominator, and compare localization on paired detections.
-      (All three.)
+- [x] Stage B calibration isolated (2026-09-15): the Stage-B-only study (one
+      predictor fixed without Y, Stage A gate off, 3 seeds, n x bins grid,
+      nominal levels 0.02-0.50) gives size 0.000-0.027 (Bonferroni) and
+      0.023-0.044 (max-type) at nominal 0.05; both papers say the complete-node
+      rate is Stage A dominated and report these. Table `tab:stageB-only`.
+- [x] Power size-matched (2026-09-15): max-type minus Bonferroni power at
+      matched realized size is -0.054 to +0.034, mean -0.006, no bin trend; the
+      nominal-level gap (about 0.10 in isolation) is a size gap. "More powerful"
+      removed from both papers; the claim is now equal power at matched size and
+      calibration closer to the nominal level. Open from the same reviews:
+      correct-feature power alongside any-split power and localization on paired
+      detections are still the five-seed numbers (87 vs 90 percent on the
+      planted predictor).
 - [x] Adaptive-size proposition fixed (28c9eff): module uses the tree's strict
       rejection; size 0.0488 at B = 999, at most 0.0496 for every B in 20-3,000
       (non-strict fails at B = 79); continuous-mixing note. Open: tabulate rho

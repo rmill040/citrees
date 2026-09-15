@@ -1,0 +1,217 @@
+task,n,k,threshold_test,stopping,effect,match_size,power_at_match,max_realized_size,note
+classification,100,16,bonferroni,adaptive,0.05,0.05,0.11583333333333333,0.082,
+classification,100,16,bonferroni,adaptive,0.1,0.05,0.3901388888888889,0.082,
+classification,100,16,bonferroni,adaptive,0.2,0.05,0.9305555555555555,0.082,
+classification,100,16,maxt,adaptive,0.05,0.05,0.1012280701754386,0.292,
+classification,100,16,maxt,adaptive,0.1,0.05,0.37938596491228066,0.292,
+classification,100,16,maxt,adaptive,0.2,0.05,0.9156140350877192,0.292,
+classification,100,16,bonferroni,exhaustive,0.05,0.05,0.11662162162162162,0.082,
+classification,100,16,bonferroni,exhaustive,0.1,0.05,0.3912162162162162,0.082,
+classification,100,16,bonferroni,exhaustive,0.2,0.05,0.931081081081081,0.082,
+classification,100,16,maxt,exhaustive,0.05,0.05,0.10381818181818182,0.274,
+classification,100,16,maxt,exhaustive,0.1,0.05,0.3784848484848485,0.274,
+classification,100,16,maxt,exhaustive,0.2,0.05,0.9283939393939394,0.274,
+classification,100,64,bonferroni,adaptive,0.05,0.044,0.13,0.044,at largest realized size
+classification,100,64,bonferroni,adaptive,0.1,0.044,0.385,0.044,at largest realized size
+classification,100,64,bonferroni,adaptive,0.2,0.044,0.945,0.044,at largest realized size
+classification,100,64,maxt,adaptive,0.05,0.044,0.095,0.302,matched at largest common realized size
+classification,100,64,maxt,adaptive,0.1,0.044,0.3542708333333333,0.302,matched at largest common realized size
+classification,100,64,maxt,adaptive,0.2,0.044,0.9040625,0.302,matched at largest common realized size
+classification,100,64,bonferroni,exhaustive,0.05,0.044,0.135,0.044,at largest realized size
+classification,100,64,bonferroni,exhaustive,0.1,0.044,0.385,0.044,at largest realized size
+classification,100,64,bonferroni,exhaustive,0.2,0.044,0.945,0.044,at largest realized size
+classification,100,64,maxt,exhaustive,0.05,0.044,0.10240437158469945,0.278,matched at largest common realized size
+classification,100,64,maxt,exhaustive,0.1,0.044,0.36352459016393446,0.278,matched at largest common realized size
+classification,100,64,maxt,exhaustive,0.2,0.044,0.9280601092896176,0.278,matched at largest common realized size
+classification,100,256,bonferroni,adaptive,0.05,0.034,0.11,0.034,at largest realized size
+classification,100,256,bonferroni,adaptive,0.1,0.034,0.335,0.034,at largest realized size
+classification,100,256,bonferroni,adaptive,0.2,0.034,0.91,0.034,at largest realized size
+classification,100,256,maxt,adaptive,0.05,0.034,0.07806666666666667,0.294,matched at largest common realized size
+classification,100,256,maxt,adaptive,0.1,0.034,0.31833333333333336,0.294,matched at largest common realized size
+classification,100,256,maxt,adaptive,0.2,0.034,0.895,0.294,matched at largest common realized size
+classification,100,256,bonferroni,exhaustive,0.05,0.034,0.115,0.034,at largest realized size
+classification,100,256,bonferroni,exhaustive,0.1,0.034,0.34,0.034,at largest realized size
+classification,100,256,bonferroni,exhaustive,0.2,0.034,0.91,0.034,at largest realized size
+classification,100,256,maxt,exhaustive,0.05,0.034,0.07666666666666667,0.28,matched at largest common realized size
+classification,100,256,maxt,exhaustive,0.1,0.034,0.31833333333333336,0.28,matched at largest common realized size
+classification,100,256,maxt,exhaustive,0.2,0.034,0.9038888888888889,0.28,matched at largest common realized size
+classification,200,16,bonferroni,adaptive,0.05,0.05,0.19642857142857142,0.103,
+classification,200,16,bonferroni,adaptive,0.1,0.05,0.6428571428571428,0.103,
+classification,200,16,bonferroni,adaptive,0.2,0.05,1.0,0.103,
+classification,200,16,maxt,adaptive,0.05,0.05,0.18404761904761907,0.298,
+classification,200,16,maxt,adaptive,0.1,0.05,0.6183333333333333,0.298,
+classification,200,16,maxt,adaptive,0.2,0.05,1.0,0.298,
+classification,200,16,bonferroni,exhaustive,0.05,0.05,0.19833333333333333,0.103,
+classification,200,16,bonferroni,exhaustive,0.1,0.05,0.643095238095238,0.103,
+classification,200,16,bonferroni,exhaustive,0.2,0.05,1.0,0.103,
+classification,200,16,maxt,exhaustive,0.05,0.05,0.19575757575757577,0.291,
+classification,200,16,maxt,exhaustive,0.1,0.05,0.6344848484848485,0.291,
+classification,200,16,maxt,exhaustive,0.2,0.05,1.0,0.291,
+classification,200,64,bonferroni,adaptive,0.05,0.05,0.181875,0.059,
+classification,200,64,bonferroni,adaptive,0.1,0.05,0.63,0.059,
+classification,200,64,bonferroni,adaptive,0.2,0.05,1.0,0.059,
+classification,200,64,maxt,adaptive,0.05,0.05,0.1946236559139785,0.31,
+classification,200,64,maxt,adaptive,0.1,0.05,0.6147311827956989,0.31,
+classification,200,64,maxt,adaptive,0.2,0.05,1.0,0.31,
+classification,200,64,bonferroni,exhaustive,0.05,0.05,0.18477272727272728,0.058,
+classification,200,64,bonferroni,exhaustive,0.1,0.05,0.6327272727272728,0.058,
+classification,200,64,bonferroni,exhaustive,0.2,0.05,1.0,0.058,
+classification,200,64,maxt,exhaustive,0.05,0.05,0.20462264150943396,0.299,
+classification,200,64,maxt,exhaustive,0.1,0.05,0.6265723270440252,0.299,
+classification,200,64,maxt,exhaustive,0.2,0.05,1.0,0.299,
+classification,200,256,bonferroni,adaptive,0.05,0.031,0.1275,0.031,at largest realized size
+classification,200,256,bonferroni,adaptive,0.1,0.031,0.5625,0.031,at largest realized size
+classification,200,256,bonferroni,adaptive,0.2,0.031,0.9975,0.031,at largest realized size
+classification,200,256,maxt,adaptive,0.05,0.031,0.14069444444444446,0.308,matched at largest common realized size
+classification,200,256,maxt,adaptive,0.1,0.031,0.5382638888888889,0.308,matched at largest common realized size
+classification,200,256,maxt,adaptive,0.2,0.031,0.9983333333333333,0.308,matched at largest common realized size
+classification,200,256,bonferroni,exhaustive,0.05,0.031,0.1275,0.031,at largest realized size
+classification,200,256,bonferroni,exhaustive,0.1,0.031,0.565,0.031,at largest realized size
+classification,200,256,bonferroni,exhaustive,0.2,0.031,0.9975,0.031,at largest realized size
+classification,200,256,maxt,exhaustive,0.05,0.031,0.15715277777777778,0.3,matched at largest common realized size
+classification,200,256,maxt,exhaustive,0.1,0.031,0.5666666666666667,0.3,matched at largest common realized size
+classification,200,256,maxt,exhaustive,0.2,0.031,0.9983333333333333,0.3,matched at largest common realized size
+classification,500,16,bonferroni,adaptive,0.05,0.05,0.42121794871794876,0.136,
+classification,500,16,bonferroni,adaptive,0.1,0.05,0.9584615384615385,0.136,
+classification,500,16,bonferroni,adaptive,0.2,0.05,1.0,0.136,
+classification,500,16,maxt,adaptive,0.05,0.05,0.4146666666666667,0.307,
+classification,500,16,maxt,adaptive,0.1,0.05,0.9530833333333333,0.307,
+classification,500,16,maxt,adaptive,0.2,0.05,1.0,0.307,
+classification,500,16,bonferroni,exhaustive,0.05,0.05,0.4199673202614379,0.136,
+classification,500,16,bonferroni,exhaustive,0.1,0.05,0.9582679738562092,0.136,
+classification,500,16,bonferroni,exhaustive,0.2,0.05,1.0,0.136,
+classification,500,16,maxt,exhaustive,0.05,0.05,0.4221474358974359,0.299,
+classification,500,16,maxt,exhaustive,0.1,0.05,0.9623076923076923,0.299,
+classification,500,16,maxt,exhaustive,0.2,0.05,1.0,0.299,
+classification,500,64,bonferroni,adaptive,0.05,0.05,0.43730769230769234,0.067,
+classification,500,64,bonferroni,adaptive,0.1,0.05,0.9611538461538461,0.067,
+classification,500,64,bonferroni,adaptive,0.2,0.05,1.0,0.067,
+classification,500,64,maxt,adaptive,0.05,0.05,0.4421631205673759,0.314,
+classification,500,64,maxt,adaptive,0.1,0.05,0.9636170212765958,0.314,
+classification,500,64,maxt,adaptive,0.2,0.05,1.0,0.314,
+classification,500,64,bonferroni,exhaustive,0.05,0.05,0.4317605633802817,0.068,
+classification,500,64,bonferroni,exhaustive,0.1,0.05,0.9607746478873239,0.068,
+classification,500,64,bonferroni,exhaustive,0.2,0.05,1.0,0.068,
+classification,500,64,maxt,exhaustive,0.05,0.05,0.4345679012345679,0.304,
+classification,500,64,maxt,exhaustive,0.1,0.05,0.9684567901234569,0.304,
+classification,500,64,maxt,exhaustive,0.2,0.05,1.0,0.304,
+classification,500,256,bonferroni,adaptive,0.05,0.034,0.375,0.034,at largest realized size
+classification,500,256,bonferroni,adaptive,0.1,0.034,0.9575,0.034,at largest realized size
+classification,500,256,bonferroni,adaptive,0.2,0.034,1.0,0.034,at largest realized size
+classification,500,256,maxt,adaptive,0.05,0.034,0.39763157894736845,0.317,matched at largest common realized size
+classification,500,256,maxt,adaptive,0.1,0.034,0.9519590643274853,0.317,matched at largest common realized size
+classification,500,256,maxt,adaptive,0.2,0.034,1.0,0.317,matched at largest common realized size
+classification,500,256,bonferroni,exhaustive,0.05,0.034,0.3725,0.034,at largest realized size
+classification,500,256,bonferroni,exhaustive,0.1,0.034,0.955,0.034,at largest realized size
+classification,500,256,bonferroni,exhaustive,0.2,0.034,1.0,0.034,at largest realized size
+classification,500,256,maxt,exhaustive,0.05,0.034,0.40692982456140353,0.308,matched at largest common realized size
+classification,500,256,maxt,exhaustive,0.1,0.034,0.9626315789473684,0.308,matched at largest common realized size
+classification,500,256,maxt,exhaustive,0.2,0.034,1.0,0.308,matched at largest common realized size
+regression,100,16,bonferroni,adaptive,0.2,0.05,0.09276190476190475,0.172,
+regression,100,16,bonferroni,adaptive,0.4,0.05,0.2915238095238095,0.172,
+regression,100,16,bonferroni,adaptive,0.8,0.05,0.8735714285714286,0.172,
+regression,100,16,maxt,adaptive,0.2,0.05,0.09333333333333334,0.322,
+regression,100,16,maxt,adaptive,0.4,0.05,0.2808333333333333,0.322,
+regression,100,16,maxt,adaptive,0.8,0.05,0.8545833333333333,0.322,
+regression,100,16,bonferroni,exhaustive,0.2,0.05,0.09493055555555556,0.172,
+regression,100,16,bonferroni,exhaustive,0.4,0.05,0.29368055555555556,0.172,
+regression,100,16,bonferroni,exhaustive,0.8,0.05,0.8740277777777777,0.172,
+regression,100,16,maxt,exhaustive,0.2,0.05,0.09298245614035089,0.33,
+regression,100,16,maxt,exhaustive,0.4,0.05,0.2892105263157895,0.33,
+regression,100,16,maxt,exhaustive,0.8,0.05,0.8702923976608187,0.33,
+regression,100,64,bonferroni,adaptive,0.2,0.05,0.11029411764705882,0.072,
+regression,100,64,bonferroni,adaptive,0.4,0.05,0.305,0.072,
+regression,100,64,bonferroni,adaptive,0.8,0.05,0.8645588235294117,0.072,
+regression,100,64,maxt,adaptive,0.2,0.05,0.09812121212121214,0.32,
+regression,100,64,maxt,adaptive,0.4,0.05,0.28454545454545455,0.32,
+regression,100,64,maxt,adaptive,0.8,0.05,0.8657272727272727,0.32,
+regression,100,64,bonferroni,exhaustive,0.2,0.05,0.10742857142857143,0.074,
+regression,100,64,bonferroni,exhaustive,0.4,0.05,0.30114285714285716,0.074,
+regression,100,64,bonferroni,exhaustive,0.8,0.05,0.8611428571428571,0.074,
+regression,100,64,maxt,exhaustive,0.2,0.05,0.09989247311827958,0.316,
+regression,100,64,maxt,exhaustive,0.4,0.05,0.2920430107526882,0.316,
+regression,100,64,maxt,exhaustive,0.8,0.05,0.8768817204301075,0.316,
+regression,100,256,bonferroni,adaptive,0.2,0.05,0.1,0.052,
+regression,100,256,bonferroni,adaptive,0.4,0.05,0.31714285714285717,0.052,
+regression,100,256,bonferroni,adaptive,0.8,0.05,0.8542857142857143,0.052,
+regression,100,256,maxt,adaptive,0.2,0.05,0.09986111111111112,0.326,
+regression,100,256,maxt,adaptive,0.4,0.05,0.29944444444444446,0.326,
+regression,100,256,maxt,adaptive,0.8,0.05,0.8672916666666667,0.326,
+regression,100,256,bonferroni,exhaustive,0.2,0.05,0.1,0.052,
+regression,100,256,bonferroni,exhaustive,0.4,0.05,0.31583333333333335,0.052,
+regression,100,256,bonferroni,exhaustive,0.8,0.05,0.8541666666666666,0.052,
+regression,100,256,maxt,exhaustive,0.2,0.05,0.09949685534591195,0.316,
+regression,100,256,maxt,exhaustive,0.4,0.05,0.299811320754717,0.316,
+regression,100,256,maxt,exhaustive,0.8,0.05,0.8815723270440251,0.316,
+regression,200,16,bonferroni,adaptive,0.2,0.05,0.16666666666666669,0.162,
+regression,200,16,bonferroni,adaptive,0.4,0.05,0.591359649122807,0.162,
+regression,200,16,bonferroni,adaptive,0.8,0.05,0.9947368421052631,0.162,
+regression,200,16,maxt,adaptive,0.2,0.05,0.1635310734463277,0.33,
+regression,200,16,maxt,adaptive,0.4,0.05,0.5810734463276837,0.33,
+regression,200,16,maxt,adaptive,0.8,0.05,0.9938700564971752,0.33,
+regression,200,16,bonferroni,exhaustive,0.2,0.05,0.17,0.162,
+regression,200,16,bonferroni,exhaustive,0.4,0.05,0.596842105263158,0.162,
+regression,200,16,bonferroni,exhaustive,0.8,0.05,0.9932456140350877,0.162,
+regression,200,16,maxt,exhaustive,0.2,0.05,0.16875,0.322,
+regression,200,16,maxt,exhaustive,0.4,0.05,0.6066666666666667,0.322,
+regression,200,16,maxt,exhaustive,0.8,0.05,0.9939583333333333,0.322,
+regression,200,64,bonferroni,adaptive,0.2,0.05,0.16909722222222223,0.096,
+regression,200,64,bonferroni,adaptive,0.4,0.05,0.6186805555555556,0.096,
+regression,200,64,bonferroni,adaptive,0.8,0.05,0.9967361111111112,0.096,
+regression,200,64,maxt,adaptive,0.2,0.05,0.15660919540229887,0.318,
+regression,200,64,maxt,adaptive,0.4,0.05,0.5981609195402299,0.318,
+regression,200,64,maxt,adaptive,0.8,0.05,0.994051724137931,0.318,
+regression,200,64,bonferroni,exhaustive,0.2,0.05,0.17081081081081081,0.096,
+regression,200,64,bonferroni,exhaustive,0.4,0.05,0.6262162162162163,0.096,
+regression,200,64,bonferroni,exhaustive,0.8,0.05,0.9967567567567568,0.096,
+regression,200,64,maxt,exhaustive,0.2,0.05,0.16620567375886525,0.307,
+regression,200,64,maxt,exhaustive,0.4,0.05,0.6084042553191489,0.307,
+regression,200,64,maxt,exhaustive,0.8,0.05,0.995354609929078,0.307,
+regression,200,256,bonferroni,adaptive,0.2,0.05,0.175,0.05,
+regression,200,256,bonferroni,adaptive,0.4,0.05,0.6325,0.05,
+regression,200,256,bonferroni,adaptive,0.8,0.05,0.9975,0.05,
+regression,200,256,maxt,adaptive,0.2,0.05,0.15208333333333335,0.324,
+regression,200,256,maxt,adaptive,0.4,0.05,0.57875,0.324,
+regression,200,256,maxt,adaptive,0.8,0.05,0.99375,0.324,
+regression,200,256,bonferroni,exhaustive,0.2,0.05,0.17807692307692308,0.051,
+regression,200,256,bonferroni,exhaustive,0.4,0.05,0.6346153846153846,0.051,
+regression,200,256,bonferroni,exhaustive,0.8,0.05,0.9975,0.051,
+regression,200,256,maxt,exhaustive,0.2,0.05,0.16083333333333333,0.317,
+regression,200,256,maxt,exhaustive,0.4,0.05,0.6111111111111112,0.317,
+regression,200,256,maxt,exhaustive,0.8,0.05,0.9966666666666667,0.317,
+regression,500,16,bonferroni,adaptive,0.2,0.05,0.3351449275362319,0.18,
+regression,500,16,bonferroni,adaptive,0.4,0.05,0.9468840579710145,0.18,
+regression,500,16,bonferroni,adaptive,0.8,0.05,1.0,0.18,
+regression,500,16,maxt,adaptive,0.2,0.05,0.31539215686274513,0.301,
+regression,500,16,maxt,adaptive,0.4,0.05,0.942124183006536,0.301,
+regression,500,16,maxt,adaptive,0.8,0.05,1.0,0.301,
+regression,500,16,bonferroni,exhaustive,0.2,0.05,0.3348067632850241,0.18,
+regression,500,16,bonferroni,exhaustive,0.4,0.05,0.946256038647343,0.18,
+regression,500,16,bonferroni,exhaustive,0.8,0.05,1.0,0.18,
+regression,500,16,maxt,exhaustive,0.2,0.05,0.3362745098039216,0.302,
+regression,500,16,maxt,exhaustive,0.4,0.05,0.9427450980392157,0.302,
+regression,500,16,maxt,exhaustive,0.8,0.05,1.0,0.302,
+regression,500,64,bonferroni,adaptive,0.2,0.05,0.356875,0.091,
+regression,500,64,bonferroni,adaptive,0.4,0.05,0.965625,0.091,
+regression,500,64,bonferroni,adaptive,0.8,0.05,1.0,0.091,
+regression,500,64,maxt,adaptive,0.2,0.05,0.32820000000000005,0.311,
+regression,500,64,maxt,adaptive,0.4,0.05,0.9521666666666667,0.311,
+regression,500,64,maxt,adaptive,0.8,0.05,1.0,0.311,
+regression,500,64,bonferroni,exhaustive,0.2,0.05,0.3565384615384615,0.092,
+regression,500,64,bonferroni,exhaustive,0.4,0.05,0.9657692307692307,0.092,
+regression,500,64,bonferroni,exhaustive,0.8,0.05,1.0,0.092,
+regression,500,64,maxt,exhaustive,0.2,0.05,0.3712719298245614,0.315,
+regression,500,64,maxt,exhaustive,0.4,0.05,0.9603947368421053,0.315,
+regression,500,64,maxt,exhaustive,0.8,0.05,1.0,0.315,
+regression,500,256,bonferroni,adaptive,0.2,0.046,0.3475,0.046,at largest realized size
+regression,500,256,bonferroni,adaptive,0.4,0.046,0.9625,0.046,at largest realized size
+regression,500,256,bonferroni,adaptive,0.8,0.046,1.0,0.046,at largest realized size
+regression,500,256,maxt,adaptive,0.2,0.046,0.32666666666666666,0.315,matched at largest common realized size
+regression,500,256,maxt,adaptive,0.4,0.046,0.9512962962962963,0.315,matched at largest common realized size
+regression,500,256,maxt,adaptive,0.8,0.046,1.0,0.315,matched at largest common realized size
+regression,500,256,bonferroni,exhaustive,0.2,0.047,0.3525,0.047,at largest realized size
+regression,500,256,bonferroni,exhaustive,0.4,0.047,0.965,0.047,at largest realized size
+regression,500,256,bonferroni,exhaustive,0.8,0.047,1.0,0.047,at largest realized size
+regression,500,256,maxt,exhaustive,0.2,0.047,0.3501937984496124,0.316,matched at largest common realized size
+regression,500,256,maxt,exhaustive,0.4,0.047,0.9583139534883721,0.316,matched at largest common realized size
+regression,500,256,maxt,exhaustive,0.8,0.047,1.0,0.316,matched at largest common realized size

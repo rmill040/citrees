@@ -354,14 +354,14 @@ types.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llp{7.2cm}}
+\begin{tabular}{p{5.3cm}p{2.2cm}p{6.4cm}}
 \hline
 Argument & Default & Meaning \\ \hline
 \code{selector} & \code{"mc"} / \code{"pc"} & Stage A statistic: \code{mc}, \code{mi}, \code{rdc} (classification); \code{pc}, \code{dc}, \code{rdc} (regression); a list gives the max-$T$ combination \\
 \code{alpha_selector}, \code{alpha_splitter} & 0.05 & Nominal levels of the two stages \\
 \code{adjust_alpha_selector}, \code{adjust_alpha_splitter} & \code{True} & Bonferroni adjustment over candidate predictors and over candidate thresholds \\
 \code{n_resamples_selector}, \code{n_resamples_splitter} & \code{"auto"} & Permutation budget: \code{"minimum"} ($\lceil 1/\alpha_{\mathrm{adj}} \rceil$, the benchmark setting), \code{"auto"}, \code{"maximum"}, or an integer \\
-\code{early_stopping_selector}, \code{early_stopping_splitter} & \code{"adaptive"} & Sequential stopping: \code{"adaptive"} (Beta posterior, exact size), \code{"simple"} (exploratory, inflates size), or \code{None} \\
+\code{early_stopping_selector}, \code{early_stopping_splitter} & \code{"adaptive"} & Sequential stopping: \code{"adaptive"} (Beta posterior, exact size), \code{"simple"} (exploratory; false-split rate up to 0.087 in the calibration study, and the constructor warns), or \code{None} \\
 \code{early_stopping_confidence_*} & 0.95 & Posterior confidence of the adaptive rule; values below 0.95 are refused \\
 \code{feature_scanning}, \code{threshold_scanning} & \code{True} & Test candidates in order of the observed statistic and stop at the first rejection \\
 \code{feature_muting} & \code{True} & Remove predictors that failed the selector test from the descendants of a node \\

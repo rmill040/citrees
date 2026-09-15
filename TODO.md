@@ -85,27 +85,20 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       against the 3,464 cohort count). Real errors fixed: JSS scaling ratios
       recomputed from the table (6.6-17x slower than 32-core partykit, 2.9-8.8x
       faster without the adjustment, max-type 4.4-32x faster than recommended).
-- [ ] JSS duplication: four Stage B tables and prose identical to the arXiv;
-      keep one summary table and cite. NHANES contrast is split search, not the
-      importance statistic (citrees also ranks by impurity decrease);
-      corrected-CV t-test misapplied to training-fold ranks; nominal predictors
-      passed as numeric codes; matched-behavior root agreement 8-12 percent is
-      near chance. Timing table mixes two runs (needs a within-run note or a
-      single campaign). Parameter reference table missing. Simple stopping ships
-      invalid at 0.087 with only an "exploratory" label.
-- [ ] Minimum-budget degeneracy (Fable): under `minimum`, every passing
-      candidate ties at p = 1/(B+1), so "select the smallest p" is random among
-      passers unless scanning orders them; state this, and note the reverse
-      cardinality bias of per-threshold Bonferroni as the motivation for
-      max-type.
-- [x] `fig:candidate-forest-counts` regenerated with a shared y-axis
-      (2026-09-15) from the mechanism-grid feature-count table recovered from
-      git history (deleted in 84368a8); caption updated.
-- [ ] Missing baselines/checks flagged (now stated as limitations in
-      06_discussion): Lasso or mutual-information filter; a tree-based
-      downstream learner; CPI sanity check (last by a wide margin after a bug
-      fix); RF-RFE protocol details; post-hoc test after the Friedman omnibus;
-      CIF-all recovery columns.
+- [x] JSS duplication and application (2026-09-15): three duplicated Stage B
+      tables removed, one calibration table kept with a citation; NHANES
+      reframed to split search with the repeat-level bootstrap as the primary
+      contrast; chance baseline for root agreement; parameter table added;
+      timing table caption states all columns come from one run; simple stopping
+      warns at construction and the parameter table says so.
+- [x] Minimum-budget degeneracy: stated in Section 2 (every rejecting candidate
+      returns 1/(B+1), so the smallest-p rule is a uniform draw among passers
+      without scanning) with the reverse cardinality bias as the max-type
+      motivation.
+- [x] Missing baselines and checks: stated as limitations in 06_discussion
+      (Lasso and mutual-information filters, a tree-based downstream learner,
+      the CPI caveat, RF-RFE protocol, post-hoc pairwise intervals after the
+      omnibus, CIF-all recovery columns). No new comparators for v3.
 - Verified non-issue: Fable's "identical power triplets" (clf delta 0.10 vs reg
   delta 0.4 at n = 100) differ at the fourth decimal and across seeds; a
   rounding coincidence under shared seeds, worth a footnote at most.
@@ -122,9 +115,8 @@ locked cells as host-fault exclusions.
 Remaining Codex review items (`scratch/reviews/codex_review.md`, verified before
 editing):
 
-- [ ] JSS `tab:performance-real` prose: state explicitly where the max-type test
-      is slower (residential and imports-85 by under 10 percent in the Stage B
-      real subset) and use one runtime-ratio definition throughout.
+- [x] JSS `tab:performance-real` prose states where the max-type test is slower
+      (residential, about 10 percent) and equal (imports-85).
 
 Other manuscript items:
 

@@ -47,7 +47,7 @@ DEFAULT_FIT_TIMEOUT: Final = 1200.0
 TESTS: Final = ("bonferroni", "maxt")
 # Nominal Stage B levels for the Stage-B-only studies; the realized size at each
 # level lets power be read at a matched realized size.
-STAGEB_ALPHAS: Final = (0.02, 0.05, 0.10, 0.20)
+STAGEB_ALPHAS: Final = (0.02, 0.05, 0.10, 0.20, 0.35, 0.50)
 STOPPING: Final = ("adaptive", None)
 REAL_DATASETS: Final = {
     "classification": ("clf_vowel-context", "clf_spam", "clf_page-blocks"),

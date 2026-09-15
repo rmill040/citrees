@@ -62,6 +62,31 @@ regression datasets. By-$k$ results are reported separately for
 $k=5,10,25,50,100$; the corresponding classification dataset counts are
 $21, 20, 14, 14, 13$ and the regression counts are $8, 8, 7, 7, 6$.
 
+\Cref{tab:panels} names the dataset panels used below so that each claim can be
+tied to one of them.
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}llrrl@{}}
+    \toprule
+    \tablehead{Panel} & \tablehead{Definition} & Clf. & Reg. & \tablehead{Used for} \\
+    \midrule
+    All-method & every method present & 21 & 8 & main rank table, max-type rerun, breadth counts \\
+    Pairwise & both compared methods present & 21--23 & 8 & direct CIF comparisons \\
+    Complete-case & every method, learner, and $k$ present & 13 & 6 & bootstrap intervals, omnibus tests, LODO, constant-panel $k$ trajectory \\
+    Ablation & real datasets with CIF variants & 22 & 8 & CIF ranking ablation \\
+    Runtime & 9 real and 14 synthetic datasets & 15 & 8 & runtime ablations \\
+    Benchmark-size & real datasets with at least 500 observations & 9 & 5 & wide-dataset runtime check \\
+    Stage~B real & six mid-size datasets & 3 & 3 & threshold-test comparison \\
+    \bottomrule
+  \end{tabular}
+  \caption{Dataset panels. Counts are datasets per task; the runtime panel's 23
+  datasets are 15 classification and 8 regression.}
+  \label{tab:panels}
+\end{table}
+
 \subsection{Datasets}
 \label{sec:experiments-datasets}
 

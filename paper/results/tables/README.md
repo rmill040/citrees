@@ -36,3 +36,24 @@ Tracked tables:
   from `s3://<citrees bucket>/repairs/benchmark-rerun/source-05ee3cd7.../campaign-d805868f.../_control/cif-mechanism-ablation/metrics`.
 
 Everything else should be regenerated locally and left untracked.
+- `cif_autobudget_ablation_summary.csv`, `cif_njobs1_ablation_summary.csv`: CIF at
+  the `auto` permutation budget and with a single worker, with and without
+  adaptive stopping (fixed kernels, c6a.8xlarge). arXiv Section 5 runtime
+  ablations.
+- `wide_runtime_ablation_summary.csv`: CIT and CIF runtime ablation on the
+  benchmark-size real datasets (at least 500 observations; fixed kernels,
+  c6a.8xlarge). arXiv Section 5 wide-dataset check.
+- `scaling_curves.csv`: fitting time of CIT and CIF in n and p with and without
+  adaptive stopping (fixed kernels, c6a.8xlarge). arXiv Appendix E.
+- `paper_threshold_test_scaling_real_5seeds.csv`, `paper_threshold_test_power_5seeds.csv`:
+  Stage B scaling, real-subset, and power studies pooled over seeds 0-4
+  (complete-node design). arXiv Appendix I, JSS threshold-test subsection.
+- `paper_stageb_only_pooled.csv`, `paper_stageb_only_size_matched.csv`: the
+  Stage-B-only study (one predictor, Stage A gate off, three seeds, nominal
+  levels 0.02-0.50) with Clopper-Pearson intervals and power interpolated to a
+  matched realized size. Built by `paper/analysis/build_stageb_only_pooled.py`.
+  arXiv `tab:stageB-only`.
+- `paper_benchmark_lodo_{aggregate,selected_configs,config_stability}_allmethod.csv`:
+  leave-one-dataset-out configuration selection on the all-method panels (21 and
+  8 datasets). Built by `build_lodo_config_sensitivity_tables.py --panel
+  all-method`. arXiv `tab:lodo-config-sensitivity-allmethod`.

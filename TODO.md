@@ -58,16 +58,14 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
 - [x] Narrative: abstract states the bunched ranking; +1 result a cited lemma;
       version note in Appendix J; discussion trimmed; contributions rewritten as
       three (benchmark, Stage B cost account + max-type, exact stopping size).
-      Open: Section 2 max-type paragraph still says the rule was added after the
-      benchmark; keep, but frame it as the cost fix (done in the contributions).
+      Section 2 now frames the max-type rule as the cost fix (2026-09-15).
 - [x] Configuration selection (2026-09-15): LODO run on the all-method panels
       (21/8) with `--panel all-method`; single-configuration families keep their
       fixed ranks exactly; CIF 5.86 (tied 3rd) to 6.10 (5th) in classification
       (20 of 21 reselect, balanced accuracy -0.002) and 6.25 to 6.50 (2nd) in
       regression (7 of 8, R^2 -0.008). Reported in Appendix G
-      (`tab:lodo-config-sensitivity-allmethod`), Section 5, the discussion.
-      Still open: the App. D caption states the selection rule as synthetic
-      recovery while 4.6 says real-data score; fix the caption.
+      (`tab:lodo-config-sensitivity-allmethod`), Section 5, the discussion. The
+      App. D caption already states the real-data selection rule.
 - [x] cforest importance: the review's "nperm = 1 handicap" was checked and
       rejected (2026-09-15). partykit's varimp default is one permutation per
       tree averaged over the 100 trees, the standard setting; the JSS uses ten
@@ -175,8 +173,6 @@ runtime runs.
 - [ ] `paper/analysis/README.md` maps every builder to its output and consumer;
       delete `build_cit_runtime_ablation_summary_tables.py` after v3 (superseded
       by the experiment module's `summarize`).
-- [ ] `tools/hooks/check_no_aws_configs.py` guards a path that no longer exists;
-      point it at `paper/benchmark/infra/config.yaml` or drop it.
 - [ ] Parameter tables triplicated (README, docs/parameters.md, AGENTS.md); keep
       docs/parameters.md as the source and shorten the others.
 - [ ] Make forest importances independent of `n_jobs` at the tie level, or

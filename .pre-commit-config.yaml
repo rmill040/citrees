@@ -40,11 +40,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: block-aws-configs
-        name: block-aws-configs
-        language: system
-        entry: python tools/hooks/check_no_aws_configs.py
-        files: ^paper/benchmark/infra/config\.yaml$
       - id: commit-message
         name: commit-message
         language: system

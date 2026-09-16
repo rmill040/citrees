@@ -166,7 +166,7 @@ def run_dataset(
                 )
                 agreement.append(float(np.mean(stored_rank[:10] == split_rank[:10])))
             pi = permutation_importance(
-                model, X_tr, y[tr], n_repeats=N_REPEATS, random_state=rs, n_jobs=1
+                model, X_tr, y[tr], n_repeats=N_REPEATS, random_state=rs, n_jobs=-1
             )
             perm_rank = np.lexsort((np.arange(X.shape[1]), -pi.importances_mean))
             for res in evaluate_fold(X[tr], y[tr], X[te], y[te], perm_rank, task, rs, k_values, 1):

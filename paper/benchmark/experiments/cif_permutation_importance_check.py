@@ -132,10 +132,21 @@ PLAN: list[tuple[str, str]] = [
 
 
 def run_dataset(
-    task: str, name: str, data_dir: Path, output_dir: Path, rankings_dir: Path | None
+    task: str,
+    name: str,
+    data_dir: Path,
+    output_dir: Path,
+    rankings_dir: Path | None,
+    seeds: tuple[int, ...] | None = None,
 ) -> None:
-    """Refit, rank by permutation importance, evaluate, and write one parquet per dataset."""
-    out = output_dir / f"{task}__{name}.parquet"
+    """Refit, rank by permutation importance, evaluate, and write one parquet per dataset.
+
+    ``seeds`` restricts the run to a subset of the benchmark seeds (the output file
+    name then carries the subset) so that a slow dataset can be spread over boxes.
+    """
+    seed_list = tuple(range(N_SEEDS)) if seeds is None else tuple(seeds)
+    suffix = "" if seeds is None else "__seeds" + "-".join(str(x) for x in seed_list)
+    out = output_dir / f"{task}__{name}{suffix}.parquet"
     if out.exists():
         print(f"skip {task} {name}: exists", flush=True)
         return
@@ -148,7 +159,7 @@ def run_dataset(
     rows: list[dict[str, Any]] = []
     agreement: list[float] = []
     t0 = time.perf_counter()
-    for seed in range(N_SEEDS):
+    for seed in seed_list:
         stored = None
         if rankings_dir is not None:
             f = rankings_dir / task / name / f"{method_id}_seed{seed}.parquet"
@@ -207,14 +218,21 @@ def main() -> None:
     parser.add_argument("--data-dir", type=Path, default=Path("paper/data"))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--rankings-dir", type=Path, default=None)
+    parser.add_argument("--datasets", type=str, default=None, help="comma-separated dataset names")
+    parser.add_argument("--seeds", type=str, default=None, help="comma-separated benchmark seeds")
     args = parser.parse_args()
+    seeds = tuple(int(x) for x in args.seeds.split(",")) if args.seeds else None
+    only = set(args.datasets.split(",")) if args.datasets else None
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for i, (task, name) in enumerate(PLAN):
-        if i % args.num_shards != args.shard:
+        if only is not None:
+            if name not in only:
+                continue
+        elif i % args.num_shards != args.shard:
             continue
         if name in LOCKED:
             raise RuntimeError(f"locked cell in plan: {name}")
-        run_dataset(task, name, args.data_dir, args.output_dir, args.rankings_dir)
+        run_dataset(task, name, args.data_dir, args.output_dir, args.rankings_dir, seeds)
 
 
 if __name__ == "__main__":

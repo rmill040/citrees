@@ -160,6 +160,10 @@ def run_dataset(
             model = get_embedding_model("cif", task, rs, n_jobs=-1, params=params)
             model.fit(X_tr, y[tr])
             split_rank = np.argsort(model.feature_importances_)[::-1]
+            # Predict serially inside permutation_importance: a parallel forest predict
+            # starts a worker pool per call, and permutation importance calls predict
+            # n_repeats x p times; the parallelism belongs to the feature loop below.
+            model.n_jobs = 1
             if stored is not None and (stored["fold_idx"] == fold_idx).any():
                 stored_rank = np.array(
                     stored.loc[stored["fold_idx"] == fold_idx, "feature_ranking"].iloc[0]

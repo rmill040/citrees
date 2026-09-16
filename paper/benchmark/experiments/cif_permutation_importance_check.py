@@ -4,10 +4,13 @@
 The benchmark ranks cforest by partykit's out-of-bag permutation importance and CIF
 by split importance, so the CIF-versus-cforest margin mixes the importance
 mechanism with the split procedure. This check refits the protocol-selected CIF
-configuration on each Stage 1 fold, ranks features by scikit-learn permutation
-importance (five repeats, estimator score, training rows), and evaluates the
+configuration on each Stage 1 fold, ranks features by permutation importance, and evaluates the
 ranking with the Stage 2 fold evaluator, producing rows comparable to the
-benchmark evaluation surface under ``method_base = "cif_perm"``. The split
+benchmark evaluation surface. The default importance is partykit-style
+out-of-bag permutation importance (one permutation per tree on that tree's
+out-of-bag rows, averaged over trees; ``method_base = "cif_oobperm"``), the
+mechanism cforest is ranked by. ``--importance train`` instead uses scikit-learn
+permutation importance on the training rows (``cif_perm``). The split
 importance ranking of the same fit is kept for a reproduction check against the
 stored Stage 1 ranking. Locked cells (isolet, gisette, letter) are never run.
 
@@ -26,9 +29,16 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from sklearn.inspection import permutation_importance
 from sklearn.preprocessing import StandardScaler
 
+from citrees._utils import (
+    classic_bootstrap_sample,
+    oversample_bootstrap_sample,
+    stratified_bootstrap_sample,
+    undersample_bootstrap_sample,
+)
 from paper.benchmark.adapters.data import _load_parquet_to_arrays, get_cv_splitter
 from paper.benchmark.config.constants import N_SEEDS, N_SPLITS
 from paper.benchmark.pipeline.selectors import get_embedding_model
@@ -131,6 +141,54 @@ PLAN: list[tuple[str, str]] = [
 ]
 
 
+def _boot_idx(model: Any, tree: Any, y: np.ndarray) -> np.ndarray:
+    """Reproduce the bootstrap indices the forest used to fit ``tree``."""
+    kwargs = {"y": y, "max_samples": model._max_samples, "random_state": tree.random_state}
+    if getattr(model, "_estimator_type", None) is not None and hasattr(model, "classes_"):
+        method = str(getattr(model, "_sampling_method", "") or "")
+        if method == "stratified":
+            return stratified_bootstrap_sample(**kwargs)
+        if method == "undersample":
+            return undersample_bootstrap_sample(**kwargs)
+        if method == "oversample":
+            return oversample_bootstrap_sample(**kwargs)
+    return classic_bootstrap_sample(**kwargs)
+
+
+def _tree_oob_importance(
+    tree: Any, oob_idx: np.ndarray, X: np.ndarray, y: np.ndarray, classifier: bool, seed: int
+) -> np.ndarray:
+    """Error increase per feature when it is permuted on the tree's out-of-bag rows."""
+    rng = np.random.default_rng(seed)
+    X_oob, y_oob = X[oob_idx], y[oob_idx]
+
+    def err(pred: np.ndarray) -> float:
+        return float(np.mean(pred != y_oob)) if classifier else float(np.mean((pred - y_oob) ** 2))
+
+    base = err(tree.predict(X_oob))
+    out = np.zeros(X.shape[1])
+    for f in range(X.shape[1]):
+        Xp = X_oob.copy()
+        Xp[:, f] = rng.permutation(Xp[:, f])
+        out[f] = err(tree.predict(Xp)) - base
+    return out
+
+
+def oob_permutation_importance(model: Any, X: np.ndarray, y: np.ndarray, seed: int) -> np.ndarray:
+    """partykit-style unconditional permutation importance: one permutation per tree,
+    scored on that tree's out-of-bag rows, averaged over trees."""
+    classifier = hasattr(model, "classes_")
+    n = X.shape[0]
+    jobs = []
+    for j, tree in enumerate(model.estimators_):
+        oob = np.setdiff1d(np.arange(n), _boot_idx(model, tree, y))
+        if oob.size == 0:
+            continue
+        jobs.append(delayed(_tree_oob_importance)(tree, oob, X, y, classifier, seed * 1000 + j))
+    per_tree = Parallel(n_jobs=-1, backend="loky")(jobs)
+    return np.mean(np.vstack(per_tree), axis=0)
+
+
 def run_dataset(
     task: str,
     name: str,
@@ -138,6 +196,7 @@ def run_dataset(
     output_dir: Path,
     rankings_dir: Path | None,
     seeds: tuple[int, ...] | None = None,
+    importance: str = "oob",
 ) -> None:
     """Refit, rank by permutation importance, evaluate, and write one parquet per dataset.
 
@@ -146,6 +205,9 @@ def run_dataset(
     """
     seed_list = tuple(range(N_SEEDS)) if seeds is None else tuple(seeds)
     suffix = "" if seeds is None else "__seeds" + "-".join(str(x) for x in seed_list)
+    if importance == "oob":
+        suffix = "__oob" + suffix
+    label = "cif_oobperm" if importance == "oob" else "cif_perm"
     out = output_dir / f"{task}__{name}{suffix}.parquet"
     if out.exists():
         print(f"skip {task} {name}: exists", flush=True)
@@ -180,18 +242,23 @@ def run_dataset(
                     stored.loc[stored["fold_idx"] == fold_idx, "feature_ranking"].iloc[0]
                 )
                 agreement.append(float(np.mean(stored_rank[:10] == split_rank[:10])))
-            pi = permutation_importance(
-                model, X_tr, y[tr], n_repeats=N_REPEATS, random_state=rs, n_jobs=-1
-            )
-            perm_rank = np.lexsort((np.arange(X.shape[1]), -pi.importances_mean))
+            if importance == "oob":
+                imp = oob_permutation_importance(model, X_tr, y[tr], rs)
+            else:
+                pi = permutation_importance(
+                    model, X_tr, y[tr], n_repeats=N_REPEATS, random_state=rs, n_jobs=-1
+                )
+                imp = pi.importances_mean
+            perm_rank = np.lexsort((np.arange(X.shape[1]), -imp))
             for res in evaluate_fold(X[tr], y[tr], X[te], y[te], perm_rank, task, rs, k_values, 1):
                 res.update(
                     dataset=name,
                     task=task,
                     seed=seed,
                     fold_idx=fold_idx,
-                    method_base="cif_perm",
-                    method_id="cif_perm__" + method_id.split("__")[1],
+                    method_base=label,
+                    method_id=label + "__" + method_id.split("__")[1],
+                    importance=importance,
                     n_samples=int(X.shape[0]),
                     n_features=int(X.shape[1]),
                     n_repeats=N_REPEATS,
@@ -220,6 +287,12 @@ def main() -> None:
     parser.add_argument("--rankings-dir", type=Path, default=None)
     parser.add_argument("--datasets", type=str, default=None, help="comma-separated dataset names")
     parser.add_argument("--seeds", type=str, default=None, help="comma-separated benchmark seeds")
+    parser.add_argument(
+        "--importance",
+        choices=["oob", "train"],
+        default="oob",
+        help="oob: partykit-style out-of-bag permutation importance; train: scikit-learn permutation importance on training rows",
+    )
     args = parser.parse_args()
     seeds = tuple(int(x) for x in args.seeds.split(",")) if args.seeds else None
     only = set(args.datasets.split(",")) if args.datasets else None
@@ -232,7 +305,9 @@ def main() -> None:
             continue
         if name in LOCKED:
             raise RuntimeError(f"locked cell in plan: {name}")
-        run_dataset(task, name, args.data_dir, args.output_dir, args.rankings_dir, seeds)
+        run_dataset(
+            task, name, args.data_dir, args.output_dir, args.rankings_dir, seeds, args.importance
+        )
 
 
 if __name__ == "__main__":

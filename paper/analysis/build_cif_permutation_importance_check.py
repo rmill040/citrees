@@ -8,7 +8,8 @@ surfaces ``paper/results/{clf,reg}_evaluation.parquet``.
 
 Outputs ``paper/results/tables/paper_cif_permutation_importance_check.csv`` with
 the directed pairwise aggregate (as in ``build_benchmark_package_tables``) for
-cif_perm vs cforest, cif_perm vs cif, and cif vs cforest on the same datasets,
+each CIF permutation-importance variant (cif_oobperm: out-of-bag, cif_perm:
+training rows) vs cforest and vs cif, and cif vs cforest on the same datasets,
 plus a refit-validation column: the top-10 agreement between the refit's split
 ranking and the stored Stage 1 ranking.
 
@@ -136,7 +137,9 @@ def main() -> None:
             [dataset_scores(sub, metric), dataset_scores(ev, metric)], ignore_index=True
         )
         ag = agree[agree["task"] == task]
-        for focus, base in (("cif_perm", "r_cforest"), ("cif_perm", "cif"), ("cif", "r_cforest")):
+        variants = [m for m in ("cif_oobperm", "cif_perm") if m in sub["method_base"].unique()]
+        pairs = [(v, b) for v in variants for b in ("r_cforest", "cif")] + [("cif", "r_cforest")]
+        for focus, base in pairs:
             r = pairwise(scores, focus, base, task)
             r["metric"] = metric
             r["refit_top10_agreement_mean"] = (

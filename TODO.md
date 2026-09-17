@@ -161,8 +161,11 @@ Experiments the reviewers ask for (author decision; each is cheap on EC2):
       at every node and is not a configuration anyone runs; the mechanism
       paragraph states the mtry combinatorial floor and the total configuration
       effect instead. Module `cif_all_recovery.py` kept.
-- [ ] Power study: more replicates for the size-matched cells and an off-center
-      step (Fable, Opus).
+- [x] Power study (2026-09-17): fourth seed at 1,500/1,000 replicates gives a
+      standard error of about 0.015 per size-matched difference (mean -0.005, 1
+      of 54 beyond 2 SE so far; n = 200/500 classification cells still running);
+      85th-percentile step: mean -0.004, SE 0.034, none beyond 2 SE. 'Equal
+      power' replaced by 'no detectable difference' in both papers.
 - [x] JSS exhaustive arm at equal work (2026-09-17, 88 shards): at 999
       permutations per predictor in both libraries citrees is faster (tree 1.6
       vs 2.9 s; forest 6.3 s on 32 cores vs 286 s one-core and 13 s 32-core

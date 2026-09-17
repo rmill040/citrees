@@ -990,15 +990,20 @@ the adjustment tightens. That gap is a size gap. In the Stage-B-only companion,
 matching the two tests at the same realized size removes it: the max-type minus
 Bonferroni difference in size-matched power ranges from $-0.054$ to $+0.034$
 over 108 cell and effect combinations with mean $-0.006$ and no trend in the
-bin setting. Where the Bonferroni test does not reach realized size 0.05 within the nominal
+bin setting, and a fourth seed with 1,500 null and 1,000 alternative
+replicates per cell puts a standard error of about 0.015 on each difference,
+with one of 54 combinations beyond two standard errors; moving the planted
+step to the 85th percentile of the predictor gives the same picture (mean
+$-0.004$, none beyond two standard errors). Where the Bonferroni test does not reach realized size 0.05 within the nominal
 grid (five of the 18 cells, all but one at 256 bins, where its size at nominal
 0.50 is 0.031 to 0.046) the match is at that largest realized size. Adaptive and exhaustive stopping agree within 0.014. The cost of
 the joint test is precision: the max-type threshold sits a median 0.19 standard
 deviations from the planted cut against 0.15 for the Bonferroni test, and 87
 rather than 90 percent of its detections fall on the planted predictor. The
 max-type test is therefore calibrated closer to the nominal level, cheaper on
-continuous predictors, and of equal power at matched size; what it gains at a
-fixed nominal level is the size the per-candidate adjustment gives up.
+continuous predictors, and shows no detectable difference in power at matched
+size; what it gains at a fixed nominal level is the size the per-candidate
+adjustment gives up.
 
 \subsection{NHANES diabetes application} \label{sec:nhanes}
 

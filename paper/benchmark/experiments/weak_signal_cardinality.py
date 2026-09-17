@@ -29,7 +29,6 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 from joblib import Parallel, delayed
-from sklearn.datasets import make_classification, make_regression
 from sklearn.preprocessing import StandardScaler
 
 from paper.benchmark.adapters.data import _load_parquet_to_arrays, get_cv_splitter
@@ -40,7 +39,7 @@ from paper.benchmark.pipeline.stage2 import evaluate_fold
 EXPERIMENT_NAME = "weak_signal_cardinality"
 K_VALUES = (5, 10, 25)
 N_INFORMATIVE = 10
-SIGNALS = {"classification": (0.3, 0.5, 1.0), "regression": (0.25, 0.5, 1.0)}
+SIGNALS = {"classification": (0.05, 0.10, 0.20), "regression": (0.05, 0.10, 0.20)}
 CIF = {
     "classification": dict(
         adjust_alpha_selector=True,
@@ -105,32 +104,22 @@ CIT = {
 def design(
     task: str, signal: float, seed: int
 ) -> tuple[np.ndarray, np.ndarray, dict[str, list[int]]]:
+    """Ten standard normal informative features with a common linear score; ``signal``
+    is the target marginal correlation of each informative feature with the response
+    (classification: Bernoulli through a logistic link; regression: Gaussian noise)."""
     rng = np.random.default_rng(seed)
     n = 1000
+    X_inf = rng.normal(size=(n, N_INFORMATIVE))
+    score = X_inf.sum(axis=1) / np.sqrt(N_INFORMATIVE)  # standard normal
+    # marginal corr of each x_j with the score is 1/sqrt(10); scale the score so that
+    # corr(x_j, y) is about ``signal`` on the latent scale
+    beta = signal * np.sqrt(N_INFORMATIVE) / np.sqrt(max(1e-9, 1 - N_INFORMATIVE * signal**2))
+    latent = beta * score
     if task == "classification":
-        X_inf, y = make_classification(
-            n_samples=n,
-            n_features=N_INFORMATIVE,
-            n_informative=N_INFORMATIVE,
-            n_redundant=0,
-            n_repeated=0,
-            n_clusters_per_class=2,
-            class_sep=signal,
-            flip_y=0.05,
-            shuffle=False,
-            random_state=seed,
-        )
-        y = y.astype(np.int64)
+        prob = 1.0 / (1.0 + np.exp(-1.7 * latent))  # 1.7 makes the logistic close to the probit
+        y = (rng.uniform(size=n) < prob).astype(np.int64)
     else:
-        X_inf, y = make_regression(
-            n_samples=n,
-            n_features=N_INFORMATIVE,
-            n_informative=N_INFORMATIVE,
-            noise=1.0,
-            shuffle=False,
-            random_state=seed,
-        )
-        y = (signal * (y - y.mean()) / y.std() + rng.normal(size=n)).astype(np.float64)
+        y = (latent + rng.normal(size=n)).astype(np.float64)
     highcard = rng.integers(0, 500, size=(n, 25)).astype(float)
     binary = rng.integers(0, 2, size=(n, 25)).astype(float)
     gauss = rng.normal(size=(n, 10))

@@ -66,17 +66,16 @@ Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
       regression (7 of 8, R^2 -0.008). Reported in Appendix G
       (`tab:lodo-config-sensitivity-allmethod`), Section 5, the discussion. The
       App. D caption already states the real-data selection rule.
-- [x] cforest importance: the review's "nperm = 1 handicap" was checked and
-      rejected (2026-09-15). partykit's varimp default is one permutation per
-      tree averaged over the 100 trees, the standard setting; the JSS uses ten
-      only in the NHANES and cardinality studies where importance variance is
-      itself measured. Handicap wording removed from Section 4, Appendix D, and
-      the limitations. The real confound is mechanism: cforest is ranked by
-      permutation importance, CIF by split importance. Running on EC2: the
-      mechanism-matched check (`cif_permutation_importance_check.py`, CIF ranked
-      by permutation importance on the 28 real pairwise-panel datasets, locked
-      cells excluded, 8 shards under `repairs/cif-perm-check/`). Add the result
-      to Appendix D and the discussion when it lands.
+- [x] cforest importance (closed 2026-09-17): the "nperm = 1 handicap" was
+      rejected (partykit default; JSS uses ten only where importance variance is
+      itself measured). The real confound, importance mechanism, was tested: CIF
+      refit per Stage 1 fold and ranked by cforest's own out-of-bag permutation
+      importance scores +0.012 mean / +0.006 median balanced accuracy over
+      cforest (15 of 20) against +0.011 for split-ranked CIF; the two CIF
+      rankings differ by +0.001; regression medians agree, means are a coepra2
+      artifact. Appendix D `tab:cif-perm-check`, Section 4 and discussion
+      sentences updated. Training-row permutation importance (sklearn default)
+      is the wrong comparator (-0.10 to -0.12); kept as a secondary row.
 - [x] Numeric inconsistencies (checked 2026-09-15): the arXiv items were either
       already fixed or misread by the reviewers (the abstract's 0.009 is the
       exact-search row, not the bootstrap row; the CIF-ablation prose matches

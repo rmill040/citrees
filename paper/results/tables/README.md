@@ -57,3 +57,11 @@ Everything else should be regenerated locally and left untracked.
   leave-one-dataset-out configuration selection on the all-method panels (21 and
   8 datasets). Built by `build_lodo_config_sensitivity_tables.py --panel
   all-method`. arXiv `tab:lodo-config-sensitivity-allmethod`.
+- `paper_cif_permutation_importance_check.csv`: mechanism-matched CIF check.
+  CIF refit per Stage 1 fold and ranked by out-of-bag permutation importance
+  (`cif_oobperm`, the mechanism cforest uses) or by training-row scikit-learn
+  permutation importance (`cif_perm`), evaluated with the Stage 2 evaluator;
+  directed pairwise aggregates against cforest and against split-ranked CIF on
+  the same datasets. Built by
+  `paper/analysis/build_cif_permutation_importance_check.py` from the EC2 run
+  under `reference/v3/ablations/cif-perm-check/`. arXiv `tab:cif-perm-check`.

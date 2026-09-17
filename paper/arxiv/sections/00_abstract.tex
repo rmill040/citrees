@@ -14,15 +14,13 @@ $BK$; rerun on the
 full benchmark it moves the forest by at most two positions. On 21
 classification datasets CIF sits in a tightly bunched group with RF, XGBoost,
 and LightGBM (mean ranks 5.8 to 6.1 among 17 methods) behind RF-RFE; on the
-13-dataset panel with every method, learner, and $k$ present, boosting pulls
-ahead on high-dimensional data and CIF is 6th; on 8 regression datasets the top
-half is not statistically separable (Friedman $p = 0.07$), with CIF 2nd on the
-full panel and 5th on the complete-case panel.
+13-dataset panel with every method, learner, and $k$ present, which by construction holds the datasets with at least 166 features, boosting pulls
+ahead and CIF is 6th; in regression CIF is 2nd on the 8-dataset panel and 5th on the 6-dataset complete-case panel, where the Friedman test over all 18 methods does not reject ($p = 0.07$).
 With Bonferroni correction held fixed, the runtime ablations locate the cost
 in the threshold search: turning off threshold scanning slows forest fits by
 7.9--29$\times$ and exact threshold search by 1.3--20$\times$, while adaptive
 stopping is statistically inert at the benchmark's minimum permutation budget
-(0.87--0.99$\times$) and, at the larger auto budget, cuts a single tree to 0.15--0.41
+(forest time 0.87--0.99$\times$; single trees pay up to 1.6$\times$ for the posterior checks) and, at the larger auto budget, cuts a single tree to 0.15--0.41
 of its exhaustive time by task group; downstream score changes from the
 threshold-search controls are at most 0.009. Sparse high-$p$
 simulations indicate that forest feature sampling can leave informative features

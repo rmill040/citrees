@@ -7,7 +7,7 @@ set $I_t$ and size $n_t:=|I_t|$. Write $X_t := (X_i)_{i\in I_t}$ and
 $Y_t := (Y_i)_{i\in I_t}$ for the data restricted to that node. Stage~A tests
 features $F_t$ with $m_t:=|F_t|$.
 
-The fixed-node theorem analyzes the exhaustive fixed-$B$ Stage~A reference test.
+The fixed-node lemma analyzes the exhaustive fixed-$B$ Stage~A reference test.
 Conditional on the node covariates and label-independent auxiliary randomness
 $U$, $F_t$ and $B$ are fixed, and every feature in $F_t$ is tested with exactly
 $B$ permutations.
@@ -22,7 +22,7 @@ $B$ permutations.
     \toprule
     \tablehead{Symbol} & \tablehead{Meaning} \\
     \midrule
-    $t$ & Node index, held fixed in the theorem. \\
+    $t$ & Node index, held fixed in the lemma. \\
     $I_t,\ n_t$ & Node sample index set and size $n_t:=|I_t|$. \\
     $X_t,\ Y_t$ & Covariates and labels restricted to node $t$. \\
     $U$ & Label-independent auxiliary randomness conditioned on in the proof; it excludes node responses, Monte Carlo permutation draws, permutation statistics, and $p$-values. \\
@@ -39,19 +39,19 @@ $B$ permutations.
     $\alpha_{\mathrm{sel}}$ & Stage~A nominal level; the corollary tests at $\alpha_{\mathrm{sel}}/m_t$. \\
     \bottomrule
   \end{tabular}
-  \caption{Notation used in the fixed-node Stage~A theorem and proof.}
+  \caption{Notation used in the fixed-node Stage~A lemma and proof.}
   \label{tab:fixed-node-notation}
 \end{table}
 
 The guarantee applies to fixed-node, fixed-$B$ tests: the Stage~A feature tests and, in \cref{cor:stageB-maxt}, the max-type Stage~B test for a feature and candidate set fixed without reference to the responses. It does not cover the per-threshold Stage~B search, adaptive stopping, response-dependent feature muting, response-selected internal nodes, bootstrap forests, honesty, or $p$-values after feature selection or other post-selection steps; see
 \cref{sec:method,app:methods,app:complexity-details}.
 
-\subsection{Assumptions and theorem scope}
+\subsection{Assumptions and lemma scope}
 \label{app:assumptions}
 
 \paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
 Assumptions A0.1--A0.5 define the fixed-node reference setting used by
-Theorem~\ref{thm:plusone-superuniform} and
+Lemma~\ref{lem:plusone-superuniform} and
 Corollary~\ref{cor:stageA-global-null}.
 The node $t$ and its sample index set $I_t$ are held fixed for the result. They
 are not chosen using node responses or earlier response-dependent splits.
@@ -81,4 +81,4 @@ Stage~A reject/no-reject event.
 
 \subsection{Results using these assumptions}
 
-The fixed-node results in \cref{sec:theory} use Assumptions A0.1--A0.5. Theorem~\ref{thm:plusone-superuniform} proves $+1$ Monte Carlo permutation $p$-value superuniformity. Corollary~\ref{cor:stageA-global-null} gives Stage~A complete-null control, and Corollary~\ref{cor:stageB-maxt} gives complete-null control for the max-type Stage~B test at a fixed node.
+The fixed-node results in \cref{sec:theory} use Assumptions A0.1--A0.5. Lemma~\ref{lem:plusone-superuniform} proves $+1$ Monte Carlo permutation $p$-value superuniformity. Corollary~\ref{cor:stageA-global-null} gives Stage~A complete-null control, and Corollary~\ref{cor:stageB-maxt} gives complete-null control for the max-type Stage~B test at a fixed node.

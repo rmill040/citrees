@@ -36,7 +36,7 @@
   NHANES 2021--2023 diabetes cohort shows a random forest with CART split
   search ranking a permuted survey weight above reported diagnoses of
   hypertension and high cholesterol, an order that conditional split screening
-  reverses under the same impurity-decrease importance, while a logistic
+  reverses, while a logistic
   regression on the top-ranked columns predicts held-out status at least as
   well.
 }
@@ -746,8 +746,8 @@ against 2.9 seconds with the recommended configuration and \pkg{partykit} at
 2.9 against 6.0 seconds under the exhaustive procedure. The permutation budget is the dominant cost of the
 exhaustive procedure in both libraries, 71 to 7,019 seconds in \citrees and 34
 to 2,805 seconds in \pkg{partykit} between 99 and 9,999 permutations, and
-adaptive stopping removes that axis from the recommended configuration, which
-sets its own budget. CART in \sklearn fits the reference forests in 0.16 and
+the recommended configuration removes that axis through the minimum budget and
+scanning, not through adaptive stopping, which is inert at the floor. CART in \sklearn fits the reference forests in 0.16 and
 0.12 seconds; it performs no permutation test and is included to place the
 cost of conditional inference on a familiar scale.
 
@@ -1175,13 +1175,9 @@ type used in Section~\ref{sec:performance}.
 The finding is that on a clinical cohort with predictors of mixed cardinality,
 a random forest with CART split search ranks a permuted survey weight above
 two reported diagnoses that are established correlates of diabetes, and the
-conditional split screen reverses that order under the same impurity-decrease
-importance; a logistic regression on the top-ranked columns of each forest
+conditional split screen reverses that order; a logistic regression on the top-ranked columns of each forest
 predicts held-out status at least as well from the conditional ranking (AUC
-averaged over $k = 5$ and $k = 10$: 0.814 against 0.795). The contrast is the
-split search, not the importance statistic, and the two forests differ in other
-respects as well (bootstrap, depth control), so the comparison does not isolate
-one component; what it shows is that on the same predictors the two rankings
+averaged over $k = 5$ and $k = 10$: 0.814 against 0.795). Both forests rank by impurity decrease summed over splits, but not by the same formula: \citrees sums node-level decreases while \sklearn weights each decrease by the node's share of the sample, and the two forests differ in other respects as well (bootstrap, depth control), so the comparison does not isolate the split search on its own; what it shows is that on the same predictors the two rankings
 agree on the metabolic measurements and disagree exactly where the number of
 distinct values differs, the pattern the cardinality study predicts.
 For a user choosing between impurity and conditional importance on mixed-type

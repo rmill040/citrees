@@ -44,24 +44,31 @@ permutation reference distribution under the nodewise complete permutation null.
 The benchmarks then evaluate the tree and forest feature rankings empirically.
 
 \paragraph{Contributions.}
-The paper makes three contributions. First, a real-data benchmark of
-conditional-inference feature rankings for top-$k$ downstream prediction,
-comparing CIF and CIT with ctree, cforest, and thirteen other selectors on 31
-datasets with five seeds, together with synthetic recovery and high-$p$
-analyses (\cref{sec:experiments-real,sec:boundary}); the result is that CIF is a
-competitive ranker in a tightly bunched group behind RF-RFE, not a superior
-one, and that single conditional-inference trees rank poorly. Second, an
-account of where the cost of conditional inference lives: the ablations locate
-it in the per-threshold Stage~B search, whose permutation budget must grow as
-$K^2/\alpha$ in the number of candidate thresholds for the rule to reject at all (at a fixed budget of 999 it never splits beyond about 50 candidates, \cref{sec:results-stageB}) and which penalizes
-continuous features in reverse proportion to their cardinality; a max-type
-Stage~B test resolves the level at $999K$ evaluations and removes the cardinality penalty under the same fixed-node guarantee
-(\cref{cor:stageB-maxt,sec:results-stageB}). Third, the exact finite-sample
-size of the adaptive stopping rule (\cref{prop:adaptive-size}), which shows
-the rule is inert at the benchmark's minimum budget and pays only at larger
-budgets. The fixed-node permutation result the guarantees rest on is standard
-and is stated as a cited lemma (\cref{lem:plusone-superuniform}).
-
-All results in this version come from a benchmark harness whose earlier
-defects were corrected and rerun in full; \cref{app:version-note} lists them and
-what moved.
+The paper answers one question: does the split-selection correction of
+conditional inference improve a feature ranking used for downstream
+prediction, and what does it cost? Three results answer it. First, a benchmark
+of conditional-inference rankings against 15 selectors on 31 real datasets with
+five seeds, scored by fixed downstream learners on top-$k$ prefixes and
+complemented by synthetic recovery designs
+(\cref{sec:experiments-real,sec:boundary}): CIF ranks inside a bunched group
+with random forests and boosting behind recursive feature elimination, drops
+behind boosting on the high-dimensional panel, and single conditional-inference
+trees rank near the bottom, so the correction buys no ranking advantage on
+these tasks. Second, an account of where the cost of conditional inference
+lives: the per-threshold Stage~B test needs a permutation budget of order
+$K^2/\alpha$ in the number of candidate thresholds, since at a fixed budget it
+cannot reject beyond about 50 candidates (\cref{sec:results-stageB}), and the
+runtime ablations trace the fitting time to that search rather than to the
+feature test; a max-type Stage~B test resolves the level at $999K$ evaluations,
+is calibrated closer to the nominal level with no detectable loss of power at
+matched size, and removes the reverse cardinality penalty of the per-threshold
+rule (\cref{cor:stageB-maxt,sec:results-stageB}). Third, the exact null size of
+the adaptive stopping rule under a continuous-mixing idealization
+(\cref{prop:adaptive-size}), which shows the rule is inert at the minimum
+budget the benchmark uses and acts only at larger budgets. Under that minimum
+budget every rejecting candidate returns the smallest attainable $p$-value, so
+the benchmarked procedure selects features and thresholds by the order of the
+observed statistics behind a Bonferroni gate (\cref{sec:method}); the
+guarantees rest on the standard fixed-node permutation result, stated as a
+cited lemma (\cref{lem:plusone-superuniform}), and the benchmark measures what
+that procedure delivers in practice.

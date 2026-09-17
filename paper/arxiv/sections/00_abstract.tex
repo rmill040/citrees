@@ -1,29 +1,30 @@
-Conditional inference trees (CIT) and conditional inference forests (CIF)
-reduce split-selection bias by testing features before choosing split
-thresholds, but repeated permutation tests and threshold searches can make these
-methods computationally expensive. We study CIT and CIF as top-$k$
-feature-ranking methods for downstream prediction using real-data benchmarks,
-runtime ablations, and synthetic feature-recovery experiments.
-At a fixed node, if the features and permutation budget do not depend on the
-node responses, Bonferroni-corrected $+1$ Monte Carlo permutation $p$-values
-control nodewise rejection under the complete permutation null; the same
-argument covers a max-type Stage~B threshold test that replaces the
-per-threshold Bonferroni rule and, for more than about 50 candidate
-thresholds, cuts the permutation cost of a node from order $K^2/\alpha$ to order
-$BK$; rerun on the
-full benchmark it moves the forest by at most two positions. On 21
-classification datasets CIF sits in a tightly bunched group with RF, XGBoost,
-and LightGBM (mean ranks 5.8 to 6.1 among 17 methods) behind RF-RFE; on the
-13-dataset panel with every method, learner, and $k$ present, which by construction holds the datasets with at least 166 features, boosting pulls
-ahead and CIF is 6th; in regression CIF is 2nd on the 8-dataset panel and 5th on the 6-dataset complete-case panel, where the Friedman test over all 18 methods does not reject ($p = 0.07$).
-With Bonferroni correction held fixed, the runtime ablations locate the cost
-in the threshold search: turning off threshold scanning slows forest fits by
-7.9--29$\times$ and exact threshold search by 1.3--20$\times$, while adaptive
-stopping is statistically inert at the benchmark's minimum permutation budget
-(CIT 0.87--0.98$\times$ and CIF 0.96--0.99$\times$ in the ablations; single trees pay up to 1.6$\times$ on the scaling grid) and, at the larger auto budget, cuts a single tree to 0.15--0.41
-of its exhaustive time by task group; downstream score changes from the
-threshold-search controls are at most 0.009. Sparse high-$p$
-simulations indicate that forest feature sampling can leave informative features
-out of many split decisions. Overall,
-the results support CIF as a top-$k$ feature-ranking method in the
-evaluated downstream prediction benchmarks.
+Conditional inference trees and forests choose a split variable by an
+association test before searching for a threshold, which removes the preference
+of CART-style splitting for features with many cutpoints. Whether that
+correction improves a feature ranking used for downstream prediction, and what
+it costs, has not been measured on one footing. We benchmark conditional
+inference trees (CIT) and forests (CIF) against 15 selectors, among them
+partykit's ctree and cforest, random forests, gradient boosting, and permutation
+importance and wrapper methods, on 31 real datasets with 5 seeds, scoring every
+ranking by the held-out accuracy of fixed learners fitted to its top-$k$
+features, with synthetic designs where the informative features are known. The
+correction buys no ranking advantage: on 21 classification datasets CIF sits in
+a bunched group with random forests and boosting (mean ranks 5.8 to 6.1 of 17)
+behind recursive feature elimination, is 6th on the 13 datasets with at least
+166 features, where boosting pulls ahead, and is 2nd of 18 in regression on a
+panel whose ordering the Friedman test does not separate; single conditional
+inference trees rank near the bottom. The cost has one source. The
+per-threshold Bonferroni test needs a permutation budget of order $K^2/\alpha$
+in the number of candidate thresholds $K$, because at a fixed budget it cannot
+reject at all beyond about 50 candidates, and the ablations place the fitting
+time there: turning the threshold scan off slows forests by 7.9 to 29 times
+while the feature test's adaptive stopping is inert at the minimum budget. A
+max-type threshold test resolves the same level at $999K$ evaluations, is
+calibrated closer to the nominal level (Stage B size 0.023 to 0.044 against
+0.000 to 0.027 at nominal 0.05), shows no detectable difference in power at
+matched size, and moves the downstream rankings by at most two positions; the
+adaptive stopping rule has exact null size 0.0488 at its default budget. For a
+practitioner the result is a trade: conditional inference rankings predict as
+well as CART-family rankings at roughly two orders of magnitude the fitting
+cost of a random forest, and the threshold test, not the feature test, is where
+that cost is recovered.

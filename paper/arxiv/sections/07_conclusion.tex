@@ -1,20 +1,28 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper evaluates conditional-inference tree and forest rankings for top-$k$
-downstream prediction and restates the standard fixed-node guarantee for Stage~A permutation
-testing. The experiments support CIF as a top-$k$ feature-ranking method,
-especially in classification: its rankings compare favorably with ctree,
-cforest, and CIT, and they remain competitive among stronger tree-ensemble
-baselines.
+The question was whether the split-selection correction of conditional
+inference improves a feature ranking used for downstream prediction, and what
+it costs. On 31 real datasets the answer to the first part is no: conditional
+inference forest rankings predict as well as random forest, boosting, and
+Boruta rankings, behind recursive feature elimination and, on the
+high-dimensional panel, behind boosting, and single conditional inference trees
+rank near the bottom. The correction removes the cardinality preference of
+CART-style splitting, which the NHANES application of the companion article
+shows on real clinical predictors, but that removal does not translate into
+better top-$k$ prediction on these benchmarks, and out-of-bag permutation
+importance removes the same preference from an ordinary random forest.
 
-The ablations separate runtime and ranking effects. Threshold scanning and the
-bounded histogram search hold runtime down, adaptive stopping is inert at the
-benchmark's minimum budget and pays only at larger budgets, and the one-tree
-ablation has the largest ranking-quality loss. The high-$p$ and synthetic
-analyses add two diagnostic cautions: sparse forests should be checked for
-whether informative features are used in enough splits to enter the top-$k$
-ranking, and CIF should not be treated as a first-feature discovery method when
-the goal is to identify a single driver. Overall, these
-results support CIF as a feature-ranking method for downstream prediction,
-backed by a local Stage~A result and benchmark evidence.
+The answer to the second part is precise. The cost of conditional inference is
+the per-threshold Stage~B test, whose permutation budget must grow as
+$K^2/\alpha$ in the number of candidate thresholds for the rule to reject at
+all; the feature test and its adaptive stopping are not the cost at the
+benchmark's budget. The max-type threshold test resolves the same level at
+$999K$ evaluations, is calibrated closer to the nominal level, shows no
+detectable difference in power at matched size, and moves the downstream
+rankings by at most two positions, so it is the configuration a user who wants
+conditional inference at a practical cost should choose. For a practitioner
+choosing a ranking method for downstream prediction, a random forest or
+boosting importance is as good at a small fraction of the cost; conditional
+inference earns its cost where the ranking itself must be free of cardinality
+bias, and then the threshold test is where the budget goes.

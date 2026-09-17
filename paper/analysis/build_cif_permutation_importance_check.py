@@ -41,7 +41,10 @@ def load_check(results_dir: Path) -> pd.DataFrame:
     files = sorted(glob.glob(str(results_dir / "*" / "*.parquet")))
     if not files:
         raise SystemExit(f"no parquets under {results_dir}")
-    return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    frame = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    # A dataset may arrive from more than one box (seed-split reruns); keep one row per cell.
+    keys = ["task", "dataset", "method_base", "seed", "fold_idx", "k", "downstream_model"]
+    return frame.drop_duplicates(subset=keys, keep="last").reset_index(drop=True)
 
 
 def refit_agreement(check: pd.DataFrame, rankings_dir: Path) -> pd.DataFrame:

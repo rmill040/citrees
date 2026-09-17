@@ -163,7 +163,9 @@ def rf_oob_permutation_importance(
         oob = np.setdiff1d(np.arange(n), in_bag)
         if oob.size:
             jobs.append(delayed(_tree_oob_importance)(tree, oob, X, y, seed * 1000 + j))
-    return np.mean(np.vstack(Parallel(n_jobs=-1)(jobs)), axis=0)
+    # Threads, not processes: the same process drives R through rpy2 for cforest,
+    # and a forked worker pool deadlocks against R's own multicore workers.
+    return np.mean(np.vstack(Parallel(n_jobs=-1, prefer="threads")(jobs)), axis=0)
 
 
 def _importances(

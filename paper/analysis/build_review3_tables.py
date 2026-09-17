@@ -77,6 +77,70 @@ def equal_work() -> pd.DataFrame:
     return g
 
 
+def power_replicates() -> pd.DataFrame:
+    """Size-matched power with standard errors from the high-replicate (seed 3) and
+    off-centre (85th-percentile step) Stage-B-only runs, pooled per cell with the
+    seed 0-2 centred runs where the design is identical (nominal grid and step)."""
+    import sys
+
+    sys.path.insert(0, str(ROOT))
+    from paper.analysis.build_stageb_only_pooled import CELL, clopper_pearson, size_matched
+
+    frames = []
+    for pattern, label in (
+        ("r3-power-reps-*/stageb_only.csv", "centred_highrep"),
+        ("r3-power-q85-*/stageb_only.csv", "offcentre_q85"),
+    ):
+        d = _cat(pattern)
+        if d.empty:
+            continue
+        d["design"] = label
+        frames.append(d)
+    if not frames:
+        return pd.DataFrame()
+    raw = pd.concat(frames, ignore_index=True)
+    raw["splits"] = (raw["split_rate"] * raw["replicates"]).round().astype(int)
+    out = []
+    for design, sub in raw.groupby("design"):
+        g = sub.groupby(CELL + ["nominal_alpha", "effect"], as_index=False).agg(
+            splits=("splits", "sum"), replicates=("replicates", "sum")
+        )
+        g["rate"] = g["splits"] / g["replicates"]
+        g["se"] = (g["rate"] * (1 - g["rate"]) / g["replicates"]) ** 0.5
+        ci = [
+            clopper_pearson(int(x), int(m))
+            for x, m in zip(g["splits"], g["replicates"], strict=True)
+        ]
+        g["ci_low"], g["ci_high"] = [c[0] for c in ci], [c[1] for c in ci]
+        m = size_matched(g)
+        # attach the alternative-cell SE at the matched level (nearest nominal level by realized size)
+        m["design"] = design
+        g["design"] = design
+        out.append((g, m))
+    pooled = pd.concat([g for g, _ in out], ignore_index=True)
+    matched = pd.concat([m for _, m in out], ignore_index=True)
+
+    # SE of the size-matched power difference: combine the two arms' alternative SEs at the
+    # nominal level whose realized size is closest to the match size
+    def arm_se(row):
+        sub = pooled[
+            (pooled.design == row.design)
+            & (pooled.task == row.task)
+            & (pooled.n == row.n)
+            & (pooled.k == row.k)
+            & (pooled.threshold_test == row.threshold_test)
+            & (pooled.stopping == row.stopping)
+        ]
+        null = sub[sub.effect == 0].set_index("nominal_alpha")["rate"]
+        lvl = (null - row.match_size).abs().idxmin()
+        alt = sub[(sub.effect == row.effect) & (sub.nominal_alpha == lvl)]
+        return float(alt["se"].iloc[0]) if len(alt) else float("nan")
+
+    matched["power_se"] = matched.apply(arm_se, axis=1)
+    pooled.to_csv(TABLES / "paper_stageb_power_replicates_pooled.csv", index=False)
+    return matched
+
+
 def main() -> None:
     TABLES.mkdir(parents=True, exist_ok=True)
     for name, fn in [
@@ -84,6 +148,7 @@ def main() -> None:
         ("paper_stageb_scaling_3arm.csv", scaling_3arm),
         ("paper_behavior_scanning_control.csv", behavior_scanning),
         ("paper_performance_equal_work.csv", equal_work),
+        ("paper_stageb_power_replicates.csv", power_replicates),
     ]:
         df = fn()
         if df.empty:

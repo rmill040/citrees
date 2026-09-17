@@ -9,7 +9,8 @@ by the Stage 2 downstream protocol at k in {5, 10, 25}, and by its support size
 (features with nonzero importance) against the true count of 10. ``support``:
 the support size of CIF, CIT, and RF on the synthetic benchmark datasets whose
 informative features are known. Rankers: CIF and CIT (selected benchmark
-configurations with the linear selectors), RF impurity importance, the same RF
+configurations with the linear selectors), CIF with the max-type threshold test
+and CIF without the threshold adjustment, RF impurity importance, the same RF
 ranked by out-of-bag permutation importance, XGBoost, and LightGBM.
 
 Usage:
@@ -178,6 +179,8 @@ def rankers(
     classifier = task == "classification"
     for name, method, params in (
         ("cif", "cif", CIF[task]),
+        ("cif_maxt", "cif", {**CIF[task], "threshold_test": "maxt"}),
+        ("cif_noadjust", "cif", {**CIF[task], "adjust_alpha_splitter": False}),
         ("cit", "cit", CIT[task]),
         ("rf", "rf", {}),
         ("xgb", "xgb", {}),

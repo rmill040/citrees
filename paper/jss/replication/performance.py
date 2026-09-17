@@ -28,7 +28,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, TypedDict, cast
+from typing import Literal, NotRequired, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -158,6 +158,7 @@ class CitreesControl(TypedDict):
     """Typed controls shared by citrees trees and forests."""
 
     selector: str
+    scale_resamples_with_tests: NotRequired[bool]
     alpha_selector: float
     adjust_alpha_selector: bool
     n_resamples_selector: int
@@ -523,6 +524,9 @@ def _fit_citrees(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         "alpha_selector": ALPHA,
         "adjust_alpha_selector": True,
         "n_resamples_selector": cell.n_resamples,
+        # CITREES_PERF_EQUAL_WORK=1: keep the budget at cell.n_resamples per predictor
+        # (partykit's work) instead of scaling it by the predictor count.
+        "scale_resamples_with_tests": os.environ.get("CITREES_PERF_EQUAL_WORK") != "1",
         "early_stopping_selector": None,
         "n_resamples_splitter": None,
         "adjust_alpha_splitter": False,

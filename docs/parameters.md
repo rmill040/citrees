@@ -44,10 +44,11 @@ Bonferroni behavior:
 
 ### Alpha Adjustment
 
-| Parameter               | Type | Default | Description                               |
-| ----------------------- | ---- | ------- | ----------------------------------------- |
-| `adjust_alpha_selector` | bool | True    | Bonferroni correction for feature tests   |
-| `adjust_alpha_splitter` | bool | True    | Bonferroni correction for threshold tests |
+| Parameter                    | Type | Default | Description                                                                                                                                                                                                                        |
+| ---------------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adjust_alpha_selector`      | bool | True    | Bonferroni correction for feature tests                                                                                                                                                                                            |
+| `adjust_alpha_splitter`      | bool | True    | Bonferroni correction for threshold tests                                                                                                                                                                                          |
+| `scale_resamples_with_tests` | bool | True    | Multiply an explicit integer permutation budget by the number of tests so it resolves the adjusted level; `False` keeps the budget per test (a fixed-budget control that cannot reject once the adjusted level is below `1/(B+1)`) |
 
 ### Early Stopping
 

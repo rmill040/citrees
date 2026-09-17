@@ -32,6 +32,7 @@ from typing import Any, Final
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 from scipy.stats import spearmanr
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
@@ -45,6 +46,15 @@ ANALYSIS: Final = "threshold_test"
 ALPHA: Final = 0.05
 DEFAULT_FIT_TIMEOUT: Final = 1200.0
 TESTS: Final = ("bonferroni", "maxt")
+# bonferroni_fixed: the per-threshold Bonferroni rule at a fixed budget of FIXED_B
+# permutations per candidate (scale_resamples_with_tests=False), the control arm that
+# separates the budget rule from the test; it cannot reject once alpha/K < 1/(FIXED_B+1).
+TEST_CHOICES: Final = ("bonferroni", "maxt", "bonferroni_fixed")
+FIXED_B: Final = 999
+# Location of the planted step in the power studies as a standard-normal quantile
+# (0.5 is the centred cut at zero); set from --step-quantile.
+STEP_QUANTILE: float = 0.5
+STEP_Z: float = 0.0
 # Nominal Stage B levels for the Stage-B-only studies; the realized size at each
 # level lets power be read at a matched realized size.
 STAGEB_ALPHAS: Final = (0.02, 0.05, 0.10, 0.20, 0.35, 0.50)
@@ -120,13 +130,15 @@ def _estimator(task: str, test: str, stopping: str | None, k: int, seed: int, **
     common = dict(
         threshold_method="histogram",
         max_thresholds=k,
-        threshold_test=test,
+        threshold_test="bonferroni" if test == "bonferroni_fixed" else test,
         early_stopping_selector=stopping,
         early_stopping_splitter=stopping,
         alpha_selector=ALPHA,
         alpha_splitter=ALPHA,
         random_state=seed,
     )
+    if test == "bonferroni_fixed":
+        common.update(n_resamples_splitter=FIXED_B, scale_resamples_with_tests=False)
     common.update(extra)
     if task == "classification":
         return ConditionalInferenceTreeClassifier(selector="mc", **common)
@@ -192,12 +204,14 @@ def timed_fit(
         executor.shutdown(wait=False, cancel_futures=True)
 
 
-def null_calibration(profile: dict[str, Any], seed: int) -> pd.DataFrame:
+def null_calibration(
+    profile: dict[str, Any], seed: int, tests: tuple[str, ...] = TESTS
+) -> pd.DataFrame:
     rows = []
     for task in ("classification", "regression"):
         for n in profile["null_n"]:
             for k in profile["null_k"]:
-                for test in TESTS:
+                for test in tests:
                     for stopping in STOPPING:
                         rng = np.random.default_rng(seed)
                         rejections = 0
@@ -238,7 +252,7 @@ def null_calibration(profile: dict[str, Any], seed: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def power_study(profile: dict[str, Any], seed: int) -> pd.DataFrame:
+def power_study(profile: dict[str, Any], seed: int, tests: tuple[str, ...] = TESTS) -> pd.DataFrame:
     """Detection of a planted root split by the two constructions.
 
     Five Gaussian predictors; the response depends on the first through a step at
@@ -254,7 +268,7 @@ def power_study(profile: dict[str, Any], seed: int) -> pd.DataFrame:
         for delta in effects:
             for n in profile["null_n"]:
                 for k in profile["null_k"]:
-                    for test in TESTS:
+                    for test in tests:
                         for stopping in STOPPING:
                             rng = np.random.default_rng(seed)
                             detected = correct = 0
@@ -262,7 +276,7 @@ def power_study(profile: dict[str, Any], seed: int) -> pd.DataFrame:
                             start = time.perf_counter()
                             for r in range(profile["power_reps"]):
                                 X = rng.normal(size=(n, 5))
-                                side = X[:, 0] > 0.0
+                                side = X[:, 0] > STEP_Z
                                 if task == "classification":
                                     prob = np.where(side, 0.5 + delta, 0.5 - delta)
                                     y = (rng.uniform(size=n) < prob).astype(np.int64)
@@ -283,6 +297,7 @@ def power_study(profile: dict[str, Any], seed: int) -> pd.DataFrame:
                                     "study": "power",
                                     "task": task,
                                     "effect": delta,
+                                    "step_quantile": STEP_QUANTILE,
                                     "n": n,
                                     "k": k,
                                     "threshold_test": test,
@@ -328,7 +343,7 @@ def _stageb_only_rate(
     start = time.perf_counter()
     for r in range(reps):
         X = rng.normal(size=(n, 1))
-        side = X[:, 0] > 0.0
+        side = X[:, 0] > STEP_Z
         if task == "classification":
             prob = np.where(side, 0.5 + delta, 0.5 - delta)
             y = (rng.uniform(size=n) < prob).astype(np.int64)
@@ -349,7 +364,11 @@ def _stageb_only_rate(
 
 
 def stageb_only(
-    profile: dict[str, Any], seed: int, tasks: tuple[str, ...], sizes: tuple[int, ...] | None = None
+    profile: dict[str, Any],
+    seed: int,
+    tasks: tuple[str, ...],
+    sizes: tuple[int, ...] | None = None,
+    tests: tuple[str, ...] = TESTS,
 ) -> pd.DataFrame:
     """Stage-B-only size and power over a grid of nominal levels.
 
@@ -363,7 +382,7 @@ def stageb_only(
         effects = (0.0,) + tuple(profile[f"power_effects_{task}"])
         for n in sizes or profile["null_n"]:
             for k in profile["null_k"]:
-                for test in TESTS:
+                for test in tests:
                     for stopping in STOPPING:
                         for alpha_split in STAGEB_ALPHAS:
                             for delta in effects:
@@ -386,6 +405,7 @@ def stageb_only(
                                         "stopping": stopping or "exhaustive",
                                         "nominal_alpha": alpha_split,
                                         "effect": delta,
+                                        "step_quantile": STEP_QUANTILE,
                                         "replicates": reps,
                                         "split_rate": rate,
                                         "ci_low": low,
@@ -402,7 +422,10 @@ def stageb_only(
 
 
 def synthetic_scaling(
-    profile: dict[str, Any], seed: int, timeout: float = DEFAULT_FIT_TIMEOUT
+    profile: dict[str, Any],
+    seed: int,
+    timeout: float = DEFAULT_FIT_TIMEOUT,
+    tests: tuple[str, ...] = TESTS,
 ) -> pd.DataFrame:
     rows = []
     for task in ("classification", "regression"):
@@ -416,7 +439,7 @@ def synthetic_scaling(
                 else signal + rng.normal(size=n)
             )
             for k in profile["scale_k"]:
-                for test in TESTS:
+                for test in tests:
                     for stopping in STOPPING:
                         _estimator(task, test, stopping, k, seed).fit(X[:200], y[:200])  # warm JIT
                         seconds, depths, censored = [], [], False
@@ -468,7 +491,10 @@ def _load_real(task: str, name: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def real_subset(
-    profile: dict[str, Any], seed: int, timeout: float = DEFAULT_FIT_TIMEOUT
+    profile: dict[str, Any],
+    seed: int,
+    timeout: float = DEFAULT_FIT_TIMEOUT,
+    tests: tuple[str, ...] = TESTS,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows, agreement = [], []
     k = profile["real_k"]
@@ -481,7 +507,7 @@ def real_subset(
             for stopping in STOPPING:
                 importances: dict[str, list[np.ndarray]] = {t: [] for t in TESTS}
                 censored_any = False
-                for test in TESTS:
+                for test in tests:
                     scores, depths, seconds, censored = [], [], [], False
                     for train, test_idx in splitter.split(X, y):
                         result = timed_fit(
@@ -602,6 +628,25 @@ def main() -> None:
         help="Sample sizes for the Stage-B-only study (for sharding).",
     )
     parser.add_argument(
+        "--tests",
+        nargs="+",
+        choices=TEST_CHOICES,
+        default=TESTS,
+        help="Stage B constructions to run (bonferroni_fixed is the fixed-budget control arm).",
+    )
+    parser.add_argument(
+        "--step-quantile",
+        type=float,
+        default=0.5,
+        help="Location of the planted step as a standard-normal quantile (0.5 = at zero).",
+    )
+    parser.add_argument(
+        "--stageb-size-reps", type=int, default=None, help="Override profile null reps."
+    )
+    parser.add_argument(
+        "--stageb-power-reps", type=int, default=None, help="Override profile power reps."
+    )
+    parser.add_argument(
         "--fit-timeout",
         type=float,
         default=DEFAULT_FIT_TIMEOUT,
@@ -611,22 +656,33 @@ def main() -> None:
     studies = set(args.studies)
     if args.skip_timing:
         studies.discard("scaling")
-    profile = PROFILES[args.profile]
-    print(f"profile={args.profile} seed={args.seed}", flush=True)
+    profile = dict(PROFILES[args.profile])
+    if args.stageb_size_reps:
+        profile["stageb_size_reps"] = args.stageb_size_reps
+    if args.stageb_power_reps:
+        profile["stageb_power_reps"] = args.stageb_power_reps
+    global STEP_QUANTILE, STEP_Z
+    STEP_QUANTILE = float(args.step_quantile)
+    STEP_Z = float(stats.norm.ppf(STEP_QUANTILE))
+    tests = tuple(args.tests)
+    print(
+        f"profile={args.profile} seed={args.seed} tests={tests} step_quantile={STEP_QUANTILE}",
+        flush=True,
+    )
 
     frames: dict[str, pd.DataFrame] = {}
     if "calibration" in studies:
-        frames["null_calibration"] = null_calibration(profile, args.seed)
+        frames["null_calibration"] = null_calibration(profile, args.seed, tests)
     if "power" in studies:
-        frames["power"] = power_study(profile, args.seed)
+        frames["power"] = power_study(profile, args.seed, tests)
     if "stageb" in studies:
         frames["stageb_only"] = stageb_only(
-            profile, args.seed, tuple(args.tasks), tuple(args.sizes) if args.sizes else None
+            profile, args.seed, tuple(args.tasks), tuple(args.sizes) if args.sizes else None, tests
         )
     if "scaling" in studies:
-        frames["synthetic_scaling"] = synthetic_scaling(profile, args.seed, args.fit_timeout)
+        frames["synthetic_scaling"] = synthetic_scaling(profile, args.seed, args.fit_timeout, tests)
     if "real" in studies:
-        real, agreement = real_subset(profile, args.seed, args.fit_timeout)
+        real, agreement = real_subset(profile, args.seed, args.fit_timeout, tests)
         frames["real_subset"] = real
         frames["real_subset_agreement"] = agreement
 

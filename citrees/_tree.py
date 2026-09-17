@@ -133,6 +133,7 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     threshold_scanning: bool
     threshold_method: ThresholdMethod
     threshold_test: ThresholdTest
+    scale_resamples_with_tests: bool = True
     max_thresholds: MaxValuesOption
     max_features: MaxValuesOption
     max_depth: PositiveInt | None = None
@@ -512,6 +513,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         threshold_scanning: bool,
         threshold_method: str,
         threshold_test: str,
+        scale_resamples_with_tests: bool = True,
         max_thresholds: str | float | int | None,
         max_depth: int | None,
         max_features: str | float | int | None,
@@ -550,6 +552,7 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.threshold_test = threshold_test
+        self.scale_resamples_with_tests = scale_resamples_with_tests
         self.max_thresholds = max_thresholds
         self.max_depth = max_depth
         self.max_features = max_features
@@ -930,7 +933,9 @@ class BaseConditionalInferenceTree(BaseConditionalInferenceTreeEstimator, metacl
             else:
                 _n_resamples = _auto_n_resamples(_alpha)
         else:
-            _n_resamples = n_resamples * n_tests
+            # An explicit budget resolves alpha; by default it is scaled to resolve alpha / n_tests.
+            # scale_resamples_with_tests=False keeps the explicit budget per test (fixed-B control).
+            _n_resamples = n_resamples * n_tests if self.scale_resamples_with_tests else n_resamples
 
         setattr(self, f"_alpha_{adjust}", _alpha)
         setattr(self, f"_n_resamples_{adjust}", _n_resamples)
@@ -1706,6 +1711,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
         max_features: str | float | int | None = None,
         threshold_method: str = "exact",
         threshold_test: str = "bonferroni",
+        scale_resamples_with_tests: bool = True,
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -1737,6 +1743,7 @@ class ConditionalInferenceTreeClassifier(ClassifierMixin, BaseConditionalInferen
             max_features=max_features,
             threshold_method=threshold_method,
             threshold_test=threshold_test,
+            scale_resamples_with_tests=scale_resamples_with_tests,
             threshold_scanning=threshold_scanning,
             max_thresholds=max_thresholds,
             max_depth=max_depth,
@@ -1879,6 +1886,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
         max_features: str | float | int | None = None,
         threshold_method: str = "exact",
         threshold_test: str = "bonferroni",
+        scale_resamples_with_tests: bool = True,
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -1910,6 +1918,7 @@ class ConditionalInferenceTreeRegressor(RegressorMixin, BaseConditionalInference
             max_features=max_features,
             threshold_method=threshold_method,
             threshold_test=threshold_test,
+            scale_resamples_with_tests=scale_resamples_with_tests,
             threshold_scanning=threshold_scanning,
             max_thresholds=max_thresholds,
             max_depth=max_depth,

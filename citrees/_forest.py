@@ -265,6 +265,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         threshold_scanning: bool,
         threshold_method: str,
         threshold_test: str,
+        scale_resamples_with_tests: bool = True,
         max_thresholds: str | float | int | None,
         max_depth: int | None,
         max_features: str | float | int | None,
@@ -300,6 +301,7 @@ class BaseConditionalInferenceForest(BaseConditionalInferenceTreeEstimator, meta
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.threshold_test = threshold_test
+        self.scale_resamples_with_tests = scale_resamples_with_tests
         self.max_thresholds = max_thresholds
         self.max_depth = max_depth
         self.max_features = max_features
@@ -646,6 +648,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
         threshold_test: str = "bonferroni",
+        scale_resamples_with_tests: bool = True,
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -682,6 +685,7 @@ class ConditionalInferenceForestClassifier(ClassifierMixin, BaseConditionalInfer
         self.threshold_scanning = threshold_scanning
         self.threshold_method = threshold_method
         self.threshold_test = threshold_test
+        self.scale_resamples_with_tests = scale_resamples_with_tests
         self.max_thresholds = max_thresholds
         self.max_features = max_features
         self.max_depth = max_depth
@@ -912,6 +916,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         max_features: str | float | int | None = "sqrt",
         threshold_method: str = "exact",
         threshold_test: str = "bonferroni",
+        scale_resamples_with_tests: bool = True,
         threshold_scanning: bool = True,
         max_thresholds: str | float | int | None = None,
         max_depth: int | None = None,
@@ -948,6 +953,7 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
             max_features=max_features,
             threshold_method=threshold_method,
             threshold_test=threshold_test,
+            scale_resamples_with_tests=scale_resamples_with_tests,
             threshold_scanning=threshold_scanning,
             max_thresholds=max_thresholds,
             max_depth=max_depth,

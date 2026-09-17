@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -29,6 +30,7 @@ from typing import Any, Final
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from scipy import stats
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -130,6 +132,40 @@ def _rank(importance: np.ndarray) -> np.ndarray:
     return np.asarray(stats.rankdata(-importance, method="average"), dtype=np.float64)
 
 
+CONTROL_ARMS: Final = os.environ.get("CITREES_NHANES_CONTROLS") == "1"
+REDRAW_CONTROLS: Final = os.environ.get("CITREES_NHANES_REDRAW") == "1"
+
+
+def _tree_oob_importance(
+    tree: Any, oob: np.ndarray, X: np.ndarray, y: np.ndarray, seed: int
+) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    X_oob, y_oob = X[oob], y[oob]
+    base = float(np.mean(tree.predict(X_oob) != y_oob))
+    out = np.zeros(X.shape[1])
+    for f in range(X.shape[1]):
+        Xp = X_oob.copy()
+        Xp[:, f] = rng.permutation(Xp[:, f])
+        out[f] = float(np.mean(tree.predict(Xp) != y_oob)) - base
+    return out
+
+
+def rf_oob_permutation_importance(
+    rf: RandomForestClassifier, X: np.ndarray, y: np.ndarray, seed: int
+) -> np.ndarray:
+    """partykit-style permutation importance for a fitted scikit-learn forest: one
+    permutation of each column on each tree's out-of-bag rows, error increase
+    averaged over trees. The control arm that ranks the CART forest by the
+    mechanism cforest uses."""
+    n = X.shape[0]
+    jobs = []
+    for j, (tree, in_bag) in enumerate(zip(rf.estimators_, rf.estimators_samples_, strict=True)):
+        oob = np.setdiff1d(np.arange(n), in_bag)
+        if oob.size:
+            jobs.append(delayed(_tree_oob_importance)(tree, oob, X, y, seed * 1000 + j))
+    return np.mean(np.vstack(Parallel(n_jobs=-1)(jobs)), axis=0)
+
+
 def _importances(
     X: np.ndarray, y: np.ndarray, trees: int, seed: int
 ) -> dict[str, tuple[np.ndarray, float]]:
@@ -140,6 +176,29 @@ def _importances(
     # Every forest is fitted with all available cores so the timings are comparable.
     rf = RandomForestClassifier(n_estimators=trees, n_jobs=-1, random_state=seed).fit(X, y)
     out["rf"] = (rf.feature_importances_, time.perf_counter() - start)
+    if CONTROL_ARMS:
+        # Control 1: the same CART forest ranked by out-of-bag permutation importance,
+        # so the importance formula is matched to cforest and any remaining contrast
+        # with the conditional forests is the split search.
+        start = time.perf_counter()
+        out["rf_oobperm"] = (
+            rf_oob_permutation_importance(rf, X, y, seed),
+            time.perf_counter() - start,
+        )
+        # Control 2: citrees with the Stage A screen disabled (alpha_selector = 1), so
+        # every candidate passes and the ranking reflects the split search alone.
+        start = time.perf_counter()
+        cif_noscreen = ConditionalInferenceForestClassifier(
+            n_estimators=trees,
+            selector="mc",
+            alpha_selector=1.0,
+            adjust_alpha_selector=False,
+            threshold_method="histogram",
+            max_thresholds=32,
+            n_jobs=-1,
+            random_state=seed,
+        ).fit(X, y)
+        out["cif_noscreen"] = (cif_noscreen.feature_importances_, time.perf_counter() - start)
 
     start = time.perf_counter()
     cif = ConditionalInferenceForestClassifier(
@@ -186,11 +245,25 @@ def run_folds(
     )
     rank_rows: list[dict[str, Any]] = []
     metric_rows: list[dict[str, Any]] = []
+    X_all = cohort.X
+    controls = [
+        (cohort.columns.index(name), cohort.columns.index(control["source"]))
+        for name, control in spec["shuffled_controls"].items()
+        if name != "construction"
+    ]
     for fold, (train, test) in enumerate(splitter.split(cohort.X, cohort.y)):
+        repeat = fold // profile["folds"]
+        if REDRAW_CONTROLS and fold % profile["folds"] == 0:
+            # One independent permutation of each control per repeat, so the primary
+            # contrast averages over control draws rather than conditioning on one.
+            rng = np.random.default_rng(seed + 100_000 + repeat)
+            X_all = cohort.X.copy()
+            for target, source in controls:
+                X_all[:, target] = rng.permutation(cohort.X[:, source])
         X_train, y_train, X_test, y_test = (
-            cohort.X[train],
+            X_all[train],
             cohort.y[train],
-            cohort.X[test],
+            X_all[test],
             cohort.y[test],
         )
         n_unique = np.array([len(np.unique(X_train[:, j])) for j in range(X_train.shape[1])])

@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
 import hashlib
 import importlib.metadata
 import json
+import os
 import platform
 import subprocess
 import time
@@ -315,6 +317,8 @@ class BehaviorSettings:
     n_trees: int
     importance_permutations: int
     summary_resamples: int
+    # Positive control: feature and threshold scanning on (CITREES_BEHAVIOR_SCANNING=1).
+    feature_scanning: bool = False
 
 
 @dataclass(frozen=True, order=True)
@@ -353,6 +357,13 @@ class ModelBehavior:
 
 
 def _settings(profile: Profile) -> BehaviorSettings:
+    settings = _profile_settings(profile)
+    if os.environ.get("CITREES_BEHAVIOR_SCANNING") == "1":
+        settings = dataclasses.replace(settings, feature_scanning=True)
+    return settings
+
+
+def _profile_settings(profile: Profile) -> BehaviorSettings:
     if profile == "smoke":
         return BehaviorSettings(
             n_splits=2,
@@ -485,8 +496,8 @@ def _fit_citrees(
         "adjust_alpha_splitter": False,
         "early_stopping_splitter": None,
         "feature_muting": False,
-        "feature_scanning": False,
-        "threshold_scanning": False,
+        "feature_scanning": settings.feature_scanning,
+        "threshold_scanning": settings.feature_scanning,
         "threshold_method": "exact",
         "max_thresholds": None,
         "max_depth": MAX_DEPTH,

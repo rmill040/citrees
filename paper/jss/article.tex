@@ -35,10 +35,10 @@
   a node has more than about 50 candidate thresholds. An application to the
   NHANES 2021--2023 diabetes cohort shows a random forest with CART split
   search ranking a permuted survey weight above reported diagnoses of
-  hypertension and high cholesterol, an order that conditional split screening
-  reverses, while a logistic
-  regression on the top-ranked columns predicts held-out status at least as
-  well.
+  hypertension and high cholesterol, an order that both conditional forests
+  reverse and that disappears when the same random forest is ranked by
+  out-of-bag permutation importance, while a logistic regression on the
+  top-ranked columns predicts held-out status at least as well.
 }
 
 \Keywords{conditional inference trees, random forests, permutation tests,
@@ -1028,15 +1028,22 @@ values in the cohort run from 2 for the binary items to 3,464 for the sampling
 weight, a survey-design quantity retained as a natural high-cardinality
 predictor. Three
 further columns are independent permutations of the sampling weight, age, and
-sex, drawn once from the recorded seed. They carry no information about the
+sex, drawn once from the recorded seed in the primary run and redrawn
+independently for each of the ten partition repeats in a companion run. They carry no information about the
 outcome by construction while preserving each source's marginal distribution
 and its cohort cardinality of 3,464, 61, and 2. All 30 columns are passed as numeric
 values to every method, so no method receives factor typing.
 
-Three forests are compared on 10 independently shuffled stratified five-fold
-partitions of the participants, each fitted with 100 trees on every available
+Five forest rankings are compared on 10 independently shuffled stratified five-fold
+partitions of the participants, each forest fitted with 100 trees on every available
 core. The \sklearn random forest uses its shipped defaults and ranks
-predictors by normalized impurity decrease. The \citrees forest uses the
+predictors by normalized impurity decrease; as a control it is also ranked by
+out-of-bag permutation importance computed on the same fitted forest (one
+permutation of each column on each tree's out-of-bag rows, averaged over trees,
+the mechanism \pkg{partykit} uses), which separates the importance formula from
+the split search. A second control fits the \citrees forest with the Stage A
+screen disabled (\code{alpha_selector = 1}), so every candidate passes and the
+split variable is chosen by the association statistic alone. The \citrees forest uses the
 multiple correlation selector, histogram threshold candidates with 32 bins,
 and otherwise shipped defaults, and ranks by normalized impurity decrease.
 The \pkg{partykit} conditional inference forest uses its shipped defaults,
@@ -1184,11 +1191,26 @@ with every core in use was 0.2 seconds for the random forest, 4.0 seconds for
 type used in Section~\ref{sec:performance}.
 
 The finding is that on a clinical cohort with predictors of mixed cardinality,
-a random forest with CART split search ranks a permuted survey weight above
-two reported diagnoses that are established correlates of diabetes, and the
-conditional split screen reverses that order; a logistic regression on the top-ranked columns of each forest
-predicts held-out status at least as well from the conditional ranking (AUC
-averaged over $k = 5$ and $k = 10$: 0.814 against 0.795). Both forests rank by impurity decrease summed over splits, but not by the same formula: \citrees sums node-level decreases while \sklearn weights each decrease by the node's share of the sample, and the two forests differ in other respects as well (bootstrap, depth control), so the comparison does not isolate the split search on its own; what it shows is that on the same predictors the two rankings
+a random forest ranked by impurity importance places a permuted survey weight
+(mean rank 12.1 of 30) above two reported diagnoses that are established
+correlates of diabetes, and both conditional forests place it near the bottom
+(23.0 for \citrees, 26.4 for \pkg{partykit}). The two control arms locate the
+cause. Ranking the same fitted random forest by out-of-bag permutation
+importance moves the permuted weight to 25.5, below both conditional forests
+(per-fold contrast against \citrees $+2.4$ ranks, standard deviation 6.2), so
+the promotion is a property of impurity importance under greedy split search,
+the bias of \citet{Strobl+Boulesteix+Zeileis+Hothorn:2007}, and not of the CART forest's
+rankings as such. Disabling the \citrees screen leaves its ranking unchanged
+(23.1; contrast $+0.0$), so what protects the conditional forest is choosing
+the split variable by the association statistic rather than by impurity gain,
+not the $\alpha$ gate. Redrawing the shuffled controls for each partition
+repeat changes none of this (12.1 to 11.3 for the random forest, 23.0 to 21.1
+for \citrees; primary contrast $-9.8$ against $-11.0$ ranks). A logistic
+regression on the top-ranked columns predicts held-out status at least as well
+from the conditional rankings (AUC at $k = 10$: 0.834 \citrees, 0.836
+\pkg{partykit}, 0.827 random forest by permutation importance, 0.813 random
+forest by impurity). All five rankings and both draws are in
+\code{paper_nhanes_controls.csv} of the reference release. Both forests rank by impurity decrease summed over splits, but not by the same formula: \citrees sums node-level decreases while \sklearn weights each decrease by the node's share of the sample, and the two forests differ in other respects as well (bootstrap, depth control), so the comparison does not isolate the split search on its own; what it shows is that on the same predictors the two rankings
 agree on the metabolic measurements and disagree exactly where the number of
 distinct values differs, the pattern the cardinality study predicts.
 For a user choosing between impurity and conditional importance on mixed-type

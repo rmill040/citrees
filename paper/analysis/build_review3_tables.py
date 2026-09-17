@@ -141,6 +141,53 @@ def power_replicates() -> pd.DataFrame:
     return matched
 
 
+def nhanes_controls() -> pd.DataFrame:
+    """Mean rank of every column under the five forests, single draw and redraw, plus
+    the per-fold contrasts on the shuffled survey weight."""
+    rows = []
+    for box, draw in (
+        ("r3-nhanes-controls", "single_draw"),
+        ("r3-nhanes-controls-redraw", "redraw_per_repeat"),
+    ):
+        f = RES / box / "fold_ranks.parquet"
+        if not f.exists():
+            continue
+        r = pd.read_parquet(f)
+        m = r.pivot_table(
+            index="feature", columns="method", values="rank", aggfunc="mean"
+        ).reset_index()
+        m.insert(0, "draw", draw)
+        m["kind"] = "mean_rank"
+        rows.append(m)
+        prim = r[r["feature"] == "shuffled_mec_weight"].pivot_table(
+            index="fold", columns="method", values="rank"
+        )
+        for a, b in (
+            ("rf", "cif"),
+            ("rf_oobperm", "cif"),
+            ("rf", "rf_oobperm"),
+            ("cif_noscreen", "cif"),
+            ("cforest", "cif"),
+        ):
+            d = prim[a] - prim[b]
+            rows.append(
+                pd.DataFrame(
+                    [
+                        {
+                            "draw": draw,
+                            "feature": "shuffled_mec_weight",
+                            "kind": f"contrast_{a}_minus_{b}",
+                            "mean_diff": d.mean(),
+                            "sd_diff": d.std(),
+                            "share_positive": (d > 0).mean(),
+                            "folds": len(d),
+                        }
+                    ]
+                )
+            )
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
+
+
 def main() -> None:
     TABLES.mkdir(parents=True, exist_ok=True)
     for name, fn in [
@@ -149,6 +196,7 @@ def main() -> None:
         ("paper_behavior_scanning_control.csv", behavior_scanning),
         ("paper_performance_equal_work.csv", equal_work),
         ("paper_stageb_power_replicates.csv", power_replicates),
+        ("paper_nhanes_controls.csv", nhanes_controls),
     ]:
         df = fn()
         if df.empty:

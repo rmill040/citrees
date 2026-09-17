@@ -146,9 +146,14 @@ Experiments the reviewers ask for (author decision; each is cheap on EC2):
       exhaustive column is a fixed budget. Reported in Section 5, Appendix I
       (`tab:stageB-fixed-budget`), contribution 2, and the JSS threshold-test
       subsection.
-- [ ] NHANES: scikit-learn RF ranked by out-of-bag permutation importance and
-      citrees with alpha_selector = 1 (screen off) as within-package control
-      (Opus J8); redraw the noise controls per repeat (Fable).
+- [x] NHANES controls (2026-09-17): the same RF ranked by out-of-bag permutation
+      importance drops the shuffled weight from rank 12.1 to 25.5 (below cif
+      23.0, cforest 26.4); cif with the screen off is unchanged (23.1); redraw
+      per repeat changes nothing (primary contrast -9.8 vs -11.0). The effect is
+      impurity importance under greedy split search, and the conditional forests
+      avoid it by choosing the split variable by the association statistic, not
+      by the alpha gate. JSS design, finding, and abstract rewritten;
+      `paper_nhanes_controls.csv`.
 - [ ] JSS root-agreement positive control with feature scanning on (Fable, Opus
       J4).
 - [x] CIF-all top-k recovery: launched 2026-09-17 and terminated by author

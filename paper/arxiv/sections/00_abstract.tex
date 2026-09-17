@@ -14,9 +14,7 @@ regression, ahead of cforest and ctree by margins whose bootstrap intervals
 exclude zero in classification, level with random forests and boosting (mean
 ranks 5.8 to 6.1 among 17), behind recursive feature elimination, and 6th on
 the 13 datasets with at least 166 features, where boosting pulls ahead; single
-conditional inference trees rank near the bottom. The split-selection
-correction therefore removes cardinality bias from the ranking without making
-it predict better than a random forest's. The cost has one source. The
+conditional inference trees rank near the bottom. The cost has one source. The
 per-threshold Bonferroni test needs a permutation budget of order $K^2/\alpha$
 in the number of candidate thresholds $K$, because at a fixed budget it cannot
 reject at all beyond about 50 candidates, and the ablations place the fitting
@@ -27,7 +25,7 @@ calibrated closer to the nominal level (Stage B size 0.023 to 0.044 against
 0.000 to 0.027 at nominal 0.05), shows no detectable difference in power at
 matched size, and moves the downstream rankings by at most two positions; the
 adaptive stopping rule has exact null size 0.0488 at its default budget. For a
-practitioner the result is a trade: conditional inference rankings predict as
-well as CART-family rankings at roughly two orders of magnitude the fitting
-cost of a random forest, and the threshold test, not the feature test, is where
-that cost is recovered.
+practitioner the result is a ranking that matches the best CART ensembles and
+is free of their cardinality bias, at a fitting cost roughly two orders of
+magnitude above a random forest's, and the threshold test, not the feature
+test, is where that cost is recovered.

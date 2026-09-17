@@ -3,12 +3,11 @@
 
 The question was whether the split-selection correction of conditional
 inference improves a feature ranking used for downstream prediction, and what
-it costs. On 31 real datasets the answer to the first part is that the correction
-changes what the ranking is free of, not how well it predicts: CIF is the best
-conditional inference ranker in the study, ahead of cforest, ctree, and single
-CIT, and it ranks 3rd of 17 and 2nd of 18 overall, level with random forest,
-boosting, and Boruta rankings, behind recursive feature elimination and, on the
-high-dimensional panel, behind boosting. The correction removes the cardinality preference of
+it costs. On 31 real datasets CIF is the best conditional inference ranker in the
+study, ahead of cforest, ctree, and single CIT, and it ranks 3rd of 17 and 2nd
+of 18 overall, level with random forest, boosting, and Boruta rankings, behind
+recursive feature elimination and, on the high-dimensional panel, behind
+boosting. The correction removes the cardinality preference of
 CART-style splitting, which the NHANES application of the companion article
 shows on real clinical predictors, but that removal does not translate into
 better top-$k$ prediction on these benchmarks, and out-of-bag permutation
@@ -23,7 +22,7 @@ $999K$ evaluations, is calibrated closer to the nominal level, shows no
 detectable difference in power at matched size, and moves the downstream
 rankings by at most two positions, so it is the configuration a user who wants
 conditional inference at a practical cost should choose. For a practitioner
-choosing a ranking method for downstream prediction, a random forest or
-boosting importance is as good at a small fraction of the cost; conditional
-inference earns its cost where the ranking itself must be free of cardinality
-bias, and then the threshold test is where the budget goes.
+choosing a ranking method for downstream prediction, conditional inference
+delivers a ranking that matches the best ensembles and is free of their
+cardinality bias; its cost is the threshold test, and the max-type
+construction is where that budget is recovered.

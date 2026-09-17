@@ -97,6 +97,42 @@ def power_replicates() -> pd.DataFrame:
             continue
         d["design"] = label
         frames.append(d)
+    # Cells completed by boxes that were terminated before writing their CSV
+    # (n = 500 high-replicate runs, stopped inside the K^2/alpha worst-case block),
+    # parsed from their stdout: one line per finished cell.
+    import re
+
+    for f in sorted(glob.glob(str(RES.parent / "partial" / "r3-power-reps-*.stdout"))):
+        rows = []
+        with open(f) as handle:
+            lines = handle.readlines()
+        for line in lines:
+            m = re.match(
+                r"stageb (\w+) n=(\d+) k=(\d+) (\w+) (\w+) alpha=([\d.]+) delta=([\d.]+): ([\d.]+)",
+                line.strip(),
+            )
+            if not m:
+                continue
+            task, n_, k_, test, stopping, alpha, delta, rate = m.groups()
+            rows.append(
+                dict(
+                    study="stageb_only",
+                    task=task,
+                    n=int(n_),
+                    k=int(k_),
+                    threshold_test=test,
+                    stopping=stopping,
+                    nominal_alpha=float(alpha),
+                    effect=float(delta),
+                    replicates=1500 if float(delta) == 0 else 1000,
+                    split_rate=float(rate),
+                    step_quantile=0.5,
+                    design="centred_highrep",
+                    source="partial_stdout",
+                )
+            )
+        if rows:
+            frames.append(pd.DataFrame(rows))
     if not frames:
         return pd.DataFrame()
     raw = pd.concat(frames, ignore_index=True)

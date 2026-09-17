@@ -50,11 +50,12 @@ prediction, and what does it cost? Three results answer it. First, a benchmark
 of conditional-inference rankings against 15 selectors on 31 real datasets with
 five seeds, scored by fixed downstream learners on top-$k$ prefixes and
 complemented by synthetic recovery designs
-(\cref{sec:experiments-real,sec:boundary}): CIF ranks inside a bunched group
-with random forests and boosting behind recursive feature elimination, drops
-behind boosting on the high-dimensional panel, and single conditional-inference
-trees rank near the bottom, so the correction buys no ranking advantage on
-these tasks. Second, an account of where the cost of conditional inference
+(\cref{sec:experiments-real,sec:boundary}): CIF is the strongest conditional-inference
+ranker in the study, ahead of cforest, ctree, and single CIT with intervals
+that exclude zero in classification, and it ranks 3rd of 17 and 2nd of 18
+overall, level with random forests and boosting and behind recursive feature
+elimination; the split-selection correction removes cardinality bias from the
+ranking without making it predict better than a random forest's. Second, an account of where the cost of conditional inference
 lives: the per-threshold Stage~B test needs a permutation budget of order
 $K^2/\alpha$ in the number of candidate thresholds, since at a fixed budget it
 cannot reject beyond about 50 candidates (\cref{sec:results-stageB}), and the

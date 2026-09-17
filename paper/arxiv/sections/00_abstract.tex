@@ -7,13 +7,16 @@ inference trees (CIT) and forests (CIF) against 15 selectors, among them
 partykit's ctree and cforest, random forests, gradient boosting, and permutation
 importance and wrapper methods, on 31 real datasets with 5 seeds, scoring every
 ranking by the held-out accuracy of fixed learners fitted to its top-$k$
-features, with synthetic designs where the informative features are known. The
-correction buys no ranking advantage: on 21 classification datasets CIF sits in
-a bunched group with random forests and boosting (mean ranks 5.8 to 6.1 of 17)
-behind recursive feature elimination, is 6th on the 13 datasets with at least
-166 features, where boosting pulls ahead, and is 2nd of 18 in regression on a
-panel whose ordering the Friedman test does not separate; single conditional
-inference trees rank near the bottom. The cost has one source. The
+features, with synthetic designs where the informative features are known. CIF is the
+strongest conditional inference ranker in the study and matches the strongest
+CART ensembles: it ranks 3rd of 17 in classification and 2nd of 18 in
+regression, ahead of cforest and ctree by margins whose bootstrap intervals
+exclude zero in classification, level with random forests and boosting (mean
+ranks 5.8 to 6.1 among 17), behind recursive feature elimination, and 6th on
+the 13 datasets with at least 166 features, where boosting pulls ahead; single
+conditional inference trees rank near the bottom. The split-selection
+correction therefore removes cardinality bias from the ranking without making
+it predict better than a random forest's. The cost has one source. The
 per-threshold Bonferroni test needs a permutation budget of order $K^2/\alpha$
 in the number of candidate thresholds $K$, because at a fixed budget it cannot
 reject at all beyond about 50 candidates, and the ablations place the fitting

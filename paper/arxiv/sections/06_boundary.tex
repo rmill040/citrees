@@ -103,7 +103,7 @@ informative features are usually selected when every nonconstant feature is
 considered. In forests, sampling a subset of features reduces how often informative
 features are used for splits. Across the classification forest
 simulations with 1,000 trees, CIF uses informative features in 33.2\% of
-splits, compared with 91.7\% for CIF-all, 8.4\% for RF, and 6.5\% for ET. This diagnostic counts split usage only; whether CIF-all also recovers the informative features more often in its top-$k$ list, or predicts better downstream, was not measured, so the mechanism is established but its consequence for the ranking is not.
+splits, compared with 91.7\% for CIF-all, 8.4\% for RF, and 6.5\% for ET. This diagnostic counts split usage only, and two qualifications bound it. The gap between CIF and RF or ET is confounded by tree size: RF and ET grow to purity, so most of their splits are deep splits on noise, while CIF stops at the permutation gate. And the CIF-all comparison is the combinatorics of feature sampling rather than a property of conditional inference: with 32 of 1,000 features sampled at a node and two informative, the chance that an informative feature is even a candidate is about 6 percent, which is where CIF (9.0 percent of splits) and RF (8.4 percent) both sit. Evaluating every feature at every node removes that floor at a cost no practitioner would pay at this dimension, so its consequence for the ranking was not measured; the section establishes the mechanism, not a remedy.
 CIF also uses more distinct noise features than CIF-all, 265 versus 93
 on average. For the $p{=}1{,}000$ classification setting with two informative
 features, CIF uses informative features in 9.0\% of splits, while CIF-all uses

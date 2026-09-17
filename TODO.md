@@ -151,7 +151,11 @@ Experiments the reviewers ask for (author decision; each is cheap on EC2):
       (Opus J8); redraw the noise controls per repeat (Fable).
 - [ ] JSS root-agreement positive control with feature scanning on (Fable, Opus
       J4).
-- [ ] CIF-all top-k recovery on the sparse high-p grid (Opus A10).
+- [x] CIF-all top-k recovery: launched 2026-09-17 and terminated by author
+      decision before completion. CIF-all at p = 1,000 evaluates every feature
+      at every node and is not a configuration anyone runs; the mechanism
+      paragraph states the mtry combinatorial floor and the total configuration
+      effect instead. Module `cif_all_recovery.py` kept.
 - [ ] Power study: more replicates for the size-matched cells and an off-center
       step (Fable, Opus).
 - [x] JSS exhaustive arm at equal work (2026-09-17, 88 shards): at 999

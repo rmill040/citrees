@@ -65,3 +65,14 @@ Everything else should be regenerated locally and left untracked.
   the same datasets. Built by
   `paper/analysis/build_cif_permutation_importance_check.py` from the EC2 run
   under `reference/v3/ablations/cif-perm-check/`. arXiv `tab:cif-perm-check`.
+- Review-round-3 control experiments (EC2, 2026-09-17; built by
+  `paper/analysis/build_review3_tables.py` from `reference/v3/ablations/review3/`):
+  `paper_stageb_fixed_budget.csv` (per-threshold Bonferroni at a fixed 999
+  permutations per candidate: size, power, depth; arXiv `tab:stageB-fixed-budget`),
+  `paper_stageb_scaling_3arm.csv` (one-run timing of the scaled, fixed, and
+  max-type rules), `paper_behavior_scanning_control.csv` (JSS matched-behavior
+  positive control with scanning on), `paper_performance_equal_work.csv` (the
+  88-shard exhaustive performance campaign at 999 permutations per predictor in
+  both libraries; JSS `tab:performance-reference` exhaustive rows), and, when
+  their boxes land, `paper_nhanes_controls.csv`, `paper_cif_all_recovery.csv`,
+  `paper_stageb_power_replicates.csv`.

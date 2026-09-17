@@ -59,13 +59,14 @@ Verified contradictions and errors (text fixes):
 - [ ] "Every single-configuration family keeps its fixed rank" is false: Boruta,
       CatBoost, ExtraTrees, cforest move by 0.05 (Codex). Say scores are fixed
       and ranks move only through CIF's reselection.
-- [ ] JSS "at identical exhaustive work partykit is faster": false. With
-      adjust_alpha_selector=True and an integer budget the tree multiplies the
-      budget by the predictor count (`_bonferroni_correction`: n_resamples \*
-      n_tests), so citrees ran 999 x p permutations per predictor against
-      partykit's 999 (Codex). Rewrite as a procedure comparison with configured
-      and realized work, or rerun the exhaustive arm with the adjustment off
-      (author decision; the 880-cell campaign).
+- [x] JSS "at identical exhaustive work partykit is faster": fixed by the
+      equal-work rerun (see below). Was false: With adjust_alpha_selector=True
+      and an integer budget the tree multiplies the budget by the predictor
+      count (`_bonferroni_correction`: n_resamples \* n_tests), so citrees ran
+      999 x p permutations per predictor against partykit's 999 (Codex). Rewrite
+      as a procedure comparison with configured and realized work, or rerun the
+      exhaustive arm with the adjustment off (author decision; the 880-cell
+      campaign).
 - [ ] JSS NHANES premise "citrees and scikit-learn use the same
       impurity-decrease importance" is false: citrees sums node-level impurity
       decreases unweighted by node size (`_tree.py` `_node_impurity` and
@@ -138,9 +139,13 @@ Framing (text, larger):
 
 Experiments the reviewers ask for (author decision; each is cheap on EC2):
 
-- [ ] Per-threshold Bonferroni at fixed B = 999 as a third arm of the Stage B
-      scaling and head-to-head timing (Opus A5): isolates the budget rule from
-      the test.
+- [x] Per-threshold Bonferroni at fixed B = 999 (2026-09-17): matches the scaled
+      rule at 16 bins; at 64 and 256 bins it never splits (size 0, power 0,
+      depth 0) while costing 3.7 s vs 90 s (scaled) and 6.5 s (max-type) at n =
+      16,000; the adaptive path raises any budget to the floor so only the
+      exhaustive column is a fixed budget. Reported in Section 5, Appendix I
+      (`tab:stageB-fixed-budget`), contribution 2, and the JSS threshold-test
+      subsection.
 - [ ] NHANES: scikit-learn RF ranked by out-of-bag permutation importance and
       citrees with alpha_selector = 1 (screen off) as within-package control
       (Opus J8); redraw the noise controls per repeat (Fable).
@@ -149,7 +154,11 @@ Experiments the reviewers ask for (author decision; each is cheap on EC2):
 - [ ] CIF-all top-k recovery on the sparse high-p grid (Opus A10).
 - [ ] Power study: more replicates for the size-matched cells and an off-center
       step (Fable, Opus).
-- [ ] JSS exhaustive arm at equal work (adjustment off), or text only (Codex).
+- [x] JSS exhaustive arm at equal work (2026-09-17, 88 shards): at 999
+      permutations per predictor in both libraries citrees is faster (tree 1.6
+      vs 2.9 s; forest 6.3 s on 32 cores vs 286 s one-core and 13 s 32-core
+      partykit); the old 706 s charged citrees 999 x 50. Table rows, caption,
+      and paragraph rewritten.
 
 ## Review round 2 (2026-09-14): Codex gpt-6-astra, Fable 5.1, Opus 5
 

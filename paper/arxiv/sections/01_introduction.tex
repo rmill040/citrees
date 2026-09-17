@@ -52,10 +52,10 @@ analyses (\cref{sec:experiments-real,sec:boundary}); the result is that CIF is a
 competitive ranker in a tightly bunched group behind RF-RFE, not a superior
 one, and that single conditional-inference trees rank poorly. Second, an
 account of where the cost of conditional inference lives: the ablations locate
-it in the per-threshold Stage~B search, whose Bonferroni budget grows as
-$K^2/\alpha$ in the number of candidate thresholds and which penalizes
+it in the per-threshold Stage~B search, whose permutation budget must grow as
+$K^2/\alpha$ in the number of candidate thresholds for the rule to reject at all (at a fixed budget of 999 it never splits beyond about 50 candidates, \cref{sec:results-stageB}) and which penalizes
 continuous features in reverse proportion to their cardinality; a max-type
-Stage~B test removes both effects at the same fixed-node guarantee
+Stage~B test resolves the level at $999K$ evaluations and removes the cardinality penalty under the same fixed-node guarantee
 (\cref{cor:stageB-maxt,sec:results-stageB}). Third, the exact finite-sample
 size of the adaptive stopping rule (\cref{prop:adaptive-size}), which shows
 the rule is inert at the benchmark's minimum budget and pays only at larger

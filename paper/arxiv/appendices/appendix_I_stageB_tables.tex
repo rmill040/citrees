@@ -43,6 +43,39 @@ results for the Stage~B construction comparison summarized in
 \begin{table}[H]
   \centering
   \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lrrrrrrrr@{}}
+    \toprule
+     & & & \multicolumn{3}{c}{Seconds per fit (exhaustive)} & \multicolumn{3}{c}{Fixed-budget rule} \\
+    \tablehead{Task} & $n$ & Bins & Bonferroni & Fixed & Max-type & Depth & Size & Power \\
+    \midrule
+    Classification & 1,000 & 16 & 0.31 & 0.26 & 0.29 & 5 & 0.008 & 0.150 \\
+     & 1,000 & 64 & 0.67 & 0.29 & 0.35 & 0 & 0.000 & 0.000 \\
+     & 1,000 & 256 & 3.67 & 0.46 & 0.51 & 0 & 0.000 & 0.000 \\
+     & 4,000 & 16 & 0.41 & 0.38 & 0.45 & 6 & 0.010 & 0.425 \\
+     & 4,000 & 64 & 1.85 & 0.45 & 0.68 & 0 & 0.000 & 0.000 \\
+     & 4,000 & 256 & 16.03 & 1.07 & 1.62 & 0 & 0.000 & 0.000 \\
+     & 16,000 & 16 & 0.97 & 0.76 & 1.14 & 8 & 0.008 & 0.900 \\
+     & 16,000 & 64 & 3.89 & 1.15 & 2.22 & 0 & 0.000 & 0.000 \\
+     & 16,000 & 256 & 89.85 & 3.69 & 6.47 & 0 & 0.000 & 0.000 \\
+    Regression & 1,000 & 16 & 0.30 & 0.30 & 0.29 & 7 & 0.012 & 0.130 \\
+     & 1,000 & 64 & 0.67 & 0.28 & 0.38 & 0 & 0.000 & 0.000 \\
+     & 1,000 & 256 & 0.97 & 0.43 & 0.52 & 0 & 0.000 & 0.000 \\
+     & 4,000 & 16 & 0.45 & 0.41 & 0.52 & 8 & 0.020 & 0.445 \\
+     & 4,000 & 64 & 1.72 & 0.42 & 0.76 & 0 & 0.000 & 0.000 \\
+     & 4,000 & 256 & 9.09 & 1.01 & 1.59 & 0 & 0.000 & 0.000 \\
+     & 16,000 & 16 & 1.08 & 0.92 & 1.29 & 10 & 0.022 & 0.845 \\
+     & 16,000 & 64 & 4.04 & 1.12 & 2.41 & 0 & 0.000 & 0.000 \\
+     & 16,000 & 256 & 60.02 & 3.55 & 6.60 & 0 & 0.000 & 0.000 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Fixed-budget control arm. Seconds per fit of one tree with exhaustive stopping on the scaling grid of \cref{tab:stageB-scaling}, timed in one run (seed 0, median of three fits) for the per-threshold Bonferroni rule under the \texttt{minimum} budget (Bonferroni), the same rule at a fixed 999 permutations per candidate (Fixed), and the max-type rule. Depth is the fitted depth of the fixed-budget tree. Size and Power are the Stage-B-only false-split rate at nominal 0.05 and the split rate at the middle planted effect ($\delta = 0.10$ classification, $0.4$ regression) of the fixed-budget rule with exhaustive stopping, measured at $n \in \{100, 200, 500\}$ (rows in that order) with 500 null and 200 alternative replicates; at 64 and 256 bins the rule never splits because $\alpha/K < 1/1000$. With adaptive stopping the sequential path raises any budget to the floor $\lceil K/\alpha \rceil$, so the fixed budget exists only under exhaustive stopping.}
+  \label{tab:stageB-fixed-budget}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
   \setlength{\tabcolsep}{3.5pt}
   \begin{tabular}{@{}lrrrrrrrrrr@{}}
     \toprule

@@ -1,0 +1,865 @@
+study,task,n,k,threshold_test,stopping,nominal_alpha,effect,step_quantile,replicates,split_rate,ci_low,ci_high,seconds_per_fit,budget_note
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.018309883204,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.015,0.0,0.0318463111689176,0.0029864145749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.12,0.0749626288511418,0.1650373711488581,0.003395784585,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.735,0.6738343380645644,0.7961656619354356,0.0020331309899999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.002203064152,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.002523215745,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.15,0.1005124258020258,0.1994875741979741,0.0028088262899998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.805,0.7500893835401569,0.8599106164598432,0.00167468056,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.001849260188,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.04,0.01284144333732,0.06715855666268,0.00208881422,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.24,0.1808092980274773,0.2991907019725227,0.002181711955,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.895,0.8525138634375871,0.937486136562413,0.0013558061750001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.038,0.0212409111464853,0.0547590888535146,0.00161298434,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.09,0.0503372315640978,0.1296627684359022,0.0017590937299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.38,0.3127288709772164,0.4472711290227836,0.001724905825,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.92,0.8824006808572283,0.9575993191427716,0.0012359646749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.086,0.0614250075727376,0.1105749924272623,0.0015021425879999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.14,0.0919100509461696,0.1880899490538303,0.001646711215,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.475,0.4057902102300548,0.544209789769945,0.0015367486099999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.945,0.9134035476674992,0.9765964523325008,0.00117413733,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.116,0.0879310480993678,0.1440689519006321,0.0019911832139999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.225,0.1671260421260131,0.2828739578739868,0.00152808984,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.54,0.4709256400681121,0.609074359931888,0.0016285578699999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.955,0.9262691141800328,0.9837308858199671,0.0012985212249999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.0065644873299999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.015,0.0,0.0318463111689176,0.00274600581,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.12,0.0749626288511418,0.1650373711488581,0.0030971059099999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.735,0.6738343380645644,0.7961656619354356,0.0018996159400001,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.002379633226,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.0027289690849998,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.15,0.1005124258020258,0.1994875741979741,0.002991627935,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.805,0.7500893835401569,0.8599106164598432,0.00169589727,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.0023441850499999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.04,0.01284144333732,0.06715855666268,0.0027488730899999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.24,0.1808092980274773,0.2991907019725227,0.0027543344,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.895,0.8525138634375871,0.937486136562413,0.00143588031,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.038,0.0212409111464853,0.0547590888535146,0.002296603004,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.09,0.0503372315640978,0.1296627684359022,0.0025335888299999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.385,0.3175613300842906,0.4524386699157093,0.0023270013699999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.92,0.8824006808572283,0.9575993191427716,0.0013656923499999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.084,0.0596858859754257,0.1083141140245742,0.002162864754,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.15,0.1005124258020258,0.1994875741979741,0.002362478215,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.475,0.4057902102300548,0.544209789769945,0.0020729122999999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.945,0.9134035476674992,0.9765964523325008,0.0012913134149999,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.12,0.0915158654686507,0.1484841345313492,0.00205946871,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.225,0.1671260421260131,0.2828739578739868,0.0021539189699998,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.535,0.4658735202690026,0.6041264797309974,0.00189682989,fixed 999 per candidate
+stageb_only,classification,100,16,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0012771345399998,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.004,0.0,0.0095326186205087,0.0189112173199999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.01,0.0,0.0237898223338808,0.0230194021800001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.085,0.0463489689658865,0.1236510310341134,0.027354210805,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.76,0.7008092980274774,0.8191907019725226,0.0096593267149999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.008778243168,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.0103804606199999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.14,0.0919100509461696,0.1880899490538303,0.0117420871849999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.825,0.7723392461124985,0.8776607538875014,0.0039909564799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.0075761211199999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.008914170245,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.165,0.1135570004762552,0.2164429995237447,0.009774526205,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.83,0.7779399500576497,0.8820600499423502,0.003521698145,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.0060401093139999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.065,0.0308332588618697,0.0991667411381302,0.006874379905,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.275,0.2131162783924561,0.336883721607544,0.00687001847,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.895,0.8525138634375871,0.937486136562413,0.0024781704349999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.036,0.0196709530957866,0.0523290469042133,0.0047078788979999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.08,0.0424006808572282,0.1175993191427717,0.0057915063949999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.345,0.279117317905234,0.4108826820947659,0.0050066433349999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.925,0.8884958221569093,0.9615041778430908,0.0020095353,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.054,0.0341886752386419,0.073811324761358,0.00431857602,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.1,0.058422121266231,0.141577878733769,0.0049310586749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.415,0.3467122104618988,0.4832877895381011,0.0042114737599999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.0018945814949999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.006844609358,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.0,0.0,0.0,0.0082705870099999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.0,0.0,0.0,0.0106050038149999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.01268865933,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.00684438469,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.0,0.0,0.0,0.0082755726099999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.0,0.0,0.0,0.0106288186199999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.0126932677500001,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.006727765938,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.00800817928,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.165,0.1135570004762552,0.2164429995237447,0.008761639555,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.83,0.7779399500576497,0.8820600499423502,0.0032683152299999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.0066629255679999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.065,0.0308332588618697,0.0991667411381302,0.0075582996149999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.275,0.2131162783924561,0.336883721607544,0.0075080224950001,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.895,0.8525138634375871,0.937486136562413,0.002534472895,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.036,0.0196709530957866,0.0523290469042133,0.006455810492,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.075,0.0384958221569092,0.1115041778430907,0.0074424793,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.35,0.2838953859401629,0.416104614059837,0.0066450917899999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.925,0.8884958221569093,0.9615041778430908,0.0021932244499998,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.056,0.035846472150018,0.076153527849982,0.0062451352699999,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.1,0.058422121266231,0.141577878733769,0.00716425584,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.42,0.3515962808028686,0.4884037191971314,0.0058508523449998,fixed 999 per candidate
+stageb_only,classification,100,64,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.94,0.9070860029774565,0.9729139970225434,0.0020223386,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.002,0.0,0.0059160780380375,0.042543232256,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.01,0.0,0.0237898223338808,0.0514587692150001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.06210039711,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.74,0.6792083953164584,0.8007916046835416,0.0216865183199999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.006,0.0,0.0127692396027914,0.0177761306259999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.015,0.0,0.0318463111689176,0.0216051730250001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.11,0.0666356920959183,0.1533643079040816,0.025045021365,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.815,0.7611847029182222,0.8688152970817777,0.00744430141,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0100160244799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.0124473564850001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.17,0.1179399500576497,0.2220600499423502,0.0129958059099999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.83,0.7779399500576497,0.8820600499423502,0.00450126882,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0110032344619999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.0132389233649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.17,0.1179399500576497,0.2220600499423502,0.0143667568199998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.83,0.7779399500576497,0.8820600499423502,0.0048309989649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.024,0.0105846626281706,0.0374153373718293,0.0080970870879999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.009223366015,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.295,0.2317956979312325,0.3582043020687674,0.009048098245,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.00303702186,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.03,0.0150473707997556,0.0449526292002443,0.007214628944,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.075,0.0384958221569092,0.1115041778430907,0.00827626643,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.355,0.2886814369878236,0.4213185630121763,0.0074721876549998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.925,0.8884958221569093,0.9615041778430908,0.0025726690800001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0101487807739999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.0,0.0,0.0,0.0123380622749999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.0,0.0,0.0,0.0159346560599999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.0192509299449997,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.01016581392,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.0,0.0,0.0,0.0123467187349999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.0,0.0,0.0,0.015949582295,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.019127158345,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.0,0.0,0.0,0.012494079208,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.0,0.0,0.0,0.0123353487349999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.0,0.0,0.0,0.01593347327,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.0,0.0,0.0,0.0191325734349999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0098933778179999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.0118668656949998,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.17,0.1179399500576497,0.2220600499423502,0.0128708364399997,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.83,0.7779399500576497,0.8820600499423502,0.0044737360050001,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.024,0.0105846626281706,0.0374153373718293,0.0096820954100001,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.011058341995,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.295,0.2317956979312325,0.3582043020687674,0.0106685885999999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.0032372139199998,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.03,0.0150473707997556,0.0449526292002443,0.0095669916739999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.075,0.0384958221569092,0.1115041778430907,0.0109643265249999,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.36,0.2934753940259696,0.4265246059740303,0.0095736277400001,fixed 999 per candidate
+stageb_only,classification,100,256,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.925,0.8884958221569093,0.9615041778430908,0.0027978148599999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.006,0.0,0.0127692396027914,0.019050926906,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.0047443638599999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.335,0.2695854588031071,0.4004145411968929,0.004643035115,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.99,0.9762101776661192,1.0,0.0015083765300001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.0030203764119999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.125,0.0791646970120192,0.1708353029879807,0.00351539834,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.425,0.3564875558748631,0.4935124441251368,0.0033751053349999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,1.0,1.0,1.0,0.001472126685,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.018,0.0063463206153592,0.0296536793846407,0.002273948738,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.185,0.1311847029182222,0.2388152970817778,0.0024775580649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.555,0.4861240549974086,0.6238759450025915,0.0022630862800001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.001352397885,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.05,0.0308962830841744,0.0691037169158255,0.001847325372,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.215,0.1580629277184012,0.2719370722815987,0.002035798925,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.7,0.6364887411556029,0.763511258844397,0.001672632485,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0012562991099999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.094,0.0684200851291486,0.1195799148708513,0.0016750862019999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.32,0.2553497037903151,0.3846502962096849,0.0017242999349998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.77,0.7116755900158434,0.8283244099841567,0.0014613656699999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.001215176815,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.126,0.09691212079233,0.1550878792076699,0.0016004534159999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.36,0.2934753940259696,0.4265246059740303,0.001619341895,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.81,0.7556298684938136,0.8643701315061865,0.001365245395,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.001216162685,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.006,0.0,0.0127692396027914,0.007518081848,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.00415644755,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.335,0.2695854588031071,0.4004145411968929,0.0040554553599999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.99,0.9762101776661192,1.0,0.0014808663399999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.00345553479,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.125,0.0791646970120192,0.1708353029879807,0.00393368467,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.425,0.3564875558748631,0.4935124441251368,0.00367659746,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,1.0,1.0,1.0,0.0014420541599999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.018,0.0063463206153592,0.0296536793846407,0.0034070428659999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.185,0.1311847029182222,0.2388152970817778,0.0036601131899999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.555,0.4861240549974086,0.6238759450025915,0.0030780355499999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.0014327710999999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.05,0.0308962830841744,0.0691037169158255,0.0032413187259999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.22,0.1625883914177629,0.2774116085822371,0.0034646412249999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.69,0.62590170673099,0.7540982932690099,0.00242440109,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0014265134299999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.098,0.0719392220530545,0.1240607779469454,0.0030005087659999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.33,0.2648318421312985,0.3951681578687015,0.00292802913,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.77,0.7116755900158434,0.8283244099841567,0.00204563995,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.001422142675,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.126,0.09691212079233,0.1550878792076699,0.002858206568,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.365,0.2982771838124319,0.4317228161875681,0.0027837395899999,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.815,0.7611847029182222,0.8688152970817777,0.0018211567700001,fixed 999 per candidate
+stageb_only,classification,200,16,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0014134705649999,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.002,0.0,0.0059160780380375,0.030569921944,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.065,0.0308332588618697,0.0991667411381302,0.03864931691,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.315,0.2506213839850529,0.3793786160149471,0.0369521738599999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.975,0.9533621858774968,0.9966378141225032,0.004012130035,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.0136930499619999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.1,0.058422121266231,0.141577878733769,0.0164716540749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.41,0.3418353816118655,0.4781646183881344,0.0149196352849999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.995,0.9852245307018026,1.0,0.0021332928299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.014,0.0037015101689616,0.0242984898310383,0.011178798008,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.11,0.0666356920959183,0.1533643079040816,0.0135217595849999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.44,0.3712042792028457,0.5087957207971543,0.01126056868,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.995,0.9852245307018026,1.0,0.002018039765,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.032,0.0165729198096334,0.0474270801903665,0.0084024724399999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.195,0.1400893835401568,0.2499106164598432,0.009035851355,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.57,0.5013860014282799,0.63861399857172,0.0068805671449999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0019282999500001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.052,0.0325384731534239,0.071461526846576,0.0060470660619999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.235,0.1762367614915583,0.2937632385084416,0.00629651146,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.635,0.5682771838124319,0.7017228161875682,0.0046549679399998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.0018315815599999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.066,0.0442371146030679,0.087762885396932,0.005215605294,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.265,0.2038343380645643,0.3261656619354356,0.0054956014199999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.705,0.6417956979312325,0.7682043020687674,0.0036556779999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.00176863935,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0105250168219999,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.0,0.0,0.0,0.01426662285,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.0,0.0,0.0,0.018270678825,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.019971739595,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.01057191433,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.0,0.0,0.0,0.0142807119649998,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.0,0.0,0.0,0.01856106428,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.0202475566949999,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.014,0.0037015101689616,0.0242984898310383,0.010448190906,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.11,0.0666356920959183,0.1533643079040816,0.012290025965,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.44,0.3712042792028457,0.5087957207971543,0.0103563228799998,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.995,0.9852245307018026,1.0,0.0020011313149998,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.032,0.0165729198096334,0.0474270801903665,0.009913942474,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.195,0.1400893835401568,0.2499106164598432,0.0108319268199997,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.57,0.5013860014282799,0.63861399857172,0.008066524925,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0018881422399999,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.052,0.0325384731534239,0.071461526846576,0.009559853994,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.235,0.1762367614915583,0.2937632385084416,0.0100756915849999,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.635,0.5682771838124319,0.7017228161875682,0.0068928896649998,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.0018838109399999,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.066,0.0442371146030679,0.087762885396932,0.0093081330239999,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.265,0.2038343380645643,0.3261656619354356,0.0095850749549998,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.715,0.652437150000979,0.7775628499990209,0.005419240315,fixed 999 per candidate
+stageb_only,classification,200,64,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0018803269050002,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.309900984964,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.045,0.0162691141800326,0.0737308858199673,0.354801389815,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.27,0.2084703583628183,0.3315296416371817,0.341377405385,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.97,0.946357817359643,0.993642182640357,0.022053673025,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.1086733402080001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.08,0.0424006808572282,0.1175993191427717,0.1348303428700001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.315,0.2506213839850529,0.3793786160149471,0.130089726475,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.98,0.9605969899242413,0.9994030100757588,0.0084280283399999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.004,0.0,0.0095326186205087,0.05645171991,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.105,0.062513863437587,0.1474861365624129,0.0672206951700002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.405,0.336965833583412,0.4730341664165881,0.058522882025,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.0035536815999995,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.016,0.0050016228106142,0.0269983771893857,0.029022823276,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.033260472105,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.495,0.425707000353571,0.564292999646429,0.027054051105,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0031634272650001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.016,0.0050016228106142,0.0269983771893857,0.031698989514,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.0361646476499998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.495,0.425707000353571,0.564292999646429,0.0283165126749997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.0031658917899994,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.032,0.0165729198096334,0.0474270801903665,0.0261196150319999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.2,0.1445628283549747,0.2554371716450253,0.0277991011950001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.595,0.5269658335834119,0.6630341664165881,0.0194020843999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0032338560250002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0303200645680001,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.0,0.0,0.0,0.041324353795,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.0,0.0,0.0,0.0541139045149998,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.0595736006650003,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0302316698499998,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.0,0.0,0.0,0.0419618161299996,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.0,0.0,0.0,0.05462738693,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.0595576828349999,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.0,0.0,0.0,0.0302491285360001,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.0,0.0,0.0,0.0417574795349997,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.0,0.0,0.0,0.0544903055000003,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.0,0.0,0.0,0.0600150959199999,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.0,0.0,0.0,0.030361469228,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.0,0.0,0.0,0.0418417575700004,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.0,0.0,0.0,0.0538321125999999,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.0,0.0,0.0,0.0597737606250007,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.016,0.0050016228106142,0.0269983771893857,0.0294590810520003,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.033823597999999,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.495,0.425707000353571,0.564292999646429,0.0266496189550002,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.0031937136249996,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.032,0.0165729198096334,0.0474270801903665,0.0283547409400002,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.2,0.1445628283549747,0.2554371716450253,0.0302731105899999,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.595,0.5269658335834119,0.6630341664165881,0.0209116913050002,fixed 999 per candidate
+stageb_only,classification,200,256,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0031759244450006,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.004,0.0,0.0095326186205087,0.0206230813299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.175,0.1223392461124985,0.2276607538875014,0.007280137635,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.865,0.8176395291408541,0.9123604708591458,0.002800976105,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,1.0,1.0,1.0,0.00170885498,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.0040773173659999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.235,0.1762367614915583,0.2937632385084416,0.0052741245149999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.00229412021,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,1.0,1.0,1.0,0.001744413495,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.018,0.0063463206153592,0.0296536793846407,0.002871882576,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.35,0.2838953859401629,0.416104614059837,0.003361370825,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.97,0.946357817359643,0.993642182640357,0.0017510719899999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.001633407955,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.042,0.0244175873327919,0.0595824126672081,0.0021614045299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.465,0.3958735202690026,0.5341264797309975,0.002521541665,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.001669968085,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0014645537949999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.088,0.0631681072167263,0.1128318927832736,0.0019327152199999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.55,0.4810508883305956,0.6189491116694045,0.0019803565899999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.0013936191649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.001373012405,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.116,0.0879310480993678,0.1440689519006321,0.0018076690799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.61,0.5424013077049563,0.6775986922950437,0.0018167920499999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.0013570734299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.00134290546,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.004,0.0,0.0095326186205087,0.0092198542539999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.175,0.1223392461124985,0.2276607538875014,0.0070304962699999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.865,0.8176395291408541,0.9123604708591458,0.0027360120849999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,1.0,1.0,1.0,0.0017237191949999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.0050743857059999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.235,0.1762367614915583,0.2937632385084416,0.006502943535,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.0024499040399999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,1.0,1.0,1.0,0.0016947534350001,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.016,0.0050016228106142,0.0269983771893857,0.005002370666,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.345,0.279117317905234,0.4108826820947659,0.005632685475,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.965,0.9395294248200006,0.9904705751799994,0.0019160842649999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.0016868118099999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.04,0.0228234205966379,0.057176579403362,0.004817440546,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.455,0.3859847567562064,0.5240152432437937,0.0047492404599999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.00172633224,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0017030767549999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.088,0.0631681072167263,0.1128318927832736,0.00444804589,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.56,0.4912042792028458,0.6287957207971543,0.0039084590449999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.0017263630949999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.00169186925,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.118,0.0897221513689601,0.1462778486310398,0.0042266817959999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.61,0.5424013077049563,0.6775986922950437,0.0035067040599999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.0017214894849999,fixed 999 per candidate
+stageb_only,classification,500,16,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0017133251499998,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.002,0.0,0.0059160780380375,0.050750016146,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.165,0.1135570004762552,0.2164429995237447,0.0725504441399999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.86,0.8119100509461696,0.9080899490538304,0.01683096031,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,1.0,1.0,1.0,0.00326314577,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.0221692326239999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.235,0.1762367614915583,0.2937632385084416,0.02882683264,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.92,0.8824006808572283,0.9575993191427716,0.0055235079499999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,1.0,1.0,1.0,0.0023441068299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.0176512028139999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.265,0.2038343380645643,0.3261656619354356,0.0231299436349999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.00463651661,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.0023472555949999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.028,0.0135395030790778,0.0424604969209221,0.013698558292,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.395,0.3272487505650265,0.4627512494349735,0.0144406502549998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.96,0.93284144333732,0.98715855666268,0.0033691245899998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0024198157799997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.046,0.0276378228741796,0.0643621771258203,0.008962371178,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.45,0.3810508883305956,0.5189491116694044,0.00892994751,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.0023809075550002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.002398828375,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.05,0.0308962830841744,0.0691037169158255,0.007734952722,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.48,0.4107589948079896,0.5492410051920102,0.0073165537849999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.0022287667199998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.002145251695,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.018889554266,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.0,0.0,0.0,0.0320569336599999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.0,0.0,0.0,0.0371041479750002,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.03748566901,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0187299318719999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.0,0.0,0.0,0.0319918603149997,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.0,0.0,0.0,0.03704705805,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.03791396208,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.018414810608,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.265,0.2038343380645643,0.3261656619354356,0.02297126493,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.0046931211150001,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.0023540209899999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.028,0.0135395030790778,0.0424604969209221,0.017791273032,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.395,0.3272487505650265,0.4627512494349735,0.0185655841899998,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.96,0.93284144333732,0.98715855666268,0.0036287765299999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0023645679249997,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.046,0.0276378228741796,0.0643621771258203,0.0172876145819999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.45,0.3810508883305956,0.5189491116694044,0.0166562762799998,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.0025614281049999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.0023403942449999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.05,0.0308962830841744,0.0691037169158255,0.0172671696579999,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.48,0.4107589948079896,0.5492410051920102,0.015494111225,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.99,0.9762101776661192,1.0,0.002572364895,fixed 999 per candidate
+stageb_only,classification,500,64,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0023460145000001,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.850825400134,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.02,0.05,0.5,200,0.125,0.0791646970120192,0.1708353029879807,1.2655644909700003,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.02,0.1,0.5,200,0.81,0.7556298684938136,0.8643701315061865,0.3302526108649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,1.0,1.0,1.0,0.0108071731649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.004,0.0,0.0095326186205087,0.3420371312659999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.05,0.05,0.5,200,0.19,0.1356298684938136,0.2443701315061863,0.4698729726100009,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.05,0.1,0.5,200,0.865,0.8176395291408541,0.9123604708591458,0.098729222055,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,1.0,1.0,1.0,0.006863525105,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.171931232846,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.1,0.05,0.5,200,0.22,0.1625883914177629,0.2774116085822371,0.2096373656100001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.1,0.1,0.5,200,0.925,0.8884958221569093,0.9615041778430908,0.0284945244249991,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,1.0,1.0,1.0,0.00499964019,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0819609815520002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.2,0.05,0.5,200,0.27,0.2084703583628183,0.3315296416371817,0.1015744111799995,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.2,0.1,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.0143983189250002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,1.0,1.0,1.0,0.0044235265400004,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0663109931059998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.35,0.05,0.5,200,0.31,0.2459017067309901,0.3740982932690099,0.0771804378449996,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.35,0.1,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0103816342899995,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.0105065234200003,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0681692773239997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.5,0.05,0.5,200,0.31,0.2459017067309901,0.3740982932690099,0.0781204631399998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.5,0.1,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0105417417950002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0043667441000002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0653089880960001,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.02,0.05,0.5,200,0.0,0.0,0.0,0.1131928597950002,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.02,0.1,0.5,200,0.0,0.0,0.0,0.132085382335,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.1374306734699996,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0730083463459995,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.05,0.05,0.5,200,0.0,0.0,0.0,0.1241563445700001,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.05,0.1,0.5,200,0.0,0.0,0.0,0.1450798023549998,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.1442828580550008,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.0,0.0,0.0,0.0715313318339999,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.1,0.05,0.5,200,0.0,0.0,0.0,0.1162883148500009,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.1,0.1,0.5,200,0.0,0.0,0.0,0.131528768899999,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.0,0.0,0.0,0.1324220904649996,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.0,0.0,0.0,0.0651775095840002,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.2,0.05,0.5,200,0.0,0.0,0.0,0.1133866545549995,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.2,0.1,0.5,200,0.0,0.0,0.0,0.1315183194849987,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.0,0.0,0.0,0.1325113556199994,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.063620109204,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.35,0.05,0.5,200,0.31,0.2459017067309901,0.3740982932690099,0.0735647956949992,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.35,0.1,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0102063821849992,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,1.0,1.0,1.0,0.0043245767600001,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0650677920839998,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.5,0.05,0.5,200,0.31,0.2459017067309901,0.3740982932690099,0.0736929803249995,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.5,0.1,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0102824453799985,fixed 999 per candidate
+stageb_only,classification,500,256,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,1.0,1.0,1.0,0.0043335361100002,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.017209829882,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.005,0.0,0.0147754692981974,0.00272878034,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.095,0.0543624828514339,0.135637517148566,0.0029488333449999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,0.66,0.5943473138401787,0.7256526861598214,0.0020631156049999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0020485515059999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.02,0.0005969899242411,0.0394030100757588,0.0022784502499999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.13,0.083390721953671,0.1766092780463289,0.00243628525,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,0.76,0.7008092980274774,0.8191907019725226,0.0016419695449999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.028,0.0135395030790778,0.0424604969209221,0.001685018812,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.03,0.0063578173596429,0.053642182640357,0.00187971137,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.26,0.1992083953164584,0.3207916046835416,0.0018004368649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,0.86,0.8119100509461696,0.9080899490538304,0.00127942407,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.074,0.0510547696285262,0.0969452303714737,0.0014367705999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.09,0.0503372315640978,0.1296627684359022,0.00158343256,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.355,0.2886814369878236,0.4213185630121763,0.0014762308999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,0.92,0.8824006808572283,0.9575993191427716,0.001103003095,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.128,0.0987157371409147,0.1572842628590852,0.001315703878,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.23,0.1716755900158433,0.2883244099841567,0.0013475032399999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.46,0.3909256400681121,0.5290743599318879,0.0012941670099999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,0.955,0.9262691141800328,0.9837308858199671,0.0010262054949998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.164,0.1315439150112032,0.1964560849887968,0.0012651591179999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.29,0.2271117880680329,0.352888211931967,0.0012646242599998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.515,0.4457347258721948,0.5842652741278052,0.0012167135599999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,0.965,0.9395294248200006,0.9904705751799994,0.0010116511149999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.0063105448659999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.005,0.0,0.0147754692981974,0.00249926864,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.095,0.0543624828514339,0.135637517148566,0.0026976860249999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.66,0.5943473138401787,0.7256526861598214,0.0019281249650001,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.002194103222,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.02,0.0005969899242411,0.0394030100757588,0.0024497671449999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.13,0.083390721953671,0.1766092780463289,0.00259874697,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.76,0.7008092980274774,0.8191907019725226,0.001655884325,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.024,0.0105846626281706,0.0374153373718293,0.002163037302,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.03,0.0063578173596429,0.053642182640357,0.00251797877,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.26,0.1992083953164584,0.3207916046835416,0.0026062271100001,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,0.86,0.8119100509461696,0.9080899490538304,0.00137406314,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.076,0.0527718912349713,0.0992281087650286,0.0020136757139999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.105,0.062513863437587,0.1474861365624129,0.0022128996899999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.35,0.2838953859401629,0.416104614059837,0.001994878945,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,0.92,0.8824006808572283,0.9575993191427716,0.001231855755,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.13,0.1005217042555035,0.1594782957444965,0.0018815475739999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.245,0.1853929551143491,0.3046070448856509,0.0018332389699999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.46,0.3909256400681121,0.5290743599318879,0.00169757879,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0011308353299999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.162,0.1297038624724256,0.1942961375275744,0.0017802711879999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.285,0.222437150000979,0.347562849999021,0.0017287356449999,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.515,0.4457347258721948,0.5842652741278052,0.0015505482549998,fixed 999 per candidate
+stageb_only,regression,100,16,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,0.965,0.9395294248200006,0.9904705751799994,0.0010922976549998,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.006,0.0,0.0127692396027914,0.0181565792559999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.01,0.0,0.0237898223338808,0.021120550105,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.09,0.0503372315640978,0.1296627684359022,0.0232829941149999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,0.67,0.6048318421312986,0.7351681578687015,0.0123273933,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.008394227892,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.00951076087,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.13,0.083390721953671,0.1766092780463289,0.0101288073649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,0.755,0.6953929551143491,0.8146070448856509,0.0048164513449999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.007187913618,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.0081369656049999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.16,0.1091909929244823,0.2108090070755176,0.0083988014999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,0.79,0.7335499583702545,0.8464500416297456,0.0038375949600001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.034,0.0181145657660862,0.0498854342339137,0.0056648802139999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.045,0.0162691141800326,0.0737308858199673,0.0064757080599999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.27,0.2084703583628183,0.3315296416371817,0.005786924195,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,0.875,0.8291646970120192,0.9208353029879808,0.0025190573749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.06,0.0391833605017524,0.0808166394982475,0.004399821228,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.0053723857949999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.36,0.2934753940259696,0.4265246059740303,0.00408736183,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,0.91,0.8703372315640978,0.9496627684359022,0.002004040255,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.07,0.0476353779374656,0.0923646220625344,0.004063107276,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.1,0.058422121266231,0.141577878733769,0.0045331817699999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.375,0.3079039867056171,0.4420960132943828,0.0037424342799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.0017619142799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0065731759239999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.0075723964849998,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.0,0.0,0.0,0.009722420785,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.0,0.0,0.0,0.0121831766449999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0065584928679999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.00757622716,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.0,0.0,0.0,0.0092084039149999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.0,0.0,0.0,0.0120171170749999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0064412615819999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.025,0.0033621858774967,0.0466378141225032,0.0073168788499999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.16,0.1091909929244823,0.2108090070755176,0.00753570349,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,0.79,0.7335499583702545,0.8464500416297456,0.003528954765,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.034,0.0181145657660862,0.0498854342339137,0.0061892680319999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.045,0.0162691141800326,0.0737308858199673,0.0070883758899999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.27,0.2084703583628183,0.3315296416371817,0.006308516305,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,0.875,0.8291646970120192,0.9208353029879808,0.0025860159799999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.06,0.0391833605017524,0.0808166394982475,0.0059115106399999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.0069356060149999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.36,0.2934753940259696,0.4265246059740303,0.00533884369,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,0.91,0.8703372315640978,0.9496627684359022,0.002207874645,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.07,0.0476353779374656,0.0923646220625344,0.0057993019299999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.105,0.062513863437587,0.1474861365624129,0.0065361982199999,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.375,0.3079039867056171,0.4420960132943828,0.005185629535,fixed 999 per candidate
+stageb_only,regression,100,64,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.0019345435299999,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.002,0.0,0.0059160780380375,0.0403711006719999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.01,0.0,0.0237898223338808,0.0470321167,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.0529003034549998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,0.65,0.583895385940163,0.716104614059837,0.027477123305,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.004,0.0,0.0095326186205087,0.017109480098,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.01,0.0,0.0237898223338808,0.01978388254,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.11,0.0666356920959183,0.1533643079040816,0.021310748255,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,0.74,0.6792083953164584,0.8007916046835416,0.00943288512,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.009537181906,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.03,0.0063578173596429,0.053642182640357,0.0108575043799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.175,0.1223392461124985,0.2276607538875014,0.0109019201799998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,0.79,0.7335499583702545,0.8464500416297456,0.00492862027,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.0106116446999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.03,0.0063578173596429,0.053642182640357,0.0120753941249998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.18,0.126754335387752,0.233245664612248,0.0119944870049999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,0.79,0.7335499583702545,0.8464500416297456,0.005842179425,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.038,0.0212409111464853,0.0547590888535146,0.007628759306,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.00865326033,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.28,0.2177719291637608,0.3422280708362392,0.0077756689,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,0.89,0.8466356920959184,0.9333643079040816,0.003035258115,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.05,0.0308962830841744,0.0691037169158255,0.0067751255379999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.065,0.0308332588618697,0.0991667411381302,0.0077913382799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.325,0.2600865576324903,0.3899134423675097,0.0065240014799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,0.905,0.864362482851434,0.945637517148566,0.0026911983349998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.009755302738,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.011283022405,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.0,0.0,0.0,0.0137779206049998,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.0,0.0,0.0,0.0180490540499999,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0097211310959999,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.0113731341600001,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.0,0.0,0.0,0.0137687397600001,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.0,0.0,0.0,0.0180371688249999,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.0,0.0,0.0,0.00973053697,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.0,0.0,0.0,0.0112820929099999,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.0,0.0,0.0,0.01381930036,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,0.0,0.0,0.0,0.01803073479,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.009509468706,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.03,0.0063578173596429,0.053642182640357,0.0107882178050002,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.18,0.126754335387752,0.233245664612248,0.0107790527299999,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,0.79,0.7335499583702545,0.8464500416297456,0.0049372489499998,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.038,0.0212409111464853,0.0547590888535146,0.009084691494,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.0103300399949998,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.28,0.2177719291637608,0.3422280708362392,0.0095837117600001,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,0.89,0.8466356920959184,0.9333643079040816,0.0032480250149998,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.05,0.0308962830841744,0.0691037169158255,0.008877800172,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.065,0.0308332588618697,0.0991667411381302,0.0102022947349999,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.325,0.2600865576324903,0.3899134423675097,0.0083982426099998,fixed 999 per candidate
+stageb_only,regression,100,256,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,0.905,0.864362482851434,0.945637517148566,0.00298649767,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.017558456018,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.00397204207,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.345,0.279117317905234,0.4108826820947659,0.003693826275,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,0.975,0.9533621858774968,0.9966378141225032,0.001274455055,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.002399910942,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.08,0.0424006808572282,0.1175993191427717,0.0031652895749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.445,0.3761240549974086,0.5138759450025915,0.00272238113,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,0.985,0.9681536888310824,1.0,0.0012401546599998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.044,0.0260226218596815,0.0619773781403184,0.0018578611259999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.0023149871000001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.56,0.4912042792028458,0.6287957207971543,0.0019499081749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0011437991449999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.08,0.0562201026074543,0.1037798973925456,0.0015370437939999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.26,0.1992083953164584,0.3207916046835416,0.001797228415,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.705,0.6417956979312325,0.7682043020687674,0.0014821029149999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0010671653549999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.146,0.1150488754840797,0.1769511245159202,0.0013674089399999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.365,0.2982771838124319,0.4317228161875681,0.001548823905,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.815,0.7611847029182222,0.8688152970817777,0.0012320021549999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.001032897615,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.198,0.1630706222901123,0.2329293777098877,0.001314001666,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.445,0.3761240549974086,0.5138759450025915,0.0014088889149999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.87,0.823390721953671,0.916609278046329,0.00111907883,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.001026478355,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.007238429078,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.0040142334099999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.345,0.279117317905234,0.4108826820947659,0.003476522885,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.975,0.9533621858774968,0.9966378141225032,0.0012582648099999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.0027662962539999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.08,0.0424006808572282,0.1175993191427717,0.00365879426,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.445,0.3761240549974086,0.5138759450025915,0.0030635496699999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.985,0.9681536888310824,1.0,0.001217083395,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.042,0.0244175873327919,0.0595824126672081,0.0026732436239999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.0034804898699999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.57,0.5013860014282799,0.63861399857172,0.0025690797049999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,0.99,0.9762101776661192,1.0,0.0011943726849999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.08,0.0562201026074543,0.1037798973925456,0.0025241067939999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.26,0.1992083953164584,0.3207916046835416,0.0029231242999999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.705,0.6417956979312325,0.7682043020687674,0.002020789055,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.001176744595,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.148,0.1168741138728549,0.179125886127145,0.002246898122,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.38,0.3127288709772164,0.4472711290227836,0.0024504018749999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.825,0.7723392461124985,0.8776607538875014,0.001533391355,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0011850552449999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.196,0.1612041756987997,0.2307958243012002,0.0020635931379999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.45,0.3810508883305956,0.5189491116694044,0.0021715130549999,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.86,0.8119100509461696,0.9080899490538304,0.0013947237100001,fixed 999 per candidate
+stageb_only,regression,200,16,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.001183450755,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.004,0.0,0.0095326186205087,0.025608498186,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.035,0.0095294248200006,0.0604705751799993,0.0368302221350001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.315,0.2506213839850529,0.3793786160149471,0.03250882415,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,0.975,0.9533621858774968,0.9966378141225032,0.0031267758649998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.018,0.0063463206153592,0.0296536793846407,0.011076168316,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.0156945811049999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.43,0.3613860014282799,0.49861399857172,0.0120648931250001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,0.99,0.9762101776661192,1.0,0.0018081692299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.00918596592,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.0128145762749998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.45,0.3810508883305956,0.5189491116694044,0.009744165075,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,0.99,0.9762101776661192,1.0,0.0017224145499999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.056,0.035846472150018,0.076153527849982,0.006838816656,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.15,0.1005124258020258,0.1994875741979741,0.00887891413,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.625,0.5579039867056171,0.6920960132943829,0.00545563227,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0016738140549999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.086,0.0614250075727376,0.1105749924272623,0.0047715174479999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.19,0.1356298684938136,0.2443701315061863,0.0063384554999998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.7,0.6364887411556029,0.763511258844397,0.0036417422799999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.00160023901,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.096,0.0701779391062603,0.1218220608937396,0.0043472405859999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.24,0.1808092980274773,0.2991907019725227,0.00548943382,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.745,0.684592717326468,0.805407282673532,0.0030794151899999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0015642022749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0088282393399999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.0129939696499999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.0,0.0,0.0,0.016200054855,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.0,0.0,0.0,0.017393534225,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0088330901339999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.0129747788849999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.0,0.0,0.0,0.01631431746,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.0,0.0,0.0,0.01732464023,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.02,0.0077284589394811,0.0322715410605188,0.0085437553199999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.07,0.0346384276367693,0.1053615723632307,0.0119494957949999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.45,0.3810508883305956,0.5189491116694044,0.009150544645,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,0.99,0.9762101776661192,1.0,0.001706360745,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.056,0.035846472150018,0.076153527849982,0.007997193378,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.15,0.1005124258020258,0.1994875741979741,0.01064481086,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.625,0.5579039867056171,0.6920960132943829,0.0063271053100001,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0016182237149999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.084,0.0596858859754257,0.1083141140245742,0.0075167744379999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.19,0.1356298684938136,0.2443701315061863,0.0099949652799998,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.695,0.6311907859318107,0.7588092140681892,0.0056842379649998,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0016267435849999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.098,0.0719392220530545,0.1240607779469454,0.0073022011299999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.24,0.1808092980274773,0.2991907019725227,0.0092858715599999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.75,0.6899875013018122,0.8100124986981878,0.0043393712249999,fixed 999 per candidate
+stageb_only,regression,200,64,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0016175221049999,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.002,0.0,0.0059160780380375,0.2298899287739999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.035,0.0095294248200006,0.0604705751799993,0.3248780514649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.21,0.1535499583702544,0.2664500416297455,0.332014458035,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,0.96,0.93284144333732,0.98715855666268,0.0211623885599999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.006,0.0,0.0127692396027914,0.090987345922,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.045,0.0162691141800326,0.0737308858199673,0.1306311916299995,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.335,0.2695854588031071,0.4004145411968929,0.1125088086150003,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,0.98,0.9605969899242413,0.9994030100757588,0.0062298561549999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.0470396475179998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.06,0.0270860029774565,0.0929139970225434,0.0666041294850003,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.43,0.3613860014282799,0.49861399857172,0.04980840688,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,0.985,0.9681536888310824,1.0,0.0039789214000001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.026,0.0120511879788994,0.0399488120211005,0.023961886004,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.085,0.0463489689658865,0.1236510310341134,0.0336433403500001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.505,0.4357070003535711,0.574292999646429,0.0229518007000001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0028191994449997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.026,0.0120511879788994,0.0399488120211005,0.0260722587,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.085,0.0463489689658865,0.1236510310341134,0.0370556504349997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.505,0.4357070003535711,0.574292999646429,0.0248897903300002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0028290592000001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.056,0.035846472150018,0.076153527849982,0.0210926964159998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.0287005405999997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.59,0.5218353816118655,0.6581646183881344,0.0177996731349998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0028622688299998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0254811349819999,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.0380469485649996,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.0,0.0,0.0,0.0477202602350001,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.0,0.0,0.0,0.0517720037750001,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.025497496186,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.0380313672300002,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.0,0.0,0.0,0.0476957356599996,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.0,0.0,0.0,0.0512722285900002,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.0,0.0,0.0,0.025506587566,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.0,0.0,0.0,0.0384954281899996,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.0,0.0,0.0,0.0478571284550002,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,0.0,0.0,0.0,0.0518428081449997,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.0,0.0,0.0,0.0255753784539999,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.0,0.0,0.0,0.0380052882199999,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.0,0.0,0.0,0.04789358149,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,0.0,0.0,0.0,0.051241823075,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.026,0.0120511879788994,0.0399488120211005,0.0244487801519999,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.085,0.0463489689658865,0.1236510310341134,0.0339488761950002,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.505,0.4357070003535711,0.574292999646429,0.0231979281249999,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0028245749800004,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.056,0.035846472150018,0.076153527849982,0.0227976776779999,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.03093169391,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.59,0.5218353816118655,0.6581646183881344,0.0190383582100002,fixed 999 per candidate
+stageb_only,regression,200,256,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,0.995,0.9852245307018026,1.0,0.0028266426049998,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.018,0.0063463206153592,0.0296536793846407,0.0192404472759999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.006570795945,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.78,0.722588391417763,0.8374116085822371,0.0031618057150001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,1.0,1.0,1.0,0.0015478515899999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.022,0.009142639026612,0.0348573609733879,0.0035841602959999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.205,0.1490498096517983,0.2609501903482016,0.0047304877749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.845,0.7948425698425448,0.8951574301574552,0.0023904926999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,1.0,1.0,1.0,0.0018060966049999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.038,0.0212409111464853,0.0547590888535146,0.0025904495759999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.3,0.2364887411556029,0.363511258844397,0.00305860031,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.00165885742,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,1.0,1.0,1.0,0.0014460292649999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.088,0.0631681072167263,0.1128318927832736,0.0018784181759999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.405,0.336965833583412,0.4730341664165881,0.002197471245,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.955,0.9262691141800328,0.9837308858199671,0.0013823365999999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,1.0,1.0,1.0,0.0012845027649998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.122,0.0933121340772792,0.1506878659227207,0.0016732118859999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.505,0.4357070003535711,0.574292999646429,0.00181662903,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.97,0.946357817359643,0.993642182640357,0.0012678067399998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,1.0,1.0,1.0,0.0012148233,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.178,0.1444712796068803,0.2115287203931196,0.0015359449399999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.58,0.5115962808028686,0.6484037191971314,0.00163320497,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.985,0.9681536888310824,1.0,0.0012028118399999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,1.0,1.0,1.0,0.0011811296449999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.018,0.0063463206153592,0.0296536793846407,0.0085824657819999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.0063582421099999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.78,0.722588391417763,0.8374116085822371,0.00309480938,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,1.0,1.0,1.0,0.0015810986799999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.022,0.009142639026612,0.0348573609733879,0.0044829545439999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.205,0.1490498096517983,0.2609501903482016,0.0059033125999999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.845,0.7948425698425448,0.8951574301574552,0.002598117295,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,1.0,1.0,1.0,0.001537789555,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.038,0.0212409111464853,0.0547590888535146,0.004365533798,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.3,0.2364887411556029,0.363511258844397,0.005177021155,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.935,0.9008332588618698,0.9691667411381304,0.0019520719599999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,1.0,1.0,1.0,0.00154159135,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.09,0.0649150626869429,0.115084937313057,0.0039668642419999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.395,0.3272487505650265,0.4627512494349735,0.004464798515,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.955,0.9262691141800328,0.9837308858199671,0.0017951252899999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,1.0,1.0,1.0,0.0015399992599999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.124,0.0951109031501502,0.1528890968498497,0.003706193868,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.515,0.4457347258721948,0.5842652741278052,0.0035515787599999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.97,0.946357817359643,0.993642182640357,0.00168767685,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,1.0,1.0,1.0,0.001535722315,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.182,0.1481792359163782,0.2158207640836217,0.003273277816,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.58,0.5115962808028686,0.6484037191971314,0.0030654469799999,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.985,0.9681536888310824,1.0,0.001569550465,fixed 999 per candidate
+stageb_only,regression,500,16,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,1.0,1.0,1.0,0.0015368549,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.008,0.0001914229721414,0.0158085770278585,0.045591035648,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.12,0.0749626288511418,0.1650373711488581,0.0673499922149999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.775,0.7171260421260132,0.8328739578739869,0.0230985012949999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,1.0,1.0,1.0,0.00302069097,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.022,0.009142639026612,0.0348573609733879,0.01913883261,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.18,0.126754335387752,0.233245664612248,0.02649531134,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.855,0.8062013135422683,0.9037986864577316,0.0074909389449999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,1.0,1.0,1.0,0.002197152325,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.024,0.0105846626281706,0.0374153373718293,0.0155767874759999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.195,0.1400893835401568,0.2499106164598432,0.0210270013299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.87,0.823390721953671,0.916609278046329,0.00584141216,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,1.0,1.0,1.0,0.0020864982699998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.046,0.0276378228741796,0.0643621771258203,0.011034552458,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.34,0.2743473138401786,0.4056526861598214,0.0123606533749999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0030142801249999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,1.0,1.0,1.0,0.0021226662799998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.06,0.0391833605017524,0.0808166394982475,0.0072523373639999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.405,0.336965833583412,0.4730341664165881,0.0075573839450001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.965,0.9395294248200006,0.9904705751799994,0.0023808829400002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,1.0,1.0,1.0,0.002013967215,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.092,0.0666657584443504,0.1173342415556495,0.006058752676,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.44,0.3712042792028457,0.5087957207971543,0.006310375555,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.97,0.946357817359643,0.993642182640357,0.00218955561,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,1.0,1.0,1.0,0.0022143780249999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0157364321519999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.0262007923449999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.0,0.0,0.0,0.0318818863699999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.0,0.0,0.0,0.0322076754799999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0157090525019999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.02622103312,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.0,0.0,0.0,0.0321460963750001,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.0,0.0,0.0,0.0322079186599998,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.024,0.0105846626281706,0.0374153373718293,0.0150016300439999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.195,0.1400893835401568,0.2499106164598432,0.0205945108749997,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.87,0.823390721953671,0.916609278046329,0.0058820240549999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,1.0,1.0,1.0,0.002071436475,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.046,0.0276378228741796,0.0643621771258203,0.0143345178219999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.34,0.2743473138401786,0.4056526861598214,0.015952810375,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.95,0.919794371385452,0.980205628614548,0.0032772404600001,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,1.0,1.0,1.0,0.002074090625,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.058,0.0375114833333401,0.0784885166666598,0.0139576037619999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.405,0.336965833583412,0.4730341664165881,0.0139820958249998,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.965,0.9395294248200006,0.9904705751799994,0.002815366785,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,1.0,1.0,1.0,0.0020766301699998,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.094,0.0684200851291486,0.1195799148708513,0.0128968706059999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.435,0.3662915856681294,0.5037084143318706,0.013082399845,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.97,0.946357817359643,0.993642182640357,0.0026618068999999,fixed 999 per candidate
+stageb_only,regression,500,64,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,1.0,1.0,1.0,0.0020776087450002,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.02,0.0,0.5,500,0.006,0.0,0.0127692396027914,0.67951190724,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.02,0.2,0.5,200,0.095,0.0543624828514339,0.135637517148566,1.0317212684549997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.02,0.4,0.5,200,0.725,0.663116278392456,0.7868837216075439,0.3891329319049998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.02,0.8,0.5,200,1.0,1.0,1.0,0.009143717485,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.05,0.0,0.5,500,0.01,0.0012785505791755,0.0187214494208245,0.2750655349019998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.05,0.2,0.5,200,0.145,0.0962013135422683,0.1937986864577316,0.3912356468949997,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.05,0.4,0.5,200,0.785,0.7280629277184013,0.8419370722815988,0.1250130044100001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.05,0.8,0.5,200,1.0,1.0,1.0,0.0057905394800002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.1,0.0,0.5,500,0.012,0.0024557860878959,0.021544213912104,0.140562131522,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.1,0.2,0.5,200,0.175,0.1223392461124985,0.2276607538875014,0.1920488900450004,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.1,0.4,0.5,200,0.855,0.8062013135422683,0.9037986864577316,0.044731394255001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.1,0.8,0.5,200,1.0,1.0,1.0,0.0046628015850001,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.2,0.0,0.5,500,0.028,0.0135395030790778,0.0424604969209221,0.0724723348299999,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.2,0.2,0.5,200,0.235,0.1762367614915583,0.2937632385084416,0.0929372508250003,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.2,0.4,0.5,200,0.89,0.8466356920959184,0.9333643079040816,0.0198449018299993,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.2,0.8,0.5,200,1.0,1.0,1.0,0.0042710659750002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.35,0.0,0.5,500,0.03,0.0150473707997556,0.0449526292002443,0.0585561089339998,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.35,0.2,0.5,200,0.245,0.1853929551143491,0.3046070448856509,0.074115705355,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.35,0.4,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.0153792675699992,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.35,0.8,0.5,200,1.0,1.0,1.0,0.0041149214049994,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.5,0.0,0.5,500,0.03,0.0150473707997556,0.0449526292002443,0.059453492052,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.5,0.2,0.5,200,0.245,0.1853929551143491,0.3046070448856509,0.0761937969049995,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.5,0.4,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.0156541303350002,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,adaptive,0.5,0.8,0.5,200,1.0,1.0,1.0,0.0041051184650007,raised to the floor ceil(K/alpha) by the sequential path
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.02,0.0,0.5,500,0.0,0.0,0.0,0.0600389608339996,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.02,0.2,0.5,200,0.0,0.0,0.0,0.1016584572649992,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.02,0.4,0.5,200,0.0,0.0,0.0,0.1234392026650005,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.02,0.8,0.5,200,0.0,0.0,0.0,0.1247873761900007,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.05,0.0,0.5,500,0.0,0.0,0.0,0.0601635423899997,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.05,0.2,0.5,200,0.0,0.0,0.0,0.1012020081550008,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.05,0.4,0.5,200,0.0,0.0,0.0,0.1239982805549993,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.05,0.8,0.5,200,0.0,0.0,0.0,0.1247018765550001,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.1,0.0,0.5,500,0.0,0.0,0.0,0.0599379192839996,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.1,0.2,0.5,200,0.0,0.0,0.0,0.1014822283199998,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.1,0.4,0.5,200,0.0,0.0,0.0,0.1233780329850003,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.1,0.8,0.5,200,0.0,0.0,0.0,0.12508150505,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.2,0.0,0.5,500,0.0,0.0,0.0,0.0598875743200001,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.2,0.2,0.5,200,0.0,0.0,0.0,0.101150645135001,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.2,0.4,0.5,200,0.0,0.0,0.0,0.1237503433400002,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.2,0.8,0.5,200,0.0,0.0,0.0,0.1246617408999998,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.35,0.0,0.5,500,0.03,0.0150473707997556,0.0449526292002443,0.0570053982960002,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.35,0.2,0.5,200,0.245,0.1853929551143491,0.3046070448856509,0.0715810068099995,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.35,0.4,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.0149818930099991,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.35,0.8,0.5,200,1.0,1.0,1.0,0.0041116545550005,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.5,0.0,0.5,500,0.03,0.0150473707997556,0.0449526292002443,0.0563244332599997,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.5,0.2,0.5,200,0.245,0.1853929551143491,0.3046070448856509,0.0719639029300003,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.5,0.4,0.5,200,0.9,0.8584221212662311,0.941577878733769,0.0149880110600008,fixed 999 per candidate
+stageb_only,regression,500,256,bonferroni_fixed,exhaustive,0.5,0.8,0.5,200,1.0,1.0,1.0,0.0041044509949995,fixed 999 per candidate

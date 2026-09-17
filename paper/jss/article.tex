@@ -624,7 +624,7 @@ so the smallest attainable raw value is 0.0001.}
 \label{tab:cardinality-holm}
 \end{table}
 
-\subsection{Matched implementation behavior} \label{sec:behavior}
+\subsection{Matched split decisions, divergent split variables} \label{sec:behavior}
 
 Matched comparisons use the Breast Cancer Wisconsin Diagnostic classification
 data and the \sklearn diabetes regression data. Each dataset is partitioned by
@@ -663,10 +663,15 @@ each fit a root split in all 50 fold-level fits per dataset, so
 split-decision agreement was 1.000 for both datasets. Given that both split,
 they chose the same root predictor in 8\% of classification comparisons
 (95\% interval 2\% to 14\%) and 12\% of regression comparisons (4\% to 20\%),
-against chance levels of about 3\% and 10\% for 30 and 10 predictors, so the
-matched controls align whether to split but choose the split variable nearly
-independently: the two implementations use different selector statistics and
-the predictors include near duplicates. Feature
+against chance levels of about 3\% and 10\% for 30 and 10 predictors. The
+divergence is a tie artifact of the matched controls, not an implementation
+error: with the Bonferroni-adjusted numeric budget every predictor that passes
+the screen returns the same $p$-value $1/(B+1)$, and with scanning off the tie is
+broken by a uniform draw. A positive control that repeats the study with feature
+and threshold scanning on (the shipped default, which orders candidates by the
+observed statistic) gives root-predictor agreement of 1.000 in all 50
+comparisons for both tasks, with split-decision agreement unchanged at 1.000
+(\code{paper_behavior_scanning_control.csv} in the reference release). Feature
 summaries agreed more at the forest level than at the tree level. Forest
 concordance by Kendall's $\tau_b$ was 0.480 (0.465 to 0.497) for
 classification and 0.775 (0.756 to 0.798) for regression, with top-five
@@ -735,17 +740,23 @@ every dataset we also record the mean number of distinct candidate thresholds
 per predictor, capped at the 256 the histogram search considers.
 
 Table~\ref{tab:performance-reference} reports the reference condition of the
-first study. At identical exhaustive work \pkg{partykit} is the faster
-implementation: 286 seconds against 706 seconds for a classification forest on
-one core, and 13 seconds with 32 cores. The recommended \citrees configuration
-reaches 21 and 19 seconds for the classification and regression forests, 34
-and 35 times faster than its own exhaustive procedure and 1.6 and 1.8 times
-faster than \pkg{partykit} on one core, but 11 and 10 times slower than
-\pkg{partykit} on 32 cores. Single trees favor \citrees at 0.05 seconds
+first study. At equal permutation work, 999 permutations per predictor in both
+libraries, \citrees is the faster implementation: the exhaustive tree takes
+1.6 seconds against 2.9 in \pkg{partykit}, and the exhaustive forest 6.3
+seconds on 32 cores against 286 for \pkg{partykit} on one core and 13 on 32
+cores. (An earlier version of this table charged \citrees 999 permutations per
+predictor per candidate, that is $999 \times 50$ at the root, and reported 706
+seconds; the budget is now held at 999 with
+\code{scale_resamples_with_tests = False}.) The recommended \citrees
+configuration reaches 21 and 19 seconds for the classification and regression
+forests, slower than its own exhaustive Stage A test because it adds the
+Bonferroni-adjusted threshold test at every node, 1.6 and 1.8 times faster than
+\pkg{partykit} on one core, and 11 and 10 times slower than \pkg{partykit} on
+32 cores. Single trees favor \citrees at 0.05 seconds
 against 2.9 seconds with the recommended configuration and \pkg{partykit} at
 2.9 against 6.0 seconds under the exhaustive procedure. The permutation budget is the dominant cost of the
-exhaustive procedure in both libraries, 71 to 7,019 seconds in \citrees and 34
-to 2,805 seconds in \pkg{partykit} between 99 and 9,999 permutations, and
+exhaustive procedure in both libraries, 2.9 to 144 seconds in \citrees and 34
+to 2,803 seconds in \pkg{partykit} for the forest between 99 and 9,999 permutations, and
 the recommended configuration removes that axis through the minimum budget and
 scanning, not through adaptive stopping, which is inert at the floor. CART in \sklearn fits the reference forests in 0.16 and
 0.12 seconds; it performs no permutation test and is included to place the
@@ -759,7 +770,7 @@ cost of conditional inference on a familiar scale.
 \hline
  & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
 Configuration & Tree & Forest & Tree & Forest \\ \hline
-\citrees, exhaustive, all predictors & 6.0 [6.0, 6.1] & 706 [704, 707] & 5.5 [5.5, 5.5] & 666 [665, 666] \\
+\citrees, exhaustive, all predictors & 1.6 [1.6, 1.6] & 6.3 [6.3, 6.4] & 1.4 [1.4, 1.4] & 6.2 [6.1, 6.3] \\
 \citrees, recommended & 0.05 [0.04, 0.06] & 21 [20, 22] & 0.04 [0.04, 0.04] & 19 [18, 20] \\
 \pkg{partykit}, exhaustive, all predictors & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
 \pkg{partykit}, all predictors, 32 cores & n/a & 13 [13, 13] & n/a & 13 [13, 13] \\
@@ -771,13 +782,13 @@ Configuration & Tree & Forest & Tree & Forest \\ \hline
 seconds with the interquartile range in brackets over 10 repeats at the
 reference condition of 1,000 observations, 50 Gaussian predictors, 999
 permutations where applicable, and 100 trees. The exhaustive procedure uses the
-full permutation budget without early stopping, exact threshold search, and
-every predictor at every node and runs on one core in \pkg{partykit}. The
+full permutation budget of 999 permutations per predictor without early stopping (\texttt{scale\_resamples\_with\_tests = False} in \citrees, so both libraries do the same permutation work), exact threshold search, no threshold test, and
+every predictor at every node; it runs on one core in \pkg{partykit} and with all 32 cores across trees in the \citrees forest. The
 recommended \citrees configuration and the \pkg{partykit} default both sample
 square-root predictors in forests. Single
 trees have no 32-core condition because \pkg{partykit} parallelizes only
 across trees. All rows were measured on the released build on the same machine
-class: the exhaustive rows in the 88-shard cloud campaign and the remaining rows
+class: the exhaustive rows in the 88-shard equal-work campaign of 2026-09-17 and the remaining rows
 in one reference-condition run; ratios quoted in the text compare rows within
 the same run wherever possible, and cross-run ratios are approximate.}
 \label{tab:performance-reference}
@@ -941,7 +952,7 @@ the 256-bin setting takes 5.7 seconds at 1,000 observations, 14 seconds at
 4,000, and 60 seconds at 16,000 under the Bonferroni test in classification
 (1.1, 8.3, and 51 seconds in regression); the max-type test takes 0.5, 1.6, and
 6.5 seconds at the same settings. The ratio grows with the bin setting as the
-$K^2/\alpha$ against $BK$ accounting predicts: the two tests cost the same at
+$K^2/\alpha$ against $BK$ accounting predicts (a per-candidate test held at a fixed 999 permutations costs $BK$ too but never splits beyond 16 bins, because $\alpha/K$ falls below $1/1000$; companion article, Appendix~I): the two tests cost the same at
 16 bins, and the exhaustive ratio is 1.2 to 1.9 at 64 and 2.0 to 11 at 256.
 Adaptive stopping shortens the Bonferroni test once its budget exceeds the
 $\lceil 1/\alpha \rceil$ floor, by 1.3 to 3.0 times at 64 bins and 2.3 to 6.9

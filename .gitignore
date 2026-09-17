@@ -14,6 +14,13 @@ paper/results/figures/
 paper/results/tables/*
 !paper/results/tables/README.md
 !paper/results/tables/paper_benchmark_method_aggregate.csv
+!paper/results/tables/paper_stageb_fixed_budget.csv
+!paper/results/tables/paper_stageb_scaling_3arm.csv
+!paper/results/tables/paper_behavior_scanning_control.csv
+!paper/results/tables/paper_performance_equal_work.csv
+!paper/results/tables/paper_nhanes_controls.csv
+!paper/results/tables/paper_cif_all_recovery.csv
+!paper/results/tables/paper_stageb_power_replicates.csv
 !paper/results/tables/paper_cif_permutation_importance_check.csv
 !paper/results/tables/paper_benchmark_lodo_aggregate_allmethod.csv
 !paper/results/tables/paper_benchmark_lodo_selected_configs_allmethod.csv

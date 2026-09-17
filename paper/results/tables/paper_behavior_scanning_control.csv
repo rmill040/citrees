@@ -1,0 +1,5 @@
+task,model_family,split_decision_agreement_mean,split_decision_agreement_count,root_agreement_given_both_split_mean,root_agreement_given_both_split_count,prediction_agreement_mean,prediction_agreement_count,feature_scanning
+classification,forest,,0,,0,0.9941965533302282,50,True
+classification,tree,1.0,50,1.0,50,0.9963080267039279,50,True
+regression,forest,,0,,0,,0,True
+regression,tree,1.0,50,1.0,50,,0,True

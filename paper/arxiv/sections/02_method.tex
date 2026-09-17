@@ -138,10 +138,10 @@ same standardize-then-optimize form as the conditional inference split
 statistic of \citet{Hothorn2006UnbiasedRecursivePartitioning}, with Monte Carlo
 column moments replacing the exact conditional moments of
 \citet{StrasserWeber1999PermutationStatistics} because impurity is not a linear
-statistic. Standardization is what makes the minimum meaningful: candidates
+statistic. The construction therefore belongs to the maximally selected statistics of \citet{LausenSchumacher1992MaximallySelectedRankStatistics} and \citet{HothornZeileis2008GeneralizedMaximallySelectedStatistics}, which is what ctree's split search computes exactly for linear statistics; what is new here is only the Monte Carlo standardization that extends it to the impurity criterion and the $BK$ against $K^2/\alpha$ accounting against the per-threshold Bonferroni rule. Standardization is what makes the minimum meaningful: candidates
 near the tails of $X_{t,j_t^\star}$ isolate few observations and have wide null
 distributions, and the unstandardized minimum is drawn to them on heavy-tailed
-responses. Validity needs only about $1/\alpha_{\mathrm{split}}$ permutations; the implementation uses $B=999$ under the named budget rules, so the cost is on the order of $BK$ evaluations against $K^2/\alpha_{\mathrm{split}}$ for the per-threshold rule under the \texttt{minimum} budget rule, which scales each candidate's budget to $\lceil K/\alpha_{\mathrm{split}} \rceil$. The saving therefore appears only for $K > \alpha_{\mathrm{split}} B \approx 50$ candidates; at 16 bins the two rules cost the same, and a per-threshold rule run at a fixed $B$ costs $BK$ as well but cannot reject once $\alpha_{\mathrm{split}}/K < 1/(B+1)$; at $B=999$ that is every node with more than about 50 candidates (\cref{sec:results-stageB}). When every candidate is excluded the test returns $p^{\max}_t=1$ and no split.
+responses. Validity needs only about $1/\alpha_{\mathrm{split}}$ permutations; the implementation uses $B=999$ under the named budget rules, so the cost is on the order of $BK$ evaluations against $K^2/\alpha_{\mathrm{split}}$ for the per-threshold rule under the \texttt{minimum} budget rule, which scales each candidate's budget to $\lceil K/\alpha_{\mathrm{split}} \rceil$. That accounting is the exhaustive worst case in which every candidate is tested. With threshold scanning on, candidates are tested in order of their observed impurity and the search stops at the first rejection, so the realized cost of the per-threshold rule is the number of candidates scanned times $\lceil K/\alpha_{\mathrm{split}} \rceil$, and the timing grid of \cref{sec:results-stageB} measures that realized cost. The saving appears only for $K > \alpha_{\mathrm{split}} B \approx 50$ candidates; at 16 bins the measured times coincide because per-fit overhead dominates, and a per-threshold rule run at a fixed $B$ costs $BK$ as well but cannot reject once $\alpha_{\mathrm{split}}/K < 1/(B+1)$; at $B=999$ that is every node with more than about 50 candidates (\cref{sec:results-stageB}). When every candidate is excluded the test returns $p^{\max}_t=1$ and no split.
 \Cref{cor:stageB-maxt} gives the fixed-node guarantee and
 \cref{sec:results-stageB} the measured calibration, cost, and behavior. The max-type rule is the cost fix for the per-threshold rule: it was introduced once the per-threshold cost had been traced to its $K$-scaled permutation budget, after the benchmark had been run, so the benchmark configurations use the per-threshold rule, which remains the default in this version, and \cref{sec:results-stageB} reports the max-type rerun of the CIT and CIF configurations.
 
@@ -244,9 +244,20 @@ positive impurity decrease, the vector remains zero. CIF sums these tree
 importance vectors over trees and then normalizes the forest vector in the same
 way. Stage~A
 determines which features enter threshold optimization, while impurity decrease
-scores only the accepted splits by their local reduction in impurity. Larger
+scores only the accepted splits by their local reduction in impurity: the
+importance of feature $j$ is the sum over the accepted splits on $j$ of
+$I(t) - (n_L/n_t)\,I(t_L) - (n_R/n_t)\,I(t_R)$, the parent impurity minus the
+child-weighted impurity at that node, with no further weight for the node's
+share $n_t/n$ of the sample. This differs from scikit-learn's impurity
+importance, which multiplies each decrease by $n_t/n$ so that root splits
+dominate; the unweighted sum counts a deep split on a small node as much as a
+root split, and because every accepted split has passed the permutation gate,
+the ranking behaves like a gain-weighted count of accepted splits (the
+split-count ranking of the ablation in \cref{sec:experiments-real} moves the
+classification score by 0.001 on average). Larger
 importances are ranked earlier, and features never used by a split receive zero
-importance.
+importance, so beyond a tree's support the order of the ranking is the tie
+order of the implementation.
 
 This split-importance ranking differs from standard random-forest impurity
 importance in how a feature enters threshold search. In CART-style trees, the

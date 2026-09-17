@@ -135,12 +135,19 @@ def design(
     binary = rng.integers(0, 2, size=(n, 25)).astype(float)
     gauss = rng.normal(size=(n, 10))
     X = np.hstack([X_inf, highcard, binary, gauss])
-    groups = {
-        "informative": list(range(0, 10)),
-        "noise_highcard": list(range(10, 35)),
-        "noise_binary": list(range(35, 60)),
-        "noise_gaussian": list(range(60, 70)),
+    # Shuffle the column order so that a ranking which falls back to index order
+    # beyond its support (zero-importance ties) cannot look informative by accident.
+    order = rng.permutation(X.shape[1])
+    X = X[:, order]
+    position = np.empty_like(order)
+    position[order] = np.arange(X.shape[1])  # original index -> new column
+    blocks = {
+        "informative": range(0, 10),
+        "noise_highcard": range(10, 35),
+        "noise_binary": range(35, 60),
+        "noise_gaussian": range(60, 70),
     }
+    groups = {name: sorted(int(position[i]) for i in idx) for name, idx in blocks.items()}
     return X, y, groups
 
 

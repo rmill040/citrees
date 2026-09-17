@@ -1253,22 +1253,43 @@ and CART-style alternatives.
 The NHANES application reproduces the ordering of Section~\ref{sec:cardinality}
 on a clinical cohort for the one column whose information content is known. A
 permuted survey weight with 3,464 distinct values in the cohort (2,790 in a
-typical training fold) entered the random forest's
-top half while reported diagnoses of hypertension and high cholesterol
+typical training fold) entered the random forest's top half under impurity
+importance while reported diagnoses of hypertension and high cholesterol
 received mean ranks of 18.8 and 20.5 of 30; \citrees and \pkg{partykit}
-reversed both placements and agreed with each other at a rank correlation of
-0.84. In the descriptive comparison the conditional rankings had similar or
-better mean held-out accuracy, at about 20 and 100 times the fitting time of
-the random forest at this sample size. Researchers who rank predictors of mixed
-cardinality with a CART-style forest should check whether the number of
-distinct values is shaping the order, and a conditional inference forest is
-one direct way to do so.
+placed it near the bottom and agreed with each other at a rank correlation of
+0.84, and so did the same random forest once ranked by out-of-bag permutation
+importance. The five rankings therefore sort into two groups by how the split
+variable and the importance are chosen, not by package: impurity importance on
+greedily chosen splits promotes the high-cardinality noise column, and every
+ranking that either chooses the split variable by an association statistic or
+scores it by permutation avoids it. The descriptive comparison found similar or
+better mean held-out accuracy for the conditional rankings, at about 20 and 100
+times the fitting time of the random forest at this sample size.
+
+That result also says what the permutation machinery of \citrees is for, since
+the control with the Stage A screen disabled ranks the NHANES columns the same
+way. The screen does not decide the ranking on this cohort; the conditional
+choice of the split variable does. What the tests add is the tree itself: a
+split is made only when an association survives a calibrated test at the
+adjusted level, so depth is set by the data rather than by a pruning parameter,
+the fitted trees are the stumps and shallow trees whose false-split rate
+Section~\ref{sec:calibration} measures, and the forest's variable selection
+agrees with \pkg{partykit}'s under matched controls
+(Section~\ref{sec:behavior}). A user who wants only an unbiased ranking of a
+CART forest can take out-of-bag permutation importance from \sklearn at a
+fraction of the cost; a user who wants the split decisions themselves to carry
+an error rate needs the tests.
 
 \subsection{Limitations}
 
-The NHANES estimates describe one survey cycle, a single outcome, one draw
-of the permuted controls, and a fixed set of 27 predictors passed as numeric
-codes, with the three forests compared at their shipped defaults rather than
+The NHANES estimates describe one survey cycle, a single outcome, the 3,597
+complete cases on 27 predictors out of a larger adult sample (listwise deletion
+that selects on measurement and response patterns), one draw of the permuted
+controls in the primary analysis (a companion run redraws them per repeat and
+agrees), and predictors passed as numeric codes, so the unordered categorical
+columns (race and ethnicity, marital status, education) are split as if
+ordered in every forest, including \pkg{partykit}, which natively accepts
+factors; the forests are compared at their shipped defaults rather than
 tuned. The application measures ranking behavior; the association of any
 predictor with diabetes in this cohort is descriptive.
 More generally, permutation testing makes \citrees substantially

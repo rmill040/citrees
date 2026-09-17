@@ -33,6 +33,124 @@ kernel-fix, and cleanup record).
 
 ## Compute in flight (2026-09-13 evening)
 
+## Review round 3 (2026-09-17): Codex gpt-6-astra, Fable 5.1, Opus 5
+
+Reviews in `scratch/reviews/2026-09-15/`. Votes: arXiv RED / RED / YELLOW (was
+RED / RED / RED); JSS RED / YELLOW / RED (was RED / YELLOW / YELLOW). Items
+raised by two or more models first; each verified against the sources where it
+is checkable. Author decisions are marked.
+
+Verified contradictions and errors (text fixes):
+
+- [ ] Max-type rerun paragraph says "complete-case panels" while its caption
+      says the 21/8 all-method panels (Fable, Opus). Text is wrong.
+- [ ] Appendix E scaling table: the Adaptive column exceeds Full for single
+      trees in most cells (2.5 vs 1.6 s) while the prose says "0.64-1.06x" and
+      the abstract says inert; the ratio is inverted and the tree overhead
+      (posterior checks at the minimum budget) is real (Fable, Opus). Recompute
+      as Adaptive/Full, state the overhead, reconcile with the ablation tables.
+- [ ] Abstract attributes the Friedman p = 0.07 to the 8-dataset regression
+      panel; the test is on the 6-dataset complete-case panel and covers all 18
+      methods, not "the top half" (Codex, Fable).
+- [ ] Panel table calls the benchmark-size panel "at least 500 observations, 9
+      clf / 5 reg"; the inventory has 10 clf / 3 reg above 500. The panel is the
+      JSS performance dataset list (9 clf without madelon; 5 reg including
+      imports-85 and residential below 500). Rename the panel (Fable).
+- [ ] "Every single-configuration family keeps its fixed rank" is false: Boruta,
+      CatBoost, ExtraTrees, cforest move by 0.05 (Codex). Say scores are fixed
+      and ranks move only through CIF's reselection.
+- [ ] JSS "at identical exhaustive work partykit is faster": false. With
+      adjust_alpha_selector=True and an integer budget the tree multiplies the
+      budget by the predictor count (`_bonferroni_correction`: n_resamples \*
+      n_tests), so citrees ran 999 x p permutations per predictor against
+      partykit's 999 (Codex). Rewrite as a procedure comparison with configured
+      and realized work, or rerun the exhaustive arm with the adjustment off
+      (author decision; the 880-cell campaign).
+- [ ] JSS NHANES premise "citrees and scikit-learn use the same
+      impurity-decrease importance" is false: citrees sums node-level impurity
+      decreases unweighted by node size (`_tree.py` `_node_impurity` and
+      `feature_importances_[best_feature] += impurity_decrease`); scikit-learn
+      weights by node sample mass (Codex). The split-search attribution needs a
+      common importance formula or the control arm below.
+- [ ] Cross-paper timing: CIF 32,000 x 20 is 1,024 s in arXiv Appendix E and 672
+      s in the JSS scaling table (Opus). State the configuration difference
+      (planted-signal data and run) or use one number.
+- [ ] JSS "adaptive stopping removes that axis" contradicts the minimum-budget
+      inertness; attribute the saving to the budget rule and scanning (Codex).
+- [ ] Lemma/theorem/"proves" wording inconsistent across intro, theory,
+      appendices A and C, conclusion; label `thm:plusone-superuniform` on a
+      lemma (Fable, Opus).
+- [ ] Post-hoc pairwise intervals precede the omnibus statistics and carry no
+      multiplicity adjustment; regression omnibus does not reject so no post-hoc
+      is licensed there (Codex, Fable, Opus).
+- [ ] Regression means on the R^2 scale are dominated by the three coepra sets
+      (n < 140, p > 5,000, negative R^2); make medians primary and demote "CIF
+      2nd" in the abstract (Fable, Opus, Codex).
+
+Framing (text, larger):
+
+- [ ] Contribution hierarchy: benchmark first, max-type as an implementation
+      improvement, theory as standard and cited; abstract as motivation +
+      result + guidance rather than eleven numbers; the headline rank is a
+      property of the 21/8 panel and reverses on the complete-case panel where
+      boosting beats CIF; the abstract's "boosting pulls ahead on
+      high-dimensional data" has no supporting analysis (complete-case panel is
+      the p > 100 panel by construction; state that) (all three).
+- [ ] Minimum-budget degeneracy must be confronted, not mentioned once: under
+      `minimum` every passing p-value is 1/(B+1), so with scanning Stage A
+      selects by raw statistic order and without scanning by a uniform draw; the
+      benchmarked procedure is a gated max-statistic tree, which also explains
+      the JSS 8-12 percent root agreement and the arbitrary top-k beyond the
+      split set (Fable, Opus). Section 2 and the discussion.
+- [ ] Adaptive-size proposition: "exact" only under the continuous-mixing
+      idealization; the finite permutation orbit is discrete (Codex gives an
+      enumeration where the true size is 0.0044 against the urn's 0.0476); state
+      exact-under-idealization plus the tie bound, keep one rejection
+      convention, and label the B-range as a numerical statement (all three).
+- [ ] Stage B claims exceed the corollary: "valid at the node" for adaptive
+      fitted decisions, "equal power at matched size" without Monte Carlo error
+      (SE about 0.02 per power estimate) and with five cells matched at
+      0.031-0.046; report size-power curves or descriptive size-adjusted
+      comparisons with intervals and drop equivalence language (all three).
+- [ ] Cost accounting: K^2/alpha is the `minimum` budget rule's cost, not
+      Bonferroni's; scanning changes the operating cost; B = 999 for max-type is
+      a choice. Restate contribution 2 accordingly (Codex, Fable, Opus).
+- [ ] Mechanism-matched check: restrict the conclusion to classification; the
+      regression mean moved from +0.021 to -0.115 and naming coepra2 does not
+      erase it (Codex).
+- [ ] Feature-sampling section: CIF-all effect is the mtry combinatorial floor
+      (P(informative in 32 of 1,000) about 6 percent) and a total configuration
+      effect; split-share denominators confounded by tree size (Fable, Opus,
+      Codex).
+- [ ] JSS duplication of the companion's Stage B section (Fable, Opus).
+- [ ] JSS defaults: shipped `auto` + exact + bonferroni vs recommended
+      `minimum` + histogram-256 vs announced future `maxt`; announced default
+      contradicts the rerun evidence; `simple` stopping still shipped (Fable,
+      Opus). Author decision on defaults before v1.0.
+- [ ] JSS root agreement 8/12 percent under a "matched behavior" heading; report
+      honestly and explain the tie mechanism (Fable, Opus, Codex).
+- [ ] JSS calibration 0.0550 exceeds the attainable 0.049; compare intervals to
+      0.049 and say it is Monte Carlo error over 28 conditions (Fable, Opus).
+- [ ] JSS NHANES secondary contrasts use the corrected-CV t the paper calls a
+      heuristic; use the repeat-level bootstrap for all three (Codex, Opus).
+- [ ] "RDC" is the max-projection variant, not the canonical-correlation RDC;
+      rename or say so once in each paper (Opus).
+
+Experiments the reviewers ask for (author decision; each is cheap on EC2):
+
+- [ ] Per-threshold Bonferroni at fixed B = 999 as a third arm of the Stage B
+      scaling and head-to-head timing (Opus A5): isolates the budget rule from
+      the test.
+- [ ] NHANES: scikit-learn RF ranked by out-of-bag permutation importance and
+      citrees with alpha_selector = 1 (screen off) as within-package control
+      (Opus J8); redraw the noise controls per repeat (Fable).
+- [ ] JSS root-agreement positive control with feature scanning on (Fable, Opus
+      J4).
+- [ ] CIF-all top-k recovery on the sparse high-p grid (Opus A10).
+- [ ] Power study: more replicates for the size-matched cells and an off-center
+      step (Fable, Opus).
+- [ ] JSS exhaustive arm at equal work (adjustment off), or text only (Codex).
+
 ## Review round 2 (2026-09-14): Codex gpt-6-astra, Fable 5.1, Opus 5
 
 Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED

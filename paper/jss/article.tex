@@ -664,10 +664,10 @@ split-decision agreement was 1.000 for both datasets. Given that both split,
 they chose the same root predictor in 8\% of classification comparisons
 (95\% interval 2\% to 14\%) and 12\% of regression comparisons (4\% to 20\%),
 against chance levels of about 3\% and 10\% for 30 and 10 predictors. The
-divergence is a tie artifact of the matched controls, not an implementation
-error: with the Bonferroni-adjusted numeric budget every predictor that passes
-the screen returns the same $p$-value $1/(B+1)$, and with scanning off the tie is
-broken by a uniform draw. A positive control that repeats the study with feature
+divergence is an artifact of the matched controls, not an implementation
+error: on these strongly signalled predictors several candidates exceed every
+one of the $999 \times p$ permutations and so tie at the smallest attainable
+$p$-value, and with scanning off the tie is broken by a uniform draw. A positive control that repeats the study with feature
 and threshold scanning on (the shipped default, which orders candidates by the
 observed statistic) gives root-predictor agreement of 1.000 in all 50
 comparisons for both tasks, with split-decision agreement unchanged at 1.000
@@ -752,9 +752,9 @@ configuration reaches 21 and 19 seconds for the classification and regression
 forests, slower than its own exhaustive Stage A test because it adds the
 Bonferroni-adjusted threshold test at every node, 1.6 and 1.8 times faster than
 \pkg{partykit} on one core, and 11 and 10 times slower than \pkg{partykit} on
-32 cores. Single trees favor \citrees at 0.05 seconds
-against 2.9 seconds with the recommended configuration and \pkg{partykit} at
-2.9 against 6.0 seconds under the exhaustive procedure. The permutation budget is the dominant cost of the
+32 cores. Single trees favor \citrees in both rows: 0.05 seconds with the
+recommended configuration and 1.6 seconds under the exhaustive procedure,
+against 2.9 seconds for the exhaustive \pkg{partykit} tree. The permutation budget is the dominant cost of the
 exhaustive procedure in both libraries, 2.9 to 144 seconds in \citrees and 34
 to 2,803 seconds in \pkg{partykit} for the forest between 99 and 9,999 permutations, and
 the recommended configuration removes that axis through the minimum budget and
@@ -990,11 +990,12 @@ the adjustment tightens. That gap is a size gap. In the Stage-B-only companion,
 matching the two tests at the same realized size removes it: the max-type minus
 Bonferroni difference in size-matched power ranges from $-0.054$ to $+0.034$
 over 108 cell and effect combinations with mean $-0.006$ and no trend in the
-bin setting, and a fourth seed with 1,500 null and 1,000 alternative
-replicates per cell puts a standard error of about 0.015 on each difference,
-with one of 54 combinations beyond two standard errors; moving the planted
+bin setting; a fourth seed with 1,500 null and 1,000 alternative replicates per
+cell and a parametric bootstrap of the matching procedure put a standard error
+of about 0.017 on each difference (smallest detectable difference about 0.03),
+with none of 54 combinations beyond two standard errors, and moving the planted
 step to the 85th percentile of the predictor gives the same picture (mean
-$-0.004$, none beyond two standard errors). Where the Bonferroni test does not reach realized size 0.05 within the nominal
+$-0.004$, standard error about 0.038, none beyond two standard errors). Where the Bonferroni test does not reach realized size 0.05 within the nominal
 grid (five of the 18 cells, all but one at 256 bins, where its size at nominal
 0.50 is 0.031 to 0.046) the match is at that largest realized size. Adaptive and exhaustive stopping agree within 0.014. The cost of
 the joint test is precision: the max-type threshold sits a median 0.19 standard
@@ -1199,13 +1200,14 @@ The finding is that on a clinical cohort with predictors of mixed cardinality,
 a random forest ranked by impurity importance places a permuted survey weight
 (mean rank 12.1 of 30) above two reported diagnoses that are established
 correlates of diabetes, and both conditional forests place it near the bottom
-(23.0 for \citrees, 26.4 for \pkg{partykit}). The two control arms locate the
-cause. Ranking the same fitted random forest by out-of-bag permutation
-importance moves the permuted weight to 25.5, below both conditional forests
-(per-fold contrast against \citrees $+2.4$ ranks, standard deviation 6.2), so
-the promotion is a property of impurity importance under greedy split search,
-the bias of \citet{Strobl+Boulesteix+Zeileis+Hothorn:2007}, and not of the CART forest's
-rankings as such. Disabling the \citrees screen leaves its ranking unchanged
+(23.0 for \citrees, 26.4 for \pkg{partykit}). The two control arms, run separately from the primary analysis (the \citrees
+mean rank is 23.0 there against 23.4 in the primary run), narrow the cause. Ranking the same fitted random forest by out-of-bag permutation
+importance moves the permuted weight to 25.5, between the two conditional
+forests (per-fold contrast against \citrees $+2.4$ ranks, standard deviation
+6.2), so the promotion is a property of \sklearn's impurity importance on fully
+grown trees, the bias of \citet{Strobl+Boulesteix+Zeileis+Hothorn:2007}, and
+both conditional variable selection and out-of-bag permutation importance avoid
+it. Disabling the \citrees screen leaves its ranking unchanged
 (23.1; contrast $+0.0$), so what protects the conditional forest is choosing
 the split variable by the association statistic rather than by impurity gain,
 not the $\alpha$ gate. Redrawing the shuffled controls for each partition

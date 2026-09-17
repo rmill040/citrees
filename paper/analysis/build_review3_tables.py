@@ -26,6 +26,7 @@ from __future__ import annotations
 import glob
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -137,6 +138,31 @@ def power_replicates() -> pd.DataFrame:
         return float(alt["se"].iloc[0]) if len(alt) else float("nan")
 
     matched["power_se"] = matched.apply(arm_se, axis=1)
+    # Parametric bootstrap of the whole size-matching procedure: resample binomial
+    # counts for every null and alternative cell, redo the interpolation, and take
+    # the SD of the maxt-minus-bonferroni size-matched difference per cell.
+    rng = np.random.default_rng(0)
+    boot = {}
+    for design, sub in pooled.groupby("design"):
+        diffs = {}
+        for _ in range(200):
+            b = sub.copy()
+            b["splits"] = rng.binomial(b["replicates"].astype(int), b["rate"].clip(0, 1))
+            b["rate"] = b["splits"] / b["replicates"]
+            mb = size_matched(b)
+            pv = mb.pivot_table(
+                index=["task", "n", "k", "stopping", "effect"],
+                columns="threshold_test",
+                values="power_at_match",
+            )
+            if "maxt" in pv and "bonferroni" in pv:
+                for idx, val in (pv["maxt"] - pv["bonferroni"]).items():
+                    diffs.setdefault(idx, []).append(val)
+        boot[design] = {k: float(np.std(v)) for k, v in diffs.items()}
+    matched["delta_se_bootstrap"] = [
+        boot.get(r.design, {}).get((r.task, r.n, r.k, r.stopping, r.effect), float("nan"))
+        for r in matched.itertuples()
+    ]
     pooled.to_csv(TABLES / "paper_stageb_power_replicates_pooled.csv", index=False)
     return matched
 

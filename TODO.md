@@ -33,6 +33,75 @@ kernel-fix, and cleanup record).
 
 ## Compute in flight (2026-09-13 evening)
 
+## Review round 4 (2026-09-17 evening): Codex gpt-6-astra, Fable 5.1, Opus 5
+
+Reviews in `scratch/reviews/2026-09-17/`. Votes: arXiv RED / RED / RED (was RED
+/ RED / YELLOW); JSS RED / YELLOW / YELLOW (was RED / YELLOW / RED). The six
+control experiments were accepted as answering their questions; the remaining
+consensus is framing plus a few new items.
+
+Fixed at once (text): stale single-tree timing sentence; NHANES rank ordering
+("between", not "below") and run identification; tie explanation restated as
+several candidates exceeding all permutations; LODO rank movement 0.05 / 0.125
+and "sensitivity" not "bound"; abstract adaptive ratios by estimator; bootstrap
+standard errors for size-matched power (0.017 centred, 0.038 off-centre; none of
+162 beyond 2 SE; detectable difference 0.03 / 0.08).
+
+Consensus items still open:
+
+- [ ] arXiv thesis (all three, third round running): one primary contribution,
+      abstract as motivation + result + guidance, conclusion answering the same
+      questions; the headline is a panel-dependent, null-to-negative result and
+      should be written as one.
+- [ ] Importance formula (Fable A23/J21, Opus B1): citrees sums node-level
+      impurity decreases without the n_t/n weight scikit-learn uses; state and
+      justify in Section 2 of both papers; a sample-weighted ablation needs
+      refits (author decision; EC2).
+- [ ] Zero-importance tie padding of top-k (Opus A1, Fable): quantify per
+      dataset and method the support size (features with nonzero importance) and
+      the share of the top-k prefix that is tie filler, or break ties by the
+      Stage A statistic (library change) and rerun (author decision).
+- [ ] Adaptive-stopping overhead (Opus A2): explain why single trees pay up to
+      1.56x on the scaling grid when the first posterior check coincides with
+      exhaustion at the floor (batched kernel per-batch overhead?); reconcile
+      with the 0.87-0.98x ablation ratio; state the number of posterior
+      evaluations per test.
+- [ ] Power study framing (Opus A3, Codex 5): relabel tab:stageB-power as split
+      rate at nominal level; move the size-matched analysis to the main text;
+      the design is narrow (depth-one, independent Gaussians, step effect).
+- [ ] Max-type vs maximally selected statistics (Opus A4): cite Hothorn and
+      Zeileis (2008) explicitly, state what is new (Monte Carlo column moments
+      for a non-linear impurity statistic; BK vs K^2/alpha), and consider
+      ctree's split rule as a third arm (author decision; EC2).
+- [ ] Adaptive-size proposition wording (Codex 3, again): keep "exact under the
+      continuous-mixing idealization", separate the finite-orbit statement and
+      the strict/non-strict convention (0.03759 vs 0.05001 at B = 79).
+- [ ] Cost accounting under scanning (Fable A10, Codex 9): K^2/alpha is the
+      unscanned exhaustive work; give the scanned expression and drop or qualify
+      "the two rules cost the same at 16 bins".
+- [ ] Mechanism-matched check (Codex 7): restrict the conclusion to
+      classification; report regression by dataset.
+- [ ] PI/CPI baselines (Fable A24): PI on training rows and CPI on a 20 percent
+      split are handicapped by the paper's own Appendix D argument; rerun with
+      out-of-bag rows or drop with a statement (author decision; EC2).
+- [ ] Regression means (Fable A25, Opus A9 again): medians or ranks primary.
+- [ ] Threshold-location precision (Codex 6): condition on jointly detected
+      replicates or label as detection summaries.
+- [ ] JSS NHANES framing (Opus B1, Fable J1, Codex 11): organize around the five
+      rankings; say what remains specific to citrees given that the gate
+      contributes nothing to the ranking and OOB permutation importance fixes
+      the CART forest; factor-typed partykit rerun (Opus B2; cheap, author
+      decision); complete-case cohort limitation (Fable J22).
+- [ ] JSS defaults vs recommended vs announced (Opus B3, Fable): author decision
+      before v1.0.
+- [ ] JSS self-containment and length (Fable J3/J4, Opus J1 earlier): cut the
+      duplicated Stage B section, include the numbers cited from the companion.
+- [ ] JSS recommended forest 21 s vs exhaustive 6.3 s (Fable J15): explain the
+      tree/forest reversal (Stage B threshold test with the K-scaled budget at
+      every node of every tree); the no-adjustment column needs its false-split
+      rate (Fable J16).
+- [ ] JSS "no adjustment" speed option without its validity cost (Fable J16).
+
 ## Review round 3 (2026-09-17): Codex gpt-6-astra, Fable 5.1, Opus 5
 
 Reviews in `scratch/reviews/2026-09-15/`. Votes: arXiv RED / RED / YELLOW (was

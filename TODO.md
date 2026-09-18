@@ -90,6 +90,15 @@ Consensus items still open:
       split are handicapped by the paper's own Appendix D argument; rerun with
       out-of-bag rows or drop with a statement (author decision; EC2).
 - [ ] Regression means (Fable A25, Opus A9 again): medians or ranks primary.
+- [x] Weak-signal mixed-cardinality designs and support sizes (2026-09-18,
+      author request): RF impurity fills 38 percent of its top ten with
+      500-level noise at the weakest signal, CIF 31-40 percent with binary noise
+      (reverse bias), max-type cuts that to 26-30; RF recovers more informative
+      features at weak signal (0.42 vs 0.26-0.34); downstream within 0.01. CIF
+      support excludes 20-93 percent of features while keeping 92-100 percent of
+      planted ones on p <= 120, but misses signal on hard designs. Reported as a
+      bias trade in 06_boundary (`tab:weak-signal-cardinality`); abstract
+      unchanged.
 - [x] Threshold-location precision conditioning stated (2026-09-17) (Codex 6):
       condition on jointly detected replicates or label as detection summaries.
 - [ ] JSS NHANES framing (Opus B1, Fable J1, Codex 11): organize around the five

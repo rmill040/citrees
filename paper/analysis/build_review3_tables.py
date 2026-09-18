@@ -250,6 +250,37 @@ def nhanes_controls() -> pd.DataFrame:
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
 
 
+def weak_signal() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Weak-signal cardinality designs and support sizes."""
+    d = _cat("r3-weak-designs-*/designs__*.parquet", pd.read_parquet)
+    sup = _cat("r3-weak-support-*/support__*.parquet", pd.read_parquet)
+    designs = pd.DataFrame()
+    if not d.empty:
+        fits = d.drop_duplicates(["task", "signal", "seed", "fold_idx", "method"])
+        share_cols = [c for c in fits.columns if "_share_at_" in c] + ["support_size"]
+        g = fits.groupby(["task", "signal", "method"])[share_cols].agg(["mean", "std", "count"])
+        g.columns = ["_".join(c) for c in g.columns]
+        for c in share_cols:
+            g[f"{c}_se"] = g[f"{c}_std"] / np.sqrt(g[f"{c}_count"])
+        metric = {"classification": "balanced_accuracy", "regression": "r2"}
+        score = []
+        for task, sub in d.groupby("task"):
+            m = sub.groupby(["task", "signal", "method", "k"])[metric[task]].mean().unstack("k")
+            m.columns = [f"downstream_at_{int(k)}" for k in m.columns]
+            score.append(m)
+        designs = g.join(pd.concat(score)).reset_index()
+    support = pd.DataFrame()
+    if not sup.empty:
+        support = sup.groupby(["task", "dataset", "method"], as_index=False).agg(
+            support_size=("support_size", "mean"),
+            informative_in_support=("informative_in_support", "mean"),
+            n_informative=("n_informative", "first"),
+            n_features=("n_features", "first"),
+            fits=("support_size", "size"),
+        )
+    return designs, support
+
+
 def main() -> None:
     TABLES.mkdir(parents=True, exist_ok=True)
     for name, fn in [
@@ -261,6 +292,16 @@ def main() -> None:
         ("paper_nhanes_controls.csv", nhanes_controls),
     ]:
         df = fn()
+        if df.empty:
+            print(f"{name}: no inputs yet")
+            continue
+        df.to_csv(TABLES / name, index=False)
+        print(f"{name}: {len(df)} rows")
+    designs, support = weak_signal()
+    for name, df in (
+        ("paper_weak_signal_cardinality.csv", designs),
+        ("paper_support_size.csv", support),
+    ):
         if df.empty:
             print(f"{name}: no inputs yet")
             continue

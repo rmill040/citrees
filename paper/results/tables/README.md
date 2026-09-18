@@ -76,3 +76,8 @@ Everything else should be regenerated locally and left untracked.
   both libraries; JSS `tab:performance-reference` exhaustive rows), and, when
   their boxes land, `paper_nhanes_controls.csv`, `paper_cif_all_recovery.csv`,
   `paper_stageb_power_replicates.csv`.
+- `paper_weak_signal_cardinality.csv`, `paper_support_size.csv`: weak-signal
+  mixed-cardinality designs (top-ten composition, support, downstream score by
+  ranker and signal) and ranker support sizes on the synthetic benchmark
+  datasets (EC2, 2026-09-17/18; `paper/benchmark/experiments/weak_signal_cardinality.py`,
+  built by `build_review3_tables.py`). arXiv `tab:weak-signal-cardinality`.

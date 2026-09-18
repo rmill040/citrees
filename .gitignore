@@ -14,6 +14,8 @@ paper/results/figures/
 paper/results/tables/*
 !paper/results/tables/README.md
 !paper/results/tables/paper_benchmark_method_aggregate.csv
+!paper/results/tables/paper_weak_signal_cardinality.csv
+!paper/results/tables/paper_support_size.csv
 !paper/results/tables/paper_stageb_fixed_budget.csv
 !paper/results/tables/paper_stageb_scaling_3arm.csv
 !paper/results/tables/paper_behavior_scanning_control.csv

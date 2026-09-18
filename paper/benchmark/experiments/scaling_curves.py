@@ -6,7 +6,8 @@ classification response thresholds the latent variable at its median. One tree
 (CIT) and a 100-tree forest (CIF, ``n_jobs=-1``) are fit at every (n, p) cell with
 the paper's recommended controls, once with adaptive stopping and once with the
 full permutation budget, so the curves can be compared with the cost accounting
-of the complexity appendix. Fit-only wall-clock time, median over repeats.
+of the complexity appendix. Fit-only wall-clock time, median over repeats, after
+one untimed identical fit per cell.
 
 Usage:
     uv run python -m paper.benchmark.experiments.scaling_curves [--shard i --num-shards n] [--assemble]
@@ -70,6 +71,16 @@ def run_cell(task: str, n: int, p: int) -> list[dict[str, Any]]:
     rows = []
     for model in ("cit", "cif"):
         for variant, overrides in VARIANTS.items():
+            # One untimed fit of this exact cell first: the tiny warm-up in
+            # experiment_common compiles only the adaptive forest path at n = 30,
+            # so the first timed repeat of a cell used to include the just-in-time
+            # compilation of kernels chosen by variant or size (the 2026-09-13 run
+            # shows first repeats of 5.1 s against 0.7 s for the same CIT cell).
+            X, y = make_data(task, n, p, RANDOM_STATE)
+            if model == "cit":
+                build_cit(task, RANDOM_STATE, **overrides).fit(X, y)
+            else:
+                build_cif(task, RANDOM_STATE, n_estimators=100, n_jobs=-1, **overrides).fit(X, y)
             seconds = []
             for r in range(REPEATS):
                 X, y = make_data(task, n, p, RANDOM_STATE + r)

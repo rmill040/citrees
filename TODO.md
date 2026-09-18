@@ -120,13 +120,12 @@ Consensus items still open:
       threshold test is 98 percent of the forest's time (18.9 vs 0.38 s), the
       parallel forest gives each tree one thread (serial 13.7 s), and forest
       trees test weaker sampled predictors.
-- [ ] Equal-work rows never split (found 2026-09-18 by the decomposition): the
-      2026-09-17 run gave citrees 999 permutations against alpha/50 = 0.001, and
-      the +1 p-value cannot fall strictly below 1/1000, so the exhaustive
-      citrees rows of JSS Table 5 (1.6 s tree, 6.3 s forest) timed a root test
-      only. Budget fixed to partykit + 1 under CITREES_PERF_EQUAL_WORK; citrees
-      cells relaunched on 8 boxes (r4-perf-equalwork-b0..7); rewrite the
-      equal-work paragraph and table rows when they land.
+- [x] Equal-work rows never split (found and fixed 2026-09-18): the 2026-09-17
+      run gave citrees 999 permutations against alpha/50 = 0.001, and the +1
+      p-value cannot fall strictly below 1/1000, so the exhaustive citrees rows
+      of JSS Table 5 timed a root test only. Budget now partykit + 1; rerun on
+      the second-fit protocol: tree 0.17 s (partykit 2.9), forest 14.6 s on 32
+      cores (partykit 286 one core, 13 on 32). Table 5 and text rewritten.
 - [x] JSS "no adjustment" speed option without its validity cost (2026-09-18)
       (Fable J16): Stage-B-only size at nominal 0.05 is 0.15-0.31 (clf) and
       0.21-0.38 (reg), rising with candidates; complete-node rate 0.036-0.049,
@@ -138,13 +137,14 @@ Consensus items still open:
       cell per kernel per host included compilation (same reference tree 4.2,
       2.6, or 0.19 s by shard position; scaling-curve first repeats 5.1 vs 0.7
       s). Fixed in `performance.py` (identical full fit before the timed fit)
-      and `scaling_curves.py`; reruns launched: r4b-perf-equalwork-b0..7,
-      r4b-perf-partykit-b0..15, r4b-ref-variants, r4b-scaling-curves-s0..5.
-      Rewrite JSS Table 5 and its text, arXiv appendix E `tab:scaling-curves`
-      and the adaptive-overhead paragraph when they land. The other runtime
-      ablation tables (CIT/CIF ablations, wide runtime) share `warmup_jit`;
-      their ratios are medians over many datasets fit in one process, so only
-      the first cells per kernel are affected; check before release.
+      and `scaling_curves.py`. Done: citrees equal-work and recommended rows
+      (JSS Table 5), arXiv appendix E `tab:scaling-curves` and its paragraph
+      (tree about linear in n, adaptive overhead 1.02-1.28). Pending: the
+      partykit exhaustive rows on the same protocol (r4b-perf-partykit-b0..15,
+      slow: the 9,999-permutation forests take 2,800 s and are now fit twice);
+      the JSS scaling and real-data timing tables (`head_to_head_timing.py`) and
+      the CIT/CIF runtime ablations share the tiny-warm-up pattern and need the
+      same check before release.
 
 ## Review round 3 (2026-09-17): Codex gpt-6-astra, Fable 5.1, Opus 5
 

@@ -19,6 +19,18 @@ Inputs live under ``../data/review3/results/<box>/`` (tarballs from
   citrees (``scale_resamples_with_tests=False``), median and quartiles by cell.
 - ``paper_nhanes_controls.csv``, ``paper_cif_all_recovery.csv``,
   ``paper_stageb_power_replicates.csv``: written when their boxes are in.
+
+Review-round-4 measurements (EC2, 2026-09-18) live under ``../data/review4/``:
+
+- ``paper_performance_equal_work.csv`` also carries the rerun with the citrees
+  budget one above partykit's (the 999-permutation run never split; see the
+  ``run`` and ``fitted_depth`` columns).
+- ``paper_performance_decomposition.csv``: the recommended forest at the
+  reference condition under variants isolating its cost (serial, parallel,
+  threshold test off, adjustment off, max-type), with depth and node counts.
+- ``paper_noadjust_calibration.csv``, ``paper_noadjust_stageb.csv``:
+  complete-node false-split rate and Stage-B-only size and power of the
+  per-threshold rule without the Bonferroni adjustment over candidates.
 """
 
 from __future__ import annotations
@@ -31,11 +43,12 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 RES = ROOT.parent / "data" / "review3" / "results"
+RES4 = ROOT.parent / "data" / "review4"
 TABLES = ROOT / "paper" / "results" / "tables"
 
 
-def _cat(pattern: str, reader=pd.read_csv) -> pd.DataFrame:
-    files = sorted(glob.glob(str(RES / pattern)))
+def _cat(pattern: str, reader=pd.read_csv, root: Path = RES) -> pd.DataFrame:
+    files = sorted(glob.glob(str(root / pattern)))
     return pd.concat([reader(f) for f in files], ignore_index=True) if files else pd.DataFrame()
 
 
@@ -68,14 +81,70 @@ def behavior_scanning() -> pd.DataFrame:
 
 
 def equal_work() -> pd.DataFrame:
-    d = _cat("r3-perf-equalwork-b*/shard-*/performance_raw.parquet", pd.read_parquet)
+    """Both equal-work runs. ``fitted_depth`` is the tree's maximum depth counting
+    the root as 1 (``fit_result_size`` for trees; the number of trees for forests),
+    so 1 means the root never split. In the 2026-09-17 run (999 permutations) the
+    citrees trees never split at 50 or 200 predictors: 1/(999+1) is not strictly
+    below 0.05/50."""
+    frames = []
+    for pattern, root, run, budget in (
+        (
+            "r3-perf-equalwork-b*/shard-*/performance_raw.parquet",
+            RES,
+            "2026-09-17",
+            "999 permutations per predictor (never splits at p >= 50)",
+        ),
+        (
+            "r4-perf-equalwork-b*/shard-*/performance_raw.parquet",
+            RES4,
+            "2026-09-18",
+            "partykit budget + 1 per predictor (1,000 at the reference)",
+        ),
+    ):
+        d = _cat(pattern, pd.read_parquet, root)
+        if d.empty:
+            continue
+        d["run"] = run
+        d["citrees_budget"] = budget
+        frames.append(d)
+    if not frames:
+        return pd.DataFrame()
+    d = pd.concat(frames, ignore_index=True)
+    g = d.groupby(
+        ["run", "task", "model_family", "method", "axis", "axis_value", "citrees_budget"],
+        as_index=False,
+    ).agg(
+        median=("elapsed_seconds", "median"),
+        q1=("elapsed_seconds", lambda x: x.quantile(0.25)),
+        q3=("elapsed_seconds", lambda x: x.quantile(0.75)),
+        n=("elapsed_seconds", "size"),
+        fitted_depth=("fit_result_size", "median"),
+    )
+    return g
+
+
+def perf_decomposition() -> pd.DataFrame:
+    d = _cat("r4-perf-decomp/performance_decomposition.csv", root=RES4)
     if d.empty:
         return d
-    g = d.groupby(["task", "model_family", "method", "axis", "axis_value"], as_index=False)[
-        "elapsed_seconds"
-    ].agg(median="median", q1=lambda x: x.quantile(0.25), q3=lambda x: x.quantile(0.75), n="size")
-    g["citrees_budget"] = "999 permutations per predictor (scale_resamples_with_tests=False)"
-    return g
+    return d.groupby(
+        ["task", "variant", "kind", "n_jobs"], as_index=False, sort=False, dropna=False
+    ).agg(
+        seconds_median=("seconds", "median"),
+        seconds_min=("seconds", "min"),
+        seconds_max=("seconds", "max"),
+        depth_mean=("depth_mean", "mean"),
+        internal_nodes_mean=("internal_nodes_mean", "mean"),
+        repeats=("seconds", "size"),
+    )
+
+
+def noadjust_calibration() -> pd.DataFrame:
+    return _cat("r4-noadjust-null/null_calibration.csv", root=RES4)
+
+
+def noadjust_stageb() -> pd.DataFrame:
+    return _cat("r4-noadjust-stageb/stageb_only.csv", root=RES4)
 
 
 def power_replicates() -> pd.DataFrame:
@@ -290,6 +359,9 @@ def main() -> None:
         ("paper_performance_equal_work.csv", equal_work),
         ("paper_stageb_power_replicates.csv", power_replicates),
         ("paper_nhanes_controls.csv", nhanes_controls),
+        ("paper_performance_decomposition.csv", perf_decomposition),
+        ("paper_noadjust_calibration.csv", noadjust_calibration),
+        ("paper_noadjust_stageb.csv", noadjust_stageb),
     ]:
         df = fn()
         if df.empty:

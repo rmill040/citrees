@@ -81,3 +81,13 @@ Everything else should be regenerated locally and left untracked.
   ranker and signal) and ranker support sizes on the synthetic benchmark
   datasets (EC2, 2026-09-17/18; `paper/benchmark/experiments/weak_signal_cardinality.py`,
   built by `build_review3_tables.py`). arXiv `tab:weak-signal-cardinality`.
+- `paper_performance_decomposition.csv`: the recommended forest at the JSS
+  reference condition under variants that isolate its cost (serial and parallel
+  fits, threshold test off, adjustment off, max-type), with tree depth and
+  internal node counts (EC2, 2026-09-18;
+  `paper/jss/replication/performance_decomposition.py`). JSS runtime section.
+- `paper_noadjust_calibration.csv`, `paper_noadjust_stageb.csv`: complete-node
+  false-split rate and Stage-B-only size and power of the per-threshold rule
+  without the Bonferroni adjustment over candidates, the "No adjustment" column
+  of the JSS timing tables (EC2, 2026-09-18; `threshold_test.py
+  --tests bonferroni_unadjusted`).

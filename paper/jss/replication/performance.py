@@ -523,9 +523,17 @@ def _fit_citrees(cell: PerformanceCell, X: np.ndarray, y: np.ndarray) -> int:
         "selector": cell.selector,
         "alpha_selector": ALPHA,
         "adjust_alpha_selector": True,
-        "n_resamples_selector": cell.n_resamples,
-        # CITREES_PERF_EQUAL_WORK=1: keep the budget at cell.n_resamples per predictor
-        # (partykit's work) instead of scaling it by the predictor count.
+        # CITREES_PERF_EQUAL_WORK=1: hold the budget at (about) partykit's work per
+        # predictor instead of scaling it by the predictor count. The +1 matters:
+        # the (b+1)/(B+1) p-value cannot fall below 1/(B+1), and the tree rejects
+        # strictly below alpha/p, so at B = 999 and p = 50 (alpha/p = 0.001) no
+        # split is ever possible; B = 1000 is the smallest budget that can reach
+        # it. The 2026-09-17 equal-work run used B = 999 and its trees never split.
+        "n_resamples_selector": (
+            cell.n_resamples + 1
+            if os.environ.get("CITREES_PERF_EQUAL_WORK") == "1"
+            else cell.n_resamples
+        ),
         "scale_resamples_with_tests": os.environ.get("CITREES_PERF_EQUAL_WORK") != "1",
         "early_stopping_selector": None,
         "n_resamples_splitter": None,

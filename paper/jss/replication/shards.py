@@ -397,6 +397,13 @@ def performance_shard_cells(spec: ShardSpec) -> tuple[performance.PerformanceCel
     if spec.target_analysis != "performance":
         raise ValueError("performance cell assignment requires a performance shard")
     inventory = performance.build_performance_grid(spec.profile, base_seed=spec.base_seed)
+    # CITREES_PERF_METHODS=citrees[,partykit,...] restricts a rerun to some
+    # libraries; the shard slicing stays on the full inventory so shard indices
+    # keep their meaning across runs.
+    methods = os.environ.get("CITREES_PERF_METHODS")
+    if methods:
+        keep = set(methods.split(","))
+        inventory = tuple(cell for cell in inventory if cell.method in keep)
     start = len(inventory) * spec.shard_index // spec.num_shards
     stop = len(inventory) * (spec.shard_index + 1) // spec.num_shards
     cells = inventory[start:stop]

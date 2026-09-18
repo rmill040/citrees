@@ -4,9 +4,10 @@ Each measured cell runs in a fresh subprocess with each implementation's native
 full-machine parallelism (citrees via Numba threading, scikit-learn forests via
 n_jobs=-1, partykit cforest via cores=32; single trees are serial in every
 implementation). The fresh subprocess isolates the process peak
-resident-set size, excludes one-time imports and JIT compilation from fit
-timing, and prevents an earlier large fit from contaminating a later cell's
-memory high-water mark.
+resident-set size and prevents an earlier large fit from contaminating a later
+cell's memory high-water mark; a tiny warm-up fit and then one identical full
+fit precede the measured fit, so imports and just-in-time compilation of every
+kernel the measured fit uses are excluded from its timing.
 """
 
 from __future__ import annotations
@@ -697,6 +698,15 @@ def run_worker_cell(cell: PerformanceCell) -> dict[str, object]:
     input_sha256 = _array_sha256(X, y)
     gc.collect()
     baseline_peak_rss = _peak_rss_bytes()
+    # A full, identical fit before the measured one: the tiny warm-up does not
+    # reach every compiled specialization the measured fit uses (kernels chosen
+    # by budget or sample size, and the child-node path when the tiny tree does
+    # not split), so before 2026-09-18 the first cell to hit such a kernel on a
+    # host paid its just-in-time compilation inside the timed region (up to
+    # about 4 seconds on a fit of 0.2 seconds). The peak-RSS baseline stays
+    # before this fit so the memory figure still bounds one fit.
+    _fit_model(cell, X, y)
+    gc.collect()
     started = time.perf_counter()
     fit_result_size = _fit_model(cell, X, y)
     elapsed = time.perf_counter() - started
@@ -1088,7 +1098,7 @@ def write_results(
             "candidate_features": "all",
             "bootstrap": True,
             "timed_operation": "model_construction_and_fit",
-            "warmup": "same_method_tiny_fit_before_measurement",
+            "warmup": "same_method_tiny_fit_then_identical_full_fit_before_measurement",
             "memory": "process_peak_rss_with_pre_fit_high_water_subtracted",
             "process_isolation": "one_fresh_process_per_measured_cell",
             "thread_environment": THREAD_ENVIRONMENT,

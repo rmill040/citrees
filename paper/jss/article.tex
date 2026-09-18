@@ -224,12 +224,16 @@ Monte Carlo interpretation. A fitted tree adds response-dependent node
 creation, repeated tests, optional feature ordering and muting, and threshold
 selection. Forests add bootstrap samples, predictor sampling, and aggregation.
 Equation~\ref{eq:permutation-p} defines the fixed-node permutation test used
-during tree construction. For a fixed statistic the adaptive stopping rule has an
-exactly computable null size: under exchangeability the running exceedance
-count is a P\'olya urn, and the rule rejects with probability 0.0488 at the
-default confidence for a 999-permutation budget and at most 0.0496 for every
-budget from 20 to 3,000 permutations; under the \code{minimum} budget with Bonferroni
-correction the floor equals the budget and the rule never stops early. The fitted tree and forest analyses target predictive
+during tree construction. For a fixed statistic the adaptive stopping rule has a
+computable null size: under exchangeability the running exceedance count is a
+P\'olya urn when the exceedance probability of the observed statistic is
+treated as continuous, and the rule, which rejects when the reported value is
+strictly below the level, then does so with probability 0.0488 at the default
+confidence for a 999-permutation budget and at most 0.0496 for every budget
+from 20 to 3,000 permutations; on the finite set of $n!$ permutations the size
+is within $1/n!$ of that value, and ties can only lower it. Under the
+\code{minimum} budget with Bonferroni correction the floor equals the budget
+and the rule never stops early. The fitted tree and forest analyses target predictive
 behavior, feature stability, and computation under adaptive construction.
 
 \section{Software design and interface} \label{sec:software}
@@ -1298,10 +1302,11 @@ large forests and high-dimensional predictors.
 
 The adaptive stopping rule stops a permutation test once a Beta posterior on
 the exceedance proportion places probability at least 0.95 on one side of the
-significance level. For a fixed statistic its null size is an exact finite
-computation (0.0488 at the default confidence for 999 permutations; 0.0522 at
-confidence 0.80, which is why 0.95 is the minimum allowed), and the calibration
-study above agrees with it. The adaptive max-type test recomputes its column
+significance level. For a fixed statistic its null size is a finite
+computation, exact when the exceedance probability is treated as continuous
+and within $1/n!$ of it on the permutation set (0.0488 at the default
+confidence for 999 permutations; 0.0522 at confidence 0.80, which is why 0.95
+is the minimum allowed), and the calibration study above agrees with it. The adaptive max-type test recomputes its column
 moments as permutations accumulate and is covered by the calibration study
 only.
 

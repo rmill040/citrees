@@ -69,17 +69,19 @@ Consensus items still open:
       the floor (batched kernel per-batch overhead?); reconcile with the
       0.87-0.98x ablation ratio; state the number of posterior evaluations per
       test.
-- [ ] Power study framing (Opus A3, Codex 5): relabel tab:stageB-power as split
-      rate at nominal level; move the size-matched analysis to the main text;
-      the design is narrow (depth-one, independent Gaussians, step effect).
+- [x] Power study framing (2026-09-18) (Opus A3, Codex 5): tab:stageB-power
+      relabelled as the split rate at nominal level 0.05; the size-matched table
+      (tab:stageB-only) moved into the results section. The design remains
+      narrow (depth-one, independent Gaussians, step effect).
 - [x] Max-type positioned against maximally selected statistics with citations
       (2026-09-17); ctree arm still an author decision (Opus A4): cite Hothorn
       and Zeileis (2008) explicitly, state what is new (Monte Carlo column
       moments for a non-linear impurity statistic; BK vs K^2/alpha), and
       consider ctree's split rule as a third arm (author decision; EC2).
-- [ ] Adaptive-size proposition wording (Codex 3, again): keep "exact under the
-      continuous-mixing idealization", separate the finite-orbit statement and
-      the strict/non-strict convention (0.03759 vs 0.05001 at B = 79).
+- [x] Adaptive-size proposition wording (2026-09-18) (Codex 3): three statements
+      (continuous mixing exact; finite orbit within 1/n_t! by the monotone grid
+      average; ties at most), one strict rejection convention with the
+      non-strict values as a remark; JSS restatements aligned.
 - [x] Cost accounting under scanning stated (2026-09-17) (Fable A10, Codex 9):
       K^2/alpha is the unscanned exhaustive work; give the scanned expression
       and drop or qualify "the two rules cost the same at 16 bins".
@@ -89,7 +91,9 @@ Consensus items still open:
 - [ ] PI/CPI baselines (Fable A24): PI on training rows and CPI on a 20 percent
       split are handicapped by the paper's own Appendix D argument; rerun with
       out-of-bag rows or drop with a statement (author decision; EC2).
-- [ ] Regression means (Fable A25, Opus A9 again): medians or ranks primary.
+- [x] Regression means (2026-09-18) (Fable A25, Opus A9): direct-comparison
+      table gains a median column and the prose leads with medians in
+      regression.
 - [x] Weak-signal mixed-cardinality designs and support sizes (2026-09-18,
       author request): RF impurity fills 38 percent of its top ten with
       500-level noise at the weakest signal, CIF 31-40 percent with binary noise
@@ -110,11 +114,23 @@ Consensus items still open:
       before v1.0.
 - [ ] JSS self-containment and length (Fable J3/J4, Opus J1 earlier): cut the
       duplicated Stage B section, include the numbers cited from the companion.
-- [ ] JSS recommended forest 21 s vs exhaustive 6.3 s (Fable J15): explain the
-      tree/forest reversal (Stage B threshold test with the K-scaled budget at
-      every node of every tree); the no-adjustment column needs its false-split
-      rate (Fable J16).
-- [ ] JSS "no adjustment" speed option without its validity cost (Fable J16).
+- [x] JSS recommended forest 21 s vs exhaustive 6.3 s (2026-09-18) (Fable J15):
+      measured decomposition at the reference condition (EC2,
+      `performance_decomposition.py`, `tab:performance-decomposition`): the
+      threshold test is 98 percent of the forest's time (18.9 vs 0.38 s), the
+      parallel forest gives each tree one thread (serial 13.7 s), and forest
+      trees test weaker sampled predictors.
+- [ ] Equal-work rows never split (found 2026-09-18 by the decomposition): the
+      2026-09-17 run gave citrees 999 permutations against alpha/50 = 0.001, and
+      the +1 p-value cannot fall strictly below 1/1000, so the exhaustive
+      citrees rows of JSS Table 5 (1.6 s tree, 6.3 s forest) timed a root test
+      only. Budget fixed to partykit + 1 under CITREES_PERF_EQUAL_WORK; citrees
+      cells relaunched on 8 boxes (r4-perf-equalwork-b0..7); rewrite the
+      equal-work paragraph and table rows when they land.
+- [ ] JSS "no adjustment" speed option without its validity cost (Fable J16):
+      complete-node false-split rate measured 2026-09-18 (0.036-0.049 at nominal
+      0.05, bounded by the Stage A gate; `paper_noadjust_calibration.csv`);
+      Stage-B-only size and power running (r4-noadjust-stageb). Text pending.
 
 ## Review round 3 (2026-09-17): Codex gpt-6-astra, Fable 5.1, Opus 5
 

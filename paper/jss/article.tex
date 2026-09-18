@@ -753,10 +753,9 @@ predictor per candidate, that is $999 \times 50$ at the root, and reported 706
 seconds; the budget is now held at 999 with
 \code{scale_resamples_with_tests = False}.) The recommended \citrees
 configuration reaches 21 and 19 seconds for the classification and regression
-forests, slower than its own exhaustive Stage A test because it adds the
-Bonferroni-adjusted threshold test at every node, 1.6 and 1.8 times faster than
-\pkg{partykit} on one core, and 11 and 10 times slower than \pkg{partykit} on
-32 cores. Single trees favor \citrees in both rows: 0.05 seconds with the
+forests, 1.6 and 1.8 times faster than \pkg{partykit} on one core and 11 and
+10 times slower than \pkg{partykit} on 32 cores; the next paragraph
+decomposes that time. Single trees favor \citrees in both rows: 0.05 seconds with the
 recommended configuration and 1.6 seconds under the exhaustive procedure,
 against 2.9 seconds for the exhaustive \pkg{partykit} tree. The permutation budget is the dominant cost of the
 exhaustive procedure in both libraries, 2.9 to 144 seconds in \citrees and 34
@@ -796,6 +795,56 @@ class: the exhaustive rows in the 88-shard equal-work campaign of 2026-09-17 and
 in one reference-condition run; ratios quoted in the text compare rows within
 the same run wherever possible, and cross-run ratios are approximate.}
 \label{tab:performance-reference}
+\end{table}
+
+The recommended tree and forest reverse the exhaustive ordering, 0.05 seconds
+for the tree against 21 for the forest, and a decomposition at the same
+reference condition (Table~\ref{tab:performance-decomposition}) locates the
+difference in the threshold test and in where the parallelism sits. Fit
+without the threshold test, the recommended forest takes 0.38 and 0.25
+seconds in classification and regression; with the Bonferroni-adjusted test it
+takes 18.9 and 18.5 seconds, so the test is 98 percent of the forest's time;
+without the adjustment over candidates it takes 0.28 and 0.23 seconds, and
+with the max-type test 1.3 and 0.7 seconds. The forest fits its trees in 32
+worker processes with one compiled thread each, so every threshold test runs
+on one thread, whereas the single tree spreads each test's permutations over
+all 32 threads; fit serially with the full thread pool available to every
+tree, the same forest takes 13.7 and 7.6 seconds. The remaining gap to 100
+times the single tree's 0.034 seconds is in the trees themselves: a forest
+tree tests seven sampled predictors rather than the strongest of fifty, and a
+single tree restricted to seven sampled predictors takes 0.045 seconds for two
+internal nodes against 0.034 seconds for seven, consistent with threshold
+scanning, which stops at the first passing candidate and therefore runs more
+tests when the tested predictor is weaker.
+
+\begin{table}[t!]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\hline
+ & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
+Variant & Seconds & Nodes & Seconds & Nodes \\ \hline
+Recommended tree, all predictors & 0.034 & 7.0 & 0.033 & 7.0 \\
+Recommended tree, square-root predictors & 0.045 & 2.0 & 0.036 & 3.0 \\
+Recommended forest, serial & 13.7 & 2.6 & 7.6 & 2.7 \\
+Recommended forest, parallel & 18.9 & 2.6 & 18.5 & 2.7 \\
+Recommended forest, parallel, no threshold test & 0.38 & 2.9 & 0.25 & 2.9 \\
+Recommended forest, parallel, no adjustment & 0.28 & 2.9 & 0.23 & 3.0 \\
+Recommended forest, parallel, max-type test & 1.3 & 3.0 & 0.71 & 2.7 \\
+\hline
+\end{tabular}
+\caption{Decomposition of the recommended configuration's fitting time at the
+reference condition of Table~\ref{tab:performance-reference} (1,000
+observations, 50 Gaussian predictors, 100 trees where a forest), as the median
+of three fits after one warm-up fit on the same 32-core machine class. Nodes is
+the mean number of internal nodes per tree. Serial fits the trees one at a time
+with the full compiled thread pool available to each; parallel fits them in 32
+worker processes with one thread each, the forest default. The no-threshold-test
+variant omits the Stage B test, the no-adjustment variant tests every candidate
+threshold at the unadjusted level, and the max-type variant uses the joint test
+of Section~\ref{sec:thresholds}.}
+\label{tab:performance-decomposition}
 \end{table}
 
 The second study reverses this ordering on real data.

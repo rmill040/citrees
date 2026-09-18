@@ -127,10 +127,24 @@ Consensus items still open:
       only. Budget fixed to partykit + 1 under CITREES_PERF_EQUAL_WORK; citrees
       cells relaunched on 8 boxes (r4-perf-equalwork-b0..7); rewrite the
       equal-work paragraph and table rows when they land.
-- [ ] JSS "no adjustment" speed option without its validity cost (Fable J16):
-      complete-node false-split rate measured 2026-09-18 (0.036-0.049 at nominal
-      0.05, bounded by the Stage A gate; `paper_noadjust_calibration.csv`);
-      Stage-B-only size and power running (r4-noadjust-stageb). Text pending.
+- [x] JSS "no adjustment" speed option without its validity cost (2026-09-18)
+      (Fable J16): Stage-B-only size at nominal 0.05 is 0.15-0.31 (clf) and
+      0.21-0.38 (reg), rising with candidates; complete-node rate 0.036-0.049,
+      held by the Stage A gate (`paper_noadjust_stageb.csv`,
+      `paper_noadjust_calibration.csv`). Stated in the runtime section.
+- [ ] Timing protocol paid JIT compilation inside the timed region (found
+      2026-09-18): the JSS performance study's tiny warm-up and the ablation
+      `warmup_jit` do not reach every kernel the measured fit uses, so the first
+      cell per kernel per host included compilation (same reference tree 4.2,
+      2.6, or 0.19 s by shard position; scaling-curve first repeats 5.1 vs 0.7
+      s). Fixed in `performance.py` (identical full fit before the timed fit)
+      and `scaling_curves.py`; reruns launched: r4b-perf-equalwork-b0..7,
+      r4b-perf-partykit-b0..15, r4b-ref-variants, r4b-scaling-curves-s0..5.
+      Rewrite JSS Table 5 and its text, arXiv appendix E `tab:scaling-curves`
+      and the adaptive-overhead paragraph when they land. The other runtime
+      ablation tables (CIT/CIF ablations, wide runtime) share `warmup_jit`;
+      their ratios are medians over many datasets fit in one process, so only
+      the first cells per kernel are affected; check before release.
 
 ## Review round 3 (2026-09-17): Codex gpt-6-astra, Fable 5.1, Opus 5
 

@@ -874,7 +874,20 @@ case is gamma, with nine continuous predictors: 45 seconds with the adjustment
 and 3.4 seconds without it. Without the adjustment the recommended
 configuration is faster than \pkg{partykit} on 32 cores on nine of the ten
 datasets, by 2.6 times on madelon and 20 times on letter, and within 0.4
-seconds of it on vowel. The max-type test keeps the threshold test and recovers most of that time where candidates are continuous: madelon goes from 24 to 4.8 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 45 to 22 seconds, isolet from 19 to 11 seconds, and musk from 11 to 9.1 seconds; the other six datasets change by at most 1.9 seconds.
+seconds of it on vowel. That speed has a statistical price. Without the
+adjustment the threshold test is not a valid test of the threshold: in the
+Stage-B-only design of Section~\ref{sec:threshold-test}, which isolates the
+test from the predictor screen, its false-split rate at nominal level 0.05 is
+0.15 to 0.31 in classification and 0.21 to 0.38 in regression, rising with the
+candidate count from 16 to 256 bins, against 0.000 to 0.027 for the adjusted
+rule and 0.023 to 0.044 for the max-type test (\texttt{paper\_noadjust\_stageb.csv}
+in the reference release). At the complete node the Stage A screen still holds
+the false-split rate to 0.036 to 0.049 over the 36 design cells of the
+calibration study (\texttt{paper\_noadjust\_calibration.csv}), so a tree grown
+without the adjustment still splits under the null about as rarely, but on
+thresholds chosen without error control, and it grows about twice as deep on
+the benchmark datasets \citep{Milletich+Downes+Goley+Hirst:2026}. The
+max-type test keeps the threshold test and recovers most of that time where candidates are continuous: madelon goes from 24 to 4.8 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 45 to 22 seconds, isolet from 19 to 11 seconds, and musk from 11 to 9.1 seconds; the other six datasets change by at most 1.9 seconds.
 
 \begin{table}[t!]
 \centering
@@ -924,7 +937,8 @@ inference in how permutations are spent rather than in tree construction:
 budgets sized to the adjusted level, muting, and scanning remove most of the
 fixed budget that \pkg{partykit} pays, and the one remaining fixed cost in \citrees, the
 adjusted threshold test on continuous predictors, is an option the user
-controls.
+controls, with the max-type test as the choice that keeps a valid threshold
+test at a fraction of the cost.
 
 \begin{table}[t!]
 \centering

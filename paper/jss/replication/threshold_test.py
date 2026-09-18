@@ -49,7 +49,9 @@ TESTS: Final = ("bonferroni", "maxt")
 # bonferroni_fixed: the per-threshold Bonferroni rule at a fixed budget of FIXED_B
 # permutations per candidate (scale_resamples_with_tests=False), the control arm that
 # separates the budget rule from the test; it cannot reject once alpha/K < 1/(FIXED_B+1).
-TEST_CHOICES: Final = ("bonferroni", "maxt", "bonferroni_fixed")
+# bonferroni_unadjusted: the per-threshold rule at level alpha for every candidate,
+# the "No adjustment" column of the JSS timing tables (adjust_alpha_splitter=False).
+TEST_CHOICES: Final = ("bonferroni", "maxt", "bonferroni_fixed", "bonferroni_unadjusted")
 FIXED_B: Final = 999
 # Location of the planted step in the power studies as a standard-normal quantile
 # (0.5 is the centred cut at zero); set from --step-quantile.
@@ -130,7 +132,7 @@ def _estimator(task: str, test: str, stopping: str | None, k: int, seed: int, **
     common = dict(
         threshold_method="histogram",
         max_thresholds=k,
-        threshold_test="bonferroni" if test == "bonferroni_fixed" else test,
+        threshold_test="bonferroni" if test.startswith("bonferroni") else test,
         early_stopping_selector=stopping,
         early_stopping_splitter=stopping,
         alpha_selector=ALPHA,
@@ -139,6 +141,8 @@ def _estimator(task: str, test: str, stopping: str | None, k: int, seed: int, **
     )
     if test == "bonferroni_fixed":
         common.update(n_resamples_splitter=FIXED_B, scale_resamples_with_tests=False)
+    if test == "bonferroni_unadjusted":
+        common.update(adjust_alpha_splitter=False)
     common.update(extra)
     if task == "classification":
         return ConditionalInferenceTreeClassifier(selector="mc", **common)
@@ -632,7 +636,10 @@ def main() -> None:
         nargs="+",
         choices=TEST_CHOICES,
         default=TESTS,
-        help="Stage B constructions to run (bonferroni_fixed is the fixed-budget control arm).",
+        help=(
+            "Stage B constructions to run (bonferroni_fixed is the fixed-budget control arm, "
+            "bonferroni_unadjusted the per-threshold rule without the Bonferroni adjustment)."
+        ),
     )
     parser.add_argument(
         "--step-quantile",

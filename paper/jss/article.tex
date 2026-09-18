@@ -744,24 +744,29 @@ every dataset we also record the mean number of distinct candidate thresholds
 per predictor, capped at the 256 the histogram search considers.
 
 Table~\ref{tab:performance-reference} reports the reference condition of the
-first study. At equal permutation work, 999 permutations per predictor in both
-libraries, \citrees is the faster implementation: the exhaustive tree takes
-1.6 seconds against 2.9 in \pkg{partykit}, and the exhaustive forest 6.3
+first study. At equal permutation work, 1,000 permutations per predictor in
+\citrees against 999 in \pkg{partykit}, the exhaustive \citrees tree takes
+0.17 seconds against 2.9 in \pkg{partykit}, and the exhaustive forest 14.6
 seconds on 32 cores against 286 for \pkg{partykit} on one core and 13 on 32
-cores. (An earlier version of this table charged \citrees 999 permutations per
-predictor per candidate, that is $999 \times 50$ at the root, and reported 706
-seconds; the budget is now held at 999 with
-\code{scale_resamples_with_tests = False}.) The recommended \citrees
-configuration reaches 21 and 19 seconds for the classification and regression
-forests, 1.6 and 1.8 times faster than \pkg{partykit} on one core and 11 and
-10 times slower than \pkg{partykit} on 32 cores; the next paragraph
-decomposes that time. Single trees favor \citrees in both rows: 0.05 seconds with the
-recommended configuration and 1.6 seconds under the exhaustive procedure,
-against 2.9 seconds for the exhaustive \pkg{partykit} tree. The permutation budget is the dominant cost of the
-exhaustive procedure in both libraries, 2.9 to 144 seconds in \citrees and 34
-to 2,803 seconds in \pkg{partykit} for the forest between 99 and 9,999 permutations, and
-the recommended configuration removes that axis through the minimum budget and
-scanning, not through adaptive stopping, which is inert at the floor. CART in \sklearn fits the reference forests in 0.16 and
+cores, so the two libraries fit the same forest in the same time when both
+use the whole machine and \citrees fits the tree 17 times faster. The one
+extra permutation is not cosmetic: \citrees never reports a $p$-value below
+$1/(B+1)$ and rejects strictly below the adjusted level, so at 999 permutations
+it cannot reject over 50 predictors at $0.05/50 = 0.001$ at all, and an earlier
+version of this table, which gave it 999, timed trees that never split. (A
+still earlier version charged $999 \times 50$ permutations at the root and
+reported 706 seconds.) For the same reason the 100-permutation rows of the
+budget axis never split in \citrees and are not comparable. The recommended
+\citrees configuration reaches 0.04 seconds for the tree and 18.6 and 16.9
+seconds for the classification and regression forests, 1.8 and 2.0 times
+faster than \pkg{partykit} on one core and 10 and 9 times slower than
+\pkg{partykit} on 32 cores; the next paragraph decomposes that time. The
+permutation budget is the dominant cost of the exhaustive procedure in both
+libraries: the \citrees forest takes 14.6 seconds at 1,000 permutations and
+141 at 10,000, and the \pkg{partykit} forest 286 seconds at 999 and 2,803 at
+9,999. The recommended configuration removes that axis through the minimum
+budget and scanning, not through adaptive stopping, which is inert at the
+floor. CART in \sklearn fits the reference forests in 0.16 and
 0.12 seconds; it performs no permutation test and is included to place the
 cost of conditional inference on a familiar scale.
 
@@ -773,32 +778,38 @@ cost of conditional inference on a familiar scale.
 \hline
  & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
 Configuration & Tree & Forest & Tree & Forest \\ \hline
-\citrees, exhaustive, all predictors & 1.6 [1.6, 1.6] & 6.3 [6.3, 6.4] & 1.4 [1.4, 1.4] & 6.2 [6.1, 6.3] \\
-\citrees, recommended & 0.05 [0.04, 0.06] & 21 [20, 22] & 0.04 [0.04, 0.04] & 19 [18, 20] \\
+\citrees, exhaustive, all predictors & 0.17 [0.17, 0.18] & 14.6 [14.5, 14.7] & 0.16 [0.16, 0.16] & 13.7 [13.7, 13.8] \\
+\citrees, recommended & 0.04 [0.04, 0.04] & 18.6 [17.7, 19.5] & 0.03 [0.03, 0.03] & 16.9 [16.4, 17.9] \\
 \pkg{partykit}, exhaustive, all predictors & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 287 [286, 287] \\
 \pkg{partykit}, all predictors, 32 cores & n/a & 13 [13, 13] & n/a & 13 [13, 13] \\
 \pkg{partykit}, default, 1 core & n/a & 34 [33, 35] & n/a & 35 [34, 35] \\
-\pkg{partykit}, default, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.8, 2.0] \\
+\pkg{partykit}, default, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.7, 2.0] \\
 \sklearn CART & 0.01 [0.01, 0.01] & 0.16 [0.16, 0.17] & 0.01 [0.01, 0.01] & 0.12 [0.12, 0.12] \\ \hline
 \end{tabular}
 \caption{Median fitting time in
 seconds with the interquartile range in brackets over 10 repeats at the
-reference condition of 1,000 observations, 50 Gaussian predictors, 999
-permutations where applicable, and 100 trees. The exhaustive procedure uses the
-full permutation budget of 999 permutations per predictor without early stopping (\texttt{scale\_resamples\_with\_tests = False} in \citrees, so both libraries do the same permutation work), exact threshold search, no threshold test, and
-every predictor at every node; it runs on one core in \pkg{partykit} and with all 32 cores across trees in the \citrees forest. The
+reference condition of 1,000 observations, 50 Gaussian predictors, and 100
+trees. The exhaustive procedure uses the full permutation budget without early
+stopping, 999 permutations per predictor in \pkg{partykit} and 1,000 in
+\citrees (\texttt{scale\_resamples\_with\_tests = False}; the extra permutation
+is the smallest budget at which the $+1$ $p$-value can reach $0.05/50$), exact
+threshold search, no threshold test, and every predictor at every node; it
+runs on one core in \pkg{partykit} and with all 32 cores across trees in the
+\citrees forest. Every time is the second of two identical fits in a fresh
+process, so compilation is excluded. The
 recommended \citrees configuration and the \pkg{partykit} default both sample
 square-root predictors in forests. Single
 trees have no 32-core condition because \pkg{partykit} parallelizes only
 across trees. All rows were measured on the released build on the same machine
-class: the exhaustive rows in the 88-shard equal-work campaign of 2026-09-17 and the remaining rows
-in one reference-condition run; ratios quoted in the text compare rows within
-the same run wherever possible, and cross-run ratios are approximate.}
+class on 2026-09-18, the exhaustive rows in a sharded campaign and the
+remaining rows in one reference-condition run; ratios quoted in the text
+compare rows within the same run wherever possible, and cross-run ratios are
+approximate.}
 \label{tab:performance-reference}
 \end{table}
 
-The recommended tree and forest reverse the exhaustive ordering, 0.05 seconds
-for the tree against 21 for the forest, and a decomposition at the same
+The recommended tree and forest reverse the exhaustive ordering, 0.04 seconds
+for the tree against 18.6 for the forest, and a decomposition at the same
 reference condition (Table~\ref{tab:performance-decomposition}) locates the
 difference in the threshold test and in where the parallelism sits. Fit
 without the threshold test, the recommended forest takes 0.38 and 0.25

@@ -87,3 +87,35 @@ run,task,model_family,method,axis,axis_value,citrees_budget,median,q1,q3,n,fitte
 2026-09-17,regression,tree,sklearn,reference,reference,999 permutations per predictor (never splits at p >= 50),0.01095254599999862,0.010891685999922629,0.011013777999927754,10,4.0
 2026-09-17,regression,tree,sklearn,sample_size,250,999 permutations per predictor (never splits at p >= 50),0.002833874500083766,0.002815596999880654,0.002842624750030609,10,4.0
 2026-09-17,regression,tree,sklearn,sample_size,4000,999 permutations per predictor (never splits at p >= 50),0.04952848349967098,0.04947312475042054,0.04966726049999437,10,4.0
+2026-09-18 second-fit protocol,classification,forest,citrees,forest_size,25,"partykit budget + 1 per predictor (1,000 at the reference)",5.282835872499902,5.240475135250051,5.322091307500159,10,25.0
+2026-09-18 second-fit protocol,classification,forest,citrees,forest_size,500,"partykit budget + 1 per predictor (1,000 at the reference)",62.5833734229999,62.468090476500066,62.981235149249954,10,500.0
+2026-09-18 second-fit protocol,classification,forest,citrees,permutation_budget,99,"partykit budget + 1 per predictor (1,000 at the reference)",0.6410689219999597,0.6293627924999896,0.6489923350000026,10,100.0
+2026-09-18 second-fit protocol,classification,forest,citrees,permutation_budget,9999,"partykit budget + 1 per predictor (1,000 at the reference)",141.15569784150003,141.0067858779999,141.46672996974996,10,100.0
+2026-09-18 second-fit protocol,classification,forest,citrees,predictor_count,10,"partykit budget + 1 per predictor (1,000 at the reference)",3.1402231179999944,3.1369051749999812,3.1489424232499346,10,100.0
+2026-09-18 second-fit protocol,classification,forest,citrees,predictor_count,200,"partykit budget + 1 per predictor (1,000 at the reference)",17.72081118799997,17.680447130000005,17.73764563400006,10,100.0
+2026-09-18 second-fit protocol,classification,forest,citrees,reference,reference,"partykit budget + 1 per predictor (1,000 at the reference)",14.595703856000043,14.507575621,14.653368241499976,10,100.0
+2026-09-18 second-fit protocol,classification,forest,citrees,sample_size,250,"partykit budget + 1 per predictor (1,000 at the reference)",4.872282503500003,4.84338827725,4.936143517499957,10,100.0
+2026-09-18 second-fit protocol,classification,forest,citrees,sample_size,4000,"partykit budget + 1 per predictor (1,000 at the reference)",53.36536818250005,53.32106611925002,53.50528928975,10,100.0
+2026-09-18 second-fit protocol,classification,tree,citrees,permutation_budget,99,"partykit budget + 1 per predictor (1,000 at the reference)",0.10510974800007489,0.10476264100000776,0.10534184474988706,10,2.0
+2026-09-18 second-fit protocol,classification,tree,citrees,permutation_budget,9999,"partykit budget + 1 per predictor (1,000 at the reference)",1.2585574440000187,1.24808997949998,1.2742057524999524,10,5.0
+2026-09-18 second-fit protocol,classification,tree,citrees,predictor_count,10,"partykit budget + 1 per predictor (1,000 at the reference)",0.06681315650001807,0.0659963932500034,0.06712217025005174,10,5.0
+2026-09-18 second-fit protocol,classification,tree,citrees,predictor_count,200,"partykit budget + 1 per predictor (1,000 at the reference)",0.1585459494999668,0.15781026575014323,0.16100699249999906,10,2.0
+2026-09-18 second-fit protocol,classification,tree,citrees,reference,reference,"partykit budget + 1 per predictor (1,000 at the reference)",0.17194592000002729,0.17137184349999757,0.17655357074999856,10,5.0
+2026-09-18 second-fit protocol,classification,tree,citrees,sample_size,250,"partykit budget + 1 per predictor (1,000 at the reference)",0.056926854999971965,0.05369237825001605,0.05981668649994276,10,5.0
+2026-09-18 second-fit protocol,classification,tree,citrees,sample_size,4000,"partykit budget + 1 per predictor (1,000 at the reference)",0.754771489999996,0.7479655059999324,0.7637128809999894,10,5.0
+2026-09-18 second-fit protocol,regression,forest,citrees,forest_size,25,"partykit budget + 1 per predictor (1,000 at the reference)",4.928816447999907,4.858462379999935,5.027097913750026,10,25.0
+2026-09-18 second-fit protocol,regression,forest,citrees,forest_size,500,"partykit budget + 1 per predictor (1,000 at the reference)",59.631318601500084,59.54568531349997,60.075340563499765,10,500.0
+2026-09-18 second-fit protocol,regression,forest,citrees,permutation_budget,99,"partykit budget + 1 per predictor (1,000 at the reference)",0.4071171495000101,0.40217855100002,0.4118410607500067,10,100.0
+2026-09-18 second-fit protocol,regression,forest,citrees,permutation_budget,9999,"partykit budget + 1 per predictor (1,000 at the reference)",133.57046399299998,133.26509631450006,134.3521400482499,10,100.0
+2026-09-18 second-fit protocol,regression,forest,citrees,predictor_count,10,"partykit budget + 1 per predictor (1,000 at the reference)",2.996333449999952,2.9875271717500027,3.0275563259999956,10,100.0
+2026-09-18 second-fit protocol,regression,forest,citrees,predictor_count,200,"partykit budget + 1 per predictor (1,000 at the reference)",16.870758780000074,16.853509309250015,16.88208533774997,10,100.0
+2026-09-18 second-fit protocol,regression,forest,citrees,reference,reference,"partykit budget + 1 per predictor (1,000 at the reference)",13.746411389499997,13.724782162749989,13.756998124500015,10,100.0
+2026-09-18 second-fit protocol,regression,forest,citrees,sample_size,250,"partykit budget + 1 per predictor (1,000 at the reference)",4.677158539500098,4.629562429000011,4.733986810750025,10,100.0
+2026-09-18 second-fit protocol,regression,forest,citrees,sample_size,4000,"partykit budget + 1 per predictor (1,000 at the reference)",50.37281442799991,50.329620361499934,50.51230028650001,10,100.0
+2026-09-18 second-fit protocol,regression,tree,citrees,permutation_budget,99,"partykit budget + 1 per predictor (1,000 at the reference)",0.05890357249995759,0.05854428925005095,0.05898699724998835,10,2.0
+2026-09-18 second-fit protocol,regression,tree,citrees,permutation_budget,9999,"partykit budget + 1 per predictor (1,000 at the reference)",1.177770228500023,1.1628702582499955,1.2085460784999782,10,5.0
+2026-09-18 second-fit protocol,regression,tree,citrees,predictor_count,10,"partykit budget + 1 per predictor (1,000 at the reference)",0.06290099699998564,0.062339625499959084,0.0646793989999992,10,5.0
+2026-09-18 second-fit protocol,regression,tree,citrees,predictor_count,200,"partykit budget + 1 per predictor (1,000 at the reference)",0.14932158699997444,0.14906121149991236,0.1508685647500414,10,2.0
+2026-09-18 second-fit protocol,regression,tree,citrees,reference,reference,"partykit budget + 1 per predictor (1,000 at the reference)",0.16012744700002912,0.15957367224999075,0.16259648274990468,10,5.0
+2026-09-18 second-fit protocol,regression,tree,citrees,sample_size,250,"partykit budget + 1 per predictor (1,000 at the reference)",0.05476541599995244,0.05204995700000126,0.05557621224991749,10,5.0
+2026-09-18 second-fit protocol,regression,tree,citrees,sample_size,4000,"partykit budget + 1 per predictor (1,000 at the reference)",0.6755549520000272,0.6701219854999927,0.6893495714999744,10,5.0

@@ -85,7 +85,10 @@ def equal_work() -> pd.DataFrame:
     the root as 1 (``fit_result_size`` for trees; the number of trees for forests),
     so 1 means the root never split. In the 2026-09-17 run (999 permutations) the
     citrees trees never split at 50 or 200 predictors: 1/(999+1) is not strictly
-    below 0.05/50."""
+    below 0.05/50; that run also timed the first fit of each kernel on a host,
+    which included its compilation. The 2026-09-18 run uses the budget one above
+    partykit's and times the second identical fit; the r4-perf-equalwork run in
+    between (budget fixed, protocol not) is superseded and not read."""
     frames = []
     for pattern, root, run, budget in (
         (
@@ -95,10 +98,16 @@ def equal_work() -> pd.DataFrame:
             "999 permutations per predictor (never splits at p >= 50)",
         ),
         (
-            "r4-perf-equalwork-b*/shard-*/performance_raw.parquet",
+            "r4b-perf-equalwork-b*/shard-*/performance_raw.parquet",
             RES4,
-            "2026-09-18",
+            "2026-09-18 second-fit protocol",
             "partykit budget + 1 per predictor (1,000 at the reference)",
+        ),
+        (
+            "r4b-perf-partykit-b*/shard-*/performance_raw.parquet",
+            RES4,
+            "2026-09-18 second-fit protocol",
+            "partykit at its own budget",
         ),
     ):
         d = _cat(pattern, pd.read_parquet, root)

@@ -12,7 +12,8 @@ signal at n in {500, 2000, 8000, 32000} x p in {20, 100}, plus p = 500 at
 n in {500, 2000}, and the ten real benchmark datasets with at least 500
 observations (parquet files under ``/root/paper-data/classification/real``).
 Two repeats per cell, one on letter, isolet, and gisette; a fit is censored at
-``FIT_TIMEOUT`` seconds (default 1200).
+``FIT_TIMEOUT`` seconds (default 1200). Since 2026-09-19 each citrees fit is
+timed as the second of two identical fits, so compilation is excluded.
 
 Usage on a host with the pinned image (``/out`` writable, ``/app`` the repo):
 
@@ -72,6 +73,9 @@ if config.startswith("citrees"):
     if config == "citrees_maxt": rec.update(threshold_test="maxt")
     warm_trees = 64 if os.environ.get("FULL_POOL_WARMUP") else 3
     F(**rec, n_estimators=warm_trees, n_jobs=-1, random_state=1).fit(X[wi][:, :min(p, 8)], y[wi])  # warm-up: JIT + worker pool
+    # one identical full fit first: the small warm-up does not reach kernels selected by size, so the
+    # first full fit on a host can include their compilation (found 2026-09-18 in the reference study)
+    F(**rec, n_estimators=TREES, n_jobs=-1, random_state=0, **extra).fit(X, y)
     t = time.time(); F(**rec, n_estimators=TREES, n_jobs=-1, random_state=0, **extra).fit(X, y); el = time.time() - t
 elif config.startswith("partykit"):
     cores = int(config.rsplit("_", 1)[1])

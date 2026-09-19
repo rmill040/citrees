@@ -30,7 +30,7 @@ When feature scanning is enabled during tree growing, Stage~A tests the
 features in order of their observed selector statistic and stops at the first
 rejection, so not every feature in $F_t$ is tested.
 Let $E_t \subseteq F_t$ denote the evaluated subset; in the exhaustive fixed-$B$
-reference rule, $E_t=F_t$. The fixed-node theorem in \cref{sec:theory} applies
+reference rule, $E_t=F_t$. The fixed-node lemma and corollary in \cref{sec:theory} apply
 to that reference rule: the features in $F_t$ and the budget $B$ are fixed
 independently of the node responses, and every $p_{t,j}$ for $j\in F_t$ uses
 that budget. Adaptive tree growing adds response-dependent node selection,
@@ -209,7 +209,7 @@ selection, it sums each fitted tree's normalized split importances and
 renormalizes the forest vector. Each CIF tree uses the same Stage~A and Stage~B
 node rules as CIT
 \citep{Breiman2001RandomForests,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles}.
-The fixed-node theorem applies only to the Stage~A reference test described
+The fixed-node result applies only to the Stage~A reference test described
 above.
 Across the CIT/CIF benchmark configurations, we hold Bonferroni correction,
 adaptive stopping, feature muting, feature scanning, threshold scanning,

@@ -5,7 +5,7 @@ In these experiments, CIF is best supported as a top-$k$ feature-selection
 method for a downstream model. The benchmark asks whether a ranking places
 predictive features early enough for fixed downstream learners. Classification
 gives the clearest support; the smaller regression panel is positive but less
-precise. The fixed-node Stage~A theorem provides the local guarantee; fitted
+precise. The fixed-node Stage~A lemma and corollary provide the local guarantee; fitted
 tree and forest rankings are assessed empirically.
 
 \paragraph{Guidance.}
@@ -26,14 +26,13 @@ the 256-bin histogram account for the largest measured changes, with downstream
 score changes of at most 0.009. Adaptive stopping is inert at the benchmark's
 minimum permutation budget, as \cref{prop:adaptive-size} predicts, and earns
 its place only when the budget exceeds the floor, where it recovers most of the
-larger budget's cost. Bonferroni correction is part of the Stage~A testing rule
+larger budget's cost (\cref{sec:results-practical}); every benchmark $p$-value is
+therefore a fixed-budget permutation $p$-value. Bonferroni correction is part of the Stage~A testing rule
 and is not treated as a runtime shortcut. For ranking quality, forest size
 matters more than the split-count and feature-muting variants tested here, so the
 selected CIF configuration is the relevant ranking reference when ranking
 quality is the priority.
 The Stage~B construction is a further control, and \cref{sec:results-stageB} reports it. Its interpretation is narrow: the per-threshold Bonferroni rule controls the false-split rate at a fixed node for a feature chosen without the response, and in a fitted tree the tested feature is the Stage~A winner, so the Stage~B score is a screening statistic rather than a post-selection $p$-value (\cref{sec:method}). The max-type rule removes the reverse cardinality bias of the per-threshold rule, costs less once a node has more than about 50 candidates, and changes which features the trees rank without changing how the rankings perform downstream; the benchmark rankings remain Bonferroni rankings.
-
-Adaptive stopping has an exactly computable null size (\cref{prop:adaptive-size}), but on the benchmark it never acts: the \texttt{minimum} budget equals the floor below which the rule cannot stop, so every benchmark $p$-value is a fixed-budget permutation $p$-value and the runtime savings belong to scanning and the bounded threshold search. The rule pays only when the budget exceeds the floor, where it recovers most of the larger budget's cost (\cref{sec:results-practical}).
 
 In sparse high-$p$ settings, feature use should be monitored directly.
 The simulations show that CIF feature sampling can leave informative features

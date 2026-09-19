@@ -5,13 +5,14 @@ The question was whether the split-selection correction of conditional
 inference improves a feature ranking used for downstream prediction, and what
 it costs. On 31 real datasets CIF is the best conditional inference ranker in the
 study, ahead of cforest, ctree, and single CIT, and it ranks 3rd of 17 and 2nd
-of 18 overall, level with random forest, boosting, and Boruta rankings, behind
-recursive feature elimination and, on the high-dimensional panel, behind
+of 18 overall, level with random forest and boosting rankings, behind
+recursive feature elimination and, on the 13-dataset complete-case panel, behind
 boosting. The correction removes the cardinality preference of
 CART-style splitting, which the NHANES application of the companion article
-shows on real clinical predictors, but that removal does not translate into
-better top-$k$ prediction on these benchmarks, and out-of-bag permutation
-importance removes the same preference from an ordinary random forest.
+shows on real clinical predictors; on these benchmarks it shows in which
+features are ranked, with top-$k$ scores level with the best ensembles, and
+out-of-bag permutation importance removes the same preference from an ordinary
+random forest.
 
 The answer to the second part is precise. The cost of conditional inference is
 the per-threshold Stage~B test, whose permutation budget must grow as

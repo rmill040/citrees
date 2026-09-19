@@ -192,3 +192,6 @@ paper/jss/article.toc
 paper/jss/article.synctex.gz
 paper/jss/data/
 paper/jss/results/
+
+# Editorial Workbench review state (local, per session)
+.ewb/

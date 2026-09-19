@@ -139,12 +139,15 @@ Consensus items still open:
       s). Fixed in `performance.py` (identical full fit before the timed fit)
       and `scaling_curves.py`. Done: citrees equal-work and recommended rows
       (JSS Table 5), arXiv appendix E `tab:scaling-curves` and its paragraph
-      (tree about linear in n, adaptive overhead 1.02-1.28). Pending: the
-      partykit exhaustive rows on the same protocol (r4b-perf-partykit-b0..15,
-      slow: the 9,999-permutation forests take 2,800 s and are now fit twice);
-      the JSS scaling and real-data timing tables (`head_to_head_timing.py`) and
-      the CIT/CIF runtime ablations share the tiny-warm-up pattern and need the
-      same check before release.
+      (tree about linear in n, adaptive overhead 1.02-1.28); partykit exhaustive
+      rows (unchanged); JSS Tables 6 and 7 from `head_to_head_timing.py` on the
+      second-fit protocol 2026-09-19 (`paper_h2h_secondfit_citrees.csv`): cells
+      under about 5 s were compile-dominated (no-adjustment 2.5 to 0.17 s,
+      max-type 2.7 to 0.43 s at n = 500), recommended rows moved at most 20
+      percent; prose ratios rewritten in both papers. Still to check: the
+      CIT/CIF runtime ablation tables share `warmup_jit`; their ratios are
+      medians over many datasets fit in one process, so only the first cells per
+      kernel are exposed.
 
 ## Review round 3 (2026-09-17): Codex gpt-6-astra, Fable 5.1, Opus 5
 

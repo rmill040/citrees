@@ -112,8 +112,10 @@ Consensus items still open:
       decision); complete-case cohort limitation (Fable J22).
 - [ ] JSS defaults vs recommended vs announced (Opus B3, Fable): author decision
       before v1.0.
-- [ ] JSS self-containment and length (Fable J3/J4, Opus J1 earlier): cut the
-      duplicated Stage B section, include the numbers cited from the companion.
+- [x] JSS self-containment and length (2026-09-19) (Fable J3/J4, Opus J1): the
+      three threshold-test paragraphs that restated the companion's Appendix I
+      are one summary paragraph that keeps every number; Editorial Workbench
+      review of both papers applied (16 arXiv and 5 JSS edits).
 - [x] JSS recommended forest 21 s vs exhaustive 6.3 s (2026-09-18) (Fable J15):
       measured decomposition at the reference condition (EC2,
       `performance_decomposition.py`, `tab:performance-decomposition`): the

@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
 from sklearn.datasets import (
     fetch_california_housing,
     load_breast_cancer,
@@ -685,7 +685,13 @@ def fit_and_evaluate(
     has_confounders: bool = False,
     n_base_features: int | None = None,
 ) -> dict[str, float]:
-    """Fit a model, extract ranking, and compute all evaluation metrics."""
+    """Fit a model, extract ranking, and compute all evaluation metrics.
+
+    The timed fit is the second of two identical fits, so that compilation of
+    kernels the configuration and size select is excluded (see
+    ``cit_cif_runtime_ablation._fit_runtime_metrics``).
+    """
+    clone(model).fit(X, y)
     t0 = time.perf_counter()
     model.fit(X, y)
     elapsed = time.perf_counter() - t0

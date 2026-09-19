@@ -31,7 +31,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import (
     ExtraTreesClassifier,
     ExtraTreesRegressor,
@@ -481,7 +481,15 @@ def _fit_runtime_metrics(
     true_info: list[int] | None,
     model: BaseEstimator,
 ) -> dict[str, Any]:
-    """Fit one model and return runtime, ranking, and structure metrics."""
+    """Fit one model and return runtime, ranking, and structure metrics.
+
+    An identical untimed fit runs first: the shared warm-up compiles only the
+    adaptive forest path on 30 rows, so the first fit of a variant on a host
+    used to include the compilation of the kernels its configuration and size
+    select (first-seed times up to 45 times the other seeds in the 2026-09-13
+    wide-runtime run). Timed on 2026-09-19 and later as the second fit.
+    """
+    clone(model).fit(X, y)
     start = time.perf_counter()
     model.fit(X, y)
     elapsed = time.perf_counter() - start

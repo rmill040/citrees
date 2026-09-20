@@ -66,6 +66,49 @@ def null_size(
     return float(reject)
 
 
+def rejection_given_theta(
+    theta: float, alpha: float, c: float, s: int, B: int, strict: bool = True
+) -> tuple[float, bool]:
+    """P(reject | theta): the same rule when each permuted statistic exceeds the observed
+    one independently with probability theta (the binomial path behind the urn mixture).
+
+    Returns the rejection probability and whether every significance stop on a reachable
+    state reported a value strictly below alpha (the step the proof of monotonicity uses).
+    """
+    from scipy.stats import beta as _beta
+
+    B = max(B, ceil(1.0 / alpha))
+    pts = checkpoints(alpha, s, B)
+    dist = {0: 1.0}
+    m = 0
+    reject = 0.0
+    sig_stop_reports_below = True
+    for target in pts:
+        for _ in range(target - m):
+            new: dict[int, float] = {}
+            for k, pr in dist.items():
+                new[k + 1] = new.get(k + 1, 0.0) + pr * theta
+                new[k] = new.get(k, 0.0) + pr * (1.0 - theta)
+            dist = {k: v for k, v in new.items() if v > 0.0}
+            m += 1
+        remaining: dict[int, float] = {}
+        for k, pr in dist.items():
+            prob_sig = float(_beta.cdf(alpha, 1 + k, 1 + m - k))
+            reported = (k + 1) / (m + 1)
+            if prob_sig >= c and not (reported < alpha):
+                sig_stop_reports_below = False
+            stop = (prob_sig >= c) or ((1.0 - prob_sig) >= c) or (m == B)
+            if stop:
+                if (reported < alpha) if strict else (reported <= alpha):
+                    reject += pr
+            else:
+                remaining[k] = pr
+        dist = remaining
+        if not dist:
+            break
+    return reject, sig_stop_reports_below
+
+
 if __name__ == "__main__":
     s = 32
     print("alpha  c     B      size")

@@ -37,3 +37,21 @@ def test_code_beta_cdf_matches_reference_on_every_stop_decision() -> None:
             code = _beta_cdf(0.05, 1.0 + k, 1.0 + m - k)
             ref = float(beta.cdf(0.05, 1 + k, 1 + m - k))
             assert ((code >= 0.95) or (1 - code >= 0.95)) == ((ref >= 0.95) or (1 - ref >= 0.95))
+
+
+@pytest.mark.paper
+def test_rejection_probability_is_nonincreasing_in_theta():
+    """Monotonicity step of the size proposition: g(theta) nonincreasing and every
+    significance stop reports a value strictly below alpha at the shipped settings."""
+    import numpy as np
+
+    from paper.theory.adaptive_stopping_size import rejection_given_theta
+
+    for alpha, B in ((0.05, 999), (0.05, 79), (0.05 / 20, 400)):
+        thetas = np.linspace(0.001, 0.3, 120)
+        values = []
+        for theta in thetas:
+            g, sig_below = rejection_given_theta(theta, alpha, 0.95, 32, B)
+            assert sig_below
+            values.append(g)
+        assert all(b <= a + 1e-12 for a, b in zip(values, values[1:], strict=False))

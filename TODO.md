@@ -33,6 +33,61 @@ kernel-fix, and cleanup record).
 
 ## Compute in flight (2026-09-13 evening)
 
+## Review round 5 (2026-09-19): Codex gpt-6-astra, Fable 5.1, Opus 5
+
+Reviews in `scratch/reviews/2026-09-19/`. Votes: arXiv RED / YELLOW / YELLOW
+(was RED / RED / RED); JSS RED / YELLOW / YELLOW (was RED / YELLOW / YELLOW).
+Convergent findings and their status:
+
+- [x] Framing (all three): abstract, contributions, and conclusion now state the
+      measured trade (level with random forests, behind boosting on the
+      complete-case panel, smaller low-cardinality preference in place of CART
+      bias, RF out-of-bag permutation importance as the cheap alternative,
+      max-type ranks 5th and 4th, synthetic recovery in the lower half).
+- [x] Power claim (Opus 25, Codex 4, Fable 24): pooled paired analysis, loss of
+      0.006 with 95 percent interval -0.009 to -0.004 over cells; stated in
+      abstract, results, and conclusion in place of "no detectable difference".
+- [x] Proposition monotonicity (Fable 8, Opus 20): argument written; the fixed
+      theta recursion in `paper/theory/adaptive_stopping_size.py` confirms g is
+      nonincreasing and every significance stop reports below alpha at the
+      shipped settings and the adjusted levels.
+- [x] Numeric consistency: Stage B real deltas, weak-signal shares, support
+      shares (13 of 16 designs at 90 to 100 percent), by-k positions, LODO drop,
+      max-type run composition (1,880 less 88 exclusions), "bounded" wording in
+      appendix G, appendix J timing defects, PI permutes a held-out split, 15
+      clf / 16 reg selectors, 999-permutation budget for 0.0488.
+- [x] Stage B study budget (Fable 1, Codex 5): the study runs at the `auto`
+      budget, so adaptive stopping acts there; stated in the design paragraph,
+      the fixed-budget caption, and the JSS.
+- [x] 988 vs 667 s (Fable 3, Opus 8): unbounded depth in the arXiv scaling run
+      against depth 3 in the JSS head-to-head; caption corrected.
+- [x] JSS: abstract quotes Stage-B-only sizes and the screen-disabled control;
+      behavior section leads with the scanning-on run; exhaustive row labelled
+      Stage A only; no-adjustment column marked as not a valid test; tie-free
+      condition restored in 2.4 and limitations; `scale_resamples_with_tests`
+      documented; cross-run caveat in the body; 23.4 in the finding sentence;
+      secondary contrasts labelled descriptive; largest calibration rate placed
+      against the attainable 0.049.
+- [ ] Stage B scaling table vs fixed-budget arm disagree by up to 55 percent on
+      identical cells (Fable 2, Opus 7): one-pass rerun of all three arms at
+      five seeds with the second-fit protocol launched 2026-09-19
+      (r5-scaling3-seed0..4); replace `tab:stageB-scaling` and
+      `tab:stageB-fixed-budget` from it.
+- [ ] Runtime ablation tables (CIT, CIF, wide, autobudget, njobs1, knob,
+      threshold search) re-measured with the second-fit protocol: 37 boxes
+      launched 2026-09-19 (r5-\*); rebuild `tab:cit-runtime-hyperparams`,
+      `tab:cif-runtime-hyperparams`, and the benchmark-size sentences when in.
+- [ ] Author decisions: JSS shipped defaults (auto/exact/bonferroni) versus the
+      recommended and the announced max-type default (Opus J6, Fable B2); the
+      forest's default parallel split is slower than serial at the reference
+      condition (Fable B1: 18.9 vs 13.7 s) and needs a library decision; add RF
+      ranked by out-of-bag permutation importance as a benchmark comparator
+      (Fable 4, Opus 1); JSS calibration cell at 0.0550 (Opus J1) needs the
+      selector identified from the calibration outputs; Stage B real table uses
+      plain accuracy (Fable 25, Opus 28); add an unstandardized max-type arm or
+      mark the standardization sentence as rationale (Opus 23); abstract length
+      (Fable 31).
+
 ## Review round 4 (2026-09-17 evening): Codex gpt-6-astra, Fable 5.1, Opus 5
 
 Reviews in `scratch/reviews/2026-09-17/`. Votes: arXiv RED / RED / RED (was RED

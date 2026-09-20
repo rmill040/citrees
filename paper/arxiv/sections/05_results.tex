@@ -287,14 +287,14 @@ benchmark remains the primary performance comparison.
     \toprule
     \tablehead{CIT change} & Runtime ratio & \shortstack{Largest top-10\\F1 change} \\
     \midrule
-    Disable adaptive stopping (minimum budget) & 0.87--0.98$\times$ & 0 \\
-    Auto budget, adaptive stopping & 1.15--1.54$\times$ & $\le 0.016$ \\
-    Auto budget, no early stopping & 3.5--7.9$\times$ & $\le 0.016$ \\
-    Disable threshold scanning & 2.7--32$\times$ & $\le 0.034$ \\
-    Disable feature scanning & 0.57--2.6$\times$ & $\le 0.058$ \\
-    Exact threshold search & 0.90--1.06$\times$ & $\le 0.005$ \\
-    Disable feature muting & 0.98--0.99$\times$ & $\le 0.001$ \\
-    Disable Bonferroni correction & 0.48--1.7$\times$ & $\le 0.063$ \\
+    Disable adaptive stopping (minimum budget) & 0.88--0.99$\times$ & 0 \\
+    Auto budget, adaptive stopping & 1.18--1.56$\times$ & $\le 0.016$ \\
+    Auto budget, no early stopping & 3.8--8.2$\times$ & $\le 0.016$ \\
+    Disable threshold scanning & 2.7--34$\times$ & $\le 0.033$ \\
+    Disable feature scanning & 0.81--3.0$\times$ & $\le 0.058$ \\
+    Exact threshold search & 0.91--1.10$\times$ & $\le 0.004$ \\
+    Disable feature muting & 0.97--0.98$\times$ & 0 \\
+    Disable Bonferroni correction & 0.52--1.8$\times$ & $\le 0.063$ \\
     \bottomrule
   \end{tabular}
   \caption{CIT runtime ablations. Runtime ratios are medians over datasets of the
@@ -302,7 +302,8 @@ benchmark remains the primary performance comparison.
   four task groups; five seeds per dataset on 23 datasets (15 classification and 8
   regression; 9 real and 14 synthetic). The F1 column is the largest change in mean top-10 F1 on
   the synthetic datasets across the task groups. Fits ran on one 32-core cloud
-  instance with the full thread pool per tree. The two auto-budget rows use the
+  instance with the full thread pool per tree; every time is the second of two
+  identical fits, so compilation is excluded (rerun of 2026-09-19). The two auto-budget rows use the
   \texttt{auto} permutation budget, which exceeds the $\lceil 1/\alpha \rceil$
   floor, so the stopping rule can act.}
   \label{tab:cit-runtime-hyperparams}
@@ -313,20 +314,20 @@ benchmark remains the primary performance comparison.
 knob conflated. Under the benchmark's \texttt{minimum} budget the adaptive
 stopping rule is inert by construction (\cref{prop:adaptive-size}): the budget
 equals the floor below which the rule cannot stop, so switching it off changes
-fitting time by 0.87--0.98$\times$ and leaves every tree, and therefore every
+fitting time by 0.88--0.99$\times$ and leaves every tree, and therefore every
 recovery score, unchanged. Where the rule can act it earns its place: at the
-\texttt{auto} budget the adaptive tree costs 1.15--1.54$\times$ the default
-while the same budget without stopping costs 3.5--7.9$\times$, so within each
-task group adaptive stopping brings the larger budget's tree to 0.15--0.41 of
+\texttt{auto} budget the adaptive tree costs 1.18--1.56$\times$ the default
+while the same budget without stopping costs 3.8--8.2$\times$, so within each
+task group adaptive stopping brings the larger budget's tree to 0.14--0.37 of
 its exhaustive time at a recovery change of at most 0.016. The control that matters for a single tree is the
 threshold scan: testing candidate thresholds in order of promise and stopping at
-the first rejection makes fits 2.7--32$\times$ faster than testing every
+the first rejection makes fits 2.7--34$\times$ faster than testing every
 candidate, with the largest ratio on the real regression datasets where
 predictors admit the full 256 candidates. Feature scanning matters less for a
-single tree (0.57--2.6$\times$, faster in one group because the prescan itself
+single tree (0.81--3.0$\times$, faster in one group because the prescan itself
 has a cost), and exact threshold search and feature muting are within a few
 percent of the default. Removing the Bonferroni correction changes the
-statistical rule: trees grow from a mean depth of 4.8 and 6.9 to 9.9 and 14.4
+statistical rule: trees grow from a mean depth of 6.5 and 7.2 to 10.7 and 13.4
 levels and top-10 recovery moves by up to 0.063, so it is not a runtime
 control. The pattern holds on the 14 benchmark-size datasets (up to 20,000
 observations and 5,000 features; five seeds each): switching adaptive stopping
@@ -377,7 +378,7 @@ receives a Bonferroni-scaled budget.
 stopping is inert at the benchmark budget (0.96--0.99$\times$, no score
 change), and a single-worker forest confirms that the result does not depend on
 the trees hiding behind the thread pool: with one worker and the full thread
-pool per tree, switching the rule off changes fitting time by 0.79--1.10$\times$
+pool per tree, switching the rule off changes fitting time by 0.95--1.01$\times$
 across 21 datasets. Where the rule can act, at the \texttt{auto} budget, the
 adaptive forest costs 1.27--1.83$\times$ the default and the same budget without
 stopping 5.2--14$\times$, so the adaptive forest runs in 0.11--0.26 of its

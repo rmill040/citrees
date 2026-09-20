@@ -6,7 +6,7 @@ Tracked tables:
   manuscript.
 - `paper_presentation_practical_controls_summary.csv`: adaptive-stopping
   runtime and score-delta summary reported in the manuscript.
-- `cit_runtime_ablation_decoupled_summary.csv`: CIT runtime ablation with
+- `paper_cit_runtime_ablation_summary.csv`: CIT runtime ablation with
   decoupled knobs on the fixed kernels (image sha256:8dba68ec at d6c0696,
   c6a.8xlarge, 805 fits, 23 datasets). Source of the rewritten CIT rows.
 - `paper_h2h_rerun_summary.csv`: head-to-head forest fitting time (median
@@ -18,6 +18,10 @@ Tracked tables:
   max-type ranking extension of the benchmark (arXiv Table
   `tab:maxt-benchmark-rankings`). Built by
   `paper/analysis/build_maxt_extension_tables.py`.
+- `cit_cif_runtime_ablation_raw.csv`, `paper_cit_runtime_ablation_summary.csv`: CIT
+  runtime ablation (seven variants, 23 datasets, five seeds) from the 2026-09-19
+  rerun that times the second of two identical fits; built by
+  `build_cit_runtime_ablation_summary_tables.py`. arXiv `tab:cit-runtime-hyperparams`.
 - `cit_autobudget_ablation_summary.csv`: CIT at the `auto` permutation budget with
   and without adaptive stopping (fixed kernels, c6a.8xlarge, 345 fits).
 - `paper_threshold_test_calibration_5seeds.csv`: Stage B null false-split rates

@@ -4,26 +4,30 @@
 The question was whether the split-selection correction of conditional
 inference improves a feature ranking used for downstream prediction, and what
 it costs. On 31 real datasets CIF is the best conditional inference ranker in the
-study, ahead of cforest, ctree, and single CIT, and it ranks 3rd of 17 and 2nd
-of 18 overall, level with random forest and boosting rankings, behind
-recursive feature elimination and, on the 13-dataset complete-case panel, behind
-boosting. The correction removes the cardinality preference of
-CART-style splitting, which the NHANES application of the companion article
-shows on real clinical predictors; on these benchmarks it shows in which
-features are ranked, with top-$k$ scores level with the best ensembles, and
-out-of-bag permutation importance removes the same preference from an ordinary
-random forest.
+study, ahead of cforest, ctree, and single CIT, and it ranks tied 3rd of 17 and
+2nd of 18 overall, level with random forest rankings, behind recursive feature
+elimination and, on the 13-dataset complete-case panel, behind boosting; the
+max-type configuration recommended below ranks 5th and 4th. The correction
+replaces the high-cardinality preference of CART-style splitting, which the
+NHANES application of the companion article shows on real clinical predictors,
+with a smaller low-cardinality one under the per-threshold rule; on these
+benchmarks it shows in which features are ranked, with top-$k$ scores level
+with random forests and below impurity importance in the recovery of weak
+signals, and out-of-bag permutation importance removes the high-cardinality
+preference from an ordinary random forest at a fraction of the cost.
 
 The answer to the second part is precise. The cost of conditional inference is
 the per-threshold Stage~B test, whose permutation budget must grow as
 $K^2/\alpha$ in the number of candidate thresholds for the rule to reject at
 all; the feature test and its adaptive stopping are not the cost at the
 benchmark's budget. The max-type threshold test resolves the same level at
-$999K$ evaluations, is calibrated closer to the nominal level, shows no
-detectable difference in power at matched size, and moves the downstream
-rankings by at most two positions, so it is the configuration a user who wants
-conditional inference at a practical cost should choose. For a practitioner
-choosing a ranking method for downstream prediction, conditional inference
-delivers a ranking that matches the best ensembles and is free of their
-cardinality bias; its cost is the threshold test, and the max-type
-construction is where that budget is recovered.
+$999K$ evaluations, is calibrated closer to the nominal level, loses about
+0.006 in power at matched size, and moves the downstream rankings by at most
+two positions, so it is the configuration a user who wants conditional
+inference at a practical cost should choose; its fixed-node guarantee covers
+the fixed-budget test, and its calibration under adaptive stopping rests on the
+simulations. For a practitioner choosing a ranking method for downstream
+prediction, conditional inference delivers a ranking level with the best
+ensembles whose split decisions carry a calibrated error rate; its cost is the
+threshold test, and the max-type construction is where that budget is
+recovered.

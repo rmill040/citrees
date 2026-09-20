@@ -34,32 +34,35 @@ predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
 Because several methods have tunable configurations, the benchmark chooses one
 configuration per method and task. As a sensitivity check, leave-one-dataset-out
-(LODO) analyses repeat the configuration choice after holding out each dataset, using
-the complete-case panels defined in \cref{sec:experiments-analysis-plan}.
+(LODO) analyses repeat the configuration choice after holding out each dataset, on
+the complete-case and all-method panels defined in \cref{sec:experiments-analysis-plan}.
 
 \paragraph{Contributions.}
 The paper answers one question: does the split-selection correction of
 conditional inference improve a feature ranking used for downstream
 prediction, and what does it cost? Three results answer it. First, a benchmark
-of conditional-inference rankings against 15 selectors on 31 real datasets with
+of conditional-inference rankings against 15 classification and 16 regression selectors on 31 real datasets with
 five seeds, scored by fixed downstream learners on top-$k$ prefixes and
 complemented by synthetic recovery designs
 (\cref{sec:experiments-real,sec:boundary}): CIF is the strongest conditional-inference
 ranker in the study, ahead of cforest, ctree, and single CIT with intervals
 that exclude zero in classification, and it ranks 3rd of 17 and 2nd of 18
-overall, level with random forests and boosting and behind recursive feature
-elimination. Second, an account of where the cost of conditional inference
+overall, level with random forests, behind recursive feature elimination and,
+on the complete-case panel, behind boosting. Second, an account of where the cost of conditional inference
 lives: the per-threshold Stage~B test needs a permutation budget of order
 $K^2/\alpha$ in the number of candidate thresholds, since at a fixed budget it
 cannot reject beyond about 50 candidates (\cref{sec:results-stageB}), and the
 runtime ablations trace the fitting time to that search rather than to the
 feature test; a max-type Stage~B test resolves the level at $999K$ evaluations,
-is calibrated closer to the nominal level with no detectable loss of power at
-matched size, and removes the reverse cardinality penalty of the per-threshold
-rule (\cref{cor:stageB-maxt,sec:results-stageB}). Third, the exact null size of
-the adaptive stopping rule under a continuous-mixing idealization
-(\cref{prop:adaptive-size}), which shows the rule is inert at the minimum
-budget the benchmark uses and acts only at larger budgets. Under that minimum
+is calibrated closer to the nominal level with a loss of about 0.006 in power
+at matched size, and removes the reverse cardinality penalty of the per-threshold
+rule (\cref{cor:stageB-maxt,sec:results-stageB}). Third, the null size of
+the adaptive stopping rule, exact under a continuous-mixing idealization
+(\cref{prop:adaptive-size}); the rule is inert at the minimum budget the
+benchmark uses because that budget equals the stopping floor, and it acts only
+at the larger budgets the shipped default selects. The theory certifies the
+validity of the fixed-node tests; the cardinality behavior of the rankings is
+established only empirically. Under that minimum
 budget every rejecting candidate returns the smallest attainable $p$-value, so
 the benchmarked procedure selects features and thresholds by the order of the
 observed statistics behind a Bonferroni gate (\cref{sec:method}); the

@@ -3,29 +3,32 @@ association test before searching for a threshold, which removes the preference
 of CART-style splitting for features with many cutpoints. Whether that
 correction improves a feature ranking used for downstream prediction, and what
 it costs, has not been measured on one footing. We benchmark conditional
-inference trees (CIT) and forests (CIF) against 15 selectors, among them
-partykit's ctree and cforest, random forests, gradient boosting, and permutation
-importance and wrapper methods, on 31 real datasets with 5 seeds, scoring every
-ranking by the held-out accuracy of fixed learners fitted to its top-$k$
-features, with synthetic designs where the informative features are known. CIF is the
-strongest conditional inference ranker in the study and matches the strongest
-CART ensembles: it ranks 3rd of 17 in classification and 2nd of 18 in
+inference trees (CIT) and forests (CIF) against 15 classification and 16
+regression selectors, among them partykit's ctree and cforest, random forests,
+gradient boosting, and permutation importance and wrapper methods, on 31 real
+datasets with 5 seeds, scoring every ranking by the held-out accuracy of fixed
+learners fitted to its top-$k$ features, with synthetic designs where the
+informative features are known. CIF is the strongest conditional inference
+ranker in the study: it ranks tied 3rd of 17 in classification and 2nd of 18 in
 regression, ahead of cforest and ctree by margins whose bootstrap intervals
-exclude zero in classification, level with random forests and boosting (mean
-ranks 5.8 to 6.1 among 17), behind recursive feature elimination, and tied 6th of 17 on the 13-dataset
-complete-case panel with every method, learner, and $k$ present, where boosting pulls ahead; single
+exclude zero in classification, level with random forests, behind recursive
+feature elimination, and behind boosting on the 13-dataset complete-case panel;
+on synthetic recovery it sits in the lower half of the methods, and single
 conditional inference trees rank near the bottom. The cost has one source. The
-per-threshold Bonferroni test needs a permutation budget of order $K^2/\alpha$
-in the number of candidate thresholds $K$, because at a fixed budget it cannot
-reject at all beyond about 50 candidates, and the ablations place the fitting
-time there: turning the threshold scan off slows forests by 7.9 to 29 times
-while the feature test's adaptive stopping is inert at the minimum budget. A
-max-type threshold test resolves the same level at $999K$ evaluations, is
-calibrated closer to the nominal level (Stage B size 0.023 to 0.044 against
-0.000 to 0.027 at nominal 0.05), shows no detectable difference in power at
-matched size, and moves the downstream rankings by at most two positions; the
-adaptive stopping rule has null size 0.0488 at its default budget, exact under the continuous idealization the proposition states. For a
-practitioner the result is a ranking that matches the best CART ensembles and
-is free of their cardinality bias, at a fitting cost about two orders of
-magnitude above a random forest's at the companion article's reference condition, and the threshold test, not the feature
-test, is where that cost is recovered.
+per-threshold Bonferroni threshold test needs a permutation budget of order
+$K^2/\alpha$ in the number of candidate thresholds $K$, because at a fixed
+budget it cannot reject at all beyond about 50 candidates, and the ablations
+place the fitting time there rather than in the feature test, whose adaptive
+stopping is inert at the minimum budget. A max-type threshold test resolves the
+same level at $999K$ evaluations, is calibrated closer to the nominal level
+(Stage B size 0.023 to 0.044 against 0.000 to 0.027 at nominal 0.05), loses
+0.006 in power on average at matched size (95 percent interval $-0.009$ to
+$-0.004$ over cells, within 0.03 in every cell), and moves the forest from tied
+3rd to 5th and from 2nd to 4th; the adaptive stopping rule has null size 0.0488
+at a 999-permutation budget, exact under a continuous idealization. For a
+practitioner the result is a ranking level with random forests that replaces
+CART's high-cardinality preference with a smaller low-cardinality one, at a
+fitting cost about two orders of magnitude above a random forest's; an ordinary
+random forest ranked by out-of-bag permutation importance removes the same
+preference at a fraction of that cost, and the threshold test, not the feature
+test, is where the cost of conditional inference is recovered.

@@ -8,6 +8,7 @@ rank ordering returned by Boruta, and the correlation threshold used by
 conditional permutation importance. All benchmark results were regenerated from
 the corrected runs. The corrections move several comparators, most visibly
 RF-RFE, which now leads the classification comparison, while CIF's position in the bunched group behind RF-RFE is unchanged.
+Two timing-protocol defects were also corrected in this version: the equal-work timing rows of the companion article had given citrees 999 permutations against an adjusted level of 0.001, so those trees never split, and every timing protocol charged the just-in-time compilation of size- and configuration-selected kernels to the first fit on a host; all timing tables now time the second of two identical fits, which lowered the adaptive-stopping overhead of \cref{tab:scaling-curves} from up to 1.56 to at most 1.28.
 The corrected R bridge was checked by refitting one published \texttt{ctree}
 example inside R and through the harness with identical splits; the seed
 schedule, rank directions, and the CPI threshold are pinned by tests in the

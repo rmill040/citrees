@@ -6,9 +6,6 @@ Tracked tables:
   manuscript.
 - `paper_presentation_practical_controls_summary.csv`: adaptive-stopping
   runtime and score-delta summary reported in the manuscript.
-- `paper_cit_runtime_ablation_summary.csv`: CIT runtime ablation with
-  decoupled knobs on the fixed kernels (image sha256:8dba68ec at d6c0696,
-  c6a.8xlarge, 805 fits, 23 datasets). Source of the rewritten CIT rows.
 - `paper_h2h_rerun_summary.csv`: head-to-head forest fitting time (median
   seconds per cell and configuration: citrees recommended, no adjustment,
   max-type, partykit cforest on 1 and 32 cores, sklearn RF) on the fixed
@@ -18,7 +15,8 @@ Tracked tables:
   max-type ranking extension of the benchmark (arXiv Table
   `tab:maxt-benchmark-rankings`). Built by
   `paper/analysis/build_maxt_extension_tables.py`.
-- `cit_cif_runtime_ablation_raw.csv`, `paper_cit_runtime_ablation_summary.csv`: CIT
+- `paper_cit_runtime_ablation_summary.csv` (raw rows regenerable from the
+  review-5 shards): CIT
   runtime ablation (seven variants, 23 datasets, five seeds) from the 2026-09-19
   rerun that times the second of two identical fits; built by
   `build_cit_runtime_ablation_summary_tables.py`. arXiv `tab:cit-runtime-hyperparams`.

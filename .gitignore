@@ -20,6 +20,7 @@ paper/results/tables/*
 !paper/results/tables/paper_stageb_scaling_3arm.csv
 !paper/results/tables/paper_behavior_scanning_control.csv
 !paper/results/tables/paper_performance_equal_work.csv
+!paper/results/tables/paper_stageb_scaling_3arm_5seeds.csv
 !paper/results/tables/paper_h2h_secondfit_citrees.csv
 !paper/results/tables/paper_performance_decomposition.csv
 !paper/results/tables/paper_noadjust_calibration.csv

@@ -1040,12 +1040,12 @@ Regression & 100 & 16 & 0.0272 & 0.0269 & 0.0315 & 0.0328 \\
 
 The remaining three parts are reported in full in Appendix~I of the companion
 article \citep{Milletich+Downes+Goley+Hirst:2026} and summarized here. With
-exhaustive stopping one tree at the 256-bin setting takes 5.7, 14, and 60
+exhaustive stopping one tree at the 256-bin setting takes 3.5, 14, and 59
 seconds at 1,000, 4,000, and 16,000 observations under the Bonferroni test in
-classification against 0.5, 1.6, and 6.5 seconds under the max-type test, a
+classification against 0.3, 1.4, and 6.3 seconds under the max-type test, a
 ratio that grows with the bin setting as the $K^2/\alpha$ against $BK$
 accounting predicts; a per-candidate test held at a fixed 999 permutations
-costs $BK$ as well but never splits beyond 16 bins, because $\alpha/K$ falls
+costs $BK$ as well but never splits at 64 or 256 bins, where $\alpha/K$ falls
 below $1/1000$. On six benchmark datasets the max-type test matched or
 exceeded the Bonferroni test's held-out score in 8 of 12 dataset and
 stopping-mode cells, was 0.9 to 4.8 times faster, and agreed with it on

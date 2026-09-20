@@ -8,68 +8,81 @@ results for the Stage~B construction comparison summarized in
 \begin{table}[H]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}lrrrrrr@{}}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrrrrrrr@{}}
     \toprule
-     & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{2}{c}{Exhaustive} \\
-    \tablehead{Task} & $n$ & Bins & Bonferroni & Max-type & Bonferroni & Max-type \\
+     & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{3}{c}{Exhaustive} & \\
+    \tablehead{Task} & $n$ & Bins & Bonferroni & Max-type & Bonferroni & Fixed & Max-type & Fixed depth \\
     \midrule
-    Classification & 1,000 & 16 & 0.28 & 0.28 & 0.29 & 0.29 \\
-     & 1,000 & 64 & 0.31 & 0.31 & 0.42 & 0.33 \\
-     & 1,000 & 256 & 0.88 & 0.35 & 5.69 & 0.52 \\
-     & 4,000 & 16 & 0.36 & 0.35 & 0.43 & 0.45 \\
-     & 4,000 & 64 & 0.56 & 0.40 & 1.22 & 0.73 \\
-     & 4,000 & 256 & 2.09 & 0.54 & 14.4 & 1.61 \\
-     & 16,000 & 16 & 0.70 & 0.60 & 1.00 & 1.17 \\
-     & 16,000 & 64 & 1.42 & 0.80 & 4.33 & 2.29 \\
-     & 16,000 & 256 & 9.29 & 1.46 & 60.2 & 6.57 \\
-    Regression & 1,000 & 16 & 0.29 & 0.30 & 0.30 & 0.31 \\
-     & 1,000 & 64 & 0.33 & 0.32 & 0.45 & 0.38 \\
-     & 1,000 & 256 & 0.47 & 0.36 & 1.06 & 0.53 \\
-     & 4,000 & 16 & 0.40 & 0.39 & 0.45 & 0.50 \\
-     & 4,000 & 64 & 0.63 & 0.47 & 1.34 & 0.77 \\
-     & 4,000 & 256 & 1.51 & 0.60 & 8.34 & 1.62 \\
-     & 16,000 & 16 & 0.80 & 0.71 & 1.06 & 1.27 \\
-     & 16,000 & 64 & 1.38 & 0.95 & 3.54 & 2.38 \\
-     & 16,000 & 256 & 7.66 & 1.63 & 51.3 & 6.39 \\
+    Classification & 1,000 & 16 & 0.04 & 0.04 & 0.05 & 0.04 & 0.06 & 5 \\
+     & 1,000 & 64 & 0.07 & 0.04 & 0.20 & 0.06 & 0.11 & 0 \\
+     & 1,000 & 256 & 0.45 & 0.09 & 3.52 & 0.24 & 0.28 & 0 \\
+     & 4,000 & 16 & 0.12 & 0.11 & 0.19 & 0.14 & 0.22 & 6 \\
+     & 4,000 & 64 & 0.31 & 0.15 & 0.99 & 0.22 & 0.47 & 0 \\
+     & 4,000 & 256 & 1.83 & 0.31 & 14.2 & 0.86 & 1.35 & 0 \\
+     & 16,000 & 16 & 0.47 & 0.37 & 0.75 & 0.55 & 0.93 & 8 \\
+     & 16,000 & 64 & 1.11 & 0.59 & 3.57 & 0.89 & 2.10 & 0 \\
+     & 16,000 & 256 & 9.36 & 1.22 & 59.0 & 3.46 & 6.28 & 0 \\
+    Regression & 1,000 & 16 & 0.06 & 0.05 & 0.07 & 0.06 & 0.08 & 6 \\
+     & 1,000 & 64 & 0.10 & 0.07 & 0.22 & 0.06 & 0.15 & 0 \\
+     & 1,000 & 256 & 0.22 & 0.10 & 0.84 & 0.22 & 0.30 & 0 \\
+     & 4,000 & 16 & 0.17 & 0.15 & 0.22 & 0.18 & 0.26 & 8 \\
+     & 4,000 & 64 & 0.37 & 0.22 & 1.10 & 0.20 & 0.54 & 0 \\
+     & 4,000 & 256 & 1.29 & 0.40 & 8.77 & 0.79 & 1.39 & 0 \\
+     & 16,000 & 16 & 0.59 & 0.50 & 0.82 & 0.65 & 1.03 & 10 \\
+     & 16,000 & 64 & 1.12 & 0.71 & 3.31 & 0.84 & 2.15 & 0 \\
+     & 16,000 & 256 & 7.51 & 1.39 & 54.5 & 3.26 & 6.27 & 0 \\
     \bottomrule
   \end{tabular}
   \caption{Fitting time in seconds of one tree on ten Gaussian predictors with a
   planted linear signal, by Stage~B construction and stopping mode, on a 32-core
-  cloud instance: the median over five seeds of the median of three fits. Bins is the histogram threshold setting as in \cref{tab:stageB-calibration}. No fit reached the 1,200-second cap.}
+  cloud instance: all three arms timed in one run of five seeds, each entry the
+  median over seeds of the median of three fits, every fit the second of two
+  identical fits so that compilation is excluded. Bins is the histogram
+  threshold setting as in \cref{tab:stageB-calibration}. Fixed is the
+  per-threshold rule held at 999 permutations per candidate; it exists only under
+  exhaustive stopping because the sequential path raises any budget to the floor
+  $\lceil K/\alpha \rceil$, and Fixed depth is its fitted depth (0 where it never
+  splits, because $\alpha/K < 1/1000$). No fit reached the 1,200-second cap.}
   \label{tab:stageB-scaling}
 \end{table}
 
 \begin{table}[H]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}lrrrrrrrr@{}}
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{@{}lrrrr@{}}
     \toprule
-     & & & \multicolumn{3}{c}{Seconds per fit (exhaustive)} & \multicolumn{3}{c}{Fixed-budget rule} \\
-    \tablehead{Task} & $n$ & Bins & Bonferroni & Fixed & Max-type & Depth & Size & Power \\
+    \tablehead{Task} & $n$ & Bins & Size & Power \\
     \midrule
-    Classification & 1,000 & 16 & 0.31 & 0.26 & 0.29 & 5 & 0.008 & 0.150 \\
-     & 1,000 & 64 & 0.67 & 0.29 & 0.35 & 0 & 0.000 & 0.000 \\
-     & 1,000 & 256 & 3.67 & 0.46 & 0.51 & 0 & 0.000 & 0.000 \\
-     & 4,000 & 16 & 0.41 & 0.38 & 0.45 & 6 & 0.010 & 0.425 \\
-     & 4,000 & 64 & 1.85 & 0.45 & 0.68 & 0 & 0.000 & 0.000 \\
-     & 4,000 & 256 & 16.03 & 1.07 & 1.62 & 0 & 0.000 & 0.000 \\
-     & 16,000 & 16 & 0.97 & 0.76 & 1.14 & 8 & 0.008 & 0.900 \\
-     & 16,000 & 64 & 3.89 & 1.15 & 2.22 & 0 & 0.000 & 0.000 \\
-     & 16,000 & 256 & 89.85 & 3.69 & 6.47 & 0 & 0.000 & 0.000 \\
-    Regression & 1,000 & 16 & 0.30 & 0.30 & 0.29 & 7 & 0.012 & 0.130 \\
-     & 1,000 & 64 & 0.67 & 0.28 & 0.38 & 0 & 0.000 & 0.000 \\
-     & 1,000 & 256 & 0.97 & 0.43 & 0.52 & 0 & 0.000 & 0.000 \\
-     & 4,000 & 16 & 0.45 & 0.41 & 0.52 & 8 & 0.020 & 0.445 \\
-     & 4,000 & 64 & 1.72 & 0.42 & 0.76 & 0 & 0.000 & 0.000 \\
-     & 4,000 & 256 & 9.09 & 1.01 & 1.59 & 0 & 0.000 & 0.000 \\
-     & 16,000 & 16 & 1.08 & 0.92 & 1.29 & 10 & 0.022 & 0.845 \\
-     & 16,000 & 64 & 4.04 & 1.12 & 2.41 & 0 & 0.000 & 0.000 \\
-     & 16,000 & 256 & 60.02 & 3.55 & 6.60 & 0 & 0.000 & 0.000 \\
+    Classification & 100 & 16 & 0.008 & 0.150 \\
+     & 100 & 64 & 0.000 & 0.000 \\
+     & 100 & 256 & 0.000 & 0.000 \\
+     & 200 & 16 & 0.010 & 0.425 \\
+     & 200 & 64 & 0.000 & 0.000 \\
+     & 200 & 256 & 0.000 & 0.000 \\
+     & 500 & 16 & 0.008 & 0.900 \\
+     & 500 & 64 & 0.000 & 0.000 \\
+     & 500 & 256 & 0.000 & 0.000 \\
+    Regression & 100 & 16 & 0.012 & 0.130 \\
+     & 100 & 64 & 0.000 & 0.000 \\
+     & 100 & 256 & 0.000 & 0.000 \\
+     & 200 & 16 & 0.020 & 0.445 \\
+     & 200 & 64 & 0.000 & 0.000 \\
+     & 200 & 256 & 0.000 & 0.000 \\
+     & 500 & 16 & 0.022 & 0.845 \\
+     & 500 & 64 & 0.000 & 0.000 \\
+     & 500 & 256 & 0.000 & 0.000 \\
     \bottomrule
   \end{tabular}
-  \caption{Fixed-budget control arm. Seconds per fit of one tree with exhaustive stopping on the scaling grid of \cref{tab:stageB-scaling}, timed in one run (seed 0, median of three fits) for the per-threshold Bonferroni rule under the \texttt{auto} budget (Bonferroni), the same rule at a fixed 999 permutations per candidate (Fixed), and the max-type rule. Depth is the fitted depth of the fixed-budget tree. Size and Power are the Stage-B-only false-split rate at nominal 0.05 and the split rate at the middle planted effect ($\delta = 0.10$ classification, $0.4$ regression) of the fixed-budget rule with exhaustive stopping, measured at $n \in \{100, 200, 500\}$ (rows in that order) with 500 null and 200 alternative replicates; at 64 and 256 bins the rule never splits because $\alpha/K < 1/1000$. With adaptive stopping the sequential path raises any budget to the floor $\lceil K/\alpha \rceil$, so the fixed budget exists only under exhaustive stopping.}
+  \caption{Fixed-budget control arm: the per-threshold rule held at 999
+  permutations per candidate with exhaustive stopping, in the Stage-B-only
+  design. Size is the false-split rate at nominal 0.05 and Power the split rate
+  at the middle planted effect ($\delta = 0.10$ classification, $0.4$
+  regression), with 500 null and 200 alternative replicates per cell; at 64 and
+  256 bins the rule never splits because $\alpha/K < 1/1000$. Its fitting time
+  and depth on the scaling grid are the Fixed columns of
+  \cref{tab:stageB-scaling}.}
   \label{tab:stageB-fixed-budget}
 \end{table}
 

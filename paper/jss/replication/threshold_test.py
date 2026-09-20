@@ -165,6 +165,9 @@ def _wilson(rate: float, n: int) -> tuple[float, float]:
 
 def _fit_worker(args: tuple[Any, ...]) -> dict[str, Any]:
     task, test, stopping, k, seed, extra, X, y = args
+    # The child is a fresh process, so an identical untimed fit first excludes
+    # compilation (or cache loading) of the kernels this cell selects.
+    _estimator(task, test, stopping, k, seed, **extra).fit(X, y)
     start = time.perf_counter()
     tree = _estimator(task, test, stopping, k, seed, **extra).fit(X, y)
     return {

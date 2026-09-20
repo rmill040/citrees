@@ -331,11 +331,11 @@ statistical rule: trees grow from a mean depth of 6.5 and 7.2 to 10.7 and 13.4
 levels and top-10 recovery moves by up to 0.063, so it is not a runtime
 control. The pattern holds on the 14 benchmark-size datasets (up to 20,000
 observations and 5,000 features; five seeds each): switching adaptive stopping
-off changes single-tree time by 0.58--1.04$\times$ (medians 0.95 in
-classification and 0.80 in regression), threshold scanning saves a median
-18$\times$ in classification and up to 44$\times$ on spam, and dropping the
-Bonferroni correction runs in 0.01--1.08$\times$ of the default. The largest
-single-tree time is gisette at 31 minutes, where each of 5,000 features
+off changes single-tree time by 0.80--1.01$\times$ (medians 0.97 in
+classification and 0.88 in regression), threshold scanning saves a median
+17$\times$ in classification and up to 45$\times$ on spam, and dropping the
+Bonferroni correction runs in 0.01--1.26$\times$ of the default. The largest
+single-tree time is gisette at 29 minutes, where each of 5,000 features
 receives a Bonferroni-scaled budget.
 
 \begin{table}[H]
@@ -351,7 +351,7 @@ receives a Bonferroni-scaled budget.
     Auto budget, no early stopping & 5.8--15$\times$ & -- & $\le 0.025$ \\
     Disable threshold scanning & 7.9--30$\times$ & $\le 0.003$ & $\le 0.010$ \\
     Disable feature scanning & 1.0--5.2$\times$ & $\le 0.003$ & $\le 0.008$ \\
-    Exact threshold search & 1.3--20$\times$ & $\le 0.009$ & $\le 0.018$ \\
+    Exact threshold search & 1.3--19$\times$ & $\le 0.009$ & $\le 0.018$ \\
     Histogram with 32 bins & 0.05--0.14$\times$ & $\le 0.008$ & $\le 0.013$ \\
     Disable feature muting & 0.91--1.00$\times$ & $\le 0.001$ & $\le 0.003$ \\
     Disable bootstrap sampling & 0.94--1.69$\times$ & $\le 0.012$ & $\le 0.011$ \\
@@ -386,8 +386,8 @@ stopping 5.8--15$\times$, so the adaptive forest runs in 0.11--0.25 of its
 exhaustive time within each task group, with synthetic recovery changes of at
 most 0.030. The threshold scan is again the dominant control, at
 7.9--30$\times$ by group medians, and the number of candidates is the next:
-exact threshold search is 1.3--20$\times$ slower than the 256-bin histogram
-and a 32-bin histogram is 7--20$\times$ faster, with downstream score changes
+exact threshold search is 1.3--19$\times$ slower than the 256-bin histogram
+and a 32-bin histogram is 7--21$\times$ faster, with downstream score changes
 of at most 0.009 and recovery changes of at most 0.018. Feature
 scanning costs 1.0--5.2$\times$, with its largest effect on the real regression
 datasets. The max-type Stage~B test fits in 0.14--0.61 of the default time with
@@ -396,7 +396,7 @@ calibration, power, and ranking effect. Removing the Bonferroni correction is
 the fastest change for both CIT and CIF, but it changes the statistical rule and
 yields deeper trees with more selected features; the selected setting keeps
 Bonferroni correction. On the 14 benchmark-size datasets the forest's
-adaptive-stopping ratio is 0.77--1.09$\times$ (medians 1.00 and 0.99).
+adaptive-stopping ratio is 0.99--1.34$\times$ (medians 1.00 and 1.03).
 \FloatBarrier
 
 \subsection{Stage~B construction comparison}

@@ -68,15 +68,16 @@ Convergent findings and their status:
       documented; cross-run caveat in the body; 23.4 in the finding sentence;
       secondary contrasts labelled descriptive; largest calibration rate placed
       against the attainable 0.049.
-- [ ] Stage B scaling table vs fixed-budget arm disagree by up to 55 percent on
-      identical cells (Fable 2, Opus 7): one-pass rerun of all three arms at
-      five seeds with the second-fit protocol launched 2026-09-19
-      (r5-scaling3-seed0..4); replace `tab:stageB-scaling` and
-      `tab:stageB-fixed-budget` from it.
-- [ ] Runtime ablation tables (CIT, CIF, wide, autobudget, njobs1, knob,
-      threshold search) re-measured with the second-fit protocol: 37 boxes
-      launched 2026-09-19 (r5-\*); rebuild `tab:cit-runtime-hyperparams`,
-      `tab:cif-runtime-hyperparams`, and the benchmark-size sentences when in.
+- [x] Stage B scaling table vs fixed-budget arm (Fable 2, Opus 7): one-pass
+      rerun of all three arms at five seeds (2026-09-19); both tables and the
+      prose in both papers regenerated from it.
+- [x] Runtime ablation tables re-measured with the second-fit protocol
+      (2026-09-19/20, 48 boxes): CIT (7 variants), CIF knob, threshold search,
+      auto-budget, single worker, and benchmark-size datasets; every range in
+      `tab:cit-runtime-hyperparams`, `tab:cif-runtime-hyperparams`, and the
+      benchmark-size sentences follows the new data (most moved by hundredths;
+      the tree adaptive-off range narrowed from 0.58-1.04 to 0.80-1.01). Outputs
+      archived under `reference/v3/ablations/review5/`.
 - [ ] Author decisions: JSS shipped defaults (auto/exact/bonferroni) versus the
       recommended and the announced max-type default (Opus J6, Fable B2); the
       forest's default parallel split is slower than serial at the reference

@@ -33,6 +33,50 @@ kernel-fix, and cleanup record).
 
 ## Compute in flight (2026-09-13 evening)
 
+## Review round 6 (2026-09-21): Codex gpt-6-astra, Fable 5.1, Opus 5
+
+Reviews in `scratch/reviews/2026-09-21/`. Votes: arXiv RED / RED / YELLOW; JSS
+RED / YELLOW / YELLOW. Fixed the same day:
+
+- [x] "within 0.03 in every cell" was false (per-cell range -0.054 to +0.034);
+      replaced everywhere by the pooled loss with its interval and the range.
+- [x] "OOB permutation removes the high-cardinality preference" contradicted by
+      the weak-signal table (RF permutation 500-level share 0.47 vs 0.38 for
+      impurity): both papers now say it holds on the NHANES cohort and not on
+      the weak-signal designs.
+- [x] "smaller low-cardinality one" unsupported (larger in regression, and CIF
+      keeps a 0.22-0.26 high-cardinality share): "of comparable size".
+- [x] "behind boosting on the complete-case panel" hid XGBoost ahead of CIF on
+      the main panel; abstract, contributions, conclusion corrected; regression
+      ordering marked descriptive in the abstract.
+- [x] Real-data Stage B count 9 of 12 (8 higher, 1 equal); deltas from the
+      table; residential slowdown by stopping mode; ratio rounding (2.8-13,
+      1.4-2.0, 340 permutations at 17 candidates); appendix G rounding; appendix
+      E 0.88-0.99 and unrounded 68/110; max-type saving reconciled across the
+      mixed runtime panel, the head-to-head grid, and the JSS cells.
+- [x] Proposition: futility clause, batch-boundary rule, discrete-response
+      remark, and the verified range stated; appendix D stopping paragraph made
+      consistent with the remark; max-type threshold placement stated as the
+      mechanism for the rank move; "valid at a fixed node for a predictor fixed
+      without the response".
+- [x] JSS: power wording matches the arXiv; root-level calibration budget (999)
+      stated; "throughout this article" removed; letter 15 midpoints / 300
+      permutations; balanced accuracy in the design paragraph; "not significant
+      after Holm"; upper-tailed trend tests reconciled with the companion's
+      reverse preference; NHANES screen-disabled claim narrowed to the permuted
+      weight with the moving real predictors named; permutation control scoped
+      to the cohort; n_jobs guidance in the computation section; decomposition
+      run cross-referenced; NHANES table carries the two control columns.
+- [ ] Interleaved citrees and partykit re-timing in one pass (Opus B4, Codex
+      12): launched 2026-09-21 (r6-h2h-both-\*, 14 boxes); replace JSS Tables 6
+      and 7 and the arXiv head-to-head sentence when in.
+- [ ] Open, author decisions: tie-order share of top-k on wide datasets (Fable
+      17); sample-weighted importance arm for NHANES (Opus B3); JSS shipped
+      defaults; abstract length; lemma restatement with A0 hypotheses (Opus 14,
+      Fable 28); per-threshold Bonferroni corollary (Opus 13); pooled-power
+      interval unit (Codex 4, Opus 9: cells share draws; interval is
+      between-cell); tutorial output (Fable J14).
+
 ## Review round 5 (2026-09-19): Codex gpt-6-astra, Fable 5.1, Opus 5
 
 Reviews in `scratch/reviews/2026-09-19/`. Votes: arXiv RED / YELLOW / YELLOW

@@ -6,30 +6,32 @@ inference improves a feature ranking used for downstream prediction, and what
 it costs. On 31 real datasets CIF is the best conditional inference ranker in the
 study, ahead of cforest, ctree, and single CIT, and it ranks tied 3rd of 17 and
 2nd of 18 overall, level with random forest rankings, behind recursive feature
-elimination and, on the 13-dataset complete-case panel, behind boosting; the
-max-type configuration recommended below ranks 5th and 4th. The correction
-replaces the high-cardinality preference of CART-style splitting, which the
-NHANES application of the companion article shows on real clinical predictors,
-with a smaller low-cardinality one under the per-threshold rule; on these
-benchmarks it shows in which features are ranked, with top-$k$ scores level
-with random forests and below impurity importance in the recovery of weak
-signals, and out-of-bag permutation importance removes the high-cardinality
-preference from an ordinary random forest without improving its ranking (8th
-of 18 and 6th of 19, below CIF) and at a permutation cost that grows with the
-number of features.
+elimination and XGBoost and, on the 13-dataset complete-case panel, behind all
+three boosting families; with the out-of-bag permutation forest added it is 4th
+of 18 in classification, and the max-type configuration recommended below ranks
+5th and 4th. The correction trades the high-cardinality preference of
+CART-style splitting, which the NHANES application of the companion article
+shows on real clinical predictors, for a low-cardinality preference of
+comparable size under the per-threshold rule; on these benchmarks it shows in
+which features are ranked, with top-$k$ scores level with random forests and
+below impurity importance in the recovery of weak signals. Out-of-bag
+permutation importance removes the high-cardinality preference from an
+ordinary random forest on the clinical cohort but not on the weak-signal
+designs, ranks below CIF on the benchmark (8th of 18 and 6th of 19), and its
+permutation step grows with the number of features.
 
-The answer to the second part is precise. The cost of conditional inference is
-the per-threshold Stage~B test, whose permutation budget must grow as
-$K^2/\alpha$ in the number of candidate thresholds for the rule to reject at
-all; the feature test and its adaptive stopping are not the cost at the
-benchmark's budget. The max-type threshold test resolves the same level at
-$999K$ evaluations, is calibrated closer to the nominal level, loses about
-0.006 in power at matched size, and moves the downstream rankings by at most
-two positions, so it is the configuration a user who wants conditional
-inference at a practical cost should choose; its fixed-node guarantee covers
-the fixed-budget test, and its calibration under adaptive stopping rests on the
-simulations. For a practitioner choosing a ranking method for downstream
-prediction, conditional inference delivers a ranking level with the best
-ensembles whose split decisions carry a calibrated error rate; its cost is the
-threshold test, and the max-type construction is where that budget is
+The answer to the second part is precise. The cost of the per-threshold
+Stage~B rule is its permutation budget, which must grow as $K^2/\alpha$ in the
+number of candidate thresholds for the rule to reject at all; the feature test
+and its adaptive stopping are not the cost at the benchmark's budget. The
+max-type threshold test resolves the same level at $999K$ evaluations, is
+calibrated closer to the nominal level, loses about 0.006 in power at matched
+size, and moves the downstream rankings by at most two positions, so it is the
+configuration a user who wants conditional inference at a practical cost should
+choose; its fixed-node guarantee covers a fixed budget and a predictor fixed
+without the response, and its calibration under adaptive stopping in fitted
+trees rests on the simulations. For a practitioner choosing a ranking method for
+downstream prediction, conditional inference delivers a ranking level with
+random forests whose split decisions pass a calibrated fixed-node test; its cost
+is the threshold test, and the max-type construction is where that budget is
 recovered.

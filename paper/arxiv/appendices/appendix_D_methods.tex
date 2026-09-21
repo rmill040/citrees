@@ -29,8 +29,9 @@ Stage~A and split scores from adaptive trees are tree-construction scores.
 \paragraph{Stage~A.}
 At each node, the tree-growing rule removes features that are constant on
 the node before any feature subsampling. Stage~A computes $+1$ Monte
-Carlo $p$-values. It may scan features in preliminary-score order and, under
-early stopping, may stop once a feature meets the nodewise threshold. With
+Carlo $p$-values. With feature scanning it tests features in order of their
+observed statistic and stops at the first that meets the nodewise threshold,
+independently of the stopping rule inside each permutation test. With
 feature muting, features with non-rejecting Stage~A values can be removed from
 descendant feature pools in the same subtree. These shortcuts reduce
 computation. When they are active, the returned $q_t^{\mathrm{feat}}$ is the
@@ -61,11 +62,13 @@ resampling budget is set from the Bonferroni-adjusted nodewise threshold and is
 large enough for rejection to be possible on the discrete $+1$ scale.
 
 \paragraph{Sequential stopping.}
-The benchmarked CIT and CIF configurations use adaptive sequential stopping. The
-stopping rule monitors permutation exceedances and stops once a Beta posterior
-places the configured confidence on one side of the nodewise threshold. Because
-the returned values are stopping-time estimates, the paper treats the fixed-node
-guarantee and runtime ablations separately.
+The benchmarked CIT and CIF configurations request adaptive sequential stopping,
+whose rule monitors permutation exceedances and stops once a Beta posterior
+places the configured confidence on one side of the nodewise threshold. Under
+the \texttt{minimum} budget the first check coincides with exhaustion, so the
+rule never acts and every benchmark $p$-value is a fixed-budget $+1$ permutation
+$p$-value (\cref{prop:adaptive-size} and the remark following it); the rule acts
+only at the larger budgets of the runtime ablations.
 
 \subsection{Forests, resampling, and honesty}
 

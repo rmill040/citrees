@@ -65,11 +65,17 @@ def pairwise(raw: pd.DataFrame, task: str, metric: str) -> pd.DataFrame:
     """Dataset-mean differences, new ranker minus comparator, on shared datasets."""
     standard = raw[raw["k"].isin(STANDARD_K)].copy()
     filtered, _ = select_best_task_configs(standard, metric)
-    per_dataset = dataset_scores(filtered, metric)
-    new = per_dataset[per_dataset["method_base"] == NEW].set_index("dataset")["mean_score"]
+    cells = dataset_scores(filtered, metric)
+    # One score per dataset and method: the mean over downstream learners and standard k.
+    per_dataset = cells.groupby(["method_base", "dataset"], as_index=False)[
+        "dataset_mean_score"
+    ].mean()
+    new = per_dataset[per_dataset["method_base"] == NEW].set_index("dataset")["dataset_mean_score"]
     rows = []
     for other in COMPARATORS:
-        comp = per_dataset[per_dataset["method_base"] == other].set_index("dataset")["mean_score"]
+        comp = per_dataset[per_dataset["method_base"] == other].set_index("dataset")[
+            "dataset_mean_score"
+        ]
         shared = new.index.intersection(comp.index)
         delta = (new.loc[shared] - comp.loc[shared]).astype(float)
         rows.append(

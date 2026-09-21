@@ -17,7 +17,6 @@ paper/results/tables/*
 !paper/results/tables/paper_weak_signal_cardinality.csv
 !paper/results/tables/paper_support_size.csv
 !paper/results/tables/paper_stageb_fixed_budget.csv
-!paper/results/tables/paper_stageb_scaling_3arm.csv
 !paper/results/tables/paper_behavior_scanning_control.csv
 !paper/results/tables/paper_performance_equal_work.csv
 !paper/results/tables/paper_h2h_onepass_summary.csv
@@ -25,12 +24,10 @@ paper/results/tables/*
 !paper/results/tables/paper_rf_oobperm_pairwise.csv
 !paper/results/tables/paper_threshold_test_real_5seeds_balanced.csv
 !paper/results/tables/paper_stageb_scaling_3arm_5seeds.csv
-!paper/results/tables/paper_h2h_secondfit_citrees.csv
 !paper/results/tables/paper_performance_decomposition.csv
 !paper/results/tables/paper_noadjust_calibration.csv
 !paper/results/tables/paper_noadjust_stageb.csv
 !paper/results/tables/paper_nhanes_controls.csv
-!paper/results/tables/paper_cif_all_recovery.csv
 !paper/results/tables/paper_stageb_power_replicates.csv
 !paper/results/tables/paper_cif_permutation_importance_check.csv
 !paper/results/tables/paper_benchmark_lodo_aggregate_allmethod.csv
@@ -56,8 +53,6 @@ paper/results/tables/*
 !paper/results/tables/paper_maxt_extension_method_aggregate.csv
 !paper/results/tables/paper_maxt_extension_pairwise.csv
 !paper/results/tables/paper_maxt_extension_swap_aggregate.csv
-paper/arxiv/figures/boundary_story.png
-paper/arxiv/figures/fixed_panel_story.png
 
 # User-specific experiment config (may contain AWS account info)
 

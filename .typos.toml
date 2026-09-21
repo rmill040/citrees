@@ -8,16 +8,6 @@ extend-exclude = [
 ]
 
 [default.extend-words]
-aas = "aas"
-ba = "ba"
-CLL = "CLL"
-# HGNC gene symbols used in the TCGA-BRCA application section
-STARD = "STARD"
-STARD3 = "STARD3"
-# NHANES sleep questionnaire file prefix
-SLQ = "SLQ"
 lgbm = "lgbm"
-Plas = "Plas"
-tage = "tage"
 thm = "thm"
 VanderPlas = "VanderPlas"

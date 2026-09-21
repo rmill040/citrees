@@ -43,10 +43,12 @@ Issues = "https://github.com/rmill040/citrees/issues"
 
 [project.optional-dependencies]
 dev = [
+    "matplotlib>=3.10.8",
     "mypy>=1.10",
     "pandas>=2.3.3",
     "pre-commit>=3.0",
     "pyarrow>=22.0.0",
+    "pycryptodome>=3.23.0",
     "pytest>=8.0",
     "pytest-cov>=4.0",
     "ruff>=0.4",
@@ -138,6 +140,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "paper: tests for paper pipeline (deselect with '-m \"not paper\"')",
     "tree: tests for tree estimators and tree internals",
+    "splitter: tests for the Stage B splitter kernels",
     "other: miscellaneous utility tests",
 ]
 

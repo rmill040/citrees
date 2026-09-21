@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from scipy.stats import spearmanr
+from sklearn.metrics import balanced_accuracy_score, r2_score
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 
@@ -524,7 +525,14 @@ def real_subset(
                             censored = True
                             break
                         seconds.append(result["seconds"])
-                        scores.append(result["tree"].score(X[test_idx], y[test_idx]))
+                        # Balanced accuracy in classification, as in every other table of
+                        # the two articles (plain accuracy before 2026-09-20); R^2 in regression.
+                        pred = result["tree"].predict(X[test_idx])
+                        scores.append(
+                            balanced_accuracy_score(y[test_idx], pred)
+                            if task == "classification"
+                            else r2_score(y[test_idx], pred)
+                        )
                         depths.append(result["depth"])
                         importances[test].append(result["importances"])
                     censored_any = censored_any or censored

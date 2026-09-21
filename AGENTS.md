@@ -27,7 +27,7 @@ citrees/
 ├── pyproject.toml          # uv/pip config, dependencies, tool settings
 ├── uv.lock                 # Locked dependencies
 ├── mkdocs.yml              # Documentation config
-├── .pre-commit-config.yaml # Pre-commit hooks (ruff, mypy)
+├── .pre-commit-config.yaml # Pre-commit hooks (ruff, mypy, typos, prettier, commit message)
 ├── citrees/                # Main package
 │   ├── __init__.py         # Exports main classes
 │   ├── _types.py           # Centralized StrEnums and type aliases
@@ -36,13 +36,14 @@ citrees/
 │   ├── _selector.py        # Feature selection methods (mc, mi, rdc, pc, dc)
 │   ├── _splitter.py        # Split criteria (gini, entropy, mse, mae)
 │   ├── _sequential.py      # Sequential stopping logic
+│   ├── _permutation.py     # Permutation-count diagnostics
 │   ├── _threshold_method.py # Threshold calculation methods
 │   ├── _registry.py        # Registry pattern for selectors/splitters
 │   ├── _utils.py           # Utility functions
 │   └── py.typed            # PEP 561 marker
 ├── tests/                  # Pytest test suite
 │   ├── conftest.py         # Pytest fixtures and JIT control
-│   ├── data/               # Test datasets (parquet format)
+│   ├── data/               # Test fixtures (glass parquet, RDC kernel identity JSON)
 │   ├── unit/               # Unit tests for citrees/* modules
 │   ├── integration/        # Integration tests for citrees/* (tree, forest, parameters, edge_cases)
 │   └── paper/              # Tests for paper/benchmark/* (use -m "not paper" to skip)
@@ -225,22 +226,15 @@ class NResamples(StrEnum):
 
 ### Dependencies
 
-```toml
-python = ">=3.12"
-numpy = ">=1.26"
-numba = ">=0.60"
-scikit-learn = ">=1.5"
-scipy = ">=1.14"
-dcor = ">=0.6"           # Distance correlation
-pydantic = ">=2.0"       # Validation
-```
+The floors live in `pyproject.toml` (`[project.dependencies]`): Python 3.12,
+numpy, numba, scikit-learn, scipy, dcor (distance correlation), pydantic v2, and
+joblib. Read them there rather than from this file.
 
 ### Code Style
 
-- **Formatter**: black (line-length=120)
-- **Linter**: ruff
-- **Type checker**: mypy (strict)
-- **Import sorter**: isort
+- **Formatter**: `ruff format` (line-length 100, double quotes)
+- **Linter**: `ruff check` (E, F, I, UP, B, SIM; imports sorted by the I rules)
+- **Type checker**: mypy on `citrees/` with `--ignore-missing-imports`
 
 ### Testing
 

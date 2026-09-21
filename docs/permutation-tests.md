@@ -360,7 +360,8 @@ permutation budget:
 - for `NResamples.*` string presets, the formulas above are applied to
   $\alpha/n_{\text{tests}}$, and
 - for an integer `n_resamples`, citrees multiplies the user-specified value by
-  $n_{\text{tests}}$.
+  $n_{\text{tests}}$ when `scale_resamples_with_tests=True` (the default) and
+  uses it per test when `False`.
 
 This ensures the p-value grid has enough resolution to compare against the
 Bonferroni-adjusted threshold $\alpha/n_{\text{tests}}$ (see

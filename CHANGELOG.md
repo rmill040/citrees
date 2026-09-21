@@ -20,6 +20,11 @@ with version numbers matching `pyproject.toml` and GitHub release tags.
 - `threshold_test="maxt"`: opt-in joint max-type Stage B test on the minimum
   standardized child impurity over all candidate thresholds (default remains
   `"bonferroni"`).
+- `scale_resamples_with_tests` (default `True`): set to `False` to hold an
+  explicit integer permutation budget fixed per test instead of multiplying it
+  by the number of Bonferroni tests.
+- Constructing an estimator with `early_stopping_*="simple"` warns that the rule
+  is exploratory (false-split rate up to 0.087 in the calibration study).
 
 ### Changed
 

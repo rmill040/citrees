@@ -30,8 +30,9 @@ Options for `n_resamples_*`:
   `p < alpha` with +1 correction)
 - `NResamples.MAXIMUM`: `ceil(1 / (4 * alpha^2))` resamples (high precision;
   matches `100` when `alpha=0.05`)
-- `int`: Exact number of resamples (must be `>= ceil(1/alpha)`; with Bonferroni,
-  this scales by the number of tests)
+- `int`: Exact number of resamples (must be `>= ceil(1/alpha)`; with Bonferroni
+  and `scale_resamples_with_tests=True`, the default, this is multiplied by the
+  number of tests; with `False` it is used as is per test)
 - `None`: Disable permutation tests (selection/splitting uses raw association or
   impurity metric)
 
@@ -40,7 +41,8 @@ Bonferroni behavior:
 - When `adjust_alpha_* = True` and multiple hypotheses are tested at a node,
   citrees internally uses the Bonferroni threshold `alpha / n_tests` and adjusts
   the effective resample budget accordingly (string presets apply to
-  `alpha / n_tests`; integers are multiplied by `n_tests`).
+  `alpha / n_tests`; integers are multiplied by `n_tests` unless
+  `scale_resamples_with_tests=False`).
 
 ### Alpha Adjustment
 

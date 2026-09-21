@@ -159,7 +159,9 @@ function BuildTree(X, y, depth):
     # Apply Bonferroni correction
     α_adjusted ← α_select / p
 
-    # Select feature with strongest association
+    # Select feature with strongest association (with feature_scanning=True,
+    # the default, features are tested in order of their statistic and the
+    # first rejection is taken)
     j* ← argmin(p_j)
 
     if p_j* ≥ α_adjusted:
@@ -172,7 +174,9 @@ function BuildTree(X, y, depth):
 
     c* ← argmin(p_c)
 
-    if p_c* ≥ α_split:
+    # Per-threshold Bonferroni over the K candidates (adjust_alpha_splitter=True,
+    # the default); threshold_test='maxt' tests the candidates jointly instead
+    if p_c* ≥ α_split / K:
         return LeafNode(y)  # No threshold passes the split rule
 
     # Step 3: Recurse
@@ -204,19 +208,17 @@ function BuildTree(X, y, depth):
 The complete parameter reference with defaults and tuning guidance is
 [docs/parameters.md](docs/parameters.md). The settings most users touch:
 
-| Parameter                                            | Default                     | Description                                                           |
-| ---------------------------------------------------- | --------------------------- | --------------------------------------------------------------------- |
-| `selector`                                           | `'mc'` (clf) / `'pc'` (reg) | Stage A statistic: `mc`, `mi`, `rdc` (clf); `pc`, `dc`, `rdc` (reg)   |
-| `alpha_selector`, `alpha_splitter`                   | 0.05                        | Significance levels of the two stages                                 |
-| `adjust_alpha_selector`, `adjust_alpha_splitter`     | True                        | Bonferroni adjustment over features and over candidate thresholds     |
-| `n_resamples_selector`, `n_resamples_splitter`       | `'auto'`                    | Permutation budget: `'minimum'`, `'auto'`, `'maximum'`, or an int     |
-| `early_stopping_selector`, `early_stopping_splitter` | `'adaptive'`                | Beta-posterior stopping; inert when the budget equals the floor       |
-| `feature_scanning`, `threshold_scanning`             | True                        | Test candidates in order of promise, stop at the first rejection      |
-| `feature_muting`                                     | True                        | Drop features that failed the selector test from descendants          |
-| `threshold_method`, `max_thresholds`                 | `'exact'`, None             | Candidate thresholds; `'histogram'` with 256 is the benchmark setting |
-| `threshold_test`                                     | `'bonferroni'`              | Per-threshold Bonferroni or joint `'maxt'` Stage B test               |
-| `honesty`, `honesty_fraction`                        | False, 0.5                  | Sample splitting for leaf estimation                                  |
-| `n_estimators`, `max_features`, `n_jobs`             | 100, `'sqrt'`, None         | Forest size, feature sampling, and workers (forests)                  |
+| Parameter                                      | Default                     | Description                                                           |
+| ---------------------------------------------- | --------------------------- | --------------------------------------------------------------------- |
+| `selector`                                     | `'mc'` (clf) / `'pc'` (reg) | Stage A statistic: `mc`, `mi`, `rdc` (clf); `pc`, `dc`, `rdc` (reg)   |
+| `alpha_selector`, `alpha_splitter`             | 0.05                        | Significance levels of the two stages                                 |
+| `n_resamples_selector`, `n_resamples_splitter` | `'auto'`                    | Permutation budget: `'minimum'`, `'auto'`, `'maximum'`, or an int     |
+| `threshold_method`, `max_thresholds`           | `'exact'`, None             | Candidate thresholds; `'histogram'` with 256 is the benchmark setting |
+| `threshold_test`                               | `'bonferroni'`              | Per-threshold Bonferroni or joint `'maxt'` Stage B test               |
+
+Every other argument (early stopping, scanning, muting, honesty, forest
+controls, `scale_resamples_with_tests`) is documented in
+[docs/parameters.md](docs/parameters.md).
 
 ## Use Cases
 

@@ -10,7 +10,8 @@ Subdirectories:
 
 - `figures/`: ignored local figure outputs
 - `tables/`: tracked CSVs used to verify manuscript claims
-- `cache/`: cached intermediates and theory/calibration outputs
+- `cache/`: the two rankings parquets mirrored from the S3 campaign by
+  `paper/analysis/aggregate_pipeline_artifacts.py` (ignored, regenerable)
 - `rdc-projection-sensitivity/`: tracked rankings, downstream metrics,
   summaries, and execution receipt for the RDC projection-count analysis
 

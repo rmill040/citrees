@@ -172,8 +172,10 @@ time in a fresh child process per fit, six configurations (recommended
 cforest on 1 and 32 cores, scikit-learn RF), 30 cells (20 synthetic, 10 real),
 two repeats (one on letter, isolet, gisette), run inside the pinned image on
 c6a.8xlarge hosts. It writes one JSON record per fit; the 2026-09-13 run is
-summarized in `paper/results/tables/paper_h2h_rerun_summary.csv`. It is a
-scratch-style protocol, not part of the receipted replication suite.
+summarized in `paper/results/tables/paper_h2h_rerun_summary.csv` and the
+2026-09-21 one-pass run of both libraries, the source of Tables 6 and 7, in
+`paper/results/tables/paper_h2h_onepass_summary.csv`. It is a scratch-style
+protocol, not part of the receipted replication suite.
 
 ## Manuscript
 

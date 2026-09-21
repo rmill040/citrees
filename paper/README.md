@@ -40,19 +40,12 @@ on:
 
 ## Result Support
 
-The tracked summaries support two results reported by the manuscript:
-
-- CIF ranks 4th among 17 classification methods on the main real-data
-  classification comparison.
-- CIF ranks 3rd among 18 regression methods on the main real-data regression
-  comparison.
-- Disabling adaptive stopping makes CIF fits 4.0--8.4 times slower across the
-  evaluated task groups, with absolute downstream score changes no larger than
-  0.006.
-
-These results are backed by the CSVs listed in `paper/results/tables/README.md`.
-The benchmark ranks are descriptive because configuration selection and
-reporting use the same benchmark surface.
+Every number in the two manuscripts traces to a table under
+`paper/results/tables/` (index and provenance in
+`paper/results/tables/README.md`) or to the reference release in S3 named there.
+The manuscripts, not this file, state the results. The benchmark ranks are
+descriptive because configuration selection and reporting use the same benchmark
+surface.
 
 ## Code Layout
 

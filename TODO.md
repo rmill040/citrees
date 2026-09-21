@@ -6,12 +6,12 @@ kernel-fix, and cleanup record).
 
 ## Standing decisions
 
-- EVERY EC2 launch targets the loaner droplets
-  (`scratch/droplets/launch_on_droplets.py`, at most six instances per droplet).
-  Never launch untargeted on-demand or spot instances, for anything. The JSS
-  cloud tool is spot-only and is not used until it targets droplets. Reboot risk
-  is covered by per-dataset checkpoints. As of 2026-09-13 only droplet
-  29.81.7.184 accepts launches; the other three return
+- EVERY EC2 launch targets the loaner droplets (`launch_on_droplets.py`,
+  archived under `reference/v3/provenance/launch-scripts/droplets/` in S3, at
+  most six instances per droplet). Never launch untargeted on-demand or spot
+  instances, for anything. The JSS cloud tool is spot-only and is not used until
+  it targets droplets. Reboot risk is covered by per-dataset checkpoints. As of
+  2026-09-13 only droplet 29.81.7.184 accepts launches; the other three return
   InsufficientInstanceCapacity (raised with the EC2 team).
 - Timing numbers in either paper come only from c6a.8xlarge runs inside the
   pinned container built from d6c0696 or later (the adaptive splitter kernel
@@ -35,8 +35,8 @@ kernel-fix, and cleanup record).
 
 ## Review round 6 (2026-09-21): Codex gpt-6-astra, Fable 5.1, Opus 5
 
-Reviews in `scratch/reviews/2026-09-21/`. Votes: arXiv RED / RED / YELLOW; JSS
-RED / YELLOW / YELLOW. Fixed the same day:
+Reviews in `reference/v3/provenance/reviews/2026-09-21/` (S3). Votes: arXiv RED
+/ RED / YELLOW; JSS RED / YELLOW / YELLOW. Fixed the same day:
 
 - [x] "within 0.03 in every cell" was false (per-cell range -0.054 to +0.034);
       replaced everywhere by the pooled loss with its interval and the range.
@@ -80,9 +80,9 @@ RED / YELLOW / YELLOW. Fixed the same day:
 
 ## Review round 5 (2026-09-19): Codex gpt-6-astra, Fable 5.1, Opus 5
 
-Reviews in `scratch/reviews/2026-09-19/`. Votes: arXiv RED / YELLOW / YELLOW
-(was RED / RED / RED); JSS RED / YELLOW / YELLOW (was RED / YELLOW / YELLOW).
-Convergent findings and their status:
+Reviews in `reference/v3/provenance/reviews/2026-09-19/` (S3). Votes: arXiv RED
+/ YELLOW / YELLOW (was RED / RED / RED); JSS RED / YELLOW / YELLOW (was RED /
+YELLOW / YELLOW). Convergent findings and their status:
 
 - [x] Framing (all three): abstract, contributions, and conclusion now state the
       measured trade (level with random forests, behind boosting on the
@@ -139,10 +139,10 @@ Convergent findings and their status:
 
 ## Review round 4 (2026-09-17 evening): Codex gpt-6-astra, Fable 5.1, Opus 5
 
-Reviews in `scratch/reviews/2026-09-17/`. Votes: arXiv RED / RED / RED (was RED
-/ RED / YELLOW); JSS RED / YELLOW / YELLOW (was RED / YELLOW / RED). The six
-control experiments were accepted as answering their questions; the remaining
-consensus is framing plus a few new items.
+Reviews in `reference/v3/provenance/reviews/2026-09-17/` (S3). Votes: arXiv RED
+/ RED / RED (was RED / RED / YELLOW); JSS RED / YELLOW / YELLOW (was RED /
+YELLOW / RED). The six control experiments were accepted as answering their
+questions; the remaining consensus is framing plus a few new items.
 
 Fixed at once (text): stale single-tree timing sentence; NHANES rank ordering
 ("between", not "below") and run identification; tie explanation restated as
@@ -257,10 +257,10 @@ Consensus items still open:
 
 ## Review round 3 (2026-09-17): Codex gpt-6-astra, Fable 5.1, Opus 5
 
-Reviews in `scratch/reviews/2026-09-15/`. Votes: arXiv RED / RED / YELLOW (was
-RED / RED / RED); JSS RED / YELLOW / RED (was RED / YELLOW / YELLOW). Items
-raised by two or more models first; each verified against the sources where it
-is checkable. Author decisions are marked.
+Reviews in `reference/v3/provenance/reviews/2026-09-15/` (S3). Votes: arXiv RED
+/ RED / YELLOW (was RED / RED / RED); JSS RED / YELLOW / RED (was RED / YELLOW /
+YELLOW). Items raised by two or more models first; each verified against the
+sources where it is checkable. Author decisions are marked.
 
 Verified contradictions and errors (text fixes):
 
@@ -396,8 +396,9 @@ Experiments the reviewers ask for (author decision; each is cheap on EC2):
 
 ## Review round 2 (2026-09-14): Codex gpt-6-astra, Fable 5.1, Opus 5
 
-Reviews in `scratch/reviews/2026-09-14/`. Votes: arXiv RED / RED / RED; JSS RED
-/ YELLOW / YELLOW. Consensus blockers, verified where checkable:
+Reviews in `reference/v3/provenance/reviews/2026-09-14/` (S3). Votes: arXiv RED
+/ RED / RED; JSS RED / YELLOW / YELLOW. Consensus blockers, verified where
+checkable:
 
 - [x] Stage B calibration isolated (2026-09-15): the Stage-B-only study (one
       predictor fixed without Y, Stage A gate off, 3 seeds, n x bins grid,
@@ -472,8 +473,8 @@ performance real and scaling tables from the head-to-head rerun; discussion
 validity scope; speed-mechanism wording; same-procedure wording; 1,200 s cap;
 locked cells as host-fault exclusions.
 
-Remaining Codex review items (`scratch/reviews/codex_review.md`, verified before
-editing):
+Remaining Codex review items (`reference/v3/provenance/reviews/codex_review.md`
+(S3), verified before editing):
 
 - [x] JSS `tab:performance-real` prose states where the max-type test is slower
       (residential, about 10 percent) and equal (imports-85).
@@ -510,10 +511,12 @@ runtime runs.
       (2.2 GB) hold the pre-rename benchmark layout; delete after confirming the
       canonical campaign reproduces every cell they hold. `citrees-837116549485`
       (23 GB personal: deliveries, backups, snapshots) is the author's;
-      `scratch/personal-data-backup` holds the manifests of its `backups/`
-      uploads and stays until that bucket is decided.
-- [ ] `scratch/maxt-campaign` (59 MB attempt files): delete after the alias
-      fold-back migration.
+      `reference/v3/provenance/personal-data-backup/` (S3) holds the manifests
+      of its `backups/` uploads and stays until that bucket is decided.
+- [x] `scratch/maxt-campaign` archived to
+      `reference/v3/provenance/maxt-campaign/` and deleted 2026-09-21 (manifests
+      and receipts were already under `reference/v3/benchmark/manifests/`); the
+      alias fold-back migration.
 - [ ] `../data/rankings`, `metrics`, `data` (400 MB): the local mirror of the
       canonical benchmark; record the campaign it mirrors in
       `paper/results/README.md`.

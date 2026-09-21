@@ -92,7 +92,8 @@ Stage 1: Feature Selection (pipeline/stage1.py)
 Stage 2: Downstream Evaluation (pipeline/stage2.py)
   Input:  rankings from Stage 1
   Output: s3://bucket/metrics/{task}/{dataset}/{method_id}_seed{s}.parquet
-  Evaluates at k = [5, 10, 25, 50, 100, all]
+  Evaluates at k = [5, 10, 25, 50, 100] (plus 150, 200, 300, 500, 750, 1000 on
+  datasets with more than 100 features)
   Downstream models: LR, SVM, KNN (clf) / Ridge, SVR, KNN (reg)
 ```
 
@@ -115,19 +116,19 @@ that one prefix.
     ┌──────┴──────┐
     ▼             ▼
 ┌────────┐  ┌────────┐
-│Worker 1│  │Worker N│   EC2 instances (m5.8xlarge)
-│ Docker │  │ Docker │   Pull config → execute → save to S3
+│Worker 1│  │Worker N│   EC2 instances (c6a.8xlarge in the campaigns)
+│ Docker │  │ Docker │   Pull cell → execute → save to S3 (type from the runtime contract)
 └────────┘  └────────┘
 ```
 
-**API server** (`paper/benchmark/api/server.py`): FastAPI app with 4 lazy queues
-(rankings/classification, rankings/regression, metrics/classification,
-metrics/regression). On startup it builds the full experiment grid and subtracts
-completed S3 artifacts. Workers call `POST /next` to get work.
+**API server** (`paper/benchmark/api/server.py`): manifest-bound FastAPI app. It
+downloads one content-addressed manifest, validates its cells, and builds
+per-task queues for exactly one stage, checking existing S3 artifacts before
+excluding a cell. Workers call `POST /next` to get work.
 
-**Worker** (`paper/benchmark/api/worker.py`): Pull-based loop. Gets config from
-API, runs `_run_selection()` or `_run_evaluation()`, saves result to S3, repeats
-until queues drain or idle timeout.
+**Worker** (`paper/benchmark/api/worker.py`): Pull-based loop (`run_worker`):
+take the next assignment from the API, execute it, finalize the result to S3,
+repeat until the queues drain or the idle timeout fires.
 
 ## Adapters
 
@@ -186,7 +187,9 @@ citrees-exp infra upload-data     # Upload datasets
 
 # 2. Launch API server + workers on EC2
 citrees-exp infra launch-api
-citrees-exp infra launch-workers --count 5   # auto-discovers API private IP
+citrees-exp infra launch-workers --count 5 ...  # plus the manifest, contract,
+                                                # receipt, and prefix flags of the
+                                                # runbook below
 
 # 3. Monitor progress
 citrees-exp run                                      # poll queue status
@@ -258,6 +261,6 @@ so any upload from a box must set that header; `aws s3 sync` is denied.
 (RDC-selector CIT/CIF on isolet, gisette, and letter, including the seven
 censored `cif_maxt` cells of the extension campaign) that terminate the EC2
 c6a.8xlarge host after about two hours without a Python exception. AWS
-reproduced the failure on 2026-09-13 and is investigating the root cause. Until
-it is resolved these cells are never launched; the manuscripts report them as
+reproduced the failure on 2026-09-13 (host fault, cause not identified at the
+time of writing). These cells are never launched; the manuscripts report them as
 host-fault exclusions.

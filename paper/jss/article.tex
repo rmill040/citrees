@@ -883,13 +883,11 @@ The second study reverses this ordering on real data.
 Table~\ref{tab:performance-real} shows that the recommended \citrees
 configuration fits the forest faster than \pkg{partykit} on 32 cores on eight
 of the ten datasets, by 1.3 to 24 times, and faster than \pkg{partykit} on one
-core on every dataset, by 7.2 to 407 times, with the largest margins at the
+core on every dataset, by 7.3 to 413 times, with the largest margins at the
 largest sample sizes: 3.0 seconds
-against 72 and 1,220 seconds on letter, 17 against 172 and 3,018 seconds on
-isolet, and 19 against 143 and 2,434 seconds on gisette. \pkg{partykit} on 32
-cores is faster on gamma and madelon. The two libraries' columns come from
-runs on different days on the same machine class, so these ratios are
-approximate. The candidate-threshold column explains both patterns. \pkg{partykit} runs one Monte Carlo test per node with
+against 70 and 1,220 seconds on letter, 18 against 183 and 3,020 seconds on
+isolet, and 19 against 142 and 2,419 seconds on gisette. \pkg{partykit} on 32
+cores is faster on gamma and madelon. The candidate-threshold column explains both patterns. \pkg{partykit} runs one Monte Carlo test per node with
 a fixed budget of 999 permutations and then chooses the split by maximizing the
 statistic, so its cost at every node is the budget times the sample size,
 independent of the data. The recommended \citrees configuration sizes each
@@ -903,10 +901,10 @@ admit few candidates (15 midpoints), so that test resolves 0.05/15 with 300 perm
 the fixed budget of \pkg{partykit} is largely wasted work. Continuous predictors
 admit the full 256 candidates, the adjusted level is 0.05/256, and the threshold
 test alone needs about 5,000 permutations of the sample at every node. The clearest
-case is gamma, with nine continuous predictors: 45 seconds with the adjustment
+case is gamma, with nine continuous predictors: 44 seconds with the adjustment
 and 1.3 seconds without it. Without the adjustment the recommended
 configuration is faster than \pkg{partykit} on 32 cores on all ten datasets,
-by 5.8 times on madelon and 61 times on isolet. That speed has a statistical price. Without the
+by 5.8 times on madelon and 62 times on isolet. That speed has a statistical price. Without the
 adjustment the threshold test is not a valid test of the threshold: in the
 Stage-B-only design of Section~\ref{sec:threshold-test}, which isolates the
 test from the predictor screen, its false-split rate at nominal level 0.05 is
@@ -919,7 +917,7 @@ calibration study (\texttt{paper\_noadjust\_calibration.csv}), so a tree grown
 without the adjustment still splits under the null about as rarely, but on
 thresholds chosen without error control, and it grows about twice as deep on
 the benchmark datasets \citep{Milletich+Downes+Goley+Hirst:2026}. The
-max-type test keeps the threshold test and recovers most of that time where candidates are continuous: madelon goes from 22 to 2.6 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 45 to 23 seconds, and isolet from 17 to 9.5 seconds; the other seven datasets change by at most 2 seconds.
+max-type test keeps the threshold test and recovers most of that time where candidates are continuous: madelon goes from 21 to 2.6 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 44 to 21 seconds, and isolet from 18 to 9.1 seconds; the other seven datasets change by at most 1.6 seconds.
 
 \begin{table}[t!]
 \centering
@@ -929,16 +927,16 @@ max-type test keeps the threshold test and recovers most of that time where cand
 \hline
  & & & & \multicolumn{3}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}} \\
 Dataset & Observations & Predictors & Candidates & Recommended & No adjustment$^{\ast}$ & Max-type & 1 core & 32 cores \\ \hline
-letter & 20,000 & 16 & 16 & 3.0 & 1.6 & 2.8 & 1,220 & 72 \\
-gamma & 19,020 & 9 & 256 & 45 & 1.3 & 23 & 324 & 15 \\
-pendigits & 10,992 & 16 & 100 & 6.7 & 0.83 & 5.0 & 395 & 21 \\
-isolet & 7,797 & 616 & 243 & 17 & 2.8 & 9.5 & 3,018 & 172 \\
-musk & 6,597 & 166 & 247 & 8.6 & 1.2 & 7.2 & 479 & 22 \\
-gisette & 6,000 & 5,000 & 162 & 19 & 15 & 17 & 2,434 & 143 \\
-page-blocks & 5,473 & 10 & 241 & 5.7 & 0.40 & 4.1 & 153 & 7.6 \\
-spam & 4,601 & 57 & 182 & 3.4 & 0.48 & 2.8 & 219 & 9.4 \\
-madelon & 2,000 & 500 & 132 & 22 & 1.9 & 2.6 & 194 & 11 \\
-vowel & 990 & 10 & 256 & 1.6 & 0.21 & 1.3 & 41 & 2.2 \\
+letter & 20,000 & 16 & 16 & 3.0 & 1.6 & 2.7 & 1,220 & 70 \\
+gamma & 19,020 & 9 & 256 & 44 & 1.3 & 21 & 323 & 15 \\
+pendigits & 10,992 & 16 & 100 & 6.7 & 0.78 & 5.2 & 394 & 21 \\
+isolet & 7,797 & 616 & 243 & 18 & 3.0 & 9.1 & 3,020 & 183 \\
+musk & 6,597 & 166 & 247 & 8.5 & 1.2 & 7.2 & 479 & 22 \\
+gisette & 6,000 & 5,000 & 162 & 19 & 15 & 17 & 2,419 & 142 \\
+page-blocks & 5,473 & 10 & 241 & 5.7 & 0.38 & 4.1 & 153 & 7.6 \\
+spam & 4,601 & 57 & 182 & 3.3 & 0.55 & 2.5 & 206 & 9.4 \\
+madelon & 2,000 & 500 & 132 & 21 & 1.9 & 2.6 & 194 & 11 \\
+vowel & 990 & 10 & 256 & 1.6 & 0.20 & 1.2 & 41 & 2.2 \\
 \hline
 \end{tabular}
 \caption{Median fitting time in seconds
@@ -948,23 +946,23 @@ machine. Candidates is the mean number of distinct candidate thresholds per
 predictor, capped at 256. No adjustment is the recommended \citrees configuration
 without the Bonferroni adjustment over candidate thresholds in the threshold
 test ($^{\ast}$not a valid threshold test: its Stage-B-only false-split rate at
-nominal 0.05 is 0.15 to 0.38). Max-type is the recommended configuration with the max-type threshold test of Section~\ref{sec:thresholds}. The \citrees columns come from the 2026-09-19 run, which times the second of two identical fits so compilation is excluded; the \pkg{partykit} columns from the 2026-09-13 run on the same machine class. Medians are over two
+nominal 0.05 is 0.15 to 0.38). Max-type is the recommended configuration with the max-type threshold test of Section~\ref{sec:thresholds}. All columns come from one run of 2026-09-21 that timed both libraries on the same host, each \citrees time the second of two identical fits so compilation is excluded. Medians are over two
 repeats, or a single fit on letter, isolet, and gisette.}
 \label{tab:performance-real}
 \end{table}
 
 Synthetic Gaussian predictors are the continuous case throughout, and
 Table~\ref{tab:performance-scaling} shows the consequence as the sample size
-grows. The recommended configuration is 1.2 to 3.0 times faster than
-\pkg{partykit} on one core at every sample size and 6.8 to 16 times slower than
+grows. The recommended configuration is 1.2 to 3.2 times faster than
+\pkg{partykit} on one core at every sample size and 6.6 to 16 times slower than
 \pkg{partykit} on 32 cores. Without the threshold adjustment it is 4 to 14
 times faster than \pkg{partykit} on 32 cores at every sample size. The
-max-type test, which keeps the threshold test, is 13 to 34 times faster than
+max-type test, which keeps the threshold test, is 13 to 36 times faster than
 the recommended configuration on these predictors and below the \pkg{partykit}
 times on 32 cores at every sample size. Strong signals, with equal
 coefficients and half the noise, change the times of the recommended
-configuration by at most 13 percent except at 8,000 observations, where it
-takes 1.5 to 1.7 times longer, and change the \pkg{partykit} times by at most 19
+configuration by at most 19 percent except at 8,000 observations, where it
+takes 1.6 to 1.7 times longer, and change the \pkg{partykit} times by at most 18
 percent. The increase in peak resident
 memory over the pre-fit process was at most 49 MB in every condition of the
 first study, so memory did not separate the implementations. Together the two studies locate the cost of conditional
@@ -982,13 +980,13 @@ test at a fraction of the cost.
 \hline
  & & \multicolumn{3}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}} \\
 Observations & Predictors & Recommended & No adjustment$^{\ast}$ & Max-type & 1 core & 32 cores \\ \hline
-500 & 20 & 9.4 & 0.17 & 0.43 & 12 & 0.7 \\
-2,000 & 20 & 37 & 0.28 & 1.7 & 51 & 2.6 \\
-2,000 & 100 & 39 & 0.58 & 1.8 & 74 & 4.0 \\
-8,000 & 20 & 83 & 0.75 & 6.6 & 201 & 9.6 \\
-8,000 & 100 & 101 & 1.8 & 6.1 & 307 & 15 \\
-32,000 & 20 & 667 & 2.9 & 31 & 810 & 42 \\
-32,000 & 100 & 667 & 6.4 & 20 & 1,220 & 77 \\
+500 & 20 & 9.6 & 0.16 & 0.44 & 12 & 0.7 \\
+2,000 & 20 & 36 & 0.29 & 1.7 & 51 & 2.6 \\
+2,000 & 100 & 39 & 0.57 & 1.8 & 74 & 4.0 \\
+8,000 & 20 & 83 & 0.76 & 6.6 & 201 & 9.7 \\
+8,000 & 100 & 97 & 1.7 & 6.2 & 308 & 15 \\
+32,000 & 20 & 666 & 2.9 & 31 & 809 & 42 \\
+32,000 & 100 & 665 & 6.2 & 19 & 1,221 & 77 \\
 \hline
 \end{tabular}
 \caption{Median fitting time in

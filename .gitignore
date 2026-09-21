@@ -20,6 +20,7 @@ paper/results/tables/*
 !paper/results/tables/paper_stageb_scaling_3arm.csv
 !paper/results/tables/paper_behavior_scanning_control.csv
 !paper/results/tables/paper_performance_equal_work.csv
+!paper/results/tables/paper_h2h_onepass_summary.csv
 !paper/results/tables/paper_rf_oobperm_method_aggregate.csv
 !paper/results/tables/paper_rf_oobperm_pairwise.csv
 !paper/results/tables/paper_threshold_test_real_5seeds_balanced.csv

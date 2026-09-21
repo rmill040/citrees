@@ -67,9 +67,10 @@ RED / YELLOW / YELLOW. Fixed the same day:
       weight with the moving real predictors named; permutation control scoped
       to the cohort; n_jobs guidance in the computation section; decomposition
       run cross-referenced; NHANES table carries the two control columns.
-- [ ] Interleaved citrees and partykit re-timing in one pass (Opus B4, Codex
-      12): launched 2026-09-21 (r6-h2h-both-\*, 14 boxes); replace JSS Tables 6
-      and 7 and the arXiv head-to-head sentence when in.
+- [x] Interleaved citrees and partykit re-timing in one pass (Opus B4, Codex
+      12): run 2026-09-21 on 14 boxes; JSS Tables 6 and 7 and the arXiv
+      head-to-head sentence come from it; partykit within a few percent of the
+      2026-09-13 values, no ordering changed (`paper_h2h_onepass_summary.csv`).
 - [ ] Open, author decisions: tie-order share of top-k on wide datasets (Fable
       17); sample-weighted importance arm for NHANES (Opus B3); JSS shipped
       defaults; abstract length; lemma restatement with A0 hypotheses (Opus 14,

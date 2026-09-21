@@ -1047,10 +1047,10 @@ ratio that grows with the bin setting as the $K^2/\alpha$ against $BK$
 accounting predicts; a per-candidate test held at a fixed 999 permutations
 costs $BK$ as well but never splits at 64 or 256 bins, where $\alpha/K$ falls
 below $1/1000$. On six benchmark datasets the max-type test matched or
-exceeded the Bonferroni test's held-out score in 8 of 12 dataset and
-stopping-mode cells, was 0.9 to 4.8 times faster, and agreed with it on
-feature importances at Spearman correlations of 0.30 to 0.91, so it produces a
-different ranking rather than a faster route to the same one; on the full
+exceeded the Bonferroni test's held-out score (balanced accuracy or $R^2$) in 8
+of 12 dataset and stopping-mode cells, was 0.9 to 8.3 times faster, and agreed
+with it on feature importances at Spearman correlations of 0.36 to 0.88, so it
+produces a different ranking rather than a faster route to the same one; on the full
 ranking benchmark it moved the forest from position 3.5 to 5 of 17
 classification methods and from 2 to 4 of 18 regression methods, with paired
 score differences within 0.002 balanced accuracy and 0.009 $R^2$ in favor of

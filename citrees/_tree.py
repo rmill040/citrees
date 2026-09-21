@@ -153,10 +153,10 @@ class BaseConditionalInferenceTreeParameters(BaseModel):
     def _confidence_floor(cls, value: Any, info: Any) -> Any:
         """Refuse adaptive-stopping confidence below 0.95 and say why.
 
-        The Beta-posterior stopping rule has no exact level guarantee. Exact
-        recursion and simulation put its null rejection at 0.0496-0.0498 for
-        confidence 0.95 and 0.0524 for 0.80 at a nominal 0.05, so values below
-        0.95 are refused rather than silently inflating the significance level.
+        The exact Polya-urn recursion (paper/theory/adaptive_stopping_size.py)
+        puts the rule's null size at 0.0488 for confidence 0.95 and 0.0522 for
+        0.80 at a nominal 0.05 with 999 permutations, so values below 0.95 are
+        refused rather than silently inflating the significance level.
         """
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0.95:
             raise ValueError(

@@ -195,8 +195,9 @@ def _ptest_sequential_adaptive_batched(
     criterion every `batch_size` permutations instead of after every single
     permutation. Batching eliminates most Beta CDF evaluations. The returned
     values are adaptive stopping-time estimates, not fixed-B permutation
-    p-values: an exact beta-binomial recursion gives a level of 0.0494 at the
-    default confidence of 0.95 and 0.0527 at confidence 0.80, so the rule is
+    p-values: the exact Polya-urn recursion (paper/theory/adaptive_stopping_size.py)
+    gives a null size of 0.0488 at the default confidence of 0.95 and 0.0522 at
+    confidence 0.80 for alpha 0.05 and 999 permutations, so the rule is
     slightly conservative at the default and can exceed the nominal level at
     low confidence settings.
 
@@ -277,7 +278,6 @@ def _ptest_sequential_adaptive_batched(
 # (k + 1) / (m + 1) estimate, and the exact null size are unchanged; only the
 # parallel efficiency differs. Chunks grow geometrically from one batch so a rule
 # that stops early wastes at most as much work as it has already done.
-_ADAPTIVE_BATCH_SIZE = 32
 _ADAPTIVE_CHUNK_MAX = 1024
 
 

@@ -145,7 +145,7 @@ compute hosts used for the campaign (AWS c6a.8xlarge, AMD EPYC 7R13), the
 containers running the largest RDC forests terminated after about two hours
 without a Python exception, while the same cells' other seeds and their
 honesty-on twins completed. The cloud provider reproduced the failure on its
-own hosts on 2026-09-13 and is investigating the root cause; until it is
+own hosts on 2026-09-13 and reproduced the fault on 2026-09-13; its cause was not identified at the time of writing; until it is
 resolved, these cells are locked and listed in
 \texttt{paper/benchmark/config/locked\_cells.csv}. Comparisons that involve an
 affected method on an affected dataset use the remaining datasets.
@@ -180,7 +180,8 @@ sharing a mutable generator across parallel loop iterations.
   and all are operational exclusions. Inherited rows are partykit ctree and
   cforest runs that did not complete in the earlier compute campaign;
   host-fault rows are RDC-selector CIT and CIF runs that terminate the compute
-  host, a failure the cloud provider has reproduced and is investigating; the
+  host, a failure the cloud provider reproduced on 2026-09-13 and did not
+  attribute to a cause at the time of writing; the
   single orlraws10P run was excluded by author direction. No regression runs
   are excluded.}
   \label{tab:coverage-skips}

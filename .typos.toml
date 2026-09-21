@@ -11,3 +11,4 @@ extend-exclude = [
 lgbm = "lgbm"
 thm = "thm"
 VanderPlas = "VanderPlas"
+Plas = "Plas"

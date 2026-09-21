@@ -10,15 +10,12 @@ Inputs live under ``../data/review3/results/<box>/`` (tarballs from
   candidate (``bonferroni_fixed``), by task, n, bins, stopping, level, effect.
   The adaptive column is the ``minimum`` rule in disguise (the sequential paths
   raise any budget to the floor), so the exhaustive column is the fixed-B arm.
-- ``paper_stageb_scaling_3arm.csv``: one-run timing of bonferroni (scaled
-  budget), bonferroni_fixed, and maxt on the scaling grid, with tree depth.
 - ``paper_behavior_scanning_control.csv``: matched-behavior agreement with
   feature and threshold scanning on (positive control for the tie mechanism).
 - ``paper_performance_equal_work.csv``: the 88-shard exhaustive performance
   campaign rerun with the permutation budget held at 999 per predictor in
   citrees (``scale_resamples_with_tests=False``), median and quartiles by cell.
-- ``paper_nhanes_controls.csv``, ``paper_cif_all_recovery.csv``,
-  ``paper_stageb_power_replicates.csv``: written when their boxes are in.
+- ``paper_nhanes_controls.csv``, ``paper_stageb_power_replicates.csv``.
 
 Review-round-4 measurements (EC2, 2026-09-18) live under ``../data/review4/``:
 
@@ -63,10 +60,6 @@ def fixed_budget() -> pd.DataFrame:
         }
     )
     return d.sort_values(["task", "n", "k", "stopping", "nominal_alpha", "effect"])
-
-
-def scaling_3arm() -> pd.DataFrame:
-    return _cat("r3-scaling-3arm/synthetic_scaling.csv")
 
 
 def behavior_scanning() -> pd.DataFrame:
@@ -363,7 +356,6 @@ def main() -> None:
     TABLES.mkdir(parents=True, exist_ok=True)
     for name, fn in [
         ("paper_stageb_fixed_budget.csv", fixed_budget),
-        ("paper_stageb_scaling_3arm.csv", scaling_3arm),
         ("paper_behavior_scanning_control.csv", behavior_scanning),
         ("paper_performance_equal_work.csv", equal_work),
         ("paper_stageb_power_replicates.csv", power_replicates),

@@ -78,16 +78,19 @@ Convergent findings and their status:
       benchmark-size sentences follows the new data (most moved by hundredths;
       the tree adaptive-off range narrowed from 0.58-1.04 to 0.80-1.01). Outputs
       archived under `reference/v3/ablations/review5/`.
-- [ ] Author decisions: JSS shipped defaults (auto/exact/bonferroni) versus the
-      recommended and the announced max-type default (Opus J6, Fable B2); the
-      forest's default parallel split is slower than serial at the reference
-      condition (Fable B1: 18.9 vs 13.7 s) and needs a library decision; add RF
-      ranked by out-of-bag permutation importance as a benchmark comparator
-      (Fable 4, Opus 1); JSS calibration cell at 0.0550 (Opus J1) needs the
-      selector identified from the calibration outputs; Stage B real table uses
-      plain accuracy (Fable 25, Opus 28); add an unstandardized max-type arm or
-      mark the standardization sentence as rationale (Opus 23); abstract length
-      (Fable 31).
+- [x] RF ranked by out-of-bag permutation importance added as a benchmark
+      comparator (author approval 2026-09-20; run 2026-09-20/21): 8th of 18 and
+      6th of 19, below CIF; CIF becomes 4th of 18 in classification with it
+      present; permutation step 43 min per fold on gisette.
+      `tab:rf-oobperm-benchmark`.
+- [x] Stage B real table in balanced accuracy with depth (author approval
+      2026-09-20; rerun at five seeds).
+- [ ] Author decisions still open: JSS shipped defaults (auto/exact/bonferroni)
+      versus the recommended and the announced max-type default (Opus J6, Fable
+      B2); the forest's default parallel split is slower than serial at the
+      reference condition (Fable B1: 18.9 vs 13.7 s) and needs a library
+      decision; add an unstandardized max-type arm or mark the standardization
+      sentence as rationale (Opus 23); abstract length (Fable 31).
 
 ## Review round 4 (2026-09-17 evening): Codex gpt-6-astra, Fable 5.1, Opus 5
 

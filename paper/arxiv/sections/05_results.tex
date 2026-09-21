@@ -111,6 +111,38 @@ ctree interval exclude zero; the regression intervals for cforest and CIT cross
 it, and all three are wide for the same reason the means are large: six
 datasets, three of them with unstable $R^2$.
 
+\paragraph{Random forest ranked by out-of-bag permutation importance.}
+The clinical application of the companion article and the weak-signal designs of \cref{sec:boundary} show that an ordinary random forest loses its high-cardinality preference once it is ranked by out-of-bag permutation importance rather than by impurity. \Cref{tab:rf-oobperm-benchmark} adds that ranker to the benchmark: the benchmark's 100-tree random forest is refit on every fold and ranked by one permutation of each column on each tree's out-of-bag rows, the mechanism cforest uses, and the ranking is scored exactly as the others. It ranks 8th of 18 in classification and 6th of 19 in regression, below the impurity-ranked forest and below CIF on both panels (median differences of $-0.003$ and $-0.007$), and above cforest in classification; with it present CIF moves from tied 3rd of 17 to 4th of 18 in classification (mean rank 6.38, behind RF at 6.19 and XGBoost at 6.24) and stays 2nd in regression. Removing the cardinality preference is therefore not what places a ranking near the top, in either direction: the debiased forest predicts no better than the biased one. Nor is the permutation step free at high dimension: it costs a median 29 seconds per fold in classification and 127 in regression against 0.2 seconds for the forest fit, and 43 and 32 minutes per fold on gisette and dexter, because its work grows with the number of features times the number of trees; on the low-dimensional clinical cohort it is cheap, on the wide datasets it is not.
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}llrrS[table-format=+1.3]S[table-format=+1.3]c@{}}
+    \toprule
+    \tablehead{Task} & \tablehead{Compared with} & {Datasets} & {Position} & {Median diff.} & {Mean diff.} & W--L \\
+    \midrule
+    Classification & CIF & 23 & 8 of 18 & -0.003 & -0.002 & \winloss{11}{12} \\
+    Classification & RF & 23 & & -0.004 & -0.004 & \winloss{8}{15} \\
+    Classification & cforest & 22 & & +0.005 & +0.009 & \winloss{16}{6} \\
+    Regression & CIF & 8 & 6 of 19 & -0.007 & -0.028 & \winloss{3}{5} \\
+    Regression & RF & 8 & & -0.002 & -0.032 & \winloss{3}{5} \\
+    Regression & cforest & 8 & & +0.002 & -0.007 & \winloss{5}{3} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Random forest ranked by out-of-bag permutation importance as an added
+  comparator. Position is its mean-rank position when it joins the all-method
+  panels of 21 and 8 datasets (18 classification and 19 regression families);
+  differences are the new ranker minus the compared method after averaging
+  within each dataset over downstream learners and standard $k$, summarized by
+  median and mean over the datasets both completed; balanced accuracy in
+  classification, $R^2$ in regression. W--L counts datasets where the new ranker
+  is higher or lower. Full ranks and deltas are in
+  \texttt{paper\_rf\_oobperm\_method\_aggregate.csv} and
+  \texttt{paper\_rf\_oobperm\_pairwise.csv} of the reference release.}
+  \label{tab:rf-oobperm-benchmark}
+\end{table}
+
 \paragraph{CIF ablations.}
 \Cref{tab:cif-ranking-ablation} compares the selected CIF configuration with
 four targeted changes on the real-data benchmark datasets: split-count ranking,

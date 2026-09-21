@@ -30,5 +30,6 @@ practitioner the result is a ranking level with random forests that replaces
 CART's high-cardinality preference with a smaller low-cardinality one, at a
 fitting cost about two orders of magnitude above a random forest's; an ordinary
 random forest ranked by out-of-bag permutation importance removes the same
-preference at a fraction of that cost, and the threshold test, not the feature
+preference but ranks 8th of 18 and 6th of 19, below CIF, and its permutation
+step grows with the number of features; the threshold test, not the feature
 test, is where the cost of conditional inference is recovered.

@@ -158,7 +158,9 @@ increasing $p$-value, with dependence score as the secondary key. The ctree
 reference ranks features by split-use counts. For cforest, we use partykit's
 unconditional out-of-bag permutation importance at its default of one permutation per tree, averaged over the 100 trees, which is the only importance the package provides for forests; CIF uses
 split-importance rankings from accepted conditional-inference splits. The two conditional-inference forests therefore differ in importance mechanism as well as in how their trees are grown (candidate thresholds, the Stage~B rule, stopping, honesty, and muting), so the CIF-versus-cforest margins below compare the two packages' rankings. A mechanism-matched check (\cref{app:cif-perm-check}, \cref{tab:cif-perm-check}) refits CIF and ranks it by cforest's own out-of-bag permutation importance: the classification margin over cforest is then $+0.012$ mean and $+0.006$ median balanced accuracy with 15 wins of 20, against $+0.011$ for split-ranked CIF, the two CIF rankings differ by $+0.001$, and the regression medians agree, so in classification the margin is not an importance-mechanism effect; in regression the medians agree while the means move with one unstable dataset (\cref{app:cif-perm-check}).
-Boruta and recursive feature elimination rank by their fitted rank variables,
+A further comparator, added after the benchmark, ranks the same 100-tree random
+forest by out-of-bag permutation importance and is reported as an extension
+(\cref{tab:rf-oobperm-benchmark}). Boruta and recursive feature elimination rank by their fitted rank variables,
 with smaller ranks first. PI and CPI rank by decreasing importance; the CPI row
 uses the stratified conditional-permutation procedure described above. Ties are
 broken by deterministic, method-specific order for reproducibility.

@@ -83,6 +83,11 @@ Everything else should be regenerated locally and left untracked.
   ranker and signal) and ranker support sizes on the synthetic benchmark
   datasets (EC2, 2026-09-17/18; `paper/benchmark/experiments/weak_signal_cardinality.py`,
   built by `build_review3_tables.py`). arXiv `tab:weak-signal-cardinality`.
+- `paper_rf_oobperm_method_aggregate.csv`, `paper_rf_oobperm_pairwise.csv`:
+  the benchmark random forest ranked by out-of-bag permutation importance,
+  joined to the evaluation surface as an added comparator (EC2, 2026-09-20/21;
+  `paper/benchmark/experiments/rf_oobperm_benchmark.py`, built by
+  `build_rf_oobperm_tables.py`). arXiv `tab:rf-oobperm-benchmark`.
 - `paper_performance_decomposition.csv`: the recommended forest at the JSS
   reference condition under variants that isolate its cost (serial and parallel
   fits, threshold test off, adjustment off, max-type), with tree depth and

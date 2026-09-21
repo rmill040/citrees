@@ -14,7 +14,9 @@ with a smaller low-cardinality one under the per-threshold rule; on these
 benchmarks it shows in which features are ranked, with top-$k$ scores level
 with random forests and below impurity importance in the recovery of weak
 signals, and out-of-bag permutation importance removes the high-cardinality
-preference from an ordinary random forest at a fraction of the cost.
+preference from an ordinary random forest without improving its ranking (8th
+of 18 and 6th of 19, below CIF) and at a permutation cost that grows with the
+number of features.
 
 The answer to the second part is precise. The cost of conditional inference is
 the per-threshold Stage~B test, whose permutation budget must grow as

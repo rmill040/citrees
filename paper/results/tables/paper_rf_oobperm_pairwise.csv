@@ -1,0 +1,7 @@
+task,metric,new_method,comparator,n_datasets,mean_delta,median_delta,wins,losses
+classification,balanced_accuracy,rf_oobperm,cif,23,-0.0017271081514485748,-0.0029333333333333433,11,12
+classification,balanced_accuracy,rf_oobperm,rf,23,-0.004044540539592472,-0.004298714725972208,8,15
+classification,balanced_accuracy,rf_oobperm,r_cforest,22,0.0089739059874229,0.005256947780775567,16,6
+regression,r2,rf_oobperm,cif,8,-0.028320022432242284,-0.0068683687911040014,3,5
+regression,r2,rf_oobperm,rf,8,-0.03169643441880348,-0.0017203933431710894,3,5
+regression,r2,rf_oobperm,r_cforest,8,-0.007155518886066699,0.0019358198378024022,5,3

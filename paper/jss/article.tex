@@ -1338,8 +1338,10 @@ Section~\ref{sec:calibration} measures, and the forest's variable selection
 agrees with \pkg{partykit}'s under matched controls
 (Section~\ref{sec:behavior}). A user who wants only an unbiased ranking of a
 CART forest can compute out-of-bag permutation importance on a \sklearn forest
-(the package does not provide it; the replication code does) at a fraction of
-the cost; a user who wants the split decisions themselves to carry
+(the package does not provide it; the replication code does) at low cost when
+the number of features is small, although on the companion benchmark that
+ranking predicts no better than the impurity ranking and its permutation step
+grows with the number of features; a user who wants the split decisions themselves to carry
 an error rate needs the tests.
 
 \subsection{Limitations}

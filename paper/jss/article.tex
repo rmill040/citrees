@@ -32,15 +32,13 @@
   split decisions matched against \pkg{partykit}, computational scaling, and a
   max-type threshold test whose size at nominal 0.05 is 0.023 to 0.044 against
   0.000 to 0.027 for the per-threshold rule, at lower cost once a node has more
-  than about 50 candidate thresholds. An application to the
-  NHANES 2021--2023 diabetes cohort shows a random forest with CART split
-  search ranking a permuted survey weight above reported diagnoses of
-  hypertension and high cholesterol, an order that both conditional forests
-  reverse and that disappears when the same random forest is ranked by
-  out-of-bag permutation importance; the permuted weight's rank is unchanged
-  when the Stage A screen is disabled, so the significance gate is not what
-  protects the conditional forest, and a logistic regression on the top-ranked columns predicts held-out status at
-  least as well.
+  than about 50 candidate thresholds. In an application to the NHANES 2021--2023
+  diabetes cohort, a random forest with CART split search ranks a permuted
+  survey weight above reported hypertension and high cholesterol. Both
+  conditional forests reverse that order, and so does the same random forest
+  ranked by out-of-bag permutation importance. Disabling the Stage A screen
+  leaves the permuted weight's rank unchanged, so the significance gate is not
+  what protects the conditional forest.
 }
 
 \Keywords{conditional inference trees, random forests, permutation tests,
@@ -338,8 +336,40 @@ search = GridSearchCV(
 search.fit(X_train, y_train)
 \end{Code}
 
+The fitted tree stores each node's test results, so the root split, its two
+$p$-values, and the permutations the fit actually drew can be read back:
+%
+\begin{CodeChunk}
+\begin{CodeInput}
+root = tree.tree_
+root_name = tree.feature_names_in_[int(root["feature"])]
+root_threshold = root["threshold"]
+root_p_feature = root["pval_feature"]
+root_p_threshold = root["pval_threshold"]
+counts = tree.realized_permutation_counts_
+\end{CodeInput}
+\end{CodeChunk}
+%
+The replication script \code{tutorial.py} prints these quantities; the tree
+lines of its transcript are
+%
+\begin{CodeChunk}
+\begin{CodeOutput}
+tree: nodes=9, root=worst concave points
+root: threshold=0.1464, feature p=0.0017, threshold p=0.0015
+tree holdout: balanced accuracy=0.9795, ROC AUC=0.9774
+tree permutations: selector=38400, splitter=2640
+tree leading importances: worst concave points=0.6757, worst area=0.1666,
+  concavity error=0.1233, area error=0.0344, mean radius=0.0000
+\end{CodeOutput}
+\end{CodeChunk}
+%
 With the fixed split and random seed above, the tree attained balanced accuracy
-0.9795 and area under the receiver operating characteristic curve 0.9774. The
+0.9795 and area under the receiver operating characteristic curve 0.9774. Its
+root tests \code{worst concave points} with a Stage A $p$-value of 0.0017 and a
+threshold $p$-value of 0.0015, which are $1/601$ and $1/661$, the smallest values
+that the \code{"minimum"} budgets for 30 predictors and 33 candidate thresholds
+allow, and the fit drew 38,400 selector and 2,640 splitter permutations in total. The
 100-tree forest attained 0.9850 and 0.9985, respectively, with an out-of-bag
 accuracy of 0.9507. The parameter search selected a Stage A threshold of 0.01
 and maximum depth 3, with mean cross-validated balanced accuracy 0.9402. The
@@ -353,8 +383,15 @@ Table~\ref{tab:parameters} lists the estimator arguments that control the
 statistical procedure and its cost, with the shipped defaults and the benchmark
 setting of the companion article where it differs. The four estimators share
 these arguments; forests add \code{n_estimators}, \code{max_features}
-(\code{"sqrt"}), \code{bootstrap}, \code{max_samples}, and \code{n_jobs}. The
-estimators pass \pkg{scikit-learn}'s estimator checks for the supported input
+(\code{"sqrt"}), \code{bootstrap}, \code{max_samples}, and \code{n_jobs}
+(\code{None}: trees are fit one at a time, each with the full compiled thread
+pool). The defaults favor precision of the reported $p$-values over speed and
+are kept for this release so that results fit with them remain reproducible.
+For feature ranking on data of the size studied here the recommended setting
+is \code{"minimum"} for both \code{n_resamples_selector} and
+\code{n_resamples_splitter}, the \code{"histogram"} threshold method with
+\code{max_thresholds = 256}, and, when a node has many candidate thresholds,
+\code{threshold_test = "maxt"}. The estimators pass \pkg{scikit-learn}'s estimator checks for the supported input
 types.
 
 \begin{table}[t!]
@@ -440,11 +477,12 @@ Threshold subsampling bounds the number of Stage B candidates, while feature
 muting can reduce the predictor set passed to descendants. Each control changes
 the realized computation and may change the fitted model. Explicit estimator
 parameters make these choices auditable. At the reference condition of
-Section~\ref{sec:performance} the forest fits faster with \code{n_jobs = 1},
-which gives every tree the full compiled thread pool for its threshold tests,
-than with the default one process per tree (13.7 against 18.9 seconds), so when
-the threshold test dominates the recommendation is to parallelize within trees
-rather than across them.
+Section~\ref{sec:performance} the forest fits faster with the default
+\code{n_jobs = None}, which fits trees one at a time and gives each the full
+compiled thread pool for its threshold tests, than with \code{n_jobs = -1}, one
+worker process per core (13.7 against 18.9 seconds), so when the threshold test
+dominates the default, parallel within trees rather than across them, is the
+faster layout.
 
 \section{Relationship to existing software} \label{sec:comparison}
 
@@ -717,8 +755,10 @@ Two computational studies time model fitting on identical 32-core cloud
 instances. Every fit runs in a fresh process after a small fit of the same method and
 then one identical full fit have removed one-time initialization and, where
 applicable, JIT compilation; elapsed time covers model construction and fitting only, and
-each library uses its own parallelism. \citrees fits forest trees in parallel
-worker processes and divides its compiled thread pool among them; \sklearn
+each library uses its own parallelism. \citrees forests are timed with
+\code{n_jobs = -1}, which fits trees in parallel worker processes and divides
+the compiled thread pool among them, to match the other libraries' use of all
+cores; \sklearn
 forests use all cores; \pkg{partykit} runs on one core by default and is also
 timed with 32 cores. Trees have depth at most 3 with minimum split and leaf
 sizes of 20 and 7 in every library, forests have 100 trees, and the
@@ -837,7 +877,8 @@ without the threshold test, the recommended forest takes 0.38 and 0.25
 seconds in classification and regression; with the Bonferroni-adjusted test it
 takes 18.9 and 18.5 seconds, so the test is 98 percent of the forest's time;
 without the adjustment over candidates it takes 0.28 and 0.23 seconds, and
-with the max-type test 1.3 and 0.7 seconds. The forest fits its trees in 32
+with the max-type test 1.3 and 0.7 seconds. Timed with \code{n_jobs = -1},
+the forest fits its trees in 32
 worker processes with one compiled thread each, so every threshold test runs
 on one thread, whereas the single tree spreads each test's permutations over
 all 32 threads; fit serially with the full thread pool available to every
@@ -872,7 +913,8 @@ observations, 50 Gaussian predictors, 100 trees where a forest), as the median
 of three fits after one warm-up fit on the same 32-core machine class. Nodes is
 the mean number of internal nodes per tree. Serial fits the trees one at a time
 with the full compiled thread pool available to each; parallel fits them in 32
-worker processes with one thread each, the forest default. The no-threshold-test
+worker processes with one thread each, the \code{n\_jobs = -1} setting of the
+timing tables; serial is the library default. The no-threshold-test
 variant omits the Stage B test, the no-adjustment variant tests every candidate
 threshold at the unadjusted level, and the max-type variant uses the joint test
 of Section~\ref{sec:thresholds}.}
@@ -1070,7 +1112,7 @@ beyond two standard errors and none with the planted step at the 85th
 percentile, while the max-type threshold sits a median 0.19 standard
 deviations from the planted cut against 0.15. The max-type test is therefore
 calibrated closer to the nominal level, cheaper on continuous predictors, and
-loses about 0.006 in power at matched size (bootstrap interval over cells $-0.009$ to $-0.004$, per-cell differences within Monte Carlo error); what it gains at a
+loses about 0.006 in power at matched size (95 percent bootstrap interval over the 18 cells $-0.011$ to $-0.002$, per-cell differences within Monte Carlo error); what it gains at a
 fixed nominal level is the size the per-candidate adjustment gives up.
 
 \subsection{NHANES diabetes application} \label{sec:nhanes}
@@ -1284,7 +1326,8 @@ it. Disabling the \citrees screen leaves the permuted weight's rank unchanged
 (hypertension from 5.8 to 11.1), so the $\alpha$ gate is not what protects the
 conditional forest against the noise column; the remaining candidates are the
 choice of the split variable by the association statistic, the capped candidate
-set, and the unweighted importance, which this design does not separate. Redrawing the shuffled controls for each partition
+set, and the unweighted importance, which this design does not separate; an arm
+isolating the importance weighting is outside the scope of this application. Redrawing the shuffled controls for each partition
 repeat changes none of this (12.1 to 11.3 for the random forest, 23.0 to 21.1
 for \citrees; primary contrast $-9.8$ against $-11.0$ ranks). A logistic
 regression on the top-ranked columns predicts held-out status at least as well

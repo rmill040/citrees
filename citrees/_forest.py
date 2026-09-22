@@ -859,7 +859,10 @@ class ConditionalInferenceForestRegressor(RegressorMixin, BaseConditionalInferen
         Whether to compute out-of-bag score (requires bootstrap).
 
     n_jobs : int, default=None
-        Number of jobs to run in parallel.
+        Number of worker processes that fit trees in parallel. ``None`` fits
+        trees one at a time, each with the full Numba thread pool, which is
+        usually faster when the threshold tests dominate the fitting time;
+        ``-1`` uses one worker per core and divides the thread pool among them.
 
     random_state : int, default=None
         Random seed.

@@ -184,6 +184,10 @@ All tree parameters plus:
 When `bootstrap=False`, OOB scoring is disabled and
 `sampling_method`/`max_samples` must be `None`.
 
+The default `n_jobs=None` fits trees one at a time, each with the full Numba
+thread pool. When the threshold tests dominate fitting time this is usually
+faster than `n_jobs=-1`, which runs one worker per core with one thread each.
+
 Options for `sampling_method`:
 
 - `SamplingMethod.STRATIFIED`: Sample within each class (expected proportions

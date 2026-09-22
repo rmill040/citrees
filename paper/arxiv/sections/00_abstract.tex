@@ -1,40 +1,23 @@
 Conditional inference trees and forests choose a split variable by an
 association test before searching for a threshold, which removes the preference
-of CART-style splitting for features with many cutpoints. Whether that
-correction improves a feature ranking used for downstream prediction, and what
-it costs, has not been measured on one footing. We benchmark conditional
-inference trees (CIT) and forests (CIF) against 15 classification and 16
-regression selectors, among them partykit's ctree and cforest, random forests,
-gradient boosting, and permutation importance and wrapper methods, on 31 real
-datasets with 5 seeds, scoring every ranking by the held-out accuracy of fixed
-learners fitted to its top-$k$ features, with synthetic designs where the
-informative features are known. CIF is the strongest conditional inference
-ranker in the study: it ranks tied 3rd of 17 in classification and 2nd of 18 in
-regression, ahead of cforest and ctree by margins whose bootstrap intervals
-exclude zero in classification (unadjusted intervals on the selection data),
-level with random forests, behind recursive feature elimination and XGBoost, and
-behind all three boosting families on the 13-dataset complete-case panel; the
-regression ordering is descriptive (8 datasets, omnibus $p = 0.07$);
-on synthetic recovery it sits in the lower half of the methods, and single
-conditional inference trees rank near the bottom. The cost has one source. The
-per-threshold Bonferroni threshold test needs a permutation budget of order
-$K^2/\alpha$ in the number of candidate thresholds $K$, because at a fixed
-budget it cannot reject at all beyond about 50 candidates, and the ablations
-place the fitting time there rather than in the feature test, whose adaptive
-stopping is inert at the minimum budget. A max-type threshold test resolves the
-same level at $999K$ evaluations, is calibrated closer to the nominal level
-(Stage B size 0.023 to 0.044 against 0.000 to 0.027 at nominal 0.05), loses
-0.006 in power on average at matched size (bootstrap interval over cells
-$-0.009$ to $-0.004$; per-cell differences $-0.054$ to $+0.034$, within Monte
-Carlo error), and moves the forest from tied
-3rd to 5th and from 2nd to 4th; the adaptive stopping rule has null size 0.0488
-at a 999-permutation budget, exact under a continuous idealization. For a
-practitioner the result is a ranking level with random forests that trades
-CART's high-cardinality preference for a low-cardinality one of comparable
-size, at a fitting cost about two orders of magnitude above a random forest's
-under the per-threshold rule; an ordinary random forest ranked by out-of-bag
-permutation importance loses the preference on the clinical cohort of the
-companion article but not on the weak-signal designs, ranks 8th of 18 and 6th
-of 19, below CIF, and its permutation step grows with the number of features;
-the threshold test, not the feature test, is where the cost of the per-threshold
-rule is recovered.
+of CART-style splitting for features with many cutpoints. We measure whether
+that correction improves a feature ranking used for downstream prediction, and
+what it costs. Conditional inference trees (CIT) and forests (CIF) are
+benchmarked against 15 classification and 16 regression selectors, among them
+partykit's ctree and cforest, random forests, gradient boosting, and permutation
+and wrapper methods, on 31 real datasets, scoring each ranking by the held-out
+accuracy of fixed learners fitted to its top-$k$ features, with synthetic
+designs where the informative features are known. CIF ranks tied 3rd of 17 in
+classification and 2nd of 18 in regression, ahead of cforest and ctree, level
+with random forests, and behind recursive feature elimination and XGBoost;
+single trees rank near the bottom. The cost has one source: the per-threshold
+Bonferroni test needs a permutation budget of order $K^2/\alpha$ in the number
+of candidate thresholds $K$, and the ablations place the fitting time there
+rather than in the feature test. A max-type threshold test resolves the same
+level at $999K$ evaluations, is calibrated closer to the nominal level, and loses
+0.006 in power at matched size (95 percent interval over cells $-0.011$ to
+$-0.002$), moving the forest to 5th and 4th. The adaptive stopping rule has
+null size 0.0488 at 999 permutations. For a practitioner, CIF gives a ranking
+level with random forests that trades CART's high-cardinality preference for a
+low-cardinality one, at a fitting cost about two orders of magnitude above a
+random forest's under the per-threshold rule.

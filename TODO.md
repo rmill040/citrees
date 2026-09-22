@@ -71,12 +71,20 @@ Reviews in `reference/v3/provenance/reviews/2026-09-21/` (S3). Votes: arXiv RED
       12): run 2026-09-21 on 14 boxes; JSS Tables 6 and 7 and the arXiv
       head-to-head sentence come from it; partykit within a few percent of the
       2026-09-13 values, no ordering changed (`paper_h2h_onepass_summary.csv`).
-- [ ] Open, author decisions: tie-order share of top-k on wide datasets (Fable
-      17); sample-weighted importance arm for NHANES (Opus B3); JSS shipped
-      defaults; abstract length; lemma restatement with A0 hypotheses (Opus 14,
-      Fable 28); per-threshold Bonferroni corollary (Opus 13); pooled-power
-      interval unit (Codex 4, Opus 9: cells share draws; interval is
-      between-cell); tutorial output (Fable J14).
+- [x] Round-6 author decisions, resolved 2026-09-22. Tie order: the rule
+      (reversed NumPy argsort) and the filler share of top-k are stated in the
+      arXiv method and boundary sections. Sample-weighted importance: out of
+      scope, stated in the NHANES section. JSS defaults: kept for 0.1, with the
+      recommended settings stated in the parameters section. Forest parallelism:
+      the default `n_jobs=None` is already serial, the faster layout; the text
+      now says the timing tables use `n_jobs=-1`. Lemma restated without the
+      tautological exchangeability clause; per-threshold Bonferroni corollary
+      added. Pooled power interval now resamples cells
+      (`build_stageb_power_intervals.py`). Tutorial prints the tree transcript
+      lines inline. Both abstracts trimmed.
+- [ ] JSS tutorial forest and search numbers (100 trees, 5 folds) have no
+      archived source; only the quick profile is in the reference release. Rerun
+      the full-profile replication on EC2 and check them.
 
 ## Review round 5 (2026-09-19): Codex gpt-6-astra, Fable 5.1, Opus 5
 

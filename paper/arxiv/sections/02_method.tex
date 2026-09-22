@@ -257,7 +257,15 @@ split-count ranking of the ablation in \cref{sec:experiments-real} moves the
 classification score by 0.001 on average). Larger
 importances are ranked earlier, and features never used by a split receive zero
 importance, so beyond a tree's support the order of the ranking is the tie
-order of the implementation.
+order of the implementation. The benchmark sorts importances with NumPy's
+default \texttt{argsort} and reverses the result, which leaves the
+zero-importance features in roughly ascending column order (rank correlation
+with the column index about 0.6 on the synthetic designs). Every synthetic
+generator shuffles its planted columns, so that order carries no information
+about which features are planted; the high-cardinality and correlated-noise
+designs append their
+noise columns after the others, so those columns fall toward the end of the
+tail.
 
 This split-importance ranking differs from standard random-forest impurity
 importance in how a feature enters threshold search. In CART-style trees, the

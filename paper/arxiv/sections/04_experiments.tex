@@ -163,7 +163,9 @@ forest by out-of-bag permutation importance and is reported as an extension
 (\cref{tab:rf-oobperm-benchmark}). Boruta and recursive feature elimination rank by their fitted rank variables,
 with smaller ranks first. PI and CPI rank by decreasing importance; the CPI row
 uses the stratified conditional-permutation procedure described above. Ties are
-broken by deterministic, method-specific order for reproducibility.
+broken by a deterministic order for reproducibility; for the importance-based
+rankers, including CIT and CIF, that order is the reversed NumPy sort of
+\cref{sec:method}.
 
 \subsection{Configuration selection}
 \label{sec:experiments-repro}

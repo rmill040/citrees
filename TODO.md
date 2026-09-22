@@ -37,10 +37,6 @@ Review rounds 2 to 6 (reviews under `reference/v3/provenance/reviews/` in S3)
 were closed on 2026-09-22 after each item was checked against the current
 manuscripts; the record is in git. What remains:
 
-- [ ] JSS tutorial forest and search numbers (100 trees, 5 folds: 0.9850,
-      0.9985, OOB 0.9507, CV 0.9402) have no archived source; the reference
-      release holds only the quick profile. Run the full-profile replication on
-      EC2 after the last text commit and check them.
 - [ ] JSS NHANES partykit rerun with factor-typed categorical predictors
       (reviewer request). The `cforest_factor` arm is in the replication script
       (`CITREES_NHANES_FACTORS=1`); run the full profile on EC2 and report the

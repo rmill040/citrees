@@ -9,10 +9,11 @@ memory details for the benchmarked tree-growing algorithm.
 
 \subsection{Scope relative to the theory}
 
-The fixed-node theorem covers exhaustive fixed-$B$ Stage~A feature selection at
-a fixed node under the complete permutation null. In that result, the tested
+The fixed-node results cover exhaustive fixed-$B$ Stage~A feature selection and
+the fixed-$B$ Stage~B threshold tests at a fixed node under the complete
+permutation null. In those results, the tested
 features and resample budget are fixed independently of the node responses. The
-benchmarked tree-growing algorithm also uses settings outside that theorem:
+benchmarked tree-growing algorithm also uses settings outside those results:
 \begin{itemize}
   \item early stopping,
   \item feature and threshold ordering inside early stopping,
@@ -21,7 +22,7 @@ benchmarked tree-growing algorithm also uses settings outside that theorem:
   \item bootstrap resampling and forest aggregation,
   \item optional honesty.
 \end{itemize}
-Under these conditions, the theorem covers exhaustive fixed-$B$ Stage~A values.
+Under these conditions, the results cover exhaustive fixed-$B$ Stage~A values.
 Stage~A and split scores from adaptive trees are tree-construction scores.
 
 \subsection{Node-level choices}
@@ -75,8 +76,8 @@ only at the larger budgets of the runtime ablations.
 CIF fits bootstrap trees and forms feature rankings by aggregating tree
 split-importance vectors. The benchmark uses stratified bootstrap sampling for
 classification and standard bootstrap sampling for regression. These forest-level
-choices affect the fitted rankings, while the fixed-node theorem covers only the
-Stage~A reference test.
+choices affect the fitted rankings, while the fixed-node results cover only the
+nodewise reference tests.
 
 \subsection{Selected configurations}
 \label{app:selected-configs}

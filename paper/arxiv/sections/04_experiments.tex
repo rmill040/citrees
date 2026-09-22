@@ -149,7 +149,10 @@ forest on a training split and scores a 20\% validation split. It then
 identifies validation-set features with absolute correlation at least 0.5 with
 the target feature, forms five-bin percentile strata from those conditioning
 features, and permutes the target feature within strata. If no conditioning
-feature meets the correlation threshold, the target feature is permuted globally.
+feature meets the correlation threshold, the target feature is permuted globally. PI and CPI therefore score a 20 percent split rather than every training row,
+which makes them noisier than an out-of-bag estimate; the random forest ranked
+by out-of-bag permutation importance (\cref{tab:rf-oobperm-benchmark}) is the
+comparator that uses every row.
 
 Ranking rules use each method's natural score direction. Embedded tree and
 ensemble baselines rank features by decreasing fitted importance: DT, RT, RF,

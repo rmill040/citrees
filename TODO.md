@@ -41,11 +41,10 @@ manuscripts; the record is in git. What remains:
       0.9985, OOB 0.9507, CV 0.9402) have no archived source; the reference
       release holds only the quick profile. Run the full-profile replication on
       EC2 after the last text commit and check them.
-- [ ] JSS NHANES secondary contrasts still use the corrected repeated-CV
-      statistic, labelled descriptive; reviewers asked for the repeat-level
-      bootstrap used by the primary contrast (optional; no new fits needed).
 - [ ] JSS NHANES partykit rerun with factor-typed categorical predictors
-      (reviewer request; optional, EC2).
+      (reviewer request). The `cforest_factor` arm is in the replication script
+      (`CITREES_NHANES_FACTORS=1`); run the full profile on EC2 and report the
+      arm next to the numeric-coded partykit ranks.
 - [ ] JSS author list: three authors on JSS, four on arXiv.
 - [ ] Cite the JSS article for the full Stage B tables once it has an
       identifier; until then Appendix I carries them.

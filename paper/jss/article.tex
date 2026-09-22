@@ -1197,8 +1197,9 @@ with 49 degrees of freedom \citep{Bouckaert+Frank:2004}. The correction was
 derived for differences in held-out performance, not for training-fold rank
 differences, so it is reported only as a heuristic alongside the bootstrap. A negative difference
 means that the random forest treats the noise column as more important than
-\citrees does. Two secondary contrasts use the same statistic with the upper
-tail and are adjusted together by Holm's method: the Spearman correlation
+\citrees does. Two secondary contrasts are summarized by the same
+repeat-level bootstrap, with the upper-tailed heuristic statistic adjusted
+across the pair by Holm's method: the Spearman correlation
 between a method's importances and the columns' numbers of distinct training
 values, random forest minus \citrees; and the mean rank of the eight
 predictors with at most three distinct values (sex, birth in the United
@@ -1226,14 +1227,16 @@ inference forests placed it at 21.3 and 26.9. All three methods ranked
 permuted sex in the bottom three, at 27.0, 25.6, and 25.6, so the methods
 disagree on the high-cardinality noise column and agree on the binary one.
 
-Both secondary contrasts were in the specified direction; their Holm-adjusted
-corrected repeated cross-validation $p$~values are below 0.001 and, like the
-primary heuristic statistic, are descriptive. The Spearman correlation between importance and number
-of distinct values averaged 0.86 for the random forest, 0.35 for \citrees, and
-0.23 for \pkg{partykit}; the random forest minus \citrees difference was 0.51
-with $t(49)=15.8$. The eight predictors with at most three distinct values had
-a mean rank of 25.1 of 30 under the random forest, 18.7 under \citrees, and
-16.5 under \pkg{partykit}; the difference was 6.39 ranks with $t(49)=11.5$.
+Both secondary contrasts were in the specified direction in all 50 folds and
+all ten repeats. The Spearman correlation between importance and number of
+distinct values averaged 0.86 for the random forest, 0.35 for \citrees, and
+0.23 for \pkg{partykit}; the random forest minus \citrees difference was 0.51,
+with repeat means from 0.46 to 0.55 and a 95\% bootstrap interval of 0.49 to
+0.53. The eight predictors with at most three distinct values had a mean rank
+of 25.1 of 30 under the random forest, 18.7 under \citrees, and 16.5 under
+\pkg{partykit}; the difference was 6.39 ranks, with repeat means from 5.3 to
+7.2 and a 95\% bootstrap interval of 6.0 to 6.8. The Holm-adjusted heuristic
+statistics, $t(49)=15.8$ and $t(49)=11.5$, both give $p$~values below 0.001.
 The largest individual displacements were reported diagnoses of hypertension
 (18.8 of 30 under the random forest, 5.7 under \citrees, and 3.5 under
 \pkg{partykit}) and high cholesterol (20.5, 5.2, and 3.0), followed by

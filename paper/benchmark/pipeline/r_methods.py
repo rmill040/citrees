@@ -850,10 +850,18 @@ def _make_r_dataframe(X: np.ndarray, y: np.ndarray, task: str) -> Any:
     return ro.DataFrame(data_dict)
 
 
-def _make_r_indexed_data(X: np.ndarray, y: np.ndarray, task: str, ro: Any) -> tuple[Any, Any]:
-    """Create direct partykit variable indices and a response-first data frame."""
+def _make_r_indexed_data(
+    X: np.ndarray, y: np.ndarray, task: str, ro: Any, factor_columns: tuple[int, ...] = ()
+) -> tuple[Any, Any]:
+    """Create direct partykit variable indices and a response-first data frame.
+
+    Columns listed in ``factor_columns`` are passed as unordered R factors whose levels
+    are the column's distinct values, so partykit tests and splits them as nominal.
+    """
     data_dict = {"y": _make_r_response(y, task, ro)}
-    data_dict.update({f"X{i}": ro.FloatVector(X[:, i]) for i in range(X.shape[1])})
+    for i in range(X.shape[1]):
+        column = ro.FloatVector(X[:, i])
+        data_dict[f"X{i}"] = ro.r["factor"](column) if i in factor_columns else column
     model_specification = ro.ListVector(
         {
             "y": ro.IntVector([1]),
@@ -1325,6 +1333,7 @@ def _fit_r_cforest(
     cores: int,
     random_state: int,
     indexed_data: bool,
+    factor_columns: tuple[int, ...] = (),
 ) -> tuple[Any, Any, Any, Any, int, Any]:
     """Fit one cforest and return its R bridge objects and importance apply function."""
     if not isinstance(replace, (bool, np.bool_)):
@@ -1366,8 +1375,10 @@ def _fit_r_cforest(
         control_kwargs["maxdepth"] = maxdepth
     control = partykit.ctree_control(**control_kwargs)
     weighted_bootstrap = replace_value and fraction_value == 1.0
+    if factor_columns and not (indexed_data and not weighted_bootstrap):
+        raise ValueError("factor_columns requires the indexed interface without bootstrap weights")
     if indexed_data and not weighted_bootstrap:
-        model_specification, r_data = _make_r_indexed_data(X, y, task, ro)
+        model_specification, r_data = _make_r_indexed_data(X, y, task, ro, factor_columns)
     else:
         model_specification, r_data = _make_r_formula_data(X, y, task, stats)
     forest_kwargs: dict[str, Any] = {
@@ -1478,6 +1489,7 @@ def r_cforest_importance(
     varimp_nperm: int = 1,
     cores: int = -1,
     random_state: int = 1718,
+    factor_columns: tuple[int, ...] = (),
 ) -> np.ndarray:
     """Fit cforest through rpy2 and return aligned raw variable importance.
 
@@ -1524,6 +1536,8 @@ def r_cforest_importance(
     cores : int
         Number of CPU cores for parallel tree growing and varimp.
         -1 means use all CPUs available to the current process.
+    factor_columns : tuple of int
+        Column indices passed to R as unordered factors instead of numeric vectors.
 
     Returns
     -------
@@ -1548,6 +1562,7 @@ def r_cforest_importance(
         cores=cores,
         random_state=random_state,
         indexed_data=True,
+        factor_columns=tuple(factor_columns),
     )
     return _r_cforest_importance(
         forest,

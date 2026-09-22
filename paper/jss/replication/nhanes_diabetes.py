@@ -134,6 +134,7 @@ def _rank(importance: np.ndarray) -> np.ndarray:
 
 CONTROL_ARMS: Final = os.environ.get("CITREES_NHANES_CONTROLS") == "1"
 REDRAW_CONTROLS: Final = os.environ.get("CITREES_NHANES_REDRAW") == "1"
+FACTOR_ARM: Final = os.environ.get("CITREES_NHANES_FACTORS") == "1"
 
 
 def _tree_oob_importance(
@@ -169,7 +170,7 @@ def rf_oob_permutation_importance(
 
 
 def _importances(
-    X: np.ndarray, y: np.ndarray, trees: int, seed: int
+    X: np.ndarray, y: np.ndarray, trees: int, seed: int, factor_columns: tuple[int, ...] = ()
 ) -> dict[str, tuple[np.ndarray, float]]:
     from paper.benchmark.pipeline.r_methods import r_cforest_importance
 
@@ -221,6 +222,24 @@ def _importances(
         X, y, ntree=trees, mtry="sqrt", varimp_nperm=10, cores=-1, random_state=seed
     )
     out["cforest"] = (np.asarray(importance, dtype=np.float64), time.perf_counter() - start)
+    if FACTOR_ARM:
+        # Sensitivity arm: the same cforest with the nominal predictors passed as R
+        # factors, so partykit tests and splits them as unordered categories.
+        start = time.perf_counter()
+        importance = r_cforest_importance(
+            X,
+            y,
+            ntree=trees,
+            mtry="sqrt",
+            varimp_nperm=10,
+            cores=-1,
+            random_state=seed,
+            factor_columns=factor_columns,
+        )
+        out["cforest_factor"] = (
+            np.asarray(importance, dtype=np.float64),
+            time.perf_counter() - start,
+        )
     return out
 
 
@@ -253,6 +272,7 @@ def run_folds(
         for name, control in spec["shuffled_controls"].items()
         if name != "construction"
     ]
+    factor_columns = tuple(cohort.columns.index(name) for name in spec["factor_predictors"])
     for fold, (train, test) in enumerate(splitter.split(cohort.X, cohort.y)):
         repeat = fold // profile["folds"]
         if REDRAW_CONTROLS and fold % profile["folds"] == 0:
@@ -269,7 +289,7 @@ def run_folds(
             cohort.y[test],
         )
         n_unique = np.array([len(np.unique(X_train[:, j])) for j in range(X_train.shape[1])])
-        results = _importances(X_train, y_train, profile["trees"], seed + fold)
+        results = _importances(X_train, y_train, profile["trees"], seed + fold, factor_columns)
         for method, (importance, seconds) in results.items():
             ranks = _rank(importance)
             for j, name in enumerate(cohort.columns):
@@ -330,6 +350,32 @@ def corrected_t(
     }
 
 
+BOOTSTRAP_RESAMPLES = 20_000
+BOOTSTRAP_SEED = 0
+
+
+def repeat_bootstrap(
+    differences: pd.Series, repeat_of_fold: pd.Series, alternative: str
+) -> dict[str, Any]:
+    """Percentile bootstrap of the mean difference over repeat means.
+
+    Folds within a repeat share training rows, so the repeat is the resampling unit.
+    """
+    repeat_means = differences.groupby(repeat_of_fold.reindex(differences.index)).mean()
+    values = repeat_means.to_numpy(dtype=float)
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    draws = rng.choice(values, size=(BOOTSTRAP_RESAMPLES, values.size)).mean(axis=1)
+    low, high = np.percentile(draws, [2.5, 97.5])
+    in_direction = differences < 0 if alternative == "less" else differences > 0
+    return {
+        "repeat_mean_min": float(values.min()),
+        "repeat_mean_max": float(values.max()),
+        "bootstrap_low": float(low),
+        "bootstrap_high": float(high),
+        "share_folds_in_direction": float(in_direction.mean()),
+    }
+
+
 def _fold_sizes(ranks: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     sizes = ranks.groupby("fold")[["n_train", "n_test"]].first().sort_index()
     return sizes["n_train"].to_numpy(dtype=float), sizes["n_test"].to_numpy(dtype=float)
@@ -360,12 +406,14 @@ def _per_fold_block_mean_rank(ranks: pd.DataFrame, method: str, block: list[str]
 def inference(ranks: pd.DataFrame, spec: dict[str, Any], profile: dict[str, Any]) -> pd.DataFrame:
     n_train, n_test = _fold_sizes(ranks)
     folds, repeats = profile["folds"], profile["repeats"]
+    repeat_of_fold = ranks.groupby("fold")["repeat"].first()
     rows: list[dict[str, Any]] = []
 
     primary = _per_fold_rank(ranks, "rf", "shuffled_mec_weight") - _per_fold_rank(
         ranks, "cif", "shuffled_mec_weight"
     )
     row = corrected_t(primary.to_numpy(), n_train, n_test, folds, repeats, "less")
+    row.update(repeat_bootstrap(primary, repeat_of_fold, "less"))
     row.update(
         {
             "hypothesis": "shuffled_mec_weight_rank",
@@ -381,6 +429,7 @@ def inference(ranks: pd.DataFrame, spec: dict[str, Any], profile: dict[str, Any]
         ranks, "cif"
     )
     row = corrected_t(card.to_numpy(), n_train, n_test, folds, repeats, "greater")
+    row.update(repeat_bootstrap(card, repeat_of_fold, "greater"))
     row.update(
         {
             "hypothesis": "cardinality_correlation",
@@ -396,6 +445,7 @@ def inference(ranks: pd.DataFrame, spec: dict[str, Any], profile: dict[str, Any]
         ranks, "cif", block
     )
     row = corrected_t(blk.to_numpy(), n_train, n_test, folds, repeats, "greater")
+    row.update(repeat_bootstrap(blk, repeat_of_fold, "greater"))
     row.update(
         {
             "hypothesis": "low_cardinality_clinical_block",

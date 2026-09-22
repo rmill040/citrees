@@ -73,6 +73,19 @@
     "high_chol_dx": ["BPQ_L", "BPQ080"]
   },
   "encoding_note": "all predictors are numeric NHANES codes or measurements and are passed identically to every method; no method receives factor typing, so the comparison is on matched input",
+  "factor_predictors": [
+    "sex",
+    "race_eth",
+    "marital",
+    "born_us",
+    "smoked_100",
+    "insured",
+    "heart_disease_dx",
+    "hypertension_dx",
+    "high_chol_dx",
+    "shuffled_sex"
+  ],
+  "factor_predictors_note": "nominal predictors passed as unordered R factors in the cforest_factor sensitivity arm only (enabled by CITREES_NHANES_FACTORS=1); education and alcohol frequency are ordinal codes and stay numeric; every other arm keeps the matched numeric input",
   "mec_weight_note": "WTMEC2YR is the examination sampling weight, a survey-design quantity with close to one distinct value per participant; it is retained as a natural high-cardinality predictor whose association with the outcome is not of clinical interest",
   "shuffled_controls": {
     "shuffled_mec_weight": {
@@ -197,6 +210,16 @@
       "date": "2026-09-09",
       "before_or_after_full_run": "after a first full run, whose artifacts were discarded",
       "change": "cforest mtry was unintentionally all predictors (wrapper default for an omitted argument) instead of the specified ceiling(sqrt(p)); cforest importance permutations set to 10 instead of the wrapper default of 1; random forest given all cores so timings are matched. Found by independent review before any manuscript submission; the full profile is rerun and every partykit-dependent number regenerated."
+    },
+    {
+      "date": "2026-09-22",
+      "before_or_after_full_run": "after the full run; no fits changed",
+      "change": "All three contrasts now also report a percentile bootstrap over the ten repeat means (20,000 resamples, seed 0), the range of the repeat means, and the share of folds in the specified direction, because folds within a repeat share training rows. The corrected repeated cross-validation t and the Holm adjustment are unchanged and reported as heuristics."
+    },
+    {
+      "date": "2026-09-22",
+      "before_or_after_full_run": "after the full run; the primary analysis is unchanged",
+      "change": "Added the cforest_factor sensitivity arm, run separately with CITREES_NHANES_FACTORS=1: partykit::cforest with the nominal predictors in factor_predictors passed as unordered R factors, answering whether the partykit ranking depends on numeric coding of categories. It is descriptive and enters no hypothesis."
     }
   ],
   "execution_note": "manuscript numbers come from the full profile run on a single 32-core x86 cloud instance (c6a.8xlarge) inside the reference container, matching the hardware class of the article's performance section; local runs are for replication of the ranking results, whose fitting times are not comparable"

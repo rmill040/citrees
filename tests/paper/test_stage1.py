@@ -2066,6 +2066,20 @@ class TestRCforestRanking:
         np.testing.assert_array_equal(formula_importance, indexed_importance)
 
     @_skip_no_r
+    def test_indexed_data_passes_factor_columns_as_factors(self) -> None:
+        """Only the listed columns become unordered R factors."""
+        from paper.benchmark.pipeline import r_methods
+
+        ro, _importr = r_methods._import_rpy2()
+        X = np.array([[1.0, 0.5], [2.0, 1.5], [3.0, 2.5], [1.0, 3.5]])
+        _spec, data = r_methods._make_r_indexed_data(
+            X, np.array([0, 1, 0, 1]), "classification", ro, factor_columns=(0,)
+        )
+        classes = {name: tuple(ro.r["class"](data.rx2(name))) for name in ("X0", "X1")}
+        assert classes == {"X0": ("factor",), "X1": ("numeric",)}
+        assert tuple(ro.r["levels"](data.rx2("X0"))) == ("1", "2", "3")
+
+    @_skip_no_r
     @pytest.mark.parametrize("task", ["classification", "regression"])
     def test_indexed_ctree_matches_formula_interface(self, task: str) -> None:
         """Direct variable indices must preserve formula-interface split usage."""

@@ -56,6 +56,11 @@ class TestSpecification:
         assert set(block) <= set(spec["predictors"])
         assert not any(b.startswith("shuffled") for b in block)
 
+    def test_factor_predictors_are_nominal_columns(self, spec: dict) -> None:
+        columns = set(spec["predictors"]) | set(spec["shuffled_controls"]) - {"construction"}
+        assert set(spec["factor_predictors"]) <= columns
+        assert {"education", "alcohol_freq"}.isdisjoint(spec["factor_predictors"])
+
     def test_only_the_full_profile_claims_manuscript_inference(self, spec: dict) -> None:
         status = {k: v["inference_status"] for k, v in spec["profiles"].items()}
         assert status["full"] == "manuscript_inference"
@@ -158,6 +163,14 @@ class TestInference:
         )
         sec = frame[frame["role"] == "secondary"]
         assert len(sec) == 2 and (sec["p_value_adjusted"] >= sec["p_value"]).all()
+
+    def test_repeat_bootstrap_brackets_every_contrast(self, spec: dict) -> None:
+        frame = nhanes.inference(_ranks_frame(spec, 5, 25), spec, self.profile)
+        assert (frame["bootstrap_low"] <= frame["mean_difference"] + 1e-12).all()
+        assert (frame["bootstrap_high"] >= frame["mean_difference"] - 1e-12).all()
+        assert (frame["repeat_mean_min"] <= frame["repeat_mean_max"]).all()
+        primary = frame[frame["role"] == "primary"].iloc[0]
+        assert primary["bootstrap_high"] < 0 and primary["share_folds_in_direction"] == 1.0
 
     def test_records_inference_status(self, spec: dict) -> None:
         frame = nhanes.inference(_ranks_frame(spec, 5, 25), spec, self.profile)

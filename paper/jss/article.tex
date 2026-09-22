@@ -1148,7 +1148,8 @@ sex, drawn once from the recorded seed in the primary run and redrawn
 independently for each of the ten partition repeats in a companion run. They carry no information about the
 outcome by construction while preserving each source's marginal distribution
 and its cohort cardinality of 3,464, 61, and 2. All 30 columns are passed as numeric
-values to every method, so no method receives factor typing.
+values to every method in the primary comparison, so no method receives factor
+typing; a sensitivity arm passes the nominal columns to \pkg{partykit} as factors.
 
 Five forest rankings are compared on 10 independently shuffled stratified five-fold
 partitions of the participants, each forest fitted with 100 trees on every available
@@ -1314,6 +1315,22 @@ with every core in use was 0.2 seconds for the random forest, 4.0 seconds for
 \citrees, and 20.7 seconds for \pkg{partykit} on a 32-core cloud instance of the
 type used in Section~\ref{sec:performance}.
 
+The \pkg{partykit} forest above receives the nominal columns as numeric codes,
+although it natively tests and splits factors. A sensitivity arm fitted in the
+same folds passes the ten nominal columns (sex, race and ethnicity, marital
+status, birth in the United States, ever smoked, health insurance, the three
+reported diagnoses, and permuted sex) to \pkg{partykit} as unordered factors
+and keeps education and alcohol frequency as ordinal codes. Factor typing
+leaves the cardinality pattern unchanged: the permuted sampling weight has mean
+rank 26.6 against 26.4, the eight predictors with at most three distinct values
+have mean rank 16.5 in both arms, and the Spearman correlation between
+importance and number of distinct values is 0.20 against 0.23. The per-fold
+rank correlation with the numeric-coded \pkg{partykit} ranking averages 0.91.
+The one large change is race and ethnicity, the only nominal column with more
+than three categories, which moves from 21.6 to 12.9; marital status moves from
+23.6 to 21.7. Held-out area under the curve with the 10 highest-ranked columns
+is 0.835 against 0.836.
+
 The finding is that on a clinical cohort with predictors of mixed cardinality,
 a random forest ranked by impurity importance places a permuted survey weight
 (mean rank 12.1 of 30) above two reported diagnoses that are established
@@ -1414,9 +1431,9 @@ complete cases on 27 predictors out of a larger adult sample (listwise deletion
 that selects on measurement and response patterns), one draw of the permuted
 controls in the primary analysis (a companion run redraws them per repeat and
 agrees), and predictors passed as numeric codes, so the unordered categorical
-columns (race and ethnicity, marital status, education) are split as if
-ordered in every forest, including \pkg{partykit}, which natively accepts
-factors; the forests are compared at their shipped defaults rather than
+columns (race and ethnicity, marital status) are split as if ordered by the
+random forest and \citrees, which have no factor type (the \pkg{partykit}
+sensitivity arm with factor typing moves mainly race and ethnicity); the forests are compared at their shipped defaults rather than
 tuned. The application measures ranking behavior; the association of any
 predictor with diabetes in this cohort is descriptive.
 More generally, permutation testing makes \citrees substantially

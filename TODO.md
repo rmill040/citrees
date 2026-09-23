@@ -53,13 +53,10 @@ every earlier citrees bucket, including this bucket's own pre-2026-09-23 root
 prefixes. `archive/local-data-mirror-2026-09-23/` is a copy of `../data` before
 it was pruned to the on-grid configurations and the inputs the builders read.
 
-The allen and team buckets (`citrees-891377167619`, `citrees-619322353947`) were
-deleted on 2026-09-23 after their dumps were verified.
+The three source buckets were deleted on 2026-09-23 after their dumps (and the
+arc bucket's noncurrent versions, under
+`archive/citrees-856480643277-noncurrent/`) were verified.
 
-- [ ] `citrees-856480643277`: its current objects are dumped and verified, but
-      it also holds 46,609 noncurrent versions (11.8 GB, mostly the prefixes
-      deleted on 2026-09-13) that the dump does not include. Decide whether to
-      keep them before deleting the bucket.
 - [ ] The data bucket holds 23 GB of noncurrent versions of its own
       pre-consolidation root prefixes, duplicates of
       `archive/citrees-837116549485/`; purge them once the layout is settled.

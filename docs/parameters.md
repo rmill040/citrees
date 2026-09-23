@@ -187,6 +187,8 @@ When `bootstrap=False`, OOB scoring is disabled and
 The default `n_jobs=None` fits trees one at a time, each with the full Numba
 thread pool. When the threshold tests dominate fitting time this is usually
 faster than `n_jobs=-1`, which runs one worker per core with one thread each.
+The fitted forest, including `feature_importances_`, is identical for every
+`n_jobs` value and Numba thread count at a fixed `random_state`.
 
 Options for `sampling_method`:
 

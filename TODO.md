@@ -65,10 +65,6 @@ arc bucket's noncurrent versions, under
 
 - [ ] Delete `build_cit_runtime_ablation_summary_tables.py` after v3 (superseded
       by the experiment module's `summarize`).
-- [ ] Parameter tables in README and docs/parameters.md; keep docs/parameters.md
-      as the source and shorten the README table.
-- [ ] Make forest importances independent of `n_jobs` at the tie level, or
-      document that they are not.
 
 ## Deferred migrations
 

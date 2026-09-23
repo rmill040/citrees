@@ -55,7 +55,9 @@ it was pruned to the on-grid configurations and the inputs the builders read.
 
 The three source buckets were deleted on 2026-09-23 after their dumps (and the
 arc bucket's noncurrent versions, under
-`archive/citrees-856480643277-noncurrent/`) were verified.
+`archive/citrees-856480643277-noncurrent/`) were verified. The
+`citrees-<account>` ECR repositories in those three accounts were deleted the
+same day.
 
 - [ ] The data bucket holds 23 GB of noncurrent versions of its own
       pre-consolidation root prefixes, duplicates of

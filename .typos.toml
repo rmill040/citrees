@@ -14,3 +14,5 @@ VanderPlas = "VanderPlas"
 Plas = "Plas"
 # NHANES sleep questionnaire file prefix
 SLQ = "SLQ"
+# Balanced-accuracy column suffix (lr_ba, svm_ba, knn_ba)
+ba = "ba"

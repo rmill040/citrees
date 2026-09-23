@@ -12,6 +12,12 @@ Subdirectories:
 - `tables/`: tracked CSVs used to verify manuscript claims
 - `cache/`: the two rankings parquets mirrored from the S3 campaign by
   `paper/analysis/aggregate_pipeline_artifacts.py` (ignored, regenerable)
+
+The aggregators read a local mirror at `../data/rankings/` and
+`../data/metrics/`, one parquet per method configuration, dataset, and seed.
+It mirrors the canonical Bonferroni benchmark, campaign d805868f at source
+commit 05ee3cd7 (`reference/v3/benchmark/campaign-d805868f/` in S3), and holds
+only configurations in the current grid.
 - `rdc-projection-sensitivity/`: tracked rankings, downstream metrics,
   summaries, and execution receipt for the RDC projection-count analysis
 

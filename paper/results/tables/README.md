@@ -44,7 +44,7 @@ Tracked tables:
   paired against the selected CIF configuration at the fold x seed replicate
   level on 22 classification and 8 regression real-data benchmark datasets
   (isolet excluded by author decision). Built by `paper/analysis/build_cif_mechanism_ablation_tables.py`
-  from `s3://<citrees bucket>/repairs/benchmark-rerun/source-05ee3cd7.../campaign-d805868f.../_control/cif-mechanism-ablation/metrics`.
+  from `reference/v3/benchmark/campaign-d805868f/_control/cif-mechanism-ablation/metrics/`.
 
 - `cif_autobudget_ablation_summary.csv`, `cif_njobs1_ablation_summary.csv`: CIF at
   the `auto` permutation budget and with a single worker, with and without

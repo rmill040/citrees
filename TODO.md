@@ -45,23 +45,17 @@ manuscripts; the record is in git. What remains:
 - [ ] When AWS reports the host-fault root cause, record it and decide whether
       the locked cells are rerun or stay excluded.
 
-## Reference release and remaining cleanup
+## Data layout
 
-- [ ] Check that `reference/v3/README.md` lists the round-5 and round-6 runs
-      (JSS performance, head-to-head one-pass, Stage B replicates) and copy in
-      any that are missing.
-- [ ] Delete the superseded working prefixes once the manuscripts are final:
-      `repairs/runtime-ablation-rerun/` (240 objects, pre-fix timings),
-      `repairs/h2h-maxt/` (7), `debug/maxt-timing/` (35).
-- [ ] Other accounts: `citrees-891377167619` (1.8 GB) and `citrees-619322353947`
-      (2.2 GB) hold the pre-rename benchmark layout; delete after confirming the
-      canonical campaign reproduces every cell they hold. `citrees-837116549485`
-      (23 GB personal: deliveries, backups, snapshots) is the author's;
-      `reference/v3/provenance/personal-data-backup/` (S3) holds the manifests
-      of its `backups/` uploads and stays until that bucket is decided.
-- [ ] `../data/rankings`, `metrics`, `data` (400 MB): the local mirror of the
-      canonical benchmark; record the campaign it mirrors (d805868f) in
-      `paper/results/README.md`.
+All citrees data lives in one bucket, `citrees-837116549485`: `reference/v3/` is
+the canonical release and `archive/<source bucket>/` holds verified dumps of
+every earlier citrees bucket, including this bucket's own pre-2026-09-23 root
+prefixes. `archive/local-data-mirror-2026-09-23/` is a copy of `../data` before
+it was pruned to the on-grid configurations and the inputs the builders read.
+
+- [ ] Delete the three source buckets (`citrees-856480643277`,
+      `citrees-891377167619`, `citrees-619322353947`) now that their dumps are
+      verified; author confirmation required.
 
 ## Code debt
 
@@ -79,7 +73,6 @@ manuscripts; the record is in git. What remains:
       `threshold_test=["bonferroni"]` to `_CIT_CIF_BASE`; a maintenance rename
       script mapping each old label to its new label for ranking and metric
       files with a dry-run count diff; remap `method_id` in the evaluation
-      parquets and summary CSVs; regenerate `../data/grid_truth.json`; reconcile
-      S3; merge the alias artifacts and delete the alias names,
-      `BASE_METHOD_ALIASES`, and `maxt_extension_exclusions.csv`; cell-count
-      equality check.
+      parquets and summary CSVs; reconcile S3; merge the alias artifacts and
+      delete the alias names, `BASE_METHOD_ALIASES`, and
+      `maxt_extension_exclusions.csv`; cell-count equality check.

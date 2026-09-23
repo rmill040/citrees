@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Tables for the review-round-3 control experiments (EC2 run of 2026-09-17).
 
-Inputs live under ``../data/review3/results/<box>/`` (tarballs from
-``repairs/h2h-rerun/source-e78d84a.../review3/``, archived in
+Inputs live under ``../data/review3/results/<box>/`` (tarballs archived in
 ``reference/v3/ablations/review3/``). Outputs, all under ``paper/results/tables``:
 
 - ``paper_stageb_fixed_budget.csv``: Stage-B-only size and power of the

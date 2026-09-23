@@ -58,7 +58,6 @@ DATA_DIR = Path(__file__).resolve().parents[3] / ".." / "data" / "ablation"
 
 TABLES_DIR.mkdir(parents=True, exist_ok=True)
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 RANDOM_STATE = 1718
 K = 10
@@ -862,6 +861,7 @@ def save_results(df: pd.DataFrame, name: str) -> Path:
     """Save CSV to both TABLES_DIR and DATA_DIR, return the TABLES_DIR path."""
     tables_path = TABLES_DIR / f"{name}.csv"
     data_path = DATA_DIR / f"{name}.csv"
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     df.to_csv(tables_path, index=False)
     df.to_csv(data_path, index=False)
     return tables_path

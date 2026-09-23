@@ -37,13 +37,6 @@ Review rounds 2 to 6 (reviews under `reference/v3/provenance/reviews/` in S3)
 were closed on 2026-09-22 after each item was checked against the current
 manuscripts; the record is in git. What remains:
 
-- [ ] JSS NHANES citrees numbers predate the current library. The archived full
-      run (`paper/jss/results/nhanes-full`, 0e3ab51, dirty tree) was made before
-      the splitter and stopping-rule changes; a clean rerun at 0c6e3d3
-      reproduces the random forest and partykit exactly but moves the citrees
-      ranks (primary contrast -10.96 against -11.34). The controls and redraw
-      runs have the same age. Rerun all three on EC2 at one clean SHA and
-      refresh the section.
 - [ ] JSS author list: three authors on JSS, four on arXiv.
 - [ ] Cite the JSS article for the full Stage B tables once it has an
       identifier; until then Appendix I carries them.

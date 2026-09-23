@@ -1,6 +1,6 @@
 [project]
 name = "citrees"
-version = "0.1.0"
+version = "0.2.0"
 description = "Conditional inference trees and forests"
 authors = [
     { name = "Robert Milletich", email = "rmill040@gmail.com" },

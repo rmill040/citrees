@@ -5,7 +5,7 @@ All notable changes to `citrees` will be documented here.
 This project follows semantic-versioning-style release labels where practical,
 with version numbers matching `pyproject.toml` and GitHub release tags.
 
-## Unreleased
+## 0.2.0 - 2026-09-23
 
 ### Added
 

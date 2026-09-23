@@ -15,9 +15,10 @@ Subdirectories:
 
 The aggregators read a local mirror at `../data/rankings/` and
 `../data/metrics/`, one parquet per method configuration, dataset, and seed.
-It mirrors the canonical Bonferroni benchmark, campaign d805868f at source
-commit 05ee3cd7 (`reference/v3/benchmark/campaign-d805868f/` in S3), and holds
-only configurations in the current grid.
+It holds only configurations in the current grid (4,458 classification and
+2,400 regression cells on 2026-09-23), accumulated across the benchmark
+campaigns; the canonical rerun, campaign d805868f at source commit 05ee3cd7, is
+`reference/v3/benchmark/campaign-d805868f/` in S3.
 - `rdc-projection-sensitivity/`: tracked rankings, downstream metrics,
   summaries, and execution receipt for the RDC projection-count analysis
 

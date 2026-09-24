@@ -1,6 +1,6 @@
 \documentclass[article]{jss}
 
-\usepackage{amsmath,amssymb,booktabs,capt-of,lmodern,needspace,thumbpdf,xspace}
+\usepackage{amsmath,amssymb,array,booktabs,capt-of,lmodern,needspace,thumbpdf,xspace}
 
 \newcommand{\citrees}{\pkg{citrees}\xspace}
 \newcommand{\sklearn}{\pkg{scikit-learn}\xspace}
@@ -18,27 +18,30 @@
   Conditional inference trees separate variable selection from split-point
   optimization, reducing the advantage that variables with many possible
   cutpoints receive in greedy tree construction. \citrees is an open-source
-  \proglang{Python} implementation of conditional-inference-style trees and
-  forests for classification and regression. The package provides estimators
-  compatible with common \sklearn workflows while exposing the statistical
-  and computational choices used at each node. These choices include linear
+  \proglang{Python} implementation of conditional inference trees and forests
+  for classification and regression. The package provides estimators
+  compatible with \sklearn workflows while exposing the statistical and
+  computational choices used at each node. These choices include linear
   and nonlinear association statistics, Monte Carlo permutation tests,
   multiplicity adjustment, sequential stopping, bounded threshold searches,
   feature muting, bootstrap sampling, and separate samples for structure and
   leaf estimation. This article describes the statistical procedure and its
   inferential scope, the software architecture and estimator interface, and
-  the relationship to \pkg{partykit} and CART implementations. Accompanying
-  replication analyses evaluate null calibration, split-variable selection,
-  split decisions matched against \pkg{partykit}, computational scaling, and a
-  max-type threshold test whose size at nominal 0.05 is 0.023 to 0.044 against
-  0.000 to 0.027 for the per-threshold rule, at lower cost once a node has more
-  than about 50 candidate thresholds. In an application to the NHANES 2021--2023
-  diabetes cohort, a random forest with CART split search ranks a permuted
-  survey weight above reported hypertension and high cholesterol. Both
-  conditional forests reverse that order, and so does the same random forest
-  ranked by out-of-bag permutation importance. Disabling the Stage A screen
-  leaves the permuted weight's rank unchanged, so the significance gate is not
-  what protects the conditional forest.
+  the relationship to \pkg{partykit} and \sklearn. Accompanying replication
+  analyses evaluate null calibration, split-variable selection, split
+  decisions matched against \pkg{partykit}, and computational scaling. They
+  also compare two tests of the chosen threshold, a per-threshold Bonferroni
+  test and a joint max-type test. At nominal level 0.05 the max-type test has
+  size 0.023 to 0.044, against 0.000 to 0.027 for the per-threshold test, so
+  it splits more often at a common nominal level, and it costs less once a
+  node has more than about 50 candidate thresholds. In an application to the
+  NHANES 2021 to 2023 diabetes cohort, a \sklearn random forest ranked by
+  impurity importance places a permuted survey weight above reported
+  hypertension and high cholesterol. The \citrees and \pkg{partykit} forests
+  reverse that order, and so does the same random forest ranked by
+  out-of-bag permutation importance. Disabling the nodewise association test
+  leaves the permuted weight's rank unchanged, so the Stage A level is
+  not what protects the conditional forest.
 }
 
 \Keywords{conditional inference trees, random forests, permutation tests,
@@ -78,36 +81,60 @@ estimator interface for model selection and pipelines
 \citep{Pedregosa+Varoquaux+Gramfort:2011}. \citrees extends this estimator
 ecosystem with native conditional inference classifiers and regressors. The
 package separates nodewise feature screening from threshold search, then adds
-selector choices, threshold approximations, sequential computation, forest
+selector choices, threshold approximations, sequential stopping, forest
 sampling controls, and model inspection methods designed for
 \proglang{Python} workflows. Each statistical and computational choice is an
-explicit fitted-estimator parameter.
+explicit constructor argument.
+
+The contributions of this article are of three kinds. As software, \citrees
+provides conditional inference estimators that follow the \sklearn estimator
+protocol, so they can be cloned, placed in pipelines, and tuned by
+cross-validated search without a bridge to \proglang{R}
+(Section~\ref{sec:software}). As method, it departs from \pkg{partykit} in
+four places: Stage A uses Monte Carlo permutation $p$-values of a
+user-chosen association statistic, including a variant of the randomized
+dependence coefficient (Section~\ref{sec:screening}); an adaptive
+sequential stopping rule whose exact null size is derived in the companion
+article \citep{Milletich+Downes+Goley+Hirst:2026}
+(Sections~\ref{sec:screening} and~\ref{sec:scope}); a permutation test of the
+chosen threshold, in a per-threshold Bonferroni form and in a max-type form
+whose validity argument is given in the companion article
+(Section~\ref{sec:thresholds}); and the separation of structure and leaf
+estimation. The companion article reports the feature-selection benchmark
+and the size results. This article reports what the companion article does
+not: the estimator interface and an executable tutorial, the null calibration
+of the fixed-node tests, the cardinality study, the matched comparison with
+\pkg{partykit}, the timing studies against \pkg{partykit} and \sklearn, and
+the NHANES case study.
 
 Section~\ref{sec:procedure} states the nodewise procedure and the scope of its
 inferential guarantees, Section~\ref{sec:software} describes the estimator
 interface with an executable tutorial, and Section~\ref{sec:comparison} places
 the package relative to \pkg{partykit} and \sklearn. Section~\ref{sec:evaluation}
 reports the replication analyses: null calibration of the fixed-node tests,
-split-variable selection under varying cardinality, matched behavior against
-\pkg{partykit}, controlled computation, a comparison of the two threshold-test
-constructions, and the NHANES diabetes application in which one column's
-information content is known by construction. Section~\ref{sec:discussion}
-discusses scope and limitations.
+selector projection sensitivity, split-variable selection under varying
+cardinality, the matched comparison with \pkg{partykit}, controlled
+computation, a comparison of the two threshold tests, and the NHANES case
+study, in which one column's information content is known by construction.
+Section~\ref{sec:discussion} discusses scope and limitations, and
+Section~\ref{sec:availability} gives the computational details.
 
 \section{Statistical procedure} \label{sec:procedure}
 
 Let $(X_t, y_t)$ denote the observations reaching node $t$, and let
 $F_t$ be the nonconstant predictors considered at that node after any feature
-sampling or muting. Tree construction has two stages. Stage A tests each
-predictor in $F_t$ for association with the response. Stage B searches
-thresholds for the predictor selected by Stage A. Either stage can stop the
-node without a split.
+sampling or muting. Tree construction has two stages. The Stage A test checks
+each predictor in $F_t$ for association with the response. The Stage B test
+searches thresholds for the predictor selected by Stage A. Either stage can
+stop the node without a split. Constructor arguments ending in
+\code{_selector} govern Stage A, and those ending in \code{_splitter} govern
+Stage B.
 
 \subsection{Nodewise feature screening} \label{sec:screening}
 
 For predictor $j$, let $T_j$ be its configured association statistic and let
 $T_{j,1},\ldots,T_{j,B}$ be the same statistic after $B$ random permutations
-of the response. \citrees uses the corrected Monte Carlo value
+of the response. \citrees uses the corrected Monte Carlo $p$-value
 %
 \begin{equation}
   p_j =
@@ -119,87 +146,108 @@ of the response. \citrees uses the corrected Monte Carlo value
 %
 whose minimum attainable value is $1/(B+1)$
 \citep{Phipson+Smyth:2010}. With multiplicity adjustment enabled, predictor
-$j$ passes the nodewise screen when $p_j < \alpha_{\mathrm{A}}/|F_t|$.
-The per-candidate permutation budget is recomputed at each node from this
-adjusted level. Named minimum, automatic, and maximum settings use
-$\alpha_{\mathrm{A}}/|F_t|$, while a numeric budget is multiplied by
-$|F_t|$. The minimum setting therefore uses
-$\lceil |F_t|/\alpha_{\mathrm{A}} \rceil$ permutations, the first budget that
-permits a corrected value below the adjusted gate. With adjustment disabled,
-the threshold is $\alpha_{\mathrm{A}}$. The passing predictor with the smallest
-value is selected. Exact ties among evaluated candidates are resolved by
-one-pass reservoir sampling, which gives each tied candidate equal probability
-under the fitted random seed.
+$j$ passes the Stage A test when $p_j < a$, where $a = \alpha_{\mathrm{A}}/|F_t|$
+is the adjusted level; with adjustment disabled, $a = \alpha_{\mathrm{A}}$.
+The passing predictor with the smallest $p$-value is selected. Exact ties
+among evaluated candidates are broken uniformly at random under
+\code{random_state}.
+
+The per-predictor permutation budget is recomputed at each node from $a$. The
+\code{"minimum"} setting uses $B = \lceil 1/a \rceil$, the first budget that
+permits a $p$-value below $a$; with adjustment this is
+$\lceil |F_t|/\alpha_{\mathrm{A}} \rceil$. The \code{"auto"} setting uses
+$B = \max\{\lceil 1/a \rceil, \lceil z_a^2 (1-a)/a \rceil\}$ with
+$z_a = \Phi^{-1}(1-a)$, and the \code{"maximum"} setting uses
+$B = \lceil 1/(4a^2) \rceil$. An integer budget $b$ is multiplied by the
+number of tests it must resolve, $|F_t|$ at Stage A, unless
+\code{scale_resamples_with_tests = False} holds it fixed.
 
 Classification selectors include multiple correlation, mutual information,
 and the randomized dependence coefficient. Regression selectors include
 Pearson correlation, distance correlation, and the randomized dependence
 coefficient \citep{Szekely+Rizzo+Bakirov:2007,Lopez-Paz+Hennig+Schoelkopf:2013}.
-The RDC statistic differs from the original definition: after the copula
+The RDC statistic differs from the original definition. After the copula
 transform and random sine and cosine projections of both variables, \citrees
 takes the largest absolute Pearson correlation between any projected column of
 one variable and any projected column of the other, rather than the first
-canonical correlation, so it is a max-type projection statistic on the same
-$[0, 1]$ scale; the companion article documents the same choice.
+canonical correlation. It is therefore a max-type projection statistic on the
+same $[0, 1]$ scale, the choice documented in the companion article
+\citep{Milletich+Downes+Goley+Hirst:2026}.
 Compatible bounded statistics can also be combined in a max-$T$ permutation
 test \citep{Westfall+Young:1993}. This option evaluates the largest configured
 selector score within each response permutation and uses the resulting joint
 max-statistic reference distribution.
-The exhaustive procedure evaluates every candidate with the requested
-permutation budget and reports fixed-$B$ $p$~values. Before sequential feature
-testing, candidates are sampled without replacement under the fitted random
-seed. Feature scanning reorders that sample by the observed selector statistic and
-stops at the first candidate whose value passes the adjusted gate; it is
-independent of the stopping rule inside each permutation test. Adaptive
-stopping checks its posterior criterion every 32 permutations; simple stopping
-checks significance and futility after each permutation beyond the minimum
-budget. The fitted estimator reports the resulting
-decision and realized selector and threshold permutation counts.
+
+Without sequential stopping, every candidate is evaluated with the full
+permutation budget and the test reports fixed-$B$ $p$-values. Candidates are
+first sampled without replacement under \code{random_state}. Feature scanning
+reorders that sample by the observed statistic and stops at the first
+candidate whose $p$-value falls below $a$; it is independent of the stopping
+rule inside each permutation test. Sequential stopping has two members. Let
+$k$ be the number of exceedances after $m$ permutations. Adaptive stopping,
+the default, is checked when $m$ is a multiple of 32 or equals $B$, once
+$m \geq \lceil 1/a \rceil$. With $\pi \sim \mathrm{Beta}(1+k, 1+m-k)$ the
+posterior of the exceedance probability, it stops when
+%
+\begin{equation*}
+  P(\pi < a) \geq c \quad \text{or} \quad P(\pi \geq a) \geq c ,
+\end{equation*}
+%
+where $c$ is the confidence (default 0.95, also the smallest value allowed),
+and reports $(1+k)/(1+m)$, which is compared with $a$ as in the fixed-budget
+test. Simple stopping is checked after every permutation beyond
+$\lceil 1/a \rceil$ and stops when $(1+k)/(1+m) < a$, or when, after at least
+three exceedances, $(1+k)/(1+B) \geq a$ so that no remaining permutation can
+produce a rejection. Feature muting removes a predictor whose Stage A test
+was evaluated at a node and did not reject from the candidate sets of that
+node's descendants. With \code{honesty = True}, the training sample is split,
+the tree structure is grown on one part, and the leaf values are estimated on
+the other, which holds the fraction \code{honesty_fraction}
+\citep{Wager+Athey:2018}. The fitted estimator reports the resulting
+decisions and the realized selector and splitter permutation counts.
 
 \subsection{Threshold selection} \label{sec:thresholds}
 
 After Stage A selects predictor $j^\star$, Stage B constructs candidate
 thresholds from the ordered unique values of $X_{t,j^\star}$. The exact method
 uses all admissible midpoints. Random, percentile, and histogram methods
-construct bounded subsets for larger nodes. Candidates that violate the
-minimum leaf size are removed before evaluation.
+construct bounded subsets for larger nodes. With the histogram method, a
+setting of $m$ bins yields up to $m+1$ candidate thresholds, and never more
+than the number of distinct values in the node; 256 bins thus give 257
+candidates on a continuous predictor. Candidates that violate the minimum leaf
+size are removed before evaluation.
 
 Each remaining candidate is scored by the weighted impurity of its left and
 right children. Classification supports Gini and entropy criteria, while
 regression supports squared and absolute error. The candidate score can be
 tested with response permutations using a left-tail counterpart of
-Equation~\ref{eq:permutation-p}. If no candidate passes the configured Stage B
-threshold, the node is terminal. The accepted threshold is a tree-construction
-decision after feature selection. Calibration analyses evaluate the fixed-node
-permutation gates.
+Equation~\ref{eq:permutation-p} at the Stage B level $\alpha_{\mathrm{B}}$. If
+no candidate passes the Stage B test, the node is terminal. The accepted
+threshold is a tree-construction decision after feature selection.
+Calibration analyses evaluate the fixed-node permutation tests.
 
-Two constructions control the error rate over the $K$ candidate thresholds.
-The default tests each candidate separately at level $\alpha/K$ with a
-permutation budget scaled by $K$, so that the adjusted level can be resolved;
-this is valid by the union bound and costs on the order of $K^2/\alpha$
-impurity evaluations per node. The max-type construction tests all candidates
-jointly. It forms the weighted child impurity at every candidate for the
+Two tests control the error rate over the $K$ candidate thresholds. The
+per-threshold Bonferroni test, the default, tests each candidate at level
+$\alpha_{\mathrm{B}}/K$ with a permutation budget computed at that level, so
+the adjusted level can be resolved. It is valid by the union bound and costs
+on the order of $K^2/\alpha_{\mathrm{B}}$ impurity evaluations per node. The
+max-type test forms the weighted child impurity at every candidate for the
 observed response and for each of $B$ permutations, standardizes each
-candidate's column by the mean and standard deviation of its $B+1$ values, and
-uses the minimum standardized impurity across candidates as one test statistic;
-its $p$~value is the inclusive rank of the observed minimum among the $B+1$
-exchangeable minima, at level $\alpha$ without division. This is a single-step
-max-T statistic in the sense of \citet{Westfall+Young:1993} with the
-empirical null standardization of \citet{Pollard+vanderLaan:2004}, and it has
-the same standardize-then-optimize form as the split statistics of
-conditional inference trees \citep{Hothorn+Hornik+Zeileis:2006}, with Monte
-Carlo moments in place of exact conditional moments because impurity is not a
-linear statistic. The exchangeable-rank argument that gives
-Equation~\ref{eq:permutation-p} its level applies unchanged: column
-standardization is a symmetric function of the $B+1$ rows and the row minimum is
-a fixed function, so the minima stay exchangeable and the test controls the
-probability of any split under the node's global null. The rationale for
-standardizing is that candidates near the tails of a predictor isolate few
-observations and have wide null distributions, so an unstandardized minimum
-would be drawn to them on heavy-tailed responses; no unstandardized arm was
-run to measure that. Validity needs only about $1/\alpha$ permutations; the implementation uses $B = 999$ under the named resample rules, so the max-type test costs on the order of $BK$ impurity evaluations against $K^2/\alpha$ for the default. The construction is selected with \code{threshold_test = "maxt"}. It was added after the benchmark and application results in this article had been produced, when the cost of the per-candidate test was traced to its $K$-scaled budget, so those results use the default \code{"bonferroni"}, which this release keeps; Section~\ref{sec:threshold-test} compares the two. During sequential fitting, threshold scanning orders
-candidates by weighted impurity; otherwise their order is randomized under the
-fitted seed.
+candidate by the mean and standard deviation of its $B+1$ values, and uses the
+minimum standardized impurity as one statistic. Its $p$-value is the rank of
+the observed minimum among the $B+1$ minima, compared with
+$\alpha_{\mathrm{B}}$ without division. This single-step construction follows
+\citet{Westfall+Young:1993} and \citet{Pollard+vanderLaan:2004}; the
+companion article gives the argument that it controls the probability of any
+split under the node's global null and the rationale for standardizing
+\citep{Milletich+Downes+Goley+Hirst:2026}. The implementation uses $B = 999$
+under the named budget settings, so the max-type test costs on the order of
+$BK$ impurity evaluations. It is selected with \code{threshold_test = "maxt"}.
+Results in Section~\ref{sec:evaluation} use the default
+\code{threshold_test = "bonferroni"} unless a column or row states otherwise,
+and Section~\ref{sec:threshold-test} compares the two tests. With threshold
+scanning, candidates are tested in order of weighted impurity; otherwise
+their order is randomized under \code{random_state}.
 
 \subsection{Forests and feature summaries} \label{sec:forests}
 
@@ -211,11 +259,10 @@ Out-of-bag scores are available when bootstrapping is enabled.
 
 Tree feature importances sum the local impurity decreases attributed to each
 accepted split and normalize the result when its total is positive. Forest
-importances aggregate the normalized tree vectors. Stage A therefore controls
-which predictors may enter threshold optimization, while the reported
-importance measures the impurity reduction of accepted splits. The package
-also exposes terminal-node indices and sparse decision paths for direct model
-inspection.
+importances aggregate the normalized tree vectors. Stage A controls which
+predictors may enter threshold search; the reported importance is
+impurity-based and carries no $p$-value. The package also exposes
+terminal-node indices and sparse decision paths for direct model inspection.
 
 \subsection{Scope of statistical interpretation} \label{sec:scope}
 
@@ -225,18 +272,14 @@ Monte Carlo interpretation. A fitted tree adds response-dependent node
 creation, repeated tests, optional feature ordering and muting, and threshold
 selection. Forests add bootstrap samples, predictor sampling, and aggregation.
 Equation~\ref{eq:permutation-p} defines the fixed-node permutation test used
-during tree construction. For a fixed statistic the adaptive stopping rule has a
-computable null size: under exchangeability the running exceedance count is a
-P\'olya urn when the exceedance probability of the observed statistic is
-treated as continuous, and the rule, which rejects when the reported value is
-strictly below the level, then does so with probability 0.0488 at the default
-confidence for a 999-permutation budget and at most 0.0496 for every budget
-from 20 to 3,000 permutations; for a statistic without ties on the finite set
-of $n!$ permutations the size is within $1/n!$ of that value, and ties can only
-lower it (a constant statistic ties everywhere and never rejects). Under the
-\code{minimum} budget with Bonferroni correction the floor equals the budget
-and the rule never stops early. The fitted tree and forest analyses target predictive
-behavior, feature stability, and computation under adaptive construction.
+during tree construction. For a fixed statistic, the adaptive stopping rule
+has size 0.0488 at the default confidence and a 999-permutation budget, and
+at most 0.0496 for budgets from 20 to 3,000 permutations; the companion
+article derives these values exactly \citep{Milletich+Downes+Goley+Hirst:2026}.
+Under the \code{"minimum"} budget with Bonferroni adjustment the first check
+falls at the full budget, so the rule never stops early. The fitted tree and
+forest analyses target predictive behavior, feature stability, and
+computation under adaptive construction.
 
 \section{Software design and interface} \label{sec:software}
 
@@ -244,9 +287,10 @@ behavior, feature stability, and computation under adaptive construction.
 estimators: tree and forest variants for classification and regression. The
 estimators implement \code{fit()} and \code{predict()}, classifiers implement
 \code{predict_proba()}, and fitted models expose \code{apply()},
-\code{decision_path()}, and \code{feature_importances_}. They can therefore
-participate directly in \sklearn cross-validation, pipeline, and
-parameter-search utilities.
+\code{decision_path()}, and \code{feature_importances_}. Because they also
+follow the \sklearn conventions for constructor arguments and fitted
+attributes, they participate directly in \sklearn cross-validation, pipeline,
+and parameter-search utilities.
 
 \Needspace{18\baselineskip}
 \subsection{Executable tutorial} \label{sec:tutorial}
@@ -254,109 +298,66 @@ parameter-search utilities.
 The executable tutorial uses the Breast Cancer Wisconsin Diagnostic data
 \citep{Wolberg+Mangasarian+Street+Street:1993}, with 569 observations and 30
 continuous predictors. A stratified split assigns 426 observations to training
-and 143 to evaluation. The following code fits a tree and forest, obtains
-predictions, and inspects the fitted tree.
-%
-\begin{Code}
-import numpy as np
-from citrees import (ConditionalInferenceForestClassifier,
-                     ConditionalInferenceTreeClassifier)
-from sklearn.datasets import load_breast_cancer
-from sklearn.metrics import balanced_accuracy_score, roc_auc_score
-from sklearn.model_selection import train_test_split
-
-data = load_breast_cancer(as_frame=True)
-X, y = data.data, data.target
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.25, stratify=y, random_state=1718
-)
-
-common = dict(
-    selector="mc",
-    n_resamples_selector="minimum",
-    n_resamples_splitter="minimum",
-    threshold_method="histogram",
-    max_thresholds=32,
-    random_state=1718,
-)
-tree = ConditionalInferenceTreeClassifier(max_depth=3, **common)
-tree.fit(X_train, y_train)
-tree_predictions = tree.predict(X_test)
-tree_probabilities = tree.predict_proba(X_test)[:, 1]
-tree_balanced_accuracy = balanced_accuracy_score(
-    y_test, tree_predictions
-)
-tree_roc_auc = roc_auc_score(y_test, tree_probabilities)
-tree_path = tree.decision_path(X_test)
-tree_leaves = tree.apply(X_test)
-leading_order = np.argsort(-tree.feature_importances_)[:5]
-leading = tree.feature_names_in_[leading_order]
-
-forest = ConditionalInferenceForestClassifier(
-    n_estimators=100,
-    max_depth=5,
-    bootstrap=True,
-    oob_score=True,
-    n_jobs=1,
-    **common,
-)
-forest.fit(X_train, y_train)
-forest_predictions = forest.predict(X_test)
-forest_probabilities = forest.predict_proba(X_test)[:, 1]
-forest_balanced_accuracy = balanced_accuracy_score(
-    y_test, forest_predictions
-)
-forest_roc_auc = roc_auc_score(y_test, forest_probabilities)
-forest_oob_accuracy = forest.oob_score_
-forest_leaves = forest.apply(X_test)
-\end{Code}
-
-The same estimator participates in a \sklearn pipeline and parameter search.
-The scaler illustrates pandas-aware pipeline composition while preserving
-predictor order.
-%
-\begin{Code}
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-
-pipeline = Pipeline([
-    ("scale", StandardScaler().set_output(transform="pandas")),
-    ("tree", ConditionalInferenceTreeClassifier(**common)),
-])
-search = GridSearchCV(
-    pipeline,
-    {
-        "tree__alpha_selector": [0.01, 0.05],
-        "tree__max_depth": [3, 5],
-    },
-    cv=StratifiedKFold(5, shuffle=True, random_state=1718),
-    scoring="balanced_accuracy",
-    n_jobs=1,
-)
-search.fit(X_train, y_train)
-\end{Code}
-
-The fitted tree stores each node's test results, so the root split, its two
-$p$-values, and the permutations the fit actually drew can be read back:
+and 143 to evaluation. The following code fits a depth-limited tree. It uses
+32 histogram bins rather than the 256 of the benchmark configuration
+(Section~\ref{sec:parameters}), which keeps the Stage B budget at the root to
+661 permutations on this 426-observation training set.
 %
 \begin{CodeChunk}
 \begin{CodeInput}
-root = tree.tree_
-root_name = tree.feature_names_in_[int(root["feature"])]
-root_threshold = root["threshold"]
-root_p_feature = root["pval_feature"]
-root_p_threshold = root["pval_threshold"]
-counts = tree.realized_permutation_counts_
+>>> import json
+>>> import numpy as np
+>>> from citrees import (ConditionalInferenceForestClassifier,
+...                      ConditionalInferenceTreeClassifier)
+>>> from sklearn.datasets import load_breast_cancer
+>>> from sklearn.metrics import balanced_accuracy_score, roc_auc_score
+>>> from sklearn.model_selection import train_test_split
+>>> data = load_breast_cancer(as_frame=True)
+>>> X, y = data.data, data.target
+>>> X_train, X_test, y_train, y_test = train_test_split(
+...     X, y, test_size=0.25, stratify=y, random_state=1718
+... )
+>>> common = dict(
+...     selector="mc",
+...     n_resamples_selector="minimum",
+...     n_resamples_splitter="minimum",
+...     threshold_method="histogram",
+...     max_thresholds=32,
+...     random_state=1718,
+...     verbose=0,
+... )
+>>> tree = ConditionalInferenceTreeClassifier(max_depth=3, **common)
+>>> _ = tree.fit(X_train, y_train)
 \end{CodeInput}
 \end{CodeChunk}
 %
-The replication script \code{tutorial.py} prints these quantities; the tree
-lines of its transcript are
+The fitted tree stores each node's test results, so the root split, its two
+$p$-values, and the permutations the fit actually drew can be read back and
+printed with the holdout metrics and the leading importances.
 %
 \begin{CodeChunk}
+\begin{CodeInput}
+>>> root = tree.tree_
+>>> name = tree.feature_names_in_[int(root["feature"])]
+>>> nodes = tree.decision_path(X_test).shape[1]
+>>> print(f"tree: depth={tree.depth_}, nodes={nodes}, root={name}")
+>>> print(f"root: threshold={root['threshold']:.4f}, "
+...       f"feature p={root['pval_feature']:.4f}, "
+...       f"threshold p={root['pval_threshold']:.4f}")
+>>> bacc = balanced_accuracy_score(y_test, tree.predict(X_test))
+>>> auc = roc_auc_score(y_test, tree.predict_proba(X_test)[:, 1])
+>>> print(f"tree holdout: balanced accuracy={bacc:.4f}, ROC AUC={auc:.4f}")
+>>> counts = tree.realized_permutation_counts_
+>>> print(f"tree permutations: selector={counts['selector']}, "
+...       f"splitter={counts['splitter']}")
+>>> values = tree.feature_importances_
+>>> order = np.argsort(-values, kind="stable")[:5]
+>>> pairs = [f"{tree.feature_names_in_[i]}={values[i]:.4f}" for i in order]
+>>> print("tree leading importances: " + ", ".join(pairs[:2]) + ",")
+>>> print("  " + ", ".join(pairs[2:]))
+\end{CodeInput}
 \begin{CodeOutput}
-tree: nodes=9, root=worst concave points
+tree: depth=4, nodes=9, root=worst concave points
 root: threshold=0.1464, feature p=0.0017, threshold p=0.0015
 tree holdout: balanced accuracy=0.9700, ROC AUC=0.9587
 tree permutations: selector=38400, splitter=2640
@@ -365,59 +366,126 @@ tree leading importances: worst concave points=0.6757, worst area=0.1666,
 \end{CodeOutput}
 \end{CodeChunk}
 %
-With the fixed split and random seed above, the tree attained balanced accuracy
-0.9700 and area under the receiver operating characteristic curve 0.9587. Its
-root tests \code{worst concave points} with a Stage A $p$-value of 0.0017 and a
-threshold $p$-value of 0.0015, which are $1/601$ and $1/661$, the smallest values
-that the \code{"minimum"} budgets for 30 predictors and 33 candidate thresholds
-allow, and the fit drew 38,400 selector and 2,640 splitter permutations in total. The
-100-tree forest attained 0.9795 and 0.9987, respectively, with an out-of-bag
-accuracy of 0.9577. The parameter search selected a Stage A threshold of 0.01
-and maximum depth 3, with mean cross-validated balanced accuracy 0.9414. The
-replication output includes all feature importances, path and leaf dimensions,
-realized permutation counts, cross-validation results, holdout predictions,
-and a machine-readable receipt.
+The root has depth 1, so \code{max_depth = 3} permits three levels of splits,
+and \code{depth_}, which counts the leaves, reports 4. The root's Stage A and
+Stage B $p$-values are $1/601$ and $1/661$, the smallest values that the
+\code{"minimum"} budgets for 30 predictors and 33 candidate thresholds allow.
+The same arguments fit a 100-tree forest with out-of-bag scoring.
+%
+\begin{CodeChunk}
+\begin{CodeInput}
+>>> forest = ConditionalInferenceForestClassifier(
+...     n_estimators=100, max_depth=5, bootstrap=True, oob_score=True,
+...     n_jobs=1, **common
+... )
+>>> _ = forest.fit(X_train, y_train)
+>>> leaves = forest.apply(X_test)
+>>> print(f"forest: estimators={len(forest.estimators_)}, "
+...       f"leaf matrix={leaves.shape}, OOB score={forest.oob_score_:.4f}")
+>>> bacc = balanced_accuracy_score(y_test, forest.predict(X_test))
+>>> auc = roc_auc_score(y_test, forest.predict_proba(X_test)[:, 1])
+>>> print(f"forest holdout: balanced accuracy={bacc:.4f}, ROC AUC={auc:.4f}")
+\end{CodeInput}
+\begin{CodeOutput}
+forest: estimators=100, leaf matrix=(143, 100), OOB score=0.9577
+forest holdout: balanced accuracy=0.9795, ROC AUC=0.9987
+\end{CodeOutput}
+\end{CodeChunk}
+%
+The same estimator participates in a \sklearn pipeline and parameter search.
+The scaler illustrates \pkg{pandas}-aware pipeline composition while
+preserving predictor order.
+%
+\begin{CodeChunk}
+\begin{CodeInput}
+>>> from sklearn.model_selection import GridSearchCV, StratifiedKFold
+>>> from sklearn.pipeline import Pipeline
+>>> from sklearn.preprocessing import StandardScaler
+>>> pipeline = Pipeline([
+...     ("scale", StandardScaler().set_output(transform="pandas")),
+...     ("tree", ConditionalInferenceTreeClassifier(**common)),
+... ])
+>>> search = GridSearchCV(
+...     pipeline,
+...     {"tree__alpha_selector": [0.01, 0.05], "tree__max_depth": [3, 5]},
+...     cv=StratifiedKFold(5, shuffle=True, random_state=1718),
+...     scoring="balanced_accuracy",
+...     n_jobs=1,
+... )
+>>> _ = search.fit(X_train, y_train)
+>>> best = {key.removeprefix("tree__"): value
+...         for key, value in search.best_params_.items()}
+>>> print(f"search best parameters: {json.dumps(best, sort_keys=True)}")
+>>> print(f"search cross-validated balanced accuracy={search.best_score_:.4f}")
+\end{CodeInput}
+\begin{CodeOutput}
+search best parameters: {"alpha_selector": 0.01, "max_depth": 3}
+search cross-validated balanced accuracy=0.9414
+\end{CodeOutput}
+\end{CodeChunk}
+%
+The replication script \code{tutorial.py} prints these lines and also writes
+all feature importances, path and leaf dimensions, realized permutation
+counts, cross-validation results, holdout predictions, and a machine-readable
+receipt.
 
 \subsection{Estimator parameters} \label{sec:parameters}
 
-Table~\ref{tab:parameters} lists the estimator arguments that control the
-statistical procedure and its cost, with the shipped defaults and the benchmark
-setting of the companion article where it differs. The four estimators share
-these arguments; forests add \code{n_estimators}, \code{max_features}
-(\code{"sqrt"}), \code{bootstrap}, \code{max_samples}, and \code{n_jobs}
-(\code{None}: trees are fit one at a time, each with the full compiled thread
-pool). The defaults favor precision of the reported $p$-values over speed and
-are kept for this release so that results fit with them remain reproducible.
-For feature ranking on data of the size studied here the recommended setting
-is \code{"minimum"} for both \code{n_resamples_selector} and
-\code{n_resamples_splitter}, the \code{"histogram"} threshold method with
-\code{max_thresholds = 256}, and, when a node has many candidate thresholds,
-\code{threshold_test = "maxt"}. The estimators pass \pkg{scikit-learn}'s estimator checks for the supported input
-types.
+Table~\ref{tab:parameters} lists the constructor arguments that control the
+statistical procedure and its cost, with their defaults. The four estimators
+share these arguments. Forests add \code{n_estimators}, \code{bootstrap},
+\code{max_samples}, \code{oob_score}, \code{n_jobs}, and, for classification,
+\code{sampling_method}, and they change the \code{max_features} default from
+\code{None} to \code{"sqrt"}. The forest default \code{n_jobs = None} fits
+trees one at a time, each with the full compiled thread pool.
+
+Three configurations recur in this article. The default configuration is the
+constructor defaults of Table~\ref{tab:parameters}: \code{"auto"} budgets,
+exact threshold search, the per-threshold Bonferroni test, and adaptive
+stopping. It favors precision of the reported $p$-values over speed and is
+kept for this release so that results fit with it remain reproducible. The
+benchmark configuration, used by the companion article
+\citep{Milletich+Downes+Goley+Hirst:2026} and by the timing studies of
+Section~\ref{sec:performance}, sets \code{n_resamples_selector} and
+\code{n_resamples_splitter} to \code{"minimum"} and uses the
+\code{"histogram"} method with \code{max_thresholds = 256}, keeping the
+per-threshold Bonferroni test. The recommended configuration, for feature
+ranking on data of the size studied here, is the benchmark configuration with
+\code{threshold_test = "maxt"} when a node has more than about 50 candidate
+thresholds. The crossover follows from the cost orders of
+Section~\ref{sec:thresholds}: the per-threshold test costs more than the
+max-type test when $K^2/\alpha_{\mathrm{B}} > BK$, that is when
+$K > \alpha_{\mathrm{B}} B = 0.05 \times 999 \approx 50$. The estimators pass
+\sklearn's estimator checks for the supported input types. Inputs must be
+numeric and finite: \code{fit()} rejects missing and infinite values, and
+categorical predictors must be encoded numerically.
 
 \begin{table}[t!]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{p{5.3cm}p{2.2cm}p{6.4cm}}
-\hline
-Argument & Default & Meaning \\ \hline
+\begin{tabular}{>{\raggedright\arraybackslash}p{6.4cm}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{5.5cm}}
+\toprule
+Argument & Default & Meaning \\ \midrule
 \code{selector} & \code{"mc"} / \code{"pc"} & Stage A statistic: \code{mc}, \code{mi}, \code{rdc} (classification); \code{pc}, \code{dc}, \code{rdc} (regression); a list gives the max-$T$ combination \\
-\code{alpha_selector}, \code{alpha_splitter} & 0.05 & Nominal levels of the two stages \\
+\code{splitter} & \code{"gini"} / \code{"mse"} & Stage B impurity criterion: \code{gini}, \code{entropy} (classification); \code{mse}, \code{mae} (regression) \\
+\code{rdc_n_projections} & 10 & Random projections per variable for the RDC statistic (Section~\ref{sec:rdc-sensitivity}) \\
+\code{alpha_selector}, \code{alpha_splitter} & 0.05 & Levels $\alpha_{\mathrm{A}}$ and $\alpha_{\mathrm{B}}$ of the two stages \\
 \code{adjust_alpha_selector}, \code{adjust_alpha_splitter} & \code{True} & Bonferroni adjustment over candidate predictors and over candidate thresholds \\
-\code{n_resamples_selector}, \code{n_resamples_splitter} & \code{"auto"} & Permutation budget: \code{"minimum"} ($\lceil 1/\alpha_{\mathrm{adj}} \rceil$, the benchmark setting), \code{"auto"}, \code{"maximum"}, or an integer \\
+\code{n_resamples_selector}, \code{n_resamples_splitter} & \code{"auto"} & Permutation budget: \code{"minimum"} ($\lceil |F_t|/\alpha_{\mathrm{A}} \rceil$ at Stage A), \code{"auto"}, \code{"maximum"}, or an integer (Section~\ref{sec:screening}) \\
 \code{scale_resamples_with_tests} & \code{True} & Multiply an integer budget by the number of tests it must resolve; \code{False} holds it fixed \\
-\code{early_stopping_selector}, \code{early_stopping_splitter} & \code{"adaptive"} & Sequential stopping: \code{"adaptive"} (Beta posterior, computable size), \code{"simple"} (exploratory; false-split rate up to 0.087 in the calibration study, and the constructor warns), or \code{None} \\
-\code{early_stopping_confidence_*} & 0.95 & Posterior confidence of the adaptive rule; values below 0.95 are refused \\
+\code{early_stopping_selector}, \code{early_stopping_splitter} & \code{"adaptive"} & Sequential stopping: \code{"adaptive"} (Beta posterior, computable size), \code{"simple"} (exploratory; false-split rate up to 0.087 in Section~\ref{sec:calibration}, and the constructor warns), or \code{None} \\
+\code{early_stopping_confidence_selector}, \code{early_stopping_confidence_splitter} & 0.95 & Posterior confidence $c$ of the adaptive rule; values below 0.95 are refused \\
 \code{feature_scanning}, \code{threshold_scanning} & \code{True} & Test candidates in order of the observed statistic and stop at the first rejection \\
-\code{feature_muting} & \code{True} & Remove predictors that failed the selector test from the descendants of a node \\
-\code{threshold_method}, \code{max_thresholds} & \code{"exact"}, \code{None} & Candidate thresholds: \code{"exact"}, \code{"histogram"} (256 bins in the benchmark), \code{"percentile"}, \code{"random"} \\
-\code{threshold_test} & \code{"bonferroni"} & Per-threshold Bonferroni test or the joint max-type test (\code{"maxt"}) \\
+\code{feature_muting} & \code{True} & Remove predictors that failed the Stage A test from the descendants of a node \\
+\code{threshold_method}, \code{max_thresholds} & \code{"exact"}, \code{None} & Candidate thresholds: \code{"exact"}, \code{"histogram"}, \code{"percentile"}, \code{"random"} \\
+\code{threshold_test} & \code{"bonferroni"} & Per-threshold Bonferroni test or the max-type test (\code{"maxt"}) \\
 \code{honesty}, \code{honesty_fraction} & \code{False}, 0.5 & Sample splitting between structure and leaf estimation \\
-\code{max_depth}, \code{min_samples_split}, \code{min_samples_leaf} & \code{None}, 2, 1 & Structural limits as in \pkg{scikit-learn} \\
-\hline
+\code{max_depth}, \code{min_samples_split}, \code{min_samples_leaf} & \code{None}, 2, 1 & Structural limits as in \sklearn; the root has depth 1 \\
+\code{min_impurity_decrease} & 0.0 & Smallest impurity decrease an accepted split must attain \\
+\bottomrule
 \end{tabular}
-\caption{Estimator arguments controlling the statistical procedure and its cost, with shipped defaults. The recommended benchmark configuration of the companion article uses \code{"minimum"} budgets and the 256-bin histogram search.}
+\caption{Constructor arguments controlling the statistical procedure and its cost, with their defaults. Section~\ref{sec:parameters} defines the default, benchmark, and recommended configurations.}
 \label{tab:parameters}
 \end{table}
 
@@ -431,9 +499,9 @@ behavior parallel while registered statistics and threshold methods preserve a
 common estimator interface.
 
 Parameter validation occurs before fitting and enforces compatible selector
-combinations, valid probability thresholds, feasible sample fractions, and
-forest settings with defined outputs. Random seeds are propagated through
-permutation tests, sample splitting, bootstrap sampling, and tree construction.
+combinations, valid levels, feasible sample fractions, and forest settings
+with defined outputs. The random seed is propagated through permutation
+tests, sample splitting, bootstrap sampling, and tree construction.
 Fitted estimators retain the parameters expected by \sklearn cloning and
 model-selection utilities. Table~\ref{tab:software-architecture} summarizes
 the responsibilities and interfaces of the main implementation components.
@@ -441,16 +509,16 @@ the responsibilities and interfaces of the main implementation components.
 \begin{table}[t!]
 \centering
 \small
-\begin{tabular}{p{0.22\textwidth}p{0.67\textwidth}}
-\hline
-Component & Responsibility \\ \hline
-Parameter validation & Check selector compatibility, probability thresholds,
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.67\textwidth}}
+\toprule
+Component & Responsibility \\ \midrule
+Parameter validation & Check selector compatibility, levels,
 sampling fractions, and forest settings before fitting. \\
 Nodewise testing & Resolve registered association statistics and permutation
 procedures, then retain realized permutation counts. \\
 Threshold selection & Generate admissible candidates for the selected
 predictor and evaluate registered impurity criteria and permutation tests. \\
-Tree recursion & Propagate node samples, active predictors, depth, and fitted
+Tree recursion & Propagate node samples, active predictors, depth, and the
 random state while constructing terminal and internal nodes. \\
 Forest aggregation & Fit independently seeded trees to resampled observations
 and predictor subsets, then aggregate predictions and feature importances. \\
@@ -460,7 +528,7 @@ Model inspection & Expose the fitted tree, terminal-node assignments, sparse
 decision paths, feature importances, and realized permutation counts. \\
 Extension points & Register new association statistics, permutation tests,
 split criteria, and threshold generators behind the common estimator
-interface. \\ \hline
+interface. \\ \bottomrule
 \end{tabular}
 \caption{Responsibilities of the
 main software components. Registered statistical components are shared by the
@@ -476,66 +544,102 @@ resamples are requested. Performance-critical statistics use
 be fit concurrently, and sequential stopping can reduce permutation work.
 Threshold subsampling bounds the number of Stage B candidates, while feature
 muting can reduce the predictor set passed to descendants. Each control changes
-the realized computation and may change the fitted model. Explicit estimator
-parameters make these choices auditable. At the reference condition of
-Section~\ref{sec:performance} the forest fits faster with the default
+the realized computation and may change the fitted model. Explicit constructor
+arguments make these choices auditable. At the reference condition of
+Section~\ref{sec:performance}, the forest fits faster with the default
 \code{n_jobs = None}, which fits trees one at a time and gives each the full
-compiled thread pool for its threshold tests, than with \code{n_jobs = -1}, one
-worker process per core (13.7 against 18.9 seconds), so when the threshold test
-dominates the default, parallel within trees rather than across them, is the
-faster layout.
+compiled thread pool for its threshold tests, than with \code{n_jobs = -1},
+which runs one worker process per core (Table~\ref{tab:performance-decomposition}).
+When the Stage B test dominates the cost, parallelism within trees is
+therefore the faster layout.
 
 \section{Relationship to existing software} \label{sec:comparison}
 
-\pkg{partykit} is the reference software ecosystem for conditional inference
+\pkg{partykit} is the reference implementation of conditional inference
 trees and forests in \proglang{R}. It implements the conditional inference
 framework through linear statistics and provides a broad object system for
 recursive partitioning \citep{Hothorn+Hornik+Zeileis:2006,Hothorn+Zeileis:2015}.
-\citrees follows the same high-level separation of variable selection and
-split-point optimization with package-specific selector statistics, stopping
-rules, forest controls, and fitted object representation. \pkg{partykit}
-provides exact \code{ctree} and \code{cforest} behavior, while \citrees serves
-native \proglang{Python} pipelines.
+Its predecessor \pkg{party} introduced the conditional inference forest and
+conditional variable importance
+\citep{Hothorn+Hornik+Strobl+Zeileis:party,Strobl+Boulesteix+Kneib+Augustin+Zeileis:2008}.
+The two packages differ from \citrees at the node. \pkg{partykit} tests
+standardized linear statistics, with asymptotic $p$-values by default and
+Monte Carlo $p$-values on request, adjusts them by Bonferroni over
+predictors, chooses the split point by maximizing a standardized two-sample
+statistic, and stops when the adjusted $p$-value is not below the level; its
+forest defaults use unadjusted $p$-values with no stopping level and
+subsampling without replacement. \citrees tests a user-chosen association
+statistic with Monte Carlo permutation $p$-values and sequential stopping,
+adjusts by Bonferroni over predictors, chooses the split point by impurity,
+and can test the chosen threshold with a second permutation test.
+\pkg{partykit} also supports response and predictor types, missing-value
+handling, and display methods that \citrees does not
+(Table~\ref{tab:software-comparison}). From \proglang{Python}, \pkg{partykit}
+can be called through \pkg{rpy2} \citep{Gautier:rpy2}, which the replication
+suite uses.
 
-\sklearn trees and forests provide substantially faster CART-style fitting for
-many prediction tasks and remain essential baselines. Their split search
-jointly optimizes a predictor and threshold by impurity reduction. \citrees
-incurs the additional cost of nodewise association tests in exchange for
-separating predictor screening from threshold optimization. It also exposes
-linear and nonlinear selector choices and fixed or sequential permutation
-budgets. These implementations answer related but different modeling needs,
-and predictive comparisons should retain both.
+\sklearn trees and forests provide much faster CART-style fitting and remain
+essential baselines. At the reference condition of
+Table~\ref{tab:performance-reference}, the \sklearn forest fits in 0.16
+seconds for classification and 0.12 for regression, against 18.6 and 16.9
+seconds for the benchmark \citrees forest, more than 100 times faster. Their
+split search jointly optimizes a predictor and threshold by impurity
+reduction. \citrees incurs the additional cost of nodewise association tests
+in exchange for separating predictor screening from threshold search. It also
+exposes linear and nonlinear selector choices and fixed or sequential
+permutation budgets. Honest estimation, which \citrees offers as an option,
+is central to the causal forests of \pkg{grf} in \proglang{R} and
+\pkg{EconML} in \proglang{Python}
+\citep{Wager+Athey:2018,Athey+Tibshirani+Wager:2019,Battocchi+Dillon+Hei:2019}.
 
-Table~\ref{tab:software-comparison} summarizes the language, model families,
-feature-screening procedure, and estimator interfaces.
+Table~\ref{tab:software-comparison} compares the three packages on the
+language, the tests, the supported data types, and the interfaces.
 
 \begin{table}[t!]
 \centering
-\begin{tabular}{llll}
-\hline
-Capability & \citrees & \pkg{partykit} & \sklearn \\ \hline
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{3.4cm}}
+\toprule
+Capability & \citrees & \pkg{partykit} & \sklearn \\ \midrule
 Primary language & \proglang{Python} & \proglang{R} & \proglang{Python} \\
-Conditional feature screen & Yes & Yes & No \\
+Association test before threshold search & Yes & Yes & No \\
 Classification and regression & Yes & Yes & Yes \\
 Single trees and forests & Yes & Yes & Yes \\
-Nonlinear selector choices & Yes & Framework-dependent & No \\
-\sklearn estimator protocol & Yes & No & Yes \\ \hline
+Response types & Class labels, continuous & Nominal, ordered, continuous, censored, multivariate & Class labels, continuous, multi-output \\
+Factor predictors & Numeric encoding required & Native & Numeric encoding required \\
+Missing values & Rejected at fit & Surrogate splits or random assignment & Supported in trees and forests \\
+Case weights & No & Yes & Yes \\
+Conditional variable importance & No & Yes (\code{varimp}) & No \\
+$p$-value computation & Monte Carlo permutation with sequential stopping & Asymptotic (default) or Monte Carlo & None \\
+Nonlinear selector choices & Distance correlation, mutual information, RDC & User transformations (\code{ytrafo}) & No \\
+Parallelism & Compiled threads within tests; processes across trees & Across trees (\code{cores}, \code{applyfun}) & Threads across trees \\
+Print and plot methods & Parameter summary only & Tree print and plot & Text export and tree plot \\
+\sklearn estimator protocol & Yes & No & Yes \\ \bottomrule
 \end{tabular}
-\caption{High-level comparison of the software
-interfaces relevant to \citrees. ``Conditional feature screen'' denotes a
-predictor-response test before threshold optimization. The packages expose
-different statistical procedures; behavioral comparisons account for each
-procedure and its defaults.}
+\caption{Comparison of the software
+interfaces relevant to \citrees. ``Association test before threshold search''
+denotes a predictor-response test before threshold optimization. The
+packages expose different statistical procedures; behavioral comparisons
+account for each procedure and its settings.}
 \label{tab:software-comparison}
 \end{table}
 
 \section{Evaluation and replication design} \label{sec:evaluation}
 
-The evaluation separates fixed-test calibration, fitted-model behavior,
-computation, the two threshold-test constructions, and one clinical
-application. The full profile defines every reported estimate. A reduced quick
-profile retains the same datasets, metrics, output schemas, and validation
-rules for local replication.
+The evaluation has seven parts: null calibration of the fixed-node tests
+(Section~\ref{sec:calibration}), selector projection sensitivity
+(Section~\ref{sec:rdc-sensitivity}), split-variable selection under varying
+cardinality (Section~\ref{sec:cardinality}), the matched comparison with
+\pkg{partykit} (Section~\ref{sec:behavior}), controlled computation
+(Section~\ref{sec:performance}), the two threshold tests
+(Section~\ref{sec:threshold-test}), and the NHANES case study
+(Section~\ref{sec:nhanes}). Throughout, size is the rejection rate of a
+fixed-node test under its null, and the false-split rate is the rate at which
+a fitted node splits under the global null. The full profile defines every
+reported estimate. A reduced quick profile retains the same datasets,
+metrics, output schemas, and validation rules for local replication
+(Section~\ref{sec:replication}).
 
 \subsection{Null calibration} \label{sec:calibration}
 
@@ -546,41 +650,45 @@ normal, binary, or four-level ordinal distributions. The full profile covers
 28 combinations of task, selector, predictor distribution, and sample size,
 including the compatible max-$T$ selector combinations. Each combination uses
 5,000 replicates and 999 response permutations. The primary estimate is the
-proportion of corrected Monte Carlo values below 0.05.
+size, the proportion of $p$-values below 0.05.
 
 Root-level experiments fit depth-one trees under the global null. Separate
-conditions activate the feature gate, the threshold gate, or both gates.
+conditions activate the Stage A test, the Stage B test, or both.
 Exhaustive, adaptive, and simple permutation modes are crossed with the
 applicable feature- and threshold-scanning controls. The design also varies the
 number and distribution of candidate predictors and the threshold search. The
 full profile contains 78 conditions with 5,000 replicates per condition.
-Root-split frequency measures the fitted decision, while recorded selector and
+The false-split rate measures the fitted decision, while recorded selector and
 splitter permutation counts measure the computation used to reach it.
 
-Across the 28 selector conditions, the rejection rate at the 0.05 level ranged
-from 0.0356 to 0.0550, with a mean of 0.0473. With 999 permutations and the
-add-one correction, the largest attainable rejection level is 0.049. The largest rate, 0.0550 for the multiple correlation selector on Gaussian
-predictors at 500 observations, the case in which exchangeability holds
-exactly, lies two Monte Carlo standard errors above the attainable maximum and
-its interval (0.049 to 0.062) includes it. No 95\%
-confidence interval lay entirely above the nominal level; five intervals, all
-involving binary or four-level ordinal predictors, lay entirely below 0.05,
-indicating mild conservatism for coarse predictor distributions. Each estimate
-rests on 5,000 replicates and 4,995,000 realized response permutations.
+Across the 28 selector conditions, the size at the 0.05 level ranged from
+0.0356 to 0.0550, with a mean of 0.0473. With 999 permutations and the add-one
+correction, the largest attainable size is 0.049. The largest rate, 0.0550,
+occurred for the multiple correlation selector on Gaussian predictors at 500
+observations, the case in which exchangeability holds exactly. It lies two
+Monte Carlo standard errors above the attainable maximum, and its interval
+(0.049 to 0.062) includes it. No 95\% confidence interval lay entirely above
+the nominal level. Five intervals, all involving binary or four-level ordinal
+predictors, lay entirely below 0.05, indicating mild conservatism for coarse
+predictor distributions. Each estimate rests on 5,000 replicates and
+4,995,000 realized response permutations.
 
-Across the 78 root-level conditions, the split rate under the global null
-ranged from 0.0050 to 0.0868, with a mean of 0.0419. Stopping mode separates
-the estimates. The 14 exhaustive conditions ranged from 0.0072 to 0.0502 (the last within one Monte Carlo standard error of 0.05), and
-the 32 adaptive conditions from 0.0050 to 0.0480, so adaptive stopping never
-exceeded the nominal 0.05 level. The 32 simple-stopping conditions ranged from
-0.0084 to 0.0868 and exceeded 0.05 in 22 conditions; in 14 of these, the 95\%
-confidence interval excluded 0.05 from below. In the 14 matched comparisons
-that share a design with an exhaustive condition, adaptive stopping tracked
-the exhaustive split rate closely, with a largest absolute difference of
-0.012, while using 2.0\% to 6.2\% of the exhaustive permutation count (these root-level conditions use a nominal budget of 999 permutations, above the floor at which adaptive stopping is inert); simple stopping used 2.1\% to
-13.6\% of the exhaustive count but inflated the split rate. These results
-support adaptive stopping as the default and confine simple stopping to
-exploratory use; the estimators emit a warning when it is requested.
+Across the 78 root-level conditions, the false-split rate under the global
+null ranged from 0.0050 to 0.0868, with a mean of 0.0419. Stopping mode
+separates the estimates. The 14 exhaustive conditions ranged from 0.0072 to
+0.0502 (the last within one Monte Carlo standard error of 0.05), and the 32
+adaptive conditions from 0.0050 to 0.0480, so adaptive stopping never exceeded
+the nominal 0.05 level. The 32 simple-stopping conditions ranged from 0.0084
+to 0.0868 and exceeded 0.05 in 22 conditions; in 14 of these, the 95\%
+confidence interval excluded 0.05 from below. These root-level conditions use
+a nominal budget of 999 permutations, above the floor at which adaptive
+stopping is inert. In the 14 matched comparisons that share a design with an
+exhaustive condition, adaptive stopping tracked the exhaustive false-split
+rate closely, with a largest absolute difference of 0.012, while using 2.0\%
+to 6.2\% of the exhaustive permutation count. Simple stopping used 2.1\% to
+13.6\% of the exhaustive count but inflated the false-split rate. These
+results support adaptive stopping as the default and confine simple stopping
+to exploratory use; the estimators emit a warning when it is requested.
 
 \subsection{Selector projection sensitivity} \label{sec:rdc-sensitivity}
 
@@ -588,14 +696,15 @@ The RDC implementation uses 10 random projections (20 sine and cosine columns).
 A 5-seed, 5-fold sensitivity analysis compared 5, 10, 20, and 40 projections on
 Wine (178 samples, 13 features), Glass (214 samples, 10 features), Heart
 Statlog (270 samples, 13 features), and Parkinsons (195 samples, 22 features).
-Across 25 paired seed-fold evaluations per dataset, median selector time with
-20 projections was 3.00 to 3.06 times that with 10. At reduced feature counts
-(5 and 10 for Wine, Heart Statlog, and Parkinsons; 5 for Glass), mean balanced
-accuracy differences (20 minus 10) ranged from $-0.0052$ to $0.0005$ across the
-three downstream classifiers, and mean overlap between selected feature sets
-ranged from 95.4\% to 99.8\%. Using 10 projections reduced median selector time
-by 66.6\% to 67.4\% relative to 20 while preserving the observed accuracy at
-these scales.
+Each ranking was evaluated by fitting three downstream classifiers (logistic
+regression, a support vector machine, and $k$-nearest neighbors) to its top 5
+and top 10 features (top 5 only for Glass, which has 10 features). Across 25
+paired seed-fold evaluations per dataset, the median selector time with 20
+projections was 3.00 to 3.06 times that with 10. At these feature counts, mean
+balanced accuracy differences (20 minus 10) ranged from $-0.0052$ to $0.0005$
+across the three downstream classifiers, and mean overlap between selected
+feature sets ranged from 95.4\% to 99.8\%. Using 10 projections therefore
+reduced median selector time by about two thirds relative to 20.
 
 \subsection{Variable cardinality} \label{sec:cardinality}
 
@@ -606,13 +715,13 @@ five column positions are shuffled independently in each replicate, and the
 response is generated independently of all predictors.
 
 Tree comparisons use 10,000 replicates for classification and regression.
-\citrees and \pkg{partykit} use a familywise threshold of 0.05 with Bonferroni
+\citrees and \pkg{partykit} use a familywise level of 0.05 with Bonferroni
 adjustment across the five predictors and a nominal budget of 999 permutations.
 \citrees evaluates each candidate with 4,995 permutations to retain resolution
-at the adjusted threshold, while \pkg{partykit} uses its native Monte Carlo
+at the adjusted level, while \pkg{partykit} uses its native Monte Carlo
 distribution with 999 permutations. CART stumps provide the impurity-based
-comparison. The analysis retains candidate statistics, corrected permutation
-values, native root decisions, ties, and the no-split outcome.
+comparison. The analysis retains candidate statistics, $p$-values, native
+root decisions, ties, and the no-split outcome.
 
 Forest comparisons use 2,500 replicates and 100 depth-one trees per forest.
 Every tree receives all five predictors and a bootstrap sample of 200
@@ -632,30 +741,30 @@ were 3.64\% and 4.52\%, with native root decisions at 4.05\% and 4.98\%. CART
 stumps, which apply no stopping test, split in every replicate.
 Table~\ref{tab:cardinality-holm} reports the prespecified family of 14 trend
 tests. Holm adjustment rejected five hypotheses: both forced-winner
-classification tree trends, where the predictor with the largest corrected
-statistic concentrated on high-cardinality columns for \citrees and
-\pkg{partykit} alike; the \sklearn random forest importance trend in both
-tasks, with mean Kendall $\tau_b$ of 0.711 for classification and 0.718 for
-regression; and the \pkg{partykit} conditional inference forest trend for
-regression, whose mean $\tau_b$ of 0.027 is small but consistently positive.
-The \citrees conditional inference forest trend was not significant after Holm
-adjustment in either task (mean $\tau_b$ of 0.021 for classification, Holm-adjusted $p$~value
-0.062, and $-0.014$ for regression). Conditional on a tree actually splitting,
-no cardinality trend in the winning predictor was rejected for either
-conditional inference implementation. The forced-winner rejections therefore
-reflect which predictor attains the extreme statistic, not the fitted
-decisions, which occur at close to the nominal rate and carry no rejected
-cardinality preference for \citrees. These tests are upper-tailed by
-design, so they cannot see the low-cardinality preference that the companion
-article measures for the per-threshold rule on designs with signal and binary
-noise columns; the null design here, with five ordered predictors and no
-signal, is not the setting in which that preference appears.
+classification tree trends, where the predictor with the smallest $p$-value
+concentrated on high-cardinality columns for \citrees and \pkg{partykit}
+alike; the \sklearn random forest importance trend in both tasks, with mean
+Kendall $\tau_b$ of 0.711 for classification and 0.718 for regression; and
+the \pkg{partykit} conditional inference forest trend for regression, with
+mean $\tau_b$ of 0.027 and Holm-adjusted $p$-value 0.0080. The \citrees
+conditional inference forest trends were of similar size, with mean $\tau_b$
+of 0.021 for classification (Holm-adjusted $p$-value 0.062) and $-0.014$ for
+regression, and neither was rejected. Conditional on a tree actually
+splitting, no cardinality trend in the winning predictor was rejected for
+either conditional inference implementation. The forced-winner rejections
+therefore reflect which predictor attains the extreme statistic, not the
+fitted decisions, which occur at close to the nominal rate and carry no
+rejected cardinality preference for \citrees. These tests are upper-tailed,
+so they do not detect a preference for low-cardinality predictors; the
+companion article reports such a preference for the per-threshold Bonferroni
+test on designs with signal and binary noise columns
+\citep{Milletich+Downes+Goley+Hirst:2026}.
 
 \begin{table}[t!]
 \centering
-\begin{tabular}{lllrrl}
-\hline
-Implementation & Task & Trend tested & Effect & Raw $p$ & Holm $p$ \\ \hline
+\begin{tabular}{lllrrr}
+\toprule
+Implementation & Task & Trend tested & Effect & Raw $p$ & Holm $p$ \\ \midrule
 \citrees tree & Classification & Forced winner & 0.119 & 0.0001 & 0.0014 \\
 \citrees tree & Classification & Winner given split & 0.022 & 0.379 & 1.000 \\
 \pkg{partykit} tree & Classification & Forced winner & 0.113 & 0.0001 & 0.0014 \\
@@ -669,21 +778,23 @@ Implementation & Task & Trend tested & Effect & Raw $p$ & Holm $p$ \\ \hline
 \sklearn forest & Classification & Importance concordance & 0.711 & 0.0001 & 0.0014 \\
 \citrees forest & Regression & Importance concordance & $-0.014$ & 0.952 & 1.000 \\
 \pkg{partykit} forest & Regression & Importance concordance & 0.027 & 0.0008 & 0.0080 \\
-\sklearn forest & Regression & Importance concordance & 0.718 & 0.0001 & 0.0014 \\ \hline
+\sklearn forest & Regression & Importance concordance & 0.718 & 0.0001 & 0.0014 \\ \bottomrule
 \end{tabular}
 \caption{Prespecified family of 14
 cardinality trend tests with Holm adjustment at the 0.05 level. Forced winner
-tests the predictor with the smallest corrected $p$~value in every replicate;
+tests the predictor with the smallest $p$-value in every replicate;
 winner given split restricts to replicates in which the tree split; importance
-concordance is the mean Kendall $\tau_b$ between predictor cardinality and the
-native feature summary across forest replicates. Effect is the mean
-directional association between cardinality rank and the tested outcome. Raw
-$p$~values come from 9,999 joint label randomizations with the add-one rule,
+concordance relates predictor cardinality to the native feature summary
+across forest replicates. For the tree rows, Effect is the mean cardinality
+rank (1 to 5) of the winning predictor minus the design center of 3, with
+tied winners sharing weight equally; for the forest rows, it is the mean
+Kendall $\tau_b$ between cardinality rank and importance. Raw
+$p$-values come from 9,999 joint label randomizations with the add-one rule,
 so the smallest attainable raw value is 0.0001.}
 \label{tab:cardinality-holm}
 \end{table}
 
-\subsection{Matched split decisions and tie-breaking} \label{sec:behavior}
+\subsection{Matched comparison with partykit} \label{sec:behavior}
 
 Matched comparisons use the Breast Cancer Wisconsin Diagnostic classification
 data and the \sklearn diabetes regression data. Each dataset is partitioned by
@@ -696,7 +807,9 @@ full-size bootstrap samples. These controls align the data partitions, stopping
 depth, node-size constraints, predictor availability, permutation budget,
 bootstrap size, and forest size. Each implementation retains its native
 association statistic, threshold criterion, random-number stream, and feature
-summary.
+summary. The primary comparison runs \citrees with feature and threshold
+scanning off, so candidates are tested in random order; a scanning control
+repeats the tree comparison with scanning on, the shipped default.
 
 Tree comparisons record whether each implementation splits and whether the
 root predictors agree when both split. Tree feature summaries count accepted
@@ -717,24 +830,22 @@ partition repeat, then average the 10 repeat means. Percentile intervals use
 9,999 bootstrap samples of repeat means. The full design contains 200 paired
 dataset, partition, and model-family comparisons.
 
-Both implementations made the same split decision in every tree comparison:
-each fit a root split in all 50 fold-level fits per dataset, so
-split-decision agreement was 1.000 for both datasets. With feature and
-threshold scanning on, the shipped default that orders candidates by the
-observed statistic, they also chose the same root predictor in all 50
-comparisons for both tasks (\code{paper_behavior_scanning_control.csv} in the
-reference release). The primary run of the study had scanning off, and there
+Both implementations split at the root in all 50 fold-level fits per
+dataset, so split-decision agreement was 1.000 by construction on these
+strongly associated data and does not discriminate between the
+implementations. Root-predictor agreement is instead a diagnostic of
+tie-breaking. On these data several candidates exceed every one of the
+$999 \times p$ permutations and so tie at the smallest attainable $p$-value.
+With scanning on, the tie is broken by the observed statistic, and the two
+implementations chose the same root predictor in all 50 comparisons for both
+tasks. With scanning off, the tie is broken by a uniform draw, and
 root-predictor agreement was 8\% in classification (95\% interval 2\% to
 14\%) and 12\% in regression (4\% to 20\%), against chance levels of about
-3\% and 10\% for 30 and 10 predictors: on these strongly signalled predictors
-several candidates exceed every one of the $999 \times p$ permutations and so
-tie at the smallest attainable $p$-value, and with scanning off the tie is
-broken by a uniform draw. Feature
-summaries agreed more at the forest level than at the tree level. Forest
-concordance by Kendall's $\tau_b$ was 0.480 (0.465 to 0.497) for
-classification and 0.775 (0.756 to 0.798) for regression, with top-five
-Jaccard similarity of 0.616 and 0.793; the corresponding tree values were
-0.153 and 0.698.
+3\% and 10\% for 30 and 10 predictors. Feature summaries agreed more at the
+forest level than at the tree level. Forest concordance by Kendall's $\tau_b$
+was 0.480 (0.465 to 0.497) for classification and 0.775 (0.756 to 0.798) for
+regression, with top-five Jaccard similarity of 0.616 and 0.793; the
+corresponding tree values were 0.153 and 0.698.
 
 Held-out predictions from the matched forests were close. Classification
 forests agreed on 97.0\% of test predictions (96.7\% to 97.3\%), with
@@ -746,230 +857,240 @@ small on the accuracy scale. Regression forest predictions correlated at
 classification agreement and a regression prediction correlation of 0.789.
 Refitting every model with the same seed reproduced feature summaries,
 probabilities, and predictions exactly for both implementations in all 200
-comparisons. Distinct algorithmic choices at individual nodes therefore
-coexist with matched split decisions, concordant forest summaries, and
-deterministic replication.
+comparisons. The implementations differ at individual nodes, yet their
+forests give close predictions and concordant summaries, and both refit
+deterministically.
 
 \subsection{Controlled computation} \label{sec:performance}
 
 Two computational studies time model fitting on identical 32-core cloud
-instances. Every fit runs in a fresh process after a small fit of the same method and
-then one identical full fit have removed one-time initialization and, where
-applicable, JIT compilation; elapsed time covers model construction and fitting only, and
-each library uses its own parallelism. \citrees forests are timed with
-\code{n_jobs = -1}, which fits trees in parallel worker processes and divides
-the compiled thread pool among them, to match the other libraries' use of all
-cores; \sklearn
-forests use all cores; \pkg{partykit} runs on one core by default and is also
-timed with 32 cores. Trees have depth at most 3 with minimum split and leaf
-sizes of 20 and 7 in every library, forests have 100 trees, and the
-significance level is 0.05 with Bonferroni adjustment across predictors.
+instances. Every fit runs in a fresh process after a small fit of the same
+method and then one identical full fit have removed one-time initialization
+and, where applicable, JIT compilation. Elapsed time covers model
+construction and fitting only, and each library uses its own parallelism.
+\citrees forests are timed with \code{n_jobs = -1}, which fits trees in
+parallel worker processes and divides the compiled thread pool among them, to
+match the other libraries' use of all cores. \sklearn forests use all cores.
+\pkg{partykit} runs on one core by default and is also timed with 32 cores.
+Trees have depth at most 3 with minimum split and leaf sizes of 20 and 7 in
+every library, forests have 100 trees, and the Stage A level is 0.05 with
+Bonferroni adjustment across predictors.
 
 The first study uses synthetic Gaussian predictors with signal in the first
 five, a reference condition of 1,000 observations and 50 predictors, and
 one-factor changes to 250 or 4,000 observations, 10 or 200 predictors, 25 or
-500 trees, and 99 or 9,999 permutations. It times four configurations. The
-exhaustive procedure spends the full permutation budget at every node with no
-early stopping, exact threshold search, and every predictor tested at every
-node, and is run in all three libraries so that implementation efficiency is
-compared on the same procedure. The recommended \citrees configuration, the
-benchmark setting of the companion article, is the minimum permutation budget with adaptive
-stopping, feature muting and scanning, histogram threshold search with at most
-256 candidate thresholds, a Bonferroni-adjusted permutation test of the chosen
-threshold, and square-root predictor sampling in forests. \pkg{partykit} is
-timed at its own default, which also samples square-root predictors, on one
-core and on 32 cores, and additionally with every predictor on 32 cores as the
-parallel counterpart of the exhaustive procedure. Classification uses the
-multiple correlation selector and regression the Pearson correlation selector.
-Every condition is repeated 10 times and summarized by its median and
-interquartile range; the study comprises 880 exhaustive cells and, at the reference condition, 40
-recommended \citrees cells and 120 \pkg{partykit} cells at its default and
-all-predictor settings.
+500 trees, and 99 or 9,999 permutations for \pkg{partykit} (100 or 10,000 for
+\citrees). It times four configurations. The exhaustive procedure spends the
+full permutation budget at every node with no sequential stopping, exact threshold
+search, and every predictor tested at every node. It is run in \citrees and
+\pkg{partykit}, so that implementation efficiency is compared on the same
+procedure; \sklearn CART is timed as an impurity-only reference. The
+benchmark \citrees configuration of Section~\ref{sec:parameters} uses the
+minimum permutation budget with adaptive stopping, feature muting and
+scanning, histogram threshold search with 256 bins, the per-threshold
+Bonferroni test of the chosen threshold, and square-root predictor sampling
+in forests. \pkg{partykit} is timed with its Monte Carlo Bonferroni test
+($B = 999$) at depth 3, sampling square-root predictors, on one core and on 32
+cores, and additionally with every predictor on 32 cores as the parallel
+counterpart of the exhaustive procedure. Classification uses the multiple
+correlation selector and regression the Pearson correlation selector. Every
+condition is repeated 10 times and summarized by its median and interquartile
+range. Peak resident memory above the pre-fit process is recorded in every
+condition.
 
 The second study times 100-tree classification forests on the ten real
 benchmark datasets with at least 500 observations, from vowel (990
 observations, 10 predictors) to letter (20,000 observations, 16 predictors)
 and gisette (6,000 observations, 5,000 predictors), and on synthetic Gaussian
-data with 20 or 100 predictors at 500 to 32,000 observations. Each library
-runs at its default configuration with all 32 cores available, and
-\pkg{partykit} is also timed on one core. Two \citrees variants isolate the
-threshold test: one drops the Bonferroni adjustment over candidate thresholds
-and one omits the threshold test. Each fit is repeated twice, except on
-letter, isolet, and gisette, where every configuration is fit once; every
-\citrees fit is timed as the second of two identical fits, and no fit
-reached the one-hour limit. For
-every dataset we also record the mean number of distinct candidate thresholds
-per predictor, capped at the 256 the histogram search considers.
+data with 20 or 100 predictors at 500 to 32,000 observations. The synthetic
+data have a weak signal in the first five predictors and a strong-signal
+variant with equal coefficients and half the noise. \citrees runs the
+benchmark configuration and \pkg{partykit} its Monte Carlo Bonferroni test
+($B = 999$) at depth 3, all with 32 cores available, and \pkg{partykit} is
+also timed on one core. Three \citrees variants isolate the threshold test:
+one drops the Bonferroni adjustment over candidate thresholds, one omits the
+threshold test, and one replaces it with the max-type test. Each fit is
+repeated twice, except on letter, isolet, and gisette, where every
+configuration is fit once, and no fit reached the one-hour limit. For every
+dataset we also record the mean number
+of distinct values per predictor, capped at 256.
 
 Table~\ref{tab:performance-reference} reports the reference condition of the
 first study. At equal permutation work, 1,000 permutations per predictor in
 \citrees against 999 in \pkg{partykit}, the exhaustive \citrees tree takes
-0.17 seconds against 2.9 in \pkg{partykit}, and the exhaustive forest 14.6
-seconds on 32 cores against 286 for \pkg{partykit} on one core and 13 on 32
-cores, so the two libraries fit the same forest in the same time when both
-use the whole machine and \citrees fits the tree 17 times faster with its
-compiled thread pool of 32 threads against one \proglang{R} process. The
-exhaustive rows are not an upper bound on cost: they omit the Stage B
-threshold test that the recommended configuration adds. The one
-extra permutation is not cosmetic: \citrees never reports a $p$-value below
-$1/(B+1)$ and rejects strictly below the adjusted level, so at 999 permutations
-it cannot reject over 50 predictors at $0.05/50 = 0.001$ at all, and an earlier
-version of this table, which gave it 999, timed trees that never split. (A
-still earlier version charged $999 \times 50$ permutations at the root and
-reported 706 seconds.) For the same reason the 100-permutation rows of the
-budget axis never split in \citrees and are not comparable. The recommended
-\citrees configuration reaches 0.04 seconds for the tree and 18.6 and 16.9
-seconds for the classification and regression forests (18.9 and 18.5 in the
-separate decomposition run of Table~\ref{tab:performance-decomposition}), 1.8 and 2.0 times
-faster than \pkg{partykit} on one core and 10 and 9 times slower than
-\pkg{partykit} on 32 cores; the next paragraph decomposes that time. The
-permutation budget is the dominant cost of the exhaustive procedure in both
-libraries: the \citrees forest takes 14.6 seconds at 1,000 permutations and
-141 at 10,000, and the \pkg{partykit} forest 286 seconds at 999 and 2,803 at
-9,999. The recommended configuration removes that axis through the minimum
-budget and scanning, not through adaptive stopping, which is inert at the
-floor. CART in \sklearn fits the reference forests in 0.16 and
-0.12 seconds; it performs no permutation test and is included to place the
-cost of conditional inference on a familiar scale.
+0.17 seconds against 2.9 in \pkg{partykit}. This 17-fold ratio reflects
+parallelism, not per-core efficiency: \citrees spreads each test over a
+compiled pool of 32 threads, and \pkg{partykit} fits the tree in one
+\proglang{R} process. The exhaustive forest takes 14.6 seconds on 32 cores
+against 286 for \pkg{partykit} on one core and 13 on 32 cores, so the two
+libraries fit the same forest in about the same time when both use the whole
+machine. The exhaustive rows are not an upper bound on cost, because they
+omit the Stage B test that the benchmark configuration adds. The one extra
+permutation matters. \citrees never reports a $p$-value below $1/(B+1)$ and
+rejects only strictly below the adjusted level, so with 999 permutations it
+cannot reject over 50 predictors at $0.05/50 = 0.001$. For the same reason
+the 100-permutation rows of the budget axis never split in \citrees and are
+not comparable. The benchmark \citrees configuration takes 0.04 seconds for
+the tree and 18.6 and 16.9 seconds for the classification and regression
+forests. That is 1.8 and 2.0 times faster than \pkg{partykit} on one core and
+10 and 9 times slower than \pkg{partykit} on 32 cores; the next paragraph
+decomposes that time. The permutation budget is the dominant cost of the
+exhaustive procedure in both libraries: the \citrees forest takes 14.6
+seconds at 1,000 permutations and 141 at 10,000, and the \pkg{partykit}
+forest 286 seconds at 999 and 2,803 at 9,999. The benchmark configuration
+removes that axis through the minimum budget and scanning, not through
+adaptive stopping, which is inert at the floor (Section~\ref{sec:scope}).
+CART in \sklearn fits the reference forests in 0.16 and 0.12 seconds; it
+performs no permutation test and places the cost of conditional inference on
+a familiar scale.
 
 \begin{table}[t!]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrr}
-\hline
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.3cm}rrrr@{}}
+\toprule
  & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
-Configuration & Tree & Forest & Tree & Forest \\ \hline
+\cmidrule(lr){2-3} \cmidrule(l){4-5}
+Configuration & Tree & Forest & Tree & Forest \\ \midrule
 \citrees, exhaustive Stage A only & 0.17 [0.17, 0.18] & 14.6 [14.5, 14.7] & 0.16 [0.16, 0.16] & 13.7 [13.7, 13.8] \\
-\citrees, recommended & 0.04 [0.04, 0.04] & 18.6 [17.7, 19.5] & 0.03 [0.03, 0.03] & 16.9 [16.4, 17.9] \\
+\citrees, benchmark (per-threshold) & 0.04 [0.04, 0.04] & 18.6 [17.7, 19.5] & 0.03 [0.03, 0.03] & 16.9 [16.4, 17.9] \\
 \pkg{partykit}, exhaustive, all predictors & 2.9 [2.9, 2.9] & 286 [286, 286] & 2.9 [2.9, 2.9] & 286 [286, 287] \\
 \pkg{partykit}, all predictors, 32 cores & n/a & 13 [13, 13] & n/a & 13 [13, 13] \\
-\pkg{partykit}, default, 1 core & n/a & 34 [33, 35] & n/a & 35 [34, 35] \\
-\pkg{partykit}, default, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.7, 2.0] \\
-\sklearn CART & 0.01 [0.01, 0.01] & 0.16 [0.16, 0.17] & 0.01 [0.01, 0.01] & 0.12 [0.12, 0.12] \\ \hline
+\pkg{partykit}, Monte Carlo Bonferroni test ($B = 999$), depth 3, 1 core & n/a & 34 [33, 35] & n/a & 35 [34, 35] \\
+\pkg{partykit}, Monte Carlo Bonferroni test ($B = 999$), depth 3, 32 cores & n/a & 1.9 [1.8, 2.0] & n/a & 1.9 [1.7, 2.0] \\
+\sklearn CART & 0.01 [0.01, 0.01] & 0.16 [0.16, 0.17] & 0.01 [0.01, 0.01] & 0.12 [0.12, 0.12] \\ \bottomrule
 \end{tabular}
 \caption{Median fitting time in
 seconds with the interquartile range in brackets over 10 repeats at the
 reference condition of 1,000 observations, 50 Gaussian predictors, and 100
-trees. The exhaustive procedure (exhaustive Stage A only in the \citrees row) uses the full permutation budget without early
-stopping, 999 permutations per predictor in \pkg{partykit} and 1,000 in
-\citrees (\texttt{scale\_resamples\_with\_tests = False}; the extra permutation
-is the smallest budget at which the $+1$ $p$-value can reach $0.05/50$), exact
-threshold search, no threshold test, and every predictor at every node; it
-runs on one core in \pkg{partykit} and with all 32 cores across trees in the
-\citrees forest. Every time is the second of two identical fits in a fresh
-process, so compilation is excluded. The
-recommended \citrees configuration and the \pkg{partykit} default both sample
-square-root predictors in forests. Single
+trees. The exhaustive procedure uses the full permutation budget without
+sequential stopping, 999 permutations per predictor in \pkg{partykit} and 1,000 in
+\citrees (\code{scale\_resamples\_with\_tests = False}; the extra permutation
+is the smallest budget at which the add-one $p$-value can fall below
+$0.05/50$), exact threshold search, no threshold test, and every predictor at
+every node. \citrees forests use \code{n\_jobs = -1}. Every \pkg{partykit} fit
+uses \code{ctree\_control(teststat = "quadratic", testtype = c("Bonferroni",
+"MonteCarlo"), nresample = 999, mincriterion = 0.95, maxdepth = 3, minsplit =
+20, minbucket = 7)}, and forests add \code{perturb = list(replace = TRUE,
+fraction = 1)} with \code{mtry} equal to the square root of the number of
+predictors (all predictors in the exhaustive and all-predictor rows). Single
 trees have no 32-core condition because \pkg{partykit} parallelizes only
-across trees. All rows were measured on the released build on the same machine
-class on 2026-09-18, the exhaustive rows in a sharded campaign and the
-remaining rows in one reference-condition run; ratios quoted in the text
-compare rows within the same run wherever possible, and cross-run ratios are
-approximate.}
+across trees. Every time is the second of two identical fits in a fresh
+process, so compilation is excluded.}
 \label{tab:performance-reference}
 \end{table}
 
-The recommended tree and forest reverse the exhaustive ordering, 0.04 seconds
+The benchmark tree and forest reverse the exhaustive ordering, 0.04 seconds
 for the tree against 18.6 for the forest, and a decomposition at the same
 reference condition (Table~\ref{tab:performance-decomposition}) locates the
 difference in the threshold test and in where the parallelism sits. Fit
-without the threshold test, the recommended forest takes 0.38 and 0.25
-seconds in classification and regression; with the Bonferroni-adjusted test it
-takes 18.9 and 18.5 seconds, so the test is 98 percent of the forest's time;
-without the adjustment over candidates it takes 0.28 and 0.23 seconds, and
-with the max-type test 1.3 and 0.7 seconds. Timed with \code{n_jobs = -1},
-the forest fits its trees in 32
-worker processes with one compiled thread each, so every threshold test runs
-on one thread, whereas the single tree spreads each test's permutations over
-all 32 threads; fit serially with the full thread pool available to every
-tree, the same forest takes 13.7 and 7.6 seconds. The remaining gap to 100
-times the single tree's 0.034 seconds is in the trees themselves: a forest
-tree tests seven sampled predictors rather than the strongest of fifty, and a
-single tree restricted to seven sampled predictors takes 0.045 seconds for two
-internal nodes against 0.034 seconds for seven, consistent with threshold
-scanning, which stops at the first passing candidate and therefore runs more
-tests when the tested predictor is weaker.
+without the threshold test, the benchmark forest takes 0.38 and 0.25
+seconds in classification and regression. With the per-threshold Bonferroni
+test it takes 18.9 and 18.5 seconds, so the test is 98 percent of the
+forest's time. Without the adjustment over candidates it takes 0.28 and 0.23
+seconds, and with the max-type test 1.3 and 0.7 seconds. Timed with
+\code{n_jobs = -1}, the forest fits its trees in 32 worker processes with one
+compiled thread each, so every threshold test runs on one thread, whereas the
+single tree spreads each test's permutations over all 32 threads. Fit
+serially with the full thread pool available to every tree, the same forest
+takes 13.7 and 7.6 seconds. The remaining gap to 100 times the single tree's
+0.034 seconds is in the trees themselves. A forest tree tests seven sampled
+predictors rather than the strongest of fifty, and a single tree restricted
+to seven sampled predictors takes 0.045 seconds for two internal nodes
+against 0.034 seconds for seven. This is consistent with threshold scanning,
+which stops at the first passing candidate and therefore runs more tests when
+the tested predictor is weaker.
 
 \begin{table}[t!]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
-\hline
+\toprule
  & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
-Variant & Seconds & Nodes & Seconds & Nodes \\ \hline
-Recommended tree, all predictors & 0.034 & 7.0 & 0.033 & 7.0 \\
-Recommended tree, square-root predictors & 0.045 & 2.0 & 0.036 & 3.0 \\
-Recommended forest, serial & 13.7 & 2.6 & 7.6 & 2.7 \\
-Recommended forest, parallel & 18.9 & 2.6 & 18.5 & 2.7 \\
-Recommended forest, parallel, no threshold test & 0.38 & 2.9 & 0.25 & 2.9 \\
-Recommended forest, parallel, no adjustment & 0.28 & 2.9 & 0.23 & 3.0 \\
-Recommended forest, parallel, max-type test & 1.3 & 3.0 & 0.71 & 2.7 \\
-\hline
+\cmidrule(lr){2-3} \cmidrule(l){4-5}
+Variant & Seconds & Nodes & Seconds & Nodes \\ \midrule
+Benchmark tree, all predictors & 0.034 & 7.0 & 0.033 & 7.0 \\
+Benchmark tree, square-root predictors & 0.045 & 2.0 & 0.036 & 3.0 \\
+Benchmark forest, serial & 13.7 & 2.6 & 7.6 & 2.7 \\
+Benchmark forest, parallel & 18.9 & 2.6 & 18.5 & 2.7 \\
+Benchmark forest, parallel, no threshold test & 0.38 & 2.9 & 0.25 & 2.9 \\
+Benchmark forest, parallel, no adjustment & 0.28 & 2.9 & 0.23 & 3.0 \\
+Benchmark forest, parallel, max-type test & 1.3 & 3.0 & 0.71 & 2.7 \\
+\bottomrule
 \end{tabular}
-\caption{Decomposition of the recommended configuration's fitting time at the
+\caption{Decomposition of the benchmark configuration's fitting time at the
 reference condition of Table~\ref{tab:performance-reference} (1,000
 observations, 50 Gaussian predictors, 100 trees where a forest), as the median
-of three fits after one warm-up fit on the same 32-core machine class. Nodes is
-the mean number of internal nodes per tree. Serial fits the trees one at a time
-with the full compiled thread pool available to each; parallel fits them in 32
-worker processes with one thread each, the \code{n\_jobs = -1} setting of the
-timing tables; serial is the library default. The no-threshold-test
-variant omits the Stage B test, the no-adjustment variant tests every candidate
-threshold at the unadjusted level, and the max-type variant uses the joint test
-of Section~\ref{sec:thresholds}.}
+of three fits after one warm-up fit on the same 32-core machine class, in a
+separate run whose benchmark forest times agree with
+Table~\ref{tab:performance-reference} to within 10 percent. Nodes is the mean
+number of internal nodes per tree. Serial fits the trees one at a time with
+the full compiled thread pool available to each (\code{n\_jobs = None}, the
+library default); parallel fits them in 32 worker processes with one thread
+each (\code{n\_jobs = -1}, the setting of the other timing tables). The
+no-threshold-test variant omits the Stage B test, the no-adjustment variant
+tests every candidate threshold at the unadjusted level, and the max-type
+variant uses the max-type test of Section~\ref{sec:thresholds}.}
 \label{tab:performance-decomposition}
 \end{table}
 
 The second study reverses this ordering on real data.
-Table~\ref{tab:performance-real} shows that the recommended \citrees
+Table~\ref{tab:performance-real} shows that the benchmark \citrees
 configuration fits the forest faster than \pkg{partykit} on 32 cores on eight
 of the ten datasets, by 1.3 to 24 times, and faster than \pkg{partykit} on one
 core on every dataset, by 7.3 to 413 times, with the largest margins at the
-largest sample sizes: 3.0 seconds
-against 70 and 1,220 seconds on letter, 18 against 183 and 3,020 seconds on
-isolet, and 19 against 142 and 2,419 seconds on gisette. \pkg{partykit} on 32
-cores is faster on gamma and madelon. The candidate-threshold column explains both patterns. \pkg{partykit} runs one Monte Carlo test per node with
-a fixed budget of 999 permutations and then chooses the split by maximizing the
-statistic, so its cost at every node is the budget times the sample size,
-independent of the data. The recommended \citrees configuration sizes each
+largest sample sizes: 3.0 seconds against 70 and 1,220 seconds on letter, 18
+against 183 and 3,020 seconds on isolet, and 19 against 142 and 2,419 seconds
+on gisette. \pkg{partykit} on 32 cores is faster on gamma and madelon. The
+distinct-value column explains both patterns. As configured here,
+\pkg{partykit} runs one Monte Carlo Bonferroni test per node with a fixed
+budget of 999 permutations and then chooses the split by maximizing a
+standardized statistic, so its cost at every node is the budget times the
+node size, whatever the data. The benchmark \citrees configuration sizes each
 permutation budget to the adjusted level it must resolve, tests predictors in
 order of promise and stops at the first rejection, and mutes predictors that
-have already failed; the adaptive stopping rule cannot end a test before that
-budget (Section~\ref{sec:screening}), so the budget itself sets the cost. The
+have already failed. The adaptive stopping rule cannot end a test before that
+budget (Section~\ref{sec:scope}), so the budget itself sets the cost. The
 threshold test is adjusted over the candidate thresholds present at the node.
 Predictors with few distinct values, such as the 16 integer levels of letter,
-admit few candidates (15 midpoints), so that test resolves 0.05/15 with 300 permutations and
-the fixed budget of \pkg{partykit} is largely wasted work. Continuous predictors
-admit the full 256 candidates, the adjusted level is 0.05/256, and the threshold
-test alone needs about 5,000 permutations of the sample at every node. The clearest
-case is gamma, with nine continuous predictors: 44 seconds with the adjustment
-and 1.3 seconds without it. Without the adjustment the recommended
-configuration is faster than \pkg{partykit} on 32 cores on all ten datasets,
-by 5.8 times on madelon and 62 times on isolet. That speed has a statistical price. Without the
-adjustment the threshold test is not a valid test of the threshold: in the
-Stage-B-only design of Section~\ref{sec:threshold-test}, which isolates the
-test from the predictor screen, its false-split rate at nominal level 0.05 is
-0.15 to 0.31 in classification and 0.21 to 0.38 in regression, rising with the
-candidate count from 16 to 256 bins, against 0.000 to 0.027 for the adjusted
-rule and 0.023 to 0.044 for the max-type test (\texttt{paper\_noadjust\_stageb.csv}
-in the reference release). At the complete node the Stage A screen still holds
-the false-split rate to 0.036 to 0.049 over the 36 design cells of the
-calibration study (\texttt{paper\_noadjust\_calibration.csv}), so a tree grown
-without the adjustment still splits under the null about as rarely, but on
-thresholds chosen without error control, and it grows about twice as deep on
-the benchmark datasets \citep{Milletich+Downes+Goley+Hirst:2026}. The
-max-type test keeps the threshold test and recovers most of that time where candidates are continuous: madelon goes from 21 to 2.6 seconds, ahead of \pkg{partykit} on 32 cores, gamma from 44 to 21 seconds, and isolet from 18 to 9.1 seconds; the other seven datasets change by at most 1.6 seconds.
+admit few candidates (16), so that test resolves $0.05/16$ with 320
+permutations and the fixed budget of \pkg{partykit} is largely wasted work.
+Continuous predictors admit 257 candidates, the adjusted level is $0.05/257$,
+and the threshold test alone needs 5,140 permutations of the sample at every
+node. The clearest case is gamma, with nine continuous predictors: 44 seconds
+with the adjustment and 1.3 seconds without it.
+
+The no-adjustment column is a decomposition, not a usable setting. Without
+the adjustment the threshold test is not a valid test of the threshold. In
+the Stage-B-only design of Section~\ref{sec:threshold-test}, which isolates
+the test from the Stage A test, its size at nominal level 0.05 is 0.15 to
+0.31 in classification and 0.21 to 0.38 in regression, rising with the
+candidate count from 16 to 256 bins, against 0.000 to 0.027 for the
+per-threshold Bonferroni test and 0.023 to 0.044 for the max-type test. At
+the complete node, the Stage A test still holds the false-split rate to 0.036
+to 0.049 over the 36 design cells of the complete-node calibration of
+Section~\ref{sec:threshold-test}. A tree grown without the adjustment
+therefore still splits under the null about as rarely, but on thresholds
+chosen without error control, and it grows 1.6 to 1.9 times as deep on the
+benchmark datasets \citep{Milletich+Downes+Goley+Hirst:2026}. The max-type
+test keeps a valid threshold test and recovers most of that time where
+candidates are continuous. Madelon goes from 21 to 2.6 seconds, ahead of
+\pkg{partykit} on 32 cores, gamma from 44 to 21 seconds, and isolet from 18
+to 9.1 seconds; the other seven datasets change by at most 1.6 seconds.
 
 \begin{table}[t!]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{2pt}
-\begin{tabular}{lrrrrrrrr}
-\hline
- & & & & \multicolumn{3}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}} \\
-Dataset & Observations & Predictors & Candidates & Recommended & No adjustment$^{\ast}$ & Max-type & 1 core & 32 cores \\ \hline
+\begin{tabular}{@{}lrrrrrrrr@{}}
+\toprule
+ & & & & \multicolumn{3}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}, Monte Carlo} \\
+ & & & & & & & \multicolumn{2}{c}{Bonferroni ($B = 999$),} \\
+ & & & Distinct values & Benchmark & No & Benchmark, & \multicolumn{2}{c}{depth 3} \\
+\cmidrule(lr){5-7} \cmidrule(l){8-9}
+Dataset & Obs. & Pred. & (capped at 256) & (per-threshold) & adjustment$^{\ast}$ & max-type & 1 core & 32 cores \\ \midrule
 letter & 20,000 & 16 & 16 & 3.0 & 1.6 & 2.7 & 1,220 & 70 \\
 gamma & 19,020 & 9 & 256 & 44 & 1.3 & 21 & 323 & 15 \\
 pendigits & 10,992 & 16 & 100 & 6.7 & 0.78 & 5.2 & 394 & 21 \\
@@ -980,49 +1101,56 @@ page-blocks & 5,473 & 10 & 241 & 5.7 & 0.38 & 4.1 & 153 & 7.6 \\
 spam & 4,601 & 57 & 182 & 3.3 & 0.55 & 2.5 & 206 & 9.4 \\
 madelon & 2,000 & 500 & 132 & 21 & 1.9 & 2.6 & 194 & 11 \\
 vowel & 990 & 10 & 256 & 1.6 & 0.20 & 1.2 & 41 & 2.2 \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{Median fitting time in seconds
 for 100-tree classification forests on the real benchmark datasets with at
-least 500 observations, each library at its default configuration on a 32-core
-machine. Candidates is the mean number of distinct candidate thresholds per
-predictor, capped at 256. No adjustment is the recommended \citrees configuration
-without the Bonferroni adjustment over candidate thresholds in the threshold
-test ($^{\ast}$not a valid threshold test: its Stage-B-only false-split rate at
-nominal 0.05 is 0.15 to 0.38). Max-type is the recommended configuration with the max-type threshold test of Section~\ref{sec:thresholds}. All columns come from one run of 2026-09-21 that timed both libraries on the same host, each \citrees time the second of two identical fits so compilation is excluded. Medians are over two
-repeats, or a single fit on letter, isolet, and gisette.}
+least 500 observations (Obs.\ observations, Pred.\ predictors) on a 32-core
+machine; \citrees forests use \code{n\_jobs = -1}, and \pkg{partykit} uses
+the arguments of Table~\ref{tab:performance-reference}. Distinct values is
+the mean number of distinct values per predictor, capped at 256. No
+adjustment is the benchmark \citrees configuration without the Bonferroni
+adjustment over candidate thresholds in the threshold test ($^{\ast}$a
+decomposition column, not a valid threshold test: its Stage-B-only size at
+nominal 0.05 is 0.15 to 0.38). Benchmark, max-type is the benchmark
+configuration with the max-type test of Section~\ref{sec:thresholds}. Each
+\citrees time is the second of two identical fits, so compilation is
+excluded. Medians are over two repeats, or a single fit on letter, isolet,
+and gisette.}
 \label{tab:performance-real}
 \end{table}
 
 Synthetic Gaussian predictors are the continuous case throughout, and
 Table~\ref{tab:performance-scaling} shows the consequence as the sample size
-grows. The recommended configuration is 1.2 to 3.2 times faster than
-\pkg{partykit} on one core at every sample size and 6.6 to 16 times slower than
-\pkg{partykit} on 32 cores. Without the threshold adjustment it is 4 to 14
-times faster than \pkg{partykit} on 32 cores at every sample size. The
-max-type test, which keeps the threshold test, is 13 to 36 times faster than
-the recommended configuration on these predictors and below the \pkg{partykit}
-times on 32 cores at every sample size. Strong signals, with equal
-coefficients and half the noise, change the times of the recommended
+grows. The benchmark configuration is 1.2 to 3.2 times faster than
+\pkg{partykit} on one core at every sample size and 6.6 to 16 times slower
+than \pkg{partykit} on 32 cores. The max-type test, which keeps the threshold
+test, is 13 to 36 times faster than the per-threshold Bonferroni test on
+these predictors and below the \pkg{partykit} times on 32 cores at every
+sample size. The strong-signal variant changes the times of the benchmark
 configuration by at most 19 percent except at 8,000 observations, where it
-takes 1.6 to 1.7 times longer, and change the \pkg{partykit} times by at most 18
-percent. The increase in peak resident
-memory over the pre-fit process was at most 49 MB in every condition of the
-first study, so memory did not separate the implementations. Together the two studies locate the cost of conditional
-inference in how permutations are spent rather than in tree construction:
-budgets sized to the adjusted level, muting, and scanning remove most of the
-fixed budget that \pkg{partykit} pays, and the one remaining fixed cost in \citrees, the
-adjusted threshold test on continuous predictors, is an option the user
-controls, with the max-type test as the choice that keeps a valid threshold
-test at a fraction of the cost.
+takes 1.6 to 1.7 times longer, and changes the \pkg{partykit} times by at
+most 18 percent. The increase in peak resident memory over the pre-fit
+process was at most 49 MB in every condition of the first study, so memory
+did not separate the implementations. Together the two studies locate the
+cost of conditional inference in how permutations are spent rather than in
+tree construction. Budgets sized to the adjusted level, muting, and scanning
+remove most of the fixed budget that \pkg{partykit} pays. The one remaining
+fixed cost in \citrees is the default per-threshold Bonferroni test on
+continuous predictors, and the max-type test replaces it with a valid
+threshold test at a fraction of the cost.
 
 \begin{table}[t!]
 \centering
 \small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{rrrrrrr}
-\hline
- & & \multicolumn{3}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}} \\
-Observations & Predictors & Recommended & No adjustment$^{\ast}$ & Max-type & 1 core & 32 cores \\ \hline
+\toprule
+ & & \multicolumn{3}{c}{\citrees} & \multicolumn{2}{c}{\pkg{partykit}, Monte Carlo} \\
+ & & & & & \multicolumn{2}{c}{Bonferroni ($B = 999$),} \\
+ & & Benchmark & No & Benchmark, & \multicolumn{2}{c}{depth 3} \\
+\cmidrule(lr){3-5} \cmidrule(l){6-7}
+Observations & Predictors & (per-threshold) & adjustment$^{\ast}$ & max-type & 1 core & 32 cores \\ \midrule
 500 & 20 & 9.6 & 0.16 & 0.44 & 12 & 0.7 \\
 2,000 & 20 & 36 & 0.29 & 1.7 & 51 & 2.6 \\
 2,000 & 100 & 39 & 0.57 & 1.8 & 74 & 4.0 \\
@@ -1030,40 +1158,86 @@ Observations & Predictors & Recommended & No adjustment$^{\ast}$ & Max-type & 1 
 8,000 & 100 & 97 & 1.7 & 6.2 & 308 & 15 \\
 32,000 & 20 & 666 & 2.9 & 31 & 809 & 42 \\
 32,000 & 100 & 665 & 6.2 & 19 & 1,221 & 77 \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{Median fitting time in
-seconds over at least two repeats for 100-tree classification forests on synthetic
-Gaussian predictors with weak signal in the first five, each library at its
-default configuration on a 32-core machine. Columns and runs are as in
+seconds over two repeats for 100-tree classification forests on synthetic
+Gaussian predictors with weak signal in the first five, on a 32-core machine;
+\citrees forests use \code{n\_jobs = -1}. Columns are as in
 Table~\ref{tab:performance-real}.}
 \label{tab:performance-scaling}
 \end{table}
 
 \subsection{Threshold test comparison} \label{sec:threshold-test}
 
-The threshold test comparison measures the two Stage B constructions of Section~\ref{sec:thresholds} under the multiple correlation and Pearson correlation selectors, with adaptive and exhaustive stopping, in four parts, each run at five seeds; both use the shipped \code{auto} permutation budget, which exceeds the floor at which adaptive stopping becomes inert. Candidate thresholds come from the histogram method at settings of 16, 64, and 256 bins, which yields one more candidate than the setting, capped at the number of distinct values in the node; at 100 and 200 observations the 256-bin setting therefore yields 100 and 200 candidates. The first part estimates the false-split rate of a depth-one tree under the global null: five independent Gaussian predictors, a response drawn independently of them, sample sizes 100, 200, and 500, and the three bin settings, with 2,000 replicates per cell and seed. The rate counts the fraction of replicates in which the node splits, so it measures the complete node decision, the Stage A gate over five predictors followed by the Stage B test, and is below the Stage B level alone. A Stage-B-only companion isolates the threshold test: one Gaussian predictor, the Stage A gate disabled (\code{alpha_selector = 1}), a depth-one tree, and nominal levels 0.02 to 0.50, at the same sample sizes and bin settings, with 500 null and 200 alternative replicates per cell, level, and seed over three seeds, so that power can be compared at matched realized size. The second times one tree on Gaussian predictors with a planted linear signal at 1,000, 4,000, and 16,000 observations and the same bin settings, as the median of three fits with a 1,200-second cap per fit. The third fits one tree on six benchmark datasets fixed in advance by size, three classification (vowel, spam, page-blocks) and three regression (imports-85, residential, facebook), with the 256-bin setting and five-fold cross-validation,
-recording held-out balanced accuracy or $R^2$, tree depth, fitting time, and the Spearman
-agreement of the two tests' feature importances within each fold. The fourth
-estimates power: a depth-one tree on five Gaussian predictors whose response
-depends on the first through a step at zero, with the class-probability shift
-$\delta \in \{0.05, 0.10, 0.20\}$ in classification and the mean shift
-$\delta \in \{0.2, 0.4, 0.8\}$ in regression, at the same sample sizes and bin
-settings, with 500 replicates per cell and seed, recording the rate of any
-split, the rate of a split on the planted predictor, and the absolute error of
-the chosen threshold. All fits ran on one 32-core cloud instance of the type
-used in Section~\ref{sec:performance}; a fit that exceeded the cap is reported
-as censored. Tables report medians over the five seeds.
+The design and Table~\ref{tab:threshold-calibration} of this subsection are
+those of the companion article \citep{Milletich+Downes+Goley+Hirst:2026},
+reported here because they document the \code{threshold_test} option. The
+comparison measures the two Stage B tests of Section~\ref{sec:thresholds}
+under the multiple correlation and Pearson correlation selectors, with
+adaptive and exhaustive stopping, in four parts. Each part runs at five seeds,
+except the Stage-B-only design, which runs at three. Both tests use the
+default \code{"auto"} permutation budget, which exceeds the floor at which
+adaptive stopping becomes inert. Candidate thresholds come from the histogram
+method with 16, 64, and 256 bins, with candidate counts as in
+Section~\ref{sec:thresholds}; at 100 and 200 observations the 256-bin
+setting therefore yields 100 and 200 candidates.
 
-The complete-node false-split rate is below 0.05 for both constructions in all 36 design cells, 72 measurements pooled over five seeds (Table~\ref{tab:threshold-calibration}); the constructions differ in how far below. Under the per-candidate Bonferroni test the rate falls as the bin setting grows, from 0.0196 at 16 bins to 0.0070 at 256 in classification with 500 observations and exhaustive stopping, because adjacent thresholds induce nearly identical splits and the union bound charges for all of them. Under the max-type test it stays between 0.028 and 0.038 across every cell and rises slightly with the bin setting, with cell means of 0.032, 0.034, and 0.034 at 16, 64, and 256 bins. These complete-node rates are dominated by the Stage A gate over five predictors and bound the threshold test from below. In the Stage-B-only companion, which measures the test itself, the Bonferroni test has size 0.000 to 0.027 at nominal 0.05 (means 0.018, 0.011, and 0.006 at 16, 64, and 256 bins) and the max-type test 0.023 to 0.044 (means 0.033, 0.035, and 0.035); every 95 percent Clopper--Pearson upper limit is below 0.056. Both are valid at the node; the Bonferroni size falls by a factor of three across the bin settings while the max-type size does not move.
+The first part estimates the complete-node false-split rate of a depth-one
+tree under the global null, with five independent Gaussian predictors, an
+independent response, sample sizes 100, 200, and 500, the three bin settings,
+and 2,000 replicates per cell and seed. It measures the Stage A test over
+five predictors followed by the Stage B test, so it lies below the Stage B
+level alone. The Stage-B-only design isolates the threshold test with one
+Gaussian predictor, the Stage A test disabled (\code{alpha_selector = 1}), a
+depth-one tree, and nominal levels 0.02 to 0.50, at the same sample sizes and
+bin settings. It uses 500 null and 200 alternative replicates per cell,
+level, and seed, so that power can be compared at matched realized size. The
+second part times one tree on Gaussian predictors with a planted linear
+signal at 1,000, 4,000, and 16,000 observations and the same bin settings, as
+the median of three fits with a 1,200-second cap per fit. The third fits one
+tree with the 256-bin setting and five-fold cross-validation on six benchmark
+datasets fixed in advance by size: vowel, spam, and page-blocks for
+classification and imports-85, residential, and facebook for regression. It
+records held-out balanced accuracy or $R^2$, tree depth, fitting time, and the
+Spearman agreement of the two tests' feature importances within each fold.
+The fourth estimates power with a depth-one tree on five Gaussian predictors
+whose response depends on the first through a step at zero. The step is a
+class-probability shift $\delta \in \{0.05, 0.10, 0.20\}$ in classification
+and a mean shift $\delta \in \{0.2, 0.4, 0.8\}$ in regression, at the same
+sample sizes and bin settings, with 500 replicates per cell and seed. It
+records the rate of any split, the rate of a split on the planted predictor,
+and the absolute error of the chosen threshold. All fits ran on one 32-core
+cloud instance of the type used in Section~\ref{sec:performance}; a fit that
+exceeded the cap is reported as censored. Tables report medians over the
+seeds.
+
+The complete-node false-split rate is below 0.05 for both tests in all 36
+design cells, the 18 rows of Table~\ref{tab:threshold-calibration} under two
+stopping modes. The tests differ in how far below. Under the per-threshold
+Bonferroni test the rate falls as the bin setting grows, from 0.0196 at 16
+bins to 0.0070 at 256 in classification with 500 observations and exhaustive
+stopping. Adjacent thresholds induce nearly identical splits, and the union
+bound charges for all of them. Under the max-type test the rate stays between
+0.028 and 0.038 in every cell and rises slightly with the bin setting, with
+cell means of 0.032, 0.034, and 0.034 at 16, 64, and 256 bins. These rates
+are dominated by the Stage A test over five predictors. In the Stage-B-only
+design, which measures the threshold test itself, the per-threshold
+Bonferroni test has size 0.000 to 0.027 at nominal 0.05 (means 0.018, 0.011,
+and 0.006 at 16, 64, and 256 bins), and the max-type test has size 0.023 to
+0.044 (means 0.033, 0.035, and 0.035). Every 95 percent Clopper-Pearson upper
+limit is below 0.056. Both tests are valid at the node. The per-threshold
+size falls by a factor of three across the bin settings, while the max-type
+size does not move.
 
 \begin{table}[t!]
 \centering
 \small
 \begin{tabular}{lrrrrrr}
-\hline
- & & & \multicolumn{2}{c}{Bonferroni} & \multicolumn{2}{c}{Max-type} \\
-Task & Observations & Bins & Adaptive & Exhaustive & Adaptive & Exhaustive \\ \hline
+\toprule
+ & & & \multicolumn{2}{c}{Per-threshold Bonferroni} & \multicolumn{2}{c}{Max-type} \\
+\cmidrule(lr){4-5} \cmidrule(l){6-7}
+Task & Observations & Bins & Adaptive & Exhaustive & Adaptive & Exhaustive \\ \midrule
 Classification & 100 & 16 & 0.0182 & 0.0183 & 0.0342 & 0.0352 \\
  & 100 & 64 & 0.0127 & 0.0130 & 0.0353 & 0.0370 \\
  & 100 & 256 & 0.0091 & 0.0096 & 0.0360 & 0.0384 \\
@@ -1082,43 +1256,52 @@ Regression & 100 & 16 & 0.0272 & 0.0269 & 0.0315 & 0.0328 \\
  & 500 & 16 & 0.0262 & 0.0264 & 0.0286 & 0.0295 \\
  & 500 & 64 & 0.0198 & 0.0202 & 0.0288 & 0.0311 \\
  & 500 & 256 & 0.0106 & 0.0108 & 0.0285 & 0.0315 \\
-\hline
+\bottomrule
 \end{tabular}
-\caption{False-split rate of a depth-one tree under the global null at the 0.05 level, by Stage B construction and stopping mode, over 10,000 replicates per cell (five seeds of 2,000) with five independent Gaussian predictors and an independent response. Bins is the histogram threshold setting; the realized candidate count is one more than the setting, capped at the number of distinct values. Every 95\% Clopper--Pearson interval lies below 0.05 (largest upper limit 0.042); the widest half-width is below 0.004.}
+\caption{False-split rate of a depth-one tree under the global null at the 0.05 level, by Stage B test and stopping mode, over 10,000 replicates per cell (five seeds of 2,000) with five independent Gaussian predictors and an independent response. Bins is the histogram setting; candidate counts follow Section~\ref{sec:thresholds}. Every 95\% Clopper-Pearson interval lies below 0.05 (largest upper limit 0.042); the widest half-width is below 0.004.}
 \label{tab:threshold-calibration}
 \end{table}
 
 The remaining three parts are reported in full in Appendix~I of the companion
 article \citep{Milletich+Downes+Goley+Hirst:2026} and summarized here. With
-exhaustive stopping one tree at the 256-bin setting takes 3.5, 14, and 59
-seconds at 1,000, 4,000, and 16,000 observations under the Bonferroni test in
-classification against 0.3, 1.4, and 6.3 seconds under the max-type test, a
-ratio that grows with the bin setting as the $K^2/\alpha$ against $BK$
-accounting predicts; a per-candidate test held at a fixed 999 permutations
-costs $BK$ as well but never splits at 64 or 256 bins, where $\alpha/K$ falls
-below $1/1000$. On six benchmark datasets the max-type test matched or
-exceeded the Bonferroni test's held-out score (balanced accuracy or $R^2$) in 8
-of 12 dataset and stopping-mode cells, was 0.9 to 8.3 times faster, and agreed
-with it on feature importances at Spearman correlations of 0.36 to 0.88, so it
-produces a different ranking rather than a faster route to the same one; on the full
-ranking benchmark it moved the forest from position 3.5 to 5 of 17
-classification methods and from 2 to 4 of 18 regression methods, with paired
-score differences within 0.002 balanced accuracy and 0.009 $R^2$ in favor of
-the Bonferroni test. At a common nominal level the max-type test splits more
-often under a planted effect, by 0.03 on average, but that gap is a size gap:
-matched at the same realized size in the Stage-B-only design, the difference
-in power is $-0.006$ on average over 108 cell and effect combinations with a
-bootstrap standard error of about 0.017, one of 96 high-replicate combinations
-beyond two standard errors and none with the planted step at the 85th
-percentile, while the max-type threshold sits a median 0.19 standard
-deviations from the planted cut against 0.15. The max-type test is therefore
-calibrated closer to the nominal level, cheaper on continuous predictors, and
-loses about 0.006 in power at matched size (95 percent bootstrap interval over the 18 cells $-0.011$ to $-0.002$, per-cell differences within Monte Carlo error); what it gains at a
-fixed nominal level is the size the per-candidate adjustment gives up.
+exhaustive stopping, one classification tree at the 256-bin setting takes
+3.5, 14, and 59 seconds at 1,000, 4,000, and 16,000 observations under the
+per-threshold Bonferroni test, against 0.3, 1.4, and 6.3 seconds under the
+max-type test. The ratio grows with the bin setting, as the cost orders of
+Section~\ref{sec:thresholds} predict. A per-threshold test held at a fixed
+999 permutations also costs on the order of $BK$, but it never splits at 64
+or 256 bins, where $\alpha_{\mathrm{B}}/K$ falls below $1/1000$. On the six
+benchmark datasets, the max-type test exceeded the per-threshold test's
+held-out score (balanced accuracy or $R^2$) in 8 of 12 dataset and
+stopping-mode cells and matched it in one. It was 0.9 to 8.3 times faster,
+and its feature importances agreed with those of the per-threshold test at
+Spearman correlations of 0.36 to 0.88, so the two tests yield different
+rankings. In the feature-ranking benchmark of the companion article, which
+ranks 17 classification and 18 regression feature-selection methods by mean
+rank across datasets, the max-type test moved the forest from position 3.5 to
+5 in classification and from 2 to 4 in regression; paired score differences
+favored the per-threshold test by at most 0.0022 balanced accuracy and 0.009
+$R^2$.
 
-\subsection{NHANES diabetes application} \label{sec:nhanes}
+At a common nominal level, the max-type test splits more often under a
+planted effect, by 0.03 on average, and that gap comes from size. In the
+Stage-B-only design, where the two tests are matched at the same realized
+size, the difference in power averages $-0.006$ over 108 cell and effect
+combinations (95 percent bootstrap interval over the 18 cells $-0.011$ to
+$-0.002$), with a bootstrap standard error of about 0.017 per combination.
+One of 96 high-replicate combinations lies beyond two standard errors and
+none with the planted step at the 85th percentile, so per-cell differences
+are within Monte Carlo error. The median distance of the chosen
+threshold from the planted cut was 0.19 standard deviations under the
+max-type test and 0.15 under the per-threshold test. The max-type test is
+thus calibrated closer to the nominal level and cheaper on continuous
+predictors, and at matched size it has about 0.006 less power. At a fixed
+nominal level, it recovers the size that the per-threshold adjustment gives
+up.
 
-The biomedical application uses the public National Health and Nutrition
+\subsection{NHANES case study} \label{sec:nhanes}
+
+The NHANES case study uses the public National Health and Nutrition
 Examination Survey (NHANES) for August 2021 through August 2023
 \citep{NCHS:2024}. It asks whether the cardinality bias measured under the
 null in Section~\ref{sec:cardinality} is visible on real clinical predictors,
@@ -1142,50 +1325,51 @@ sedentary minutes, sleep hours, health insurance, and reported diagnoses of
 heart disease, hypertension, and high cholesterol). Their numbers of distinct
 values in the cohort run from 2 for the binary items to 3,464 for the sampling
 weight, a survey-design quantity retained as a natural high-cardinality
-predictor. Three
-further columns are independent permutations of the sampling weight, age, and
-sex, drawn once from the recorded seed in the primary run and redrawn
-independently for each of the ten partition repeats in a companion run. They carry no information about the
-outcome by construction while preserving each source's marginal distribution
-and its cohort cardinality of 3,464, 61, and 2. All 30 columns are passed as numeric
-values to every method in the primary comparison, so no method receives factor
-typing; a sensitivity arm passes the nominal columns to \pkg{partykit} as factors.
+predictor. Three further columns are independent permutations of the
+sampling weight, age, and sex, drawn once from the recorded seed in the
+primary run and redrawn independently for each of the ten partition repeats
+in a redraw run. They carry no information about the outcome by construction
+while preserving each source's marginal distribution and its cohort
+cardinality of 3,464, 61, and 2. All 30 columns are passed as numeric values
+to every method in the primary comparison, so no method receives factor
+typing; a sensitivity arm passes the nominal columns to \pkg{partykit} as
+factors.
 
-Five forest rankings are compared on 10 independently shuffled stratified five-fold
-partitions of the participants, each forest fitted with 100 trees on every available
-core. The \sklearn random forest uses its shipped defaults and ranks
-predictors by normalized impurity decrease; as a control it is also ranked by
-out-of-bag permutation importance computed on the same fitted forest (one
-permutation of each column on each tree's out-of-bag rows, averaged over trees,
-the mechanism \pkg{partykit} uses), which separates the importance formula from
-the split search. A second control fits the \citrees forest with the Stage A
-screen disabled (\code{alpha_selector = 1}), so every candidate passes and the
-split variable is chosen by the association statistic alone. The \citrees forest uses the
-multiple correlation selector, histogram threshold candidates with 32 bins,
-and otherwise shipped defaults, and ranks by normalized impurity decrease.
-The \pkg{partykit} conditional inference forest uses its shipped defaults,
-including a candidate set of 6 predictors per node, and ranks by unconditional
-permutation importance with 10 permutations, as in
-Sections~\ref{sec:cardinality} and~\ref{sec:behavior}. Each method is fitted
-on the training fold, and its importances are converted to ranks from 1 to 30
-with tied importances receiving their mean rank. Held-out predictive
-performance is reported descriptively without a hypothesis test: predictors
-are standardized on the training fold, a ridge-penalized logistic regression
-is fitted to the 5 or 10 highest-ranked columns of each method, and the
-evaluation fold is scored by log loss, area under the receiver operating
-characteristic curve, and Brier score.
+Five forest rankings are compared on 10 independently shuffled stratified
+five-fold partitions of the participants, each forest fitted with 100 trees
+on every available core. The \sklearn random forest uses its shipped defaults
+and ranks predictors by normalized impurity decrease. As a control it is also
+ranked by out-of-bag permutation importance computed on the same fitted
+forest: each column is permuted once on each tree's out-of-bag rows, and the
+resulting loss in accuracy is averaged over trees, the scheme that
+\pkg{partykit}'s \code{varimp} also follows. This control separates the
+importance formula from the split search. A second control fits the \citrees
+forest with the Stage A test disabled (\code{alpha_selector = 1}), so every
+candidate passes and the split variable is chosen by the association
+statistic alone. The \citrees forest uses the multiple correlation selector,
+histogram threshold candidates with 32 bins, and otherwise the default
+configuration, and ranks by normalized impurity decrease. The \pkg{partykit}
+conditional inference forest uses its shipped defaults, including a candidate
+set of 6 predictors per node, and ranks by unconditional permutation
+importance with 10 permutations, as in Sections~\ref{sec:cardinality}
+and~\ref{sec:behavior}. Each method is fitted on the training fold, and its
+importances are converted to ranks from 1 to 30 with tied importances
+receiving their mean rank. Held-out predictive performance is reported
+descriptively without a hypothesis test. Predictors are standardized on the
+training fold, a ridge-penalized logistic regression is fitted to the 5 or 10
+highest-ranked columns of each method, and the evaluation fold is scored by
+log loss, area under the receiver operating characteristic curve, and Brier
+score.
 
 The primary inferential contrast, specified before the full profile was run,
 is the rank of the permuted sampling weight under the random forest minus its
 rank under the \citrees forest. Let $d_{ij}$ be this difference for fold $i$
 of repeat $j$, let $s_d^2$ be the sample variance of the 50 fold differences,
 and let $\bar{q}$ be the mean ratio of evaluation to training sample size.
-The primary contrast is the repeat-level bootstrap of the mean difference: the
-ten repeat means are all negative (range $-14.0$ to $-6.0$), their mean is
-$-10.96$, a 95\% percentile interval over 20,000 resamples of the repeat means
-is $-12.2$ to $-9.5$, and the difference is negative in all 50 folds. As a
-secondary heuristic, the lower-tailed corrected repeated cross-validation
-statistic of Equation~\ref{eq:nhanes-corrected-cv} is
+The primary contrast is summarized by a repeat-level bootstrap of the mean
+difference, with 20,000 resamples of the ten repeat means. As a secondary
+heuristic, the lower-tailed corrected repeated cross-validation statistic of
+Equation~\ref{eq:nhanes-corrected-cv} is
 %
 \begin{equation}
   t =
@@ -1196,37 +1380,41 @@ statistic of Equation~\ref{eq:nhanes-corrected-cv} is
 %
 with 49 degrees of freedom \citep{Bouckaert+Frank:2004}. The correction was
 derived for differences in held-out performance, not for training-fold rank
-differences, so it is reported only as a heuristic alongside the bootstrap. A negative difference
-means that the random forest treats the noise column as more important than
-\citrees does. Two secondary contrasts are summarized by the same
-repeat-level bootstrap, with the upper-tailed heuristic statistic adjusted
-across the pair by Holm's method: the Spearman correlation
-between a method's importances and the columns' numbers of distinct training
-values, random forest minus \citrees; and the mean rank of the eight
-predictors with at most three distinct values (sex, birth in the United
-States, ever smoked, health insurance, marital status, and the three reported
-diagnoses), random forest minus \citrees. The Spearman statistic differs from
-the Kendall concordance of Section~\ref{sec:cardinality}, and among real
-predictors the number of distinct values is confounded with being a
-continuous laboratory measurement, so only the permuted columns isolate
-cardinality from information. Agreement between methods is summarized by the
-Spearman correlation of their ranks within each fold. Two checks were
-specified in advance as sanity conditions rather than hypotheses: at least one
-of waist circumference, total cholesterol, triglycerides, and HDL cholesterol
-appears in each method's top 5 in a majority of folds, and permuted sex falls
-outside each method's top 20 in a majority of folds.
+differences, so it is reported only as a heuristic alongside the bootstrap. A
+negative difference means that the random forest treats the noise column as
+more important than \citrees does. Two secondary contrasts are summarized by
+the same repeat-level bootstrap, with the upper-tailed heuristic statistic
+adjusted across the pair by Holm's method. The first is the Spearman
+correlation between a method's importances and the columns' numbers of
+distinct training values, random forest minus \citrees. The second is the
+mean rank of the eight predictors with at most three distinct values (sex,
+birth in the United States, ever smoked, health insurance, marital status,
+and the three reported diagnoses), random forest minus \citrees. The Spearman
+statistic differs from the Kendall concordance of
+Section~\ref{sec:cardinality}, and among real predictors the number of
+distinct values is confounded with being a continuous laboratory measurement,
+so only the permuted columns isolate cardinality from information. Agreement
+between methods is summarized by the Spearman correlation of their ranks
+within each fold. Two checks were specified in advance as sanity conditions
+rather than hypotheses: at least one of waist circumference, total
+cholesterol, triglycerides, and HDL cholesterol appears in each method's top
+5 in a majority of folds, and permuted sex falls outside each method's top 20
+in a majority of folds.
 
 The permuted sampling weight, which carries no information about diabetes,
 had a mean rank of 12.1 of 30 under the random forest, 23.0 under the
 \citrees forest, and 26.4 under the \pkg{partykit} forest. The primary
-difference, random forest minus \citrees, was $-10.96$ ranks with a corrected
-repeated cross-validation statistic of $t(49)=-4.62$ and a lower-tailed
-$p$~value below 0.001. Table~\ref{tab:nhanes-ranks} reports the mean rank of
-every column under each method. The random forest placed the permuted copy of
-age at 15.6 of 30, ahead of 13 real predictors, while the two conditional
-inference forests placed it at 21.3 and 26.9. All three methods ranked
-permuted sex near the bottom, at 27.0, 25.3, and 25.6, so the methods
-disagree on the high-cardinality noise column and agree on the binary one.
+difference, random forest minus \citrees, was $-10.96$ ranks. The ten repeat
+means were all negative (range $-14.0$ to $-6.0$), the 95\% percentile
+interval of the bootstrap was $-12.2$ to $-9.5$, and the difference was
+negative in all 50 folds. The corrected repeated cross-validation statistic
+was $t(49)=-4.62$, with a lower-tailed $p$-value below 0.001.
+Table~\ref{tab:nhanes-ranks} reports the mean rank of every column under each
+method. The random forest placed the permuted copy of age ahead of 13 real
+predictors, while the two conditional inference forests placed it in the
+bottom third. All three methods ranked permuted sex near the bottom, so the
+methods disagree on the high-cardinality noise column and agree on the binary
+one.
 
 Both secondary contrasts were in the specified direction in all 50 folds and
 all ten repeats. The Spearman correlation between importance and number of
@@ -1237,23 +1425,22 @@ with repeat means from 0.44 to 0.53 and a 95\% bootstrap interval of 0.48 to
 of 25.1 of 30 under the random forest, 18.9 under \citrees, and 16.5 under
 \pkg{partykit}; the difference was 6.19 ranks, with repeat means from 5.3 to
 7.0 and a 95\% bootstrap interval of 5.9 to 6.5. The Holm-adjusted heuristic
-statistics, $t(49)=15.8$ and $t(49)=11.6$, both give $p$~values below 0.001.
-The largest individual displacements were reported diagnoses of high
-cholesterol (20.5 of 30 under the random forest, 5.5 under \citrees, and 3.0
-under \pkg{partykit}) and hypertension (18.8, 5.8, and 3.5) and education
-(21.6, 8.4, and 7.9). The two conditional inference forests also
-ranked the binary items born in the United States and health insurance in the
-lower half, at 27.1 and 28.6 for \citrees and 20.0 and 24.5 for
-\pkg{partykit}, so they separate informative from uninformative binary items
-rather than promoting every low-cardinality column.
+statistics, $t(49)=15.8$ and $t(49)=11.6$, both give $p$-values below 0.001.
+The largest individual displacements were the reported diagnoses of high
+cholesterol and hypertension and education, which the random forest ranked
+in its bottom half and both conditional forests in their top ten. The two
+conditional inference forests also ranked the binary items born in the United
+States and health insurance in the lower half, so they separate informative
+from uninformative binary items rather than promoting every low-cardinality
+column.
 
 \begin{table}[t!]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrrrr}
-\hline
-Column & \begin{tabular}[c]{@{}c@{}}Distinct\\values\end{tabular} & \begin{tabular}[c]{@{}c@{}}Random\\forest\end{tabular} & \citrees & \pkg{partykit} & \begin{tabular}[c]{@{}c@{}}RF, OOB\\permutation\end{tabular} & \begin{tabular}[c]{@{}c@{}}\citrees,\\no screen\end{tabular} \\ \hline
+\toprule
+Column & \begin{tabular}[c]{@{}c@{}}Distinct\\values\end{tabular} & \begin{tabular}[c]{@{}c@{}}Random\\forest\end{tabular} & \citrees & \pkg{partykit} & \begin{tabular}[c]{@{}c@{}}Random forest,\\out-of-bag\\permutation\end{tabular} & \begin{tabular}[c]{@{}c@{}}\citrees,\\no Stage A\\test\end{tabular} \\ \midrule
 Total cholesterol & 230 & 1.1 & 1.9 & 2.3 & 2.9 & 1.4 \\
 Waist circumference & 702 & 1.9 & 2.0 & 2.4 & 1.0 & 2.6 \\
 Triglycerides & 370 & 3.4 & 7.2 & 7.2 & 8.0 & 6.6 \\
@@ -1265,11 +1452,11 @@ Uric acid & 88 & 8.5 & 10.8 & 13.9 & 9.0 & 7.7 \\
 Sampling weight & 2,790 & 9.2 & 17.2 & 18.3 & 18.1 & 19.4 \\
 Gamma-glutamyl transferase & 166 & 9.5 & 14.6 & 13.5 & 13.4 & 17.0 \\
 Income to poverty ratio & 418 & 11.6 & 11.1 & 10.6 & 16.1 & 10.2 \\
-Permuted sampling weight & 2,790 & 12.1 & 23.0 & 26.4 & 25.5 & 23.1 \\
+\textit{Permuted sampling weight} & 2,790 & 12.1 & 23.0 & 26.4 & 25.5 & 23.1 \\
 Alanine aminotransferase & 103 & 13.7 & 18.7 & 17.5 & 13.2 & 16.5 \\
 Systolic blood pressure & 108 & 13.7 & 20.3 & 19.9 & 12.8 & 18.5 \\
 Diastolic blood pressure & 75 & 14.0 & 16.7 & 19.7 & 16.0 & 16.4 \\
-Permuted age & 61 & 15.6 & 21.3 & 26.9 & 26.7 & 20.4 \\
+\textit{Permuted age} & 61 & 15.6 & 21.3 & 26.9 & 26.7 & 20.4 \\
 Sleep hours & 23 & 17.6 & 19.9 & 24.1 & 23.9 & 18.1 \\
 Sedentary minutes & 39 & 18.4 & 22.0 & 24.9 & 23.3 & 21.0 \\
 Hypertension diagnosis & 2 & 18.8 & 5.8 & 3.5 & 6.7 & 11.1 \\
@@ -1281,19 +1468,20 @@ Heart disease diagnosis & 2 & 23.8 & 13.1 & 10.7 & 12.4 & 19.7 \\
 Marital status & 3 & 25.0 & 24.0 & 23.6 & 25.1 & 22.8 \\
 Ever smoked & 2 & 26.9 & 24.4 & 23.9 & 25.8 & 23.8 \\
 Sex & 2 & 27.0 & 23.2 & 23.2 & 18.1 & 21.7 \\
-Permuted sex & 2 & 27.0 & 25.3 & 25.6 & 27.6 & 23.9 \\
+\textit{Permuted sex} & 2 & 27.0 & 25.3 & 25.6 & 27.6 & 23.9 \\
 Born in the United States & 2 & 29.2 & 27.1 & 20.0 & 25.7 & 27.6 \\
 Health insurance & 2 & 29.8 & 28.6 & 24.5 & 24.5 & 29.8 \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{Mean rank over 50 training folds of
-each of the 30 columns under the three forests of the primary run and, in the
-last two columns, the two control rankings of the separate control run (the
-same random forest ranked by out-of-bag permutation importance, and \citrees
-with the Stage A screen disabled), ordered by the random forest rank. Rank 1 is the most important column and tied importances receive their
-mean rank. Distinct values is the median number of distinct training-fold
-values; each training fold holds 2,877 or 2,878 of the 3,597 participants. The
-three permuted columns are independent permutations of the sampling weight,
+each of the 30 columns under the three forests of the primary comparison and,
+in the last two columns, the two control rankings (the same random forest
+ranked by out-of-bag permutation importance, and \citrees with the Stage A
+test disabled), ordered by the random forest rank. Rank 1 is the most
+important column and tied importances receive their mean rank. Distinct
+values is the median number of distinct training-fold values; each training
+fold holds 2,877 or 2,878 of the 3,597 participants. The three permuted
+columns, in italics, are independent permutations of the sampling weight,
 age, and sex and carry no information about the outcome.}
 \label{tab:nhanes-ranks}
 \end{table}
@@ -1305,15 +1493,18 @@ ranks averaged 0.83 (standard deviation 0.05 over the 50 folds) between
 \pkg{partykit}, and 0.67 between the random forest and \citrees. In the
 descriptive prediction comparison, held-out area under the receiver operating
 characteristic curve with the 10 highest-ranked columns averaged 0.836 for
-\pkg{partykit}, 0.834 for \citrees, and 0.813 for the random forest over the
-50 folds, with log loss of 0.319, 0.320, and 0.333; with 5 columns the areas
-were 0.806, 0.792, and 0.776. All three methods placed at least one of the
-four metabolic measurements in their top 5 in all 50 folds, and permuted sex
-fell outside the top 20 in 50 of 50 folds for the random forest, 46 for
-\citrees, and 46 for \pkg{partykit}. Median fitting time per training fold
-with every core in use was 0.2 seconds for the random forest, 4.8 seconds for
-\citrees, and 20.5 seconds for \pkg{partykit} on a 32-core cloud instance of the
-type used in Section~\ref{sec:performance}.
+\pkg{partykit}, 0.834 for \citrees, 0.827 for the random forest ranked by
+out-of-bag permutation importance, and 0.813 for the random forest ranked by
+impurity over the 50 folds, with log loss of 0.319, 0.320, and 0.333 for the
+first, second, and last; with 5 columns the areas were 0.806, 0.792, and 0.776
+for \pkg{partykit}, \citrees, and the impurity-ranked random forest. All
+three primary methods placed at least one of the four metabolic measurements
+in their top 5 in all 50 folds, and permuted sex fell outside the top 20 in
+50 of 50 folds for the random forest, 46 for \citrees, and 46 for
+\pkg{partykit}. Median fitting time per training fold with every core in use
+was 0.2 seconds for the random forest, 4.8 seconds for \citrees, and 20.5
+seconds for \pkg{partykit} on a 32-core cloud instance of the type used in
+Section~\ref{sec:performance}.
 
 The \pkg{partykit} forest above receives the nominal columns as numeric codes,
 although it natively tests and splits factors. A sensitivity arm fitted in the
@@ -1331,143 +1522,151 @@ than three categories, which moves from 21.6 to 12.9; marital status moves from
 23.6 to 21.7. Held-out area under the curve with the 10 highest-ranked columns
 is 0.835 against 0.836.
 
-The finding is that on a clinical cohort with predictors of mixed cardinality,
-a random forest ranked by impurity importance places a permuted survey weight
-(mean rank 12.1 of 30) above two reported diagnoses that are established
-correlates of diabetes, and both conditional forests place it near the bottom
-(23.0 for \citrees, 26.4 for \pkg{partykit}). The two control arms, fitted in a
-separate run that reproduces the primary fits exactly, narrow the cause. Ranking the same fitted random forest by out-of-bag permutation
+On a clinical cohort with predictors of mixed cardinality, a random forest
+ranked by impurity importance therefore places a permuted survey weight above
+two reported diagnoses that are established correlates of diabetes, and both
+conditional forests place it near the bottom. The two control arms narrow the
+cause. Ranking the same fitted random forest by out-of-bag permutation
 importance moves the permuted weight to 25.5, between the two conditional
 forests (per-fold contrast against \citrees $+2.4$ ranks, standard deviation
-6.2), so the promotion is a property of \sklearn's impurity importance on fully
-grown trees, the bias of \citet{Strobl+Boulesteix+Zeileis+Hothorn:2007}, and
-both conditional variable selection and out-of-bag permutation importance avoid
-it. Disabling the \citrees screen leaves the permuted weight's rank unchanged
-(23.1 against 23.0; contrast $+0.0$) while moving several real predictors
-(hypertension from 5.8 to 11.1), so the $\alpha$ gate is not what protects the
-conditional forest against the noise column; the remaining candidates are the
-choice of the split variable by the association statistic, the capped candidate
-set, and the unweighted importance, which this design does not separate; an arm
-isolating the importance weighting is outside the scope of this application. Redrawing the shuffled controls for each partition
-repeat changes none of this (12.1 to 11.3 for the random forest, 23.0 to 21.1
-for \citrees; primary contrast $-9.8$ against $-11.0$ ranks). A logistic
-regression on the top-ranked columns predicts held-out status at least as well
-from the conditional rankings (AUC at $k = 10$: 0.834 \citrees, 0.836
-\pkg{partykit}, 0.827 random forest by permutation importance, 0.813 random
-forest by impurity). All five rankings and both draws are in
-\code{paper_nhanes_controls.csv} of the reference release. Both forests rank by impurity decrease summed over splits, but not by the same formula: \citrees sums node-level decreases while \sklearn weights each decrease by the node's share of the sample, and the two forests differ in other respects as well (bootstrap, depth control), so the comparison does not isolate the split search on its own; what it shows is that on the same predictors the two rankings
-agree on the metabolic measurements and disagree exactly where the number of
-distinct values differs, the pattern the cardinality study predicts.
-For a user choosing between impurity and conditional importance on mixed-type
-data, that is the practical result.
+6.1). The promotion is thus a property of \sklearn's impurity importance on
+fully grown trees, the bias of \citet{Strobl+Boulesteix+Zeileis+Hothorn:2007},
+and both conditional variable selection and out-of-bag permutation importance
+avoid it. Disabling the \citrees Stage A test leaves the permuted weight's
+rank unchanged (23.1 against 23.0; contrast $+0.0$) while moving several real
+predictors (hypertension from 5.8 to 11.1). The level $\alpha_{\mathrm{A}}$ is
+therefore not what protects the conditional forest against the noise column.
+The remaining candidates are the choice of the split variable by the
+association statistic, the capped candidate set, and the unweighted
+importance, which this design does not separate. Redrawing the shuffled
+controls for each partition repeat changes none of this (12.1 to 11.3 for the
+random forest, 23.0 to 21.1 for \citrees; primary contrast $-9.8$ against
+$-11.0$ ranks). All five rankings and both draws are in the replication
+output.
 
-\subsection{Replication records} \label{sec:replication}
-
-The quick profile uses fewer simulation replicates, three-fold
-cross-validation, smaller permutation and forest budgets, and two timing
-repeats. Both profiles record random seeds, software versions, source and input
-hashes, platform metadata, raw outputs, and generated artifact hashes. The
-top-level replication command validates each component before publishing a
-combined output directory.
+Both forests rank by impurity decrease summed over splits, but not by the same
+formula: \citrees sums node-level decreases, while \sklearn weights each
+decrease by the node's share of the sample. The two forests also differ in
+other respects (bootstrap, depth control), so the comparison does not isolate
+the split search on its own. What it shows is that on the same predictors the
+two rankings agree on the metabolic measurements and disagree exactly where
+the number of distinct values differs, the pattern the cardinality study
+predicts. A user choosing between impurity and conditional importance on
+mixed-type data should therefore expect the two to disagree on
+high-cardinality columns.
 
 \section{Discussion} \label{sec:discussion}
 
-\citrees makes conditional-inference-style trees and forests available as
-native \proglang{Python} estimators. Its main practical advantage is explicit
-control over the nodewise association test, multiplicity threshold,
-permutation computation, and threshold search while retaining compatibility
-with common model-selection workflows. Its main cost is computation:
-permutation tests can be much slower than impurity-only split search,
-especially in high dimensions or large forests.
-
 The package serves applications where the separation between feature screening
 and threshold optimization is part of the modeling goal. \pkg{partykit} serves
-analyses requiring exact \proglang{R} reference behavior. Inferential analysis
-quantifies fixed-node permutation calibration, while adaptive tree construction
-produces fitted predictive models. Applications should evaluate predictive
-performance, feature stability, and runtime against both conditional inference
-and CART-style alternatives.
+analyses requiring the reference \proglang{R} behavior and the response
+types, factor handling, and missing-value methods listed in
+Table~\ref{tab:software-comparison}. Inferential analysis quantifies
+fixed-node permutation calibration, while adaptive tree construction produces
+fitted predictive models. Applications should evaluate predictive
+performance, feature stability, and runtime against both conditional
+inference and CART-style alternatives.
 
-The NHANES application reproduces the ordering of Section~\ref{sec:cardinality}
-on a clinical cohort for the one column whose information content is known. A
-permuted survey weight with 3,464 distinct values in the cohort (2,790 in a
-typical training fold) entered the random forest's top half under impurity
-importance while reported diagnoses of hypertension and high cholesterol
-received mean ranks of 18.8 and 20.5 of 30; \citrees and \pkg{partykit}
-placed it near the bottom and agreed with each other at a rank correlation of
-0.83, and so did the same random forest once ranked by out-of-bag permutation
-importance. The five rankings therefore sort into two groups by how the split
-variable and the importance are chosen, not by package: impurity importance on
-greedily chosen splits promotes the high-cardinality noise column, and on
-this cohort every ranking that either chooses the split variable by an
-association statistic or scores it by permutation avoids it; on the companion
-article's weak-signal designs, permutation importance on a CART forest keeps
-the preference, so the permutation control is a property of this cohort's
-predictors rather than a general remedy. The descriptive comparison found similar or
-better mean held-out accuracy for the conditional rankings, at about 25 and 110
-times the fitting time of the random forest at this sample size.
+The NHANES case study reproduces the ordering of
+Section~\ref{sec:cardinality} on a clinical cohort for the one column whose
+information content is known. A permuted survey weight with thousands of
+distinct values entered the random forest's top half under impurity
+importance, ahead of reported diagnoses of hypertension and high cholesterol.
+\citrees and \pkg{partykit} placed it near the bottom and agreed closely with
+each other, and so did the same random forest once ranked by out-of-bag
+permutation importance. The five rankings therefore sort into two groups by
+how the split variable and the importance are chosen, not by package.
+Impurity importance on greedily chosen splits promotes the high-cardinality
+noise column. On this cohort, every ranking that either chooses the split
+variable by an association statistic or scores it by permutation avoids it.
+On the weak-signal designs of the companion article, permutation importance
+on a CART forest keeps the preference
+\citep{Milletich+Downes+Goley+Hirst:2026}, so the permutation control reflects
+this cohort's predictors rather than a general remedy. The descriptive
+comparison found similar or better held-out area under the curve and log
+loss for the conditional rankings, at a fitting time one to two orders of
+magnitude above that of the random forest at this sample size.
 
-That result also says what the permutation machinery of \citrees is for, since
-the control with the Stage A screen disabled ranks the NHANES columns the same
-way. The screen does not decide the ranking on this cohort; the conditional
-choice of the split variable does. What the tests add is the tree itself: a
-split is made only when an association survives a calibrated test at the
-adjusted level, so depth is set by the data rather than by a pruning parameter,
-the root decision of each such tree is the decision whose false-split rate
-Section~\ref{sec:calibration} measures, and the forest's variable selection
-agrees with \pkg{partykit}'s under matched controls
-(Section~\ref{sec:behavior}). A user who wants only an unbiased ranking of a
-CART forest can compute out-of-bag permutation importance on a \sklearn forest
-(the package does not provide it; the replication code does) at low cost when
-the number of features is small, although on the companion benchmark that
-ranking predicts no better than the impurity ranking and its permutation step
-grows with the number of features; a user who wants the split decisions themselves to carry
-an error rate needs the tests.
+That result also says what the permutation machinery of \citrees is for,
+since the control with the Stage A test disabled ranks the NHANES columns the
+same way. The Stage A test does not decide the ranking on this cohort; the
+conditional choice of the split variable does. What the tests add is the tree
+itself. A split is made only when an association survives a calibrated test
+at the adjusted level, so depth is set by a significance level rather than by
+a pruning parameter tuned for prediction, and the root decision of each such
+tree is the decision whose false-split rate Section~\ref{sec:calibration}
+measures. Under matched controls, the forest's feature summaries are
+concordant with those of \pkg{partykit} ($\tau_b$ 0.48 in classification and
+0.78 in regression; Section~\ref{sec:behavior}). A user who wants only an
+unbiased ranking of a CART forest can compute out-of-bag permutation
+importance on a \sklearn forest (the package does not provide it; the
+replication code does) at low cost when the number of features is small. On
+the benchmark of the companion article, however, that ranking predicts no
+better than the impurity ranking, and its cost grows with the number of
+features \citep{Milletich+Downes+Goley+Hirst:2026}. A user who wants the
+split decisions themselves to carry an error rate needs the tests.
 
 \subsection{Limitations}
 
-The NHANES estimates describe one survey cycle, a single outcome, the 3,597
-complete cases on 27 predictors out of a larger adult sample (listwise deletion
-that selects on measurement and response patterns), one draw of the permuted
-controls in the primary analysis (a companion run redraws them per repeat and
-agrees), and predictors passed as numeric codes, so the unordered categorical
-columns (race and ethnicity, marital status) are split as if ordered by the
-random forest and \citrees, which have no factor type (the \pkg{partykit}
-sensitivity arm with factor typing moves mainly race and ethnicity); the forests are compared at their shipped defaults rather than
-tuned. The application measures ranking behavior; the association of any
-predictor with diabetes in this cohort is descriptive.
-More generally, permutation testing makes \citrees substantially
-more computationally intensive than impurity-only trees, particularly for
-large forests and high-dimensional predictors.
+The NHANES estimates describe one survey cycle and a single outcome. They use
+the 3,597 complete cases on 27 predictors out of a larger adult sample, a
+listwise deletion that selects on measurement and response patterns. The
+primary analysis uses one draw of the permuted controls; the redraw run
+redraws them per repeat and agrees. Predictors are passed as numeric codes, so
+the random forest and \citrees, which have no factor type, split the
+unordered categorical columns (race and ethnicity, marital status) as if they
+were ordered; the \pkg{partykit} sensitivity arm with factor typing moves
+mainly race and ethnicity. The forests are compared at their shipped defaults
+rather than tuned. The application measures ranking behavior; the association
+of any predictor with diabetes in this cohort is descriptive. More generally,
+permutation testing makes \citrees substantially more computationally
+intensive than impurity-only trees, particularly for large forests and
+high-dimensional predictors.
 
-The adaptive stopping rule stops a permutation test once a Beta posterior on
-the exceedance proportion places probability at least 0.95 on one side of the
-significance level. For a fixed statistic its null size is a finite
-computation, exact when the exceedance probability is treated as continuous
-and within $1/n!$ of it on a tie-free permutation set (0.0488 at the default
-confidence for 999 permutations; 0.0522 at confidence 0.80, which is why 0.95
-is the minimum allowed), and the calibration study above agrees with it. The adaptive max-type test recomputes its column
-moments as permutations accumulate and is covered by the calibration study
-only.
+The exact size computation of Section~\ref{sec:scope} applies to a fixed
+statistic. The adaptive max-type test recomputes its column moments as
+permutations accumulate and is covered by the calibration study only.
 
-\section{Software and data availability} \label{sec:availability}
+\section{Computational details} \label{sec:availability}
 
 Version 0.2.0 of \citrees, the article source, and the replication programs are
 available at \url{https://github.com/rmill040/citrees} under the MIT license.
-The package requires \proglang{Python} 3.12 or later. The locked
-\proglang{Python} environment and the reference container specification are
-included in the repository. The reference container pins \proglang{R} 4.5.2,
-\pkg{partykit} 1.2-24, and the numerical packages used by the
-bridge between \proglang{Python} and \proglang{R}.
+The package requires \proglang{Python} 3.12 or later and depends on
+\pkg{NumPy} \citep{Harris+Millman+vanderWalt:2020}, \pkg{SciPy}
+\citep{Virtanen+Gommers+Oliphant:2020}, \sklearn, \pkg{Numba}, \pkg{dcor}
+\citep{RamosCarreno+Torrecilla:2023}, \pkg{pydantic} \citep{Colvin:pydantic},
+and \pkg{joblib} \citep{joblib}; the replication programs also use
+\pkg{pandas} \citep{McKinney:2010} and \pkg{rpy2}. The results in this article
+were computed with \proglang{Python} 3.12.7, \pkg{NumPy} 2.4.6, \pkg{SciPy}
+1.18.0, \pkg{pandas} 3.0.5, \sklearn 1.8.0, \pkg{Numba} 0.66.0, and \pkg{rpy2}
+3.6.7, with \proglang{R} 4.5.2 and \pkg{partykit} 1.2-24. The locked
+\proglang{Python} environment, which pins \pkg{dcor} 0.7, \pkg{pydantic}
+2.13.4, and \pkg{joblib} 1.5.3, and the reference container specification
+are included in the repository. The reference container also pins the
+numerical \proglang{R} packages used by the bridge between \proglang{Python}
+and \proglang{R}.
 
-The top-level replication command provides smoke, quick, and full profiles.
-Each execution writes to a new result directory and validates every component
-before publishing the combined result tree. The full profile requires a clean
-source tree at the beginning and throughout execution. Component receipts
-record the profile, random seed, source revision, software versions, platform,
-elapsed time, source and input hashes, and output hashes. Distributed
-calibration and behavioral comparisons additionally validate complete shard
-assignment and preserve realized cloud-compute accounting.
+\subsection{Replication} \label{sec:replication}
+
+After installing the environment with \code{uv sync --group paper}, the
+replication suite is run from the repository root with
+%
+\begin{CodeChunk}
+\begin{CodeInput}
+$ uv run python -m paper.jss.replication --profile full \
+    --output-dir paper/jss/results/replication-full
+\end{CodeInput}
+\end{CodeChunk}
+%
+where \code{--profile} takes the values \code{smoke}, \code{quick}, and
+\code{full}. The full profile defines every reported estimate. The quick
+profile uses fewer simulation replicates, three-fold cross-validation,
+smaller permutation and forest budgets, and two timing repeats. The timing
+tables of Section~\ref{sec:performance} require a 32-core instance. Each
+execution writes to a new result directory and validates every component
+before publishing the combined result tree. Component receipts record the
+profile, random seed, source revision, software versions, elapsed time,
+source and input hashes, and output hashes.
 
 Simulation inputs are generated from recorded seeds. The tutorial data are
 distributed with \sklearn. The NHANES workflow downloads the 15 public
@@ -1479,7 +1678,9 @@ inputs to be reused across replication profiles.
 
 \section*{Acknowledgments}
 
-The authors acknowledge Amazon Web Services for supporting this work.
+The authors acknowledge Amazon Web Services for supporting this work. We thank
+Steve Goley for contributions to the shared benchmark study reported in the
+companion article \citep{Milletich+Downes+Goley+Hirst:2026}.
 
 \bibliography{refs}
 

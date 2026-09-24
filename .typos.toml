@@ -16,3 +16,5 @@ Plas = "Plas"
 SLQ = "SLQ"
 # Balanced-accuracy column suffix (lr_ba, svm_ba, knn_ba)
 ba = "ba"
+CLL = "CLL"
+thr = "thr"

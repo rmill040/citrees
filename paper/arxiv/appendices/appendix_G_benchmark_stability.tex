@@ -49,7 +49,7 @@ and $k \in \{5,10,25,50,100\}$.
   \setlength{\tabcolsep}{4pt}
   \begin{tabular}{@{}ll S[table-format=1.3] c c@{}}
     \toprule
-    \tablehead{Task} & \tablehead{Compared method} & {Mean $\Delta$} & 95\% CI & W--L \\
+    \tablehead{Task} & \tablehead{Compared method} & {Mean $\Delta$} & 95\% CI & W/L \\
     \midrule
     Classification & ctree & 0.049 & [0.026, 0.073] & \winloss{11}{2} \\
     Classification & cforest & 0.013 & [0.002, 0.024] & \winloss{9}{4} \\
@@ -62,7 +62,7 @@ and $k \in \{5,10,25,50,100\}$.
   \caption{Complete-case CIF differences against ctree, cforest, and CIT. Mean
   $\Delta$ is CIF minus comparator after averaging each dataset over the same
   downstream learners and values of $k$. Intervals resample dataset-level paired
-  deltas with 20{,}000 percentile-bootstrap replicates. W--L gives dataset-level
+  deltas with 20{,}000 percentile-bootstrap replicates. W/L gives dataset-level
   wins and losses; no exact ties occurred.}
   \label{tab:cif-ci-comparisons}
 \end{table}
@@ -70,7 +70,9 @@ and $k \in \{5,10,25,50,100\}$.
 The metric is balanced accuracy for classification and $R^2$ for regression.
 Positive differences favor CIF. The intervals summarize dataset-level paired
 deltas after configuration selection. Large positive regression differences can
-reflect negative mean $R^2$ for the comparator.
+reflect negative mean $R^2$ for the comparator. Paired bootstrap intervals for
+CIF against every other method on these panels, 16 comparisons in classification
+and 17 in regression, are in the benchmark tables of the reference release.
 
 The Friedman checks use dataset-level method means after averaging the 15
 learner-by-$k$ combinations. Classification (13 datasets):
@@ -93,7 +95,7 @@ configurations, reselects the global configuration in 4 of 6 holdouts, and
 moves from 7.00 (tied 5th) to 7.33 (6th). The gap between these panel ranks
 and the main-table ranks of 3rd and 2nd comes from the panel: on the 13- and
 6-dataset panels the fixed configuration already ranks CIF 6th and 5th, and
-reselection adds less than half a rank. \Cref{tab:lodo-config-sensitivity-allmethod} repeats the analysis on the all-method panels of 21 and 8 datasets that the main table uses. Every single-configuration family keeps its held-out score exactly, which checks the reselection code, and its mean rank moves only as CIF and the other tuned families are reselected around it, by at most 0.05 in classification and 0.125 in regression; CIF moves from 5.86 (tied 3rd) to 6.10 (5th) in classification, reselecting the global configuration in 20 of 21 holdouts with a held-out balanced accuracy lower by 0.002, and from 6.25 (2nd) to 6.50 (2nd) in regression, reselecting it in 7 of 8 holdouts with $R^2$ lower by 0.008. The one large reselection effect is cforest in regression, whose alternative configuration is chosen on one holdout and scores far lower there (mean $R^2$ 0.30 to 0.20). The observed sensitivity of the tuned families to reselection is: 0.002 balanced accuracy and 0.008 $R^2$ for CIF, 0.03 $R^2$ for XGBoost, and one place in the classification order.
+reselection adds less than half a rank. \Cref{tab:lodo-config-sensitivity-allmethod} repeats the analysis on the all-method panels of 21 and 8 datasets that the main table uses. Every single-configuration family keeps its held-out score exactly, which checks the reselection code, and its mean rank moves only as CIF and the other tuned families are reselected around it, by at most 0.05 in classification and 0.125 in regression; CIF moves from 5.86 (tied 3rd) to 6.10 (5th) in classification, reselecting the global configuration in 20 of 21 holdouts with a held-out balanced accuracy lower by 0.002, and from 6.25 (2nd) to 6.50 (2nd) in regression, reselecting it in 7 of 8 holdouts with $R^2$ lower by 0.008. The one large reselection effect is cforest in regression, whose alternative configuration is chosen on one holdout and scores far lower there (mean $R^2$ 0.30 to 0.20). The observed sensitivity of the tuned families to reselection is: 0.002 balanced accuracy and 0.008 $R^2$ for CIF, 0.03 $R^2$ for XGBoost (0.270 under the fixed configuration against 0.241 under LODO on the all-method regression panel), and one place in the classification order.
 
 \begin{table}[!htbp]
   \centering
@@ -238,36 +240,37 @@ top 5.
     c
     c@{}}
     \toprule
-    \tablehead{Method} & {KNN} & {LR} & {SVM} & {Mean position} & {Mean rank} & {Best--worst} &
+    \tablehead{Method} & {KNN} & {LR} & {SVM} & {Mean position} & {Mean rank} & {Best/worst} &
     \shortstack{Top 3\\of 15} & \shortstack{Top 5\\of 15} \\
     \midrule
-    RF-RFE & 1.7 & 5.0 & 1.8 & 2.8 & 5.2 & 1.0--8.0 & \countfrac{10}{15} & \countfrac{13}{15} \\
-    XGBoost & 5.4 & 2.7 & 3.4 & 3.8 & 5.8 & 2.0--8.0 & \countfrac{9}{15} & \countfrac{11}{15} \\
-    CIF & 4.2 & 4.4 & 5.7 & 4.8 & 6.7 & 2.0--7.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
-    RF & 3.6 & 5.1 & 5.1 & 4.6 & 6.4 & 1.5--7.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
-    LightGBM & 4.2 & 2.2 & 2.0 & 2.8 & 5.5 & 1.0--6.0 & \countfrac{11}{15} & \countfrac{13}{15} \\
-    Boruta & 5.2 & 8.6 & 7.8 & 7.2 & 7.5 & 1.0--9.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
-    CatBoost & 6.1 & 3.4 & 4.1 & 4.5 & 6.3 & 1.0--8.0 & \countfrac{5}{15} & \countfrac{10}{15} \\
-    ExtraTrees & 6.8 & 7.6 & 8.8 & 7.7 & 7.7 & 2.0--12.0 & \countfrac{1}{15} & \countfrac{1}{15} \\
-    cforest & 9.5 & 7.6 & 9.3 & 8.8 & 8.2 & 5.0--11.0 & \countfrac{0}{15} & \countfrac{1}{15} \\
-    DT & 10.4 & 9.2 & 8.4 & 9.3 & 9.5 & 4.0--13.5 & \countfrac{0}{15} & \countfrac{2}{15} \\
-    RDC filter & 11.2 & 12.0 & 12.6 & 11.9 & 10.8 & 10.0--15.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    PI & 15.3 & 15.8 & 15.8 & 15.6 & 13.4 & 13.5--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    MC filter & 12.0 & 13.6 & 13.8 & 13.1 & 11.3 & 10.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    RT & 15.0 & 13.0 & 13.5 & 13.8 & 11.9 & 10.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    ctree & 12.1 & 13.0 & 12.4 & 12.5 & 11.0 & 10.0--15.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CIT & 13.3 & 12.8 & 11.7 & 12.6 & 11.0 & 9.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CPI & 17.0 & 17.0 & 16.8 & 16.9 & 14.8 & 16.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    RF-RFE & 1.7 & 5.0 & 1.8 & 2.8 & 5.2 & 1.0/8.0 & \countfrac{10}{15} & \countfrac{13}{15} \\
+    XGBoost & 5.4 & 2.7 & 3.4 & 3.8 & 5.8 & 2.0/8.0 & \countfrac{9}{15} & \countfrac{11}{15} \\
+    CIF & 4.2 & 4.4 & 5.7 & 4.8 & 6.7 & 2.0/7.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
+    RF & 3.6 & 5.1 & 5.1 & 4.6 & 6.4 & 1.5/7.0 & \countfrac{3}{15} & \countfrac{10}{15} \\
+    LightGBM & 4.2 & 2.2 & 2.0 & 2.8 & 5.5 & 1.0/6.0 & \countfrac{11}{15} & \countfrac{13}{15} \\
+    Boruta & 5.2 & 8.6 & 7.8 & 7.2 & 7.5 & 1.0/9.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
+    CatBoost & 6.1 & 3.4 & 4.1 & 4.5 & 6.3 & 1.0/8.0 & \countfrac{5}{15} & \countfrac{10}{15} \\
+    ExtraTrees & 6.8 & 7.6 & 8.8 & 7.7 & 7.7 & 2.0/12.0 & \countfrac{1}{15} & \countfrac{1}{15} \\
+    cforest & 9.5 & 7.6 & 9.3 & 8.8 & 8.2 & 5.0/11.0 & \countfrac{0}{15} & \countfrac{1}{15} \\
+    DT & 10.4 & 9.2 & 8.4 & 9.3 & 9.5 & 4.0/13.5 & \countfrac{0}{15} & \countfrac{2}{15} \\
+    RDC filter & 11.2 & 12.0 & 12.6 & 11.9 & 10.8 & 10.0/15.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    PI & 15.3 & 15.8 & 15.8 & 15.6 & 13.4 & 13.5/16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    MC filter & 12.0 & 13.6 & 13.8 & 13.1 & 11.3 & 10.0/17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    RT & 15.0 & 13.0 & 13.5 & 13.8 & 11.9 & 10.0/16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    ctree & 12.1 & 13.0 & 12.4 & 12.5 & 11.0 & 10.0/15.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CIT & 13.3 & 12.8 & 11.7 & 12.6 & 11.0 & 9.0/16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CPI & 17.0 & 17.0 & 16.8 & 16.9 & 14.8 & 16.0/17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
   \caption{Classification sensitivity by downstream learner and value of $k$.
   Lower values are better. KNN, LR, and SVM denote downstream learners;
   Top 3 of 15 and Top 5 of 15 count the learner-by-$k$ combinations where the
-  method ranks in the top 3 or top 5. Mean position averages ordinal method
-  positions over the 15 combinations; mean rank averages the underlying
-  dataset-level ranks. The dataset counts at
-  $k=5,10,25,50,100$ are
-  21, 20, 14, 14, and 13. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
+  method ranks in the top 3 or top 5. The learner columns and mean position
+  average the method's ordinal position among the methods over learner-by-$k$
+  combinations (the five values of $k$ for one learner, or all 15 combinations);
+  best and worst are its extreme positions over the 15 combinations; mean rank
+  averages its dataset-level rank over datasets and combinations. The dataset
+  counts at $k=5,10,25,50,100$ are 21, 20, 14, 14, and 13. The spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
   \label{tab:classification-learner-k-sensitivity}
 \end{table}
 
@@ -292,37 +295,39 @@ positions.
     c
     c@{}}
     \toprule
-    \tablehead{Method} & {KNN} & {Ridge} & {SVR} & {Mean position} & {Mean rank} & {Best--worst} &
+    \tablehead{Method} & {KNN} & {Ridge} & {SVR} & {Mean position} & {Mean rank} & {Best/worst} &
     \shortstack{Top 3\\of 15} & \shortstack{Top 5\\of 15} \\
     \midrule
-    ExtraTrees & 6.2 & 2.4 & 2.6 & 3.7 & 6.8 & 1.0--11.0 & \countfrac{9}{15} & \countfrac{11}{15} \\
-    CIF & 4.6 & 9.9 & 2.4 & 5.6 & 7.8 & 1.0--12.0 & \countfrac{7}{15} & \countfrac{8}{15} \\
-    CatBoost & 2.0 & 8.9 & 3.2 & 4.7 & 7.3 & 1.0--15.0 & \countfrac{6}{15} & \countfrac{12}{15} \\
-    RF-RFE & 3.2 & 3.0 & 5.9 & 4.0 & 7.1 & 1.0--9.0 & \countfrac{7}{15} & \countfrac{11}{15} \\
-    RF & 7.8 & 4.2 & 10.0 & 7.3 & 8.3 & 2.0--13.0 & \countfrac{2}{15} & \countfrac{4}{15} \\
-    RT & 4.4 & 10.0 & 6.1 & 6.8 & 8.5 & 2.0--17.0 & \countfrac{3}{15} & \countfrac{7}{15} \\
-    cforest & 11.4 & 11.7 & 9.9 & 11.0 & 10.1 & 6.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    DT & 6.7 & 9.4 & 9.1 & 8.4 & 9.0 & 4.0--16.0 & \countfrac{0}{15} & \countfrac{2}{15} \\
-    Boruta & 12.5 & 4.4 & 11.9 & 9.6 & 9.4 & 2.0--16.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
-    PC filter & 12.8 & 12.0 & 11.0 & 11.9 & 10.7 & 8.0--16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    LightGBM & 9.2 & 10.4 & 9.8 & 9.8 & 9.6 & 1.0--17.0 & \countfrac{3}{15} & \countfrac{3}{15} \\
-    XGBoost & 6.5 & 15.9 & 9.3 & 10.6 & 9.9 & 1.5--18.0 & \countfrac{1}{15} & \countfrac{4}{15} \\
-    RDC filter & 14.3 & 10.1 & 6.5 & 10.3 & 9.8 & 3.0--16.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
-    CIT & 14.7 & 12.4 & 14.7 & 13.9 & 11.0 & 8.5--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    ctree & 8.2 & 9.2 & 17.4 & 11.6 & 10.9 & 1.0--18.0 & \countfrac{2}{15} & \countfrac{4}{15} \\
-    PI & 12.3 & 7.1 & 14.4 & 11.3 & 10.2 & 3.0--16.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
-    DC filter & 16.4 & 13.9 & 9.6 & 13.3 & 11.1 & 7.0--17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
-    CPI & 17.8 & 16.1 & 17.2 & 17.0 & 13.6 & 9.5--18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    ExtraTrees & 6.2 & 2.4 & 2.6 & 3.7 & 6.8 & 1.0/11.0 & \countfrac{9}{15} & \countfrac{11}{15} \\
+    CIF & 4.6 & 9.9 & 2.4 & 5.6 & 7.8 & 1.0/12.0 & \countfrac{7}{15} & \countfrac{8}{15} \\
+    CatBoost & 2.0 & 8.9 & 3.2 & 4.7 & 7.3 & 1.0/15.0 & \countfrac{6}{15} & \countfrac{12}{15} \\
+    RF-RFE & 3.2 & 3.0 & 5.9 & 4.0 & 7.1 & 1.0/9.0 & \countfrac{7}{15} & \countfrac{11}{15} \\
+    RF & 7.8 & 4.2 & 10.0 & 7.3 & 8.3 & 2.0/13.0 & \countfrac{2}{15} & \countfrac{4}{15} \\
+    RT & 4.4 & 10.0 & 6.1 & 6.8 & 8.5 & 2.0/17.0 & \countfrac{3}{15} & \countfrac{7}{15} \\
+    cforest & 11.4 & 11.7 & 9.9 & 11.0 & 10.1 & 6.0/16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    DT & 6.7 & 9.4 & 9.1 & 8.4 & 9.0 & 4.0/16.0 & \countfrac{0}{15} & \countfrac{2}{15} \\
+    Boruta & 12.5 & 4.4 & 11.9 & 9.6 & 9.4 & 2.0/16.0 & \countfrac{2}{15} & \countfrac{2}{15} \\
+    PC filter & 12.8 & 12.0 & 11.0 & 11.9 & 10.7 & 8.0/16.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    LightGBM & 9.2 & 10.4 & 9.8 & 9.8 & 9.6 & 1.0/17.0 & \countfrac{3}{15} & \countfrac{3}{15} \\
+    XGBoost & 6.5 & 15.9 & 9.3 & 10.6 & 9.9 & 1.5/18.0 & \countfrac{1}{15} & \countfrac{4}{15} \\
+    RDC filter & 14.3 & 10.1 & 6.5 & 10.3 & 9.8 & 3.0/16.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
+    CIT & 14.7 & 12.4 & 14.7 & 13.9 & 11.0 & 8.5/18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    ctree & 8.2 & 9.2 & 17.4 & 11.6 & 10.9 & 1.0/18.0 & \countfrac{2}{15} & \countfrac{4}{15} \\
+    PI & 12.3 & 7.1 & 14.4 & 11.3 & 10.2 & 3.0/16.0 & \countfrac{1}{15} & \countfrac{2}{15} \\
+    DC filter & 16.4 & 13.9 & 9.6 & 13.3 & 11.1 & 7.0/17.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
+    CPI & 17.8 & 16.1 & 17.2 & 17.0 & 13.6 & 9.5/18.0 & \countfrac{0}{15} & \countfrac{0}{15} \\
     \bottomrule
   \end{tabular}
   \caption{Regression sensitivity by downstream learner and value of $k$.
   Lower values are better. KNN, Ridge, and SVR denote downstream
   learners; Top 3 of 15 and Top 5 of 15 count the learner-by-$k$ combinations
-  where the method ranks in the top 3 or top 5. Mean position averages ordinal
-  method positions over the 15 combinations; mean rank averages the underlying
-  dataset-level ranks. The dataset counts at
-  $k=5,10,25,50,100$ are
-  8, 8, 7, 7, and 6. Entries are mean ranks over datasets; the spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
+  where the method ranks in the top 3 or top 5. The learner columns and mean
+  position average the method's ordinal position among the methods over
+  learner-by-$k$ combinations (the five values of $k$ for one learner, or all 15
+  combinations); best and worst are its extreme positions over the 15
+  combinations; mean rank averages its dataset-level rank over datasets and
+  combinations. The dataset counts at $k=5,10,25,50,100$ are 8, 8, 7, 7, and 6.
+  The spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 

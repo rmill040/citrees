@@ -1,17 +1,17 @@
-\section{High-dimensional and synthetic analyses}
+\subsection{Where CIF loses: high p and small k}
 \label{sec:boundary}
 
-\paragraph{High-dimensional real datasets.}
-These analyses study where CIF's scores peak as $k$ grows, how feature
-recovery on synthetic datasets changes across values of $k$, and how feature
-sampling inside the forest affects how often splits use informative
-features.
+The introduction asks where CIF recovery is weaker, and on real data the
+answer has two parts: at small $k$, where
+\cref{fig:k-trajectory,fig:regression-k-trajectory} place it 7th or 8th of 17
+in classification on the complete-case panel, and on wide datasets, where its
+scores peak before the full feature set.
 Across the 15 classification datasets with more than 100 features, CIF first
 reaches its best score at an intermediate value of $k$ ($100 < k < p$) in 29 of 45
 dataset-learner combinations. It first reaches its best score at the full
 feature set ($k=p$) in only 7 of 45 combinations.
-\Cref{fig:high-p-boundary} shows this pattern by downstream learner; regression
-is summarized next. Classification scores most often peak at
+\Cref{fig:high-p-boundary} shows this pattern by downstream learner.
+Classification scores most often peak at
 intermediate $k$: 8 of 15 LR datasets, 12 of 15 SVM datasets, and 9 of 15 KNN
 datasets. The full feature set is mainly an LR exception. Moving from $k{=}100$
 to $k{=}p$ gives a mean $k{=}p$ minus $k{=}100$ score change of $+0.026$ for LR,
@@ -22,9 +22,8 @@ the 7 of 45 above.
 
 In the 6 high-$p$ regression datasets, full-feature evaluation is rarely best.
 Across the 18 dataset-learner combinations, 12 peak at or below $k{=}100$, only
-2 peak at $k=p$, and the mean $k{=}p$ minus $k{=}100$ score change is $-0.270$.
-The main full-feature exception remains the classification LR result in
-\Cref{fig:high-p-boundary}.
+2 peak at $k=p$, and the $k{=}p$ minus $k{=}100$ score change has a mean of
+$-0.270$ and a median of $-0.076$.
 
 \begin{figure}[H]
   \centering
@@ -37,22 +36,18 @@ The main full-feature exception remains the classification LR result in
   \label{fig:high-p-boundary}
 \end{figure}
 
-\paragraph{Synthetic feature recovery.}
-Across synthetic classification datasets, 35.3\% of the features in CIF's top-$k$
-list are truly informative on average over the evaluated $k$ values, ranked
-8th of the 15 methods with synthetic classification runs, and its top-1 hit
-rate is 65.5\%, ranked 10th of 15. Across synthetic
-regression datasets, the corresponding values are 39.1\%, ranked 11th of the
-16 methods with synthetic regression runs, and
-84.5\%, ranked 10th of 16. On both measures and in both tasks CIF sits in the
-lower half of the methods; the two measures are not comparable to each other,
-since one is a share of the list and the other a hit rate.
-\Cref{tab:synthetic-head} summarizes both measures, and
-\Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows. The percentage of
-selected features that are informative falls as $k$ grows. On
-redundant-feature synthetic designs, most selected features correspond to true
-signals or redundant proxies: 82.4\% for classification and 83.8\% for
-regression.
+\subsection{Synthetic recovery}
+\label{sec:synthetic-recovery}
+
+Synthetic designs with known informative features answer the recovery part of
+the same question, and on them CIF sits at or below the median position of the
+methods run on each task (\cref{tab:synthetic-head}): 8th of 15 in
+classification and 11th of 16 in regression on the share of its top-$k$ list
+that is informative, and 10th in both tasks on the top-1 hit rate. On the redundant-feature designs,
+where correlated copies of informative features count as hits, CIF ranks 1st
+of 16 in regression and tied 7th of 15 in classification.
+\Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows for single trees,
+forests, and boosted trees.
 
 \begin{table}[!htbp]
   \centering
@@ -66,7 +61,7 @@ regression.
     \midrule
     Selected features that are informative & 35.3\% & \countfrac{8}{15} & 39.1\% & \countfrac{11}{16} \\
     Top-1 hit rate & 65.5\% & \countfrac{10}{15} & 84.5\% & \countfrac{10}{16} \\
-    Selected features that are true or redundant & 82.4\% & \countfrac{7.5}{15} & 83.8\% & \countfrac{1}{16} \\
+    True or redundant (redundant design only) & 82.4\% & \countfrac{7.5}{15} & 83.8\% & \countfrac{1}{16} \\
     \bottomrule
   \end{tabular}
   \caption{Synthetic feature recovery for CIF. The first row averages, over
@@ -88,29 +83,17 @@ regression.
   \label{fig:synthetic-topk-curves}
 \end{figure}
 
-\paragraph{Feature sampling in forests.}
-A sparse simulation asks whether forest feature sampling makes splits less
-likely to use informative features in classification and regression settings.
-\Cref{fig:candidate-forest-counts} shows one sparse classification
-design comparing CIF with CIF-all. CIF samples a subset of features at each
-split; CIF-all considers every nonconstant feature in Stage~A.
-\Cref{app:candidate-availability} gives the classification and regression
-results over $p \in \{100,500,1{,}000\}$.
+\subsection{Mechanism: cardinality and feature use}
+\label{sec:mechanism}
 
-In the single-tree simulations, CIT uses informative features in 100.0\% of
-classification splits and 93.5\% of regression splits. In this fixed design,
-informative features are usually selected when every nonconstant feature is
-considered. In forests, sampling a subset of features reduces how often informative
-features are used for splits. Across the classification forest
-simulations with 1,000 trees, CIF uses informative features in 33.2\% of
-splits, compared with 91.7\% for CIF-all, 8.4\% for RF, and 6.5\% for ET. This diagnostic counts split usage only, and two qualifications bound it. The gap between CIF and RF or ET is confounded by tree size: RF and ET grow to purity, so most of their splits are deep splits on noise, while CIF stops at the permutation gate. And the CIF-all comparison is the combinatorics of feature sampling rather than a property of conditional inference: with 32 of 1,000 features sampled at a node and two informative, the chance that an informative feature is even a candidate is about 6 percent, which is where CIF sits in that design (9.0 percent of splits) and where random forests sit on average over the designs (8.4 percent). Evaluating every feature at every node removes that floor at a cost no practitioner would pay at this dimension, so its consequence for the ranking was not measured; the section establishes the mechanism, not a remedy.
+The paper's central question, whether the multiplicity-corrected split rule
+improves a ranking, has a mechanism side: whether the rule changes which kinds
+of features a ranking favors, and whether that change improves recovery. The
+measurements below address it through cardinality preference in the ranking,
+the size of each ranker's support, and the limit that feature sampling places
+on which features a forest can split on.
 
-Two further designs measure the cardinality effects directly in the ranking
-(\cref{tab:weak-signal-cardinality}; every ranker and cell is in the reference release). Ten standard normal features carry a common linear signal whose marginal correlation with the response is set to 0.05, 0.10, or 0.20, and they sit among 25 noise columns with 500 levels, 25 binary noise columns, and 10 Gaussian noise columns, with the column order shuffled; each ranker is scored by the composition of its top ten over 25 fits. The two biases the paper describes both appear. At the weakest signal random forest impurity importance fills 38 percent of its top ten with the 500-level noise columns and none with binary noise; the per-threshold CIF fills 31 to 40 percent with binary noise and 24 to 26 percent with the 500-level columns, the reverse cardinality penalty of the per-threshold rule, and the max-type rule reduces the binary share to 26 to 30 percent. Neither bias buys recovery: random forest impurity importance places the most informative features in its top ten at every signal strength (0.42 to 0.43 at 0.05, 0.72 to 0.73 at 0.10, 0.99 at 0.20) against 0.26 to 0.34 for the CIF variants at the weakest signal and 0.64 to 0.66 at 0.10, with standard errors of 0.01 to 0.03, and the downstream scores of all rankers are within 0.02 of each other at every signal. Random forest permutation importance does not remove the preference on these designs: its 500-level share is 0.47 and 0.36 at the two weaker signals, above impurity importance, and its recovery is the lowest of the four rankers. On these designs, then, conditional inference trades one cardinality bias for a different one of comparable size in the top-ten composition, smaller in classification and larger in regression, while keeping a 0.22 to 0.26 share of 500-level noise, and it recovers fewer weak features than impurity importance; the gain in an unbiased ranking shows on predictors whose cardinality carries no signal, as in the clinical application of the companion article, not in recovery of weak marginal effects.
-
-A second measurement, on the synthetic benchmark datasets, records each ranker's support, the features that win at least one split. Random forests give every feature nonzero importance, so their support is the full feature set. On 13 of the 16 designs CIF's support keeps 90 to 100 percent of the planted features while excluding 1 to 93 percent of all features (under 5 percent on the two redundant designs, where the correlated copies all win splits; 41 of 100 features with 9.0 of 10 planted in the standard regression design); on the weak-signal classification, heteroscedastic regression, and 1,000-feature classification designs it keeps 41 to 47 percent of the planted features (4.1 of 10 inside a support of 35 of 100, 4.7 of 10 inside 14 of 50, and 2.1 of 5 inside 91 of 1,000), so the support is a shortlist rather than an estimate of the number of informative features. Beyond the support a ranking is filler in the tie order of \cref{sec:method}, and for a single tree the filler is most of any top-$k$ list: CIT supports hold 0 to 10 features on average, so filler is 52, 81, and 90 percent of the top 10, 25, and 50 features on the synthetic designs, against 0, 3, and 14 percent for CIF and none for random forests, which is consistent with single trees ranking near the bottom of the benchmark.
-
-\begin{table}[H]
+\begin{table}[!t]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -120,56 +103,137 @@ A second measurement, on the synthetic benchmark datasets, records each ranker's
     \tablehead{Task} & Signal & Ranking & Informative & 500-level noise & Binary noise & Support & Score \\
     \midrule
     Classification & 0.05 & CIF & 0.31 & 0.26 & 0.31 & 37 & 0.52 \\
-     & 0.05 & CIF, max-type & 0.34 & 0.28 & 0.26 & 46 & 0.51 \\
-     & 0.05 & RF impurity & 0.42 & 0.38 & 0.00 & 70 & 0.52 \\
-     & 0.05 & RF permutation & 0.30 & 0.47 & 0.06 & 34 & 0.51 \\
+     & & CIF, max-type & 0.34 & 0.28 & 0.26 & 46 & 0.51 \\
+     & & RF impurity & 0.42 & 0.38 & 0.00 & 70 & 0.52 \\
+     & & RF permutation & 0.30 & 0.47 & 0.06 & 34 & 0.51 \\
      & 0.10 & CIF & 0.64 & 0.16 & 0.13 & 45 & 0.56 \\
-     & 0.10 & CIF, max-type & 0.66 & 0.20 & 0.06 & 53 & 0.55 \\
-     & 0.10 & RF impurity & 0.72 & 0.19 & 0.00 & 70 & 0.56 \\
-     & 0.10 & RF permutation & 0.49 & 0.36 & 0.02 & 36 & 0.56 \\
+     & & CIF, max-type & 0.66 & 0.20 & 0.06 & 53 & 0.55 \\
+     & & RF impurity & 0.72 & 0.19 & 0.00 & 70 & 0.56 \\
+     & & RF permutation & 0.49 & 0.36 & 0.02 & 36 & 0.56 \\
      & 0.20 & CIF & 0.95 & 0.04 & 0.01 & 59 & 0.68 \\
-     & 0.20 & CIF, max-type & 0.96 & 0.04 & 0.00 & 65 & 0.69 \\
-     & 0.20 & RF impurity & 0.99 & 0.01 & 0.00 & 70 & 0.69 \\
-     & 0.20 & RF permutation & 0.87 & 0.09 & 0.00 & 39 & 0.67 \\
+     & & CIF, max-type & 0.96 & 0.04 & 0.00 & 65 & 0.69 \\
+     & & RF impurity & 0.99 & 0.01 & 0.00 & 70 & 0.69 \\
+     & & RF permutation & 0.87 & 0.09 & 0.00 & 39 & 0.67 \\
     Regression & 0.05 & CIF & 0.26 & 0.24 & 0.40 & 17 & -0.11 \\
-     & 0.05 & CIF, max-type & 0.34 & 0.22 & 0.30 & 21 & -0.11 \\
-     & 0.05 & RF impurity & 0.43 & 0.38 & 0.00 & 70 & -0.11 \\
-     & 0.05 & RF permutation & 0.37 & 0.43 & 0.05 & 34 & -0.10 \\
+     & & CIF, max-type & 0.34 & 0.22 & 0.30 & 21 & -0.11 \\
+     & & RF impurity & 0.43 & 0.38 & 0.00 & 70 & -0.11 \\
+     & & RF permutation & 0.37 & 0.43 & 0.05 & 34 & -0.10 \\
      & 0.10 & CIF & 0.64 & 0.11 & 0.20 & 24 & -0.05 \\
-     & 0.10 & CIF, max-type & 0.65 & 0.13 & 0.15 & 28 & -0.04 \\
-     & 0.10 & RF impurity & 0.73 & 0.17 & 0.00 & 70 & -0.04 \\
-     & 0.10 & RF permutation & 0.57 & 0.27 & 0.01 & 37 & -0.06 \\
+     & & CIF, max-type & 0.65 & 0.13 & 0.15 & 28 & -0.04 \\
+     & & RF impurity & 0.73 & 0.17 & 0.00 & 70 & -0.04 \\
+     & & RF permutation & 0.57 & 0.27 & 0.01 & 37 & -0.06 \\
      & 0.20 & CIF & 0.95 & 0.03 & 0.02 & 36 & 0.28 \\
-     & 0.20 & CIF, max-type & 0.95 & 0.02 & 0.02 & 44 & 0.28 \\
-     & 0.20 & RF impurity & 0.99 & 0.01 & 0.00 & 70 & 0.29 \\
-     & 0.20 & RF permutation & 0.95 & 0.03 & 0.00 & 39 & 0.28 \\
+     & & CIF, max-type & 0.95 & 0.02 & 0.02 & 44 & 0.28 \\
+     & & RF impurity & 0.99 & 0.01 & 0.00 & 70 & 0.29 \\
+     & & RF permutation & 0.95 & 0.03 & 0.00 & 39 & 0.28 \\
     \bottomrule
   \end{tabular}
-  \caption{Weak-signal designs with mixed-cardinality noise: $n = 1{,}000$; 10 informative standard normal features whose marginal correlation with the response is the Signal column; 25 noise columns with 500 levels, 25 binary and 10 Gaussian noise columns. Shares are the mean composition of each ranking's top ten over 25 fits (5 seeds by 5 folds; standard errors 0.01 to 0.03); Support is the mean number of features with nonzero importance (70 for the random forest); Score is the held-out balanced accuracy or $R^2$ of the downstream learners on the top ten. CIF uses the selected benchmark configuration with the linear selectors; RF permutation is the same random forest ranked by out-of-bag permutation importance. XGBoost, LightGBM, CIT, and CIF without the threshold adjustment are in the source table.}
+  \caption{Weak-signal designs with mixed-cardinality noise: $n = 1{,}000$; 10 informative standard normal features whose marginal correlation with the response is the Signal column; 25 noise columns of integer codes drawn from 500 levels (500-level noise), 25 binary noise columns, and 10 Gaussian noise columns, which are continuous and so have the most distinct values. Shares are the mean composition of each ranking's top ten over 25 fits (5 seeds by 5 folds; standard errors 0.01 to 0.03); the remainder of each top ten is Gaussian noise. A cardinality-neutral ranker would give each of the 500-level and binary types 25/60 of the top-ten places not taken by informative features: about 0.29 at the informative share of the classification CIF row at signal 0.05, and 0.24 to 0.31 across the rows at that signal. Support is the mean number of features with nonzero importance (70 for the random forest); Score is the held-out balanced accuracy or $R^2$ of the downstream learners on the top ten. CIF is the selected configuration with RDC replaced by MC (classification) and PC (regression); CIF, max-type is that configuration with the max-type Stage~B rule; RF permutation is the same random forest ranked by out-of-bag permutation importance. XGBoost, LightGBM, CIT, and CIF without the threshold correction are in the reference release.}
   \label{tab:weak-signal-cardinality}
 \end{table}
 
-CIF also uses more distinct noise features than CIF-all, 265 versus 93
-on average. For the $p{=}1{,}000$ classification setting with two informative
-features, CIF uses informative features in 9.0\% of splits, while CIF-all uses
-them in 100.0\%. In regression, CIF-all uses informative features more often
-than CIF, 42.3\% versus 27.8\%, but uses more distinct noise features, 528.8
-versus 367.7.
-CIF-all isolates feature subsampling because feature muting and
-the other tree settings are held fixed. In these sparse high-$p$ simulations,
-splits use informative features most often when every nonconstant feature can
-enter Stage~A. When the sampled feature subset rarely includes an informative
-feature at a node, Stage~A selects from that subset.
+\paragraph{Cardinality in the ranking.}
+Two designs, one per task, measure cardinality preference directly in the ranking
+(\cref{tab:weak-signal-cardinality}; every ranker and cell is in the reference
+release). Ten standard normal features carry a common linear signal whose
+marginal correlation with the response is set to 0.05, 0.10, or 0.20, and they
+sit among 25 noise columns of integer codes on 500 levels, 25 binary noise
+columns, and 10 Gaussian noise columns, with the column order shuffled; each
+ranker is scored by the composition of its top ten over 25 fits. CIF here is
+the selected benchmark configuration with RDC replaced by MC in classification
+and PC in regression, so the measurement concerns the linear selectors, and
+the RDC selector of the benchmark configuration was not run on these designs.
+The reference for each noise type is the share that a ranker indifferent to
+cardinality would give it: 25 of the 60 noise columns are 500-level and 25 are
+binary, so each type would receive 25/60 of the top-ten places not taken by
+informative features, 0.24 to 0.31 across the four rankers at signal 0.05. The
+two biases in question are the preference of impurity importance for features
+with more possible thresholds and the reverse cardinality penalty of the
+per-threshold Stage~B rule, which lowers the probability of any split on a
+feature with many candidate thresholds (\cref{sec:method}). Both appear
+against that reference. At the weakest signal random forest impurity
+importance fills 0.38 of its top ten with 500-level noise in both tasks,
+against a reference of 0.24, and none with binary noise. Per-threshold CIF is
+close to the reference in classification (0.31 binary and 0.26 500-level
+against 0.29) and leans toward binary noise in regression (0.40 binary and
+0.24 500-level against 0.31), and the max-type rule brings the binary share to
+0.26 in classification and 0.30 in regression, against references of 0.28 and
+0.27.
+
+Reducing the preference does not buy recovery. Random forest impurity
+importance places the most informative features in its top ten at every signal
+strength (0.42 to 0.43 at 0.05, 0.72 to 0.73 at 0.10, 0.99 at 0.20) against
+0.26 to 0.34 for the CIF variants at the weakest signal and 0.64 to 0.66 at
+0.10, with standard errors of 0.01 to 0.03, and the downstream scores of all
+rankers are within 0.02 of each other at every signal. The same random forest
+ranked by out-of-bag permutation importance keeps the preference: its
+500-level share at the two weaker signals is 0.47 and 0.36 in classification
+and 0.43 and 0.27 in regression, above impurity importance in both tasks. In
+classification its recovery is the lowest of the four rankers at every signal;
+in regression it is the lowest only at 0.10, exceeds per-threshold CIF at 0.05
+(0.37 against 0.26), and ties CIF at 0.20. On these designs, then,
+per-threshold conditional inference replaces the impurity preference for
+many-valued noise with a smaller preference for binary noise, close to neutral
+in classification and 0.09 above the reference in regression, while keeping a
+0.22 to 0.28 share of 500-level noise at the weakest signal, and it recovers
+fewer weak features than impurity importance. The benefit of a ranking closer
+to cardinality-neutral shows on predictors whose cardinality carries no
+signal, as in the clinical application of \citet{MilletichDownesHirst2026citrees}, rather than
+in recovery of weak marginal effects.
+
+\paragraph{Support.}
+A second measurement, on the synthetic benchmark datasets, records each
+ranker's support, the features that win at least one split. Random forests
+give every feature nonzero importance on 15 of the 16 designs, and 800 of
+1,000 on the 1,000-feature classification design. On 13 of the 16 designs
+CIF's support keeps 90 to 100 percent of the planted features while excluding
+1 to 93 percent of all features (under 5 percent on the two redundant designs,
+where the correlated copies all win splits; 41 of 100 features with 9.0 of 10
+planted in the standard regression design); on the weak-signal
+classification, heteroscedastic regression, and 1,000-feature classification
+designs it keeps 41 to 47 percent of the planted features (4.1 of 10 inside a
+support of 35 of 100, 4.7 of 10 inside 14 of 50, and 2.1 of 5 inside 91 of
+1,000), so the support is a shortlist rather than an estimate of the number
+of informative features. Beyond the support, a ranking orders the remaining
+zero-importance features by the tie rule of \cref{sec:method}, and these
+features are the filler of the ranking. For a single tree the filler is most of any top-$k$ list: CIT
+supports hold 0 to 10 features on average, so filler is 52, 81, and 90
+percent of the top 10, 25, and 50 features on the synthetic designs, against
+0, 3, and 14 percent for CIF and none for random forests, which is consistent
+with single trees ranking near the bottom of the benchmark.
 
 \begin{figure}[!t]
   \centering
   \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
   \caption{Tree-level feature use in one sparse classification forest design
-  ($n{=}250$, $p{=}1{,}000$, two informative features, 1,000 trees). Counts are
-  the number of trees using each feature in at least one split. CIF samples a
-  subset of features; CIF-all evaluates all nonconstant
-  features. The four subplots share one y-axis.}
+  ($n{=}250$, $p{=}1{,}000$, two informative features). Counts are the number
+  of trees using each feature in at least one split, pooled over five fits of
+  1,000 trees each (5,000 trees), so the y-axis, shared by the four subplots,
+  runs to 5,000. CIF samples a subset of features at each node; CIF-all
+  evaluates all nonconstant features.}
   \label{fig:candidate-forest-counts}
 \end{figure}
+
+\paragraph{Feature use in sampled forests.}
+A sparse simulation measures how often forest splits use informative features
+when each node samples a subset of features
+(\cref{fig:candidate-forest-counts}; \cref{app:candidate-availability} gives
+the classification and regression results over $p \in \{100,500,1{,}000\}$).
+In the single-tree simulations, CIT uses informative features in 100.0\% of
+classification splits and 93.5\% of regression splits. Averaged over the 12
+classification forest designs with 1,000 trees, CIF uses informative features
+in 33.2\% of splits, compared with 91.7\% for CIF-all, 8.4\% for RF, and 6.5\%
+for ET. This measurement counts split usage only, and two qualifications bound
+it. The gap between CIF and RF or ET is confounded by tree size: RF and ET grow
+to purity, so most of their splits are deep splits on noise, while CIF stops
+at the permutation gate. The CIF-all comparison reflects the combinatorics of
+feature sampling rather than a property of conditional inference: with 32 of
+1,000 features sampled at a node and two informative, an informative feature
+is a candidate at 6.3 percent of nodes, and in that design CIF uses one in
+9.0\% of splits, RF in 2.7\% and ET in 2.0\%, while CIF-all uses one in
+100.0\%. When the sampled subset holds no informative feature, Stage~A selects
+from the noise it was given. Evaluating every feature at every node lifts that
+floor; the downstream ranking of CIF-all was not scored, so the measurement
+identifies the mechanism and leaves its effect on ranking quality open.
 
 \FloatBarrier

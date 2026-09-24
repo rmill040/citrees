@@ -9,21 +9,22 @@ memory details for the benchmarked tree-growing algorithm.
 
 \subsection{Scope relative to the theory}
 
-The fixed-node results cover exhaustive fixed-$B$ Stage~A feature selection and
-the fixed-$B$ Stage~B threshold tests at a fixed node under the complete
-permutation null. In those results, the tested
-features and resample budget are fixed independently of the node responses. The
-benchmarked tree-growing algorithm also uses settings outside those results:
+\Cref{app:theory-scope} states which fixed-node result covers which test and
+under which conditions. The results cover the Stage~A feature test, the
+per-threshold and max-type Stage~B threshold tests on any finite candidate set
+fixed as a function of the node covariates (exact, random, percentile, or
+histogram), threshold scanning, and adaptive stopping for Stage~A and
+per-threshold Stage~B tests. The benchmarked tree-growing algorithm also uses
+settings outside those results:
 \begin{itemize}
-  \item early stopping,
-  \item feature and threshold ordering inside early stopping,
   \item response-dependent feature muting,
-  \item bounded threshold sets,
+  \item a Stage~B test of the feature that Stage~A chose from the same responses,
+    and nodes reached through earlier response-dependent splits,
   \item bootstrap resampling and forest aggregation,
   \item optional honesty.
 \end{itemize}
-Under these conditions, the results cover exhaustive fixed-$B$ Stage~A values.
-Stage~A and split scores from adaptive trees are tree-construction scores.
+Stage~A and split scores from fitted trees are therefore tree-construction
+scores.
 
 \subsection{Node-level choices}
 
@@ -56,7 +57,7 @@ These quantities support split construction.
 
 \subsection{Permutation budgets and early stopping}
 
-Both stages use Phipson--Smyth $+1$ Monte Carlo tail estimates
+Both stages use Phipson and Smyth $+1$ Monte Carlo tail estimates
 \citep{PhipsonSmyth2010PermutationPValues}: right-tailed in Stage~A and
 left-tailed in Stage~B. For the benchmarked CIT and CIF configurations, the
 resampling budget is set from the Bonferroni-adjusted nodewise threshold and is
@@ -69,7 +70,8 @@ places the configured confidence on one side of the nodewise threshold. Under
 the \texttt{minimum} budget the first check coincides with exhaustion, so the
 rule never acts and every benchmark $p$-value is a fixed-budget $+1$ permutation
 $p$-value (\cref{prop:adaptive-size} and the remark following it); the rule acts
-only at the larger budgets of the runtime ablations.
+only at the larger budgets of the runtime ablations and at the \texttt{auto}
+budget of the Stage~B construction study.
 
 \subsection{Forests, resampling, and honesty}
 
@@ -98,7 +100,7 @@ manifests; the seed schedule is fixed by the benchmark configuration.
     \toprule
     \tablehead{Family} & \tablehead{Task} & Candidates & \tablehead{Selected configuration} \\
     \midrule
-    CIT & clf. & 4 & selector MC; minimum budgets with adaptive stopping; histogram, 256 thresholds; Bonferroni; no honesty \\
+    CIT & clf. & 4 & selector MC; minimum budgets with adaptive stopping; histogram with 256 bins (257 candidates); Bonferroni; no honesty \\
     CIT & reg. & 4 & selector RDC; otherwise as classification \\
     CIF & clf. & 4 & selector RDC; 100 trees; stratified bootstrap; square-root feature sampling; no honesty; otherwise as CIT \\
     CIF & reg. & 4 & selector RDC; 100 trees; bootstrap; square-root feature sampling; honesty with a 0.5 split \\
@@ -117,8 +119,9 @@ manifests; the seed schedule is fixed by the benchmark configuration.
   \caption{Configurations entered in the benchmark, one per family and task,
   with the size of the grid the selection rule chose from. The
   \texttt{minimum} budget is $\lceil 1/\alpha_{\mathrm{adj}} \rceil$ permutations
-  at the Bonferroni-adjusted level; the histogram search offers 256 candidate
-  thresholds per feature. Full parameter values are in
+  at the Bonferroni-adjusted level; the histogram search with 256 bins offers at
+  most 257 candidate thresholds per feature, so the per-threshold rule needs a
+  budget of at least $\lceil 257/0.05 \rceil = 5{,}140$ to reject. Full parameter values are in
   \texttt{paper\_benchmark\_selected\_config\_details.csv} of the reference
   release.}
   \label{tab:selected-configs}
@@ -139,17 +142,17 @@ with every method, downstream learner, and standard value of $k$ present. These
 rules give 13 classification and 6 regression datasets for complete-case
 analyses. On \nolinkurl{gisette}, \nolinkurl{isolet}, and
 \nolinkurl{orlraws10P}, 34 classification runs were excluded from the benchmark
-for operational reasons: 15 partykit ctree and cforest runs inherited from the
-earlier compute campaign did not complete on those datasets, and 19
-RDC-selector CIT and CIF runs on the same datasets could not be run: on the
-compute hosts used for the campaign (AWS c6a.8xlarge, AMD EPYC 7R13), the
-containers running the largest RDC forests terminated after about two hours
-without a Python exception, while the same cells' other seeds and their
-honesty-on twins completed. The cloud provider reproduced the failure on its
-own hosts on 2026-09-13 and reproduced the fault on 2026-09-13; its cause was not identified at the time of writing; until it is
-resolved, these cells are locked and listed in
-\texttt{paper/benchmark/config/locked\_cells.csv}. Comparisons that involve an
-affected method on an affected dataset use the remaining datasets.
+for operational reasons. Fifteen partykit ctree and cforest runs did not
+complete on those datasets. Nineteen RDC-selector CIT and CIF runs were
+excluded: 18 host-fault exclusions, in which the containers running the largest
+RDC fits terminated without a Python exception because of a confirmed host
+fault on the compute instances, while the other seeds of the same cells
+completed; and one exclusion on \nolinkurl{orlraws10P} by author decision. The
+locked cells are listed in \texttt{paper/benchmark/config/locked\_cells.csv},
+which also lists the locked cells of the max-type extension; the file records
+the cells locked at the time of writing, so its entries do not correspond one
+to one with the seed runs of \cref{tab:coverage-skips}. Comparisons that involve
+an affected method on an affected dataset use the remaining datasets.
 \Cref{tab:coverage-skips} lists the excluded runs.
 
 \subsection{Randomness and reproducibility}
@@ -168,22 +171,20 @@ sharing a mutable generator across parallel loop iterations.
     \tablehead{Dataset} & \tablehead{Method} & {Configurations} & {Seed runs} & \tablehead{Basis} \\
     \midrule
     \texttt{gisette} & CIT with selector \texttt{rdc} & 2 & 8 & host fault \\
-    \texttt{gisette} & R ctree & 1 & 5 & inherited \\
+    \texttt{gisette} & R ctree & 1 & 5 & incomplete \\
     \texttt{isolet} & CIF with selector \texttt{rdc} & 2 & 4 & host fault \\
     \texttt{isolet} & CIT with selector \texttt{rdc} & 2 & 6 & host fault \\
-    \texttt{isolet} & R cforest & 1 & 5 & inherited \\
-    \texttt{isolet} & R ctree & 1 & 5 & inherited \\
+    \texttt{isolet} & R cforest & 1 & 5 & incomplete \\
+    \texttt{isolet} & R ctree & 1 & 5 & incomplete \\
     \texttt{orlraws10P} & CIT with selector \texttt{rdc} & 1 & 1 & author directed \\
     \bottomrule
   \end{tabular}
   \caption{Classification benchmark exclusions. Each seed run is one method
   configuration on one dataset with one seed; 34 runs are excluded in total,
-  and all are operational exclusions. Inherited rows are partykit ctree and
-  cforest runs that did not complete in the earlier compute campaign;
-  host-fault rows are RDC-selector CIT and CIF runs that terminate the compute
-  host, a failure the cloud provider reproduced on 2026-09-13 and did not
-  attribute to a cause at the time of writing; the
-  single orlraws10P run was excluded by author direction. No regression runs
+  and all are operational exclusions. Incomplete rows are partykit ctree and
+  cforest runs that did not complete; the 18 host-fault runs are RDC-selector
+  CIT and CIF runs lost to a confirmed host fault on the compute instances; the
+  single orlraws10P run was excluded by author decision. No regression runs
   are excluded.}
   \label{tab:coverage-skips}
 \end{table}
@@ -191,7 +192,7 @@ sharing a mutable generator across parallel loop iterations.
 \subsection{Mechanism-matched CIF check}
 \label{app:cif-perm-check}
 
-The benchmark ranks cforest by partykit's out-of-bag permutation importance and CIF by split importance, so the CIF-versus-cforest margin of \cref{{tab:conditional-inference-comparisons}} mixes the importance mechanism with the split procedure. To separate them, the selected CIF configuration of each task was refit on every Stage~1 fold of the 20 classification and 8 regression real datasets of the pairwise panel (the locked RDC cells excluded), ranked by the mechanism cforest uses, one permutation of each feature on each tree's out-of-bag rows with the error increase averaged over the 100 trees, and scored with the Stage~2 protocol. \Cref{tab:cif-perm-check} reports the directed pairwise aggregate of \cref{sec:experiments-real}. Ranking CIF by out-of-bag permutation importance leaves the classification margin over cforest where it was: $+0.012$ mean and $+0.006$ median balanced accuracy with 15 wins of 20, against $+0.011$ and $+0.008$ for split-ranked CIF on the same datasets; the two CIF rankings differ by $+0.001$ on average and split wins 12 of 20. In regression the medians agree ($+0.006$ over cforest, $-0.002$ against split-ranked CIF) and the negative means come from one dataset, coepra2 ($n=76$, 5,144 predictors), on which every method has negative $R^2$ and the ridge and $k$-NN learners swing by whole units. In classification the margin is therefore not an importance-mechanism effect; in regression the medians agree and the mean is a single-dataset artifact, so the conclusion is stated for classification. Two notes on the check itself. Permutation importance computed on the training rows instead of out-of-bag (scikit-learn's default) is the wrong comparator: on the 16 datasets that completed it sits $0.10$ below cforest and $0.12$ below split-ranked CIF, the loss concentrated on the small-$n$, high-$p$ sets, while on spam it equals split-ranked CIF (0.900 against 0.901 at $k=10$). And the refit's split ranking overlaps the stored Stage~1 ranking poorly in the top ten on the high-$p$ sets (mean Jaccard 0.38 in classification), because most features never split there, their importances tie at zero, and the tie order is arbitrary; on the low-$p$ sets the overlap is complete.
+The benchmark ranks cforest by partykit's out-of-bag permutation importance and CIF by split importance, so the CIF-versus-cforest margin of \cref{tab:conditional-inference-comparisons} mixes the importance mechanism with the split procedure. To separate them, the selected CIF configuration of each task was refit on every Stage~1 fold of 20 classification and 8 regression real datasets, ranked by the mechanism cforest uses, one permutation of each feature on each tree's out-of-bag rows with the error increase averaged over the 100 trees, and scored with the Stage~2 protocol. The 20 classification datasets are the 22 on which CIF and cforest are paired in \cref{tab:conditional-inference-comparisons} less \nolinkurl{gisette} and \nolinkurl{letter}, which carry locked cells and were not refit; \nolinkurl{isolet} has no cforest run. \Cref{tab:cif-perm-check} reports the directed pairwise aggregate of \cref{sec:experiments-real}. Ranking CIF by out-of-bag permutation importance leaves the classification margin over cforest where it was: $+0.012$ mean and $+0.006$ median balanced accuracy with 15 wins of 20, against $+0.011$ and $+0.008$ for split-ranked CIF on the same datasets; the two CIF rankings differ by $+0.001$ on average and split wins 12 of 20. In regression the medians agree ($+0.006$ over cforest, $-0.002$ against split-ranked CIF) and the negative means come from one dataset, coepra2 ($n=76$, 5,144 predictors), on which every method has negative $R^2$ and the ridge and $k$-NN learners swing by whole units. In classification the margin is therefore not an importance-mechanism effect; in regression the medians agree and the mean is a single-dataset artifact, so the conclusion is stated for classification. Two notes on the check itself. Permutation importance computed on the training rows instead of out-of-bag (scikit-learn's default) is the wrong comparator: on the 16 datasets that completed it sits $0.10$ below cforest and $0.12$ below split-ranked CIF, the loss concentrated on the small-$n$, high-$p$ sets, while on spam it equals split-ranked CIF (0.900 against 0.901 at $k=10$). And the refit's split ranking overlaps the stored Stage~1 ranking poorly in the top ten on the high-$p$ sets (mean Jaccard 0.38 in classification), because most features never split there, their importances tie at zero, and the tie order is arbitrary; on the low-$p$ sets the overlap is complete.
 
 \begin{table}[H]
   \centering
@@ -199,19 +200,19 @@ The benchmark ranks cforest by partykit's out-of-bag permutation importance and 
   \setlength{\tabcolsep}{5pt}
   \begin{tabular}{@{}lrrrr@{}}
     \toprule
-    \tablehead{Comparison} & Datasets & Mean & Median & Wins--losses \\
+    \tablehead{Comparison} & Datasets & Mean & Median & Wins/losses \\
     \midrule
     \multicolumn{5}{@{}l}{\emph{Classification (balanced accuracy)}} \\
-    CIF (OOB permutation) vs cforest & 20 & +0.012 & +0.006 & 15--5 \\
-    CIF (OOB permutation) vs CIF (split) & 20 & +0.001 & -0.001 & 8--12 \\
-    CIF (split) vs cforest & 20 & +0.011 & +0.008 & 16--4 \\
-    CIF (training-row permutation) vs cforest & 16 & -0.100 & -0.055 & 6--10 \\
+    CIF (OOB permutation) vs cforest & 20 & +0.012 & +0.006 & 15/5 \\
+    CIF (OOB permutation) vs CIF (split) & 20 & +0.001 & -0.001 & 8/12 \\
+    CIF (split) vs cforest & 20 & +0.011 & +0.008 & 16/4 \\
+    CIF (training-row permutation) vs cforest & 16 & -0.100 & -0.055 & 6/10 \\
     \addlinespace
     \multicolumn{5}{@{}l}{\emph{Regression ($R^2$)}} \\
-    CIF (OOB permutation) vs cforest & 8 & -0.115 & +0.006 & 6--2 \\
-    CIF (OOB permutation) vs CIF (split) & 8 & -0.136 & -0.002 & 4--4 \\
-    CIF (split) vs cforest & 8 & +0.021 & +0.009 & 6--2 \\
-    CIF (training-row permutation) vs cforest & 6 & -0.016 & +0.006 & 4--2 \\
+    CIF (OOB permutation) vs cforest & 8 & -0.115 & +0.006 & 6/2 \\
+    CIF (OOB permutation) vs CIF (split) & 8 & -0.136 & -0.002 & 4/4 \\
+    CIF (split) vs cforest & 8 & +0.021 & +0.009 & 6/2 \\
+    CIF (training-row permutation) vs cforest & 6 & -0.016 & +0.006 & 4/2 \\
     \bottomrule
   \end{tabular}
   \caption{Mechanism-matched CIF check. Directed differences in dataset-mean score (balanced accuracy or $R^2$ over downstream learners and standard $k$) between the first and second method, summarized over datasets: mean, median, and the number of datasets on which the first method scores higher or lower. OOB permutation is partykit-style out-of-bag permutation importance computed on the refit CIF; training-row permutation is scikit-learn permutation importance on the training rows (16 and 6 datasets completed). pendigits enters the OOB rows with four of its five seeds. Source: \texttt{paper\_cif\_permutation\_importance\_check.csv}.}

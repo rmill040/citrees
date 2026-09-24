@@ -1,9 +1,9 @@
 \section{Stage~B construction: cost and real-data tables}
 \label{app:stageB-tables}
 
-\Cref{tab:stageB-scaling,tab:stageB-real,tab:stageB-power} give the fitting-time, real-data, and nominal-level split-rate
+\Cref{tab:stageB-scaling,tab:stageB-fixed-budget,tab:stageB-real,tab:stageB-power} give the fitting-time, fixed-budget control, real-data, and nominal-level split-rate
 results for the Stage~B construction comparison summarized in
-\cref{sec:results-stageB}; the design is in \cref{sec:experiments-stageB} and the size-matched comparison is \cref{tab:stageB-only} in the main text. Every entry is the median over five seeds.
+\cref{sec:results-stageB}; the design is in \cref{sec:experiments-stageB} and the size-matched comparison is \cref{tab:stageB-only} in the main text. The entries of \cref{tab:stageB-scaling,tab:stageB-real} are medians over five seeds; \cref{tab:stageB-fixed-budget} is a single pass with 500 null and 200 alternative replicates per cell; \cref{tab:stageB-power} pools 2,500 replicates per cell, five seeds of 500, and reports rates, not medians.
 
 \begin{table}[H]
   \centering
@@ -11,8 +11,8 @@ results for the Stage~B construction comparison summarized in
   \setlength{\tabcolsep}{4pt}
   \begin{tabular}{@{}lrrrrrrrr@{}}
     \toprule
-     & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{3}{c}{Exhaustive} & \\
-    \tablehead{Task} & $n$ & Bins & Bonferroni & Max-type & Bonferroni & Fixed & Max-type & Fixed depth \\
+     & & & \multicolumn{2}{c}{Adaptive} & \multicolumn{3}{c}{No stopping} & \\
+    \tablehead{Task} & $n$ & Bins & Per-threshold & Max-type & Per-threshold & Fixed & Max-type & Fixed depth \\
     \midrule
     Classification & 1,000 & 16 & 0.04 & 0.04 & 0.05 & 0.04 & 0.06 & 5 \\
      & 1,000 & 64 & 0.07 & 0.04 & 0.20 & 0.06 & 0.11 & 0 \\
@@ -36,12 +36,13 @@ results for the Stage~B construction comparison summarized in
   \end{tabular}
   \caption{Fitting time in seconds of one tree on ten Gaussian predictors with a
   planted linear signal, by Stage~B construction and stopping mode, on a 32-core
-  cloud instance: all three arms timed in one run of five seeds, each entry the
-  median over seeds of the median of three fits, every fit the second of two
-  identical fits so that compilation is excluded. Bins is the histogram
+  cloud instance. Timing protocol: all three arms are timed in one run of five
+  seeds; each entry is the median over seeds of the median of three timed fits,
+  and each timed fit follows an untimed identical fit so that compilation is
+  excluded. Bins is the histogram
   threshold setting as in \cref{tab:stageB-calibration}. Fixed is the
-  per-threshold rule held at 999 permutations per candidate; it exists only under
-  exhaustive stopping because the sequential path raises any budget to the floor
+  per-threshold rule held at 999 permutations per candidate; it exists only with
+  no stopping because the sequential path raises any budget to the floor
   $\lceil K/\alpha \rceil$, and Fixed depth is its fitted depth (0 where it never
   splits, because $\alpha/K < 1/1000$). No fit reached the 1,200-second cap.}
   \label{tab:stageB-scaling}
@@ -76,7 +77,7 @@ results for the Stage~B construction comparison summarized in
     \bottomrule
   \end{tabular}
   \caption{Fixed-budget control arm: the per-threshold rule held at 999
-  permutations per candidate with exhaustive stopping, in the Stage-B-only
+  permutations per candidate with no stopping, in the Stage-B-only
   design. Size is the false-split rate at nominal 0.05 and Power the split rate
   at the middle planted effect ($\delta = 0.10$ classification, $0.4$
   regression), with 500 null and 200 alternative replicates per cell; at 64 and
@@ -92,9 +93,9 @@ results for the Stage~B construction comparison summarized in
   \setlength{\tabcolsep}{2pt}
   \begin{tabular}{@{}lrrrrrrrrrrrrrr@{}}
     \toprule
-     & & & \multicolumn{6}{c}{Adaptive} & \multicolumn{6}{c}{Exhaustive} \\
+     & & & \multicolumn{6}{c}{Adaptive} & \multicolumn{6}{c}{No stopping} \\
      & & & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} & \multicolumn{2}{c}{Depth} & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} & \multicolumn{2}{c}{Depth} \\
-    \tablehead{Dataset} & $n$ & $p$ & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T & Bonf. & Max-T \\
+    \tablehead{Dataset} & $n$ & $p$ & PT & MT & PT & MT & PT & MT & PT & MT & PT & MT & PT & MT \\
     \midrule
     vowel & 990 & 10 & 0.689 & 0.705 & 0.23 & 0.15 & 10.0 & 11.2 & 0.691 & 0.717 & 0.57 & 0.40 & 10.0 & 11.4 \\
     spam & 4,601 & 57 & 0.908 & 0.902 & 0.86 & 0.71 & 11.2 & 12.4 & 0.908 & 0.908 & 3.03 & 3.01 & 11.4 & 11.4 \\
@@ -107,10 +108,10 @@ results for the Stage~B construction comparison summarized in
   \caption{Five-fold held-out score (balanced accuracy for the three
   classification datasets, $R^2$ for the three regression datasets), fitting
   time in seconds, and fitted depth of one tree at the 256-bin histogram
-  setting, by Stage~B construction (Bonf.\ is the per-threshold Bonferroni
-  rule, Max-T the max-type rule) and stopping mode, on a 32-core cloud
-  instance; each entry is the median over five seeds of the fold assignment,
-  and every time is the second of two identical fits (rerun of 2026-09-20).}
+  setting, by Stage~B construction (PT is the per-threshold rule, MT the
+  max-type rule) and stopping mode, on a 32-core cloud instance. Each entry is
+  the median over five seeds of the fold assignment. Timing protocol: each
+  time is the second of two identical fits, so that compilation is excluded.}
   \label{tab:stageB-real}
 \end{table}
 
@@ -120,7 +121,7 @@ results for the Stage~B construction comparison summarized in
   \setlength{\tabcolsep}{4pt}
   \begin{tabular}{@{}lrrrrrrrr@{}}
     \toprule
-     & & & \multicolumn{3}{c}{Bonferroni} & \multicolumn{3}{c}{Max-type} \\
+     & & & \multicolumn{3}{c}{Per-threshold} & \multicolumn{3}{c}{Max-type} \\
     \tablehead{Task} & Effect & $n$ & 16 & 64 & 256 & 16 & 64 & 256 \\
     \midrule
     Classification & 0.05 & 100 & 0.036 & 0.025 & 0.020 & 0.058 & 0.060 & 0.061 \\
@@ -151,7 +152,7 @@ results for the Stage~B construction comparison summarized in
   the columns are not a power comparison; \cref{tab:stageB-only} matches them
   at equal size. Effect is the class-probability
   shift $\pm\delta$ around one half in classification and the mean shift in
-  standard-deviation units in regression. Exhaustive stopping agrees within
+  standard-deviation units in regression. No stopping agrees within
   0.014 in every cell.}
   \label{tab:stageB-power}
 \end{table}

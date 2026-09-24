@@ -14,7 +14,9 @@ pytestmark = pytest.mark.paper
 def test_reported_sizes() -> None:
     assert null_size(0.05, 0.95, 32, 999) == pytest.approx(0.04878, abs=5e-5)
     assert null_size(0.05, 0.95, 32, 999, strict=False) == pytest.approx(0.04948, abs=5e-5)
-    assert null_size(0.05, 0.95, 32, 1537) == pytest.approx(0.04907, abs=5e-5)
+    assert null_size(0.05, 0.95, 32, 52) == pytest.approx(0.03774, abs=5e-5)
+    assert null_size(0.05 / 20, 0.95, 32, 3144) == pytest.approx(0.00221, abs=5e-5)
+    assert null_size(0.05 / 257, 0.95, 32, 5140) == pytest.approx(0.000195, abs=5e-6)
     assert null_size(0.05, 0.80, 32, 999) == pytest.approx(0.05220, abs=5e-5)
     assert _ADAPTIVE_BATCH_SIZE == 32
 

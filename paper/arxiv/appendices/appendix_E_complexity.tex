@@ -59,8 +59,10 @@ scikit-learn.
   These reduce work only when they shorten the actual stopping path. They may
   change feature or threshold order and reduce the number of tested features,
   tested thresholds, or permutation draws, but the worst case is still all
-  features or thresholds and the full budget. Bonferroni is separate because it
-  changes the statistical rule.
+  features or thresholds and the full budget. Feature and threshold scanning
+  pay for a prescan so that likely features or thresholds are tried earlier,
+  which shortens realized runtime only when the shorter stopping path offsets
+  the prescan. Bonferroni is separate because it changes the statistical rule.
   \item \textbf{Bonferroni correction and resampling presets.} When Bonferroni
   correction is enabled, the nodewise threshold is divided by the number of
   tests in that stage. Write $r_{\mathrm{tests}}$ for this count ($m_t$ in
@@ -71,8 +73,12 @@ scikit-learn.
   $\alpha_{\mathrm{stage}}/r_{\mathrm{tests}}$: the \emph{minimum} budget scales
   like $r_{\mathrm{tests}}/\alpha_{\mathrm{stage}}$, the \emph{maximum} budget
   is $\lceil r_{\mathrm{tests}}^2/(4\alpha_{\mathrm{stage}}^2)\rceil$ up to
-  rounding, and \emph{auto} uses the same stricter threshold in its
-  normal-quantile formula. For an explicit integer budget, the budget is
+  rounding, and the \emph{auto} budget at the adjusted level
+  $\alpha_{\mathrm{adj}}=\alpha_{\mathrm{stage}}/r_{\mathrm{tests}}$ is
+  $\max\{\lceil 1/\alpha_{\mathrm{adj}}\rceil,\ \lceil z^2(1-\alpha_{\mathrm{adj}})/\alpha_{\mathrm{adj}}\rceil\}$
+  with $z$ the upper $\alpha_{\mathrm{adj}}$ quantile of the standard normal,
+  which gives 52 permutations at $\alpha_{\mathrm{adj}}=0.05$, 3{,}144 at
+  $0.05/20$, and 64{,}669 at $0.05/257$. For an explicit integer budget, the budget is
   multiplied by $r_{\mathrm{tests}}$.
   \item \textbf{Bootstrap sample size, forest size, and worker count.} The
   bootstrap sample-size control affects the requested or capped bootstrap sample
@@ -152,6 +158,25 @@ $b^{\mathrm{split}}_{t,c}=0$. The Stage~B testing work is
 In $S^{\mathrm{B}}_t$, the added $n_t$ term accounts for forming or applying
 threshold masks, child-label slices, label copies, and shuffles for each
 observed or permuted draw.
+The two Stage~B rules differ in how the budget enters this sum. The
+per-threshold rule tests each evaluated threshold at the threshold correction
+$\alpha_{\mathrm{split}}/h_t$, so at the \texttt{minimum} budget each test uses
+at most $\lceil h_t/\alpha_{\mathrm{split}}\rceil$ permutations and
+\[
+  S^{\mathrm{B}}_t
+  = O\!\left(|\mathcal{C}^{\mathrm{eval}}_t|\,
+      \lceil h_t/\alpha_{\mathrm{split}}\rceil
+      \bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)\right),
+\]
+which grows with the square of the candidate count when every threshold is
+evaluated. The max-type rule draws one set of $B$ permutations shared by all
+$h_t$ candidates and evaluates every candidate on each of the $B+1$ response
+vectors, so
+\[
+  S^{\mathrm{B}}_t
+  = O\!\left((B+1)\,h_t\,\bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)\right),
+\]
+which is linear in the candidate count at a fixed $B$.
 Under splitter early stopping, threshold ordering has two paths. If threshold
 scanning is enabled, it uses weighted child impurity as an ordering score and
 adds $O(h_t(C^{\mathrm{split}}(n_t)+n_t) + h_t\log h_t)$. If threshold scanning
@@ -168,17 +193,6 @@ available feature, threshold generation or leaf size filtering leaves no valid
 threshold, or an accepted threshold fails the minimum impurity-decrease gate.
 These leaves contribute the costs incurred up to that point but do not allocate
 child matrices.
-
-\paragraph{Fixed-$B$ and adaptive modes.}
-In the exhaustive fixed-$B$ reference setting, Stage~A tests every feature in
-$F_t$, Stage~B tests every retained threshold, and both stages use fixed
-permutation budgets. In adaptive runs, stopping can reduce work by testing fewer
-features or thresholds or using fewer permutation draws. Feature and threshold
-scanning are ordering heuristics: they pay for a prescan so likely features or
-thresholds are tried earlier. They can reduce realized runtime when the shorter
-stopping path offsets the prescan work, but they do not improve the worst-case
-bound because the stopping rule can still examine all features or thresholds and
-use the full budget.
 
 \paragraph{From nodes to trees and forests.}
 Let $W_t$ be the cost paid at node $t$: the stopping checks, any Stage~A work,
@@ -291,10 +305,16 @@ $X_{\mathrm{oob}}$, and per-tree predictions or class-probability arrays.
 
 \Cref{tab:scaling-curves} reports fit-only wall-clock time for one CIT and one
 100-tree CIF (32 workers, one Numba thread each) on Gaussian predictors with a
-weak planted signal, at the recommended configuration with and without adaptive
-stopping, on one 32-core cloud instance (median of two fits after one untimed
-identical fit). For the single tree the histogram search caps the candidate set
-at 256 thresholds and the \texttt{minimum} budget fixes the permutation count,
+weak planted signal, with and without adaptive stopping, on one 32-core cloud
+instance. The configuration is the MC selector with Gini splitting in
+classification and the PC selector with MSE splitting in regression,
+$\alpha_{\mathrm{sel}}=\alpha_{\mathrm{split}}=0.05$ with the feature and
+threshold corrections, \texttt{minimum} budgets, the per-threshold rule,
+histogram search with 256 bins, feature and threshold scanning, and feature
+muting; the forest adds bootstrap sampling and square-root feature sampling.
+For the single tree the histogram search caps the candidate set at 257
+thresholds, the \texttt{minimum} budget fixes the permutation count at
+$\lceil h_t/0.05\rceil$ per threshold, at most $\lceil 257/0.05\rceil = 5{,}140$,
 so the per-node cost is linear in $n_t$ and the tree's time grows about
 linearly in $n$: a 64-fold increase in $n$ at $p=20$ costs about 68$\times$ in
 classification and 110$\times$ in regression (from the unrounded times). It also grows with $p$, by
@@ -302,8 +322,8 @@ classification and 110$\times$ in regression (from the unrounded times). It also
 predictor's statistic is computed at the root before scanning orders them and
 muting only removes failed predictors from descendants. The forest is bounded by its 100
 trees on full bootstrap samples, so its time grows about linearly in $n$
-(65--75$\times$ for the 64-fold increase) and is flat or falling in $p$ under
-square-root feature sampling. Adaptive stopping is statistically inert at the minimum budget (\cref{prop:adaptive-size}) but not free for a single tree: the Adaptive-to-Full time ratio is 1.02--1.28 for the tree (median 1.07) and 0.95--1.18 for the forest (median 0.99). At the floor the rule performs a single posterior check at exhaustion, so the difference is not the check itself; it is that the adaptive path evaluates permutations through the chunked sequential kernel, which replays the stopping rule over each chunk and carries a fixed per-test overhead that the straight exhaustive kernel does not. The tree overhead grows with the predictor count, 1.02--1.07 at $p=20$ and 1.15--1.28 at $p=500$, because a single tree runs one Stage~A test per predictor at every node while a forest tree tests a square-root sample of them and amortizes the overhead across trees. The forest ratios agree with the runtime ablations (\cref{sec:results-practical}), and the tree overhead is the reciprocal of the 0.88--0.99 ratio the ablations report for switching the rule off: statistically inert at the floor, but not free. An earlier version of this table timed the first fit of each cell, which included the compilation of kernels the variant and size select, and reported tree ratios up to 1.56; every entry is now the median of two fits after one untimed identical fit.
+(65 to 75$\times$ for the 64-fold increase) and is flat or falling in $p$ under
+square-root feature sampling. Adaptive stopping is statistically inert at the minimum budget (\cref{prop:adaptive-size}) but not free for a single tree: the adaptive-to-no-stopping time ratio is 1.02 to 1.28 for the tree (median 1.07) and 0.95 to 1.18 for the forest (median 0.99). At the floor the rule performs a single posterior check at exhaustion, so the difference is not the check itself; it is that the adaptive path evaluates permutations through the chunked sequential kernel, which replays the stopping rule over each chunk and carries a fixed per-test overhead that the no-stopping kernel does not. The tree overhead grows with the predictor count, 1.02 to 1.07 at $p=20$ and 1.15 to 1.28 at $p=500$, because a single tree runs one Stage~A test per predictor at every node while a forest tree tests a square-root sample of them and amortizes the overhead across trees. The forest ratios agree with the runtime ablations (\cref{sec:results-practical}). For the tree, the adaptive-to-no-stopping ratios here, 1.02 to 1.28, sit beside the no-stopping-to-adaptive ratios of 0.88 to 0.99 that the ablations report for switching the rule off: in both, the rule is statistically inert at the floor but not free.
 
 \begin{table}[H]
   \centering
@@ -312,7 +332,7 @@ square-root feature sampling. Adaptive stopping is statistically inert at the mi
   \begin{tabular}{@{}lrrrrrr@{}}
     \toprule
      & & & \multicolumn{2}{c}{CIT} & \multicolumn{2}{c}{CIF} \\
-    \tablehead{Task} & $n$ & $p$ & Adaptive & Full & Adaptive & Full \\
+    \tablehead{Task} & $n$ & $p$ & Adaptive & No stopping & Adaptive & No stopping \\
     \midrule
     Classification & 500 & 20 & 0.17 & 0.16 & 13.1 & 13.2 \\
      & 500 & 100 & 0.21 & 0.19 & 13.0 & 13.3 \\
@@ -336,10 +356,15 @@ square-root feature sampling. Adaptive stopping is statistically inert at the mi
      & 32,000 & 100 & 13.2 & 12.1 & 705 & 685 \\
     \bottomrule
   \end{tabular}
-  \caption{Fit-only wall-clock seconds for one CIT and one 100-tree CIF at the
-  recommended configuration with adaptive stopping (Adaptive) and with the full
-  permutation budget (Full), on Gaussian predictors with a weak planted signal
-  in five of them, median of two fits after one untimed identical fit on one 32-core cloud instance. The
-  32,000-by-500 cell exceeds the head-to-head grid and was not run. The head-to-head scaling table of the companion article times the recommended forest with trees of depth at most 3 in a separate run (666 s at 32,000 by 20 against 988 s here, where depth is unbounded); the two runs differ in tree depth and are not interchangeable.}
+  \caption{Fit-only wall-clock seconds for one CIT and one 100-tree CIF in the
+  configuration of \cref{app:scaling-curves}, with adaptive stopping (Adaptive)
+  and without stopping (No stopping), on Gaussian predictors with a weak planted
+  signal in five of them. Timing protocol: each entry is the median of two timed
+  fits, each preceded by one untimed identical fit, on one 32-core cloud
+  instance. The 32,000-by-500 cell exceeds the head-to-head grid and was not
+  run. The head-to-head scaling table of \citet{MilletichDownesHirst2026citrees}
+  times the forest with trees of depth at most 3 in a separate run (666 s at
+  32,000 by 20 against 988 s here, where depth is unbounded); the two runs
+  differ in tree depth and are not interchangeable.}
   \label{tab:scaling-curves}
 \end{table}

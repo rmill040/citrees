@@ -1,23 +1,32 @@
-Conditional inference trees and forests choose a split variable by an
-association test before searching for a threshold, which removes the preference
-of CART-style splitting for features with many cutpoints. We measure whether
-that correction improves a feature ranking used for downstream prediction, and
-what it costs. Conditional inference trees (CIT) and forests (CIF) are
-benchmarked against 15 classification and 16 regression selectors, among them
-partykit's ctree and cforest, random forests, gradient boosting, and permutation
-and wrapper methods, on 31 real datasets, scoring each ranking by the held-out
-accuracy of fixed learners fitted to its top-$k$ features, with synthetic
-designs where the informative features are known. CIF ranks tied 3rd of 17 in
-classification and 2nd of 18 in regression, ahead of cforest and ctree, level
-with random forests, and behind recursive feature elimination and XGBoost;
-single trees rank near the bottom. The cost has one source: the per-threshold
-Bonferroni test needs a permutation budget of order $K^2/\alpha$ in the number
-of candidate thresholds $K$, and the ablations place the fitting time there
-rather than in the feature test. A max-type threshold test resolves the same
-level at $999K$ evaluations, is calibrated closer to the nominal level, and loses
-0.006 in power at matched size (95 percent interval over cells $-0.011$ to
-$-0.002$), moving the forest to 5th and 4th. The adaptive stopping rule has
-null size 0.0488 at 999 permutations. For a practitioner, CIF gives a ranking
-level with random forests that trades CART's high-cardinality preference for a
-low-cardinality one, at a fitting cost about two orders of magnitude above a
-random forest's under the per-threshold rule.
+Conditional inference trees choose a split variable by a permutation test of
+association before searching for a threshold, a separation designed to reduce
+the preference of CART-style splitting for features with many cutpoints. We ask
+how conditional inference trees (CIT) and forests (CIF), whose splits pass a
+Stage~A feature test and a Stage~B threshold test each under a Bonferroni
+correction, compare with established feature rankers, and what that correction
+costs and changes. We benchmark them against 15 classification and 16
+regression rankers, among them partykit's ctree and cforest, random forests
+(RF), recursive feature elimination with random forests (RF-RFE), ExtraTrees,
+and gradient boosting, on 31 real datasets, scoring each ranking by the
+held-out accuracy of fixed learners fitted to its top-$k$ features. CIF ranks
+tied 3rd of 17 in classification, behind RF-RFE and XGBoost and level with RF;
+2nd of 18 in regression, behind ExtraTrees. On the smaller panels where every
+method completed it ranks tied 6th and tied 5th, the regression ordering is
+descriptive (Friedman $p=0.072$), and single trees rank near the bottom. Three
+answers are negative: on synthetic designs with known informative features CIF
+sits in the lower half on recovery (8th of 15 and 11th of 16), it is weakest at
+small $k$, and a random forest ranked by out-of-bag permutation importance does
+no better than CIF or the impurity-ranked forest. At the minimum permutation
+budget the correction costs on the order of $m^2/\alpha$ permutations per node in the
+feature test over $m$ features and $K^2/\alpha$ in the per-threshold rule over
+$K$ candidate thresholds; the threshold term dominates on most datasets and the
+feature term on the widest, where one tree on 5,000 features takes 29 minutes.
+A max-type threshold test, an opt-in alternative to the default per-threshold
+rule, reaches the nominal level with about $999K$ statistic evaluations, has
+realized size closer to nominal, and loses 0.006 in power when the two rules
+are compared at equal realized size (95\% interval $-0.011$ to $-0.002$); under
+it CIF ranks 5th of 17 and 4th of 18. The adaptive stopping rule has exact null
+size 0.0488 at a fixed budget of 999 permutations for a continuous null. For a
+practitioner, CIF gives a real-data ranking level with random forests in
+classification, and the max-type rule lowers its fitting cost at nodes with
+many candidate thresholds.

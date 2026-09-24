@@ -2,7 +2,7 @@
 \label{app:permutation-exchangeability}
 
 The proof separates two facts. First, statistics computed from i.i.d. random
-permutations are exchangeable. Second, under A0.2--A0.4, the usual ``observed
+permutations are exchangeable. Second, under A0.2 to A0.4, the usual ``observed
 statistic + $B$ random permutations'' computation has the same null rank
 distribution as a construction with a randomized baseline. The superuniformity
 proof then uses the conservative tie convention in A0.5; see also
@@ -10,8 +10,12 @@ proof then uses the conservative tie convention in A0.5; see also
 of exact random permutation testing.
 
 First consider a fully randomized tuple. Fix a node $t$, feature $j$, and a
-real-valued statistic $T(\cdot, \cdot; U)$ with a right tail convention (larger
-is more extreme), where $U$ denotes label-independent auxiliary randomness. Let
+statistic $T(\cdot, \cdot; U)$ taking values in a measurable space
+$(\mathcal{S},\mathcal{A})$, where $U$ denotes label-independent auxiliary
+randomness. The space may be the real line, as for a Stage~A score or a single
+threshold score, or a space of vectors, as for the vector of scores over a
+candidate threshold set that the max-type rule standardizes. When $T$ is
+real-valued, larger values are more extreme. Let
 $\Pi_0, \Pi_1, \dots, \Pi_B$ be i.i.d.\ uniform random permutations of
 $\{1,\dots,n_t\}$, independent of the data (and of $U$), and define
 %
@@ -19,22 +23,16 @@ $\{1,\dots,n_t\}$, independent of the data (and of $U$), and define
   T_b := T(X_{t,j}, \Pi_b(Y_t); U) \qquad (b=0,1,\dots,B).
 \end{equation}
 
-\begin{lemma}[Exchangeability of Monte Carlo permutation statistics]
-\label{lem:mc-exchangeability}
-Conditional on $(X_t, Y_t, U)$, the vector $(T_0, T_1, \dots, T_B)$ is
-exchangeable. Averaging over $Y_t$ preserves exchangeability, so the vector is
-also exchangeable conditional on $(X_t,U)$ and unconditionally.
-\end{lemma}
-
-\begin{proof}
-Conditional on $(X_t, Y_t, U)$, each $T_b$ is a measurable function of $\Pi_b$, and
-$(\Pi_0,\dots,\Pi_B)$ are i.i.d. Thus any permutation of the indices
-$b \in \{0,\dots,B\}$ leaves the joint law unchanged.
-\end{proof}
+Conditional on $(X_t, Y_t, U)$, each $T_b$ is a measurable function of $\Pi_b$,
+and $(\Pi_0,\dots,\Pi_B)$ are i.i.d., so the vector $(T_0, T_1, \dots, T_B)$ is
+exchangeable: permuting the indices $b \in \{0,\dots,B\}$ leaves its joint law
+unchanged. Averaging over $Y_t$ preserves exchangeability, so the vector is also
+exchangeable conditional on $(X_t,U)$.
 
 \begin{lemma}[The observed statistic has the same null rank distribution]
 \label{lem:identity-vs-random}
-Assume A0.2--A0.4 (\cref{app:assumptions}). Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
+Assume A0.2 to A0.4 (\cref{app:assumptions}), and let $T$ take values in the
+measurable space $(\mathcal{S},\mathcal{A})$. Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
 uniform random permutations of $\{1,\dots,n_t\}$, independent of $(X_t,Y_t,U)$.
 Define the observed statistic and permuted statistics by
 %
@@ -44,15 +42,25 @@ Define the observed statistic and permuted statistics by
   T_b := T(X_{t,j}, \Pi_b(Y_t); U) \quad (b=1,\dots,B),
 \end{equation}
 %
-and the standard +1 Monte Carlo $p$-value (right tail) by
+Let $\Pi_0$ be an additional independent uniform random permutation and set
+$T_0 := T(X_{t,j}, \Pi_0(Y_t); U)$ (keeping $T_1,\dots,T_B$ as above). Under the
+null, conditional on $(X_t,U)$,
+%
+\begin{equation}
+  \big(T_{\mathrm{obs}}, T_1,\dots,T_B\big)
+  \stackrel{d}{=}
+  \big(T_0, T_1,\dots,T_B\big).
+\end{equation}
+%
+When $T$ is real-valued, define the standard +1 Monte Carlo $p$-value (right
+tail) by
 %
 \begin{equation}
   p_{\mathrm{id}}
   := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
 \end{equation}
 %
-Let $\Pi_0$ be an additional independent uniform random permutation and set
-$T_0 := T(X_{t,j}, \Pi_0(Y_t); U)$ (keeping $T_1,\dots,T_B$ as above), and define
+and its randomized-baseline counterpart by
 %
 \begin{equation}
   p_{\mathrm{rnd}}
@@ -94,5 +102,7 @@ Therefore,
 %
 where $\stackrel{d}{=}$ is conditional on $(X_t,U)$. Applying the same
 $\ge$ comparison map to these equal-in-distribution vectors gives the same
-conditional distribution for $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$.
+conditional distribution for $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$ when $T$
+is real-valued. No step uses the order structure of $\mathcal{S}$, so the
+distributional identity holds for a statistic in any measurable space.
 \end{proof}

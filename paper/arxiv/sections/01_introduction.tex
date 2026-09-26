@@ -4,15 +4,15 @@
 Conditional inference separates feature selection from threshold optimization to
 reduce split selection bias. Classical
 CART trees choose both a feature and a threshold from the same
-label-dependent search, which produces the documented preference for
+label-dependent search, which helps explain the well-documented preference for
 features with many admissible cutpoints
 \citep{Breiman1984ClassificationAndRegressionTrees,LohShih1997SplitSelectionMethods,KimLoh2001ClassificationTreesUnbiasedMultiwaySplits,Loh2002RegressionTreesUnbiasedVariableSelectionInteractionDetection,Shih2004NoteOnSplitSelectionBiasClassificationTrees,StroblBoulesteixAugustin2007UnbiasedSplitSelectionGini,Strobl2007BiasRFVariableImportance}.
 In the conditional inference framework \citep{Hothorn2006UnbiasedRecursivePartitioning,HothornHornikVandeWielZeileis2006LegoSystemConditionalInference},
 Stage~A tests features for association with the response at the
 current node and selects among them; Stage~B then optimizes a threshold within
-the selected feature. That separation targets split selection bias, but
-conditional inference can require large permutation budgets and exhaustive
-threshold scans at every node.
+the selected feature. That separation addresses split selection bias, but the
+classical approach can require substantial computation through large
+permutation budgets and exhaustive threshold scans at every node.
 The same conditional inference framework also motivated later work on
 conditional variable importance \citep{Strobl2008ConditionalVIM}.
 A related line of work uses forests directly for variable screening and ranking,
@@ -21,17 +21,15 @@ rather than only for final prediction
 
 This paper evaluates conditional inference trees (CIT) and conditional
 inference forests (CIF), as implemented in the software of
-\citet{MilletichDownesHirst2026citrees}, as feature rankers. It asks how their
-rankings compare with established rankers, and what the Bonferroni corrections
-inside their split tests, the feature correction in the Stage~A feature test
-and the threshold correction in the Stage~B threshold test, cost and change.
-For each seed and cross-validation fold, a method produces a ranking from the
-training fold. We then fit fixed downstream learners on top-$k$ prefixes of that
-ranking, score them on the held-out fold, and summarize the scores across
-datasets. We also ask whether the runtime hyperparameters of CIT and CIF reduce
-computation while preserving ranking quality, and how well CIF recovers known
-informative features in high-dimensional and synthetic designs. This
-feature-selection benchmark is separate from work on
+\citet{MilletichDownesHirst2026citrees}, as feature selection methods. It asks
+how their rankings compare with established rankers, and what the Bonferroni
+corrections inside their split tests cost and change. For each seed and
+cross-validation fold, a method produces a ranking from the training fold.
+Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
+evaluated on held-out data, with results summarized across datasets.
+We also ask whether CIT and CIF runtime hyperparameters reduce computation while
+preserving ranking quality, and where CIF recovery is weaker in high-$p$ or
+synthetic settings. This feature-selection benchmark is separate from work on
 trees and forests as direct
 predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
@@ -40,63 +38,32 @@ configuration per method and task. As a sensitivity check, leave-one-dataset-out
 (LODO) analyses repeat the configuration choice after holding out each dataset, on
 the complete-case and all-method panels defined in \cref{sec:experiments-analysis-plan}.
 
-\paragraph{Contributions.}
-\begin{enumerate}
-\item A benchmark of CIT and CIF against 15 classification and 16 regression
-rankers on 31 real datasets with five seeds, scored by fixed downstream learners
-on top-$k$ prefixes (\cref{sec:experiments-real}). CIF is the strongest
-conditional inference ranker in the study, ahead of cforest, ctree, and single
-CIT, with bootstrap intervals for the paired score difference that exclude zero
-in classification. The comparators include random forests (RF) and recursive
-feature elimination with random forests (RF-RFE), and positions are on the
-all-method panels unless stated. CIF ranks tied 3rd of 17 in classification,
-behind RF-RFE and XGBoost and level with RF; 2nd of 18 in regression, behind
-ExtraTrees. We read the 0.05 gap in mean rank to XGBoost as a tie. On the
-complete-case panels CIF is tied 6th of 17 in classification, behind all three boosting families, and tied
-5th of 18 in regression, where the Friedman test gives $p=0.072$ and the
-ordering is descriptive.
-\item The negative results of that comparison (\cref{sec:boundary,sec:synthetic-recovery,sec:mechanism}). On the
-synthetic designs, where the informative features are known, CIF sits in the
-lower half on recovery, 8th of 15 in classification and 11th of 16 in
-regression. It is weakest at small $k$, ranking 6th to 8th at $k \le 10$ on the
-complete-case panels against 3rd or 4th at $k=100$
-(\cref{fig:k-trajectory,fig:regression-k-trajectory}). A random forest ranked by
-out-of-bag permutation importance does no better than CIF or the
-impurity-ranked forest (\cref{tab:rf-oobperm-benchmark}).
-\item An account of the cost of the corrections
-(\cref{sec:results-practical,sec:results-stageB}). Under the minimum budget,
-which gives each of the $m_t$ features at a node $\lceil m_t/\alpha\rceil$
-permutations and each of its $K$ candidate thresholds $\lceil K/\alpha\rceil$,
-the Stage~A feature test costs, when every test runs, of order $m_t^2/\alpha$
-permutations per node and the per-threshold rule of Stage~B of order
-$K^2/\alpha$. The runtime ablations
-place most of the fitting time in the threshold search; the feature term
-dominates on the widest data, where a single tree on the 5,000 features of
-gisette takes 29 minutes.
-\item A max-type rule for the Stage~B threshold test, an opt-in alternative to
-the default per-threshold rule (\cref{cor:stageB-maxt,sec:results-stageB}). At
-a fixed budget of 999 permutations the per-threshold rule cannot reject once a
-node has more than about 50 candidates. The max-type rule reaches the nominal
-level with about $999K$ statistic evaluations, has realized size closer to
-nominal, loses about 0.006 in power when the two rules are compared at equal
-realized size, and reduces the preference of the per-threshold rule for
-features with few distinct values.
-\item As a secondary result, the null size of the adaptive stopping rule, exact
-under A0.1 to A0.3 at fixed $B$ for a continuous null
-(\cref{prop:adaptive-size,app:assumptions}). The rule is inert at the minimum budget the
-benchmark uses, because that budget equals the smallest budget at which the
-rule may stop, and it acts only at the larger auto budget, the library default.
-\end{enumerate}
+The theory studies each split test at a fixed node. It assumes that the
+features tested at the node and the resample budget are fixed independently of
+the node responses, so fixed-$B$ $P$-values have a clear permutation reference
+distribution under the nodewise complete permutation null. Under the minimum
+budget every rejecting candidate returns the smallest attainable $P$-value, so
+the benchmarked procedure selects features and thresholds by the order of the
+observed statistics behind the two corrections (\cref{sec:method}). The
+benchmarks then evaluate the tree and forest feature rankings empirically.
 
-The theory establishes the validity of each split test at a fixed node,
-conditional on the node sample; the cardinality behavior of the rankings is
-established empirically. Under the minimum budget every rejecting candidate
-returns the smallest attainable $p$-value, so the benchmarked procedure selects
-features and thresholds by the order of the observed statistics behind the
-feature and threshold corrections (\cref{sec:method}); the guarantees rest on
-the standard fixed-node permutation result, stated as a cited lemma
-(\cref{lem:plusone-superuniform}), and the benchmark measures what that
-procedure delivers in practice. \Cref{sec:method} describes the tree-growing
-method, \cref{sec:theory} the fixed-node results, \cref{sec:experiments} the
-experimental design, \cref{sec:results,sec:boundary} the results, and
-\cref{sec:discussion,sec:conclusion} their interpretation and limits.
+\paragraph{Contributions.}
+This paper contributes a real-data benchmark of CIT and CIF against 15
+classification and 16 regression rankers on 31 datasets, among them random
+forests (RF) and recursive feature elimination with random forests (RF-RFE)
+(\cref{sec:experiments-real}). CIF is the strongest conditional inference
+ranker in the study, ahead of cforest, ctree, and single CIT. CIF ranks tied
+3rd of 17 in classification, behind RF-RFE and XGBoost and level with RF; 2nd
+of 18 in regression, behind ExtraTrees. On the complete-case panels it is tied
+6th of 17 and tied 5th of 18, and the regression ordering is descriptive. The
+paper also reports where CIF is weaker: it sits in the lower half on synthetic
+recovery, 8th of 15 and 11th of 16, and it is weakest at small $k$
+(\cref{sec:boundary,sec:synthetic-recovery}). It accounts for the cost of the
+corrections: under the minimum budget the Stage~A feature test costs of order
+$m_t^2/\alpha$ permutations per node over $m_t$ features, and the per-threshold
+Stage~B rule of order $K^2/\alpha$ over $K$ candidate thresholds
+(\cref{sec:results-practical}). It adds a max-type Stage~B rule that reaches
+the nominal level with about $999K$ statistic evaluations
+(\cref{cor:stageB-maxt,sec:results-stageB}). Finally, it gives the exact null
+size of the adaptive stopping rule (\cref{prop:adaptive-size}), which is inert
+at the minimum budget the benchmark uses.

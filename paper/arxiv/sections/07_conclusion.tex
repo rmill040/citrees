@@ -1,39 +1,27 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-The question was how conditional inference trees and forests compare with
-established feature rankers, and what the Bonferroni corrections in their split
-tests cost and change. On 31 real datasets CIF is the strongest conditional
-inference ranker in the study, ahead of cforest, ctree, and single CIT. CIF
-ranks tied 3rd of 17 in classification, behind RF-RFE and XGBoost and level with
-RF; 2nd of 18 in regression, behind ExtraTrees. On the complete-case panels it
-is tied 6th of 17 and tied 5th of 18, and the regression ordering is
-descriptive; with the out-of-bag permutation forest added it is 4th of 18 in
-classification. The negative answers are as clear. On the synthetic designs CIF
-sits in the lower half on recovery of the informative features (8th of 15 and
-11th of 16), it is weakest at small $k$, and in sparse high-dimensional simulations
-forest feature sampling keeps informative features out of most splits. The
-corrections change which features are ranked more than how well the rankings
-predict: on the weak-signal designs, run with the linear selectors, the
-per-threshold rule trades the high-cardinality preference of CART-style
-splitting for a low-cardinality preference of comparable size, and the random
-forest ranked by out-of-bag permutation importance keeps the high-cardinality
-preference there and ranks below CIF on the benchmark (8th of 18 and 6th of
-19), with a permutation step that grows with the number of features.
+This paper evaluates conditional-inference tree and forest rankings for top-$k$
+downstream prediction and proves fixed-node guarantees for the Stage~A and
+Stage~B permutation tests. On 31 real datasets CIF is the strongest
+conditional-inference ranker in the study, ahead of cforest, ctree, and CIT.
+CIF ranks tied 3rd of 17 in classification, behind RF-RFE and XGBoost and level
+with RF; 2nd of 18 in regression, behind ExtraTrees. On the complete-case
+panels it is tied 6th and tied 5th, and the regression ordering is descriptive.
+
+The negative results are as clear. On the synthetic designs CIF sits in the
+lower half on recovery of the informative features, it is weakest at small $k$,
+and in sparse high-dimensional simulations forest feature sampling keeps
+informative features out of most splits. The corrections change which features
+are ranked more than how well the rankings predict. On the weak-signal designs
+the per-threshold rule replaces the high-cardinality preference of impurity
+importance with a smaller preference for binary features, close to neutral in
+classification and 0.09 above the reference in regression.
 
 The cost of the corrections has two terms. Under the minimum budget the Stage~A
-feature test needs of order $m_t^2/\alpha$ permutations per node and the
-per-threshold rule of the Stage~B threshold test of order $K^2/\alpha$, which it
-needs in order to reject at all; the threshold term dominates on most datasets
-and the feature term on the widest. The max-type rule is an opt-in alternative
-that reaches the nominal level with about $999K$ evaluations, has realized size
-closer to nominal, loses about 0.006 in power at equal realized size, and moves
-CIF to 5th of 17 and 4th of 18; its fixed-node guarantee covers a fixed budget
-and a feature fixed without the response, and its calibration under adaptive
-stopping in fitted trees rests on the simulations. Each split test is
-calibrated at a fixed node conditional on the node sample, for subsampled or
-unsampled fits; the benchmarked forests draw bootstrap samples, and their
-rankings are assessed empirically. For a practitioner choosing a ranking method
-for downstream prediction, CIF delivers a ranking level with random forests in
-classification, and the max-type rule lowers its cost at nodes with many
-candidate thresholds.
+test needs of order $m_t^2/\alpha$ permutations per node and the per-threshold
+rule of order $K^2/\alpha$, which it needs in order to reject at all. The
+max-type rule reaches the nominal level with about $999K$ evaluations, loses
+0.006 in power at equal realized size, and moves CIF to 5th of 17 and 4th of
+18. Overall, the results support CIF as a top-$k$ feature-ranking method for
+downstream prediction, level with random forests in classification.

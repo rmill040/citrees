@@ -16,7 +16,7 @@
 
 \Abstract{
   Conditional inference trees choose the split variable by a test of
-  association and only then search for a cutpoint. This removes the advantage
+  association and only then search for a cutpoint. This reduces the advantage
   that variables with many possible cutpoints receive in greedy tree
   construction. \citrees is an open-source \proglang{Python} package that
   implements conditional inference trees and forests for classification and
@@ -74,7 +74,7 @@ CART trees and forests and a common estimator interface for model selection
 and pipelines \citep{Pedregosa+Varoquaux+Gramfort:2011}, but no conditional
 inference estimator.
 
-\citrees fills that gap, and its contributions are of two kinds. As software,
+\citrees brings conditional inference estimators to \proglang{Python}. As software,
 it provides conditional inference classifiers and regressors that follow the
 \sklearn estimator protocol. They can be cloned, placed in pipelines, and
 tuned by cross-validated search without a bridge to \proglang{R}. Every
@@ -492,9 +492,9 @@ configuration, used by the companion article and by the timing studies of
 Section~\ref{sec:performance}, sets both budgets to \code{"minimum"} and uses
 the histogram method with 256 bins. The recommended configuration, for feature
 ranking on data of the size studied here, is the benchmark configuration with
-the max-type test. It follows the crossover of Section~\ref{sec:thresholds}:
-with more than about 50 candidate thresholds per node, the max-type test is
-the cheaper valid test.
+the max-type test. It follows the crossover of Section~\ref{sec:thresholds},
+since with more than about 50 candidate thresholds per node the max-type test
+is the cheaper valid test.
 
 \begin{table}[t!]
 \centering
@@ -543,8 +543,8 @@ by \pkg{Numba} \citep{Lam+Pitrou+Seibert:2015}.
 Table~\ref{tab:software-architecture} lists the modules. Association
 statistics, permutation tests, split criteria, and threshold generators are
 kept in internal registries, and the tree code resolves the requested
-components by name during fitting. The registries are not part of the public
-interface. A new statistic is added in the source, not by user registration.
+components by name during fitting. The registries are internal, so a new
+statistic is added in the source rather than by user registration.
 Trees and forests share the same components, so classification and regression
 behave in parallel.
 
@@ -748,8 +748,8 @@ first tree root: age, feature p=0.0026, threshold p=0.0005
 \end{CodeOutput}
 \end{CodeChunk}
 %
-The shallowest tree has depth 1: on its bootstrap sample and predictor
-subsets, no root split passed both tests.
+The shallowest tree has depth 1, because on its bootstrap sample and predictor
+subsets no root split passed both tests.
 
 The full analysis repeats this comparison on 10 independently shuffled,
 stratified five-fold partitions, so each ranking is computed on 50 training
@@ -841,11 +841,11 @@ importance, the same random forest moves the permuted weight to 25.5, between
 the two conditional forests. The promotion is therefore a property of
 impurity importance on fully grown CART trees, the bias described by
 \citet{Strobl+Boulesteix+Zeileis+Hothorn:2007}. Disabling the \citrees Stage A
-test leaves the permuted weight at 23.1, so the level $\alpha_{\mathrm{A}}$ is
-not what protects the conditional forest here. The remaining candidates are
-the choice of the split variable by an association statistic, the capped
-candidate set, and the unweighted importance, and this design does not
-separate them. The two conditional forests agreed with each other more than
+test leaves the permuted weight at 23.1, so the conditional forest keeps its
+protection here without the level $\alpha_{\mathrm{A}}$. The remaining
+candidates are the choice of the split variable by an association statistic,
+the capped candidate set, and the unweighted importance, which this design
+cannot separate. The two conditional forests agreed with each other more than
 either agreed with the random forest: the per-fold Spearman correlation of
 ranks averaged 0.83 between \citrees and \pkg{partykit}, against 0.67 between
 the random forest and \citrees and 0.54 between the random forest and
@@ -913,8 +913,8 @@ conservatism for coarse predictors. Adaptive stopping never exceeded 0.05 at
 the root. In the 14 conditions that share a design with an exhaustive
 condition, it tracked the exhaustive false-split rate to within 0.012 while
 using 2.0\% to 6.2\% of the exhaustive permutations. Simple stopping exceeded
-0.05 in 22 of its 32 conditions. This is why adaptive stopping is the
-default, and why the constructor warns when simple stopping is requested.
+0.05 in 22 of its 32 conditions. Adaptive stopping is therefore the default,
+and the constructor warns when simple stopping is requested.
 
 \subsection{Cardinality and agreement with partykit} \label{sec:cardinality}
 
@@ -940,7 +940,7 @@ which records the predictor with the smallest $p$-value in every replicate,
 was rejected for both conditional inference trees in classification. Among
 the replicates in which a tree actually split, no trend was rejected for
 either package. The rejected forced-winner trends therefore describe which
-predictor attains the extreme statistic, not the fitted decisions. These tests
+predictor attains the extreme statistic rather than the fitted decisions. These tests
 are upper-tailed; the companion article reports a preference for binary noise
 columns under the per-threshold Bonferroni test on designs with signal
 \citep{Milletich+Downes+Goley+Hirst:2026}.
@@ -986,11 +986,10 @@ Wisconsin data and the \sklearn diabetes data on the same 10 repeats of
 five-fold cross-validation. Both use depth at most 3, minimum split and leaf
 sizes of 20 and 7, all predictors, 999 permutations, and, for forests, 100
 trees on full-size bootstrap samples. Each keeps its native statistic,
-threshold criterion, random-number stream, and importance. The comparison
-was already settled at the design stage for one quantity. Both
-implementations split at the root in all 50 fits per dataset, so agreement on
-whether to split is 1.000 by construction on these strongly associated data
-and does not discriminate between them. Root-predictor agreement is instead a
+threshold criterion, random-number stream, and importance. On these strongly
+associated data, both implementations split at the root in all 50 fits per
+dataset, so agreement on whether to split is 1.000 by construction and does
+not discriminate between them. Root-predictor agreement is instead a
 diagnostic of tie-breaking. Several candidates exceed every permutation and
 tie at the smallest attainable $p$-value. With scanning on, the shipped
 default, ties are broken by the observed statistic, and the two packages chose
@@ -1018,8 +1017,8 @@ with Bonferroni adjustment. \citrees forests are timed with
 \code{n_jobs = -1} to match the other libraries' use of all cores, unless a
 row states otherwise. Classification uses the multiple correlation selector
 and regression the Pearson correlation selector. The \pkg{partykit} timings
-use its Monte Carlo Bonferroni test with 999 permutations at depth 3, not its
-shipped defaults, so that both libraries run a permutation test at the node.
+use its Monte Carlo Bonferroni test with 999 permutations at depth 3, rather
+than its shipped defaults, so that both libraries run a permutation test at the node.
 
 The first study uses 1,000 observations of 50 Gaussian predictors with signal
 in the first five (Table~\ref{tab:performance-reference}). The exhaustive
@@ -1102,8 +1101,8 @@ continuous predictor gives 257 candidates and a budget of 5,140. The clearest
 case is gamma, with nine continuous predictors. There the benchmark forest
 takes 44 seconds, and the max-type test halves that time while keeping a
 valid threshold test. The no-adjustment column shows how much of the time the
-adjustment costs, but it is not a valid test of the threshold. Its size is
-reported in Section~S4 of the supplement. Section~S3 of the supplement
+adjustment costs. Without the adjustment the threshold test does not control
+its size, which Section~S4 of the supplement reports. Section~S3 of the supplement
 reports the same comparison on synthetic Gaussian predictors from 500 to
 32,000 observations. There, the max-type test is 13 to 36 times faster than
 the per-threshold test.
@@ -1153,8 +1152,8 @@ test, the per-threshold Bonferroni test has size 0.000 to 0.027 at nominal
 0.023 to 0.044 at every candidate count. At a common nominal level the
 max-type test therefore splits more often, and at matched size the max-type
 test has slightly less power. The max-type test is cheaper above about 50
-candidates and yields a different feature ranking, not a faster route to the
-same one. The default remains \code{threshold_test = "bonferroni"} so that
+candidates and yields a different feature ranking rather than the same
+ranking at lower cost. The default remains \code{threshold_test = "bonferroni"} so that
 results fit with earlier versions remain reproducible, and the recommended
 configuration of Section~\ref{sec:parameters} selects the max-type test.
 
@@ -1175,8 +1174,8 @@ chosen splits promoted a high-cardinality noise column, and every ranking that
 either chose the split variable by an association statistic or scored it by
 permutation avoided it. The control without the Stage A test ranked the
 columns the same way, so on this cohort the conditional choice of the split
-variable, not the level, decides the ranking. What the tests add is the tree
-itself. A split is made only when an association survives a calibrated test,
+variable decides the ranking rather than the level. The tests determine the
+structure of the tree. A split is made only when an association survives a calibrated test,
 so depth is set by a significance level rather than by a pruning parameter
 tuned for prediction, and each fitted node records the $p$-values behind it.
 On the weak-signal designs of the companion article, permutation importance

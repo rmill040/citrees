@@ -350,8 +350,8 @@ cross-validation statistic
 %
 is referred to a $t$ distribution with 49 degrees of freedom
 \citep{Bouckaert+Frank:2004}. The correction was derived for differences in
-held-out performance, not for training-fold rank differences, so it is a
-heuristic only. For the primary contrast, the ten repeat means ranged from
+held-out performance rather than for training-fold rank differences, so it
+serves as a heuristic only. For the primary contrast, the ten repeat means ranged from
 $-14.0$ to $-6.0$, and $t(49) = -4.62$, with a lower-tailed $p$-value below
 0.001.
 
@@ -403,7 +403,7 @@ arm fitted in the same folds passes the ten nominal columns (sex, race and
 ethnicity, marital status, birth in the United States, ever smoked, health
 insurance, the three reported diagnoses, and permuted sex) as unordered
 factors and keeps education and alcohol frequency as ordinal codes. Factor
-typing leaves the cardinality pattern unchanged: the permuted sampling weight
+typing leaves the cardinality pattern unchanged. The permuted sampling weight
 has mean rank 26.6 against 26.4, the eight predictors with at most three
 distinct values have mean rank 16.5 in both arms, and the Spearman
 correlation between importance and number of distinct values is 0.20 against
@@ -421,8 +421,8 @@ independently for each of the ten partition repeats. It moves the permuted
 weight from 12.1 to 11.3 under the random forest and from 23.0 to 21.1 under
 \citrees, and the primary contrast from $-11.0$ to $-9.8$ ranks.
 
-Both forests rank by impurity decrease summed over splits, but not by the
-same formula: \citrees sums node-level decreases, while \sklearn weights each
+Both forests rank by impurity decrease summed over splits, with different
+weights. \citrees sums node-level decreases, while \sklearn weights each
 decrease by the node's share of the sample. The two forests also differ in
 bootstrap and depth control, so the comparison does not isolate the split
 search on its own.

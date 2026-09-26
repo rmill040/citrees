@@ -10,7 +10,7 @@ Tracked tables:
   seconds per cell and configuration: citrees recommended, no adjustment,
   max-type, partykit cforest on 1 and 32 cores) from the 2026-09-21 run that
   timed both libraries in one pass on one host with the second-fit protocol.
-  Source of JSS Tables 6 and 7 and the arXiv head-to-head sentence; the per-fit
+  Source of the JSS head-to-head timing tables and the arXiv head-to-head sentence; the per-fit
   raw rows are archived under `reference/v3/ablations/review6/`.
 - `paper_h2h_rerun_summary.csv`: the 2026-09-13 head-to-head run (first-fit
   timing, sklearn RF included), kept as the baseline the one-pass run is

@@ -2,6 +2,24 @@
 
 Complete reference for all citrees parameters with tuning guidance.
 
+## Configurations
+
+Three configurations recur in the documentation and the papers. The **default**
+configuration is the constructor defaults: `n_resamples_*=NResamples.AUTO` with
+adaptive stopping, `threshold_method=ThresholdMethod.EXACT` with
+`max_thresholds=None` (every midpoint is a candidate), and the per-threshold
+Bonferroni test `threshold_test=ThresholdTest.BONFERRONI`. The **benchmark**
+configuration is the one the benchmark experiments fit:
+`n_resamples_*=NResamples.MINIMUM`, `threshold_method=ThresholdMethod.HISTOGRAM`
+with `max_thresholds=256`, and the per-threshold Bonferroni test. The
+**recommended** configuration is the benchmark configuration with
+`threshold_test=ThresholdTest.MAXT` at nodes with more than about 50 candidate
+thresholds. The max-type test evaluates `999 K` impurities against about
+`K^2 / alpha` for the Bonferroni test, so at `alpha = 0.05` it is cheaper once
+`K` exceeds about 50 ([maxt.md](maxt.md)). With 256-bin histograms most
+continuous features pass that point, so in practice the recommended
+configuration sets `threshold_test="maxt"` for the whole fit.
+
 ## Tree Parameters
 
 ### Core Parameters
@@ -22,7 +40,7 @@ Complete reference for all citrees parameters with tuning guidance.
 
 Options for `n_resamples_*`:
 
-- `NResamples.AUTO`: Adaptive based on alpha (recommended). Implemented as:
+- `NResamples.AUTO`: The default; the budget depends on alpha. Implemented as:
   - `lower = ceil(1/alpha)`
   - `upper = ceil(z^2 * (1 - alpha) / alpha)` where `z = Φ^{-1}(1 - alpha)`
   - `B = max(lower, upper)`
@@ -135,11 +153,17 @@ Options for `max_thresholds`:
 
 | Parameter               | Type                                 | Default | Description                        |
 | ----------------------- | ------------------------------------ | ------- | ---------------------------------- |
-| `max_depth`             | int                                  | None    | Maximum tree depth                 |
+| `max_depth`             | int                                  | None    | Maximum depth of a splitting node  |
 | `min_samples_split`     | int                                  | 2       | Minimum samples to split node      |
 | `min_samples_leaf`      | int                                  | 1       | Minimum samples in leaf            |
 | `min_impurity_decrease` | float                                | 0.0     | Minimum impurity decrease to split |
 | `max_features`          | MaxValuesMethod, int, float, or None | None    | Features per split                 |
+
+Depth convention: the root is at depth 1, and a node splits only when its depth
+is at most `max_depth`. The fitted attribute `depth_` counts levels, so
+`max_depth=3` allows three levels of splits, puts the deepest leaves at depth 4,
+and gives `depth_ = 4` (three edges from the root to the deepest leaf). A tree
+whose root does not split has `depth_ = 1`.
 
 Options for `max_features`:
 

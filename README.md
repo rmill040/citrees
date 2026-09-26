@@ -218,7 +218,9 @@ The complete parameter reference with defaults and tuning guidance is
 
 Every other argument (early stopping, scanning, muting, honesty, forest
 controls, `scale_resamples_with_tests`) is documented in
-[docs/parameters.md](docs/parameters.md).
+[docs/parameters.md](docs/parameters.md). Its Configurations section defines the
+default, benchmark, and recommended configurations that the documentation and
+papers refer to.
 
 ## Use Cases
 

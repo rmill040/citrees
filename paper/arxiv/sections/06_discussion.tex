@@ -7,8 +7,7 @@ predictive features early enough for fixed downstream learners, and CIF does so
 at the level of random forests in classification. It is weaker at identifying
 the informative features themselves: its synthetic recovery is in the lower
 half, and its rankings are weakest at small $k$. Classification gives the
-clearest support; the smaller regression panel is positive but less precise,
-and its ordering is descriptive. The fixed-node
+clearest support; the regression ordering is descriptive. The fixed-node
 results provide the local guarantee; fitted tree and forest rankings are
 assessed empirically.
 
@@ -24,47 +23,37 @@ ctree, cforest, and forest-based screening methods such as Boruta, permutation
 or conditional permutation importance, and RF-RFE
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}.
 
-The ablations locate most of the runtime in the threshold search. The
-ablations show that threshold scanning and the 256-bin histogram account for
-the largest measured CIF runtime changes, with small downstream score changes
-in these experiments. On wide data the Stage~A test also matters, because the feature
+The ablations locate most of the runtime in the threshold search. Scanning
+candidate thresholds in order and bounding their number with the 256-bin
+histogram account for the largest measured changes, with small downstream score
+changes. On wide data the Stage~A test also matters, because the feature
 correction scales every feature's budget. Adaptive stopping is inert at the
 minimum budget and pays off only above it. The two corrections are part of the
 testing rule and are not runtime shortcuts: removing them changes the trees
 that are grown. For ranking quality, forest size matters more than the
-split-count and feature-muting variants tested here, so the selected CIF
-configuration is the relevant ranking reference when ranking quality is the
-priority.
+split-count and feature-muting variants tested here.
 
 The max-type rule is an opt-in alternative to the per-threshold rule. It
-reduces the reverse cardinality bias and costs less once a node has more than
+removes the reverse cardinality bias and costs less once a node has more than
 about 50 candidates. It changes which features the trees rank but moves the
 downstream scores only slightly (\cref{tab:maxt-benchmark-rankings}). The
 benchmark rankings use the default per-threshold rule.
 
-In sparse high-$p$ settings, feature use should be monitored directly.
-The simulations show that CIF feature sampling can leave informative features
-out of many forest split decisions, especially in sparse classification designs.
-Useful diagnostics include top-$k$ stability across seeds, the share of splits
-using the final top-$k$ features or any prespecified positive control features,
-the number of distinct low-ranked or known null features used in splits, and
-sensitivity to larger sampled feature sets or to a small CIF-all run with fewer
-seeds or trees.
+In sparse high-dimensional settings, feature use should be monitored directly.
+CIF feature sampling can leave informative features out of many forest split
+decisions. Useful diagnostics include top-$k$ stability across seeds, the share
+of splits using the final top-$k$ features or any prespecified positive control
+features, the number of distinct known null features used in splits, and
+sensitivity to larger sampled feature sets or to a small CIF-all run.
 
 \paragraph{Limitations.}
 The fixed-node results cover one node whose sample, tested features, and
 permutation budget are fixed independently of the node responses, for
 subsampled or unsampled fits. The benchmarked trees and forests add
-adaptive stopping, feature and threshold ordering, feature muting, bounded
-threshold sets, response-dependent choice of nodes, the Stage~A winner as the
-feature tested at Stage~B, bootstrap samples, and forest aggregation, so their
+response-dependent choice of nodes, the Stage~A winner as the feature tested at
+Stage~B, feature muting, bootstrap samples, and forest aggregation, so their
 behavior is assessed through the ranking benchmark. In a fitted tree the stored
-Stage~B score is a screening statistic, not a post-selection $P$-value.
-
-The benchmark coverage is uneven across analyses. Some comparisons use broader
-panels where both methods are available, while complete-case rank and interval
-summaries use smaller panels that include every method. These summaries are
-therefore descriptive rather than confirmatory.
+Stage~B score is a screening statistic, not a post-selection P-value.
 
 Configurations were selected on the reporting datasets with unequal grid sizes
 (four for CIF, five for XGBoost, one for RF, ExtraTrees, CatBoost, and RF-RFE).
@@ -76,12 +65,7 @@ The cardinality measurements use the linear selectors, while three of the four
 selected configurations use RDC, so the reverse cardinality bias is established
 for the linear selectors only. CPI ranks last in both tasks after a correction
 to its correlation threshold, and its position should be read as provisional.
-The three downstream learners are untuned, and the comparator set omits
-Lasso and mutual-information filters.
-
-The sampled-forest analysis isolates a sparse high-$p$ setting in which
-forest feature sampling can limit how often splits use informative features:
-larger sampled feature sets increase informative-feature use, but they also
-change runtime and the mix of noise features used by splits. Track how often
-splits use informative features alongside downstream performance and runtime
-before changing the number of features sampled at each split.
+The downstream suite is three untuned learners, and the comparator set omits
+Lasso and mutual-information filters. Complete-case rank and interval summaries
+use smaller panels than the pairwise comparisons, so both are descriptive
+rather than confirmatory.

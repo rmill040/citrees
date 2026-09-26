@@ -26,10 +26,8 @@ how their rankings compare with established rankers, and what the Bonferroni
 corrections inside their split tests cost and change. For each seed and
 cross-validation fold, a method produces a ranking from the training fold.
 Fixed downstream learners are then fit on top-$k$ prefixes of that ranking and
-evaluated on held-out data, with results summarized across datasets. The
-benchmark asks whether tree- and forest-derived rankings put predictive
-variables early enough to improve fixed downstream models.
-We also ask whether CIT/CIF runtime hyperparameters reduce computation while
+evaluated on held-out data, with results summarized across datasets.
+We also ask whether CIT and CIF runtime hyperparameters reduce computation while
 preserving ranking quality, and where CIF recovery is weaker in high-$p$ or
 synthetic settings. This feature-selection benchmark is separate from work on
 trees and forests as direct
@@ -37,7 +35,7 @@ predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
 Because several methods have tunable configurations, the benchmark chooses one
 configuration per method and task. As a sensitivity check, leave-one-dataset-out
-(LODO) analyses repeat the configuration choice after holding out each dataset, using
+(LODO) analyses repeat the configuration choice after holding out each dataset, on
 the complete-case and all-method panels defined in \cref{sec:experiments-analysis-plan}.
 
 The theory studies each split test at a fixed node. It assumes that the
@@ -50,31 +48,22 @@ observed statistics behind the two corrections (\cref{sec:method}). The
 benchmarks then evaluate the tree and forest feature rankings empirically.
 
 \paragraph{Contributions.}
-This paper contributes a real-data benchmark of conditional-inference feature
-rankings for top-$k$ downstream prediction, against 15 classification and 16
-regression rankers on 31 datasets, among them random forests (RF) and recursive
-feature elimination with random forests (RF-RFE)
-(\cref{sec:experiments-real}). The benchmark compares CIF with ctree, cforest,
-CIT, and other baselines in classification and regression analyses, and
-includes ablations of the main CIT/CIF runtime hyperparameters. CIF is the
-strongest conditional inference ranker in the study, ahead of cforest, ctree,
-and single CIT. CIF ranks tied
+This paper contributes a real-data benchmark of CIT and CIF against 15
+classification and 16 regression rankers on 31 datasets, among them random
+forests (RF) and recursive feature elimination with random forests (RF-RFE)
+(\cref{sec:experiments-real}). CIF is the strongest conditional inference
+ranker in the study, ahead of cforest, ctree, and single CIT. CIF ranks tied
 3rd of 17 in classification, behind RF-RFE and XGBoost and level with RF; 2nd
 of 18 in regression, behind ExtraTrees. On the complete-case panels it is tied
-6th of 17 and tied 5th of 18, and the regression ordering is descriptive.
-The paper also states the fixed-node, full-scan
-fixed-$B$ Stage~A and Stage~B guarantees
-(\cref{lem:plusone-superuniform,cor:stageA-global-null,cor:stageB-bonferroni});
-the full tree and forest rankings are evaluated in the benchmarks. It accounts for the cost of the
+6th of 17 and tied 5th of 18, and the regression ordering is descriptive. The
+paper also reports where CIF is weaker: it sits in the lower half on synthetic
+recovery, 8th of 15 and 11th of 16, and it is weakest at small $k$
+(\cref{sec:boundary,sec:synthetic-recovery}). It accounts for the cost of the
 corrections: under the minimum budget the Stage~A feature test costs of order
 $m_t^2/\alpha$ permutations per node over $m_t$ features, and the per-threshold
 Stage~B rule of order $K^2/\alpha$ over $K$ candidate thresholds
 (\cref{sec:results-practical}). It adds a max-type Stage~B rule that reaches
 the nominal level with about $999K$ statistic evaluations
-(\cref{cor:stageB-maxt,sec:results-stageB}). It gives the exact null
+(\cref{cor:stageB-maxt,sec:results-stageB}). Finally, it gives the exact null
 size of the adaptive stopping rule (\cref{prop:adaptive-size}), which is inert
-at the minimum budget the benchmark uses. Finally, the high-$p$ and synthetic
-analyses show cases with weaker top-$k$ recovery and how forest feature sampling
-can reduce how often forest splits use informative features
-(\cref{sec:boundary,sec:synthetic-recovery}): CIF sits in the lower half on
-synthetic recovery, 8th of 15 and 11th of 16, and it is weakest at small $k$.
+at the minimum budget the benchmark uses.

@@ -1,16 +1,17 @@
 \section{Tree-growing method}
 \label{sec:method}
 
-At each internal node, conditional inference trees make two decisions. Stage~A
-tests features for association with the response and chooses a feature
-to split. Stage~B then searches thresholds only for that selected feature; if no
-valid split is accepted, the node becomes terminal. In this paper, CIT
-denotes the resulting single-tree feature selection method. CIF denotes a
-bootstrap ensemble of such trees with feature sampling at each node
-and feature rankings formed by aggregating split importances across trees.
+At each internal node, conditional inference trees make two decisions. The
+Stage~A feature test checks features for association with the response and
+chooses a feature to split. The Stage~B threshold test then searches thresholds
+only for that selected feature; if no threshold is accepted, the node becomes
+terminal. In this paper, CIT denotes the resulting single-tree feature
+selection method. CIF denotes a bootstrap ensemble of such trees with feature
+sampling at each node and feature rankings formed by aggregating split
+importances across trees.
 CIF-all disables feature subsampling: every nonconstant available
 feature can enter Stage~A at each node. This changes the Stage~A feature set,
-the Stage~A multiplicity correction, and the per-node computational cost.
+the feature correction, and the per-node computational cost.
 
 \subsection{Stage~A and Stage~B}
 \label{sec:stageA-stageB}
@@ -28,9 +29,9 @@ Any label-independent auxiliary randomness used by a selector, such as the
 random projections of the randomized dependence coefficient, is denoted by $U$
 and is held fixed in the fixed-node guarantee.
 
-When feature scanning is enabled during tree growing, Stage~A can evaluate
-features sequentially, in order of their observed selector statistic, and stop
-at the first rejection before every feature in $F_t$ has been tested. Let $E_t \subseteq F_t$ denote the evaluated subset; in the
+When feature scanning is enabled during tree growing, Stage~A tests the
+features in order of their observed selector statistic and stops at the first
+rejection. Let $E_t \subseteq F_t$ denote the evaluated subset; in the
 full-scan fixed-$B$ reference rule, $E_t=F_t$. The fixed-node results in
 \cref{sec:theory} apply to that reference rule: the features in $F_t$ and the
 budget $B$ are fixed independently of the node responses, and every $P_{t,j}$
@@ -39,8 +40,8 @@ response-dependent node selection, inherited feature muting, and scores from
 scans that stop at the first rejection.
 
 \paragraph{Stage~A feature test.}
-In the full-scan fixed-$B$ setting, Stage~A follows the feature-selection and
-threshold-search separation of conditional inference trees
+In the full-scan fixed-$B$ setting, Stage~A follows the separation of variable
+selection from threshold search in conditional inference trees
 \citep{Hothorn2006UnbiasedRecursivePartitioning}. The original conditional
 inference tests use the permutation-statistic framework of
 \citet{StrasserWeber1999PermutationStatistics}; here, Monte Carlo label
@@ -58,8 +59,8 @@ Let $\tau_t=\alpha_{\mathrm{sel}}/m_t$ when the feature correction is enabled an
 $\tau_t=\alpha_{\mathrm{sel}}$ otherwise. If
 $P_t^{\star} \ge \tau_t$, Stage~A returns no feature and the node
 becomes terminal. If $P_t^{\star} < \tau_t$, the selected feature
-$j_t^{\star}$ is drawn uniformly from $M_t^\star$ using reservoir
-sampling, and the node enters Stage~B.
+$j_t^{\star}$ is drawn uniformly from $M_t^\star$, and the node
+enters Stage~B.
 
 During tree growing, Stage~A uses the same decision structure but can order
 features by a preliminary score and evaluate only the subset $E_t$. The
@@ -87,8 +88,8 @@ up to 257 candidates. Thresholds that would leave either child
 below the minimum leaf size are filtered out. If no threshold remains, Stage~B
 returns no split.
 
-For the remaining finite threshold set $C_{t,j_t^\star}$, Stage~B selects the
-threshold used by the tree; write $K=|C_{t,j_t^\star}|$. The tested statistic at threshold $c$
+For the remaining finite threshold set $C_{t,j_t^\star}$ of size $K$, Stage~B
+selects the threshold used by the tree. The tested statistic at threshold $c$
 is the weighted child impurity
 \[
   \frac{|Y_t^L(c)|}{|Y_t|}H(Y_t^L(c))
@@ -96,11 +97,9 @@ is the weighted child impurity
 \]
 where $H$ is the chosen node impurity measure. This statistic is used
 in a left-tail test, and the full-scan fixed-$B$ rule chooses the threshold with
-the smallest Stage~B $P$-value, with uniform tie breaking. During tree
-growing, threshold scanning may reorder thresholds by weighted child impurity
-and stop after the first rejecting threshold, so the returned Stage~B score is a
-tree-construction score rather than a global minimum over all retained
-thresholds. Let
+the smallest Stage~B $P$-value, with uniform tie breaking. When threshold
+scanning is enabled, thresholds are tested in order of weighted child impurity
+and the search stops after the first rejecting threshold. Let
 $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/K$ when the threshold
 correction, the Bonferroni correction over the candidate thresholds, is enabled
 and $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. Testing each
@@ -110,10 +109,8 @@ terminal. After a threshold passes the Stage~B test, the final minimum
 required-improvement check uses the corresponding weighted impurity decrease.
 Stage~B chooses the split used by the tree; the returned Stage~B score is not a
 valid post-selection $P$-value. The training skeleton in \cref{alg:citree}
-summarizes this flow and, for the benchmarked CIT and CIF configurations, stores
-two values at each split: the Stage~A score $q_t^{\mathrm{feat}}$ for the
-selected feature and the Stage~B score $q_t^{\mathrm{split}}$ for the selected
-threshold.
+summarizes this flow and stores the two returned scores $q_t^{\mathrm{feat}}$
+and $q_t^{\mathrm{split}}$ at each split.
 
 \paragraph{Permutation budgets.}
 Write $\alpha_{\mathrm{adj}}$ for the level of a single permutation test:
@@ -188,7 +185,7 @@ linear statistic.
 
 Let $T_{\mathrm{obs}}$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
 computed on $B$ random label permutations. For a right tail test we use the
-Phipson and Smyth $+1$ $P$-value
+$+1$ $P$-value of Phipson and Smyth
 \citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues},
 where $\ind\{\cdot\}$ denotes the indicator function:
 %
@@ -250,25 +247,24 @@ node rules as CIT
 The fixed-node results cover subsampled and unsampled fits, and not bootstrap
 samples, whose duplicated rows break the exchangeability they assume
 (\cref{app:theory-scope}).
-Across the CIT/CIF benchmark configurations, we hold the feature and threshold
-corrections, the per-threshold rule, the minimum budget with adaptive stopping,
-feature muting, feature scanning, threshold scanning, the 256-bin histogram
-method, and CIF bootstrap sampling fixed. The varying settings are selector
-choice and honesty. Honesty grows each tree on one half of its training
+Across the CIT and CIF benchmark configurations, we hold fixed the feature and
+threshold corrections, the per-threshold rule, the minimum budget with adaptive
+stopping, feature muting, feature scanning, threshold scanning, the 256-bin
+histogram method, and bootstrap sampling for CIF. The varying settings are the
+selector and honesty. Honesty grows each tree on one half of its training
 sample and re-estimates the leaf values on the other half
 \citep{WagerAthey2018CausalForests}.
 
 Runtime depends on the realized work at each node: features tested in Stage~A,
 thresholds generated and retained in Stage~B, permutations evaluated before
-stopping, and features carried into the node. Adaptive stopping changes the
+stopping, and features carried into the node. Adaptive stopping can reduce the
 number of permutations evaluated for each test when the budget exceeds the
 minimum budget
 \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
 Histogram thresholding reduces the Stage~B threshold set by replacing exhaustive
-cutpoints with binned thresholds. Feature and threshold scanning change the
-order in which features or thresholds are tested, by their observed statistic,
-and stop at the first rejection; feature muting can reduce the feature pool
-inherited by descendants.
+cutpoints with binned thresholds. Feature and threshold scanning order the
+candidates by their observed statistic and stop at the first rejection; feature
+muting can reduce the feature pool inherited by descendants.
 Appendix~\ref{app:methods} gives reproducibility details,
 Appendix~\ref{app:complexity-details} gives runtime and memory accounting, and
 \cref{sec:results-practical} reports the measured timing effects.
@@ -278,15 +274,15 @@ Appendix~\ref{app:complexity-details} gives runtime and memory accounting, and
 
 The experiments evaluate each method through the ranking it produces on the
 training fold. CIT and CIF rankings are fitted split-importance rankings, not
-rankings of Stage~A $P$-values. For a fitted CIT, feature $j$ receives the sum,
-over internal nodes that split on $j$, of the impurity decrease at that node:
-parent impurity minus the weighted child impurity,
+rankings of Stage~A $P$-values. For a fitted CIT, the importance
+$\mathrm{Imp}_j$ of feature $j$ is the sum, over internal nodes that split on
+$j$, of the impurity decrease
 \[
   H(Y_t) - \frac{|Y_t^L|}{|Y_t|}H(Y_t^L)
   - \frac{|Y_t^R|}{|Y_t|}H(Y_t^R),
 \]
-This sum is the importance $\mathrm{Imp}_j$. It carries no weight for the
-node's share of the sample, so a deep split counts as much as a root split. If the total importance is positive, the vector is
+with no weight for the node's share of the sample, so a deep split counts as
+much as a root split. If the total importance is positive, the vector is
 normalized to sum to one; if the tree contributes no positive impurity
 decrease, the vector remains zero. CIF sums these tree importance vectors over
 trees and then normalizes the forest vector in the same way. Stage~A

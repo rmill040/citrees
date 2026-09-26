@@ -6,22 +6,20 @@ CIF is weakest in two places on real data. At small $k$ it ranks 7th or 8th of
 (\cref{fig:k-trajectory}). On wide datasets its scores peak before the full
 feature set. Across the 15 classification datasets with more than 100
 features, CIF first reaches its best score at an intermediate value of $k$
-($100 < k < p$) in 29 of 45 dataset-learner combinations. It first reaches its
-best score at the full feature set ($k=p$) in only 7 of 45 combinations.
+($100 < k < p$) in 29 of 45 dataset-learner combinations, and at the full
+feature set ($k=p$) in only 7 of 45.
 
-\Cref{fig:high-p-boundary} shows this pattern by downstream learner.
-Classification scores most often peak at intermediate $k$: 8 of 15 LR
-datasets, 12 of 15 SVM datasets, and 9 of 15 KNN datasets. The full feature
-set is mainly an LR exception. Moving from $k=100$ to $k=p$ gives a mean $k=p$
-minus $k=100$ score change of $+0.026$ for LR, and $k=p$ matches the best
-observed LR score in 7 of 15 datasets. For SVM and KNN, the corresponding mean
-changes are $-0.053$ and $-0.071$, and $k=p$ is best in only 1 of 15 datasets
-for each learner.
+\Cref{fig:high-p-boundary} shows this pattern by downstream learner. Scores
+peak at intermediate $k$ on 8 of 15 LR datasets, 12 of 15 SVM datasets, and 9
+of 15 KNN datasets. The full feature set is mainly an LR exception. Moving
+from $k=100$ to $k=p$ changes the LR score by $+0.026$ on average, and LR first
+reaches its best score at $k=p$ on 5 of 15 datasets. For SVM and KNN the mean
+changes are $-0.053$ and $-0.071$.
 
-In the 6 high-$p$ regression datasets, full-feature evaluation is rarely best.
-Across the 18 dataset-learner combinations, 12 peak at or below $k=100$, only 2
-peak at $k=p$, and the mean $k=p$ minus $k=100$ score change is $-0.270$, with
-a median of $-0.076$.
+In the 6 high-dimensional regression datasets, full-feature evaluation is
+rarely best. Of the 18 dataset-learner combinations, 12 peak at or below
+$k=100$ and 2 at $k=p$. The change from $k=100$ to $k=p$ has a mean of
+$-0.270$ and a median of $-0.076$.
 
 \begin{figure}[!htbp]
   \centering
@@ -39,14 +37,11 @@ a median of $-0.076$.
 
 On synthetic datasets with known informative features, CIF sits at or below
 the median position of the methods run on each task
-(\cref{tab:synthetic-head}). In classification, CIF recovers true features
-within the top-$k$ list more reliably than it places one first.
-\Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows. The percentage of
-selected features that are informative falls as $k$ grows. On redundant-feature
-synthetic designs, most selected features correspond to true signals or
-redundant proxies: 82\% for classification and 84\% for regression. On that
-measure, where correlated copies of informative features count as hits, CIF
-ranks 1st of 16 in regression and tied 7th of 15 in classification.
+(\cref{tab:synthetic-head}). It recovers true features within the top-$k$ list
+more reliably than it places one first. On the redundant-feature designs,
+where correlated copies of informative features count as hits, CIF ranks 1st
+of 16 in regression and tied 7th of 15 in classification.
+\Cref{fig:synthetic-topk-curves} shows recovery as $k$ grows.
 
 \begin{table}[!htbp]
   \centering
@@ -68,7 +63,7 @@ ranks 1st of 16 in regression and tied 7th of 15 in classification.
   truly informative. The top-1 hit rate is computed at $k=1$. The final row is
   computed and ranked only on the redundant-feature design for each task and
   counts true informative plus redundant features. Ranks are among the 15
-  classification and 16 regression methods with synthetic runs. Fractional
+  classification and 16 regression methods with synthetic runs; fractional
   ranks indicate averaged ties.}
   \label{tab:synthetic-head}
 \end{table}
@@ -181,27 +176,18 @@ features, against 0, 3, and 14\% for CIF and none for random forests. This is
 consistent with single trees ranking near the bottom of the benchmark.
 
 \paragraph{Feature use in sampled forests.}
-A sparse simulation asks whether forest feature sampling makes splits less
-likely to use informative features in classification and regression settings.
-\Cref{fig:candidate-forest-counts} shows one sparse classification design
-comparing CIF with CIF-all, and \cref{app:candidate-availability} gives the
-classification and regression results over $p \in \{100, 500, 1{,}000\}$.
-In the single-tree simulations, CIT uses informative features in 100.0\% of
-classification splits and 93.5\% of regression splits. In forests, sampling a
-subset of features reduces how often informative features are used for
-splits. Across the classification forest simulations with 1,000 trees, CIF
-uses informative features in 33.2\% of splits, compared with 91.7\% for
-CIF-all, 8.4\% for RF, and 6.5\% for ExtraTrees. RF and ExtraTrees grow to purity, so most of
+A sparse simulation measures how often forest splits use informative features
+(\cref{fig:candidate-forest-counts}; \cref{app:candidate-availability}). CIT
+uses informative features in 100.0\% of classification splits and 93.5\% of
+regression splits. Over the 12 classification forest designs, CIF uses
+informative features in 33.2\% of splits, against 91.7\% for CIF-all, 8.4\%
+for RF, and 6.5\% for ExtraTrees. RF and ExtraTrees grow to purity, so most of
 their splits are deep splits on noise, while CIF stops at the permutation
 test. The CIF-all gap reflects feature sampling: with 32 of 1,000 features
 sampled at a node and two informative, an informative feature is a candidate
-at 6.3\% of nodes. For the $p=1{,}000$ classification setting with two
-informative features, CIF uses informative features in 9.0\% of splits, RF in
-2.7\%, and ExtraTrees in 2.0\%, while CIF-all uses them in 100.0\%. In these
-sparse high-$p$ simulations, splits use informative features most often when
-every nonconstant feature can enter Stage~A. When the sampled feature subset
-rarely includes an informative feature at a node, Stage~A selects from that
-subset. The
+at 6.3\% of nodes. In that design CIF uses one in 9.0\% of splits, RF in 2.7\%,
+ExtraTrees in 2.0\%, and CIF-all in 100.0\%. When the sampled subset holds no
+informative feature, Stage~A selects from the noise it was given. The
 downstream ranking of CIF-all was not scored, so its effect on ranking quality
 remains open.
 
@@ -212,7 +198,8 @@ remains open.
   ($n=250$, $p=1{,}000$, two informative features). Counts are the number of
   trees using each feature in at least one split, pooled over five fits of
   1,000 trees each, so the shared vertical axis runs to 5,000. CIF samples a
-  subset of features; CIF-all evaluates all nonconstant features.}
+  subset of features at each node; CIF-all evaluates all nonconstant
+  features.}
   \label{fig:candidate-forest-counts}
 \end{figure}
 

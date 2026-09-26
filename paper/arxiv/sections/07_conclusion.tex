@@ -3,35 +3,25 @@
 
 This paper evaluates conditional-inference tree and forest rankings for top-$k$
 downstream prediction and proves fixed-node guarantees for the Stage~A and
-Stage~B permutation tests. The experiments support CIF as a top-$k$
-feature-ranking method, especially in classification: its rankings compare
-favorably with ctree, cforest, and CIT, and they remain competitive among
-stronger tree-ensemble baselines. CIF ranks tied 3rd of 17 in classification, behind RF-RFE and XGBoost and level
+Stage~B permutation tests. On 31 real datasets CIF is the strongest
+conditional-inference ranker in the study, ahead of cforest, ctree, and CIT.
+CIF ranks tied 3rd of 17 in classification, behind RF-RFE and XGBoost and level
 with RF; 2nd of 18 in regression, behind ExtraTrees. On the complete-case
 panels it is tied 6th and tied 5th, and the regression ordering is descriptive.
 
 The negative results are as clear. On the synthetic designs CIF sits in the
 lower half on recovery of the informative features, it is weakest at small $k$,
 and in sparse high-dimensional simulations forest feature sampling keeps
-informative features out of most splits.
-The high-$p$ and synthetic analyses add two diagnostic cautions: sparse
-forests should be checked for whether informative features are used in enough
-splits to enter the top-$k$ ranking, and CIF should not be treated as a
-first-feature discovery method when the goal is to identify a single driver.
-The corrections change which features
+informative features out of most splits. The corrections change which features
 are ranked more than how well the rankings predict. On the weak-signal designs
 the per-threshold rule replaces the high-cardinality preference of impurity
 importance with a smaller preference for binary features, close to neutral in
 classification and 0.09 above the reference in regression.
 
-The ablations separate runtime and ranking effects. Threshold scanning and
-bounded threshold search avoid large runtime increases, while the one-tree
-ablation has the largest ranking-quality loss. The cost of the corrections has
-two terms. Under the minimum budget the Stage~A
+The cost of the corrections has two terms. Under the minimum budget the Stage~A
 test needs of order $m_t^2/\alpha$ permutations per node and the per-threshold
 rule of order $K^2/\alpha$, which it needs in order to reject at all. The
 max-type rule reaches the nominal level with about $999K$ evaluations, loses
 0.006 in power at equal realized size, and moves CIF to 5th of 17 and 4th of
-18. Overall, these results support CIF as a feature-ranking method for downstream
-prediction, level with random forests in classification, backed by fixed-node
-results and benchmark evidence.
+18. Overall, the results support CIF as a top-$k$ feature-ranking method for
+downstream prediction, level with random forests in classification.

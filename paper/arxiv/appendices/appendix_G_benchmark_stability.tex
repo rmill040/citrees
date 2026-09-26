@@ -75,7 +75,7 @@ scores far lower there (mean $R^2$ 0.30 against 0.20).
   selection. Settings reports the number of distinct selected configurations;
   Main reports how often the main benchmark configuration is reselected. Ranks
   are computed within held-out datasets before averaging, so score order need
-  not match rank order. Entries are mean ranks over the panel datasets; the difference between the fixed and LODO columns is the reported sensitivity; no interval is given.}
+  not match rank order. Entries are mean ranks over the panel datasets; the difference between the fixed and LODO columns is the reported sensitivity.}
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
@@ -142,14 +142,14 @@ benchmark protocol. The 20 classification datasets are the 22 on which CIF and
 cforest are paired, less \nolinkurl{gisette} and \nolinkurl{letter}, which were not refit.
 
 \Cref{tab:cif-perm-check} gives the result. In classification the margin over
-cforest is unchanged, so it is not an importance-mechanism effect. In
+cforest is unchanged, so it persists under a common importance mechanism. In
 regression the medians agree ($+0.006$ over cforest, $-0.002$ against
 split-ranked CIF), and the negative means come from one dataset, coepra2
 ($n=76$, 5,144 predictors), on which every method has negative $R^2$. The
 conclusion is therefore stated for classification.
 
-Permutation importance computed on the training rows is the wrong comparator.
-On the 16 classification datasets that completed, it scores 0.10 below cforest
+Permutation importance computed on the training rows scores well below both
+rankings. On the 16 classification datasets that completed, it scores 0.10 below cforest
 and 0.12 below split-ranked CIF, with the loss concentrated on the small-$n$,
 high-$p$ datasets. On the high-$p$ datasets the refit's split ranking also
 overlaps the stored benchmark ranking poorly in the top ten (mean Jaccard 0.38
@@ -248,7 +248,7 @@ top 5.
   combinations (the five values of $k$ for one learner, or all 15 combinations);
   best and worst are its extreme positions over the 15 combinations; mean rank
   averages its dataset-level rank over datasets and combinations. The dataset
-  counts at $k=5,10,25,50,100$ are 21, 20, 14, 14, and 13. The spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
+  counts at $k=5,10,25,50,100$ are 21, 20, 14, 14, and 13. The spread across learner and $k$ columns is the reported sensitivity.}
   \label{tab:classification-learner-k-sensitivity}
 \end{table}
 
@@ -305,7 +305,7 @@ positions.
   combinations); best and worst are its extreme positions over the 15
   combinations; mean rank averages its dataset-level rank over datasets and
   combinations. The dataset counts at $k=5,10,25,50,100$ are 8, 8, 7, 7, and 6.
-  The spread across learner and $k$ columns is the reported sensitivity; no interval is given.}
+  The spread across learner and $k$ columns is the reported sensitivity.}
   \label{tab:regression-learner-k-sensitivity}
 \end{table}
 
@@ -387,7 +387,7 @@ follow the main benchmark order.
   all five seeds. Each seed column is the method's ordinal position after
   sorting methods by their averaged dataset-level ranks for that seed. Mean
   position averages those five ordinal positions; mean rank reports the averaged
-  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported sensitivity; no interval is given.}
+  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported sensitivity.}
   \label{tab:classification-seed-sensitivity}
 \end{table}
 
@@ -432,6 +432,6 @@ follow the main benchmark order.
   methods by their averaged dataset-level ranks for that seed; fractional
   positions indicate ties. Mean position
   averages those five ordinal positions; mean rank reports the averaged
-  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported sensitivity; no interval is given.}
+  dataset-level rank value itself. Lower values are better. The spread across seed columns is the reported sensitivity.}
   \label{tab:regression-seed-sensitivity}
 \end{table}

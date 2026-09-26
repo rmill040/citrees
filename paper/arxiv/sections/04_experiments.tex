@@ -131,8 +131,9 @@ conditional permutation importance (CPI)
 random-forest recursive feature elimination (RF-RFE)
 \citep{Guyon2002RFE,Pedregosa2011ScikitLearn}. CPI permutes each feature within
 five-bin percentile strata of the features whose absolute correlation with it
-is at least 0.5, and globally when there are none. A further comparator ranks
-the RF by out-of-bag permutation importance, which scores every training row.
+is at least 0.5, and globally when there are none. The RF is also ranked by
+out-of-bag permutation importance, which scores every training row, as an added
+comparator.
 
 Ranking rules use each method's natural score direction. Embedded tree and
 ensemble baselines, PI, and CPI rank features by decreasing importance.
@@ -175,11 +176,12 @@ features over $k = 5, 10, 25, 50,$ and $100$.
 \label{sec:experiments-ablations}
 
 The runtime ablation refits the selected CIT and CIF configurations on the
-runtime panel with one control changed at a time: adaptive stopping, feature
-scanning, threshold scanning, and feature muting are switched off; the two
-corrections are removed together; the 256-bin histogram is replaced by exact
-thresholds or, for CIF, by a 32-bin histogram; and, for CIF, bootstrap sampling
-is switched off and the max-type rule replaces the per-threshold rule. Both
+runtime panel with one control changed at a time. Adaptive stopping, feature
+scanning, threshold scanning, and feature muting are each switched off, and the
+two corrections are removed together. The 256-bin histogram is replaced by
+exact thresholds or, for CIF, by a 32-bin histogram. For CIF, bootstrap
+sampling is also switched off, and the max-type rule replaces the per-threshold
+rule. Both
 estimators are also refitted at the auto budget, with adaptive stopping and
 with no stopping, because the minimum budget leaves the stopping rule no room
 to act. Each dataset is fitted at five seeds, and every time is the second of
@@ -189,9 +191,9 @@ without the two corrections, and the forest with adaptive stopping off.
 
 To isolate which parts of the CIF ranking matter, a ranking ablation on the
 ablation panel holds the selected CIF configuration fixed and changes one
-component at a time: replacing fitted split importance with split counts,
-disabling feature muting, disabling bootstrap sampling, or reducing the forest
-to one tree. Each variant is evaluated with the same downstream learners,
+component at a time. The variants replace fitted split importance with split
+counts, disable feature muting, disable bootstrap sampling, or reduce the
+forest to one tree. Each variant is evaluated with the same downstream learners,
 folds, seeds, and standard top-$k$ values as the main benchmark, paired with the
 reference configuration within seed and fold.
 
@@ -210,15 +212,22 @@ five independent Gaussian predictors and an independent response, at
 $n\in\{100,200,500\}$, with 2,000 replicates per cell and seed. The rate covers
 the whole node decision, Stage~A followed by Stage~B.
 
+The power part fits a depth-one tree on five Gaussian predictors whose response
+depends on the first through a step at zero, with class-probability shift
+$\delta\in\{0.05,0.10,0.20\}$ in classification and mean shift
+$\delta\in\{0.2,0.4,0.8\}$ in regression, with 500 replicates per cell and seed.
+It records the rate of any split, the rate of a split on the planted predictor,
+and the error of the chosen threshold.
+
 The Stage-B-only study measures the threshold test by itself. It uses one
 Gaussian predictor, sets the Stage~A level to 1, and fits a depth-one tree at
 nominal Stage~B levels from 0.02 to 0.50, with 500 null replicates per cell,
 level, and seed over three seeds. It repeats the planted step of the power part
-with 200 replicates and compares power at matched realized size: within each
+with 200 replicates and compares power at matched realized size. Within each
 cell, power is interpolated to a common size of 0.05, or to the largest size
-both rules reach. Two reruns check that comparison: a fourth seed with 1,500
-null and 1,000 alternative replicates, and a design that moves the planted step
-from the median to the 85th percentile of the predictor.
+both rules reach. Two reruns check that comparison. One adds a fourth seed with
+1,500 null and 1,000 alternative replicates, and the other moves the planted
+step from the median to the 85th percentile of the predictor.
 
 The scaling part times one tree on ten Gaussian predictors with a planted linear
 signal in three of them, at $n\in\{1{,}000,4{,}000,16{,}000\}$, as the median of
@@ -227,13 +236,6 @@ three fits with a 1,200-second cap.
 The real-data part fits one tree on the six Stage~B real datasets at 256 bins
 with five-fold cross-validation, recording held-out score, tree depth, fitting
 time, and the Spearman agreement of the two rules' feature importances.
-
-The power part fits a depth-one tree on five Gaussian predictors whose response
-depends on the first through a step at zero, with class-probability shift
-$\delta\in\{0.05,0.10,0.20\}$ in classification and mean shift
-$\delta\in\{0.2,0.4,0.8\}$ in regression, with 500 replicates per cell and seed.
-It records the rate of any split, the rate of a split on the planted predictor,
-and the error of the chosen threshold.
 
 \subsection{Head-to-head timing and max-type extension}
 \label{sec:experiments-h2h}

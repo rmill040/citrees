@@ -147,8 +147,8 @@ root and muting removes only failed predictors. The forest grows 65 to 77 times
 for the 64-fold increase in $n$ and is flat or falling in $p$ under square-root
 feature sampling.
 
-Adaptive stopping is inert at the minimum budget (\cref{prop:adaptive-size})
-but not free. The adaptive-to-no-stopping time ratio is 1.02 to 1.28 for the
+Adaptive stopping is inert at the minimum budget (\cref{prop:adaptive-size}),
+but its checks still add time. The adaptive-to-no-stopping time ratio is 1.02 to 1.28 for the
 tree (median 1.07) and 0.95 to 1.18 for the forest (median 0.99). The adaptive
 path runs through the chunked sequential kernel, which carries a fixed per-test
 overhead. The tree overhead grows with $p$, from 1.02 to 1.07 at $p=20$ to 1.15

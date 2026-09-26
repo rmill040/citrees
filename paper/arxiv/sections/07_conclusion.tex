@@ -9,7 +9,7 @@ CIF ranks tied 3rd of 17 in classification, behind RF-RFE and XGBoost and level
 with RF; 2nd of 18 in regression, behind ExtraTrees. On the complete-case
 panels it is tied 6th and tied 5th, and the regression ordering is descriptive.
 
-The negative results are as clear. On the synthetic designs CIF sits in the
+The study also identifies weaknesses. On the synthetic designs CIF sits in the
 lower half on recovery of the informative features, it is weakest at small $k$,
 and in sparse high-dimensional simulations forest feature sampling keeps
 informative features out of most splits. The corrections change which features
@@ -18,7 +18,7 @@ the per-threshold rule replaces the high-cardinality preference of impurity
 importance with a smaller preference for binary features, close to neutral in
 classification and 0.09 above the reference in regression.
 
-The cost of the corrections has two terms. Under the minimum budget the Stage~A
+The corrections also set the permutation cost. Under the minimum budget the Stage~A
 test needs of order $m_t^2/\alpha$ permutations per node and the per-threshold
 rule of order $K^2/\alpha$, which it needs in order to reject at all. The
 max-type rule reaches the nominal level with about $999K$ evaluations, loses

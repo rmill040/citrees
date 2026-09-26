@@ -56,10 +56,10 @@ ranker in the study, ahead of cforest, ctree, and single CIT. CIF ranks tied
 3rd of 17 in classification, behind RF-RFE and XGBoost and level with RF; 2nd
 of 18 in regression, behind ExtraTrees. On the complete-case panels it is tied
 6th of 17 and tied 5th of 18, and the regression ordering is descriptive. The
-paper also reports where CIF is weaker: it sits in the lower half on synthetic
+paper also reports where CIF is weaker. It sits in the lower half on synthetic
 recovery, 8th of 15 and 11th of 16, and it is weakest at small $k$
 (\cref{sec:boundary,sec:synthetic-recovery}). It accounts for the cost of the
-corrections: under the minimum budget the Stage~A feature test costs of order
+corrections. Under the minimum budget the Stage~A feature test costs of order
 $m_t^2/\alpha$ permutations per node over $m_t$ features, and the per-threshold
 Stage~B rule of order $K^2/\alpha$ over $K$ candidate thresholds
 (\cref{sec:results-practical}). It adds a max-type Stage~B rule that reaches

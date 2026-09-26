@@ -9,7 +9,7 @@ terminal. In this paper, CIT denotes the resulting single-tree feature
 selection method. CIF denotes a bootstrap ensemble of such trees with feature
 sampling at each node and feature rankings formed by aggregating split
 importances across trees.
-CIF-all disables feature subsampling: every nonconstant available
+CIF-all disables feature subsampling, so every nonconstant available
 feature can enter Stage~A at each node. This changes the Stage~A feature set,
 the feature correction, and the per-node computational cost.
 
@@ -22,9 +22,8 @@ tree-growing algorithm, including any feature muting inherited from ancestors.
 Let $F_{t,\mathrm{nonconst}} \subseteq F_{t,\mathrm{avail}}$ be the features
 that are nonconstant on the node samples. After any feature
 subsampling, Stage~A considers a set
-$F_t \subseteq F_{t,\mathrm{nonconst}}$; its size $m_t=|F_t|$ is the
-denominator of the feature correction, the Bonferroni correction over the
-Stage~A tests at the node.
+$F_t \subseteq F_{t,\mathrm{nonconst}}$ of size $m_t=|F_t|$. The feature
+correction is the Bonferroni correction over these $m_t$ Stage~A tests.
 Any label-independent auxiliary randomness used by a selector, such as the
 random projections of the randomized dependence coefficient, is denoted by $U$
 and is held fixed in the fixed-node guarantee.
@@ -99,16 +98,16 @@ where $H$ is the chosen node impurity measure. This statistic is used
 in a left-tail test, and the full-scan fixed-$B$ rule chooses the threshold with
 the smallest Stage~B $P$-value, with uniform tie breaking. When threshold
 scanning is enabled, thresholds are tested in order of weighted child impurity
-and the search stops after the first rejecting threshold. Let
-$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/K$ when the threshold
-correction, the Bonferroni correction over the candidate thresholds, is enabled
-and $\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. Testing each
+and the search stops after the first rejecting threshold. The threshold
+correction is the Bonferroni correction over the $K$ candidate thresholds. Let
+$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/K$ when it is enabled and
+$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. Testing each
 candidate at $\tau_t^{\mathrm{split}}$ is the per-threshold rule. If no
 evaluated Stage~B $P$-value is below $\tau_t^{\mathrm{split}}$, the node becomes
 terminal. After a threshold passes the Stage~B test, the final minimum
 required-improvement check uses the corresponding weighted impurity decrease.
-Stage~B chooses the split used by the tree; the returned Stage~B score is not a
-valid post-selection $P$-value. The training skeleton in \cref{alg:citree}
+Stage~B chooses the split used by the tree, and the returned Stage~B score is
+a screening score rather than a valid post-selection $P$-value. The training skeleton in \cref{alg:citree}
 summarizes this flow and stores the two returned scores $q_t^{\mathrm{feat}}$
 and $q_t^{\mathrm{split}}$ at each split.
 
@@ -289,9 +288,9 @@ trees and then normalizes the forest vector in the same way. Stage~A
 determines which features enter threshold optimization, while impurity decrease
 scores only the accepted splits by their local reduction in impurity. Larger
 importances are ranked earlier, and features never used by a split receive zero
-importance. Those features follow in the tie order of the implementation,
-roughly ascending column order; every synthetic generator shuffles its planted
-columns, so that order carries no information.
+importance. Those features follow in the tie order of the implementation, which is close
+to ascending column order. Every synthetic generator shuffles its planted
+columns, so this order carries no information.
 
 This split-importance ranking differs from standard random-forest impurity
 importance in how a feature enters threshold search. In CART-style trees, the

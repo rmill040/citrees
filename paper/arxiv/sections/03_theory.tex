@@ -83,10 +83,10 @@ Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$, with t
 \end{corollary}
 
 Each $P_{t,c}$ is covered by \cref{lem:plusone-superuniform} in its left-tail
-form, and the union bound over the $K$ candidates gives the claim; it does not
-need the $P_{t,c}$ to be independent. Threshold scanning leaves the rejection
+form, and the union bound over the $K$ candidates gives the claim without requiring
+the $P_{t,c}$ to be independent. Threshold scanning leaves the rejection
 event unchanged. The scope is weak familywise control for a feature fixed
-without reference to $Y_t$; it is not a post-selection guarantee for the
+without reference to $Y_t$, rather than a post-selection guarantee for the
 Stage~A winner. A $+1$ $P$-value cannot fall below $1/(B+1)$, so the rule can
 reject only when $B \ge K/\alpha_{\mathrm{split}} - 1$.
 
@@ -96,8 +96,8 @@ Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$, with t
 \end{corollary}
 
 The proof is in \cref{app:proof-maxt}. The moments must include the observed
-row: estimating them from the permuted rows alone singles out that row and can
-be anti-conservative. The scope is that of \cref{cor:stageB-bonferroni}. It is a
+row, because estimating them from the permuted rows alone singles out that row
+and can be anti-conservative. The scope is that of \cref{cor:stageB-bonferroni}. It is a
 fixed-$B$ statement and does not cover the max-type rule with adaptive
 stopping, whose column moments move with the stopping time.
 
@@ -142,12 +142,13 @@ hypothesis on stopping reports at $\gamma=0.95$ and $s=32$ for every budget
 from 20 to 3{,}000 at $\alpha=0.05$. At $\alpha=0.05$,
 $\rho(0.05,0.95,32,999)=0.0488$, $\rho(0.05,0.95,32,52)=0.0377$ at the auto
 budget of 52 from \cref{eq:auto-budget}, and $\rho\le 0.0496$ for every $B$ from
-20 to 3{,}000; at $\gamma=0.80$, $\rho(0.05,0.80,32,999)=0.0522$. At the corrected
-levels $\rho$ stays below the level: at $\alpha/20$ it is $0.00249$ at the
+20 to 3{,}000. At $\gamma=0.80$, $\rho(0.05,0.80,32,999)=0.0522$.
+
+At the corrected levels $\rho$ stays below the level. At $\alpha/20$ it is $0.00249$ at the
 minimum budget of 400 and $0.00221$ at the auto budget of 3{,}144, and at
 $\alpha/257$ it is $0.000195$ at the minimum budget of 5{,}140 and $0.000181$ at
 the auto budget of 64{,}669. These values are for the strict rule the
-implementation uses; under the nonstrict convention the bound $\rho \le \alpha$
+implementation uses. Under the nonstrict convention the bound $\rho \le \alpha$
 fails at $B=79$, where $\rho=0.05001$.
 
 Under the minimum budget the first stopping check coincides with the full

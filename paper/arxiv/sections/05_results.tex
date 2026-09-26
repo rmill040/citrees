@@ -62,6 +62,10 @@ the regression ordering is a descriptive summary of 6 datasets.
 \Cref{app:benchmark-stability} breaks the ranking down by downstream learner,
 value of $k$, and seed.
 
+The per-dataset ranks show how CIF reaches this position. It is in the top
+half on 17 of 21 classification and 5 of 8 regression datasets, and in the top
+3 on 4 of 21 and 2 of 8.
+
 \begin{table}[!htbp]
   \centering
   \footnotesize
@@ -111,18 +115,14 @@ intervals for cforest and CIT cross it. Against the single trees, CIF beats RT
 on 21 of 23 classification datasets, while in regression both single-tree
 comparisons are close.
 
-CIF's position rests on breadth. It is in the top half on 17 of 21
-classification and 5 of 8 regression datasets, and in the top 3 on only 4 of
-21 and 2 of 8.
-
 \paragraph{Mechanism-matched check.}
 The margin over cforest mixes the importance mechanism with the way the trees
 are grown. Ranked by cforest's own out-of-bag permutation importance
 (\cref{app:cif-perm-check}), CIF leads cforest in classification by $+0.012$
 mean and $+0.006$ median balanced accuracy, with 15 wins in 20 datasets,
 against $+0.011$ for split-ranked CIF. The two CIF rankings differ by $+0.001$.
-The classification margin therefore does not come from the importance
-mechanism.
+The classification margin therefore persists when both forests use the same
+importance mechanism.
 
 \paragraph{Random forest ranked by out-of-bag permutation importance.}
 \Cref{tab:rf-oobperm-benchmark} adds the benchmark's 100-tree random forest
@@ -131,10 +131,9 @@ mechanism cforest uses. It ranks 8th of 18 in classification and 6th of 19 in
 regression, below the impurity-ranked forest and below CIF in both tasks, and
 above cforest in classification. With it present, CIF ranks 4th of 18 in
 classification (mean rank 6.38, behind RF at 6.19 and XGBoost at 6.24) and
-stays 2nd in regression. The permutation step is expensive at high dimension:
-a median 29 seconds per fold in classification and 127 in regression against
-0.2 seconds for the forest fit, and 43 and 32 minutes per fold on gisette and
-dexter.
+stays 2nd in regression. The permutation step takes a median 29 seconds per
+fold in classification and 127 in regression, against 0.2 seconds for the
+forest fit, and 43 and 32 minutes per fold on gisette and dexter.
 
 \begin{table}[!htbp]
   \centering
@@ -206,7 +205,7 @@ exclude zero, while their medians stay within 0.007 of zero. The three
   \label{tab:cif-ranking-ablation}
 \end{table}
 
-The RDC rankings are insensitive to the number of random projections: on four
+The RDC rankings change little with the number of random projections. On four
 small classification datasets, 20 instead of 10 projections took more than
 three times the selector time, changed mean balanced accuracy by at most
 0.0052, and kept at least 95.4\% mean overlap between the selected sets.
@@ -311,23 +310,24 @@ work terms it affects.
 At the benchmark's minimum budget, adaptive stopping is inert by construction
 (\cref{sec:theory-adaptive}). Switching it off leaves every tree unchanged, and
 the time ratios near 1 measure only the cost of the check. The result does not
-depend on how forest trees are scheduled: a forest with one worker and the
-full thread pool inside each tree gives 0.95 to 1.01. Where the rule can act,
-at the auto budget, it earns its place. Adaptive stopping brings the tree to
-0.14 to 0.37 and the forest to 0.11 to 0.25 of their no-stopping time, with
+depend on how forest trees are scheduled, since a forest with one worker and
+the full thread pool inside each tree gives 0.95 to 1.01.
+
+At the auto budget, where the rule can act, adaptive stopping brings the tree
+to 0.14 to 0.37 and the forest to 0.11 to 0.25 of their no-stopping time, with
 recovery changes of at most 0.030.
 
-The threshold scan is the control that matters most. Testing candidate
-thresholds in order of weighted child impurity and stopping at the first
-rejection makes trees 2.7 to 34 times and forests 7.9 to 30 times faster than
-testing every candidate. The candidate count is next: for the forest, exact
-threshold search is 1.3 to 19 times slower than the 256-bin histogram, and a
-32-bin histogram is 7 to 21 times faster, with downstream changes of at most
-0.009. Feature scanning matters most on the real regression datasets. The
+Of the runtime controls, the threshold scan has the largest effect. Testing
+candidate thresholds in order of weighted child impurity and stopping at the
+first rejection makes trees 2.7 to 34 times and forests 7.9 to 30 times faster
+than testing every candidate. The candidate count has the next largest effect.
+For the forest, exact threshold search is 1.3 to 19 times slower than the
+256-bin histogram, and a 32-bin histogram is 7 to 21 times faster, with
+downstream changes of at most 0.009. Feature scanning matters most on the real regression datasets. The
 max-type rule fits the forest in 0.14 to 0.61 of the reference time.
 
-Removing the two corrections is not a runtime control. It changes the
-statistical rule, deepens trees from a mean of 6.5 and 7.2 levels to 10.7 and
+Removing the two corrections changes the statistical rule as well as the
+fitting time. It deepens trees from a mean of 6.5 and 7.2 levels to 10.7 and
 13.4, and moves top-10 recovery by up to 0.063. The selected configuration
 keeps both corrections.
 
@@ -343,9 +343,11 @@ sets a large minimum budget for each feature test.
 \subsection{Stage~B construction comparison}
 \label{sec:results-stageB}
 
-Both Stage~B rules control the false-split rate. At matched realized size the
-max-type rule is 0.006 less powerful. It is cheaper once a node has many
-candidates, and it places the threshold slightly less precisely.
+This section compares the per-threshold and max-type Stage~B rules on size,
+power, threshold placement, cost, and the benchmark rankings. Both rules
+control the false-split rate. At matched realized size the max-type rule has
+slightly lower power, and it places the threshold slightly less precisely. It
+is cheaper once a node has many candidates.
 
 The complete-node false-split rate is below 0.05 for both rules in all 36
 design cells (\cref{tab:stageB-calibration}, \cref{app:stageB-tables}). These
@@ -426,16 +428,16 @@ At a common nominal level of 0.05, the max-type rule splits more often, by 0.03
 on average and up to 0.12 in the complete-node design (\cref{tab:stageB-power})
 and by 0.10 in the Stage-B-only study. The gap grows with the candidate count,
 0.015 at 16 bins, 0.029 at 64, and 0.049 at 256, because the per-threshold
-power falls as the threshold correction tightens. That gap is a size gap,
-not a power gap. What the max-type rule gains at a fixed nominal level is the
-size that the threshold correction gives up.
+power falls as the threshold correction tightens. The gap therefore reflects
+the lower realized size of the per-threshold rule, which the matched
+comparison above removes.
 
-The cost of the joint test is precision. On each rule's own detections, the
-max-type threshold sits a median 0.19 standard deviations from the planted cut
+The max-type rule places the threshold less precisely. On each rule's own
+detections, the max-type threshold sits a median 0.19 standard deviations from the planted cut
 against 0.15 for the per-threshold rule, and 87\% of its detections fall on
 the planted predictor against 90\%.
 
-The rules separate on cost (\cref{tab:stageB-scaling}). With no stopping and
+\Cref{tab:stageB-scaling} reports the cost of the two rules. With no stopping and
 256 bins, one classification tree under the per-threshold rule takes 3.5, 14,
 and 59 seconds at $n=1{,}000$, $4{,}000$, and $16{,}000$ (0.8, 8.8, and 54 in
 regression); the max-type rule takes 0.3, 1.4, and 6.3 seconds. The ratio grows
@@ -462,8 +464,8 @@ with no stopping on the four datasets whose nodes admit many candidates. It is
 16\% and 10\% slower on residential. Fitted depths agree within about one
 level (5.4 to 11.4 for the per-threshold rule, 4.8 to 12.4 for the max-type
 rule). The Spearman agreement of the two rules' feature importances is 0.36 to
-0.88, so the max-type rule produces a different ranking, not a faster route to
-the same one.
+0.88, so the max-type rule produces a different ranking rather than the same
+ranking at lower cost.
 
 In the head-to-head forest timing, the max-type rule is 10 to 27 times faster
 than the per-threshold rule on the synthetic cells at $n\le 8{,}000$ and 21 to
@@ -483,8 +485,8 @@ excluded from the per-threshold benchmark (\cref{app:methods}). Ranked on the
 all-method panels, the max-type forest moves from 3.5 to 5 of 17 in
 classification and from 2 to 4 of 18 in regression, and the max-type tree
 keeps its position in both tasks. The per-threshold rule is the higher of the
-two on 59 to 63\% of datasets. The max-type rule is therefore a cost and
-calibration choice, not a ranking gain.
+two on 59 to 63\% of datasets. The case for the max-type rule therefore rests
+on cost and calibration rather than on the rankings.
 
 \begin{table}[!htbp]
   \centering

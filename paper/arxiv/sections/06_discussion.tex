@@ -5,10 +5,10 @@ In these experiments, CIF is best supported as a top-$k$ feature-selection
 method for a downstream model. The benchmark asks whether a ranking places
 predictive features early enough for fixed downstream learners, and CIF does so
 at the level of random forests in classification. It is weaker at identifying
-the informative features themselves: its synthetic recovery is in the lower
+the informative features themselves. Its synthetic recovery is in the lower
 half, and its rankings are weakest at small $k$. Classification gives the
-clearest support; the regression ordering is descriptive. The fixed-node
-results provide the local guarantee; fitted tree and forest rankings are
+clearest support, and the regression ordering is descriptive. The fixed-node
+results give a local guarantee, and the fitted tree and forest rankings are
 assessed empirically.
 
 \paragraph{Guidance.}
@@ -29,12 +29,11 @@ histogram account for the largest measured changes, with small downstream score
 changes. On wide data the Stage~A test also matters, because the feature
 correction scales every feature's budget. Adaptive stopping is inert at the
 minimum budget and pays off only above it. The two corrections are part of the
-testing rule and are not runtime shortcuts: removing them changes the trees
-that are grown. For ranking quality, forest size matters more than the
+testing rule, and removing them changes the trees that are grown. For ranking quality, forest size matters more than the
 split-count and feature-muting variants tested here.
 
 The max-type rule is an opt-in alternative to the per-threshold rule. It
-removes the reverse cardinality bias and costs less once a node has more than
+reduces the reverse cardinality bias and costs less once a node has more than
 about 50 candidates. It changes which features the trees rank but moves the
 downstream scores only slightly (\cref{tab:maxt-benchmark-rankings}). The
 benchmark rankings use the default per-threshold rule.
@@ -53,7 +52,8 @@ subsampled or unsampled fits. The benchmarked trees and forests add
 response-dependent choice of nodes, the Stage~A winner as the feature tested at
 Stage~B, feature muting, bootstrap samples, and forest aggregation, so their
 behavior is assessed through the ranking benchmark. In a fitted tree the stored
-Stage~B score is a screening statistic, not a post-selection P-value.
+Stage~B score is a screening statistic rather than a post-selection
+$P$-value.
 
 Configurations were selected on the reporting datasets with unequal grid sizes
 (four for CIF, five for XGBoost, one for RF, ExtraTrees, CatBoost, and RF-RFE).

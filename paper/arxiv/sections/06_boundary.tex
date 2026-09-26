@@ -1,17 +1,17 @@
 \subsection{High-dimensional datasets and small \texorpdfstring{$k$}{k}}
 \label{sec:boundary}
 
-CIF is weakest in two places on real data. At small $k$ it ranks 7th or 8th of
-17 in classification on the complete-case panel
+On real data CIF ranks lowest at small $k$ and on wide datasets. At small $k$
+it ranks 7th or 8th of 17 in classification on the complete-case panel
 (\cref{fig:k-trajectory}). On wide datasets its scores peak before the full
 feature set. Across the 15 classification datasets with more than 100
 features, CIF first reaches its best score at an intermediate value of $k$
 ($100 < k < p$) in 29 of 45 dataset-learner combinations, and at the full
-feature set ($k=p$) in only 7 of 45.
+feature set ($k=p$) in 7 of 45.
 
 \Cref{fig:high-p-boundary} shows this pattern by downstream learner. Scores
 peak at intermediate $k$ on 8 of 15 LR datasets, 12 of 15 SVM datasets, and 9
-of 15 KNN datasets. The full feature set is mainly an LR exception. Moving
+of 15 KNN datasets. The full feature set helps mainly LR. Moving
 from $k=100$ to $k=p$ changes the LR score by $+0.026$ on average, and LR first
 reaches its best score at $k=p$ on 5 of 15 datasets. For SVM and KNN the mean
 changes are $-0.053$ and $-0.071$.
@@ -80,7 +80,7 @@ of 16 in regression and tied 7th of 15 in classification.
 \subsection{Mechanism: cardinality and feature use}
 \label{sec:mechanism}
 
-Three measurements examine how the split rule shapes a ranking: the
+Three measurements examine how the split rule shapes a ranking. They cover the
 preference for high-cardinality features, the size of each ranker's support,
 and the limit that feature sampling places on which features a forest can
 split on.
@@ -90,10 +90,10 @@ The weak-signal designs place 10 informative Gaussian features among
 500-level, binary, and Gaussian noise columns
 (\cref{tab:weak-signal-cardinality}). A ranker indifferent to cardinality would
 give each of the 500-level and binary noise types 25/60 of the top-ten places
-not taken by informative features. Two biases are in question: the preference
-of impurity importance for features with many possible thresholds, and the
-reverse cardinality bias of the per-threshold rule (\cref{sec:rank-construction}).
-Both appear. At the weakest signal, random forest impurity importance fills
+not taken by informative features. The designs can reveal two biases, and both
+appear. The first is the preference of impurity importance for features with
+many possible thresholds; the second is the reverse cardinality bias of the
+per-threshold rule (\cref{sec:rank-construction}). At the weakest signal, random forest impurity importance fills
 0.38 of its top ten with 500-level noise in both tasks, against a reference of
 0.24, and none with binary noise. Per-threshold CIF is close to the reference
 in classification (0.31 binary and 0.26 500-level against 0.29) and leans
@@ -101,11 +101,12 @@ toward binary noise in regression (0.40 binary and 0.24 500-level against
 0.31). The max-type rule brings the binary share to 0.26 in classification and
 0.30 in regression, against references of 0.28 and 0.27.
 
-Reducing the preference does not buy recovery. Random forest impurity
+A ranking with less cardinality preference does not recover more informative
+features in these designs. Random forest impurity
 importance places the most informative features in its top ten at every signal
 strength, and the downstream scores of all rankers are within 0.02 of each
 other at every signal. The same forest ranked by out-of-bag permutation
-importance keeps the preference: its 500-level share is above that of
+importance keeps the preference, with a 500-level share above that of
 impurity importance at the two weaker signals in both tasks. The benefit of a
 ranking closer to cardinality-neutral appears on predictors whose cardinality
 carries no signal, as in the clinical application of
@@ -168,11 +169,11 @@ The support of a ranker is the set of features that win at least one split.
 On the synthetic datasets, random forests give every feature nonzero
 importance on 15 of the 16 designs, and 800 of 1,000 on the 1,000-feature
 classification design. On 13 of the 16 designs, CIF's support keeps 90 to
-100\% of the planted features, so the support is a shortlist. Beyond it, a
+100\% of the planted features, so the support serves as a shortlist. Beyond it, a
 ranking orders the zero-importance features by the tie rule of
 \cref{sec:rank-construction}. For a single tree these filler features are most
-of any top-$k$ list: they are 52, 81, and 90\% of the CIT top 10, 25, and 50
-features, against 0, 3, and 14\% for CIF and none for random forests. This is
+of any top-$k$ list. They make up 52, 81, and 90\% of the CIT top 10, 25, and
+50 features, against 0, 3, and 14\% for CIF and none for random forests. This is
 consistent with single trees ranking near the bottom of the benchmark.
 
 \paragraph{Feature use in sampled forests.}
@@ -183,7 +184,7 @@ regression splits. Over the 12 classification forest designs, CIF uses
 informative features in 33.2\% of splits, against 91.7\% for CIF-all, 8.4\%
 for RF, and 6.5\% for ExtraTrees. RF and ExtraTrees grow to purity, so most of
 their splits are deep splits on noise, while CIF stops at the permutation
-test. The CIF-all gap reflects feature sampling: with 32 of 1,000 features
+test. The gap to CIF-all reflects feature sampling. With 32 of 1,000 features
 sampled at a node and two informative, an informative feature is a candidate
 at 6.3\% of nodes. In that design CIF uses one in 9.0\% of splits, RF in 2.7\%,
 ExtraTrees in 2.0\%, and CIF-all in 100.0\%. When the sampled subset holds no

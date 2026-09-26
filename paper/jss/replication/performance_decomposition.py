@@ -1,32 +1,39 @@
-"""Decompose the recommended forest's fitting time at the reference condition.
+"""Decompose the benchmark forest's fitting time at the performance reference condition.
 
-Table 5 of the JSS article reports the recommended single tree at 0.05 s and
-the recommended 100-tree forest at 21 s, while the exhaustive tree and forest
-take 1.6 and 6.3 s. This script fits the reference condition of the first
-performance study (1,000 observations, 50 Gaussian predictors, signal in the
-first five) under variants that isolate the sources of the forest's cost:
+The condition is the reference cell of the controlled performance study (1,000
+observations, 50 Gaussian predictors, signal in the first five). The benchmark
+configuration (minimum budgets, 256-bin histogram, per-threshold Bonferroni
+test) is fit under variants that isolate the sources of the forest's cost:
 
-* the recommended tree with all predictors and with square-root sampling;
-* the recommended forest fit serially (``n_jobs=1``) and in parallel;
-* the recommended forest without the threshold test, without the Bonferroni
+* the benchmark tree with all predictors and with square-root sampling;
+* the benchmark forest fit serially (``n_jobs=1``) and in parallel;
+* the benchmark forest without the threshold test, without the Bonferroni
   adjustment over candidate thresholds, and with the max-type test;
-* the exhaustive forest of Table 5 for reference.
+* the exhaustive tree and forest of the performance reference table.
 
-Every fit records wall time, mean tree depth, and mean internal node count,
-so the per-tree work can
-be compared with the single tree. Three repeats per variant after one warm-up.
+Every fit records wall time, mean tree depth (edges from the root to the deepest
+leaf, so a root-only tree has depth 0), and mean internal node count. Each
+variant is fit once as a warm-up and then timed ``repeats`` times. The ``full``
+profile is the manuscript protocol and requires a host with at least
+``REFERENCE_LOGICAL_CPUS`` logical CPUs; ``quick`` and ``smoke`` reduce the
+workload to validate the pipeline and make no timing claim.
 
-Usage: ``python -m paper.jss.replication.performance_decomposition --output-dir /out/decomp``
+Usage: ``python -m paper.jss.replication.performance_decomposition --profile full
+--output-dir <new directory>``
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
+import subprocess
+import sys
 import time
+from importlib import metadata
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import numba
 import numpy as np
@@ -38,11 +45,21 @@ from citrees import (
     ConditionalInferenceTreeClassifier,
     ConditionalInferenceTreeRegressor,
 )
+from paper.benchmark.utils import get_hardware_metadata
 
-N_SAMPLES, N_FEATURES, N_TREES, REPEATS = 1000, 50, 100, 3
+ANALYSIS: Final = "performance_decomposition"
+MODULE_PATH: Final = "paper/jss/replication/performance_decomposition.py"
+REPO_ROOT: Final = Path(__file__).resolve().parents[3]
+REFERENCE_LOGICAL_CPUS: Final = 32
 MAX_DEPTH, MIN_SAMPLES_SPLIT, MIN_SAMPLES_LEAF, ALPHA = 3, 20, 7, 0.05
 
-RECOMMENDED: dict[str, Any] = {
+PROFILES: Final[dict[str, dict[str, int]]] = {
+    "full": {"n_samples": 1000, "n_features": 50, "n_trees": 100, "repeats": 3},
+    "quick": {"n_samples": 1000, "n_features": 50, "n_trees": 20, "repeats": 1},
+    "smoke": {"n_samples": 200, "n_features": 10, "n_trees": 4, "repeats": 1},
+}
+
+BENCHMARK: Final[dict[str, Any]] = {
     "alpha_selector": ALPHA,
     "adjust_alpha_selector": True,
     "n_resamples_selector": "minimum",
@@ -62,7 +79,7 @@ RECOMMENDED: dict[str, Any] = {
     "min_samples_leaf": MIN_SAMPLES_LEAF,
     "verbose": 0,
 }
-EXHAUSTIVE: dict[str, Any] = {
+EXHAUSTIVE: Final[dict[str, Any]] = {
     "alpha_selector": ALPHA,
     "adjust_alpha_selector": True,
     "n_resamples_selector": 999,
@@ -82,8 +99,9 @@ EXHAUSTIVE: dict[str, Any] = {
     "verbose": 0,
 }
 
-# (variant, estimator kind, parameter overrides, forest n_jobs)
-VARIANTS: tuple[tuple[str, str, dict[str, Any], int | None], ...] = (
+# (variant, estimator kind, parameter overrides, forest n_jobs). The variant labels
+# are the row keys of the tracked table paper/results/tables/paper_performance_decomposition.csv.
+VARIANTS: Final[tuple[tuple[str, str, dict[str, Any], int | None], ...]] = (
     ("recommended tree, all predictors", "tree", {}, None),
     ("recommended tree, sqrt predictors", "tree", {"max_features": "sqrt"}, None),
     ("recommended forest, serial", "forest", {}, 1),
@@ -99,33 +117,42 @@ VARIANTS: tuple[tuple[str, str, dict[str, Any], int | None], ...] = (
     ("exhaustive tree, all predictors", "exhaustive-tree", {}, None),
     ("exhaustive forest, parallel", "exhaustive-forest", {}, -1),
 )
+SUMMARY_KEYS: Final = ["task", "variant", "kind", "n_jobs"]
 
 
-def make_dataset(task: str, seed: int) -> tuple[np.ndarray, np.ndarray]:
+def make_dataset(
+    task: str, n_samples: int, n_features: int, seed: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Gaussian predictors with a linear signal in the first five columns."""
     rng = np.random.default_rng(seed)
-    X = np.ascontiguousarray(rng.standard_normal((N_SAMPLES, N_FEATURES)), dtype=np.float64)
+    X = np.ascontiguousarray(rng.standard_normal((n_samples, n_features)), dtype=np.float64)
     coefficients = np.linspace(1.0, 0.25, 5, dtype=np.float64)
     signal = X[:, :5] @ coefficients
     if task == "classification":
-        latent = signal + rng.standard_normal(N_SAMPLES)
+        latent = signal + rng.standard_normal(n_samples)
         return X, (latent >= np.median(latent)).astype(np.int64)
-    y = signal + 0.5 * np.sin(X[:, 0]) + rng.standard_normal(N_SAMPLES)
+    y = signal + 0.5 * np.sin(X[:, 0]) + rng.standard_normal(n_samples)
     return X, np.ascontiguousarray(y, dtype=np.float64)
 
 
 def _internal_nodes(node: dict[str, Any]) -> int:
+    """Number of internal (split) nodes below and including ``node``."""
     if not node.get("left_child"):
         return 0
     return 1 + _internal_nodes(node["left_child"]) + _internal_nodes(node["right_child"])
 
 
 def _depth(node: dict[str, Any], d: int = 0) -> int:
+    """Edges from ``node`` to its deepest leaf."""
     children = [node[c] for c in ("left_child", "right_child") if node.get(c)]
     return max([_depth(c, d + 1) for c in children] + [d])
 
 
-def build(task: str, kind: str, overrides: dict[str, Any], n_jobs: int | None, seed: int) -> Any:
-    base = dict(EXHAUSTIVE if kind.startswith("exhaustive") else RECOMMENDED)
+def build(
+    task: str, kind: str, overrides: dict[str, Any], n_jobs: int | None, n_trees: int, seed: int
+) -> Any:
+    """Construct the estimator for one variant."""
+    base = dict(EXHAUSTIVE if kind.startswith("exhaustive") else BENCHMARK)
     base.update(overrides)
     base["selector"] = "mc" if task == "classification" else "pc"
     base["random_state"] = seed
@@ -135,7 +162,7 @@ def build(task: str, kind: str, overrides: dict[str, Any], n_jobs: int | None, s
             **base
         )
     forest = ConditionalInferenceForestClassifier if clf else ConditionalInferenceForestRegressor
-    extra: dict[str, Any] = {"n_estimators": N_TREES, "n_jobs": n_jobs}
+    extra: dict[str, Any] = {"n_estimators": n_trees, "n_jobs": n_jobs}
     if kind.startswith("exhaustive"):
         extra.update(max_features=None, bootstrap=True, max_samples=None)
         if clf:
@@ -143,7 +170,8 @@ def build(task: str, kind: str, overrides: dict[str, Any], n_jobs: int | None, s
     return forest(**base, **extra)
 
 
-def summarize(model: Any, kind: str, seconds: float) -> dict[str, Any]:
+def summarize_fit(model: Any, kind: str, seconds: float) -> dict[str, Any]:
+    """Per-fit wall time and tree-structure summaries."""
     trees = [model] if kind.endswith("tree") else list(model.estimators_)
     depths = [_depth(t.tree_) for t in trees]
     nodes = [_internal_nodes(t.tree_) for t in trees]
@@ -157,48 +185,127 @@ def summarize(model: Any, kind: str, seconds: float) -> dict[str, Any]:
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--seed", type=int, default=1718)
-    args = parser.parse_args()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+def summarize(raw: pd.DataFrame) -> pd.DataFrame:
+    """Median, range, and structure per variant: the tracked decomposition table's schema."""
+    return raw.groupby(SUMMARY_KEYS, as_index=False, sort=False, dropna=False).agg(
+        seconds_median=("seconds", "median"),
+        seconds_min=("seconds", "min"),
+        seconds_max=("seconds", "max"),
+        depth_mean=("depth_mean", "mean"),
+        internal_nodes_mean=("internal_nodes_mean", "mean"),
+        repeats=("seconds", "size"),
+    )
+
+
+def run(profile: dict[str, int], seed: int) -> pd.DataFrame:
+    """Fit every variant for both tasks and return one row per timed fit."""
     rows = []
     for task in ("classification", "regression"):
-        X, y = make_dataset(task, args.seed)
+        X, y = make_dataset(task, profile["n_samples"], profile["n_features"], seed)
         for variant, kind, overrides, n_jobs in VARIANTS:
-            build(task, kind, overrides, n_jobs, args.seed).fit(X, y)  # warm-up
-            for rep in range(REPEATS):
-                model = build(task, kind, overrides, n_jobs, args.seed + rep)
+            build(task, kind, overrides, n_jobs, profile["n_trees"], seed).fit(X, y)  # warm-up
+            for rep in range(profile["repeats"]):
+                model = build(task, kind, overrides, n_jobs, profile["n_trees"], seed + rep)
                 start = time.perf_counter()
                 model.fit(X, y)
-                row = {
+                row: dict[str, Any] = {
                     "task": task,
                     "variant": variant,
                     "kind": kind,
                     "n_jobs": n_jobs,
                     "repeat": rep,
                 }
-                row.update(summarize(model, kind, time.perf_counter() - start))
+                row.update(summarize_fit(model, kind, time.perf_counter() - start))
                 rows.append(row)
                 print(
                     f"{task[:3]} {variant}: {row['seconds']:.3f}s depth {row['depth_mean']:.2f} "
                     f"nodes {row['internal_nodes_mean']:.2f}",
                     flush=True,
                 )
-    frame = pd.DataFrame(rows)
-    frame.to_csv(args.output_dir / "performance_decomposition.csv", index=False)
-    meta = {
-        "numba_threads": numba.get_num_threads(),
+    return pd.DataFrame(rows)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _git(*args: str) -> str:
+    return subprocess.run(
+        ("git", *args), cwd=REPO_ROOT, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def write_receipt(
+    output_dir: Path,
+    profile_name: str,
+    seed: int,
+    hardware: dict[str, Any],
+    elapsed_seconds: float,
+    artifacts: list[Path],
+) -> None:
+    """Write the suite receipt: revision, environment, sources, and artifact hashes."""
+    receipt = {
+        "analysis": ANALYSIS,
+        "profile": profile_name,
+        "seed": seed,
+        "design": PROFILES[profile_name],
+        "git_sha": _git("rev-parse", "HEAD"),
+        "git_dirty": bool(_git("status", "--porcelain")),
+        "python": sys.version,
         "platform": platform.platform(),
-        "processor": platform.processor(),
-        "n_samples": N_SAMPLES,
-        "n_features": N_FEATURES,
-        "n_trees": N_TREES,
-        "repeats": REPEATS,
+        "hardware": {**hardware, "numba_threads": numba.get_num_threads()},
+        "elapsed_seconds": elapsed_seconds,
+        "versions": {
+            p: metadata.version(p)
+            for p in ("citrees", "numpy", "pandas", "scikit-learn", "scipy", "numba")
+        },
+        "source_sha256": {
+            MODULE_PATH: _sha256(REPO_ROOT / MODULE_PATH),
+            "pyproject.toml": _sha256(REPO_ROOT / "pyproject.toml"),
+            "uv.lock": _sha256(REPO_ROOT / "uv.lock"),
+        },
+        "artifacts": {p.name: {"sha256": _sha256(p), "bytes": p.stat().st_size} for p in artifacts},
     }
-    (args.output_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
-    print(frame.groupby(["task", "variant"], sort=False)["seconds"].median().to_string())
+    (output_dir / "receipt.json").write_text(
+        json.dumps(receipt, indent=2, sort_keys=True, ensure_ascii=True) + "\n", encoding="ascii"
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", choices=tuple(PROFILES), default="full")
+    parser.add_argument("--seed", type=int, default=1718)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    args = parser.parse_args()
+    hardware = get_hardware_metadata()
+    if args.profile == "full" and int(hardware["logical_cpus"]) < REFERENCE_LOGICAL_CPUS:
+        raise RuntimeError(
+            f"the full profile requires {REFERENCE_LOGICAL_CPUS} logical CPUs; "
+            f"this host has {hardware['logical_cpus']}"
+        )
+    if args.output_dir.exists():
+        raise FileExistsError(f"output directory already exists: {args.output_dir}")
+    started = time.perf_counter()
+    raw = run(PROFILES[args.profile], args.seed)
+    args.output_dir.mkdir(parents=True)
+    raw_path = args.output_dir / "performance_decomposition.csv"
+    summary_path = args.output_dir / "performance_decomposition_summary.csv"
+    raw.to_csv(raw_path, index=False)
+    summary = summarize(raw)
+    summary.to_csv(summary_path, index=False)
+    write_receipt(
+        args.output_dir,
+        args.profile,
+        args.seed,
+        hardware,
+        time.perf_counter() - started,
+        [raw_path, summary_path],
+    )
+    print(summary.set_index(["task", "variant"])["seconds_median"].to_string())
 
 
 if __name__ == "__main__":

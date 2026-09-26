@@ -93,6 +93,18 @@ ANALYSES = (
         expected_analysis="threshold_test",
         profiled=True,
     ),
+    AnalysisSpec(
+        name="performance_decomposition",
+        module="paper.jss.replication.performance_decomposition",
+        expected_analysis="performance_decomposition",
+        profiled=True,
+    ),
+    AnalysisSpec(
+        name="head_to_head_timing",
+        module="paper.jss.replication.head_to_head_timing",
+        expected_analysis="head_to_head_timing",
+        profiled=True,
+    ),
 )
 
 AnalysisRunner = Callable[

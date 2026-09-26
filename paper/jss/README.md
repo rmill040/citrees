@@ -38,6 +38,8 @@ affiliation is Amazon Web Services.
 | Tutorial                | Demonstrate the estimator interface in an executable workflow                                  | Breast Cancer Wisconsin Diagnostic data                         |
 | RDC sensitivity         | Measure the accuracy, ranking stability, and runtime effect of random projection count         | 5, 10, 20, and 40 projections on four small datasets            |
 | Threshold test          | Compare Bonferroni and max-type split tests: null calibration, scaling, six real datasets      | mc and pc selectors, adaptive and exhaustive stopping           |
+| Cost decomposition      | Attribute the benchmark forest's fitting time at the performance reference condition           | Serial, parallel, threshold test off, adjustment off, max-type  |
+| Head-to-head timing     | Time 100-tree forests end to end on synthetic and real classification data                     | `citrees`, `partykit::cforest`, scikit-learn                    |
 | Broad benchmark context | Summarize the corrected benchmark without duplicating it                                       | Final arXiv v2 artifacts                                        |
 
 The primary biomedical application is the public NHANES 2021-2023 survey. The
@@ -86,8 +88,21 @@ The suite provides three profiles:
   workload.
 - `quick` retains the datasets, metric definitions, output schemas, and
   validation rules with reduced folds and computational budgets.
-- `full` rebuilds the manuscript analyses and computational measurements and may
-  require parallel hardware.
+- `full` rebuilds the manuscript analyses and computational measurements. The
+  cost decomposition and head-to-head timing children refuse to run their `full`
+  profile on a host with fewer than 32 logical CPUs, and the head-to-head child
+  also needs R and `partykit`. `smoke` and `quick` make no timing claim.
+
+The wall-clock time and hardware of each profile come from the execution
+receipts under `paper/jss/results/`. The `full` controlled-performance analysis
+ran as 88 shards on EC2 c6a.8xlarge hosts (32 logical CPUs, AMD EPYC 7R13,
+x86_64 Linux): 62,663 seconds (about 17.4 hours) from first launch to last
+receipt, and 637,756 seconds (about 177 hours) of summed shard time, with single
+shards taking from 47 to 16,807 seconds. The `full` NHANES and threshold-test
+analyses ran on x86_64 Linux EC2 hosts; their wall-clock time is not recorded.
+For the `full` calibration, matched-behavior, tutorial, RDC sensitivity, cost
+decomposition, and head-to-head timing analyses, and for every `smoke` and
+`quick` run, wall-clock time and hardware are not recorded.
 
 The RDC sensitivity child uses all four projection counts and five folds in
 every profile. `smoke` uses Wine with seed 0, `quick` uses Wine, Glass, Heart
@@ -112,18 +127,20 @@ uv run python -m paper.jss.replication --profile full \
 ```
 
 The command dispatches calibration, matched behavior, controlled performance,
-tutorial, NHANES application, RDC projection-sensitivity, and threshold-test
-analyses. It verifies each child receipt and artifact hash before atomically
-publishing the combined output directory. Use `--output-dir` for a new
-destination; an existing destination is rejected to prevent results from
-different executions from being mixed. The full profile also requires a clean
-Git worktree and rejects source changes during execution.
+tutorial, NHANES application, RDC projection-sensitivity, threshold-test, cost
+decomposition, and head-to-head timing analyses. It verifies each child receipt
+and artifact hash before atomically publishing the combined output directory.
+Use `--output-dir` for a new destination; an existing destination is rejected to
+prevent results from different executions from being mixed. The full profile
+also requires a clean Git worktree and rejects source changes during execution.
 
-Run the RDC child independently with the same new-directory rule:
+Run any child independently with the same new-directory rule, for example:
 
 ```bash
 uv run python -m paper.jss.replication.rdc_sensitivity --profile smoke \
   --output-dir paper/jss/results/rdc-sensitivity-smoke
+uv run python -m paper.jss.replication.head_to_head_timing --profile smoke \
+  --output-dir paper/jss/results/head-to-head-smoke
 ```
 
 The NHANES inputs are 15 public SAS transport files (14 MB) downloaded from the
@@ -163,19 +180,64 @@ versions, artifact hashes, schemas, row inventories, and execution contexts. The
 combined output includes the shard receipts used to construct each final
 analysis.
 
-## Head-to-head timing protocol
+## Head-to-head timing and cost decomposition
 
-`paper/jss/replication/head_to_head_timing.py` is the protocol behind the
-real-data and scaling performance tables: 100-tree forests, fit-only wall-clock
-time in a fresh child process per fit, six configurations (recommended
-`citrees`, without the threshold adjustment, with the max-type test, `partykit`
-cforest on 1 and 32 cores, scikit-learn RF), 30 cells (20 synthetic, 10 real),
-two repeats (one on letter, isolet, gisette), run inside the pinned image on
-c6a.8xlarge hosts. It writes one JSON record per fit; the 2026-09-13 run is
-summarized in `paper/results/tables/paper_h2h_rerun_summary.csv` and the
-2026-09-21 one-pass run of both libraries, the source of Tables 6 and 7, in
-`paper/results/tables/paper_h2h_onepass_summary.csv`. It is a scratch-style
-protocol, not part of the receipted replication suite.
+`paper/jss/replication/head_to_head_timing.py` produces the head-to-head timing
+tables: fit-only wall-clock time of 100-tree classification forests, one fresh
+child process per fit, for six configurations (the benchmark `citrees`
+configuration, the same without the Bonferroni adjustment over candidate
+thresholds, the same with the max-type test, `partykit::cforest` on 1 and 32
+cores, and a scikit-learn random forest). The `full` profile covers 30 cells (20
+synthetic, 10 real) with two repeats per cell and one on letter, isolet, and
+gisette, and censors a fit after 1,200 seconds. It runs the cells serially on
+one host; `--shard-index` and `--num-shards` split the fits round-robin across
+hosts outside the suite. The child writes one row per fit
+(`head_to_head_raw.csv`) and the median per cell and configuration
+(`head_to_head_summary.csv`), the schema of the tracked
+`paper/results/tables/paper_h2h_onepass_summary.csv` behind the tables. The
+tracked summary has no scikit-learn column.
+
+`paper/jss/replication/performance_decomposition.py` produces the cost
+decomposition table: the benchmark tree and forest at the controlled-performance
+reference condition (1,000 observations, 50 predictors, 100 trees, three timed
+repeats) under variants that isolate the cost of parallel execution, the
+threshold test, its Bonferroni adjustment, and the max-type test, next to the
+exhaustive tree and forest. Its summary has the schema of the tracked
+`paper/results/tables/paper_performance_decomposition.csv`.
+
+## Tables the suite does not regenerate
+
+The following tracked CSVs under `paper/results/tables/` come from EC2 runs of
+suite children with an analysis switch set, outside the suite command. The
+builder `uv run python paper/analysis/build_review3_tables.py` aggregates them
+from the raw outputs under `../data/review3/results/` and `../data/review4/`,
+which are archived in the project's reference release under
+`reference/v3/ablations/review3/` and `reference/v3/ablations/review4/`. The
+suite receipts do not record the switches.
+
+- The false-split and Stage-B-only tables of the per-threshold rule without the
+  adjustment over candidates (`paper_noadjust_calibration.csv`,
+  `paper_noadjust_stageb.csv`):
+  `threshold_test --profile full --tests bonferroni_unadjusted` with
+  `--studies calibration` and `--studies stageb`.
+- The matched-behavior positive control with feature and threshold scanning on
+  (`paper_behavior_scanning_control.csv`): the behavior shards with
+  `CITREES_BEHAVIOR_SCANNING=1`.
+- The NHANES shuffled-column controls (`paper_nhanes_controls.csv`):
+  `nhanes_diabetes --profile full` with `CITREES_NHANES_CONTROLS=1`, and again
+  with `CITREES_NHANES_REDRAW=1` for the per-repeat redraw.
+- The equal-work exhaustive rows of the controlled-performance table
+  (`paper_performance_equal_work.csv`): the 88 performance shards with
+  `CITREES_PERF_EQUAL_WORK=1`, plus the second-fit reruns of the equal-work
+  citrees arm and of `partykit` at its own budget. The controlled-performance
+  table is therefore regenerated by the suite except for these rows.
+- The cost decomposition (`paper_performance_decomposition.csv`): the tracked
+  copy is the builder's aggregation of an EC2 run of the decomposition child;
+  the suite regenerates it directly.
+
+The head-to-head timing tables are regenerated by the suite's head-to-head
+child; the tracked `paper_h2h_onepass_summary.csv` has no builder in the
+repository.
 
 ## Manuscript
 

@@ -1,331 +1,161 @@
 \section{Runtime and memory accounting}
 \label{app:complexity-details}
 
-The runtime terms behind the ablations in \cref{sec:results-practical} are
-counted node by node: the scans, copies, and feature or threshold tests actually
-reached. A node-by-node sum is needed because feature pools, node sizes, threshold
-counts, and stopping times vary across the tree.
+The runtime of a fit is the sum, over realized nodes, of the scans, copies, and
+tests each node reaches. Feature pools, node sizes, candidate counts, and
+stopping times all vary across the tree, so the accounting is node by node.
 
-Let $n$ be the training sample count and let $p$ be the number of features. At
-node $t$, let $n_t$ be the number of samples reaching the node. Using the
-notation of \cref{sec:stageA-stageB}, write $a_t=|F_{t,\mathrm{avail}}|$ and
-$d_t^{\mathrm{const}}=|F_{t,\mathrm{avail}}\setminus
-F_{t,\mathrm{nonconst}}|$. After constant feature pruning and any
-feature subsampling, Stage~A considers $F_t$, with
-$m_t=|F_t|$. Let $d_t^{\mathrm{mute}}$ be the number of tested Stage~A features
-removed from the descendant feature pool by feature muting;
-if feature muting is disabled, $d_t^{\mathrm{mute}}=0$.
+\paragraph{Notation.}
+Let $n$ be the training sample count and $p$ the number of features. At node
+$t$, $n_t$ samples arrive, $a_t=|F_{t,\mathrm{avail}}|$ features are available,
+$d_t^{\mathrm{const}}$ of them are constant at the node, and Stage~A considers
+$m_t=|F_t|$ features after pruning and subsampling. Feature muting removes
+$d_t^{\mathrm{mute}}$ tested features from the descendant pool. When Stage~B is
+reached, $\tilde{K}_t$ thresholds are generated for $j_t^\star$ and
+$K_t\le\tilde{K}_t$ remain after the minimum leaf size filter. Let
+$C^{\mathrm{sel}}_j(n_t)$ be the cost of one Stage~A statistic and
+$C^{\mathrm{split}}(n_t)$ the cost of one weighted child impurity, excluding
+label copies, shuffles, and masks. Both are linear in $n_t$ for the MC selector
+with Gini splitting and the PC selector with MSE splitting. The RDC costs
+$O(n_t\log n_t)$ for fixed projection count, and distance correlation costs
+$O(n_t\log n_t)$ or $O(n_t^2)$ depending on the backend.
 
-Stage~B is reached only when Stage~A returns a selected feature $j_t^\star$:
-either the Stage~A permutation feature test rejects or selector permutation
-testing is disabled. If Stage~B is reached, let $\tilde{h}_t$ be the number of
-thresholds generated for $j_t^\star$ before any
-minimum leaf size filtering. Let
-$h_t=|C_{t,j_t^\star}|\le \tilde{h}_t$ be the number of valid thresholds that
-remain after this filtering; if no filtering is applied, $h_t=\tilde{h}_t$.
+\paragraph{Where each runtime control enters.}
+Feature subsampling caps $m_t$, the Stage~A testing width, but not the
+constant-feature pass over all $a_t$ available features. Feature muting shrinks
+$a_u$ and $m_u$ at descendants $u$ at a cost of $O(a_t d_t^{\mathrm{mute}})$
+index updates at $t$. Histogram and other bounded threshold methods reduce
+$\tilde{K}_t$ when their cap is below the number of midpoints; exact search and
+features with at most four unique values use all midpoints. Adaptive stopping,
+feature scanning, and threshold scanning reduce work only when they shorten the
+realized path; the worst case is still every feature, every threshold, and the
+full budget, and scanning pays for a prescan. With the corrections enabled, a
+stage with $n_{\mathrm{tests}}$ tests ($m_t$ in Stage~A, $K_t$ in Stage~B) at
+nominal level $\alpha_{\mathrm{stage}}$ tests each at
+$\alpha_{\mathrm{adj}}=\alpha_{\mathrm{stage}}/n_{\mathrm{tests}}$. The minimum
+budget is then $\lceil n_{\mathrm{tests}}/\alpha_{\mathrm{stage}}\rceil$, the
+maximum budget is about $n_{\mathrm{tests}}^2/(4\alpha_{\mathrm{stage}}^2)$,
+and the auto budget of \cref{eq:auto-budget} is 52 at
+$\alpha_{\mathrm{adj}}=0.05$, 3{,}144 at $0.05/20$, and 64{,}669 at $0.05/257$.
+An explicit integer budget is multiplied by $n_{\mathrm{tests}}$. Forest size
+sets the number of tree fits, and the bootstrap sample size sets the root size
+of each tree.
 
-Let $C^{\mathrm{sel}}_j(n_t)$ be the cost of the Stage~A statistic for feature
-$j$ at node size $n_t$, excluding the label copies and shuffles counted
-separately below. For a list of selectors, this denotes the cost of evaluating
-the selector statistics for one observed or permuted draw and taking their
-common-scale maximum. Let
-$C^{\mathrm{split}}(n_t)$ be the cost of one Stage~B impurity statistic after
-the threshold mask and child-label slices have been formed; the mask, slice,
-label shuffle, and copy overhead is counted separately below. For the
-multiple-correlation selector with Gini splitting in classification and the
-Pearson-correlation selector with MSE splitting in regression, these statistic
-evaluations are linear in $n_t$ for a fixed number of classes. The randomized
-dependence coefficient (RDC) is $O(n_t\log n_t)$ for fixed random-projection and
-class counts. For distance correlation and mutual information, the cost depends
-on the backend used by $C^{\mathrm{sel}}_j(n_t)$: distance correlation may cost
-$O(n_t\log n_t)$ or $O(n_t^2)$, and mutual information is delegated to
-scikit-learn.
-
-\paragraph{How runtime hyperparameters enter the accounting.}
-\begin{itemize}
-  \item \textbf{Feature subsampling.} This caps $m_t$ and therefore the
-  Stage~A testing width. It does not cap the constant feature preprocessing pass
-  over all $a_t$ available features. Feature-set construction and random
-  ordering add at most linear overhead in the local available feature count.
-  \item \textbf{Feature muting.} This can shrink $a_u$ and $m_u$ at descendant
-  nodes $u$. It can also add $O(a_t d_t^{\mathrm{mute}})$ feature index updates
-  at the current node when tested features whose Stage~A $p$-values do not
-  reject are removed.
-  \item \textbf{Threshold-search method and threshold cap.}
-  Non-exact threshold methods can reduce the returned pre-filter threshold set
-  $\tilde{h}_t$ when the configured cap is active. Exact search and the fallback
-  for features with at most four unique values use all midpoints.
-  \item \textbf{Adaptive stopping, feature scanning, and threshold scanning.}
-  These reduce work only when they shorten the actual stopping path. They may
-  change feature or threshold order and reduce the number of tested features,
-  tested thresholds, or permutation draws, but the worst case is still all
-  features or thresholds and the full budget. Feature and threshold scanning
-  pay for a prescan so that likely features or thresholds are tried earlier,
-  which shortens realized runtime only when the shorter stopping path offsets
-  the prescan. Bonferroni is separate because it changes the statistical rule.
-  \item \textbf{Bonferroni correction and resampling presets.} When Bonferroni
-  correction is enabled, the nodewise threshold is divided by the number of
-  tests in that stage. Write $r_{\mathrm{tests}}$ for this count ($m_t$ in
-  Stage~A and $h_t$ in Stage~B) and
-  $\alpha_{\mathrm{stage}}\in\{\alpha_{\mathrm{sel}},\alpha_{\mathrm{split}}\}$
-  for the corresponding nominal level. Named resampling presets compute the
-  permutation budget at the stricter threshold
-  $\alpha_{\mathrm{stage}}/r_{\mathrm{tests}}$: the \emph{minimum} budget scales
-  like $r_{\mathrm{tests}}/\alpha_{\mathrm{stage}}$, the \emph{maximum} budget
-  is $\lceil r_{\mathrm{tests}}^2/(4\alpha_{\mathrm{stage}}^2)\rceil$ up to
-  rounding, and the \emph{auto} budget at the adjusted level
-  $\alpha_{\mathrm{adj}}=\alpha_{\mathrm{stage}}/r_{\mathrm{tests}}$ is
-  $\max\{\lceil 1/\alpha_{\mathrm{adj}}\rceil,\ \lceil z^2(1-\alpha_{\mathrm{adj}})/\alpha_{\mathrm{adj}}\rceil\}$
-  with $z$ the upper $\alpha_{\mathrm{adj}}$ quantile of the standard normal,
-  which gives 52 permutations at $\alpha_{\mathrm{adj}}=0.05$, 3{,}144 at
-  $0.05/20$, and 64{,}669 at $0.05/257$. For an explicit integer budget, the budget is
-  multiplied by $r_{\mathrm{tests}}$.
-  \item \textbf{Bootstrap sample size, forest size, and worker count.} The
-  bootstrap sample-size control affects the requested or capped bootstrap sample
-  size, the forest size sets the number of tree fits, and the worker count
-  affects parallel scheduling and memory pressure.
-\end{itemize}
-
-\paragraph{Per-node accounting.}
-At each node, the tree builder first checks whether it must stop, including
-whether all labels are equal, and computes the leaf value if it stops. This
-costs $O(n_t)$ at every node. If the node can split, the builder scans all
-available features and removes features that are constant at the node. This
-costs $O(a_t n_t)$ for the data scan. Updating the array of available feature
-indices costs another $O(a_t d_t^{\mathrm{const}})$ for constant feature
-removals in the dense matrix algorithm, with worst case $O(a_t^2)$ if many
-available features are constant at the same node. This pruning occurs before
-feature subsampling, so subsampling caps Stage~A width but not the
-initial constant feature scan.
-
-Let $\mathcal{J}_t$ be the Stage~A features whose score or permutation test is
-evaluated before any feature-level early stop. With Stage~A permutation tests,
-this is the evaluated subset $E_t$ from \cref{sec:stageA-stageB}. It does not
-include the optional feature-scanning prescan, which is counted separately. Let
-$b^{\mathrm{sel}}_{t,j}$ be the number of permutation draws actually used for
-feature $j$; when permutation tests are not run, take
-$b^{\mathrm{sel}}_{t,j}=0$. The Stage~A testing work is
+\paragraph{Per-node work.}
+Every node pays $O(n_t)$ for the stopping checks and leaf value. A node that can
+split scans the available features for constants, at $O(a_t n_t)$, and removes
+them, at $O(a_t d_t^{\mathrm{const}})$. Let $\mathcal{J}_t$ be the Stage~A
+features whose test is evaluated before the scan stops, and
+$b^{\mathrm{sel}}_{t,j}$ the permutations drawn for feature $j$. The Stage~A
+work is
 \begin{equation}
   S^{\mathrm{A}}_t
-  =
-  O\!\left(
-    \sum_{j \in \mathcal{J}_t}
+  = O\!\left(\sum_{j \in \mathcal{J}_t}
       \bigl(b^{\mathrm{sel}}_{t,j}+1\bigr)
-      \bigl(C^{\mathrm{sel}}_j(n_t)+n_t\bigr)
-  \right),
+      \bigl(C^{\mathrm{sel}}_j(n_t)+n_t\bigr)\right),
 \end{equation}
-where the $+1$ accounts for the observed statistic and the $n_t$ term accounts
-for label copies, shuffles, and other per-draw linear overhead inside the
-permutation test. Feature scanning, when enabled, computes prescan scores and
-sorts features (it does not depend on early stopping), adding
-\begin{equation}
-  G^{\mathrm{A}}_t
-  =
-  O\!\left(
-    \sum_{j \in F_t} C^{\mathrm{scan}}_j(n_t)
-    + m_t \log m_t
-  \right),
-\end{equation}
-where $C^{\mathrm{scan}}_j$ is the selector-score cost used for ordering. If
-feature muting removes tested features whose Stage~A $p$-values do not reject,
-updating the descendant available feature array adds
-$O(a_t d_t^{\mathrm{mute}})$ work at the current node.
+where the $+1$ is the observed statistic and the $n_t$ term covers label
+copies and shuffles. Feature scanning adds
+$O(\sum_{j\in F_t} C^{\mathrm{sel}}_j(n_t) + m_t\log m_t)$ for the prescan and
+sort.
 
-Stage~B first builds thresholds for the selected feature. An upper
-bound is $O(n_t\log n_t)$, because unique values are computed and sorted before
-threshold caps are applied. If the minimum leaf size is greater than one,
-filtering adds $O(n_t\log n_t+\tilde{h}_t\log n_t)$ for the feature sort and
-threshold lookups. Bounded non-exact methods reduce $\tilde{h}_t$ only when the
-effective cap is below the number of available midpoints; with few unique values
-or no effective cap, all available midpoints can remain in the threshold set.
-They do not remove the initial unique-value pass.
-
-Let $\mathcal{C}^{\mathrm{eval}}_t \subseteq C_{t,j_t^\star}$ be the retained
-Stage~B thresholds whose permutation test or non-permutation split score is
-evaluated before any threshold-level early stop. Let
-$b^{\mathrm{split}}_{t,c}$ be the corresponding realized permutation count;
-when splitter permutation tests are not run, take
-$b^{\mathrm{split}}_{t,c}=0$. The Stage~B testing work is
+Stage~B builds the thresholds of the selected feature in $O(n_t\log n_t)$,
+because unique values are sorted before any cap applies. Let
+$\mathcal{C}^{\mathrm{eval}}_t$ be the thresholds tested before the scan stops,
+and $b^{\mathrm{split}}_{t,c}$ the permutations drawn at threshold $c$. The
+Stage~B work is
 \begin{equation}
   S^{\mathrm{B}}_t
-  =
-  O\!\left(
-    \sum_{c \in \mathcal{C}^{\mathrm{eval}}_t}
+  = O\!\left(\sum_{c \in \mathcal{C}^{\mathrm{eval}}_t}
       \bigl(b^{\mathrm{split}}_{t,c}+1\bigr)
-      \bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)
-  \right).
+      \bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)\right),
 \end{equation}
-In $S^{\mathrm{B}}_t$, the added $n_t$ term accounts for forming or applying
-threshold masks, child-label slices, label copies, and shuffles for each
-observed or permuted draw.
+where the $n_t$ term covers masks, child-label slices, copies, and shuffles.
 The two Stage~B rules differ in how the budget enters this sum. The
-per-threshold rule tests each evaluated threshold at the threshold correction
-$\alpha_{\mathrm{split}}/h_t$, so at the \texttt{minimum} budget each test uses
-at most $\lceil h_t/\alpha_{\mathrm{split}}\rceil$ permutations and
+per-threshold rule tests each threshold at $\alpha_{\mathrm{split}}/K_t$, so at
+the minimum budget each test draws $\lceil K_t/\alpha_{\mathrm{split}}\rceil$
+permutations and
 \[
   S^{\mathrm{B}}_t
   = O\!\left(|\mathcal{C}^{\mathrm{eval}}_t|\,
-      \lceil h_t/\alpha_{\mathrm{split}}\rceil
+      \lceil K_t/\alpha_{\mathrm{split}}\rceil
       \bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)\right),
 \]
-which grows with the square of the candidate count when every threshold is
-evaluated. The max-type rule draws one set of $B$ permutations shared by all
-$h_t$ candidates and evaluates every candidate on each of the $B+1$ response
-vectors, so
+which is quadratic in the candidate count when every threshold is tested. The
+max-type rule draws one set of $B$ permutations for all $K_t$ candidates, so
 \[
   S^{\mathrm{B}}_t
-  = O\!\left((B+1)\,h_t\,\bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)\right),
+  = O\!\left((B+1)\,K_t\,\bigl(C^{\mathrm{split}}(n_t)+n_t\bigr)\right),
 \]
-which is linear in the candidate count at a fixed $B$.
-Under splitter early stopping, threshold ordering has two paths. If threshold
-scanning is enabled, it uses weighted child impurity as an ordering score and
-adds $O(h_t(C^{\mathrm{split}}(n_t)+n_t) + h_t\log h_t)$. If threshold scanning
-is disabled, the retained thresholds are still randomly permuted, adding
-$O(h_t)$. These ordering steps are separate from the
-permutation $p$-value computation.
+which is linear in the candidate count at fixed $B$. Threshold scanning adds
+$O(K_t(C^{\mathrm{split}}(n_t)+n_t) + K_t\log K_t)$ for ordering. An accepted
+split copies the node data into two child matrices with all $p$ columns, at
+$O(n_t p)$. Nodes that become leaves after Stage~A or Stage~B keep the work
+already done and allocate no children.
 
-Finally, if Stage~B accepts a split and the impurity decrease is large enough,
-the dense matrix tree builder creates left and right child matrices with all $p$
-columns. This copy costs $O(n_t p)$. Nodes that reach Stage~A but become leaves
-because Stage~A or Stage~B does not reject still incur the work already
-described. Terminal leaves can also occur when constant feature pruning leaves no
-available feature, threshold generation or leaf size filtering leaves no valid
-threshold, or an accepted threshold fails the minimum impurity-decrease gate.
-These leaves contribute the costs incurred up to that point but do not allocate
-child matrices.
-
-\paragraph{From nodes to trees and forests.}
-Let $W_t$ be the cost paid at node $t$: the stopping checks, any Stage~A work,
-any Stage~B work, and any child-copy work reached by the builder. Tree training
-cost is the sum over all realized tree nodes, not only over internal split
-nodes:
-\begin{equation}
-  T_{\mathrm{tree}} = \sum_{t \in \mathcal{V}(\mathcal{T})} W_t.
-\end{equation}
-Here $\mathcal{V}(\mathcal{T})$ and $\mathcal{I}(\mathcal{T})$ are the realized
-node set and internal split-node set. Leaves stopped by the initial checks
-contribute only the stopping and value computation term at that node, while leaves
-that fail after Stage~A or Stage~B contribute the corresponding testing terms. A
-binary tree has
-$|\mathcal{V}(\mathcal{T})|=2|\mathcal{I}(\mathcal{T})|+1$. A depth cap gives a
-coarse exponential node count bound, but $n_t$, $a_t$, $m_t$, $\tilde{h}_t$,
-$h_t$, and the realized permutation counts usually change with depth.
-
-If honesty is enabled, the node sum is computed on the structure building
-subsample. Training also pays $O(np)$ for the dense split/estimation partition
-and a leaf re-estimation pass. If $e$ is the estimation-sample size and
-$\ell_i$ is the fitted-tree path length for estimation sample $i$, the current
-tuple-based path representation gives worst-case routing cost
-$O(\sum_{i=1}^{e}\ell_i^2)$, followed by a stored-path tree walk of
-$O(\sum_{v\in\mathcal{V}(\mathcal{T})} d_v + e)$, where $d_v$ is node depth.
-
-For a forest of $M$ trees, let $s_r$ be the number of samples used to fit tree
-$r$ after bootstrap and classifier sampling. Let $C^{\mathrm{sample}}_r$ be the
-cost of constructing those sample indices. Row selection and per-tree dense
-validation/copy add $O(s_r p)$ before tree growth. The forest fit first
-validates the full input and then fits the trees.
-Write $T_{\mathrm{tree},r}$ for the node-sum cost of tree $r$ computed as above.
-The total computational work of the forest fit, before parallel wall-clock
-scheduling effects, can be summarized as
+\paragraph{Trees and forests.}
+Let $W_t$ be the work at node $t$. A tree costs
+$T_{\mathrm{tree}}=\sum_{t\in\mathcal{V}(\mathcal{T})} W_t$ over all realized
+nodes, leaves included, and a binary tree has
+$|\mathcal{V}(\mathcal{T})|=2|\mathcal{I}(\mathcal{T})|+1$ nodes for
+$|\mathcal{I}(\mathcal{T})|$ internal splits. Honesty computes the node sum on
+the structure subsample and adds $O(np)$ for the partition plus a leaf
+re-estimation pass. For a forest of $M$ trees, with $s_r$ samples for tree $r$
+after bootstrap sampling,
 \begin{equation}
   T_{\mathrm{forest}}
-  =
-  O(np)
-  + \sum_{r=1}^{M}
-      \left(C^{\mathrm{sample}}_r + O(s_r p) + T_{\mathrm{tree},r}
-      + \mathbf{1}_{\mathrm{honest}} H_{\mathrm{honest},r}\right)
-  + O(Mp)
-  + \mathbf{1}_{\mathrm{oob}} T_{\mathrm{oob}},
+  = O(np) + \sum_{r=1}^{M}\bigl(O(s_r p) + T_{\mathrm{tree},r}\bigr) + O(Mp),
 \end{equation}
-where $\mathbf{1}_{\mathrm{honest}}$ is one when honesty is enabled and zero
-otherwise, $H_{\mathrm{honest},r}$ denotes the honesty partition and leaf
-re-estimation cost just described for tree $r$, $\mathbf{1}_{\mathrm{oob}}$ is
-one when OOB scoring is requested and zero otherwise, and $T_{\mathrm{oob}}$ is
-the optional post-fit OOB scoring cost, separate from the tree-building sum.
-With joblib parallelism, wall-clock time depends on the effective worker count,
-load balance across trees, process overhead, and memory bandwidth; the
-expression above is a work accounting.
+plus the honesty and out-of-bag scoring passes when they are requested. This
+is total work; wall-clock time also depends on the worker count and load
+balance across trees.
 
-Without bootstrap sampling, each tree starts with root size $n$ and the
-bootstrap cap is unused. With bootstrap sampling, the configured bootstrap
-sample-size parameter sets the requested sample size or an upper bound, and
-classifier sampling can reduce $s_r$ further. If honesty is enabled, the root
-size for structure building is the splitting subsample size.
-
-\paragraph{Memory accounting.}
-At a node, feature index arrays and scanning arrays use $O(a_t+m_t)$ space,
-and threshold construction uses $O(n_t+\tilde{h}_t+h_t)$ auxiliary space.
-Permutation tests add workspaces for statistics, masks, labels, permutation
-outputs, and selector-specific arrays. Fixed-budget non-adaptive tests may store
-an $O(B_{\mathrm{stage}})$ vector of permuted statistics, where
-$B_{\mathrm{stage}}$ is the configured fixed budget for the selector or splitter
-test being run. Adaptive paths can keep constant-size counters apart from copied
-or shuffled labels and selector-specific arrays.
-
-The dense matrix terms dominate in many fits. Validation materializes a dense
-$O(np)$ feature matrix. Each accepted split materializes dense left and right
-child matrices with all $p$ columns and combined size $O(n_t p)$. During
-depth-first recursion, parent frames retain sibling child arrays while one child
-is being grown. If $\mathcal{P}$ is the set of accepted split nodes whose child
-matrices are live on the active recursion stack, the dense-array part of peak
-single-tree training memory is bounded by
+\paragraph{Memory.}
+Node-local workspaces are $O(a_t+m_t)$ for feature indices and
+$O(n_t+\tilde{K}_t)$ for thresholds, plus the permutation buffers; a
+fixed-budget test without stopping may store its $B$ permuted statistics. The
+dense matrices dominate. Validation materializes an $O(np)$ matrix, and each
+accepted split materializes children of combined size $O(n_t p)$. During
+depth-first recursion the parent keeps the sibling child alive, so with
+$\mathcal{P}$ the accepted splits on the active recursion stack, peak
+single-tree memory is
 \[
   O\!\left(np + p\sum_{u\in\mathcal{P}} n_u\right),
 \]
-plus node-local auxiliary workspaces. This is a live-path bound: it is $O(np)$
-for balanced growth but can be larger for highly unbalanced recursion.
+which is $O(np)$ for balanced growth. A forest runs up to
+$w=\min(M,n_{\mathrm{jobs}})$ trees at once, so its peak memory holds $w$ such
+workspaces. Fitted storage holds the node records of all trees and $O(Mp)$
+per-tree arrays.
 
-Honesty adds memory during fitting for the dense split and estimation partitions.
-It also stores estimation-sample groups by leaf path, giving
-$O(e+\sum_{q\in\mathcal{Q}} |q|)$ path-index workspace for the set
-$\mathcal{Q}$ of retained leaf-path keys, bounded by $O(eD)$ when all estimation
-samples have path length at most $D$. This is in addition to the tree-building
-memory above.
-
-Forest peak training memory grows with concurrent tree fits. Let
-$w=\min(M,n_{\mathrm{jobs}})$, where $n_{\mathrm{jobs}}$ is the number of
-parallel jobs used by the joblib backend after parameter normalization. Peak
-memory includes the validated forest input, returned estimators, and up to $w$
-concurrently executing per-tree workspaces: bootstrap indices, dense
-row-selected matrices, validation copies, and peak memory terms for each tree.
-Depending on joblib serialization or memmap behavior, workers may also hold
-shared memmaps or copies of the validated input.
-
-For the same $M$-tree forest, fitted storage includes stored node records for
-all trees, the estimator list, $O(Mp)$ per-tree arrays such as feature names and
-feature importances, and $O(p)$ forest-level metadata arrays. If OOB scoring is
-enabled, fitted storage also includes $O(nK)$ classifier OOB decision values for
-$K$ classes or $O(n)$ regressor OOB predictions, plus the scalar OOB score. OOB
-scoring also uses temporary workspace during fitting for the OOB count vector,
-recomputed bootstrap and unsampled indices, prediction slices
-$X_{\mathrm{oob}}$, and per-tree predictions or class-probability arrays.
-
-\subsection{Measured scaling in $n$ and $p$}
+\subsection{Measured scaling in \texorpdfstring{$n$}{n} and \texorpdfstring{$p$}{p}}
 \label{app:scaling-curves}
 
-\Cref{tab:scaling-curves} reports fit-only wall-clock time for one CIT and one
-100-tree CIF (32 workers, one Numba thread each) on Gaussian predictors with a
-weak planted signal, with and without adaptive stopping, on one 32-core cloud
-instance. The configuration is the MC selector with Gini splitting in
-classification and the PC selector with MSE splitting in regression,
-$\alpha_{\mathrm{sel}}=\alpha_{\mathrm{split}}=0.05$ with the feature and
-threshold corrections, \texttt{minimum} budgets, the per-threshold rule,
-histogram search with 256 bins, feature and threshold scanning, and feature
-muting; the forest adds bootstrap sampling and square-root feature sampling.
-For the single tree the histogram search caps the candidate set at 257
-thresholds, the \texttt{minimum} budget fixes the permutation count at
-$\lceil h_t/0.05\rceil$ per threshold, at most $\lceil 257/0.05\rceil = 5{,}140$,
-so the per-node cost is linear in $n_t$ and the tree's time grows about
-linearly in $n$: a 64-fold increase in $n$ at $p=20$ costs about 68$\times$ in
-classification and 110$\times$ in regression (from the unrounded times). It also grows with $p$, by
-21$\times$ and 44$\times$ for a 25-fold increase at $n=2{,}000$, because every
-predictor's statistic is computed at the root before scanning orders them and
-muting only removes failed predictors from descendants. The forest is bounded by its 100
-trees on full bootstrap samples, so its time grows about linearly in $n$
-(65 to 75$\times$ for the 64-fold increase) and is flat or falling in $p$ under
-square-root feature sampling. Adaptive stopping is statistically inert at the minimum budget (\cref{prop:adaptive-size}) but not free for a single tree: the adaptive-to-no-stopping time ratio is 1.02 to 1.28 for the tree (median 1.07) and 0.95 to 1.18 for the forest (median 0.99). At the floor the rule performs a single posterior check at exhaustion, so the difference is not the check itself; it is that the adaptive path evaluates permutations through the chunked sequential kernel, which replays the stopping rule over each chunk and carries a fixed per-test overhead that the no-stopping kernel does not. The tree overhead grows with the predictor count, 1.02 to 1.07 at $p=20$ and 1.15 to 1.28 at $p=500$, because a single tree runs one Stage~A test per predictor at every node while a forest tree tests a square-root sample of them and amortizes the overhead across trees. The forest ratios agree with the runtime ablations (\cref{sec:results-practical}). For the tree, the adaptive-to-no-stopping ratios here, 1.02 to 1.28, sit beside the no-stopping-to-adaptive ratios of 0.88 to 0.99 that the ablations report for switching the rule off: in both, the rule is statistically inert at the floor but not free.
+\Cref{tab:scaling-curves} reports fit-only time for one CIT and one 100-tree CIF
+on Gaussian predictors with a weak planted signal. The configuration uses the
+MC selector with Gini splitting in classification and the PC selector with MSE
+splitting in regression, $\alpha_{\mathrm{sel}}=\alpha_{\mathrm{split}}=0.05$
+with both corrections, the minimum budget, the per-threshold rule, the 256-bin
+histogram, feature and threshold scanning, and feature muting. The forest adds
+bootstrap sampling and square-root feature sampling.
 
-\begin{table}[H]
+The histogram caps the candidates at 257 and the minimum budget fixes at most
+5{,}140 permutations per threshold, so the per-node cost is linear in $n_t$. A
+64-fold increase in $n$ at $p=20$ costs the tree about 68 times in
+classification and 110 times in regression. A 25-fold increase in $p$ at
+$n=2{,}000$ costs it 21 and 44 times, because every predictor is scored at the
+root and muting removes only failed predictors. The forest grows 65 to 77 times
+for the 64-fold increase in $n$ and is flat or falling in $p$ under square-root
+feature sampling.
+
+Adaptive stopping is inert at the minimum budget (\cref{prop:adaptive-size})
+but not free. The adaptive-to-no-stopping time ratio is 1.02 to 1.28 for the
+tree (median 1.07) and 0.95 to 1.18 for the forest (median 0.99). The adaptive
+path runs through the chunked sequential kernel, which carries a fixed per-test
+overhead. The tree overhead grows with $p$, from 1.02 to 1.07 at $p=20$ to 1.15
+to 1.28 at $p=500$, because a single tree runs one Stage~A test per predictor
+at every node. These ratios match \cref{tab:runtime-ablations}.
+
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -359,12 +189,9 @@ square-root feature sampling. Adaptive stopping is statistically inert at the mi
   \caption{Fit-only wall-clock seconds for one CIT and one 100-tree CIF in the
   configuration of \cref{app:scaling-curves}, with adaptive stopping (Adaptive)
   and without stopping (No stopping), on Gaussian predictors with a weak planted
-  signal in five of them. Timing protocol: each entry is the median of two timed
-  fits, each preceded by one untimed identical fit, on one 32-core cloud
-  instance. The 32,000-by-500 cell exceeds the head-to-head grid and was not
-  run. The head-to-head scaling table of \citet{MilletichDownesHirst2026citrees}
-  times the forest with trees of depth at most 3 in a separate run (666 s at
-  32,000 by 20 against 988 s here, where depth is unbounded); the two runs
-  differ in tree depth and are not interchangeable.}
+  signal in five of them. Each entry is the median of two timed fits, each
+  preceded by one untimed identical fit. The cells with $n \ge 8{,}000$ and
+  $p=500$ were not run. Tree depth is unbounded, so the forest times are not
+  comparable with the depth-3 forests of the head-to-head timing.}
   \label{tab:scaling-curves}
 \end{table}

@@ -1,101 +1,25 @@
 \section{Benchmark stability}
 \label{app:benchmark-stability}
 
-The benchmark-stability checks report dataset counts, complete-case CIF
-comparisons, leave-one-dataset-out (LODO) configuration sensitivity, and
-sensitivity checks by downstream learner, standard values of $k$, and seed.
-\Cref{tab:benchmark-dataset-counts} summarizes the dataset counts used by the
-benchmark analyses. Counts differ because each analysis is restricted to the
-datasets, downstream learners, and standard top-$k$ values available for that
-comparison. The main real-data counts are unique datasets with at least one
-complete learner-by-$k$ combination for all methods; the complete-case analyses
-below use the stricter set with every standard learner-by-$k$ combination
-present.
-
-\begin{table}[H]
-  \centering
-  \fontsize{8}{9.1}\selectfont
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabularx}{0.88\linewidth}{@{}L{0.18\linewidth} C{0.18\linewidth} C{0.15\linewidth} Y@{}}
-    \toprule
-    \tablehead{Analysis} &
-    Classification datasets & Regression datasets &
-    \multicolumn{1}{>{\centering\arraybackslash}X}{Purpose} \\
-    \midrule
-    Main real-data comparison & 21 & 8 & Primary rank summary on real datasets \\
-    Complete-case CIF and rank checks & 13 & 6 & Bootstrap intervals and omnibus rank summaries \\
-    LODO configuration sensitivity & 13 & 6 & Held-out-dataset configuration checks \\
-    Learner $\times$ $k$ sensitivity & 21, 20, 14, 14, 13 & 8, 8, 7, 7, 6 & Method ordering by downstream learner and value of $k$ \\
-    Seed sensitivity & 13 & 6 & Seed variation on datasets complete across seeds \\
-    \bottomrule
-  \end{tabularx}
-  \caption{Dataset counts for benchmark analyses. The learner-by-$k$ row lists
-  counts at $k=5,10,25,50,100$; each summary uses the datasets, downstream
-  learners, and standard top-$k$ values available for its comparison.}
-  \label{tab:benchmark-dataset-counts}
-\end{table}
-
-\subsection{Bootstrap and rank checks}
-
-\Cref{tab:cif-ci-comparisons} gives complete-case CIF comparisons against
-ctree, cforest, and CIT after restricting to datasets with all methods,
-downstream learners, and all five standard top-$k$ values available. Within
-each task, all comparisons use the same datasets, the same downstream learners,
-and $k \in \{5,10,25,50,100\}$.
-
-\begin{table}[H]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}ll S[table-format=1.3] c c@{}}
-    \toprule
-    \tablehead{Task} & \tablehead{Compared method} & {Mean $\Delta$} & 95\% CI & W/L \\
-    \midrule
-    Classification & ctree & 0.049 & [0.026, 0.073] & \winloss{11}{2} \\
-    Classification & cforest & 0.013 & [0.002, 0.024] & \winloss{9}{4} \\
-    Classification & CIT & 0.044 & [0.027, 0.062] & \winloss{13}{0} \\
-    Regression & ctree & 0.202 & [0.029, 0.421] & \winloss{4}{2} \\
-    Regression & cforest & 0.027 & [-0.032, 0.090] & \winloss{5}{1} \\
-    Regression & CIT & 0.308 & [-0.002, 0.766] & \winloss{5}{1} \\
-    \bottomrule
-  \end{tabular}
-  \caption{Complete-case CIF differences against ctree, cforest, and CIT. Mean
-  $\Delta$ is CIF minus comparator after averaging each dataset over the same
-  downstream learners and values of $k$. Intervals resample dataset-level paired
-  deltas with 20{,}000 percentile-bootstrap replicates. W/L gives dataset-level
-  wins and losses; no exact ties occurred.}
-  \label{tab:cif-ci-comparisons}
-\end{table}
-
-The metric is balanced accuracy for classification and $R^2$ for regression.
-Positive differences favor CIF. The intervals summarize dataset-level paired
-deltas after configuration selection. Large positive regression differences can
-reflect negative mean $R^2$ for the comparator. Paired bootstrap intervals for
-CIF against every other method on these panels, 16 comparisons in classification
-and 17 in regression, are in the benchmark tables of the reference release.
-
-The Friedman checks use dataset-level method means after averaging the 15
-learner-by-$k$ combinations. Classification (13 datasets):
-$\chi^2(16)=140.46$, $p<0.001$,
-Kendall's $W=0.68$. Regression (6 datasets): $\chi^2(17)=26.15$, $p=0.072$,
-Kendall's $W=0.26$, which does not reach the 0.05 level; the regression rank
-ordering is therefore a descriptive summary of this panel.
+This appendix reports the leave-one-dataset-out (LODO) configuration checks,
+the mechanism-matched CIF check, and the method ordering by downstream learner,
+value of $k$, and seed. All use the selected configurations of the main
+benchmark.
 
 \subsection{LODO configuration sensitivity}
 
-\Cref{tab:lodo-config-sensitivity} reports LODO configuration selection for each
-task next to the fixed-configuration rank on the same panel. Each LODO run
-selects configurations on all but one complete-case dataset in that task,
-evaluates the held-out dataset, and averages scores and ranks over downstream
-learners and standard top-$k$ values. In classification, CIF reselects the
-main-benchmark configuration in 11 of the 13 holdouts, using 2 distinct
-configurations; its mean rank moves from 6.38 (tied 6th) under the fixed
-configuration to 6.85 (8th) under LODO. In regression, CIF also uses two
-configurations, reselects the global configuration in 4 of 6 holdouts, and
-moves from 7.00 (tied 5th) to 7.33 (6th). The gap between these panel ranks
-and the main-table ranks of 3rd and 2nd comes from the panel: on the 13- and
-6-dataset panels the fixed configuration already ranks CIF 6th and 5th, and
-reselection adds less than half a rank. \Cref{tab:lodo-config-sensitivity-allmethod} repeats the analysis on the all-method panels of 21 and 8 datasets that the main table uses. Every single-configuration family keeps its held-out score exactly, which checks the reselection code, and its mean rank moves only as CIF and the other tuned families are reselected around it, by at most 0.05 in classification and 0.125 in regression; CIF moves from 5.86 (tied 3rd) to 6.10 (5th) in classification, reselecting the global configuration in 20 of 21 holdouts with a held-out balanced accuracy lower by 0.002, and from 6.25 (2nd) to 6.50 (2nd) in regression, reselecting it in 7 of 8 holdouts with $R^2$ lower by 0.008. The one large reselection effect is cforest in regression, whose alternative configuration is chosen on one holdout and scores far lower there (mean $R^2$ 0.30 to 0.20). The observed sensitivity of the tuned families to reselection is: 0.002 balanced accuracy and 0.008 $R^2$ for CIF, 0.03 $R^2$ for XGBoost (0.270 under the fixed configuration against 0.241 under LODO on the all-method regression panel), and one place in the classification order.
+Each LODO run selects configurations on all but one dataset of the panel,
+scores the held-out dataset, and averages scores and ranks over downstream
+learners and standard values of $k$.
+\Cref{tab:lodo-config-sensitivity,tab:lodo-config-sensitivity-allmethod} report
+the complete-case and all-method panels. Every single-configuration family
+keeps its held-out score exactly, which checks the reselection code. Its mean
+rank moves only as the tuned families are reselected around it, by at most 0.05
+in classification and 0.125 in regression. On the all-method panels CIF loses
+0.002 balanced accuracy and 0.008 $R^2$ under reselection, and XGBoost loses
+0.03 $R^2$ (0.270 against 0.241). The one large reselection effect is cforest
+in regression, whose alternative configuration is chosen on one holdout and
+scores far lower there (mean $R^2$ 0.30 against 0.20).
 
 \begin{table}[!htbp]
   \centering
@@ -204,6 +128,60 @@ reselection adds less than half a rank. \Cref{tab:lodo-config-sensitivity-allmet
   \label{tab:lodo-config-sensitivity-allmethod}
 \end{table}
 
+\subsection{Mechanism-matched CIF check}
+\label{app:cif-perm-check}
+
+The benchmark ranks cforest by partykit's out-of-bag permutation importance and
+CIF by split importance, so the margin between them mixes the importance
+mechanism with the way the trees are grown. To separate the two, the selected
+CIF configuration of each task was refit on every training fold of 20
+classification and 8 regression datasets and ranked by the cforest mechanism:
+one permutation of each feature on each tree's out-of-bag rows, with the error
+increase averaged over the 100 trees. The rankings were scored with the
+benchmark protocol. The 20 classification datasets are the 22 on which CIF and
+cforest are paired, less \nolinkurl{gisette} and \nolinkurl{letter}, which were not refit.
+
+\Cref{tab:cif-perm-check} gives the result. In classification the margin over
+cforest is unchanged, so it is not an importance-mechanism effect. In
+regression the medians agree ($+0.006$ over cforest, $-0.002$ against
+split-ranked CIF), and the negative means come from one dataset, coepra2
+($n=76$, 5,144 predictors), on which every method has negative $R^2$. The
+conclusion is therefore stated for classification.
+
+Permutation importance computed on the training rows is the wrong comparator.
+On the 16 classification datasets that completed, it scores 0.10 below cforest
+and 0.12 below split-ranked CIF, with the loss concentrated on the small-$n$,
+high-$p$ datasets. On the high-$p$ datasets the refit's split ranking also
+overlaps the stored benchmark ranking poorly in the top ten (mean Jaccard 0.38
+in classification), because most features never split there and their tied
+zero importances fall in arbitrary order. On the low-$p$ datasets the overlap
+is complete.
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lrrrc@{}}
+    \toprule
+    \tablehead{Comparison} & Datasets & Mean & Median & Wins--losses \\
+    \midrule
+    \multicolumn{5}{@{}l}{\emph{Classification (balanced accuracy)}} \\
+    CIF (out-of-bag permutation) vs cforest & 20 & +0.012 & +0.006 & \winloss{15}{5} \\
+    CIF (out-of-bag permutation) vs CIF (split) & 20 & +0.001 & $-$0.001 & \winloss{8}{12} \\
+    CIF (split) vs cforest & 20 & +0.011 & +0.008 & \winloss{16}{4} \\
+    CIF (training-row permutation) vs cforest & 16 & $-$0.100 & $-$0.055 & \winloss{6}{10} \\
+    \addlinespace
+    \multicolumn{5}{@{}l}{\emph{Regression ($R^2$)}} \\
+    CIF (out-of-bag permutation) vs cforest & 8 & $-$0.115 & +0.006 & \winloss{6}{2} \\
+    CIF (out-of-bag permutation) vs CIF (split) & 8 & $-$0.136 & $-$0.002 & \winloss{4}{4} \\
+    CIF (split) vs cforest & 8 & +0.021 & +0.009 & \winloss{6}{2} \\
+    CIF (training-row permutation) vs cforest & 6 & $-$0.016 & +0.006 & \winloss{4}{2} \\
+    \bottomrule
+  \end{tabular}
+  \caption{CIF ranked by the importance mechanism of cforest. Directed differences in dataset-mean score (balanced accuracy or $R^2$ over downstream learners and standard $k$) between the first and second method, summarized over datasets: mean, median, and the number of datasets on which the first method scores higher or lower. Out-of-bag permutation is partykit-style out-of-bag permutation importance computed on the refit CIF; training-row permutation is scikit-learn permutation importance on the training rows (16 and 6 datasets completed). The pendigits dataset enters the out-of-bag rows with four of its five seeds.}
+  \label{tab:cif-perm-check}
+\end{table}
+
 \subsection{Breakdowns by downstream learner, \texorpdfstring{top-$k$}{top-k} value, and seed}
 
 The main benchmark averages over downstream learners, standard values of $k$,
@@ -225,7 +203,7 @@ rank averages the dataset-level ranks directly. Top 3 of 15 and Top 5 of 15
 count the learner-by-$k$ combinations where the method ranks in the top 3 or
 top 5.
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{3pt}
@@ -280,7 +258,7 @@ is close to RF's and is better than the single-tree and filter baselines in the
 mean-position summary. RF-RFE, LightGBM, XGBoost, and CatBoost have lower mean
 positions.
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{3pt}
@@ -334,10 +312,9 @@ positions.
 CIF has the fourth-lowest regression mean position in this breakdown, after
 ExtraTrees, RF-RFE, and CatBoost, and remains ahead of ctree, cforest, CIT, and
 most filter and wrapper methods in this summary. The pairwise figures use the
-datasets available for each comparator; the complete-case panels above use the
-13/6 all-method dataset sets.
+datasets available for each comparator.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/benchmark_pairwise_sensitivity.png}
   \caption{Classification CIF margins against ctree, cforest, and CIT by
@@ -345,11 +322,11 @@ datasets available for each comparator; the complete-case panels above use the
   mean balanced-accuracy difference, CIF minus comparator, for one
   downstream learner and one value of $k$; positive values favor CIF. Dataset
   counts by $k$ are 21, 20, 14, 14, and 13 for ctree, 22, 21, 15, 15, and 14
-  for cforest, and 23, 22, 16, 16, and 15 for CIT. Values are means over datasets; the bootstrap intervals for the pooled differences are in \cref{tab:cif-ci-comparisons}.}
+  for cforest, and 23, 22, 16, 16, and 15 for CIT. Values are means over datasets; the bootstrap intervals for the pooled differences are in \cref{tab:conditional-inference-comparisons}.}
   \label{fig:benchmark-pairwise-sensitivity}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/regression_benchmark_pairwise_sensitivity.png}
   \caption{Regression CIF margins against ctree, cforest, and CIT by
@@ -358,7 +335,7 @@ datasets available for each comparator; the complete-case panels above use the
   learner and one value of $k$; positive values favor CIF. Dataset counts by
   $k$ are 8, 8, 7, 7, and 6 for each comparison. Large positive plotted values
   can reflect negative mean $R^2$ for the comparator. Numeric labels show the
-  unclipped values; the color scale is clipped at $\pm1$ for readability. Values are means over datasets; the bootstrap intervals for the pooled differences are in \cref{tab:cif-ci-comparisons}.}
+  unclipped values; the color scale is clipped at $\pm1$ for readability. Values are means over datasets; the bootstrap intervals for the pooled differences are in \cref{tab:conditional-inference-comparisons}.}
   \label{fig:regression-benchmark-pairwise-sensitivity}
 \end{figure}
 
@@ -371,7 +348,7 @@ the method's ordinal position after sorting that seed's averaged dataset-level
 ranks, while mean rank is the averaged dataset-level rank value itself. Rows
 follow the main benchmark order.
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
@@ -414,7 +391,7 @@ follow the main benchmark order.
   \label{tab:classification-seed-sensitivity}
 \end{table}
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}

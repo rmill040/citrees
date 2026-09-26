@@ -1,50 +1,45 @@
-\section{Monte Carlo permutation exchangeability}
+\section{Proofs of the fixed-node results}
 \label{app:permutation-exchangeability}
 
-The proof separates two facts. First, statistics computed from i.i.d. random
-permutations are exchangeable. Second, under A0.2 to A0.4, the usual ``observed
-statistic + $B$ random permutations'' computation has the same null rank
-distribution as a construction with a randomized baseline. The superuniformity
-proof then uses the conservative tie convention in A0.5; see also
-\citet{HemerikGoeman2018ExactTestingRandomPermutations} for a broader treatment
-of exact random permutation testing.
+\subsection{Monte Carlo permutation exchangeability}
 
-First consider a fully randomized tuple. Fix a node $t$, feature $j$, and a
-statistic $T(\cdot, \cdot; U)$ taking values in a measurable space
-$(\mathcal{S},\mathcal{A})$, where $U$ denotes label-independent auxiliary
-randomness. The space may be the real line, as for a Stage~A score or a single
-threshold score, or a space of vectors, as for the vector of scores over a
-candidate threshold set that the max-type rule standardizes. When $T$ is
-real-valued, larger values are more extreme. Let
+The proof of \cref{lem:plusone-superuniform} separates two facts. First,
+statistics computed from i.i.d.\ random permutations are exchangeable. Second,
+under A0.2 to A0.4, the usual computation with one observed statistic and $B$
+random permutations has the same null rank distribution as a construction with
+a randomized baseline \citep{HemerikGoeman2018ExactTestingRandomPermutations}.
+
+Fix a node $t$, feature $j$, and a statistic $T(\cdot, \cdot; U)$ taking values
+in a measurable space $(\mathcal{S},\mathcal{A})$. The space may be the real
+line, as for a Stage~A score or a single threshold score, or a space of
+vectors, as for the vector of scores over a candidate set that the max-type rule
+standardizes. When $T$ is real-valued, larger values are more extreme. Let
 $\Pi_0, \Pi_1, \dots, \Pi_B$ be i.i.d.\ uniform random permutations of
-$\{1,\dots,n_t\}$, independent of the data (and of $U$), and define
+$\{1,\dots,n_t\}$, independent of the data and of $U$, and define
 %
 \begin{equation}
   T_b := T(X_{t,j}, \Pi_b(Y_t); U) \qquad (b=0,1,\dots,B).
 \end{equation}
-
+%
 Conditional on $(X_t, Y_t, U)$, each $T_b$ is a measurable function of $\Pi_b$,
-and $(\Pi_0,\dots,\Pi_B)$ are i.i.d., so the vector $(T_0, T_1, \dots, T_B)$ is
-exchangeable: permuting the indices $b \in \{0,\dots,B\}$ leaves its joint law
-unchanged. Averaging over $Y_t$ preserves exchangeability, so the vector is also
-exchangeable conditional on $(X_t,U)$.
+and $(\Pi_0,\dots,\Pi_B)$ are i.i.d., so $(T_0, T_1, \dots, T_B)$ is
+exchangeable. Averaging over $Y_t$ preserves exchangeability, so the vector is
+also exchangeable conditional on $(X_t,U)$.
 
 \begin{lemma}[The observed statistic has the same null rank distribution]
 \label{lem:identity-vs-random}
-Assume A0.2 to A0.4 (\cref{app:assumptions}), and let $T$ take values in the
-measurable space $(\mathcal{S},\mathcal{A})$. Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\
-uniform random permutations of $\{1,\dots,n_t\}$, independent of $(X_t,Y_t,U)$.
-Define the observed statistic and permuted statistics by
+Assume A0.2 to A0.4, and let $T$ take values in the measurable space
+$(\mathcal{S},\mathcal{A})$. Let $\Pi_1,\dots,\Pi_B$ be i.i.d.\ uniform random
+permutations of $\{1,\dots,n_t\}$, independent of $(X_t,Y_t,U)$, and set
 %
 \begin{equation}
   T_{\mathrm{obs}} := T(X_{t,j}, Y_t; U),
   \qquad
-  T_b := T(X_{t,j}, \Pi_b(Y_t); U) \quad (b=1,\dots,B),
+  T_b := T(X_{t,j}, \Pi_b(Y_t); U) \quad (b=1,\dots,B).
 \end{equation}
 %
 Let $\Pi_0$ be an additional independent uniform random permutation and set
-$T_0 := T(X_{t,j}, \Pi_0(Y_t); U)$ (keeping $T_1,\dots,T_B$ as above). Under the
-null, conditional on $(X_t,U)$,
+$T_0 := T(X_{t,j}, \Pi_0(Y_t); U)$. Under the null, conditional on $(X_t,U)$,
 %
 \begin{equation}
   \big(T_{\mathrm{obs}}, T_1,\dots,T_B\big)
@@ -52,44 +47,26 @@ null, conditional on $(X_t,U)$,
   \big(T_0, T_1,\dots,T_B\big).
 \end{equation}
 %
-When $T$ is real-valued, define the standard +1 Monte Carlo $p$-value (right
-tail) by
-%
-\begin{equation}
-  p_{\mathrm{id}}
-  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
-\end{equation}
-%
-and its randomized-baseline counterpart by
-%
-\begin{equation}
-  p_{\mathrm{rnd}}
-  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_0\}}{B+1}.
-\end{equation}
-%
-Both quantities use the same conservative right-tail tie convention: ties with
-the baseline statistic are counted as exceedances. Under the null, conditional
-on $(X_t,U)$, $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$ have the same
-distribution with this convention. It is enough to prove the rank bound for
-the exchangeable construction $p_{\mathrm{rnd}}$ and apply the same conclusion
-to the standard ``observed statistic + $B$ random permutations'' computation.
+In particular, when $T$ is real-valued, the standard right-tail $+1$ $P$-value
+$P_{\mathrm{id}} := (1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\})/(B+1)$
+and its randomized-baseline counterpart
+$P_{\mathrm{rnd}} := (1 + \sum_{b=1}^B \ind\{T_b \ge T_0\})/(B+1)$ have the same
+conditional distribution.
 \end{lemma}
 
 \begin{proof}
-Fix $(X_t,U)$ and work under the null. By A0.2, permuting the node labels does
-not change the conditional distribution of $Y_t$. Use the permutation-action
-convention under which
-$(\Pi_b \circ \Pi_0^{-1})(\Pi_0(Y_t)) = \Pi_b(Y_t)$. Let $\Pi_0$ be an
-independent uniform permutation and set $Y_t' := \Pi_0(Y_t)$. Then
-$Y_t' \stackrel{d}{=} Y_t$ conditional on $(X_t,U)$.
+Fix $(X_t,U)$ and work under the null. By A0.2, permuting the node responses
+does not change the conditional distribution of $Y_t$. Use the
+permutation-action convention under which
+$(\Pi_b \circ \Pi_0^{-1})(\Pi_0(Y_t)) = \Pi_b(Y_t)$, and set
+$Y_t' := \Pi_0(Y_t)$. Then $Y_t' \stackrel{d}{=} Y_t$ conditional on $(X_t,U)$.
 
 For $b=1,\dots,B$, define $\Pi_b' := \Pi_b \circ \Pi_0^{-1}$, so
 $\Pi_b'(Y_t') = \Pi_b(Y_t)$. Conditional on $(Y_t,\Pi_0)$, right composition by
 $\Pi_0^{-1}$ maps the independent uniform permutations $\Pi_b$ to independent
-uniform permutations $\Pi_b'$. This conditional law does not depend on the
+uniform permutations $\Pi_b'$, and this conditional law does not depend on the
 conditioning values. Because $Y_t'$ is a function of $(Y_t,\Pi_0)$, the
-transformed permutations are independent of $(Y_t',\Pi_0)$.
-Therefore,
+transformed permutations are independent of $(Y_t',\Pi_0)$. Therefore
 %
 \begin{equation}
   \begin{aligned}
@@ -100,9 +77,118 @@ Therefore,
   \end{aligned}
 \end{equation}
 %
-where $\stackrel{d}{=}$ is conditional on $(X_t,U)$. Applying the same
-$\ge$ comparison map to these equal-in-distribution vectors gives the same
-conditional distribution for $p_{\mathrm{id}}$ and $p_{\mathrm{rnd}}$ when $T$
-is real-valued. No step uses the order structure of $\mathcal{S}$, so the
-distributional identity holds for a statistic in any measurable space.
+conditional on $(X_t,U)$. Applying the same comparison map to these
+equal-in-distribution vectors gives the claim for $P_{\mathrm{id}}$ and
+$P_{\mathrm{rnd}}$. No step uses the order structure of $\mathcal{S}$, so the
+identity holds for a statistic in any measurable space.
 \end{proof}
+
+\subsection{Proof of \texorpdfstring{\cref{lem:plusone-superuniform}}{Lemma 1}}
+\label{app:proof-plusone}
+
+Fix $(X_t,U)$ and one feature $j \in F_t$, and work under the nodewise complete
+permutation null. By \cref{lem:identity-vs-random}, it is enough to prove the
+rank bound for an exchangeable tuple, which we denote by
+$(T_{\mathrm{obs}},T_1,\dots,T_B)$. Define
+%
+\begin{equation}
+  R := 1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\},
+  \qquad
+  P_{\mathrm{MC}}^{\ge} = \frac{R}{B+1}.
+\end{equation}
+%
+The left-tail version applies the same argument to $-T$.
+
+\paragraph{No ties.}
+If the statistics almost surely have no ties, $R$ is the descending rank of
+$T_{\mathrm{obs}}$ among $(T_{\mathrm{obs}},T_1,\dots,T_B)$. Exchangeability
+gives $\PP(R = r \mid X_t,U) = 1/(B+1)$ for $r=1,\dots,B+1$, so for any
+$\alpha \in [0,1]$,
+%
+\begin{equation}
+  \PP(P_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U)
+  = \PP\!\big(R \le (B+1)\alpha \mid X_t,U\big)
+  = \frac{\lfloor (B+1)\alpha \rfloor}{B+1}
+  \le \alpha.
+\end{equation}
+
+\paragraph{Ties.}
+Let $V_{\mathrm{obs}},V_1,\dots,V_B \stackrel{\mathrm{i.i.d.}}{\sim}
+\mathrm{Unif}(0,1)$ be independent of all other randomness, and order the pairs
+$(T_b,V_b)$ lexicographically. The augmented tuple is exchangeable and almost
+surely has no ties, so the no-ties argument gives a superuniform $P$-value
+%
+\begin{equation}
+  \tilde{P}_{\mathrm{MC}}^{\ge}
+  :=
+  \frac{
+    1 + \sum_{b=1}^B
+    \ind\{
+      T_b > T_{\mathrm{obs}}
+      \text{ or } (T_b = T_{\mathrm{obs}} \text{ and } V_b > V_{\mathrm{obs}})
+    \}
+  }{B+1}.
+\end{equation}
+%
+Each tie-broken indicator is bounded by $\ind\{T_b \ge T_{\mathrm{obs}}\}$, so
+$P_{\mathrm{MC}}^{\ge} \ge \tilde{P}_{\mathrm{MC}}^{\ge}$ and
+%
+\begin{equation}
+  \PP(P_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U)
+  \le \PP(\tilde{P}_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha.
+\end{equation}
+%
+Taking expectations over $(X_t,U)$ gives the unconditional bound. The
+corollaries apply this single-test bound with the Bonferroni union bound; no
+independence among the tests is required.
+
+\subsection{Proof of \texorpdfstring{\cref{cor:stageB-maxt}}{Corollary 3}}
+\label{app:proof-maxt}
+
+The argument reduces to \cref{lem:plusone-superuniform} in four steps.
+(1)~Under the complete null, the $B+1$ rows of the impurity matrix
+$(S_{b,c})$, computed from the observed response and from $B$ independent
+uniform permutations of it, are exchangeable. This is
+\cref{lem:identity-vs-random} applied to the vector-valued statistic
+$c \mapsto S_{b,c}$ in $\mathbb{R}^{K}$; the lemma never uses that the statistic
+is scalar. (2)~Column standardization uses the mean and standard deviation of
+all $B+1$ entries of each column, which are symmetric functions of the rows, so
+the standardized matrix has exchangeable rows as well. The exclusion of
+candidates with an empty child or zero column variance is likewise a function of
+the whole column. (3)~The row minimum is one fixed function applied to every
+row, so $T_0,\dots,T_B$ are exchangeable. (4)~The inclusive-rank $P$-value of an
+exchangeable tuple is superuniform by the proof of
+\cref{lem:plusone-superuniform}, applied to $-T$ for the left tail. The
+guarantee is weak familywise control over the $K$ candidates, the probability
+of declaring any split under the complete nodewise null.
+
+\subsection{Proof of \texorpdfstring{\cref{prop:adaptive-size}}{Proposition 1}}
+\label{app:proof-adaptive}
+
+\paragraph{Reduction to a function of the exceedance probability.} Write
+$\theta$ for the per-draw exceedance probability given the observed statistic
+and the node data. Given $\theta$, the draws are independent, so the exceedance
+count after $r$ draws is $\mathrm{Binomial}(r,\theta)$. The stop and report
+decisions are deterministic functions of $(r,e)$ at the batch boundaries, so the
+rejection probability $g(\theta)$ is a fixed function of $\theta$.
+
+\paragraph{Monotonicity.} The function $g$ is nonincreasing. Flipping one
+indicator from zero to one raises $e$ at every later boundary. A futility stop
+(posterior mass at least $\gamma$ above $\alpha$) can then only come earlier, and
+a significance stop (mass at least $\gamma$ below $\alpha$) only later. At a
+significance stop or at the full budget, the reported value $(e+1)/(r+1)$ is at
+least as large on the flipped path. The remaining step, that a significance stop
+reports a value strictly below $\alpha$ and a futility stop a value at least
+$\alpha$, is the hypothesis of the proposition.
+
+\paragraph{From $g$ to statements (i) to (iii).} Under the complete null the
+observed statistic is exchangeable with the $N$ orbit values, so without ties
+$\theta$ is uniform on $\{1/N,\dots,1\}$, which is (ii). The continuous
+idealization (i) replaces that grid by the uniform distribution on $(0,1)$.
+Under it the binomial mixture is the P\'olya urn started from one ball of each
+colour, whose next indicator is one with probability $(e+1)/(r+2)$, and
+$\rho = \int_0^1 g$ by a finite recursion over the stopping states. For
+nonincreasing $g$ the grid average $N^{-1}\sum_{i=1}^{N} g(i/N)$ is at most
+$\int_0^1 g$ and at least $\int_0^1 g - (g(0)-g(1))/N \ge \rho - 1/N$, which is
+the interval in (ii). Counting ties as exceedances raises $\theta$, and given
+$\theta$ the same nonincreasing $g$ gives (iii).

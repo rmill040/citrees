@@ -1,11 +1,52 @@
-\section{Stage~B construction: cost and real-data tables}
+\section{Stage~B comparison tables}
 \label{app:stageB-tables}
 
-\Cref{tab:stageB-scaling,tab:stageB-fixed-budget,tab:stageB-real,tab:stageB-power} give the fitting-time, fixed-budget control, real-data, and nominal-level split-rate
-results for the Stage~B construction comparison summarized in
-\cref{sec:results-stageB}; the design is in \cref{sec:experiments-stageB} and the size-matched comparison is \cref{tab:stageB-only} in the main text. The entries of \cref{tab:stageB-scaling,tab:stageB-real} are medians over five seeds; \cref{tab:stageB-fixed-budget} is a single pass with 500 null and 200 alternative replicates per cell; \cref{tab:stageB-power} pools 2,500 replicates per cell, five seeds of 500, and reports rates, not medians.
+\Cref{tab:stageB-calibration,tab:stageB-scaling,tab:stageB-real,tab:stageB-power}
+give the null calibration, fitting time, real-data, and split-rate results of
+the Stage~B comparison in \cref{sec:results-stageB}; the design is in
+\cref{sec:experiments-stageB}. The entries of
+\cref{tab:stageB-scaling,tab:stageB-real} are medians over five seeds.
 
-\begin{table}[H]
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lrrcccc@{}}
+    \toprule
+     & & & \multicolumn{2}{c}{Per-threshold} & \multicolumn{2}{c}{Max-type} \\
+    \cmidrule(lr){4-5}\cmidrule(l){6-7}
+    \tablehead{Task} & $n$ & Bins & Adaptive & No stopping & Adaptive & No stopping \\
+    \midrule
+    Classification & 100 & 16 & 0.018 & 0.018 & 0.034 & 0.035 \\
+     & 100 & 64 & 0.013 & 0.013 & 0.035 & 0.037 \\
+     & 100 & 256 & 0.009 & 0.010 & 0.036 & 0.038 \\
+     & 200 & 16 & 0.020 & 0.020 & 0.033 & 0.034 \\
+     & 200 & 64 & 0.014 & 0.015 & 0.033 & 0.034 \\
+     & 200 & 256 & 0.009 & 0.009 & 0.033 & 0.035 \\
+     & 500 & 16 & 0.020 & 0.020 & 0.030 & 0.031 \\
+     & 500 & 64 & 0.014 & 0.014 & 0.032 & 0.033 \\
+     & 500 & 256 & 0.007 & 0.007 & 0.032 & 0.034 \\
+    Regression & 100 & 16 & 0.027 & 0.027 & 0.032 & 0.033 \\
+     & 100 & 64 & 0.017 & 0.019 & 0.034 & 0.035 \\
+     & 100 & 256 & 0.014 & 0.015 & 0.034 & 0.035 \\
+     & 200 & 16 & 0.028 & 0.029 & 0.032 & 0.035 \\
+     & 200 & 64 & 0.023 & 0.024 & 0.035 & 0.037 \\
+     & 200 & 256 & 0.012 & 0.013 & 0.036 & 0.038 \\
+     & 500 & 16 & 0.026 & 0.026 & 0.029 & 0.030 \\
+     & 500 & 64 & 0.020 & 0.020 & 0.029 & 0.031 \\
+     & 500 & 256 & 0.011 & 0.011 & 0.029 & 0.032 \\
+    \bottomrule
+  \end{tabular}
+  \caption{False-split rate of a depth-one tree under the global null at level
+  0.05, by Stage~B rule and stopping mode, over 10,000 replicates per cell
+  (five seeds of 2,000). The tree has five independent Gaussian predictors and
+  an independent response, and the rate covers Stage~A followed by Stage~B.
+  Bins is the histogram setting. Every 95\% Clopper-Pearson interval lies below
+  0.05, with largest upper limit 0.042.}
+  \label{tab:stageB-calibration}
+\end{table}
+
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
@@ -35,12 +76,10 @@ results for the Stage~B construction comparison summarized in
     \bottomrule
   \end{tabular}
   \caption{Fitting time in seconds of one tree on ten Gaussian predictors with a
-  planted linear signal, by Stage~B construction and stopping mode, on a 32-core
-  cloud instance. Timing protocol: all three arms are timed in one run of five
+  planted linear signal, by Stage~B rule and stopping mode. All arms are timed in one run of five
   seeds; each entry is the median over seeds of the median of three timed fits,
-  and each timed fit follows an untimed identical fit so that compilation is
-  excluded. Bins is the histogram
-  threshold setting as in \cref{tab:stageB-calibration}. Fixed is the
+  and each timed fit follows an untimed identical fit, so compilation is
+  excluded. Bins is the histogram setting. Fixed is the
   per-threshold rule held at 999 permutations per candidate; it exists only with
   no stopping because the sequential path raises any budget to the floor
   $\lceil K/\alpha \rceil$, and Fixed depth is its fitted depth (0 where it never
@@ -48,74 +87,45 @@ results for the Stage~B construction comparison summarized in
   \label{tab:stageB-scaling}
 \end{table}
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{6pt}
-  \begin{tabular}{@{}lrrrr@{}}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrlrrrrrr@{}}
     \toprule
-    \tablehead{Task} & $n$ & Bins & Size & Power \\
+     & & & & \multicolumn{3}{c}{Adaptive} & \multicolumn{3}{c}{No stopping} \\
+    \cmidrule(lr){5-7}\cmidrule(l){8-10}
+    \tablehead{Dataset} & $n$ & $p$ & \tablehead{Rule} & Score & Seconds & Depth & Score & Seconds & Depth \\
     \midrule
-    Classification & 100 & 16 & 0.008 & 0.150 \\
-     & 100 & 64 & 0.000 & 0.000 \\
-     & 100 & 256 & 0.000 & 0.000 \\
-     & 200 & 16 & 0.010 & 0.425 \\
-     & 200 & 64 & 0.000 & 0.000 \\
-     & 200 & 256 & 0.000 & 0.000 \\
-     & 500 & 16 & 0.008 & 0.900 \\
-     & 500 & 64 & 0.000 & 0.000 \\
-     & 500 & 256 & 0.000 & 0.000 \\
-    Regression & 100 & 16 & 0.012 & 0.130 \\
-     & 100 & 64 & 0.000 & 0.000 \\
-     & 100 & 256 & 0.000 & 0.000 \\
-     & 200 & 16 & 0.020 & 0.445 \\
-     & 200 & 64 & 0.000 & 0.000 \\
-     & 200 & 256 & 0.000 & 0.000 \\
-     & 500 & 16 & 0.022 & 0.845 \\
-     & 500 & 64 & 0.000 & 0.000 \\
-     & 500 & 256 & 0.000 & 0.000 \\
+    vowel & 990 & 10 & Per-threshold & 0.689 & 0.23 & 10.0 & 0.691 & 0.57 & 10.0 \\
+     & & & Max-type & 0.705 & 0.15 & 11.2 & 0.717 & 0.40 & 11.4 \\
+    \addlinespace
+    spam & 4,601 & 57 & Per-threshold & 0.908 & 0.86 & 11.2 & 0.908 & 3.03 & 11.4 \\
+     & & & Max-type & 0.902 & 0.71 & 12.4 & 0.908 & 3.01 & 11.4 \\
+    \addlinespace
+    page-blocks & 5,473 & 10 & Per-threshold & 0.768 & 0.69 & 10.0 & 0.768 & 5.85 & 10.0 \\
+     & & & Max-type & 0.750 & 0.29 & 11.2 & 0.748 & 1.45 & 10.0 \\
+    \addlinespace
+    imports-85 & 205 & 76 & Per-threshold & 0.638 & 0.07 & 5.4 & 0.638 & 0.17 & 5.4 \\
+     & & & Max-type & 0.698 & 0.07 & 4.8 & 0.671 & 0.18 & 5.2 \\
+    \addlinespace
+    residential & 372 & 107 & Per-threshold & 0.925 & 0.49 & 6.4 & 0.926 & 2.30 & 6.4 \\
+     & & & Max-type & 0.933 & 0.57 & 7.2 & 0.931 & 2.53 & 6.6 \\
+    \addlinespace
+    facebook & 500 & 21 & Per-threshold & 0.754 & 0.33 & 9.0 & 0.754 & 2.09 & 9.0 \\
+     & & & Max-type & 0.803 & 0.15 & 9.8 & 0.780 & 0.25 & 8.6 \\
     \bottomrule
   \end{tabular}
-  \caption{Fixed-budget control arm: the per-threshold rule held at 999
-  permutations per candidate with no stopping, in the Stage-B-only
-  design. Size is the false-split rate at nominal 0.05 and Power the split rate
-  at the middle planted effect ($\delta = 0.10$ classification, $0.4$
-  regression), with 500 null and 200 alternative replicates per cell; at 64 and
-  256 bins the rule never splits because $\alpha/K < 1/1000$. Its fitting time
-  and depth on the scaling grid are the Fixed columns of
-  \cref{tab:stageB-scaling}.}
-  \label{tab:stageB-fixed-budget}
-\end{table}
-
-\begin{table}[H]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{2pt}
-  \begin{tabular}{@{}lrrrrrrrrrrrrrr@{}}
-    \toprule
-     & & & \multicolumn{6}{c}{Adaptive} & \multicolumn{6}{c}{No stopping} \\
-     & & & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} & \multicolumn{2}{c}{Depth} & \multicolumn{2}{c}{Score} & \multicolumn{2}{c}{Seconds} & \multicolumn{2}{c}{Depth} \\
-    \tablehead{Dataset} & $n$ & $p$ & PT & MT & PT & MT & PT & MT & PT & MT & PT & MT & PT & MT \\
-    \midrule
-    vowel & 990 & 10 & 0.689 & 0.705 & 0.23 & 0.15 & 10.0 & 11.2 & 0.691 & 0.717 & 0.57 & 0.40 & 10.0 & 11.4 \\
-    spam & 4,601 & 57 & 0.908 & 0.902 & 0.86 & 0.71 & 11.2 & 12.4 & 0.908 & 0.908 & 3.03 & 3.01 & 11.4 & 11.4 \\
-    page-blocks & 5,473 & 10 & 0.768 & 0.750 & 0.69 & 0.29 & 10.0 & 11.2 & 0.768 & 0.748 & 5.85 & 1.45 & 10.0 & 10.0 \\
-    imports-85 & 205 & 76 & 0.638 & 0.698 & 0.07 & 0.07 & 5.4 & 4.8 & 0.638 & 0.671 & 0.17 & 0.18 & 5.4 & 5.2 \\
-    residential & 372 & 107 & 0.925 & 0.933 & 0.49 & 0.57 & 6.4 & 7.2 & 0.926 & 0.931 & 2.30 & 2.53 & 6.4 & 6.6 \\
-    facebook & 500 & 21 & 0.754 & 0.803 & 0.33 & 0.15 & 9.0 & 9.8 & 0.754 & 0.780 & 2.09 & 0.25 & 9.0 & 8.6 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Five-fold held-out score (balanced accuracy for the three
-  classification datasets, $R^2$ for the three regression datasets), fitting
-  time in seconds, and fitted depth of one tree at the 256-bin histogram
-  setting, by Stage~B construction (PT is the per-threshold rule, MT the
-  max-type rule) and stopping mode, on a 32-core cloud instance. Each entry is
-  the median over five seeds of the fold assignment. Timing protocol: each
-  time is the second of two identical fits, so that compilation is excluded.}
+  \caption{Five-fold held-out score (balanced accuracy for vowel, spam, and
+  page-blocks; $R^2$ for imports-85, residential, and facebook), fitting time in
+  seconds, and fitted depth of one tree at the 256-bin histogram setting, by
+  Stage~B rule and stopping mode. Each entry is the median over five seeds of
+  the fold assignment. Each time is the second of two identical fits, so
+  compilation is excluded.}
   \label{tab:stageB-real}
 \end{table}
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}

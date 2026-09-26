@@ -11,9 +11,9 @@ for designs with one, two, or five informative features are single-design
 values from the same runs, not read from the plotted means.
 
 In classification, evaluating all nonconstant features at each split gives the
-largest informative-feature gains in sparse high-$p$ settings. CIF-all keeps
-feature muting and the other tree settings unchanged while removing feature
-subsampling. Averaged over the 12 classification designs, CIF uses
+largest informative-feature gains in sparse high-$p$ settings. CIF-all isolates
+feature subsampling because feature muting and the other tree settings are held
+fixed. Averaged over the 12 classification designs, CIF uses
 informative features in 33.2\% of splits and CIF-all in 91.7\%, and CIF uses
 more distinct uninformative features, a mean of 265.1 against 93.4, where each
 count is the number of distinct uninformative features used anywhere in the

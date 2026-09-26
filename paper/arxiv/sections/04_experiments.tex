@@ -5,7 +5,10 @@ The experiments ask whether rankings produced by CIT and CIF place predictive
 features early enough for fixed downstream learners, and what the
 conditional-inference controls cost. For each training fold, a method produces
 a feature ranking, and fixed downstream learners evaluate the selected features
-on the held-out fold.
+on the held-out fold. We then summarize overall ranks, how often CIF performs
+well across datasets, high-dimensional behavior, recovery on synthetic data with
+known informative features, CIF ranking ablations, and feature sampling in
+forests.
 
 \subsection{Benchmark setup}
 \label{sec:experiments-protocol}
@@ -48,16 +51,25 @@ means over downstream models and over the standard $k$ values available for the
 methods in that comparison. Third, the tables average dataset scores over
 datasets.
 
-Some method runs on \nolinkurl{gisette}, \nolinkurl{isolet}, and
-\nolinkurl{orlraws10P} were excluded (\cref{app:methods}), so the all-method
-classification panel has 21 of the 23 datasets, and each pairwise comparison
-uses the datasets where both methods are present. Two smaller complete-case
-panels, used for bootstrap intervals, omnibus rank tests, and LODO checks,
-retain only datasets with every method, every downstream learner, and all five
-standard values of $k$. A dataset with fewer than $k$ features does not enter
-the column for $k$, so the classification counts by $k$ are 21, 20, 14, 14, and
-13 and the regression counts are 8, 8, 7, 7, and 6. \Cref{tab:panels} names
-the panels.
+The real-data classification benchmark contains 23 datasets. Some method runs
+on \nolinkurl{gisette}, \nolinkurl{isolet}, and \nolinkurl{orlraws10P} were
+excluded (\cref{app:methods}), so the all-method classification panel has 21 of
+the 23 datasets, and each pairwise comparison uses the datasets where both
+methods are present. The complete-case classification analysis, used for
+bootstrap intervals and omnibus rank testing, contains 13 datasets with all
+17 methods, all three downstream learners, and all five standard values of $k$.
+Regression contains 8 datasets; the analogous rank summary uses the
+6 complete-case datasets with all methods, downstream learners, and standard
+$k$ values available.
+
+By-$k$ results are reported separately for $k=5,10,25,50,100$, and a dataset
+with fewer than $k$ features does not enter the column for $k$. The
+corresponding classification dataset counts are $21, 20, 14, 14, 13$; the
+regression counts are $8, 8, 7, 7, 6$. Pairwise CIF comparisons stratified by
+$k$ use the dataset counts reported with the corresponding rows. The 13-dataset
+classification and 6-dataset regression summaries are complete-case analyses,
+retaining only datasets with every method, downstream learner, and standard $k$
+value. \Cref{tab:panels} names the panels.
 
 \begin{table}[!htbp]
   \centering
@@ -94,10 +106,18 @@ the panels.
 The real-data benchmark includes 23 classification datasets and 8 regression
 datasets. The separate high-$p$ analysis restricts attention to the
 15 classification datasets and 6 regression datasets with more than 100
-features. Feature recovery uses 8 synthetic classification datasets and 8
-synthetic regression datasets with known informative features and controlled
-noise structure. \Cref{app:dataset-inventory} lists every dataset and
-summarizes the synthetic designs.
+features. The full inventories of the real and synthetic datasets are listed in
+\Cref{app:dataset-inventory}, which also summarizes the synthetic designs and
+their parameter choices.
+
+Feature recovery uses 8 synthetic classification datasets and 8 synthetic
+regression datasets with known informative features and controlled noise
+structure. A separate study of feature sampling uses $n=250$ and
+varies $p \in \{100, 500, 1{,}000\}$ and
+$n_{\mathrm{informative}} \in \{1,2,5,10\}$. That study compares CIT, a CART
+decision tree (DT), a random threshold tree (RT), CIF, CIF-all, random forests
+(RF), and ExtraTrees, using 1,000 trees for forest methods. CIF-all denotes
+the CIF variant that evaluates all nonconstant features at each split.
 
 \subsection{Compared methods}
 \label{sec:experiments-methods}
@@ -108,15 +128,15 @@ Permutation-test filters compute univariate dependence statistics and rank
 features by their permutation $P$-values: multiple correlation (MC) and
 randomized dependence coefficient (RDC) for classification, and Pearson
 correlation (PC), distance correlation (DC), and RDC for regression. The RDC
-keeps the empirical-CDF random feature map of \citet{LopezPaz2013RDC} but
-replaces the canonical-correlation solve with the maximum absolute pairwise
-correlation across 10 random projections. Distance correlation follows
+filter keeps the empirical-CDF random feature map from
+\citet{LopezPaz2013RDC} but replaces the canonical-correlation solve with the
+maximum absolute pairwise correlation across 10 random projections. Distance correlation follows
 \citet{Szekely2007DistanceCorrelation}. CIT and CIF use the same MC, PC, and
 RDC statistics as Stage~A selectors.
 
 Embedded methods rank features using tree or ensemble importance scores. These
-methods are CART decision trees (DT), single randomized trees with random split
-thresholds (RT), CIT, CIF, random
+methods are CART decision trees (DT), randomized trees (RT) with random split
+thresholds, CIT, CIF, random
 forests (RF) \citep{Breiman2001RandomForests}, ExtraTrees
 \citep{Geurts2006ExtraTrees}, XGBoost \citep{ChenGuestrin2016XGBoost},
 LightGBM \citep{Ke2017LightGBM}, CatBoost
@@ -129,29 +149,42 @@ the training fold \citep{Breiman2001RandomForests,Strobl2007BiasRFVariableImport
 conditional permutation importance (CPI)
 \citep{DebeerStrobl2020ConditionalPermutationImportanceRevisited}, and
 random-forest recursive feature elimination (RF-RFE)
-\citep{Guyon2002RFE,Pedregosa2011ScikitLearn}. CPI permutes each feature within
-five-bin percentile strata of the features whose absolute correlation with it
-is at least 0.5, and globally when there are none. A further comparator ranks
-the RF by out-of-bag permutation importance, which scores every training row.
+\citep{Guyon2002RFE,Pedregosa2011ScikitLearn}. A further comparator ranks the
+RF by out-of-bag permutation importance, which scores every training row.
+
+In this benchmark, CPI uses stratified conditional permutation with
+correlation-based strata. It trains one 100-tree random forest on a training
+split, scores a 20\% validation split, and treats each feature in turn as the
+target feature. It then identifies validation-set features with absolute
+correlation at least 0.5 with the target feature, forms five-bin percentile
+strata from those conditioning features, and permutes the target feature within
+strata. If no conditioning feature meets the correlation threshold, the target
+feature is permuted globally.
 
 Ranking rules use each method's natural score direction. Embedded tree and
-ensemble baselines, PI, and CPI rank features by decreasing importance.
-Permutation-test filters rank by increasing $P$-value, with dependence score as
-the secondary key. The ctree reference ranks features by split-use counts.
-cforest is ranked by partykit's out-of-bag permutation importance, the only
-importance the package provides for forests, while CIF uses split importance, so
-the two forests differ in importance mechanism as well as in how their trees
-are grown. The mechanism-matched check (\cref{app:cif-perm-check}) ranks CIF by
-cforest's own importance to separate the two. Boruta and RF-RFE rank by their
-fitted rank variables, with smaller ranks first. Ties are broken by a
-deterministic order.
+ensemble baselines rank features by decreasing fitted importance: DT, RT, RF,
+ExtraTrees, XGBoost, LightGBM, and CatBoost. Permutation-test filters rank by
+increasing $P$-value, with dependence score as the secondary key. The ctree
+reference ranks features by split-use counts. For cforest, we use partykit's
+unconditional variable-importance scores with one permutation, an out-of-bag
+permutation importance and the only importance the package provides for
+forests; CIF uses split-importance rankings from accepted conditional-inference
+splits. The cforest results therefore refer to this benchmarked partykit
+importance setting. The two forests thus differ in importance mechanism as well
+as in how their trees are grown, and the mechanism-matched check
+(\cref{app:cif-perm-check}) ranks CIF by cforest's own importance to separate
+the two. Boruta and recursive feature elimination rank by their fitted rank
+variables, with smaller ranks first. PI and CPI rank by decreasing importance;
+the CPI row uses the stratified conditional-permutation procedure described
+above. Ties are broken by deterministic, method-specific order for
+reproducibility.
 
 \subsection{Configuration selection}
 \label{sec:experiments-repro}
 
-Several methods were evaluated under multiple configurations: four each for CIT
-and CIF, five for XGBoost, four for cforest, and two each for LightGBM and
-ctree. Permutation-test filters used one configuration per statistic. For each
+Several methods, including CIT, CIF, XGBoost, LightGBM, ctree, and cforest, were
+evaluated under multiple configurations: four each for CIT and CIF, five for
+XGBoost, four for cforest, and two each for LightGBM and ctree. Permutation-test filters used one configuration per statistic. For each
 task, the paper reports one configuration per method, selected by mean score
 over real datasets, downstream models, and the standard values
 $k \in \{5,10,25,50,100\}$. Methods with only one configuration are treated as
@@ -164,12 +197,21 @@ regression only (\cref{tab:selected-configs}).
 Because configuration selection and reporting use the same real-data
 benchmark, the reported scores, intervals, and rank summaries are descriptive.
 As a sensitivity check, we repeat configuration selection in leave-one-dataset-out
-(LODO) form for both tasks, on the complete-case and all-method panels: each
-dataset is evaluated using configurations chosen from the other datasets of its
-panel. The downstream models, $k$ values, and averaging within each dataset are
-unchanged. For the synthetic analysis, each method is assigned the
-configuration with the highest average recovery of the true informative
-features over $k = 5, 10, 25, 50,$ and $100$.
+(LODO) form for both tasks. In classification, each of the 13 complete-case
+datasets is evaluated using configurations chosen from the other 12 datasets. In
+regression, each of the 6 complete-case datasets is evaluated using
+configurations chosen from the other 5 datasets. The same check is repeated on
+the all-method panels. The downstream models, $k$ values, and averaging within
+each dataset are unchanged.
+
+For the synthetic analysis, configurations are selected separately from the
+real-data benchmark. Each method is assigned the configuration with the highest
+average recovery of the true informative features over $k = 5, 10, 25, 50,$ and
+$100$. The benchmarked CIT and CIF configurations use adaptive sequential
+stopping at the minimum budget, the feature and threshold corrections with the
+per-threshold rule, feature muting, feature scanning, threshold scanning, and
+256-bin histogram thresholding. The benchmarked CIT and CIF variants differ in
+selector and honesty; CIF is run as a bootstrap forest.
 
 \subsection{Ablations}
 \label{sec:experiments-ablations}
@@ -187,9 +229,9 @@ two identical fits, so compilation is excluded. On the Benchmark-size panel the
 tree is refitted with adaptive stopping off, with threshold scanning off, and
 without the two corrections, and the forest with adaptive stopping off.
 
-To isolate which parts of the CIF ranking matter, a ranking ablation on the
-ablation panel holds the selected CIF configuration fixed and changes one
-component at a time: replacing fitted split importance with split counts,
+To isolate which parts of the CIF ranking matter, we run a ranking ablation on
+the real datasets of the ablation panel. The ablation holds the selected CIF
+configuration fixed and changes one component at a time: replacing fitted split importance with split counts,
 disabling feature muting, disabling bootstrap sampling, or reducing the forest
 to one tree. Each variant is evaluated with the same downstream learners,
 folds, seeds, and standard top-$k$ values as the main benchmark, paired with the
@@ -256,10 +298,9 @@ max-type family standing in for its per-threshold counterpart.
 \subsection{Mechanism studies}
 \label{sec:experiments-mechanism}
 
-Three studies examine why the forest rankings behave as they do. The
-feature-use study uses $n=250$, $p \in \{100, 500, 1{,}000\}$, and 1, 2, 5, or
-10 informative features, and compares CIT, DT, RT, CIF, CIF-all, RF, and
-ExtraTrees, with 1,000 trees for the forests. The weak-signal cardinality
+Three studies examine why the forest rankings behave as they do: the
+feature-sampling study of \cref{sec:experiments-datasets}, the weak-signal
+cardinality designs, and the support measurement. The weak-signal cardinality
 designs place 10 informative Gaussian features among 25 noise features with 500
 levels, 25 binary noise features, and 10 Gaussian noise features, at $n=1{,}000$
 and signal strengths 0.05, 0.10, and 0.20; CIF and CIT use the MC selector in

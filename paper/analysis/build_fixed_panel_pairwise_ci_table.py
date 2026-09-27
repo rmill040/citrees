@@ -1,7 +1,7 @@
-"""Build paired uncertainty summaries for CIF on the 14-dataset benchmark.
+"""Build paired uncertainty summaries for CIF on the complete-case panels.
 
-This script adds a compact 14-dataset comparison layer on top of the
-paper-facing benchmark contract:
+This script adds a complete-case comparison layer (13 classification and 6
+regression datasets) on top of the paper-facing benchmark contract:
 
 1. one selected config per method family within task,
 2. real datasets only,

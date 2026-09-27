@@ -1,0 +1,93 @@
+\subsection{Mechanism: cardinality and feature use}
+\label{sec:mechanism}
+
+Three measurements examine how the split rule shapes a ranking. They cover the
+preference for high-cardinality features, the size of each ranker's support,
+and the limit that feature sampling places on which features a forest can
+split on.
+
+\paragraph{CIF ablations.}
+\Cref{tab:cif-ranking-ablation} compares the selected CIF configuration with
+four targeted changes, each paired with the reference in the same seed and
+fold. In classification, reducing CIF to one tree lowers balanced accuracy on
+every dataset, while split-count ranking, disabling bootstrap sampling, and
+disabling feature muting change it by at most 0.001 on average, with intervals
+that include zero. In regression the one tree also loses on every dataset. The
+other three changes lower the mean $R^2$, two of them with intervals that
+exclude zero, while their medians stay within 0.007 of zero. The three
+\nolinkurl{coepra} datasets set those means.
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.08}
+  \begin{tabular}{@{}llS[table-format=+1.3]S[table-format=+1.3]cc@{}}
+    \toprule
+    \tablehead{Task} & \tablehead{CIF change} & {Mean difference} & {Median difference} & 95\% interval & Wins--losses \\
+    \midrule
+    Classification & Split-count ranking & -0.001 & 0.000 & [$-$0.005, +0.002] & \winloss{12}{9} \\
+    Classification & Disable bootstrap & -0.001 & 0.000 & [$-$0.004, +0.003] & \winloss{9}{12} \\
+    Classification & Disable feature muting & +0.001 & 0.000 & [$-$0.001, +0.002] & \winloss{13}{5} \\
+    Classification & Use one tree & -0.071 & -0.043 & [$-$0.101, $-$0.045] & \winloss{0}{22} \\
+    \addlinespace
+    Regression & Split-count ranking & -0.053 & -0.003 & [$-$0.142, $-$0.002] & \winloss{2}{6} \\
+    Regression & Disable bootstrap & -0.064 & -0.007 & [$-$0.128, $-$0.010] & \winloss{4}{4} \\
+    Regression & Disable feature muting & -0.157 & 0.000 & [$-$0.468, +0.001] & \winloss{4}{4} \\
+    Regression & Use one tree & -0.658 & -0.059 & [$-$1.692, $-$0.054] & \winloss{0}{8} \\
+    \bottomrule
+  \end{tabular}
+  \caption{CIF ablations on the real-data benchmark, 22 classification and 8
+  regression datasets. Differences compare each changed variant with the
+  selected CIF configuration, paired within seed and fold; positive values
+  favor the changed variant. Scores are averaged within each dataset over
+  downstream learners, supported standard values of $k$, and the 25 paired
+  fold and seed replicates; balanced accuracy in classification, $R^2$ in
+  regression. Intervals are percentile bootstrap intervals for the mean over
+  dataset-level differences from 20{,}000 replicates. Wins and losses count datasets where
+  the changed variant is higher or lower; exact ties are omitted.}
+  \label{tab:cif-ranking-ablation}
+\end{table}
+
+
+\paragraph{Support.}
+The support of a ranker is the set of features that win at least one split.
+On the synthetic datasets, random forests give every feature nonzero
+importance on 15 of the 16 designs, and 800 of 1,000 on the 1,000-feature
+classification design. On 13 of the 16 designs, CIF's support keeps 90 to
+100\% of the planted features, so the support serves as a shortlist. Beyond it, a
+ranking orders the zero-importance features by the tie rule of
+\cref{sec:rank-construction}. For a single tree these filler features are most
+of any top-$k$ list. They make up 52, 81, and 90\% of the CIT top 10, 25, and
+50 features, against 0, 3, and 14\% for CIF and none for random forests. This is
+consistent with single trees ranking near the bottom of the benchmark.
+
+\paragraph{Feature use in sampled forests.}
+A sparse simulation measures how often forest splits use informative features
+(\cref{fig:candidate-forest-counts}; \cref{app:candidate-availability}). CIT
+uses informative features in 100.0\% of classification splits and 93.5\% of
+regression splits. Over the 12 classification forest designs, CIF uses
+informative features in 33.2\% of splits, against 91.7\% for CIF-all, 8.4\%
+for RF, and 6.5\% for ExtraTrees. RF and ExtraTrees grow to purity, so most of
+their splits are deep splits on noise, while CIF stops at the permutation
+test. The gap to CIF-all reflects feature sampling. With 32 of 1,000 features
+sampled at a node and two informative, an informative feature is a candidate
+at 6.3\% of nodes. In that design CIF uses one in 9.0\% of splits, RF in 2.7\%,
+ExtraTrees in 2.0\%, and CIF-all in 100.0\%. When the sampled subset holds no
+informative feature, Stage~A selects from the noise it was given. The
+downstream ranking of CIF-all was not scored, so its effect on ranking quality
+remains open.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
+  \caption{Tree-level feature use in one sparse classification forest design
+  ($n=250$, $p=1{,}000$, two informative features). Counts are the number of
+  trees using each feature in at least one split, pooled over five fits of
+  1,000 trees each, so the shared vertical axis runs to 5,000. CIF samples a
+  subset of features at each node; CIF-all evaluates all nonconstant
+  features.}
+  \label{fig:candidate-forest-counts}
+\end{figure}
+
+\FloatBarrier

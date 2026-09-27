@@ -1,0 +1,255 @@
+\subsection{Stage~B construction comparison}
+\label{sec:results-stageB}
+
+This section compares the per-threshold and max-type Stage~B rules on size,
+power, threshold placement, cost, and the benchmark rankings. Both rules
+control the false-split rate. At matched realized size the max-type rule has
+slightly lower power, and it places the threshold slightly less precisely. It
+is cheaper once a node has many candidates.
+
+The complete-node false-split rate is below 0.05 for both rules in all 36
+design cells (\cref{tab:stageB-calibration}, \cref{app:stageB-tables}). These
+rates include the Stage~A test over five predictors, so they bound the
+threshold test from below rather than measure it.
+
+The Stage-B-only study measures the threshold test itself
+(\cref{tab:stageB-only}). At nominal level 0.05 the per-threshold rule has size
+0.000 to 0.027, with means 0.018, 0.011, and 0.006 at 16, 64, and 256 bins.
+The max-type rule has size 0.023 to 0.044, with means 0.033, 0.035, and 0.035.
+Every 95\% Clopper-Pearson upper limit is below 0.056. Both rules are valid at
+a fixed node for a predictor fixed without the response. The reverse
+cardinality bias of \cref{sec:rank-construction} appears as a threefold fall in
+per-threshold size across bin settings, while the max-type size does not move.
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrrrrrrrr@{}}
+    \toprule
+     & & & \multicolumn{4}{c}{Size at nominal 0.05} & & \multicolumn{2}{c}{Size-matched power} \\
+     & & & \multicolumn{2}{c}{Per-threshold} & \multicolumn{2}{c}{Max-type} & Match & & \\
+    \tablehead{Task} & $n$ & Bins & Adaptive & None & Adaptive & None & size & Per-threshold & Max-type \\
+    \midrule
+    Classification & 100 & 16 & 0.013 & 0.013 & 0.032 & 0.033 & 0.050 & 0.390 & 0.379 \\
+     & 100 & 64 & 0.007 & 0.007 & 0.036 & 0.039 & 0.044 & 0.385 & 0.354 \\
+     & 100 & 256 & 0.007 & 0.007 & 0.036 & 0.042 & 0.034 & 0.335 & 0.318 \\
+     & 200 & 16 & 0.010 & 0.011 & 0.037 & 0.039 & 0.050 & 0.643 & 0.618 \\
+     & 200 & 64 & 0.008 & 0.009 & 0.035 & 0.039 & 0.050 & 0.630 & 0.615 \\
+     & 200 & 256 & 0.003 & 0.003 & 0.039 & 0.039 & 0.031 & 0.562 & 0.538 \\
+     & 500 & 16 & 0.015 & 0.015 & 0.032 & 0.037 & 0.050 & 0.958 & 0.953 \\
+     & 500 & 64 & 0.007 & 0.007 & 0.029 & 0.035 & 0.050 & 0.961 & 0.964 \\
+     & 500 & 256 & 0.000 & 0.001 & 0.023 & 0.032 & 0.034 & 0.958 & 0.952 \\
+    Regression & 100 & 16 & 0.019 & 0.019 & 0.023 & 0.031 & 0.050 & 0.292 & 0.281 \\
+     & 100 & 64 & 0.013 & 0.013 & 0.029 & 0.035 & 0.050 & 0.305 & 0.285 \\
+     & 100 & 256 & 0.011 & 0.010 & 0.031 & 0.037 & 0.050 & 0.317 & 0.299 \\
+     & 200 & 16 & 0.027 & 0.026 & 0.033 & 0.038 & 0.050 & 0.591 & 0.581 \\
+     & 200 & 64 & 0.017 & 0.017 & 0.033 & 0.043 & 0.050 & 0.619 & 0.598 \\
+     & 200 & 256 & 0.008 & 0.009 & 0.041 & 0.044 & 0.050 & 0.632 & 0.579 \\
+     & 500 & 16 & 0.026 & 0.026 & 0.031 & 0.032 & 0.050 & 0.947 & 0.942 \\
+     & 500 & 64 & 0.015 & 0.016 & 0.029 & 0.033 & 0.050 & 0.966 & 0.952 \\
+     & 500 & 256 & 0.005 & 0.006 & 0.026 & 0.034 & 0.046 & 0.963 & 0.951 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Stage-B-only study: the threshold test in isolation, with one
+  Gaussian predictor fixed without the response and the Stage~A test disabled.
+  Size is the false-split rate of a depth-one tree at nominal level 0.05 over
+  1,500 null replicates per cell (three seeds of 500) under adaptive stopping
+  and no stopping (None); every 95\% Clopper-Pearson upper limit is below
+  0.056. Size-matched power, shown for adaptive stopping at the middle effect
+  ($\delta = 0.10$ in classification, $0.4$ in regression), is interpolated
+  against realized size over the nominal grid from 0.02 to 0.50 (600 replicates
+  per cell and level) to the match size: 0.05, or the largest realized size
+  both rules reach where the per-threshold rule does not reach 0.05.}
+  \label{tab:stageB-only}
+\end{table}
+
+Matched at the same realized size, the max-type minus per-threshold difference
+in power ranges from $-0.054$ to $+0.034$ over the 108 cell and effect
+combinations. The max-type rule is lower in 67 and higher in 25. The mean
+difference is $-0.006$, with a 95\% bootstrap interval of $-0.011$ to $-0.002$
+that resamples the 18 cells, and $-0.005$ ($-0.009$ to $-0.002$) over the 13
+cells matched at size 0.05. It has no trend in the bin setting. In the other
+five cells the per-threshold rule does not reach size 0.05 even at nominal
+0.50, and the match is at the largest size both rules reach.
+
+Two reruns bound the Monte Carlo error. With larger replicate counts at a
+fourth seed, the mean difference is $-0.006$ ($-0.008$ to $-0.003$); a
+parametric bootstrap of the whole matching procedure puts a standard error of
+about 0.017 on each difference, so the smallest detectable difference is about
+0.03. With the planted step moved to the 85th percentile, the mean difference
+is $-0.004$ ($-0.008$ to $0.000$), with a standard error of about 0.038 and a
+detectable difference of about 0.08. The Stage-B-only sizes stay in the ranges
+above.
+
+At a common nominal level of 0.05, the max-type rule splits more often, by 0.03
+on average and up to 0.12 in the complete-node design (\cref{tab:stageB-power})
+and by 0.10 in the Stage-B-only study. The gap grows with the candidate count,
+0.015 at 16 bins, 0.029 at 64, and 0.049 at 256, because the per-threshold
+power falls as the threshold correction tightens. The gap therefore reflects
+the lower realized size of the per-threshold rule, which the matched
+comparison above removes.
+
+The max-type rule places the threshold less precisely. On each rule's own
+detections, the max-type threshold sits a median 0.19 standard deviations from the planted cut
+against 0.15 for the per-threshold rule, and 87\% of its detections fall on
+the planted predictor against 90\%.
+
+\Cref{tab:stageB-scaling} reports the cost of the two rules. With no stopping and
+256 bins, one classification tree under the per-threshold rule takes 3.5, 14,
+and 59 seconds at $n=1{,}000$, $4{,}000$, and $16{,}000$ (0.8, 8.8, and 54 in
+regression); the max-type rule takes 0.3, 1.4, and 6.3 seconds. The ratio grows
+with the bin setting as the $K^2/\alpha$ against $BK$ accounting predicts. At
+16 bins the max-type rule is 1.1 to 1.3 times slower, because its 999
+permutations exceed the 340 the per-threshold rule needs for 17 candidates. At
+64 bins it is 1.5 to 2.1 times faster, and at 256 bins 2.8 to 13 times.
+Adaptive stopping shortens the per-threshold test by 1.2 to 1.6, 2.2 to 3.2,
+and 3.8 to 7.8 times at the three bin settings, so with adaptive stopping the
+max-type advantage is 1.0 to 1.3, 1.4 to 2.1, and 2.2 to 7.7. Held at 999
+permutations per candidate instead, the per-threshold rule never splits at 64
+or 256 bins, because $\alpha/K$ falls below the resolution $1/(B+1)$. Fitted
+depths barely differ: 5.0 to 10.7 levels for the max-type rule against 4.0 to
+10.0.
+
+On the six Stage~B real datasets (\cref{tab:stageB-real}), the max-type rule
+scores higher in 8 of the 12 dataset and stopping-mode cells and equal in one.
+It is higher by 0.016 and 0.026 balanced accuracy on vowel, 0.049 and 0.026
+$R^2$ on facebook, 0.060 and 0.033 on imports-85, and 0.008 and 0.005 on
+residential. It is lower by 0.018 and 0.020 on page-blocks, and on spam lower
+by 0.006 with adaptive stopping and equal with no stopping. Its fitting time is
+1.2 to 2.4 times shorter with adaptive stopping and 1.0 to 8.3 times shorter
+with no stopping on the four datasets whose nodes admit many candidates. It is
+16\% and 10\% slower on residential. Fitted depths agree within about one
+level (5.4 to 11.4 for the per-threshold rule, 4.8 to 12.4 for the max-type
+rule). The Spearman agreement of the two rules' feature importances is 0.36 to
+0.88, so the max-type rule produces a different ranking rather than the same
+ranking at lower cost.
+
+In the head-to-head forest timing, the max-type rule is 10 to 27 times faster
+than the per-threshold rule on the synthetic cells at $n\le 8{,}000$ and 21 to
+36 times faster at $n=32{,}000$ (13 to 36 times on the cells that
+\citet{MilletichDownesHirst2026citrees} tabulate). The runtime panel of
+\cref{tab:runtime-ablations} shows smaller ratios, 1.6 to 7 times, because its
+nodes admit fewer candidates. On the ten real datasets the max-type rule
+reduces madelon from 21 to 2.6 seconds, gamma from 44 to 21, and isolet from 18
+to 9.1, and changes the other seven by at most 1.6 seconds.
+
+The max-type extension shows what the rule does to the rankings
+(\cref{tab:maxt-benchmark-rankings}). Of its 1,880 possible ranking runs, 88
+were not run because their per-threshold counterpart had not completed, and
+1,785 of the remaining 1,792 completed. The seven that did not are CIF with the
+RDC selector and honesty off on isolet, gisette, and letter, the same cells
+excluded from the per-threshold benchmark (\cref{app:methods}). Ranked on the
+all-method panels, the max-type forest moves from 3.5 to 5 of 17 in
+classification and from 2 to 4 of 18 in regression, and the max-type tree
+keeps its position in both tasks. The per-threshold rule is the higher of the
+two on 59 to 63\% of datasets. The case for the max-type rule therefore rests
+on cost and calibration rather than on the rankings.
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}llrrrrrr@{}}
+    \toprule
+     & & \multicolumn{2}{c}{Per-threshold} & \multicolumn{2}{c}{Max-type} & \multicolumn{2}{c}{Paired difference} \\
+    \tablehead{Task} & Method & Mean rank & Position & Mean rank & Position & Score & Datasets \\
+    \midrule
+    Classification & CIF & 5.86 & 3.5 & 6.31 & 5 & $-0.0014$ & 22 \\
+     & CIT & 13.14 & 16 & 13.00 & 16 & $-0.0022$ & 23 \\
+    Regression & CIF & 6.25 & 2 & 7.50 & 4 & $-0.0001$ & 8 \\
+     & CIT & 11.13 & 14 & 10.88 & 14 & $-0.0085$ & 8 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Benchmark rankings under the two Stage~B rules. Mean rank and
+  position are among the 17 classification and 18 regression methods on the
+  all-method panels of 21 and 8 datasets, with the max-type family standing in
+  for its per-threshold counterpart; the per-threshold columns repeat
+  \cref{tab:method-main-comparison}. The paired difference is the max-type
+  score minus the per-threshold score (balanced accuracy in classification,
+  $R^2$ in regression), averaged over the datasets, downstream learners, and
+  standard $k$ that both rules completed; Datasets is the number of datasets in
+  that average.}
+  \label{tab:maxt-benchmark-rankings}
+\end{table}
+
+\FloatBarrier
+
+\paragraph{Cardinality in the ranking.}
+The weak-signal designs place 10 informative Gaussian features among
+500-level, binary, and Gaussian noise columns
+(\cref{tab:weak-signal-cardinality}). A ranker indifferent to cardinality would
+give each of the 500-level and binary noise types 25/60 of the top-ten places
+not taken by informative features. The designs can reveal two biases, and both
+appear. The first is the preference of impurity importance for features with
+many possible thresholds; the second is the reverse cardinality bias of the
+per-threshold rule (\cref{sec:rank-construction}). At the weakest signal, random forest impurity importance fills
+0.38 of its top ten with 500-level noise in both tasks, against a reference of
+0.24, and none with binary noise. Per-threshold CIF is close to the reference
+in classification (0.31 binary and 0.26 500-level against 0.29) and leans
+toward binary noise in regression (0.40 binary and 0.24 500-level against
+0.31). The max-type rule brings the binary share to 0.26 in classification and
+0.30 in regression, against references of 0.28 and 0.27.
+
+A ranking with less cardinality preference does not recover more informative
+features in these designs. Random forest impurity
+importance places the most informative features in its top ten at every signal
+strength, and the downstream scores of all rankers are within 0.02 of each
+other at every signal. The same forest ranked by out-of-bag permutation
+importance keeps the preference, with a 500-level share above that of
+impurity importance at the two weaker signals in both tasks. The benefit of a
+ranking closer to cardinality-neutral appears on predictors whose cardinality
+carries no signal, as in the clinical application of
+\citet{MilletichDownesHirst2026citrees}, rather than in recovery of weak
+marginal effects.
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}lrlrrrrr@{}}
+    \toprule
+     & & & \multicolumn{3}{c}{Share of the top ten} & & \\
+    \tablehead{Task} & Signal & Ranking & Informative & 500-level noise & Binary noise & Support & Score \\
+    \midrule
+
+    Classification & 0.05 & CIF & 0.31 & 0.26 & 0.31 & 37 & 0.52 \\
+     & & CIF, max-type & 0.34 & 0.28 & 0.26 & 46 & 0.51 \\
+     & & RF impurity & 0.42 & 0.38 & 0.00 & 70 & 0.52 \\
+     & & RF permutation & 0.30 & 0.47 & 0.06 & 34 & 0.51 \\
+     & 0.10 & CIF & 0.64 & 0.16 & 0.13 & 45 & 0.56 \\
+     & & CIF, max-type & 0.66 & 0.20 & 0.06 & 53 & 0.55 \\
+     & & RF impurity & 0.72 & 0.19 & 0.00 & 70 & 0.56 \\
+     & & RF permutation & 0.49 & 0.36 & 0.02 & 36 & 0.56 \\
+     & 0.20 & CIF & 0.95 & 0.04 & 0.01 & 59 & 0.68 \\
+     & & CIF, max-type & 0.96 & 0.04 & 0.00 & 65 & 0.69 \\
+     & & RF impurity & 0.99 & 0.01 & 0.00 & 70 & 0.69 \\
+     & & RF permutation & 0.87 & 0.09 & 0.00 & 39 & 0.67 \\
+    Regression & 0.05 & CIF & 0.26 & 0.24 & 0.40 & 17 & $-$0.11 \\
+     & & CIF, max-type & 0.34 & 0.22 & 0.30 & 21 & $-$0.11 \\
+     & & RF impurity & 0.43 & 0.38 & 0.00 & 70 & $-$0.11 \\
+     & & RF permutation & 0.37 & 0.43 & 0.05 & 34 & $-$0.10 \\
+     & 0.10 & CIF & 0.64 & 0.11 & 0.20 & 24 & $-$0.05 \\
+     & & CIF, max-type & 0.65 & 0.13 & 0.15 & 28 & $-$0.04 \\
+     & & RF impurity & 0.73 & 0.17 & 0.00 & 70 & $-$0.04 \\
+     & & RF permutation & 0.57 & 0.27 & 0.01 & 37 & $-$0.06 \\
+     & 0.20 & CIF & 0.95 & 0.03 & 0.02 & 36 & 0.28 \\
+     & & CIF, max-type & 0.95 & 0.02 & 0.02 & 44 & 0.28 \\
+     & & RF impurity & 0.99 & 0.01 & 0.00 & 70 & 0.29 \\
+     & & RF permutation & 0.95 & 0.03 & 0.00 & 39 & 0.28 \\
+        \bottomrule
+  \end{tabular}
+  \caption{Weak-signal designs with mixed-cardinality noise, $n = 1{,}000$.
+  Ten informative standard normal features have marginal correlation with the
+  response given by the Signal column; the noise is 25 columns of integer codes
+  on 500 levels, 25 binary columns, and 10 Gaussian columns. Shares are the mean
+  composition of each ranking's top ten over 25 fits (5 seeds by 5 folds;
+  standard errors 0.01 to 0.03); the remainder is Gaussian noise. Support is
+  the mean number of features with nonzero importance; Score is the held-out
+  balanced accuracy or $R^2$ of the downstream learners on the top ten. CIF is
+  the selected configuration with the MC selector in classification and the PC
+  selector in regression; CIF, max-type adds the max-type Stage~B rule; RF
+  permutation is the same random forest ranked by out-of-bag permutation
+  importance.}
+  \label{tab:weak-signal-cardinality}
+\end{table}

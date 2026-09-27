@@ -1,0 +1,66 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{siunitx}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[section]{placeins}
+
+\usepackage{xr-hyper}
+\usepackage{hyperref}
+\usepackage[nameinlink,capitalise,noabbrev]{cleveref}
+
+\usepackage[numbers,sort&compress]{natbib}
+
+% References to the paper resolve through main.aux; build main.tex first.
+\externaldocument{main}
+
+\input{macros}
+\hypersetup{
+  hidelinks,
+  pdftitle={Supplement to Conditional Inference Trees and Forests for Feature Selection},
+  pdfauthor={Robert Milletich, Justin Downes, Steve Goley, Newel Hirst}
+}
+
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\title{Supplement to ``Conditional Inference Trees and Forests for Feature Selection''}
+\author{%
+  Robert Milletich, Justin Downes, Steve Goley, Newel Hirst\\
+  Amazon Web Services\\
+  \texttt{\char`\{rmilleti,jusdow,sgoley,nhirst\char`\}@amazon.com}
+}
+\date{}
+
+\begin{document}
+\maketitle
+
+This supplement holds the tables and figures behind statements in the paper
+that the paper reports in its text. Section, table, and figure numbers without
+the prefix S refer to the paper.
+
+\input{supplement/S1_benchmark}
+\FloatBarrier
+\input{supplement/S2_weaker}
+\FloatBarrier
+\input{supplement/S3_threshold_tests}
+\FloatBarrier
+\input{supplement/S4_cardinality}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

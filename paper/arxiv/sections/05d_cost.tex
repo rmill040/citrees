@@ -1,0 +1,80 @@
+\subsection{Runtime ablations}
+\label{sec:results-practical}
+
+\Cref{tab:runtime-ablations} changes one setting at a time and reports fitting
+time relative to the selected configuration of the same estimator. Each ratio
+is the median over datasets of the per-dataset ratio, given as the range over
+the four task groups (classification and regression, real and synthetic).
+Ratios above 1 are slower. \Cref{app:complexity-details} links each row to the
+work terms it affects.
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+     & \multicolumn{2}{c}{CIT} & \multicolumn{3}{c}{CIF} \\
+    \cmidrule(lr){2-3}\cmidrule(l){4-6}
+    \tablehead{Change} & Time ratio & \shortstack{Top-10 F1\\change} & Time ratio & \shortstack{Downstream\\change} & \shortstack{Recovery\\change} \\
+    \midrule
+    Disable adaptive stopping & 0.88 to 0.99 & 0 & 0.96 to 1.00 & 0 & 0 \\
+    Auto budget, adaptive stopping & 1.18 to 1.56 & $\le 0.016$ & 1.30 to 2.0 & & $\le 0.030$ \\
+    Auto budget, no stopping & 3.8 to 8.2 & $\le 0.016$ & 5.8 to 15 & & $\le 0.025$ \\
+    Disable threshold scanning & 2.7 to 34 & $\le 0.033$ & 7.9 to 30 & $\le 0.003$ & $\le 0.010$ \\
+    Disable feature scanning & 0.81 to 3.0 & $\le 0.058$ & 1.0 to 5.2 & $\le 0.003$ & $\le 0.008$ \\
+    Exact threshold search & 0.91 to 1.10 & $\le 0.004$ & 1.3 to 19 & $\le 0.009$ & $\le 0.018$ \\
+    Histogram with 32 bins & & & 0.05 to 0.14 & $\le 0.008$ & $\le 0.013$ \\
+    Disable feature muting & 0.97 to 0.98 & 0 & 0.91 to 1.00 & $\le 0.001$ & $\le 0.003$ \\
+    Disable bootstrap sampling & & & 0.94 to 1.69 & $\le 0.012$ & $\le 0.011$ \\
+    Max-type Stage~B rule & & & 0.14 to 0.61 & $\le 0.005$ & $\le 0.007$ \\
+    Remove both corrections & 0.52 to 1.8 & $\le 0.063$ & 0.03 to 0.34 & $\le 0.004$ & $\le 0.011$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Runtime ablations of CIT and CIF on the runtime panel of 23 datasets
+  (15 classification and 8 regression; 9 real and 14 synthetic), five seeds per
+  dataset. Time ratios are medians over datasets of the per-dataset ratio to
+  the selected configuration, given as the range over the four task groups.
+  Top-10 F1 is the harmonic mean of precision and recall of the ten
+  highest-ranked features against the planted informative set. Score columns
+  give the largest absolute change across task groups in mean top-10 F1 for
+  CIT, and in the dataset-mean downstream score and synthetic feature recovery
+  for CIF; bounds are rounded upward to 0.001. The auto-budget runs record
+  recovery but no downstream score. Empty cells are settings that do not apply
+  to, or were not ablated for, that estimator. Every time is the second of two
+  identical fits, so compilation is excluded.}
+  \label{tab:runtime-ablations}
+\end{table}
+
+At the benchmark's minimum budget, adaptive stopping is inert by construction
+(\cref{sec:theory-adaptive}). Switching it off leaves every tree unchanged, and
+the time ratios near 1 measure only the cost of the check. The result does not
+depend on how forest trees are scheduled, since a forest with one worker and
+the full thread pool inside each tree gives 0.95 to 1.01.
+
+At the auto budget, where the rule can act, adaptive stopping brings the tree
+to 0.14 to 0.37 and the forest to 0.11 to 0.25 of their no-stopping time, with
+recovery changes of at most 0.030.
+
+Of the runtime controls, the threshold scan has the largest effect. Testing
+candidate thresholds in order of weighted child impurity and stopping at the
+first rejection makes trees 2.7 to 34 times and forests 7.9 to 30 times faster
+than testing every candidate. The candidate count has the next largest effect.
+For the forest, exact threshold search is 1.3 to 19 times slower than the
+256-bin histogram, and a 32-bin histogram is 7 to 21 times faster, with
+downstream changes of at most 0.009. Feature scanning matters most on the real regression datasets. The
+max-type rule fits the forest in 0.14 to 0.61 of the reference time.
+
+Removing the two corrections changes the statistical rule as well as the
+fitting time. It deepens trees from a mean of 6.5 and 7.2 levels to 10.7 and
+13.4, and moves top-10 recovery by up to 0.063. The selected configuration
+keeps both corrections.
+
+The pattern holds on the 14 Benchmark-size datasets, with up to 20,000
+observations and 5,000 features. Switching adaptive stopping off changes tree
+time by 0.80 to 1.01 (medians 0.97 in classification and 0.88 in regression)
+and forest time by 0.99 to 1.34 (medians 1.00 and 1.03). Threshold scanning
+saves a median 17 times in classification and 45 times on spam, and removing
+the corrections runs in 0.01 to 1.26 of the reference time. The slowest single
+tree is gisette at 29 minutes, where the feature correction over 5,000 features
+sets a large minimum budget for each feature test.

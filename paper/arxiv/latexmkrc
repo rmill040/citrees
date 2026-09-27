@@ -1,0 +1,2 @@
+# Build only the two documents; macros.tex is an input file, not a document.
+@default_files = ('main.tex', 'supplement.tex');

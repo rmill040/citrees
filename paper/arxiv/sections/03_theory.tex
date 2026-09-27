@@ -1,120 +1,93 @@
 \section{Fixed-node control}
 \label{sec:theory}
 
-This section analyzes the full-scan fixed-$B$ Stage~A feature test and the two
-Stage~B threshold tests at a fixed node. The lemma states superuniformity of a
-single $+1$ Monte Carlo permutation $P$-value. The corollaries apply the
-feature correction across the Stage~A tests and the threshold correction across
-the candidate thresholds, and give fixed-node control of the max-type rule. The
-proposition gives the exact size of adaptive stopping. In the notation of
-\cref{sec:stageA-stageB}, this is the reference case where every feature in
-$F_t$ is tested with the same fixed nodewise budget $B$. All probabilities below
-condition on $(X_t,U)$, where $U$ collects label-independent auxiliary
-randomness other than the Monte Carlo permutation draws. The assumptions A0.1
-to A0.5 and the scope of each result are in
-\cref{app:assumptions,app:theory-scope}.
-
-The results assume that the node responses are exchangeable (A0.2), and
-bootstrap resampling breaks that assumption, because duplicated rows carry the
-same response. \citet{Strobl2007BiasRFVariableImportance} show that sampling
-with replacement biases variable selection in conditional inference forests,
-while subsampling without replacement does not. The guarantees below therefore
-cover the node tests of subsampled or unsampled fits.
+At a fixed node, the Stage~A feature test and both Stage~B threshold tests keep
+their rejection probability under the complete nodewise null at or below the
+nominal level. The results cover the full-scan fixed-$B$ reference rule of
+\cref{sec:stageA-stageB} and condition on the node covariates $X_t$ and the
+auxiliary randomness $U$; \cref{app:assumptions} states the assumptions A0.1
+to A0.5, and \cref{app:theory-scope} gives the scope of each result. They
+assume that the node responses are exchangeable (A0.2), which holds for
+subsampled and unsampled fits and fails under bootstrap resampling: duplicated rows carry the
+same response, so permuting the responses over them does not reproduce the
+null law of the node sample. \citet{Strobl2007BiasRFVariableImportance} show
+that sampling with replacement biases variable selection in conditional
+inference forests, while subsampling without replacement does not.
 
 \begin{lemma}[$+1$ permutation $P$-values are superuniform; \citealp{HemerikGoeman2018ExactTestingRandomPermutations}]
 \label{lem:plusone-superuniform}
 Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise
 complete permutation null at the fixed node $t$, let $T_{\mathrm{obs}}$ be the
-observed statistic of one feature and $T_1,\dots,T_B$ its values under $B$
-independent uniform random permutations of $Y_t$, and define the right-tail
-$+1$ Monte Carlo $P$-value
-%
-\begin{equation}
-  P_{\mathrm{MC}}^{\ge}
-  := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
-\end{equation}
-%
-Then for every $\alpha \in [0,1]$,
-%
-\begin{equation}
-  \PP(P_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha.
-\end{equation}
+observed statistic of one feature, $T_1,\dots,T_B$ its values under $B$
+independent uniform random permutations of $Y_t$, and $P_{\mathrm{MC}}^{\ge}$
+the right-tail $+1$ Monte Carlo $P$-value of \cref{eq:plusone}. Then
+$\PP(P_{\mathrm{MC}}^{\ge} \le \alpha \mid X_t,U) \le \alpha$ for every
+$\alpha \in [0,1]$.
 \end{lemma}
 
 This is the standard exchangeable-rank result for Monte Carlo permutation tests
-\citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,Ernst2004PermutationMethodsExactInference,HemerikGoeman2018ExactTestingRandomPermutations}.
-\Cref{app:permutation-exchangeability} states the exchangeability condition and
-gives the proof. The left-tail version follows by applying the same result to
-$-T$.
+\citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,Ernst2004PermutationMethodsExactInference,HemerikGoeman2018ExactTestingRandomPermutations};
+\cref{app:permutation-exchangeability} gives the proof, and the left-tail
+version follows by applying it to $-T$.
 
 \begin{corollary}[Stage~A complete null control at a fixed node]
 \label{cor:stageA-global-null}
-Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise complete
-null at $t$, let $F_t$ be nonempty and write $m_t = |F_t| \ge 1$. Let Stage~A
-reject when
-%
-\begin{equation}
-  \min_{j \in F_t} P_{t,j} \le \alpha_{\mathrm{sel}}/m_t.
-\end{equation}
-%
+Assume A0.1 through A0.5 from \cref{app:assumptions}. Under the nodewise
+complete null at $t$, let $F_t$ be nonempty, write $m_t = |F_t| \ge 1$, and let
+Stage~A reject when $\min_{j \in F_t} P_{t,j} \le \alpha_{\mathrm{sel}}/m_t$.
 Then
-%
-\begin{equation}
-  \PP\!\left(\exists j \in F_t : P_{t,j} \le \alpha_{\mathrm{sel}}/m_t \,\middle|\, X_t,U\right)
-  \le \alpha_{\mathrm{sel}}.
-\end{equation}
+$\PP(\exists j \in F_t : P_{t,j} \le \alpha_{\mathrm{sel}}/m_t \mid X_t,U)
+\le \alpha_{\mathrm{sel}}$.
 \end{corollary}
 
-Combining \cref{lem:plusone-superuniform} with the Bonferroni union bound over
-the $m_t$ Stage~A tests gives fixed-node Stage~A control under the complete
-null. The tree-growing rule uses a strict comparison, so its rejection event is
-a subset of the event above. The result is local: it does not cover
-partial-null familywise error control, $P$-values for selected features, or
-error control for fitted trees and forests.
+The proof combines \cref{lem:plusone-superuniform} with the Bonferroni union
+bound over the $m_t$ tests, and the strict comparison of the tree-growing rule
+rejects on a subset of this event.
 
 \begin{corollary}[Stage~B per-threshold rule at a fixed node]
 \label{cor:stageB-bonferroni}
-Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$, with the tested feature and the finite candidate set $C$, $K = |C| \ge 1$, fixed as functions of $(X_t,U)$ alone. For $c \in C$ let $P_{t,c}$ be the left-tail $+1$ Monte Carlo $P$-value of the child impurity at threshold $c$, with ties counted with $\le$. Under the nodewise complete permutation null,
-%
-\begin{equation}
-  \PP\!\left(\exists c \in C : P_{t,c} \le \alpha_{\mathrm{split}}/K \,\middle|\, X_t,U\right)
-  \le \alpha_{\mathrm{split}}.
-\end{equation}
+Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$, with
+the tested feature and the finite candidate set $C$, $K = |C| \ge 1$, fixed as
+functions of $(X_t,U)$ alone. For $c \in C$ let $P_{t,c}$ be the left-tail $+1$
+Monte Carlo $P$-value of the child impurity at threshold $c$, with ties counted
+with $\le$. Under the nodewise complete permutation null,
+$\PP(\exists c \in C : P_{t,c} \le \alpha_{\mathrm{split}}/K \mid X_t,U)
+\le \alpha_{\mathrm{split}}$.
 \end{corollary}
 
 Each $P_{t,c}$ is covered by \cref{lem:plusone-superuniform} in its left-tail
-form, and the union bound over the $K$ candidates gives the claim without requiring
-the $P_{t,c}$ to be independent. Threshold scanning leaves the rejection
-event unchanged. The scope is weak familywise control for a feature fixed
-without reference to $Y_t$, rather than a post-selection guarantee for the
-Stage~A winner. A $+1$ $P$-value cannot fall below $1/(B+1)$, so the rule can
-reject only when $B \ge K/\alpha_{\mathrm{split}} - 1$.
+form, and the union bound over the $K$ candidates requires no independence
+among them; threshold scanning leaves the rejection event unchanged.
 
 \begin{corollary}[Stage~B max-type control at a fixed node]
 \label{cor:stageB-maxt}
-Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$, with the tested feature and the finite candidate set $C$ fixed as functions of $(X_t,U)$ alone and left-tail ties counted with $\le$. Let $P^{\max}_t$ be the max-type Stage~B $P$-value of \cref{eq:maxt-stat} with column moments computed over all $B+1$ rows. Under the nodewise complete permutation null, $\PP(P^{\max}_t \le \alpha \mid X_t,U) \le \alpha$ for every $\alpha\in[0,1]$.
+Assume A0.1 through A0.5 from \cref{app:assumptions} at a fixed node $t$, with
+the tested feature and the finite candidate set $C$ fixed as functions of
+$(X_t,U)$ alone and left-tail ties counted with $\le$. Let $P^{\max}_t$ be the
+max-type Stage~B $P$-value of \cref{eq:maxt-stat} with column moments computed
+over all $B+1$ rows. Under the nodewise complete permutation null,
+$\PP(P^{\max}_t \le \alpha \mid X_t,U) \le \alpha$ for every
+$\alpha\in[0,1]$.
 \end{corollary}
 
 The proof is in \cref{app:proof-maxt}. The moments must include the observed
 row, because estimating them from the permuted rows alone singles out that row
-and can be anti-conservative. The scope is that of \cref{cor:stageB-bonferroni}. It is a
-fixed-$B$ statement and does not cover the max-type rule with adaptive
-stopping, whose column moments move with the stopping time.
+and can be anti-conservative.
 
 \subsection{Size of the default adaptive stopping rule}
 \label{sec:theory-adaptive}
 
-Adaptive stopping applies to one permutation test at level $\alpha$ with budget
-$B$, confidence $\gamma$, and batch size $s$. It draws permutations
-independently and uniformly, with replacement, in batches of $s$. At each batch
-boundary $r$ that is a multiple of $s$ with $r \ge \lceil 1/\alpha \rceil$, and
-at $r=B$, it stops when the $\mathrm{Beta}(1+e,\,1+r-e)$ posterior places mass
-at least $\gamma$ on either side of $\alpha$, where $e$ counts permuted
-statistics at least as extreme as the observed one. It then reports
-$(e+1)/(r+1)$, and the tree rejects when the reported value is strictly below
-$\alpha$. Let $\rho(\alpha,\gamma,s,B)$ be the probability of rejection when the
-same rule is applied to a P\'olya urn started from one ball of each colour. The
-library default is $\gamma=0.95$ and $s=32$.
+Adaptive stopping runs one permutation test at level $\alpha$ with budget $B$,
+confidence $\gamma$, and batch size $s$, drawing permutations independently and
+uniformly, with replacement, in batches of $s$. At each batch boundary $r$ that
+is a multiple of $s$ with $r \ge \lceil 1/\alpha \rceil$, and at $r=B$, it
+stops when the $\mathrm{Beta}(1+e,\,1+r-e)$ posterior places mass at least
+$\gamma$ on either side of $\alpha$, where $e$ counts permuted statistics at
+least as extreme as the observed one. It then reports $(e+1)/(r+1)$, and the
+tree rejects when the reported value is strictly below $\alpha$. The library
+default is $\gamma=0.95$ and $s=32$. Let $\rho(\alpha,\gamma,s,B)$ be the
+probability of rejection when the same rule is applied to a P\'olya urn started
+from one ball of each color.
 
 \begin{proposition}[Size of the adaptive stopping rule, exact under A0.1 to A0.3 at fixed $B$]
 \label{prop:adaptive-size}
@@ -135,26 +108,15 @@ the size is at most the value in (ii); for a discrete response, where
 permutations tie, only this bound applies.
 \end{proposition}
 
-The proof, in \cref{app:proof-adaptive}, writes the rejection probability as a
-nonincreasing function of the per-draw exceedance probability and averages it
-over the uniform law of that probability. An exact enumeration verifies the
-hypothesis on stopping reports at $\gamma=0.95$ and $s=32$ for every budget
-from 20 to 3{,}000 at $\alpha=0.05$. At $\alpha=0.05$,
-$\rho(0.05,0.95,32,999)=0.0488$, $\rho(0.05,0.95,32,52)=0.0377$ at the auto
-budget of 52 from \cref{eq:auto-budget}, and $\rho\le 0.0496$ for every $B$ from
-20 to 3{,}000. At $\gamma=0.80$, $\rho(0.05,0.80,32,999)=0.0522$.
-
-At the corrected levels $\rho$ stays below the level. At $\alpha/20$ it is $0.00249$ at the
-minimum budget of 400 and $0.00221$ at the auto budget of 3{,}144, and at
-$\alpha/257$ it is $0.000195$ at the minimum budget of 5{,}140 and $0.000181$ at
-the auto budget of 64{,}669. These values are for the strict rule the
-implementation uses. Under the nonstrict convention the bound $\rho \le \alpha$
-fails at $B=79$, where $\rho=0.05001$.
-
+The proof is in \cref{app:proof-adaptive}, and \cref{app:adaptive-values} gives
+the exact enumeration behind the values below. At $\alpha=0.05$ the default
+rule has $\rho(0.05,0.95,32,999)=0.0488$ at 999 permutations and
+$\rho(0.05,0.95,32,52)=0.0377$ at the auto budget of 52 from
+\cref{eq:auto-budget}, and $\rho\le 0.0496$ for every $B$ from 20 to 3{,}000.
 Under the minimum budget the first stopping check coincides with the full
-budget, and the rule reduces to the fixed-$B$ test of
-\cref{lem:plusone-superuniform}. Every Stage~A and per-threshold Stage~B
-$P$-value in the benchmark is therefore a fixed-$B$ $+1$ permutation $P$-value.
-The max-type rule with adaptive stopping recomputes its column moments at each
-check, so \cref{prop:adaptive-size} does not cover it; its calibration rests on
-the null simulations of \cref{sec:results-stageB}.
+budget, so every Stage~A and per-threshold Stage~B $P$-value in the benchmark
+is a fixed-$B$ $+1$ permutation $P$-value covered by
+\cref{lem:plusone-superuniform}. The max-type rule with adaptive stopping
+recomputes its column moments at each check and falls outside
+\cref{prop:adaptive-size}; the null simulations of \cref{sec:results-stageB}
+cover its calibration.

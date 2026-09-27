@@ -1,207 +1,70 @@
 \section{Tree-growing method}
 \label{sec:method}
 
-At each internal node, conditional inference trees make two decisions. The
-Stage~A feature test checks features for association with the response and
-chooses a feature to split. The Stage~B threshold test then searches thresholds
-only for that selected feature; if no threshold is accepted, the node becomes
-terminal. In this paper, CIT denotes the resulting single-tree feature
-selection method. CIF denotes a bootstrap ensemble of such trees with feature
-sampling at each node and feature rankings formed by aggregating split
-importances across trees.
-CIF-all disables feature subsampling, so every nonconstant available
-feature can enter Stage~A at each node. This changes the Stage~A feature set,
-the feature correction, and the per-node computational cost.
+At each internal node the Stage~A feature test chooses a feature and the
+Stage~B threshold test searches thresholds only for that feature; if either
+test accepts nothing, the node becomes terminal. CIT denotes the resulting single-tree feature selection method, and
+CIF a bootstrap ensemble of such trees with feature sampling at each node,
+which ranks features by split importance aggregated across trees. CIF-all
+disables feature subsampling, so every nonconstant available feature enters
+Stage~A at each node, which tightens the feature correction and raises the
+per-node cost.
 
 \subsection{Stage~A and Stage~B}
 \label{sec:stageA-stageB}
 
-At a node $t$, write $(X_t,Y_t)$ for the samples reaching that node. Let
-$F_{t,\mathrm{avail}}$ be the feature set carried into the node by the
-tree-growing algorithm, including any feature muting inherited from ancestors.
-Let $F_{t,\mathrm{nonconst}} \subseteq F_{t,\mathrm{avail}}$ be the features
-that are nonconstant on the node samples. After any feature
-subsampling, Stage~A considers a set
-$F_t \subseteq F_{t,\mathrm{nonconst}}$ of size $m_t=|F_t|$. The feature
-correction is the Bonferroni correction over these $m_t$ Stage~A tests.
-Any label-independent auxiliary randomness used by a selector, such as the
-random projections of the randomized dependence coefficient, is denoted by $U$
-and is held fixed in the fixed-node guarantee.
-
-When feature scanning is enabled during tree growing, Stage~A tests the
-features in order of their observed selector statistic and stops at the first
-rejection. Let $E_t \subseteq F_t$ denote the evaluated subset; in the
-full-scan fixed-$B$ reference rule, $E_t=F_t$. The fixed-node results in
-\cref{sec:theory} apply to that reference rule: the features in $F_t$ and the
-budget $B$ are fixed independently of the node responses, and every $P_{t,j}$
-for $j\in F_t$ uses that budget. The implemented tree-growing rule adds
-response-dependent node selection, inherited feature muting, and scores from
-scans that stop at the first rejection.
+At a node $t$, write $(X_t,Y_t)$ for the samples reaching it and
+$F_{t,\mathrm{avail}}$ for the features carried into it, after any feature
+muting inherited from ancestors. After features constant on the node samples
+are dropped and any feature subsampling, Stage~A considers a set
+$F_t \subseteq F_{t,\mathrm{avail}}$ of size $m_t=|F_t|$. Label-independent
+auxiliary randomness used by a selector, such as the random projections of the
+randomized dependence coefficient, is denoted by $U$.
 
 \paragraph{Stage~A feature test.}
-In the full-scan fixed-$B$ setting, Stage~A follows the separation of variable
-selection from threshold search in conditional inference trees
-\citep{Hothorn2006UnbiasedRecursivePartitioning}. The original conditional
-inference tests use the permutation-statistic framework of
-\citet{StrasserWeber1999PermutationStatistics}; here, Monte Carlo label
-permutations calibrate the configured selector statistic. Stage~A
-computes a selector statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t;U)$ and
-permutation $P$-value $P_{t,j}$ for every feature $j \in F_t$, then selects
-%
-\begin{equation}
-  P_t^{\star} := \min_{j \in F_t} P_{t,j},
-  \qquad
-  M_t^\star := \{j \in F_t : P_{t,j}=P_t^{\star}\}.
-\end{equation}
-%
-Let $\tau_t=\alpha_{\mathrm{sel}}/m_t$ when the feature correction is enabled and
-$\tau_t=\alpha_{\mathrm{sel}}$ otherwise. If
-$P_t^{\star} \ge \tau_t$, Stage~A returns no feature and the node
-becomes terminal. If $P_t^{\star} < \tau_t$, the selected feature
-$j_t^{\star}$ is drawn uniformly from $M_t^\star$, and the node
-enters Stage~B.
-
-During tree growing, Stage~A uses the same decision structure but can order
-features by a preliminary score and evaluate only the subset $E_t$. The
-returned score $q_t^{\mathrm{feat}}$ is used to grow the tree; it is not a
-full-scan fixed-$B$ $P$-value covered by \cref{lem:plusone-superuniform}. Under
-the full-scan reference rule with the feature correction,
-$\min(1,m_t P_t^{\star})$ is a conservative complete-null
-$P$-value for the fixed-node Stage~A test. When feature muting is enabled,
-features with non-rejecting Stage~A $P$-values can be removed from descendant
-feature pools. When muting is disabled, descendants keep
-$F_{t,\mathrm{avail}}$ except for deterministic constant feature pruning.
+Stage~A follows the conditional inference trees of
+\citet{Hothorn2006UnbiasedRecursivePartitioning} and calibrates the configured
+selector statistic by Monte Carlo label permutation. It computes a selector
+statistic $T^{\mathrm{sel}}_j(X_{t,j},Y_t;U)$ and a right-tail permutation
+$P$-value $P_{t,j}$ for every feature $j \in F_t$, then selects the smallest
+$P$-value $P_t^{\star} := \min_{j \in F_t} P_{t,j}$ and the set
+$M_t^\star := \{j \in F_t : P_{t,j}=P_t^{\star}\}$ of features that attain it.
+The feature correction is the Bonferroni correction over these $m_t$ tests:
+let $\tau_t=\alpha_{\mathrm{sel}}/m_t$ when it is enabled and
+$\tau_t=\alpha_{\mathrm{sel}}$ otherwise. Stage~A rejects when
+$P_t^{\star} < \tau_t$ and then draws the selected feature $j_t^{\star}$
+uniformly from $M_t^\star$. This full scan at a fixed budget $B$ is the
+reference rule of the fixed-node results in \cref{sec:theory}. During tree growing, feature scanning tests the features in
+order of their observed selector statistic, stops at the first rejection, and
+returns a score $q_t^{\mathrm{feat}}$ that grows the tree, and feature muting
+removes the features whose test does not reject from the descendant pools.
 
 \paragraph{Stage~B threshold test.}
-Stage~B guards against a spurious split on a feature that passed Stage~A. The
-ctree reference implementation instead places the split at the maximum of a
+Stage~B guards against a spurious split on the selected feature; the ctree
+reference implementation instead places the split at the maximum of a
 standardized two-sample statistic, without a second test
-\citep{Hothorn2006UnbiasedRecursivePartitioning}.
-Given a selected feature $j_t^\star$, Stage~B starts from midpoints between
-ordered unique values of $X_{t,j_t^\star}$. The exact method uses all such
-midpoints. The random method samples a bounded subset of midpoints, while the
-percentile and histogram methods choose bounded representative thresholds
-derived from the midpoint distribution. The histogram method with $h$ bins
-returns at most $h+1$ bin edges, so the 256-bin setting of the benchmark yields
-up to 257 candidates. Thresholds that would leave either child
-below the minimum leaf size are filtered out. If no threshold remains, Stage~B
-returns no split.
+\citep{Hothorn2006UnbiasedRecursivePartitioning}. The candidate thresholds
+start from the midpoints between ordered unique values of $X_{t,j_t^\star}$:
+the exact method uses all of them, and the random, percentile, and histogram
+methods choose a bounded set of representative thresholds. The histogram
+method with $h$ bins returns at most $h+1$ bin edges, so the 256-bin setting of
+the benchmark yields up to 257 candidates.
+After removing thresholds that would leave either child below the minimum leaf
+size, it tests each of the remaining $K$ candidates $c$ by the weighted child
+impurity $\bigl(|Y_t^L(c)|\,H(Y_t^L(c)) + |Y_t^R(c)|\,H(Y_t^R(c))\bigr)/|Y_t|$
+in a left-tail test, where $H$ is the chosen node impurity measure, and returns
+no split if no candidate remains. The threshold correction is the Bonferroni
+correction over the $K$ candidates, and testing each candidate at
+$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/K$, or at
+$\alpha_{\mathrm{split}}$ without the correction, is the per-threshold rule. The
+full scan chooses the threshold with the smallest Stage~B $P$-value, with
+uniform tie breaking, while threshold scanning tests the thresholds in order of
+weighted child impurity and stops at the first rejection. \Cref{alg:citree}
+summarizes this flow, including the final check of the minimum required
+impurity decrease, and stores the returned scores $q_t^{\mathrm{feat}}$ and
+$q_t^{\mathrm{split}}$ at each split.
 
-For the remaining finite threshold set $C_{t,j_t^\star}$ of size $K$, Stage~B
-selects the threshold used by the tree. The tested statistic at threshold $c$
-is the weighted child impurity
-\[
-  \frac{|Y_t^L(c)|}{|Y_t|}H(Y_t^L(c))
-  + \frac{|Y_t^R(c)|}{|Y_t|}H(Y_t^R(c)),
-\]
-where $H$ is the chosen node impurity measure. This statistic is used
-in a left-tail test, and the full-scan fixed-$B$ rule chooses the threshold with
-the smallest Stage~B $P$-value, with uniform tie breaking. When threshold
-scanning is enabled, thresholds are tested in order of weighted child impurity
-and the search stops after the first rejecting threshold. The threshold
-correction is the Bonferroni correction over the $K$ candidate thresholds. Let
-$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}/K$ when it is enabled and
-$\tau_t^{\mathrm{split}}=\alpha_{\mathrm{split}}$ otherwise. Testing each
-candidate at $\tau_t^{\mathrm{split}}$ is the per-threshold rule. If no
-evaluated Stage~B $P$-value is below $\tau_t^{\mathrm{split}}$, the node becomes
-terminal. After a threshold passes the Stage~B test, the final minimum
-required-improvement check uses the corresponding weighted impurity decrease.
-Stage~B chooses the split used by the tree, and the returned Stage~B score is
-a screening score rather than a valid post-selection $P$-value. The training skeleton in \cref{alg:citree}
-summarizes this flow and stores the two returned scores $q_t^{\mathrm{feat}}$
-and $q_t^{\mathrm{split}}$ at each split.
-
-\paragraph{Permutation budgets.}
-Write $\alpha_{\mathrm{adj}}$ for the level of a single permutation test:
-$\alpha_{\mathrm{sel}}/m_t$ in Stage~A and $\alpha_{\mathrm{split}}/K$ in the
-per-threshold rule when the corrections are enabled. The minimum budget gives
-each test $B=\lceil 1/\alpha_{\mathrm{adj}}\rceil$ permutations, the smallest
-budget at which a $+1$ $P$-value can fall below $\alpha_{\mathrm{adj}}$. The
-auto budget, the library default, gives each test
-%
-\begin{equation}
-  B = \max\!\left(\left\lceil \frac{1}{\alpha_{\mathrm{adj}}} \right\rceil,\
-  \left\lceil \frac{z^2(1-\alpha_{\mathrm{adj}})}{\alpha_{\mathrm{adj}}} \right\rceil\right),
-  \qquad z=\Phi^{-1}(1-\alpha_{\mathrm{adj}}),
-  \label{eq:auto-budget}
-\end{equation}
-%
-permutations, where $\Phi$ is the standard normal distribution function. The
-benchmark uses $\alpha_{\mathrm{sel}}=\alpha_{\mathrm{split}}=0.05$ with the
-minimum budget, so a Stage~A test at a node with 20 features receives 400
-permutations and a per-threshold test over 257 candidates receives 5{,}140.
-Adaptive stopping, the default stopping rule, checks a Beta posterior for the
-exceedance probability every 32 permutations once
-$\lceil 1/\alpha_{\mathrm{adj}}\rceil$ permutations have been drawn
-(\cref{prop:adaptive-size}). Under the minimum budget the first check coincides
-with the full budget, so adaptive stopping never stops early.
-
-Under the minimum budget a test rejects only when no permuted statistic is as
-extreme as the observed one, so every rejecting feature and every rejecting
-threshold returns the floor $P$-value $1/(B+1)$. The $P$-values then do not
-order the passing candidates, and with scanning the first rejecting candidate
-in scan order is chosen. At the minimum budget the Stage~A and Stage~B
-decisions are therefore an ordering by the raw statistics behind the Bonferroni
-gate formed by the two corrections.
-
-\paragraph{Max-type rule for Stage~B.}
-Under the minimum budget the per-threshold rule gives each candidate
-$\lceil K/\alpha_{\mathrm{split}}\rceil$ permutations, so a scan of all $K$
-candidates costs of order $K^2/\alpha_{\mathrm{split}}$ impurity evaluations.
-The implementation also provides the max-type rule, an opt-in alternative that
-tests the candidates jointly. Write $S_{b,c}$ for the weighted child impurity at
-candidate $c$ under the observed response ($b=0$) and under permutation
-$b=1,\dots,B$. Each column is standardized by the mean $\mu_c$ and standard
-deviation $\sigma_c$ of its $B+1$ entries, candidates with $\sigma_c=0$ or an
-empty child are dropped, and
-%
-\begin{equation}
-  T_b := \min_{c} \frac{S_{b,c}-\mu_c}{\sigma_c},
-  \qquad
-  P^{\max}_{t} := \frac{1+\sum_{b=1}^{B}\ind\{T_b \le T_0\}}{B+1}.
-  \label{eq:maxt-stat}
-\end{equation}
-%
-The split is placed at $\arg\min_c (S_{0,c}-\mu_c)/\sigma_c$, so the two rules
-can accept different thresholds on the same feature. Stage~B rejects when
-$P^{\max}_t<\alpha_{\mathrm{split}}$, without division by $K$; when every
-candidate is dropped, it returns no split. The implementation uses $B=999$, so
-a full scan costs of order $BK$ evaluations, fewer than the per-threshold rule
-once $K>\alpha_{\mathrm{split}}B\approx 50$. \Cref{cor:stageB-maxt} gives the
-fixed-node guarantee.
-
-This is the single-step max-T statistic of
-\citet{WestfallYoung1993ResamplingBasedMultipleTesting}, with the empirical null
-standardization of \citet{PollardVanDerLaan2004NullDistribution}. It has the
-standardize-then-optimize form of the ctree split statistic
-\citep{Hothorn2006UnbiasedRecursivePartitioning,LausenSchumacher1992MaximallySelectedRankStatistics,HothornZeileis2008GeneralizedMaximallySelectedStatistics},
-with Monte Carlo column moments in place of the exact conditional moments of
-\citet{StrasserWeber1999PermutationStatistics}, because impurity is not a
-linear statistic.
-
-\subsection{Monte Carlo permutation \texorpdfstring{$P$}{P}-values}
-\label{sec:plusone}
-
-Let $T_{\mathrm{obs}}$ be the observed statistic and $T_1,\dots,T_B$ the same statistic
-computed on $B$ random label permutations. For a right tail test we use the
-$+1$ $P$-value of Phipson and Smyth
-\citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues},
-where $\ind\{\cdot\}$ denotes the indicator function:
-%
-\begin{equation}
-  P_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1}.
-\end{equation}
-%
-For a left tail test we analogously define
-%
-\begin{equation}
-  P_{\mathrm{MC}}^{\le} := \frac{1 + \sum_{b=1}^B \ind\{T_b \le T_{\mathrm{obs}}\}}{B+1}.
-\end{equation}
-%
-Stage~A uses the right tail convention and Stage~B the left tail convention;
-ties count as exceedances in both cases.
-
-\begin{algorithm}[!tbp]
+\begin{algorithm}[tb]
   \caption{Conditional inference tree training skeleton (Stage~A $\rightarrow$ Stage~B)}
   \label{alg:citree}
   \begin{algorithmic}[1]
@@ -213,7 +76,7 @@ ties count as exceedances in both cases.
       \If{\Call{Stop}{$X_t,Y_t,d,\lambda$}}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
-      \State $(j_t^\star, q_t^{\mathrm{feat}}, m_t, F'_{\mathrm{avail}}) \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\lambda}$
+      \State $(j_t^\star, q_t^{\mathrm{feat}}, F'_{\mathrm{avail}}) \gets \Call{StageA}{X_t,Y_t,F_{\mathrm{avail}},\lambda}$
       \If{$j_t^\star = \bot$}
         \State \Return \Call{Leaf}{$Y_t$}
       \EndIf
@@ -235,74 +98,118 @@ ties count as exceedances in both cases.
   \end{algorithmic}
 \end{algorithm}
 
+\paragraph{Permutation $P$-values and budgets.}
+Both stages use the $+1$ $P$-value of Phipson and Smyth
+\citep{NorthCurtisSham2002EmpiricalPValuesMonteCarlo,PhipsonSmyth2010PermutationPValues}.
+For an observed statistic $T_{\mathrm{obs}}$ and its values $T_1,\dots,T_B$ on
+$B$ random label permutations, the right-tail $P$-value is
+%
+\begin{equation}
+  P_{\mathrm{MC}}^{\ge} := \frac{1 + \sum_{b=1}^B \ind\{T_b \ge T_{\mathrm{obs}}\}}{B+1},
+  \label{eq:plusone}
+\end{equation}
+%
+where $\ind\{\cdot\}$ denotes the indicator function, and the left-tail
+$P$-value $P_{\mathrm{MC}}^{\le}$ uses $\le$ in place of $\ge$. Stage~A uses the
+right tail and Stage~B the left tail; ties count as exceedances in both. Write
+$\alpha_{\mathrm{adj}}$ for the level of a single test,
+$\alpha_{\mathrm{sel}}/m_t$ in Stage~A and $\alpha_{\mathrm{split}}/K$ in the
+per-threshold rule when the corrections are enabled. The minimum budget gives
+each test $B=\lceil 1/\alpha_{\mathrm{adj}}\rceil$ permutations, the smallest
+budget at which a $+1$ $P$-value can fall below $\alpha_{\mathrm{adj}}$. The
+auto budget, the library default, gives each test
+%
+\begin{equation}
+  B = \max\!\left(\left\lceil \frac{1}{\alpha_{\mathrm{adj}}} \right\rceil,\
+  \left\lceil \frac{z^2(1-\alpha_{\mathrm{adj}})}{\alpha_{\mathrm{adj}}} \right\rceil\right),
+  \qquad z=\Phi^{-1}(1-\alpha_{\mathrm{adj}}),
+  \label{eq:auto-budget}
+\end{equation}
+%
+permutations, where $\Phi$ is the standard normal distribution function.
+
+The benchmark uses $\alpha_{\mathrm{sel}}=\alpha_{\mathrm{split}}=0.05$ with the
+minimum budget, so a Stage~A test at a node with 20 features receives 400
+permutations and a per-threshold test over 257 candidates receives 5{,}140. A
+full Stage~A scan then costs of order $m_t^2/\alpha_{\mathrm{sel}}$ statistic
+evaluations per node, and a full per-threshold scan of order
+$K^2/\alpha_{\mathrm{split}}$. At this budget a test rejects only when no
+permuted statistic is as extreme as the observed one, so every rejecting
+feature and every rejecting threshold returns the floor $P$-value $1/(B+1)$.
+The Stage~A and Stage~B decisions are then an ordering by the raw statistics
+behind the two corrections, and scanning takes the first rejecting candidate in
+scan order. Adaptive stopping, the default stopping rule, checks a Beta
+posterior for the exceedance probability every 32 permutations
+\citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests};
+\cref{prop:adaptive-size} gives its exact size.
+
+\paragraph{Max-type rule for Stage~B.}
+The max-type rule, an opt-in alternative, tests the candidates jointly. Write
+$S_{b,c}$ for the weighted child impurity at candidate $c$ under the observed
+response ($b=0$) and under permutation $b=1,\dots,B$. Each column is
+standardized by the mean $\mu_c$ and standard deviation $\sigma_c$ of its $B+1$
+entries, candidates with $\sigma_c=0$ or an empty child are dropped, and
+%
+\begin{equation}
+  T_b := \min_{c} \frac{S_{b,c}-\mu_c}{\sigma_c},
+  \qquad
+  P^{\max}_{t} := \frac{1+\sum_{b=1}^{B}\ind\{T_b \le T_0\}}{B+1}.
+  \label{eq:maxt-stat}
+\end{equation}
+%
+Stage~B rejects when $P^{\max}_t<\alpha_{\mathrm{split}}$, without division by
+$K$, and places the split at $\arg\min_c (S_{0,c}-\mu_c)/\sigma_c$, so the two
+rules can accept different thresholds on the same feature. The implementation
+uses $B=999$, so a full scan costs of order $BK$ evaluations, fewer than the
+per-threshold rule once $K>\alpha_{\mathrm{split}}B\approx 50$, and
+\cref{cor:stageB-maxt} gives the fixed-node guarantee. This is the single-step max-T statistic of
+\citet{WestfallYoung1993ResamplingBasedMultipleTesting}, with the empirical
+null standardization of \citet{PollardVanDerLaan2004NullDistribution}. Like the
+ctree split statistic, it standardizes each candidate before optimizing
+\citep{Hothorn2006UnbiasedRecursivePartitioning,LausenSchumacher1992MaximallySelectedRankStatistics,HothornZeileis2008GeneralizedMaximallySelectedStatistics},
+with Monte Carlo column moments in place of the exact conditional moments of
+\citet{StrasserWeber1999PermutationStatistics}, because impurity is not a
+linear statistic.
+
 \subsection{Forests and runtime hyperparameters}
 \label{sec:bootstrap}
 
-CIF combines bootstrap trees and averages their predictions. For feature
-selection, it sums each fitted tree's normalized split importances and
-renormalizes the forest vector. Each CIF tree uses the same Stage~A and Stage~B
-node rules as CIT
+CIF grows each tree on a bootstrap sample with the Stage~A and Stage~B rules of
+CIT and averages the tree predictions
 \citep{Breiman2001RandomForests,HothornBuehlmannDudoitMolinaroVanDerLaan2006SurvivalEnsembles}.
-The fixed-node results cover subsampled and unsampled fits, and not bootstrap
-samples, whose duplicated rows break the exchangeability they assume
-(\cref{app:theory-scope}).
-Across the CIT and CIF benchmark configurations, we hold fixed the feature and
-threshold corrections, the per-threshold rule, the minimum budget with adaptive
-stopping, feature muting, feature scanning, threshold scanning, the 256-bin
-histogram method, and bootstrap sampling for CIF. The varying settings are the
-selector and honesty. Honesty grows each tree on one half of its training
-sample and re-estimates the leaf values on the other half
-\citep{WagerAthey2018CausalForests}.
-
-Runtime depends on the realized work at each node: features tested in Stage~A,
-thresholds generated and retained in Stage~B, permutations evaluated before
-stopping, and features carried into the node. Adaptive stopping can reduce the
-number of permutations evaluated for each test when the budget exceeds the
-minimum budget
-\citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests}.
-Histogram thresholding reduces the Stage~B threshold set by replacing exhaustive
-cutpoints with binned thresholds. Feature and threshold scanning order the
-candidates by their observed statistic and stop at the first rejection; feature
-muting can reduce the feature pool inherited by descendants.
-Appendix~\ref{app:methods} gives reproducibility details,
-Appendix~\ref{app:complexity-details} gives runtime and memory accounting, and
-\cref{sec:results-practical} reports the measured timing effects.
+The CIT and CIF benchmark configurations hold fixed the two corrections,
+the per-threshold rule, the minimum budget with adaptive stopping, feature
+muting, feature and threshold scanning, the 256-bin histogram method, and
+bootstrap sampling for CIF. They vary the selector and honesty, which grows
+each tree on one half of its training sample and re-estimates the leaf values
+on the other half \citep{WagerAthey2018CausalForests}. The runtime controls
+(feature subsampling, feature muting, the histogram method, the two scans, and
+adaptive stopping) act on the realized work at each node, and
+\cref{app:complexity-details} gives the runtime and memory accounting.
 
 \subsection{Feature rankings}
 \label{sec:rank-construction}
 
-The experiments evaluate each method through the ranking it produces on the
-training fold. CIT and CIF rankings are fitted split-importance rankings, not
-rankings of Stage~A $P$-values. For a fitted CIT, the importance
-$\mathrm{Imp}_j$ of feature $j$ is the sum, over internal nodes that split on
-$j$, of the impurity decrease
-\[
-  H(Y_t) - \frac{|Y_t^L|}{|Y_t|}H(Y_t^L)
-  - \frac{|Y_t^R|}{|Y_t|}H(Y_t^R),
-\]
-with no weight for the node's share of the sample, so a deep split counts as
-much as a root split. If the total importance is positive, the vector is
-normalized to sum to one; if the tree contributes no positive impurity
-decrease, the vector remains zero. CIF sums these tree importance vectors over
-trees and then normalizes the forest vector in the same way. Stage~A
-determines which features enter threshold optimization, while impurity decrease
-scores only the accepted splits by their local reduction in impurity. Larger
-importances are ranked earlier, and features never used by a split receive zero
-importance. Those features follow in the tie order of the implementation, which is close
-to ascending column order. Every synthetic generator shuffles its planted
-columns, so this order carries no information.
+CIT and CIF rank features by fitted split importance rather than by Stage~A
+$P$-values. The importance of feature $j$ in a fitted CIT is the sum, over
+internal nodes that split on $j$, of the impurity decrease, the parent impurity
+$H(Y_t)$ minus the weighted child impurity at the accepted threshold. The decrease carries no weight for the node's share of the
+sample, so a deep split counts as much as a root split. A tree with positive
+total importance normalizes its vector to sum to one, and otherwise the vector
+remains zero; CIF sums the tree vectors and normalizes the forest vector in the
+same way. Larger importances are ranked earlier. Features never used by a split
+receive zero importance and follow in the tie order of the implementation,
+which is close to ascending column order; every synthetic generator shuffles
+its planted columns, so this order carries no information.
 
-This split-importance ranking differs from standard random-forest impurity
-importance in how a feature enters threshold search. In CART-style trees, the
-feature and threshold are chosen together by an impurity search, so a feature
-with more possible thresholds has more chances to produce a large apparent
-impurity decrease \citep{Strobl2007BiasRFVariableImportance}. In CIT and CIF,
-Stage~A first selects a feature by a permutation test; Stage~B then searches
-thresholds only for that feature. This is designed to reduce the advantage that
-high-cardinality features get from having more possible thresholds. The
-per-threshold rule works in the opposite direction: more candidates mean a
-stricter level $\alpha_{\mathrm{split}}/K$ and a lower probability of any
-split, a reverse cardinality bias. The max-type rule tests at
-$\alpha_{\mathrm{split}}$ whatever $K$ is. We use these fitted split-importance
-scores as rankings and evaluate them through downstream top-$k$ prediction and
-synthetic feature recovery.
+This ranking differs from random forest impurity importance in how a feature
+enters threshold search. In CART-style trees, the feature and threshold are
+chosen together by an impurity search, so a feature with more possible
+thresholds has more chances to produce a large apparent impurity decrease
+\citep{Strobl2007BiasRFVariableImportance}. In CIT and CIF, Stage~A selects the
+feature by a permutation test before Stage~B searches its thresholds, which is
+designed to reduce that advantage of high-cardinality features. The
+per-threshold rule works in the opposite direction, a reverse cardinality bias:
+more candidates mean a stricter level $\alpha_{\mathrm{split}}/K$ and a lower
+probability of any split. The max-type rule tests at $\alpha_{\mathrm{split}}$
+whatever $K$ is.

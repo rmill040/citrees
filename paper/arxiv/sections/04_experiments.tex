@@ -1,69 +1,42 @@
 \section{Experimental design}
 \label{sec:experiments}
-
-The experiments ask whether rankings produced by CIT and CIF place predictive
-features early enough for fixed downstream learners, and what the
-conditional-inference controls cost. For each training fold, a method produces
-a feature ranking, and fixed downstream learners evaluate the selected features
-on the held-out fold.
-
-\subsection{Benchmark setup}
 \label{sec:experiments-protocol}
 
-The benchmark uses 5 random seeds, with 5-fold cross-validation within each
-seed. Classification fits logistic regression (LR), support vector machine
-(SVM), and k-nearest neighbors (KNN) as downstream models and reports balanced
-accuracy, defined as mean recall across classes. Regression fits ridge
-regression, support vector regression (SVR), and KNN and reports $R^2$. The main
-tables use the standard values $k \in \{5,10,25,50,100\}$.
-Downstream learner settings are fixed. Logistic regression uses balanced class
-weights and a 1,000-iteration limit; SVM uses an RBF kernel with unit
-regularization, kernel scale set by the \texttt{scale} rule, and balanced class
-weights; KNN uses 5 distance-weighted neighbors; ridge uses unit penalty
-strength; and SVR uses an RBF kernel with unit regularization, $\epsilon=0.1$,
-and the same kernel scale rule.
+The experiments judge a ranking by what it does for prediction. The benchmark
+uses 5 random seeds of 5-fold cross-validation. In each fold, a method ranks the
+features of the training fold, and fixed downstream learners fitted to its
+top-$k$ features are scored on the held-out fold. Classification uses logistic
+regression (LR), a support vector machine (SVM), and k-nearest neighbors (KNN),
+scored by balanced accuracy, the mean recall across classes; regression uses
+ridge regression, support vector regression (SVR), and KNN, scored by $R^2$
+(\cref{app:methods} gives their settings). The main tables use the standard
+values $k \in \{5,10,25,50,100\}$; every dataset is also scored at $k=p$, and
+on datasets with more than 100 features the high-$p$ analysis adds
+$k \in \{150,200,300,500,750,1{,}000\}$ and
+$\lceil 0.25p\rceil,\lceil 0.5p\rceil,\lceil 0.75p\rceil$, up to $p$.
+\label{sec:experiments-analysis-plan}%
+Scores are averaged in three steps: over folds and seeds, then over downstream
+learners and the standard $k$ values available to the compared methods, then
+over datasets. The other studies hold CIT or CIF fixed except for one part, to
+measure what that part costs or how it shapes the ranking.
 
-For each seed and fold, feature-standardization parameters are estimated on the
-training fold and then applied to the held-out fold. The ranking method uses only
-the standardized training fold and produces the ordered feature list described in
-\cref{sec:rank-construction}. For each $k$, we take the top-$k$ features from
-that ranking, refit standardization on the selected training columns, apply the
-same transform to the selected held-out columns, fit the downstream model on the
-selected training data, and evaluate it on the held-out fold.
+\paragraph{Datasets and panels.}
+\label{sec:experiments-datasets}%
+The benchmark has 23 classification and 8 regression datasets
+(\cref{app:dataset-inventory}), 15 and 6 of them with more than 100 features,
+and feature recovery uses 8 synthetic classification and 8 synthetic regression
+datasets with known informative features (\cref{app:dataset-inventory}). Excluded runs on \nolinkurl{gisette},
+\nolinkurl{isolet}, and \nolinkurl{orlraws10P} (\cref{app:methods}) leave 21
+classification datasets in the all-method panel. A dataset with fewer
+than $k$ features drops out at $k$, so the all-method counts by $k$ are 21, 20,
+14, 14, and 13 in classification and 8, 8, 7, 7, and 6 in regression.
+\Cref{tab:panels} lists these panels and those of the other studies.
 
-The downstream evaluation also records performance using the full feature set,
-$k=p$, for every dataset. For datasets with more than 100 features, the separate
-high-$p$ analysis adds fixed values $k \in \{150,200,300,500,750,1{,}000\}$
-and fractional values
-$\lceil 0.25p\rceil,\lceil 0.5p\rceil,\lceil 0.75p\rceil$, keeping only values
-no larger than $p$. The main tables average only the standard $k$ values.
-
-\subsection{Benchmark comparisons}
-\label{sec:experiments-analysis-plan}
-
-The benchmark averages scores in three steps. First, for each
-$(\text{dataset}, \text{downstream model}, k)$ combination, scores are averaged
-over folds and seeds. Second, each dataset score averages those fold-and-seed
-means over downstream models and over the standard $k$ values available for the
-methods in that comparison. Third, the tables average dataset scores over
-datasets.
-
-Some method runs on \nolinkurl{gisette}, \nolinkurl{isolet}, and
-\nolinkurl{orlraws10P} were excluded (\cref{app:methods}), so the all-method
-classification panel has 21 of the 23 datasets, and each pairwise comparison
-uses the datasets where both methods are present. Two smaller complete-case
-panels, used for bootstrap intervals, omnibus rank tests, and LODO checks,
-retain only datasets with every method, every downstream learner, and all five
-standard values of $k$. A dataset with fewer than $k$ features does not enter
-the column for $k$, so the classification counts by $k$ are 21, 20, 14, 14, and
-13 and the regression counts are 8, 8, 7, 7, and 6. \Cref{tab:panels} names
-the panels.
-
-\begin{table}[!htbp]
+\begin{table}[htb]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}lp{4.3cm}rrp{4.6cm}@{}}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}lL{5.45cm}rrL{3.9cm}@{}}
     \toprule
     \tablehead{Panel} & \tablehead{Definition} & Classification & Regression & \tablehead{Used for} \\
     \midrule
@@ -75,53 +48,36 @@ the panels.
     Ablation & real datasets except isolet & 22 & 8 & CIF ranking ablation \\
     Runtime & 9 real and 14 synthetic datasets & 15 & 8 & runtime ablations \\
     Benchmark-size & classification datasets with at least 500 observations except madelon; regression datasets with at least 200 observations & 9 & 5 & wide-dataset runtime check \\
-    Mechanism-matched & cforest pairwise panel without the excluded RDC runs & 20 & 8 & CIF ranked by out-of-bag permutation importance \\
+    Mechanism-matched & cforest pairwise panel without gisette and letter & 20 & 8 & CIF ranked by out-of-bag permutation importance \\
     Max-type extension & every real and synthetic benchmark dataset & 31 & 16 & max-type ranking runs \\
     Head-to-head & Benchmark-size classification datasets and madelon & 10 & 0 & forest timing of the two Stage~B rules \\
-    Stage~B real & vowel, spam, page-blocks; imports-85, residential, facebook & 3 & 3 & threshold-test comparison \\
+    Stage~B real & vowel, spam, page-blocks; imports-85, residential, facebook & 3 & 3 & threshold test comparison \\
     \bottomrule
   \end{tabular}
-  \caption{Dataset panels, with the number of datasets per task. The
-  Benchmark-size panel is the set of performance datasets of
-  \citet{MilletichDownesHirst2026citrees}. The max-type extension runs on every
-  benchmark dataset and is ranked on the all-method panel.}
+  \caption{Dataset panels, with the number of datasets per task. LODO is the
+  leave-one-dataset-out configuration check. The Benchmark-size panel is the
+  set of performance datasets of \citet{MilletichDownesHirst2026citrees}. The
+  max-type extension runs on every benchmark dataset and is ranked on the
+  all-method panel.}
   \label{tab:panels}
 \end{table}
 
-\subsection{Datasets}
-\label{sec:experiments-datasets}
-
-The real-data benchmark includes 23 classification datasets and 8 regression
-datasets. The separate high-$p$ analysis restricts attention to the
-15 classification datasets and 6 regression datasets with more than 100
-features. Feature recovery uses 8 synthetic classification datasets and 8
-synthetic regression datasets with known informative features and controlled
-noise structure. \Cref{app:dataset-inventory} lists every dataset and
-summarizes the synthetic designs.
-
-\subsection{Compared methods}
-\label{sec:experiments-methods}
-
-The benchmark includes three types of feature selectors: permutation-test
-filters, embedded tree or ensemble methods, and wrapper baselines.
-Permutation-test filters compute univariate dependence statistics and rank
-features by their permutation $P$-values: multiple correlation (MC) and
-randomized dependence coefficient (RDC) for classification, and Pearson
-correlation (PC), distance correlation (DC), and RDC for regression. The RDC
+\paragraph{Compared methods.}
+\label{sec:experiments-methods}%
+The benchmark includes three types of feature selectors. Permutation-test
+filters rank features by the permutation $P$-values of univariate dependence
+statistics: multiple correlation (MC) and the randomized dependence coefficient
+(RDC) for classification, and Pearson correlation (PC), distance correlation
+(DC) \citep{Szekely2007DistanceCorrelation}, and RDC for regression. The RDC
 keeps the empirical-CDF random feature map of \citet{LopezPaz2013RDC} but
 replaces the canonical-correlation solve with the maximum absolute pairwise
-correlation across 10 random projections. Distance correlation follows
-\citet{Szekely2007DistanceCorrelation}. CIT and CIF use the same MC, PC, and
-RDC statistics as Stage~A selectors.
-
-Embedded methods rank features using tree or ensemble importance scores. These
-methods are CART decision trees (DT), single randomized trees with random split
-thresholds (RT), CIT, CIF, random
-forests (RF) \citep{Breiman2001RandomForests}, ExtraTrees
-\citep{Geurts2006ExtraTrees}, XGBoost \citep{ChenGuestrin2016XGBoost},
-LightGBM \citep{Ke2017LightGBM}, CatBoost
-\citep{Prokhorenkova2018CatBoost}, and the partykit reference implementations
-ctree and cforest
+correlation across 10 random projections; CIT and CIF use the same MC, PC, and
+RDC statistics as Stage~A selectors. Embedded methods rank features by tree or
+ensemble importance: CART decision trees (DT), single trees with random split
+thresholds (RT), CIT, CIF, random forests (RF) \citep{Breiman2001RandomForests},
+ExtraTrees \citep{Geurts2006ExtraTrees}, XGBoost \citep{ChenGuestrin2016XGBoost},
+LightGBM \citep{Ke2017LightGBM}, CatBoost \citep{Prokhorenkova2018CatBoost},
+and the partykit reference implementations ctree and cforest
 \citep{RPartykitPackage,Hothorn2006UnbiasedRecursivePartitioning,HothornZeileis2015Partykit}.
 Wrapper baselines score features through auxiliary random-forest fits: Boruta
 \citep{Kursa2010Boruta}, permutation importance (PI) on a 20\% held-out split of
@@ -129,142 +85,77 @@ the training fold \citep{Breiman2001RandomForests,Strobl2007BiasRFVariableImport
 conditional permutation importance (CPI)
 \citep{DebeerStrobl2020ConditionalPermutationImportanceRevisited}, and
 random-forest recursive feature elimination (RF-RFE)
-\citep{Guyon2002RFE,Pedregosa2011ScikitLearn}. CPI permutes each feature within
-five-bin percentile strata of the features whose absolute correlation with it
-is at least 0.5, and globally when there are none. The RF is also ranked by
-out-of-bag permutation importance, which scores every training row, as an added
-comparator.
+\citep{Guyon2002RFE,Pedregosa2011ScikitLearn}. cforest is ranked by partykit's
+out-of-bag permutation importance, the only importance the package provides for
+forests, while CIF uses split importance, so the two forests differ in
+importance mechanism as well as in how their trees are grown. A
+mechanism-matched check ranks CIF by cforest's importance to separate the two,
+and the RF ranked by the same out-of-bag permutation importance, which scores
+every training row, is an added comparator.
 
-Ranking rules use each method's natural score direction. Embedded tree and
-ensemble baselines, PI, and CPI rank features by decreasing importance.
-Permutation-test filters rank by increasing $P$-value, with dependence score as
-the secondary key. The ctree reference ranks features by split-use counts.
-cforest is ranked by partykit's out-of-bag permutation importance, the only
-importance the package provides for forests, while CIF uses split importance, so
-the two forests differ in importance mechanism as well as in how their trees
-are grown. The mechanism-matched check (\cref{app:cif-perm-check}) ranks CIF by
-cforest's own importance to separate the two. Boruta and RF-RFE rank by their
-fitted rank variables, with smaller ranks first. Ties are broken by a
-deterministic order.
-
-\subsection{Configuration selection}
-\label{sec:experiments-repro}
-
-Several methods were evaluated under multiple configurations: four each for CIT
-and CIF, five for XGBoost, four for cforest, and two each for LightGBM and
-ctree. Permutation-test filters used one configuration per statistic. For each
-task, the paper reports one configuration per method, selected by mean score
-over real datasets, downstream models, and the standard values
-$k \in \{5,10,25,50,100\}$. Methods with only one configuration are treated as
-fixed. The selected configuration is then held fixed across datasets for that
-task. The selected CIT configurations use the MC selector in classification and
-the RDC selector in regression; the selected CIF configurations use RDC in both
-tasks with 100 trees and square-root feature sampling, with honesty in
-regression only (\cref{tab:selected-configs}).
-
-Because configuration selection and reporting use the same real-data
-benchmark, the reported scores, intervals, and rank summaries are descriptive.
-As a sensitivity check, we repeat configuration selection in leave-one-dataset-out
-(LODO) form for both tasks, on the complete-case and all-method panels: each
-dataset is evaluated using configurations chosen from the other datasets of its
-panel. The downstream models, $k$ values, and averaging within each dataset are
-unchanged. For the synthetic analysis, each method is assigned the
+\paragraph{Configuration selection.}
+\label{sec:experiments-repro}%
+For each task and method family, the
+configuration with the best mean score over the real datasets, downstream
+learners, and standard values of $k$ is held fixed across datasets
+(\cref{tab:selected-configs} gives the grid sizes). The
+selected CIT configurations use the MC selector in classification and the RDC
+selector in regression; the selected CIF configurations use RDC in both tasks
+with 100 trees and square-root feature sampling, with honesty in regression
+only. Because configuration selection and
+reporting use the same benchmark, the reported scores, intervals, and rank
+summaries are descriptive. LODO reselection scores each dataset of the
+complete-case and all-method panels with configurations chosen on the other
+datasets of its panel. For the synthetic analysis, each method is assigned the
 configuration with the highest average recovery of the true informative
 features over $k = 5, 10, 25, 50,$ and $100$.
 
-\subsection{Ablations}
-\label{sec:experiments-ablations}
+\paragraph{Ranking and mechanism studies.}
+\label{sec:experiments-ablations}%
+The CIF ranking ablation changes one component of the selected CIF
+configuration at a time on the ablation panel: split counts replace split
+importance, feature muting or bootstrap sampling is disabled, or the forest
+shrinks to one tree. Each variant is scored as in the benchmark and paired with
+the selected configuration within seed and fold.
+\label{sec:experiments-mechanism}%
+The support measurement counts, on each synthetic dataset over 25 fits, the
+features that win at least one split and how many of them are informative. The
+feature-use study fits CIT, CIF, CIF-all, RF, and ExtraTrees, with 1,000 trees
+per forest, at $n=250$, $p \in \{100, 500, 1{,}000\}$, and 1, 2, 5, or 10
+informative features. The weak-signal cardinality designs place 10 informative
+Gaussian features among 25 noise features with 500 levels, 25 binary noise
+features, and 10 Gaussian noise features, at $n=1{,}000$ and signal strengths
+0.05, 0.10, and 0.20; CIF and CIT use the MC selector in classification and the
+PC selector in regression there.
 
-The runtime ablation refits the selected CIT and CIF configurations on the
-runtime panel with one control changed at a time. Adaptive stopping, feature
-scanning, threshold scanning, and feature muting are each switched off, and the
-two corrections are removed together. The 256-bin histogram is replaced by
-exact thresholds or, for CIF, by a 32-bin histogram. For CIF, bootstrap
-sampling is also switched off, and the max-type rule replaces the per-threshold
-rule. Both
-estimators are also refitted at the auto budget, with adaptive stopping and
-with no stopping, because the minimum budget leaves the stopping rule no room
-to act. Each dataset is fitted at five seeds, and every time is the second of
-two identical fits, so compilation is excluded. On the Benchmark-size panel the
-tree is refitted with adaptive stopping off, with threshold scanning off, and
-without the two corrections, and the forest with adaptive stopping off.
-
-To isolate which parts of the CIF ranking matter, a ranking ablation on the
-ablation panel holds the selected CIF configuration fixed and changes one
-component at a time. The variants replace fitted split importance with split
-counts, disable feature muting, disable bootstrap sampling, or reduce the
-forest to one tree. Each variant is evaluated with the same downstream learners,
-folds, seeds, and standard top-$k$ values as the main benchmark, paired with the
-reference configuration within seed and fold.
-
-\subsection{Stage~B comparison}
-\label{sec:experiments-stageB}
-
-This study compares the per-threshold rule and the max-type rule under the MC
-and PC selectors, with adaptive stopping and with no stopping, at five seeds
-unless stated otherwise. Both rules run at the auto budget, so adaptive
-stopping can act; the max-type rule uses 999 permutations. Candidate thresholds
-come from the histogram method at 16, 64, and 256 bins, capped at the number of
-distinct values in the node. The study has five parts.
-
-The null calibration estimates the false-split rate of a depth-one tree with
-five independent Gaussian predictors and an independent response, at
-$n\in\{100,200,500\}$, with 2,000 replicates per cell and seed. The rate covers
-the whole node decision, Stage~A followed by Stage~B.
-
-The power part fits a depth-one tree on five Gaussian predictors whose response
-depends on the first through a step at zero, with class-probability shift
-$\delta\in\{0.05,0.10,0.20\}$ in classification and mean shift
-$\delta\in\{0.2,0.4,0.8\}$ in regression, with 500 replicates per cell and seed.
-It records the rate of any split, the rate of a split on the planted predictor,
-and the error of the chosen threshold.
-
-The Stage-B-only study measures the threshold test by itself. It uses one
-Gaussian predictor, sets the Stage~A level to 1, and fits a depth-one tree at
-nominal Stage~B levels from 0.02 to 0.50, with 500 null replicates per cell,
-level, and seed over three seeds. It repeats the planted step of the power part
-with 200 replicates and compares power at matched realized size. Within each
-cell, power is interpolated to a common size of 0.05, or to the largest size
-both rules reach. Two reruns check that comparison. One adds a fourth seed with
-1,500 null and 1,000 alternative replicates, and the other moves the planted
-step from the median to the 85th percentile of the predictor.
-
-The scaling part times one tree on ten Gaussian predictors with a planted linear
-signal in three of them, at $n\in\{1{,}000,4{,}000,16{,}000\}$, as the median of
-three fits with a 1,200-second cap.
-
-The real-data part fits one tree on the six Stage~B real datasets at 256 bins
-with five-fold cross-validation, recording held-out score, tree depth, fitting
-time, and the Spearman agreement of the two rules' feature importances.
-
-\subsection{Head-to-head timing and max-type extension}
-\label{sec:experiments-h2h}
-\label{sec:experiments-maxt}
-
-The head-to-head timing fits 100-tree classification forests in the
-configuration recommended by \citet{MilletichDownesHirst2026citrees}, once with
-each Stage~B rule. That configuration uses the MC selector, the minimum budget,
-the two corrections, scanning, muting, the 256-bin histogram, and depth at most
-3. The cells are the ten head-to-head datasets and a synthetic grid of Gaussian
-predictors with a weak or strong planted signal, from $n=500$ to $32{,}000$ and
-$p=20$ to $500$.
-
-The max-type extension reruns the four CIT and four CIF candidate
-configurations with the max-type rule in place of the per-threshold rule and
-nothing else changed, on every benchmark dataset at the five benchmark seeds.
-Evaluation, configuration selection, and ranking are unchanged, with the
-max-type family standing in for its per-threshold counterpart.
-
-\subsection{Mechanism studies}
-\label{sec:experiments-mechanism}
-
-Three studies examine why the forest rankings behave as they do. The
-feature-use study uses $n=250$, $p \in \{100, 500, 1{,}000\}$, and 1, 2, 5, or
-10 informative features, and compares CIT, DT, RT, CIF, CIF-all, RF, and
-ExtraTrees, with 1,000 trees for the forests. The weak-signal cardinality
-designs place 10 informative Gaussian features among 25 noise features with 500
-levels, 25 binary noise features, and 10 Gaussian noise features, at $n=1{,}000$
-and signal strengths 0.05, 0.10, and 0.20; CIF and CIT use the MC selector in
-classification and the PC selector in regression. The support measurement
-counts, on each synthetic dataset over 25 fits, the features that win at least
-one split, and how many of them are informative.
+\paragraph{Cost and threshold test studies.}
+The runtime ablations refit the selected CIT and CIF configurations on the
+runtime panel with one control changed at a time, and also at the auto budget,
+with adaptive stopping and with no stopping, because the minimum budget leaves
+the stopping rule no room to act. The
+Benchmark-size check refits the tree with adaptive stopping off, with threshold
+scanning off, and without the two corrections, and the forest with adaptive
+stopping off.
+\label{sec:experiments-stageB}%
+The threshold test comparison runs both Stage~B rules under the MC and PC
+selectors, with adaptive stopping and with no stopping, at the auto budget (999
+permutations for the max-type rule), on histogram candidates at 16, 64, and 256
+bins. The null calibration measures the false-split rate of the whole node
+decision, Stage~A followed by Stage~B, in a depth-one tree with five
+independent Gaussian predictors and an independent response, at
+$n\in\{100,200,500\}$. The power study plants a step in the first predictor.
+The Stage-B-only study tests one Gaussian predictor with the Stage~A level set
+to 1, compares the power of the two rules at a common realized size, and runs
+the per-threshold test without the threshold correction as a reference. A
+scaling study times one tree at $n$ up to 16{,}000, and a real-data study fits
+one tree on the six Stage~B real datasets.
+\label{sec:experiments-h2h}%
+\label{sec:experiments-maxt}%
+The head-to-head timing fits 100-tree classification forests with each Stage~B
+rule in the configuration recommended by
+\citet{MilletichDownesHirst2026citrees}, and the max-type extension reruns the
+four CIT and four CIF candidate configurations with the max-type rule in place
+of the per-threshold rule on every benchmark dataset at the five benchmark
+seeds, with evaluation, configuration selection, and ranking unchanged. The
+supplement gives the replicate counts and remaining settings of these studies
+(Supplement, Section~S3).

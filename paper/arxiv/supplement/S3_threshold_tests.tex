@@ -1,11 +1,84 @@
-\section{Stage~B comparison tables}
+\section{Threshold test comparison tables}
 \label{app:stageB-tables}
 
-\Cref{tab:stageB-calibration,tab:stageB-scaling,tab:stageB-real,tab:stageB-power}
-give the null calibration, fitting time, real-data, and split-rate results of
-the Stage~B comparison in \cref{sec:results-stageB}; the design is in
-\cref{sec:experiments-stageB}. The entries of
-\cref{tab:stageB-scaling,tab:stageB-real} are medians over five seeds.
+The threshold test comparison of \cref{sec:experiments-stageB} caps the
+histogram candidates at the number of distinct values in the node and runs
+five seeds unless stated otherwise. The null calibration uses 2,000 replicates
+per cell and seed. The power study makes the response depend on the first
+predictor through a step at zero, with class-probability shift
+$\delta\in\{0.05,0.10,0.20\}$ or mean shift $\delta\in\{0.2,0.4,0.8\}$ and 500
+replicates per cell and seed, and records the rates of any split and of a split
+on the planted predictor and the error of the chosen threshold. The
+Stage-B-only study runs nominal Stage~B levels from 0.02 to 0.50, with 500 null
+replicates per cell, level, and seed over three seeds and 200 replicates of the
+planted step, and interpolates power within each cell to a common realized
+size of 0.05, or to the largest size both rules reach; its per-threshold test
+without the threshold correction runs at nominal 0.05 with 500 null replicates
+per cell. Two reruns check the matched comparison, one with a fourth seed of
+1,500 null and 1,000 alternative replicates and one with the step moved from the
+median to the 85th percentile of the predictor. The scaling study times one
+tree on ten Gaussian predictors with a planted linear signal in three of them,
+at $n\in\{1{,}000,4{,}000,16{,}000\}$, as the median of three fits with a
+1,200-second cap. The real-data study fits one tree on the six Stage~B real
+datasets at 256 bins with five-fold cross-validation, recording held-out score,
+tree depth, fitting time, and the Spearman agreement of the two rules' feature
+importances. The head-to-head timing fits each 100-tree forest once, with the
+MC selector, the minimum budget, the two corrections, scanning, muting, the
+256-bin histogram, and depth at most 3, on the ten head-to-head datasets and a
+synthetic grid of Gaussian predictors with a weak or strong planted signal,
+from $n=500$ to $32{,}000$ and $p=20$ to $500$.
+
+\Cref{tab:stageB-calibration} gives the null calibration of the threshold test
+comparison in \cref{sec:results-stageB}, whose design is in
+\cref{sec:experiments-stageB}, and supports its statement that both Stage~B
+rules keep the false-split rate of the whole node decision below 0.05 in every
+cell. The rates of 0.0355 to 0.049 without the threshold correction quoted
+there come from the same design at 2,000 replicates per cell, where every split
+must still pass the Stage~A test first.
+
+\Cref{tab:stageB-only-full} extends \cref{tab:stageB-only} with the sizes under
+no stopping, which support the statement in its caption that they agree with
+the sizes under adaptive stopping. Over both modes the per-threshold size is
+0.000 to 0.027 and the max-type size 0.023 to 0.044. Over the 108 cell and
+effect combinations the size-matched difference in power ranges from $-0.054$
+to $+0.034$ and has no trend in the bin setting. In five cells the
+per-threshold rule does not reach size 0.05 even at nominal 0.50, and the match
+is at the largest size both rules reach. The two reruns give size-matched
+differences of $-0.006$ ($-0.008$ to $-0.003$) at the fourth seed and $-0.004$
+($-0.008$ to $0.000$) with the step at the 85th percentile, with standard
+errors of about 0.017 and 0.038 on each difference. The standard errors come
+from a parametric bootstrap of the whole matching procedure and put the
+smallest detectable difference at about 0.03 for the fourth seed and 0.08 for
+the step at the 85th percentile; the sizes in both reruns stay in the ranges
+above. The max-type rule also places the threshold less precisely: on each
+rule's own detections its threshold sits a median 0.19 standard deviations
+from the planted cut against 0.15, and 87\% of its detections fall on the
+planted predictor against 90\%.
+
+\Cref{tab:stageB-power} gives the split rates at a common nominal level, whose
+gap between the rules \cref{sec:results-stageB} attributes to the lower
+realized size of the per-threshold rule. \Cref{tab:stageB-scaling} gives the
+single-tree fitting times behind its cost comparison. Adaptive stopping
+shortens the per-threshold test by 1.2 to 1.6, 2.2 to 3.2, and 3.8 to 7.8
+times at 16, 64, and 256 bins, which narrows the max-type advantage to 1.0 to
+1.3, 1.4 to 2.1, and 2.2 to 7.7. Held at 999 permutations per candidate
+instead, the per-threshold rule never splits at 64 or 256 bins, because
+$\alpha/K$ falls below the resolution $1/(B+1)$. Fitted depths barely differ,
+5.0 to 10.7 levels for the max-type rule against 4.0 to 10.0. On the ten
+head-to-head datasets the max-type forest reduces madelon from 21 to 2.6
+seconds, gamma from 44 to 21, and isolet from 18 to 9.1, and changes the other
+seven by at most 1.6 seconds.
+
+\Cref{tab:stageB-real} gives the held-out scores, fitting times, and depths
+behind the real-data comparison. The max-type rule scores higher by 0.016 and
+0.026 balanced accuracy on vowel, 0.049 and 0.026 $R^2$ on facebook, 0.060 and
+0.033 on imports-85, and 0.008 and 0.005 on residential, and lower by 0.018 and
+0.020 on page-blocks and by 0.006 on spam with adaptive stopping. It fits 1.2
+to 2.4 times faster with adaptive stopping and 1.0 to 8.3 times faster with no
+stopping on the four datasets whose nodes admit many candidates, and 16\% and
+10\% slower on residential. Fitted depths
+agree within about one level (4.8 to 12.4 levels for the max-type rule against
+5.4 to 11.4).
 
 \begin{table}[!htbp]
   \centering
@@ -44,6 +117,91 @@ the Stage~B comparison in \cref{sec:results-stageB}; the design is in
   Bins is the histogram setting. Every 95\% Clopper-Pearson interval lies below
   0.05, with largest upper limit 0.042.}
   \label{tab:stageB-calibration}
+\end{table}
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrrrrrrrr@{}}
+    \toprule
+     & & & \multicolumn{4}{c}{Size at nominal 0.05} & & \multicolumn{2}{c}{Size-matched power} \\
+     & & & \multicolumn{2}{c}{Per-threshold} & \multicolumn{2}{c}{Max-type} & Match & & \\
+    \tablehead{Task} & $n$ & Bins & Adaptive & None & Adaptive & None & size & Per-threshold & Max-type \\
+    \midrule
+    Classification & 100 & 16 & 0.013 & 0.013 & 0.032 & 0.033 & 0.050 & 0.390 & 0.379 \\
+     & 100 & 64 & 0.007 & 0.007 & 0.036 & 0.039 & 0.044 & 0.385 & 0.354 \\
+     & 100 & 256 & 0.007 & 0.007 & 0.036 & 0.042 & 0.034 & 0.335 & 0.318 \\
+     & 200 & 16 & 0.010 & 0.011 & 0.037 & 0.039 & 0.050 & 0.643 & 0.618 \\
+     & 200 & 64 & 0.008 & 0.009 & 0.035 & 0.039 & 0.050 & 0.630 & 0.615 \\
+     & 200 & 256 & 0.003 & 0.003 & 0.039 & 0.039 & 0.031 & 0.562 & 0.538 \\
+     & 500 & 16 & 0.015 & 0.015 & 0.032 & 0.037 & 0.050 & 0.958 & 0.953 \\
+     & 500 & 64 & 0.007 & 0.007 & 0.029 & 0.035 & 0.050 & 0.961 & 0.964 \\
+     & 500 & 256 & 0.000 & 0.001 & 0.023 & 0.032 & 0.034 & 0.958 & 0.952 \\
+    Regression & 100 & 16 & 0.019 & 0.019 & 0.023 & 0.031 & 0.050 & 0.292 & 0.281 \\
+     & 100 & 64 & 0.013 & 0.013 & 0.029 & 0.035 & 0.050 & 0.305 & 0.285 \\
+     & 100 & 256 & 0.011 & 0.010 & 0.031 & 0.037 & 0.050 & 0.317 & 0.299 \\
+     & 200 & 16 & 0.027 & 0.026 & 0.033 & 0.038 & 0.050 & 0.591 & 0.581 \\
+     & 200 & 64 & 0.017 & 0.017 & 0.033 & 0.043 & 0.050 & 0.619 & 0.598 \\
+     & 200 & 256 & 0.008 & 0.009 & 0.041 & 0.044 & 0.050 & 0.632 & 0.579 \\
+     & 500 & 16 & 0.026 & 0.026 & 0.031 & 0.032 & 0.050 & 0.947 & 0.942 \\
+     & 500 & 64 & 0.015 & 0.016 & 0.029 & 0.033 & 0.050 & 0.966 & 0.952 \\
+     & 500 & 256 & 0.005 & 0.006 & 0.026 & 0.034 & 0.046 & 0.963 & 0.951 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Stage-B-only study: the threshold test in isolation, with one
+  Gaussian predictor fixed without the response and the Stage~A test disabled.
+  Size is the false-split rate of a depth-one tree at nominal level 0.05 over
+  1,500 null replicates per cell (three seeds of 500) under adaptive stopping
+  and no stopping (None); every 95\% Clopper-Pearson upper limit is below
+  0.056. Size-matched power, shown for adaptive stopping at the middle effect
+  ($\delta = 0.10$ in classification, $0.4$ in regression), is interpolated
+  against realized size over the nominal grid from 0.02 to 0.50 (600 replicates
+  per cell and level) to the match size: 0.05, or the largest realized size
+  both rules reach where the per-threshold rule does not reach 0.05.}
+  \label{tab:stageB-only-full}
+\end{table}
+
+\begin{table}[!htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrrrrrrr@{}}
+    \toprule
+     & & & \multicolumn{3}{c}{Per-threshold} & \multicolumn{3}{c}{Max-type} \\
+    \tablehead{Task} & Effect & $n$ & 16 & 64 & 256 & 16 & 64 & 256 \\
+    \midrule
+    Classification & 0.05 & 100 & 0.036 & 0.025 & 0.020 & 0.058 & 0.060 & 0.061 \\
+     & 0.05 & 200 & 0.058 & 0.047 & 0.033 & 0.084 & 0.088 & 0.088 \\
+     & 0.05 & 500 & 0.159 & 0.148 & 0.107 & 0.192 & 0.193 & 0.193 \\
+     & 0.10 & 100 & 0.126 & 0.104 & 0.092 & 0.170 & 0.170 & 0.172 \\
+     & 0.10 & 200 & 0.315 & 0.296 & 0.247 & 0.362 & 0.360 & 0.364 \\
+     & 0.10 & 500 & 0.820 & 0.813 & 0.786 & 0.828 & 0.830 & 0.832 \\
+     & 0.20 & 100 & 0.698 & 0.676 & 0.658 & 0.727 & 0.729 & 0.730 \\
+     & 0.20 & 200 & 0.971 & 0.972 & 0.968 & 0.972 & 0.972 & 0.972 \\
+     & 0.20 & 500 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
+    Regression & 0.2 & 100 & 0.040 & 0.031 & 0.026 & 0.050 & 0.051 & 0.054 \\
+     & 0.2 & 200 & 0.079 & 0.066 & 0.045 & 0.086 & 0.091 & 0.090 \\
+     & 0.2 & 500 & 0.178 & 0.167 & 0.118 & 0.184 & 0.189 & 0.189 \\
+     & 0.4 & 100 & 0.126 & 0.104 & 0.092 & 0.137 & 0.143 & 0.144 \\
+     & 0.4 & 200 & 0.326 & 0.297 & 0.246 & 0.332 & 0.338 & 0.340 \\
+     & 0.4 & 500 & 0.809 & 0.797 & 0.774 & 0.809 & 0.814 & 0.811 \\
+     & 0.8 & 100 & 0.634 & 0.617 & 0.602 & 0.643 & 0.647 & 0.651 \\
+     & 0.8 & 200 & 0.962 & 0.962 & 0.955 & 0.963 & 0.964 & 0.963 \\
+     & 0.8 & 500 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Split rate at nominal level 0.05 of a depth-one tree with adaptive
+  stopping when the response depends on one of five Gaussian predictors through
+  a step at zero, by Stage~B construction and bin setting (columns 16, 64, 256),
+  over 2,500 replicates per cell (five seeds of 500). The two rules have
+  different realized sizes at this level (\cref{tab:stageB-calibration}), so
+  the columns compare split rates rather than power; \cref{tab:stageB-only}
+  compares power at equal size. Effect is the class-probability
+  shift $\pm\delta$ around one half in classification and the mean shift in
+  standard-deviation units in regression. No stopping agrees within
+  0.014 in every cell.}
+  \label{tab:stageB-power}
 \end{table}
 
 \begin{table}[!htbp]
@@ -123,46 +281,4 @@ the Stage~B comparison in \cref{sec:results-stageB}; the design is in
   the fold assignment. Each time is the second of two identical fits, so
   compilation is excluded.}
   \label{tab:stageB-real}
-\end{table}
-
-\begin{table}[!htbp]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}lrrrrrrrr@{}}
-    \toprule
-     & & & \multicolumn{3}{c}{Per-threshold} & \multicolumn{3}{c}{Max-type} \\
-    \tablehead{Task} & Effect & $n$ & 16 & 64 & 256 & 16 & 64 & 256 \\
-    \midrule
-    Classification & 0.05 & 100 & 0.036 & 0.025 & 0.020 & 0.058 & 0.060 & 0.061 \\
-     & 0.05 & 200 & 0.058 & 0.047 & 0.033 & 0.084 & 0.088 & 0.088 \\
-     & 0.05 & 500 & 0.159 & 0.148 & 0.107 & 0.192 & 0.193 & 0.193 \\
-     & 0.10 & 100 & 0.126 & 0.104 & 0.092 & 0.170 & 0.170 & 0.172 \\
-     & 0.10 & 200 & 0.315 & 0.296 & 0.247 & 0.362 & 0.360 & 0.364 \\
-     & 0.10 & 500 & 0.820 & 0.813 & 0.786 & 0.828 & 0.830 & 0.832 \\
-     & 0.20 & 100 & 0.698 & 0.676 & 0.658 & 0.727 & 0.729 & 0.730 \\
-     & 0.20 & 200 & 0.971 & 0.972 & 0.968 & 0.972 & 0.972 & 0.972 \\
-     & 0.20 & 500 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
-    Regression & 0.2 & 100 & 0.040 & 0.031 & 0.026 & 0.050 & 0.051 & 0.054 \\
-     & 0.2 & 200 & 0.079 & 0.066 & 0.045 & 0.086 & 0.091 & 0.090 \\
-     & 0.2 & 500 & 0.178 & 0.167 & 0.118 & 0.184 & 0.189 & 0.189 \\
-     & 0.4 & 100 & 0.126 & 0.104 & 0.092 & 0.137 & 0.143 & 0.144 \\
-     & 0.4 & 200 & 0.326 & 0.297 & 0.246 & 0.332 & 0.338 & 0.340 \\
-     & 0.4 & 500 & 0.809 & 0.797 & 0.774 & 0.809 & 0.814 & 0.811 \\
-     & 0.8 & 100 & 0.634 & 0.617 & 0.602 & 0.643 & 0.647 & 0.651 \\
-     & 0.8 & 200 & 0.962 & 0.962 & 0.955 & 0.963 & 0.964 & 0.963 \\
-     & 0.8 & 500 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Split rate at nominal level 0.05 of a depth-one tree with adaptive
-  stopping when the response depends on one of five Gaussian predictors through
-  a step at zero, by Stage~B construction and bin setting (columns 16, 64, 256),
-  over 2,500 replicates per cell (five seeds of 500). The two rules have
-  different realized sizes at this level (\cref{tab:stageB-calibration}), so
-  the columns compare split rates rather than power; \cref{tab:stageB-only}
-  compares power at equal size. Effect is the class-probability
-  shift $\pm\delta$ around one half in classification and the mean shift in
-  standard-deviation units in regression. No stopping agrees within
-  0.014 in every cell.}
-  \label{tab:stageB-power}
 \end{table}

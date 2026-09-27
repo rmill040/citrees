@@ -1,4 +1,9 @@
-"""Inspect or build a deterministic arXiv source bundle for the paper."""
+"""Inspect or build a deterministic arXiv source bundle for the paper.
+
+The bundle holds the TeX sources that ``main.tex`` inputs, the bibliography,
+the figures those sources include, and the compiled supplement as the arXiv
+ancillary file ``anc/supplement.pdf``.
+"""
 
 from __future__ import annotations
 
@@ -11,23 +16,42 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ARXIV_DIR = ROOT / "paper" / "arxiv"
 DEFAULT_OUT = ARXIV_DIR / "build" / "citrees-arxiv-source.zip"
+MAIN_TEX = "main.tex"
 STATIC_FILES = ("main.tex", "macros.tex", "references.bib")
+SUPPLEMENT_PDF = "supplement.pdf"
+SUPPLEMENT_ARCNAME = "anc/supplement.pdf"
+INPUT_RE = re.compile(r"^[^%\n]*?\\input\{([^}]+)\}", re.MULTILINE)
 INCLUDEGRAPHICS_RE = re.compile(r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}")
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 ZIP_FILE_MODE = 0o644
 
 
+def _resolve_tex(name: str) -> Path:
+    """Return the arXiv-directory path of a TeX file named by an ``\\input``."""
+    path = ARXIV_DIR / name
+    if path.suffix != ".tex":
+        path = path.with_name(path.name + ".tex")
+    if not path.exists():
+        raise FileNotFoundError(f"{MAIN_TEX} inputs missing file {path.relative_to(ROOT)}")
+    return path
+
+
 def tex_sources() -> list[Path]:
-    """Return TeX files that define the paper source."""
-    return [
-        ARXIV_DIR / "main.tex",
-        *sorted((ARXIV_DIR / "sections").glob("*.tex")),
-        *sorted((ARXIV_DIR / "appendices").glob("*.tex")),
-    ]
+    """Return ``main.tex`` and every TeX file it inputs, in input order."""
+    sources: list[Path] = []
+    pending = [ARXIV_DIR / MAIN_TEX]
+    while pending:
+        source = pending.pop(0)
+        if source in sources:
+            continue
+        sources.append(source)
+        text = source.read_text(encoding="utf-8")
+        pending.extend(_resolve_tex(name) for name in INPUT_RE.findall(text))
+    return sources
 
 
 def collect_referenced_figures() -> list[Path]:
-    """Collect figure paths referenced by the TeX source."""
+    """Collect the figure files included by the sources of ``main.tex``."""
     figures: set[Path] = set()
     for source in tex_sources():
         text = source.read_text(encoding="utf-8")
@@ -47,7 +71,7 @@ def collect_referenced_figures() -> list[Path]:
 
 
 def bundle_members() -> list[Path]:
-    """Return arXiv-relative files included in the source bundle."""
+    """Return the arXiv-directory source files included in the bundle."""
     members: set[Path] = set()
     for relname in STATIC_FILES:
         path = ARXIV_DIR / relname
@@ -60,24 +84,37 @@ def bundle_members() -> list[Path]:
     return sorted(members, key=lambda path: path.relative_to(ARXIV_DIR).as_posix())
 
 
+def ancillary_members() -> dict[str, Path]:
+    """Return the ancillary files of the bundle, keyed by archive name."""
+    path = ARXIV_DIR / SUPPLEMENT_PDF
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing {path.relative_to(ROOT)}; build it with latexmk in paper/arxiv "
+            "or pass --build-pdf."
+        )
+    return {SUPPLEMENT_ARCNAME: path}
+
+
+def archive_members() -> dict[str, Path]:
+    """Return every archive name of the bundle mapped to its source file."""
+    members = {path.relative_to(ARXIV_DIR).as_posix(): path for path in bundle_members()}
+    members.update(ancillary_members())
+    return dict(sorted(members.items()))
+
+
 def build_pdf() -> None:
-    """Run latexmk so cross references are current."""
-    subprocess.run(
-        ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error", "main.tex"],
-        cwd=ARXIV_DIR,
-        check=True,
-    )
+    """Run latexmk, which builds main.pdf and then supplement.pdf per latexmkrc."""
+    subprocess.run(["latexmk"], cwd=ARXIV_DIR, check=True)
 
 
-def write_bundle(out_path: Path) -> list[Path]:
-    """Write the source bundle and return included members."""
-    members = bundle_members()
+def write_bundle(out_path: Path) -> dict[str, Path]:
+    """Write the source bundle and return its members keyed by archive name."""
+    members = archive_members()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(
         out_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
     ) as archive:
-        for path in members:
-            arcname = path.relative_to(ARXIV_DIR).as_posix()
+        for arcname, path in members.items():
             info = zipfile.ZipInfo(arcname, ZIP_TIMESTAMP)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = ZIP_FILE_MODE << 16
@@ -108,10 +145,10 @@ def main() -> None:
     if args.build_pdf:
         build_pdf()
 
-    members = bundle_members()
+    members = archive_members()
     if args.check or not args.write:
-        for path in members:
-            print(path.relative_to(ARXIV_DIR).as_posix())
+        for arcname in members:
+            print(arcname)
         return
 
     write_bundle(args.out)

@@ -1,25 +1,22 @@
-Conditional inference trees (CIT) and conditional inference forests (CIF)
-reduce split-selection bias by testing features before choosing split
-thresholds, but repeated permutation tests and threshold searches can make these
-methods computationally expensive. We study CIT and CIF as top-$k$
-feature-ranking methods for downstream prediction. Each split passes a Stage~A
-feature test and a Stage~B threshold test, each under a Bonferroni correction.
-We benchmark them against 15 classification and 16 regression rankers, among
-them partykit's ctree and cforest, random forests (RF), recursive feature
-elimination with random forests (RF-RFE), ExtraTrees, and gradient boosting, on
-31 real datasets, scoring each ranking by the held-out accuracy of fixed
-learners fitted to its top-$k$ features. CIF ranks tied 3rd of 17 in
-classification, behind RF-RFE and XGBoost and level with RF; 2nd of 18 in
-regression, behind ExtraTrees. On the smaller panels where every method
-completed it ranks tied 6th and tied 5th, and the regression ordering is
-descriptive. On synthetic designs with known informative features CIF sits in
-the lower half on recovery (8th of 15 and 11th of 16), and it is weakest at
-small $k$. At the minimum permutation budget the corrections cost of order
-$m^2/\alpha$ permutations per node in the feature test over $m$ features and
-$K^2/\alpha$ in the threshold test over $K$ candidate thresholds. A max-type
-threshold test, an opt-in alternative, reaches the nominal level with about
-$999K$ statistic evaluations, loses 0.006 in power at equal realized size, and
-moves CIF to 5th of 17 and 4th of 18. The adaptive stopping rule has exact null
-size 0.0488 at its default budget of 999 permutations. Overall, the results
-support CIF as a top-$k$ feature-ranking method for downstream prediction, level
-with random forests in classification.
+Decision trees that choose a feature and a threshold in one search favor
+features with many possible thresholds. Conditional inference trees (CIT) and
+forests (CIF) test features before choosing thresholds
+to reduce this split selection bias, but their repeated permutation tests make
+them costly. We compare CIT and CIF with 15
+classification and 16 regression rankers, including random forests (RF) and RF
+recursive feature elimination (RF-RFE), on 31 real
+datasets, scoring each ranking by held-out balanced accuracy or $R^2$ of
+fixed learners on its top-$k$ features, and on synthetic designs with
+known informative features. CIF ranks tied 3rd of 17 in classification, level
+with RF and behind RF-RFE and XGBoost, and 2nd of 18 in regression, behind
+ExtraTrees. On smaller panels where every method completed it is tied 6th
+and tied 5th, and the regression ordering is descriptive. It is at or below the
+median on synthetic recovery (8th of 15, 11th of 16) and weakest at small
+$k$ in classification. At the minimum permutation budget, the two Bonferroni corrections, in the
+Stage~A feature test over $m$ features and the Stage~B threshold test over $K$
+candidate thresholds, cost of order $m^2/\alpha$ and $K^2/\alpha$ permutations
+per node. An opt-in max-type rule tests the thresholds jointly at the
+nominal level with about $999K$ statistic evaluations, loses 0.006 in power at equal
+realized size, and moves CIF to 5th of 17 and 4th of 18. The results
+support CIF as a top-$k$ feature-ranking method for downstream prediction,
+level with random forests in classification.

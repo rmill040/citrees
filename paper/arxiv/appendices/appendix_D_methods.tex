@@ -1,12 +1,5 @@
 \section{Benchmark configurations and coverage}
 \label{app:methods}
-
-This appendix lists the configuration each method entered the benchmark with,
-the runs excluded from it, and the reproducibility controls.
-\Cref{sec:method} describes the tree-growing loop, and
-\cref{app:complexity-details} gives its runtime and memory accounting.
-
-\subsection{Selected configurations}
 \label{app:selected-configs}
 
 \Cref{tab:selected-configs} lists the configuration each method family entered
@@ -14,21 +7,38 @@ the benchmark with, after the selection rule of \cref{sec:experiments-repro}
 picked one configuration per family by its mean real-data score. Candidates is
 the size of the family's configuration grid. Settings not listed are the
 library defaults. CIF uses stratified bootstrap sampling in classification and
-ordinary bootstrap sampling in regression.
+ordinary bootstrap sampling in regression. In the projection-count study of the
+supplement to \citet{MilletichDownesHirst2026citrees}, 20 random projections in
+the RDC instead of the 10 used here took about three times the selector time on
+four small classification datasets, changed mean balanced accuracy by at most
+0.0052, and kept at least 95.4\% mean overlap between the selected sets.
 
-\begin{table}[!htbp]
+The downstream learners are fixed. LR uses balanced class weights and a
+1,000-iteration limit; the SVM uses a radial basis function kernel whose width
+is set by the number and variance of the inputs, unit regularization, and
+balanced class weights; KNN uses 5 distance-weighted neighbors. Ridge
+regression uses unit penalty strength, and SVR the same kernel with unit
+regularization and $\epsilon=0.1$. Standardization is fitted on the training
+fold and refitted on the selected columns. Importances rank features in
+decreasing order, filter $P$-values in increasing order with the dependence
+score as the secondary key, ctree by split-use counts, and Boruta and RF-RFE by
+fitted rank, with deterministic tie breaking. CPI permutes each feature within
+five-bin percentile strata of the features whose absolute correlation with it
+is at least 0.5, and globally when there are none.
+
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}llcp{7.4cm}@{}}
+  \begin{tabular}{@{}llcL{7.4cm}@{}}
     \toprule
     \tablehead{Family} & \tablehead{Task} & Candidates & \tablehead{Selected configuration} \\
     \midrule
-    CIT & Classification & 4 & selector MC; minimum budgets with adaptive stopping; histogram with 256 bins (257 candidates); Bonferroni; no honesty \\
+    CIT & Classification & 4 & selector MC; minimum budgets with adaptive stopping; histogram with 256 bins (257 candidates); both corrections; no honesty \\
     CIT & Regression & 4 & selector RDC; otherwise as classification \\
     CIF & Classification & 4 & selector RDC; 100 trees; stratified bootstrap; square-root feature sampling; no honesty; otherwise as CIT \\
     CIF & Regression & 4 & selector RDC; 100 trees; bootstrap; square-root feature sampling; honesty with a 0.5 split \\
-    RF, ET & Both & 1 & 100 trees, library defaults, impurity importance \\
+    RF, ExtraTrees & Both & 1 & 100 trees, library defaults, impurity importance \\
     XGBoost & Both & 5 & 500 rounds, depth 6, learning rate 0.1; importance total gain (classification) or total cover (regression) \\
     LightGBM & Both & 2 & 500 rounds, depth 6, learning rate 0.1; gain importance \\
     CatBoost & Both & 1 & 500 iterations, depth 6, learning rate 0.1 \\
@@ -42,8 +52,8 @@ ordinary bootstrap sampling in regression.
   \end{tabular}
   \caption{Configurations entered in the benchmark, one per family and task,
   with the size of the grid the selection rule chose from. The
-  minimum budget is $\lceil 1/\alpha_{\mathrm{adj}} \rceil$ permutations
-  at the Bonferroni-adjusted level; the histogram search with 256 bins offers at
+  minimum budget is $\lceil 1/\alpha_{\mathrm{adj}} \rceil$ permutations,
+  where $\alpha_{\mathrm{adj}}$ is the corrected level of one test; the histogram search with 256 bins offers at
   most 257 candidate thresholds per feature, so the per-threshold rule needs a
   budget of at least $\lceil 257/0.05 \rceil = 5{,}140$ to reject.}
   \label{tab:selected-configs}
@@ -56,45 +66,22 @@ values of $k$ where both methods are present. Analyses that compare all
 methods restrict to datasets with every method, learner, and standard $k$
 present, which gives 13 classification and 6 regression complete-case
 datasets. On \nolinkurl{gisette}, \nolinkurl{isolet}, and \nolinkurl{orlraws10P},
-34 classification runs were excluded (\cref{tab:coverage-skips}). Of these,
+34 classification runs were excluded (Supplement, Section~S1). Of these,
 15 partykit ctree and cforest runs did not complete, 18 RDC-selector CIT and
 CIF runs were lost to a host fault while the other seeds of the same cells
 completed, and one run on \nolinkurl{orlraws10P} was excluded by author
-decision. No regression runs are excluded.
-
-\begin{table}[!htbp]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}llccl@{}}
-    \toprule
-    \tablehead{Dataset} & \tablehead{Method} & {Configurations} & {Seed runs} & \tablehead{Basis} \\
-    \midrule
-    \nolinkurl{gisette} & CIT with the RDC selector & 2 & 8 & host fault \\
-    \nolinkurl{gisette} & R ctree & 1 & 5 & incomplete \\
-    \nolinkurl{isolet} & CIF with the RDC selector & 2 & 4 & host fault \\
-    \nolinkurl{isolet} & CIT with the RDC selector & 2 & 6 & host fault \\
-    \nolinkurl{isolet} & R cforest & 1 & 5 & incomplete \\
-    \nolinkurl{isolet} & R ctree & 1 & 5 & incomplete \\
-    \nolinkurl{orlraws10P} & CIT with the RDC selector & 1 & 1 & author directed \\
-    \bottomrule
-  \end{tabular}
-  \caption{Classification benchmark exclusions. Each seed run is one method
-  configuration on one dataset with one seed; 34 runs are excluded in total,
-  and all are operational exclusions. Incomplete rows are partykit ctree and
-  cforest runs that did not complete; the 18 host-fault runs are RDC-selector
-  CIT and CIF runs lost to a host fault; the
-  single \nolinkurl{orlraws10P} run was excluded by author decision. No regression runs
-  are excluded.}
-  \label{tab:coverage-skips}
-\end{table}
+decision. No regression runs are excluded. The max-type extension had 1,880
+possible ranking runs; 88 were not run because their per-threshold counterpart
+had not completed, and 1,785 of the remaining 1,792 completed. The seven runs
+that did not, CIF with the RDC selector and honesty off on \nolinkurl{isolet},
+\nolinkurl{gisette}, and \nolinkurl{letter}, were lost to the same host fault.
 
 \subsection{Randomness and reproducibility}
 
 The benchmark configuration fixes the seed schedule used for all reported
-runs. Pure Python permutation routines use local generators. Numba parallel
-permutation paths assign one seed per resample, which avoids sharing a mutable
-generator across parallel loop iterations. The corrected R bridge was checked
-by refitting one published ctree example inside R and through the harness with
-identical splits; the seed schedule, rank directions, and the CPI threshold are
-pinned by tests in the repository.
+runs. Interpreted permutation routines draw from local random generators, and
+compiled parallel loops assign one seed per resample, so no generator state is
+shared across parallel iterations. The interface to the R implementations
+was checked by refitting one published ctree example in R and through the
+benchmark with identical splits; the seed schedule, ranking directions, and the
+CPI correlation threshold are fixed by automated tests.

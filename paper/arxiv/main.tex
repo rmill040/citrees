@@ -20,6 +20,7 @@
 \usepackage{algpseudocode}
 \usepackage[titletoc,title]{appendix}
 \usepackage[section]{placeins}
+\usepackage{flafter}
 
 \usepackage{hyperref}
 \usepackage[nameinlink,capitalise,noabbrev]{cleveref}
@@ -32,6 +33,10 @@
 \makeatother
 
 \input{macros}
+% At most one top float per page, so two floats never stack without text between them.
+\setcounter{topnumber}{1}
+\renewcommand{\bottomfraction}{0.6}
+\renewcommand{\textfraction}{0.07}
 \hypersetup{
   hidelinks,
   pdftitle={Conditional Inference Trees and Forests for Feature Selection},
@@ -72,14 +77,14 @@
 \begin{appendices}
 \crefalias{section}{appendix}
 \crefalias{subsection}{appendix}
+% Let appendix floats move to the next page instead of forcing float pages at
+% each appendix section.
+\let\FloatBarrier\relax
 \input{appendices/appendix_A_setup}
 \input{appendices/appendix_B_exchangeability}
 \input{appendices/appendix_D_methods}
-\FloatBarrier
 \input{appendices/appendix_F_datasets}
-\FloatBarrier
 \input{appendices/appendix_E_complexity}
-\FloatBarrier
 \input{appendices/appendix_H_candidate_availability}
 \end{appendices}
 

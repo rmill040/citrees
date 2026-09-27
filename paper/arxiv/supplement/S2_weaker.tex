@@ -1,1 +1,71 @@
-% Supplement Section S2: wide data and synthetic recovery (Figure 3, Figure 4, full synthetic recovery table).
+\section{Wide data and synthetic recovery}
+\label{sup:weaker}
+
+\Cref{fig:high-p-boundary} shows, by downstream learner, where the
+classification scores of CIF peak on the 15 datasets with more than 100
+features, the pattern summarized in \cref{sec:boundary}. Scores peak at
+intermediate $k$ ($100<k<p$) on 8 of 15 LR datasets, 12 of 15 SVM datasets, and
+9 of 15 KNN datasets.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.84\linewidth]{figures/high_p_boundary_summary.png}
+  \caption{Where CIF's classification scores peak as $k$ increases, by
+  downstream learner. (A) shows, for each learner, the percentage of 15
+  datasets where the first evaluated $k$ attaining the best observed CIF score
+  falls below 100, at 100, between 100 and $p$, or at $k=p$. (B) shows the mean
+  balanced accuracy change from $k=100$ to $k=p$.}
+  \label{fig:high-p-boundary}
+\end{figure}
+
+\subsection{Synthetic recovery by \texorpdfstring{$k$}{k}}
+
+\Cref{fig:synthetic-topk-curves} shows synthetic recovery as $k$ grows for the
+single trees, forests, and boosted trees, the curves behind the averages over
+$k$ in \cref{tab:synthetic-head}.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.84\linewidth]{figures/synthetic_topk_focus_curves.png}
+  \caption{Synthetic top-$k$ recovery curves. Columns compare single trees,
+  forests, and boosted trees; rows show classification and regression. Each
+  value is the percentage of selected features that are truly informative.}
+  \label{fig:synthetic-topk-curves}
+\end{figure}
+
+\subsection{Feature use by feature dimension}
+
+\Cref{fig:candidate-dimension-curves} gives the feature-use curves behind
+\cref{app:candidate-availability}, for $p \in \{100,500,1{,}000\}$ with 1,000
+trees per fit. Each point is the mean over
+$n_{\mathrm{informative}} \in \{1,2,5,10\}$, and the capped bar spans the
+minimum and maximum over those four sparse settings; the values quoted below
+for one, two, or five informative features come from single designs in the same
+runs. In classification, evaluating all nonconstant features also narrows the
+set of uninformative features used: over the 12 designs CIF-all uses a mean of
+93.4 distinct uninformative features against 265.1 for CIF, each counted over
+the five pooled fits of a design. With two informative features, CIF-all uses
+70, 264, and 439 fewer distinct uninformative features than CIF at $p=100$,
+500, and 1,000 (totals over the pooled fits), and with five informative
+features the CIF-all minus CIF differences in the share of informative splits
+are 25.1, 56.4, and 54.3\%. In regression, CIF-all uses more distinct
+uninformative features than CIF, a mean of 528.8 against 367.7. With two
+informative features, CIF uses informative features in 39.9, 19.7, and 11.6\%
+of regression splits at the three values of $p$, against 58.8, 46.7, and 35.9\%
+for CIF-all, and with one informative feature the CIF-all minus CIF
+differences are 29.8, 18.9, and 42.1\%.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.88\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}\par
+  \includegraphics[width=0.88\linewidth]{figures/paper_mechanism_grid_forest_regression_dimension_curves_1000trees.png}
+  \caption{Forest feature use by feature dimension $p$, for classification
+  (top row) and regression (bottom row), with 1,000 trees per fit. Points are
+  means over $n_{\mathrm{informative}} \in \{1,2,5,10\}$; capped bars span the
+  minimum and maximum over those four sparse designs. In each row, (A) shows
+  the percentage of splits using informative features and (B) the number of
+  distinct uninformative features used. CIF samples a subset of features at
+  each node; CIF-all evaluates all nonconstant features.}
+  \label{fig:candidate-dimension-curves}
+  \label{fig:regression-candidate-dimension-curves}
+\end{figure}

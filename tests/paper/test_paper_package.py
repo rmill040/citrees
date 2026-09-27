@@ -261,15 +261,13 @@ def test_existing_arxiv_source_zip_is_not_stale():
         pytest.skip("No local arXiv source zip to check")
 
     bundler = _load_arxiv_bundle_module()
-    expected_paths = bundler.bundle_members()
-    expected_members = {path.relative_to(ARXIV_DIR).as_posix() for path in expected_paths}
+    expected = bundler.archive_members()
     with zipfile.ZipFile(archive_path) as archive:
         members = set(archive.namelist())
-        assert members == expected_members
-        for path in expected_paths:
-            relpath = path.relative_to(ARXIV_DIR).as_posix()
-            assert archive.read(relpath) == path.read_bytes(), (
-                f"{relpath} is stale in the local arXiv source zip"
+        assert members == set(expected)
+        for arcname, path in expected.items():
+            assert archive.read(arcname) == path.read_bytes(), (
+                f"{arcname} is stale in the local arXiv source zip"
             )
 
 

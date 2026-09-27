@@ -5,57 +5,34 @@
 Let $(X_i, Y_i)_{i=1}^n$ be the training data. Fix a node $t$ with sample index
 set $I_t$ and size $n_t:=|I_t|$. Write $X_t := (X_i)_{i\in I_t}$ and
 $Y_t := (Y_i)_{i\in I_t}$ for the data restricted to that node. Stage~A tests
-features $F_t$ with $m_t:=|F_t|$. For the Stage~A feature test the reference
-case is full-scan and fixed-$B$: conditional on the node covariates and
-label-independent auxiliary randomness $U$, $F_t$ and $B$ are fixed, and every
-feature in $F_t$ is tested with exactly $B$ permutations.
-\Cref{tab:fixed-node-notation} lists the notation used in the proofs.
-
-\begin{table}[!htbp]
-  \centering
-  \small
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}L{0.18\linewidth}L{0.76\linewidth}@{}}
-    \toprule
-    \tablehead{Symbol} & \tablehead{Meaning} \\
-    \midrule
-    $t$ & Node index, held fixed in the results. \\
-    $I_t,\ n_t$ & Node sample index set and size $n_t:=|I_t|$. \\
-    $X_t,\ Y_t$ & Covariates and responses restricted to node $t$. \\
-    $U$ & Label-independent auxiliary randomness conditioned on in the proofs; it excludes node responses, Monte Carlo permutation draws, permutation statistics, and $P$-values. \\
-    $F_t,\ m_t$ & Stage~A features and their number $m_t:=|F_t|$. \\
-    $C,\ K$ & Stage~B candidate thresholds and their number $K:=|C|$. \\
-    $B$ & Number of random permutations per test in the fixed-$B$ reference test. \\
-    $T^{\mathrm{sel}}_j$ & Stage~A selector statistic for feature $j$: $T^{\mathrm{sel}}_j(X_{t,j},Y_t;U)$. \\
-    $T(\cdot,\cdot;U)$ & Generic test statistic in the exchangeability proof, real-valued or taking values in any measurable space. \\
-    $\Pi_b$ & Random permutation used for Monte Carlo replicate $b$. \\
-    $T_{\mathrm{obs}},T_1,\dots,T_B$ & Observed and permuted statistics for one test. \\
-    $P_{\mathrm{MC}}^{\ge}$ & Right-tail $+1$ Monte Carlo permutation $P$-value for one test. \\
-    $P_{t,j},\ P_{t,c}$ & Fixed-$B$ $+1$ $P$-values for feature $j$ and for threshold $c$. \\
-    $\gamma,\ s$ & Confidence and batch size of adaptive stopping. \\
-    $r,\ e$ & Permutations drawn and exceedances counted at a stopping check. \\
-    $\theta$ & Per-draw exceedance probability given the observed statistic. \\
-    \bottomrule
-  \end{tabular}
-  \caption{Notation used in the fixed-node results and their proofs.}
-  \label{tab:fixed-node-notation}
-\end{table}
+features $F_t$ with $m_t:=|F_t|$, and Stage~B tests a finite set $C$ of
+$K:=|C|$ candidate thresholds for one feature. For the Stage~A feature test the
+reference case is full-scan and fixed-$B$: conditional on the node covariates
+and label-independent auxiliary randomness $U$, $F_t$ and $B$ are fixed, and
+every feature in $F_t$ is tested with exactly $B$ permutations. The variable
+$U$ excludes node responses, Monte Carlo permutation draws, permutation
+statistics, and $P$-values. For one test, $\Pi_b$ is the random permutation of
+replicate $b$, and $T_{\mathrm{obs}},T_1,\dots,T_B$ are the observed and
+permuted statistics; $P_{t,j}$ and $P_{t,c}$ are the fixed-$B$ $+1$ $P$-values
+for feature $j$ and threshold $c$. For adaptive stopping, $\gamma$ and $s$ are
+the confidence and batch size, $r$ and $e$ the permutations drawn and
+exceedances counted at a stopping check, and $\theta$ the per-draw exceedance
+probability given the observed statistic.
 
 \paragraph{Scope of the fixed-node results.}\label{app:theory-scope}
 Every result holds at a fixed node $t$, conditional on $(X_t,U)$, under the
-complete nodewise permutation null. \Cref{cor:stageA-global-null} covers a
-feature set $F_t$ fixed as a function of $(X_t,U)$.
-\Cref{cor:stageB-bonferroni,cor:stageB-maxt} cover a tested feature and a
-finite candidate set fixed as functions of $(X_t,U)$; this includes the exact,
-random, percentile, and histogram candidate sets and threshold scanning.
-\Cref{prop:adaptive-size} covers one Stage~A test or one per-threshold Stage~B
-test, and not the adaptive max-type rule. The results do not extend to
-response-dependent feature muting, to nodes reached through response-dependent
-splits, to a Stage~B test of the Stage~A winner, to honesty, or to $P$-values
-reported after selection. Bootstrap fits are outside the guarantee, because
-permuting the responses over duplicated rows does not reproduce the null law of
-the node sample, so A0.2 fails; fits on subsamples drawn without replacement, or
-on the full sample, keep it.
+complete nodewise permutation null, so the corollaries give weak familywise
+control. \Cref{cor:stageA-global-null} covers a feature set $F_t$ fixed as a
+function of $(X_t,U)$. \Cref{cor:stageB-bonferroni,cor:stageB-maxt} cover a
+tested feature and a finite candidate set fixed as functions of $(X_t,U)$; this
+includes the exact, random, percentile, and histogram candidate sets and
+threshold scanning. \Cref{prop:adaptive-size} covers one Stage~A test or one
+per-threshold Stage~B test, and not the adaptive max-type rule. The results do
+not extend to partial-null familywise control, to response-dependent feature
+muting, to nodes reached through response-dependent splits, to a Stage~B test
+of the Stage~A winner, to honesty, to $P$-values reported after selection, or
+to error control for fitted trees and forests, and bootstrap fits are outside
+them because A0.2 fails there (\cref{sec:theory}).
 
 \subsection{Assumptions}
 \label{app:assumptions}

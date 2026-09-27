@@ -186,9 +186,26 @@ observed statistic is exchangeable with the $N$ orbit values, so without ties
 $\theta$ is uniform on $\{1/N,\dots,1\}$, which is (ii). The continuous
 idealization (i) replaces that grid by the uniform distribution on $(0,1)$.
 Under it the binomial mixture is the P\'olya urn started from one ball of each
-colour, whose next indicator is one with probability $(e+1)/(r+2)$, and
+color, whose next indicator is one with probability $(e+1)/(r+2)$, and
 $\rho = \int_0^1 g$ by a finite recursion over the stopping states. For
 nonincreasing $g$ the grid average $N^{-1}\sum_{i=1}^{N} g(i/N)$ is at most
 $\int_0^1 g$ and at least $\int_0^1 g - (g(0)-g(1))/N \ge \rho - 1/N$, which is
 the interval in (ii). Counting ties as exceedances raises $\theta$, and given
 $\theta$ the same nonincreasing $g$ gives (iii).
+
+\subsection{Exact values of the adaptive stopping size}
+\label{app:adaptive-values}
+
+The finite recursion over stopping states computes $\rho$ exactly, and an
+exact enumeration of the reachable stopping states verifies the hypothesis of
+\cref{prop:adaptive-size} on stopping reports at $\gamma=0.95$ and $s=32$ for
+every budget from 20 to 3{,}000 at $\alpha=0.05$. At a lower confidence the
+size can exceed the level: $\rho(0.05,0.80,32,999)=0.0522$. At the corrected
+levels of the two benchmark examples of \cref{sec:stageA-stageB}, $\rho$ stays
+below the level. At $\alpha/20$ it is
+$0.00249$ at the minimum budget of 400 and $0.00221$ at the auto budget of
+3{,}144, and at $\alpha/257$ it is $0.000195$ at the minimum budget of 5{,}140
+and $0.000181$ at the auto budget of 64{,}669. These values are for the strict
+rule the implementation uses. Under the nonstrict convention, which rejects
+when the reported value is at most $\alpha$, the bound $\rho \le \alpha$ fails
+at $B=79$, where $\rho=0.05001$.

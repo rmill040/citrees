@@ -37,19 +37,18 @@ level at a fixed node, so the ablations measure the cost of valid tests.
 This paper provides four things.
 \begin{enumerate}[label=(\arabic*),leftmargin=*]
   \item A benchmark of the ranking quality of CIT and CIF for downstream
-  prediction, against 15 classification and 16 regression rankers on 31 real
-  datasets, with checks that the result is not an artifact of the setup
-  (\cref{sec:experiments-real}). CIF ranks features as well as random forests
-  and better than every other conditional inference method, under
-  configuration reselection, across downstream learners, values of $k$, and
-  seeds, and when CIF and cforest use the same importance measure; the standard
-  remedies for the random forest's cardinality bias rank below the forest
-  itself.
+  prediction on 31 real datasets, with 15 and 16 competing rankers per task and
+  checks that the result is not an artifact of the setup
+  (\cref{sec:experiments-real}). CIF matches random forests and outranks the
+  other conditional inference methods, and this holds under configuration
+  reselection, across downstream learners, values of $k$, and seeds, and with
+  CIF and cforest ranked by one importance measure; the usual remedies for the
+  random forest's cardinality bias fall below the forest itself.
   \item An analysis of how the CIF ranker behaves and where it is weaker
-  (\cref{sec:boundary}). On synthetic designs with known informative features,
-  CIF recovers them only as well as the middle of the field at every list size.
-  The forest rather than the split test carries its ranking, and feature
-  sampling keeps informative features out of most splits in sparse wide data.
+  (\cref{sec:boundary}). Where the informative features are known, CIF's
+  recovery of them ranks mid-field at every list size. Its ranking rests on the
+  ensemble, and in sparse wide data feature sampling keeps informative features
+  out of most splits.
   \item An account of what the statistical machinery changes and costs
   (\cref{sec:results-practical}). Unbiased split selection removes the random
   forest's preference for many-valued features but improves neither recovery
@@ -57,8 +56,8 @@ This paper provides four things.
   $m_t^2/\alpha$ permutations per node in the feature test and $K^2/\alpha$ in
   the threshold test.
   \item A cheaper threshold test with guarantees
-  (\cref{sec:theory,sec:results-stageB}). The max-type threshold test keeps the
-  fixed-node guarantee at a fraction of the cost, and the paper proves that
-  every split test is valid at a fixed node and gives the exact null size of
-  the default adaptive stopping rule.
+  (\cref{sec:theory,sec:results-stageB}). Testing all candidate thresholds
+  jointly, the max-type test stays valid at a fixed node for a fraction of the
+  cost; the paper also proves the fixed-node validity of every split test and
+  derives the exact null size of the default adaptive stopping rule.
 \end{enumerate}

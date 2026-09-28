@@ -66,7 +66,7 @@ values of $k$ where both methods are present. Analyses that compare all
 methods restrict to datasets with every method, learner, and standard $k$
 present, which gives 13 classification and 6 regression complete-case
 datasets. On \nolinkurl{gisette}, \nolinkurl{isolet}, and \nolinkurl{orlraws10P},
-34 classification runs were excluded (Supplement, Section~S1). Of these,
+34 classification runs were excluded (\cref{tab:coverage-skips}). Of these,
 15 partykit ctree and cforest runs did not complete, 18 RDC-selector CIT and
 CIF runs were lost to a host fault while the other seeds of the same cells
 completed, and one run on \nolinkurl{orlraws10P} was excluded by author
@@ -75,6 +75,33 @@ possible ranking runs; 88 were not run because their per-threshold counterpart
 had not completed, and 1,785 of the remaining 1,792 completed. The seven runs
 that did not, CIF with the RDC selector and honesty off on \nolinkurl{isolet},
 \nolinkurl{gisette}, and \nolinkurl{letter}, were lost to the same host fault.
+
+\begin{table}[tb]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}llccl@{}}
+    \toprule
+    \tablehead{Dataset} & \tablehead{Method} & {Configurations} & {Seed runs} & \tablehead{Basis} \\
+    \midrule
+    \nolinkurl{gisette} & CIT with the RDC selector & 2 & 8 & host fault \\
+    \nolinkurl{gisette} & ctree & 1 & 5 & incomplete \\
+    \nolinkurl{isolet} & CIF with the RDC selector & 2 & 4 & host fault \\
+    \nolinkurl{isolet} & CIT with the RDC selector & 2 & 6 & host fault \\
+    \nolinkurl{isolet} & cforest & 1 & 5 & incomplete \\
+    \nolinkurl{isolet} & ctree & 1 & 5 & incomplete \\
+    \nolinkurl{orlraws10P} & CIT with the RDC selector & 1 & 1 & author directed \\
+    \bottomrule
+  \end{tabular}
+  \caption{Classification benchmark exclusions. Each seed run is one method
+  configuration on one dataset with one seed; 34 runs are excluded in total,
+  and all are operational exclusions. Incomplete rows are partykit ctree and
+  cforest runs that did not complete; the 18 host-fault runs are RDC-selector
+  CIT and CIF runs lost to a host fault; the
+  single \nolinkurl{orlraws10P} run was excluded by author decision. No regression runs
+  are excluded.}
+  \label{tab:coverage-skips}
+\end{table}
 
 \subsection{Randomness and reproducibility}
 

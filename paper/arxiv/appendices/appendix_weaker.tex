@@ -1,5 +1,5 @@
-\section{Wide data and synthetic recovery}
-\label{sup:weaker}
+\section{Where CIF is weaker}
+\label{app:weaker}
 
 \Cref{fig:high-p-boundary} shows, by downstream learner, where the
 classification scores of CIF peak on the 15 datasets with more than 100
@@ -7,7 +7,7 @@ features, the pattern summarized in \cref{sec:boundary}. Scores peak at
 intermediate $k$ ($100<k<p$) on 8 of 15 LR datasets, 12 of 15 SVM datasets, and
 9 of 15 KNN datasets.
 
-\begin{figure}[!htbp]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=0.84\linewidth]{figures/high_p_boundary_summary.png}
   \caption{Where CIF's classification scores peak as $k$ increases, by
@@ -24,7 +24,7 @@ intermediate $k$ ($100<k<p$) on 8 of 15 LR datasets, 12 of 15 SVM datasets, and
 single trees, forests, and boosted trees, the curves behind the averages over
 $k$ in \cref{tab:synthetic-head}.
 
-\begin{figure}[!htbp]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=0.84\linewidth]{figures/synthetic_topk_focus_curves.png}
   \caption{Synthetic top-$k$ recovery curves. Columns compare single trees,
@@ -33,7 +33,41 @@ $k$ in \cref{tab:synthetic-head}.
   \label{fig:synthetic-topk-curves}
 \end{figure}
 
+\subsection{Feature use in sampled forests}
+\label{app:candidate-availability}
+
+\Cref{sec:mechanism} measures feature use by comparing CIF with CIF-all, which
+keeps feature muting and the other tree settings unchanged while removing
+feature subsampling. \Cref{fig:candidate-forest-counts} shows how many trees
+use each feature in the design with two informative features among 1,000.
+CIF-all splits on one informative feature in every tree and on no
+uninformative feature, while CIF, RF, and ExtraTrees spread their splits over
+the uninformative columns; in that design CIF uses an informative feature in
+9.0\% of splits, RF in 2.7\%, ExtraTrees in 2.0\%, and CIF-all in 100.0\%.
+Across $p \in \{100,500,1{,}000\}$ with 1,000 trees per fit, evaluating all
+nonconstant features raises the share of splits on informative features most
+in the sparse high-$p$ classification settings: with two informative features,
+CIF uses informative features in 40.0, 12.2, and 9.0\% of splits at $p=100$,
+500, and 1,000, against 100.0, 90.2, and 100.0\% for CIF-all. Regression shows a
+similar pattern when one or two features are informative, with a smaller
+average gain, 42.3\% of splits on informative features for CIF-all against
+27.8\% for CIF. The curves by $p$, with the counts of distinct uninformative
+features each forest uses, follow in \cref{app:feature-use-dimension}.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.84\linewidth]{figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png}
+  \caption{Tree-level feature use in one sparse classification forest design
+  ($n=250$, $p=1{,}000$, two informative features). Counts are the number of
+  trees using each feature in at least one split, pooled over five fits of
+  1,000 trees each, so the shared vertical axis runs to 5,000. CIF samples a
+  subset of features at each node; CIF-all evaluates all nonconstant
+  features.}
+  \label{fig:candidate-forest-counts}
+\end{figure}
+
 \subsection{Feature use by feature dimension}
+\label{app:feature-use-dimension}
 
 \Cref{fig:candidate-dimension-curves} gives the feature-use curves behind
 \cref{app:candidate-availability}, for $p \in \{100,500,1{,}000\}$ with 1,000
@@ -55,7 +89,7 @@ of regression splits at the three values of $p$, against 58.8, 46.7, and 35.9\%
 for CIF-all, and with one informative feature the CIF-all minus CIF
 differences are 29.8, 18.9, and 42.1\%.
 
-\begin{figure}[!htbp]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/paper_mechanism_grid_forest_classification_dimension_curves_1000trees.png}\par
   \includegraphics[width=0.88\linewidth]{figures/paper_mechanism_grid_forest_regression_dimension_curves_1000trees.png}

@@ -5,7 +5,7 @@ In the null calibration both Stage~B rules keep the false-split rate below
 0.05 in all 36 design cells, but that design cannot expose a failure of the
 threshold test. Every split must first pass the Stage~A test over five
 predictors, so even without the threshold correction the rate stays between
-0.0355 and 0.049 (Supplement, Section~S3). The Stage-B-only study therefore
+0.0355 and 0.049 (\cref{app:stageB-tables}). The Stage-B-only study therefore
 isolates the threshold test on one predictor fixed without the response, with
 the Stage~A test disabled (\cref{tab:stageB-only}).
 
@@ -94,7 +94,7 @@ candidates.
 On the six Stage~B real datasets the max-type rule scores higher in 8 of the
 12 dataset and stopping-mode cells, equal in one, and lower in the other three,
 and it fits faster on the four datasets whose nodes admit many candidates
-(Supplement, Section~S3). The Spearman
+(\cref{app:stageB-tables}). The Spearman
 agreement of the two rules' feature importances is 0.36 to 0.88, so the
 max-type rule produces a different ranking rather than the same ranking at
 lower cost. On the benchmark that different ranking is slightly worse. Standing in for its
@@ -109,7 +109,7 @@ per-threshold rule is the higher of the two on 59 to 63\% of datasets.
 host fault.
 
 \paragraph{Cardinality in the ranking.}
-In the weak-signal designs (Supplement, Section~S4), a ranker indifferent to
+In the weak-signal designs (\cref{app:cardinality}), a ranker indifferent to
 cardinality would give each of the 500-level and binary noise types 25/60 of
 the top-ten places not taken by informative features. At the weakest signal
 both biases appear. Random forest impurity importance, which prefers features

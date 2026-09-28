@@ -39,7 +39,7 @@ manuscripts; the record is in git. What remains:
 
 - [ ] JSS author list: three authors on JSS, four on arXiv.
 - [ ] Cite the JSS article for the full Stage B tables once it has an
-      identifier; until then the arXiv supplement (Section S3) carries them.
+      identifier; until then arXiv Appendix H carries them.
 - [ ] Bump the package version and tag the release the JSS article describes;
       the changelog has an Unreleased section.
 - [ ] When AWS reports the host-fault root cause, record it and decide whether

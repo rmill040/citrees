@@ -1,8 +1,7 @@
 """Inspect or build a deterministic arXiv source bundle for the paper.
 
 The bundle holds the TeX sources that ``main.tex`` inputs, the bibliography,
-the figures those sources include, and the compiled supplement as the arXiv
-ancillary file ``anc/supplement.pdf``.
+and the figures those sources include.
 """
 
 from __future__ import annotations
@@ -18,8 +17,6 @@ ARXIV_DIR = ROOT / "paper" / "arxiv"
 DEFAULT_OUT = ARXIV_DIR / "build" / "citrees-arxiv-source.zip"
 MAIN_TEX = "main.tex"
 STATIC_FILES = ("main.tex", "macros.tex", "references.bib")
-SUPPLEMENT_PDF = "supplement.pdf"
-SUPPLEMENT_ARCNAME = "anc/supplement.pdf"
 INPUT_RE = re.compile(r"^[^%\n]*?\\input\{([^}]+)\}", re.MULTILINE)
 INCLUDEGRAPHICS_RE = re.compile(r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}")
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
@@ -84,26 +81,14 @@ def bundle_members() -> list[Path]:
     return sorted(members, key=lambda path: path.relative_to(ARXIV_DIR).as_posix())
 
 
-def ancillary_members() -> dict[str, Path]:
-    """Return the ancillary files of the bundle, keyed by archive name."""
-    path = ARXIV_DIR / SUPPLEMENT_PDF
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Missing {path.relative_to(ROOT)}; build it with latexmk in paper/arxiv "
-            "or pass --build-pdf."
-        )
-    return {SUPPLEMENT_ARCNAME: path}
-
-
 def archive_members() -> dict[str, Path]:
     """Return every archive name of the bundle mapped to its source file."""
     members = {path.relative_to(ARXIV_DIR).as_posix(): path for path in bundle_members()}
-    members.update(ancillary_members())
     return dict(sorted(members.items()))
 
 
 def build_pdf() -> None:
-    """Run latexmk, which builds main.pdf and then supplement.pdf per latexmkrc."""
+    """Run latexmk, which builds main.pdf per latexmkrc."""
     subprocess.run(["latexmk"], cwd=ARXIV_DIR, check=True)
 
 

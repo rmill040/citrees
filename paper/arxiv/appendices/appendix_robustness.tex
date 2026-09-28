@@ -1,4 +1,4 @@
-\section{Benchmark stability}
+\section{Benchmark robustness}
 \label{app:benchmark-stability}
 
 \Cref{tab:complete-case-pairwise-ci} supports the interval statements of
@@ -12,7 +12,7 @@ regression they exclude zero against the filters, PI, CPI, LightGBM, and ctree.
 Every analysis in this section uses the configurations selected for the main
 benchmark (\cref{sec:experiments-repro}).
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{3.5pt}
@@ -55,38 +55,6 @@ benchmark (\cref{sec:experiments-repro}).
   \label{tab:complete-case-pairwise-ci}
 \end{table}
 
-\subsection{Benchmark exclusions}
-
-\Cref{tab:coverage-skips} lists, by dataset and method, the 34 classification
-runs excluded from the benchmark, whose counts \cref{app:methods} summarizes.
-
-\begin{table}[!htbp]
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}llccl@{}}
-    \toprule
-    \tablehead{Dataset} & \tablehead{Method} & {Configurations} & {Seed runs} & \tablehead{Basis} \\
-    \midrule
-    \nolinkurl{gisette} & CIT with the RDC selector & 2 & 8 & host fault \\
-    \nolinkurl{gisette} & ctree & 1 & 5 & incomplete \\
-    \nolinkurl{isolet} & CIF with the RDC selector & 2 & 4 & host fault \\
-    \nolinkurl{isolet} & CIT with the RDC selector & 2 & 6 & host fault \\
-    \nolinkurl{isolet} & cforest & 1 & 5 & incomplete \\
-    \nolinkurl{isolet} & ctree & 1 & 5 & incomplete \\
-    \nolinkurl{orlraws10P} & CIT with the RDC selector & 1 & 1 & author directed \\
-    \bottomrule
-  \end{tabular}
-  \caption{Classification benchmark exclusions. Each seed run is one method
-  configuration on one dataset with one seed; 34 runs are excluded in total,
-  and all are operational exclusions. Incomplete rows are partykit ctree and
-  cforest runs that did not complete; the 18 host-fault runs are RDC-selector
-  CIT and CIF runs lost to a host fault; the
-  single \nolinkurl{orlraws10P} run was excluded by author decision. No regression runs
-  are excluded.}
-  \label{tab:coverage-skips}
-\end{table}
-
 \subsection{LODO configuration sensitivity}
 
 These tables support the leave-one-dataset-out (LODO) positions of CIF in
@@ -104,7 +72,7 @@ regression. On the all-method panels CIF loses 0.002 balanced accuracy and
 alternative configuration is chosen on one holdout and scores far lower there
 (mean $R^2$ 0.30 against 0.20).
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \fontsize{8}{9.1}\selectfont
   \setlength{\tabcolsep}{2.5pt}
@@ -162,7 +130,7 @@ alternative configuration is chosen on one holdout and scores far lower there
   \label{tab:lodo-config-sensitivity}
 \end{table}
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \fontsize{8}{9.1}\selectfont
   \setlength{\tabcolsep}{2.5pt}
@@ -241,7 +209,7 @@ in classification), because most features never split there and their tied
 zero importances fall in arbitrary order. On the low-$p$ datasets the overlap
 is complete.
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -279,7 +247,7 @@ The permutation step takes a median 29 seconds per fold in classification and
 127 in regression, against 0.2 seconds for the forest fit, and 43 and 32
 minutes per fold on \nolinkurl{gisette} and \nolinkurl{dexter}.
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -326,7 +294,7 @@ rank averages the dataset-level ranks directly. Top 3 of 15 and Top 5 of 15
 count the learner-by-$k$ combinations where the method ranks in the top 3 or
 top 5.
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{3pt}
@@ -381,7 +349,7 @@ is close to RF's and is better than the single-tree and filter baselines in the
 mean-position summary. RF-RFE, LightGBM, XGBoost, and CatBoost have lower mean
 positions.
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{3pt}
@@ -441,7 +409,7 @@ CIF over ctree, cforest, and CIT by downstream learner and value of $k$, and
 where a negative mean $R^2$ for the comparator can produce a large positive
 margin; both use the datasets available for each comparator.
 
-\begin{figure}[!htbp]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/benchmark_pairwise_sensitivity.png}
   \caption{Classification CIF margins against ctree, cforest, and CIT by
@@ -453,7 +421,7 @@ margin; both use the datasets available for each comparator.
   \label{fig:benchmark-pairwise-sensitivity}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=0.88\linewidth]{figures/regression_benchmark_pairwise_sensitivity.png}
   \caption{Regression CIF margins against ctree, cforest, and CIT by
@@ -477,7 +445,7 @@ follow the main benchmark order. In classification CIF is 5th to 7th in every
 seed (\cref{tab:classification-seed-sensitivity}), and in regression its
 position ranges from 4th to 8th (\cref{tab:regression-seed-sensitivity}).
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
@@ -520,7 +488,7 @@ position ranges from 4th to 8th (\cref{tab:regression-seed-sensitivity}).
   \label{tab:classification-seed-sensitivity}
 \end{table}
 
-\begin{table}[!htbp]
+\begin{table}[tb]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}

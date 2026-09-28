@@ -8,7 +8,7 @@ regression by the share of selected features that are informative
 (\cref{tab:synthetic-head}). On the redundant-feature designs, where correlated copies of
 informative features count as hits, CIF is tied 7th of 15 in classification
 and 1st of 16 in regression. The recovery curves by $k$ for single trees,
-forests, and boosted trees are in the supplement (Supplement, Section~S2).
+forests, and boosted trees are in \cref{app:weaker}.
 
 \begin{table}[htb]
   \centering
@@ -37,8 +37,7 @@ On wide real datasets the scores of CIF peak before the full feature set.
 Across the 15 classification datasets
 with more than 100 features, CIF first reaches its best score at an
 intermediate value of $k$ ($100 < k < p$) in 29 of 45 dataset-learner
-combinations and at the full feature set ($k=p$) in 7 of 45 (Supplement,
-Section~S2). The full feature set helps mainly LR, whose
+combinations and at the full feature set ($k=p$) in 7 of 45 (\cref{app:weaker}). The full feature set helps mainly LR, whose
 score changes by $+0.026$ on average from $k=100$ to $k=p$ and first peaks at
 $k=p$ on 5 of 15 datasets, against mean changes of $-0.053$ for SVM and
 $-0.071$ for KNN. In the 6 regression datasets with more than 100 features,

@@ -1,29 +1,39 @@
 \section{Discussion}
 \label{sec:discussion}
 
-CIF ranks features for downstream prediction about as well as a random forest in
-classification, yet sits at or below the median on synthetic recovery, because
-the two measures ask different things of a ranking. A top-$k$ list predicts well
-when it holds informative features or correlated proxies for them, and the
-small support of CIF keeps most planted features. The ranking is weakest
-where its first few places carry the score, at small $k$ in classification, and
-on wide data. In the sparsest simulations, square-root feature sampling leaves
-most nodes without an informative feature, and CIF-all, which evaluates every
-nonconstant feature at each node, raises the share of informative splits.
+An unbiased split rule and a better feature ranking are different properties,
+and the benchmark separates them. CIF ranks features for downstream prediction
+as well as a random forest in classification, and the standard remedies for the
+bias of random forest importance rank below the forest. In the weak-signal
+designs the biased importance still places at least as many informative
+features in its top $k$ as CIF. For top-$k$ prediction the preference of
+impurity importance for many-valued features therefore costs little in these
+data, because the informative features reach the top of the list either way. An
+unbiased split rule matters more when the question is which features carry
+signal, for predictors whose cardinality carries none, as in the clinical
+application of \citet{MilletichDownesHirst2026citrees}.
 
-The two corrections set both the cost of a fit and the shape of its trees. For
+CIF predicts well yet recovers the informative features only as well as the
+middle of the field, because prediction and recovery ask different things of a
+ranking. A top-$k$
+list predicts well when it holds informative features or correlated proxies for
+them, and the small support of CIF keeps most planted features. The forest
+carries the ranking, and the ranking is weakest where its first few places carry
+the score: at small $k$ in classification, and on wide data. In the sparsest
+simulations, square-root feature sampling leaves most nodes without an
+informative feature, and CIF-all, which evaluates every nonconstant feature at
+each node, raises the share of informative splits.
+
+The two corrections set the cost of a fit and the shape of its trees. For
 forests at the 256-bin histogram the cost sits in the threshold test, because
 square-root sampling keeps the Stage~A feature set small, while a single tree
 on wide data pays for the feature correction, because every feature is tested
-at the root. The corrections also keep the trees shallow. The max-type rule cuts the cost of the
-threshold test without improving the ranking. Testing all candidates jointly at
-the nominal level makes its cost linear in the candidate count and reduces the
-reverse cardinality bias, which matters for predictors whose cardinality
-carries no signal, as in the clinical application of
-\citet{MilletichDownesHirst2026citrees}, more than for recovery of weak
-marginal effects. Its trees rank features differently, with slightly lower
-power at equal realized size and a lower benchmark position for the forest, so
-the per-threshold rule stays the default and the benchmark rankings are
+at the root. The corrections also keep the trees shallow. The max-type rule
+tests all candidates jointly at the nominal level, which makes the cost of the
+threshold test linear in the candidate count and reduces the reverse
+cardinality bias. Its trees rank features differently, with slightly lower power
+at equal realized size and a lower benchmark position for the forest, so the
+per-threshold rule stays the default and the benchmark rankings are
 per-threshold rankings.
 
 \paragraph{Guidance.}
@@ -53,7 +63,9 @@ tuned families and the order of the tied CIF and RF is not resolved; LODO
 measures this sensitivity without bounding it. The regression ordering, on 8
 datasets, and the complete-case summaries are descriptive, and the three \nolinkurl{coepra} datasets drive the regression
 means. No ablation removes the corrections without also deepening the trees, so
-their effect on the ranking cannot be separated from that of tree depth. The
+their effect on the ranking cannot be separated from that of tree depth, and
+the comparison of biased and unbiased importance rests on different methods
+rather than on one switch that removes the split test alone. The
 cardinality designs use the linear selectors (MC and PC), while three
 of the four selected configurations use RDC. CIF-all was not scored downstream. CPI
 ranks last in both tasks after a correction to its correlation threshold, and

@@ -7,8 +7,12 @@ costs by changing one setting at a time; time ratios above 1 are slower.
 Removing both corrections cuts
 forest time to 0.03 to 0.34 of the reference, but it changes the statistical
 rule as well. It deepens single trees from a mean of 6.5 and 7.2 levels to 10.7
-and 13.4 in classification and regression and moves CIT top-10 recovery by up
-to 0.063, while the CIF downstream score moves by at most 0.004. The selected configuration keeps both corrections.
+and 13.4 in classification and regression, and its effect on CIT recovery
+depends on the list size: in classification the share of informative features
+in the top 5 falls from 0.64 to 0.44 and in the top 10 by 0.06, while in the top
+25, 50, and 100 it rises by 0.039, 0.019, and 0.003, and in regression it rises
+at every list size, by 0.004 to 0.040. The CIF downstream score moves by at
+most 0.004. The selected configuration keeps both corrections.
 \Cref{app:complexity-details} gives the work terms each change affects.
 
 \begin{table}[tb]
@@ -19,19 +23,19 @@ to 0.063, while the CIF downstream score moves by at most 0.004. The selected co
     \toprule
      & \multicolumn{2}{c}{CIT} & \multicolumn{3}{c}{CIF} \\
     \cmidrule(lr){2-3}\cmidrule(l){4-6}
-    \tablehead{Change} & Time ratio & \shortstack{Top-10 F1\\change} & Time ratio & \shortstack{Downstream\\change} & \shortstack{Recovery\\change} \\
+    \tablehead{Change} & Time ratio & \shortstack{Recovery\\change} & Time ratio & \shortstack{Downstream\\change} & \shortstack{Recovery\\change} \\
     \midrule
-    Remove both corrections & 0.52 to 1.8 & $\le 0.063$ & 0.03 to 0.34 & $\le 0.004$ & $\le 0.011$ \\
+    Remove both corrections & 0.52 to 1.8 & $\le 0.039$ & 0.03 to 0.34 & $\le 0.004$ & $\le 0.011$ \\
     Max-type Stage~B rule & & & 0.14 to 0.61 & $\le 0.005$ & $\le 0.007$ \\
     \addlinespace
-    Disable threshold scanning & 2.7 to 34 & $\le 0.033$ & 7.9 to 30 & $\le 0.003$ & $\le 0.010$ \\
-    Disable feature scanning & 0.81 to 3.0 & $\le 0.058$ & 1.0 to 5.2 & $\le 0.003$ & $\le 0.008$ \\
+    Disable threshold scanning & 2.7 to 34 & $\le 0.017$ & 7.9 to 30 & $\le 0.003$ & $\le 0.010$ \\
+    Disable feature scanning & 0.81 to 3.0 & $\le 0.021$ & 1.0 to 5.2 & $\le 0.003$ & $\le 0.008$ \\
     \addlinespace
     Disable adaptive stopping & 0.88 to 0.99 & 0 & 0.96 to 1.00 & 0 & 0 \\
-    Auto budget, adaptive stopping & 1.18 to 1.56 & $\le 0.016$ & 1.30 to 2.0 & & $\le 0.030$ \\
-    Auto budget, no stopping & 3.8 to 8.2 & $\le 0.016$ & 5.8 to 15 & & $\le 0.025$ \\
+    Auto budget, adaptive stopping & 1.18 to 1.56 & $\le 0.008$ & 1.30 to 2.0 & & $\le 0.030$ \\
+    Auto budget, no stopping & 3.8 to 8.2 & $\le 0.005$ & 5.8 to 15 & & $\le 0.025$ \\
     \addlinespace
-    Exact threshold search & 0.91 to 1.10 & $\le 0.004$ & 1.3 to 19 & $\le 0.009$ & $\le 0.018$ \\
+    Exact threshold search & 0.91 to 1.10 & $\le 0.005$ & 1.3 to 19 & $\le 0.009$ & $\le 0.018$ \\
     Histogram with 32 bins & & & 0.05 to 0.14 & $\le 0.008$ & $\le 0.013$ \\
     \addlinespace
     Disable feature muting & 0.97 to 0.98 & 0 & 0.91 to 1.00 & $\le 0.001$ & $\le 0.003$ \\
@@ -43,11 +47,11 @@ to 0.063, while the CIF downstream score moves by at most 0.004. The selected co
   dataset. Time ratios are medians over datasets of the per-dataset ratio to
   the selected configuration of the same estimator, given as the range over
   the four task groups (classification and regression, real and synthetic).
-  Top-10 F1 is the harmonic mean of precision and recall of the ten
-  highest-ranked features against the planted informative set. Score columns
-  give the largest absolute change across task groups in mean top-10 F1 for
-  CIT, and in the dataset-mean downstream score and synthetic feature recovery
-  for CIF, rounded upward to 0.001; the auto-budget runs record recovery but no
+  Recovery is the share of the top $k$ features that are planted informative
+  features on the synthetic datasets, averaged over $k=5$, 10, 25, 50, and 100.
+  Score columns give the largest absolute change across task groups in
+  recovery for CIT and CIF and in the dataset-mean downstream score for CIF,
+  rounded upward to 0.001; the auto-budget runs record recovery but no
   downstream score. Empty cells are settings that do not apply to, or were not
   ablated for, that estimator. Every time is the second of two identical fits,
   so compilation is excluded.}

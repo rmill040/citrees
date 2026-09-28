@@ -4,9 +4,8 @@
 CIF ranks features for downstream prediction about as well as a random forest in
 classification, yet sits at or below the median on synthetic recovery, because
 the two measures ask different things of a ranking. A top-$k$ list predicts well
-when it holds informative features or correlated proxies for them; the small
-support of CIF keeps most planted features, and on the redundant designs, where
-proxies count as hits, CIF ranks first in regression. The ranking is weakest
+when it holds informative features or correlated proxies for them, and the
+small support of CIF keeps most planted features. The ranking is weakest
 where its first few places carry the score, at small $k$ in classification, and
 on wide data. In the sparsest simulations, square-root feature sampling leaves
 most nodes without an informative feature, and CIF-all, which evaluates every

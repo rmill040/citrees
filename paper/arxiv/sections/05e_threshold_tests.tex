@@ -111,15 +111,16 @@ host fault.
 \paragraph{Cardinality in the ranking.}
 In the weak-signal designs (\cref{app:cardinality}), a ranker indifferent to
 cardinality would give each of the 500-level and binary noise types 25/60 of
-the top-ten places not taken by informative features. At the weakest signal
-both biases appear. Random forest impurity importance, which prefers features
-with many possible thresholds, fills 0.38 of its top ten with
-500-level noise in both tasks, against a reference of 0.24, and none with
-binary noise. Per-threshold CIF leans toward binary noise, slightly in
-classification (0.31 binary and 0.26 500-level against 0.29) and more in
-regression (0.40 binary and 0.24 500-level against 0.31); the max-type rule
-brings the binary share to 0.26 in classification and 0.30 in regression,
-against references of 0.28 and 0.27. Less cardinality preference does not
-recover more informative features: random forest impurity importance places the
-most informative features in its top ten at every signal strength, and the
-downstream scores of all rankers are within 0.02 of each other at every signal.
+the places in its top $k$ not taken by informative features. Both biases appear
+at every list size. At the weakest signal, random forest impurity importance,
+which prefers features with many possible thresholds, gives 500-level noise
+0.29, 0.38, and 0.49 of its top 5, 10, and 25 in classification against
+references of 0.18, 0.24, and 0.30, the same pattern in regression, and never
+selects binary noise. Per-threshold CIF stays close to the reference in
+classification and leans toward binary noise in regression, with binary shares
+of 0.34, 0.40, and 0.39 against 0.27, 0.31, and 0.33; the max-type rule brings
+them to 0.30, 0.30, and 0.33. Less cardinality preference does not recover more
+informative features: at every signal and list size, random forest impurity
+importance places at least as many informative features in its top $k$ as CIF,
+and the downstream scores of the four rankings differ by at most 0.02 in 17 of
+the 18 signal and list-size cells and by 0.033 in the other.

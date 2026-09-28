@@ -2,34 +2,49 @@
 \label{sec:boundary}
 
 \label{sec:synthetic-recovery}%
-On synthetic datasets with known informative features, CIF is at or below the
-median on recovery, 8th of 15 methods in classification and 11th of 16 in
-regression by the share of selected features that are informative
-(\cref{tab:synthetic-head}). On the redundant-feature designs, where correlated copies of
-informative features count as hits, CIF is tied 7th of 15 in classification
-and 1st of 16 in regression. The recovery curves by $k$ for single trees,
-forests, and boosted trees are in \cref{app:weaker}.
+On synthetic datasets with known informative features, CIF sits in the middle
+of the methods at every list size (\cref{tab:synthetic-head}). By the share of
+selected features that are informative, it ranks between 8th and 10.5th of 15
+in classification and between 8th and 11.5th of 16 in regression at $k=1$, 5,
+10, 25, 50, and 100, and 8th and 11th on the average over $k=5$ to 100. On the
+redundant-feature designs, where correlated copies of informative features count
+as hits, the measure saturates: up to $k=10$ most methods, CIF among them,
+select only true or redundant features, and from $k=50$ every method reaches
+the ceiling of 60\% set by the design's 30 true and redundant features. The
+recovery curves by $k$ for single trees, forests, and boosted trees are in
+\cref{app:weaker}.
 
 \begin{table}[htb]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{6pt}
-  \begin{tabular}{@{}lcccc@{}}
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}llrrrrrrr@{}}
     \toprule
-    & \multicolumn{2}{c}{Classification} & \multicolumn{2}{c}{Regression} \\
-    \cmidrule(lr){2-3}\cmidrule(l){4-5}
-    \tablehead{Metric} & {Value} & Rank & {Value} & Rank \\
+     & & \multicolumn{6}{c}{Number of selected features $k$} & \\
+    \cmidrule(lr){3-8}
+    \tablehead{Task} & \tablehead{Measure} & 1 & 5 & 10 & 25 & 50 & 100 & Mean, 5 to 100 \\
     \midrule
-    Selected features that are informative & 35.3\% & \countfrac{8}{15} & 39.1\% & \countfrac{11}{16} \\
-    True or redundant (redundant design only) & 82.4\% & \countfrac{7.5}{15} & 83.8\% & \countfrac{1}{16} \\
+    Classification & Informative (\%) & 65.5 & 66.6 & 55.9 & 28.5 & 15.9 & 9.6 & 35.3 \\
+     & Rank of 15 & 10 & 9 & 8 & 8 & 8 & 10.5 & 8 \\
+     & True or redundant (\%) & 100.0 & 100.0 & 100.0 & 91.8 & 60.0 & 60.0 & 82.4 \\
+     & Rank of 15 & 8 & 6.5 & 6 & 7.5 & 8 & 8 & 7.5 \\
+    \addlinespace
+    Regression & Informative (\%) & 84.5 & 77.1 & 60.4 & 30.1 & 16.9 & 11.2 & 39.1 \\
+     & Rank of 16 & 10 & 10 & 10 & 8 & 11 & 11.5 & 11 \\
+     & True or redundant (\%) & 100.0 & 100.0 & 100.0 & 98.9 & 60.0 & 60.0 & 83.8 \\
+     & Rank of 16 & 8.5 & 8.5 & 6.5 & 1 & 8.5 & 8.5 & 1 \\
     \bottomrule
   \end{tabular}
-  \caption{Synthetic feature recovery for CIF. The first row averages, over
-  $k = 5, 10, 25, 50$, and $100$, the percentage of selected features that are
-  truly informative. The second row is computed and ranked only on the
-  redundant-feature design for each task and counts true informative plus
-  redundant features. Ranks are among the 15 classification and 16 regression
-  methods with synthetic runs; fractional ranks indicate averaged ties.}
+  \caption{Synthetic feature recovery for CIF by the number of selected features
+  $k$. Informative is the percentage of the top $k$ features that are truly
+  informative, averaged over the synthetic designs of each task. True or
+  redundant is computed on the redundant-feature design only and also counts
+  the 20 redundant copies; its ceiling is 60\% once $k \ge 50$ because that
+  design has 50 features, 30 of them true or redundant. Ranks are among the 15
+  classification and 16 regression methods with synthetic runs, with ties
+  averaged, so a rank of 8.5 of 16 or 8 of 15 is a tie among every method. The
+  last column averages the percentage over $k=5$, 10, 25, 50, and 100 and
+  ranks that average.}
   \label{tab:synthetic-head}
 \end{table}
 

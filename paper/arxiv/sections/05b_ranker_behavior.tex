@@ -130,9 +130,8 @@ within 0.007 of zero.
 
 \paragraph{Support.}
 The support of a ranker is the set of features that win at least one split.
-Features outside it receive zero importance and follow in the tie order of
-\cref{sec:rank-construction}, so a ranking carries information only within its
-support. On the synthetic datasets, random forests give every feature nonzero
+Features outside it tie at zero importance (\cref{sec:rank-construction}), so a
+ranking carries information only within its support. On the synthetic datasets, random forests give every feature nonzero
 importance on 15 of the 16 designs, and 800 of 1,000 on the 1,000-feature
 classification design. On 13 of the 16 designs, CIF's support keeps 90 to
 100\% of the planted features, so the support serves as a shortlist. A single

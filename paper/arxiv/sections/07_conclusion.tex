@@ -1,28 +1,18 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-Conditional inference forests rank features for downstream prediction as well
-as random forests, and better than every other conditional inference method. On
-31 real datasets CIF ranks tied 3rd of 17 in classification, behind RF-RFE and
-XGBoost and level with RF, and 2nd of 18 in regression, behind ExtraTrees. The
-result holds under configuration reselection and when CIF and cforest use the
-same importance measure, and the standard remedies for the cardinality bias of
-random forest importance rank below the forest itself. On the complete-case
-panels CIF is tied 6th of 17 and tied 5th of 18, and the regression ordering is
-descriptive.
+Conditional inference forests rank features for downstream prediction at the
+level of random forests and ahead of the other conditional inference methods.
+The classification result holds under the robustness checks of the benchmark,
+and the regression ordering is descriptive. Their weakness is recovery: they
+find the truly informative features no better than a typical ranker in the
+benchmark. What carries the ranking is the forest, not the split test. The
+unbiased split selection that defines conditional inference changes which noise
+features enter a ranking, not how well the ranking predicts.
 
-CIF recovers the truly informative features only as well as the middle of the
-field, 8th of 15 and 11th of 16 by the average over list sizes, and it is weakest at
-small $k$ in classification and on wide data. Its ranking rests on the forest
-rather than on the split test. The unbiased split selection that conditional
-inference is known for removes the random forest's preference for many-valued
-features without improving recovery or prediction.
-
-The split tests set the cost instead. Under the minimum budget the Stage~A
-feature test needs of order $m_t^2/\alpha$ permutations per node over $m_t$
-features, and the per-threshold rule of order $K^2/\alpha$ over $K$ candidate
-thresholds. The opt-in max-type rule keeps the fixed-node guarantee with about
-$999K$ statistic evaluations, loses 0.006 in power at equal realized size, and
-moves CIF to 5th of 17 and 4th of 18. CIF therefore matches random forests as a
-feature ranker while every split it makes passes a permutation test that is valid
-at a fixed node, and the max-type rule makes those tests affordable.
+The split tests earn their place in a different way. Each split passes a
+permutation test that is valid at a fixed node, and the tests set the cost of a
+fit, which the max-type threshold test cuts to a fraction while keeping the
+guarantee. A conditional inference forest is therefore a feature ranker that
+predicts as well as a random forest while every split rests on a valid test, and
+the max-type test makes it affordable.

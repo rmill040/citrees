@@ -26,20 +26,12 @@ how their rankings compare with established rankers and what the Bonferroni
 corrections inside their split tests cost and change. The feature correction
 divides the Stage~A level by the number of features tested at a node, and the
 threshold correction divides the Stage~B level by the number of candidate
-thresholds. For each seed and cross-validation fold, a method ranks the
-features on the training fold, and fixed downstream learners fitted to the
-top-$k$ features of that ranking are scored on the held-out fold. This
-feature-selection benchmark is separate from work on trees and forests as
-direct predictors or causal estimators
+thresholds. Each ranking is judged by how well fixed downstream learners
+predict from its top-$k$ features, a feature-selection benchmark separate from
+work on trees and forests as direct predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
-Because several methods have tunable configurations, the benchmark fixes one
-configuration per method and task and repeats that choice with each dataset
-held out, in leave-one-dataset-out (LODO) analyses on the panels of
-\cref{sec:experiments-analysis-plan}. For the second question, the theory
-shows that each split test is valid at a fixed node whose tested features and
-permutation budget do not depend on the node responses, so the tests whose cost
-the ablations measure control their level there, while the fitted tree and
-forest rankings are assessed by the benchmark.
+For the second question, the theory shows that each split test controls its
+level at a fixed node, so the ablations measure the cost of valid tests.
 
 \paragraph{Contributions.}
 This paper provides four things.

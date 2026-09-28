@@ -1,14 +1,12 @@
 \section{Benchmark robustness}
 \label{app:benchmark-stability}
 
-\Cref{tab:complete-case-pairwise-ci} supports the interval statements of
-\cref{sec:experiments-real}. It gives the paired difference of CIF against
-every other method on the complete-case panels, 16 contrasts in classification
-and 17 in regression, with the percentile bootstrap intervals that
-\cref{tab:conditional-inference-comparisons} reports for the conditional
-inference comparisons. In classification the intervals favor CIF against CIT,
-ctree, cforest, the single trees, the permutation filters, PI, and CPI; in
-regression they exclude zero against the filters, PI, CPI, LightGBM, and ctree.
+\Cref{tab:complete-case-pairwise-ci} gives the paired intervals behind the
+interval statements of \cref{sec:experiments-real}. Beyond the directions
+reported there, the classification intervals favor CIF against CIT, ctree,
+cforest, the single trees, the permutation filters, PI, and CPI, and the
+regression intervals exclude zero against the filters, PI, CPI, LightGBM, and
+ctree.
 Every analysis in this section uses the configurations selected for the main
 benchmark (\cref{sec:experiments-repro}).
 

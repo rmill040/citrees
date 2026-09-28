@@ -42,17 +42,31 @@ the ablations measure control their level there, while the fitted tree and
 forest rankings are assessed by the benchmark.
 
 \paragraph{Contributions.}
-This paper contributes a real-data benchmark of CIT and CIF against 15
-classification and 16 regression rankers on 31 datasets, with checks of its
-ordering under configuration reselection and across downstream learners,
-values of $k$, and seeds (\cref{sec:experiments-real}). It reports where CIF
-is weaker, on synthetic recovery, at small $k$, and on wide data, and what its
-ranking rests on, through forest size, support, and feature use in sampled
-forests (\cref{sec:boundary,sec:mechanism}). It accounts for the cost of the
-two corrections, with ablations of each runtime control
-(\cref{sec:results-practical}), and compares the default per-threshold rule
-with the opt-in max-type rule for the Stage~B threshold test on size, power,
-cost, and benchmark rankings (\cref{sec:results-stageB}). Finally, it gives
-fixed-node guarantees for the Stage~A feature test and both Stage~B rules and,
-as a secondary result, the exact null size of the default adaptive stopping
-rule (\cref{sec:theory,prop:adaptive-size}).
+This paper provides four things.
+\begin{enumerate}[label=(\arabic*),leftmargin=*]
+  \item A benchmark of the ranking quality of CIT and CIF for downstream
+  prediction, against 15 classification and 16 regression rankers on 31 real
+  datasets, with checks that the result is not an artifact of the setup
+  (\cref{sec:experiments-real}). CIF ranks features as well as random forests
+  and better than every other conditional inference method, under
+  configuration reselection, across downstream learners, values of $k$, and
+  seeds, and when CIF and cforest use the same importance measure; the standard
+  remedies for the random forest's cardinality bias rank below the forest
+  itself.
+  \item An analysis of how the CIF ranker behaves and where it is weaker
+  (\cref{sec:boundary}). On synthetic designs with known informative features,
+  CIF recovers them only as well as the middle of the field at every list size,
+  because the forest rather than the split test carries its ranking and feature
+  sampling keeps informative features out of most splits in sparse wide data.
+  \item An account of what the statistical machinery changes and costs
+  (\cref{sec:results-practical}). Unbiased split selection removes the random
+  forest's preference for many-valued features but improves neither recovery
+  nor prediction, and the two Bonferroni corrections behind it cost of order
+  $m_t^2/\alpha$ permutations per node in the feature test and $K^2/\alpha$ in
+  the threshold test.
+  \item A cheaper threshold test with guarantees
+  (\cref{sec:theory,sec:results-stageB}). The max-type threshold test keeps the
+  fixed-node guarantee at a fraction of the cost, and the paper proves that
+  every split test is valid at a fixed node and gives the exact null size of
+  the default adaptive stopping rule.
+\end{enumerate}

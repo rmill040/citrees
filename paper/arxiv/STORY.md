@@ -1,9 +1,9 @@
 # Story of the arXiv paper
 
-The paper tells one story. The contributions paragraph states the answers to the
-ten questions below, and the paper then takes each question in the same order.
-Every section, table, and figure serves one of them; a study that serves none
-belongs in the appendix as backup or out of the paper.
+The paper tells one story. The four contributions state the answers to the ten
+questions below, and the paper then takes each question in the same order. Every
+section, table, and figure serves one of them; a study that serves none belongs
+in the appendix as backup or out of the paper.
 
 ## Pitch
 
@@ -87,14 +87,22 @@ evidence, and where the paper answers it.
 Section 3 states the fixed-node results before the Results, so questions 9 and
 10 draw on it there; the Results answer questions 1 to 9 in the order above.
 
-## Results in story order
+## Contributions and Results
 
-1. Real-data benchmark: questions 1 to 4.
-2. Where CIF is weaker: question 5.
-3. What the CIF ranking rests on: question 6.
-4. What the corrections change: question 7.
-5. What the corrections cost: question 8.
-6. The max-type threshold test: question 9.
+The introduction lists four contributions, and the Results give each its own
+subsection in the same order.
+
+1. Ranking quality (questions 1 to 4): a benchmark of CIT and CIF as feature
+   rankers with checks that the result is not an artifact of the setup. Results,
+   ranking quality.
+2. Ranker behavior (questions 5 and 6): how the CIF ranker behaves and where it
+   is weaker. Results, how the CIF ranker behaves.
+3. The statistical machinery (questions 7 and 8): what unbiased split selection
+   changes and what the two corrections cost. Results, what the statistical
+   machinery changes and costs.
+4. A cheaper test with guarantees (questions 9 and 10): the max-type threshold
+   test and the fixed-node results, including the exact size of adaptive
+   stopping. Fixed-node control; Results, the max-type threshold test.
 
 ## Backup studies
 
@@ -111,10 +119,9 @@ the appendix.
 
 ## Checking the paper against the story
 
-- The abstract, the contributions paragraph, and the conclusion state the pitch.
-- The contributions paragraph answers the ten questions in order.
-- The Results take questions 1 to 9 in order, one subsection per step of the
-  list above.
+- The abstract, the four contributions, and the conclusion state the pitch.
+- The four contributions answer the ten questions in order.
+- The Results take questions 1 to 9 in order, one subsection per contribution.
 - The discussion interprets the answers without re-reporting tables, and the
   limitations are the single home for caveats.
 - Every table and figure in the body answers one question; the rest sits in the

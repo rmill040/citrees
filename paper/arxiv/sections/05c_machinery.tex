@@ -1,6 +1,24 @@
-\subsection{What the corrections cost}
+\subsection{What the statistical machinery changes and costs}
 \label{sec:results-practical}
 
+Unbiased split selection changes which noise features a ranking picks. In the
+weak-signal designs (\cref{app:cardinality}), a ranker indifferent to
+cardinality would give each of the 500-level and binary noise types 25/60 of
+the places in its top $k$ not taken by informative features. Both biases appear
+at every list size. At the weakest signal, random forest impurity importance,
+which prefers features with many possible thresholds, gives 500-level noise
+0.29, 0.38, and 0.49 of its top 5, 10, and 25 in classification against
+references of 0.18, 0.24, and 0.30, the same pattern in regression, and never
+selects binary noise. Per-threshold CIF stays close to the reference in
+classification and leans toward binary noise in regression, with binary shares
+of 0.34, 0.40, and 0.39 against 0.27, 0.31, and 0.33; the max-type rule brings
+them to 0.30, 0.30, and 0.33. Less cardinality preference does not recover more
+informative features: at every signal and list size, random forest impurity
+importance places at least as many informative features in its top $k$ as CIF,
+and the downstream scores of the four rankings differ by at most 0.02 in 17 of
+the 18 signal and list-size cells and by 0.033 in the other.
+
+\paragraph{Cost of the corrections.}
 The two corrections set the permutation budget of every Stage~A test and every
 per-threshold Stage~B test, and \cref{tab:runtime-ablations} measures what that
 costs by changing one setting at a time; time ratios above 1 are slower.

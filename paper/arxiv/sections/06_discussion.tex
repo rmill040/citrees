@@ -2,39 +2,30 @@
 \label{sec:discussion}
 
 An unbiased split rule and a better feature ranking are different properties,
-and the benchmark separates them. CIF ranks features for downstream prediction
-as well as a random forest in classification, and the standard remedies for the
-bias of random forest importance rank below the forest. In the weak-signal
-designs the biased importance still places at least as many informative
-features in its top $k$ as CIF. For top-$k$ prediction the preference of
-impurity importance for many-valued features therefore costs little in these
-data, because the informative features reach the top of the list either way. An
-unbiased split rule matters more when the question is which features carry
-signal, for predictors whose cardinality carries none, as in the clinical
-application of \citet{MilletichDownesHirst2026citrees}.
+and the benchmark separates them (\cref{sec:experiments-real,sec:results-practical}).
+For top-$k$ prediction the preference of impurity importance for many-valued
+features costs little in these data, because the informative features reach the
+top of the list either way. An unbiased split rule matters more when the
+question is which features carry signal, for predictors whose cardinality
+carries none, as in the clinical application of
+\citet{MilletichDownesHirst2026citrees}.
 
-CIF predicts well yet recovers the informative features only as well as the
-middle of the field, because prediction and recovery ask different things of a
-ranking. A top-$k$
-list predicts well when it holds informative features or correlated proxies for
-them, and the small support of CIF keeps most planted features. The forest
-carries the ranking, and the ranking is weakest where its first few places carry
-the score: at small $k$ in classification, and on wide data. In the sparsest
-simulations, square-root feature sampling leaves most nodes without an
-informative feature, and CIF-all, which evaluates every nonconstant feature at
-each node, raises the share of informative splits.
+Prediction and recovery ask different things of a ranking, which is how CIF
+predicts well without leading on recovery (\cref{sec:boundary}). A top-$k$ list
+predicts well when it holds informative features or correlated proxies for
+them, and the small support of CIF keeps most planted features. Its weak points
+are where the first few places carry the score and where square-root feature
+sampling hides informative features from most nodes; evaluating every
+nonconstant feature at each node, as CIF-all does, is the remedy the feature-use
+study points to.
 
-The two corrections set the cost of a fit and the shape of its trees. For
-forests at the 256-bin histogram the cost sits in the threshold test, because
-square-root sampling keeps the Stage~A feature set small, while a single tree
-on wide data pays for the feature correction, because every feature is tested
-at the root. The corrections also keep the trees shallow. The max-type rule
-tests all candidates jointly at the nominal level, which makes the cost of the
-threshold test linear in the candidate count and reduces the reverse
-cardinality bias. Its trees rank features differently, with slightly lower power
-at equal realized size and a lower benchmark position for the forest, so the
-per-threshold rule stays the default and the benchmark rankings are
-per-threshold rankings.
+The corrections set the cost of a fit and the shape of its trees, and where the
+cost sits depends on the estimator. For forests at 256 bins it sits in the
+threshold test, because square-root sampling keeps the Stage~A feature set
+small, while a single tree on wide data pays for the feature correction,
+because every feature is tested at the root. The max-type rule removes most of
+the threshold cost without giving up the guarantee, but it changes the ranking
+rather than improving it, which is why it is an option and not the default.
 
 \paragraph{Guidance.}
 Judge a CIF ranking through the downstream model that will use its features,

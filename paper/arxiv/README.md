@@ -23,8 +23,7 @@ latexmk
 
 Figures referenced by `main.tex`:
 
-- `figures/classification_k_trajectory.png`
-- `figures/regression_k_trajectory.png`
+- `figures/benchmark_k_trajectory.png`
 - `figures/paper_mechanism_grid_forest_classification_feature_counts_p1000_i2_1000trees.png`
 - `figures/benchmark_pairwise_sensitivity.png`
 - `figures/regression_benchmark_pairwise_sensitivity.png`

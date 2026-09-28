@@ -63,27 +63,19 @@ $k=100$ to $k=p$ has a mean of $-0.270$ and a median of $-0.076$. CIF is also
 weakest at small $k$ in classification: ranked separately at each value of $k$
 on the datasets available there, its classification mean rank improves from 6.9
 and 8.2 at $k=5$ and 10 to 6.6, 6.2, and 5.6 at $k=25$, 50, and 100
-(\cref{fig:k-trajectory}), while its regression mean rank stays between 7.1 and
-8.3 with no monotone trend (\cref{fig:regression-k-trajectory}).
+(\cref{fig:k-trajectory}, left), while its regression mean rank stays between
+7.1 and 8.3 with no monotone trend (right).
 
 \begin{figure}[tb]
   \centering
-  \includegraphics[width=0.86\linewidth]{figures/classification_k_trajectory.png}
-  \caption{Classification mean rank by number of selected features. Rows show
-  all 17 feature selection methods, averaged across downstream models at each
-  value of $k$; lower ranks are better. The columns for $k=5,10,25,50,100$ use
-  21, 20, 14, 14, and 13 datasets.}
+  \includegraphics[width=0.95\linewidth]{figures/benchmark_k_trajectory.png}
+  \caption{Mean rank of every feature selection method by the number of
+  selected features $k$, for classification (left, 17 methods) and regression
+  (right, 18 methods), averaged across downstream models at each value of $k$;
+  lower ranks are better, and the two panels share one colour scale. Each
+  column uses the datasets on which every method has results at that $k$, whose
+  number is given under $k$.}
   \label{fig:k-trajectory}
-\end{figure}
-
-\begin{figure}[tb]
-  \centering
-  \includegraphics[width=0.86\linewidth]{figures/regression_k_trajectory.png}
-  \caption{Regression mean rank by number of selected features. Rows show all
-  18 feature selection methods, averaged across downstream models at each value
-  of $k$; lower ranks are better. The columns for $k=5,10,25,50,100$ use 8, 8,
-  7, 7, and 6 datasets.}
-  \label{fig:regression-k-trajectory}
 \end{figure}
 
 \paragraph{What the ranking rests on.}\label{sec:mechanism}

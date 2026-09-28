@@ -158,7 +158,8 @@ the appendix.
 ## Checking the paper against the story
 
 - The abstract, the four contributions, the discussion, and the conclusion state
-  the pitch in the same words and order.
+  the pitch in the same order, each in its own words; no sentence is repeated
+  across sections, and results are reported once, in the Results.
 - The Results take questions 1 to 9 in order, one subsection per contribution.
 - Top-k results are reported as trends over list sizes or averages over them,
   never at one list size unless the design targets it.

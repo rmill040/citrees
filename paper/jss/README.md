@@ -23,8 +23,8 @@ The manuscript uses the following structure:
    published arXiv manuscript and canonical repository artifacts.
 7. Limitations, reproducibility, and software availability.
 
-The authors are Robert Milletich, Justin Downes, and Newel Hirst. The
-affiliation is Amazon Web Services.
+The authors are Robert Milletich, Justin Downes, Steve Goley, and Newel Hirst.
+The affiliation is Amazon Web Services.
 
 ## Evidence
 

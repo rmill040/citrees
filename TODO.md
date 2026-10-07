@@ -37,7 +37,6 @@ Review rounds 2 to 6 (reviews under `reference/v3/provenance/reviews/` in S3)
 were closed on 2026-09-22 after each item was checked against the current
 manuscripts; the record is in git. What remains:
 
-- [ ] JSS author list: three authors on JSS, four on arXiv.
 - [ ] Cite the JSS article for the full Stage B tables once it has an
       identifier; until then arXiv Appendix H carries them.
 - [ ] Bump the package version and tag the release the JSS article describes;

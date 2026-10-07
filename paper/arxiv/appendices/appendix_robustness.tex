@@ -7,8 +7,9 @@ reported there, the classification intervals favor CIF against CIT, ctree,
 cforest, the single trees, the permutation filters, PI, and CPI, and the
 regression intervals exclude zero against the filters, PI, CPI, LightGBM, and
 ctree.
-Every analysis in this section uses the configurations selected for the main
-benchmark (\cref{sec:experiments-repro}).
+Except where reselection is the object of the analysis (the LODO tables) and
+for the added RF permutation ranker, every analysis in this section uses the
+configurations selected for the main benchmark (\cref{sec:experiments-repro}).
 
 \begin{table}[tb]
   \centering
@@ -64,11 +65,14 @@ the complete-case and all-method panels. Every single-configuration family
 keeps its held-out score exactly, as it must, since reselection changes only
 the tuned families. Its mean rank moves only as the tuned families are
 reselected around it, by at most 0.05 in classification and 0.125 in
-regression. On the all-method panels CIF loses 0.002 balanced accuracy and
+regression on the all-method panels and by at most 0.23 and 0.17 on the
+complete-case panels. On the all-method panels CIF loses 0.002 balanced accuracy and
 0.008 $R^2$ under reselection, and XGBoost loses 0.03 $R^2$ (0.270 against
-0.241). The one large reselection effect is cforest in regression, whose
-alternative configuration is chosen on one holdout and scores far lower there
-(mean $R^2$ 0.30 against 0.20).
+0.241). The largest reselection effects are cforest and CIT in regression, both
+reselected on the coepra2 holdout, where the alternative configurations lower
+the panel mean $R^2$ from 0.30 to 0.20 and from 0.09 to $-0.02$. On the
+complete-case panel the mean rank of XGBoost in classification also moves by
+0.77 (4.92 to 5.69).
 
 \begin{table}[tb]
   \centering
@@ -155,7 +159,7 @@ alternative configuration is chosen on one holdout and scores far lower there
     \midrule
     RF-RFE & 4.19 & 4.19 & 0.837 & 1 & \countfrac{21}{21} & ExtraTrees & 5.00 & 5.00 & 0.353 & 1 & \countfrac{8}{8} \\
     XGBoost & 5.81 & 5.81 & 0.828 & 1 & \countfrac{21}{21} & CIF & 6.50 & 6.25 & 0.315 & 2 & \countfrac{7}{8} \\
-    RF & 5.86 & 5.86 & 0.823 & 1 & \countfrac{21}{21} & CatBoost & 6.62 & 6.75 & 0.304 & 1 & \countfrac{8}{8} \\
+    RF & 5.86 & 5.86 & 0.823 & 1 & \countfrac{21}{21} & CatBoost & 6.63 & 6.75 & 0.304 & 1 & \countfrac{8}{8} \\
     LightGBM & 6.05 & 6.05 & 0.829 & 1 & \countfrac{21}{21} & RF-RFE & 6.88 & 6.88 & 0.382 & 1 & \countfrac{8}{8} \\
     CIF & 6.10 & 5.86 & 0.820 & 2 & \countfrac{20}{21} & RF & 7.50 & 7.63 & 0.327 & 1 & \countfrac{8}{8} \\
     Boruta & 6.57 & 6.62 & 0.816 & 1 & \countfrac{21}{21} & RT & 8.25 & 8.25 & 0.330 & 1 & \countfrac{8}{8} \\
@@ -164,12 +168,12 @@ alternative configuration is chosen on one holdout and scores far lower there
     cforest & 8.29 & 8.33 & 0.812 & 1 & \countfrac{21}{21} & cforest & 9.50 & 8.75 & 0.202 & 2 & \countfrac{7}{8} \\
     DT & 8.62 & 8.62 & 0.799 & 1 & \countfrac{21}{21} & PC filter & 9.75 & 9.88 & 0.207 & 1 & \countfrac{8}{8} \\
     RDC filter & 11.00 & 11.05 & 0.794 & 1 & \countfrac{21}{21} & XGBoost & 10.00 & 10.13 & 0.241 & 2 & \countfrac{7}{8} \\
-    PI & 11.67 & 11.67 & 0.745 & 1 & \countfrac{21}{21} & LightGBM & 10.12 & 10.13 & -0.028 & 1 & \countfrac{8}{8} \\
+    PI & 11.67 & 11.67 & 0.745 & 1 & \countfrac{21}{21} & LightGBM & 10.13 & 10.13 & -0.028 & 1 & \countfrac{8}{8} \\
     MC filter & 11.86 & 11.86 & 0.778 & 1 & \countfrac{21}{21} & RDC filter & 10.88 & 11.00 & 0.071 & 1 & \countfrac{8}{8} \\
     RT & 12.81 & 12.81 & 0.780 & 1 & \countfrac{21}{21} & CIT & 11.25 & 11.13 & -0.023 & 2 & \countfrac{7}{8} \\
     ctree & 12.86 & 12.86 & 0.785 & 1 & \countfrac{21}{21} & ctree & 11.25 & 11.38 & 0.167 & 1 & \countfrac{8}{8} \\
     CIT & 13.14 & 13.14 & 0.788 & 1 & \countfrac{21}{21} & PI & 11.75 & 11.75 & 0.112 & 1 & \countfrac{8}{8} \\
-    CPI & 14.19 & 14.19 & 0.694 & 1 & \countfrac{21}{21} & DC filter & 12.12 & 12.25 & 0.126 & 1 & \countfrac{8}{8} \\
+    CPI & 14.19 & 14.19 & 0.694 & 1 & \countfrac{21}{21} & DC filter & 12.13 & 12.25 & 0.126 & 1 & \countfrac{8}{8} \\
     \multicolumn{6}{c}{} & CPI & 15.00 & 15.00 & -0.292 & 1 & \countfrac{8}{8} \\
     \bottomrule
   \end{tabular*}
@@ -194,18 +198,20 @@ cforest are paired, less \nolinkurl{gisette} and \nolinkurl{letter}, which were 
 
 \Cref{tab:cif-perm-check} gives the result. In classification the margin over
 cforest is unchanged. In regression the medians agree ($+0.006$ over cforest, $-0.002$ against
-split-ranked CIF), and the negative means come from one dataset, coepra2
-($n=76$, 5,144 predictors), on which every method has negative $R^2$. The
+split-ranked CIF), and the negative means come mostly from coepra2 ($n=76$, 5,144
+predictors; $-0.81$ against cforest and $-0.97$ against split-ranked CIF), on
+which every method but RF-RFE has negative $R^2$, with coepra1 also negative
+($-0.16$ and $-0.07$). The
 conclusion is therefore stated for classification.
 
 Permutation importance computed on the training rows scores well below both
 rankings. On the 16 classification datasets that completed, it scores 0.10 below cforest
 and 0.12 below split-ranked CIF, with the loss concentrated on the small-$n$,
-high-$p$ datasets. On the high-$p$ datasets the refit's split ranking also
-overlaps the stored benchmark ranking poorly in the top ten (mean Jaccard 0.38
-in classification), because most features never split there and their tied
-zero importances fall in arbitrary order. On the low-$p$ datasets the overlap
-is complete.
+high-$p$ datasets. On the 11 classification datasets with more than 1,000
+features the refit's split ranking also overlaps the stored benchmark ranking
+poorly in the top ten (mean Jaccard 0.06). On the four datasets with at most 10
+features the overlap is complete by construction; on wine, pendigits, and spam
+it is 0.87, 0.82, and 0.11.
 
 \begin{table}[tb]
   \centering
@@ -228,18 +234,19 @@ is complete.
     CIF (training-row permutation) vs cforest & 6 & $-$0.016 & +0.006 & \winloss{4}{2} \\
     \bottomrule
   \end{tabular}
-  \caption{CIF ranked by the importance mechanism of cforest. Directed differences in dataset-mean score (balanced accuracy or $R^2$ over downstream learners and standard $k$) between the first and second method, summarized over datasets: mean, median, and the number of datasets on which the first method scores higher or lower. Out-of-bag permutation is partykit-style out-of-bag permutation importance computed on the refit CIF; training-row permutation is scikit-learn permutation importance on the training rows (16 and 6 datasets completed). The pendigits dataset enters the out-of-bag rows with four of its five seeds.}
+  \caption{CIF ranked by the importance mechanism of cforest. Directed differences in dataset-mean score (balanced accuracy or $R^2$ over downstream learners and standard $k$) between the first and second method, summarized over datasets: mean, median, and the number of datasets on which the first method scores higher or lower. Out-of-bag permutation is partykit-style out-of-bag permutation importance computed on the refit CIF; training-row permutation is scikit-learn permutation importance on the training rows (16 and 6 datasets completed). The pendigits dataset enters the out-of-bag rows with four of its five seeds, and dexter enters the training-row rows with one of its five seeds.}
   \label{tab:cif-perm-check}
 \end{table}
 
 \subsection{Random forest ranked by out-of-bag permutation importance}
 
 \Cref{tab:rf-oobperm-benchmark} supports the positions of RF permutation and
-of CIF reported in \cref{sec:experiments-real}. Here the benchmark's 100-tree
-random forest is ranked by one permutation of each column on each tree's
+of CIF reported in \cref{sec:experiments-real}. Here a 100-tree scikit-learn random forest with default settings, which in
+classification omits the benchmark forest's balanced class weights, is ranked by one permutation of each column on each tree's
 out-of-bag rows, the mechanism cforest uses. It ranks below the
 impurity-ranked forest and below CIF in both tasks, and above cforest in
-classification. With it present, CIF ranks 4th of 18 in classification (mean
+both tasks by position (in regression the median difference is $+0.002$ and
+the mean $-0.007$). With it present, CIF ranks 4th of 18 in classification (mean
 rank 6.38, behind RF at 6.19 and XGBoost at 6.24) and stays 2nd in regression.
 The permutation step takes a median 29 seconds per fold in classification and
 127 in regression, against 0.2 seconds for the forest fit, and 43 and 32
@@ -261,7 +268,7 @@ minutes per fold on \nolinkurl{gisette} and \nolinkurl{dexter}.
     Regression & cforest & 8 & & +0.002 & -0.007 & \winloss{5}{3} \\
     \bottomrule
   \end{tabular}
-  \caption{Random forest ranked by out-of-bag permutation importance (RF
+  \caption{Default scikit-learn random forest ranked by out-of-bag permutation importance (RF
   permutation in \cref{tab:conditional-inference-comparisons}) as an added
   comparator. Position is its mean-rank position when it joins the all-method
   panels of 21 and 8 datasets (18 classification and 19 regression methods).
@@ -344,7 +351,7 @@ top 5.
 In the classification learner-by-$k$ sensitivity table, CIF is top five in 10 of
 the 15 learner-by-$k$ combinations and top three in 3 of 15. Its mean position
 is close to RF's and is better than the single-tree and filter baselines in the
-mean-position summary. RF-RFE, LightGBM, XGBoost, and CatBoost have lower mean
+mean-position summary. RF-RFE, LightGBM, XGBoost, CatBoost, and RF have lower mean
 positions.
 
 \begin{table}[tb]

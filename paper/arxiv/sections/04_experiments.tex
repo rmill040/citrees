@@ -46,7 +46,7 @@ than $k$ features drops out at $k$, so the all-method counts by $k$ are 21, 20,
     High-$p$ & real datasets with more than 100 features & 15 & 6 & high-$p$ analysis \\
     Synthetic & datasets with known informative features & 8 & 8 & feature recovery, support \\
     Ablation & real datasets except isolet & 22 & 8 & CIF ranking ablation \\
-    Runtime & 9 real and 14 synthetic datasets & 15 & 8 & runtime ablations \\
+    Runtime & 9 real and 14 synthetic datasets (\cref{app:methods}) & 15 & 8 & runtime ablations \\
     Benchmark-size & classification datasets with at least 500 observations except madelon; regression datasets with at least 200 observations & 9 & 5 & wide-dataset runtime check \\
     Mechanism-matched & cforest pairwise panel without gisette and letter & 20 & 8 & CIF ranked by out-of-bag permutation importance \\
     Max-type extension & every real and synthetic benchmark dataset & 31 & 16 & max-type ranking runs \\
@@ -55,7 +55,7 @@ than $k$ features drops out at $k$, so the all-method counts by $k$ are 21, 20,
     \bottomrule
   \end{tabular}
   \caption{Dataset panels, with the number of datasets per task. LODO is the
-  leave-one-dataset-out configuration check. The Benchmark-size panel is the
+  leave-one-dataset-out configuration check. The Head-to-head panel is the
   set of performance datasets of \citet{MilletichDownesHirst2026citrees}. The
   max-type extension runs on every benchmark dataset and is ranked on the
   all-method panel.}
@@ -127,16 +127,19 @@ informative features. The weak-signal cardinality designs place 10 informative
 Gaussian features among 25 noise features with 500 levels, 25 binary noise
 features, and 10 Gaussian noise features, at $n=1{,}000$ and signal strengths
 0.05, 0.10, and 0.20; CIF and CIT use the MC selector in classification and the
-PC selector in regression there.
+PC selector in regression there, as do CIF and CIT in the feature-use study.
 
 \paragraph{Cost and threshold test studies.}
-The runtime ablations refit the selected CIT and CIF configurations on the
-runtime panel with one control changed at a time, and also at the auto budget,
-with adaptive stopping and with no stopping, because the minimum budget leaves
-the stopping rule no room to act. The
-Benchmark-size check refits the tree with adaptive stopping off, with threshold
-scanning off, and without the two corrections, and the forest with adaptive
-stopping off.
+The runtime ablations change one control at a time in a reference
+configuration on the runtime panel: CIT and CIF in the benchmark settings with
+the MC selector in classification, the PC selector in regression, and no
+honesty, which matches the selected configuration only for CIT in
+classification. They also refit it at the auto budget, with adaptive stopping and
+with no stopping, because the minimum budget leaves the stopping rule no room to
+act. The
+Benchmark-size check refits the reference tree with adaptive stopping off, with threshold
+scanning off, and without the two corrections, and the reference forest
+with adaptive stopping off.
 \label{sec:experiments-stageB}%
 The threshold test comparison runs both Stage~B rules under the MC and PC
 selectors, with adaptive stopping and with no stopping, at the auto budget (999

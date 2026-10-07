@@ -6,7 +6,9 @@
 the benchmark with, after the selection rule of \cref{sec:experiments-repro}
 picked one configuration per family by its mean real-data score. Candidates is
 the size of the family's configuration grid. Settings not listed are the
-library defaults. CIF uses stratified bootstrap sampling in classification and
+library defaults, except that RF and ExtraTrees use balanced class weights in
+classification, CatBoost uses L2 leaf regularization 1, and cforest draws
+bootstrap samples of fraction 0.632 with replacement in classification. CIF uses stratified bootstrap sampling in classification and
 ordinary bootstrap sampling in regression. In the projection-count study of the
 supplement to \citet{MilletichDownesHirst2026citrees}, 20 random projections in
 the RDC instead of the 10 used here took about three times the selector time on
@@ -14,7 +16,8 @@ four small classification datasets, changed mean balanced accuracy by at most
 0.0052, and kept at least 95.4\% mean overlap between the selected sets.
 
 The downstream learners are fixed. LR uses balanced class weights and a
-1,000-iteration limit; the SVM uses a radial basis function kernel whose width
+1,000-iteration limit (5,000 for the 7,085 evaluations of two RDC-selector CIT
+candidates rerun on 12 wide datasets); the SVM uses a radial basis function kernel whose width
 is set by the number and variance of the inputs, unit regularization, and
 balanced class weights; KNN uses 5 distance-weighted neighbors. Ridge
 regression uses unit penalty strength, and SVR the same kernel with unit
@@ -24,7 +27,7 @@ decreasing order, filter $P$-values in increasing order with the dependence
 score as the secondary key, ctree by split-use counts, and Boruta and RF-RFE by
 fitted rank, with deterministic tie breaking. CPI permutes each feature within
 five-bin percentile strata of the features whose absolute correlation with it
-is at least 0.5, and globally when there are none.
+is greater than 0.5, and globally when there are none.
 
 \begin{table}[tb]
   \centering
@@ -38,7 +41,8 @@ is at least 0.5, and globally when there are none.
     CIT & Regression & 4 & selector RDC; otherwise as classification \\
     CIF & Classification & 4 & selector RDC; 100 trees; stratified bootstrap; square-root feature sampling; no honesty; otherwise as CIT \\
     CIF & Regression & 4 & selector RDC; 100 trees; bootstrap; square-root feature sampling; honesty with a 0.5 split \\
-    RF, ExtraTrees & Both & 1 & 100 trees, library defaults, impurity importance \\
+    DT, RT & Both & 1 & single tree, library defaults; impurity importance (RT: random split thresholds) \\
+    RF, ExtraTrees & Both & 1 & 100 trees, balanced class weights in classification, impurity importance \\
     XGBoost & Both & 5 & 500 rounds, depth 6, learning rate 0.1; importance total gain (classification) or total cover (regression) \\
     LightGBM & Both & 2 & 500 rounds, depth 6, learning rate 0.1; gain importance \\
     CatBoost & Both & 1 & 500 iterations, depth 6, learning rate 0.1 \\
@@ -64,11 +68,13 @@ is at least 0.5, and globally when there are none.
 On \nolinkurl{gisette}, \nolinkurl{isolet}, and \nolinkurl{orlraws10P},
 34 classification runs were excluded (\cref{tab:coverage-skips}). Of these,
 15 partykit ctree and cforest runs did not complete, 18 RDC-selector CIT and
-CIF runs were lost to a host fault while the other seeds of the same cells
-completed, and one run on \nolinkurl{orlraws10P} was excluded by author
+CIF runs were lost to a host fault, and one run on \nolinkurl{orlraws10P} was excluded by author
 decision. No regression runs are excluded. The max-type extension had 1,880
-possible ranking runs; 88 were not run because their per-threshold counterpart
-had not completed, and 1,785 of the remaining 1,792 completed. The seven runs
+possible ranking runs. Of these, 88 were not run: 67 were listed as lacking a
+completed per-threshold counterpart, although 66 of them have one in the stored
+benchmark, and 21 were on cells locked after the host fault. All 88 are
+RDC-selector CIT runs on wide classification datasets, except one CIF run on
+\nolinkurl{isolet}. Of the remaining 1,792 runs, 1,785 completed. The seven runs
 that did not, CIF with the RDC selector and honesty off on \nolinkurl{isolet},
 \nolinkurl{gisette}, and \nolinkurl{letter}, were lost to the same host fault.
 
@@ -99,6 +105,14 @@ that did not, CIF with the RDC selector and honesty off on \nolinkurl{isolet},
   \label{tab:coverage-skips}
 \end{table}
 
+The runtime panel has the classification datasets \nolinkurl{breast_cancer},
+\nolinkurl{digits}, \nolinkurl{iris}, \nolinkurl{openml_madelon},
+\nolinkurl{openml_optdigits}, \nolinkurl{openml_waveform}, and \nolinkurl{wine},
+the regression datasets \nolinkurl{california} and \nolinkurl{diabetes}, and 14
+generated designs regenerated for each seed; the single-worker check of
+\cref{sec:results-practical} omits \nolinkurl{openml_waveform} and
+\nolinkurl{california}.
+
 \subsection{Randomness and reproducibility}
 
 The benchmark configuration fixes the seed schedule used for all reported
@@ -106,5 +120,4 @@ runs. Interpreted permutation routines draw from local random generators, and
 compiled parallel loops assign one seed per resample, so no generator state is
 shared across parallel iterations. The interface to the R implementations
 was checked by refitting one published ctree example in R and through the
-benchmark with identical splits; the seed schedule, ranking directions, and the
-CPI correlation threshold are fixed by automated tests.
+benchmark with identical splits; the seed schedule and ranking directions are fixed by automated tests.

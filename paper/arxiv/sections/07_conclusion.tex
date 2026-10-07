@@ -4,15 +4,13 @@
 Conditional inference forests rank features for downstream prediction at the
 level of random forests and ahead of the other conditional inference methods.
 The classification result holds under the robustness checks of the benchmark,
-and the regression ordering is descriptive. Their weakness is recovery: they
-find the truly informative features no better than a typical ranker in the
-benchmark. What carries the ranking is the forest, not the split test. The
-unbiased split selection that defines conditional inference changes which noise
-features enter a ranking, not how well the ranking predicts.
+and the regression ordering is descriptive. Their weakness is recovery: in finding the truly informative
+features they rank mid-field in classification and lower in regression. The forest carries the ranking, and the unbiased split selection that
+defines conditional inference changes which noise features enter a ranking but
+not how well it recovers or predicts.
 
-The split tests earn their place in a different way. Each split passes a
-permutation test that is valid at a fixed node, and the tests set the cost of a
-fit, which the max-type threshold test cuts to a fraction while keeping the
-guarantee. A conditional inference forest is therefore a feature ranker that
-predicts as well as a random forest while every split rests on a valid test, and
-the max-type test makes it affordable.
+The split tests decide when a node splits, and they set the cost of a fit.
+CIF thus matches random forests as a feature ranker while splitting only when a
+permutation test rejects. Those tests hold their level at a fixed node when a
+tree is grown on a subsample or on all rows, and the max-type threshold test
+makes them affordable.

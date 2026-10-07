@@ -1,22 +1,21 @@
-Decision trees that choose a feature and a threshold in one search favor
-features with many possible thresholds. Conditional inference trees (CIT) and
-forests (CIF) test features before choosing thresholds to reduce this split
-selection bias, but their repeated permutation tests make them costly. We
-benchmark CIT and CIF as feature rankers against 15 classification and 16
-regression rankers on 31 real datasets and on synthetic designs with known
-informative features, scoring each ranking by the held-out balanced accuracy or
-$R^2$ of fixed learners on its top-$k$ features. CIF ranks features as well as
-random forests (RF), tied 3rd of 17 in classification and 2nd of 18 in
-regression, and better than every other conditional inference method, while the
-remedies for the bias of RF importance rank below RF. On panels where every
-method completed it is tied 6th and 5th, and the regression ordering is
-descriptive. CIF recovers the informative features only as well as the middle of
-the field. The forest rather than the split test carries its ranking:
-unbiased split selection removes the RF preference for many-valued features
-without improving recovery or prediction. The split tests set the cost instead:
-at the minimum budget their Bonferroni corrections cost of order $m^2/\alpha$
-and $K^2/\alpha$ permutations per node over $m$ features and $K$ candidate
-thresholds. A max-type threshold test keeps the fixed-node guarantee with about
-$999K$ statistic evaluations, loses 0.006 in power at equal realized size, and
-moves CIF to 5th and 4th. CIF thus matches RF as a feature ranker with valid
-split tests, and the max-type test makes them affordable.
+Trees that choose a feature and threshold in one search favor features with
+many possible thresholds; conditional inference trees (CIT) and forests (CIF)
+test features first to reduce this bias, but their repeated permutation tests
+make them costly. We benchmark CIT and CIF as feature rankers against 15
+classification and 16 regression rankers on 31 real datasets and synthetic
+designs with known informative features, scoring each top-$k$ list by the
+held-out balanced accuracy or $R^2$ of fixed learners. CIF ranks features as
+well as random forests (RF), tied 3rd of 17 and 2nd of 18, and beats every
+other conditional inference method, while remedies for RF importance bias rank
+below RF. On the panels complete for every method, learner, and list size it is
+tied 6th and tied 4th, and the regression ordering is descriptive. Its recovery
+of informative features is no better than the middle of the field. The ranking rests on the forest; unbiased split selection removes
+the RF preference for many-valued features without improving recovery or
+prediction. The split tests set the cost: at the minimum budget their Bonferroni
+corrections cost of order $m^2/\alpha$ and $K^2/\alpha$ permutations per node
+for $m$ features and $K$ thresholds. A max-type threshold test keeps the
+fixed-node guarantee with about $999K$ statistic evaluations, loses 0.006 in
+power at equal realized size, and moves CIF to 5th and 4th. CIF thus matches RF
+as a feature ranker and splits only when a permutation test rejects; the paper
+proves those tests valid at a fixed node for trees grown on subsamples or the
+full sample, and the max-type test makes them affordable.

@@ -30,9 +30,8 @@ threshold scanning. \Cref{prop:adaptive-size} covers one Stage~A test or one
 per-threshold Stage~B test, and not the adaptive max-type rule. The results do
 not extend to partial-null familywise control, to response-dependent feature
 muting, to nodes reached through response-dependent splits, to a Stage~B test
-of the Stage~A winner, to honesty, to $P$-values reported after selection, or
-to error control for fitted trees and forests, and bootstrap fits are outside
-them because A0.2 fails there (\cref{sec:theory}).
+of the Stage~A winner, to $P$-values reported after selection, or
+to error control for fitted trees and forests.
 
 \subsection{Assumptions}
 \label{app:assumptions}
@@ -40,7 +39,8 @@ them because A0.2 fails there (\cref{sec:theory}).
 \Cref{lem:plusone-superuniform} and
 \cref{cor:stageA-global-null,cor:stageB-bonferroni,cor:stageB-maxt} use A0.1 to
 A0.5. \Cref{prop:adaptive-size} uses A0.1 to A0.3; it replaces the fixed budget
-of A0.4 by the adaptive stopping rule it analyzes.
+of A0.4 by the adaptive stopping rule it analyzes and keeps the independence of
+the Monte Carlo draws from $(X_t,Y_t,U)$.
 
 \paragraph{A0.1 (Fixed node).}\label{assump:fixed-node}
 The node $t$ and its sample index set $I_t$ are held fixed. They

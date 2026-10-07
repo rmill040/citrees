@@ -10,8 +10,9 @@ $\delta\in\{0.05,0.10,0.20\}$ or mean shift $\delta\in\{0.2,0.4,0.8\}$ and 500
 replicates per cell and seed, and records the rates of any split and of a split
 on the planted predictor and the error of the chosen threshold. The
 Stage-B-only study runs nominal Stage~B levels from 0.02 to 0.50, with 500 null
-replicates per cell, level, and seed over three seeds and 200 replicates of the
-planted step, and interpolates power within each cell to a common realized
+replicates and 200 replicates of the planted step per cell, level, and seed,
+over three seeds at levels 0.02 to 0.20 and over one seed at $n=100$ and two at
+$n=200$ and 500 at levels 0.35 and 0.50, and interpolates power within each cell to a common realized
 size of 0.05, or to the largest size both rules reach; its per-threshold test
 without the threshold correction runs at nominal 0.05 with 500 null replicates
 per cell. Two reruns check the matched comparison, one with a fourth seed of
@@ -22,7 +23,8 @@ at $n\in\{1{,}000,4{,}000,16{,}000\}$, as the median of three fits with a
 1,200-second cap. The real-data study fits one tree on the six Stage~B real
 datasets at 256 bins with five-fold cross-validation, recording held-out score,
 tree depth, fitting time, and the Spearman agreement of the two rules' feature
-importances. The head-to-head timing fits each 100-tree forest once, with the
+importances. The head-to-head timing times each 100-tree forest as the median of two timed
+fits (eight in four synthetic cells; one fit on gisette, isolet, and letter), with the
 MC selector, the minimum budget, the two corrections, scanning, muting, the
 256-bin histogram, and depth at most 3, on the ten head-to-head datasets and a
 synthetic grid of Gaussian predictors with a weak or strong planted signal,
@@ -43,36 +45,42 @@ the sizes under adaptive stopping. Over both modes the per-threshold size is
 effect combinations the size-matched difference in power ranges from $-0.054$
 to $+0.034$ and has no trend in the bin setting. In five cells the
 per-threshold rule does not reach size 0.05 even at nominal 0.50, and the match
-is at the largest size both rules reach. The two reruns give size-matched
-differences of $-0.006$ ($-0.008$ to $-0.003$) at the fourth seed and $-0.004$
+is at the largest size both rules reach, interpolated at nominal 0.50 on 200
+or 400 replicates. The two reruns give size-matched
+differences of $-0.006$ ($-0.008$ to $-0.003$) over the 16 cells the fourth
+seed covers (it has no max-type runs at $n=500$ with 256 bins in either task) and $-0.004$
 ($-0.008$ to $0.000$) with the step at the 85th percentile, with standard
 errors of about 0.017 and 0.038 on each difference. The standard errors come
 from a parametric bootstrap of the whole matching procedure and put the
 smallest detectable difference at about 0.03 for the fourth seed and 0.08 for
-the step at the 85th percentile; the sizes in both reruns stay in the ranges
-above. The max-type rule also places the threshold less precisely: on each
-rule's own detections its threshold sits a median 0.19 standard deviations
-from the planted cut against 0.15, and 87\% of its detections fall on the
-planted predictor against 90\%.
+the step at the 85th percentile. In both reruns the per-threshold size stays
+within 0.000 to 0.027; the max-type size is 0.025 to 0.053 at the fourth seed,
+reaching 0.052 and 0.053 (Clopper-Pearson intervals 0.041 to 0.064 and 0.043 to
+0.066) in classification at $n=500$ with 16 and 64 bins and no stopping, and
+0.018 to 0.046 with the step at the 85th percentile. The max-type rule also places the threshold less precisely: on each
+rule's own detections its threshold sits on average over cells (of the per-cell
+median) 0.19 standard deviations from the planted cut against 0.15, and 87\%
+of its detections fall on the planted predictor against 89\%.
 
 \Cref{tab:stageB-power} gives the split rates at a common nominal level, whose
 gap between the rules \cref{sec:results-stageB} attributes to the lower
 realized size of the per-threshold rule. \Cref{tab:stageB-scaling} gives the
 single-tree fitting times behind its cost comparison. Adaptive stopping
 shortens the per-threshold test by 1.2 to 1.6, 2.2 to 3.2, and 3.8 to 7.8
-times at 16, 64, and 256 bins, which narrows the max-type advantage to 1.0 to
-1.3, 1.4 to 2.1, and 2.2 to 7.7. Held at 999 permutations per candidate
+times at 16, 64, and 256 bins. This narrows the max-type advantage at 256 bins
+from 2.8 to 12 times to 2.2 to 7.7, leaves it at 1.5 to 2.0 at 64 bins, and
+turns the 16-bin deficit of 1.1 to 1.3 times into an advantage of 1.0 to 1.3. Held at 999 permutations per candidate
 instead, the per-threshold rule never splits at 64 or 256 bins, because
 $\alpha/K$ falls below the resolution $1/(B+1)$. Fitted depths barely differ,
 5.0 to 10.7 levels for the max-type rule against 4.0 to 10.0. On the ten
 head-to-head datasets the max-type forest reduces madelon from 21 to 2.6
 seconds, gamma from 44 to 21, and isolet from 18 to 9.1, and changes the other
-seven by at most 1.6 seconds.
+seven by at most 1.5 seconds.
 
 \Cref{tab:stageB-real} gives the held-out scores, fitting times, and depths
 behind the real-data comparison. The max-type rule scores higher by 0.016 and
-0.026 balanced accuracy on vowel, 0.049 and 0.026 $R^2$ on facebook, 0.060 and
-0.033 on imports-85, and 0.008 and 0.005 on residential, and lower by 0.018 and
+0.026 balanced accuracy on vowel, 0.049 and 0.026 $R^2$ on facebook, 0.061 and
+0.033 on imports-85, and 0.008 and 0.006 on residential, and lower by 0.018 and
 0.020 on page-blocks and by 0.006 on spam with adaptive stopping. It fits 1.2
 to 2.4 times faster with adaptive stopping and 1.0 to 8.3 times faster with no
 stopping on the four datasets whose nodes admit many candidates, and 16\% and
@@ -157,7 +165,8 @@ agree within about one level (4.8 to 12.4 levels for the max-type rule against
   0.056. Size-matched power, shown for adaptive stopping at the middle effect
   ($\delta = 0.10$ in classification, $0.4$ in regression), is interpolated
   against realized size over the nominal grid from 0.02 to 0.50 (600 replicates
-  per cell and level) to the match size: 0.05, or the largest realized size
+  per cell and level from 0.02 to 0.20, and 200 at $n=100$ and 400 at $n=200$
+  and 500 at 0.35 and 0.50) to the match size: 0.05, or the largest realized size
   both rules reach where the per-threshold rule does not reach 0.05.}
   \label{tab:stageB-only-full}
 \end{table}
@@ -289,8 +298,8 @@ agree within about one level (4.8 to 12.4 levels for the max-type rule against
 \Cref{tab:weak-signal-cardinality,tab:weak-signal-scores} give the composition
 of the top 5, 10, and 25 features, the support, and the downstream score of each
 ranking in the weak-signal designs behind the cardinality comparison of
-\cref{sec:results-stageB}. The random forest ranked by out-of-bag permutation
-importance keeps a 500-level share above the cardinality-neutral reference at
+\cref{sec:results-practical}. The random forest ranked by out-of-bag permutation
+importance keeps a 500-level share at or above the cardinality-neutral reference at
 every list size and signal; at the two weaker signals that share is above the
 one of impurity importance in the top 5 and 10 and below it in the top 25.
 
@@ -336,7 +345,7 @@ one of impurity importance in the top 5 and 10 and below it in the top 25.
   standard normal features have marginal correlation with the response given by
   the Signal column; the noise is 25 columns of integer codes on 500 levels, 25
   binary columns, and 10 Gaussian columns. Shares are means over 25 fits (5
-  seeds by 5 folds; standard errors 0.01 to 0.03) of the fraction of the top $k$
+  seeds by 5 folds; standard errors at most 0.045) of the fraction of the top $k$
   that is informative (Inform.), 500-level noise, or binary noise; the remainder
   is Gaussian noise. A ranking indifferent to cardinality would give each of
   the 500-level and binary noise types 25/60 of the places not taken by

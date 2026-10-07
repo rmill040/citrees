@@ -2,7 +2,8 @@
 \label{sec:results-stageB}
 
 In the null calibration both Stage~B rules keep the false-split rate below
-0.05 in all 36 design cells, but that design cannot expose a failure of the
+0.05 in all 36 design cells (18 task, sample size, and bin settings under two
+stopping modes), but that design cannot expose a failure of the
 threshold test. Every split must first pass the Stage~A test over five
 predictors, so even without the threshold correction the rate stays between
 0.0355 and 0.049 (\cref{app:stageB-tables}). The Stage-B-only study therefore
@@ -48,9 +49,10 @@ the Stage~A test disabled (\cref{tab:stageB-only}).
   tested at 0.05. Sizes under no stopping agree to within 0.010 (exactly for
   No correction). Size-matched power under adaptive stopping at the middle effect ($\delta = 0.10$ in
   classification, $0.4$ in regression) is interpolated against realized size
-  over the nominal grid from 0.02 to 0.50 (600 replicates per cell and level)
-  to the match size: 0.05, or the largest realized size both rules reach where
-  the per-threshold rule does not reach 0.05.}
+  over the nominal grid from 0.02 to 0.50 (600 replicates per cell and level
+  from 0.02 to 0.20, and 200 at $n=100$ and 400 at $n=200$ and 500 at 0.35 and
+  0.50) to the match size: 0.05, or the largest realized size both rules reach
+  where the per-threshold rule does not reach 0.05.}
   \label{tab:stageB-only}
 \end{table}
 
@@ -67,29 +69,23 @@ At matched realized size the max-type rule has slightly lower power. The
 max-type minus per-threshold difference averages $-0.006$ (95\% bootstrap
 interval over the 18 cells, $-0.011$ to $-0.002$); the max-type rule is lower
 in 67 and higher in 25 of the 108 cell and effect combinations, and the mean is
-$-0.005$ ($-0.009$ to $-0.002$) over the 13 cells matched at size 0.05. Two reruns of the matched comparison
-give $-0.006$ and $-0.004$. At a common nominal level of 0.05 the max-type rule
-splits more often, by 0.03 on
+$-0.005$ ($-0.009$ to $-0.002$) over the 13 cells matched at size 0.05. Two reruns give $-0.006$ (a fourth
+seed, on the 16 cells it covers) and $-0.004$ (the step at the 85th percentile). At a
+common nominal level of 0.05 the max-type rule splits more often, by 0.03 on
 average and up to 0.12 in the power study (0.015, 0.029, and 0.049 at 16, 64,
-and 256 bins) and by 0.10 in the Stage-B-only study, a gap set by the lower
-realized size of the per-threshold rule.
+and 256 bins) and by 0.07 on average in the Stage-B-only study, a gap set by
+the lower realized size of the per-threshold rule.
 
-The max-type rule is cheaper once a node has many candidates. With no stopping
-and 256 bins, one classification tree takes 3.5, 14, and 59 seconds at
-$n=1{,}000$, $4{,}000$, and $16{,}000$ under the per-threshold rule (0.8, 8.8,
-and 54 in regression) and 0.3, 1.4, and 6.3 seconds under the max-type rule.
-The ratio grows with the bin setting, as the $K^2/\alpha$ against $BK$
-accounting of \cref{sec:stageA-stageB} predicts: at 16 bins the max-type rule
-is 1.1 to 1.3 times slower, because its 999 permutations exceed the 340 the
-per-threshold rule needs for 17 candidates, and at 64 and 256 bins it is 1.5
-to 2.1 and 2.8 to 13 times faster; adaptive stopping shortens the
-per-threshold test and narrows this advantage. The head-to-head forests, fitted at
-the minimum budget, show the largest savings: the max-type rule is 10 to 27
-times faster at $n\le 8{,}000$ and 21 to 36 times faster at $n=32{,}000$ on the
-synthetic cells (13 to 36 times on the cells that
+The max-type rule is cheaper once a node has many candidates. The
+head-to-head forests, fitted at the minimum budget, show the largest savings:
+the max-type rule is 10 to 27 times faster at $n\le 8{,}000$ and 21 to 36 times
+faster at $n=32{,}000$ on the synthetic cells (13 to 36 times on the cells that
 \citet{MilletichDownesHirst2026citrees} tabulate), against 1.6 to 7 times on
 the runtime panel (\cref{tab:runtime-ablations}), whose nodes admit fewer
-candidates.
+candidates. For one tree with no stopping the ratio grows with the bin setting,
+as the $K^2/\alpha$ against $BK$ accounting of \cref{sec:stageA-stageB}
+predicts: the max-type rule is 1.1 to 1.3 times slower at 16 bins and 1.5 to
+2.1 and 2.8 to 12 times faster at 64 and 256 bins (\cref{tab:stageB-scaling}).
 
 On the six Stage~B real datasets the max-type rule scores higher in 8 of the
 12 dataset and stopping-mode cells, equal in one, and lower in the other three,

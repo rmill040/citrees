@@ -2,16 +2,16 @@
 \label{sec:boundary}
 
 \label{sec:synthetic-recovery}%
-On synthetic datasets with known informative features, CIF sits in the middle
-of the methods at every list size (\cref{tab:synthetic-head}). By the share of
-selected features that are informative, it ranks between 8th and 10.5th of 15
-in classification and between 8th and 11.5th of 16 in regression at $k=1$, 5,
-10, 25, 50, and 100, and 8th and 11th on the average over $k=5$ to 100. On the
+On synthetic datasets with known informative features, CIF ranks in the middle
+of the methods in classification and below the middle in regression
+(\cref{tab:synthetic-head}). By the share of selected features that are
+informative, it ranks between 8th and 10.5th of 15 in classification and
+between 8th and 11.5th of 16 in regression at $k=1$, 5, 10, 25, 50, and 100, and 8th and 11th on the average over $k=5$ to 100. On the
 redundant-feature designs, where correlated copies of informative features count
 as hits, the measure saturates: up to $k=10$ most methods, CIF among them,
 select only true or redundant features, and from $k=50$ every method reaches
 the ceiling of 60\% set by the design's 30 true and redundant features. The
-recovery curves by $k$ for single trees, forests, and boosted trees are in
+recovery curves by $k$ for CIT, the forests, and the boosted trees are in
 \cref{app:weaker}.
 
 \begin{table}[htb]
@@ -42,7 +42,8 @@ recovery curves by $k$ for single trees, forests, and boosted trees are in
   the 20 redundant copies; its ceiling is 60\% once $k \ge 50$ because that
   design has 50 features, 30 of them true or redundant. Ranks are among the 15
   classification and 16 regression methods with synthetic runs, with ties
-  averaged, so a rank of 8.5 of 16 or 8 of 15 is a tie among every method. The
+  averaged, so in the True or redundant rows a rank of 8.5 of 16 or 8 of 15
+  marks a tie among every method. The
   last column averages the percentage over $k=5$, 10, 25, 50, and 100 and
   ranks that average.}
   \label{tab:synthetic-head}
@@ -87,7 +88,7 @@ sampling, and disabling feature muting change balanced accuracy by at most
 0.001 on average, with intervals that include zero. In regression these three
 changes lower the mean $R^2$, two of them with intervals that exclude zero, but
 the three \nolinkurl{coepra} datasets set those means, and the medians stay
-within 0.007 of zero.
+between $-0.007$ and 0.000.
 
 \begin{table}[htb]
   \centering
@@ -126,9 +127,10 @@ Features outside it tie at zero importance (\cref{sec:rank-construction}), so a
 ranking carries information only within its support. On the synthetic datasets, random forests give every feature nonzero
 importance on 15 of the 16 designs, and 800 of 1,000 on the 1,000-feature
 classification design. On 13 of the 16 designs, CIF's support keeps 90 to
-100\% of the planted features, so the support serves as a shortlist. A single
+100\% of the planted features, while covering a median of 62\% of all features
+(6.6 to 99\%). A single
 CIT splits on few features, so zero-importance filler makes up most of its
-top-$k$ list: 52, 81, and 90\% of its top 10, 25, and 50 features, against 0,
+top-$k$ list: 53, 81, and 90\% of its top 10, 25, and 50 features, against 0,
 3, and 14\% for CIF and none for random forests. This is consistent with CIT
 ranking near the bottom of the benchmark.
 
@@ -139,7 +141,7 @@ at each node, uses informative features in 100.0\% of classification splits
 and 93.5\% of regression splits. Over the 12 classification forest designs,
 CIF uses them in 33.2\% of splits, against 91.7\% for CIF-all, 8.4\% for RF,
 and 6.5\% for ExtraTrees. RF and ExtraTrees grow to purity, so most of their
-splits are deep splits on noise, while CIF stops at the permutation test. With
+splits are on noise, while CIF stops at the permutation test. With
 32 of 1,000 features sampled at a node and two informative, an informative
 feature is a candidate at 6.3\% of nodes, and when the sampled subset holds
 none, Stage~A selects from the noise it was given.

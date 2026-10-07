@@ -20,15 +20,16 @@ intermediate $k$ ($100<k<p$) on 8 of 15 LR datasets, 12 of 15 SVM datasets, and
 
 \subsection{Synthetic recovery by \texorpdfstring{$k$}{k}}
 
-\Cref{fig:synthetic-topk-curves} shows synthetic recovery as $k$ grows for the
-single trees, forests, and boosted trees, the curves behind the averages over
+\Cref{fig:synthetic-topk-curves} shows synthetic recovery as $k$ grows for
+CIT, the forests, and the boosted trees, the curves behind the averages over
 $k$ in \cref{tab:synthetic-head}.
 
 \begin{figure}[tb]
   \centering
   \includegraphics[width=0.84\linewidth]{figures/synthetic_topk_focus_curves.png}
-  \caption{Synthetic top-$k$ recovery curves. Columns compare single trees,
-  forests, and boosted trees; rows show classification and regression. Each
+  \caption{Synthetic top-$k$ recovery curves. Columns show CIT alone, then CIF
+  against the forests and against the boosted trees; rows show classification
+  and regression. Each
   value is the percentage of selected features that are truly informative.}
   \label{fig:synthetic-topk-curves}
 \end{figure}

@@ -10,9 +10,10 @@ regression, behind ExtraTrees, on the all-method panels of 21 and 8 datasets
 (\cref{tab:method-main-comparison}). The complete-case Friedman test rejects equal ranks in classification
 ($\chi^2(16)=140.46$, $P<0.001$, Kendall's $W=0.68$) and does not reject in
 regression ($\chi^2(17)=26.15$, $P=0.072$, $W=0.26$), so the regression
-ordering is a descriptive summary of 6 datasets. Across datasets, CIF is in
-the top half on 17 of 21 classification and 5 of 8 regression datasets, and in
-the top 3 on 4 of 21 and 2 of 8.
+ordering, on 8 datasets, is descriptive (the omnibus test uses the 6
+complete-case datasets). Across datasets, CIF is in the top half on 17 of 21
+classification and 6 of 8 regression datasets, and in the top 3 on 5 of 21 and
+2 of 8.
 
 \begin{table}[tb]
   \centering
@@ -70,7 +71,7 @@ Against its conditional inference relatives, CIF is ahead of ctree, cforest,
 and CIT by both the median and the mean in both tasks
 (\cref{tab:conditional-inference-comparisons}). In regression the median is the
 primary summary, because $R^2$ is unbounded below. On the three
-\nolinkurl{coepra} datasets (76 to 133 observations, about 5,000 features) the
+\nolinkurl{coepra} datasets (76 to 133 observations, 5,144 to 5,787 features) the
 comparators reach large negative $R^2$, and those three datasets set the ctree
 and CIT means. On the complete-case panels the classification intervals and
 the regression ctree interval exclude zero, and the regression intervals for
@@ -103,8 +104,8 @@ cforest and CIT cross it.
     \bottomrule
   \end{tabular}
   \caption{Direct comparisons of CIF with the conditional inference and
-  single-tree baselines and with RF permutation, the benchmark random forest
-  ranked by out-of-bag permutation importance. Differences are CIF minus the
+  single-tree baselines and with RF permutation, a 100-tree scikit-learn random forest with
+  default settings ranked by out-of-bag permutation importance. Differences are CIF minus the
   compared method in balanced accuracy (classification) or $R^2$ (regression),
   averaged within each dataset over downstream learners and standard values of
   $k$. The pairwise panel uses every dataset where both methods were run; the
@@ -123,26 +124,27 @@ downstream learner, value of $k$, and seed (\cref{app:benchmark-stability}). In
 classification they favor RF-RFE, XGBoost, and LightGBM against CIF and include
 zero for RF, ExtraTrees, CatBoost, and Boruta, so the data do not order CIF
 among these four, and in regression no interval favors another method over
-CIF. The complete-case panels rank CIF lower, tied 6th of 17 and tied 5th of 18
+CIF. The complete-case panels rank CIF lower, tied 6th of 17 and tied 4th of 18
 (\cref{tab:method-main-comparison}). LODO reselection moves it to 8th and 6th there,
 reselecting the benchmark configuration in 11 of 13 and 4 of 6 holdouts, and on
 the all-method panels to 5th in classification and 2nd in regression,
 reselecting it in 20 of 21 and 7 of 8. The 3rd and 2nd places are therefore
 properties of the 21- and 8-dataset panels, and configuration reselection moves
-them by less than half a rank.
+CIF's mean rank by less than half a rank (its place by up to two positions).
 
 Two checks address the importance measure. Ranked by cforest's own out-of-bag
 permutation importance, CIF leads cforest in classification by $+0.012$ mean
 and $+0.006$ median balanced accuracy, with 15 wins in 20 datasets, against
 $+0.011$ for split-ranked CIF, so the classification margin persists under a
 common importance mechanism. The standard remedies for the cardinality bias of
-impurity importance rank below the random forest itself. Ranked by the same
+impurity importance rank below the random forest itself. A 100-tree forest ranked by
 out-of-bag permutation importance (RF permutation in
-\cref{tab:conditional-inference-comparisons}), the benchmark's 100-tree random
-forest places 8th of 18 in classification and 6th of 19 in regression, against
-tied 3rd and 5th for its impurity importance, and cforest, permutation
-importance, and conditional permutation importance place 9th, 12th, and 17th of
-17 in classification and 7th, 16th, and 18th of 18 in regression
+\cref{tab:conditional-inference-comparisons}) places 8th of 18 in classification
+and 6th of 19 in regression, against 2nd and 5th for the benchmark forest's
+impurity importance in the same panels; it uses scikit-learn defaults, so in
+classification it lacks the benchmark forest's balanced class weights. cforest,
+permutation importance, and conditional permutation importance place 9th, 12th,
+and 17th of 17 in classification and 7th, 16th, and 18th of 18 in regression
 (\cref{tab:method-main-comparison}). With RF permutation present, CIF ranks 4th
 of 18 in classification and stays 2nd in regression
 (\cref{app:benchmark-stability}).

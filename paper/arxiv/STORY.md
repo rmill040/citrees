@@ -10,13 +10,16 @@ of the paper.
 
 Conditional inference forests match random forests as feature rankers for
 downstream prediction, and they rank features better than every other
-conditional inference method. Their ranking rests on the forest rather than on
-the split test: the unbiased split selection they are known for removes the
-random forest's preference for many-valued features without improving recovery
-or prediction. The split tests set the cost instead, and the max-type threshold
-test keeps their fixed-node guarantee at a fraction of it. CIF is therefore a
-random-forest-quality feature ranker in which every split passes a permutation
-test that is valid at a fixed node, and the max-type test makes that affordable.
+conditional inference method. Their ranking rests on the forest: one tree loses
+on every dataset, while the unbiased split selection they are known for removes
+the random forest's preference for many-valued features without improving
+recovery or prediction. The split tests set the cost instead, and the max-type
+threshold test keeps their fixed-node guarantee at a fraction of it. CIF matches
+random forests as a feature ranker and splits only when a permutation test
+rejects; the paper proves those tests valid at a fixed node for trees grown on
+subsamples or the full sample, and the max-type test makes them affordable. The
+benchmarked CIF (bootstrap samples, honesty in regression) is not claimed to
+have valid split tests.
 
 ## The four contributions
 
@@ -31,17 +34,19 @@ Results, ranking quality (Section 5.1); appendix on benchmark robustness.
    benchmark of 17 and 18 rankers on 31 datasets and the direct comparisons with
    ctree, cforest, CIT, and the single trees (Tables 2 and 3).
 2. **Is that result an artifact of the setup?** Not in classification; the
-   regression ordering is descriptive, and CIF is tied 6th and 5th on the
-   complete-case panels. Evidence: the complete-case panels and Friedman tests,
-   leave-one-dataset-out configuration reselection, breakdowns by learner, k,
-   and seed, and paired intervals of CIF against every method.
+   regression ordering is descriptive, and CIF is tied 6th and 4th on the
+   complete-case panels (13 and 6 datasets). Evidence: the complete-case panels
+   and Friedman tests, leave-one-dataset-out configuration reselection,
+   breakdowns by learner, k, and seed, and paired intervals of CIF against every
+   method.
 3. **Is the margin over cforest only a different importance measure?** No:
    ranked by cforest's own out-of-bag permutation importance, CIF keeps its
    classification margin. Evidence: the mechanism-matched check.
 4. **Is the random forest good only because of its biased importance?** No: the
-   standard remedies for that bias rank below it. The same forest ranked by
-   out-of-bag permutation importance is 8th, cforest 9th, permutation importance
-   12th, and conditional permutation importance last in classification.
+   standard remedies for that bias rank below it. In classification the random
+   forest ranked by out-of-bag permutation importance is 8th of 18, and cforest,
+   permutation importance and conditional permutation importance are 9th, 12th
+   and 17th of 17 (10th, 13th and 18th of 18 with RF permutation present).
    Evidence: the random forest ranked by out-of-bag permutation importance and
    the benchmark positions of cforest, PI, and CPI.
 
@@ -50,20 +55,24 @@ Results, ranking quality (Section 5.1); appendix on benchmark robustness.
 Results, how the CIF ranker behaves (Section 5.2); appendix on where CIF is
 weaker.
 
-5. **Does CIF find the truly informative features?** Only as well as the middle
+5. **Does CIF find the truly informative features?** No better than the middle
    of the field: 8th to 10.5th of 15 in classification and 8th to 11.5th of 16
-   in regression at every list size from 1 to 100. On the redundant-feature
-   designs the measure saturates and does not separate the methods. Evidence:
-   synthetic recovery at k = 1, 5, 10, 25, 50, and 100 (Table 4).
+   in regression at the six reported list sizes. On the redundant-feature
+   designs the measure saturates at k <= 10 and k >= 50; at k = 25 it separates
+   the methods, with CIF 1st of 16 in regression and tied 7.5th of 15 in
+   classification. Evidence: synthetic recovery at k = 1, 5, 10, 25, 50, and 100
+   (Table 4).
 6. **Where is it weaker, and what does the ranking rest on?** It is weakest at
    small k in classification and peaks before the full feature set on wide data.
    The forest carries the ranking: one tree loses on every dataset, while the
-   importance type, bootstrap sampling, and feature muting do not matter. A
-   single tree's list is mostly zero-importance filler. Feature sampling keeps
-   informative features out of most splits in sparse wide data (33% of splits
-   against 92% when every feature is tested). Evidence: the rank by k, the
-   high-p analysis, the CIF ablation, the support measurement, and the
-   feature-use study.
+   importance type, bootstrap sampling, and feature muting do not matter in
+   classification; in regression split-count ranking and disabling bootstrap
+   lower the mean R^2 with intervals excluding zero, driven by the coepra
+   datasets, while the medians stay near zero. A single tree's list is mostly
+   zero-importance filler. Feature sampling keeps informative features out of
+   most splits in sparse wide data (33% of splits against 92% when every feature
+   is tested). Evidence: the rank by k, the high-p analysis, the CIF ablation,
+   the support measurement, and the feature-use study.
 
 ### 3. The statistical machinery
 
@@ -75,7 +84,7 @@ appendices on runtime and memory and on the cardinality designs.
    noise, with a mild lean toward binary noise in regression, at every list
    size. The biased random forest still recovers at least as many informative
    features at every signal and list size. Removing the two corrections deepens
-   the trees and moves CIF's downstream score by at most 0.004; for CIT it
+   the trees and moves CIF's downstream score by at most 0.005; for CIT it
    lowers the precision of the first few picks in classification. Evidence: the
    weak-signal cardinality designs at top 5, 10, and 25 and the runtime ablation
    without the corrections.
@@ -93,12 +102,14 @@ Fixed-node control (Section 3); Results, the max-type threshold test (Section
 9. **Can the guarantee be had more cheaply?** Yes. The max-type threshold test
    is valid at a fixed node, keeps its size flat as the candidate count grows,
    loses 0.006 in power at equal realized size, fits forests 10 to 36 times
-   faster, and ranks slightly lower (5th of 17 and 4th of 18), so it is opt-in.
-   Without the threshold correction the per-threshold test has size 3 to 8 times
-   nominal. Evidence: Corollary 3, the threshold-only size and matched-power
-   study with the no-correction size, the scaling, real-data, and head-to-head
-   timing studies, and the max-type benchmark rerun.
-10. **Is the default stopping rule valid?** Yes: its exact null size is 0.0488
+   faster on the synthetic head-to-head cells (1.1 to 8 times on the real
+   head-to-head datasets, 1.6 to 7 on the runtime panel), and ranks slightly
+   lower (5th of 17 and 4th of 18), so it is opt-in. Without the threshold
+   correction the per-threshold test has size 3 to 8 times nominal. Evidence:
+   Corollary 3, the threshold-only size and matched-power study with the
+   no-correction size, the scaling, real-data, and head-to-head timing studies,
+   and the max-type benchmark rerun.
+10. **Is the default stopping rule valid?** Yes: its null size is at most 0.0488
     at 999 permutations, and at the benchmark budget it never activates, so
     every benchmark P-value is a fixed-budget one. Evidence: Proposition 1.
 
@@ -120,9 +131,9 @@ Fixed-node control (Section 3); Results, the max-type threshold test (Section
   prediction and recovery ask different things of a ranking; the corrections set
   the cost and the shape of the trees, and the max-type rule is the cheaper
   opt-in. Then one guidance paragraph and one limitations paragraph.
-- **Conclusion**: one paragraph per contribution group (ranking quality; ranker
-  behavior and what the ranking rests on; cost and the max-type rule), ending on
-  the pitch.
+- **Conclusion**: two paragraphs (what CIF is as a ranker: quality, recovery,
+  what the ranking rests on, the cardinality result; what the split tests are
+  for: validity, cost, the max-type rule), ending on the pitch.
 - **Appendices**: A and B back contribution 4 (setup, assumptions, proofs); C
   and D back the benchmark (configurations, exclusions, datasets); E backs
   contribution 1 (benchmark robustness); F backs contribution 2 (where CIF is
@@ -131,14 +142,16 @@ Fixed-node control (Section 3); Results, the max-type threshold test (Section
 
 ## Caveats that travel with the story
 
-These live in the limitations paragraph and nowhere else.
+The limitations paragraph is the single place where the full set is stated; the
+regression-descriptive caveat also travels with the headline (abstract, Q2,
+results, conclusion).
 
 - The regression ordering, on 8 datasets, is descriptive.
 - The comparison of biased and unbiased importance rests on different methods
   and one ablation of the corrections, not on one switch that removes the split
   test alone; removing the corrections also deepens the trees.
-- The cardinality designs use the linear selectors, while three of the four
-  selected configurations use RDC.
+- The feature-use study and the cardinality designs use the linear selectors,
+  while three of the four selected configurations use RDC.
 - The guarantees hold at a fixed node and exclude the bootstrap samples CIF
   uses; fitted trees and forests are assessed through the benchmark.
 
@@ -164,6 +177,6 @@ the appendix.
 - Top-k results are reported as trends over list sizes or averages over them,
   never at one list size unless the design targets it.
 - The discussion interprets the answers without re-reporting tables, and the
-  limitations are the single home for caveats.
+  limitations are the single place where the full set of caveats is stated.
 - Every table and figure in the body answers one question; the rest sits in the
   appendix under the contribution it backs.

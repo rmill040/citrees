@@ -115,8 +115,8 @@ right tail and Stage~B the left tail; ties count as exceedances in both. Write
 $\alpha_{\mathrm{adj}}$ for the level of a single test,
 $\alpha_{\mathrm{sel}}/m_t$ in Stage~A and $\alpha_{\mathrm{split}}/K$ in the
 per-threshold rule when the corrections are enabled. The minimum budget gives
-each test $B=\lceil 1/\alpha_{\mathrm{adj}}\rceil$ permutations, the smallest
-budget at which a $+1$ $P$-value can fall below $\alpha_{\mathrm{adj}}$. The
+each test $B=\lceil 1/\alpha_{\mathrm{adj}}\rceil$ permutations, at which the floor
+$+1$ $P$-value $1/(B+1)$ falls below $\alpha_{\mathrm{adj}}$. The
 auto budget, the library default, gives each test
 %
 \begin{equation}
@@ -141,7 +141,7 @@ behind the two corrections, and scanning takes the first rejecting candidate in
 scan order. Adaptive stopping, the default stopping rule, checks a Beta
 posterior for the exceedance probability every 32 permutations
 \citep{BesagClifford1991SequentialMonteCarloPValues,Gandy2009SequentialImplementationMonteCarloTests};
-\cref{prop:adaptive-size} gives its exact size.
+\cref{prop:adaptive-size} bounds its size.
 
 \paragraph{Max-type rule for Stage~B.}
 The max-type rule, an opt-in alternative, tests the candidates jointly. Write
@@ -162,7 +162,8 @@ $K$, and places the split at $\arg\min_c (S_{0,c}-\mu_c)/\sigma_c$, so the two
 rules can accept different thresholds on the same feature. The implementation
 uses $B=999$, so a full scan costs of order $BK$ evaluations, fewer than the
 per-threshold rule once $K>\alpha_{\mathrm{split}}B\approx 50$, and
-\cref{cor:stageB-maxt} gives the fixed-node guarantee. This is the single-step max-T statistic of
+\cref{cor:stageB-maxt} gives the fixed-node guarantee for the full scan at fixed $B$; the adaptive
+version lies outside it (\cref{sec:theory-adaptive}). This is the single-step max-T statistic of
 \citet{WestfallYoung1993ResamplingBasedMultipleTesting}, with the empirical
 null standardization of \citet{PollardVanDerLaan2004NullDistribution}. Like the
 ctree split statistic, it standardizes each candidate before optimizing
@@ -199,8 +200,10 @@ total importance normalizes its vector to sum to one, and otherwise the vector
 remains zero; CIF sums the tree vectors and normalizes the forest vector in the
 same way. Larger importances are ranked earlier. Features never used by a split
 receive zero importance and follow in the tie order of the implementation,
-which is close to ascending column order; every synthetic generator shuffles
-its planted columns, so this order carries no information.
+which is close to descending column order. Every synthetic generator shuffles
+its base block, but the high-cardinality and correlated noise columns are
+appended after it, so on those two designs the zero-importance features of a ranking list
+the appended noise columns before any unused planted feature.
 
 This ranking differs from random forest impurity importance in how a feature
 enters threshold search. In CART-style trees, the feature and threshold are

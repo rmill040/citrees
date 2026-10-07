@@ -10,9 +10,7 @@ to A0.5, and \cref{app:theory-scope} gives the scope of each result. They
 assume that the node responses are exchangeable (A0.2), which holds for
 subsampled and unsampled fits and fails under bootstrap resampling: duplicated rows carry the
 same response, so permuting the responses over them does not reproduce the
-null law of the node sample. \citet{Strobl2007BiasRFVariableImportance} show
-that sampling with replacement biases variable selection in conditional
-inference forests, while subsampling without replacement does not.
+null law of the node sample.
 
 \begin{lemma}[$+1$ permutation $P$-values are superuniform; \citealp{HemerikGoeman2018ExactTestingRandomPermutations}]
 \label{lem:plusone-superuniform}
@@ -89,7 +87,7 @@ default is $\gamma=0.95$ and $s=32$. Let $\rho(\alpha,\gamma,s,B)$ be the
 probability of rejection when the same rule is applied to a P\'olya urn started
 from one ball of each color.
 
-\begin{proposition}[Size of the adaptive stopping rule, exact under A0.1 to A0.3 at fixed $B$]
+\begin{proposition}[Size of the adaptive stopping rule under A0.1 to A0.3 at fixed $B$]
 \label{prop:adaptive-size}
 Assume A0.1 through A0.3 at a fixed node for one permutation test whose
 statistic is a fixed function of each permuted response vector (a Stage~A test
@@ -115,8 +113,8 @@ $\rho(0.05,0.95,32,52)=0.0377$ at the auto budget of 52 from
 \cref{eq:auto-budget}, and $\rho\le 0.0496$ for every $B$ from 20 to 3{,}000.
 Under the minimum budget the first stopping check coincides with the full
 budget, so every Stage~A and per-threshold Stage~B $P$-value in the benchmark
-is a fixed-$B$ $+1$ permutation $P$-value covered by
-\cref{lem:plusone-superuniform}. The max-type rule with adaptive stopping
+is a fixed-$B$ $+1$ permutation $P$-value of the form in
+\cref{lem:plusone-superuniform}, and adaptive stopping never changes a benchmark decision. The max-type rule with adaptive stopping
 recomputes its column moments at each check and falls outside
 \cref{prop:adaptive-size}; the null simulations of \cref{sec:results-stageB}
 cover its calibration.

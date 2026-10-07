@@ -101,7 +101,8 @@ settings of \cref{sec:bootstrap} at
 $\alpha_{\mathrm{sel}}=\alpha_{\mathrm{split}}=0.05$, with the MC selector and
 Gini splitting in classification and the PC selector and MSE splitting in
 regression; the forest adds square-root feature sampling. With at most 257 candidates and at most
-5{,}140 permutations per threshold, the per-node cost is linear in $n_t$. A
+5{,}140 permutations per threshold, the per-node cost is linear in $n_t$ up to the
+$O(n_t \log n_t)$ threshold sort. A
 64-fold increase in $n$ at $p=20$ costs the tree about 68 times in
 classification and 110 times in regression, and the forest 65 to 77 times. A
 25-fold increase in $p$ at $n=2{,}000$ costs the tree 21 and 44 times, because
@@ -136,8 +137,8 @@ sampling.
   \caption{Fit-only wall-clock seconds for one CIT and one 100-tree CIF in the
   configuration of \cref{app:scaling-curves}, with adaptive stopping (Adaptive)
   and with no stopping (None), on Gaussian predictors with a weak planted
-  signal in five of them. Each entry is the median of two timed fits, each
-  preceded by one untimed identical fit. The cells with $n \ge 8{,}000$ and
+  signal in five of them. Each entry is the median of two timed fits on two
+  data draws, after one untimed fit of the same cell. The cells with $n \ge 8{,}000$ and
   $p=500$ were not run. Tree depth is unbounded, so the forest times are not
   comparable with the depth-3 forests of the head-to-head timing.}
   \label{tab:scaling-curves}
@@ -154,5 +155,6 @@ On the 14 Benchmark-size datasets of \cref{sec:results-practical}, switching
 adaptive stopping off changes tree time by 0.80 to 1.01 (medians 0.97 in
 classification and 0.88 in regression) and forest time by 0.99 to 1.34
 (medians 1.00 and 1.03). For the tree, threshold scanning saves a median 17
-times in classification and 45 times on spam, and removing the corrections
+times in classification (45 times on spam and nothing on gisette, 0.96) and 2.8
+times in regression, and removing the corrections
 gives 0.01 to 1.26 of the reference time.

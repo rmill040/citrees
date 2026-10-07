@@ -175,9 +175,10 @@ rejection probability $g(\theta)$ is a fixed function of $\theta$.
 \paragraph{Monotonicity.} The function $g$ is nonincreasing. Flipping one
 indicator from zero to one raises $e$ at every later boundary. A futility stop
 (posterior mass at least $\gamma$ above $\alpha$) can then only come earlier, and
-a significance stop (mass at least $\gamma$ below $\alpha$) only later. At a
-significance stop or at the full budget, the reported value $(e+1)/(r+1)$ is at
-least as large on the flipped path. The remaining step, that a significance stop
+a significance stop (mass at least $\gamma$ below $\alpha$) only later. At the full
+budget, the reported value $(e+1)/(B+1)$ is at least as large on the flipped
+path, and every earlier stop of the flipped path is a significance stop that
+the original path also reaches or precedes. The remaining step, that a significance stop
 reports a value strictly below $\alpha$ and a futility stop a value at least
 $\alpha$, is the hypothesis of the proposition.
 
@@ -204,7 +205,7 @@ size can exceed the level: $\rho(0.05,0.80,32,999)=0.0522$. At the corrected
 levels of the two benchmark examples of \cref{sec:stageA-stageB}, $\rho$ stays
 below the level. At $\alpha/20$ it is
 $0.00249$ at the minimum budget of 400 and $0.00221$ at the auto budget of
-3{,}144, and at $\alpha/257$ it is $0.000195$ at the minimum budget of 5{,}140
+3{,}144, and at $\alpha/257$ it is $0.0001945$ (level $0.0001946$) at the minimum budget of 5{,}140
 and $0.000181$ at the auto budget of 64{,}669. These values are for the strict
 rule the implementation uses. Under the nonstrict convention, which rejects
 when the reported value is at most $\alpha$, the bound $\rho \le \alpha$ fails

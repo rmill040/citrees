@@ -10,8 +10,8 @@ which prefers features with many possible thresholds, gives 500-level noise
 references of 0.18, 0.24, and 0.30, the same pattern in regression, and never
 selects binary noise. Per-threshold CIF stays close to the reference in
 classification and leans toward binary noise in regression, with binary shares
-of 0.34, 0.40, and 0.39 against 0.27, 0.31, and 0.33; the max-type rule brings
-them to 0.30, 0.30, and 0.33. Less cardinality preference does not recover more
+of 0.34, 0.40, and 0.39 against 0.27, 0.31, and 0.33; the max-type rule gives
+0.30, 0.30, and 0.33 against its own references of 0.23, 0.28, and 0.32. Less cardinality preference does not recover more
 informative features: at every signal and list size, random forest impurity
 importance places at least as many informative features in its top $k$ as CIF,
 and the downstream scores of the four rankings differ by at most 0.02 in 17 of
@@ -24,12 +24,12 @@ costs by changing one setting at a time; time ratios above 1 are slower.
 Removing both corrections cuts
 forest time to 0.03 to 0.34 of the reference, but it changes the statistical
 rule as well. It deepens single trees from a mean of 6.5 and 7.2 levels to 10.7
-and 13.4 in classification and regression, and its effect on CIT recovery
-depends on the list size: in classification the share of informative features
-in the top 5 falls from 0.64 to 0.44 and in the top 10 by 0.06, while in the top
-25, 50, and 100 it rises by 0.039, 0.019, and 0.003, and in regression it rises
-at every list size, by 0.004 to 0.040. The CIF downstream score moves by at
-most 0.004. The selected configuration keeps both corrections.
+and 13.4 in classification and regression. Its effect on CIT recovery depends
+on the list size. In classification the share of informative features falls
+from 0.64 to 0.44 in the top 5 and by 0.06 in the top 10, and rises by 0.039,
+0.020, and 0.003 in the top 25, 50, and 100; in regression it rises at every
+list size, by 0.004 to 0.040. The CIF downstream score moves by at
+most 0.005. The selected configuration keeps both corrections.
 \Cref{app:complexity-details} gives the work terms each change affects.
 
 \begin{table}[tb]
@@ -42,36 +42,40 @@ most 0.004. The selected configuration keeps both corrections.
     \cmidrule(lr){2-3}\cmidrule(l){4-6}
     \tablehead{Change} & Time ratio & \shortstack{Recovery\\change} & Time ratio & \shortstack{Downstream\\change} & \shortstack{Recovery\\change} \\
     \midrule
-    Remove both corrections & 0.52 to 1.8 & $\le 0.039$ & 0.03 to 0.34 & $\le 0.004$ & $\le 0.011$ \\
-    Max-type Stage~B rule & & & 0.14 to 0.61 & $\le 0.005$ & $\le 0.007$ \\
+    Remove both corrections & 0.56 to 1.8 & $\le 0.039$ & 0.03 to 0.34 & $\le 0.005$ & $\le 0.011$ \\
+    Max-type Stage~B rule & & & 0.14 to 0.61$^{\dagger}$ & $\le 0.005$ & $\le 0.007$ \\
     \addlinespace
-    Disable threshold scanning & 2.7 to 34 & $\le 0.017$ & 7.9 to 30 & $\le 0.003$ & $\le 0.010$ \\
-    Disable feature scanning & 0.81 to 3.0 & $\le 0.021$ & 1.0 to 5.2 & $\le 0.003$ & $\le 0.008$ \\
+    Disable threshold scanning & 2.9 to 35 & $\le 0.017$ & 7.9 to 30 & $\le 0.003$ & $\le 0.011$ \\
+    Disable feature scanning & 0.94 to 2.7 & $\le 0.021$ & 1.0 to 5.1 & $\le 0.004$ & $\le 0.008$ \\
     \addlinespace
     Disable adaptive stopping & 0.88 to 0.99 & 0 & 0.96 to 1.00 & 0 & 0 \\
-    Auto budget, adaptive stopping & 1.18 to 1.56 & $\le 0.008$ & 1.30 to 2.0 & & $\le 0.030$ \\
-    Auto budget, no stopping & 3.8 to 8.2 & $\le 0.005$ & 5.8 to 15 & & $\le 0.025$ \\
+    Auto budget, adaptive stopping & 1.16 to 1.57 & $\le 0.008$ & 1.31 to 1.98 & & $\le 0.008$ \\
+    Auto budget, no stopping & 3.7 to 7.8 & $\le 0.005$ & 5.8 to 15 & & $\le 0.005$ \\
     \addlinespace
-    Exact threshold search & 0.91 to 1.10 & $\le 0.005$ & 1.3 to 19 & $\le 0.009$ & $\le 0.018$ \\
-    Histogram with 32 bins & & & 0.05 to 0.14 & $\le 0.008$ & $\le 0.013$ \\
+    Exact threshold search & 0.96 to 1.10 & $\le 0.005$ & 0.98 to 10 & $\le 0.009$ & $\le 0.018$ \\
+    Histogram with 32 bins & & & 0.04 to 0.84 & $\le 0.009$ & $\le 0.014$ \\
     \addlinespace
-    Disable feature muting & 0.97 to 0.98 & 0 & 0.91 to 1.00 & $\le 0.001$ & $\le 0.003$ \\
+    Disable feature muting & 0.98 to 0.99 & 0 & 0.91 to 1.00 & $\le 0.001$ & $\le 0.003$ \\
     Disable bootstrap sampling & & & 0.94 to 1.69 & $\le 0.012$ & $\le 0.011$ \\
     \bottomrule
   \end{tabular}
   \caption{Runtime ablations of CIT and CIF on the runtime panel of 23 datasets
   (15 classification and 8 regression; 9 real and 14 synthetic), five seeds per
-  dataset. Time ratios are medians over datasets of the per-dataset ratio to
-  the selected configuration of the same estimator, given as the range over
+  dataset. Time ratios are medians over datasets of the per-dataset ratio of
+  mean times over seeds to the reference configuration of the same estimator, given as the range over
   the four task groups (classification and regression, real and synthetic).
   Recovery is the share of the top $k$ features that are planted informative
   features on the synthetic datasets, averaged over $k=5$, 10, 25, 50, and 100.
   Score columns give the largest absolute change across task groups in
   recovery for CIT and CIF and in the dataset-mean downstream score for CIF,
   rounded upward to 0.001; the auto-budget runs record recovery but no
-  downstream score. Empty cells are settings that do not apply to, or were not
-  ablated for, that estimator. Every time is the second of two identical fits,
-  so compilation is excluded.}
+  downstream score, and the CIF threshold-search rows score the top 10 only.
+  Empty cells are settings that do not apply to, or were not
+  ablated for, that estimator. CIT times and the CIF auto-budget and
+  threshold-search times are the second of two identical fits. The other CIF
+  times are the first fit after a shared warm-up; $^{\dagger}$the warm-up does
+  not compile the max-type kernel, so these times include compilation and the
+  lower end of the range is too high.}
   \label{tab:runtime-ablations}
 \end{table}
 
@@ -79,19 +83,20 @@ Adaptive stopping recovers none of this cost at the minimum budget, where it is
 inert by construction (\cref{sec:theory-adaptive}). Switching it off leaves
 every tree unchanged, so the ratios near 1 measure only the cost of the check,
 and a forest run on one worker with the full thread pool inside each tree gives
-the same result (0.95 to 1.01). At the auto budget, where the rule can act, adaptive stopping
-brings the tree to 0.14 to 0.37 and the forest to 0.11 to 0.25 of their time
-with no stopping, with recovery changes of at most 0.030.
+the same result (0.96 to 0.98 on the 21 datasets of that run). At the auto budget, where the rule can act, adaptive stopping
+brings the tree to 0.14 to 0.38 and the forest to 0.11 to 0.33 of their time
+with no stopping, with recovery changes of at most 0.008.
 
 Of the runtime controls, the threshold scan has the largest effect: testing
 candidates in order of weighted child impurity and stopping at the first
 rejection saves the most, since the threshold correction gives each of the $K$
-candidates a budget that grows with $K$. The candidate count comes next. For the forest,
-exact threshold search is 1.3 to 19 times slower than the 256-bin histogram,
-and a 32-bin histogram is 7 to 21 times faster, with downstream changes of at
-most 0.009. Feature scanning, the Stage~A
+candidates a budget that grows with $K$. For the forest, the candidate count
+comes next: exact threshold search takes 0.98 to 10 times the time of the
+256-bin histogram, and a 32-bin histogram is 1.2 to 25 times faster, with
+downstream changes of at most 0.009. Feature scanning, the Stage~A
 counterpart of the threshold scan, matters most on the real regression
-datasets. The pattern holds on the 14 Benchmark-size datasets, with up to 20,000
+datasets. The threshold scan, the corrections, and adaptive stopping show the
+same pattern on the 14 Benchmark-size datasets, with up to 20,000
 observations and 5,000 features (\cref{app:scaling-curves}). The slowest single
 tree is gisette at 29 minutes, where the feature correction over 5,000 features
 sets a large minimum budget for each feature test.

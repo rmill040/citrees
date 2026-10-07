@@ -13,7 +13,7 @@ carries none, as in the clinical application of
 Prediction and recovery ask different things of a ranking, which is how CIF
 predicts well without leading on recovery (\cref{sec:boundary}). A top-$k$ list
 predicts well when it holds informative features or correlated proxies for
-them, and the small support of CIF keeps most planted features. Its weak points
+them, and the support of CIF keeps most planted features. Its weak points
 are where the first few places carry the score and where square-root feature
 sampling hides informative features from most nodes; evaluating every
 nonconstant feature at each node, as CIF-all does, is the remedy the feature-use
@@ -32,7 +32,7 @@ Judge a CIF ranking through the downstream model that will use its features,
 choosing $k$ on held-out data over a few values that include the intended
 feature budget and, when feasible, the full feature set. Keep random forests,
 ExtraTrees, and boosted trees in the comparison set, and for variable screening
-add Boruta, permutation or conditional permutation importance, and RF-RFE
+add Boruta and RF-RFE
 \citep{GenuerPoggiTuleauMalot2010VariableSelectionUsingRandomForests}. In
 sparse wide data, monitor feature use through top-$k$ stability across seeds,
 splits on known positive control or null features, and the change under a
@@ -43,7 +43,9 @@ downstream.
 \paragraph{Limitations.}
 The fixed-node results cover one node whose sample, tested features, and
 permutation budget are fixed independently of the node responses, in subsampled
-or unsampled fits, and exclude the bootstrap samples that CIF uses. Fitted trees
+or unsampled fits, and exclude the bootstrap samples that CIF uses, which bias
+variable selection in conditional inference forests
+\citep{Strobl2007BiasRFVariableImportance}. Fitted trees
 and forests add response-dependent choice of nodes, testing of the Stage~A
 winner at Stage~B, feature muting, and aggregation; they are assessed through
 the benchmark, and their stored Stage~B score is a screening statistic
@@ -57,7 +59,7 @@ means. No ablation removes the corrections without also deepening the trees, so
 their effect on the ranking cannot be separated from that of tree depth, and
 the comparison of biased and unbiased importance rests on different methods
 rather than on one switch that removes the split test alone. The
-cardinality designs use the linear selectors (MC and PC), while three
+feature-use study and the cardinality designs use the linear selectors (MC and PC), while three
 of the four selected configurations use RDC. CIF-all was not scored downstream. CPI
 ranks last in both tasks after a correction to its correlation threshold, and
 its position is provisional. The downstream learners are three untuned models,

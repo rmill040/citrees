@@ -31,7 +31,8 @@ predict from its top-$k$ features, a feature-selection benchmark separate from
 work on trees and forests as direct predictors or causal estimators
 \citep{Breiman2001RandomForests,WagerAthey2018CausalForests,AtheyTibshiraniWager2019GeneralizedRandomForests}.
 For the second question, the theory shows that each split test controls its
-level at a fixed node, so the ablations measure the cost of valid tests.
+level at a fixed node, whether the tree is grown on a subsample or on all
+rows, and the ablations measure what those tests cost.
 
 \paragraph{Contributions.}
 This paper provides four things.
@@ -40,24 +41,25 @@ This paper provides four things.
   prediction on 31 real datasets, with 15 and 16 competing rankers per task and
   checks that the result is not an artifact of the setup
   (\cref{sec:experiments-real}). CIF matches random forests and outranks the
-  other conditional inference methods, and this holds under configuration
-  reselection, across downstream learners, values of $k$, and seeds, and with
-  CIF and cforest ranked by one importance measure; the usual remedies for the
-  random forest's cardinality bias fall below the forest itself.
+  other conditional inference methods. In classification this holds under
+  configuration reselection, across downstream learners, values of $k$, and
+  seeds, and with CIF and cforest ranked by one importance measure, and the
+  usual remedies for the random forest's cardinality bias rank below the forest
+  itself.
   \item An analysis of how the CIF ranker behaves and where it is weaker
   (\cref{sec:boundary}). Where the informative features are known, CIF's
-  recovery of them ranks mid-field at every list size. Its ranking rests on the
-  ensemble, and in sparse wide data feature sampling keeps informative features
-  out of most splits.
+  recovery of them is mid-field in classification and lower in regression. Its ranking rests on
+  the ensemble, and in sparse wide data feature sampling excludes informative
+  features from most splits.
   \item An account of what the statistical machinery changes and costs
   (\cref{sec:results-practical}). Unbiased split selection removes the random
   forest's preference for many-valued features but improves neither recovery
-  nor prediction, and the two Bonferroni corrections behind it cost of order
+  nor prediction, and the two Bonferroni corrections in its split tests cost of order
   $m_t^2/\alpha$ permutations per node in the feature test and $K^2/\alpha$ in
   the threshold test.
   \item A cheaper threshold test with guarantees
   (\cref{sec:theory,sec:results-stageB}). Testing all candidate thresholds
   jointly, the max-type test stays valid at a fixed node for a fraction of the
   cost; the paper also proves the fixed-node validity of every split test and
-  derives the exact null size of the default adaptive stopping rule.
+  bounds the null size of the default adaptive stopping rule.
 \end{enumerate}

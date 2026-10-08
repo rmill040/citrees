@@ -42,8 +42,8 @@ Results, ranking quality (Section 5.1); appendix on benchmark robustness.
 3. **Is the margin over cforest only a different importance measure?** No:
    ranked by cforest's own out-of-bag permutation importance, CIF keeps its
    classification margin. Evidence: the mechanism-matched check.
-4. **Is the random forest good only because of its biased importance?** No: the
-   standard remedies for that bias rank below it. In classification the random
+4. **Is the random forest good only because of its biased importance?** No:
+   permutation-based importance ranks below it. In classification the random
    forest ranked by out-of-bag permutation importance is 8th of 18, and cforest,
    permutation importance and conditional permutation importance are 9th, 12th
    and 17th of 17 (10th, 13th and 18th of 18 with RF permutation present).

@@ -10,7 +10,7 @@ defines conditional inference changes which noise features enter a ranking but
 not how well it recovers or predicts.
 
 The split tests decide when a node splits, and they set the cost of a fit.
-CIF thus matches random forests as a feature ranker while splitting only when a
-permutation test rejects. Those tests hold their level at a fixed node when a
-tree is grown on a subsample or on all rows, and the max-type threshold test
-makes them affordable.
+They hold their level at a fixed node in trees grown on
+all rows, which covers CIT as benchmarked but not the bootstrap forests, whose
+rankings are judged by the benchmark alone. The max-type threshold test keeps
+that guarantee at a fraction of the cost.

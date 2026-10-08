@@ -15,9 +15,9 @@ predicts well without leading on recovery (\cref{sec:boundary}). A top-$k$ list
 predicts well when it holds informative features or correlated proxies for
 them, and the support of CIF keeps most planted features. Its weak points
 are where the first few places carry the score and where square-root feature
-sampling hides informative features from most nodes; evaluating every
-nonconstant feature at each node, as CIF-all does, is the remedy the feature-use
-study points to.
+sampling hides informative features from most nodes. The feature-use
+study suggests checking CIF-all, which evaluates every nonconstant feature at
+each node.
 
 The corrections set the cost of a fit and the shape of its trees, and where the
 cost sits depends on the estimator. For forests at 256 bins it sits in the

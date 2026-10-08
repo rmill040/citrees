@@ -40,12 +40,12 @@ This paper provides four things.
   \item A benchmark of the ranking quality of CIT and CIF for downstream
   prediction on 31 real datasets, with 15 and 16 competing rankers per task and
   checks that the result is not an artifact of the setup
-  (\cref{sec:experiments-real}). CIF matches random forests and outranks the
-  other conditional inference methods. In classification this holds under
+  (\cref{sec:experiments-real}). CIF is competitive with random forests and ranks
+  ahead of the other conditional inference methods. In classification this holds under
   configuration reselection, across downstream learners, values of $k$, and
-  seeds, and with CIF and cforest ranked by one importance measure, and the
-  usual remedies for the random forest's cardinality bias rank below the forest
-  itself.
+  seeds, and with CIF and cforest ranked by one importance measure, and
+  permutation-based importance ranks below the random forest's impurity
+  importance.
   \item An analysis of how the CIF ranker behaves and where it is weaker
   (\cref{sec:boundary}). Where the informative features are known, CIF's
   recovery of them is mid-field in classification and lower in regression. Its ranking rests on

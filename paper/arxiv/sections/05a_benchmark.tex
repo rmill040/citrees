@@ -136,8 +136,8 @@ Two checks address the importance measure. Ranked by cforest's own out-of-bag
 permutation importance, CIF leads cforest in classification by $+0.012$ mean
 and $+0.006$ median balanced accuracy, with 15 wins in 20 datasets, against
 $+0.011$ for split-ranked CIF, so the classification margin persists under a
-common importance mechanism. The standard remedies for the cardinality bias of
-impurity importance rank below the random forest itself. A 100-tree forest ranked by
+common importance mechanism. Permutation-based importance ranks below the random
+forest's impurity importance. A 100-tree forest ranked by
 out-of-bag permutation importance (RF permutation in
 \cref{tab:conditional-inference-comparisons}) places 8th of 18 in classification
 and 6th of 19 in regression, against 2nd and 5th for the benchmark forest's

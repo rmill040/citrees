@@ -14,6 +14,9 @@ Examples:
 - `audit_hash_alias_manifest.py` checks artifact hash alias bookkeeping.
 - `run_dt_rt_ranked_feature_check.py` verifies decision-tree and random-tree
   ranked-feature outputs.
+- `audit_manuscript_text.py` checks the arXiv manuscript text: numbers dropped
+  since a baseline commit, phrases repeated across sections, and sentences
+  reused verbatim from v1.
 
 Do not use this directory as a source of truth for manuscript claims. For locked
 result numbers and table status, use `paper/results/tables/README.md`.

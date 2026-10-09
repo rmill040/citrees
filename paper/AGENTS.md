@@ -264,3 +264,30 @@ c6a.8xlarge host after about two hours without a Python exception. AWS
 reproduced the failure on 2026-09-13 (host fault, cause not identified at the
 time of writing). These cells are never launched; the manuscripts report them as
 host-fault exclusions.
+
+## Standing rules
+
+- Every EC2 launch targets the loaner droplets (`launch_on_droplets.py`,
+  archived under `reference/v3/provenance/launch-scripts/droplets/` in S3, at
+  most six instances per droplet). Never launch untargeted on-demand or spot
+  instances. Per-dataset checkpoints cover reboot risk.
+- Timing numbers in either paper come only from c6a.8xlarge runs in the pinned
+  container built from d6c0696 or later; laptop times never enter a manuscript.
+- Timing and performance work uses the linear selectors (`mc`, `pc`). The
+  accuracy benchmark keeps its selected configurations, including RDC.
+- `threshold_test="maxt"` stays opt-in; `bonferroni` is the default and the
+  benchmark rankings are Bonferroni rankings.
+- Every experiment has a 48-hour wall-clock budget from launch; boxes
+  self-terminate and whatever is incomplete is censored.
+- Commit before launching any replication run; the JSS suite aborts if HEAD
+  changes mid-run.
+
+## Data layout
+
+All citrees data lives in one bucket, `citrees-837116549485`: `reference/v3/` is
+the canonical data release and `archive/<source bucket>/` holds verified dumps
+of every earlier citrees bucket. `archive/local-data-mirror-2026-09-23/` is a
+copy of `../data` before it was pruned to the on-grid configurations and the
+inputs the builders read. The bucket also keeps noncurrent versions of its own
+pre-consolidation prefixes, duplicates of `archive/citrees-837116549485/`, which
+are retained on purpose.

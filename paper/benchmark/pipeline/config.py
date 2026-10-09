@@ -198,8 +198,7 @@ REG_CIF_GRID: dict[str, list[Any]] = {
 
 # Max-type Stage B extension. These grids equal the CIT/CIF grids plus an explicit
 # threshold_test="maxt" axis and are registered under separate method names so the
-# completed Bonferroni artifacts keep their identities. See TODO.md, Deferred
-# migrations, for the planned fold back into a single threshold_test axis.
+# completed Bonferroni artifacts keep their identities.
 _MAXT_STAGE_B: dict[str, list[Any]] = {"threshold_test": ["maxt"]}
 
 CLF_CIT_MAXT_GRID: dict[str, list[Any]] = {**CLF_CIT_GRID, **_MAXT_STAGE_B}

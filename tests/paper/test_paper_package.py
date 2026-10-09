@@ -172,7 +172,7 @@ def test_adaptive_stopping_summary_matches_reported_bounds():
 
     assert set(rows["task"]) == {"classification", "regression"}
     assert set(rows["dataset_group"]) == {"real", "synthetic"}
-    # Reported in the arXiv v3 runtime table: adaptive stopping is inert at the
+    # Reported in the arXiv runtime table: adaptive stopping is inert at the
     # minimum budget (0.96--0.99x) with no downstream score change.
     assert rows["runtime_ratio_vs_default"].min() >= 0.90
     assert rows["runtime_ratio_vs_default"].max() <= 1.05

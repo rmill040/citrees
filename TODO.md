@@ -62,11 +62,6 @@ same day.
       pre-consolidation root prefixes, duplicates of
       `archive/citrees-837116549485/`; purge them once the layout is settled.
 
-## Code debt
-
-- [ ] Delete `build_cit_runtime_ablation_summary_tables.py` after v3 (superseded
-      by the experiment module's `summarize`).
-
 ## Deferred migrations
 
 - [ ] Fold `cit_maxt`/`cif_maxt` back into `cit`/`cif` under a single

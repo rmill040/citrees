@@ -16,14 +16,14 @@ Tracked tables:
   timing, sklearn RF included), kept as the baseline the one-pass run is
   compared with.
 - `paper_maxt_extension_{method_aggregate,pairwise,swap_aggregate}.csv`: the
-  max-type ranking extension of the benchmark (arXiv Table
-  `tab:maxt-benchmark-rankings`). Built by
+  max-type ranking extension of the benchmark (the max-type rows of arXiv
+  Table `tab:method-main-comparison`). Built by
   `paper/analysis/build_maxt_extension_tables.py`.
 - `paper_cit_runtime_ablation_summary.csv`: CIT runtime ablation (seven
   variants, 23 datasets, five seeds) from the 2026-09-19 rerun that times the
   second of two identical fits; built by
   `build_cit_runtime_ablation_summary_tables.py` from the raw shards archived
-  under `reference/v3/ablations/review5/`. arXiv `tab:cit-runtime-hyperparams`.
+  under `reference/v3/ablations/review5/`. arXiv `tab:runtime-ablations`.
 - `cit_autobudget_ablation_summary.csv`: CIT at the `auto` permutation budget with
   and without adaptive stopping (2026-09-13 run; the 2026-09-19 second-fit rerun
   under `reference/v3/ablations/review5/` gives 1.18-1.56 and 3.8-8.2, which is
@@ -31,6 +31,10 @@ Tracked tables:
 - `paper_threshold_test_calibration_5seeds.csv`: Stage B null false-split rates
   pooled over seeds 0-4 (10,000 replications per cell) with Clopper-Pearson
   intervals.
+- `paper_benchmark_lodo_{aggregate,config_stability,selected_configs}_allmethod.csv`:
+  leave-one-dataset-out configuration reselection on the all-method panels
+  (arXiv `tab:lodo-config-sensitivity-allmethod`). Built by
+  `paper/analysis/build_lodo_config_sensitivity_tables.py`.
 - `locked_cells` are listed in `paper/benchmark/config/locked_cells.csv`, not here.
 - `paper_mirrored_knob_ablation_summary.csv` and
   `paper_threshold_ablation_summary.csv`: CIF knob and threshold-search
@@ -63,7 +67,7 @@ Tracked tables:
 - `paper_stageb_scaling_3arm_5seeds.csv`: the Stage B scaling grid with all
   three arms (scaled Bonferroni, fixed 999, max-type) timed in one five-seed
   pass with the second-fit protocol (2026-09-19). arXiv `tab:stageB-scaling`
-  and `tab:stageB-fixed-budget`.
+  and the fixed-budget sentence of Appendix H.
 - `paper_threshold_test_real_5seeds_balanced.csv`: the six-dataset Stage B
   real-data study rerun at five seeds scoring classification by balanced
   accuracy, with depth (2026-09-20). arXiv `tab:stageB-real`.
@@ -87,7 +91,8 @@ Tracked tables:
 - Review-round-3 control experiments (EC2, 2026-09-17; built by
   `paper/analysis/build_review3_tables.py` from `reference/v3/ablations/review3/`):
   `paper_stageb_fixed_budget.csv` (per-threshold Bonferroni at a fixed 999
-  permutations per candidate: size, power, depth; arXiv `tab:stageB-fixed-budget`),
+  permutations per candidate: size, power, depth; the fixed-budget sentence of
+  arXiv Appendix H),
   `paper_behavior_scanning_control.csv` (JSS matched-behavior
   positive control with scanning on), `paper_performance_equal_work.csv` (the
   88-shard exhaustive performance campaign at 999 permutations per predictor in

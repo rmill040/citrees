@@ -212,39 +212,6 @@ def stratified_bootstrap_sample(
     return np.concatenate(idx)
 
 
-def stratified_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, random_state: int
-) -> np.ndarray:
-    """Unsampled indices for stratified bootstrap sampling in classification.
-
-    Parameters
-    ----------
-    y : np.ndarray
-        Input data.
-
-    max_samples : int
-        Maximum number of samples in a bootstrap sample.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    np.ndarray
-        Indices for bootstrap sample.
-
-    """
-    idx_sampled = stratified_bootstrap_sample(
-        y=y,
-        max_samples=max_samples,
-        random_state=random_state,
-    )
-    idx_all = np.arange(len(y), dtype=int)
-    idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
-
-    return idx_unsampled
-
-
 def undersample_bootstrap_sample(
     *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
@@ -298,21 +265,6 @@ def undersample_bootstrap_sample(
     return np.concatenate(idx)
 
 
-def undersample_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, random_state: int
-) -> np.ndarray:
-    """Unsampled indices for class-balanced undersampling."""
-    idx_sampled = undersample_bootstrap_sample(
-        y=y,
-        max_samples=max_samples,
-        random_state=random_state,
-    )
-    idx_all = np.arange(len(y), dtype=int)
-    idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
-
-    return idx_unsampled
-
-
 def oversample_bootstrap_sample(
     *, y: np.ndarray, max_samples: int, random_state: int
 ) -> np.ndarray:
@@ -360,21 +312,6 @@ def oversample_bootstrap_sample(
     return np.concatenate(idx) if idx else np.empty(0, dtype=int)
 
 
-def oversample_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, random_state: int
-) -> np.ndarray:
-    """Unsampled indices for class-balanced oversampling."""
-    idx_sampled = oversample_bootstrap_sample(
-        y=y,
-        max_samples=max_samples,
-        random_state=random_state,
-    )
-    idx_all = np.arange(len(y), dtype=int)
-    idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
-
-    return idx_unsampled
-
-
 def classic_bootstrap_sample(*, y: np.ndarray, max_samples: int, random_state: int) -> np.ndarray:
     """Return indices for classic bootstrapping.
 
@@ -403,36 +340,3 @@ def classic_bootstrap_sample(*, y: np.ndarray, max_samples: int, random_state: i
     if max_samples < n:
         idx = prng.choice(idx, size=max_samples, replace=False)
     return idx
-
-
-def classic_bootstrap_unsampled_idx(
-    *, y: np.ndarray, max_samples: int, random_state: int
-) -> np.ndarray:
-    """Unsampled indices for classic bootstrapping.
-
-    Parameters
-    ----------
-    y : np.ndarray
-        Input data.
-
-    max_samples : int
-        Maximum number of samples in a bootstrap sample.
-
-    random_state : int
-        Random seed.
-
-    Returns
-    -------
-    np.ndarray
-        Indices for bootstrap sample.
-
-    """
-    idx_sampled = classic_bootstrap_sample(
-        y=y,
-        max_samples=max_samples,
-        random_state=random_state,
-    )
-    idx_all = np.arange(len(y), dtype=int)
-    idx_unsampled = np.setdiff1d(idx_all, idx_sampled)
-
-    return idx_unsampled

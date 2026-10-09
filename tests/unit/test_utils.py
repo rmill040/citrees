@@ -11,16 +11,12 @@ from citrees._utils import (
     _allocate_samples,
     calculate_max_value,
     classic_bootstrap_sample,
-    classic_bootstrap_unsampled_idx,
     estimate_mean,
     estimate_proba,
     oversample_bootstrap_sample,
-    oversample_bootstrap_unsampled_idx,
     split_data,
     stratified_bootstrap_sample,
-    stratified_bootstrap_unsampled_idx,
     undersample_bootstrap_sample,
-    undersample_bootstrap_unsampled_idx,
 )
 
 pytestmark = pytest.mark.other
@@ -183,19 +179,6 @@ class TestClassicBootstrapSample:
         assert np.array_equal(idx1, idx2)
 
 
-class TestClassicBootstrapUnsampledIdx:
-    """Tests for classic_bootstrap_unsampled_idx function."""
-
-    def test_returns_unsampled(self):
-        """Test returns unsampled indices."""
-        y = np.array([0, 0, 0, 1, 1, 1])
-        idx_unsampled = classic_bootstrap_unsampled_idx(y=y, max_samples=len(y), random_state=42)
-        idx_sampled = classic_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
-        # Unsampled indices should not be in sampled indices
-        for i in idx_unsampled:
-            assert i not in idx_sampled
-
-
 class TestStratifiedBootstrapSample:
     """Tests for stratified_bootstrap_sample function."""
 
@@ -225,18 +208,6 @@ class TestStratifiedBootstrapSample:
         assert (y_sampled == 2).sum() > 0
 
 
-class TestStratifiedBootstrapUnsampledIdx:
-    """Tests for stratified_bootstrap_unsampled_idx function."""
-
-    def test_returns_unsampled(self):
-        """Test returns unsampled indices."""
-        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx_unsampled = stratified_bootstrap_unsampled_idx(y=y, max_samples=len(y), random_state=42)
-        idx_sampled = stratified_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
-        for i in idx_unsampled:
-            assert i not in idx_sampled
-
-
 class TestUndersampleBootstrapSample:
     """Tests for undersample_bootstrap_sample function."""
 
@@ -255,20 +226,6 @@ class TestUndersampleBootstrapSample:
         assert len(idx) == 5
         y_sampled = y[idx]
         assert abs(int((y_sampled == 0).sum()) - int((y_sampled == 1).sum())) <= 1
-
-
-class TestUndersampleBootstrapUnsampledIdx:
-    """Tests for undersample_bootstrap_unsampled_idx function."""
-
-    def test_returns_unsampled(self):
-        """Returned indices should not appear in the sampled multiset."""
-        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx_unsampled = undersample_bootstrap_unsampled_idx(
-            y=y, max_samples=len(y), random_state=42
-        )
-        idx_sampled = undersample_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
-        for i in idx_unsampled:
-            assert i not in idx_sampled
 
 
 class TestOversampleBootstrapSample:
@@ -292,18 +249,6 @@ class TestOversampleBootstrapSample:
         counts = np.array([(y_sampled == c).sum() for c in [0, 1, 2]], dtype=int)
         assert counts.sum() == 9
         assert counts.max() - counts.min() <= 1
-
-
-class TestOversampleBootstrapUnsampledIdx:
-    """Tests for oversample_bootstrap_unsampled_idx function."""
-
-    def test_returns_unsampled(self):
-        """Returned indices should not appear in the sampled multiset."""
-        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        idx_unsampled = oversample_bootstrap_unsampled_idx(y=y, max_samples=len(y), random_state=42)
-        idx_sampled = oversample_bootstrap_sample(y=y, max_samples=len(y), random_state=42)
-        for i in idx_unsampled:
-            assert i not in idx_sampled
 
 
 class TestUtilsPyFunc:
